@@ -15,6 +15,7 @@ export default defineManifest({
 		'scripting',
 		'activeTab'
 	],
+	// host_permissions: ['https://*.domo.com/*'],
 	action: {
 		default_icon: {
 			48: 'public/logo.png'
@@ -28,7 +29,8 @@ export default defineManifest({
 	content_scripts: [
 		{
 			js: ['src/content/main.jsx'],
-			matches: ['https://*/*']
+			matches: ['https://*/*'],
+			run_at: 'document_idle'
 		}
 	],
 	side_panel: {
