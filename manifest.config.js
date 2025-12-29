@@ -13,9 +13,10 @@ export default defineManifest({
 		'contentSettings',
 		'storage',
 		'scripting',
-		'activeTab'
+		'activeTab',
+		'clipboardRead'
 	],
-	// host_permissions: ['https://*.domo.com/*'],
+	host_permissions: ['https://*.domo.com/*'],
 	action: {
 		default_icon: {
 			48: 'public/logo.png'
@@ -28,8 +29,8 @@ export default defineManifest({
 	},
 	content_scripts: [
 		{
-			js: ['src/content/main.jsx'],
-			matches: ['https://*/*'],
+			js: ['src/contentScript.js'],
+			matches: ['https://*.domo.com/*'],
 			run_at: 'document_idle'
 		}
 	],

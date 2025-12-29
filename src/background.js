@@ -3,7 +3,7 @@ chrome.runtime.onInstalled.addListener((details) => {
 	console.log('Extension installed:', details);
 
 	// Set default configurations
-	chrome.storage.local.get(null, (result) => {
+	chrome.storage.sync.get(null, (result) => {
 		const defaultConfigs = {
 			'Activity Log': {
 				activityLogCardId: 2019620443,
@@ -15,7 +15,7 @@ chrome.runtime.onInstalled.addListener((details) => {
 		// Only set defaults if no existing configuration
 		for (const [bookmarkletName, config] of Object.entries(defaultConfigs)) {
 			if (!result[bookmarkletName]) {
-				chrome.storage.local.set({ [bookmarkletName]: config });
+				chrome.storage.sync.set({ [bookmarkletName]: config });
 			}
 		}
 	});
@@ -41,6 +41,26 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 			});
 		return true; // Keep message channel open for async response
 	}
+
+	// if (request.action === 'objectTypeDetected') {
+	// 	// Log detected object type
+	// 	console.log('Object detected:', {
+	// 		type: request.objectType,
+	// 		id: request.objectId,
+	// 		url: request.url
+	// 	});
+
+	// 	// Store in chrome.storage for access from popup/sidepanel
+	// 	chrome.storage.local.set({
+	// 		currentObjectType: request.objectType,
+	// 		currentObjectId: request.objectId,
+	// 		lastDetectedUrl: request.url,
+	// 		lastDetectedTime: Date.now()
+	// 	});
+
+	// 	return false;
+	// }
+
 	return false;
 });
 
