@@ -3029,7 +3029,7 @@ vite-plugin-zip-pack@^1.2.4:
   dependencies:
     jszip "^3.10.1"
 
-vite@^7.0.5:
+vite@^7.3.0:
   version "7.3.0"
   resolved "https://registry.yarnpkg.com/vite/-/vite-7.3.0.tgz#066c7a835993a66e82004eac3e185d0d157fd658"
   integrity sha512-dZwN5L1VlUBewiP6H9s2+B3e3Jg96D0vzN+Ry73sOefebhYr9f94wwkMNN/9ouoU8pV1BqA1d1zGk8928cx0rg==

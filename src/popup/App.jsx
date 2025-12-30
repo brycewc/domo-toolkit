@@ -1,4 +1,4 @@
-import { Tabs } from '@heroui/react';
+import { Tabs, Button } from '@heroui/react';
 import './App.css';
 import { useEffect, useRef, useState } from 'react';
 
@@ -14,6 +14,26 @@ export default function App() {
 	const hasLoadedFromStorage = useRef(false);
 
 	useEffect(() => {
+		// Request fresh object type detection from content script when popup opens
+		chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+			if (tabs[0]?.id) {
+				chrome.tabs.sendMessage(
+					tabs[0].id,
+					{ action: 'getObjectType' },
+					(response) => {
+						// Response will be received, but storage change listener will handle the update
+						if (chrome.runtime.lastError) {
+							// Content script might not be loaded on this page (e.g., chrome:// pages)
+							console.log(
+								'Could not detect object type:',
+								chrome.runtime.lastError.message
+							);
+						}
+					}
+				);
+			}
+		});
+
 		// Load initial currentObject from storage
 		chrome.storage.local.get(['currentObject'], (result) => {
 			setCurrentObject(result.currentObject || currentObjectDefaults);
@@ -69,10 +89,12 @@ export default function App() {
 				</Tabs.List>
 			</Tabs.ListContainer>
 			<Tabs.Panel className='px-4' id='account'>
-				<h3 className='mb-2 font-semibold'>Account Settings</h3>
-				<p className='text-sm text-muted'>
-					Manage your account information and preferences.
-				</p>
+				<Button>
+					Activity Log Current{' '}
+					{currentObject?.typeName && currentObject?.id
+						? currentObject.typeName
+						: 'Object'}
+				</Button>
 			</Tabs.Panel>
 			<Tabs.Panel className='px-4' id='security'>
 				<h3 className='mb-2 font-semibold'>Security Settings</h3>

@@ -2,6 +2,20 @@
 chrome.runtime.onInstalled.addListener((details) => {
 	console.log('Extension installed:', details);
 
+	// Open options page with activity tab on fresh install
+	if (details.reason === 'install') {
+		chrome.runtime.openOptionsPage(() => {
+			// After opening, navigate to the activity tab via hash
+			chrome.tabs.query({ url: chrome.runtime.getURL('src/options/index.html*') }, (tabs) => {
+				if (tabs.length > 0) {
+					chrome.tabs.update(tabs[0].id, {
+						url: chrome.runtime.getURL('src/options/index.html#activity')
+					});
+				}
+			});
+		});
+	}
+
 	// Set default configurations
 	chrome.storage.sync.get(null, (result) => {
 		const defaultConfigs = {

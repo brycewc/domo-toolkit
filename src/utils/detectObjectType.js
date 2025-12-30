@@ -3,15 +3,21 @@
  * Based on the logic from Copy Current Object ID bookmarklet
  * @returns {{objectType: string, objectTypeName: string, id: string} | null} Object with type and ID, or null if not recognized
  */
+import { detectCardModal } from './detectCardModal';
+
 export function detectObjectType() {
-	if (!location.hostname.includes('domo.com')) {
+	const url = location.href;
+
+	if (
+		!location.hostname.includes('domo.com') ||
+		!location.protocol.startsWith('http')
+	) {
 		return null;
 	}
 
 	let objectType;
 	let objectTypeName;
 	let id;
-	const url = location.href;
 	const parts = url.split(/[/?=&]/);
 
 	switch (true) {
@@ -27,7 +33,7 @@ export function detectObjectType() {
 			id = parts[parts.indexOf('drillviewid') + 1];
 			break;
 
-		case url.includes('kpis/details/'): {
+		case url.includes('kpis/details/'):
 			// Prefer Drill Path ID from breadcrumb when on a drill path
 			try {
 				const bcSpan = document.querySelector(
@@ -54,26 +60,11 @@ export function detectObjectType() {
 			objectTypeName = 'Card';
 			id = parts[parts.indexOf('details') + 1];
 			break;
-		}
 
 		// App Studio: Prefer Card ID from modal when open; otherwise use Page ID from URL
 		case url.includes('page/'):
-		case url.includes('pages/'): {
-			const detailsEl = document.querySelector('cd-details-title');
-			let kpiId;
-			try {
-				if (
-					detailsEl &&
-					window.angular &&
-					typeof window.angular.element === 'function'
-				) {
-					const ngScope = window.angular.element(detailsEl).scope();
-					kpiId = ngScope && ngScope.$ctrl && ngScope.$ctrl.kpiId;
-				}
-			} catch (e) {
-				// Ignore and fallback to Page ID
-			}
-
+		case url.includes('pages/'):
+			const kpiId = detectCardModal();
 			if (kpiId) {
 				objectType = 'CARD';
 				objectTypeName = 'Card';
@@ -87,7 +78,6 @@ export function detectObjectType() {
 						: parts[parts.indexOf('page') + 1];
 			}
 			break;
-		}
 
 		case url.includes('beastmode?'):
 			objectType = 'BEAST_MODE_FORMULA';
