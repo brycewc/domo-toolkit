@@ -1,6 +1,7 @@
 import { Tabs, Button } from '@heroui/react';
 import './App.css';
 import { useEffect, useRef, useState } from 'react';
+import ClearDomoCookies from '@/components/ClearDomoCookies';
 
 export default function App() {
 	const currentObjectDefaults = {
@@ -89,12 +90,15 @@ export default function App() {
 				</Tabs.List>
 			</Tabs.ListContainer>
 			<Tabs.Panel className='px-4' id='account'>
-				<Button>
-					Activity Log Current{' '}
-					{currentObject?.typeName && currentObject?.id
-						? currentObject.typeName
-						: 'Object'}
-				</Button>
+				<div className='flex flex-col gap-3'>
+					<Button>
+						Activity Log Current{' '}
+						{currentObject?.typeName && currentObject?.id
+							? currentObject.typeName
+							: 'Object'}
+					</Button>
+					<ClearDomoCookies />
+				</div>
 			</Tabs.Panel>
 			<Tabs.Panel className='px-4' id='security'>
 				<h3 className='mb-2 font-semibold'>Security Settings</h3>

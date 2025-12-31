@@ -14,7 +14,8 @@ export default defineManifest({
 		'storage',
 		'scripting',
 		'activeTab',
-		'clipboardRead'
+		'clipboardRead',
+		'cookies'
 	],
 	host_permissions: ['https://*.domo.com/*'],
 	action: {
