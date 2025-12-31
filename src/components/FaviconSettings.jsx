@@ -36,13 +36,13 @@ export default function FaviconSettings() {
 				});
 				setRules(migratedRules);
 			} else {
-				// Set default rules if none exist
+				// Set default rules if none exist (matches background.js default)
 				setRules([
 					{
 						id: Date.now(),
-						pattern: '',
-						effect: 'bottom',
-						color: '#00ff00'
+						pattern: '.*',
+						effect: 'instance-logo',
+						color: '#000000'
 					}
 				]);
 			}

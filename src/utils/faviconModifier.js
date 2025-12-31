@@ -94,6 +94,37 @@ export async function clearFaviconCache() {
 }
 
 /**
+ * Automatically apply instance logo for any .domo.com domain
+ * This runs automatically when visiting a new domain, regardless of configured rules
+ */
+export async function applyInstanceLogoAuto() {
+	// Check if current hostname is in the excluded list
+	const hostname = location.hostname;
+	if (EXCLUDED_HOSTNAMES.includes(hostname)) {
+		return;
+	}
+
+	// Extract subdomain from current URL
+	const subdomainMatch = hostname.match(/^(.+?)\.domo\.com$/);
+
+	if (!subdomainMatch) {
+		return;
+	}
+
+	const subdomain = subdomainMatch[1];
+	
+	// Get the favicon element
+	const favicon = getFavicon();
+	if (!favicon) {
+		console.warn('No favicon found on page');
+		return;
+	}
+
+	// Apply the instance logo
+	await applyInstanceLogo(favicon, subdomain);
+}
+
+/**
  * Apply favicon modifications based on rules
  * @param {Array} rules - Array of favicon rules from storage
  */

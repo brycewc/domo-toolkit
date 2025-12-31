@@ -26,6 +26,19 @@ chrome.runtime.onInstalled.addListener((details) => {
 				chrome.storage.sync.set({ [bookmarkletName]: config });
 			}
 		}
+
+		// Set default favicon rule if none exists
+		if (!result.faviconRules || result.faviconRules.length === 0) {
+			const defaultFaviconRule = [
+				{
+					id: Date.now(),
+					pattern: '.*',
+					effect: 'instance-logo',
+					color: '#000000'
+				}
+			];
+			chrome.storage.sync.set({ faviconRules: defaultFaviconRule });
+		}
 	});
 });
 

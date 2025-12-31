@@ -1,15 +1,22 @@
 import { detectObjectType } from './utils/detectObjectType';
 import { detectCardModal } from './utils/detectCardModal';
-import { applyFaviconRules } from './utils/faviconModifier';
+import { applyFaviconRules, applyInstanceLogoAuto } from './utils/faviconModifier';
 
 // console.log('Majordomo Toolkit content script loaded');
+
+// Track current domain to detect domain changes
+let currentDomain = location.hostname;
 
 // Apply favicon rules on page load
 async function applyFavicon() {
 	try {
 		const result = await chrome.storage.sync.get(['faviconRules']);
-		if (result.faviconRules) {
+		if (result.faviconRules && result.faviconRules.length > 0) {
+			// If rules are configured, apply them (they take precedence)
 			await applyFaviconRules(result.faviconRules);
+		} else {
+			// If no rules configured, automatically apply instance logo
+			await applyInstanceLogoAuto();
 		}
 	} catch (error) {
 		console.error('Error applying favicon rules:', error);
@@ -29,6 +36,29 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
 		console.log('Favicon rules changed, reapplying...');
 		applyFavicon();
 	}
+});
+
+// Watch for domain changes (for SPAs or navigation)
+function checkDomainChange() {
+	if (location.hostname !== currentDomain) {
+		currentDomain = location.hostname;
+		console.log('Domain changed, applying favicon:', currentDomain);
+		applyFavicon();
+	}
+}
+
+// Check for domain changes periodically (for SPAs)
+setInterval(checkDomainChange, 1000);
+
+// Listen for navigation events (when user navigates to a new domain)
+window.addEventListener('beforeunload', () => {
+	// Reset domain tracking when navigating away
+	currentDomain = null;
+});
+
+// Also check on popstate (back/forward navigation)
+window.addEventListener('popstate', () => {
+	checkDomainChange();
 });
 
 // Detect and send object type on page load
