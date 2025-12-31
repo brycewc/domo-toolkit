@@ -1,7 +1,35 @@
 import { detectObjectType } from './utils/detectObjectType';
 import { detectCardModal } from './utils/detectCardModal';
+import { applyFaviconRules } from './utils/faviconModifier';
 
-console.log('Majordomo Toolkit content script loaded');
+// console.log('Majordomo Toolkit content script loaded');
+
+// Apply favicon rules on page load
+async function applyFavicon() {
+	try {
+		const result = await chrome.storage.sync.get(['faviconRules']);
+		if (result.faviconRules) {
+			await applyFaviconRules(result.faviconRules);
+		}
+	} catch (error) {
+		console.error('Error applying favicon rules:', error);
+	}
+}
+
+// Apply favicon when page loads
+if (document.readyState === 'loading') {
+	document.addEventListener('DOMContentLoaded', applyFavicon);
+} else {
+	applyFavicon();
+}
+
+// Listen for storage changes to update favicon when rules change
+chrome.storage.onChanged.addListener((changes, areaName) => {
+	if (areaName === 'sync' && changes.faviconRules) {
+		console.log('Favicon rules changed, reapplying...');
+		applyFavicon();
+	}
+});
 
 // Detect and send object type on page load
 function detectAndSendObjectType() {
