@@ -1,4 +1,3 @@
-import { Tabs, Button } from '@heroui/react';
 import './App.css';
 import { useEffect, useRef, useState } from 'react';
 import ClearDomoCookies from '@/components/ClearDomoCookies';
@@ -67,57 +66,66 @@ export default function App() {
 		// chrome.runtime.sendMessage({ type: 'COUNT', currentObject });
 	}, [currentObject]);
 
+	// Apply Tailwind styles to body for sizing
+	useEffect(() => {
+		document.body.classList.add('m-0', 'p-0', 'w-[280px]', 'bg-transparent','rounded-lg');
+		const root = document.getElementById('root');
+		if (root) {
+			root.classList.add('w-[320px]');
+		}
+
+		return () => {
+			document.body.classList.remove('m-0', 'p-0', 'w-[280px]', 'bg-transparent','rounded-lg');
+			if (root) {
+				root.classList.remove('w-[320px]');
+			}
+		};
+	}, []);
+
+	const handleClose = () => {
+		window.close();
+	};
+
 	return (
-		<Tabs className='w-full max-w-lg' orientation='vertical'>
-			<Tabs.ListContainer>
-				<Tabs.List aria-label='Vertical tabs'>
-					<Tabs.Tab id='account'>
-						Account
-						<Tabs.Indicator />
-					</Tabs.Tab>
-					<Tabs.Tab id='security'>
-						Security
-						<Tabs.Indicator />
-					</Tabs.Tab>
-					<Tabs.Tab id='notifications'>
-						Notifications
-						<Tabs.Indicator />
-					</Tabs.Tab>
-					<Tabs.Tab id='billing'>
-						Billing
-						<Tabs.Indicator />
-					</Tabs.Tab>
-				</Tabs.List>
-			</Tabs.ListContainer>
-			<Tabs.Panel className='px-4' id='account'>
-				<div className='flex flex-col gap-3'>
-					<Button>
-						Activity Log Current{' '}
-						{currentObject?.typeName && currentObject?.id
-							? currentObject.typeName
-							: 'Object'}
-					</Button>
-					<ClearDomoCookies />
+		<div className='w-[280px] bg-white p-4 rounded-lg shadow-xl overflow-hidden'>
+			<div className='flex flex-col gap-3'>
+				<div className='flex items-center justify-between mb-1'>
+					<div className='flex items-center gap-2'>
+						<img
+							src={chrome.runtime.getURL('logo.png')}
+							alt='Domo Logo'
+							className='h-6 w-auto'
+						/>
+						<h1 className='text-lg font-medium text-gray-700'>MajorDomo Toolkit</h1>
+					</div>
+					<button
+						onClick={handleClose}
+						className='w-6 h-6 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors'
+						aria-label='Close'
+					>
+						<svg
+							className='w-4 h-4'
+							fill='none'
+							stroke='currentColor'
+							viewBox='0 0 24 24'
+						>
+							<path
+								strokeLinecap='round'
+								strokeLinejoin='round'
+								strokeWidth={2}
+								d='M6 18L18 6M6 6l12 12'
+							/>
+						</svg>
+					</button>
 				</div>
-			</Tabs.Panel>
-			<Tabs.Panel className='px-4' id='security'>
-				<h3 className='mb-2 font-semibold'>Security Settings</h3>
-				<p className='text-sm text-muted'>
-					Configure two-factor authentication and password settings.
-				</p>
-			</Tabs.Panel>
-			<Tabs.Panel className='px-4' id='notifications'>
-				<h3 className='mb-2 font-semibold'>Notification Preferences</h3>
-				<p className='text-sm text-muted'>
-					Choose how and when you want to receive notifications.
-				</p>
-			</Tabs.Panel>
-			<Tabs.Panel className='px-4' id='billing'>
-				<h3 className='mb-2 font-semibold'>Billing Information</h3>
-				<p className='text-sm text-muted'>
-					View and manage your subscription and payment methods.
-				</p>
-			</Tabs.Panel>
-		</Tabs>
+				<button className='w-full px-4 py-2.5 rounded-md bg-[#fb9014] hover:bg-[#e8810f] active:bg-[#d5720a] text-white font-medium text-sm transition-colors duration-150 whitespace-nowrap'>
+					Activity Log Current{' '}
+					{currentObject?.typeName && currentObject?.id
+						? currentObject.typeName
+						: 'Object'}
+				</button>
+				<ClearDomoCookies />
+			</div>
+		</div>
 	);
 }

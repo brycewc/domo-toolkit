@@ -1,4 +1,3 @@
-import { Button } from '@heroui/react';
 import { useState } from 'react';
 
 export default function ClearDomoCookies() {
@@ -134,15 +133,16 @@ export default function ClearDomoCookies() {
 
 	return (
 		<div className='flex flex-col gap-3'>
-			<Button
-				onPress={clearDomoCookies}
-				isDisabled={isClearingCookies}
+			<button
+				onClick={clearDomoCookies}
+				disabled={isClearingCookies}
+				className='w-full px-4 py-2.5 rounded-md bg-[#fb9014] hover:bg-[#e8810f] active:bg-[#d5720a] text-white font-medium text-sm transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#fb9014] whitespace-nowrap'
 			>
 				{isClearingCookies ? 'Clearing...' : 'Clear Domo Cookies'}
-			</Button>
+			</button>
 			{cookieStatus.visible && (
 				<div
-					className={`p-3 rounded text-sm whitespace-pre-wrap break-words ${
+					className={`p-3 rounded-md text-sm whitespace-pre-wrap break-words ${
 						cookieStatus.type === 'success'
 							? 'bg-green-500 text-white'
 							: 'bg-red-500 text-white'
