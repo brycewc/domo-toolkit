@@ -1,10 +1,15 @@
 import { useState, useEffect } from 'react';
 import { Tabs } from '@heroui/react';
+import ActivityLogSettings from '@/components/ActivityLogSettings';
+import FaviconSettings from '@/components/FaviconSettings';
+import AppSettings from '@/components/AppSettings';
+import { useTheme } from '@/hooks/useTheme';
 import './App.css';
-import ActivityLogSettings from '../components/ActivityLogSettings';
-import FaviconSettings from '../components/FaviconSettings';
 
 export default function App() {
+	// Apply theme
+	useTheme();
+
 	// Get initial tab from URL hash (e.g., #activity)
 	const getInitialTab = () => {
 		const hash = window.location.hash.substring(1); // Remove the # symbol
@@ -45,11 +50,15 @@ export default function App() {
 							Activity Log
 							<Tabs.Indicator />
 						</Tabs.Tab>
+						<Tabs.Tab id='settings'>
+							Settings
+							<Tabs.Indicator />
+						</Tabs.Tab>
 					</Tabs.List>
 				</Tabs.ListContainer>
 				<Tabs.Panel className='flex flex-col items-center px-4' id='favicon'>
 					<div className='justify-start w-full'>
-						<h3 className='mb-2 text-lg font-semibold'>Favicon Settings</h3>
+						<h3 className='mb-2 text-lg font-semibold'>Favicon Preferences</h3>
 						<p className='text-sm text-muted'>
 							Manage your favicon preferences. Patterns will automatically match
 							against [subdomain].domo.com
@@ -66,6 +75,15 @@ export default function App() {
 						</p>
 					</div>
 					<ActivityLogSettings />
+				</Tabs.Panel>
+				<Tabs.Panel className='flex flex-col items-center px-4' id='settings'>
+					<div className='justify-start w-full'>
+						<h3 className='mb-2 text-lg font-semibold'>App Settings</h3>
+						<p className='text-sm text-muted'>
+							Configure general application settings.
+						</p>
+					</div>
+					<AppSettings />
 				</Tabs.Panel>
 			</Tabs>
 		</div>

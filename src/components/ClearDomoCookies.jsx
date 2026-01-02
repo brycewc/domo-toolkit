@@ -1,17 +1,11 @@
 import { Button } from '@heroui/react';
 import { useState } from 'react';
 
-export default function ClearDomoCookies() {
-	const [cookieStatus, setCookieStatus] = useState({
-		message: '',
-		type: '',
-		visible: false
-	});
+export default function ClearDomoCookies({ onStatusUpdate }) {
 	const [isClearingCookies, setIsClearingCookies] = useState(false);
 
 	const clearDomoCookies = async () => {
 		setIsClearingCookies(true);
-		setCookieStatus({ message: '', type: '', visible: false });
 
 		try {
 			// Get the current active tab
@@ -21,11 +15,7 @@ export default function ClearDomoCookies() {
 			});
 
 			if (!tab || !tab.url) {
-				setCookieStatus({
-					message: '✗ Could not get active tab',
-					type: 'error',
-					visible: true
-				});
+				onStatusUpdate?.('Error', 'Could not get active tab', 'danger');
 				setIsClearingCookies(false);
 				return;
 			}
@@ -36,11 +26,11 @@ export default function ClearDomoCookies() {
 
 			// Check if we're on a domo.com domain
 			if (!currentDomain.includes('domo.com')) {
-				setCookieStatus({
-					message: `✗ Current tab is not a Domo instance\n(${currentDomain})`,
-					type: 'error',
-					visible: true
-				});
+				onStatusUpdate?.(
+					'Not a Domo Instance',
+					`Current tab is not a Domo instance (${currentDomain})`,
+					'danger'
+				);
 				setIsClearingCookies(false);
 				return;
 			}
@@ -57,12 +47,6 @@ export default function ClearDomoCookies() {
 				return (
 					cookieDomain === currentDomain || currentDomain.endsWith(cookieDomain)
 				);
-			});
-
-			setCookieStatus({
-				message: `Found ${domoCookies.length} cookies for ${currentDomain}...`,
-				type: 'success',
-				visible: true
 			});
 
 			// Remove each cookie
@@ -101,57 +85,35 @@ export default function ClearDomoCookies() {
 
 			// Show result message
 			if (errors.length === 0) {
-				setCookieStatus({
-					message: `✓ Cleared ${removedCount} cookie${removedCount !== 1 ? 's' : ''} for\n${currentDomain}`,
-					type: 'success',
-					visible: true
-				});
+				onStatusUpdate?.(
+					'Cookies Cleared',
+					`Successfully cleared ${removedCount} cookie${
+						removedCount !== 1 ? 's' : ''
+					} for ${currentDomain}`,
+					'success'
+				);
 			} else {
-				setCookieStatus({
-					message: `⚠ Cleared ${removedCount}, ${errors.length} errors:\n${errors.slice(0, 3).join('\n')}`,
-					type: 'error',
-					visible: true
-				});
+				onStatusUpdate?.(
+					'Partial Success',
+					`Cleared ${removedCount} cookie${
+						removedCount !== 1 ? 's' : ''
+					}, but ${errors.length} error${
+						errors.length !== 1 ? 's' : ''
+					} occurred`,
+					'warning'
+				);
 			}
 
 			setIsClearingCookies(false);
-
-			// Hide status after 3 seconds if successful
-			if (errors.length === 0) {
-				setTimeout(() => {
-					setCookieStatus((prev) => ({ ...prev, visible: false }));
-				}, 3000);
-			}
 		} catch (error) {
-			setCookieStatus({
-				message: `✗ Error: ${error.message}`,
-				type: 'error',
-				visible: true
-			});
+			onStatusUpdate?.('Error', error.message, 'danger');
 			setIsClearingCookies(false);
 		}
 	};
 
 	return (
-		<div className='flex flex-col gap-3'>
-			<Button
-				onPress={clearDomoCookies}
-				isDisabled={isClearingCookies}
-			>
-				{isClearingCookies ? 'Clearing...' : 'Clear Domo Cookies'}
-			</Button>
-			{cookieStatus.visible && (
-				<div
-					className={`p-3 rounded text-sm whitespace-pre-wrap break-words ${
-						cookieStatus.type === 'success'
-							? 'bg-green-500 text-white'
-							: 'bg-red-500 text-white'
-					}`}
-				>
-					{cookieStatus.message}
-				</div>
-			)}
-		</div>
+		<Button fullWidth onPress={clearDomoCookies} isDisabled={isClearingCookies}>
+			{isClearingCookies ? 'Clearing...' : 'Clear Domo Cookies'}
+		</Button>
 	);
 }
-

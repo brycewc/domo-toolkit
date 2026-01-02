@@ -1,9 +1,15 @@
-import { Tabs, Button } from '@heroui/react';
-import './App.css';
+import { Button, Tabs } from '@heroui/react';
 import { useEffect, useRef, useState } from 'react';
 import ClearDomoCookies from '@/components/ClearDomoCookies';
+import StatusBar from '@/components/StatusBar';
+import AppSettings from '@/components/AppSettings';
+import { useTheme } from '@/hooks/useTheme';
+import './App.css';
 
 export default function App() {
+	// Apply theme
+	useTheme();
+
 	const currentObjectDefaults = {
 		id: null,
 		type: null,
@@ -13,6 +19,13 @@ export default function App() {
 	};
 	const [currentObject, setCurrentObject] = useState(currentObjectDefaults);
 	const hasLoadedFromStorage = useRef(false);
+	const [statusBar, setStatusBar] = useState({
+		title: '',
+		description: '',
+		status: 'info',
+		timeout: 3000,
+		visible: false
+	});
 
 	useEffect(() => {
 		// Request fresh object type detection from content script when popup opens
@@ -67,57 +80,68 @@ export default function App() {
 		// chrome.runtime.sendMessage({ type: 'COUNT', currentObject });
 	}, [currentObject]);
 
+	const showStatus = (title, description, status = 'info', timeout = 3000) => {
+		setStatusBar({ title, description, status, timeout, visible: true });
+	};
+
+	const hideStatus = () => {
+		setStatusBar((prev) => ({ ...prev, visible: false }));
+	};
+
 	return (
-		<Tabs className='w-full max-w-lg' orientation='vertical'>
-			<Tabs.ListContainer>
-				<Tabs.List aria-label='Vertical tabs'>
-					<Tabs.Tab id='account'>
-						Account
-						<Tabs.Indicator />
-					</Tabs.Tab>
-					<Tabs.Tab id='security'>
-						Security
-						<Tabs.Indicator />
-					</Tabs.Tab>
-					<Tabs.Tab id='notifications'>
-						Notifications
-						<Tabs.Indicator />
-					</Tabs.Tab>
-					<Tabs.Tab id='billing'>
-						Billing
-						<Tabs.Indicator />
-					</Tabs.Tab>
-				</Tabs.List>
-			</Tabs.ListContainer>
-			<Tabs.Panel className='px-4' id='account'>
-				<div className='flex flex-col gap-3'>
-					<Button>
-						Activity Log Current{' '}
-						{currentObject?.typeName && currentObject?.id
-							? currentObject.typeName
-							: 'Object'}
-					</Button>
-					<ClearDomoCookies />
-				</div>
-			</Tabs.Panel>
-			<Tabs.Panel className='px-4' id='security'>
-				<h3 className='mb-2 font-semibold'>Security Settings</h3>
-				<p className='text-sm text-muted'>
-					Configure two-factor authentication and password settings.
-				</p>
-			</Tabs.Panel>
-			<Tabs.Panel className='px-4' id='notifications'>
-				<h3 className='mb-2 font-semibold'>Notification Preferences</h3>
-				<p className='text-sm text-muted'>
-					Choose how and when you want to receive notifications.
-				</p>
-			</Tabs.Panel>
-			<Tabs.Panel className='px-4' id='billing'>
-				<h3 className='mb-2 font-semibold'>Billing Information</h3>
-				<p className='text-sm text-muted'>
-					View and manage your subscription and payment methods.
-				</p>
-			</Tabs.Panel>
-		</Tabs>
+		<div className='flex flex-col gap-2 w-auto min-w-md p-2'>
+			<Tabs className='w-full' orientation='vertical'>
+				<Tabs.ListContainer>
+					<Tabs.List aria-label='Vertical tabs'>
+						<Tabs.Tab id='account'>
+							Account
+							<Tabs.Indicator />
+						</Tabs.Tab>
+						<Tabs.Tab id='security'>
+							Security
+							<Tabs.Indicator />
+						</Tabs.Tab>
+						<Tabs.Tab id='notifications'>
+							Notifications
+							<Tabs.Indicator />
+						</Tabs.Tab>
+					</Tabs.List>
+				</Tabs.ListContainer>
+				<Tabs.Panel className='px-4' id='account'>
+					<div className='flex flex-col gap-1'>
+						<Button fullWidth>
+							Activity Log Current{' '}
+							{currentObject?.typeName && currentObject?.id
+								? currentObject.typeName
+								: 'Object'}
+						</Button>
+						<ClearDomoCookies onStatusUpdate={showStatus} />
+					</div>
+				</Tabs.Panel>
+				<Tabs.Panel className='px-4' id='security'>
+					<h3 className='mb-2 font-semibold'>Security Settings</h3>
+					<p className='text-sm text-muted'>
+						Configure two-factor authentication and password settings.
+					</p>
+				</Tabs.Panel>
+				<Tabs.Panel className='px-4' id='notifications'>
+					<h3 className='mb-2 font-semibold'>Notification Preferences</h3>
+					<p className='text-sm text-muted'>
+						Choose how and when you want to receive notifications.
+					</p>
+				</Tabs.Panel>
+			</Tabs>
+			<div className='min-w-sm min-h-[5rem]'>
+				{statusBar.visible && (
+					<StatusBar
+						title={statusBar.title}
+						description={statusBar.description}
+						status={statusBar.status}
+						timeout={statusBar.timeout}
+						onClose={hideStatus}
+					/>
+				)}
+			</div>
+		</div>
 	);
 }

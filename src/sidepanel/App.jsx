@@ -2,9 +2,13 @@ import crxLogo from '@/assets/crx.svg';
 import reactLogo from '@/assets/react.svg';
 import viteLogo from '@/assets/vite.svg';
 import Counter from '@/components/Counter';
+import { useTheme } from '@/hooks/useTheme';
 import './App.css';
 
 export default function App() {
+	// Apply theme
+	useTheme();
+
 	return (
 		<div>
 			<a href='https://vite.dev' target='_blank' rel='noreferrer'>
