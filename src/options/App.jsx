@@ -56,7 +56,7 @@ export default function App() {
 						</Tabs.Tab>
 					</Tabs.List>
 				</Tabs.ListContainer>
-				<Tabs.Panel className='flex flex-col items-center px-4' id='favicon'>
+				<Tabs.Panel className='flex flex-col items-start px-4' id='favicon'>
 					<div className='justify-start w-full'>
 						<h3 className='mb-2 text-lg font-semibold'>Favicon Preferences</h3>
 						<p className='text-sm text-muted'>
@@ -66,7 +66,7 @@ export default function App() {
 					</div>
 					<FaviconSettings />
 				</Tabs.Panel>
-				<Tabs.Panel className='flex flex-col items-center px-4' id='activity'>
+				<Tabs.Panel className='flex flex-col items-start px-4' id='activity'>
 					<div className='justify-start w-full'>
 						<h3 className='mb-2 text-lg font-semibold'>Activity Log Setup</h3>
 						<p className='text-sm text-muted'>
@@ -76,7 +76,7 @@ export default function App() {
 					</div>
 					<ActivityLogSettings />
 				</Tabs.Panel>
-				<Tabs.Panel className='flex flex-col items-center px-4' id='settings'>
+				<Tabs.Panel className='flex flex-col items-start px-4' id='settings'>
 					<div className='justify-start w-full'>
 						<h3 className='mb-2 text-lg font-semibold'>App Settings</h3>
 						<p className='text-sm text-muted'>

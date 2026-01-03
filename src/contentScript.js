@@ -1,11 +1,35 @@
 import { detectObjectType } from './utils/detectObjectType';
 import { detectCardModal } from './utils/detectCardModal';
-import { applyFaviconRules, applyInstanceLogoAuto } from './utils/faviconModifier';
-
-// console.log('Majordomo Toolkit content script loaded');
+import {
+	applyFaviconRules,
+	applyInstanceLogoAuto
+} from './utils/faviconModifier';
 
 // Track current domain to detect domain changes
 let currentDomain = location.hostname;
+
+// Track visited Domo instances
+async function trackDomoInstances() {
+	if (location.hostname.includes('domo.com')) {
+		// Extract subdomain (e.g., 'mycompany' from 'mycompany.domo.com') as instance
+		const instance = location.hostname.replace('.domo.com', '');
+		const result = await chrome.storage.sync.get(['visitedDomoInstances']);
+		const visited = result.visitedDomoInstances || [];
+
+		// Add instance if not already in list
+		if (!visited.includes(instance)) {
+			const updated = [...visited, instance].sort();
+			await chrome.storage.sync.set({ visitedDomoInstances: updated });
+		}
+	}
+}
+
+// Track instance on page load
+if (document.readyState === 'loading') {
+	document.addEventListener('DOMContentLoaded', trackDomoInstances);
+} else {
+	trackDomoInstances();
+}
 
 // Apply favicon rules on page load
 async function applyFavicon() {

@@ -1,6 +1,6 @@
 import { Button } from '@heroui/react';
 import { useState, useEffect, useRef } from 'react';
-import { detectAndFetchObject } from '@/services/domo-api';
+import { detectAndFetchObject } from '@/services/allObjects';
 
 export default function NavigateToCopiedObject() {
 	const [copiedObjectId, setCopiedObjectId] = useState(null);
@@ -131,7 +131,7 @@ export default function NavigateToCopiedObject() {
 
 	const getButtonText = () => {
 		if (!copiedObjectId) {
-			return 'No object ID on clipboard';
+			return 'Navigate to Copied: N/A';
 		}
 		if (isLoading) {
 			return `Loading ${copiedObjectId}...`;
@@ -140,24 +140,17 @@ export default function NavigateToCopiedObject() {
 			return `Error: ${copiedObjectId}`;
 		}
 		if (objectDetails) {
-			return (
-				<>
-					<span className='font-semibold'>{objectDetails.type}</span>
-					<br />
-					<span className='text-sm truncate max-w-full block'>
-						{objectDetails.name}
-					</span>
-				</>
-			);
+			return `Navigate to Copied: ${objectDetails.type}`;
 		}
 		return copiedObjectId;
 	};
 
 	return (
 		<Button
-			onClick={handleClick}
+			onPress={handleClick}
 			isDisabled={!copiedObjectId || isLoading || !!error}
 			className='w-full'
+			isPending={isLoading}
 		>
 			{getButtonText()}
 		</Button>

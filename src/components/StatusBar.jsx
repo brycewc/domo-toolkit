@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 export default function StatusBar({
 	title,
 	description,
-	status,
+	status = 'accent',
 	timeout = 5000,
 	onClose
 }) {
@@ -13,7 +13,6 @@ export default function StatusBar({
 
 	useEffect(() => {
 		if (!timeout) return;
-		console.log(status);
 		const interval = 50; // Update every 50ms
 		const decrement = (100 / timeout) * interval;
 
@@ -49,7 +48,7 @@ export default function StatusBar({
 		<Alert status={status} className='relative overflow-hidden'>
 			<div
 				id='status-bar-timeout-indicator'
-				className={`absolute top-[0.5px] left-[1rem] h-1 bg-${status} opacity-50 transition-all duration-50 rounded-full`}
+				className={`absolute bottom-[1px] left-[1rem] bg-${status} h-1 opacity-75 transition-all duration-50 rounded-full`}
 				style={{ width: `calc(${progress}% - 2rem)` }}
 			/>
 			<Alert.Indicator />
@@ -57,7 +56,7 @@ export default function StatusBar({
 				<Alert.Title>{title}</Alert.Title>
 				<Alert.Description>{description}</Alert.Description>
 			</Alert.Content>
-			<CloseButton onClick={handleClose} />
+			<CloseButton onPress={handleClose} />
 		</Alert>
 	);
 }

@@ -12,21 +12,6 @@ chrome.runtime.onInstalled.addListener((details) => {
 
 	// Set default configurations
 	chrome.storage.sync.get(null, (result) => {
-		const defaultConfigs = {
-			'Activity Log': {
-				activityLogCardId: 2019620443,
-				activityLogObjectIdColumnName: 'Object ID',
-				activityLogObjectTypeColumnName: 'Object Type ID'
-			}
-		};
-
-		// Only set defaults if no existing configuration
-		for (const [bookmarkletName, config] of Object.entries(defaultConfigs)) {
-			if (!result[bookmarkletName]) {
-				chrome.storage.sync.set({ [bookmarkletName]: config });
-			}
-		}
-
 		// Set default favicon rule if none exists
 		if (!result.faviconRules || result.faviconRules.length === 0) {
 			const defaultFaviconRule = [

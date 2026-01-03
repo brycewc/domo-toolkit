@@ -72,9 +72,9 @@ export default function FaviconSettings() {
 			...rules,
 			{
 				id: Date.now(),
-				pattern: '',
-				effect: 'bottom',
-				color: '#00ff00'
+				pattern: '.*',
+				effect: 'instance-logo',
+				color: '#000000'
 			}
 		]);
 	};
@@ -90,8 +90,8 @@ export default function FaviconSettings() {
 	};
 
 	return (
-		<div className='flex flex-col justify-between w-full min-h-[85vh]'>
-			<Form className='flex flex-col gap-4 p-4 w-full' onSubmit={onSave}>
+		<div className='flex flex-col justify-between w-full min-h-[85vh] p-4'>
+			<Form className='flex flex-col gap-4 w-full' onSubmit={onSave}>
 				{rules.map((rule, index) => (
 					<Fieldset>
 						<div
@@ -135,10 +135,6 @@ export default function FaviconSettings() {
 											<ListBox.Item id='right'>right</ListBox.Item>
 											<ListBox.Item id='bottom'>bottom</ListBox.Item>
 											<ListBox.Item id='left'>left</ListBox.Item>
-											<ListBox.Item id='cover'>cover</ListBox.Item>
-											<ListBox.Item id='replace'>replace</ListBox.Item>
-											<ListBox.Item id='background'>background</ListBox.Item>
-											<ListBox.Item id='xor-top'>xor-top</ListBox.Item>
 										</ListBox>
 									</Select.Popover>
 								</Select>
@@ -222,22 +218,6 @@ export default function FaviconSettings() {
 								<li>
 									<strong>left:</strong> puts a colored stripe over the left
 									quarter
-								</li>
-								<li>
-									<strong>cover:</strong> covers the whole area in
-									semi-transparent color
-								</li>
-								<li>
-									<strong>replace:</strong> replaces non-transparent parts of
-									the icon with color
-								</li>
-								<li>
-									<strong>background:</strong> color fill of the whole area
-									behind the icon
-								</li>
-								<li>
-									<strong>xor-top:</strong> like 'top', but whites out what gets
-									covered
 								</li>
 							</ul>
 						</Accordion.Body>
