@@ -6,7 +6,7 @@ export default defineManifest({
 	name: pkg.name,
 	version: pkg.version,
 	icons: {
-		48: 'public/logo.png'
+		48: 'public/toolkit.png'
 	},
 	permissions: [
 		'sidePanel',
@@ -20,7 +20,7 @@ export default defineManifest({
 	host_permissions: ['https://*.domo.com/*'],
 	action: {
 		default_icon: {
-			48: 'public/logo.png'
+			48: 'public/toolkit.png'
 		},
 		default_popup: 'src/popup/index.html'
 	},

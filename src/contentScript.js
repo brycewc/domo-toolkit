@@ -92,15 +92,6 @@ function detectAndSendObjectType() {
 	if (domoObject) {
 		console.log('Detected Domo object:', domoObject);
 
-		// Send to background script
-		// chrome.runtime.sendMessage({
-		// 	action: 'objectTypeDetected',
-		// 	objectType: domoObject.objectType,
-
-		// 	objectId: domoObject.id,
-		// 	url: location.href
-		// });
-
 		// Store in chrome.storage for quick access
 		chrome.storage.local.set({
 			currentObject: domoObject
@@ -109,13 +100,7 @@ function detectAndSendObjectType() {
 		console.log('No Domo object detected on this page');
 		// Clear stored object type
 		chrome.storage.local.set({
-			currentObject: {
-				id: null,
-				type: null,
-				typeName: null,
-				url: null,
-				detectedAt: null
-			}
+			currentObject: null
 		});
 	}
 }

@@ -1,23 +1,21 @@
 import { Button, Tabs } from '@heroui/react';
 import { useEffect, useRef, useState } from 'react';
+import { useTheme } from '@/hooks/useTheme';
 import ClearDomoCookies from '@/components/ClearDomoCookies';
 import StatusBar from '@/components/StatusBar';
-import { useTheme } from '@/hooks/useTheme';
+import NavigateToCopiedObject from '@/components/NavigateToCopiedObject';
+import ActivityLogCurrentObject from '@/components/ActivityLogCurrentObject';
+import {
+	getCurrentObject,
+	onCurrentObjectChange
+} from '@/utils/getCurrentObject';
 import './App.css';
-import NavigateToCopiedObject from '../components/NavigateToCopiedObject';
 
 export default function App() {
 	// Apply theme
 	useTheme();
 
-	const currentObjectDefaults = {
-		id: null,
-		type: null,
-		typeName: null,
-		url: null,
-		detectedAt: null
-	};
-	const [currentObject, setCurrentObject] = useState(currentObjectDefaults);
+	const [currentObject, setCurrentObject] = useState(null);
 	const hasLoadedFromStorage = useRef(false);
 	const [isDomoPage, setIsDomoPage] = useState(false);
 	const [statusBar, setStatusBar] = useState({
@@ -27,6 +25,28 @@ export default function App() {
 		timeout: 3000,
 		visible: false
 	});
+
+	// Show persistent message when not on a Domo page
+	useEffect(() => {
+		if (!isDomoPage) {
+			setStatusBar({
+				title: 'Not on a Domo page',
+				description:
+					'Navigate to a Domo instance to enable most extension features',
+				status: 'warning',
+				timeout: null, // No timeout - persistent message
+				visible: true
+			});
+		} else {
+			// Clear the status bar when on a Domo page (unless another status is showing)
+			setStatusBar((prev) => {
+				if (prev.timeout === null) {
+					return { ...prev, visible: false };
+				}
+				return prev;
+			});
+		}
+	}, [isDomoPage]);
 
 	useEffect(() => {
 		// Request fresh object type detection from content script when popup opens
@@ -58,23 +78,19 @@ export default function App() {
 		});
 
 		// Load initial currentObject from storage
-		chrome.storage.local.get(['currentObject'], (result) => {
-			setCurrentObject(result.currentObject || currentObjectDefaults);
+		getCurrentObject().then((domoObject) => {
+			setCurrentObject(domoObject);
 			hasLoadedFromStorage.current = true;
 		});
 
 		// Listen for storage changes from other components
-		const handleStorageChange = (changes, areaName) => {
-			if (areaName === 'local' && changes.currentObject) {
-				setCurrentObject(changes.currentObject.newValue);
-			}
-		};
-
-		chrome.storage.onChanged.addListener(handleStorageChange);
+		const cleanupListener = onCurrentObjectChange((domoObject) => {
+			setCurrentObject(domoObject);
+		});
 
 		// Cleanup listener on unmount
 		return () => {
-			chrome.storage.onChanged.removeListener(handleStorageChange);
+			cleanupListener();
 		};
 	}, []);
 
@@ -143,18 +159,20 @@ export default function App() {
 					</Tabs.List>
 				</Tabs.ListContainer>
 				<Tabs.Panel className='px-4 flex flex-col gap-1' id='favorites'>
-					<Button fullWidth isDisabled={!isDomoPage}>
-						Activity Log Current{' '}
-						{currentObject?.typeName && currentObject?.id
-							? currentObject.typeName
-							: 'Object'}
-					</Button>
+					<ActivityLogCurrentObject
+						currentObject={currentObject}
+						onStatusUpdate={showStatus}
+					/>
 					<Button
 						fullWidth
 						isDisabled={!isDomoPage}
 						onPress={() => {
-							navigator.clipboard.writeText(currentObject.id);
-							showStatus('Copied', `Copied ${currentObject.id} to clipboard.`);
+							navigator.clipboard.writeText(currentObject?.id);
+							showStatus(
+								'Copied',
+								`Copied ${currentObject?.id} to clipboard.`,
+								'success'
+							);
 						}}
 					>
 						Copy Current{' '}
@@ -189,7 +207,7 @@ export default function App() {
 				></Tabs.Panel>
 				<Tabs.Panel id='settings'></Tabs.Panel>
 			</Tabs>
-			<div className='min-w-sm min-h-[5rem]'>
+			<div className='min-w-sm min-h-[6rem]'>
 				{statusBar.visible && (
 					<StatusBar
 						title={statusBar.title}

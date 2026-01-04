@@ -9,15 +9,23 @@ import {
 	ListBox,
 	TextField,
 	Form,
-	Fieldset
+	Fieldset,
+	Surface
 } from '@heroui/react';
 import IconChevronDown from '@/assets/icons/chevron-down.svg';
 import IconX from '@/assets/icons/x.svg';
 import { clearFaviconCache } from '@/utils/faviconModifier';
+import StatusBar from './StatusBar';
 
 export default function FaviconSettings() {
 	const [rules, setRules] = useState([]);
-	const [saveStatus, setSaveStatus] = useState('');
+	const [statusBar, setStatusBar] = useState({
+		title: '',
+		description: '',
+		status: 'accent',
+		timeout: 3000,
+		visible: false
+	});
 
 	// Load settings from Chrome storage on component mount
 	useEffect(() => {
@@ -49,6 +57,19 @@ export default function FaviconSettings() {
 		});
 	}, []);
 
+	const showStatus = (
+		title,
+		description,
+		status = 'accent',
+		timeout = 3000
+	) => {
+		setStatusBar({ title, description, status, timeout, visible: true });
+	};
+
+	const hideStatus = () => {
+		setStatusBar((prev) => ({ ...prev, visible: false }));
+	};
+
 	const onSave = async (e) => {
 		e.preventDefault();
 
@@ -61,8 +82,7 @@ export default function FaviconSettings() {
 				faviconRules: rules
 			},
 			() => {
-				setSaveStatus('Settings saved successfully!');
-				setTimeout(() => setSaveStatus(''), 3000);
+				showStatus('Saved', 'Settings saved successfully!', 'success');
 			}
 		);
 	};
@@ -91,95 +111,108 @@ export default function FaviconSettings() {
 
 	return (
 		<div className='flex flex-col justify-between w-full min-h-[85vh] p-4'>
-			<Form className='flex flex-col gap-4 w-full' onSubmit={onSave}>
-				{rules.map((rule, index) => (
-					<Fieldset>
-						<div
-							key={rule.id}
-							className='flex items-start gap-3 justify-start h-20'
-						>
-							<div className='flex-1 min-w-0'>
-								<TextField
-									className='w-full'
-									name='pattern'
-									onChange={(value) => updateRule(rule.id, 'pattern', value)}
-									value={rule.pattern}
-								>
-									<Label>Subdomain Pattern</Label>
-									<Input placeholder='e.g., ^company$ or .*-dev' />
-								</TextField>
-							</div>
-
-							<div className='flex flex-col gap-1 w-50'>
-								<Label>Effect</Label>
-								<Select
-									value={rule.effect}
-									onChange={(value) => updateRule(rule.id, 'effect', value)}
-									className='w-full'
-									placeholder='Select effect'
-								>
-									<Label className='sr-only'>Effect</Label>
-									<Select.Trigger>
-										<Select.Value />
-										<Select.Indicator />
-									</Select.Trigger>
-									<Select.Popover>
-										<ListBox>
-											<ListBox.Item id='instance-logo'>
-												instance-logo
-											</ListBox.Item>
-											<ListBox.Item id='domo-logo-colored'>
-												domo-logo-colored
-											</ListBox.Item>
-											<ListBox.Item id='top'>top</ListBox.Item>
-											<ListBox.Item id='right'>right</ListBox.Item>
-											<ListBox.Item id='bottom'>bottom</ListBox.Item>
-											<ListBox.Item id='left'>left</ListBox.Item>
-										</ListBox>
-									</Select.Popover>
-								</Select>
-							</div>
-
-							<div className='flex flex-col gap-1 w-20'>
-								<Label>Color</Label>
-								<Input
-									type='color'
-									value={rule.color}
-									onChange={(e) => updateRule(rule.id, 'color', e.target.value)}
-									className='w-full min-h-9 p-1'
-									disabled={
-										rule.effect === 'instance-logo' ||
-										rule.effect === 'domo-logo-colored'
-									}
-								/>
-							</div>
-
-							{rules.length > 1 && (
-								<div className='flex items-center h-20'>
-									<Button
-										variant='danger'
-										size='sm'
-										onPress={() => removeRow(rule.id)}
-										isIconOnly
+			<div className='flex flex-col gap-4 w-full'>
+				<Form className='flex flex-col gap-4 w-full' onSubmit={onSave}>
+					{rules.map((rule, index) => (
+						<Fieldset>
+							<div
+								key={rule.id}
+								className='flex items-start gap-3 justify-start h-20'
+							>
+								<div className='flex-1 min-w-0'>
+									<TextField
+										className='w-full'
+										name='pattern'
+										onChange={(value) => updateRule(rule.id, 'pattern', value)}
+										value={rule.pattern}
 									>
-										<img src={IconX} alt='Remove rule' />
-									</Button>
+										<Label>Subdomain Pattern</Label>
+										<Input placeholder='e.g., ^company$ or .*-dev' />
+									</TextField>
 								</div>
-							)}
-						</div>
-					</Fieldset>
-				))}
 
-				<div className='flex flex-row gap-2'>
-					<Button type='submit'>Save Settings</Button>
-					<Button type='button' variant='secondary' onPress={addRow}>
-						Add row
-					</Button>
+								<div className='flex flex-col gap-1 w-50'>
+									<Label>Effect</Label>
+									<Select
+										value={rule.effect}
+										onChange={(value) => updateRule(rule.id, 'effect', value)}
+										className='w-full'
+										placeholder='Select effect'
+									>
+										<Label className='sr-only'>Effect</Label>
+										<Select.Trigger>
+											<Select.Value />
+											<Select.Indicator />
+										</Select.Trigger>
+										<Select.Popover>
+											<ListBox>
+												<ListBox.Item id='instance-logo'>
+													instance-logo
+												</ListBox.Item>
+												<ListBox.Item id='domo-logo-colored'>
+													domo-logo-colored
+												</ListBox.Item>
+												<ListBox.Item id='top'>top</ListBox.Item>
+												<ListBox.Item id='right'>right</ListBox.Item>
+												<ListBox.Item id='bottom'>bottom</ListBox.Item>
+												<ListBox.Item id='left'>left</ListBox.Item>
+											</ListBox>
+										</Select.Popover>
+									</Select>
+								</div>
+
+								<div className='flex flex-col gap-1 w-20'>
+									<Label>Color</Label>
+									<Input
+										type='color'
+										value={rule.color}
+										onChange={(e) =>
+											updateRule(rule.id, 'color', e.target.value)
+										}
+										className='w-full min-h-9 p-1'
+										disabled={
+											rule.effect === 'instance-logo' ||
+											rule.effect === 'domo-logo-colored'
+										}
+									/>
+								</div>
+
+								{rules.length > 1 && (
+									<div className='flex items-center h-20'>
+										<Button
+											variant='danger'
+											size='sm'
+											onPress={() => removeRow(rule.id)}
+											isIconOnly
+										>
+											<img src={IconX} alt='Remove rule' />
+										</Button>
+									</div>
+								)}
+							</div>
+						</Fieldset>
+					))}
+
+					<div className='flex flex-row gap-2'>
+						<Button type='submit'>Save Settings</Button>
+						<Button type='button' variant='secondary' onPress={addRow}>
+							Add Row
+						</Button>
+					</div>
+				</Form>
+
+				<div className='min-h-[5rem]'>
+					{statusBar.visible && (
+						<StatusBar
+							title={statusBar.title}
+							description={statusBar.description}
+							status={statusBar.status}
+							timeout={statusBar.timeout}
+							onClose={hideStatus}
+						/>
+					)}
 				</div>
-				{saveStatus && (
-					<div className='text-green-600 text-sm'>{saveStatus}</div>
-				)}
-			</Form>
+			</div>
 
 			<Accordion className='cursor-pointer'>
 				<Accordion.Item key='effects-info'>
@@ -234,17 +267,29 @@ export default function FaviconSettings() {
 					</Accordion.Heading>
 					<Accordion.Panel>
 						<Accordion.Body>
-							Use regular expressions to match Domo instance subdomains. The
-							pattern will be tested against the subdomain only (before
-							.domo.com).
-							<p className='font-mono bg-gray-100 p-2 rounded'>
+							<p>
+								Use regular expressions to match Domo instance subdomains. The
+								pattern will be tested against the subdomain/instance only
+								(i.e., before .domo.com).
+							</p>
+							<p>
 								Examples:
-								<br />
-								- ^company$ (matches company.domo.com only)
-								<br />
-								- .*-dev (matches any Domo instance ending with -dev)
-								<br />- (qa|test) (matches qa.domo.com or test.domo.com)
-								<br />- .* (matches all Domo instances)
+								<ul className='space-y-1 pl-4 list-disc list-inside'>
+									<li>
+										<strong>.*</strong> - matches all Domo instances
+									</li>
+									<li>
+										<strong>^company$</strong> - matches only company.domo.com
+									</li>
+									<li>
+										<strong>.*-dev</strong> - matches any Domo instance ending
+										with -dev (e.g., company-dev.domo.com)
+									</li>
+									<li>
+										<strong>(qa|test)</strong> - matches qa.domo.com or
+										test.domo.com
+									</li>
+								</ul>
 							</p>
 						</Accordion.Body>
 					</Accordion.Panel>

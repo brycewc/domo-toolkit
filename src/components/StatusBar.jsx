@@ -44,13 +44,26 @@ export default function StatusBar({
 
 	if (!isVisible) return null;
 
+	// Map status to background color classes (needed for Tailwind purging)
+	const bgColorMap = {
+		accent: 'bg-accent',
+		primary: 'bg-primary',
+		success: 'bg-success',
+		warning: 'bg-warning',
+		danger: 'bg-danger'
+	};
+
+	const bgColor = bgColorMap[status] || 'bg-accent';
+
 	return (
 		<Alert status={status} className='relative overflow-hidden'>
-			<div
-				id='status-bar-timeout-indicator'
-				className={`absolute bottom-[1px] left-[1rem] bg-${status} h-1 opacity-75 transition-all duration-50 rounded-full`}
-				style={{ width: `calc(${progress}% - 2rem)` }}
-			/>
+			{timeout && (
+				<div
+					id='status-bar-timeout-indicator'
+					className={`absolute top-[1px] left-[1rem] h-1 opacity-75 transition-all duration-50 rounded-full ${bgColor}`}
+					style={{ width: `calc(${progress}% - 2rem)` }}
+				/>
+			)}
 			<Alert.Indicator />
 			<Alert.Content>
 				<Alert.Title>{title}</Alert.Title>

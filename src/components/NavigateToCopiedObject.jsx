@@ -1,6 +1,7 @@
 import { Button } from '@heroui/react';
 import { useState, useEffect, useRef } from 'react';
-import { detectAndFetchObject } from '@/services/allObjects';
+import { detectAndFetchObject } from '@/services/index';
+import { DomoObject } from '@/models/DomoObject';
 
 export default function NavigateToCopiedObject() {
 	const [copiedObjectId, setCopiedObjectId] = useState(null);
@@ -84,48 +85,25 @@ export default function NavigateToCopiedObject() {
 				return;
 			}
 
-			// Build URL based on object type
+			// Build URL and navigate
 			const baseUrl = new URL(tab.url).origin;
-			let targetUrl;
 
-			switch (objectDetails.type) {
-				case 'CARD':
-					targetUrl = `${baseUrl}/kpis/details/${copiedObjectId}`;
-					break;
-				case 'DATA_SOURCE':
-					targetUrl = `${baseUrl}/datasources/${copiedObjectId}`;
-					break;
-				case 'DATAFLOW_TYPE':
-					targetUrl = `${baseUrl}/dataflows/${copiedObjectId}`;
-					break;
-				case 'PAGE':
-					targetUrl = `${baseUrl}/page/${copiedObjectId}`;
-					break;
-				case 'USER':
-					targetUrl = `${baseUrl}/people/${copiedObjectId}`;
-					break;
-				case 'GROUP':
-					targetUrl = `${baseUrl}/groups/${copiedObjectId}`;
-					break;
-				case 'ALERT':
-					targetUrl = `${baseUrl}/alerts/${copiedObjectId}`;
-					break;
-				case 'APP':
-					targetUrl = `${baseUrl}/assetlibrary/${copiedObjectId}`;
-					break;
-				case 'PROJECT':
-					targetUrl = `${baseUrl}/project/${copiedObjectId}`;
-					break;
-				default:
-					alert(`Navigation not supported for type: ${objectDetails.type}`);
-					return;
+			// Create DomoObject instance
+			const domoObject = new DomoObject(
+				objectDetails.type,
+				copiedObjectId,
+				baseUrl
+			);
+
+			try {
+				await domoObject.navigateTo(tab.id);
+			} catch (err) {
+				console.error('Error navigating to object:', err);
+				alert(`Error navigating to object: ${err.message}`);
 			}
-
-			// Navigate to the URL
-			await chrome.tabs.update(tab.id, { url: targetUrl });
 		} catch (err) {
-			console.error('Error navigating:', err);
-			alert('Error navigating to object: ' + err.message);
+			console.error('Error:', err);
+			alert('Error: ' + err.message);
 		}
 	};
 
@@ -134,10 +112,10 @@ export default function NavigateToCopiedObject() {
 			return 'Navigate to Copied: N/A';
 		}
 		if (isLoading) {
-			return `Loading ${copiedObjectId}...`;
+			return `Loading...`;
 		}
 		if (error) {
-			return `Error: ${copiedObjectId}`;
+			return `Error: ${error}`;
 		}
 		if (objectDetails) {
 			return `Navigate to Copied: ${objectDetails.type}`;
