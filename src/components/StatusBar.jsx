@@ -1,7 +1,7 @@
-import { Alert, Button, CloseButton } from '@heroui/react';
 import { useState, useEffect } from 'react';
+import { Alert, CloseButton } from '@heroui/react';
 
-export default function StatusBar({
+export function StatusBar({
 	title,
 	description,
 	status = 'accent',

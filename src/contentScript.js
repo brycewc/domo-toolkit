@@ -1,9 +1,9 @@
-import { detectObjectType } from './utils/detectObjectType';
-import { detectCardModal } from './utils/detectCardModal';
 import {
+	getCurrentObject,
+	detectCardModal,
 	applyFaviconRules,
 	applyInstanceLogoAuto
-} from './utils/faviconModifier';
+} from '@/utils';
 
 // Track current domain to detect domain changes
 let currentDomain = location.hostname;
@@ -85,31 +85,11 @@ window.addEventListener('popstate', () => {
 	checkDomainChange();
 });
 
-// Detect and send object type on page load
-function detectAndSendObjectType() {
-	const domoObject = detectObjectType();
-
-	if (domoObject) {
-		console.log('Detected Domo object:', domoObject);
-
-		// Store in chrome.storage for quick access
-		chrome.storage.local.set({
-			currentObject: domoObject
-		});
-	} else {
-		console.log('No Domo object detected on this page');
-		// Clear stored object type
-		chrome.storage.local.set({
-			currentObject: null
-		});
-	}
-}
-
-// Detect on initial load
+// Detect and store object type on page load
 if (document.readyState === 'loading') {
-	document.addEventListener('DOMContentLoaded', detectAndSendObjectType);
+	document.addEventListener('DOMContentLoaded', getCurrentObject);
 } else {
-	detectAndSendObjectType();
+	getCurrentObject();
 }
 
 // Re-detect when URL changes (for SPAs)
@@ -120,7 +100,7 @@ const urlCheckInterval = setInterval(() => {
 	if (location.href !== objectUrl) {
 		objectUrl = location.href;
 		console.log('URL changed, re-detecting object type');
-		detectAndSendObjectType();
+		getCurrentObject();
 	}
 }, 1000);
 
@@ -132,12 +112,12 @@ function checkCardModal() {
 	if (kpiId && kpiId !== lastDetectedCardId) {
 		console.log('Card modal detected/changed, re-detecting object type');
 		lastDetectedCardId = kpiId;
-		detectAndSendObjectType();
+		getCurrentObject();
 	} else if (!kpiId && lastDetectedCardId) {
 		// Modal was closed
 		console.log('Card modal closed, re-detecting object type');
 		lastDetectedCardId = null;
-		detectAndSendObjectType();
+		getCurrentObject();
 	}
 }
 
@@ -159,9 +139,10 @@ observer.observe(document.body, {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 	if (request.action === 'getObjectType') {
 		// Re-detect and update when popup requests it
-		detectAndSendObjectType();
-		const domoObject = detectObjectType();
-		sendResponse(domoObject);
+		getCurrentObject().then((domoObject) => {
+			sendResponse(domoObject);
+		});
+		return true; // Keep message channel open for async response
 	}
 	return true;
 });

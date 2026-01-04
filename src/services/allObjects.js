@@ -2,16 +2,29 @@
  * Domo API service for fetching object details
  */
 
+import { getObjectType, getAllObjectTypes } from '@/models';
+
 const API_BASE = 'https://api.domo.com';
 
 /**
  * Fetch details about a Domo object
  * @param {string} objectType - The type of object (CARD, DATA_SOURCE, etc.)
  * @param {string} objectId - The object ID
+ * @param {string} [parentId] - Optional parent ID for types that require it
  * @returns {Promise<{name: string, type: string, id: string}>}
  */
-export async function fetchObjectDetails(objectType, objectId) {
+export async function fetchObjectDetails(
+	objectType,
+	objectId,
+	parentId = null
+) {
 	try {
+		// Get the object type configuration
+		const typeConfig = getObjectType(objectType);
+		if (!typeConfig || !typeConfig.api) {
+			throw new Error(`No API configuration for object type: ${objectType}`);
+		}
+
 		// Get active tab to execute fetch in Domo context
 		const [tab] = await chrome.tabs.query({
 			active: true,
@@ -27,11 +40,15 @@ export async function fetchObjectDetails(objectType, objectId) {
 			target: { tabId: tab.id },
 			world: 'MAIN',
 			func: fetchObjectDetailsInPage,
-			args: [objectType, objectId]
+			args: [typeConfig.api, objectId, parentId]
 		});
 
 		if (result && result[0] && result[0].result) {
-			return result[0].result;
+			return {
+				...result[0].result,
+				type: objectType,
+				id: objectId
+			};
 		}
 
 		throw new Error('Failed to fetch object details');
@@ -43,40 +60,38 @@ export async function fetchObjectDetails(objectType, objectId) {
 
 /**
  * Function executed in page context to fetch object details
- * @param {string} objectType - The object type
+ * @param {Object} apiConfig - The API configuration from DomoObjectType
  * @param {string} objectId - The object ID
+ * @param {string|null} parentId - Optional parent ID
  */
-async function fetchObjectDetailsInPage(objectType, objectId) {
-	const typeToEndpoint = {
-		CARD: `/api/content/v2/cards/${objectId}`,
-		DATA_SOURCE: `/api/data/v2/datasources/${objectId}`,
-		DATAFLOW_TYPE: `/api/data/v2/dataflows/${objectId}`,
-		PAGE: `/api/content/v2/pages/${objectId}`,
-		USER: `/api/identity/v1/users/${objectId}`,
-		GROUP: `/api/identity/v1/groups/${objectId}`,
-		ALERT: `/api/data/v1/alerts/${objectId}`,
-		DRILL_VIEW: `/api/content/v1/cards/${objectId}/drillviews`,
-		WORKFLOW_MODEL: `/api/workflow/v1/models/${objectId}`,
-		APP: `/api/content/v1/apps/${objectId}`,
-		PROJECT: `/api/project/v1/projects/${objectId}`
-	};
-
-	const endpoint = typeToEndpoint[objectType];
-	if (!endpoint) {
-		return {
-			name: `${objectType} #${objectId}`,
-			type: objectType,
-			id: objectId
-		};
-	}
+async function fetchObjectDetailsInPage(apiConfig, objectId, parentId) {
+	const { method, endpoint, pathToName, bodyTemplate } = apiConfig;
 
 	try {
-		const response = await fetch(endpoint, {
+		// Build the endpoint URL
+		let url = `/api${endpoint}`
+			.replace('{id}', objectId)
+			.replace('{parent}', parentId || '');
+
+		// Prepare fetch options
+		const options = {
+			method,
 			credentials: 'include',
 			headers: {
 				'Content-Type': 'application/json'
 			}
-		});
+		};
+
+		// Add body for POST requests
+		if (method === 'POST' && bodyTemplate) {
+			// Replace {id} in bodyTemplate
+			const body = JSON.parse(
+				JSON.stringify(bodyTemplate).replace(/{id}/g, objectId)
+			);
+			options.body = JSON.stringify(body);
+		}
+
+		const response = await fetch(url, options);
 
 		if (!response.ok) {
 			throw new Error(`HTTP ${response.status}`);
@@ -84,60 +99,18 @@ async function fetchObjectDetailsInPage(objectType, objectId) {
 
 		const data = await response.json();
 
-		// Extract name from various possible fields
+		// Extract name using the pathToName
 		const name =
-			data.name ||
-			data.displayName ||
-			data.title ||
-			data.cardName ||
-			`${objectType} #${objectId}`;
+			pathToName.split('.').reduce((current, prop) => current?.[prop], data) ||
+			`Object #${objectId}`;
 
 		return {
-			name,
-			type: objectType,
-			id: objectId
+			name
 		};
 	} catch (error) {
 		console.error('Error in fetchObjectDetailsInPage:', error);
-		return {
-			name: `${objectType} #${objectId}`,
-			type: objectType,
-			id: objectId,
-			error: error.message
-		};
+		throw error;
 	}
-}
-
-/**
- * Detect object type from ID patterns
- * @param {string} id - The object ID
- * @returns {string|null} - Detected object type or null
- */
-export function detectObjectTypeFromId(id) {
-	// Domo object IDs follow certain patterns
-	// This is a heuristic approach and may need refinement
-
-	if (!id || typeof id !== 'string') return null;
-
-	const trimmedId = id.trim();
-
-	// UUIDs are typically used for certain object types
-	const uuidPattern =
-		/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-	// Numeric IDs
-	const numericPattern = /^\d+$/;
-
-	if (uuidPattern.test(trimmedId)) {
-		// UUIDs are often used for apps, workflows, etc.
-		return null; // Need more context
-	} else if (numericPattern.test(trimmedId)) {
-		// Most common objects use numeric IDs
-		// Without more context, we'll need to try API calls
-		return null;
-	}
-
-	return null;
 }
 
 /**
@@ -146,22 +119,42 @@ export function detectObjectTypeFromId(id) {
  * @returns {Promise<{name: string, type: string, id: string}>}
  */
 export async function detectAndFetchObject(objectId) {
-	// Try common object types in order of likelihood
-	const typesToTry = [
-		'CARD',
-		'DATA_SOURCE',
-		'DATAFLOW_TYPE',
-		'PAGE',
-		'USER',
-		'GROUP',
-		'ALERT',
-		'APP'
-	];
+	// Get all object types that have API configurations and match the ID pattern
+	const allTypes = getAllObjectTypes();
+	const typesToTry = allTypes
+		.filter(
+			(type) =>
+				type.api && // Has API configuration
+				type.isValidObjectId(objectId) && // ID matches pattern
+				!type.requiresParent() // Doesn't require a parent ID
+		)
+		// Sort by likelihood (common types first)
+		.sort((a, b) => {
+			const priority = [
+				'CARD',
+				'DATA_SOURCE',
+				'DATAFLOW_TYPE',
+				'DATA_APP',
+				'DATA_APP_VIEW',
+				'PAGE',
+				'USER',
+				'GROUP',
+				'ALERT',
+				'BEAST_MODE_FORMULA',
+				'WORKFLOW_MODEL'
+			];
+			const aIndex = priority.indexOf(a.id);
+			const bIndex = priority.indexOf(b.id);
+			if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+			if (aIndex !== -1) return -1;
+			if (bIndex !== -1) return 1;
+			return 0;
+		});
 
-	for (const objectType of typesToTry) {
+	for (const typeConfig of typesToTry) {
 		try {
-			const result = await fetchObjectDetails(objectType, objectId);
-			if (result && !result.error) {
+			const result = await fetchObjectDetails(typeConfig.id, objectId);
+			if (result && result.name) {
 				return result;
 			}
 		} catch (error) {

@@ -26,6 +26,10 @@ export class DomoObjectType {
 	 * @returns {string|Promise<string>} The full URL (may be async if parent lookup is needed)
 	 */
 	buildObjectUrl(baseUrl, id, parentId) {
+		if (!this.hasUrl()) {
+			throw new Error(`Object type ${this.id} does not have a navigable URL`);
+		}
+
 		let url = this.urlPath.replace('{id}', id);
 
 		// If the URL contains {parent}, replace it with the parentId
@@ -44,7 +48,15 @@ export class DomoObjectType {
 	 * @returns {boolean} Whether a parent ID is required
 	 */
 	requiresParent() {
-		return this.urlPath.includes('{parent}');
+		return this.urlPath && this.urlPath.includes('{parent}');
+	}
+
+	/**
+	 * Check if this object type has a navigable URL
+	 * @returns {boolean} Whether the object type has a URL path
+	 */
+	hasUrl() {
+		return this.urlPath !== null && this.urlPath !== undefined;
 	}
 
 	/**
@@ -87,6 +99,11 @@ export class DomoObjectType {
  * Registry of all supported object types
  */
 export const ObjectTypeRegistry = {
+	ACCOUNT: new DomoObjectType('ACCOUNT', 'Account', null, /^\d+$/, null, {
+		method: 'GET',
+		endpoint: '/data/v1/accounts/{id}',
+		pathToName: 'name'
+	}),
 	AI_MODEL: new DomoObjectType(
 		'AI_MODEL',
 		'AI Model',
@@ -103,7 +120,7 @@ export const ObjectTypeRegistry = {
 		'AI_PROJECT',
 		'AI Project',
 		'/ai-services/projects/{id}',
-		/^\d+$/,
+		/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
 		{ keyword: 'projects' },
 		{
 			method: 'GET',
@@ -115,7 +132,7 @@ export const ObjectTypeRegistry = {
 		'ALERT',
 		'Alert',
 		'/alerts/{id}',
-		/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+		/^\d+$/,
 		{ keyword: 'alerts' },
 		{
 			method: 'GET',
@@ -146,7 +163,12 @@ export const ObjectTypeRegistry = {
 		'Custom App',
 		'/assetlibrary/{id}/overview',
 		/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-		{ keyword: 'assetlibrary' }
+		{ keyword: 'assetlibrary' },
+		{
+			method: 'GET',
+			endpoint: '/apps/v1/designs/{id}?parts=versions',
+			pathToName: 'name'
+		}
 	),
 	BEAST_MODE_FORMULA: new DomoObjectType(
 		'BEAST_MODE_FORMULA',
@@ -160,164 +182,321 @@ export const ObjectTypeRegistry = {
 			pathToName: 'name'
 		}
 	),
-	CARD: new DomoObjectType('CARD', 'Card', '/kpis/details/{id}', /^\d+$/, {
-		keyword: 'details'
-	}),
+	CARD: new DomoObjectType(
+		'CARD',
+		'Card',
+		'/kpis/details/{id}',
+		/^\d+$/,
+		{
+			keyword: 'details'
+		},
+		{
+			method: 'GET',
+			endpoint: '/content/v1/cards?urns={id}',
+			pathToName: 'title'
+		}
+	),
 	CODEENGINE_PACKAGE: new DomoObjectType(
 		'CODEENGINE_PACKAGE',
 		'Code Engine Package',
 		'/codeengine/{id}',
 		/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-		{ keyword: 'codeengine' }
+		{ keyword: 'codeengine' },
+		{
+			method: 'GET',
+			endpoint: '/codeengine/v2/packages/{id}?parts=functions',
+			pathToName: 'name'
+		}
 	),
 	DATA_APP: new DomoObjectType(
 		'DATA_APP',
 		'Studio App',
 		'/app-studio/{id}',
 		/^\d+$/,
-		{ keyword: 'app-studio' }
+		{ keyword: 'app-studio' },
+		{
+			method: 'GET',
+			endpoint: '/content/v1/dataapps/{id}',
+			pathToName: 'title'
+		}
 	),
 	DATA_APP_VIEW: new DomoObjectType(
 		'DATA_APP_VIEW',
 		'App Studio Page',
 		'/app-studio/{parent}/pages/{id}',
 		/^\d+$/,
-		{ keyword: 'pages' }
+		{ keyword: 'pages' },
+		{
+			method: 'GET',
+			endpoint: '/content/v3/stacks/{id}',
+			pathToName: 'title'
+		}
 	),
 	DATA_SCIENCE_NOTEBOOK: new DomoObjectType(
 		'DATA_SCIENCE_NOTEBOOK',
 		'Jupyter Workspace',
 		'/jupyter-workspaces/{id}',
 		/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-		{ keyword: 'jupyter-workspaces' }
+		{ keyword: 'jupyter-workspaces' },
+		{
+			method: 'GET',
+			endpoint: '/datascience/v1/workspaces/{id}',
+			pathToName: 'name'
+		}
 	),
 	DATA_SOURCE: new DomoObjectType(
 		'DATA_SOURCE',
 		'DataSet',
 		'/datasources/{id}',
 		/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-		{ keyword: 'datasources' }
+		{ keyword: 'datasources' },
+		{
+			method: 'GET',
+			endpoint: '/data/v3/datasources/{id}?includeAllDetails=true',
+			pathToName: 'name'
+		}
 	),
 	DATAFLOW_TYPE: new DomoObjectType(
 		'DATAFLOW_TYPE',
 		'DataFlow',
 		'/dataflows/{id}',
 		/^\d+$/,
-		{ keyword: 'dataflows' }
+		{ keyword: 'dataflows' },
+		{
+			method: 'GET',
+			endpoint: '/dataprocessing/v2/dataflows/{id}',
+			pathToName: 'name'
+		}
 	),
 	DRILL_VIEW: new DomoObjectType(
 		'DRILL_VIEW',
 		'Drill Path',
 		'/analyzer?cardid=${parent}&drillviewid=${id}',
 		/^\d+$/,
-		{ keyword: 'drillviewid' }
+		{ keyword: 'drillviewid' },
+		{
+			method: 'GET',
+			endpoint: '/content/v1/cards?urns={id}:{parent}',
+			pathToName: 'title'
+		}
 	),
 	FILESET: new DomoObjectType(
 		'FILESET',
 		'FileSet',
 		'/datacenter/filesets/{id}',
 		/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-		{ keyword: 'filesets' }
+		{ keyword: 'filesets' },
+		{
+			method: 'GET',
+			endpoint: '/files/v1/filesets/{id}',
+			pathToName: 'name'
+		}
 	),
 	GROUP: new DomoObjectType(
 		'GROUP',
 		'Group',
 		'/admin/groups/{id}?tab=people',
 		/^\d+$/,
-		{ keyword: 'groups' }
+		{ keyword: 'groups' },
+		{
+			method: 'GET',
+			endpoint: '/content/v2/groups/{id}',
+			pathToName: 'name'
+		}
 	),
 	HOPPER_QUEUE: new DomoObjectType(
 		'HOPPER_QUEUE',
 		'Task Center Queue',
 		'/admin/task-center/queues?queueId={id}',
-		/^\d+$/,
-		{ keyword: 'queueId' }
+		/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+		{ keyword: 'queueId' },
+		{
+			method: 'GET',
+			endpoint: '/queues/v1/{id}',
+			pathToName: 'name'
+		}
 	),
 	HOPPER_TASK: new DomoObjectType(
 		'HOPPER_TASK',
 		'Task Center Task',
 		'/admin/task-center/queues?id={id}',
-		/^\d+$/,
-		{ keyword: 'id' }
+		/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+		{ keyword: 'id' },
+		{
+			method: 'GET',
+			endpoint: '/queues/v1/{parent}/tasks/{id}',
+			pathToName: 'displayEntity.name'
+		}
 	),
 	KEY_RESULT: new DomoObjectType(
 		'KEY_RESULT',
 		'Key Result',
 		'/goals/key-results/{id}',
 		/^\d+$/,
-		{ keyword: 'key-results' }
+		{ keyword: 'key-results' },
+		{
+			method: 'GET',
+			endpoint: '/social/v1/objectives/key-results/{id}',
+			pathToName: 'name'
+		}
 	),
 	MAGNUM_COLLECTION: new DomoObjectType(
 		'MAGNUM_COLLECTION',
 		'AppDB Collection',
 		'/appDb/{id}/permissions',
 		/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-		{ keyword: 'appDb' }
+		{ keyword: 'appDb' },
+		{
+			method: 'GET',
+			endpoint: '/datastores/v1/collections/{id}',
+			pathToName: 'name'
+		}
 	),
-	OBJECTIVE: new DomoObjectType('OBJECTIVE', 'Goal', '/goals/{id}', /^\d+$/, {
-		keyword: 'goals'
-	}),
-	PAGE: new DomoObjectType('PAGE', 'Page', '/page/{id}', /^\d+$/, {
-		keyword: 'page'
-	}),
+	OBJECTIVE: new DomoObjectType(
+		'OBJECTIVE',
+		'Goal',
+		'/goals/{id}',
+		/^\d+$/,
+		{
+			keyword: 'goals'
+		},
+		{
+			method: 'GET',
+			endpoint: '/social/v1/objectives/{id}',
+			pathToName: 'name'
+		}
+	),
+	PAGE: new DomoObjectType(
+		'PAGE',
+		'Page',
+		'/page/{id}',
+		/^\d+$/,
+		{
+			keyword: 'page'
+		},
+		{
+			method: 'GET',
+			endpoint: '/content/v3/stacks/{id}',
+			pathToName: 'title'
+		}
+	),
 	PROJECT: new DomoObjectType(
 		'PROJECT',
 		'Project',
 		'/project/{id}',
-		/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-		{ keyword: 'project' }
+		/^\d+$/,
+		{
+			keyword: 'project'
+		},
+		{
+			method: 'GET',
+			endpoint: '/content/v1/projects/{id}',
+			pathToName: 'projectName'
+		}
 	),
 	PROJECT_TASK: new DomoObjectType(
 		'PROJECT_TASK',
 		'Task',
 		'/project?taskId={id}',
 		/^\d+$/,
-		{ keyword: 'taskId' }
+		{ keyword: 'taskId' },
+		{
+			method: 'GET',
+			endpoint: '/content/v1/tasks/{id}',
+			pathToName: 'taskName'
+		}
 	),
 	PUBLICATION: new DomoObjectType(
 		'PUBLICATION',
 		'Publication',
 		'/domo-everywhere/publications?id={id}',
 		/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-		{ keyword: 'id' }
+		{ keyword: 'id' },
+		{
+			method: 'GET',
+			endpoint: '/publish/v2/publications/{id}',
+			pathToName: 'name'
+		}
 	),
 	REPOSITORY: new DomoObjectType(
 		'REPOSITORY',
 		'Sandbox Repository',
 		'/sandbox/repositories/{id}',
 		/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-		{ keyword: 'repositories' }
+		{ keyword: 'repositories' },
+		{
+			method: 'GET',
+			endpoint: '/versions/v1/repositories/{id}',
+			pathToName: 'name'
+		}
 	),
-	ROLE: new DomoObjectType('ROLE', 'Role', '/admin/roles/{id}', /^\d+$/, {
-		keyword: 'roles'
-	}),
+	ROLE: new DomoObjectType(
+		'ROLE',
+		'Role',
+		'/admin/roles/{id}',
+		/^\d+$/,
+		{
+			keyword: 'roles'
+		},
+		{
+			method: 'GET',
+			endpoint: '/authorization/v1/roles/{id}',
+			pathToName: 'name'
+		}
+	),
 	TEMPLATE: new DomoObjectType(
 		'TEMPLATE',
 		'Approval Template',
 		'/approval/edit-request-form/{id}',
 		/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-		{ keyword: 'edit-request-form' }
+		{ keyword: 'edit-request-form' },
+		{
+			method: 'POST',
+			endpoint: '/synapse/approval/graphql',
+			pathToName: 'data.template.title',
+			bodyTemplate: {
+				operationName: 'getTemplateForEdit',
+				variables: { id: '{id}' },
+				query:
+					'query getTemplateForEdit($id: ID!) {\n  template(id: $id) {\n    id\n    title\n    titleName\n    titlePlaceholder\n    acknowledgment\n    instructions\n    description\n    providerName\n    isPublic\n    chainIsLocked\n    type\n    isPublished\n    observers {\n      id\n      type\n      displayName\n      avatarKey\n      title\n      ... on Group {\n        userCount\n        __typename\n      }\n      __typename\n    }\n    categories {\n      id\n      name\n      __typename\n    }\n    owner {\n      id\n      displayName\n      avatarKey\n      __typename\n    }\n    fields {\n      key\n      type\n      name\n      data\n      placeholder\n      required\n      isPrivate\n      ... on SelectField {\n        option\n        multiselect\n        datasource\n        column\n        order\n        __typename\n      }\n      __typename\n    }\n    approvers {\n      type\n      originalType: type\n      key\n      ... on ApproverPerson {\n        id: approverId\n        approverId\n        userDetails {\n          id\n          displayName\n          title\n          avatarKey\n          isDeleted\n          __typename\n        }\n        __typename\n      }\n      ... on ApproverGroup {\n        id: approverId\n        approverId\n        groupDetails {\n          id\n          displayName\n          userCount\n          isDeleted\n          __typename\n        }\n        __typename\n      }\n      ... on ApproverPlaceholder {\n        placeholderText\n        __typename\n      }\n      __typename\n    }\n    workflowIntegration {\n      modelId\n      modelVersion\n      startName\n      modelName\n      parameterMapping {\n        fields {\n          field\n          parameter\n          required\n          type\n          __typename\n        }\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n}'
+			}
+		}
 	),
 	USER: new DomoObjectType(
 		'USER',
 		'User',
 		'admin/people/{id}?tab=profile',
 		/^\d+$/,
-		{ keyword: 'people' }
+		{ keyword: 'people' },
+		{
+			method: 'GET',
+			endpoint: '/content/v2/users/{id}',
+			pathToName: 'displayName'
+		}
 	),
 	WORKFLOW_INSTANCE: new DomoObjectType(
 		'WORKFLOW_INSTANCE',
 		'Workflow Execution',
 		'/workflows/instances/{id}',
-		/^\d+$/,
-		{ keyword: null, fromEnd: true, offset: 1 }
+		/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+		{ keyword: null, fromEnd: true, offset: 1 },
+		{
+			method: 'GET',
+			endpoint: '/workflows/v2/executions/{id}',
+			pathToName: 'modelName'
+		}
 	),
 	WORKFLOW_MODEL: new DomoObjectType(
 		'WORKFLOW_MODEL',
 		'Workflow',
 		'/workflows/{id}',
-		/^\d+$/,
-		{ keyword: 'workflows', offset: 2 }
+		/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+		{ keyword: 'workflows', offset: 2 },
+		{
+			method: 'GET',
+			endpoint: '/workflows/v1/models/{id}',
+			pathToName: 'name'
+		}
 	)
 };
 

@@ -1,19 +1,151 @@
+import { DomoObject, getObjectType } from '@/models';
+
+export async function getCurrentObject() {
+	const domoObject = detectCurrentObject();
+	if (!domoObject) {
+		return null;
+	}
+	await storeCurrentObject(domoObject);
+	return domoObject;
+}
+
+/**
+ * Detects the current object from the page and stores it in Chrome storage
+ * This should be called from the content script when the page loads or URL changes
+ */
+export async function storeCurrentObject(domoObject) {
+	console.log('Detected Domo object:', domoObject);
+
+	// Store in chrome.storage for quick access
+	// We need to serialize the object because DomoObject instances can't be directly stored
+	const serialized = {
+		objectType: {
+			id: domoObject.typeId,
+			name: domoObject.typeName
+		},
+		id: domoObject.id,
+		baseUrl: domoObject.baseUrl,
+		url: domoObject.url,
+		metadata: domoObject.metadata
+	};
+
+	await chrome.storage.local.set({ currentObject: serialized });
+}
+
+/**
+ * Retrieves the current object from Chrome storage and converts it to a DomoObject instance
+ * @returns {Promise<DomoObject|null>} DomoObject instance or null if no object is stored
+ */
+export async function fetchCurrentObjectAsDomoObject() {
+	return new Promise((resolve) => {
+		chrome.storage.local.get(['currentObject'], (result) => {
+			const storedObject = result.currentObject;
+
+			if (!storedObject || !storedObject.objectType || !storedObject.id) {
+				resolve(null);
+				return;
+			}
+
+			// If it's already a DomoObject instance (has methods), return it
+			if (storedObject instanceof DomoObject) {
+				resolve(storedObject);
+				return;
+			}
+
+			// Convert plain object to DomoObject instance
+			try {
+				const baseUrl =
+					storedObject.baseUrl ||
+					(storedObject.url ? new URL(storedObject.url).origin : null);
+
+				if (!baseUrl) {
+					console.warn('No baseUrl found in stored object');
+					resolve(null);
+					return;
+				}
+
+				const domoObject = new DomoObject(
+					storedObject.objectType.id,
+					storedObject.id,
+					baseUrl,
+					storedObject.metadata || {}
+				);
+
+				resolve(domoObject);
+			} catch (error) {
+				console.error('Error converting stored object to DomoObject:', error);
+				resolve(null);
+			}
+		});
+	});
+}
+
+/**
+ * Listens for changes to currentObject in Chrome storage and calls the callback with a DomoObject instance
+ * @param {function(DomoObject|null): void} callback - Function to call when currentObject changes
+ * @returns {function(): void} Cleanup function to remove the listener
+ */
+export function onCurrentObjectChange(callback) {
+	const handleStorageChange = async (changes, areaName) => {
+		if (areaName === 'local' && changes.currentObject) {
+			const newValue = changes.currentObject.newValue;
+
+			if (!newValue || !newValue.objectType || !newValue.id) {
+				callback(null);
+				return;
+			}
+
+			// If it's already a DomoObject instance, use it
+			if (newValue instanceof DomoObject) {
+				callback(newValue);
+				return;
+			}
+
+			// Convert plain object to DomoObject instance
+			try {
+				const baseUrl =
+					newValue.baseUrl ||
+					(newValue.url ? new URL(newValue.url).origin : null);
+
+				if (!baseUrl) {
+					console.warn('No baseUrl found in updated object');
+					callback(null);
+					return;
+				}
+
+				const domoObject = new DomoObject(
+					newValue.objectType.id,
+					newValue.id,
+					baseUrl,
+					newValue.metadata || {}
+				);
+
+				callback(domoObject);
+			} catch (error) {
+				console.error('Error converting updated object to DomoObject:', error);
+				callback(null);
+			}
+		}
+	};
+
+	chrome.storage.onChanged.addListener(handleStorageChange);
+
+	// Return cleanup function
+	return () => {
+		chrome.storage.onChanged.removeListener(handleStorageChange);
+	};
+}
+
 /**
  * Detects the Domo object type and ID based on the current URL
  * Based on the logic from Copy Current Object ID bookmarklet
  * @returns {DomoObject | null} DomoObject instance, or null if not recognized
  */
-import { detectCardModal } from './detectCardModal';
-import { getObjectType } from '@/models/DomoObjectType';
-import { DomoObject } from '@/models/DomoObject';
 
-export function detectObjectType() {
+function detectCurrentObject() {
 	const url = location.href;
 
-	if (
-		!location.hostname.includes('domo.com') ||
-		!location.protocol.startsWith('http')
-	) {
+	if (!location.hostname.includes('domo.com')) {
 		return null;
 	}
 
@@ -219,4 +351,28 @@ export function detectObjectType() {
 	const baseUrl = `${location.protocol}//${location.hostname}`;
 
 	return new DomoObject(objectType, id, baseUrl);
+}
+
+/**
+ * Detects if a card modal is open and returns the card ID
+ * @returns {string|null} Card ID if modal is open, null otherwise
+ */
+export function detectCardModal() {
+	const detailsEl = document.querySelector('cd-details-title');
+
+	if (!detailsEl) {
+		return null;
+	}
+
+	try {
+		if (window.angular && typeof window.angular.element === 'function') {
+			const ngScope = window.angular.element(detailsEl).scope();
+			const kpiId = ngScope && ngScope.$ctrl && ngScope.$ctrl.kpiId;
+			return kpiId || null;
+		}
+	} catch (e) {
+		// Ignore and return null
+	}
+
+	return null;
 }

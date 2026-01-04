@@ -28,10 +28,7 @@ function getActivityLogTypes(objectType) {
 	}
 }
 
-export default function ActivityLogCurrentObject({
-	currentObject,
-	onStatusUpdate
-}) {
+export function ActivityLogCurrentObject({ currentObject, onStatusUpdate }) {
 	const [activityLogConfig, setActivityLogConfig] = useState(null);
 	const [isLoading, setIsLoading] = useState(false);
 

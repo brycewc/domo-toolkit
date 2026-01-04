@@ -1,8 +1,5 @@
-import { getObjectType } from './DomoObjectType';
-import {
-	getAppStudioPageParent,
-	getDrillParentCardId
-} from '@/services/index.js';
+import { getObjectType } from '@/models';
+import { getAppStudioPageParent, getDrillParentCardId } from '@/services';
 
 /**
  * DomoObject class represents an instance of a Domo object
@@ -24,8 +21,11 @@ export class DomoObject {
 			throw new Error(`Unknown object type: ${type}`);
 		}
 
-		// Build and cache the URL (synchronous for types that don't require parent)
-		if (this.requiresParent()) {
+		// Build and cache the URL only if the type has a navigable URL
+		if (!this.objectType.hasUrl()) {
+			// For types without URLs, we can't navigate
+			this.url = null;
+		} else if (this.requiresParent()) {
 			// For types requiring parent, url will be set asynchronously
 			this.url = null;
 		} else {
@@ -66,6 +66,14 @@ export class DomoObject {
 	}
 
 	/**
+	 * Check if this object type has a navigable URL
+	 * @returns {boolean} Whether the object type has a URL
+	 */
+	hasUrl() {
+		return this.objectType.hasUrl();
+	}
+
+	/**
 	 * Get the parent ID for this object
 	 * @param {string} baseUrl - The base URL (e.g., https://instance.domo.com)
 	 * @returns {Promise<string>} The parent ID
@@ -103,6 +111,11 @@ export class DomoObject {
 	 * @returns {Promise<void>}
 	 */
 	async navigateTo(tabId) {
+		if (!this.hasUrl()) {
+			throw new Error(
+				`Cannot navigate to ${this.objectType.name}: this object type does not have a navigable URL`
+			);
+		}
 		const url = this.url || (await this.buildUrl(this.baseUrl));
 		await chrome.tabs.update(tabId, { url });
 	}

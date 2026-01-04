@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import {
 	Button,
 	ComboBox,
@@ -8,10 +9,9 @@ import {
 	ListBox,
 	Select
 } from '@heroui/react';
-import { useState, useEffect } from 'react';
-import StatusBar from '@/components/StatusBar';
+import { StatusBar } from '@/components';
 
-export default function AppSettings() {
+export function AppSettings() {
 	// Store all settings in a single state object for extensibility
 	const [settings, setSettings] = useState({
 		themePreference: 'system',

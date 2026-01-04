@@ -2,22 +2,20 @@ import { useState, useEffect } from 'react';
 import {
 	Accordion,
 	Button,
-	Description,
 	Input,
 	Label,
 	Select,
 	ListBox,
 	TextField,
 	Form,
-	Fieldset,
-	Surface
+	Fieldset
 } from '@heroui/react';
 import IconChevronDown from '@/assets/icons/chevron-down.svg';
 import IconX from '@/assets/icons/x.svg';
-import { clearFaviconCache } from '@/utils/faviconModifier';
-import StatusBar from './StatusBar';
+import { clearFaviconCache } from '@/utils';
+import { StatusBar } from '@/components';
 
-export default function FaviconSettings() {
+export function FaviconSettings() {
 	const [rules, setRules] = useState([]);
 	const [statusBar, setStatusBar] = useState({
 		title: '',

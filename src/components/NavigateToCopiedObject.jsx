@@ -1,14 +1,36 @@
-import { Button } from '@heroui/react';
 import { useState, useEffect, useRef } from 'react';
-import { detectAndFetchObject } from '@/services/index';
-import { DomoObject } from '@/models/DomoObject';
+import { Button, Dropdown, Label } from '@heroui/react';
+import { DomoObject, getAllObjectTypes } from '@/models';
+import { detectAndFetchObject } from '@/services';
 
-export default function NavigateToCopiedObject() {
+export function NavigateToCopiedObject() {
 	const [copiedObjectId, setCopiedObjectId] = useState(null);
 	const [objectDetails, setObjectDetails] = useState(null);
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState(null);
+	const [selectedType, setSelectedType] = useState(null);
+	const [defaultDomoInstance, setDefaultDomoInstance] = useState('');
 	const lastCheckedClipboard = useRef('');
+
+	// Load default Domo instance from settings
+	useEffect(() => {
+		chrome.storage.sync.get(['defaultDomoInstance'], (result) => {
+			setDefaultDomoInstance(result.defaultDomoInstance || '');
+		});
+
+		// Listen for changes to default instance
+		const handleStorageChange = (changes, areaName) => {
+			if (areaName === 'sync' && changes.defaultDomoInstance) {
+				setDefaultDomoInstance(changes.defaultDomoInstance.newValue || '');
+			}
+		};
+
+		chrome.storage.onChanged.addListener(handleStorageChange);
+
+		return () => {
+			chrome.storage.onChanged.removeListener(handleStorageChange);
+		};
+	}, []);
 
 	// Check clipboard periodically
 	useEffect(() => {
@@ -36,7 +58,7 @@ export default function NavigateToCopiedObject() {
 					setCopiedObjectId(trimmedText);
 					setIsLoading(true);
 					setError(null);
-
+					setSelectedType(null);
 					// Fetch object details
 					try {
 						const details = await detectAndFetchObject(trimmedText);
@@ -71,7 +93,11 @@ export default function NavigateToCopiedObject() {
 	}, []);
 
 	const handleClick = async () => {
-		if (!objectDetails || !copiedObjectId) return;
+		if (!copiedObjectId) return;
+
+		// Use selectedType if available, otherwise use detected type
+		const typeToUse = selectedType || objectDetails?.type;
+		if (!typeToUse || typeToUse === 'UNKNOWN') return;
 
 		try {
 			// Get active tab
@@ -80,23 +106,40 @@ export default function NavigateToCopiedObject() {
 				currentWindow: true
 			});
 
-			if (!tab || !tab.url || !tab.url.includes('domo.com')) {
-				alert('Please open a Domo page first');
-				return;
+			let baseUrl;
+			let targetTabId = tab?.id;
+
+			// Check if on a Domo page
+			if (tab && tab.url && tab.url.includes('domo.com')) {
+				// Use current Domo instance
+				baseUrl = new URL(tab.url).origin;
+			} else {
+				// Use default Domo instance from settings
+				if (!defaultDomoInstance) {
+					alert(
+						'Please set a default Domo instance in Settings or open a Domo page first'
+					);
+					return;
+				}
+				// Build the base URL from the instance name
+				baseUrl = defaultDomoInstance.includes('://')
+					? defaultDomoInstance.replace(/\/$/, '')
+					: `https://${defaultDomoInstance}.domo.com`;
 			}
 
-			// Build URL and navigate
-			const baseUrl = new URL(tab.url).origin;
-
 			// Create DomoObject instance
-			const domoObject = new DomoObject(
-				objectDetails.type,
-				copiedObjectId,
-				baseUrl
-			);
+			const domoObject = new DomoObject(typeToUse, copiedObjectId, baseUrl);
 
 			try {
-				await domoObject.navigateTo(tab.id);
+				// If we're on a Domo page, navigate in the current tab
+				// Otherwise, create a new tab or update the current one
+				if (targetTabId && tab.url && tab.url.includes('domo.com')) {
+					await domoObject.navigateTo(targetTabId);
+				} else {
+					// Create a new tab with the object URL
+					const url = domoObject.url || (await domoObject.buildUrl(baseUrl));
+					await chrome.tabs.create({ url });
+				}
 			} catch (err) {
 				console.error('Error navigating to object:', err);
 				alert(`Error navigating to object: ${err.message}`);
@@ -122,6 +165,39 @@ export default function NavigateToCopiedObject() {
 		}
 		return copiedObjectId;
 	};
+
+	// If object type is unknown, show dropdown for manual selection
+	if (objectDetails?.type === 'UNKNOWN' && copiedObjectId) {
+		const allTypes = getAllObjectTypes()
+			.filter((type) => !type.requiresParent() && type.hasUrl())
+			.sort((a, b) => a.name.localeCompare(b.name));
+
+		return (
+			<Dropdown>
+				<Button className='w-full'>
+					{selectedType
+						? `Navigate to: ${
+								getAllObjectTypes().find((t) => t.id === selectedType)?.name
+						  }`
+						: 'Navigate to: Select Object Type'}
+				</Button>
+				<Dropdown.Popover>
+					<Dropdown.Menu
+						onAction={(key) => {
+							setSelectedType(key);
+							setTimeout(() => handleClick(), 0);
+						}}
+					>
+						{allTypes.map((type) => (
+							<Dropdown.Item key={type.id} textValue={type.name}>
+								<Label>{type.name}</Label>
+							</Dropdown.Item>
+						))}
+					</Dropdown.Menu>
+				</Dropdown.Popover>
+			</Dropdown>
+		);
+	}
 
 	return (
 		<Button

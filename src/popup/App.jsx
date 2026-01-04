@@ -1,22 +1,20 @@
+import { useEffect, useState } from 'react';
 import { Button, Tabs } from '@heroui/react';
-import { useEffect, useRef, useState } from 'react';
-import { useTheme } from '@/hooks/useTheme';
-import ClearDomoCookies from '@/components/ClearDomoCookies';
-import StatusBar from '@/components/StatusBar';
-import NavigateToCopiedObject from '@/components/NavigateToCopiedObject';
-import ActivityLogCurrentObject from '@/components/ActivityLogCurrentObject';
+import { useTheme } from '@/hooks';
+import { fetchCurrentObjectAsDomoObject, onCurrentObjectChange } from '@/utils';
 import {
-	getCurrentObject,
-	onCurrentObjectChange
-} from '@/utils/getCurrentObject';
+	ClearDomoCookies,
+	StatusBar,
+	NavigateToCopiedObject,
+	ActivityLogCurrentObject
+} from '@/components';
 import './App.css';
 
 export default function App() {
 	// Apply theme
 	useTheme();
 
-	const [currentObject, setCurrentObject] = useState(null);
-	const hasLoadedFromStorage = useRef(false);
+	const [currentObject, setCurrentObject] = useState();
 	const [isDomoPage, setIsDomoPage] = useState(false);
 	const [statusBar, setStatusBar] = useState({
 		title: '',
@@ -60,27 +58,27 @@ export default function App() {
 					setIsDomoPage(false);
 				}
 
-				chrome.tabs.sendMessage(
-					tabs[0].id,
-					{ action: 'getObjectType' },
-					(response) => {
-						// Response will be received, but storage change listener will handle the update
-						if (chrome.runtime.lastError) {
-							// Content script might not be loaded on this page (e.g., chrome:// pages)
-							console.log(
-								'Could not detect object type:',
-								chrome.runtime.lastError.message
-							);
-						}
-					}
-				);
+				// Request fresh detection from content script
+				// chrome.tabs.sendMessage(
+				// 	tabs[0].id,
+				// 	{ action: 'getObjectType' },
+				// 	(response) => {
+				// 		// Response will be received, but storage change listener will handle the update
+				// 		if (chrome.runtime.lastError) {
+				// 			// Content script might not be loaded on this page (e.g., chrome:// pages)
+				// 			console.log(
+				// 				'Could not detect object type:',
+				// 				chrome.runtime.lastError.message
+				// 			);
+				// 		}
+				// 	}
+				// );
 			}
 		});
 
 		// Load initial currentObject from storage
-		getCurrentObject().then((domoObject) => {
+		fetchCurrentObjectAsDomoObject().then((domoObject) => {
 			setCurrentObject(domoObject);
-			hasLoadedFromStorage.current = true;
 		});
 
 		// Listen for storage changes from other components
@@ -93,17 +91,6 @@ export default function App() {
 			cleanupListener();
 		};
 	}, []);
-
-	useEffect(() => {
-		// Only save after we've loaded the initial value from storage
-		if (!hasLoadedFromStorage.current) {
-			return;
-		}
-
-		// Save currentObject to storage when it changes
-		chrome.storage.local.set({ currentObject });
-		// chrome.runtime.sendMessage({ type: 'COUNT', currentObject });
-	}, [currentObject]);
 
 	const showStatus = (
 		title,
@@ -176,8 +163,8 @@ export default function App() {
 						}}
 					>
 						Copy Current{' '}
-						{currentObject?.typeName && currentObject?.id
-							? currentObject.typeName
+						{currentObject?.objectType && currentObject?.id
+							? currentObject?.typeName
 							: 'Object'}{' '}
 						ID
 					</Button>

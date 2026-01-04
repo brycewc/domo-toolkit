@@ -1,7 +1,7 @@
-import { Button, Spinner } from '@heroui/react';
 import { useState } from 'react';
+import { Button, Spinner } from '@heroui/react';
 
-export default function ClearDomoCookies({ onStatusUpdate, isDisabled }) {
+export function ClearDomoCookies({ onStatusUpdate, isDisabled }) {
 	const [isClearingCookies, setIsClearingCookies] = useState(false);
 
 	const clearDomoCookies = async () => {

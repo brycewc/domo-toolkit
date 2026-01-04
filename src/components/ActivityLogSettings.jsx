@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import {
 	Button,
 	ComboBox,
-	Description,
 	Fieldset,
 	Form,
 	Input,
@@ -10,10 +9,10 @@ import {
 	ListBox,
 	TextField
 } from '@heroui/react';
-import StatusBar from './StatusBar';
+import { StatusBar } from '@/components';
 import IconX from '@/assets/icons/x.svg';
 
-export default function ActivityLogSettings() {
+export function ActivityLogSettings() {
 	const [configs, setConfigs] = useState([]);
 	const [visitedInstances, setVisitedInstances] = useState([]);
 	const [statusBar, setStatusBar] = useState({
