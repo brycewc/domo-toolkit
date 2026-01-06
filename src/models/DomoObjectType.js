@@ -247,7 +247,7 @@ export const ObjectTypeRegistry = {
 	DATA_SOURCE: new DomoObjectType(
 		'DATA_SOURCE',
 		'DataSet',
-		'/datasources/{id}',
+		'/datasources/{id}/details/data/table',
 		/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
 		{ keyword: 'datasources' },
 		{

@@ -1,7 +1,11 @@
 import { useState } from 'react';
 import { Button, Spinner } from '@heroui/react';
 
-export function ClearDomoCookies({ onStatusUpdate, isDisabled }) {
+export function ClearDomoCookies({
+	onStatusUpdate,
+	isDisabled,
+	currentInstance
+}) {
 	const [isClearingCookies, setIsClearingCookies] = useState(false);
 
 	const clearDomoCookies = async () => {
@@ -121,7 +125,7 @@ export function ClearDomoCookies({ onStatusUpdate, isDisabled }) {
 			{({ isPending }) => (
 				<>
 					{isPending ? <Spinner color='current' size='sm' /> : null}
-					{isPending ? 'Clearing...' : 'Clear Domo Cookies'}
+					{isPending ? 'Clearing...' : 'Clear Instance Cookies'}
 				</>
 			)}
 		</Button>

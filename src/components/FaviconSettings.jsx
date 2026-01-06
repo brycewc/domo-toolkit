@@ -168,10 +168,7 @@ export function FaviconSettings() {
 											updateRule(rule.id, 'color', e.target.value)
 										}
 										className='w-full min-h-9 p-1'
-										disabled={
-											rule.effect === 'instance-logo' ||
-											rule.effect === 'domo-logo-colored'
-										}
+										disabled={rule.effect === 'instance-logo'}
 									/>
 								</div>
 

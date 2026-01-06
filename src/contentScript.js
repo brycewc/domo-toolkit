@@ -21,6 +21,9 @@ async function trackDomoInstances() {
 			const updated = [...visited, instance].sort();
 			await chrome.storage.sync.set({ visitedDomoInstances: updated });
 		}
+
+		// Store the current instance
+		await chrome.storage.local.set({ currentDomoInstance: instance });
 	}
 }
 

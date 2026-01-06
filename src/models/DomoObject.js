@@ -117,6 +117,6 @@ export class DomoObject {
 			);
 		}
 		const url = this.url || (await this.buildUrl(this.baseUrl));
-		await chrome.tabs.update(tabId, { url });
+		await chrome.tabs.create({ url });
 	}
 }

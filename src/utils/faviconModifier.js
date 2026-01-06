@@ -10,7 +10,8 @@ const EXCLUDED_HOSTNAMES = [
 	'domo.com',
 	'community-forums.domo.com',
 	'domo-support.domo.com',
-	'ai.domo.com'
+	'ai.domo.com',
+	'api.domo.com'
 ];
 
 /**
@@ -112,7 +113,7 @@ export async function applyInstanceLogoAuto() {
 	}
 
 	const subdomain = subdomainMatch[1];
-	
+
 	// Get the favicon element
 	const favicon = getFavicon();
 	if (!favicon) {

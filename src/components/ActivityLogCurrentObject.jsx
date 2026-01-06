@@ -131,7 +131,7 @@ export function ActivityLogCurrentObject({ currentObject, onStatusUpdate }) {
 			// await navigator.clipboard.writeText(currentObject?.id);
 
 			// Navigate to the activity log
-			await chrome.tabs.update(tab.id, { url: activityLogUrl });
+			await chrome.tabs.create({ url: activityLogUrl });
 
 			onStatusUpdate?.(
 				'Opening Activity Log',
@@ -155,9 +155,9 @@ export function ActivityLogCurrentObject({ currentObject, onStatusUpdate }) {
 			return 'Activity Log Current: N/A';
 		}
 		if (!activityLogConfig) {
-			return 'Activity Log Current: Not Configured';
+			return 'Activity Log: Not Configured';
 		}
-		return `Activity Log Current: ${
+		return `Activity Log Current ${
 			currentObject.typeName || currentObject.typeId
 		}`;
 	};

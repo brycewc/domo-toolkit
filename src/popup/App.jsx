@@ -1,9 +1,15 @@
 import { useEffect, useState } from 'react';
 import { Button, Tabs } from '@heroui/react';
 import { useTheme } from '@/hooks';
-import { fetchCurrentObjectAsDomoObject, onCurrentObjectChange } from '@/utils';
+import {
+	fetchCurrentObjectAsDomoObject,
+	onCurrentObjectChange,
+	getCurrentInstance,
+	onCurrentInstanceChange
+} from '@/utils';
 import {
 	ClearDomoCookies,
+	ContextHeader,
 	StatusBar,
 	NavigateToCopiedObject,
 	ActivityLogCurrentObject
@@ -15,6 +21,7 @@ export default function App() {
 	useTheme();
 
 	const [currentObject, setCurrentObject] = useState();
+	const [currentInstance, setCurrentInstance] = useState(null);
 	const [isDomoPage, setIsDomoPage] = useState(false);
 	const [statusBar, setStatusBar] = useState({
 		title: '',
@@ -23,28 +30,6 @@ export default function App() {
 		timeout: 3000,
 		visible: false
 	});
-
-	// Show persistent message when not on a Domo page
-	useEffect(() => {
-		if (!isDomoPage) {
-			setStatusBar({
-				title: 'Not on a Domo page',
-				description:
-					'Navigate to a Domo instance to enable most extension features',
-				status: 'warning',
-				timeout: null, // No timeout - persistent message
-				visible: true
-			});
-		} else {
-			// Clear the status bar when on a Domo page (unless another status is showing)
-			setStatusBar((prev) => {
-				if (prev.timeout === null) {
-					return { ...prev, visible: false };
-				}
-				return prev;
-			});
-		}
-	}, [isDomoPage]);
 
 	useEffect(() => {
 		// Request fresh object type detection from content script when popup opens
@@ -59,20 +44,20 @@ export default function App() {
 				}
 
 				// Request fresh detection from content script
-				// chrome.tabs.sendMessage(
-				// 	tabs[0].id,
-				// 	{ action: 'getObjectType' },
-				// 	(response) => {
-				// 		// Response will be received, but storage change listener will handle the update
-				// 		if (chrome.runtime.lastError) {
-				// 			// Content script might not be loaded on this page (e.g., chrome:// pages)
-				// 			console.log(
-				// 				'Could not detect object type:',
-				// 				chrome.runtime.lastError.message
-				// 			);
-				// 		}
-				// 	}
-				// );
+				chrome.tabs.sendMessage(
+					tabs[0].id,
+					{ action: 'getObjectType' },
+					(response) => {
+						// Response will be received, but storage change listener will handle the update
+						if (chrome.runtime.lastError) {
+							// Content script might not be loaded on this page (e.g., chrome:// pages)
+							console.log(
+								'Could not detect object type:',
+								chrome.runtime.lastError.message
+							);
+						}
+					}
+				);
 			}
 		});
 
@@ -81,14 +66,25 @@ export default function App() {
 			setCurrentObject(domoObject);
 		});
 
+		// Load initial currentInstance from storage
+		getCurrentInstance().then((instance) => {
+			setCurrentInstance(instance);
+		});
+
 		// Listen for storage changes from other components
 		const cleanupListener = onCurrentObjectChange((domoObject) => {
 			setCurrentObject(domoObject);
 		});
 
-		// Cleanup listener on unmount
+		// Listen for current instance changes
+		const cleanupInstanceListener = onCurrentInstanceChange((instance) => {
+			setCurrentInstance(instance);
+		});
+
+		// Cleanup listeners on unmount
 		return () => {
 			cleanupListener();
+			cleanupInstanceListener();
 		};
 	}, []);
 
@@ -116,6 +112,11 @@ export default function App() {
 
 	return (
 		<div className='flex flex-col gap-2 w-auto min-w-md p-2'>
+			<ContextHeader
+				isDomoPage={isDomoPage}
+				currentInstance={currentInstance}
+				currentObject={currentObject}
+			/>
 			<Tabs
 				className='w-full'
 				orientation='vertical'
@@ -172,13 +173,8 @@ export default function App() {
 					<ClearDomoCookies
 						onStatusUpdate={showStatus}
 						isDisabled={!isDomoPage}
+						currentInstance={currentInstance}
 					/>
-					<Button
-						fullWidth
-						onPress={() => showStatus('Test', 'This is a test message')}
-					>
-						Test
-					</Button>
 				</Tabs.Panel>
 				<Tabs.Panel
 					className='px-4 flex flex-col gap-1'
