@@ -1,12 +1,81 @@
 import { DomoObject, getObjectType } from '@/models';
 
+/**
+ * Fetch object details from the Domo API and enrich the DomoObject with metadata
+ * @param {DomoObject} domoObject - The DomoObject to enrich
+ * @returns {Promise<DomoObject>} The enriched DomoObject
+ */
+async function fetchAndEnrichObjectDetails(domoObject) {
+	const objectType = getObjectType(domoObject.typeId);
+
+	// Only fetch if the object type has API configuration
+	if (!objectType || !objectType.api) {
+		return domoObject;
+	}
+
+	const { method, endpoint, pathToName, bodyTemplate } = objectType.api;
+
+	try {
+		// Build the endpoint URL
+		let url = `/api${endpoint}`.replace('{id}', domoObject.id);
+
+		// Prepare fetch options
+		const options = {
+			method,
+			credentials: 'include',
+			headers: {
+				'Content-Type': 'application/json'
+			}
+		};
+
+		// Add body for POST requests
+		if (method === 'POST' && bodyTemplate) {
+			const body = JSON.parse(
+				JSON.stringify(bodyTemplate).replace(/{id}/g, domoObject.id)
+			);
+			options.body = JSON.stringify(body);
+		}
+
+		const response = await fetch(url, options);
+
+		if (!response.ok) {
+			console.warn(
+				`Failed to fetch details for ${domoObject.typeId} ${domoObject.id}: HTTP ${response.status}`
+			);
+			return domoObject;
+		}
+
+		const data = await response.json();
+
+		// Extract the full object data and store in metadata
+		const details = pathToName
+			.split('.')
+			.reduce((current, prop) => current?.[prop.split('[')[0]], data);
+
+		// Store the full response data in metadata.details
+		domoObject.metadata.details = data;
+		domoObject.metadata.name = pathToName
+			.split('.')
+			.reduce((current, prop) => current?.[prop], data);
+
+		return domoObject;
+	} catch (error) {
+		console.error(`Error fetching details for ${domoObject.typeId}:`, error);
+		return domoObject;
+	}
+}
+
 export async function getCurrentObject() {
 	const domoObject = detectCurrentObject();
 	if (!domoObject) {
 		return null;
 	}
-	await storeCurrentObject(domoObject);
-	return domoObject;
+
+	// Fetch and enrich with API details
+	const enrichedObject = await fetchAndEnrichObjectDetails(domoObject);
+
+	await storeCurrentObject(enrichedObject);
+	return enrichedObject;
 }
 
 /**

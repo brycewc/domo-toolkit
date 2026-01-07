@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Button, Tabs } from '@heroui/react';
 import { useTheme } from '@/hooks';
 import {
@@ -8,12 +8,14 @@ import {
 	onCurrentInstanceChange
 } from '@/utils';
 import {
-	ClearDomoCookies,
-	ContextHeader,
-	StatusBar,
+	ActivityLogCurrentObject,
+	ClearCookies,
+	ContextFooter,
 	NavigateToCopiedObject,
-	ActivityLogCurrentObject
+	StatusBar,
+	UpdateDataflowDetails
 } from '@/components';
+import IconBolt from '@/assets/icons/bolt.svg';
 import './App.css';
 
 export default function App() {
@@ -23,6 +25,7 @@ export default function App() {
 	const [currentObject, setCurrentObject] = useState();
 	const [currentInstance, setCurrentInstance] = useState(null);
 	const [isDomoPage, setIsDomoPage] = useState(false);
+	const [selectedTab, setSelectedTab] = useState('favorites');
 	const [statusBar, setStatusBar] = useState({
 		title: '',
 		description: '',
@@ -30,6 +33,22 @@ export default function App() {
 		timeout: 3000,
 		visible: false
 	});
+
+	// Restore last selected tab if within 10 seconds
+	useEffect(() => {
+		chrome.storage.local.get(
+			['lastSelectedTab', 'lastTabTimestamp'],
+			(result) => {
+				const now = Date.now();
+				const timeSinceLastTab = now - (result.lastTabTimestamp || 0);
+
+				// If last tab was selected within 10 seconds, restore it
+				if (result.lastSelectedTab && timeSinceLastTab < 10000) {
+					setSelectedTab(result.lastSelectedTab);
+				}
+			}
+		);
+	}, []);
 
 	useEffect(() => {
 		// Request fresh object type detection from content script when popup opens
@@ -97,9 +116,9 @@ export default function App() {
 		setStatusBar({ title, description, status, timeout, visible: true });
 	};
 
-	const hideStatus = () => {
+	const hideStatus = useCallback(() => {
 		setStatusBar((prev) => ({ ...prev, visible: false }));
-	};
+	}, []);
 
 	const handleTabChange = (tabId) => {
 		if (tabId === 'settings') {
@@ -107,19 +126,23 @@ export default function App() {
 			chrome.runtime.openOptionsPage();
 			return;
 		}
-		// For other tabs, allow normal behavior (controlled by Tabs component)
+
+		// Update selected tab state
+		setSelectedTab(tabId);
+
+		// Store the selected tab and timestamp
+		chrome.storage.local.set({
+			lastSelectedTab: tabId,
+			lastTabTimestamp: Date.now()
+		});
 	};
 
 	return (
-		<div className='flex flex-col gap-2 w-auto min-w-md p-2'>
-			<ContextHeader
-				isDomoPage={isDomoPage}
-				currentInstance={currentInstance}
-				currentObject={currentObject}
-			/>
+		<div className='flex flex-col gap-2 w-auto min-w-md p-2 bg-background'>
 			<Tabs
 				className='w-full'
 				orientation='vertical'
+				selectedKey={selectedTab}
 				onSelectionChange={handleTabChange}
 			>
 				<Tabs.ListContainer>
@@ -157,48 +180,61 @@ export default function App() {
 						onPress={() => {
 							navigator.clipboard.writeText(currentObject?.id);
 							showStatus(
-								'Copied',
-								`Copied ${currentObject?.id} to clipboard.`,
-								'success'
+								`Copied ${currentObject?.typeName} ID ${currentObject?.id} to clipboard`,
+								'',
+								'success',
+								1500
 							);
 						}}
 					>
-						Copy Current{' '}
-						{currentObject?.objectType && currentObject?.id
-							? currentObject?.typeName
-							: 'Object'}{' '}
-						ID
+						Copy ID
+						<img src={IconBolt} alt='Bolt icon' className='w-4 h-4' />
 					</Button>
 					<NavigateToCopiedObject />
-					<ClearDomoCookies
-						onStatusUpdate={showStatus}
-						isDisabled={!isDomoPage}
-						currentInstance={currentInstance}
-					/>
+					<ClearCookies onStatusUpdate={showStatus} isDisabled={!isDomoPage} />
 				</Tabs.Panel>
 				<Tabs.Panel
 					className='px-4 flex flex-col gap-1'
 					id='delete'
 				></Tabs.Panel>
-				<Tabs.Panel
-					className='px-4 flex flex-col gap-1'
-					id='update'
-				></Tabs.Panel>
+				<Tabs.Panel className='px-4 flex flex-col gap-1' id='update'>
+					{currentObject?.typeId === 'DATAFLOW_TYPE' && (
+						<UpdateDataflowDetails
+							onStatusUpdate={showStatus}
+							currentObject={currentObject}
+						/>
+					)}
+				</Tabs.Panel>
 				<Tabs.Panel
 					className='px-4 flex flex-col gap-1'
 					id='other'
 				></Tabs.Panel>
 				<Tabs.Panel id='settings'></Tabs.Panel>
 			</Tabs>
-			<div className='min-w-sm min-h-[6rem]'>
-				{statusBar.visible && (
-					<StatusBar
-						title={statusBar.title}
-						description={statusBar.description}
-						status={statusBar.status}
-						timeout={statusBar.timeout}
-						onClose={hideStatus}
+			<div className='min-w-sm min-h-[5rem] relative overflow-hidden'>
+				<div
+					className={`transition-all duration-300 ease-in-out ${
+						statusBar.visible
+							? 'opacity-0 -translate-y-2'
+							: 'opacity-100 translate-y-0'
+					}`}
+				>
+					<ContextFooter
+						isDomoPage={isDomoPage}
+						currentInstance={currentInstance}
+						currentObject={currentObject}
 					/>
+				</div>
+				{statusBar.visible && (
+					<div className='absolute inset-0 transition-all duration-300 ease-in-out opacity-100 translate-y-0'>
+						<StatusBar
+							title={statusBar.title}
+							description={statusBar.description}
+							status={statusBar.status}
+							timeout={statusBar.timeout}
+							onClose={hideStatus}
+						/>
+					</div>
 				)}
 			</div>
 		</div>

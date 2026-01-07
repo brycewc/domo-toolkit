@@ -156,6 +156,12 @@ export async function applyFaviconRules(rules) {
 	console.log('Current subdomain:', subdomain);
 
 	// Find the first matching rule
+	// IMPORTANT: Rules are checked in array order (top to bottom in the UI).
+	// Array.find() returns the FIRST element that matches, then stops searching.
+	// This means:
+	//   - Higher priority rules should be at the start of the array (top of UI)
+	//   - Once a match is found, all subsequent rules are ignored
+	//   - Drag-and-drop reordering in the UI changes rule priority by changing array order
 	const matchingRule = rules.find((rule) => {
 		if (!rule.pattern) return false;
 

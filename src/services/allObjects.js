@@ -3,6 +3,7 @@
  */
 
 import { getObjectType, getAllObjectTypes } from '@/models';
+import { executeInPage } from '@/utils';
 
 const API_BASE = 'https://api.domo.com';
 
@@ -25,33 +26,18 @@ export async function fetchObjectDetails(
 			throw new Error(`No API configuration for object type: ${objectType}`);
 		}
 
-		// Get active tab to execute fetch in Domo context
-		const [tab] = await chrome.tabs.query({
-			active: true,
-			currentWindow: true
-		});
-
-		if (!tab || !tab.url || !tab.url.includes('domo.com')) {
-			throw new Error('Not on a Domo page');
-		}
-
 		// Execute fetch in the page context to use Domo's authentication
-		const result = await chrome.scripting.executeScript({
-			target: { tabId: tab.id },
-			world: 'MAIN',
-			func: fetchObjectDetailsInPage,
-			args: [typeConfig.api, objectId, parentId]
-		});
+		const result = await executeInPage(fetchObjectDetailsInPage, [
+			typeConfig.api,
+			objectId,
+			parentId
+		]);
 
-		if (result && result[0] && result[0].result) {
-			return {
-				...result[0].result,
-				type: objectType,
-				id: objectId
-			};
-		}
-
-		throw new Error('Failed to fetch object details');
+		return {
+			...result,
+			type: objectType,
+			id: objectId
+		};
 	} catch (error) {
 		console.error('Error fetching object details:', error);
 		throw error;

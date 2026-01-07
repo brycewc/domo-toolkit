@@ -36,7 +36,7 @@ export default function App() {
 	}, []);
 
 	return (
-		<div className='flex justify-center p-4'>
+		<div className='flex justify-center p-4 bg-background'>
 			<Tabs
 				className='w-full max-w-4xl rounded-sm justify-center'
 				selectedKey={selectedTab}

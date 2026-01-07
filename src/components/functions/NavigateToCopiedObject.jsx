@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Button, Dropdown, Label } from '@heroui/react';
 import { DomoObject, getAllObjectTypes } from '@/models';
 import { detectAndFetchObject } from '@/services';
+import IconBolt from '@/assets/icons/bolt.svg';
 
 export function NavigateToCopiedObject() {
 	const [copiedObjectId, setCopiedObjectId] = useState(null);
@@ -206,7 +207,8 @@ export function NavigateToCopiedObject() {
 			className='w-full'
 			isPending={isLoading}
 		>
-			{getButtonText()}
+			Navigate from Clipboard
+			<img src={IconBolt} alt='Bolt icon' className='w-4 h-4' />
 		</Button>
 	);
 }

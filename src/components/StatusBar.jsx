@@ -3,7 +3,7 @@ import { Alert, CloseButton } from '@heroui/react';
 
 export function StatusBar({
 	title,
-	description,
+	description = '',
 	status = 'accent',
 	timeout = 5000,
 	onClose
@@ -29,7 +29,7 @@ export function StatusBar({
 		}, interval);
 
 		return () => clearInterval(timer);
-	}, [timeout, onClose]);
+	}, [timeout]);
 
 	// Separate effect to handle onClose callback
 	useEffect(() => {
@@ -60,16 +60,21 @@ export function StatusBar({
 			{timeout && (
 				<div
 					id='status-bar-timeout-indicator'
-					className={`absolute top-[1px] left-[1rem] h-1 opacity-75 transition-all duration-50 rounded-full ${bgColor}`}
+					className={`absolute top-[1px] left-[1rem] h-[3px] opacity-75 transition-all duration-50 rounded-full ${bgColor}`}
 					style={{ width: `calc(${progress}% - 2rem)` }}
 				/>
 			)}
-			<Alert.Indicator />
-			<Alert.Content>
+			<Alert.Indicator className={timeout ? 'mt-[3px]' : ''} />
+			<Alert.Content className={timeout ? 'pt-[3px]' : ''}>
 				<Alert.Title>{title}</Alert.Title>
 				<Alert.Description>{description}</Alert.Description>
 			</Alert.Content>
-			<CloseButton onPress={handleClose} />
+			{!timeout && (
+				<CloseButton
+					className={timeout ? 'mt-[3px]' : ''}
+					onPress={handleClose}
+				/>
+			)}
 		</Alert>
 	);
 }

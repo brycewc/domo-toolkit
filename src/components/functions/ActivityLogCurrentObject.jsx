@@ -1,5 +1,6 @@
-import { Button } from '@heroui/react';
 import { useState, useEffect } from 'react';
+import { Button } from '@heroui/react';
+import IconBolt from '@/assets/icons/bolt.svg';
 
 /**
  * Get all activity log object types for a given object type
@@ -171,7 +172,8 @@ export function ActivityLogCurrentObject({ currentObject, onStatusUpdate }) {
 			className='w-full'
 			isPending={isLoading}
 		>
-			{getButtonText()}
+			Activity Log
+			<img src={IconBolt} alt='Bolt icon' className='w-4 h-4' />
 		</Button>
 	);
 }

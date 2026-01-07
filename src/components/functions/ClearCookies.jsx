@@ -1,14 +1,11 @@
 import { useState } from 'react';
 import { Button, Spinner } from '@heroui/react';
+import IconBolt from '@/assets/icons/bolt.svg';
 
-export function ClearDomoCookies({
-	onStatusUpdate,
-	isDisabled,
-	currentInstance
-}) {
+export function ClearCookies({ onStatusUpdate, isDisabled }) {
 	const [isClearingCookies, setIsClearingCookies] = useState(false);
 
-	const clearDomoCookies = async () => {
+	const clearCookies = async () => {
 		setIsClearingCookies(true);
 
 		try {
@@ -118,14 +115,22 @@ export function ClearDomoCookies({
 	return (
 		<Button
 			fullWidth
-			onPress={clearDomoCookies}
+			onPress={clearCookies}
 			isPending={isClearingCookies}
 			isDisabled={isDisabled}
+			isIconOnly={isClearingCookies}
 		>
 			{({ isPending }) => (
 				<>
 					{isPending ? <Spinner color='current' size='sm' /> : null}
-					{isPending ? 'Clearing...' : 'Clear Instance Cookies'}
+					{isPending ? (
+						'Clearing...'
+					) : (
+						<>
+							Clear Cookies
+							<img src={IconBolt} alt='Bolt icon' className='w-4 h-4' />
+						</>
+					)}
 				</>
 			)}
 		</Button>

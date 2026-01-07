@@ -9,5 +9,5 @@ export {
 	applyInstanceLogoAuto,
 	clearFaviconCache
 } from './faviconModifier';
-export { executeScript } from './executeScript';
 export { getCurrentInstance, onCurrentInstanceChange } from './currentInstance';
+export { executeInPage } from './executeInPage';

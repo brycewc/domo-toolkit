@@ -5,5 +5,5 @@ export default function App() {
 	// Apply theme
 	useTheme();
 
-	return <div></div>;
+	return <div className='bg-background'></div>;
 }

@@ -2,21 +2,27 @@ import { useState, useEffect } from 'react';
 import {
 	Accordion,
 	Button,
+	Card,
 	Input,
 	Label,
 	Select,
 	ListBox,
 	TextField,
 	Form,
-	Fieldset
+	Popover
 } from '@heroui/react';
-import IconChevronDown from '@/assets/icons/chevron-down.svg';
-import IconX from '@/assets/icons/x.svg';
+import { ColorPicker } from 'react-color-pikr';
 import { clearFaviconCache } from '@/utils';
 import { StatusBar } from '@/components';
+import IconX from '@/assets/icons/x.svg';
+import IconGripVertical from '@/assets/icons/grip-vertical.svg';
+import IconChevronDown from '@/assets/icons/chevron-down.svg';
 
 export function FaviconSettings() {
 	const [rules, setRules] = useState([]);
+	const [draggedIndex, setDraggedIndex] = useState(null);
+	const [activeColorPicker, setActiveColorPicker] = useState(null);
+	const [tempColor, setTempColor] = useState('#000000');
 	const [statusBar, setStatusBar] = useState({
 		title: '',
 		description: '',
@@ -107,16 +113,62 @@ export function FaviconSettings() {
 		);
 	};
 
+	const handleDragStart = (index) => {
+		setDraggedIndex(index);
+	};
+
+	const handleDragOver = (e, index) => {
+		e.preventDefault();
+	};
+
+	const handleDrop = (e, dropIndex) => {
+		e.preventDefault();
+
+		if (draggedIndex === null || draggedIndex === dropIndex) {
+			return;
+		}
+
+		const newRules = [...rules];
+		const [draggedRule] = newRules.splice(draggedIndex, 1);
+		newRules.splice(dropIndex, 0, draggedRule);
+
+		setRules(newRules);
+		setDraggedIndex(null);
+	};
+
+	const handleDragEnd = () => {
+		setDraggedIndex(null);
+	};
+
 	return (
 		<div className='flex flex-col justify-between w-full min-h-[85vh] p-4'>
 			<div className='flex flex-col gap-4 w-full'>
 				<Form className='flex flex-col gap-4 w-full' onSubmit={onSave}>
 					{rules.map((rule, index) => (
-						<Fieldset>
-							<div
-								key={rule.id}
-								className='flex items-start gap-3 justify-start h-20'
-							>
+						<Card
+							key={rule.id}
+							draggable
+							onDragStart={() => handleDragStart(index)}
+							onDragOver={(e) => handleDragOver(e, index)}
+							onDrop={(e) => handleDrop(e, index)}
+							onDragEnd={handleDragEnd}
+							className={`cursor-move transition-opacity ${
+								draggedIndex === index ? 'opacity-50' : ''
+							}`}
+						>
+							<Card.Content className='flex flex-row items-center gap-3 justify-start'>
+								<div className='flex items-center justify-center'>
+									<img
+										src={IconGripVertical}
+										alt='Drag to reorder'
+										className='w-5 h-5 mt-[1.5rem] text-fg-muted'
+										draggable={false}
+									/>
+								</div>
+								<div className='mt-[1.5rem] text-fg-muted font-semibold text-sm'>
+									{index + 1}
+								</div>
+
 								<div className='flex-1 min-w-0'>
 									<TextField
 										className='w-full'
@@ -125,7 +177,7 @@ export function FaviconSettings() {
 										value={rule.pattern}
 									>
 										<Label>Subdomain Pattern</Label>
-										<Input placeholder='e.g., ^company$ or .*-dev' />
+										<Input />
 									</TextField>
 								</div>
 
@@ -135,7 +187,6 @@ export function FaviconSettings() {
 										value={rule.effect}
 										onChange={(value) => updateRule(rule.id, 'effect', value)}
 										className='w-full'
-										placeholder='Select effect'
 									>
 										<Label className='sr-only'>Effect</Label>
 										<Select.Trigger>
@@ -161,19 +212,52 @@ export function FaviconSettings() {
 
 								<div className='flex flex-col gap-1 w-20'>
 									<Label>Color</Label>
-									<Input
-										type='color'
-										value={rule.color}
-										onChange={(e) =>
-											updateRule(rule.id, 'color', e.target.value)
-										}
-										className='w-full min-h-9 p-1'
-										disabled={rule.effect === 'instance-logo'}
-									/>
+									<Popover
+										onOpenChange={(isOpen) => {
+											if (isOpen) {
+												setActiveColorPicker(rule.id);
+												setTempColor(
+													rule.effect !== 'instance-logo'
+														? rule.color
+														: '#000000'
+												);
+											} else {
+												setActiveColorPicker(null);
+											}
+										}}
+									>
+										<Button
+											className={
+												rule.effect === 'instance-logo'
+													? 'w-full select__trigger--on-surface'
+													: 'w-full'
+											}
+											style={
+												rule.effect !== 'instance-logo'
+													? {
+															backgroundColor:
+																activeColorPicker === rule.id
+																	? tempColor
+																	: rule.color
+													  }
+													: undefined
+											}
+											isDisabled={rule.effect === 'instance-logo'}
+										/>
+										<Popover.Content>
+											<ColorPicker
+												value={tempColor}
+												onChange={(newColor) => {
+													setTempColor(newColor);
+													updateRule(rule.id, 'color', newColor);
+												}}
+											/>
+										</Popover.Content>
+									</Popover>
 								</div>
 
 								{rules.length > 1 && (
-									<div className='flex items-center h-20'>
+									<div className='flex items-center mt-[1.5rem]'>
 										<Button
 											variant='danger'
 											size='sm'
@@ -184,8 +268,8 @@ export function FaviconSettings() {
 										</Button>
 									</div>
 								)}
-							</div>
-						</Fieldset>
+							</Card.Content>
+						</Card>
 					))}
 
 					<div className='flex flex-row gap-2'>
@@ -210,6 +294,30 @@ export function FaviconSettings() {
 			</div>
 
 			<Accordion className='cursor-pointer'>
+				<Accordion.Item key='rule-ordering'>
+					<Accordion.Heading>
+						<Accordion.Trigger>
+							Rule Priority & Ordering
+							<Accordion.Indicator>
+								<img src={IconChevronDown} />
+							</Accordion.Indicator>
+						</Accordion.Trigger>
+					</Accordion.Heading>
+					<Accordion.Panel>
+						<Accordion.Body>
+							<p>
+								<strong>Rule Priority:</strong> Rules are applied in order from
+								top to bottom. The first matching rule for a domain will be
+								used, and all lower rules will be ignored.
+							</p>
+							<p className='mt-2'>
+								<strong>Reordering:</strong> Drag and drop rules using the grip
+								icon (⋮⋮) to reorder them. Higher priority rules should be
+								placed at the top.
+							</p>
+						</Accordion.Body>
+					</Accordion.Panel>
+				</Accordion.Item>
 				<Accordion.Item key='effects-info'>
 					<Accordion.Heading>
 						<Accordion.Trigger>
