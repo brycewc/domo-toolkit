@@ -25,17 +25,16 @@ export function ContextFooter({ isDomoPage, currentInstance, currentObject }) {
 								'Not a Domo Instance'
 							)}
 						</Alert.Title>
-						<Alert.Description className='w-full'>
+						<Alert.Description>
 							{isDomoPage ? (
 								<div className='w-full'>
 									{currentInstance &&
-										currentObject?.objectType &&
-										currentObject?.id && (
-											<Chip color='accent' variant='soft'>
-												{currentObject.typeName} (ID: {currentObject.id})
-											</Chip>
-										)}
-									{!currentInstance && !currentObject?.objectType && (
+									currentObject?.objectType &&
+									currentObject?.id ? (
+										<Chip color='accent' variant='soft'>
+											{currentObject.typeName} (ID: {currentObject.id})
+										</Chip>
+									) : (
 										<Spinner size='sm' color='accent' />
 									)}
 								</div>

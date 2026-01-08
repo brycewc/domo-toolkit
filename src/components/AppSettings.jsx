@@ -12,16 +12,16 @@ import {
 import { StatusBar } from '@/components';
 import { EXCLUDED_INSTANCES } from '@/utils';
 
-export function AppSettings() {
+export function AppSettings({ theme = 'system' }) {
 	// Store all settings in a single state object for extensibility
 	const [settings, setSettings] = useState({
-		themePreference: 'system',
+		themePreference: theme,
 		defaultDomoInstance: ''
 	});
 
 	// Track original settings to detect changes
 	const [originalSettings, setOriginalSettings] = useState({
-		themePreference: 'system',
+		themePreference: theme,
 		defaultDomoInstance: ''
 	});
 
@@ -42,7 +42,7 @@ export function AppSettings() {
 			['themePreference', 'defaultDomoInstance', 'visitedDomoInstances'],
 			(result) => {
 				const loadedSettings = {
-					themePreference: result.themePreference || 'system',
+					themePreference: result.themePreference || theme || 'system',
 					defaultDomoInstance: result.defaultDomoInstance || ''
 				};
 				setSettings(loadedSettings);
@@ -138,6 +138,7 @@ export function AppSettings() {
 					value={settings.themePreference}
 					onChange={handleThemeChange}
 					className='w-[10rem]'
+					placeholder={theme}
 				>
 					<Label>Theme</Label>
 					<Select.Trigger>

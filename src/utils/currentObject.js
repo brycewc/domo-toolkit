@@ -68,6 +68,8 @@ async function fetchAndEnrichObjectDetails(domoObject) {
 export async function getCurrentObject() {
 	const domoObject = detectCurrentObject();
 	if (!domoObject) {
+		// Clear the stored object when on a page without a current object
+		await chrome.storage.local.set({ currentObject: null });
 		return null;
 	}
 

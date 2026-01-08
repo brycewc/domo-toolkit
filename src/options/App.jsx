@@ -10,7 +10,7 @@ import './App.css';
 
 export default function App() {
 	// Apply theme
-	useTheme();
+	const theme = useTheme();
 
 	// Get initial tab from URL hash (e.g., #activity)
 	const getInitialTab = () => {
@@ -85,7 +85,7 @@ export default function App() {
 							Configure general application settings.
 						</p>
 					</div>
-					<AppSettings />
+					<AppSettings theme={theme} />
 				</Tabs.Panel>
 			</Tabs>
 		</div>

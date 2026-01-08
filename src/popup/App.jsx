@@ -176,7 +176,7 @@ export default function App() {
 					/>
 					<Button
 						fullWidth
-						isDisabled={!isDomoPage}
+						isDisabled={!isDomoPage || !currentObject?.id}
 						onPress={() => {
 							navigator.clipboard.writeText(currentObject?.id);
 							showStatus(
