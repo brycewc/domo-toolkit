@@ -9,17 +9,19 @@ import {
 	ListBox,
 	TextField,
 	Form,
-	Popover
+	Popover,
+	Skeleton
 } from '@heroui/react';
 import { ColorPicker } from 'react-color-pikr';
 import { clearFaviconCache } from '@/utils';
 import { StatusBar } from '@/components';
-import IconX from '@/assets/icons/x.svg';
+import IconTrash from '@/assets/icons/trash.svg';
 import IconGripVertical from '@/assets/icons/grip-vertical.svg';
 import IconChevronDown from '@/assets/icons/chevron-down.svg';
 
 export function FaviconSettings() {
 	const [rules, setRules] = useState([]);
+	const [isLoading, setIsLoading] = useState(true);
 	const [draggedIndex, setDraggedIndex] = useState(null);
 	const [activeColorPicker, setActiveColorPicker] = useState(null);
 	const [tempColor, setTempColor] = useState('#000000');
@@ -33,6 +35,7 @@ export function FaviconSettings() {
 
 	// Load settings from Chrome storage on component mount
 	useEffect(() => {
+		setIsLoading(true);
 		chrome.storage.sync.get(['faviconRules'], (result) => {
 			if (result.faviconRules && result.faviconRules.length > 0) {
 				// Migrate old format if necessary
@@ -58,6 +61,7 @@ export function FaviconSettings() {
 					}
 				]);
 			}
+			setIsLoading(false);
 		});
 	}, []);
 
@@ -141,136 +145,147 @@ export function FaviconSettings() {
 	};
 
 	return (
-		<div className='flex flex-col justify-between w-full min-h-[85vh] p-4'>
+		<div className='flex flex-col justify-between w-full pt-4'>
 			<div className='flex flex-col gap-4 w-full'>
 				<Form className='flex flex-col gap-4 w-full' onSubmit={onSave}>
-					{rules.map((rule, index) => (
-						<Card
-							key={rule.id}
-							draggable
-							onDragStart={() => handleDragStart(index)}
-							onDragOver={(e) => handleDragOver(e, index)}
-							onDrop={(e) => handleDrop(e, index)}
-							onDragEnd={handleDragEnd}
-							className={`cursor-move transition-opacity ${
-								draggedIndex === index ? 'opacity-50' : ''
-							}`}
-						>
-							<Card.Content className='flex flex-row items-center gap-3 justify-start'>
-								<div className='flex items-center justify-center'>
-									<img
-										src={IconGripVertical}
-										alt='Drag to reorder'
-										className='w-5 h-5 mt-[1.5rem] text-fg-muted'
-										draggable={false}
-									/>
-								</div>
-								<div className='mt-[1.5rem] text-fg-muted font-semibold text-sm'>
-									{index + 1}
-								</div>
-
-								<div className='flex-1 min-w-0'>
-									<TextField
-										className='w-full'
-										name='pattern'
-										onChange={(value) => updateRule(rule.id, 'pattern', value)}
-										value={rule.pattern}
-									>
-										<Label>Subdomain Pattern</Label>
-										<Input />
-									</TextField>
-								</div>
-
-								<div className='flex flex-col gap-1 w-50'>
-									<Label>Effect</Label>
-									<Select
-										value={rule.effect}
-										onChange={(value) => updateRule(rule.id, 'effect', value)}
-										className='w-full'
-									>
-										<Label className='sr-only'>Effect</Label>
-										<Select.Trigger>
-											<Select.Value />
-											<Select.Indicator />
-										</Select.Trigger>
-										<Select.Popover>
-											<ListBox>
-												<ListBox.Item id='instance-logo'>
-													instance-logo
-												</ListBox.Item>
-												<ListBox.Item id='domo-logo-colored'>
-													domo-logo-colored
-												</ListBox.Item>
-												<ListBox.Item id='top'>top</ListBox.Item>
-												<ListBox.Item id='right'>right</ListBox.Item>
-												<ListBox.Item id='bottom'>bottom</ListBox.Item>
-												<ListBox.Item id='left'>left</ListBox.Item>
-											</ListBox>
-										</Select.Popover>
-									</Select>
-								</div>
-
-								<div className='flex flex-col gap-1 w-20'>
-									<Label>Color</Label>
-									<Popover
-										onOpenChange={(isOpen) => {
-											if (isOpen) {
-												setActiveColorPicker(rule.id);
-												setTempColor(
-													rule.effect !== 'instance-logo'
-														? rule.color
-														: '#000000'
-												);
-											} else {
-												setActiveColorPicker(null);
-											}
-										}}
-									>
-										<Button
-											className={
-												rule.effect === 'instance-logo'
-													? 'w-full select__trigger--on-surface'
-													: 'w-full'
-											}
-											style={
-												rule.effect !== 'instance-logo'
-													? {
-															backgroundColor:
-																activeColorPicker === rule.id
-																	? tempColor
-																	: rule.color
-													  }
-													: undefined
-											}
-											isDisabled={rule.effect === 'instance-logo'}
+					{isLoading ? (
+						<div className='skeleton--shimmer relative flex flex-col gap-4 w-full overflow-hidden'>
+							<Skeleton animationType='none' className='h-24 rounded-xl' />
+							<Skeleton animationType='none' className='h-24 rounded-xl' />
+							<Skeleton animationType='none' className='h-24 rounded-xl' />
+						</div>
+					) : (
+						rules.map((rule, index) => (
+							<Card
+								key={rule.id}
+								draggable
+								onDragStart={() => handleDragStart(index)}
+								onDragOver={(e) => handleDragOver(e, index)}
+								onDrop={(e) => handleDrop(e, index)}
+								onDragEnd={handleDragEnd}
+								className={`cursor-move transition-opacity ${
+									draggedIndex === index ? 'opacity-50' : ''
+								}`}
+							>
+								<Card.Content className='flex flex-row items-center gap-3 justify-start'>
+									<div className='flex items-center justify-center'>
+										<img
+											src={IconGripVertical}
+											alt='Drag to reorder'
+											className='w-5 h-5 mt-[1.5rem] text-fg-muted'
+											draggable={false}
 										/>
-										<Popover.Content>
-											<ColorPicker
-												value={tempColor}
-												onChange={(newColor) => {
-													setTempColor(newColor);
-													updateRule(rule.id, 'color', newColor);
-												}}
-											/>
-										</Popover.Content>
-									</Popover>
-								</div>
-
-								{rules.length > 1 && (
-									<div className='flex items-center mt-[1.5rem]'>
-										<Button
-											variant='danger'
-											size='sm'
-											onPress={() => removeRow(rule.id)}
-											isIconOnly
-										>
-											<img src={IconX} alt='Remove rule' />
-										</Button>
 									</div>
-								)}
-							</Card.Content>
-						</Card>
-					))}
+									<div className='mt-[1.5rem] text-fg-muted font-semibold text-sm'>
+										{index + 1}
+									</div>
+
+									<div className='flex-1 min-w-0'>
+										<TextField
+											className='w-full'
+											name='pattern'
+											onChange={(value) =>
+												updateRule(rule.id, 'pattern', value)
+											}
+											value={rule.pattern}
+										>
+											<Label>Subdomain Pattern</Label>
+											<Input />
+										</TextField>
+									</div>
+
+									<div className='flex flex-col gap-1 w-50'>
+										<Label>Effect</Label>
+										<Select
+											value={rule.effect}
+											onChange={(value) => updateRule(rule.id, 'effect', value)}
+											className='w-full'
+										>
+											<Label className='sr-only'>Effect</Label>
+											<Select.Trigger>
+												<Select.Value />
+												<Select.Indicator />
+											</Select.Trigger>
+											<Select.Popover>
+												<ListBox>
+													<ListBox.Item id='instance-logo'>
+														instance-logo
+													</ListBox.Item>
+													<ListBox.Item id='domo-logo-colored'>
+														domo-logo-colored
+													</ListBox.Item>
+													<ListBox.Item id='top'>top</ListBox.Item>
+													<ListBox.Item id='right'>right</ListBox.Item>
+													<ListBox.Item id='bottom'>bottom</ListBox.Item>
+													<ListBox.Item id='left'>left</ListBox.Item>
+												</ListBox>
+											</Select.Popover>
+										</Select>
+									</div>
+
+									<div className='flex flex-col gap-1 w-20'>
+										<Label>Color</Label>
+										<Popover
+											onOpenChange={(isOpen) => {
+												if (isOpen) {
+													setActiveColorPicker(rule.id);
+													setTempColor(
+														rule.effect !== 'instance-logo'
+															? rule.color
+															: '#000000'
+													);
+												} else {
+													setActiveColorPicker(null);
+												}
+											}}
+										>
+											<Button
+												className={
+													rule.effect === 'instance-logo'
+														? 'w-full select__trigger--on-surface'
+														: 'w-full'
+												}
+												style={
+													rule.effect !== 'instance-logo'
+														? {
+																backgroundColor:
+																	activeColorPicker === rule.id
+																		? tempColor
+																		: rule.color
+														  }
+														: undefined
+												}
+												isDisabled={rule.effect === 'instance-logo'}
+											/>
+											<Popover.Content>
+												<ColorPicker
+													value={tempColor}
+													onChange={(newColor) => {
+														setTempColor(newColor);
+														updateRule(rule.id, 'color', newColor);
+													}}
+													showAlpha={true}
+												/>
+											</Popover.Content>
+										</Popover>
+									</div>
+
+									{rules.length > 1 && (
+										<div className='flex items-center mt-[1.5rem]'>
+											<Button
+												variant='danger'
+												size='sm'
+												onPress={() => removeRow(rule.id)}
+												isIconOnly
+											>
+												<img src={IconTrash} alt='Remove rule' />
+											</Button>
+										</div>
+									)}
+								</Card.Content>
+							</Card>
+						))
+					)}
 
 					<div className='flex flex-row gap-2'>
 						<Button type='submit'>Save Settings</Button>

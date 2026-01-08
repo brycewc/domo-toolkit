@@ -211,7 +211,7 @@ export default function App() {
 				></Tabs.Panel>
 				<Tabs.Panel id='settings'></Tabs.Panel>
 			</Tabs>
-			<div className='min-w-sm min-h-[5rem] relative overflow-hidden'>
+			<div className='min-w-sm min-h-[5rem] relative w-full'>
 				<div
 					className={`transition-all duration-300 ease-in-out ${
 						statusBar.visible

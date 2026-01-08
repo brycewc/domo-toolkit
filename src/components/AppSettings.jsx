@@ -10,6 +10,7 @@ import {
 	Select
 } from '@heroui/react';
 import { StatusBar } from '@/components';
+import { EXCLUDED_INSTANCES } from '@/utils';
 
 export function AppSettings() {
 	// Store all settings in a single state object for extensibility
@@ -131,7 +132,7 @@ export function AppSettings() {
 	};
 
 	return (
-		<div className='flex flex-col gap-4 p-4'>
+		<div className='flex flex-col gap-4 pt-4'>
 			<Form onSubmit={handleSubmit} className='flex flex-col gap-4'>
 				<Select
 					value={settings.themePreference}
@@ -164,7 +165,7 @@ export function AppSettings() {
 					allowsCustomValue
 					inputValue={settings.defaultDomoInstance}
 					onInputChange={handleDefaultInstanceChange}
-					className='w-[20rem]'
+					className='w-[28rem]'
 				>
 					<Label>Default Domo Instance</Label>
 					<ComboBox.InputGroup>
@@ -173,7 +174,9 @@ export function AppSettings() {
 					</ComboBox.InputGroup>
 					<ComboBox.Popover>
 						<ListBox>
-							{visitedInstances.length === 0 ? (
+							{visitedInstances.filter(
+								(instance) => !EXCLUDED_INSTANCES.includes(instance)
+							).length === 0 ? (
 								<ListBox.Item
 									id='_no_instances'
 									textValue='No instances visited yet'
@@ -181,16 +184,18 @@ export function AppSettings() {
 									No instances visited yet
 								</ListBox.Item>
 							) : (
-								visitedInstances.map((instance) => (
-									<ListBox.Item
-										key={instance}
-										id={instance}
-										textValue={instance}
-									>
-										{instance}
-										<ListBox.ItemIndicator />
-									</ListBox.Item>
-								))
+								visitedInstances
+									.filter((instance) => !EXCLUDED_INSTANCES.includes(instance))
+									.map((instance) => (
+										<ListBox.Item
+											key={instance}
+											id={instance}
+											textValue={instance}
+										>
+											{instance}
+											<ListBox.ItemIndicator />
+										</ListBox.Item>
+									))
 							)}
 						</ListBox>
 					</ComboBox.Popover>

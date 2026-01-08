@@ -22,18 +22,18 @@ async function fetchAndEnrichObjectDetails(domoObject) {
 		// Prepare fetch options
 		const options = {
 			method,
-			credentials: 'include',
-			headers: {
-				'Content-Type': 'application/json'
-			}
+			credentials: 'include'
 		};
 
 		// Add body for POST requests
-		if (method === 'POST' && bodyTemplate) {
-			const body = JSON.parse(
-				JSON.stringify(bodyTemplate).replace(/{id}/g, domoObject.id)
+		if (method !== 'GET' && bodyTemplate) {
+			options.body = JSON.stringify(bodyTemplate).replace(
+				/{id}/g,
+				domoObject.id
 			);
-			options.body = JSON.stringify(body);
+			options.headers = {
+				'Content-Type': 'application/json'
+			};
 		}
 
 		const response = await fetch(url, options);
@@ -427,21 +427,13 @@ function detectCurrentObject() {
  * @returns {string|null} Card ID if modal is open, null otherwise
  */
 export function detectCardModal() {
-	const detailsEl = document.querySelector('cd-details-title');
-
-	if (!detailsEl) {
-		return null;
-	}
-
-	try {
-		if (window.angular && typeof window.angular.element === 'function') {
-			const ngScope = window.angular.element(detailsEl).scope();
-			const kpiId = ngScope && ngScope.$ctrl && ngScope.$ctrl.kpiId;
-			return kpiId || null;
+	// Look for modal element with ID pattern: card-details-modal-{cardId}
+	const modalElement = document.querySelector('[id^="card-details-modal-"]');
+	if (modalElement && modalElement.id) {
+		const match = modalElement.id.match(/card-details-modal-(\d+)/);
+		if (match && match[1]) {
+			return match[1];
 		}
-	} catch (e) {
-		// Ignore and return null
 	}
-
 	return null;
 }

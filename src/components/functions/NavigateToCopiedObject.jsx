@@ -48,8 +48,8 @@ export function NavigateToCopiedObject() {
 				lastCheckedClipboard.current = text;
 				const trimmedText = text.trim();
 
-				// Check if it looks like a Domo object ID (numeric or UUID)
-				const isNumeric = /^\d+$/.test(trimmedText);
+				// Check if it looks like a Domo object ID (numeric including negative, or UUID)
+				const isNumeric = /^-?\d+$/.test(trimmedText);
 				const isUuid =
 					/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
 						trimmedText
@@ -134,13 +134,7 @@ export function NavigateToCopiedObject() {
 			try {
 				// If we're on a Domo page, navigate in the current tab
 				// Otherwise, create a new tab or update the current one
-				if (targetTabId && tab.url && tab.url.includes('domo.com')) {
-					await domoObject.navigateTo(targetTabId);
-				} else {
-					// Create a new tab with the object URL
-					const url = domoObject.url || (await domoObject.buildUrl(baseUrl));
-					await chrome.tabs.create({ url });
-				}
+				await domoObject.navigateTo();
 			} catch (err) {
 				console.error('Error navigating to object:', err);
 				alert(`Error navigating to object: ${err.message}`);
@@ -149,22 +143,6 @@ export function NavigateToCopiedObject() {
 			console.error('Error:', err);
 			alert('Error: ' + err.message);
 		}
-	};
-
-	const getButtonText = () => {
-		if (!copiedObjectId) {
-			return 'Navigate to Copied: N/A';
-		}
-		if (isLoading) {
-			return `Loading...`;
-		}
-		if (error) {
-			return `Error: ${error}`;
-		}
-		if (objectDetails) {
-			return `Navigate to Copied: ${objectDetails.type}`;
-		}
-		return copiedObjectId;
 	};
 
 	// If object type is unknown, show dropdown for manual selection
@@ -178,7 +156,7 @@ export function NavigateToCopiedObject() {
 				<Button className='w-full'>
 					{selectedType
 						? `Navigate to: ${
-								getAllObjectTypes().find((t) => t.id === selectedType)?.name
+								getAllObjectTypes().find((t) => t.id === selectedType)?.id
 						  }`
 						: 'Navigate to: Select Object Type'}
 				</Button>

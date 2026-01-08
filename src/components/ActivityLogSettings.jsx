@@ -7,13 +7,16 @@ import {
 	Input,
 	Label,
 	ListBox,
-	TextField
+	TextField,
+	Skeleton,
+	Card
 } from '@heroui/react';
 import { StatusBar } from '@/components';
-import IconX from '@/assets/icons/x.svg';
+import IconTrash from '@/assets/icons/trash.svg';
 
 export function ActivityLogSettings() {
 	const [configs, setConfigs] = useState([]);
+	const [isLoading, setIsLoading] = useState(true);
 	const [visitedInstances, setVisitedInstances] = useState([]);
 	const [statusBar, setStatusBar] = useState({
 		title: '',
@@ -25,6 +28,7 @@ export function ActivityLogSettings() {
 
 	// Load settings from Chrome storage on component mount
 	useEffect(() => {
+		setIsLoading(true);
 		chrome.storage.sync.get(
 			['activityLogConfigs', 'visitedDomoInstances'],
 			(result) => {
@@ -53,19 +57,27 @@ export function ActivityLogSettings() {
 				) {
 					setConfigs(result.activityLogConfigs);
 				} else {
-					// Set default empty config
-					setConfigs([
-						{
-							id: Date.now(),
-							instance: '',
-							cardId: '',
-							objectTypeColumn: 'Object_Type',
-							objectIdColumn: 'Object_ID'
-						}
-					]);
+					// Set default config - use dev defaults in dev mode
+					const defaultConfig = import.meta.env.DEV
+						? {
+								id: Date.now(),
+								instance: 'domo',
+								cardId: '2019620443',
+								objectTypeColumn: 'Object Type ID',
+								objectIdColumn: 'Object ID'
+						  }
+						: {
+								id: Date.now(),
+								instance: '',
+								cardId: '',
+								objectTypeColumn: 'Object_Type',
+								objectIdColumn: 'Object_ID'
+						  };
+					setConfigs([defaultConfig]);
 				}
 
 				setVisitedInstances(result.visitedDomoInstances || []);
+				setIsLoading(false);
 			}
 		);
 	}, []);
@@ -120,16 +132,22 @@ export function ActivityLogSettings() {
 	};
 
 	const addRow = () => {
-		setConfigs([
-			...configs,
-			{
-				id: Date.now(),
-				instance: '',
-				cardId: '',
-				objectTypeColumn: 'Object_Type',
-				objectIdColumn: 'Object_ID'
-			}
-		]);
+		const newConfig = import.meta.env.DEV
+			? {
+					id: Date.now(),
+					instance: 'domo',
+					cardId: '2019620443',
+					objectTypeColumn: 'Object Type ID',
+					objectIdColumn: 'Object ID'
+			  }
+			: {
+					id: Date.now(),
+					instance: '',
+					cardId: '',
+					objectTypeColumn: 'Object_Type',
+					objectIdColumn: 'Object_ID'
+			  };
+		setConfigs([...configs, newConfig]);
 	};
 
 	const removeRow = (id) => {
@@ -153,98 +171,108 @@ export function ActivityLogSettings() {
 	};
 
 	return (
-		<div className='flex flex-col gap-4 p-4 w-full'>
-			<Form className='flex flex-col gap-4 w-full' onSubmit={onSubmit}>
-				{configs.map((config) => (
-					<Fieldset key={config.id} className='flex flex-col gap-3'>
-						<div className='flex items-start gap-3 justify-start h-20'>
-							<ComboBox
-								allowsCustomValue
-								inputValue={config.instance}
-								onInputChange={(value) =>
-									updateConfig(config.id, 'instance', value)
-								}
-								className='flex-1'
-								isRequired
-							>
-								<Label>Domo Instance</Label>
-								<ComboBox.InputGroup>
-									<Input placeholder='Select or enter instance' />
-									<ComboBox.Trigger />
-								</ComboBox.InputGroup>
-								<ComboBox.Popover>
-									<ListBox>
-										{visitedInstances.length === 0 ? (
-											<ListBox.Item
-												id='_no_instances'
-												textValue='No instances visited yet'
-											>
-												No instances visited yet
-											</ListBox.Item>
-										) : (
-											visitedInstances.map((instance) => (
+		<div className='flex flex-col gap-4 pt-4 w-full'>
+			<Form className='flex flex-col w-full gap-4' onSubmit={onSubmit}>
+				{isLoading ? (
+					<div className='skeleton--shimmer relative flex flex-col gap-4 w-full overflow-hidden'>
+						<Skeleton animationType='none' className='h-20 rounded-xl' />
+					</div>
+				) : (
+					configs.map((config) => (
+						<Card key={config.id}>
+							<Card.Content className='flex flex-row items-start gap-2 justify-start h-20'>
+								<ComboBox
+									allowsCustomValue
+									inputValue={config.instance}
+									onInputChange={(value) =>
+										updateConfig(config.id, 'instance', value)
+									}
+									className='flex-1'
+									isRequired
+								>
+									<Label>Domo Instance</Label>
+									<ComboBox.InputGroup>
+										<Input placeholder='Select or enter instance' />
+										<ComboBox.Trigger />
+									</ComboBox.InputGroup>
+									<ComboBox.Popover>
+										<ListBox>
+											{visitedInstances.length === 0 ? (
 												<ListBox.Item
-													key={instance}
-													id={instance}
-													textValue={instance}
+													id='_no_instances'
+													textValue='No instances visited yet'
 												>
-													{instance}
-													<ListBox.ItemIndicator />
+													No instances visited yet
 												</ListBox.Item>
-											))
-										)}
-									</ListBox>
-								</ComboBox.Popover>
-							</ComboBox>
+											) : (
+												visitedInstances.map((instance) => (
+													<ListBox.Item
+														key={instance}
+														id={instance}
+														textValue={instance}
+													>
+														{instance}
+														<ListBox.ItemIndicator />
+													</ListBox.Item>
+												))
+											)}
+										</ListBox>
+									</ComboBox.Popover>
+								</ComboBox>
 
-							<TextField
-								isRequired
-								value={config.cardId}
-								onChange={(value) => handleCardIdChange(config.id, value)}
-								className='w-40'
-							>
-								<Label>Card ID</Label>
-								<Input placeholder='Card ID' type='text' inputMode='numeric' />
-							</TextField>
+								<TextField
+									isRequired
+									value={config.cardId}
+									onChange={(value) => handleCardIdChange(config.id, value)}
+									className='w-40'
+								>
+									<Label>Card ID</Label>
+									<Input
+										placeholder='Card ID'
+										type='text'
+										inputMode='numeric'
+									/>
+								</TextField>
 
-							<TextField
-								isRequired
-								value={config.objectTypeColumn}
-								onChange={(value) =>
-									updateConfig(config.id, 'objectTypeColumn', value)
-								}
-								className='flex-1'
-							>
-								<Label>Object Type Column</Label>
-								<Input placeholder='Object_Type' />
-							</TextField>
+								<TextField
+									isRequired
+									value={config.objectTypeColumn}
+									onChange={(value) =>
+										updateConfig(config.id, 'objectTypeColumn', value)
+									}
+									className='flex-1'
+								>
+									<Label>Object Type Column</Label>
+									<Input placeholder='Object_Type' />
+								</TextField>
 
-							<TextField
-								isRequired
-								value={config.objectIdColumn}
-								onChange={(value) =>
-									updateConfig(config.id, 'objectIdColumn', value)
-								}
-								className='flex-1'
-							>
-								<Label>Object ID Column</Label>
-								<Input placeholder='Object_ID' />
-							</TextField>
-							{configs.length > 1 && (
-								<div className='flex items-center h-20'>
-									<Button
-										variant='danger'
-										size='sm'
-										onPress={() => removeRow(config.id)}
-										isIconOnly
-									>
-										<img src={IconX} alt='Remove configuration' />
-									</Button>
-								</div>
-							)}
-						</div>
-					</Fieldset>
-				))}
+								<TextField
+									isRequired
+									value={config.objectIdColumn}
+									onChange={(value) =>
+										updateConfig(config.id, 'objectIdColumn', value)
+									}
+									className='flex-1'
+								>
+									<Label>Object ID Column</Label>
+									<Input placeholder='Object_ID' />
+								</TextField>
+								{configs.length > 1 && (
+									<div className='flex items-center h-20'>
+										<Button
+											variant='danger'
+											size='sm'
+											onPress={() => removeRow(config.id)}
+											isIconOnly
+										>
+											<img src={IconTrash} alt='Remove configuration' />
+										</Button>
+									</div>
+								)}
+							</Card.Content>
+						</Card>
+					))
+				)}
 
 				<div className='flex gap-2'>
 					<Button type='submit'>Save Settings</Button>

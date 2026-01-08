@@ -36,9 +36,9 @@ export default function App() {
 	}, []);
 
 	return (
-		<div className='flex justify-center p-4 bg-background'>
+		<div className='flex justify-center p-4 bg-background min-h-screen'>
 			<Tabs
-				className='w-full max-w-4xl rounded-sm justify-center'
+				className='w-full max-w-4xl rounded-sm'
 				selectedKey={selectedTab}
 				onSelectionChange={handleTabChange}
 			>

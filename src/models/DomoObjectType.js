@@ -191,9 +191,10 @@ export const ObjectTypeRegistry = {
 			keyword: 'details'
 		},
 		{
-			method: 'GET',
-			endpoint: '/content/v1/cards?urns={id}',
-			pathToName: 'title'
+			method: 'PUT',
+			endpoint: '/content/v3/cards/kpi/definition',
+			bodyTemplate: { urn: '{id}' },
+			pathToName: 'definition.title'
 		}
 	),
 	CODEENGINE_PACKAGE: new DomoObjectType(
@@ -370,7 +371,7 @@ export const ObjectTypeRegistry = {
 		'PAGE',
 		'Page',
 		'/page/{id}',
-		/^\d+$/,
+		/^-?\d+$/,
 		{
 			keyword: 'page'
 		},

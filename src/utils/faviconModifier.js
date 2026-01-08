@@ -4,15 +4,30 @@
  */
 
 import domoLogoTransparent from '@/assets/domo-logo-no-background.png';
+import { EXCLUDED_HOSTNAMES } from './constants';
 
-// List of excluded hostnames where favicon should never be modified
-const EXCLUDED_HOSTNAMES = [
-	'domo.com',
-	'community-forums.domo.com',
-	'domo-support.domo.com',
-	'ai.domo.com',
-	'api.domo.com'
-];
+/**
+ * Convert hex color (with optional alpha) to rgba format
+ * @param {string} hex - Hex color code (e.g., '#FF0000' or '#FF0000FF')
+ * @returns {string} RGBA color string (e.g., 'rgba(255, 0, 0, 1)')
+ */
+function hexToRgba(hex) {
+	// Remove the # if present
+	hex = hex.replace('#', '');
+
+	// Parse RGB values
+	const r = parseInt(hex.substring(0, 2), 16);
+	const g = parseInt(hex.substring(2, 4), 16);
+	const b = parseInt(hex.substring(4, 6), 16);
+
+	// Parse alpha if present (8-character hex)
+	let a = 1;
+	if (hex.length === 8) {
+		a = parseInt(hex.substring(6, 8), 16) / 255;
+	}
+
+	return `rgba(${r}, ${g}, ${b}, ${a})`;
+}
 
 /**
  * Generate a cache key for a favicon rule
@@ -351,7 +366,7 @@ async function applyDomoLogoColored(favicon, color) {
 			const ctx = canvas.getContext('2d');
 
 			// Draw colored background
-			ctx.fillStyle = color;
+			ctx.fillStyle = hexToRgba(color);
 			ctx.fillRect(0, 0, size, size);
 
 			// Draw the Domo logo on top
@@ -430,7 +445,7 @@ async function applyColorEffect(favicon, effect, color) {
  * @param {string} color - Color to apply
  */
 function applyEffect(ctx, size, effect, color) {
-	ctx.fillStyle = color;
+	ctx.fillStyle = hexToRgba(color);
 
 	switch (effect) {
 		case 'top':

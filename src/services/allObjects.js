@@ -62,19 +62,16 @@ async function fetchObjectDetailsInPage(apiConfig, objectId, parentId) {
 		// Prepare fetch options
 		const options = {
 			method,
-			credentials: 'include',
-			headers: {
-				'Content-Type': 'application/json'
-			}
+			credentials: 'include'
 		};
 
 		// Add body for POST requests
-		if (method === 'POST' && bodyTemplate) {
+		if (method !== 'GET' && bodyTemplate) {
 			// Replace {id} in bodyTemplate
-			const body = JSON.parse(
-				JSON.stringify(bodyTemplate).replace(/{id}/g, objectId)
-			);
-			options.body = JSON.stringify(body);
+			options.body = JSON.stringify(bodyTemplate).replace(/{id}/g, objectId);
+			options.headers = {
+				'Content-Type': 'application/json'
+			};
 		}
 
 		const response = await fetch(url, options);
@@ -89,7 +86,7 @@ async function fetchObjectDetailsInPage(apiConfig, objectId, parentId) {
 		const name =
 			pathToName.split('.').reduce((current, prop) => current?.[prop], data) ||
 			`Object #${objectId}`;
-
+		console.log('Fetched object details in page:', { name, data });
 		return {
 			name
 		};

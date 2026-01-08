@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="24px" height="24px" viewBox="0 0 24 24" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <!-- Generator: Sketch 41.2 (35397) - http://www.bohemiancoding.com/sketch -->
+    <title>trash</title>
+    <desc>Created with Sketch.</desc>
+    <defs></defs>
+    <g id="Page-1" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="trash" fill="#000000">
+            <path d="M19,6 C19,5.44771525 18.5566468,5 17.9906311,5 L15,5 L15,4 C15,3.44771525 14.5490248,3 14.009222,3 L9.99077797,3 C9.44358641,3 9,3.44386482 9,4 L9,5 L6.0093689,5 C5.45190985,5 5,5.44386482 5,6 L5,7 L6,7 C5.99999979,12.0137939 5.99999997,20.0012555 5.99999997,20.0012555 C5.99999999,20.5528469 6.45576096,21 7.0024733,21 L16.9975267,21 C17.5511774,21 18,20.555163 18,20.0044225 L18,7 L19,7 L19,6 Z M16,19 L16,7 L14,7 L14,19 L16,19 Z M13,19 L13,7 L11,7 L11,19 L13,19 Z M10,19 L10,7 L8,7 L8,19 L10,19 Z M14,4 L14,5 L10,5 L10,4 L14,4 Z" id="Shape"></path>
+        </g>
+    </g>
+</svg>

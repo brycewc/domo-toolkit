@@ -2,7 +2,8 @@ import {
 	getCurrentObject,
 	detectCardModal,
 	applyFaviconRules,
-	applyInstanceLogoAuto
+	applyInstanceLogoAuto,
+	EXCLUDED_HOSTNAMES
 } from '@/utils';
 
 // Track current domain to detect domain changes
@@ -10,7 +11,10 @@ let currentDomain = location.hostname;
 
 // Track visited Domo instances
 async function trackDomoInstances() {
-	if (location.hostname.includes('domo.com')) {
+	if (
+		location.hostname.includes('domo.com') &&
+		!EXCLUDED_HOSTNAMES.includes(location.hostname)
+	) {
 		// Extract subdomain (e.g., 'mycompany' from 'mycompany.domo.com') as instance
 		const instance = location.hostname.replace('.domo.com', '');
 		const result = await chrome.storage.sync.get(['visitedDomoInstances']);
@@ -24,6 +28,9 @@ async function trackDomoInstances() {
 
 		// Store the current instance
 		await chrome.storage.local.set({ currentDomoInstance: instance });
+	} else {
+		// Not on a Domo domain, clear current instance
+		await chrome.storage.local.set({ currentDomoInstance: null });
 	}
 }
 
@@ -107,35 +114,91 @@ const urlCheckInterval = setInterval(() => {
 	}
 }, 1000);
 
-// Watch for card modal changes
-function checkCardModal() {
-	const kpiId = detectCardModal();
+// Extract card ID from modal element ID (format: card-details-modal-{cardId})
+function extractCardIdFromModal() {
+	const modalElement = document.querySelector('[id^="card-details-modal-"]');
+	if (modalElement && modalElement.id) {
+		const match = modalElement.id.match(/card-details-modal-(\d+)/);
+		if (match && match[1]) {
+			return match[1];
+		}
+	}
+	return null;
+}
 
-	// If card modal is open and ID changed or newly appeared
-	if (kpiId && kpiId !== lastDetectedCardId) {
-		console.log('Card modal detected/changed, re-detecting object type');
-		lastDetectedCardId = kpiId;
-		getCurrentObject();
-	} else if (!kpiId && lastDetectedCardId) {
-		// Modal was closed
-		console.log('Card modal closed, re-detecting object type');
-		lastDetectedCardId = null;
-		getCurrentObject();
+// Watch for card modal element being added or removed
+function checkForCardModalElement(mutations) {
+	for (const mutation of mutations) {
+		if (mutation.type === 'childList') {
+			// Check for added nodes
+			if (mutation.addedNodes.length > 0) {
+				for (const node of mutation.addedNodes) {
+					if (node.nodeType === Node.ELEMENT_NODE) {
+						// Check if this is the modal element or contains it
+						let modalElement = null;
+						if (
+							node.classList &&
+							node.classList.contains('card-details-modal')
+						) {
+							modalElement = node;
+						} else if (node.querySelector) {
+							modalElement = node.querySelector('.card-details-modal');
+						}
+
+						if (modalElement) {
+							const cardId = extractCardIdFromModal();
+							if (cardId && cardId !== lastDetectedCardId) {
+								console.log('Card modal detected with ID:', cardId);
+								lastDetectedCardId = cardId;
+								getCurrentObject();
+							}
+							return;
+						}
+					}
+				}
+			}
+
+			// Check for removed nodes
+			if (mutation.removedNodes.length > 0) {
+				for (const node of mutation.removedNodes) {
+					if (node.nodeType === Node.ELEMENT_NODE) {
+						let wasModal = false;
+						if (
+							node.classList &&
+							node.classList.contains('card-details-modal')
+						) {
+							wasModal = true;
+						} else if (node.querySelector) {
+							const modalElement = node.querySelector('.card-details-modal');
+							if (modalElement) {
+								wasModal = true;
+							}
+						}
+
+						if (wasModal) {
+							console.log('Card modal element removed from DOM');
+							if (lastDetectedCardId) {
+								lastDetectedCardId = null;
+								getCurrentObject();
+							}
+							return;
+						}
+					}
+				}
+			}
+		}
 	}
 }
 
 // Set up MutationObserver to watch for modal changes
 const observer = new MutationObserver((mutations) => {
-	// Debounce the check to avoid excessive calls
-	clearTimeout(observer.timeoutId);
-	observer.timeoutId = setTimeout(checkCardModal, 100);
+	checkForCardModalElement(mutations);
 });
 
 // Start observing the document for modal changes
 observer.observe(document.body, {
 	childList: true,
-	subtree: true,
-	attributes: false
+	subtree: true
 });
 
 // Listen for messages from popup/background

@@ -107,10 +107,9 @@ export class DomoObject {
 
 	/**
 	 * Navigate to this object in a Chrome tab
-	 * @param {number} tabId - The Chrome tab ID
 	 * @returns {Promise<void>}
 	 */
-	async navigateTo(tabId) {
+	async navigateTo() {
 		if (!this.hasUrl()) {
 			throw new Error(
 				`Cannot navigate to ${this.objectType.name}: this object type does not have a navigable URL`
