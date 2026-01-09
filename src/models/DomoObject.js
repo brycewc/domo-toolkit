@@ -1,5 +1,6 @@
 import { getObjectType } from '@/models';
 import { getAppStudioPageParent, getDrillParentCardId } from '@/services';
+import { executeInPage } from '@/utils';
 
 /**
  * DomoObject class represents an instance of a Domo object
@@ -21,15 +22,17 @@ export class DomoObject {
 			throw new Error(`Unknown object type: ${type}`);
 		}
 
-		// Build and cache the URL only if the type has a navigable URL
+		// Build and cache the URL only if the type has a navigable URL and doesn't require a parent
+		// For types requiring a parent, the URL will be built asynchronously when needed
 		if (!this.objectType.hasUrl()) {
 			// For types without URLs, we can't navigate
 			this.url = null;
 		} else if (this.requiresParent()) {
-			// For types requiring parent, url will be set asynchronously
+			// For types requiring a parent, don't build URL yet (it's async)
 			this.url = null;
 		} else {
-			this.url = this.objectType.buildObjectUrl(baseUrl, this.id);
+			// For simple types, build URL synchronously
+			this.url = this.objectType.buildObjectUrl(baseUrl, id);
 		}
 	}
 
@@ -74,22 +77,94 @@ export class DomoObject {
 	}
 
 	/**
-	 * Get the parent ID for this object
+	 * Get the parent ID for this object and enrich metadata with parent details
 	 * @param {string} baseUrl - The base URL (e.g., https://instance.domo.com)
 	 * @returns {Promise<string>} The parent ID
 	 * @throws {Error} If the parent cannot be fetched or is not supported
 	 */
 	async getParent(baseUrl) {
+		let parentId;
+
 		switch (this.objectType.id) {
 			case 'DATA_APP_VIEW':
-				return await getAppStudioPageParent(this.id, baseUrl);
+				parentId = await executeInPage(getAppStudioPageParent, [
+					this.id,
+					baseUrl
+				]);
+				break;
 			case 'DRILL_PATH':
-				return await getDrillParentCardId(this.id, baseUrl);
+				parentId = await executeInPage(getDrillParentCardId, [
+					this.id,
+					baseUrl
+				]);
+				break;
 			default:
 				throw new Error(
-					`Parent lookup not supported for type: ${this.objectType.type}`
+					`Parent lookup not supported for type: ${this.objectType.id}`
 				);
 		}
+
+		// Fetch parent details and store in metadata
+		if (
+			parentId &&
+			this.objectType.parents &&
+			this.objectType.parents.length > 0
+		) {
+			const parentTypeId = this.objectType.parents[0]; // Use first parent type
+			const parentType = getObjectType(parentTypeId);
+
+			if (parentType && parentType.api) {
+				try {
+					// Fetch parent details using its API configuration
+					const { method, endpoint, pathToName } = parentType.api;
+
+					const parentDetails = await executeInPage(
+						async (
+							endpoint,
+							method,
+							pathToName,
+							parentId,
+							parentTypeId,
+							baseUrl
+						) => {
+							const url = `/api${endpoint}`.replace('{id}', parentId);
+							const options = {
+								method,
+								credentials: 'include'
+							};
+
+							const response = await fetch(url, options);
+
+							if (!response.ok) {
+								throw new Error(`HTTP ${response.status}`);
+							}
+
+							const data = await response.json();
+							const name = pathToName
+								.split('.')
+								.reduce((current, prop) => current?.[prop], data);
+
+							return {
+								id: parentId,
+								type: parentTypeId,
+								name: name,
+								details: data
+							};
+						},
+						[endpoint, method, pathToName, parentId, parentTypeId, baseUrl]
+					);
+
+					// Store parent details in metadata
+					this.metadata.parent = parentDetails;
+					console.log('Enriched parent metadata:', parentDetails);
+				} catch (error) {
+					console.error('Error fetching parent details:', error);
+					// Still return the parentId even if we can't fetch details
+				}
+			}
+		}
+
+		return parentId;
 	}
 
 	/**
@@ -100,6 +175,9 @@ export class DomoObject {
 	async buildUrl(baseUrl) {
 		if (this.requiresParent()) {
 			const parentId = await this.getParent(baseUrl);
+			console.log(
+				`Building URL for ${this.typeName} ${this.id} with parent ${parentId}`
+			);
 			return this.objectType.buildObjectUrl(baseUrl, this.id, parentId);
 		}
 		return this.objectType.buildObjectUrl(baseUrl, this.id);

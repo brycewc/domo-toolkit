@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Button, Dropdown, Label } from '@heroui/react';
+import { Button, Dropdown, Label, Tooltip, Chip } from '@heroui/react';
 import { DomoObject, getAllObjectTypes } from '@/models';
 import { detectAndFetchObject } from '@/services';
 import IconBolt from '@/assets/icons/bolt.svg';
@@ -96,40 +96,44 @@ export function NavigateToCopiedObject() {
 	const handleClick = async () => {
 		if (!copiedObjectId) return;
 
-		// Use selectedType if available, otherwise use detected type
-		const typeToUse = selectedType || objectDetails?.type;
-		if (!typeToUse || typeToUse === 'UNKNOWN') return;
+		// Check if object is unknown or if manual type selection is needed
+		if (objectDetails?._unknownType && !selectedType) return;
 
 		try {
-			// Get active tab
-			const [tab] = await chrome.tabs.query({
-				active: true,
-				currentWindow: true
-			});
+			let domoObject;
 
-			let baseUrl;
-			let targetTabId = tab?.id;
+			if (selectedType) {
+				// User manually selected a type - create new DomoObject
+				const [tab] = await chrome.tabs.query({
+					active: true,
+					currentWindow: true
+				});
 
-			// Check if on a Domo page
-			if (tab && tab.url && tab.url.includes('domo.com')) {
-				// Use current Domo instance
-				baseUrl = new URL(tab.url).origin;
-			} else {
-				// Use default Domo instance from settings
-				if (!defaultDomoInstance) {
-					alert(
-						'Please set a default Domo instance in Settings or open a Domo page first'
-					);
-					return;
+				let baseUrl;
+
+				// Check if on a Domo page
+				if (tab && tab.url && tab.url.includes('domo.com')) {
+					// Use current Domo instance
+					baseUrl = new URL(tab.url).origin;
+				} else {
+					// Use default Domo instance from settings
+					if (!defaultDomoInstance) {
+						alert(
+							'Please set a default Domo instance in Settings or open a Domo page first'
+						);
+						return;
+					}
+					// Build the base URL from the instance name
+					baseUrl = defaultDomoInstance.includes('://')
+						? defaultDomoInstance.replace(/\/$/, '')
+						: `https://${defaultDomoInstance}.domo.com`;
 				}
-				// Build the base URL from the instance name
-				baseUrl = defaultDomoInstance.includes('://')
-					? defaultDomoInstance.replace(/\/$/, '')
-					: `https://${defaultDomoInstance}.domo.com`;
-			}
 
-			// Create DomoObject instance
-			const domoObject = new DomoObject(typeToUse, copiedObjectId, baseUrl);
+				domoObject = new DomoObject(selectedType, copiedObjectId, baseUrl);
+			} else {
+				// Use the already detected DomoObject
+				domoObject = objectDetails;
+			}
 
 			try {
 				// If we're on a Domo page, navigate in the current tab
@@ -146,7 +150,7 @@ export function NavigateToCopiedObject() {
 	};
 
 	// If object type is unknown, show dropdown for manual selection
-	if (objectDetails?.type === 'UNKNOWN' && copiedObjectId) {
+	if (objectDetails?._unknownType && copiedObjectId) {
 		const allTypes = getAllObjectTypes()
 			.filter((type) => !type.requiresParent() && type.hasUrl())
 			.sort((a, b) => a.name.localeCompare(b.name));
@@ -179,14 +183,39 @@ export function NavigateToCopiedObject() {
 	}
 
 	return (
-		<Button
-			onPress={handleClick}
-			isDisabled={!copiedObjectId || isLoading || !!error}
-			className='w-full'
-			isPending={isLoading}
-		>
-			Navigate from Clipboard
-			<img src={IconBolt} alt='Bolt icon' className='w-4 h-4' />
-		</Button>
+		<Tooltip delay={200}>
+			<Button
+				onPress={handleClick}
+				isDisabled={!copiedObjectId || isLoading || !!error}
+				className='w-full'
+				isPending={isLoading}
+			>
+				Navigate from Clipboard
+				<img src={IconBolt} alt='Bolt icon' className='w-4 h-4' />
+			</Button>
+			<Tooltip.Content showArrow placement='top'>
+				<Tooltip.Arrow />
+				{error ? (
+					`Error: ${error}`
+				) : copiedObjectId ? (
+					objectDetails ? (
+						<div className='flex items-center gap-2'>
+							<span>
+								Navigate to {objectDetails.metadata?.name || 'Unknown'}
+							</span>
+							<Chip size='sm' variant='soft' color='accent'>
+								{objectDetails.metadata?.parent
+									? `${objectDetails.metadata.parent.type} > ${objectDetails.typeId}`
+									: objectDetails.typeId}
+							</Chip>
+						</div>
+					) : (
+						'Loading object details...'
+					)
+				) : (
+					'No valid Domo object ID in clipboard'
+				)}
+			</Tooltip.Content>
+		</Tooltip>
 	);
 }

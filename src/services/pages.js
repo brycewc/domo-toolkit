@@ -7,11 +7,18 @@
  */
 export async function getAppStudioPageParent(appPageId, baseUrl) {
 	try {
-		// Fetch cards from the app page
+		// Use the page summary endpoint to get the parent App ID
 		const response = await fetch(
-			`${baseUrl}/api/content/v3/stacks/${appPageId}/cards`,
+			`${baseUrl}/api/content/v1/pages/summary?limit=1&skip=0`,
 			{
-				method: 'GET'
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				credentials: 'include',
+				body: JSON.stringify({
+					pageId: appPageId
+				})
 			}
 		);
 
@@ -21,46 +28,16 @@ export async function getAppStudioPageParent(appPageId, baseUrl) {
 			);
 		}
 
-		const page = await response.json();
+		const data = await response.json();
 
-		if (!Array.isArray(page.cards) || page.cards.length === 0) {
-			throw new Error(
-				`The App Studio Page ${appPageId} has no Cards. The only way to get App ID (needed to navigate) is through Cards on the App Studio Page.`
-			);
+		if (!data.pages || data.pages.length === 0) {
+			throw new Error(`No page data returned for App Studio Page ${appPageId}`);
 		}
 
-		// Get the first card
-		const card = page.cards[0];
-
-		// Fetch card details to get the app ID
-		const cardResponse = await fetch(
-			`${baseUrl}/api/content/v1/cards?urns=${card.id}&parts=adminAllPages`,
-			{
-				method: 'GET'
-			}
-		);
-
-		if (!cardResponse.ok) {
-			throw new Error(
-				`Failed to fetch Card details. HTTP status: ${cardResponse.status}`
-			);
-		}
-
-		const cards = await cardResponse.json();
-
-		if (!Array.isArray(cards) || cards.length === 0) {
-			throw new Error('No card details returned');
-		}
-
-		const cardDetails = cards[0];
-		const appId = cardDetails.adminAllAppPages.find(
-			(appPage) => appPage.appPageId == appPageId
-		)?.appId;
+		const appId = data.pages[0].dataAppId;
 
 		if (!appId) {
-			throw new Error(
-				`Failed to get App ID from first card on page ${appPageId}.`
-			);
+			throw new Error(`No dataAppId found for App Studio Page ${appPageId}`);
 		}
 
 		return appId.toString();

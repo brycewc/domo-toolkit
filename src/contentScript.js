@@ -1,9 +1,10 @@
 import {
+	EXCLUDED_HOSTNAMES,
 	getCurrentObject,
-	detectCardModal,
 	applyFaviconRules,
 	applyInstanceLogoAuto,
-	EXCLUDED_HOSTNAMES
+	watchPageTitle,
+	updatePageTitle
 } from '@/utils';
 
 // Track current domain to detect domain changes
@@ -63,6 +64,9 @@ if (document.readyState === 'loading') {
 } else {
 	applyFavicon();
 }
+
+// Start watching for page title changes
+watchPageTitle();
 
 // Listen for storage changes to update favicon when rules change
 chrome.storage.onChanged.addListener((changes, areaName) => {

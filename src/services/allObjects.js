@@ -2,8 +2,8 @@
  * Domo API service for fetching object details
  */
 
-import { getObjectType, getAllObjectTypes } from '@/models';
-import { executeInPage } from '@/utils';
+import { getObjectType, getAllObjectTypes, DomoObject } from '@/models';
+import { executeInPage, getCurrentInstance } from '@/utils';
 
 const API_BASE = 'https://api.domo.com';
 
@@ -30,7 +30,8 @@ export async function fetchObjectDetails(
 		const result = await executeInPage(fetchObjectDetailsInPage, [
 			typeConfig.api,
 			objectId,
-			parentId
+			parentId,
+			objectType
 		]);
 
 		return {
@@ -49,8 +50,14 @@ export async function fetchObjectDetails(
  * @param {Object} apiConfig - The API configuration from DomoObjectType
  * @param {string} objectId - The object ID
  * @param {string|null} parentId - Optional parent ID
+ * @param {string} objectType - The object type identifier
  */
-async function fetchObjectDetailsInPage(apiConfig, objectId, parentId) {
+async function fetchObjectDetailsInPage(
+	apiConfig,
+	objectId,
+	parentId,
+	objectType
+) {
 	const { method, endpoint, pathToName, bodyTemplate } = apiConfig;
 
 	try {
@@ -77,7 +84,12 @@ async function fetchObjectDetailsInPage(apiConfig, objectId, parentId) {
 		const response = await fetch(url, options);
 
 		if (!response.ok) {
-			throw new Error(`HTTP ${response.status}`);
+			// throw new Error(`HTTP ${response.status}`);
+			console.log(
+				`Non-OK response for ${objectType} ${objectId} at ${url}:`,
+				response
+			);
+			return null;
 		}
 
 		const data = await response.json();
@@ -86,12 +98,15 @@ async function fetchObjectDetailsInPage(apiConfig, objectId, parentId) {
 		const name =
 			pathToName.split('.').reduce((current, prop) => current?.[prop], data) ||
 			`Object #${objectId}`;
-		console.log('Fetched object details in page:', { name, data });
+		console.log(`Fetched ${objectType} details in page:`, { name, data });
 		return {
 			name
 		};
 	} catch (error) {
-		console.error('Error in fetchObjectDetailsInPage:', error);
+		console.error(
+			`Error in fetchObjectDetailsInPage for ${objectType}:`,
+			error
+		);
 		throw error;
 	}
 }
@@ -99,17 +114,23 @@ async function fetchObjectDetailsInPage(apiConfig, objectId, parentId) {
 /**
  * Try to fetch object details by trying different object types
  * @param {string} objectId - The object ID
- * @returns {Promise<{name: string, type: string, id: string}>}
+ * @returns {Promise<DomoObject>} DomoObject instance with enriched metadata
  */
 export async function detectAndFetchObject(objectId) {
+	// Get the current Domo instance to build the baseUrl
+	const instance = await getCurrentInstance();
+	if (!instance) {
+		throw new Error('Not on a Domo instance. Cannot detect object type.');
+	}
+	const baseUrl = `https://${instance}.domo.com`;
+
 	// Get all object types that have API configurations and match the ID pattern
 	const allTypes = getAllObjectTypes();
 	const typesToTry = allTypes
 		.filter(
 			(type) =>
 				type.api && // Has API configuration
-				type.isValidObjectId(objectId) && // ID matches pattern
-				!type.requiresParent() // Doesn't require a parent ID
+				type.isValidObjectId(objectId) // ID matches pattern
 		)
 		// Sort by likelihood (common types first)
 		.sort((a, b) => {
@@ -136,9 +157,52 @@ export async function detectAndFetchObject(objectId) {
 
 	for (const typeConfig of typesToTry) {
 		try {
-			const result = await fetchObjectDetails(typeConfig.id, objectId);
+			// For types requiring a parent, try to fetch the parent first
+			let parentId = null;
+			let tempObject = null;
+			if (typeConfig.requiresParent()) {
+				try {
+					// Use DomoObject.getParent which executes in page context
+					tempObject = new DomoObject(typeConfig.id, objectId, baseUrl);
+					parentId = await tempObject.getParent(baseUrl);
+					console.log(
+						`Fetched parent for ${typeConfig.id} ${objectId}: ${parentId}`
+					);
+				} catch (parentError) {
+					// If we can't get the parent, still try to fetch the object
+					// The API call might succeed anyway or fail naturally
+					console.log(
+						`Could not fetch parent for ${typeConfig.id} ${objectId} (will try anyway):`,
+						parentError.message
+					);
+					// Don't continue - still try the API call
+				}
+			}
+
+			const result = await fetchObjectDetails(
+				typeConfig.id,
+				objectId,
+				parentId
+			);
 			if (result && result.name) {
-				return result;
+				// Create DomoObject instance with enriched metadata
+				const metadata = {
+					name: result.name,
+					details: result
+				};
+
+				// If we fetched parent details, include them in metadata
+				if (tempObject?.metadata?.parent) {
+					metadata.parent = tempObject.metadata.parent;
+				}
+
+				const domoObject = new DomoObject(
+					typeConfig.id,
+					objectId,
+					baseUrl,
+					metadata
+				);
+				return domoObject;
 			}
 		} catch (error) {
 			// Continue to next type
@@ -146,10 +210,13 @@ export async function detectAndFetchObject(objectId) {
 		}
 	}
 
-	// If all fail, return generic
-	return {
+	// If all fail, return DomoObject with UNKNOWN type
+	// Create a minimal DomoObject without a specific type
+	const unknownObject = new DomoObject('CARD', objectId, baseUrl, {
 		name: `Object #${objectId}`,
-		type: 'UNKNOWN',
-		id: objectId
-	};
+		isUnknown: true
+	});
+	// Override the type to indicate it's unknown
+	unknownObject._unknownType = true;
+	return unknownObject;
 }

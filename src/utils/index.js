@@ -12,3 +12,4 @@ export {
 export { getCurrentInstance, onCurrentInstanceChange } from './currentInstance';
 export { executeInPage } from './executeInPage';
 export { EXCLUDED_HOSTNAMES, EXCLUDED_INSTANCES } from './constants';
+export { updatePageTitle, watchPageTitle } from './pageTitle';

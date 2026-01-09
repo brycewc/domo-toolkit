@@ -8,14 +8,25 @@ export class DomoObjectType {
 	 * @param {string} urlPath - The URL path pattern (can include {id} placeholder)
 	 * @param {RegExp} idPattern - Regular expression to validate IDs for this type
 	 * @param {Object} [extractConfig] - Configuration for extracting ID from URL
+	 * @param {Object} [api] - API configuration for fetching object details
+	 * @param {Array<string>} [parents] - Array of parent object type IDs this object can have
 	 */
-	constructor(id, name, urlPath, idPattern, extractConfig = null, api = null) {
+	constructor(
+		id,
+		name,
+		urlPath,
+		idPattern,
+		extractConfig = null,
+		api = null,
+		parents = null
+	) {
 		this.id = id;
 		this.name = name;
 		this.urlPath = urlPath;
 		this.idPattern = idPattern;
 		this.extractConfig = extractConfig;
 		this.api = api;
+		this.parents = parents;
 	}
 
 	/**
@@ -231,7 +242,8 @@ export const ObjectTypeRegistry = {
 			method: 'GET',
 			endpoint: '/content/v3/stacks/{id}',
 			pathToName: 'title'
-		}
+		},
+		['DATA_APP']
 	),
 	DATA_SCIENCE_NOTEBOOK: new DomoObjectType(
 		'DATA_SCIENCE_NOTEBOOK',
@@ -279,7 +291,8 @@ export const ObjectTypeRegistry = {
 			method: 'GET',
 			endpoint: '/content/v1/cards?urns={id}:{parent}',
 			pathToName: 'title'
-		}
+		},
+		['CARD']
 	),
 	FILESET: new DomoObjectType(
 		'FILESET',
@@ -466,7 +479,7 @@ export const ObjectTypeRegistry = {
 	USER: new DomoObjectType(
 		'USER',
 		'User',
-		'admin/people/{id}?tab=profile',
+		'/admin/people/{id}?tab=profile',
 		/^\d+$/,
 		{ keyword: 'people' },
 		{

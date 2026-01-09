@@ -70,6 +70,7 @@ export async function getCurrentObject() {
 	if (!domoObject) {
 		// Clear the stored object when on a page without a current object
 		await chrome.storage.local.set({ currentObject: null });
+		// document.title = 'Domo';
 		return null;
 	}
 
@@ -86,6 +87,21 @@ export async function getCurrentObject() {
  */
 export async function storeCurrentObject(domoObject) {
 	console.log('Detected Domo object:', domoObject);
+	// Update the page title if it's just "Domo"
+	if (document.title === 'Domo' && domoObject.metadata?.name) {
+		document.title = `${domoObject.metadata.name} - Domo`;
+	}
+
+	// For objects detected from the current page, use the actual current URL
+	// This avoids unnecessary API calls to build URLs for objects we're already viewing
+	let url = domoObject.url;
+	if (!url && location.href.includes(domoObject.id)) {
+		url = location.href;
+	}
+	// Only build the URL if we still don't have one and it requires a parent
+	if (!url && domoObject.requiresParent()) {
+		url = await domoObject.buildUrl(domoObject.baseUrl);
+	}
 
 	// Store in chrome.storage for quick access
 	// We need to serialize the object because DomoObject instances can't be directly stored
@@ -96,7 +112,7 @@ export async function storeCurrentObject(domoObject) {
 		},
 		id: domoObject.id,
 		baseUrl: domoObject.baseUrl,
-		url: domoObject.url,
+		url: url,
 		metadata: domoObject.metadata
 	};
 
