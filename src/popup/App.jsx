@@ -26,6 +26,7 @@ export default function App() {
 	const [currentInstance, setCurrentInstance] = useState(null);
 	const [isDomoPage, setIsDomoPage] = useState(false);
 	const [selectedTab, setSelectedTab] = useState('favorites');
+	const [isLoadingCurrentObject, setIsLoadingCurrentObject] = useState(true);
 	const [statusBar, setStatusBar] = useState({
 		title: '',
 		description: '',
@@ -75,8 +76,13 @@ export default function App() {
 								chrome.runtime.lastError.message
 							);
 						}
+						// Mark loading as complete after content script responds
+						setIsLoadingCurrentObject(false);
 					}
 				);
+			} else {
+				// No active tab, stop loading
+				setIsLoadingCurrentObject(false);
 			}
 		});
 
@@ -223,6 +229,7 @@ export default function App() {
 						isDomoPage={isDomoPage}
 						currentInstance={currentInstance}
 						currentObject={currentObject}
+						isLoading={isLoadingCurrentObject}
 					/>
 				</div>
 				{statusBar.visible && (

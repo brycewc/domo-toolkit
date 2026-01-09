@@ -1,7 +1,12 @@
 import { Alert, Card, Chip, Spinner, Tooltip } from '@heroui/react';
 import IconBolt from '@/assets/icons/bolt-black.svg';
 
-export function ContextFooter({ isDomoPage, currentInstance, currentObject }) {
+export function ContextFooter({
+	isDomoPage,
+	currentInstance,
+	currentObject,
+	isLoading
+}) {
 	return (
 		<Tooltip isDisabled={!isDomoPage} delay={500}>
 			<Tooltip.Trigger>
@@ -28,14 +33,15 @@ export function ContextFooter({ isDomoPage, currentInstance, currentObject }) {
 						<Alert.Description>
 							{isDomoPage ? (
 								<div className='w-full'>
-									{currentInstance &&
-									currentObject?.objectType &&
-									currentObject?.id ? (
+									{isLoading ||
+									!currentInstance ||
+									!currentObject?.objectType ||
+									!currentObject?.id ? (
+										<Spinner size='sm' color='accent' />
+									) : (
 										<Chip color='accent' variant='soft'>
 											{currentObject.typeName} (ID: {currentObject.id})
 										</Chip>
-									) : (
-										<Spinner size='sm' color='accent' />
 									)}
 								</div>
 							) : (
