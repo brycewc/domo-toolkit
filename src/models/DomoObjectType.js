@@ -272,7 +272,7 @@ export const ObjectTypeRegistry = {
 	DATAFLOW_TYPE: new DomoObjectType(
 		'DATAFLOW_TYPE',
 		'DataFlow',
-		'/dataflows/{id}',
+		'/datacenter/dataflows/{id}/details',
 		/^\d+$/,
 		{ keyword: 'dataflows' },
 		{

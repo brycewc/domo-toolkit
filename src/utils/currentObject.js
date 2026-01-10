@@ -290,7 +290,8 @@ function detectCurrentObject() {
 			objectType = 'BEAST_MODE_FORMULA';
 			break;
 
-		case url.includes('datasources/'):
+		case url.includes('datasources/') &&
+			parts[parts.indexOf('datasources') + 1].length > 5:
 			objectType = 'DATA_SOURCE';
 			break;
 

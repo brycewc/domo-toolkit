@@ -196,7 +196,10 @@ export default function App() {
 						Copy ID
 						<img src={IconBolt} alt='Bolt icon' className='w-4 h-4' />
 					</Button>
-					<NavigateToCopiedObject />
+					<NavigateToCopiedObject
+						isDomoPage={isDomoPage}
+						currentInstance={currentInstance}
+					/>
 					<ClearCookies onStatusUpdate={showStatus} isDisabled={!isDomoPage} />
 				</Tabs.Panel>
 				<Tabs.Panel

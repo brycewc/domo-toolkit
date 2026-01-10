@@ -88,7 +88,7 @@ export function UpdateDataflowDetails({ onStatusUpdate, currentObject }) {
 				<img src={IconBolt} alt='Bolt icon' className='w-4 h-4' />
 			</Button>
 			<Modal.Backdrop>
-				<Modal.Container>
+				<Modal.Container scroll='outside' size='xs'>
 					<Modal.Dialog className='max-w-[360px]'>
 						<Modal.CloseTrigger />
 						<Form onSubmit={handleSubmit}>
