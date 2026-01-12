@@ -10,6 +10,8 @@ import { useState, useMemo } from 'react';
 import {
   Avatar,
   Button,
+  ButtonGroup,
+  Card,
   Checkbox,
   Chip,
   Dropdown,
@@ -120,141 +122,146 @@ export function DataTable({
   };
 
   return (
-    <div className='w-full space-y-4'>
-      {/* Top Controls Bar */}
-      <div className='flex items-center justify-between gap-4'>
-        <div className='flex flex-1 items-center gap-3'>
-          {/* Search Input */}
-          <div className='relative max-w-sm flex-1'>
-            <IconSearch className='pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2' />
-            <Input
-              placeholder={searchPlaceholder}
-              value={globalFilter ?? ''}
-              onChange={(e) => setGlobalFilter(e.target.value)}
-              className='w-full pl-9'
-            />
-          </div>
+    <Card className='w-full space-y-4'>
+      <Card.Header>
+        {/* Top Controls Bar */}
+        <div className='flex items-center justify-between gap-4'>
+          <div className='flex flex-1 items-center gap-3'>
+            {/* Search Input */}
+            <div className='relative max-w-sm flex-1'>
+              <IconSearch className='pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2' />
+              <Input
+                placeholder={searchPlaceholder}
+                value={globalFilter ?? ''}
+                onChange={(e) => setGlobalFilter(e.target.value)}
+                className='w-full pl-9'
+              />
+            </div>
 
-          {/* Status Filter Dropdown */}
-          {statusOptions.length > 0 && (
+            {/* Status Filter Dropdown */}
+            {statusOptions.length > 0 && (
+              <Dropdown>
+                <Button variant='tertiary'>
+                  <IconFilter className='size-4' />
+                  Status
+                  <IconChevronDown className='size-4 text-foreground' />
+                </Button>
+                <Dropdown.Popover>
+                  <Dropdown.Menu
+                    selectionMode='multiple'
+                    selectedKeys={statusFilter}
+                    onSelectionChange={handleStatusFilterChange}
+                  >
+                    {statusOptions.map((status) => (
+                      <Dropdown.Item id={status} textValue={status}>
+                        <Dropdown.ItemIndicator />
+                        <Label className='capitalize'>{status}</Label>
+                      </Dropdown.Item>
+                    ))}
+                  </Dropdown.Menu>
+                </Dropdown.Popover>
+              </Dropdown>
+            )}
+
+            {/* Column Visibility Dropdown */}
             <Dropdown>
               <Button variant='tertiary'>
-                <IconFilter className='size-4' />
-                Status
+                <IconColumns className='size-4' />
+                Columns
                 <IconChevronDown className='size-4 text-foreground' />
               </Button>
               <Dropdown.Popover>
                 <Dropdown.Menu
                   selectionMode='multiple'
-                  selectedKeys={statusFilter}
-                  onSelectionChange={handleStatusFilterChange}
+                  selectedKeys={
+                    new Set(
+                      toggleableColumns
+                        .filter((col) => col.getIsVisible())
+                        .map((col) => col.id)
+                    )
+                  }
+                  onSelectionChange={(keys) => {
+                    toggleableColumns.forEach((column) => {
+                      column.toggleVisibility(keys.has(column.id));
+                    });
+                  }}
                 >
-                  {statusOptions.map((status) => (
-                    <Dropdown.Item id={status} textValue={status}>
+                  {toggleableColumns.map((column) => (
+                    <Dropdown.Item
+                      id={column.id}
+                      textValue={column.columnDef.header}
+                    >
                       <Dropdown.ItemIndicator />
-                      <Label className='capitalize'>{status}</Label>
+                      <Label>{column.columnDef.header}</Label>
                     </Dropdown.Item>
                   ))}
                 </Dropdown.Menu>
               </Dropdown.Popover>
             </Dropdown>
-          )}
+          </div>
 
-          {/* Column Visibility Dropdown */}
-          <Dropdown>
-            <Button variant='tertiary'>
-              <IconColumns className='size-4' />
-              Columns
-              <IconChevronDown className='size-4 text-foreground' />
-            </Button>
-            <Dropdown.Popover>
-              <Dropdown.Menu
-                selectionMode='multiple'
-                selectedKeys={
-                  new Set(
-                    toggleableColumns
-                      .filter((col) => col.getIsVisible())
-                      .map((col) => col.id)
-                  )
-                }
-                onSelectionChange={(keys) => {
-                  toggleableColumns.forEach((column) => {
-                    column.toggleVisibility(keys.has(column.id));
-                  });
-                }}
-              >
-                {toggleableColumns.map((column) => (
-                  <Dropdown.Item
-                    id={column.id}
-                    textValue={column.columnDef.header}
-                  >
-                    <Dropdown.ItemIndicator />
-                    <Label>{column.columnDef.header}</Label>
+          {/* Bulk Actions & Add New Buttons */}
+          <div className='flex items-center gap-2'>
+            {/* Bulk Actions Button */}
+            <Dropdown>
+              <Button variant='secondary' isDisabled={selectedCount === 0}>
+                Actions ({selectedCount})
+                <IconChevronDown className='size-4 text-foreground' />
+              </Button>
+              <Dropdown.Popover>
+                <Dropdown.Menu
+                  onAction={(key) => {
+                    if (onRowAction) {
+                      const selectedRows = table
+                        .getFilteredSelectedRowModel()
+                        .rows.map((row) => row.original);
+                      onRowAction(key, selectedRows);
+                    }
+                  }}
+                >
+                  <Dropdown.Item id='edit' textValue='Edit'>
+                    <Label>Edit</Label>
                   </Dropdown.Item>
-                ))}
-              </Dropdown.Menu>
-            </Dropdown.Popover>
-          </Dropdown>
+                  <Dropdown.Item id='duplicate' textValue='Duplicate'>
+                    <Label>Duplicate</Label>
+                  </Dropdown.Item>
+                  <Dropdown.Item
+                    id='delete'
+                    textValue='Delete'
+                    variant='danger'
+                  >
+                    <Label>Delete</Label>
+                  </Dropdown.Item>
+                </Dropdown.Menu>
+              </Dropdown.Popover>
+            </Dropdown>
+
+            {/* Add New Button */}
+            {onAdd && (
+              <Button onPress={onAdd}>
+                <IconPlus className='size-4' />
+                Add New
+              </Button>
+            )}
+          </div>
         </div>
 
-        {/* Bulk Actions & Add New Buttons */}
-        <div className='flex items-center gap-2'>
-          {/* Bulk Actions Button */}
-          <Dropdown>
-            <Button variant='secondary' isDisabled={selectedCount === 0}>
-              Actions ({selectedCount})
-              <IconChevronDown className='size-4 text-foreground' />
-            </Button>
-            <Dropdown.Popover>
-              <Dropdown.Menu
-                onAction={(key) => {
-                  if (onRowAction) {
-                    const selectedRows = table
-                      .getFilteredSelectedRowModel()
-                      .rows.map((row) => row.original);
-                    onRowAction(key, selectedRows);
-                  }
-                }}
-              >
-                <Dropdown.Item id='edit' textValue='Edit'>
-                  <Label>Edit</Label>
-                </Dropdown.Item>
-                <Dropdown.Item id='duplicate' textValue='Duplicate'>
-                  <Label>Duplicate</Label>
-                </Dropdown.Item>
-                <Dropdown.Item id='delete' textValue='Delete' variant='danger'>
-                  <Label>Delete</Label>
-                </Dropdown.Item>
-              </Dropdown.Menu>
-            </Dropdown.Popover>
-          </Dropdown>
-
-          {/* Add New Button */}
-          {onAdd && (
-            <Button onPress={onAdd}>
-              <Plus className='size-4' />
-              Add New
-            </Button>
-          )}
+        {/* Total Count */}
+        <div className='text-sm text-muted'>
+          Total {totalCount} {entityName}
         </div>
-      </div>
-
-      {/* Total Count */}
-      <div className='text-sm text-muted'>
-        Total {totalCount} {entityName}
-      </div>
-
+      </Card.Header>
       {/* Table */}
-      <div className='overflow-hidden rounded-lg border border-default bg-background'>
+      <Card.Content className='overflow-hidden rounded-lg border border-default'>
         <div className='overflow-x-auto'>
           <table className='w-full'>
-            <thead className='bg-overlay'>
+            <thead className='border-b-[2px] border-default'>
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
                     <th
                       key={header.id}
-                      className='px-4 py-3 text-left text-xs font-medium tracking-wider text-muted uppercase'
+                      className='px-4 py-3 text-left text-xs font-medium tracking-wider uppercase'
                     >
                       {header.isPlaceholder ? null : (
                         <div
@@ -317,10 +324,9 @@ export function DataTable({
             </tbody>
           </table>
         </div>
-      </div>
-
+      </Card.Content>
       {/* Bottom Controls Bar */}
-      <div className='flex items-center justify-between'>
+      <Card.Footer className='flex items-center justify-between'>
         {/* Selection Count */}
         <div className='text-sm text-muted'>
           {selectedCount} of {totalCount} selected
@@ -382,29 +388,27 @@ export function DataTable({
           </div>
 
           {/* Previous/Next Buttons */}
-          <div className='flex items-center gap-2'>
-            <Button
-              variant='tertiary'
-              size='sm'
-              onPress={() => table.previousPage()}
-              isDisabled={!table.getCanPreviousPage()}
-            >
-              <IconChevronRight className='size-4 rotate-180 text-foreground' />
-              Previous
-            </Button>
-            <Button
-              variant='tertiary'
-              size='sm'
-              onPress={() => table.nextPage()}
-              isDisabled={!table.getCanNextPage()}
-            >
-              Next
-              <IconChevronRight className='size-4 text-foreground' />
-            </Button>
+          <div className='flex flex-col gap-2'>
+            <ButtonGroup variant='tertiary' size='sm'>
+              <Button
+                onPress={() => table.previousPage()}
+                isDisabled={!table.getCanPreviousPage()}
+              >
+                <IconChevronRight className='size-4 rotate-180 text-foreground' />
+                Previous
+              </Button>
+              <Button
+                onPress={() => table.nextPage()}
+                isDisabled={!table.getCanNextPage()}
+              >
+                Next
+                <IconChevronRight className='size-4 text-foreground' />
+              </Button>
+            </ButtonGroup>
           </div>
         </div>
-      </div>
-    </div>
+      </Card.Footer>
+    </Card>
   );
 }
 
@@ -419,7 +423,7 @@ export function createCheckboxColumn() {
       <Checkbox
         isSelected={table.getIsAllPageRowsSelected()}
         isIndeterminate={table.getIsSomePageRowsSelected()}
-        onChange={table.getToggleAllPageRowsSelectedHandler()}
+        onChange={(value) => table.toggleAllPageRowsSelected(value)}
       >
         <Checkbox.Control>
           <Checkbox.Indicator />
@@ -430,7 +434,7 @@ export function createCheckboxColumn() {
       <Checkbox
         isSelected={row.getIsSelected()}
         isDisabled={!row.getCanSelect()}
-        onChange={row.getToggleSelectedHandler()}
+        onChange={(value) => row.toggleSelected(value)}
       >
         <Checkbox.Control>
           <Checkbox.Indicator />
