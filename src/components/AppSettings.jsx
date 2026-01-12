@@ -1,226 +1,261 @@
 import { useState, useEffect } from 'react';
 import {
-	Button,
-	ComboBox,
-	Description,
-	Form,
-	Input,
-	Label,
-	ListBox,
-	Select
+  Button,
+  ComboBox,
+  Description,
+  Form,
+  Input,
+  Label,
+  ListBox,
+  Select
 } from '@heroui/react';
 import { StatusBar } from '@/components';
 import { EXCLUDED_INSTANCES } from '@/utils';
 
 export function AppSettings({ theme = 'system' }) {
-	// Store all settings in a single state object for extensibility
-	const [settings, setSettings] = useState({
-		themePreference: theme,
-		defaultDomoInstance: ''
-	});
+  // Store all settings in a single state object for extensibility
+  const [settings, setSettings] = useState({
+    themePreference: theme,
+    defaultDomoInstance: ''
+  });
 
-	// Track original settings to detect changes
-	const [originalSettings, setOriginalSettings] = useState({
-		themePreference: theme,
-		defaultDomoInstance: ''
-	});
+  // Track original settings to detect changes
+  const [originalSettings, setOriginalSettings] = useState({
+    themePreference: theme,
+    defaultDomoInstance: ''
+  });
 
-	// Track visited Domo instances for the ComboBox
-	const [visitedInstances, setVisitedInstances] = useState([]);
+  // Track visited Domo instances for the ComboBox
+  const [visitedInstances, setVisitedInstances] = useState([]);
 
-	const [statusBar, setStatusBar] = useState({
-		title: '',
-		description: '',
-		status: 'accent',
-		timeout: 3000,
-		visible: false
-	});
+  const [isClearing, setIsClearing] = useState(false);
 
-	useEffect(() => {
-		// Load all settings from storage
-		chrome.storage.sync.get(
-			['themePreference', 'defaultDomoInstance', 'visitedDomoInstances'],
-			(result) => {
-				const loadedSettings = {
-					themePreference: result.themePreference || theme || 'system',
-					defaultDomoInstance: result.defaultDomoInstance || ''
-				};
-				setSettings(loadedSettings);
-				setOriginalSettings(loadedSettings);
-				setVisitedInstances(result.visitedDomoInstances || []);
-			}
-		);
+  const [statusBar, setStatusBar] = useState({
+    title: '',
+    description: '',
+    status: 'accent',
+    timeout: 3000,
+    visible: false
+  });
 
-		// Listen for storage changes
-		const handleStorageChange = (changes, areaName) => {
-			if (areaName === 'sync') {
-				const updatedSettings = { ...settings };
-				let hasChanges = false;
+  useEffect(() => {
+    // Load all settings from storage
+    chrome.storage.sync.get(
+      ['themePreference', 'defaultDomoInstance', 'visitedDomoInstances'],
+      (result) => {
+        const loadedSettings = {
+          themePreference: result.themePreference || theme || 'system',
+          defaultDomoInstance: result.defaultDomoInstance || ''
+        };
+        setSettings(loadedSettings);
+        setOriginalSettings(loadedSettings);
+        setVisitedInstances(result.visitedDomoInstances || []);
+      }
+    );
 
-				if (changes.themePreference) {
-					updatedSettings.themePreference = changes.themePreference.newValue;
-					hasChanges = true;
-				}
+    // Listen for storage changes
+    const handleStorageChange = (changes, areaName) => {
+      if (areaName === 'sync') {
+        const updatedSettings = { ...settings };
+        let hasChanges = false;
 
-				if (changes.defaultDomoInstance) {
-					updatedSettings.defaultDomoInstance =
-						changes.defaultDomoInstance.newValue;
-					hasChanges = true;
-				}
+        if (changes.themePreference) {
+          updatedSettings.themePreference = changes.themePreference.newValue;
+          hasChanges = true;
+        }
 
-				if (changes.visitedDomoInstances) {
-					setVisitedInstances(changes.visitedDomoInstances.newValue || []);
-				}
+        if (changes.defaultDomoInstance) {
+          updatedSettings.defaultDomoInstance =
+            changes.defaultDomoInstance.newValue;
+          hasChanges = true;
+        }
 
-				if (hasChanges) {
-					setSettings(updatedSettings);
-					setOriginalSettings(updatedSettings);
-				}
-			}
-		};
+        if (changes.visitedDomoInstances) {
+          setVisitedInstances(changes.visitedDomoInstances.newValue || []);
+        }
 
-		chrome.storage.onChanged.addListener(handleStorageChange);
+        if (hasChanges) {
+          setSettings(updatedSettings);
+          setOriginalSettings(updatedSettings);
+        }
+      }
+    };
 
-		return () => {
-			chrome.storage.onChanged.removeListener(handleStorageChange);
-		};
-	}, []);
+    chrome.storage.onChanged.addListener(handleStorageChange);
 
-	const handleSubmit = (e) => {
-		e.preventDefault();
+    return () => {
+      chrome.storage.onChanged.removeListener(handleStorageChange);
+    };
+  }, []);
 
-		// Save all settings to storage
-		chrome.storage.sync.set(settings, () => {
-			setOriginalSettings(settings);
-			showStatus(
-				'Settings Saved',
-				'Your preferences have been updated successfully.',
-				'success'
-			);
-		});
-	};
+  const handleSubmit = (e) => {
+    e.preventDefault();
 
-	const handleThemeChange = (value) => {
-		setSettings((prev) => ({
-			...prev,
-			themePreference: value
-		}));
-	};
+    // Save all settings to storage
+    chrome.storage.sync.set(settings, () => {
+      setOriginalSettings(settings);
+      showStatus('Settings saved successfully!', '', 'success');
+    });
+  };
 
-	const handleDefaultInstanceChange = (value) => {
-		setSettings((prev) => ({
-			...prev,
-			defaultDomoInstance: value
-		}));
-	};
+  const handleThemeChange = (value) => {
+    setSettings((prev) => ({
+      ...prev,
+      themePreference: value
+    }));
+  };
 
-	// Check if settings have changed
-	const hasChanges =
-		JSON.stringify(settings) !== JSON.stringify(originalSettings);
+  const handleDefaultInstanceChange = (value) => {
+    setSettings((prev) => ({
+      ...prev,
+      defaultDomoInstance: value
+    }));
+  };
 
-	const showStatus = (
-		title,
-		description,
-		status = 'accent',
-		timeout = 3000
-	) => {
-		setStatusBar({ title, description, status, timeout, visible: true });
-	};
+  // Check if settings have changed
+  const hasChanges =
+    JSON.stringify(settings) !== JSON.stringify(originalSettings);
 
-	const hideStatus = () => {
-		setStatusBar((prev) => ({ ...prev, visible: false }));
-	};
+  const showStatus = (
+    title,
+    description,
+    status = 'accent',
+    timeout = 3000
+  ) => {
+    setStatusBar({ title, description, status, timeout, visible: true });
+  };
 
-	return (
-		<div className='flex flex-col gap-4 pt-4'>
-			<Form onSubmit={handleSubmit} className='flex flex-col gap-4'>
-				<Select
-					value={settings.themePreference}
-					onChange={handleThemeChange}
-					className='w-[10rem]'
-					placeholder={theme}
-				>
-					<Label>Theme</Label>
-					<Select.Trigger>
-						<Select.Value />
-						<Select.Indicator />
-					</Select.Trigger>
-					<Select.Popover>
-						<ListBox>
-							<ListBox.Item id='system' textValue='System'>
-								System
-								<ListBox.ItemIndicator />
-							</ListBox.Item>
-							<ListBox.Item id='light' textValue='Light'>
-								Light
-								<ListBox.ItemIndicator />
-							</ListBox.Item>
-							<ListBox.Item id='dark' textValue='Dark'>
-								Dark
-								<ListBox.ItemIndicator />
-							</ListBox.Item>
-						</ListBox>
-					</Select.Popover>
-				</Select>
-				<ComboBox
-					allowsCustomValue
-					inputValue={settings.defaultDomoInstance}
-					onInputChange={handleDefaultInstanceChange}
-					className='w-[28rem]'
-				>
-					<Label>Default Domo Instance</Label>
-					<ComboBox.InputGroup>
-						<Input placeholder='Search or enter instance (e.g., company for company.domo.com)' />
-						<ComboBox.Trigger />
-					</ComboBox.InputGroup>
-					<ComboBox.Popover>
-						<ListBox>
-							{visitedInstances.filter(
-								(instance) => !EXCLUDED_INSTANCES.includes(instance)
-							).length === 0 ? (
-								<ListBox.Item
-									id='_no_instances'
-									textValue='No instances visited yet'
-								>
-									No instances visited yet
-								</ListBox.Item>
-							) : (
-								visitedInstances
-									.filter((instance) => !EXCLUDED_INSTANCES.includes(instance))
-									.map((instance) => (
-										<ListBox.Item
-											key={instance}
-											id={instance}
-											textValue={instance}
-										>
-											{instance}
-											<ListBox.ItemIndicator />
-										</ListBox.Item>
-									))
-							)}
-						</ListBox>
-					</ComboBox.Popover>
-					<Description>
-						Select a previously visited instance or enter a custom one. This
-						will be used when navigating to copied objects from non-Domo
-						websites.
-					</Description>
-				</ComboBox>
-				<Button type='submit' variant='primary' isDisabled={!hasChanges}>
-					Save Settings
-				</Button>
-			</Form>
-			<div className='min-h-[5rem]'>
-				{statusBar.visible && (
-					<StatusBar
-						title={statusBar.title}
-						description={statusBar.description}
-						status={statusBar.status}
-						timeout={statusBar.timeout}
-						onClose={hideStatus}
-					/>
-				)}
-			</div>
-		</div>
-	);
+  const hideStatus = () => {
+    setStatusBar((prev) => ({ ...prev, visible: false }));
+  };
+
+  const handleClearInstances = async () => {
+    setIsClearing(true);
+
+    try {
+      // Clear visited instances from storage
+      await chrome.storage.sync.set({ visitedDomoInstances: [] });
+
+      // Update local state
+      setVisitedInstances([]);
+
+      // Also clear the default instance if it was one of the visited instances
+      if (visitedInstances.includes(settings.defaultDomoInstance)) {
+        const clearedSettings = {
+          ...settings,
+          defaultDomoInstance: ''
+        };
+        setSettings(clearedSettings);
+        setOriginalSettings(clearedSettings);
+        await chrome.storage.sync.set({ defaultDomoInstance: '' });
+      }
+
+      showStatus('All visited instances cleared successfully!', '', 'success');
+    } catch (error) {
+      showStatus('Error', 'Failed to clear visited instances.', 'danger');
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
+  return (
+    <div className='flex flex-col gap-4 pt-4'>
+      <Form onSubmit={handleSubmit} className='flex flex-col gap-4'>
+        <Select
+          value={settings.themePreference}
+          onChange={handleThemeChange}
+          className='w-[10rem]'
+          placeholder={theme}
+        >
+          <Label>Theme</Label>
+          <Select.Trigger>
+            <Select.Value />
+            <Select.Indicator />
+          </Select.Trigger>
+          <Select.Popover>
+            <ListBox>
+              <ListBox.Item id='system' textValue='System'>
+                System
+                <ListBox.ItemIndicator />
+              </ListBox.Item>
+              <ListBox.Item id='light' textValue='Light'>
+                Light
+                <ListBox.ItemIndicator />
+              </ListBox.Item>
+              <ListBox.Item id='dark' textValue='Dark'>
+                Dark
+                <ListBox.ItemIndicator />
+              </ListBox.Item>
+            </ListBox>
+          </Select.Popover>
+        </Select>
+        <ComboBox
+          allowsCustomValue
+          inputValue={settings.defaultDomoInstance}
+          onInputChange={handleDefaultInstanceChange}
+          className='w-[28rem]'
+        >
+          <Label>Default Domo Instance</Label>
+          <ComboBox.InputGroup>
+            <Input placeholder='Search or enter instance (e.g., company for company.domo.com)' />
+            <ComboBox.Trigger />
+          </ComboBox.InputGroup>
+          <ComboBox.Popover>
+            <ListBox>
+              {visitedInstances.filter(
+                (instance) => !EXCLUDED_INSTANCES.includes(instance)
+              ).length === 0 ? (
+                <ListBox.Item
+                  id='_no_instances'
+                  textValue='No instances visited yet'
+                >
+                  No instances visited yet
+                </ListBox.Item>
+              ) : (
+                visitedInstances
+                  .filter((instance) => !EXCLUDED_INSTANCES.includes(instance))
+                  .map((instance) => (
+                    <ListBox.Item
+                      key={instance}
+                      id={instance}
+                      textValue={instance}
+                    >
+                      {instance}
+                      <ListBox.ItemIndicator />
+                    </ListBox.Item>
+                  ))
+              )}
+            </ListBox>
+          </ComboBox.Popover>
+          <Description>
+            Select a previously visited instance or enter a custom one. This
+            will be used when navigating to copied objects from non-Domo
+            websites.
+          </Description>
+        </ComboBox>
+        <Button type='submit' variant='primary' isDisabled={!hasChanges}>
+          Save Settings
+        </Button>
+      </Form>
+      <Button
+        variant='danger'
+        onPress={handleClearInstances}
+        isPending={isClearing}
+        isDisabled={visitedInstances.length === 0}
+      >
+        {isClearing ? 'Clearing...' : 'Clear All Visited Instances'}
+      </Button>
+      <div className='min-h-[5rem]'>
+        {statusBar.visible && (
+          <StatusBar
+            title={statusBar.title}
+            description={statusBar.description}
+            status={statusBar.status}
+            timeout={statusBar.timeout}
+            onClose={hideStatus}
+          />
+        )}
+      </div>
+    </div>
+  );
 }

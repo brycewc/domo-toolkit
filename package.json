@@ -9,12 +9,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@dnd-kit/core": "^6.3.1",
-    "@dnd-kit/sortable": "^10.0.0",
-    "@dnd-kit/utilities": "^3.2.2",
-    "@heroui/react": "^3.0.0-beta.3",
+    "@heroui/react": "3.0.0-beta.3",
     "@heroui/styles": "^3.0.0-beta.3",
+    "@tabler/icons-react": "^3.36.1",
     "@tailwindcss/vite": "^4.1.18",
+    "@tanstack/react-table": "^8.21.3",
     "react": "^19.1.0",
     "react-color-pikr": "^1.1.2",
     "react-dom": "^19.1.0",
@@ -23,6 +22,8 @@
   "devDependencies": {
     "@crxjs/vite-plugin": "^2.0.3",
     "@vitejs/plugin-react": "^4.7.0",
+    "prettier": "^3.7.4",
+    "prettier-plugin-tailwindcss": "^0.7.2",
     "vite": "^7.3.0",
     "vite-plugin-zip-pack": "^1.2.4"
   }
