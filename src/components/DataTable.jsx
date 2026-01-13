@@ -8,12 +8,10 @@ import {
 } from '@tanstack/react-table';
 import { useState, useMemo } from 'react';
 import {
-  Avatar,
   Button,
   ButtonGroup,
   Card,
   Checkbox,
-  Chip,
   Dropdown,
   Input,
   Label,
@@ -245,10 +243,9 @@ export function DataTable({
             )}
           </div>
         </div>
-
-        {/* Total Count */}
+        {/* Selection Count */}
         <div className='text-sm text-muted'>
-          Total {totalCount} {entityName}
+          {selectedCount} of {totalCount} selected
         </div>
       </Card.Header>
       {/* Table */}
@@ -325,88 +322,77 @@ export function DataTable({
           </table>
         </div>
       </Card.Content>
-      {/* Bottom Controls Bar */}
-      <Card.Footer className='flex items-center justify-between'>
-        {/* Selection Count */}
-        <div className='text-sm text-muted'>
-          {selectedCount} of {totalCount} selected
+      {/* Pagination */}
+      <Card.Footer className='flex flex-col items-center justify-between gap-2 sm:flex-row'>
+        {/* Rows Per Page */}
+        <div className='flex items-center gap-2'>
+          <span className='text-sm text-muted'>Rows per page:</span>
+          <Dropdown>
+            <Button variant='ghost' size='sm'>
+              {table.getState().pagination.pageSize}
+              <IconChevronDown className='size-4 text-foreground' />
+            </Button>
+            <Dropdown.Popover placement='top left' className='min-w-2'>
+              <Dropdown.Menu
+                selectionMode='single'
+                selectedKeys={
+                  new Set([String(table.getState().pagination.pageSize)])
+                }
+                onSelectionChange={(keys) => {
+                  const size = Number(Array.from(keys)[0]);
+                  table.setPageSize(size);
+                }}
+              >
+                {[5, 10, 20, 50].map((pageSize) => (
+                  <Dropdown.Item
+                    id={String(pageSize)}
+                    textValue={String(pageSize)}
+                  >
+                    <Dropdown.ItemIndicator />
+                    <Label>{pageSize}</Label>
+                  </Dropdown.Item>
+                ))}
+              </Dropdown.Menu>
+            </Dropdown.Popover>
+          </Dropdown>
+        </div>
+        {/* Page Numbers */}
+        <div className='flex items-center gap-1'>
+          {Array.from({ length: table.getPageCount() }, (_, i) => i).map(
+            (pageIndex) => (
+              <Button
+                variant={
+                  pageIndex === table.getState().pagination.pageIndex
+                    ? 'primary'
+                    : 'ghost'
+                }
+                key={pageIndex}
+                onClick={() => table.setPageIndex(pageIndex)}
+                className='size-10 rounded-lg text-sm font-medium transition-colors'
+              >
+                {pageIndex + 1}
+              </Button>
+            )
+          )}
         </div>
 
-        {/* Pagination */}
-        <div className='flex items-center gap-6'>
-          {/* Rows Per Page */}
-          <div className='flex items-center gap-2'>
-            <span className='text-sm text-muted'>Rows per page:</span>
-            <Dropdown>
-              <Button variant='ghost' size='sm'>
-                {table.getState().pagination.pageSize}
-                <IconChevronDown className='size-4 text-foreground' />
-              </Button>
-              <Dropdown.Popover>
-                <Dropdown.Menu
-                  selectionMode='single'
-                  selectedKeys={
-                    new Set([String(table.getState().pagination.pageSize)])
-                  }
-                  onSelectionChange={(keys) => {
-                    const size = Number(Array.from(keys)[0]);
-                    table.setPageSize(size);
-                  }}
-                >
-                  {[5, 10, 20, 50].map((pageSize) => (
-                    <Dropdown.Item
-                      id={String(pageSize)}
-                      textValue={String(pageSize)}
-                    >
-                      <Dropdown.ItemIndicator type='dot' />
-                      <Label>{pageSize}</Label>
-                    </Dropdown.Item>
-                  ))}
-                </Dropdown.Menu>
-              </Dropdown.Popover>
-            </Dropdown>
-          </div>
-
-          {/* Page Numbers */}
-          <div className='flex items-center gap-1'>
-            {Array.from({ length: table.getPageCount() }, (_, i) => i).map(
-              (pageIndex) => (
-                <Button
-                  variant={
-                    pageIndex === table.getState().pagination.pageIndex
-                      ? 'primary'
-                      : 'ghost'
-                  }
-                  key={pageIndex}
-                  onClick={() => table.setPageIndex(pageIndex)}
-                  className='size-10 rounded-lg text-sm font-medium transition-colors'
-                >
-                  {pageIndex + 1}
-                </Button>
-              )
-            )}
-          </div>
-
-          {/* Previous/Next Buttons */}
-          <div className='flex flex-col gap-2'>
-            <ButtonGroup variant='tertiary' size='sm'>
-              <Button
-                onPress={() => table.previousPage()}
-                isDisabled={!table.getCanPreviousPage()}
-              >
-                <IconChevronRight className='size-4 rotate-180 text-foreground' />
-                Previous
-              </Button>
-              <Button
-                onPress={() => table.nextPage()}
-                isDisabled={!table.getCanNextPage()}
-              >
-                Next
-                <IconChevronRight className='size-4 text-foreground' />
-              </Button>
-            </ButtonGroup>
-          </div>
-        </div>
+        {/* Previous/Next Buttons */}
+        <ButtonGroup variant='tertiary' size='sm'>
+          <Button
+            onPress={() => table.previousPage()}
+            isDisabled={!table.getCanPreviousPage()}
+          >
+            <IconChevronRight className='size-4 rotate-180 text-foreground' />
+            Previous
+          </Button>
+          <Button
+            onPress={() => table.nextPage()}
+            isDisabled={!table.getCanNextPage()}
+          >
+            Next
+            <IconChevronRight className='size-4 text-foreground' />
+          </Button>
+        </ButtonGroup>
       </Card.Footer>
     </Card>
   );
@@ -421,9 +407,9 @@ export function createCheckboxColumn() {
     id: 'select',
     header: ({ table }) => (
       <Checkbox
-        isSelected={table.getIsAllPageRowsSelected()}
-        isIndeterminate={table.getIsSomePageRowsSelected()}
-        onChange={(value) => table.toggleAllPageRowsSelected(value)}
+        isSelected={table.getIsAllRowsSelected()}
+        isIndeterminate={table.getIsSomeRowsSelected()}
+        onChange={(value) => table.toggleAllRowsSelected(value)}
       >
         <Checkbox.Control>
           <Checkbox.Indicator />
@@ -443,96 +429,5 @@ export function createCheckboxColumn() {
     ),
     enableSorting: false,
     enableHiding: false
-  };
-}
-
-/**
- * Helper function to create a user column with avatar and email
- */
-export function createUserColumn({
-  accessorKey = 'name',
-  emailKey = 'email',
-  avatarKey = 'avatar'
-} = {}) {
-  return {
-    accessorKey,
-    header: 'Name',
-    cell: ({ row }) => {
-      const name = row.getValue(accessorKey);
-      const email = row.original[emailKey];
-      const avatarSrc = row.original[avatarKey];
-      const initials =
-        name
-          ?.split(' ')
-          .map((n) => n[0])
-          .join('')
-          .toUpperCase() || '?';
-
-      return (
-        <div className='flex items-center gap-3'>
-          <Avatar size='sm'>
-            {avatarSrc && <Avatar.Image src={avatarSrc} alt={name} />}
-            <Avatar.Fallback>{initials}</Avatar.Fallback>
-          </Avatar>
-          <div className='flex flex-col'>
-            <span className='text-sm font-medium'>{name}</span>
-            {email && <span className='text-xs text-muted'>{email}</span>}
-          </div>
-        </div>
-      );
-    }
-  };
-}
-
-/**
- * Helper function to create a role column with title and subtitle
- */
-export function createRoleColumn({
-  accessorKey = 'role',
-  subtitleKey = 'department'
-} = {}) {
-  return {
-    accessorKey,
-    header: 'Role',
-    cell: ({ row }) => {
-      const role = row.getValue(accessorKey);
-      const subtitle = row.original[subtitleKey];
-
-      return (
-        <div className='flex flex-col'>
-          <span className='text-sm font-medium'>{role}</span>
-          {subtitle && <span className='text-xs text-muted'>{subtitle}</span>}
-        </div>
-      );
-    }
-  };
-}
-
-/**
- * Helper function to create a status column with colored chips
- */
-export function createStatusColumn({ accessorKey = 'status' } = {}) {
-  const statusColorMap = {
-    active: 'success',
-    paused: 'danger',
-    vacation: 'warning',
-    pending: 'warning',
-    inactive: 'default'
-  };
-
-  return {
-    accessorKey,
-    header: 'Status',
-    cell: ({ row }) => {
-      const status = row.getValue(accessorKey);
-      const statusLower = status?.toLowerCase() || '';
-      const color = statusColorMap[statusLower] || 'default';
-
-      return (
-        <Chip color={color} variant='soft' className='capitalize'>
-          {status}
-        </Chip>
-      );
-    }
   };
 }

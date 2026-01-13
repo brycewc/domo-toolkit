@@ -1,5 +1,5 @@
 import { useTheme } from '@/hooks';
-import { DataTableExample } from '@/components';
+import { DataTableExample, DataListExample } from '@/components';
 import './App.css';
 
 export default function App() {
@@ -9,6 +9,7 @@ export default function App() {
   return (
     <div className='flex w-auto min-w-md flex-col gap-2 bg-background p-2'>
       <DataTableExample />
+      <DataListExample />
     </div>
   );
 }

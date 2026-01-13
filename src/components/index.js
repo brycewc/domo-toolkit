@@ -1,8 +1,10 @@
-export { ActivityLogSettings } from "./ActivityLogSettings";
-export { AppSettings } from "./AppSettings";
-export { ContextFooter } from "./ContextFooter";
-export { FaviconSettings } from "./FaviconSettings";
-export { StatusBar } from "./StatusBar";
-export { DataTable } from "./DataTable";
-export { DataTableExample } from "./DataTableExample";
-export * from "./functions";
+export { ActivityLogSettings } from './ActivityLogSettings';
+export { AppSettings } from './AppSettings';
+export { ContextFooter } from './ContextFooter';
+export { DataList } from './DataList';
+export { DataListExample } from './DataListExample';
+export { DataTable } from './DataTable';
+export { DataTableExample } from './DataTableExample';
+export { FaviconSettings } from './FaviconSettings';
+export { StatusBar } from './StatusBar';
+export * from './functions';

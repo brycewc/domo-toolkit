@@ -1,10 +1,5 @@
-import {
-  DataTable,
-  createCheckboxColumn,
-  createUserColumn,
-  createRoleColumn,
-  createStatusColumn
-} from './DataTable';
+import { DataTable, createCheckboxColumn } from './DataTable';
+import { Avatar, Chip } from '@heroui/react';
 
 // Example data matching the screenshot
 const exampleUsers = [
@@ -189,6 +184,97 @@ const exampleUsers = [
     status: 'Active'
   }
 ];
+
+/**
+ * Helper function to create a role column with title and subtitle
+ */
+export function createRoleColumn({
+  accessorKey = 'role',
+  subtitleKey = 'department'
+} = {}) {
+  return {
+    accessorKey,
+    header: 'Role',
+    cell: ({ row }) => {
+      const role = row.getValue(accessorKey);
+      const subtitle = row.original[subtitleKey];
+
+      return (
+        <div className='flex flex-col'>
+          <span className='text-sm font-medium'>{role}</span>
+          {subtitle && <span className='text-xs text-muted'>{subtitle}</span>}
+        </div>
+      );
+    }
+  };
+}
+
+/**
+ * Helper function to create a status column with colored chips
+ */
+export function createStatusColumn({ accessorKey = 'status' } = {}) {
+  const statusColorMap = {
+    active: 'success',
+    paused: 'danger',
+    vacation: 'warning',
+    pending: 'warning',
+    inactive: 'default'
+  };
+
+  return {
+    accessorKey,
+    header: 'Status',
+    cell: ({ row }) => {
+      const status = row.getValue(accessorKey);
+      const statusLower = status?.toLowerCase() || '';
+      const color = statusColorMap[statusLower] || 'default';
+
+      return (
+        <Chip color={color} variant='soft' className='capitalize'>
+          {status}
+        </Chip>
+      );
+    }
+  };
+}
+
+/**
+ * Helper function to create a user column with avatar and email
+ */
+export function createUserColumn({
+  accessorKey = 'name',
+  emailKey = 'email',
+  avatarKey = 'avatar'
+} = {}) {
+  return {
+    accessorKey,
+    header: 'Name',
+    cell: ({ row }) => {
+      const name = row.getValue(accessorKey);
+      const email = row.original[emailKey];
+      const avatarSrc = row.original[avatarKey];
+      const initials =
+        name
+          ?.split(' ')
+          .map((n) => n[0])
+          .join('')
+          .toUpperCase() || '?';
+
+      return (
+        <div className='flex items-center gap-3'>
+          <Avatar size='sm'>
+            {avatarSrc && <Avatar.Image src={avatarSrc} alt={name} />}
+            <Avatar.Fallback>{initials}</Avatar.Fallback>
+          </Avatar>
+          <div className='flex flex-col'>
+            <span className='text-sm font-medium'>{name}</span>
+            {email && <span className='text-xs text-muted'>{email}</span>}
+          </div>
+        </div>
+      );
+    }
+  };
+}
 
 export function DataTableExample() {
   // Define columns using helper functions
