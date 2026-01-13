@@ -11,6 +11,7 @@ import {
   ActivityLogCurrentObject,
   ClearCookies,
   ContextFooter,
+  GetPages,
   NavigateToCopiedObject,
   StatusBar,
   UpdateDataflowDetails
@@ -212,10 +213,17 @@ export default function App() {
             />
           )}
         </Tabs.Panel>
-        <Tabs.Panel
-          className='flex flex-col gap-1 px-4'
-          id='other'
-        ></Tabs.Panel>
+        <Tabs.Panel className='flex flex-col gap-1 px-4' id='other'>
+          {(currentObject?.typeId === 'PAGE' ||
+            currentObject?.typeId === 'DATA_APP_VIEW') && (
+            <GetPages
+              currentObject={currentObject}
+              currentInstance={currentInstance}
+              onStatusUpdate={showStatus}
+              isDisabled={!isDomoPage}
+            />
+          )}
+        </Tabs.Panel>
         <Tabs.Panel id='settings'></Tabs.Panel>
       </Tabs>
       <div className='relative min-h-[5rem] w-full min-w-sm'>

@@ -6,5 +6,6 @@ export { DataListExample } from './DataListExample';
 export { DataTable } from './DataTable';
 export { DataTableExample } from './DataTableExample';
 export { FaviconSettings } from './FaviconSettings';
+export { GetPagesView } from './GetPagesView';
 export { StatusBar } from './StatusBar';
 export * from './functions';

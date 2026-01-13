@@ -86,20 +86,74 @@ function DataListItem({
 
   const handleClick = (e) => {
     if (onItemClick) {
-      e.preventDefault();
       onItemClick(item);
     }
   };
 
   const handleAction = (actionType, e) => {
-    e.preventDefault();
     e.stopPropagation();
     if (onItemAction) {
       onItemAction(actionType, item);
     }
   };
 
-  // If item has children, use Accordion
+  // If item has children at top level (depth 0), show them always without accordion
+  if (hasChildren && depth === 0) {
+    return (
+      <div className='space-y-2'>
+        <div className='flex items-center justify-between gap-3 rounded-lg bg-surface/30 px-4 py-3 font-semibold'>
+          <div className='flex flex-1 items-center gap-3'>
+            <span className='text-lg font-semibold'>{item.label}</span>
+            {showCounts && item.count !== undefined && (
+              <span className='text-sm text-muted'>({item.count})</span>
+            )}
+            {item.metadata && (
+              <span className='text-xs text-muted'>{item.metadata}</span>
+            )}
+          </div>
+          {showActions && (
+            <div className='flex items-center gap-1'>
+              {item.url && (
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  isIconOnly
+                  onPress={(e) => handleAction('open', e)}
+                  aria-label='Open'
+                >
+                  <IconExternalLink className='size-4' />
+                </Button>
+              )}
+              <Button
+                variant='ghost'
+                size='sm'
+                isIconOnly
+                onPress={(e) => handleAction('share', e)}
+                aria-label='Share'
+              >
+                <IconShare className='size-4' />
+              </Button>
+            </div>
+          )}
+        </div>
+        <div className='space-y-2 pl-4'>
+          {item.children.map((child, index) => (
+            <DataListItem
+              key={child.id || index}
+              item={child}
+              onItemClick={onItemClick}
+              onItemAction={onItemAction}
+              showActions={showActions}
+              showCounts={showCounts}
+              depth={depth + 1}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // If item has children at deeper levels, use Accordion
   if (hasChildren) {
     return (
       <Accordion className='rounded-lg border border-default'>
