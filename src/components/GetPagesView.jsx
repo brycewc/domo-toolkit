@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Button, Spinner } from '@heroui/react';
+import { Button, Separator, Spinner } from '@heroui/react';
 import { DataList } from '@/components';
 import { getChildPages, getPageCards } from '@/services';
+import { IconRefresh } from '@tabler/icons-react';
 
 export function GetPagesView() {
   const [isLoading, setIsLoading] = useState(true);
@@ -29,17 +30,22 @@ export function GetPagesView() {
         return;
       }
 
-      const { pageId, appId, pageType, currentInstance } = data;
+      const { pageId, appId, pageType, pageName, currentInstance } = data;
       const origin = `https://${currentInstance}.domo.com`;
 
       console.log('Fetching child pages with:', { pageId, appId, pageType });
 
-      // Fetch child pages using service
-      const pages = await getChildPages({ pageId, appId, pageType });
+      // Fetch child pages and grandchildren using service (single call with includeGrandchildren)
+      const allPages = await getChildPages({
+        pageId,
+        appId,
+        pageType,
+        includeGrandchildren: true
+      });
 
-      console.log('Received pages:', pages);
+      console.log('Received all pages:', allPages);
 
-      if (!pages || !pages.length) {
+      if (!allPages || !allPages.length) {
         setError(
           pageType === 'DATA_APP_VIEW'
             ? `No views (pages) found for app studio app ${appId}`
@@ -49,14 +55,16 @@ export function GetPagesView() {
         return;
       }
 
+      // Separate children and grandchildren based on parentPageId
+      const children = allPages.filter((page) =>
+        pageType === 'DATA_APP_VIEW' ? true : page.parentPageId === pageId
+      );
+
       // Store metadata for rebuilding items later
-      setPageData({ pages, pageId, appId, pageType, origin });
+      setPageData({ pageId, appId, pageType, pageName, origin });
 
-      // Build initial items structure
-      buildItemsFromPages(pages, pageId, appId, pageType, origin);
-
-      // Fetch cards for each page (don't await, let them load in background)
-      fetchAllPageCards(pages, pageId, appId, pageType, origin);
+      // Build items structure with all pages at once
+      buildItemsFromPages(children, allPages, appId, pageType, origin);
     } catch (err) {
       console.error('Error loading pages:', err);
       setError(err.message || 'Failed to load child pages');
@@ -65,81 +73,54 @@ export function GetPagesView() {
     }
   };
 
-  const fetchAllPageCards = async (pages, pageId, appId, pageType, origin) => {
-    // Fetch cards for each page
-    const cardPromises = pages.map(async (page) => {
-      const cards = await getPageCards(page.pageId);
-      console.log(`Received cards for page ${page.pageId}:`, cards);
-      return { pageId: page.pageId, cards };
-    });
-
-    const results = await Promise.all(cardPromises);
-    console.log('Received cards for pages:', results);
-    // Build map of cards by page ID
-    const cardsByPageId = new Map(results.map((r) => [r.pageId, r.cards]));
-
-    // Update pages with card data
-    const updatedPages = pages.map((page) => ({
-      ...page,
-      cards: cardsByPageId.get(page.pageId) || []
-    }));
-
-    // Rebuild items with card data
-    buildItemsFromPages(updatedPages, pageId, appId, pageType, origin);
-  };
-
-  const buildItemsFromPages = (pages, pageId, appId, pageType, origin) => {
+  const buildItemsFromPages = (
+    pages,
+    allChildPages,
+    appId,
+    pageType,
+    origin
+  ) => {
     // Sort pages by title
     const sortedPages = (pages || []).sort((a, b) =>
       a.pageTitle.localeCompare(b.pageTitle)
     );
 
-    // Get parent page info
-    const firstPage = pages[0];
-    const currentPageTitle =
-      pageType === 'DATA_APP_VIEW'
-        ? firstPage.dataAppTitle
-        : firstPage.topPageTitle
-          ? `${firstPage.topPageTitle} > ${firstPage.parentPageTitle}`
-          : firstPage.parentPageTitle;
+    // Build items array - just the child pages
+    const childItems = sortedPages?.map((page) => {
+      const pageUrl =
+        pageType === 'DATA_APP_VIEW'
+          ? `${origin}/app-studio/${appId}/pages/${page.pageId}`
+          : `${origin}/page/${page.pageId}`;
 
-    // Build items array - parent page with children
-    const parentItem = {
-      id: `parent-${pageId}`,
-      label: currentPageTitle,
-      metadata: `ID: ${pageId}`,
-      count: pages.length,
-      children: sortedPages?.map((page) => {
-        const pageUrl =
-          pageType === 'DATA_APP_VIEW'
-            ? `${origin}/app-studio/${appId}/pages/${page.pageId}`
-            : `${origin}/page/${page.pageId}`;
+      // Filter child pages by parentPageId
+      const childPagesForPage = allChildPages.filter(
+        (childPage) => childPage.parentPageId === page.pageId
+      );
 
-        const cardCount = page.cards?.length ?? page.cardCount ?? 0;
-
-        return {
-          id: page.pageId,
-          label: page.pageTitle,
-          url: pageUrl,
-          count: cardCount,
-          metadata: `ID: ${page.pageId}`,
-          children:
-            page.cards && page.cards.length > 0
-              ? page.cards?.map((card) => ({
-                  id: card.id,
-                  label: card.title || 'Untitled Card',
+      return {
+        id: page.pageId,
+        label: page.pageTitle,
+        url: pageUrl,
+        count: childPagesForPage.length,
+        metadata: `ID: ${page.pageId}`,
+        children:
+          childPagesForPage.length > 0
+            ? childPagesForPage
+                .sort((a, b) => a.pageTitle.localeCompare(b.pageTitle))
+                .map((childPage) => ({
+                  id: childPage.pageId,
+                  label: childPage.pageTitle,
                   url:
                     pageType === 'DATA_APP_VIEW'
-                      ? `${origin}/app-studio/${appId}/pages/${page.pageId}/kpis/details/${card.id}`
-                      : `${origin}/page/${page.pageId}/kpis/details/${card.id}`,
-                  metadata: `ID: ${card.id}`
+                      ? `${origin}/app-studio/${appId}/pages/${childPage.pageId}`
+                      : `${origin}/page/${childPage.pageId}`,
+                  metadata: `ID: ${childPage.pageId}`
                 }))
-              : undefined
-        };
-      })
-    };
+            : undefined
+      };
+    });
 
-    setItems([parentItem]);
+    setItems(childItems);
   };
 
   const handleItemAction = async (action, item) => {
@@ -192,15 +173,54 @@ export function GetPagesView() {
   }
 
   return (
-    <div className='flex flex-col gap-4 p-4'>
+    <div className='flex w-full flex-col gap-4 p-1'>
       <div className='flex items-center justify-between'>
         <h1 className='text-2xl font-bold'>Child Pages</h1>
-        <Button size='sm' variant='ghost' onPress={loadPagesData}>
-          Refresh
+        <Button size='sm' variant='ghost' isIconOnly onPress={loadPagesData}>
+          <IconRefresh className='size-4' />
         </Button>
       </div>
       <DataList
         items={items}
+        header={
+          pageData.pageName && (
+            <div className='flex flex-col'>
+              <div className='flex items-center gap-2'>
+                <span className='text-xl font-semibold'>
+                  {pageData.pageName}
+                </span>
+
+                <span className='text-base text-muted'>
+                  (ID: {pageData.pageId})
+                </span>
+              </div>
+              {items.length !== undefined &&
+                (() => {
+                  const grandchildCount = items.reduce(
+                    (total, item) => total + (item.children?.length || 0),
+                    0
+                  );
+                  return (
+                    <div className='flex flex-row items-center gap-1'>
+                      <span className='text-sm text-muted'>
+                        {items.length} child{' '}
+                        {items.length === 1 ? 'page' : 'pages'}
+                      </span>
+                      {grandchildCount > 0 && (
+                        <>
+                          <Separator orientation='vertical' className='mx-1' />
+                          <span className='text-sm text-muted'>
+                            {grandchildCount} grandchild{' '}
+                            {grandchildCount === 1 ? 'page' : 'pages'}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  );
+                })()}
+            </div>
+          )
+        }
         onItemClick={handleItemClick}
         onItemAction={handleItemAction}
         showActions={true}

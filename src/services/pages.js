@@ -63,17 +63,26 @@ export async function getAppStudioPageParent(appPageId) {
 /**
  * Get child pages for a given page or app studio app
  * @param {Object} params - Parameters for fetching child pages
- * @param {number} params.pageId - The parent page ID
+ * @param {number|number[]} params.pageId - The parent page ID or array of page IDs
  * @param {number} [params.appId] - The app ID (for app studio pages)
  * @param {string} params.pageType - The page type ('PAGE' or 'DATA_APP_VIEW')
- * @returns {Promise<Array>} Array of page objects
+ * @param {boolean} [params.includeGrandchildren=false] - Whether to fetch grandchildren pages
+ * @returns {Promise<Array>} Array of page objects (includes both children and grandchildren if requested)
  * @throws {Error} If the fetch fails
  */
-export async function getChildPages({ pageId, appId, pageType }) {
+export async function getChildPages({
+  pageId,
+  appId,
+  pageType,
+  includeGrandchildren = false
+}) {
   try {
     // Execute fetch in page context to use authenticated session
     const result = await executeInPage(
-      async (pageId, appId, pageType) => {
+      async (pageId, appId, pageType, includeGrandchildren) => {
+        // Normalize pageId to array
+        const pageIds = Array.isArray(pageId) ? pageId : [pageId];
+
         // Build request body
         const body = {
           orderBy: 'lastModified',
@@ -86,7 +95,7 @@ export async function getChildPages({ pageId, appId, pageType }) {
           body.dataAppIds = [appId];
         } else {
           body.includeParentPageIdsClause = true;
-          body.parentPageIds = [pageId];
+          body.parentPageIds = pageIds;
         }
 
         // Make API call to fetch pages with relative URL
@@ -110,9 +119,54 @@ export async function getChildPages({ pageId, appId, pageType }) {
         const adminSummaryResponse = await response.json();
         console.log('Admin summary response:', adminSummaryResponse);
         console.log('Request body was:', body);
-        return adminSummaryResponse.pageAdminSummaries || [];
+        const childPages = adminSummaryResponse.pageAdminSummaries || [];
+
+        // If includeGrandchildren is true, fetch grandchildren for each child page
+        if (
+          includeGrandchildren &&
+          childPages.length > 0 &&
+          pageType === 'PAGE'
+        ) {
+          const grandchildPageIds = childPages.map((page) => page.pageId);
+
+          const grandchildrenBody = {
+            orderBy: 'lastModified',
+            ascending: true,
+            includeParentPageIdsClause: true,
+            parentPageIds: grandchildPageIds
+          };
+
+          const grandchildrenResponse = await fetch(
+            `/api/content/v1/pages/adminsummary?limit=100&skip=0`,
+            {
+              method: 'POST',
+              body: JSON.stringify(grandchildrenBody),
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+              },
+              credentials: 'include'
+            }
+          );
+
+          if (!grandchildrenResponse.ok) {
+            console.warn(
+              `Failed to fetch grandchildren pages (HTTP ${grandchildrenResponse.status})`
+            );
+            return childPages;
+          }
+
+          const grandchildrenData = await grandchildrenResponse.json();
+          console.log('Grandchildren response:', grandchildrenData);
+          const grandchildPages = grandchildrenData.pageAdminSummaries || [];
+
+          // Return both children and grandchildren
+          return [...childPages, ...grandchildPages];
+        }
+
+        return childPages;
       },
-      [pageId, appId, pageType]
+      [pageId, appId, pageType, includeGrandchildren]
     );
 
     return result;

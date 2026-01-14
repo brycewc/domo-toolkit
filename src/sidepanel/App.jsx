@@ -41,14 +41,14 @@ export default function App() {
   // Render the appropriate view
   if (activeView === 'getPages') {
     return (
-      <div className='flex w-auto min-w-md flex-col gap-2 bg-background p-2'>
+      <div className='flex min-h-screen w-full flex-col items-center gap-2 p-2'>
         <GetPagesView />
       </div>
     );
   }
 
   return (
-    <div className='flex w-auto min-w-md flex-col gap-2 bg-background p-2'>
+    <div className='flex min-h-screen w-full flex-col items-center gap-2 p-2'>
       <DataTableExample />
       <DataListExample />
     </div>

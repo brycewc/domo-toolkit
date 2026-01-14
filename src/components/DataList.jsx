@@ -1,6 +1,23 @@
 import { useState } from 'react';
-import { Accordion, Button, Card, Link } from '@heroui/react';
-import { IconExternalLink, IconCopy, IconShare } from '@tabler/icons-react';
+import {
+  Button,
+  ButtonGroup,
+  Card,
+  Disclosure,
+  DisclosureGroup,
+  Link,
+  Separator,
+  Tooltip
+} from '@heroui/react';
+import {
+  IconExternalLink,
+  IconCopy,
+  IconShare,
+  IconChevronDown,
+  IconClipboard,
+  IconFolders,
+  IconUserPlus
+} from '@tabler/icons-react';
 
 /**
  * DataList Component
@@ -8,7 +25,7 @@ import { IconExternalLink, IconCopy, IconShare } from '@tabler/icons-react';
  *
  * Features:
  * - Hierarchical/nested item display
- * - Expandable/collapsible sections with Accordion
+ * - Expandable/collapsible sections with Disclosure
  * - Item counts and metadata
  * - Clickable links to navigate
  * - Action buttons for each item
@@ -16,8 +33,7 @@ import { IconExternalLink, IconCopy, IconShare } from '@tabler/icons-react';
  *
  * @param {Object} props
  * @param {Array} props.items - Array of list items with optional children
- * @param {String} props.title - Title for the list
- * @param {String} props.subtitle - Subtitle/description for the list
+ * @param {React.ReactNode} props.header - Optional header component to display above the list
  * @param {Function} props.onItemClick - Callback when an item is clicked
  * @param {Function} props.onItemAction - Callback when an action button is clicked
  * @param {Boolean} props.showActions - Whether to show action buttons
@@ -25,8 +41,7 @@ import { IconExternalLink, IconCopy, IconShare } from '@tabler/icons-react';
  */
 export function DataList({
   items = [],
-  title,
-  subtitle,
+  header,
   onItemClick,
   onItemAction,
   showActions = true,
@@ -34,23 +49,27 @@ export function DataList({
 }) {
   return (
     <Card className='w-full'>
-      {(title || subtitle) && (
-        <Card.Header>
-          {title && <h2 className='text-xl font-semibold'>{title}</h2>}
-          {subtitle && <p className='text-sm text-muted'>{subtitle}</p>}
-        </Card.Header>
+      {header && (
+        <>
+          <Card.Header>{header}</Card.Header>
+          <Separator className='h-1' />
+        </>
       )}
-      <Card.Content className='space-y-2'>
-        {items.map((item, index) => (
-          <DataListItem
-            key={item.id || index}
-            item={item}
-            onItemClick={onItemClick}
-            onItemAction={onItemAction}
-            showActions={showActions}
-            showCounts={showCounts}
-          />
-        ))}
+
+      <Card.Content>
+        <DisclosureGroup className='gap-2'>
+          {items.map((item, index) => (
+            <DataListItem
+              key={item.id || index}
+              item={item}
+              index={index}
+              onItemClick={onItemClick}
+              onItemAction={onItemAction}
+              showActions={showActions}
+              showCounts={showCounts}
+            />
+          ))}
+        </DisclosureGroup>
       </Card.Content>
     </Card>
   );
@@ -79,133 +98,111 @@ function DataListItem({
   onItemAction,
   showActions = true,
   showCounts = true,
+  index,
   depth = 0
 }) {
   const hasChildren = item.children && item.children.length > 0;
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
 
-  const handleClick = (e) => {
+  const handleClick = () => {
     if (onItemClick) {
       onItemClick(item);
     }
   };
 
-  const handleAction = (actionType, e) => {
-    e.stopPropagation();
+  const handleAction = (actionType) => {
     if (onItemAction) {
       onItemAction(actionType, item);
     }
   };
 
-  // If item has children at top level (depth 0), show them always without accordion
-  if (hasChildren && depth === 0) {
-    return (
-      <div className='space-y-2'>
-        <div className='flex items-center justify-between gap-3 rounded-lg bg-surface/30 px-4 py-3 font-semibold'>
-          <div className='flex flex-1 items-center gap-3'>
-            <span className='text-lg font-semibold'>{item.label}</span>
-            {showCounts && item.count !== undefined && (
-              <span className='text-sm text-muted'>({item.count})</span>
-            )}
-            {item.metadata && (
-              <span className='text-xs text-muted'>{item.metadata}</span>
-            )}
-          </div>
-          {showActions && (
-            <div className='flex items-center gap-1'>
-              {item.url && (
-                <Button
-                  variant='ghost'
-                  size='sm'
-                  isIconOnly
-                  onPress={(e) => handleAction('open', e)}
-                  aria-label='Open'
+  return (
+    <>
+      {index !== 0 && <Separator />}
+      <Disclosure isOpen={isOpen} onOpenChange={setIsOpen} className='py-[5px]'>
+        <Disclosure.Heading className='flex flex-row justify-between'>
+          <div className='flex min-w-0 flex-1 items-center'>
+            <Tooltip delay={100} closeDelay={0} className='flex-1'>
+              {item.url ? (
+                <Link
+                  href={item.url}
+                  onPress={handleClick}
+                  className='truncate text-sm font-medium hover:text-accent'
                 >
-                  <IconExternalLink className='size-4' />
-                </Button>
+                  {item.label}
+                </Link>
+              ) : (
+                <span className='truncate text-sm font-medium'>
+                  {item.label}
+                </span>
               )}
-              <Button
-                variant='ghost'
-                size='sm'
-                isIconOnly
-                onPress={(e) => handleAction('share', e)}
-                aria-label='Share'
+              <Tooltip.Content placement='right' offset={8}>
+                ID: {item.id}
+              </Tooltip.Content>
+            </Tooltip>
+            {hasChildren && (
+              <Disclosure.Trigger
+                variant='tertiary'
+                aria-label='Toggle'
+                className='button--sm flex flex-shrink-0 flex-row items-center gap-1'
               >
-                <IconShare className='size-4' />
-              </Button>
-            </div>
-          )}
-        </div>
-        <div className='space-y-2 pl-4'>
-          {item.children.map((child, index) => (
-            <DataListItem
-              key={child.id || index}
-              item={child}
-              onItemClick={onItemClick}
-              onItemAction={onItemAction}
-              showActions={showActions}
-              showCounts={showCounts}
-              depth={depth + 1}
-            />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  // If item has children at deeper levels, use Accordion
-  if (hasChildren) {
-    return (
-      <Accordion className='rounded-lg border border-default'>
-        <Accordion.Item>
-          <Accordion.Heading>
-            <Accordion.Trigger>
-              <div className='flex flex-1 items-center gap-3'>
-                <span className='font-medium'>{item.label}</span>
                 {showCounts && item.count !== undefined && (
                   <span className='text-sm text-muted'>({item.count})</span>
                 )}
-                {item.metadata && (
-                  <span className='text-xs text-muted'>{item.metadata}</span>
-                )}
-              </div>
-              {showActions && (
-                <div
-                  className='flex items-center gap-1'
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {item.url && (
-                    <Button
-                      variant='ghost'
-                      size='sm'
-                      isIconOnly
-                      onPress={(e) => handleAction('open', e)}
-                      aria-label='Open'
-                    >
-                      <IconExternalLink className='size-4' />
-                    </Button>
-                  )}
+                <Disclosure.Indicator />
+              </Disclosure.Trigger>
+            )}
+          </div>
+          {showActions && (
+            <ButtonGroup variant='ghost' size='sm' className='flex-shrink-0'>
+              {hasChildren && (
+                <Tooltip delay={500} closeDelay={0}>
                   <Button
-                    variant='ghost'
-                    size='sm'
                     isIconOnly
-                    onPress={(e) => handleAction('share', e)}
-                    aria-label='Share'
+                    onPress={() => handleAction('openAll')}
+                    aria-label='Open All'
                   >
-                    <IconShare className='size-4' />
+                    <IconFolders className='size-4' />
                   </Button>
-                </div>
+                  <Tooltip.Content className='text-xs'>
+                    Open all
+                  </Tooltip.Content>
+                </Tooltip>
               )}
-              <Accordion.Indicator />
-            </Accordion.Trigger>
-          </Accordion.Heading>
-          <Accordion.Panel>
-            <Accordion.Body>
-              <div className='space-y-2 pl-4'>
+              <Tooltip delay={500} closeDelay={0}>
+                <Button
+                  isIconOnly
+                  onPress={() => handleAction('copy')}
+                  aria-label='Copy'
+                >
+                  <IconClipboard className='size-4' />
+                </Button>
+                <Tooltip.Content className='text-xs'>Copy ID</Tooltip.Content>
+              </Tooltip>
+              <Tooltip delay={500} closeDelay={0}>
+                <Button
+                  isIconOnly
+                  onPress={() => handleAction('share')}
+                  aria-label='Share'
+                >
+                  <IconUserPlus className='size-4' />
+                </Button>
+                <Tooltip.Content className='text-xs'>
+                  Share with self
+                </Tooltip.Content>
+              </Tooltip>
+            </ButtonGroup>
+          )}
+        </Disclosure.Heading>
+        {hasChildren && (
+          <Disclosure.Content>
+            <Disclosure.Body className='pl-[5px]'>
+              <DisclosureGroup>
                 {item.children.map((child, index) => (
                   <DataListItem
                     key={child.id || index}
                     item={child}
+                    index={index}
                     onItemClick={onItemClick}
                     onItemAction={onItemAction}
                     showActions={showActions}
@@ -213,76 +210,12 @@ function DataListItem({
                     depth={depth + 1}
                   />
                 ))}
-              </div>
-            </Accordion.Body>
-          </Accordion.Panel>
-        </Accordion.Item>
-      </Accordion>
-    );
-  }
-
-  // Simple item without children
-  return (
-    <div
-      className={`flex items-center justify-between gap-3 rounded-lg px-4 py-2 transition-colors hover:bg-surface/50 ${
-        depth > 0 ? 'ml-4' : ''
-      }`}
-    >
-      <div className='flex min-w-0 flex-1 items-center gap-3'>
-        {item.url ? (
-          <Link
-            href={item.url}
-            onPress={handleClick}
-            className='truncate font-medium'
-          >
-            {item.label}
-          </Link>
-        ) : (
-          <span className='truncate font-medium'>{item.label}</span>
+              </DisclosureGroup>
+            </Disclosure.Body>
+          </Disclosure.Content>
         )}
-        {showCounts && item.count !== undefined && (
-          <span className='text-sm whitespace-nowrap text-muted'>
-            ({item.count})
-          </span>
-        )}
-        {item.metadata && (
-          <span className='truncate text-xs text-muted'>{item.metadata}</span>
-        )}
-      </div>
-      {showActions && (
-        <div className='flex flex-shrink-0 items-center gap-1'>
-          {item.url && (
-            <Button
-              variant='ghost'
-              size='sm'
-              isIconOnly
-              onPress={(e) => handleAction('open', e)}
-              aria-label='Open'
-            >
-              <IconExternalLink className='size-4' />
-            </Button>
-          )}
-          <Button
-            variant='ghost'
-            size='sm'
-            isIconOnly
-            onPress={(e) => handleAction('copy', e)}
-            aria-label='Copy'
-          >
-            <IconCopy className='size-4' />
-          </Button>
-          <Button
-            variant='ghost'
-            size='sm'
-            isIconOnly
-            onPress={(e) => handleAction('share', e)}
-            aria-label='Share'
-          >
-            <IconShare className='size-4' />
-          </Button>
-        </div>
-      )}
-    </div>
+      </Disclosure>
+    </>
   );
 }
 

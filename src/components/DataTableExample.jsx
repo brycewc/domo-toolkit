@@ -300,15 +300,13 @@ export function DataTableExample() {
   };
 
   return (
-    <div className='p-6'>
-      <DataTable
-        columns={columns}
-        data={exampleUsers}
-        onAdd={handleAddNew}
-        onRowAction={handleRowAction}
-        searchPlaceholder='Search...'
-        entityName='users'
-      />
-    </div>
+    <DataTable
+      columns={columns}
+      data={exampleUsers}
+      onAdd={handleAddNew}
+      onRowAction={handleRowAction}
+      searchPlaceholder='Search...'
+      entityName='users'
+    />
   );
 }

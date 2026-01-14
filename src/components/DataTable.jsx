@@ -16,7 +16,8 @@ import {
   Input,
   Label,
   IconChevronDown,
-  IconChevronRight
+  IconChevronRight,
+  SearchField
 } from '@heroui/react';
 import {
   IconFilter,
@@ -120,21 +121,24 @@ export function DataTable({
   };
 
   return (
-    <Card className='w-full space-y-4'>
+    <Card className='w-full space-y-2'>
       <Card.Header>
         {/* Top Controls Bar */}
-        <div className='flex items-center justify-between gap-4'>
-          <div className='flex flex-1 items-center gap-3'>
+        <div className='items-between flex flex-col justify-center gap-1 sm:flex-row sm:items-center sm:justify-between'>
+          <div className='flex items-center gap-1 sm:flex-1'>
             {/* Search Input */}
-            <div className='relative max-w-sm flex-1'>
-              <IconSearch className='pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2' />
-              <Input
-                placeholder={searchPlaceholder}
-                value={globalFilter ?? ''}
-                onChange={(e) => setGlobalFilter(e.target.value)}
-                className='w-full pl-9'
-              />
-            </div>
+            <SearchField
+              name='search'
+              value={globalFilter ?? ''}
+              onChange={setGlobalFilter}
+              fullWidth
+            >
+              <SearchField.Group className='rounded-4xl'>
+                <SearchField.SearchIcon />
+                <SearchField.Input placeholder={searchPlaceholder} />
+                <SearchField.ClearButton />
+              </SearchField.Group>
+            </SearchField>
 
             {/* Status Filter Dropdown */}
             {statusOptions.length > 0 && (
@@ -199,7 +203,7 @@ export function DataTable({
           </div>
 
           {/* Bulk Actions & Add New Buttons */}
-          <div className='flex items-center gap-2'>
+          <div className='flex items-center gap-1'>
             {/* Bulk Actions Button */}
             <Dropdown>
               <Button variant='secondary' isDisabled={selectedCount === 0}>

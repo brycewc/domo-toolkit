@@ -49,6 +49,7 @@ export function GetPages({
       }
 
       const pageId = parseInt(currentObject.id);
+      const pageName = currentObject.metadata?.name || 'Unknown Page';
 
       // Get appId from metadata for app studio pages
       const appId =
@@ -63,13 +64,16 @@ export function GetPages({
           pageId,
           appId,
           pageType,
+          pageName,
           currentInstance,
           timestamp: Date.now()
         }
       });
 
       // Open the sidepanel
-      await chrome.sidePanel.open({ windowId: tab.windowId });
+      await chrome.sidePanel.open({
+        windowId: tab.windowId
+      });
 
       onStatusUpdate?.(
         'Opening Sidepanel',
