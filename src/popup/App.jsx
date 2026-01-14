@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Button, Tabs } from '@heroui/react';
 import { useTheme } from '@/hooks';
 import {
@@ -34,6 +34,7 @@ export default function App() {
     timeout: 3000,
     visible: false
   });
+  const navigateToCopiedRef = useRef();
 
   // Restore last selected tab if within 10 seconds
   useEffect(() => {
@@ -191,11 +192,14 @@ export default function App() {
                 'success',
                 1500
               );
+              // Trigger detection in NavigateToCopiedObject
+              navigateToCopiedRef.current?.triggerDetection(currentObject?.id);
             }}
           >
             Copy ID
           </Button>
           <NavigateToCopiedObject
+            ref={navigateToCopiedRef}
             isDomoPage={isDomoPage}
             currentInstance={currentInstance}
           />

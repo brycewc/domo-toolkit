@@ -188,7 +188,7 @@ function DataListItem({
                   <IconUserPlus className='size-4' />
                 </Button>
                 <Tooltip.Content className='text-xs'>
-                  Share with self
+                  Share with yourself
                 </Tooltip.Content>
               </Tooltip>
             </ButtonGroup>

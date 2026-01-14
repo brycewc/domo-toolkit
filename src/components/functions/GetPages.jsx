@@ -74,6 +74,7 @@ export function GetPages({
       await chrome.sidePanel.open({
         windowId: tab.windowId
       });
+      window.close();
 
       onStatusUpdate?.(
         'Opening Sidepanel',

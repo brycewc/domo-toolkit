@@ -65,3 +65,82 @@ export async function getPageCards(pageId) {
     return [];
   }
 }
+
+/**
+ * Get all cards for a given object (page or dataset)
+ * @param {Object} params - Parameters for fetching cards
+ * @param {string} params.objectId - The object ID (page or dataset ID)
+ * @param {string} params.objectType - The object type ('PAGE', 'DATA_APP_VIEW', 'DATA_SOURCE')
+ * @returns {Promise<Array>} Array of card IDs
+ * @throws {Error} If the fetch fails
+ */
+export async function getCardsForObject({ objectId, objectType }) {
+  try {
+    // Execute fetch in page context to use authenticated session
+    const result = await executeInPage(
+      async (objectId, objectType) => {
+        switch (objectType) {
+          case 'PAGE':
+          case 'DATA_APP_VIEW': {
+            const response = await fetch(
+              `/api/content/v3/stacks/${objectId}/cards`,
+              {
+                method: 'GET'
+              }
+            );
+            if (!response.ok) {
+              throw new Error(
+                `Failed to fetch cards for ${objectType} ${objectId}. HTTP status: ${response.status}`
+              );
+            }
+            const page = await response.json();
+            const cards = page.cards || [];
+            if (!cards.length) {
+              throw new Error(`${objectType} ${objectId} has no cards.`);
+            }
+            return cards.map((c) => c.id).filter((id) => Number.isFinite(id));
+          }
+
+          case 'DATA_SOURCE': {
+            const response = await fetch(
+              `/api/content/v1/datasources/${objectId}/cards`,
+              {
+                method: 'GET'
+              }
+            );
+            if (!response.ok) {
+              throw new Error(
+                `Failed to fetch cards for DataSet ${objectId}. HTTP status: ${response.status}`
+              );
+            }
+            const cards = await response.json();
+            if (!cards.length) {
+              throw new Error(`DataSet ${objectId} has no cards.`);
+            }
+            return cards
+              .map(
+                (card) =>
+                  card.id ||
+                  card.kpiId ||
+                  (typeof card.urn === 'string'
+                    ? card.urn.split(':').pop()
+                    : '')
+              )
+              .filter(Boolean)
+              .map((id) => parseInt(id, 10))
+              .filter((id) => Number.isFinite(id));
+          }
+
+          default:
+            throw new Error(`Cannot get cards for object type ${objectType}`);
+        }
+      },
+      [objectId, objectType]
+    );
+
+    return result;
+  } catch (error) {
+    console.error('Error fetching cards for object:', error);
+    throw error;
+  }
+}

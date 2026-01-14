@@ -1,8 +1,20 @@
 import { useEffect, useState } from 'react';
-import { Button, Separator, Spinner } from '@heroui/react';
+import {
+  Button,
+  ButtonGroup,
+  Separator,
+  Spinner,
+  Tooltip
+} from '@heroui/react';
 import { DataList } from '@/components';
-import { getChildPages, getPageCards } from '@/services';
-import { IconRefresh } from '@tabler/icons-react';
+import { getChildPages } from '@/services';
+import {
+  IconClipboard,
+  IconFolders,
+  IconRefresh,
+  IconUsersPlus
+} from '@tabler/icons-react';
+import { sharePagesWithSelf } from '../services/pages';
 
 export function GetPagesView() {
   const [isLoading, setIsLoading] = useState(true);
@@ -126,9 +138,11 @@ export function GetPagesView() {
   const handleItemAction = async (action, item) => {
     switch (action) {
       case 'open':
-        if (item.url) {
-          await chrome.tabs.create({ url: item.url });
-        }
+        item.children.forEach(async (child) => {
+          if (child.url) {
+            await chrome.tabs.create({ url: child.url });
+          }
+        });
         break;
       case 'copy':
         if (item.id) {
@@ -185,14 +199,68 @@ export function GetPagesView() {
         header={
           pageData.pageName && (
             <div className='flex flex-col'>
-              <div className='flex items-center gap-2'>
-                <span className='text-xl font-semibold'>
-                  {pageData.pageName}
-                </span>
+              <div className='flex flex-row justify-between'>
+                <div className='flex items-center gap-2'>
+                  <span className='text-xl font-semibold'>
+                    {pageData.pageName}
+                  </span>
 
-                <span className='text-base text-muted'>
-                  (ID: {pageData.pageId})
-                </span>
+                  <span className='text-base text-muted'>
+                    (ID: {pageData.pageId})
+                  </span>
+                </div>
+                <ButtonGroup
+                  variant='ghost'
+                  size='sm'
+                  className='flex-shrink-0'
+                >
+                  <Tooltip delay={500} closeDelay={0}>
+                    <Button
+                      isIconOnly
+                      onPress={() =>
+                        items.forEach((item) => window.open(item.url, '_blank'))
+                      }
+                      aria-label='Open All'
+                    >
+                      <IconFolders className='size-4' />
+                    </Button>
+                    <Tooltip.Content className='text-xs'>
+                      Open all pages in new tabs
+                    </Tooltip.Content>
+                  </Tooltip>
+                  <Tooltip delay={500} closeDelay={0}>
+                    <Button
+                      isIconOnly
+                      onPress={async () =>
+                        await navigator.clipboard.writeText(
+                          pageData.pageId.toString()
+                        )
+                      }
+                      aria-label='Copy'
+                    >
+                      <IconClipboard className='size-4' />
+                    </Button>
+                    <Tooltip.Content className='text-xs'>
+                      Copy ID
+                    </Tooltip.Content>
+                  </Tooltip>
+                  <Tooltip delay={500} closeDelay={0}>
+                    <Button
+                      isIconOnly
+                      onPress={async () =>
+                        await sharePagesWithSelf(
+                          items.map((item) => item.pageId)
+                        )
+                      }
+                      aria-label='Share'
+                    >
+                      <IconUsersPlus className='size-4' />
+                    </Button>
+                    <Tooltip.Content className='text-xs'>
+                      Share all pages with yourself
+                    </Tooltip.Content>
+                  </Tooltip>
+                </ButtonGroup>
               </div>
               {items.length !== undefined &&
                 (() => {
