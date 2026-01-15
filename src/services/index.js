@@ -1,4 +1,8 @@
-export { fetchObjectDetails, detectAndFetchObject } from './allObjects';
+export {
+  fetchObjectDetails,
+  detectAndFetchObject,
+  shareWithSelf
+} from './allObjects';
 export { updateDataflowDetails } from './dataflows';
 export { getDrillParentCardId, getPageCards } from './cards';
 export {
@@ -6,3 +10,4 @@ export {
   getChildPages,
   sharePagesWithSelf
 } from './pages';
+export { getCurrentUserId } from './users';

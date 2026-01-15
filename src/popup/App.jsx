@@ -14,7 +14,8 @@ import {
   GetPages,
   NavigateToCopiedObject,
   StatusBar,
-  UpdateDataflowDetails
+  UpdateDataflowDetails,
+  ShareWithSelf
 } from '@/components';
 import './App.css';
 
@@ -202,6 +203,11 @@ export default function App() {
             ref={navigateToCopiedRef}
             isDomoPage={isDomoPage}
             currentInstance={currentInstance}
+          />
+          <ShareWithSelf
+            currentObject={currentObject}
+            onStatusUpdate={showStatus}
+            isDisabled={!isDomoPage}
           />
           <ClearCookies onStatusUpdate={showStatus} isDisabled={!isDomoPage} />
         </Tabs.Panel>

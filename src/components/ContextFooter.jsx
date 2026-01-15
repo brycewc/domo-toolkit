@@ -19,7 +19,7 @@ export function ContextFooter({
           }
         >
           <Alert.Indicator />
-          <Alert.Content className='w-full'>
+          <Alert.Content>
             <Alert.Title>
               {isDomoPage ? (
                 <>
@@ -32,16 +32,22 @@ export function ContextFooter({
             </Alert.Title>
             <Alert.Description>
               {isDomoPage ? (
-                <div className='w-full'>
+                <div className='flex flex-col gap-1'>
                   {isLoading ||
                   !currentInstance ||
                   !currentObject?.objectType ||
                   !currentObject?.id ? (
                     <Spinner size='sm' color='accent' />
                   ) : (
-                    <Chip color='accent' variant='primary'>
-                      {currentObject.typeName} (ID: {currentObject.id})
-                    </Chip>
+                    <>
+                      <Chip color='accent' variant='soft' className='w-fit'>
+                        {currentObject.typeName}
+                        {' ('}
+                        {currentObject.typeId}
+                        {')'}
+                      </Chip>
+                      <span className='text-sm'>ID: {currentObject.id}</span>
+                    </>
                   )}
                 </div>
               ) : (

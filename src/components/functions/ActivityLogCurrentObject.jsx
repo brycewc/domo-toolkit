@@ -397,7 +397,9 @@ export function ActivityLogCurrentObject({ currentObject, onStatusUpdate }) {
           className='w-full'
           isPending={isLoading}
         >
-          Activity Log
+          <span className={!isDropdownDisabled ? 'pl-10' : ''}>
+            Activity Log
+          </span>
         </Button>
         {!isDropdownDisabled && (
           <Dropdown>

@@ -1,0 +1,129 @@
+import { useState } from 'react';
+import { Button, Chip, Spinner, Tooltip } from '@heroui/react';
+import { shareWithSelf } from '@/services';
+
+/**
+ * ShareWithSelf component - Shares the current object with the current user
+ * Supports: DATA_SOURCE (accounts), PAGE, DATA_APP, DATA_APP_VIEW, and APP (custom app designs)
+ */
+export function ShareWithSelf({ currentObject, onStatusUpdate, isDisabled }) {
+  const [isSharing, setIsSharing] = useState(false);
+
+  const handleShare = async () => {
+    setIsSharing(true);
+
+    try {
+      // Validate current object
+      if (!currentObject || !currentObject.id || !currentObject.typeId) {
+        onStatusUpdate?.(
+          'No Object Detected',
+          'Please navigate to a valid Domo object and try again',
+          'danger'
+        );
+        setIsSharing(false);
+        return;
+      }
+
+      // Check if object type is supported
+      const supportedTypes = [
+        'DATA_SOURCE',
+        'PAGE',
+        'DATA_APP',
+        'DATA_APP_VIEW',
+        'APP'
+      ];
+      if (!supportedTypes.includes(currentObject.typeId)) {
+        onStatusUpdate?.(
+          'Unsupported Object Type',
+          `Share with Self is not supported for ${currentObject.typeName}. Supported types: DataSet, Page, Studio App, App Studio Page, Custom App Design.`,
+          'danger'
+        );
+        setIsSharing(false);
+        return;
+      }
+
+      // For DATA_SOURCE, verify we have the accountId in metadata
+      if (currentObject.typeId === 'DATA_SOURCE') {
+        if (!currentObject.metadata?.details?.accountId) {
+          onStatusUpdate?.(
+            'Missing Account Information',
+            'DataSet account information not found. Please refresh and try again.',
+            'danger'
+          );
+          setIsSharing(false);
+          return;
+        }
+      }
+
+      // Call the shareWithSelf service function
+      await shareWithSelf({
+        object: currentObject,
+        setStatus: onStatusUpdate
+      });
+    } catch (error) {
+      // Error is already handled in shareWithSelf, but catch here in case
+      console.error('Error in ShareWithSelf component:', error);
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
+  // Disable button if:
+  // 1. Explicitly disabled via prop
+  // 2. Currently sharing
+  // 3. No current object
+  // 4. Object type is not supported
+  const supportedTypes = [
+    'DATA_SOURCE',
+    'PAGE',
+    'DATA_APP',
+    'DATA_APP_VIEW',
+    'APP'
+  ];
+  const isSupportedType =
+    currentObject?.typeId && supportedTypes.includes(currentObject.typeId);
+  const buttonDisabled =
+    isDisabled || isSharing || !currentObject || !isSupportedType;
+
+  return (
+    <Tooltip delay={200} closeDelay={0} disabled={!buttonDisabled}>
+      <Button
+        onPress={handleShare}
+        isDisabled={buttonDisabled}
+        size='sm'
+        color='accent'
+        className='w-full'
+      >
+        {isSharing ? (
+          <>
+            <Spinner size='sm' color='white' />
+            Sharing...
+          </>
+        ) : (
+          'Share with Self'
+        )}
+      </Button>
+      <Tooltip.Content showArrow placement='top'>
+        <Tooltip.Arrow />
+        {currentObject?.typeId === 'DATA_SOURCE' ? (
+          <div className='flex items-center gap-2'>
+            <span>
+              Share account {currentObject?.metadata?.details?.accountId || ''}{' '}
+              with yourself
+            </span>
+            <Chip size='sm' variant='soft' color='accent'>
+              Account (ACCOUNT)
+            </Chip>
+          </div>
+        ) : (
+          <div className='flex items-center gap-2'>
+            <span>Share {currentObject?.name} with yourself</span>
+            <Chip size='sm' variant='soft' color='accent'>
+              {`${currentObject?.typeName} (${currentObject?.typeId})`}
+            </Chip>
+          </div>
+        )}
+      </Tooltip.Content>
+    </Tooltip>
+  );
+}

@@ -4,6 +4,7 @@
 
 import { getObjectType, getAllObjectTypes, DomoObject } from '@/models';
 import { executeInPage, getCurrentInstance } from '@/utils';
+import { getCurrentUserId } from '@/services';
 
 /**
  * Fetch details about a Domo object
@@ -205,4 +206,135 @@ export async function detectAndFetchObject(objectId) {
   // Override the type to indicate it's unknown
   unknownObject._unknownType = true;
   return unknownObject;
+}
+
+/**
+ * Share a Domo object with the current user
+ * @param {Object} params
+ * @param {DomoObject} params.object - The Domo object to share
+ * @param {Function} params.setStatus - Callback to update status (title, description, status)
+ * @returns {Promise<void>}
+ */
+export async function shareWithSelf({ object, setStatus }) {
+  try {
+    if (!object || !object.typeId || !object.id) {
+      throw new Error('Invalid object provided');
+    }
+
+    // Get current user ID
+    const userId = await getCurrentUserId();
+
+    // Execute share based on object type
+    const result = await executeInPage(
+      async (objectTypeId, objectId, userId, metadata) => {
+        let url, options, successMessage;
+
+        switch (objectTypeId) {
+          case 'DATA_SOURCE': {
+            // For DataSets, we need to share the account
+            if (!metadata?.details?.accountId) {
+              throw new Error('DataSet account ID not found in metadata');
+            }
+
+            const accountId = metadata.details.accountId;
+
+            // Check if it's a dataflow output (which doesn't have an account to share)
+            if (metadata.details.type === 'dataflow') {
+              throw new Error(
+                'DataSet is a DataFlow output and does not have an account to share'
+              );
+            }
+
+            url = `/api/data/v2/accounts/share/${accountId}`;
+            options = {
+              method: 'PUT',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                type: 'USER',
+                id: userId,
+                accessLevel: 'CAN_VIEW'
+              })
+            };
+            successMessage = `Account ${accountId} shared successfully`;
+            break;
+          }
+
+          case 'APP': {
+            // Custom App Design (assetlibrary)
+            url = `/api/apps/v1/designs/${objectId}/permissions/ADMIN`;
+            options = {
+              method: 'POST',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify([userId])
+            };
+            successMessage = `Custom App Design shared successfully`;
+            break;
+          }
+
+          case 'PAGE':
+          case 'DATA_APP_VIEW': {
+            // Page or App Studio Page
+            url = `/api/content/v1/share?sendEmail=false`;
+            options = {
+              method: 'POST',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                resources: [{ type: 'page', id: objectId }],
+                recipients: [
+                  { type: 'user', id: userId, permission: 'HAS_ACCESS' }
+                ]
+              })
+            };
+            successMessage = `Page shared successfully`;
+            break;
+          }
+
+          case 'DATA_APP': {
+            // Studio App (shared like pages)
+            url = `/api/content/v1/share?sendEmail=false`;
+            options = {
+              method: 'POST',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                resources: [{ type: 'page', id: objectId }],
+                recipients: [
+                  { type: 'user', id: userId, permission: 'HAS_ACCESS' }
+                ]
+              })
+            };
+            successMessage = `Studio App shared successfully`;
+            break;
+          }
+
+          default:
+            throw new Error(
+              `Sharing not supported for object type: ${objectTypeId}`
+            );
+        }
+
+        const response = await fetch(url, options);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(
+            `Failed to share object. Status: ${response.status}. ${errorText}`
+          );
+        }
+
+        return successMessage;
+      },
+      [object.typeId, object.id, userId, object.metadata]
+    );
+
+    // Success callback
+    setStatus?.('Shared Successfully', result, 'success');
+  } catch (error) {
+    console.error('Error sharing object with self:', error);
+    setStatus?.('Share Failed', error.message, 'danger');
+    throw error;
+  }
 }

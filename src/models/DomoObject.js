@@ -105,6 +105,7 @@ export class DomoObject {
     ) {
       const parentTypeId = this.objectType.parents[0]; // Use first parent type
       const parentType = getObjectType(parentTypeId);
+      const parentTypeName = parentType ? parentType.name : parentTypeId;
 
       if (parentType && parentType.api) {
         try {
@@ -112,7 +113,14 @@ export class DomoObject {
           const { method, endpoint, pathToName } = parentType.api;
 
           const parentDetails = await executeInPage(
-            async (endpoint, method, pathToName, parentId, parentTypeId) => {
+            async (
+              endpoint,
+              method,
+              pathToName,
+              parentId,
+              parentTypeId,
+              parentTypeName
+            ) => {
               const url = `/api${endpoint}`.replace('{id}', parentId);
               const options = {
                 method,
@@ -133,11 +141,19 @@ export class DomoObject {
               return {
                 id: parentId,
                 type: parentTypeId,
+                typeName: parentTypeName,
                 name: name,
                 details: data
               };
             },
-            [endpoint, method, pathToName, parentId, parentTypeId]
+            [
+              endpoint,
+              method,
+              pathToName,
+              parentId,
+              parentTypeId,
+              parentTypeName
+            ]
           );
 
           // Store parent details in metadata
