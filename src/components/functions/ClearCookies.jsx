@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Button, Spinner } from '@heroui/react';
+import { Button, Spinner, Tooltip } from '@heroui/react';
+import { IconCookieOff } from '@tabler/icons-react';
 
 export function ClearCookies({ onStatusUpdate, isDisabled }) {
   const [isClearingCookies, setIsClearingCookies] = useState(false);
@@ -112,19 +113,24 @@ export function ClearCookies({ onStatusUpdate, isDisabled }) {
   };
 
   return (
-    <Button
-      fullWidth
-      onPress={clearCookies}
-      isPending={isClearingCookies}
-      isDisabled={isDisabled}
-      isIconOnly={isClearingCookies}
-    >
-      {({ isPending }) => (
-        <>
-          {isPending ? <Spinner color='current' size='sm' /> : null}
-          {isPending ? 'Clearing...' : 'Clear Cookies'}
-        </>
-      )}
-    </Button>
+    <Tooltip delay={400} closeDelay={0}>
+      <Button
+        onPress={clearCookies}
+        isPending={isClearingCookies}
+        isDisabled={isDisabled}
+        isIconOnly
+      >
+        {({ isPending }) => (
+          <>
+            {isPending ? (
+              <Spinner color='white' size='sm' />
+            ) : (
+              <IconCookieOff className='h-4 w-4' />
+            )}
+          </>
+        )}
+      </Button>
+      <Tooltip.Content>Clear cookies for current instance</Tooltip.Content>
+    </Tooltip>
   );
 }

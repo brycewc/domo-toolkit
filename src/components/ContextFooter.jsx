@@ -8,7 +8,7 @@ export function ContextFooter({
   isLoading
 }) {
   return (
-    <Tooltip isDisabled={!isDomoPage} delay={500} closeDelay={0}>
+    <Tooltip isDisabled={!isDomoPage} delay={400} closeDelay={0}>
       <Tooltip.Trigger>
         <Alert
           status={isDomoPage ? 'accent' : 'warning'}
@@ -18,7 +18,6 @@ export function ContextFooter({
               : 'from-bg-foreground/10 bg-linear-to-r to-warning/10'
           }
         >
-          <Alert.Indicator />
           <Alert.Content>
             <Alert.Title>
               {isDomoPage ? (
@@ -57,14 +56,13 @@ export function ContextFooter({
           </Alert.Content>
         </Alert>
       </Tooltip.Trigger>
-      <Tooltip.Content showArrow>
-        <Tooltip.Arrow />
-        <p className='max-w-s text-center'>
+      <Tooltip.Content className='max-w-[calc(var(--container-xs)-1.5rem)] text-center text-wrap'>
+        <>
           Unless otherwise noted (with{' '}
           <IconBoltOff className='inline h-4 w-4' />
           ), all buttons take current context into account to make the action
           dynamic
-        </p>
+        </>
       </Tooltip.Content>
     </Tooltip>
   );

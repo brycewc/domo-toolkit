@@ -16,6 +16,7 @@ import {
 } from '@heroui/react';
 import { DomoObject, getAllObjectTypes } from '@/models';
 import { detectAndFetchObject } from '@/services';
+import { IconExternalLink } from '@tabler/icons-react';
 
 export const NavigateToCopiedObject = forwardRef(
   function NavigateToCopiedObject({ isDomoPage, currentInstance }, ref) {
@@ -315,11 +316,13 @@ export const NavigateToCopiedObject = forwardRef(
           {isLoading ? (
             <Spinner className='size-4' color='current' />
           ) : (
-            'Navigate from Clipboard'
+            <>
+              <span>Navigate from Clipboard</span>
+              <IconExternalLink />
+            </>
           )}
         </Button>
-        <Tooltip.Content showArrow placement='top'>
-          <Tooltip.Arrow />
+        <Tooltip.Content placement='top'>
           {error ? (
             `Error: ${error}`
           ) : isDomoPage ? (

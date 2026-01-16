@@ -49,8 +49,8 @@ export default function App() {
 
   return (
     <div className='flex min-h-screen w-full flex-col items-center gap-2 p-2'>
-      <DataTableExample />
-      <DataListExample />
+      {/* <DataTableExample />
+      <DataListExample /> */}
     </div>
   );
 }

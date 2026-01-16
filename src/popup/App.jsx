@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Button, Tabs } from '@heroui/react';
+import { Button, ButtonGroup, Tabs, Tooltip } from '@heroui/react';
 import { useTheme } from '@/hooks';
 import {
   fetchCurrentObjectAsDomoObject,
@@ -11,6 +11,7 @@ import {
   ActivityLogCurrentObject,
   ClearCookies,
   ContextFooter,
+  DeleteCurrentObject,
   GetPages,
   NavigateToCopiedObject,
   StatusBar,
@@ -18,6 +19,7 @@ import {
   ShareWithSelf
 } from '@/components';
 import './App.css';
+import { IconClipboard, IconSettings, IconStar } from '@tabler/icons-react';
 
 export default function App() {
   // Apply theme
@@ -176,44 +178,10 @@ export default function App() {
   };
 
   return (
-    <div className='flex w-auto min-w-md flex-col gap-2 bg-background p-2'>
-      <Tabs
-        className='w-full'
-        orientation='vertical'
-        selectedKey={selectedTab}
-        onSelectionChange={handleTabChange}
-      >
-        <Tabs.ListContainer>
-          <Tabs.List aria-label='Vertical tabs'>
-            <Tabs.Tab id='favorites'>
-              Favorites
-              <Tabs.Indicator />
-            </Tabs.Tab>
-            <Tabs.Tab id='delete' isDisabled={!isDomoPage}>
-              Delete
-              <Tabs.Indicator />
-            </Tabs.Tab>
-            <Tabs.Tab id='update' isDisabled={!isDomoPage}>
-              Update
-              <Tabs.Indicator />
-            </Tabs.Tab>
-            <Tabs.Tab id='other' isDisabled={!isDomoPage}>
-              Other
-              <Tabs.Indicator />
-            </Tabs.Tab>
-            <Tabs.Tab id='settings'>
-              Settings
-              <Tabs.Indicator />
-            </Tabs.Tab>
-          </Tabs.List>
-        </Tabs.ListContainer>
-        <Tabs.Panel className='flex flex-col gap-1 px-4' id='favorites'>
-          <ActivityLogCurrentObject
-            currentObject={currentObject}
-            onStatusUpdate={showStatus}
-          />
+    <div className='flex w-auto min-w-xs flex-col gap-1 bg-background p-2'>
+      <ButtonGroup fullWidth>
+        <Tooltip delay={400} closeDelay={0}>
           <Button
-            fullWidth
             isDisabled={!isDomoPage || !currentObject?.id}
             onPress={() => {
               navigator.clipboard.writeText(currentObject?.id);
@@ -226,47 +194,62 @@ export default function App() {
               // Trigger detection in NavigateToCopiedObject
               navigateToCopiedRef.current?.triggerDetection(currentObject?.id);
             }}
+            isIconOnly
           >
-            Copy ID
+            <IconClipboard className='h-4 w-4' />
           </Button>
-          <NavigateToCopiedObject
-            ref={navigateToCopiedRef}
-            isDomoPage={isDomoPage}
-            currentInstance={currentInstance}
-          />
-          <ShareWithSelf
-            currentObject={currentObject}
-            onStatusUpdate={showStatus}
-            isDisabled={!isDomoPage}
-          />
-          <ClearCookies onStatusUpdate={showStatus} isDisabled={!isDomoPage} />
-        </Tabs.Panel>
-        <Tabs.Panel
-          className='flex flex-col gap-1 px-4'
-          id='delete'
-        ></Tabs.Panel>
-        <Tabs.Panel className='flex flex-col gap-1 px-4' id='update'>
-          {currentObject?.typeId === 'DATAFLOW_TYPE' && (
-            <UpdateDataflowDetails
-              onStatusUpdate={showStatus}
-              currentObject={currentObject}
-            />
-          )}
-        </Tabs.Panel>
-        <Tabs.Panel className='flex flex-col gap-1 px-4' id='other'>
-          {(currentObject?.typeId === 'PAGE' ||
-            currentObject?.typeId === 'DATA_APP_VIEW') && (
-            <GetPages
-              currentObject={currentObject}
-              currentInstance={currentInstance}
-              onStatusUpdate={showStatus}
-              isDisabled={!isDomoPage}
-            />
-          )}
-        </Tabs.Panel>
-        <Tabs.Panel id='settings'></Tabs.Panel>
-      </Tabs>
-      <div className='relative min-h-[5rem] w-full min-w-sm'>
+          <Tooltip.Content>Copy ID</Tooltip.Content>
+        </Tooltip>
+
+        <ShareWithSelf
+          currentObject={currentObject}
+          onStatusUpdate={showStatus}
+          isDisabled={!isDomoPage}
+        />
+        <ClearCookies onStatusUpdate={showStatus} isDisabled={!isDomoPage} />
+        <DeleteCurrentObject
+          currentObject={currentObject}
+          onStatusUpdate={showStatus}
+          isDisabled={!isDomoPage}
+        />
+        <Tooltip delay={400} closeDelay={0}>
+          <Button
+            onPress={() => {
+              chrome.runtime.openOptionsPage();
+            }}
+            isIconOnly
+          >
+            <IconSettings className='h-4 w-4' />
+          </Button>
+          <Tooltip.Content>Extension settings</Tooltip.Content>
+        </Tooltip>
+      </ButtonGroup>
+      <ActivityLogCurrentObject
+        currentObject={currentObject}
+        onStatusUpdate={showStatus}
+      />
+      <NavigateToCopiedObject
+        ref={navigateToCopiedRef}
+        isDomoPage={isDomoPage}
+        currentInstance={currentInstance}
+      />
+      {(currentObject?.typeId === 'PAGE' ||
+        currentObject?.typeId === 'DATA_APP_VIEW') && (
+        <GetPages
+          currentObject={currentObject}
+          currentInstance={currentInstance}
+          onStatusUpdate={showStatus}
+          isDisabled={!isDomoPage}
+        />
+      )}
+      {currentObject?.typeId === 'DATAFLOW_TYPE' && (
+        <UpdateDataflowDetails
+          onStatusUpdate={showStatus}
+          currentObject={currentObject}
+        />
+      )}
+
+      <div className='relative min-h-[5rem] w-full'>
         <div
           className={`transition-all duration-300 ease-in-out ${
             statusBar.visible

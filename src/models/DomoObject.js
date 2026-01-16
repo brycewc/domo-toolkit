@@ -78,18 +78,19 @@ export class DomoObject {
 
   /**
    * Get the parent ID for this object and enrich metadata with parent details
+   * @param {boolean} [inPageContext=false] - Whether already in page context (skip executeInPage)
    * @returns {Promise<string>} The parent ID
    * @throws {Error} If the parent cannot be fetched or is not supported
    */
-  async getParent() {
+  async getParent(inPageContext = false) {
     let parentId;
 
     switch (this.objectType.id) {
       case 'DATA_APP_VIEW':
-        parentId = await getAppStudioPageParent(this.id);
+        parentId = await getAppStudioPageParent(this.id, inPageContext);
         break;
       case 'DRILL_PATH':
-        parentId = await getDrillParentCardId(this.id);
+        parentId = await getDrillParentCardId(this.id, inPageContext);
         break;
       default:
         throw new Error(
@@ -112,49 +113,58 @@ export class DomoObject {
           // Fetch parent details using its API configuration
           const { method, endpoint, pathToName } = parentType.api;
 
-          const parentDetails = await executeInPage(
-            async (
-              endpoint,
+          const fetchParentDetails = async (
+            endpoint,
+            method,
+            pathToName,
+            parentId,
+            parentTypeId,
+            parentTypeName
+          ) => {
+            const url = `/api${endpoint}`.replace('{id}', parentId);
+            const options = {
               method,
-              pathToName,
-              parentId,
-              parentTypeId,
-              parentTypeName
-            ) => {
-              const url = `/api${endpoint}`.replace('{id}', parentId);
-              const options = {
+              credentials: 'include'
+            };
+
+            const response = await fetch(url, options);
+
+            if (!response.ok) {
+              throw new Error(`HTTP ${response.status}`);
+            }
+
+            const data = await response.json();
+            const name = pathToName
+              .split('.')
+              .reduce((current, prop) => current?.[prop], data);
+
+            return {
+              id: parentId,
+              type: parentTypeId,
+              typeName: parentTypeName,
+              name: name,
+              details: data
+            };
+          };
+
+          // If already in page context, execute directly; otherwise use executeInPage
+          const parentDetails = inPageContext
+            ? await fetchParentDetails(
+                endpoint,
                 method,
-                credentials: 'include'
-              };
-
-              const response = await fetch(url, options);
-
-              if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
-              }
-
-              const data = await response.json();
-              const name = pathToName
-                .split('.')
-                .reduce((current, prop) => current?.[prop], data);
-
-              return {
-                id: parentId,
-                type: parentTypeId,
-                typeName: parentTypeName,
-                name: name,
-                details: data
-              };
-            },
-            [
-              endpoint,
-              method,
-              pathToName,
-              parentId,
-              parentTypeId,
-              parentTypeName
-            ]
-          );
+                pathToName,
+                parentId,
+                parentTypeId,
+                parentTypeName
+              )
+            : await executeInPage(fetchParentDetails, [
+                endpoint,
+                method,
+                pathToName,
+                parentId,
+                parentTypeId,
+                parentTypeName
+              ]);
 
           // Store parent details in metadata
           this.metadata.parent = parentDetails;

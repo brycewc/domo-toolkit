@@ -181,6 +181,26 @@ export async function detectAndFetchObject(objectId) {
         // If we fetched parent details, include them in metadata
         if (tempObject?.metadata?.parent) {
           metadata.parent = tempObject.metadata.parent;
+        } else if (typeConfig.parents && typeConfig.parents.length > 0) {
+          // If the object type has parents and we haven't fetched them yet, try to get the parent
+          try {
+            if (!tempObject) {
+              tempObject = new DomoObject(typeConfig.id, objectId, baseUrl);
+            }
+            const parentId = await tempObject.getParent();
+            if (parentId && tempObject.metadata?.parent) {
+              metadata.parent = tempObject.metadata.parent;
+              console.log(
+                `Fetched parent for ${typeConfig.id} ${objectId}: ${parentId}`
+              );
+            }
+          } catch (parentError) {
+            // Parent fetch is optional, so just log and continue
+            console.log(
+              `Could not fetch optional parent for ${typeConfig.id} ${objectId}:`,
+              parentError.message
+            );
+          }
         }
 
         const domoObject = new DomoObject(

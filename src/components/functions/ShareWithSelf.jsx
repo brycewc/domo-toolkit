@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Button, Chip, Spinner, Tooltip } from '@heroui/react';
 import { shareWithSelf } from '@/services';
+import { IconUserPlus } from '@tabler/icons-react';
 
 /**
  * ShareWithSelf component - Shares the current object with the current user
@@ -90,21 +91,16 @@ export function ShareWithSelf({ currentObject, onStatusUpdate, isDisabled }) {
       <Button
         onPress={handleShare}
         isDisabled={buttonDisabled}
-        size='sm'
-        color='accent'
-        className='w-full'
+        fullWidth
+        isIconOnly
       >
         {isSharing ? (
-          <>
-            <Spinner size='sm' color='white' />
-            Sharing...
-          </>
+          <Spinner size='sm' color='white' />
         ) : (
-          'Share with Self'
+          <IconUserPlus className='h-4 w-4' />
         )}
       </Button>
-      <Tooltip.Content showArrow placement='top'>
-        <Tooltip.Arrow />
+      <Tooltip.Content>
         {currentObject?.typeId === 'DATA_SOURCE' ? (
           <div className='flex items-center gap-2'>
             <span>
