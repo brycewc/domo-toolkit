@@ -12,6 +12,7 @@ import {
   ClearCookies,
   ContextFooter,
   DeleteCurrentObject,
+  FilterActivityLog,
   GetPages,
   NavigateToCopiedObject,
   StatusBar,
@@ -19,7 +20,7 @@ import {
   ShareWithSelf
 } from '@/components';
 import './App.css';
-import { IconClipboard, IconSettings, IconStar } from '@tabler/icons-react';
+import { IconClipboard, IconSettings } from '@tabler/icons-react';
 
 export default function App() {
   // Apply theme
@@ -60,9 +61,11 @@ export default function App() {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (tabs[0]?.id && tabs[0]?.url) {
         // Check if current page is a Domo instance
+        let isDomo = false;
         try {
           const url = new URL(tabs[0].url);
-          setIsDomoPage(url.hostname.includes('domo.com'));
+          isDomo = url.hostname.endsWith('.domo.com');
+          setIsDomoPage(isDomo);
         } catch (error) {
           setIsDomoPage(false);
         }
@@ -224,9 +227,13 @@ export default function App() {
           <Tooltip.Content>Extension settings</Tooltip.Content>
         </Tooltip>
       </ButtonGroup>
-      <ActivityLogCurrentObject
+      {/* <ActivityLogCurrentObject
         currentObject={currentObject}
         onStatusUpdate={showStatus}
+      /> */}
+      <FilterActivityLog
+        currentObject={currentObject}
+        // isDisabled={!isDomoPage}
       />
       <NavigateToCopiedObject
         ref={navigateToCopiedRef}

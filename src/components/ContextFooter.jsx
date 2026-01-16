@@ -32,11 +32,14 @@ export function ContextFooter({
             <Alert.Description>
               {isDomoPage ? (
                 <div className='flex flex-col gap-1'>
-                  {isLoading ||
-                  !currentInstance ||
-                  !currentObject?.objectType ||
-                  !currentObject?.id ? (
+                  {isLoading ? (
                     <Spinner size='sm' color='accent' />
+                  ) : !currentInstance ||
+                    !currentObject?.objectType ||
+                    !currentObject?.id ? (
+                    <span className='text-sm text-muted'>
+                      No object detected on this page
+                    </span>
                   ) : (
                     <>
                       <Chip color='accent' variant='soft' className='w-fit'>
