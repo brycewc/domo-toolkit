@@ -82,9 +82,21 @@ export default function App() {
             setIsLoadingCurrentObject(false);
           }
         );
+        // Load initial currentInstance from storage
+        // Only set instance state if we're on a Domo page
+        getCurrentInstance().then((instance) => {
+          if (isDomo) {
+            setCurrentInstance(instance);
+          } else {
+            // Clear instance if not on a Domo page
+            setCurrentInstance(null);
+          }
+        });
       } else {
         // No active tab, stop loading
         setIsLoadingCurrentObject(false);
+        setIsDomoPage(false);
+        setCurrentInstance(null);
       }
     });
 
@@ -105,7 +117,25 @@ export default function App() {
 
     // Listen for current instance changes
     const cleanupInstanceListener = onCurrentInstanceChange((instance) => {
-      setCurrentInstance(instance);
+      // Verify we're still on a Domo page before updating instance
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs[0]?.url) {
+          try {
+            const url = new URL(tabs[0].url);
+            const isDomo = url.hostname.endsWith('.domo.com');
+            if (isDomo) {
+              setCurrentInstance(instance);
+              setIsDomoPage(true);
+            } else {
+              setCurrentInstance(null);
+              setIsDomoPage(false);
+            }
+          } catch (error) {
+            setCurrentInstance(null);
+            setIsDomoPage(false);
+          }
+        }
+      });
     });
 
     // Cleanup listeners on unmount
