@@ -8,6 +8,7 @@
 export const EXCLUDED_HOSTNAMES = [
   'domo.com',
   'www.domo.com',
+  'embed.domo.com',
   'community-forums.domo.com',
   'domo-support.domo.com',
   'ai.domo.com',
