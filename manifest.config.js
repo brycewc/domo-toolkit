@@ -16,7 +16,8 @@ export default defineManifest({
     'activeTab',
     'clipboardRead',
     'clipboardWrite',
-    'cookies'
+    'cookies',
+    'webNavigation'
   ],
   host_permissions: ['https://*.domo.com/*'],
   action: {

@@ -1,40 +1,10 @@
 import {
   EXCLUDED_HOSTNAMES,
-  getCurrentObject,
   applyFaviconRules,
-  applyInstanceLogoAuto,
-  watchPageTitle
+  applyInstanceLogoAuto
 } from '@/utils';
 
-// Track current domain to detect domain changes
-let currentDomain = location.hostname;
-
-// Track visited Domo instances
-async function trackDomoInstances() {
-  if (
-    location.hostname.includes('domo.com') &&
-    !EXCLUDED_HOSTNAMES.includes(location.hostname)
-  ) {
-    // Extract subdomain (e.g., 'mycompany' from 'mycompany.domo.com') as instance
-    const instance = location.hostname.replace('.domo.com', '');
-    const result = await chrome.storage.sync.get(['visitedDomoInstances']);
-    const visited = result.visitedDomoInstances || [];
-
-    // Add instance if not already in list
-    if (!visited.includes(instance)) {
-      const updated = [...visited, instance].sort();
-      await chrome.storage.sync.set({ visitedDomoInstances: updated });
-    }
-
-    // Store the current instance
-    await chrome.storage.local.set({ currentDomoInstance: instance });
-  } else {
-    // Not on a Domo domain, clear current instance
-    await chrome.storage.local.set({ currentDomoInstance: null });
-  }
-}
-
-// Apply favicon rules on page load
+// Apply favicon rules - called by service worker
 async function applyFavicon() {
   try {
     const result = await chrome.storage.sync.get(['faviconRules']);
@@ -50,71 +20,20 @@ async function applyFavicon() {
   }
 }
 
-// Initialize all features on page load
-function initializeContentScript() {
-  trackDomoInstances();
-  applyFavicon();
-  getCurrentObject();
-}
-
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initializeContentScript);
-} else {
-  initializeContentScript();
-}
-
-// Track instance when tab becomes visible (handles tab switching)
-document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) {
-    trackDomoInstances();
-  }
-});
-
-// Start watching for page title changes
-watchPageTitle();
-
-// Listen for storage changes to update favicon when rules change
-chrome.storage.onChanged.addListener((changes, areaName) => {
-  if (areaName === 'sync' && changes.faviconRules) {
-    console.log('Favicon rules changed, reapplying...');
+// Listen for messages from service worker
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === 'APPLY_FAVICON') {
     applyFavicon();
+    sendResponse({ success: true });
+    return true;
   }
 });
 
-// Watch for domain changes (for SPAs or navigation)
-function checkDomainChange() {
-  if (location.hostname !== currentDomain) {
-    currentDomain = location.hostname;
-    console.log('Domain changed, applying favicon:', currentDomain);
-    applyFavicon();
-  }
-}
+// NOTE: URL change detection and instance tracking are handled by service worker
+// Card modal detection requires DOM access, so we handle it here
 
-// Check for domain changes periodically (for SPAs)
-setInterval(checkDomainChange, 1000);
-
-// Listen for navigation events (when user navigates to a new domain)
-window.addEventListener('beforeunload', () => {
-  // Reset domain tracking when navigating away
-  currentDomain = null;
-});
-
-// Also check on popstate (back/forward navigation)
-window.addEventListener('popstate', () => {
-  checkDomainChange();
-});
-
-// Re-detect when URL changes (for SPAs)
-let objectUrl = location.href;
+// Track last detected card modal ID to avoid redundant detections
 let lastDetectedCardId = null;
-
-const urlCheckInterval = setInterval(() => {
-  if (location.href !== objectUrl) {
-    objectUrl = location.href;
-    console.log('URL changed, re-detecting object type');
-    getCurrentObject();
-  }
-}, 1000);
 
 // Extract card ID from modal element ID (format: card-details-modal-{cardId})
 function extractCardIdFromModal() {
@@ -126,6 +45,20 @@ function extractCardIdFromModal() {
     }
   }
   return null;
+}
+
+// Send message to service worker to trigger context re-detection
+function triggerContextRedetection() {
+  chrome.runtime
+    .sendMessage({
+      type: 'DETECT_CONTEXT'
+    })
+    .catch((error) => {
+      console.error(
+        '[ContentScript] Error triggering context re-detection:',
+        error
+      );
+    });
 }
 
 // Watch for card modal element being added or removed
@@ -150,9 +83,12 @@ function checkForCardModalElement(mutations) {
             if (modalElement) {
               const cardId = extractCardIdFromModal();
               if (cardId && cardId !== lastDetectedCardId) {
-                console.log('Card modal detected with ID:', cardId);
+                console.log(
+                  '[ContentScript] Card modal detected with ID:',
+                  cardId
+                );
                 lastDetectedCardId = cardId;
-                getCurrentObject();
+                triggerContextRedetection();
               }
               return;
             }
@@ -178,10 +114,12 @@ function checkForCardModalElement(mutations) {
             }
 
             if (wasModal) {
-              console.log('Card modal element removed from DOM');
+              console.log(
+                '[ContentScript] Card modal element removed from DOM'
+              );
               if (lastDetectedCardId) {
                 lastDetectedCardId = null;
-                getCurrentObject();
+                triggerContextRedetection();
               }
               return;
             }
@@ -193,26 +131,14 @@ function checkForCardModalElement(mutations) {
 }
 
 // Set up MutationObserver to watch for modal changes
-const observer = new MutationObserver((mutations) => {
+const modalObserver = new MutationObserver((mutations) => {
   checkForCardModalElement(mutations);
 });
 
 // Start observing the document for modal changes
-observer.observe(document.body, {
+modalObserver.observe(document.body, {
   childList: true,
   subtree: true
-});
-
-// Listen for messages from popup/background
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === 'getObjectType') {
-    // Re-detect and update when popup requests it
-    getCurrentObject().then((domoObject) => {
-      sendResponse(domoObject);
-    });
-    return true; // Keep message channel open for async response
-  }
-  return true;
 });
 
 // Check for pending activity log filter on page load

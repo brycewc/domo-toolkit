@@ -1,15 +1,13 @@
 export {
-	getCurrentObject,
-	fetchCurrentObjectAsDomoObject,
-	detectCardModal,
-	onCurrentObjectChange
+  getCurrentObject,
+  detectCardModal,
+  detectCurrentObjectInPage
 } from './currentObject';
 export {
-	applyFaviconRules,
-	applyInstanceLogoAuto,
-	clearFaviconCache
+  applyFaviconRules,
+  applyInstanceLogoAuto,
+  clearFaviconCache
 } from './faviconModifier';
 export { getCurrentInstance, onCurrentInstanceChange } from './currentInstance';
 export { executeInPage } from './executeInPage';
 export { EXCLUDED_HOSTNAMES, EXCLUDED_INSTANCES } from './constants';
-export { updatePageTitle, watchPageTitle } from './pageTitle';

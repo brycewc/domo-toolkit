@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useTheme } from '@/hooks';
-import { DataTableExample, DataListExample, GetPagesView } from '@/components';
+import {
+  DataTableExample,
+  DataListExample,
+  GetPagesView,
+  ActionButtons
+} from '@/components';
 import './App.css';
 
 export default function App() {
@@ -8,6 +13,10 @@ export default function App() {
   useTheme();
 
   const [activeView, setActiveView] = useState('default');
+  const [lockedTabId, setLockedTabId] = useState(null); // Ephemeral lock for specific tab context
+  const [currentObject, setCurrentObject] = useState(null);
+  const [currentInstance, setCurrentInstance] = useState(null);
+  const [currentTabId, setCurrentTabId] = useState(null);
 
   // Listen for storage changes to detect when sidepanel data is set
   useEffect(() => {
@@ -16,6 +25,10 @@ export default function App() {
         const data = changes.sidepanelDataList.newValue;
         if (data?.type === 'getPages') {
           setActiveView('getPages');
+          // Lock to the tab that triggered this view
+          if (data.tabId) {
+            setLockedTabId(data.tabId);
+          }
         }
       }
     };
@@ -29,6 +42,9 @@ export default function App() {
         const age = Date.now() - (result.sidepanelDataList.timestamp || 0);
         if (age < 10000 && result.sidepanelDataList.type === 'getPages') {
           setActiveView('getPages');
+          if (result.sidepanelDataList.tabId) {
+            setLockedTabId(result.sidepanelDataList.tabId);
+          }
         }
       }
     });
@@ -38,19 +54,52 @@ export default function App() {
     };
   }, []);
 
+  // Fetch context on mount and when lock changes
+  useEffect(() => {
+    async function fetchContext() {
+      try {
+        const window = lockedTabId ? null : await chrome.windows.getCurrent();
+
+        const response = await chrome.runtime.sendMessage({
+          type: 'GET_TAB_CONTEXT',
+          ...(lockedTabId ? { tabId: lockedTabId } : { windowId: window.id })
+        });
+
+        if (response.success && response.context) {
+          const context = response.context;
+          setCurrentObject(context.domoObject);
+          setCurrentInstance(context.instance);
+          if (!lockedTabId) {
+            setCurrentTabId(context.tabId);
+          }
+        }
+      } catch (error) {
+        console.error('[Sidepanel] Error fetching context:', error);
+      }
+    }
+
+    fetchContext();
+  }, [lockedTabId]);
+
   // Render the appropriate view
   if (activeView === 'getPages') {
     return (
       <div className='flex min-h-screen w-full flex-col items-center gap-2 p-2'>
-        <GetPagesView />
+        <GetPagesView lockedTabId={lockedTabId} />
       </div>
     );
   }
 
   return (
     <div className='flex min-h-screen w-full flex-col items-center gap-2 p-2'>
-      {/* <DataTableExample />
-      <DataListExample /> */}
+      <ActionButtons
+        currentObject={currentObject}
+        currentInstance={currentInstance}
+        showStatus={(title, description, status, timeout) => {
+          // TODO: Implement status bar for sidepanel
+          console.log(`[Sidepanel] ${title}: ${description}`);
+        }}
+      />
     </div>
   );
 }
