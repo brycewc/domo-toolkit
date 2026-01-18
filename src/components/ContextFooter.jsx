@@ -1,12 +1,7 @@
 import { Alert, Chip, Spinner, Tooltip } from '@heroui/react';
 import { IconBoltOff } from '@tabler/icons-react';
 
-export function ContextFooter({
-  isDomoPage,
-  currentInstance,
-  currentObject,
-  isLoading
-}) {
+export function ContextFooter({ isDomoPage, currentContext, isLoading }) {
   return (
     <Tooltip isDisabled={!isDomoPage} delay={400} closeDelay={0}>
       <Tooltip.Trigger>
@@ -23,7 +18,9 @@ export function ContextFooter({
               {isDomoPage ? (
                 <>
                   Current Context:{' '}
-                  <span className='underline'>{currentInstance}.domo.com</span>
+                  <span className='underline'>
+                    {currentContext?.instance}.domo.com
+                  </span>
                 </>
               ) : (
                 'Not a Domo Instance'
@@ -34,21 +31,22 @@ export function ContextFooter({
                 <div className='flex flex-col gap-1'>
                   {isLoading ? (
                     <Spinner size='sm' color='accent' />
-                  ) : !currentInstance ||
-                    !currentObject?.objectType ||
-                    !currentObject?.id ? (
+                  ) : !currentContext?.instance ||
+                    !currentContext?.domoObject?.id ? (
                     <span className='text-sm text-muted'>
                       No object detected on this page
                     </span>
                   ) : (
                     <>
                       <Chip color='accent' variant='soft' className='w-fit'>
-                        {currentObject.typeName}
+                        {currentContext.domoObject.typeName}
                         {' ('}
-                        {currentObject.typeId}
+                        {currentContext.domoObject.typeId}
                         {')'}
                       </Chip>
-                      <span className='text-sm'>ID: {currentObject.id}</span>
+                      <span className='text-sm'>
+                        ID: {currentContext.domoObject.id}
+                      </span>
                     </>
                   )}
                 </div>

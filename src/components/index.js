@@ -1,5 +1,6 @@
 export { ActionButtons } from './ActionButtons';
 export { ActivityLogSettings } from './ActivityLogSettings';
+export { ActivityLogTable } from './ActivityLogTable';
 export { AppSettings } from './AppSettings';
 export { ContextFooter } from './ContextFooter';
 export { DataList } from './DataList';

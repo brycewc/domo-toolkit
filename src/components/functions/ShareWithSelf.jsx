@@ -7,7 +7,7 @@ import { IconUserPlus } from '@tabler/icons-react';
  * ShareWithSelf component - Shares the current object with the current user
  * Supports: DATA_SOURCE (accounts), PAGE, DATA_APP, DATA_APP_VIEW, and APP (custom app designs)
  */
-export function ShareWithSelf({ currentObject, onStatusUpdate, isDisabled }) {
+export function ShareWithSelf({ currentContext, onStatusUpdate, isDisabled }) {
   const [isSharing, setIsSharing] = useState(false);
 
   const handleShare = async () => {
@@ -15,7 +15,11 @@ export function ShareWithSelf({ currentObject, onStatusUpdate, isDisabled }) {
 
     try {
       // Validate current object
-      if (!currentObject || !currentObject.id || !currentObject.typeId) {
+      if (
+        !currentContext?.domoObject ||
+        !currentContext.domoObject.id ||
+        !currentContext.domoObject.typeId
+      ) {
         onStatusUpdate?.(
           'No Object Detected',
           'Please navigate to a valid Domo object and try again',
@@ -33,10 +37,10 @@ export function ShareWithSelf({ currentObject, onStatusUpdate, isDisabled }) {
         'DATA_APP_VIEW',
         'APP'
       ];
-      if (!supportedTypes.includes(currentObject.typeId)) {
+      if (!supportedTypes.includes(currentContext.domoObject.typeId)) {
         onStatusUpdate?.(
           'Unsupported Object Type',
-          `Share with Self is not supported for ${currentObject.typeName}. Supported types: DataSet, Page, Studio App, App Studio Page, Custom App Design.`,
+          `Share with Self is not supported for ${currentContext.domoObject.typeName}. Supported types: DataSet, Page, Studio App, App Studio Page, Custom App Design.`,
           'danger'
         );
         setIsSharing(false);
@@ -44,8 +48,8 @@ export function ShareWithSelf({ currentObject, onStatusUpdate, isDisabled }) {
       }
 
       // For DATA_SOURCE, verify we have the accountId in metadata
-      if (currentObject.typeId === 'DATA_SOURCE') {
-        if (!currentObject.metadata?.details?.accountId) {
+      if (currentContext.domoObject.typeId === 'DATA_SOURCE') {
+        if (!currentContext.domoObject.metadata?.details?.accountId) {
           onStatusUpdate?.(
             'Missing Account Information',
             'DataSet account information not found. Please refresh and try again.',
@@ -58,7 +62,7 @@ export function ShareWithSelf({ currentObject, onStatusUpdate, isDisabled }) {
 
       // Call the shareWithSelf service function
       await shareWithSelf({
-        object: currentObject,
+        object: currentContext.domoObject,
         setStatus: onStatusUpdate
       });
     } catch (error) {
@@ -82,9 +86,10 @@ export function ShareWithSelf({ currentObject, onStatusUpdate, isDisabled }) {
     'APP'
   ];
   const isSupportedType =
-    currentObject?.typeId && supportedTypes.includes(currentObject.typeId);
+    currentContext?.domoObject?.typeId &&
+    supportedTypes.includes(currentContext.domoObject.typeId);
   const buttonDisabled =
-    isDisabled || isSharing || !currentObject || !isSupportedType;
+    isDisabled || isSharing || !currentContext?.domoObject || !isSupportedType;
 
   return (
     <Tooltip delay={200} closeDelay={0} disabled={!buttonDisabled}>
@@ -101,10 +106,11 @@ export function ShareWithSelf({ currentObject, onStatusUpdate, isDisabled }) {
         )}
       </Button>
       <Tooltip.Content>
-        {currentObject?.typeId === 'DATA_SOURCE' ? (
+        {currentContext?.domoObject?.typeId === 'DATA_SOURCE' ? (
           <div className='flex items-center gap-2'>
             <span>
-              Share account {currentObject?.metadata?.details?.accountId || ''}{' '}
+              Share account{' '}
+              {currentContext?.domoObject?.metadata?.details?.accountId || ''}{' '}
               with yourself
             </span>
             <Chip size='sm' variant='soft' color='accent'>
@@ -113,9 +119,9 @@ export function ShareWithSelf({ currentObject, onStatusUpdate, isDisabled }) {
           </div>
         ) : (
           <div className='flex items-center gap-2'>
-            <span>Share {currentObject?.name} with yourself</span>
+            <span>Share {currentContext?.domoObject?.name} with yourself</span>
             <Chip size='sm' variant='soft' color='accent'>
-              {`${currentObject?.typeName} (${currentObject?.typeId})`}
+              {`${currentContext?.domoObject?.typeName} (${currentContext?.domoObject?.typeId})`}
             </Chip>
           </div>
         )}

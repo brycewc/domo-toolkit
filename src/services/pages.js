@@ -268,7 +268,7 @@ export async function getPagesForCards(cardIds) {
           if (Array.isArray(card.adminAllPages)) {
             card.adminAllPages.forEach((page) => {
               if (page && page.id) {
-                allPageIds.push(String(page.id));
+                allPageIds.push(page.id);
               }
             });
           }
@@ -276,7 +276,7 @@ export async function getPagesForCards(cardIds) {
           if (Array.isArray(card.adminAllAppPages)) {
             card.adminAllAppPages.forEach((page) => {
               if (page && page.id) {
-                allAppPageIds.push(String(page.id));
+                allAppPageIds.push(page.id);
               }
             });
           }
@@ -284,45 +284,35 @@ export async function getPagesForCards(cardIds) {
           if (Array.isArray(card.adminAllReportPages)) {
             card.adminAllReportPages.forEach((page) => {
               if (page && page.id) {
-                allReportPageIds.push(String(page.id));
+                allReportPageIds.push(page.id);
               }
             });
           }
         });
 
         // Deduplicate page IDs for each type
-        const uniquePageIds = [...new Set(allPageIds)];
-        const uniqueAppPageIds = [...new Set(allAppPageIds)];
-        const uniqueReportPageIds = [...new Set(allReportPageIds)];
+        const pageIds = [...new Set(allPageIds)];
+        const appPageIds = [...new Set(allAppPageIds)];
+        const reportPageIds = [...new Set(allReportPageIds)];
 
-        // Combine all page IDs and object types (parallel arrays)
-        const pageIds = [];
-        const objectTypes = [];
-
-        if (uniquePageIds.length) {
-          pageIds.push(...uniquePageIds);
-          objectTypes.push(...Array(uniquePageIds.length).fill('PAGE'));
-        }
-        if (uniqueAppPageIds.length) {
-          pageIds.push(...uniqueAppPageIds);
-          objectTypes.push(
-            ...Array(uniqueAppPageIds.length).fill('DATA_APP_VIEW')
-          );
-        }
-        if (uniqueReportPageIds.length) {
-          pageIds.push(...uniqueReportPageIds);
-          objectTypes.push(
-            ...Array(uniqueReportPageIds.length).fill('REPORT_BUILDER_PAGE')
-          );
-        }
-
-        if (!pageIds.length) {
-          throw new Error('Cards are not used on any pages.');
-        }
+        // Combine all page types into array of objects
+        const pageObjects = [
+          ...pageIds.map((id) => ({
+            objectType: 'PAGE',
+            objectId: String(id)
+          })),
+          ...appPageIds.map((id) => ({
+            objectType: 'DATA_APP_VIEW',
+            objectId: String(id)
+          })),
+          ...reportPageIds.map((id) => ({
+            objectType: 'REPORT_BUILDER_VIEW',
+            objectId: String(id)
+          }))
+        ];
 
         return {
-          pageIds,
-          objectTypes
+          pageObjects
         };
       },
       [cardIds]

@@ -7,11 +7,9 @@ export default function App() {
   // Apply theme
   useTheme();
 
-  const [currentObject, setCurrentObject] = useState(null);
-  const [currentInstance, setCurrentInstance] = useState(null);
+  const [currentContext, setCurrentContext] = useState(null);
   const [isDomoPage, setIsDomoPage] = useState(false);
-  const [isLoadingCurrentObject, setIsLoadingCurrentObject] = useState(true);
-  const [currentTabId, setCurrentTabId] = useState(null);
+  const [isLoadingCurrentContext, setIsLoadingCurrentContext] = useState(true);
 
   useEffect(() => {
     // Get current window and request context from service worker
@@ -25,31 +23,27 @@ export default function App() {
 
         if (response.success && response.context) {
           // Response contains DomoContext
-          const context = response.context;
-          setCurrentObject(context.domoObject);
-          setCurrentInstance(context.instance);
-          setCurrentTabId(context.tabId);
+          setCurrentContext(response.context);
           setIsDomoPage(true);
         } else {
-          setCurrentObject(null);
+          setCurrentContext(null);
           setIsDomoPage(false);
         }
       } catch (error) {
         console.error('[Popup] Error getting tab context:', error);
-        setCurrentObject(null);
+        setCurrentContext(null);
         setIsDomoPage(false);
       } finally {
-        setIsLoadingCurrentObject(false);
+        setIsLoadingCurrentContext(false);
       }
     });
   }, []);
 
   return (
     <ActionButtons
-      currentObject={currentObject}
-      currentInstance={currentInstance}
+      currentContext={currentContext}
       isDomoPage={isDomoPage}
-      isLoadingCurrentObject={isLoadingCurrentObject}
+      isLoadingCurrentContext={isLoadingCurrentContext}
     />
   );
 }

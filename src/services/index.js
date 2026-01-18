@@ -1,3 +1,4 @@
+export { getActivityLogEvents, getActivityLogForObject } from './activityLog';
 export {
   fetchObjectDetails,
   detectAndFetchObject,

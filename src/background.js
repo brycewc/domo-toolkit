@@ -166,6 +166,98 @@ chrome.runtime.onInstalled.addListener((details) => {
 // Restore contexts on service worker startup
 restoreFromSession();
 
+// Track last clipboard value to detect changes
+let lastClipboardValue = '';
+
+/**
+ * Check clipboard and notify listeners if it contains a valid Domo object ID
+ * Note: Reading clipboard requires document focus, which may not be available when popup is open
+ * This function will attempt to read, but may return cached value from session storage if read fails
+ */
+async function checkClipboard() {
+  try {
+    // Service workers can't directly access navigator.clipboard
+    // We need to execute in an active tab context
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tabs || tabs.length === 0) {
+      console.log('[Background] No active tab found for clipboard check');
+      // Return cached value from session storage if available
+      const cached = await chrome.storage.session.get(['lastClipboardValue']);
+      return cached.lastClipboardValue || null;
+    }
+
+    const tabId = tabs[0].id;
+    const tabUrl = tabs[0].url;
+
+    console.log(`[Background] Checking clipboard in tab ${tabId}`, tabs[0]);
+
+    // Execute clipboard read in the tab's context
+    // Note: This may fail if the tab doesn't have focus (e.g., when popup is open)
+    try {
+      const results = await chrome.scripting.executeScript({
+        target: { tabId },
+        func: async () => {
+          try {
+            // Try to read clipboard - this requires the document to have focus
+            const text = await navigator.clipboard.readText();
+            return { success: true, text };
+          } catch (err) {
+            // If clipboard read fails (usually due to focus), return error
+            return { success: false, error: err.message };
+          }
+        },
+        world: 'MAIN'
+      });
+
+      console.log('[Background] Clipboard check results:', results);
+      const result = results?.[0]?.result;
+
+      if (result?.success && result?.text) {
+        const clipboardText = result.text;
+
+        // Cache in session storage for later retrieval
+        await chrome.storage.session.set({ lastClipboardValue: clipboardText });
+
+        // Only send CLIPBOARD_UPDATED message if the value has changed
+        if (clipboardText !== lastClipboardValue) {
+          lastClipboardValue = clipboardText;
+
+          // Notify all extension contexts (popup, sidepanel) about clipboard change
+          chrome.runtime
+            .sendMessage({
+              type: 'CLIPBOARD_UPDATED',
+              clipboardData: clipboardText
+            })
+            .catch(() => {
+              // No listeners, that's fine
+            });
+        }
+
+        return clipboardText;
+      } else {
+        console.log(
+          '[Background] Clipboard read failed, using cached value:',
+          result?.error
+        );
+        // Return cached value from session storage
+        const cached = await chrome.storage.session.get(['lastClipboardValue']);
+        return cached.lastClipboardValue || null;
+      }
+    } catch (execError) {
+      console.log(
+        '[Background] Execute script failed, using cached value:',
+        execError
+      );
+      // Return cached value from session storage
+      const cached = await chrome.storage.session.get(['lastClipboardValue']);
+      return cached.lastClipboardValue || null;
+    }
+  } catch (error) {
+    console.error('[Background] Error checking clipboard:', error);
+    return null;
+  }
+}
+
 // Clean up when tabs are closed
 chrome.tabs.onRemoved.addListener((tabId) => {
   console.log(`[Background] Tab ${tabId} removed, cleaning up context`);
@@ -282,6 +374,14 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
   }
 });
 
+// Listen for keyboard commands
+chrome.commands.onCommand.addListener((command) => {
+  if (command === 'check_clipboard') {
+    console.log('[Background] Keyboard command triggered: check_clipboard');
+    checkClipboard();
+  }
+});
+
 /**
  * Detect and store context for a specific tab
  * Injects detection script into page and enriches with API data
@@ -379,7 +479,7 @@ async function detectAndStoreContext(tabId) {
  * Fetch object details via API in page context
  */
 async function fetchObjectDetailsForTab(tabId, apiConfig, objectId) {
-  const { method, endpoint, bodyTemplate } = apiConfig;
+  const { method, endpoint, bodyTemplate = null } = apiConfig;
 
   const results = await chrome.scripting.executeScript({
     target: { tabId },
@@ -462,6 +562,46 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           }
           const context = await detectAndStoreContext(targetTabId);
           sendResponse({ success: true, context });
+          break;
+        }
+
+        case 'CHECK_CLIPBOARD': {
+          // Check clipboard and return current value
+          console.log('[Background] CHECK_CLIPBOARD message received');
+          const clipboardData = await checkClipboard();
+          console.log('[Background] Returning clipboard data:', clipboardData);
+          sendResponse({ success: true, clipboardData });
+          break;
+        }
+
+        case 'CLIPBOARD_COPIED': {
+          // Content script detected a copy event and read the clipboard
+          const { clipboardData } = message;
+          console.log('[Background] CLIPBOARD_COPIED received:', clipboardData);
+
+          if (clipboardData) {
+            // Cache in session storage
+            await chrome.storage.session.set({
+              lastClipboardValue: clipboardData
+            });
+
+            // Update in-memory value and notify if changed
+            if (clipboardData !== lastClipboardValue) {
+              lastClipboardValue = clipboardData;
+
+              // Notify all extension contexts about clipboard change
+              chrome.runtime
+                .sendMessage({
+                  type: 'CLIPBOARD_UPDATED',
+                  clipboardData: clipboardData
+                })
+                .catch(() => {
+                  // No listeners, that's fine
+                });
+            }
+          }
+
+          sendResponse({ success: true });
           break;
         }
 

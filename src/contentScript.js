@@ -29,6 +29,49 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
+// Track last known clipboard value to detect changes
+let lastKnownClipboard = '';
+
+// Helper function to check and cache clipboard
+async function checkAndCacheClipboard() {
+  try {
+    const clipboardText = await navigator.clipboard.readText();
+
+    // Only send if clipboard has changed
+    if (clipboardText !== lastKnownClipboard) {
+      lastKnownClipboard = clipboardText;
+
+      // Send to background script to cache
+      chrome.runtime
+        .sendMessage({
+          type: 'CLIPBOARD_COPIED',
+          clipboardData: clipboardText
+        })
+        .catch((err) => {
+          console.log('[ContentScript] Error sending clipboard data:', err);
+        });
+    }
+  } catch (error) {
+    // Clipboard read might fail, that's okay
+    console.log('[ContentScript] Could not read clipboard:', error);
+  }
+}
+
+// Listen for copy events to cache clipboard contents
+document.addEventListener('copy', async () => {
+  // Wait a brief moment for clipboard to be populated
+  setTimeout(async () => {
+    await checkAndCacheClipboard();
+  }, 100);
+});
+
+// Listen for window focus to detect when user returns to tab
+// This handles the case where user copied from another application
+window.addEventListener('focus', async () => {
+  console.log('[ContentScript] Window gained focus, checking clipboard');
+  await checkAndCacheClipboard();
+});
+
 // NOTE: URL change detection and instance tracking are handled by service worker
 // Card modal detection requires DOM access, so we handle it here
 

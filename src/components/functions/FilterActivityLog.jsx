@@ -5,7 +5,7 @@ import { IconFilter } from '@tabler/icons-react';
  * FilterActivityLog - Navigate to activity log page and auto-filter by object type
  * Opens /admin/logging in a new tab and filters by the current object's type
  */
-export function FilterActivityLog({ currentObject, isDisabled }) {
+export function FilterActivityLog({ currentContext, isDisabled }) {
   const handleFilter = async () => {
     try {
       // Get the current tab to extract the instance URL
@@ -52,14 +52,14 @@ export function FilterActivityLog({ currentObject, isDisabled }) {
       }
 
       // Normal flow - navigate to logging page
-      if (!currentObject?.typeName) {
+      if (!currentContext?.domoObject?.typeName) {
         console.error('[FilterActivityLog] No current object or typeName');
         return;
       }
 
       console.log(
         '[FilterActivityLog] Opening /admin/logging and filtering by:',
-        currentObject.typeName
+        currentContext.domoObject.typeName
       );
 
       // Extract the instance domain (e.g., customer.domo.com)
@@ -70,9 +70,11 @@ export function FilterActivityLog({ currentObject, isDisabled }) {
       // Store the filter value in local storage to be picked up by content script
       await chrome.storage.local.set({
         activityLogFilter: {
-          typeName: currentObject.typeName,
-          objectId: currentObject.id,
-          objectName: currentObject.metadata.name,
+          typeName: currentContext.domoObject.typeName,
+          objectId: currentContext.domoObject.id,
+          objectName:
+            currentContext.domoObject.metadata?.name ||
+            currentContext.domoObject.id,
           timestamp: Date.now()
         }
       });

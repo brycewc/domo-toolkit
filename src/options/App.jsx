@@ -43,17 +43,17 @@ export default function App() {
         onSelectionChange={handleTabChange}
       >
         <Tabs.ListContainer>
-          <Tabs.List aria-label='Vertical tabs'>
+          <Tabs.List>
             <Tabs.Tab id='favicon'>
               Favicon
               <Tabs.Indicator />
             </Tabs.Tab>
-            {/* <Tabs.Tab id='activity'>
-							Activity Log
-							<Tabs.Indicator />
-						</Tabs.Tab> */}
             <Tabs.Tab id='settings'>
               Settings
+              <Tabs.Indicator />
+            </Tabs.Tab>
+            <Tabs.Tab id='activity-log'>
+              Activity Log
               <Tabs.Indicator />
             </Tabs.Tab>
           </Tabs.List>
@@ -68,16 +68,6 @@ export default function App() {
           </div>
           <FaviconSettings />
         </Tabs.Panel>
-        {/* <Tabs.Panel className='flex flex-col items-start px-4' id='activity'>
-					<div className='justify-start w-full'>
-						<h3 className='mb-2 text-lg font-semibold'>Activity Log Setup</h3>
-						<p className='text-sm text-muted'>
-							Configure saved card information for activity log related
-							functions.
-						</p>
-					</div>
-					<ActivityLogSettings />
-				</Tabs.Panel> */}
         <Tabs.Panel className='flex flex-col items-start px-4' id='settings'>
           <div className='w-full justify-start'>
             <h3 className='mb-2 text-lg font-semibold'>App Settings</h3>
@@ -86,6 +76,21 @@ export default function App() {
             </p>
           </div>
           <AppSettings theme={theme} />
+        </Tabs.Panel>
+        <Tabs.Panel className='flex flex-col items-start px-4' id='activity'>
+          {activityLogData && domoTabId ? (
+            <ActivityLogTable />
+          ) : (
+            <Alert color='accent'>
+              <Alert.Content>
+                <Alert.Title>Activity Log</Alert.Title>
+                <Alert.Description>
+                  To view activity log, navigate to a Domo object and click
+                  "View Activity Log" in the popup.
+                </Alert.Description>
+              </Alert.Content>
+            </Alert>
+          )}
         </Tabs.Panel>
       </Tabs>
     </div>

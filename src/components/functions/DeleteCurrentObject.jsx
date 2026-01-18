@@ -2,7 +2,7 @@ import { Button, Chip, Tooltip } from '@heroui/react';
 import { IconTrash } from '@tabler/icons-react';
 
 export function DeleteCurrentObject({
-  currentObject,
+  currentContext,
   onStatusUpdate,
   isDisabled
 }) {
@@ -18,17 +18,17 @@ export function DeleteCurrentObject({
             'warning'
           );
         }}
-        isDisabled={isDisabled || !currentObject}
+        isDisabled={isDisabled || !currentContext?.domoObject}
         isIconOnly
       >
         <IconTrash className='h-4 w-4' />
       </Button>
       <Tooltip.Content>
-        <span>Delete {currentObject?.metadata?.name || ''}</span>
+        <span>Delete {currentContext?.domoObject?.metadata?.name || ''}</span>
         <Chip size='sm' variant='soft' color='accent'>
-          {currentObject?.metadata?.parent
-            ? `${currentObject?.metadata.parent.typeName} > ${currentObject?.typeName}`
-            : `${currentObject?.typeName} (${currentObject?.typeId})`}
+          {currentContext?.domoObject?.metadata?.parent
+            ? `${currentContext.domoObject.metadata.parent.typeName} > ${currentContext.domoObject.typeName}`
+            : `${currentContext?.domoObject?.typeName} (${currentContext?.domoObject?.typeId})`}
         </Chip>
       </Tooltip.Content>
     </Tooltip>

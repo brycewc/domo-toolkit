@@ -15,8 +15,7 @@ import {
 import { IconClipboard, IconSettings } from '@tabler/icons-react';
 
 export function ActionButtons({
-  currentObject,
-  currentInstance,
+  currentContext,
   isDomoPage,
   isLoadingCurrentObject
 }) {
@@ -47,17 +46,19 @@ export function ActionButtons({
       <ButtonGroup fullWidth>
         <Tooltip delay={400} closeDelay={0}>
           <Button
-            isDisabled={!isDomoPage || !currentObject?.id}
+            isDisabled={!isDomoPage || !currentContext?.domoObject?.id}
             onPress={() => {
-              navigator.clipboard.writeText(currentObject?.id);
+              navigator.clipboard.writeText(currentContext?.domoObject?.id);
               showStatus(
-                `Copied ${currentObject?.typeName} ID ${currentObject?.id} to clipboard`,
+                `Copied ${currentContext?.domoObject?.typeName} ID ${currentContext?.domoObject?.id} to clipboard`,
                 '',
                 'success',
                 1500
               );
               // Trigger detection in NavigateToCopiedObject
-              navigateToCopiedRef.current?.triggerDetection(currentObject?.id);
+              navigateToCopiedRef.current?.triggerDetection(
+                currentContext?.domoObject?.id
+              );
             }}
             isIconOnly
           >
@@ -67,13 +68,13 @@ export function ActionButtons({
         </Tooltip>
 
         <ShareWithSelf
-          currentObject={currentObject}
+          currentContext={currentContext}
           onStatusUpdate={showStatus}
           isDisabled={!isDomoPage}
         />
         <ClearCookies onStatusUpdate={showStatus} isDisabled={!isDomoPage} />
         <DeleteCurrentObject
-          currentObject={currentObject}
+          currentContext={currentContext}
           onStatusUpdate={showStatus}
           isDisabled={!isDomoPage}
         />
@@ -89,32 +90,31 @@ export function ActionButtons({
           <Tooltip.Content>Extension settings</Tooltip.Content>
         </Tooltip>
       </ButtonGroup>
-      {/* <ActivityLogCurrentObject
-        currentObject={currentObject}
+      <ActivityLogCurrentObject
+        currentContext={currentContext}
         onStatusUpdate={showStatus}
-      /> */}
-      <FilterActivityLog
-        currentObject={currentObject}
-        // isDisabled={!isDomoPage}
       />
+      {/* <FilterActivityLog
+        currentContext={currentContext}
+        // isDisabled={!isDomoPage}
+      /> */}
       <NavigateToCopiedObject
         ref={navigateToCopiedRef}
         isDomoPage={isDomoPage}
-        currentInstance={currentInstance}
+        currentContext={currentContext}
       />
-      {(currentObject?.typeId === 'PAGE' ||
-        currentObject?.typeId === 'DATA_APP_VIEW') && (
+      {(currentContext?.domoObject?.typeId === 'PAGE' ||
+        currentContext?.domoObject?.typeId === 'DATA_APP_VIEW') && (
         <GetPages
-          currentObject={currentObject}
-          currentInstance={currentInstance}
+          currentContext={currentContext}
           onStatusUpdate={showStatus}
           isDisabled={!isDomoPage}
         />
       )}
-      {currentObject?.typeId === 'DATAFLOW_TYPE' && (
+      {currentContext?.domoObject?.typeId === 'DATAFLOW_TYPE' && (
         <UpdateDataflowDetails
+          currentContext={currentContext}
           onStatusUpdate={showStatus}
-          currentObject={currentObject}
         />
       )}
 
@@ -128,8 +128,7 @@ export function ActionButtons({
         >
           <ContextFooter
             isDomoPage={isDomoPage}
-            currentInstance={currentInstance}
-            currentObject={currentObject}
+            currentContext={currentContext}
             isLoading={isLoadingCurrentObject}
           />
         </div>

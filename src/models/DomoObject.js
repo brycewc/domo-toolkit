@@ -27,7 +27,7 @@ export class DomoObject {
     if (!this.objectType.hasUrl()) {
       // For types without URLs, we can't navigate
       this.url = null;
-    } else if (this.requiresParent()) {
+    } else if (this.requiresParentForUrl()) {
       // For types requiring a parent, don't build URL yet (it's async)
       this.url = null;
     } else {
@@ -61,11 +61,19 @@ export class DomoObject {
   }
 
   /**
-   * Check if this object type requires a parent ID
-   * @returns {boolean} Whether a parent ID is required
+   * Check if this object type requires a parent ID for URL construction
+   * @returns {boolean} Whether a parent ID is required for URL construction
    */
-  requiresParent() {
-    return this.objectType.requiresParent();
+  requiresParentForUrl() {
+    return this.objectType.requiresParentForUrl();
+  }
+
+  /**
+   * Check if this object type requires a parent ID for API calls
+   * @returns {boolean} Whether a parent ID is required for API calls
+   */
+  requiresParentForApi() {
+    return this.objectType.requiresParentForApi();
   }
 
   /**
@@ -185,7 +193,7 @@ export class DomoObject {
    * @returns {Promise<string>} The full URL
    */
   async buildUrl(baseUrl) {
-    if (this.requiresParent()) {
+    if (this.requiresParentForUrl()) {
       const parentId = await this.getParent();
       console.log(
         `Building URL for ${this.typeName} ${this.id} with parent ${parentId}`

@@ -10,7 +10,7 @@ import {
 } from '@heroui/react';
 import { updateDataflowDetails } from '@/services';
 
-export function UpdateDataflowDetails({ onStatusUpdate, currentObject }) {
+export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -19,10 +19,12 @@ export function UpdateDataflowDetails({ onStatusUpdate, currentObject }) {
   // Initialize form values when modal opens
   useEffect(() => {
     if (isOpen) {
-      setName(currentObject?.metadata?.details?.name || '');
-      setDescription(currentObject?.metadata?.details?.description || '');
+      setName(currentContext?.domoObject?.metadata?.details?.name || '');
+      setDescription(
+        currentContext?.domoObject?.metadata?.details?.description || ''
+      );
     }
-  }, [isOpen, currentObject]);
+  }, [isOpen, currentContext?.domoObject]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -45,7 +47,7 @@ export function UpdateDataflowDetails({ onStatusUpdate, currentObject }) {
     setIsSubmitting(true);
 
     try {
-      await updateDataflowDetails(currentObject?.id, updates);
+      await updateDataflowDetails(currentContext?.domoObject?.id, updates);
 
       // Refresh the page immediately to show the changes
       const [tab] = await chrome.tabs.query({
@@ -81,7 +83,7 @@ export function UpdateDataflowDetails({ onStatusUpdate, currentObject }) {
       <Button
         className='w-full'
         variant='primary'
-        isDisabled={currentObject.typeId !== 'DATAFLOW_TYPE'}
+        isDisabled={currentContext?.domoObject.typeId !== 'DATAFLOW_TYPE'}
       >
         Update DataFlow Details
       </Button>

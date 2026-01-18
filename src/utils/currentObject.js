@@ -14,10 +14,23 @@ async function fetchAndEnrichObjectDetails(domoObject) {
   }
 
   const { method, endpoint, pathToName, bodyTemplate } = objectType.api;
-
+  let url;
   try {
     // Build the endpoint URL
-    let url = `/api${endpoint}`.replace('{id}', domoObject.id);
+    if (objectType.requiresParentForApi()) {
+      // Need to fetch parent ID first
+      const parentId = await domoObject.getParent();
+      if (!parentId) {
+        throw new Error(
+          `Cannot fetch details for ${domoObject.typeId} ${domoObject.id} because parent ID could not be determined`
+        );
+      }
+      // Replace {parent} in endpoint
+      url = endpoint.replace('{parent}', parentId);
+      url = `/api${url.replace('{id}', domoObject.id)}`;
+    } else {
+      url = `/api${endpoint}`.replace('{id}', domoObject.id);
+    }
 
     // Prepare fetch options
     const options = {
@@ -31,6 +44,9 @@ async function fetchAndEnrichObjectDetails(domoObject) {
         /{id}/g,
         domoObject.id
       );
+      if (parentId) {
+        options.body = options.body.replace(/{parent}/g, parentId);
+      }
       options.headers = {
         'Content-Type': 'application/json'
       };
@@ -47,11 +63,6 @@ async function fetchAndEnrichObjectDetails(domoObject) {
 
     const data = await response.json();
 
-    // Extract the full object data and store in metadata
-    const details = pathToName
-      .split('.')
-      .reduce((current, prop) => current?.[prop.split('[')[0]], data);
-
     // Store the full response data in metadata.details
     domoObject.metadata.details = data;
     domoObject.metadata.name = pathToName
@@ -59,10 +70,9 @@ async function fetchAndEnrichObjectDetails(domoObject) {
       .reduce((current, prop) => current?.[prop], data);
 
     // If the object type has parents, try to fetch the parent
-    // Note: We're already in page context (content script), so pass inPageContext=true
     if (objectType.parents && objectType.parents.length > 0) {
       try {
-        const parentId = await domoObject.getParent(true);
+        const parentId = await domoObject.getParent(false);
         if (parentId && domoObject.metadata?.parent) {
           console.log(
             `Fetched parent for ${domoObject.typeId} ${domoObject.id}: ${parentId}`

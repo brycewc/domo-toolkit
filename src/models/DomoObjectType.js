@@ -55,11 +55,25 @@ export class DomoObjectType {
   }
 
   /**
-   * Check if this object type requires a parent ID
-   * @returns {boolean} Whether a parent ID is required
+   * Check if this object type requires a parent ID for URL construction
+   * @returns {boolean} Whether a parent ID is required for URL construction
    */
-  requiresParent() {
+  requiresParentForUrl() {
     return this.urlPath && this.urlPath.includes('{parent}');
+  }
+
+  /**
+   * Check if this object type requires a parent ID for API calls
+   * @returns {boolean} Whether a parent ID is required for API calls
+   */
+  requiresParentForApi() {
+    return (
+      this.api &&
+      this.api.endpoint &&
+      (this.api.endpoint.includes('{parent}') ||
+        (this.api.bodyTemplate &&
+          JSON.stringify(this.api.bodyTemplate).includes('{parent}')))
+    );
   }
 
   /**
