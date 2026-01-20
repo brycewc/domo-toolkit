@@ -1,0 +1,92 @@
+@import 'tailwindcss';
+@import '@heroui/styles';
+/*
+ * HeroUI Theme Customization
+ * Add this to your global.css after importing @heroui/styles
+ * Only includes base variables from variables.css
+ * @see https://v3.heroui.com/docs/react/getting-started/theming
+ */
+
+:root,
+.light,
+.default,
+[data-theme="light"],
+[data-theme="default"] {
+  /* Theme Colors (Light Mode) */
+  --domo: oklch(82.1% 0.072 237.954);
+  --field-blank: oklch(94.5% 0.005 247.879);
+  --accent: oklch(62.04% 0.1950 253.83);
+  --accent-foreground: oklch(99.11% 0 0);
+  --background: oklch(97.02% 0.0098 253.83);
+  --border: oklch(90.00% 0.0098 253.83);
+  --danger: oklch(65.32% 0.2373 25.74);
+  --danger-foreground: oklch(99.11% 0 0);
+  --default: oklch(94.00% 0.0098 253.83);
+  --default-foreground: oklch(21.03% 0.0059 253.83);
+  --field-background: oklch(100.00% 0.0049 253.83);
+  --field-foreground: oklch(21.03% 0.0059 253.83);
+  --field-placeholder: oklch(55.17% 0.0195 253.83);
+  --focus: oklch(62.04% 0.1950 253.83);
+  --foreground: oklch(21.03% 0.0059 253.83);
+  --muted: oklch(55.17% 0.0195 253.83);
+  --overlay: oklch(100.00% 0.0029 253.83);
+  --overlay-foreground: oklch(21.03% 0.0059 253.83);
+  --scrollbar: oklch(87.10% 0.0098 253.83);
+  --segment: oklch(100.00% 0.0098 253.83);
+  --segment-foreground: oklch(21.03% 0.0059 253.83);
+  --separator: oklch(92.00% 0.0098 253.83);
+  --success: oklch(73.29% 0.1973 150.81);
+  --success-foreground: oklch(21.03% 0.0059 150.81);
+  --surface: oklch(100.00% 0.0049 253.83);
+  --surface-foreground: oklch(21.03% 0.0059 253.83);
+  --warning: oklch(78.19% 0.1616 72.33);
+  --warning-foreground: oklch(21.03% 0.0059 72.33);
+
+  /* Border Radius */
+  --radius: 3px;
+  --field-radius: 6px;
+
+  /* Font Family */
+  /* Make sure to load Open Sans font in your app */
+  --font-sans: "Open Sans", sans-serif;
+}
+
+.dark,
+[data-theme="dark"] {
+  color-scheme: dark;
+  /* Theme Colors (Dark Mode) */
+  --domo: oklch(82.1% 0.072 237.954);
+  --field-blank: oklch(26.5% 0.018 251.935);
+  --accent: oklch(62.04% 0.1950 253.83);
+  --accent-foreground: oklch(99.11% 0 0);
+  --background: oklch(12.00% 0.0098 253.83);
+  --border: oklch(28.00% 0.0098 253.83);
+  --danger: oklch(59.40% 0.2005 24.63);
+  --danger-foreground: oklch(99.11% 0 0);
+  --default: oklch(27.40% 0.0098 253.83);
+  --default-foreground: oklch(99.11% 0 0);
+  --field-background: oklch(21.03% 0.0195 253.83);
+  --field-foreground: oklch(99.11% 0.0000 0.00);
+  --field-placeholder: oklch(70.50% 0.0195 253.83);
+  --focus: oklch(62.04% 0.1950 253.83);
+  --foreground: oklch(99.11% 0.0000 0.00);
+  --muted: oklch(70.50% 0.0195 253.83);
+  --overlay: oklch(21.03% 0.0195 253.83);
+  --overlay-foreground: oklch(99.11% 0.0000 0.00);
+  --scrollbar: oklch(70.50% 0.0098 253.83);
+  --segment: oklch(39.64% 0.0098 253.83);
+  --segment-foreground: oklch(99.11% 0.0000 0.00);
+  --separator: oklch(25.00% 0.0098 253.83);
+  --success: oklch(73.29% 0.1973 150.81);
+  --success-foreground: oklch(21.03% 0.0059 150.81);
+  --surface: oklch(21.03% 0.0195 253.83);
+  --surface-foreground: oklch(99.11% 0.0000 0.00);
+  --warning: oklch(82.03% 0.1415 76.34);
+  --warning-foreground: oklch(21.03% 0.0059 76.34);
+}
+
+/* Make the color available to Tailwind */
+@theme inline {
+  --color-domo: var(--domo);
+  --color-field-blank: var(--field-blank);
+}

@@ -7,7 +7,6 @@ import {
   ActionButtons
 } from '@/components';
 import { DomoContext } from '@/models';
-import './App.css';
 
 export default function App() {
   // Apply theme

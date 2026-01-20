@@ -401,7 +401,8 @@ async function detectAndStoreContext(tabId) {
 
     if (!results || !results[0] || !results[0].result) {
       console.log(`[Background] No Domo object detected on tab ${tabId}`);
-      setTabContext(tabId, null);
+      const context = new DomoContext(tabId, tab.url, null);
+      setTabContext(tabId, context);
       return null;
     }
 

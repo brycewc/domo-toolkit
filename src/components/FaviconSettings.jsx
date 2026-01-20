@@ -143,7 +143,7 @@ export function FaviconSettings() {
   };
 
   return (
-    <div className='flex w-full flex-col justify-between pt-4'>
+    <div className='flex w-full flex-col justify-between pt-4 min-h-[calc(100vh-20)] h-full'>
       <div className='flex w-full flex-col gap-4'>
         <Form className='flex w-full flex-col gap-4' onSubmit={onSave}>
           {isLoading ? (
@@ -237,8 +237,8 @@ export function FaviconSettings() {
                       <Button
                         className={
                           rule.effect === 'instance-logo'
-                            ? 'select__trigger--on-surface w-full'
-                            : 'w-full'
+                            ? 'bg-field-blank'
+                            : ''
                         }
                         style={
                           rule.effect !== 'instance-logo'
@@ -251,6 +251,7 @@ export function FaviconSettings() {
                             : undefined
                         }
                         isDisabled={rule.effect === 'instance-logo'}
+                        fullWidth
                       />
                       <Popover.Content>
                         <ColorPicker

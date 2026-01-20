@@ -7,7 +7,6 @@ import {
   FaviconSettings,
   AppSettings
 } from '@/components';
-import './App.css';
 
 export default function App() {
   // Apply theme

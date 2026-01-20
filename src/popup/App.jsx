@@ -2,14 +2,13 @@ import { useEffect, useState } from 'react';
 import { useTheme } from '@/hooks';
 import { ActionButtons } from '@/components';
 import { DomoContext } from '@/models';
-import './App.css';
 
 export default function App() {
   // Apply theme
   useTheme();
 
   const [currentContext, setCurrentContext] = useState(null);
-  const [isDomoPage, setIsDomoPage] = useState(false);
+  const [isDomoPage, setIsDomoPage] = useState(true);
   const [isLoadingCurrentContext, setIsLoadingCurrentContext] = useState(true);
 
   useEffect(() => {
@@ -43,10 +42,12 @@ export default function App() {
   }, []);
 
   return (
-    <ActionButtons
-      currentContext={currentContext}
-      isDomoPage={isDomoPage}
-      isLoadingCurrentContext={isLoadingCurrentContext}
-    />
+    <div className='h-full min-h-36 w-full min-w-xs'>
+      <ActionButtons
+        currentContext={currentContext}
+        isDomoPage={isDomoPage}
+        isLoadingCurrentContext={isLoadingCurrentContext}
+      />
+    </div>
   );
 }
