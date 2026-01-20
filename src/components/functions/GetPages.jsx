@@ -1,12 +1,7 @@
 import { useState } from 'react';
 import { Button } from '@heroui/react';
 
-export function GetPages({
-  currentObject,
-  currentInstance,
-  onStatusUpdate,
-  isDisabled
-}) {
+export function GetPages({ currentContext, onStatusUpdate, isDisabled }) {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleGetPages = async () => {
@@ -14,7 +9,7 @@ export function GetPages({
 
     try {
       // Validate we have a current object and it's a page type
-      if (!currentObject) {
+      if (!currentContext?.domoObject) {
         onStatusUpdate?.(
           'No Page Detected',
           'Please navigate to a Domo page and try again',
@@ -25,11 +20,11 @@ export function GetPages({
       }
 
       // Check if the current object is a page type
-      const pageType = currentObject.typeId;
+      const pageType = currentContext.domoObject.typeId;
       if (pageType !== 'PAGE' && pageType !== 'DATA_APP_VIEW') {
         onStatusUpdate?.(
           'Invalid Object Type',
-          `This function only works on pages. Current object is: ${currentObject.typeName}`,
+          `This function only works on pages. Current object is: ${currentContext.domoObject.typeName}`,
           'danger'
         );
         setIsLoading(false);
@@ -48,13 +43,15 @@ export function GetPages({
         return;
       }
 
-      const pageId = parseInt(currentObject.id);
-      const pageName = currentObject.metadata?.name || 'Unknown Page';
+      const pageId = parseInt(currentContext.domoObject.id);
+      const pageName =
+        currentContext.domoObject.metadata?.name || 'Unknown Page';
 
       // Get appId from metadata for app studio pages
       const appId =
-        pageType === 'DATA_APP_VIEW' && currentObject.metadata?.parent?.id
-          ? parseInt(currentObject.metadata.parent.id)
+        pageType === 'DATA_APP_VIEW' &&
+        currentContext.domoObject.metadata?.parent?.id
+          ? parseInt(currentContext.domoObject.metadata.parent.id)
           : null;
 
       // Store the page information for the sidepanel to use
@@ -65,7 +62,7 @@ export function GetPages({
           appId,
           pageType,
           pageName,
-          currentInstance,
+          currentInstance: currentContext.instance,
           timestamp: Date.now()
         }
       });

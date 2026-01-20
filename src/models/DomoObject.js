@@ -27,7 +27,7 @@ export class DomoObject {
     if (!this.objectType.hasUrl()) {
       // For types without URLs, we can't navigate
       this.url = null;
-    } else if (this.requiresParent()) {
+    } else if (this.requiresParentForUrl()) {
       // For types requiring a parent, don't build URL yet (it's async)
       this.url = null;
     } else {
@@ -61,11 +61,19 @@ export class DomoObject {
   }
 
   /**
-   * Check if this object type requires a parent ID
-   * @returns {boolean} Whether a parent ID is required
+   * Check if this object type requires a parent ID for URL construction
+   * @returns {boolean} Whether a parent ID is required for URL construction
    */
-  requiresParent() {
-    return this.objectType.requiresParent();
+  requiresParentForUrl() {
+    return this.objectType.requiresParentForUrl();
+  }
+
+  /**
+   * Check if this object type requires a parent ID for API calls
+   * @returns {boolean} Whether a parent ID is required for API calls
+   */
+  requiresParentForApi() {
+    return this.objectType.requiresParentForApi();
   }
 
   /**
@@ -78,18 +86,19 @@ export class DomoObject {
 
   /**
    * Get the parent ID for this object and enrich metadata with parent details
+   * @param {boolean} [inPageContext=false] - Whether already in page context (skip executeInPage)
    * @returns {Promise<string>} The parent ID
    * @throws {Error} If the parent cannot be fetched or is not supported
    */
-  async getParent() {
+  async getParent(inPageContext = false) {
     let parentId;
 
     switch (this.objectType.id) {
       case 'DATA_APP_VIEW':
-        parentId = await getAppStudioPageParent(this.id);
+        parentId = await getAppStudioPageParent(this.id, inPageContext);
         break;
       case 'DRILL_PATH':
-        parentId = await getDrillParentCardId(this.id);
+        parentId = await getDrillParentCardId(this.id, inPageContext);
         break;
       default:
         throw new Error(
@@ -112,49 +121,60 @@ export class DomoObject {
           // Fetch parent details using its API configuration
           const { method, endpoint, pathToName } = parentType.api;
 
-          const parentDetails = await executeInPage(
-            async (
-              endpoint,
+          const fetchParentDetails = async (
+            endpoint,
+            method,
+            pathToName,
+            parentId,
+            parentTypeId,
+            parentTypeName
+          ) => {
+            const url = `/api${endpoint}`.replace('{id}', parentId);
+            const options = {
               method,
-              pathToName,
-              parentId,
-              parentTypeId,
-              parentTypeName
-            ) => {
-              const url = `/api${endpoint}`.replace('{id}', parentId);
-              const options = {
+              credentials: 'include'
+            };
+
+            const response = await fetch(url, options);
+
+            if (!response.ok) {
+              throw new Error(`HTTP ${response.status}`);
+            }
+
+            const data = await response.json();
+            const name = pathToName
+              .split('.')
+              .reduce((current, prop) => current?.[prop], data);
+
+            return {
+              id: parentId,
+              objectType: {
+                id: parentTypeId,
+                name: parentTypeName
+              },
+              name: name,
+              details: data
+            };
+          };
+
+          // If already in page context, execute directly; otherwise use executeInPage
+          const parentDetails = inPageContext
+            ? await fetchParentDetails(
+                endpoint,
                 method,
-                credentials: 'include'
-              };
-
-              const response = await fetch(url, options);
-
-              if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
-              }
-
-              const data = await response.json();
-              const name = pathToName
-                .split('.')
-                .reduce((current, prop) => current?.[prop], data);
-
-              return {
-                id: parentId,
-                type: parentTypeId,
-                typeName: parentTypeName,
-                name: name,
-                details: data
-              };
-            },
-            [
-              endpoint,
-              method,
-              pathToName,
-              parentId,
-              parentTypeId,
-              parentTypeName
-            ]
-          );
+                pathToName,
+                parentId,
+                parentTypeId,
+                parentTypeName
+              )
+            : await executeInPage(fetchParentDetails, [
+                endpoint,
+                method,
+                pathToName,
+                parentId,
+                parentTypeId,
+                parentTypeName
+              ]);
 
           // Store parent details in metadata
           this.metadata.parent = parentDetails;
@@ -170,13 +190,41 @@ export class DomoObject {
   }
 
   /**
+   * Get the parent ID for this object using a specific tab ID
+   * @param {number} tabId - The Chrome tab ID to execute the lookup in
+   * @returns {Promise<string>} The parent ID
+   * @throws {Error} If the parent cannot be fetched or is not supported
+   */
+  async getParentWithTabId(tabId) {
+    let parentId;
+
+    switch (this.objectType.id) {
+      case 'DATA_APP_VIEW':
+        parentId = await getAppStudioPageParent(this.id, false, tabId);
+        break;
+      case 'DRILL_PATH':
+        parentId = await getDrillParentCardId(this.id, false, tabId);
+        break;
+      default:
+        throw new Error(
+          `Parent lookup not supported for type: ${this.objectType.id}`
+        );
+    }
+
+    return parentId;
+  }
+
+  /**
    * Build the full URL for this object
    * @param {string} baseUrl - The base URL (e.g., https://instance.domo.com)
+   * @param {number} [tabId] - Optional Chrome tab ID for parent lookups
    * @returns {Promise<string>} The full URL
    */
-  async buildUrl(baseUrl) {
-    if (this.requiresParent()) {
-      const parentId = await this.getParent();
+  async buildUrl(baseUrl, tabId = null) {
+    if (this.requiresParentForUrl()) {
+      const parentId = tabId
+        ? await this.getParentWithTabId(tabId)
+        : await this.getParent();
       console.log(
         `Building URL for ${this.typeName} ${this.id} with parent ${parentId}`
       );
@@ -197,5 +245,48 @@ export class DomoObject {
     }
     const url = this.url || (await this.buildUrl(this.baseUrl));
     await chrome.tabs.create({ url });
+  }
+
+  /**
+   * Serialize to plain object for message passing
+   * @returns {Object}
+   */
+  toJSON() {
+    return {
+      id: this.id,
+      baseUrl: this.baseUrl,
+      metadata: this.metadata,
+      url: this.url,
+      objectType: {
+        id: this.objectType.id,
+        name: this.objectType.name,
+        urlPath: this.objectType.urlPath,
+        parents: this.objectType.parents
+      }
+    };
+  }
+
+  /**
+   * Deserialize from plain object to DomoObject instance
+   * @param {Object} data - Plain object representation
+   * @returns {DomoObject}
+   */
+  static fromJSON(data) {
+    if (!data) return null;
+
+    // Create instance using the objectType.id
+    const instance = new DomoObject(
+      data.objectType.id,
+      data.id,
+      data.baseUrl,
+      data.metadata || {}
+    );
+
+    // Restore the URL if it was already built
+    if (data.url !== undefined) {
+      instance.url = data.url;
+    }
+
+    return instance;
   }
 }

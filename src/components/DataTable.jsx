@@ -1,3 +1,4 @@
+import { useState, useMemo, useRef, useEffect } from 'react';
 import {
   flexRender,
   getCoreRowModel,
@@ -6,25 +7,20 @@ import {
   getSortedRowModel,
   useReactTable
 } from '@tanstack/react-table';
-import { useState, useMemo } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   Button,
   ButtonGroup,
   Card,
   Checkbox,
+  Chip,
   Dropdown,
-  Input,
   Label,
   IconChevronDown,
   IconChevronRight,
   SearchField
 } from '@heroui/react';
-import {
-  IconFilter,
-  IconColumns,
-  IconPlus,
-  IconSearch
-} from '@tabler/icons-react';
+import { IconFilter, IconColumns, IconPlus } from '@tabler/icons-react';
 
 /**
  * DataTable Component
@@ -36,7 +32,7 @@ import {
  * - Column visibility toggle
  * - Multi-row selection
  * - Pagination with customizable page size
- * - Status filtering
+ * - Action filtering
  * - Responsive design with Tailwind CSS
  *
  * @param {Object} props
@@ -46,6 +42,10 @@ import {
  * @param {Function} props.onRowAction - Callback when row action is selected
  * @param {String} props.searchPlaceholder - Placeholder text for search input
  * @param {String} props.entityName - Name of entity (e.g., "users", "items")
+ * @param {Boolean} props.enableSelection - Enable row selection checkboxes (default: true)
+ * @param {Object} props.initialColumnVisibility - Initial column visibility state
+ * @param {Boolean} props.enableSearch - Enable search field (default: true)
+ * @param {React.ReactNode} props.customFilters - Custom filter components to render
  */
 export function DataTable({
   columns = [],
@@ -53,117 +53,119 @@ export function DataTable({
   onAdd,
   onRowAction,
   searchPlaceholder = 'Search...',
-  entityName = 'items'
+  entityName = 'items',
+  initialSorting = [],
+  initialColumnVisibility = {},
+  enableSelection = true,
+  enableSearch = true,
+  onLoadMore,
+  customFilters = null
 }) {
-  const [sorting, setSorting] = useState([]);
+  const [sorting, setSorting] = useState(initialSorting);
   const [columnFilters, setColumnFilters] = useState([]);
-  const [columnVisibility, setColumnVisibility] = useState({});
+  const [columnVisibility, setColumnVisibility] = useState(
+    initialColumnVisibility
+  );
   const [rowSelection, setRowSelection] = useState({});
   const [globalFilter, setGlobalFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState(new Set());
-  const [pagination, setPagination] = useState({
-    pageIndex: 0,
-    pageSize: 5
-  });
 
-  // Filter data by status if status filter is active
-  const filteredData = useMemo(() => {
-    if (statusFilter.size === 0) return data;
-    return data.filter((row) => {
-      if (!row.status) return true;
-      return statusFilter.has(row.status.toLowerCase());
-    });
-  }, [data, statusFilter]);
+  const tableContainerRef = useRef(null);
 
   const table = useReactTable({
-    data: filteredData,
+    data,
     columns,
     state: {
       sorting,
       columnFilters,
       columnVisibility,
       rowSelection,
-      globalFilter,
-      pagination
+      globalFilter
     },
-    enableRowSelection: true,
+    enableRowSelection: enableSelection,
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     onGlobalFilterChange: setGlobalFilter,
-    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel()
   });
 
-  const selectedCount = Object.keys(rowSelection).length;
-  const totalCount = filteredData.length;
+  const { rows } = table.getRowModel();
 
-  // Get unique status values for filter
-  const statusOptions = useMemo(() => {
-    const statuses = new Set();
-    data.forEach((row) => {
-      if (row.status) statuses.add(row.status.toLowerCase());
-    });
-    return Array.from(statuses);
-  }, [data]);
+  const rowVirtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => tableContainerRef?.current,
+    estimateSize: () => 53, // Estimated row height in pixels
+    overscan: 10, // Number of rows to render outside of the visible area
+    measureElement: (element) => element?.getBoundingClientRect().height
+  });
+
+  // Trigger onLoadMore when scrolling near the end
+  useEffect(() => {
+    const scrollElement = tableContainerRef.current;
+    if (!scrollElement || !onLoadMore) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = scrollElement;
+      const scrollPercentage = (scrollTop + clientHeight) / scrollHeight;
+
+      // Load more when scrolled 80% down
+      if (scrollPercentage > 0.8) {
+        onLoadMore();
+      }
+    };
+
+    scrollElement.addEventListener('scroll', handleScroll);
+    return () => scrollElement.removeEventListener('scroll', handleScroll);
+  }, [onLoadMore]);
+
+  const selectedCount = Object.keys(rowSelection).length;
+  const totalCount = data.length;
+
+  // Check if there's a select column (checkbox column)
+  const hasSelectColumn = useMemo(() => {
+    return table.getAllColumns().some((column) => column.id === 'select');
+  }, [table]);
 
   // Get all column IDs that can be toggled
   const toggleableColumns = table
     .getAllColumns()
     .filter((column) => column.getCanHide() && column.id !== 'select');
 
-  const handleStatusFilterChange = (keys) => {
-    setStatusFilter(keys);
-  };
-
   return (
-    <Card className='w-full space-y-2'>
+    <Card className='h-fit max-h-[calc(100vh-10rem)] w-full'>
       <Card.Header>
         {/* Top Controls Bar */}
         <div className='items-between flex flex-col justify-center gap-1 sm:flex-row sm:items-center sm:justify-between'>
-          <div className='flex items-center gap-1 sm:flex-1'>
+          <div
+            className={`flex items-center gap-1 ${
+              enableSelection && hasSelectColumn
+                ? 'flex-1'
+                : 'sm:w-full sm:justify-between'
+            }`}
+          >
             {/* Search Input */}
-            <SearchField
-              name='search'
-              value={globalFilter ?? ''}
-              onChange={setGlobalFilter}
-              fullWidth
-            >
-              <SearchField.Group className='rounded-4xl'>
-                <SearchField.SearchIcon />
-                <SearchField.Input placeholder={searchPlaceholder} />
-                <SearchField.ClearButton />
-              </SearchField.Group>
-            </SearchField>
-
-            {/* Status Filter Dropdown */}
-            {statusOptions.length > 0 && (
-              <Dropdown>
-                <Button variant='tertiary'>
-                  <IconFilter className='size-4' />
-                  Status
-                  <IconChevronDown className='size-4 text-foreground' />
-                </Button>
-                <Dropdown.Popover>
-                  <Dropdown.Menu
-                    selectionMode='multiple'
-                    selectedKeys={statusFilter}
-                    onSelectionChange={handleStatusFilterChange}
-                  >
-                    {statusOptions.map((status) => (
-                      <Dropdown.Item id={status} textValue={status}>
-                        <Dropdown.ItemIndicator />
-                        <Label className='capitalize'>{status}</Label>
-                      </Dropdown.Item>
-                    ))}
-                  </Dropdown.Menu>
-                </Dropdown.Popover>
-              </Dropdown>
+            {enableSearch && (
+              <SearchField
+                name='search'
+                value={globalFilter ?? ''}
+                onChange={setGlobalFilter}
+                fullWidth
+              >
+                <SearchField.Group className='rounded-4xl'>
+                  <SearchField.SearchIcon />
+                  <SearchField.Input placeholder={searchPlaceholder} />
+                  <SearchField.ClearButton />
+                </SearchField.Group>
+              </SearchField>
             )}
+
+            {/* Custom Filters */}
+            <div className='flex flex-row justify-start gap-1'>
+              {customFilters}
+            </div>
 
             {/* Column Visibility Dropdown */}
             <Dropdown>
@@ -204,39 +206,41 @@ export function DataTable({
 
           {/* Bulk Actions & Add New Buttons */}
           <div className='flex items-center gap-1'>
-            {/* Bulk Actions Button */}
-            <Dropdown>
-              <Button variant='secondary' isDisabled={selectedCount === 0}>
-                Actions ({selectedCount})
-                <IconChevronDown className='size-4 text-foreground' />
-              </Button>
-              <Dropdown.Popover>
-                <Dropdown.Menu
-                  onAction={(key) => {
-                    if (onRowAction) {
-                      const selectedRows = table
-                        .getFilteredSelectedRowModel()
-                        .rows.map((row) => row.original);
-                      onRowAction(key, selectedRows);
-                    }
-                  }}
-                >
-                  <Dropdown.Item id='edit' textValue='Edit'>
-                    <Label>Edit</Label>
-                  </Dropdown.Item>
-                  <Dropdown.Item id='duplicate' textValue='Duplicate'>
-                    <Label>Duplicate</Label>
-                  </Dropdown.Item>
-                  <Dropdown.Item
-                    id='delete'
-                    textValue='Delete'
-                    variant='danger'
+            {/* Bulk Actions Button - Only show if selection is enabled */}
+            {enableSelection && hasSelectColumn && (
+              <Dropdown>
+                <Button variant='secondary' isDisabled={selectedCount === 0}>
+                  Actions ({selectedCount})
+                  <IconChevronDown className='size-4 text-foreground' />
+                </Button>
+                <Dropdown.Popover>
+                  <Dropdown.Menu
+                    onAction={(key) => {
+                      if (onRowAction) {
+                        const selectedRows = table
+                          .getFilteredSelectedRowModel()
+                          .rows.map((row) => row.original);
+                        onRowAction(key, selectedRows);
+                      }
+                    }}
                   >
-                    <Label>Delete</Label>
-                  </Dropdown.Item>
-                </Dropdown.Menu>
-              </Dropdown.Popover>
-            </Dropdown>
+                    <Dropdown.Item id='edit' textValue='Edit'>
+                      <Label>Edit</Label>
+                    </Dropdown.Item>
+                    <Dropdown.Item id='duplicate' textValue='Duplicate'>
+                      <Label>Duplicate</Label>
+                    </Dropdown.Item>
+                    <Dropdown.Item
+                      id='delete'
+                      textValue='Delete'
+                      variant='danger'
+                    >
+                      <Label>Delete</Label>
+                    </Dropdown.Item>
+                  </Dropdown.Menu>
+                </Dropdown.Popover>
+              </Dropdown>
+            )}
 
             {/* Add New Button */}
             {onAdd && (
@@ -247,22 +251,24 @@ export function DataTable({
             )}
           </div>
         </div>
-        {/* Selection Count */}
-        <div className='text-sm text-muted'>
-          {selectedCount} of {totalCount} selected
-        </div>
+        {/* Selection Count - Only show if selection is enabled */}
+        {enableSelection && hasSelectColumn && (
+          <div className='text-sm text-muted'>
+            {selectedCount} of {totalCount} selected
+          </div>
+        )}
       </Card.Header>
       {/* Table */}
       <Card.Content className='overflow-hidden rounded-lg border border-default'>
-        <div className='overflow-x-auto'>
+        <div ref={tableContainerRef} className='overflow-auto'>
           <table className='w-full'>
-            <thead className='border-b-[2px] border-default'>
+            <thead className='sticky top-0 z-10 bg-background'>
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
                     <th
                       key={header.id}
-                      className='px-4 py-3 text-left text-xs font-medium tracking-wider uppercase'
+                      className='p-3 text-left text-xs font-medium tracking-wider uppercase'
                     >
                       {header.isPlaceholder ? null : (
                         <div
@@ -300,104 +306,66 @@ export function DataTable({
                 <tr>
                   <td
                     colSpan={columns.length}
-                    className='px-4 py-8 text-center text-muted'
+                    className='p-3 text-center text-muted'
                   >
                     No results found
                   </td>
                 </tr>
               ) : (
-                table.getRowModel().rows.map((row) => (
-                  <tr
-                    key={row.id}
-                    className='transition-colors hover:bg-surface/30'
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <td key={cell.id} className='px-4 py-4 whitespace-nowrap'>
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext()
-                        )}
-                      </td>
-                    ))}
-                  </tr>
-                ))
+                <>
+                  {rowVirtualizer.getVirtualItems().length > 0 && (
+                    <tr
+                      style={{
+                        height: `${rowVirtualizer.getVirtualItems()[0].start}px`
+                      }}
+                    >
+                      <td colSpan={columns.length} />
+                    </tr>
+                  )}
+                  {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                    const row = rows[virtualRow.index];
+                    return (
+                      <tr
+                        key={row.id}
+                        className={`divide-x divide-default transition-colors hover:bg-surface/30 ${
+                          virtualRow.index % 2 === 0
+                            ? 'bg-transparent'
+                            : 'bg-surface/10'
+                        }`}
+                        data-index={virtualRow.index}
+                        ref={(node) => rowVirtualizer.measureElement(node)}
+                      >
+                        {row.getVisibleCells().map((cell) => (
+                          <td key={cell.id} className='p-3'>
+                            {flexRender(
+                              cell.column.columnDef.cell,
+                              cell.getContext()
+                            )}
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  })}
+                  {rowVirtualizer.getVirtualItems().length > 0 && (
+                    <tr
+                      style={{
+                        height: `${
+                          rowVirtualizer.getTotalSize() -
+                          rowVirtualizer.getVirtualItems()[
+                            rowVirtualizer.getVirtualItems().length - 1
+                          ].end
+                        }px`
+                      }}
+                    >
+                      <td colSpan={columns.length} />
+                    </tr>
+                  )}
+                </>
               )}
             </tbody>
           </table>
         </div>
       </Card.Content>
-      {/* Pagination */}
-      <Card.Footer className='flex flex-col items-center justify-between gap-2 sm:flex-row'>
-        {/* Rows Per Page */}
-        <div className='flex items-center gap-2'>
-          <span className='text-sm text-muted'>Rows per page:</span>
-          <Dropdown>
-            <Button variant='ghost' size='sm'>
-              {table.getState().pagination.pageSize}
-              <IconChevronDown className='size-4 text-foreground' />
-            </Button>
-            <Dropdown.Popover placement='top left' className='min-w-2'>
-              <Dropdown.Menu
-                selectionMode='single'
-                selectedKeys={
-                  new Set([String(table.getState().pagination.pageSize)])
-                }
-                onSelectionChange={(keys) => {
-                  const size = Number(Array.from(keys)[0]);
-                  table.setPageSize(size);
-                }}
-              >
-                {[5, 10, 20, 50].map((pageSize) => (
-                  <Dropdown.Item
-                    id={String(pageSize)}
-                    textValue={String(pageSize)}
-                  >
-                    <Dropdown.ItemIndicator />
-                    <Label>{pageSize}</Label>
-                  </Dropdown.Item>
-                ))}
-              </Dropdown.Menu>
-            </Dropdown.Popover>
-          </Dropdown>
-        </div>
-        {/* Page Numbers */}
-        <div className='flex items-center gap-1'>
-          {Array.from({ length: table.getPageCount() }, (_, i) => i).map(
-            (pageIndex) => (
-              <Button
-                variant={
-                  pageIndex === table.getState().pagination.pageIndex
-                    ? 'primary'
-                    : 'ghost'
-                }
-                key={pageIndex}
-                onClick={() => table.setPageIndex(pageIndex)}
-                className='size-10 rounded-lg text-sm font-medium transition-colors'
-              >
-                {pageIndex + 1}
-              </Button>
-            )
-          )}
-        </div>
-
-        {/* Previous/Next Buttons */}
-        <ButtonGroup variant='tertiary' size='sm'>
-          <Button
-            onPress={() => table.previousPage()}
-            isDisabled={!table.getCanPreviousPage()}
-          >
-            <IconChevronRight className='size-4 rotate-180 text-foreground' />
-            Previous
-          </Button>
-          <Button
-            onPress={() => table.nextPage()}
-            isDisabled={!table.getCanNextPage()}
-          >
-            Next
-            <IconChevronRight className='size-4 text-foreground' />
-          </Button>
-        </ButtonGroup>
-      </Card.Footer>
     </Card>
   );
 }

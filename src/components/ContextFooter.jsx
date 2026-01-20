@@ -1,14 +1,9 @@
 import { Alert, Chip, Spinner, Tooltip } from '@heroui/react';
 import { IconBoltOff } from '@tabler/icons-react';
 
-export function ContextFooter({
-  isDomoPage,
-  currentInstance,
-  currentObject,
-  isLoading
-}) {
+export function ContextFooter({ isDomoPage, currentContext, isLoading }) {
   return (
-    <Tooltip isDisabled={!isDomoPage} delay={500} closeDelay={0}>
+    <Tooltip isDisabled={!isDomoPage} delay={400} closeDelay={0}>
       <Tooltip.Trigger>
         <Alert
           status={isDomoPage ? 'accent' : 'warning'}
@@ -18,13 +13,14 @@ export function ContextFooter({
               : 'from-bg-foreground/10 bg-linear-to-r to-warning/10'
           }
         >
-          <Alert.Indicator />
           <Alert.Content>
             <Alert.Title>
               {isDomoPage ? (
                 <>
                   Current Context:{' '}
-                  <span className='underline'>{currentInstance}.domo.com</span>
+                  <span className='underline'>
+                    {currentContext?.instance}.domo.com
+                  </span>
                 </>
               ) : (
                 'Not a Domo Instance'
@@ -33,20 +29,24 @@ export function ContextFooter({
             <Alert.Description>
               {isDomoPage ? (
                 <div className='flex flex-col gap-1'>
-                  {isLoading ||
-                  !currentInstance ||
-                  !currentObject?.objectType ||
-                  !currentObject?.id ? (
+                  {isLoading ? (
                     <Spinner size='sm' color='accent' />
+                  ) : !currentContext?.instance ||
+                    !currentContext?.domoObject?.id ? (
+                    <span className='text-sm text-muted'>
+                      No object detected on this page
+                    </span>
                   ) : (
                     <>
                       <Chip color='accent' variant='soft' className='w-fit'>
-                        {currentObject.typeName}
+                        {currentContext.domoObject.typeName}
                         {' ('}
-                        {currentObject.typeId}
+                        {currentContext.domoObject.typeId}
                         {')'}
                       </Chip>
-                      <span className='text-sm'>ID: {currentObject.id}</span>
+                      <span className='text-sm'>
+                        ID: {currentContext.domoObject.id}
+                      </span>
                     </>
                   )}
                 </div>
@@ -57,14 +57,13 @@ export function ContextFooter({
           </Alert.Content>
         </Alert>
       </Tooltip.Trigger>
-      <Tooltip.Content showArrow>
-        <Tooltip.Arrow />
-        <p className='max-w-s text-center'>
+      <Tooltip.Content className='max-w-[calc(var(--container-xs)-1.5rem)] text-center text-wrap'>
+        <>
           Unless otherwise noted (with{' '}
           <IconBoltOff className='inline h-4 w-4' />
           ), all buttons take current context into account to make the action
           dynamic
-        </p>
+        </>
       </Tooltip.Content>
     </Tooltip>
   );

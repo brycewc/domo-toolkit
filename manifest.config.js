@@ -16,7 +16,8 @@ export default defineManifest({
     'activeTab',
     'clipboardRead',
     'clipboardWrite',
-    'cookies'
+    'cookies',
+    'webNavigation'
   ],
   host_permissions: ['https://*.domo.com/*'],
   action: {
@@ -39,5 +40,14 @@ export default defineManifest({
   side_panel: {
     default_path: 'src/sidepanel/index.html'
   },
-  options_page: 'src/options/index.html'
+  options_page: 'src/options/index.html',
+  commands: {
+    check_clipboard: {
+      suggested_key: {
+        default: 'Ctrl+Shift+V',
+        mac: 'Command+Shift+V'
+      },
+      description: 'Check clipboard for Domo object ID'
+    }
+  }
 });

@@ -1,9 +1,5 @@
-/**
- * Domo API service for fetching object details
- */
-
 import { getObjectType, getAllObjectTypes, DomoObject } from '@/models';
-import { executeInPage, getCurrentInstance } from '@/utils';
+import { executeInPage } from '@/utils';
 import { getCurrentUserId } from '@/services';
 
 /**
@@ -104,11 +100,16 @@ export async function fetchObjectDetails(
  * @returns {Promise<DomoObject>} DomoObject instance with enriched metadata
  */
 export async function detectAndFetchObject(objectId) {
-  // Get the current Domo instance to build the baseUrl
-  const instance = await getCurrentInstance();
-  if (!instance) {
+  // Get the current tab's context from service worker to get the instance
+  const response = await chrome.runtime.sendMessage({
+    type: 'GET_TAB_CONTEXT'
+  });
+
+  if (!response?.success || !response?.context?.instance) {
     throw new Error('Not on a Domo instance. Cannot detect object type.');
   }
+
+  const instance = response.context.instance;
   const baseUrl = `https://${instance}.domo.com`;
 
   // Get all object types that have API configurations and match the ID pattern
@@ -144,10 +145,10 @@ export async function detectAndFetchObject(objectId) {
 
   for (const typeConfig of typesToTry) {
     try {
-      // For types requiring a parent, try to fetch the parent first
+      // For types requiring a parent ID for API calls, try to fetch the parent first
       let parentId = null;
       let tempObject = null;
-      if (typeConfig.requiresParent()) {
+      if (typeConfig.requiresParentForApi()) {
         try {
           // Use DomoObject.getParent which executes in page context
           tempObject = new DomoObject(typeConfig.id, objectId, baseUrl);
@@ -181,6 +182,26 @@ export async function detectAndFetchObject(objectId) {
         // If we fetched parent details, include them in metadata
         if (tempObject?.metadata?.parent) {
           metadata.parent = tempObject.metadata.parent;
+        } else if (typeConfig.parents && typeConfig.parents.length > 0) {
+          // If the object type has parents and we haven't fetched them yet, try to get the parent
+          try {
+            if (!tempObject) {
+              tempObject = new DomoObject(typeConfig.id, objectId, baseUrl);
+            }
+            const parentId = await tempObject.getParent();
+            if (parentId && tempObject.metadata?.parent) {
+              metadata.parent = tempObject.metadata.parent;
+              console.log(
+                `Fetched parent for ${typeConfig.id} ${objectId}: ${parentId}`
+              );
+            }
+          } catch (parentError) {
+            // Parent fetch is optional, so just log and continue
+            console.log(
+              `Could not fetch optional parent for ${typeConfig.id} ${objectId}:`,
+              parentError.message
+            );
+          }
         }
 
         const domoObject = new DomoObject(

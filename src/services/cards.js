@@ -1,26 +1,28 @@
 import { executeInPage } from '@/utils';
 
-export async function getDrillParentCardId(drillViewId) {
+export async function getDrillParentCardId(
+  drillViewId,
+  inPageContext = false,
+  tabId = null
+) {
+  const fetchLogic = async (drillViewId) => {
+    const response = await fetch(`/api/content/v1/cards/${drillViewId}/urn`, {
+      method: 'GET'
+    });
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch Drill Path ${drillViewId}. HTTP status: ${response.status}`
+      );
+    }
+    const card = await response.json();
+    return card.rootId;
+  };
+
   try {
-    // Execute fetch in page context to use authenticated session
-    const result = await executeInPage(
-      async (drillViewId) => {
-        const response = await fetch(
-          `/api/content/v1/cards/${drillViewId}/urn`,
-          {
-            method: 'GET'
-          }
-        );
-        if (!response.ok) {
-          throw new Error(
-            `Failed to fetch Drill Path ${drillViewId}. HTTP status: ${response.status}`
-          );
-        }
-        const card = await response.json();
-        return card.rootId;
-      },
-      [drillViewId]
-    );
+    // If already in page context, execute directly; otherwise use executeInPage
+    const result = inPageContext
+      ? await fetchLogic(drillViewId)
+      : await executeInPage(fetchLogic, [drillViewId], tabId);
 
     return result;
   } catch (error) {

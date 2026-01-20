@@ -3,7 +3,8 @@ import {
   useEffect,
   useRef,
   useImperativeHandle,
-  forwardRef
+  forwardRef,
+  useCallback
 } from 'react';
 import {
   Button,
@@ -16,9 +17,10 @@ import {
 } from '@heroui/react';
 import { DomoObject, getAllObjectTypes } from '@/models';
 import { detectAndFetchObject } from '@/services';
+import { IconExternalLink } from '@tabler/icons-react';
 
 export const NavigateToCopiedObject = forwardRef(
-  function NavigateToCopiedObject({ isDomoPage, currentInstance }, ref) {
+  function NavigateToCopiedObject({ isDomoPage, currentContext }, ref) {
     const [copiedObjectId, setCopiedObjectId] = useState(null);
     const [objectDetails, setObjectDetails] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -31,7 +33,7 @@ export const NavigateToCopiedObject = forwardRef(
     // Expose method to parent to trigger detection when Copy ID is clicked
     useImperativeHandle(ref, () => ({
       triggerDetection: (copiedId) => {
-        if (!copiedId || !currentInstance) return;
+        if (!copiedId || !currentContext?.instance) return;
 
         setIsLoading(true);
         setCopiedObjectId(copiedId);
@@ -60,7 +62,7 @@ export const NavigateToCopiedObject = forwardRef(
     useEffect(() => {
       // Load all object types for dropdown
       const types = getAllObjectTypes()
-        .filter((type) => !type.requiresParent() && type.hasUrl())
+        .filter((type) => !type.requiresParentForUrl() && type.hasUrl())
         .sort((a, b) => a.name.localeCompare(b.name));
       setAllTypes(types);
     }, []);
@@ -85,76 +87,99 @@ export const NavigateToCopiedObject = forwardRef(
       };
     }, []);
 
-    // Check clipboard periodically only if on a Domo page
+    // Load cached clipboard value from session storage on mount
     useEffect(() => {
-      // Only set up clipboard checking if on a Domo page
-      if (!isDomoPage) {
+      if (!isDomoPage || !currentContext?.instance) {
         return;
       }
 
-      const checkClipboard = () => {
-        try {
-          // Read clipboard
-          navigator.clipboard.readText().then((text) => {
-            // Skip if clipboard hasn't changed
-            if (text === lastCheckedClipboard.current) {
-              return;
-            }
+      // Get cached clipboard value from session storage
+      chrome.storage.session
+        .get(['lastClipboardValue'])
+        .then((result) => {
+          if (result.lastClipboardValue) {
+            console.log(
+              '[NavigateToCopiedObject] Loaded cached clipboard:',
+              result.lastClipboardValue
+            );
+            handleClipboardData(result.lastClipboardValue);
+          }
+        })
+        .catch((err) => {
+          console.error(
+            '[NavigateToCopiedObject] Error loading cached clipboard:',
+            err
+          );
+        });
+    }, [isDomoPage, currentContext?.instance]);
 
-            lastCheckedClipboard.current = text;
-            const trimmedText = text.trim();
+    // Handle clipboard data from service worker
+    const handleClipboardData = useCallback(
+      (text) => {
+        // Skip if clipboard hasn't changed AND we already have the object ID set
+        if (text === lastCheckedClipboard.current && copiedObjectId) {
+          console.log('[NavigateToCopiedObject] Clipboard unchanged, skipping');
+          return;
+        }
 
-            // Check if it looks like a Domo object ID (numeric including negative, or UUID)
-            const isNumeric = /^-?\d+$/.test(trimmedText);
-            const isUuid =
-              /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-                trimmedText
-              );
+        console.log('[NavigateToCopiedObject] Processing clipboard:', text);
+        lastCheckedClipboard.current = text;
+        const trimmedText = text.trim();
 
-            if (isNumeric || isUuid) {
-              setCopiedObjectId(trimmedText);
-              setSelectedType(null);
-              setObjectDetails(null);
-              setError(null);
-              if (currentInstance) {
-                setIsLoading(true);
-                // Fetch object details
-                detectAndFetchObject(trimmedText)
-                  .then((details) => {
-                    console.log('Fetched object details:', details);
-                    setObjectDetails(details);
-                    setError(null);
-                  })
-                  .catch((err) => {
-                    console.error('Error fetching object details:', err);
-                    setError(err.message);
-                    setObjectDetails(null);
-                  })
-                  .finally(() => {
-                    setIsLoading(false);
-                  });
-              }
-            } else {
-              // Clear if clipboard doesn't contain a valid ID
-              setCopiedObjectId(null);
-              setObjectDetails(null);
-              setError(null);
-            }
-          });
-        } catch (err) {
-          // Clipboard access might be denied or fail
-          console.error('Error reading clipboard:', err);
+        // Check if it looks like a Domo object ID (numeric including negative, or UUID)
+        const isNumeric = /^-?\d+$/.test(trimmedText);
+        const isUuid =
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+            trimmedText
+          );
+
+        if (isNumeric || isUuid) {
+          setCopiedObjectId(trimmedText);
+          setSelectedType(null);
+          setObjectDetails(null);
+          setError(null);
+          if (currentContext?.instance) {
+            setIsLoading(true);
+            // Fetch object details
+            detectAndFetchObject(trimmedText)
+              .then((details) => {
+                console.log('Fetched object details:', details);
+                setObjectDetails(details);
+                setError(null);
+              })
+              .catch((err) => {
+                console.error('Error fetching object details:', err);
+                setError(err.message);
+                setObjectDetails(null);
+              })
+              .finally(() => {
+                setIsLoading(false);
+              });
+          }
+        } else {
+          // Clear if clipboard doesn't contain a valid ID
+          setCopiedObjectId(null);
+          setObjectDetails(null);
+          setError(null);
+        }
+      },
+      [currentContext?.instance, copiedObjectId]
+    );
+
+    // Listen for clipboard updates from service worker
+    useEffect(() => {
+      const handleMessage = (message, sender, sendResponse) => {
+        if (message.type === 'CLIPBOARD_UPDATED' && message.clipboardData) {
+          handleClipboardData(message.clipboardData);
         }
       };
 
-      // Check immediately
-      checkClipboard();
+      chrome.runtime.onMessage.addListener(handleMessage);
 
-      // Check every 2 seconds
-      const interval = setInterval(checkClipboard, 2000);
-
-      return () => clearInterval(interval);
-    }, [isDomoPage, currentInstance]);
+      return () => {
+        chrome.runtime.onMessage.removeListener(handleMessage);
+      };
+    }, [handleClipboardData]);
 
     const handleClick = (manuallySelectedType = null) => {
       // Use a local variable to track the ID throughout this function execution
@@ -241,9 +266,9 @@ export const NavigateToCopiedObject = forwardRef(
           let baseUrl;
 
           // Check if on a Domo page
-          if (isDomoPage && currentInstance) {
+          if (isDomoPage && currentContext?.instance) {
             // Use current Domo instance
-            baseUrl = `https://${currentInstance}.domo.com`;
+            baseUrl = `https://${currentContext?.instance}.domo.com`;
           } else {
             // Use default Domo instance from settings
             if (!defaultDomoInstance) {
@@ -276,9 +301,7 @@ export const NavigateToCopiedObject = forwardRef(
 
     // If object type is unknown, show dropdown for manual selection
     // Show dropdown when: not on Domo page with copied ID but no objectDetails, or no ID at all
-    const showDropdown =
-      (!isDomoPage && copiedObjectId && !objectDetails) ||
-      (!objectDetails && !copiedObjectId);
+    const showDropdown = !isDomoPage || (!objectDetails && copiedObjectId);
 
     return showDropdown ? (
       <Dropdown>
@@ -304,22 +327,20 @@ export const NavigateToCopiedObject = forwardRef(
       <Tooltip delay={200}>
         <Button
           onPress={() => handleClick()}
-          isDisabled={
-            isDomoPage
-              ? !copiedObjectId || isLoading || !!error
-              : isLoading || !!error
-          }
+          isDisabled={!copiedObjectId || isLoading || !!error}
           className='w-full'
           isPending={isLoading}
         >
           {isLoading ? (
             <Spinner className='size-4' color='current' />
           ) : (
-            'Navigate from Clipboard'
+            <>
+              <span>Navigate from Clipboard</span>
+              <IconExternalLink />
+            </>
           )}
         </Button>
-        <Tooltip.Content showArrow placement='top'>
-          <Tooltip.Arrow />
+        <Tooltip.Content placement='top'>
           {error ? (
             `Error: ${error}`
           ) : isDomoPage ? (
@@ -331,7 +352,7 @@ export const NavigateToCopiedObject = forwardRef(
                   </span>
                   <Chip size='sm' variant='soft' color='accent'>
                     {objectDetails.metadata?.parent
-                      ? `${objectDetails.metadata.parent.typeName} > ${objectDetails.typeName}`
+                      ? `${objectDetails.metadata.parent.objectType.name} > ${objectDetails.typeName}`
                       : `${objectDetails.typeName} (${objectDetails.typeId})`}
                   </Chip>
                 </div>
