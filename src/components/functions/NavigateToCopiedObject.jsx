@@ -352,7 +352,7 @@ export const NavigateToCopiedObject = forwardRef(
                   </span>
                   <Chip size='sm' variant='soft' color='accent'>
                     {objectDetails.metadata?.parent
-                      ? `${objectDetails.metadata.parent.typeName} > ${objectDetails.typeName}`
+                      ? `${objectDetails.metadata.parent.objectType.name} > ${objectDetails.typeName}`
                       : `${objectDetails.typeName} (${objectDetails.typeId})`}
                   </Chip>
                 </div>

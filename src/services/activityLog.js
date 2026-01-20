@@ -86,8 +86,8 @@ export async function getActivityLogEvents({
 
     // Ensure all arguments are serializable (convert undefined to null)
     const serializableArgs = [
-      limit,
-      offset,
+      limit ?? 50,
+      offset ?? 0,
       objectType ?? null,
       objectId ?? null,
       eventType ?? null,
@@ -197,14 +197,14 @@ export async function getActivityLogForObject({
   const end = Date.now();
 
   // Map object types to activity log types (some types have multiple mappings)
-  const activityLogTypes = getActivityLogTypes(objectType);
+  // const activityLogTypes = getActivityLogTypes(objectType);
 
   // For objects with multiple type mappings, we need to fetch for each type
   // and combine results. For now, we'll use the first type.
-  const primaryType = activityLogTypes[0];
+  // const primaryType = activityLogTypes[0];
 
   return await getActivityLogEvents({
-    objectType: primaryType,
+    objectType,
     objectId,
     limit,
     offset,

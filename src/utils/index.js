@@ -8,6 +8,5 @@ export {
   applyInstanceLogoAuto,
   clearFaviconCache
 } from './faviconModifier';
-export { getCurrentInstance, onCurrentInstanceChange } from './currentInstance';
 export { executeInPage } from './executeInPage';
 export { EXCLUDED_HOSTNAMES, EXCLUDED_INSTANCES } from './constants';

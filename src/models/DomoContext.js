@@ -1,3 +1,5 @@
+import { DomoObject } from '@/models';
+
 /**
  * DomoContext - Represents the complete context of a Domo tab
  * Includes the tab ID, URL, instance information, and optionally the detected object
@@ -37,11 +39,16 @@ export class DomoContext {
       instance: this.instance,
       domoObject: this.domoObject
         ? {
-            typeId: this.domoObject.typeId,
-            typeName: this.domoObject.typeName,
             id: this.domoObject.id,
             baseUrl: this.domoObject.baseUrl,
-            metadata: this.domoObject.metadata
+            metadata: this.domoObject.metadata,
+            url: this.domoObject.url,
+            objectType: {
+              id: this.domoObject.objectType.id,
+              name: this.domoObject.objectType.name,
+              urlPath: this.domoObject.objectType.urlPath,
+              parents: this.domoObject.objectType.parents
+            }
           }
         : null
     };
@@ -53,14 +60,9 @@ export class DomoContext {
    * @returns {DomoContext}
    */
   static fromJSON(data) {
-    const { DomoObject } = require('./DomoObject');
+    // Use DomoObject.fromJSON to properly reconstruct the DomoObject instance
     const domoObject = data.domoObject
-      ? new DomoObject(
-          data.domoObject.typeId,
-          data.domoObject.id,
-          data.domoObject.baseUrl,
-          data.domoObject.metadata || {}
-        )
+      ? DomoObject.fromJSON(data.domoObject)
       : null;
 
     return new DomoContext(data.tabId, data.url, domoObject);

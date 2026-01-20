@@ -4,10 +4,15 @@ import { executeInPage } from '@/utils';
  * Get the App ID (parent) for an App Studio Page
  * @param {string} appPageId - The App Studio Page ID
  * @param {boolean} [inPageContext=false] - Whether already in page context (skip executeInPage)
+ * @param {number} [tabId] - Optional Chrome tab ID to execute in specific tab
  * @returns {Promise<string>} The App ID
  * @throws {Error} If the parent cannot be fetched
  */
-export async function getAppStudioPageParent(appPageId, inPageContext = false) {
+export async function getAppStudioPageParent(
+  appPageId,
+  inPageContext = false,
+  tabId = null
+) {
   console.log(inPageContext, 'inPageContext');
   const fetchLogic = async (appPageId) => {
     // Use the page summary endpoint to get the parent App ID
@@ -50,7 +55,7 @@ export async function getAppStudioPageParent(appPageId, inPageContext = false) {
     // If already in page context, execute directly; otherwise use executeInPage
     const result = inPageContext
       ? await fetchLogic(appPageId)
-      : await executeInPage(fetchLogic, [appPageId]);
+      : await executeInPage(fetchLogic, [appPageId], tabId);
 
     return result;
   } catch (error) {
@@ -298,16 +303,16 @@ export async function getPagesForCards(cardIds) {
         // Combine all page types into array of objects
         const pageObjects = [
           ...pageIds.map((id) => ({
-            objectType: 'PAGE',
-            objectId: String(id)
+            type: 'PAGE',
+            id: String(id)
           })),
           ...appPageIds.map((id) => ({
-            objectType: 'DATA_APP_VIEW',
-            objectId: String(id)
+            type: 'DATA_APP_VIEW',
+            id: String(id)
           })),
           ...reportPageIds.map((id) => ({
-            objectType: 'REPORT_BUILDER_VIEW',
-            objectId: String(id)
+            type: 'REPORT_BUILDER_VIEW',
+            id: String(id)
           }))
         ];
 

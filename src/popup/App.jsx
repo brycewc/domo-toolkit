@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTheme } from '@/hooks';
 import { ActionButtons } from '@/components';
+import { DomoContext } from '@/models';
 import './App.css';
 
 export default function App() {
@@ -22,8 +23,10 @@ export default function App() {
         });
 
         if (response.success && response.context) {
-          // Response contains DomoContext
-          setCurrentContext(response.context);
+          // Reconstruct DomoContext from plain object to get class instance with methods
+          const context = DomoContext.fromJSON(response.context);
+          console.log('[Popup] Reconstructed context:', context);
+          setCurrentContext(context);
           setIsDomoPage(true);
         } else {
           setCurrentContext(null);

@@ -27,7 +27,7 @@ export function DeleteCurrentObject({
         <span>Delete {currentContext?.domoObject?.metadata?.name || ''}</span>
         <Chip size='sm' variant='soft' color='accent'>
           {currentContext?.domoObject?.metadata?.parent
-            ? `${currentContext.domoObject.metadata.parent.typeName} > ${currentContext.domoObject.typeName}`
+            ? `${currentContext.domoObject.metadata.parent.objectType.name} > ${currentContext.domoObject.typeName}`
             : `${currentContext?.domoObject?.typeName} (${currentContext?.domoObject?.typeId})`}
         </Chip>
       </Tooltip.Content>

@@ -27,9 +27,12 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
       return;
     }
 
+    console.log(currentContext);
+
     setIsLoading(true);
 
     let activityLogObjects = [];
+    let activityLogType = '';
     let message = '';
     const objectName =
       currentContext?.domoObject.metadata?.name ??
@@ -56,15 +59,16 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
 
           // Store as array of objects with type and id
           const cardObjects = cardIds.map((id) => ({
-            objectType: 'CARD',
-            objectId: String(id)
+            type: 'CARD',
+            id: String(id)
           }));
 
           activityLogObjects = cardObjects;
-
+          activityLogType = 'child-cards';
           message = `Navigating to activity log for ${cardIds.length} cards on ${objectName}`;
           break;
         case 'child-pages':
+          activityLogType = 'child-pages';
           // Handle differently based on object type
           if (currentContext?.domoObject.typeId === 'DATA_SOURCE') {
             // For datasets: Get all cards, then get all pages those cards appear on
@@ -124,8 +128,8 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
             }
 
             const childPageObjects = childPages.map((p) => ({
-              objectType: currentContext?.domoObject.typeId,
-              objectId: String(p.pageId)
+              type: currentContext?.domoObject.typeId,
+              id: String(p.pageId)
             }));
 
             activityLogObjects = childPageObjects;
@@ -136,17 +140,21 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
         default:
           activityLogObjects = [
             {
-              objectType: currentContext?.domoObject.objectType,
-              objectId: currentContext?.domoObject.id
+              type: currentContext?.domoObject.typeId,
+              id: currentContext?.domoObject.id,
+              name: currentContext?.domoObject.metadata?.name || ''
             }
           ];
+          activityLogType = 'single-object';
           message = `Navigating to activity log for ${currentContext?.domoObject.typeName} ${currentContext?.domoObject.id}`;
           break;
       }
 
       await chrome.storage.local.set({
         activityLogTabId: currentContext?.tabId,
-        activityLogObjects: activityLogObjects
+        activityLogObjects: activityLogObjects,
+        activityLogType: activityLogType,
+        activityLogInstance: currentContext?.instance
       });
 
       onStatusUpdate?.('Opening Activity Log', message, 'success');

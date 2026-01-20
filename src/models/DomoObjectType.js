@@ -1,3 +1,5 @@
+import { DomoObject } from '@/models';
+
 /**
  * ObjectType class represents a Domo object id with its configuration
  */
@@ -34,9 +36,10 @@ export class DomoObjectType {
    * @param {string} baseUrl - The base URL (e.g., https://instance.domo.com)
    * @param {string} id - The object ID
    * @param {string} [parentId] - Optional parent ID for types that require it
+   * @param {number} [tabId] - Optional Chrome tab ID for executing in-page lookups
    * @returns {string|Promise<string>} The full URL (may be async if parent lookup is needed)
    */
-  buildObjectUrl(baseUrl, id, parentId) {
+  async buildObjectUrl(baseUrl, id, parentId, tabId) {
     if (!this.hasUrl()) {
       throw new Error(`Object type ${this.id} does not have a navigable URL`);
     }
@@ -46,7 +49,19 @@ export class DomoObjectType {
     // If the URL contains {parent}, replace it with the parentId
     if (url.includes('{parent}')) {
       if (!parentId) {
-        throw new Error(`Parent ID is required for ${this.id}`);
+        // If we have a tabId and this type supports parent lookup, try to get it
+        if (tabId) {
+          const domoObject = new DomoObject(this.id, id, baseUrl);
+          try {
+            parentId = await domoObject.getParentWithTabId(tabId);
+          } catch (error) {
+            throw new Error(
+              `Parent ID is required for ${this.id} and could not be fetched: ${error.message}`
+            );
+          }
+        } else {
+          throw new Error(`Parent ID is required for ${this.id}`);
+        }
       }
       url = url.replace('{parent}', parentId);
     }

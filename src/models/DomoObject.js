@@ -148,8 +148,10 @@ export class DomoObject {
 
             return {
               id: parentId,
-              type: parentTypeId,
-              typeName: parentTypeName,
+              objectType: {
+                id: parentTypeId,
+                name: parentTypeName
+              },
               name: name,
               details: data
             };
@@ -188,13 +190,41 @@ export class DomoObject {
   }
 
   /**
+   * Get the parent ID for this object using a specific tab ID
+   * @param {number} tabId - The Chrome tab ID to execute the lookup in
+   * @returns {Promise<string>} The parent ID
+   * @throws {Error} If the parent cannot be fetched or is not supported
+   */
+  async getParentWithTabId(tabId) {
+    let parentId;
+
+    switch (this.objectType.id) {
+      case 'DATA_APP_VIEW':
+        parentId = await getAppStudioPageParent(this.id, false, tabId);
+        break;
+      case 'DRILL_PATH':
+        parentId = await getDrillParentCardId(this.id, false, tabId);
+        break;
+      default:
+        throw new Error(
+          `Parent lookup not supported for type: ${this.objectType.id}`
+        );
+    }
+
+    return parentId;
+  }
+
+  /**
    * Build the full URL for this object
    * @param {string} baseUrl - The base URL (e.g., https://instance.domo.com)
+   * @param {number} [tabId] - Optional Chrome tab ID for parent lookups
    * @returns {Promise<string>} The full URL
    */
-  async buildUrl(baseUrl) {
+  async buildUrl(baseUrl, tabId = null) {
     if (this.requiresParentForUrl()) {
-      const parentId = await this.getParent();
+      const parentId = tabId
+        ? await this.getParentWithTabId(tabId)
+        : await this.getParent();
       console.log(
         `Building URL for ${this.typeName} ${this.id} with parent ${parentId}`
       );
@@ -215,5 +245,48 @@ export class DomoObject {
     }
     const url = this.url || (await this.buildUrl(this.baseUrl));
     await chrome.tabs.create({ url });
+  }
+
+  /**
+   * Serialize to plain object for message passing
+   * @returns {Object}
+   */
+  toJSON() {
+    return {
+      id: this.id,
+      baseUrl: this.baseUrl,
+      metadata: this.metadata,
+      url: this.url,
+      objectType: {
+        id: this.objectType.id,
+        name: this.objectType.name,
+        urlPath: this.objectType.urlPath,
+        parents: this.objectType.parents
+      }
+    };
+  }
+
+  /**
+   * Deserialize from plain object to DomoObject instance
+   * @param {Object} data - Plain object representation
+   * @returns {DomoObject}
+   */
+  static fromJSON(data) {
+    if (!data) return null;
+
+    // Create instance using the objectType.id
+    const instance = new DomoObject(
+      data.objectType.id,
+      data.id,
+      data.baseUrl,
+      data.metadata || {}
+    );
+
+    // Restore the URL if it was already built
+    if (data.url !== undefined) {
+      instance.url = data.url;
+    }
+
+    return instance;
   }
 }

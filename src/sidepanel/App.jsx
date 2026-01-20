@@ -6,6 +6,7 @@ import {
   GetPagesView,
   ActionButtons
 } from '@/components';
+import { DomoContext } from '@/models';
 import './App.css';
 
 export default function App() {
@@ -66,7 +67,9 @@ export default function App() {
         });
 
         if (response.success && response.context) {
-          const context = response.context;
+          // Reconstruct DomoContext from plain object to get class instance with methods
+          const context = DomoContext.fromJSON(response.context);
+          console.log('[Sidepanel] Reconstructed context:', context);
           setCurrentObject(context.domoObject);
           setCurrentInstance(context.instance);
           if (!lockedTabId) {

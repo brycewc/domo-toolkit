@@ -1,6 +1,10 @@
 import { executeInPage } from '@/utils';
 
-export async function getDrillParentCardId(drillViewId, inPageContext = false) {
+export async function getDrillParentCardId(
+  drillViewId,
+  inPageContext = false,
+  tabId = null
+) {
   const fetchLogic = async (drillViewId) => {
     const response = await fetch(`/api/content/v1/cards/${drillViewId}/urn`, {
       method: 'GET'
@@ -18,7 +22,7 @@ export async function getDrillParentCardId(drillViewId, inPageContext = false) {
     // If already in page context, execute directly; otherwise use executeInPage
     const result = inPageContext
       ? await fetchLogic(drillViewId)
-      : await executeInPage(fetchLogic, [drillViewId]);
+      : await executeInPage(fetchLogic, [drillViewId], tabId);
 
     return result;
   } catch (error) {

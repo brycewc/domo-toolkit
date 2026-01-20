@@ -3,6 +3,7 @@ import { Tabs } from '@heroui/react';
 import { useTheme } from '@/hooks';
 import {
   ActivityLogSettings,
+  ActivityLogTable,
   FaviconSettings,
   AppSettings
 } from '@/components';
@@ -36,13 +37,13 @@ export default function App() {
   }, []);
 
   return (
-    <div className='flex min-h-screen justify-center bg-background p-4'>
+    <div className='flex h-screen justify-center bg-background p-4'>
       <Tabs
-        className='w-full max-w-4xl rounded-sm'
+        className='h-[calc(100vh-4)] w-full items-center rounded-sm'
         selectedKey={selectedTab}
         onSelectionChange={handleTabChange}
       >
-        <Tabs.ListContainer>
+        <Tabs.ListContainer className='flex w-full max-w-4xl flex-row justify-center'>
           <Tabs.List>
             <Tabs.Tab id='favicon'>
               Favicon
@@ -52,13 +53,18 @@ export default function App() {
               Settings
               <Tabs.Indicator />
             </Tabs.Tab>
-            <Tabs.Tab id='activity-log'>
-              Activity Log
-              <Tabs.Indicator />
-            </Tabs.Tab>
+            {selectedTab === 'activity-log' && (
+              <Tabs.Tab id='activity-log'>
+                Activity Log
+                <Tabs.Indicator />
+              </Tabs.Tab>
+            )}
           </Tabs.List>
         </Tabs.ListContainer>
-        <Tabs.Panel className='flex flex-col items-start px-4' id='favicon'>
+        <Tabs.Panel
+          className='flex h-full max-w-4xl flex-col px-4'
+          id='favicon'
+        >
           <div className='w-full justify-start'>
             <h3 className='mb-2 text-lg font-semibold'>Favicon Preferences</h3>
             <p className='text-sm text-muted'>
@@ -68,7 +74,10 @@ export default function App() {
           </div>
           <FaviconSettings />
         </Tabs.Panel>
-        <Tabs.Panel className='flex flex-col items-start px-4' id='settings'>
+        <Tabs.Panel
+          className='flex max-w-4xl flex-col items-start px-4'
+          id='settings'
+        >
           <div className='w-full justify-start'>
             <h3 className='mb-2 text-lg font-semibold'>App Settings</h3>
             <p className='text-sm text-muted'>
@@ -77,20 +86,11 @@ export default function App() {
           </div>
           <AppSettings theme={theme} />
         </Tabs.Panel>
-        <Tabs.Panel className='flex flex-col items-start px-4' id='activity'>
-          {activityLogData && domoTabId ? (
-            <ActivityLogTable />
-          ) : (
-            <Alert color='accent'>
-              <Alert.Content>
-                <Alert.Title>Activity Log</Alert.Title>
-                <Alert.Description>
-                  To view activity log, navigate to a Domo object and click
-                  "View Activity Log" in the popup.
-                </Alert.Description>
-              </Alert.Content>
-            </Alert>
-          )}
+        <Tabs.Panel
+          className='flex flex-col items-start px-4'
+          id='activity-log'
+        >
+          {selectedTab === 'activity-log' && <ActivityLogTable />}
         </Tabs.Panel>
       </Tabs>
     </div>

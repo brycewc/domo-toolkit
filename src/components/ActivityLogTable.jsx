@@ -1,8 +1,18 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { DataTable } from '@/components';
-import { Chip, Alert, Button } from '@heroui/react';
-import { IconRefresh } from '@tabler/icons-react';
+import {
+  Chip,
+  Alert,
+  Button,
+  Dropdown,
+  Label,
+  IconChevronDown,
+  Skeleton,
+  Link
+} from '@heroui/react';
+import { IconRefresh, IconFilter } from '@tabler/icons-react';
 import { getActivityLogForObject } from '@/services';
+import { DomoObject } from '@/models';
 
 /**
  * Helper function to create a timestamp column with formatted date/time
@@ -55,13 +65,13 @@ function createUserColumn({ nameKey = 'userName', idKey = 'userId' } = {}) {
  */
 function createActionColumn({ accessorKey = 'actionType' } = {}) {
   const actionColorMap = {
-    create: 'success',
-    update: 'warning',
-    delete: 'danger',
-    view: 'accent',
-    share: 'accent',
-    export: 'warning',
-    import: 'success'
+    created: 'success',
+    updated: 'warning',
+    deleted: 'danger',
+    viewed: 'accent',
+    shared: 'accent',
+    exported: 'warning',
+    imported: 'success'
   };
 
   return {
@@ -73,7 +83,7 @@ function createActionColumn({ accessorKey = 'actionType' } = {}) {
       const color = actionColorMap[actionLower] || 'default';
 
       return (
-        <Chip color={color} variant='soft' className='capitalize'>
+        <Chip color={color} variant='soft'>
           {action || '-'}
         </Chip>
       );
@@ -86,7 +96,10 @@ function createActionColumn({ accessorKey = 'actionType' } = {}) {
  */
 function createObjectColumn({
   typeKey = 'objectType',
-  nameKey = 'objectName'
+  nameKey = 'objectName',
+  idKey = 'objectId',
+  baseUrl = null,
+  tabId = null
 } = {}) {
   return {
     accessorKey: nameKey,
@@ -94,12 +107,54 @@ function createObjectColumn({
     cell: ({ row }) => {
       const name = row.getValue(nameKey);
       const type = row.original[typeKey];
+      const id = row.original[idKey];
+      const [url, setUrl] = useState(null);
+
+      // Build URL asynchronously when component mounts or data changes
+      useEffect(() => {
+        const buildUrlAsync = async () => {
+          if (!type || !id || !baseUrl) {
+            setUrl(null);
+            return;
+          }
+
+          try {
+            // Create a DomoObject instance and use its buildUrl method
+            const domoObject = new DomoObject(type, id, baseUrl);
+
+            // Only build URL if the object type has a navigable URL
+            if (domoObject.hasUrl()) {
+              const builtUrl = await domoObject.buildUrl(baseUrl, tabId);
+              setUrl(builtUrl);
+            } else {
+              setUrl(null);
+            }
+          } catch (error) {
+            console.warn('Failed to build URL for object:', error);
+            setUrl(null);
+          }
+        };
+
+        buildUrlAsync();
+      }, [type, id, baseUrl, tabId]);
 
       return (
         <div className='flex flex-col'>
-          <span className='text-sm font-medium'>{name || '-'}</span>
+          {url ? (
+            <Link
+              href={url}
+              target='_blank'
+              className='text-sm font-medium hover:text-accent/80'
+            >
+              {name || '-'}
+            </Link>
+          ) : (
+            <span className='text-sm font-medium'>{name || '-'}</span>
+          )}
           {type && (
-            <span className='text-xs text-muted capitalize'>{type}</span>
+            <Chip size='sm' className='w-fit text-muted'>
+              {type}
+            </Chip>
           )}
         </div>
       );
@@ -138,6 +193,9 @@ function createAdditionalCommentColumn({
  */
 export function ActivityLogTable() {
   const [tabId, setTabId] = useState(null);
+  const [objects, setObjects] = useState([]); // Array of {type, id}
+  const [activityLogType, setActivityLogType] = useState(null);
+  const [domoInstance, setDomoInstance] = useState(null);
   const [events, setEvents] = useState([]);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [isSearching, setIsSearching] = useState(false);
@@ -145,10 +203,11 @@ export function ActivityLogTable() {
   const [error, setError] = useState(null);
   const [total, setTotal] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [objects, setObjects] = useState([]); // Array of {objectType, objectId}
-  // Track pagination state per object: { "objectType:objectId": { offset, total, hasMore } }
+  const [dateFilter, setDateFilter] = useState(new Set());
+  const [userFilter, setUserFilter] = useState(new Set());
+  const [actionFilter, setActionFilter] = useState(new Set());
+  const [objectTypeFilter, setObjectTypeFilter] = useState(new Set());
+  // Track pagination state per object: { "type:id": { offset, total, hasMore } }
   const [objectStates, setObjectStates] = useState({});
 
   const pageSize = 100; // Fetch in chunks per object
@@ -158,18 +217,24 @@ export function ActivityLogTable() {
     const loadObjects = async () => {
       try {
         const result = await chrome.storage.local.get([
+          'activityLogTabId',
           'activityLogObjects',
-          'activityLogTabId'
+          'activityLogType',
+          'activityLogInstance'
         ]);
         const loadedObjects = result.activityLogObjects || [];
         setObjects(loadedObjects);
         const tabId = result.activityLogTabId || null;
         setTabId(tabId);
+        const activityLogType = result.activityLogType || null;
+        setActivityLogType(activityLogType);
+        const instance = result.activityLogInstance || null;
+        setDomoInstance(instance);
 
         // Initialize state for each object
         const initialStates = {};
         loadedObjects.forEach((obj) => {
-          const key = `${obj.objectType}:${obj.objectId}`;
+          const key = `${obj.type}:${obj.id}`;
           initialStates[key] = { offset: 0, total: 0, hasMore: true };
         });
         setObjectStates(initialStates);
@@ -182,24 +247,115 @@ export function ActivityLogTable() {
     loadObjects();
   }, []);
 
-  // Debounce search to avoid too many API calls
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchQuery);
-    }, 500);
+  // Get unique dates and users for filters
+  const dateOptions = useMemo(() => {
+    const dates = new Set();
+    events.forEach((event) => {
+      if (event.time) {
+        const date = new Date(event.time).toLocaleDateString();
+        dates.add(date);
+      }
+    });
+    return Array.from(dates).sort((a, b) => new Date(b) - new Date(a));
+  }, [events]);
 
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
+  const userOptions = useMemo(() => {
+    const users = new Set();
+    events.forEach((event) => {
+      if (event.userName) {
+        users.add(event.userName);
+      }
+    });
+    return Array.from(users).sort();
+  }, [events]);
+
+  // Color map for action types
+  const actionColorMap = {
+    created: 'success',
+    updated: 'warning',
+    deleted: 'danger',
+    viewed: 'accent',
+    shared: 'accent',
+    exported: 'warning',
+    imported: 'success'
+  };
+
+  // Get unique action types for filter
+  const actionOptions = useMemo(() => {
+    const actions = new Set();
+    events.forEach((event) => {
+      if (event.actionType) {
+        actions.add(event.actionType.toLowerCase());
+      }
+    });
+    return Array.from(actions).sort();
+  }, [events]);
+
+  // Get unique object types for filter
+  const objectTypeOptions = useMemo(() => {
+    const types = new Set();
+    events.forEach((event) => {
+      if (event.objectType) {
+        types.add(event.objectType);
+      }
+    });
+    return Array.from(types).sort();
+  }, [events]);
+
+  // Filter events by date, user, and action
+  const filteredEvents = useMemo(() => {
+    let filtered = events;
+
+    if (dateFilter.size > 0) {
+      filtered = filtered.filter((event) => {
+        const eventDate = new Date(event.time).toLocaleDateString();
+        return dateFilter.has(eventDate);
+      });
+    }
+
+    if (userFilter.size > 0) {
+      filtered = filtered.filter((event) => {
+        return userFilter.has(event.userName);
+      });
+    }
+
+    if (actionFilter.size > 0) {
+      filtered = filtered.filter((event) => {
+        const action = event.actionType?.toLowerCase();
+        return action && actionFilter.has(action);
+      });
+    }
+
+    if (objectTypeFilter.size > 0) {
+      filtered = filtered.filter((event) => {
+        return event.objectType && objectTypeFilter.has(event.objectType);
+      });
+    }
+
+    return filtered;
+  }, [events, dateFilter, userFilter, actionFilter, objectTypeFilter]);
 
   // Define columns
-  const columns = useMemo(
-    () => [
+  const columns = useMemo(() => {
+    const baseUrl = domoInstance ? `https://${domoInstance}.domo.com` : null;
+    return [
       createTimestampColumn(),
       createUserColumn(),
       createActionColumn(),
+      createObjectColumn({ baseUrl, tabId }),
       createAdditionalCommentColumn()
-    ],
-    []
+    ];
+  }, [domoInstance, tabId]);
+
+  // Set initial column visibility based on number of objects
+  const initialColumnVisibility = useMemo(
+    () => ({
+      // Show object column only when multiple objects
+      objectName: activityLogType !== 'single-object',
+      // Show comment column only when single object
+      additionalComment: activityLogType === 'single-object'
+    }),
+    [activityLogType]
   );
 
   // Fetch activity log events from all objects
@@ -224,28 +380,25 @@ export function ActivityLogTable() {
 
       try {
         // Fetch from all objects in parallel
-        const fetchPromises = objects.map(({ objectType, objectId }) =>
+        const fetchPromises = objects.map(({ type, id }) =>
           getActivityLogForObject({
-            objectType,
-            objectId,
+            objectType: type,
+            objectId: id,
             limit: pageSize,
             offset: 0,
             tabId
           })
             .then((result) => ({
-              objectType,
-              objectId,
+              objectType: type,
+              objectId: id,
               events: result?.events ?? [],
               total: result?.total ?? 0
             }))
             .catch((err) => {
-              console.error(
-                `Error fetching for ${objectType}:${objectId}:`,
-                err
-              );
+              console.error(`Error fetching for ${type}:${id}:`, err);
               return {
-                objectType,
-                objectId,
+                objectType: type,
+                objectId: id,
                 events: [],
                 total: 0,
                 error: err.message
@@ -258,8 +411,8 @@ export function ActivityLogTable() {
         // Update object states with totals and hasMore
         const newStates = {};
         let combinedTotal = 0;
-        results.forEach(({ objectType, objectId, events, total }) => {
-          const key = `${objectType}:${objectId}`;
+        results.forEach(({ type, id, events, total }) => {
+          const key = `${type}:${id}`;
           newStates[key] = {
             offset: events.length,
             total,
@@ -285,7 +438,7 @@ export function ActivityLogTable() {
     };
 
     fetchEvents();
-  }, [objects, tabId, refreshKey, debouncedSearch]);
+  }, [objects, tabId, refreshKey]);
 
   // Check if any objects still have more events to fetch
   const hasMore = useMemo(() => {
@@ -300,8 +453,8 @@ export function ActivityLogTable() {
 
     try {
       // Filter to only objects that still have more events
-      const objectsWithMore = objects.filter(({ objectType, objectId }) => {
-        const key = `${objectType}:${objectId}`;
+      const objectsWithMore = objects.filter(({ type, id }) => {
+        const key = `${type}:${id}`;
         return objectStates[key]?.hasMore;
       });
 
@@ -311,31 +464,28 @@ export function ActivityLogTable() {
       }
 
       // Fetch next page from all objects that have more
-      const fetchPromises = objectsWithMore.map(({ objectType, objectId }) => {
-        const key = `${objectType}:${objectId}`;
+      const fetchPromises = objectsWithMore.map(({ type, id }) => {
+        const key = `${type}:${id}`;
         const state = objectStates[key];
 
         return getActivityLogForObject({
-          objectType,
-          objectId,
+          objectType: type,
+          objectId: id,
           limit: pageSize,
           offset: state.offset,
           tabId
         })
           .then((result) => ({
-            objectType,
-            objectId,
+            objectType: type,
+            objectId: id,
             events: result?.events ?? [],
             total: result?.total ?? 0
           }))
           .catch((err) => {
-            console.error(
-              `Error fetching more for ${objectType}:${objectId}:`,
-              err
-            );
+            console.error(`Error fetching more for ${type}:${id}:`, err);
             return {
-              objectType,
-              objectId,
+              objectType: type,
+              objectId: id,
               events: [],
               total: state.total,
               error: err.message
@@ -347,8 +497,8 @@ export function ActivityLogTable() {
 
       // Update object states
       const newStates = { ...objectStates };
-      results.forEach(({ objectType, objectId, events, total }) => {
-        const key = `${objectType}:${objectId}`;
+      results.forEach(({ type, id, events, total }) => {
+        const key = `${type}:${id}`;
         const currentState = newStates[key];
         newStates[key] = {
           offset: currentState.offset + events.length,
@@ -411,8 +561,13 @@ export function ActivityLogTable() {
 
   if (isInitialLoad && events.length === 0) {
     return (
-      <div className='flex items-center justify-center p-8'>
-        <p className='text-muted'>Loading activity log...</p>
+      <div className='skeleton--shimmer h-full w-full'>
+        <Skeleton animationType='none' className='mb-4 h-4 w-1/3 rounded-lg' />
+        <Skeleton animationType='none' className='mb-2 h-8 w-full rounded-lg' />
+        <Skeleton
+          animationType='none'
+          className='mb-4 h-[calc(100vh-12rem)] w-full rounded-lg'
+        />
       </div>
     );
   }
@@ -422,10 +577,30 @@ export function ActivityLogTable() {
       <div className='mb-4 flex items-start justify-between'>
         <div>
           <h3 className='text-lg font-semibold'>
-            Activity Log
-            {objects.length === 1
-              ? ` for ${objects[0].objectType} ${objects[0].objectId}`
-              : ` (${objects.length} objects)`}
+            Activity Log for
+            {activityLogType === 'single-object' ? (
+              <>
+                <span className='text-accent'>{objects[0]?.name} </span>
+                <Chip color='accent' variant='soft'>
+                  {objects[0].type}
+                </Chip>{' '}
+                (ID: {objects[0].id})
+              </>
+            ) : (
+              ` ${objects.length} ${
+                activityLogType === 'child-cards'
+                  ? objects.length === 1
+                    ? 'card'
+                    : 'cards'
+                  : activityLogType === 'child-pages'
+                    ? objects.length === 1
+                      ? 'page'
+                      : 'pages'
+                    : objects.length === 1
+                      ? 'object'
+                      : 'objects'
+              }`
+            )}
           </h3>
           {total > 0 && (
             <p className='text-base text-muted'>
@@ -449,15 +624,128 @@ export function ActivityLogTable() {
       </div>
       <DataTable
         columns={columns}
-        data={events}
+        data={filteredEvents}
         onRowAction={handleRowAction}
-        searchPlaceholder='Search activity log...'
         entityName='events'
         initialSorting={[{ id: 'time', desc: true }]}
+        initialColumnVisibility={initialColumnVisibility}
         enableSelection={false}
+        enableSearch={false}
         onLoadMore={fetchMoreEvents}
-        onSearchChange={setSearchQuery}
-        searchValue={searchQuery}
+        customFilters={
+          <>
+            {/* Date Filter */}
+            {dateOptions.length > 0 && (
+              <Dropdown>
+                <Button variant='tertiary'>
+                  <IconFilter className='size-4' />
+                  Date
+                  <IconChevronDown className='size-4 text-foreground' />
+                </Button>
+                <Dropdown.Popover className='max-h-64 overflow-y-auto'>
+                  <Dropdown.Menu
+                    selectionMode='multiple'
+                    selectedKeys={dateFilter}
+                    onSelectionChange={setDateFilter}
+                  >
+                    {dateOptions.map((date) => (
+                      <Dropdown.Item id={date} textValue={date}>
+                        <Dropdown.ItemIndicator />
+                        <Label>{date}</Label>
+                      </Dropdown.Item>
+                    ))}
+                  </Dropdown.Menu>
+                </Dropdown.Popover>
+              </Dropdown>
+            )}
+
+            {/* User Filter */}
+            {userOptions.length > 0 && (
+              <Dropdown>
+                <Button variant='tertiary'>
+                  <IconFilter className='size-4' />
+                  User
+                  <IconChevronDown className='size-4 text-foreground' />
+                </Button>
+                <Dropdown.Popover className='max-h-64 overflow-y-auto'>
+                  <Dropdown.Menu
+                    selectionMode='multiple'
+                    selectedKeys={userFilter}
+                    onSelectionChange={setUserFilter}
+                  >
+                    {userOptions.map((user) => (
+                      <Dropdown.Item id={user} textValue={user}>
+                        <Dropdown.ItemIndicator />
+                        <Label>{user}</Label>
+                      </Dropdown.Item>
+                    ))}
+                  </Dropdown.Menu>
+                </Dropdown.Popover>
+              </Dropdown>
+            )}
+
+            {/* Action Filter */}
+            {actionOptions.length > 0 && (
+              <Dropdown>
+                <Button variant='tertiary'>
+                  <IconFilter className='size-4' />
+                  Action
+                  <IconChevronDown className='size-4 text-foreground' />
+                </Button>
+                <Dropdown.Popover className='max-h-64 overflow-y-auto'>
+                  <Dropdown.Menu
+                    selectionMode='multiple'
+                    selectedKeys={actionFilter}
+                    onSelectionChange={setActionFilter}
+                  >
+                    {actionOptions.map((action) => {
+                      const color = actionColorMap[action] || 'default';
+                      return (
+                        <Dropdown.Item id={action} textValue={action}>
+                          <Dropdown.ItemIndicator />
+                          <Label>
+                            <Chip
+                              color={color}
+                              variant='soft'
+                              className='uppercase'
+                            >
+                              {action}
+                            </Chip>
+                          </Label>
+                        </Dropdown.Item>
+                      );
+                    })}
+                  </Dropdown.Menu>
+                </Dropdown.Popover>
+              </Dropdown>
+            )}
+
+            {/* Object Type Filter */}
+            {objectTypeOptions.length > 0 && (
+              <Dropdown>
+                <Button variant='tertiary'>
+                  <IconFilter className='size-4' />
+                  Object Type
+                  <IconChevronDown className='size-4 text-foreground' />
+                </Button>
+                <Dropdown.Popover className='max-h-64 overflow-y-auto'>
+                  <Dropdown.Menu
+                    selectionMode='multiple'
+                    selectedKeys={objectTypeFilter}
+                    onSelectionChange={setObjectTypeFilter}
+                  >
+                    {objectTypeOptions.map((type) => (
+                      <Dropdown.Item id={type} textValue={type}>
+                        <Dropdown.ItemIndicator />
+                        <Label>{type}</Label>
+                      </Dropdown.Item>
+                    ))}
+                  </Dropdown.Menu>
+                </Dropdown.Popover>
+              </Dropdown>
+            )}
+          </>
+        }
       />
     </div>
   );
