@@ -1,7 +1,5 @@
 export {
-  getCurrentObject,
-  detectCardModal,
-  detectCurrentObjectInPage
+  detectCurrentObject,
 } from './currentObject';
 export {
   applyFaviconRules,
@@ -9,4 +7,4 @@ export {
   clearFaviconCache
 } from './faviconModifier';
 export { executeInPage } from './executeInPage';
-export { EXCLUDED_HOSTNAMES, EXCLUDED_INSTANCES } from './constants';
+export { EXCLUDED_HOSTNAMES, EXCLUDED_INSTANCES, ACTION_COLOR_PATTERNS } from './constants';

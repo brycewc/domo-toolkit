@@ -42,7 +42,7 @@ export function ActionButtons({
   }, []);
 
   return (
-    <div className='flex w-auto flex-col gap-1 p-2'>
+    <div className='flex flex-col gap-1 p-2 w-full min-w-xs justify-center'>
       {isLoadingCurrentContext ? (
         <>
           <Skeleton className='h-10 w-full rounded-4xl' />
@@ -52,7 +52,7 @@ export function ActionButtons({
         </>
       ) : (
         <>
-          <ButtonGroup fullWidth>
+          <ButtonGroup>
             <Tooltip delay={400} closeDelay={0}>
               <Button
                 isDisabled={!isDomoPage || !currentContext?.domoObject?.id}
@@ -70,8 +70,9 @@ export function ActionButtons({
                   );
                 }}
                 isIconOnly
+                fullWidth
               >
-                <IconClipboard className='h-4 w-4' />
+                <IconClipboard className='size-4' />
               </Button>
               <Tooltip.Content>Copy ID</Tooltip.Content>
             </Tooltip>
@@ -96,8 +97,9 @@ export function ActionButtons({
                   chrome.runtime.openOptionsPage();
                 }}
                 isIconOnly
+                fullWidth
               >
-                <IconSettings className='h-4 w-4' />
+                <IconSettings className='size-4' />
               </Button>
               <Tooltip.Content>Extension settings</Tooltip.Content>
             </Tooltip>

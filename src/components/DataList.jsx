@@ -127,7 +127,7 @@ function DataListItem({
                 <Link
                   href={item.url}
                   onPress={handleClick}
-                  className='truncate text-sm font-medium hover:text-accent'
+                  className='truncate text-sm font-medium no-underline hover:underline hover:text-accent/80 decoration-accent/80'
                 >
                   {item.label}
                 </Link>

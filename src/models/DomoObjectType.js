@@ -99,6 +99,14 @@ export class DomoObjectType {
     return this.urlPath !== null && this.urlPath !== undefined;
   }
 
+    /**
+   * Check if this object type has an API configuration
+   * @returns {boolean} Whether the object type has an API configuration
+   */
+  hasApiConfig() {
+    return this.api !== null && this.api !== undefined;
+  }
+
   /**
    * Check if an ID matches the pattern for this object type
    * @param {string} id - The ID to validate
@@ -1341,4 +1349,20 @@ export function getObjectType(type) {
  */
 export function getAllObjectTypes() {
   return Object.values(ObjectTypeRegistry);
+}
+
+/**
+ * Get all object types that have a navigable URL
+ * @returns {DomoObjectType[]} Array of DomoObjectType instances with urlPath defined
+ */
+export function getAllObjectTypesWithUrl() {
+  return Object.values(ObjectTypeRegistry).filter((type) => type.hasUrl());
+}
+
+/**
+ * Get all object types that have an API configuration
+ * @returns {DomoObjectType[]} Array of DomoObjectType instances with apiConfig defined
+ */
+export function getAllObjectTypesWithApiConfig() {
+  return Object.values(ObjectTypeRegistry).filter((type) => type.hasApiConfig());
 }

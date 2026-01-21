@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { DataTable } from '@/components';
 import {
   Chip,
   Alert,
@@ -11,8 +10,30 @@ import {
   Link
 } from '@heroui/react';
 import { IconRefresh, IconFilter } from '@tabler/icons-react';
+import { DataTable } from '@/components';
 import { getActivityLogForObject } from '@/services';
 import { DomoObject } from '@/models';
+import { ACTION_COLOR_PATTERNS } from '@/utils';
+
+/**
+ * Get color for an action based on exact match or partial match
+ * @param {string} action - The action string
+ * @returns {string} The color name
+ */
+function getActionColor(action) {
+  if (!action) return 'default';
+  
+  const actionLower = action.toLowerCase();
+  
+  // Try partial matches
+  for (const [pattern, color] of Object.entries(ACTION_COLOR_PATTERNS)) {
+    if (actionLower.includes(pattern)) {
+      return color;
+    }
+  }
+  
+  return 'default';
+}
 
 /**
  * Helper function to create a timestamp column with formatted date/time
@@ -64,26 +85,15 @@ function createUserColumn({ nameKey = 'userName', idKey = 'userId' } = {}) {
  * Helper function to create an action column with colored chips
  */
 function createActionColumn({ accessorKey = 'actionType' } = {}) {
-  const actionColorMap = {
-    created: 'success',
-    updated: 'warning',
-    deleted: 'danger',
-    viewed: 'accent',
-    shared: 'accent',
-    exported: 'warning',
-    imported: 'success'
-  };
-
   return {
     accessorKey,
     header: 'Action',
     cell: ({ row }) => {
       const action = row.getValue(accessorKey);
-      const actionLower = action?.toLowerCase() || '';
-      const color = actionColorMap[actionLower] || 'default';
+      const color = getActionColor(action);
 
       return (
-        <Chip color={color} variant='soft'>
+        <Chip color={color} variant='soft' size='lg'>
           {action || '-'}
         </Chip>
       );
@@ -139,12 +149,12 @@ function createObjectColumn({
       }, [type, id, baseUrl, tabId]);
 
       return (
-        <div className='flex flex-col'>
+        <div className='flex flex-col gap-1'>
           {url ? (
             <Link
               href={url}
               target='_blank'
-              className='text-sm font-medium hover:text-accent/80'
+              className='text-sm font-medium no-underline hover:underline hover:text-accent/80 decoration-accent/80'
             >
               {name || '-'}
             </Link>
@@ -152,7 +162,7 @@ function createObjectColumn({
             <span className='text-sm font-medium'>{name || '-'}</span>
           )}
           {type && (
-            <Chip size='sm' className='w-fit text-muted'>
+            <Chip size='sm' className='w-fit'>
               {type}
             </Chip>
           )}
@@ -268,17 +278,6 @@ export function ActivityLogTable() {
     });
     return Array.from(users).sort();
   }, [events]);
-
-  // Color map for action types
-  const actionColorMap = {
-    created: 'success',
-    updated: 'warning',
-    deleted: 'danger',
-    viewed: 'accent',
-    shared: 'accent',
-    exported: 'warning',
-    imported: 'success'
-  };
 
   // Get unique action types for filter
   const actionOptions = useMemo(() => {
@@ -577,11 +576,11 @@ export function ActivityLogTable() {
       <div className='mb-4 flex items-start justify-between'>
         <div>
           <h3 className='text-lg font-semibold'>
-            Activity Log for
+            Activity Log for{' '}
             {activityLogType === 'single-object' ? (
               <>
                 <span className='text-accent'>{objects[0]?.name} </span>
-                <Chip color='accent' variant='soft'>
+                <Chip color='accent' variant='soft' size='md'>
                   {objects[0].type}
                 </Chip>{' '}
                 (ID: {objects[0].id})
@@ -699,7 +698,7 @@ export function ActivityLogTable() {
                     onSelectionChange={setActionFilter}
                   >
                     {actionOptions.map((action) => {
-                      const color = actionColorMap[action] || 'default';
+                      const color = getActionColor(action);
                       return (
                         <Dropdown.Item id={action} textValue={action}>
                           <Dropdown.ItemIndicator />

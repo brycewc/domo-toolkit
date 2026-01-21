@@ -119,6 +119,7 @@ export function ClearCookies({ onStatusUpdate, isDisabled }) {
         isPending={isClearingCookies}
         isDisabled={isDisabled}
         isIconOnly
+        fullWidth
       >
         {({ isPending }) => (
           <>

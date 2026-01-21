@@ -3,5 +3,7 @@ export { DomoContext } from './DomoContext';
 export {
   DomoObjectType,
   getObjectType,
-  getAllObjectTypes
+  getAllObjectTypes,
+  getAllObjectTypesWithUrl,
+  getAllObjectTypesWithApiConfig
 } from './DomoObjectType';

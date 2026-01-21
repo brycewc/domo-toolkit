@@ -1,232 +1,92 @@
-import { getObjectType, getAllObjectTypes, DomoObject } from '@/models';
+import { DomoObject } from '@/models';
 import { executeInPage } from '@/utils';
 import { getCurrentUserId } from '@/services';
 
 /**
- * Fetch details about a Domo object
- * @param {string} objectType - The type of object (CARD, DATA_SOURCE, etc.)
- * @param {string} objectId - The object ID
- * @param {string} [parentId] - Optional parent ID for types that require it
- * @returns {Promise<{name: string, type: string, id: string}>}
+ * Fetch object details from the Domo API and enrich metadata (page-safe version)
+ * This version can be executed in page context via executeInPage
+ * @param {Object} params - Parameters object
+ * @param {string} params.typeId - The object type ID
+ * @param {string} params.objectId - The object ID  
+ * @param {string} params.baseUrl - The base URL
+ * @param {Object} params.apiConfig - The API configuration {method, endpoint, pathToName, bodyTemplate}
+ * @param {boolean} params.requiresParent - Whether parent ID is required for API
+ * @param {string} [params.parentId] - Optional parent ID if already known
+ * @param {boolean} [params.throwOnError=true] - Whether to throw errors
+ * @returns {Promise<Object>} Metadata object {details, name}
  */
-export async function fetchObjectDetails(
-  objectType,
-  objectId,
-  parentId = null
-) {
+export async function fetchObjectDetailsInPage(params) {
+  const {
+    typeId,
+    objectId,
+    baseUrl,
+    apiConfig,
+    requiresParent,
+    parentId: providedParentId,
+    throwOnError = true
+  } = params;
+
+  const { method, endpoint, pathToName, bodyTemplate } = apiConfig;
+  let url;
+  let parentId = providedParentId;
+
   try {
-    // Get the object type configuration
-    const typeConfig = getObjectType(objectType);
-    if (!typeConfig || !typeConfig.api) {
-      throw new Error(`No API configuration for object type: ${objectType}`);
-    }
-
-    // Execute fetch in the page context to use Domo's authentication
-    const result = await executeInPage(
-      async (apiConfig, objectId, parentId, objectType) => {
-        const { method, endpoint, pathToName, bodyTemplate } = apiConfig;
-
-        try {
-          // Build the endpoint URL
-          let url = `/api${endpoint}`
-            .replace('{id}', objectId)
-            .replace('{parent}', parentId || '');
-
-          // Prepare fetch options
-          const options = {
-            method,
-            credentials: 'include'
-          };
-
-          // Add body for POST requests
-          if (method !== 'GET' && bodyTemplate) {
-            // Replace {id} in bodyTemplate
-            options.body = JSON.stringify(bodyTemplate).replace(
-              /{id}/g,
-              objectId
-            );
-            options.headers = {
-              'Content-Type': 'application/json'
-            };
-          }
-
-          const response = await fetch(url, options);
-
-          if (!response.ok) {
-            console.log(
-              `Non-OK response for ${objectType} ${objectId} at ${url}:`,
-              response
-            );
-            return null;
-          }
-
-          const data = await response.json();
-
-          // Extract name using the pathToName
-          const name =
-            pathToName
-              .split('.')
-              .reduce((current, prop) => current?.[prop], data) ||
-            `Object #${objectId}`;
-          console.log(`Fetched ${objectType} details in page:`, { name, data });
-          return {
-            name
-          };
-        } catch (error) {
-          console.error(
-            `Error in fetchObjectDetails for ${objectType}:`,
-            error
-          );
-          throw error;
-        }
-      },
-      [typeConfig.api, objectId, parentId, objectType]
-    );
-
-    return {
-      ...result,
-      type: objectType,
-      id: objectId
-    };
-  } catch (error) {
-    console.error('Error fetching object details:', error);
-    throw error;
-  }
-}
-
-/**
- * Try to fetch object details by trying different object types
- * @param {string} objectId - The object ID
- * @returns {Promise<DomoObject>} DomoObject instance with enriched metadata
- */
-export async function detectAndFetchObject(objectId) {
-  // Get the current tab's context from service worker to get the instance
-  const response = await chrome.runtime.sendMessage({
-    type: 'GET_TAB_CONTEXT'
-  });
-
-  if (!response?.success || !response?.context?.instance) {
-    throw new Error('Not on a Domo instance. Cannot detect object type.');
-  }
-
-  const instance = response.context.instance;
-  const baseUrl = `https://${instance}.domo.com`;
-
-  // Get all object types that have API configurations and match the ID pattern
-  const allTypes = getAllObjectTypes();
-  const typesToTry = allTypes
-    .filter(
-      (type) =>
-        type.api && // Has API configuration
-        type.isValidObjectId(objectId) // ID matches pattern
-    )
-    // Sort by likelihood (common types first)
-    .sort((a, b) => {
-      const priority = [
-        'CARD',
-        'DATA_SOURCE',
-        'DATAFLOW_TYPE',
-        'DATA_APP',
-        'DATA_APP_VIEW',
-        'PAGE',
-        'USER',
-        'GROUP',
-        'ALERT',
-        'BEAST_MODE_FORMULA',
-        'WORKFLOW_MODEL'
-      ];
-      const aIndex = priority.indexOf(a.id);
-      const bIndex = priority.indexOf(b.id);
-      if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
-      if (aIndex !== -1) return -1;
-      if (bIndex !== -1) return 1;
-      return 0;
-    });
-
-  for (const typeConfig of typesToTry) {
-    try {
-      // For types requiring a parent ID for API calls, try to fetch the parent first
-      let parentId = null;
-      let tempObject = null;
-      if (typeConfig.requiresParentForApi()) {
-        try {
-          // Use DomoObject.getParent which executes in page context
-          tempObject = new DomoObject(typeConfig.id, objectId, baseUrl);
-          parentId = await tempObject.getParent();
-          console.log(
-            `Fetched parent for ${typeConfig.id} ${objectId}: ${parentId}`
-          );
-        } catch (parentError) {
-          // If we can't get the parent, still try to fetch the object
-          // The API call might succeed anyway or fail naturally
-          console.log(
-            `Could not fetch parent for ${typeConfig.id} ${objectId} (will try anyway):`,
-            parentError.message
-          );
-          // Don't continue - still try the API call
-        }
-      }
-
-      const result = await fetchObjectDetails(
-        typeConfig.id,
-        objectId,
-        parentId
-      );
-      if (result && result.name) {
-        // Create DomoObject instance with enriched metadata
-        const metadata = {
-          name: result.name,
-          details: result
-        };
-
-        // If we fetched parent details, include them in metadata
-        if (tempObject?.metadata?.parent) {
-          metadata.parent = tempObject.metadata.parent;
-        } else if (typeConfig.parents && typeConfig.parents.length > 0) {
-          // If the object type has parents and we haven't fetched them yet, try to get the parent
-          try {
-            if (!tempObject) {
-              tempObject = new DomoObject(typeConfig.id, objectId, baseUrl);
-            }
-            const parentId = await tempObject.getParent();
-            if (parentId && tempObject.metadata?.parent) {
-              metadata.parent = tempObject.metadata.parent;
-              console.log(
-                `Fetched parent for ${typeConfig.id} ${objectId}: ${parentId}`
-              );
-            }
-          } catch (parentError) {
-            // Parent fetch is optional, so just log and continue
-            console.log(
-              `Could not fetch optional parent for ${typeConfig.id} ${objectId}:`,
-              parentError.message
-            );
-          }
-        }
-
-        const domoObject = new DomoObject(
-          typeConfig.id,
-          objectId,
-          baseUrl,
-          metadata
+    // Build the endpoint URL
+    if (requiresParent) {
+      if (!parentId) {
+        const error = new Error(
+          `Cannot fetch details for ${typeId} ${objectId} because parent ID is required`
         );
-        return domoObject;
+        if (throwOnError) throw error;
+        console.warn(error.message);
+        return { details: null, name: null };
       }
-    } catch (error) {
-      // Continue to next type
-      continue;
+      // Replace {parent} in endpoint
+      url = endpoint.replace('{parent}', parentId);
+      url = `/api${url.replace('{id}', objectId)}`;
+    } else {
+      url = `/api${endpoint}`.replace('{id}', objectId);
     }
-  }
 
-  // If all fail, return DomoObject with UNKNOWN type
-  // Create a minimal DomoObject without a specific type
-  const unknownObject = new DomoObject('CARD', objectId, baseUrl, {
-    name: `Object #${objectId}`,
-    isUnknown: true
-  });
-  // Override the type to indicate it's unknown
-  unknownObject._unknownType = true;
-  return unknownObject;
+    // Prepare fetch options
+    const options = {
+      method,
+      credentials: 'include'
+    };
+
+    // Add body for POST requests
+    if (method !== 'GET' && bodyTemplate) {
+      options.body = JSON.stringify(bodyTemplate).replace(/{id}/g, objectId);
+      if (parentId) {
+        options.body = options.body.replace(/{parent}/g, parentId);
+      }
+      options.headers = {
+        'Content-Type': 'application/json'
+      };
+    }
+
+    const response = await fetch(url, options);
+
+    if (!response.ok) {
+      const error = new Error(
+        `Failed to fetch details for ${typeId} ${objectId}: HTTP ${response.status}`
+      );
+      if (throwOnError) throw error;
+      console.warn(error.message);
+      return { details: null, name: null };
+    }
+
+    const data = await response.json();
+    const name = pathToName
+      .split('.')
+      .reduce((current, prop) => current?.[prop], data);
+
+    return { details: data, name };
+  } catch (error) {
+    console.error(`Error fetching details for ${typeId}:`, error);
+    if (throwOnError) throw error;
+    return { details: null, name: null };
+  }
 }
 
 /**
@@ -234,16 +94,17 @@ export async function detectAndFetchObject(objectId) {
  * @param {Object} params
  * @param {DomoObject} params.object - The Domo object to share
  * @param {Function} params.setStatus - Callback to update status (title, description, status)
+ * @param {number} [params.tabId] - Optional Chrome tab ID for context
  * @returns {Promise<void>}
  */
-export async function shareWithSelf({ object, setStatus }) {
+export async function shareWithSelf({ object, setStatus, tabId = null }) {
   try {
     if (!object || !object.typeId || !object.id) {
       throw new Error('Invalid object provided');
     }
 
     // Get current user ID
-    const userId = await getCurrentUserId();
+    const userId = await executeInPage(getCurrentUserId, [], tabId);
 
     // Execute share based on object type
     const result = await executeInPage(
@@ -348,7 +209,8 @@ export async function shareWithSelf({ object, setStatus }) {
 
         return successMessage;
       },
-      [object.typeId, object.id, userId, object.metadata]
+      [object.typeId, object.id, userId, object.metadata],
+      tabId
     );
 
     // Success callback

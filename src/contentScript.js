@@ -29,6 +29,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
+// Apply favicon on initial load
+(async () => {
+  console.log('[ContentScript] Initialized, applying favicon');
+  await applyFavicon();
+})();
+
 // Track last known clipboard value to detect changes
 let lastKnownClipboard = '';
 

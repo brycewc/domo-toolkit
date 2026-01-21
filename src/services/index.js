@@ -1,7 +1,6 @@
 export { getActivityLogEvents, getActivityLogForObject } from './activityLog';
 export {
-  fetchObjectDetails,
-  detectAndFetchObject,
+  fetchObjectDetailsInPage,
   shareWithSelf
 } from './allObjects';
 export { updateDataflowDetails } from './dataflows';

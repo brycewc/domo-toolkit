@@ -24,3 +24,25 @@ export const EXCLUDED_HOSTNAMES = [
 export const EXCLUDED_INSTANCES = EXCLUDED_HOSTNAMES.map((hostname) =>
   hostname.endsWith('.domo.com') ? hostname.replace('.domo.com', '') : hostname
 );
+
+// Partial match patterns for action colors
+// Checked after exact matches, uses .includes() for matching
+export const ACTION_COLOR_PATTERNS = {
+  created: 'success',
+  deleted: 'danger',
+  enabled: 'success',
+  exported: 'warning',
+  imported: 'success',
+  killed: 'danger',
+  shared: 'accent',
+  updated: 'warning',
+  viewed: 'accent',
+  changed: 'warning',
+  added: 'success',
+  removed: 'danger',
+  failed: 'danger',
+  started: 'success',
+  stopped: 'danger',
+  completed: 'success',
+  canceled: 'danger',
+};

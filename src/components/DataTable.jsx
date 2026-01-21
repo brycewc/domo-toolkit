@@ -153,6 +153,7 @@ export function DataTable({
                 value={globalFilter ?? ''}
                 onChange={setGlobalFilter}
                 fullWidth
+                variant='secondary'
               >
                 <SearchField.Group className='rounded-4xl'>
                   <SearchField.SearchIcon />

@@ -15,8 +15,9 @@ import {
   IconChevronDown,
   Spinner
 } from '@heroui/react';
-import { DomoObject, getAllObjectTypes } from '@/models';
-import { detectAndFetchObject } from '@/services';
+import { DomoObject, getAllObjectTypesWithApiConfig, getAllObjectTypesWithUrl } from '@/models';
+import { fetchObjectDetailsInPage } from '@/services';
+import { executeInPage } from '@/utils';
 import { IconExternalLink } from '@tabler/icons-react';
 
 export const NavigateToCopiedObject = forwardRef(
@@ -30,6 +31,117 @@ export const NavigateToCopiedObject = forwardRef(
     const lastCheckedClipboard = useRef('');
     const [allTypes, setAllTypes] = useState([]);
 
+    async function detectAndSetObject(objectId) {
+      console.log('[NavigateToCopiedObject] detectAndSetObject called with:', {
+        objectId,
+        instance: currentContext.instance,
+        tabId: currentContext.tabId
+      });
+
+      const baseUrl = `https://${currentContext.instance}.domo.com`;
+
+      // Get all object types that have API configurations and match the ID pattern
+      const allTypesWithApi = getAllObjectTypesWithApiConfig();
+      console.log(`[NavigateToCopiedObject] Total object types with API: ${allTypesWithApi.length}`);
+
+      const typesToTry = allTypesWithApi
+        .filter((type) => type.isValidObjectId(objectId))
+        .sort((a, b) => {
+          const priority = [
+            'CARD',
+            'DATA_SOURCE',
+            'DATAFLOW_TYPE',
+            'DATA_APP',
+            'DATA_APP_VIEW',
+            'PAGE',
+            'USER',
+            'GROUP',
+            'ALERT',
+            'BEAST_MODE_FORMULA',
+            'WORKFLOW_MODEL'
+          ];
+          const aIndex = priority.indexOf(a.id);
+          const bIndex = priority.indexOf(b.id);
+          if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+          if (aIndex !== -1) return -1;
+          if (bIndex !== -1) return 1;
+          return 0;
+        });
+
+      console.log(
+        `[NavigateToCopiedObject] Found ${typesToTry.length} types to try for ID ${objectId}:`,
+        typesToTry.map((t) => t.id)
+      );
+
+      if (typesToTry.length === 0) {
+        setError(`No object types match ID pattern for: ${objectId}`);
+        setObjectDetails(null);
+        setIsLoading(false);
+        return;
+      }
+
+      // Try each type until we find a match
+      for (const typeConfig of typesToTry) {
+        console.log(`[NavigateToCopiedObject] Trying type: ${typeConfig.id}`);
+
+        try {
+          // Prepare parameters for page-safe function
+          const params = {
+            typeId: typeConfig.id,
+            objectId,
+            baseUrl,
+            apiConfig: typeConfig.api,
+            requiresParent: typeConfig.requiresParentForApi(),
+            parentId: null,
+            throwOnError: false
+          };
+
+          // If parent is required, try to get it via executeInPage
+          if (typeConfig.requiresParentForApi()) {
+            try {
+              const domoObject = new DomoObject(typeConfig.id, objectId, baseUrl);
+              const parentId = await domoObject.getParentWithTabId(currentContext.tabId);
+              params.parentId = parentId;
+              console.log(`[NavigateToCopiedObject] Got parent ${parentId} for ${typeConfig.id}`);
+            } catch (parentError) {
+              console.log(
+                `[NavigateToCopiedObject] Could not get parent for ${typeConfig.id}:`,
+                parentError.message
+              );
+              continue; // Skip this type
+            }
+          }
+
+          // Try fetching with this type
+          const metadata = await executeInPage(fetchObjectDetailsInPage, [params], currentContext.tabId);
+
+          if (metadata && metadata.details) {
+            // Success! Create DomoObject and set details
+            console.log(`[NavigateToCopiedObject] ✓ Successfully detected type ${typeConfig.id}`);
+            
+            const domoObject = new DomoObject(typeConfig.id, objectId, baseUrl, {
+              details: metadata.details,
+              name: metadata.name
+            });
+
+            setObjectDetails(domoObject);
+            setError(null);
+            setIsLoading(false);
+            return;
+          }
+        } catch (error) {
+          console.log(`[NavigateToCopiedObject] Error trying type ${typeConfig.id}:`, error.message);
+          continue;
+        }
+      }
+
+      // If all types failed
+      console.warn(`[NavigateToCopiedObject] ⚠ All ${typesToTry.length} type(s) failed for ID ${objectId}`);
+      setError(`Could not determine object type for ID: ${objectId}`);
+      setObjectDetails(null);
+      setIsLoading(false);
+    }
+
     // Expose method to parent to trigger detection when Copy ID is clicked
     useImperativeHandle(ref, () => ({
       triggerDetection: (copiedId) => {
@@ -42,27 +154,14 @@ export const NavigateToCopiedObject = forwardRef(
         setError(null);
         lastCheckedClipboard.current = copiedId;
 
-        detectAndFetchObject(copiedId)
-          .then((details) => {
-            console.log('Fetched object details:', details);
-            setObjectDetails(details);
-            setError(null);
-          })
-          .catch((err) => {
-            console.error('Error fetching object details:', err);
-            setError(err.message);
-            setObjectDetails(null);
-          })
-          .finally(() => {
-            setIsLoading(false);
-          });
+        detectAndSetObject(copiedId);
       }
     }));
 
     useEffect(() => {
       // Load all object types for dropdown
-      const types = getAllObjectTypes()
-        .filter((type) => !type.requiresParentForUrl() && type.hasUrl())
+      const types = getAllObjectTypesWithUrl()
+        .filter((type) => !type.requiresParentForUrl())
         .sort((a, b) => a.name.localeCompare(b.name));
       setAllTypes(types);
     }, []);
@@ -89,7 +188,7 @@ export const NavigateToCopiedObject = forwardRef(
 
     // Load cached clipboard value from session storage on mount
     useEffect(() => {
-      if (!isDomoPage || !currentContext?.instance) {
+      if (!isDomoPage) {
         return;
       }
 
@@ -111,7 +210,7 @@ export const NavigateToCopiedObject = forwardRef(
             err
           );
         });
-    }, [isDomoPage, currentContext?.instance]);
+    }, [isDomoPage]);
 
     // Handle clipboard data from service worker
     const handleClipboardData = useCallback(
@@ -140,21 +239,7 @@ export const NavigateToCopiedObject = forwardRef(
           setError(null);
           if (currentContext?.instance) {
             setIsLoading(true);
-            // Fetch object details
-            detectAndFetchObject(trimmedText)
-              .then((details) => {
-                console.log('Fetched object details:', details);
-                setObjectDetails(details);
-                setError(null);
-              })
-              .catch((err) => {
-                console.error('Error fetching object details:', err);
-                setError(err.message);
-                setObjectDetails(null);
-              })
-              .finally(() => {
-                setIsLoading(false);
-              });
+            detectAndSetObject(trimmedText);
           }
         } else {
           // Clear if clipboard doesn't contain a valid ID
@@ -289,7 +374,7 @@ export const NavigateToCopiedObject = forwardRef(
         console.log(domoObject);
         // If we're on a Domo page, navigate in the current tab
         // Otherwise, create a new tab or update the current one
-        domoObject.navigateTo().catch((err) => {
+        domoObject.navigateTo(currentContext?.tabId).catch((err) => {
           console.error('Error navigating to object:', err);
           alert(`Error navigating to object: ${err.message}`);
         });
@@ -324,7 +409,7 @@ export const NavigateToCopiedObject = forwardRef(
         </Dropdown.Popover>
       </Dropdown>
     ) : (
-      <Tooltip delay={200}>
+      <Tooltip delay={400} closeDelay={0}>
         <Button
           onPress={() => handleClick()}
           isDisabled={!copiedObjectId || isLoading || !!error}
@@ -340,13 +425,13 @@ export const NavigateToCopiedObject = forwardRef(
             </>
           )}
         </Button>
-        <Tooltip.Content placement='top'>
+        <Tooltip.Content placement='top' className='flex flex-col gap-2'>
           {error ? (
             `Error: ${error}`
           ) : isDomoPage ? (
             copiedObjectId ? (
               objectDetails ? (
-                <div className='flex items-center gap-2'>
+                <>
                   <span>
                     Navigate to {objectDetails.metadata?.name || 'Unknown'}
                   </span>
@@ -355,7 +440,7 @@ export const NavigateToCopiedObject = forwardRef(
                       ? `${objectDetails.metadata.parent.objectType.name} > ${objectDetails.typeName}`
                       : `${objectDetails.typeName} (${objectDetails.typeId})`}
                   </Chip>
-                </div>
+                </>
               ) : (
                 'Loading object details...'
               )

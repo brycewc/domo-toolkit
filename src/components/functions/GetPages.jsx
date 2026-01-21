@@ -62,7 +62,7 @@ export function GetPages({ currentContext, onStatusUpdate, isDisabled }) {
           appId,
           pageType,
           pageName,
-          currentInstance: currentContext.instance,
+          currentContext: currentContext.toJSON(),
           timestamp: Date.now()
         }
       });

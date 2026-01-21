@@ -1,5 +1,28 @@
 import { DomoObject, DomoContext, getObjectType } from '@/models';
-import { detectCurrentObjectInPage, EXCLUDED_HOSTNAMES } from '@/utils';
+import { fetchObjectDetailsInPage } from '@/services';
+import { detectCurrentObject, EXCLUDED_HOSTNAMES, executeInPage } from '@/utils';
+
+/**
+ * Send a message to a tab with retry logic
+ * @param {number} tabId - The tab ID
+ * @param {Object} message - The message to send
+ * @param {number} maxRetries - Maximum number of retries
+ * @returns {Promise<any>} The response from the tab
+ */
+async function sendMessageWithRetry(tabId, message, maxRetries = 3) {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const response = await chrome.tabs.sendMessage(tabId, message);
+      return response;
+    } catch (error) {
+      if (i === maxRetries - 1) {
+        throw error;
+      }
+      // Wait with exponential backoff: 100ms, 200ms, 400ms
+      await new Promise(resolve => setTimeout(resolve, 100 * Math.pow(2, i)));
+    }
+  }
+}
 
 // In-memory cache of tab contexts (tabId -> context object)
 const tabContexts = new Map();
@@ -301,13 +324,14 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 
     await detectAndStoreContext(tabId);
 
-    // Trigger favicon application for new URL
-    try {
-      await chrome.tabs.sendMessage(tabId, { type: 'APPLY_FAVICON' });
-    } catch (error) {
-      // Tab might not be ready yet, ignore
-      console.log(`[Background] Could not send APPLY_FAVICON to tab ${tabId}`);
-    }
+    // Trigger favicon application for new URL with retry logic
+    // sendMessageWithRetry(tabId, { type: 'APPLY_FAVICON' }, 3)
+    //   .then(() => {
+    //     console.log(`[Background] Applied favicon for tab ${tabId}`);
+    //   })
+    //   .catch((error) => {
+    //     console.log(`[Background] Could not send APPLY_FAVICON to tab ${tabId}:`, error.message);
+    //   });
   }
 
   // Apply favicon when favIconUrl changes (page loaded or favicon updated)
@@ -315,11 +339,13 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     console.log(
       `[Background] Favicon changed for tab ${tabId}, applying rules`
     );
-    try {
-      await chrome.tabs.sendMessage(tabId, { type: 'APPLY_FAVICON' });
-    } catch (error) {
-      console.log(`[Background] Could not send APPLY_FAVICON to tab ${tabId}`);
-    }
+    sendMessageWithRetry(tabId, { type: 'APPLY_FAVICON' }, 3)
+      .then(() => {
+        console.log(`[Background] Applied favicon for tab ${tabId}`);
+      })
+      .catch((error) => {
+        console.log(`[Background] Could not send APPLY_FAVICON to tab ${tabId}:`, error.message);
+      });
   }
 
   // Update title if it's just "Domo" and we have object metadata
@@ -364,12 +390,13 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
     const tabs = await chrome.tabs.query({ url: '*://*.domo.com/*' });
 
     for (const tab of tabs) {
-      try {
-        await chrome.tabs.sendMessage(tab.id, { type: 'APPLY_FAVICON' });
-      } catch (error) {
-        // Tab might not have content script loaded
-        console.log(`[Background] Could not notify tab ${tab.id}`);
-      }
+      sendMessageWithRetry(tab.id, { type: 'APPLY_FAVICON' }, 3)
+        .then(() => {
+          console.log(`[Background] Updated favicon for tab ${tab.id}`);
+        })
+        .catch((error) => {
+          console.log(`[Background] Could not notify tab ${tab.id}:`, error.message);
+        });
     }
   }
 });
@@ -391,27 +418,19 @@ async function detectAndStoreContext(tabId) {
   try {
     // Get tab info for URL
     const tab = await chrome.tabs.get(tabId);
+    const context = new DomoContext(tabId, tab.url, null);
+    setTabContext(tabId, context);
 
-    // Inject detection script into page context
-    const results = await chrome.scripting.executeScript({
-      target: { tabId },
-      world: 'MAIN',
-      func: detectCurrentObjectInPage
-    });
-
-    if (!results || !results[0] || !results[0].result) {
+    // Execute detection script in page context
+    const detected = await executeInPage(detectCurrentObject, [], tabId);
+    if (!detected) {
       console.log(`[Background] No Domo object detected on tab ${tabId}`);
-      const context = new DomoContext(tabId, tab.url, null);
-      setTabContext(tabId, context);
       return null;
     }
-
-    const detected = results[0].result;
     const typeModel = getObjectType(detected.typeId);
 
     if (!typeModel) {
       console.warn(`[Background] Unknown object type: ${detected.typeId}`);
-      setTabContext(tabId, null);
       return null;
     }
 
@@ -423,7 +442,6 @@ async function detectAndStoreContext(tabId) {
 
     if (!objectId) {
       console.warn(`[Background] Could not extract ID for ${detected.typeId}`);
-      setTabContext(tabId, null);
       return null;
     }
 
@@ -435,81 +453,36 @@ async function detectAndStoreContext(tabId) {
       {} // metadata will be enriched below
     );
 
-    // Enrich with API data if available
-    if (typeModel.api) {
-      try {
-        const apiData = await fetchObjectDetailsForTab(
-          tabId,
-          typeModel.api,
-          objectId
-        );
-        if (apiData) {
-          domoObject.metadata.details = apiData;
-          domoObject.metadata.name = typeModel.api.pathToName
-            .split('.')
-            .reduce((current, prop) => current?.[prop], apiData);
-        }
-      } catch (error) {
-        console.warn(
-          `[Background] Failed to enrich ${detected.typeId} ${objectId}:`,
-          error.message
-        );
-      }
-    }
+    // Prepare parameters for page-safe enrichment function
+    const params = {
+      typeId: typeModel.id,
+      objectId,
+      baseUrl: detected.baseUrl,
+      apiConfig: typeModel.api,
+      requiresParent: typeModel.requiresParentForApi(),
+      parentId: null,
+      throwOnError: true
+    };
 
-    // Create DomoContext with the tab info and DomoObject
-    const context = new DomoContext(tabId, tab.url, domoObject);
+    // Enrich with details - throw on error for current object detection
+    domoObject.metadata = await executeInPage(fetchObjectDetailsInPage, [params], tabId);
+
+    // Update DomoContext with DomoObject
+    context.domoObject = domoObject;
 
     console.log(
       `[Background] Detected and stored context for tab ${tabId}:`,
       context
     );
     setTabContext(tabId, context);
-    return context;
+    return context.toJSON();
   } catch (error) {
     console.error(
       `[Background] Error detecting context for tab ${tabId}:`,
       error
     );
-    setTabContext(tabId, null);
     return null;
   }
-}
-
-/**
- * Fetch object details via API in page context
- */
-async function fetchObjectDetailsForTab(tabId, apiConfig, objectId) {
-  const { method, endpoint, bodyTemplate = null } = apiConfig;
-
-  const results = await chrome.scripting.executeScript({
-    target: { tabId },
-    world: 'MAIN',
-    func: async (apiMethod, apiEndpoint, apiBodyTemplate, objId) => {
-      let url = `/api${apiEndpoint}`.replace('{id}', objId);
-
-      const options = {
-        method: apiMethod,
-        credentials: 'include'
-      };
-
-      if (apiMethod !== 'GET' && apiBodyTemplate) {
-        options.body = JSON.stringify(apiBodyTemplate).replace(/{id}/g, objId);
-        options.headers = {
-          'Content-Type': 'application/json'
-        };
-      }
-
-      const response = await fetch(url, options);
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-      return await response.json();
-    },
-    args: [method, endpoint, bodyTemplate, objectId]
-  });
-
-  return results && results[0] && results[0].result ? results[0].result : null;
 }
 
 /**

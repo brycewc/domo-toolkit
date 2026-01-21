@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTheme } from '@/hooks';
 import { ActionButtons } from '@/components';
 import { DomoContext } from '@/models';
+import { Button, ButtonGroup } from '@heroui/react';
 
 export default function App() {
   // Apply theme

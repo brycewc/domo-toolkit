@@ -6,10 +6,16 @@ export function DeleteCurrentObject({
   onStatusUpdate,
   isDisabled
 }) {
+  const supportedTypes = [
+    'ACCESS_TOKEN',
+    'APP',
+    'BEAST_MODE_FORMULA',
+    'PAGE',
+    'MAGNUM_COLLECTION'
+  ];
   return (
     <Tooltip delay={400} closeDelay={0}>
       <Button
-        fullWidth
         variant='danger'
         onPress={() => {
           onStatusUpdate?.(
@@ -20,8 +26,9 @@ export function DeleteCurrentObject({
         }}
         isDisabled={isDisabled || !currentContext?.domoObject}
         isIconOnly
+        fullWidth
       >
-        <IconTrash className='h-4 w-4' />
+        <IconTrash className='size-4' />
       </Button>
       <Tooltip.Content>
         <span>Delete {currentContext?.domoObject?.metadata?.name || ''}</span>

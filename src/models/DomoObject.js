@@ -31,8 +31,8 @@ export class DomoObject {
       // For types requiring a parent, don't build URL yet (it's async)
       this.url = null;
     } else {
-      // For simple types, build URL synchronously
-      this.url = this.objectType.buildObjectUrl(baseUrl, id);
+      // For simple types, build URL synchronously (don't call async buildObjectUrl)
+      this.url = `${baseUrl}${this.objectType.urlPath.replace('{id}', id)}`;
     }
   }
 
@@ -237,13 +237,13 @@ export class DomoObject {
    * Navigate to this object in a Chrome tab
    * @returns {Promise<void>}
    */
-  async navigateTo() {
+  async navigateTo(tabId = null) {
     if (!this.hasUrl()) {
       throw new Error(
         `Cannot navigate to ${this.objectType.name}: this object type does not have a navigable URL`
       );
     }
-    const url = this.url || (await this.buildUrl(this.baseUrl));
+    const url = this.url || (await this.buildUrl(this.baseUrl, tabId));
     await chrome.tabs.create({ url });
   }
 

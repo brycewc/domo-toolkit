@@ -182,6 +182,7 @@ export function FaviconSettings() {
                       }
                       value={rule.pattern}
                       isRequired
+                      variant='secondary'
                     >
                       <Label>Subdomain Pattern</Label>
                       <Input />
@@ -195,6 +196,7 @@ export function FaviconSettings() {
                       onChange={(value) => updateRule(rule.id, 'effect', value)}
                       className='w-full'
                       isRequired
+                      variant='secondary'
                     >
                       <Label className='sr-only'>Effect</Label>
                       <Select.Trigger>

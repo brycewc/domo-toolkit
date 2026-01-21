@@ -65,6 +65,10 @@ export function ShareWithSelf({ currentContext, onStatusUpdate, isDisabled }) {
         object: currentContext.domoObject,
         setStatus: onStatusUpdate
       });
+      chrome.tabs.reload(
+        currentContext?.tabId
+      )
+      window.close();
     } catch (error) {
       // Error is already handled in shareWithSelf, but catch here in case
       console.error('Error in ShareWithSelf component:', error);
@@ -96,13 +100,13 @@ export function ShareWithSelf({ currentContext, onStatusUpdate, isDisabled }) {
       <Button
         onPress={handleShare}
         isDisabled={buttonDisabled}
-        fullWidth
         isIconOnly
+        fullWidth
       >
         {isSharing ? (
           <Spinner size='sm' color='white' />
         ) : (
-          <IconUserPlus className='h-4 w-4' />
+          <IconUserPlus className='size-4' />
         )}
       </Button>
       <Tooltip.Content>

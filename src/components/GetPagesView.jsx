@@ -6,21 +6,22 @@ import {
   Spinner,
   Tooltip
 } from '@heroui/react';
-import { DataList } from '@/components';
-import { getChildPages } from '@/services';
 import {
   IconClipboard,
   IconFolders,
   IconRefresh,
   IconUsersPlus
 } from '@tabler/icons-react';
-import { sharePagesWithSelf } from '../services/pages';
+import { DataList } from '@/components';
+import { getChildPages, sharePagesWithSelf } from '@/services';
+import { DomoContext } from '@/models';
 
-export function GetPagesView() {
+export function GetPagesView({lockedTabId = null}) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [items, setItems] = useState([]);
   const [pageData, setPageData] = useState(null); // Store metadata for rebuilding
+  const [tabId, setTabId] = useState(lockedTabId);
 
   // Load data on mount
   useEffect(() => {
@@ -42,8 +43,12 @@ export function GetPagesView() {
         return;
       }
 
-      const { pageId, appId, pageType, pageName, currentInstance } = data;
-      const origin = `https://${currentInstance}.domo.com`;
+      const { pageId, appId, pageType, pageName, currentContext } = data;
+      const context = DomoContext.fromJSON(currentContext);
+      if(context.tabId) {
+        setTabId(context.tabId);
+      }
+      const origin = `https://${context.instance}.domo.com`;
 
       console.log('Fetching child pages with:', { pageId, appId, pageType });
 
@@ -150,8 +155,7 @@ export function GetPagesView() {
         }
         break;
       case 'share':
-        // TODO: Implement share functionality
-        console.log('Share:', item);
+        await sharePagesWithSelf({ pageIds: [item.id], tabId: lockedTabId });
         break;
       default:
         break;

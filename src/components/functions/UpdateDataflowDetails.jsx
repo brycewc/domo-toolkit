@@ -88,15 +88,15 @@ export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
         Update DataFlow Details
       </Button>
       <Modal.Backdrop>
-        <Modal.Container scroll='outside' size='xs'>
-          <Modal.Dialog className='max-w-[360px]'>
+        <Modal.Container scroll='outside' size='xs' className=''>
+          <Modal.Dialog className='max-w-[360px] p-3'>
             <Modal.CloseTrigger />
             <Form onSubmit={handleSubmit}>
               <Modal.Header>
                 <Modal.Heading>Update DataFlow Details</Modal.Heading>
               </Modal.Header>
-              <Modal.Body className='flex flex-col gap-4 p-1'>
-                <TextField className='w-full' name='name'>
+              <Modal.Body className='flex flex-col gap-4'>
+                <TextField className='w-full' variant='secondary'  name='name' id='dataflow-name'>
                   <Label>DataFlow Name</Label>
                   <Input
                     className='h-8'
@@ -108,6 +108,7 @@ export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
                   <Label>DataFlow Description</Label>
                   <TextArea
                     className='max-h-[100px] w-full'
+                    variant='secondary'
                     name='description'
                     id='dataflow-description'
                     rows={2}
