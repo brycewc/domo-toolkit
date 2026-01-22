@@ -7,8 +7,7 @@ import {
   Dropdown,
   Label
 } from '@heroui/react';
-import { getCardsForObject } from '@/services/cards';
-import { getPagesForCards, getChildPages } from '@/services/pages';
+import { getCardsForObject, getPagesForCards, getChildPages } from '@/services';
 
 export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
   const [isLoading, setIsLoading] = useState(false);

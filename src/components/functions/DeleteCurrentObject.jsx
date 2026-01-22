@@ -13,18 +13,32 @@ export function DeleteCurrentObject({
     'PAGE',
     'MAGNUM_COLLECTION'
   ];
+  const handleDelete = async () => {
+    onStatusUpdate?.(
+      'Not Implemented',
+      'Delete functionality is not implemented yet. Please check back in a future release.',
+      'warning'
+    );
+  };
+
   return (
-    <Tooltip delay={400} closeDelay={0}>
+    <Tooltip
+      delay={400}
+      closeDelay={0}
+      isDisabled={
+        isDisabled ||
+        !currentContext?.domoObject ||
+        !supportedTypes.includes(currentContext?.domoObject?.typeId)
+      }
+    >
       <Button
         variant='danger'
-        onPress={() => {
-          onStatusUpdate?.(
-            'Not Implemented',
-            'Delete functionality is not implemented yet. Please check back in a future release.',
-            'warning'
-          );
-        }}
-        isDisabled={isDisabled || !currentContext?.domoObject}
+        onPress={handleDelete}
+        isDisabled={
+          isDisabled ||
+          !currentContext?.domoObject ||
+          !supportedTypes.includes(currentContext?.domoObject?.typeId)
+        }
         isIconOnly
         fullWidth
       >
@@ -34,7 +48,7 @@ export function DeleteCurrentObject({
         <span>Delete {currentContext?.domoObject?.metadata?.name || ''}</span>
         <Chip size='sm' variant='soft' color='accent'>
           {currentContext?.domoObject?.metadata?.parent
-            ? `${currentContext.domoObject.metadata.parent.objectType.name} > ${currentContext.domoObject.typeName}`
+            ? `${currentContext?.domoObject?.metadata?.parent.objectType.name} > ${currentContext?.domoObject?.typeName}`
             : `${currentContext?.domoObject?.typeName} (${currentContext?.domoObject?.typeId})`}
         </Chip>
       </Tooltip.Content>

@@ -16,7 +16,7 @@ import { DataList } from '@/components';
 import { getChildPages, sharePagesWithSelf } from '@/services';
 import { DomoContext } from '@/models';
 
-export function GetPagesView({lockedTabId = null}) {
+export function GetPagesView({ lockedTabId = null }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [items, setItems] = useState([]);
@@ -45,7 +45,7 @@ export function GetPagesView({lockedTabId = null}) {
 
       const { pageId, appId, pageType, pageName, currentContext } = data;
       const context = DomoContext.fromJSON(currentContext);
-      if(context.tabId) {
+      if (context.tabId) {
         setTabId(context.tabId);
       }
       const origin = `https://${context.instance}.domo.com`;
@@ -155,16 +155,10 @@ export function GetPagesView({lockedTabId = null}) {
         }
         break;
       case 'share':
-        await sharePagesWithSelf({ pageIds: [item.id], tabId: lockedTabId });
+        sharePagesWithSelf({ pageIds: [item.id], tabId: tabId });
         break;
       default:
         break;
-    }
-  };
-
-  const handleItemClick = async (item) => {
-    if (item.url) {
-      await chrome.tabs.create({ url: item.url });
     }
   };
 
@@ -252,8 +246,9 @@ export function GetPagesView({lockedTabId = null}) {
                     <Button
                       isIconOnly
                       onPress={async () =>
-                        await sharePagesWithSelf(
-                          items.map((item) => item.pageId)
+                        sharePagesWithSelf(
+                          items.map((item) => item.pageId),
+                          tabId
                         )
                       }
                       aria-label='Share'
@@ -293,7 +288,6 @@ export function GetPagesView({lockedTabId = null}) {
             </div>
           )
         }
-        onItemClick={handleItemClick}
         onItemAction={handleItemAction}
         showActions={true}
         showCounts={true}

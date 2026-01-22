@@ -29,10 +29,39 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
+// Update tab title if it's just "Domo" and we have object metadata
+async function updateTabTitle() {
+  try {
+    // Only update if title is just "Domo"
+    if (document.title !== 'Domo') {
+      return;
+    }
+
+    // Request context from background script
+    const response = await chrome.runtime.sendMessage({
+      type: 'GET_TAB_CONTEXT'
+    });
+
+    if (response?.success && response?.context?.domoObject?.metadata?.name) {
+      const objectName = response.context.domoObject.metadata.name;
+      document.title = `${objectName} - Domo`;
+      console.log(`[ContentScript] Updated title to: ${document.title}`);
+    }
+  } catch (error) {
+    console.log('[ContentScript] Could not update tab title:', error);
+  }
+}
+
 // Apply favicon on initial load
 (async () => {
   console.log('[ContentScript] Initialized, applying favicon');
   await applyFavicon();
+  
+  // Update title after initial detection
+  // Give a brief delay to allow background script to detect context first
+  setTimeout(async () => {
+    await updateTabTitle();
+  }, 700);
 })();
 
 // Track last known clipboard value to detect changes

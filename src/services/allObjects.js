@@ -7,7 +7,7 @@ import { getCurrentUserId } from '@/services';
  * This version can be executed in page context via executeInPage
  * @param {Object} params - Parameters object
  * @param {string} params.typeId - The object type ID
- * @param {string} params.objectId - The object ID  
+ * @param {string} params.objectId - The object ID
  * @param {string} params.baseUrl - The base URL
  * @param {Object} params.apiConfig - The API configuration {method, endpoint, pathToName, bodyTemplate}
  * @param {boolean} params.requiresParent - Whether parent ID is required for API
@@ -219,5 +219,23 @@ export async function shareWithSelf({ object, setStatus, tabId = null }) {
     console.error('Error sharing object with self:', error);
     setStatus?.('Share Failed', error.message, 'danger');
     throw error;
+  }
+}
+
+export async function deleteObject(object) {
+  if (!object || !object.typeId || !object.id) {
+    throw new Error('Invalid object provided for deletion');
+  }
+  const fetchRequest = {
+    method: 'DELETE',
+    url: ''
+  };
+  switch (object.typeId) {
+    case 'BEAST_MODE':
+    case 'FUNCTION_TEMPLATE':
+      fetchRequest.url = `/api/query/v1/functions/template/${object.id}`;
+      break;
+    default:
+      break;
   }
 }

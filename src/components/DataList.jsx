@@ -9,15 +9,7 @@ import {
   Separator,
   Tooltip
 } from '@heroui/react';
-import {
-  IconExternalLink,
-  IconCopy,
-  IconShare,
-  IconChevronDown,
-  IconClipboard,
-  IconFolders,
-  IconUserPlus
-} from '@tabler/icons-react';
+import { IconClipboard, IconFolders, IconUserPlus } from '@tabler/icons-react';
 
 /**
  * DataList Component
@@ -42,7 +34,6 @@ import {
 export function DataList({
   items = [],
   header,
-  onItemClick,
   onItemAction,
   showActions = true,
   showCounts = true
@@ -63,7 +54,6 @@ export function DataList({
               key={item.id || index}
               item={item}
               index={index}
-              onItemClick={onItemClick}
               onItemAction={onItemAction}
               showActions={showActions}
               showCounts={showCounts}
@@ -94,7 +84,6 @@ export function DataList({
  */
 function DataListItem({
   item,
-  onItemClick,
   onItemAction,
   showActions = true,
   showCounts = true,
@@ -103,12 +92,6 @@ function DataListItem({
 }) {
   const hasChildren = item.children && item.children.length > 0;
   const [isOpen, setIsOpen] = useState(false);
-
-  const handleClick = () => {
-    if (onItemClick) {
-      onItemClick(item);
-    }
-  };
 
   const handleAction = (actionType) => {
     if (onItemAction) {
@@ -126,8 +109,8 @@ function DataListItem({
               {item.url ? (
                 <Link
                   href={item.url}
-                  onPress={handleClick}
-                  className='truncate text-sm font-medium no-underline hover:underline hover:text-accent/80 decoration-accent/80'
+                  target='_blank'
+                  className='truncate text-sm font-medium no-underline decoration-accent/80 hover:text-accent/80 hover:underline'
                 >
                   {item.label}
                 </Link>
@@ -217,24 +200,4 @@ function DataListItem({
       </Disclosure>
     </>
   );
-}
-
-/**
- * Helper function to create list items from page hierarchy data
- * Useful for converting Domo page data into DataList format
- *
- * @param {Object} page - Page object with id, name, and optional children
- * @returns {Object} Formatted item for DataList
- */
-export function createListItemFromPage(page) {
-  return {
-    id: page.id,
-    label: page.name || page.title,
-    url: page.url,
-    count: page.cardCount || page.count,
-    metadata: page.id ? `ID: ${page.id}` : undefined,
-    children: page.children
-      ? page.children.map(createListItemFromPage)
-      : undefined
-  };
 }

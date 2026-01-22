@@ -335,23 +335,26 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   }
 
   // Apply favicon when favIconUrl changes (page loaded or favicon updated)
-  if (changeInfo.favIconUrl && tab.url?.includes('domo.com')) {
-    console.log(
-      `[Background] Favicon changed for tab ${tabId}, applying rules`
-    );
-    sendMessageWithRetry(tabId, { type: 'APPLY_FAVICON' }, 3)
-      .then(() => {
-        console.log(`[Background] Applied favicon for tab ${tabId}`);
-      })
-      .catch((error) => {
-        console.log(`[Background] Could not send APPLY_FAVICON to tab ${tabId}:`, error.message);
-      });
-  }
+  // if (changeInfo.favIconUrl && tab.url?.includes('domo.com')) {
+  //   console.log(
+  //     `[Background] Favicon changed for tab ${tabId}, applying rules`
+  //   );
+  //   sendMessageWithRetry(tabId, { type: 'APPLY_FAVICON' }, 3)
+  //     .then(() => {
+  //       console.log(`[Background] Applied favicon for tab ${tabId}`);
+  //     })
+  //     .catch((error) => {
+  //       console.log(`[Background] Could not send APPLY_FAVICON to tab ${tabId}:`, error.message);
+  //     });
+  // }
 
   // Update title if it's just "Domo" and we have object metadata
   if (changeInfo.title === 'Domo' && tab.url?.includes('domo.com')) {
     const context = getTabContext(tabId);
     if (context?.domoObject?.metadata?.name) {
+      console.log(
+        `[Background] Updating title for tab ${tabId} to include object name`
+      );
       try {
         await chrome.scripting.executeScript({
           target: { tabId },

@@ -183,23 +183,14 @@ export async function getChildPages({
  * @returns {Promise<void>} Resolves when sharing is complete
  * @throws {Error} If the fetch fails
  */
-export async function sharePagesWithSelf(pageIds) {
+export async function sharePagesWithSelf({ pageIds, tabId }) {
   try {
-    // Execute fetch in page context to use authenticated session
-    await executeInPage(
-      async (pageIds) => {
-        let userId = window.bootstrap.currentUser.USER_ID || null;
-        if (!userId) {
-          userId = await fetch(`${location.origin}/api/sessions/v1/me`).then(
-            async (res) => {
-              if (res.ok) {
-                const user = await res.json();
-                return user.userId || null;
-              }
-            }
-          );
-        }
+    // Get current user ID
+    const userId = await executeInPage(getCurrentUserId, [], tabId);
 
+    // Execute fetch in page context to use authenticated session
+    executeInPage(
+      async (pageIds, userId) => {
         // Build request body
         const body = {
           resources: pageIds.map((id) => ({ type: 'page', id })),
@@ -226,7 +217,7 @@ export async function sharePagesWithSelf(pageIds) {
           throw new Error(`Failed to share pages (HTTP ${response.status})`);
         }
       },
-      [pageIds]
+      [pageIds, userId]
     );
   } catch (error) {
     console.error('Error sharing pages:', error);
