@@ -238,4 +238,21 @@ export async function deleteObject(object) {
     default:
       break;
   }
+
+  if (!fetchRequest.url) {
+    throw new Error(`Deletion not supported for object type: ${object.typeId}`);
+  }
+
+  const response = await fetch(fetchRequest.url, {
+    method: fetchRequest.method
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(
+      `Failed to delete object. Status: ${response.status}. ${errorText}`
+    );
+  }
+
+  return true;
 }
