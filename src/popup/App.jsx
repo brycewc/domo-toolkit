@@ -11,7 +11,9 @@ export default function App() {
   const [currentContext, setCurrentContext] = useState(null);
   const [isDomoPage, setIsDomoPage] = useState(true);
   const [isLoadingCurrentContext, setIsLoadingCurrentContext] = useState(true);
+  const [currentTabId, setCurrentTabId] = useState(null);
 
+  // Request initial context on mount
   useEffect(() => {
     // Get current window and request context from service worker
     chrome.windows.getCurrent(async (window) => {
@@ -27,9 +29,11 @@ export default function App() {
           const context = DomoContext.fromJSON(response.context);
           console.log('[Popup] Reconstructed context:', context);
           setCurrentContext(context);
+          setCurrentTabId(response.tabId);
           setIsDomoPage(true);
         } else {
           setCurrentContext(null);
+          setCurrentTabId(response.tabId);
           setIsDomoPage(false);
         }
       } catch (error) {
@@ -41,6 +45,26 @@ export default function App() {
       }
     });
   }, []);
+
+  // Listen for context updates while popup is open
+  useEffect(() => {
+    const handleMessage = (message, sender, sendResponse) => {
+      if (message.type === 'TAB_CONTEXT_UPDATED') {
+        // Only update if this is for the tab we're currently showing
+        if (message.tabId === currentTabId) {
+          console.log('[Popup] Received context update:', message.context);
+          const context = DomoContext.fromJSON(message.context);
+          setCurrentContext(context);
+          setIsDomoPage(true);
+        }
+      }
+    };
+
+    chrome.runtime.onMessage.addListener(handleMessage);
+    return () => {
+      chrome.runtime.onMessage.removeListener(handleMessage);
+    };
+  }, [currentTabId]);
 
   return (
     <div className='h-full min-h-36 w-full min-w-xs'>

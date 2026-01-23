@@ -3,6 +3,7 @@ import { Button, ButtonGroup, Skeleton, Tooltip } from '@heroui/react';
 import {
   ActivityLogCurrentObject,
   ClearCookies,
+  Copy,
   ContextFooter,
   DeleteCurrentObject,
   FilterActivityLog,
@@ -42,7 +43,7 @@ export function ActionButtons({
   }, []);
 
   return (
-    <div className='flex flex-col gap-1 p-2 w-full min-w-xs justify-center'>
+    <div className='flex w-full min-w-xs flex-col justify-center gap-1 p-2'>
       {isLoadingCurrentContext ? (
         <>
           <Skeleton className='h-10 w-full rounded-4xl' />
@@ -53,30 +54,12 @@ export function ActionButtons({
       ) : (
         <>
           <ButtonGroup>
-            <Tooltip delay={400} closeDelay={0}>
-              <Button
-                isDisabled={!isDomoPage || !currentContext?.domoObject?.id}
-                onPress={() => {
-                  navigator.clipboard.writeText(currentContext?.domoObject?.id);
-                  showStatus(
-                    `Copied ${currentContext?.domoObject?.typeName} ID ${currentContext?.domoObject?.id} to clipboard`,
-                    '',
-                    'success',
-                    1500
-                  );
-                  // Trigger detection in NavigateToCopiedObject
-                  navigateToCopiedRef.current?.triggerDetection(
-                    currentContext?.domoObject?.id
-                  );
-                }}
-                isIconOnly
-                fullWidth
-              >
-                <IconClipboard className='size-4' />
-              </Button>
-              <Tooltip.Content>Copy ID</Tooltip.Content>
-            </Tooltip>
-
+            <Copy
+              currentContext={currentContext}
+              showStatus={showStatus}
+              isDisabled={!isDomoPage}
+              navigateToCopiedRef={navigateToCopiedRef}
+            />
             <ShareWithSelf
               currentContext={currentContext}
               onStatusUpdate={showStatus}
@@ -147,7 +130,7 @@ export function ActionButtons({
               />
             </div>
             {statusBar.visible && (
-              <div className='absolute inset-0 translate-y-0 opacity-100 transition-all duration-300 ease-in-out'>
+              <div className='absolute inset-0 h-full min-h-[6rem] translate-y-0 opacity-100 transition-all duration-300 ease-in-out'>
                 <StatusBar
                   title={statusBar.title}
                   description={statusBar.description}

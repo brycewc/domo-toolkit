@@ -72,7 +72,9 @@ export default function App() {
           setCurrentObject(context.domoObject);
           setCurrentInstance(context.instance);
           if (!lockedTabId) {
-            setCurrentTabId(context.tabId);
+            setCurrentTabId(response.tabId);
+          } else {
+            setCurrentTabId(lockedTabId);
           }
         }
       } catch (error) {
@@ -82,6 +84,27 @@ export default function App() {
 
     fetchContext();
   }, [lockedTabId]);
+
+  // Listen for context updates while sidepanel is open
+  useEffect(() => {
+    const handleMessage = (message, sender, sendResponse) => {
+      if (message.type === 'TAB_CONTEXT_UPDATED') {
+        // Update if this is for the tab we're currently tracking
+        const targetTabId = lockedTabId || currentTabId;
+        if (message.tabId === targetTabId) {
+          console.log('[Sidepanel] Received context update:', message.context);
+          const context = DomoContext.fromJSON(message.context);
+          setCurrentObject(context.domoObject);
+          setCurrentInstance(context.instance);
+        }
+      }
+    };
+
+    chrome.runtime.onMessage.addListener(handleMessage);
+    return () => {
+      chrome.runtime.onMessage.removeListener(handleMessage);
+    };
+  }, [lockedTabId, currentTabId]);
 
   // Render the appropriate view
   if (activeView === 'getPages') {

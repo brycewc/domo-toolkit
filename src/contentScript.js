@@ -1,3 +1,4 @@
+import { DomoContext } from '@/models';
 import {
   EXCLUDED_HOSTNAMES,
   applyFaviconRules,
@@ -20,6 +21,9 @@ async function applyFavicon() {
   }
 }
 
+// Store current tab context
+let currentTabContext = null;
+
 // Listen for messages from service worker
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'APPLY_FAVICON') {
@@ -27,41 +31,25 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({ success: true });
     return true;
   }
-});
 
-// Update tab title if it's just "Domo" and we have object metadata
-async function updateTabTitle() {
-  try {
-    // Only update if title is just "Domo"
-    if (document.title !== 'Domo') {
-      return;
-    }
-
-    // Request context from background script
-    const response = await chrome.runtime.sendMessage({
-      type: 'GET_TAB_CONTEXT'
-    });
-
-    if (response?.success && response?.context?.domoObject?.metadata?.name) {
-      const objectName = response.context.domoObject.metadata.name;
-      document.title = `${objectName} - Domo`;
-      console.log(`[ContentScript] Updated title to: ${document.title}`);
-    }
-  } catch (error) {
-    console.log('[ContentScript] Could not update tab title:', error);
+  if (message.type === 'TAB_CONTEXT_UPDATED') {
+    console.log(
+      '[ContentScript] Received tab context update:',
+      message.context
+    );
+    currentTabContext = DomoContext.fromJSON(message.context);
+    // Update title when context is received
+    sendResponse({ success: true });
+    return true;
   }
-}
+});
 
 // Apply favicon on initial load
 (async () => {
   console.log('[ContentScript] Initialized, applying favicon');
   await applyFavicon();
-  
-  // Update title after initial detection
-  // Give a brief delay to allow background script to detect context first
-  setTimeout(async () => {
-    await updateTabTitle();
-  }, 700);
+
+  // Title will be updated when we receive tab context from background
 })();
 
 // Track last known clipboard value to detect changes
@@ -103,8 +91,11 @@ document.addEventListener('copy', async () => {
 // Listen for window focus to detect when user returns to tab
 // This handles the case where user copied from another application
 window.addEventListener('focus', async () => {
-  console.log('[ContentScript] Window gained focus, checking clipboard');
+  console.log(
+    '[ContentScript] Window gained focus, checking clipboard and tab title'
+  );
   await checkAndCacheClipboard();
+  updateTabTitle();
 });
 
 // NOTE: URL change detection and instance tracking are handled by service worker

@@ -10,9 +10,15 @@ import {
   TextField,
   Form,
   Popover,
-  Skeleton
+  Skeleton,
+  ButtonGroup
 } from '@heroui/react';
-import { IconTrash, IconGripVertical } from '@tabler/icons-react';
+import {
+  IconTrash,
+  IconGripVertical,
+  IconColorSwatchOff,
+  IconColorSwatch
+} from '@tabler/icons-react';
 import { ColorPicker } from 'react-color-pikr';
 import { clearFaviconCache } from '@/utils';
 import { StatusBar } from '@/components';
@@ -30,6 +36,7 @@ export function FaviconSettings() {
     timeout: 3000,
     visible: false
   });
+  const [popoverOffset, setPopoverOffset] = useState(8);
 
   // Load settings from Chrome storage on component mount
   useEffect(() => {
@@ -99,8 +106,8 @@ export function FaviconSettings() {
       {
         id: Date.now(),
         pattern: '.*',
-        effect: 'instance-logo',
-        color: '#000000'
+        effect: 'domo-logo-colored',
+        color: '#000FFF'
       }
     ]);
   };
@@ -143,7 +150,7 @@ export function FaviconSettings() {
   };
 
   return (
-    <div className='flex w-full flex-col justify-between pt-4 min-h-[calc(100vh-20)] h-full'>
+    <div className='flex h-full min-h-[calc(100vh-20)] w-full flex-col justify-between pt-4'>
       <div className='flex w-full flex-col gap-4'>
         <Form className='flex w-full flex-col gap-4' onSubmit={onSave}>
           {isLoading ? (
@@ -220,7 +227,7 @@ export function FaviconSettings() {
                     </Select>
                   </div>
 
-                  <div className='flex w-20 flex-col gap-1'>
+                  <div className='flex w-25 flex-col gap-1'>
                     <Label>Color</Label>
                     <Popover
                       onOpenChange={(isOpen) => {
@@ -236,26 +243,46 @@ export function FaviconSettings() {
                         }
                       }}
                     >
-                      <Button
-                        className={
-                          rule.effect === 'instance-logo'
-                            ? 'bg-field-blank'
-                            : ''
-                        }
-                        style={
-                          rule.effect !== 'instance-logo'
-                            ? {
-                                backgroundColor:
-                                  activeColorPicker === rule.id
-                                    ? tempColor
-                                    : rule.color
-                              }
-                            : undefined
-                        }
-                        isDisabled={rule.effect === 'instance-logo'}
-                        fullWidth
-                      />
-                      <Popover.Content>
+                      <ButtonGroup>
+                        <Button
+                          onPress={() => setPopoverOffset(49)}
+                          className={
+                            rule.effect === 'instance-logo'
+                              ? 'bg-default opacity-100'
+                              : 'opacity-100'
+                          }
+                          style={
+                            rule.effect !== 'instance-logo'
+                              ? {
+                                  backgroundColor:
+                                    activeColorPicker === rule.id
+                                      ? tempColor
+                                      : rule.color
+                                }
+                              : undefined
+                          }
+                          fullWidth
+                        ></Button>
+                        <Button
+                          variant='tertiary'
+                          isIconOnly
+                          isDisabled={rule.effect === 'instance-logo'}
+                          fullWidth
+                          className={
+                            rule.effect === 'instance-logo'
+                              ? 'bg-default opacity-100'
+                              : 'opacity-100'
+                          }
+                          onPress={() => setPopoverOffset(8)}
+                        >
+                          {rule.effect === 'instance-logo' ? (
+                            <IconColorSwatchOff size={4} />
+                          ) : (
+                            <IconColorSwatch size={4} />
+                          )}
+                        </Button>
+                      </ButtonGroup>
+                      <Popover.Content placement='right' offset={popoverOffset}>
                         <ColorPicker
                           value={tempColor}
                           onChange={(newColor) => {

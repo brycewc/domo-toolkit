@@ -1,6 +1,10 @@
 import { DomoObject, DomoContext, getObjectType } from '@/models';
 import { fetchObjectDetailsInPage } from '@/services';
-import { detectCurrentObject, EXCLUDED_HOSTNAMES, executeInPage } from '@/utils';
+import {
+  detectCurrentObject,
+  EXCLUDED_HOSTNAMES,
+  executeInPage
+} from '@/utils';
 
 /**
  * Send a message to a tab with retry logic
@@ -19,7 +23,7 @@ async function sendMessageWithRetry(tabId, message, maxRetries = 3) {
         throw error;
       }
       // Wait with exponential backoff: 100ms, 200ms, 400ms
-      await new Promise(resolve => setTimeout(resolve, 100 * Math.pow(2, i)));
+      await new Promise((resolve) => setTimeout(resolve, 100 * Math.pow(2, i)));
     }
   }
 }
@@ -95,7 +99,7 @@ function touchTab(tabId) {
 }
 
 /**
- * Store context for a specific tab
+ * Store context for a specific tab and push to content script
  */
 function setTabContext(tabId, context) {
   evictLRUIfNeeded();
@@ -104,6 +108,54 @@ function setTabContext(tabId, context) {
 
   // Persist to session storage (async, non-blocking)
   persistToSession();
+
+  if (context.domoObject?.metadata?.name) {
+    setTabTitle(tabId, context.domoObject.metadata.name);
+  }
+
+  const contextData = context.toJSON();
+
+  // Send to content script in the specific tab
+  chrome.tabs
+    .sendMessage(tabId, {
+      type: 'TAB_CONTEXT_UPDATED',
+      context: contextData
+    })
+    .catch((error) => {
+      console.log(
+        `[Background] Could not send context to tab ${tabId}:`,
+        error.message
+      );
+    });
+
+  // Broadcast to extension pages (popup, sidepanel)
+  chrome.runtime
+    .sendMessage({
+      type: 'TAB_CONTEXT_UPDATED',
+      tabId: tabId,
+      context: contextData
+    })
+    .catch((error) => {
+      // No listeners, that's fine (popup/sidepanel might not be open)
+    });
+}
+
+function setTabTitle(tabId, objectName) {
+  try {
+    chrome.scripting.executeScript({
+      target: { tabId },
+      func: (objectName) => {
+        if (document.title.trim() !== 'Domo') {
+          return;
+        }
+        document.title = `${objectName} - Domo`;
+      },
+      args: [objectName],
+      world: 'MAIN'
+    });
+  } catch (error) {
+    console.error(`[Background] Error updating title for tab ${tabId}:`, error);
+  }
 }
 
 /**
@@ -398,7 +450,10 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
           console.log(`[Background] Updated favicon for tab ${tab.id}`);
         })
         .catch((error) => {
-          console.log(`[Background] Could not notify tab ${tab.id}:`, error.message);
+          console.log(
+            `[Background] Could not notify tab ${tab.id}:`,
+            error.message
+          );
         });
     }
   }
@@ -468,7 +523,11 @@ async function detectAndStoreContext(tabId) {
     };
 
     // Enrich with details - throw on error for current object detection
-    domoObject.metadata = await executeInPage(fetchObjectDetailsInPage, [params], tabId);
+    domoObject.metadata = await executeInPage(
+      fetchObjectDetailsInPage,
+      [params],
+      tabId
+    );
 
     // Update DomoContext with DomoObject
     context.domoObject = domoObject;
