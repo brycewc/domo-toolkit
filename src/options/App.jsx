@@ -42,7 +42,7 @@ export default function App() {
         selectedKey={selectedTab}
         onSelectionChange={handleTabChange}
       >
-        <Tabs.ListContainer className='flex w-full max-w-4xl flex-row justify-center'>
+        <Tabs.ListContainer className='flex w-full max-w-3xl flex-row justify-center'>
           <Tabs.List>
             <Tabs.Tab id='favicon'>
               Favicon
@@ -61,7 +61,7 @@ export default function App() {
           </Tabs.List>
         </Tabs.ListContainer>
         <Tabs.Panel
-          className='flex h-full max-w-4xl flex-col px-4'
+          className='flex h-full max-w-3xl flex-col px-4'
           id='favicon'
         >
           <div className='w-full justify-start'>
@@ -74,7 +74,7 @@ export default function App() {
           <FaviconSettings />
         </Tabs.Panel>
         <Tabs.Panel
-          className='flex max-w-4xl flex-col items-start px-4'
+          className='flex max-w-3xl flex-col items-start px-4'
           id='settings'
         >
           <div className='w-full justify-start'>

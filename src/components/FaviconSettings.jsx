@@ -245,6 +245,7 @@ export function FaviconSettings() {
                     >
                       <ButtonGroup>
                         <Button
+                          fullWidth
                           onPress={() => setPopoverOffset(49)}
                           className={
                             rule.effect === 'instance-logo'
@@ -261,7 +262,7 @@ export function FaviconSettings() {
                                 }
                               : undefined
                           }
-                          fullWidth
+                          isDisabled={rule.effect === 'instance-logo'}
                         ></Button>
                         <Button
                           variant='tertiary'
@@ -286,6 +287,7 @@ export function FaviconSettings() {
                         <ColorPicker
                           value={tempColor}
                           onChange={(newColor) => {
+                            setPopoverOffset(8);
                             setTempColor(newColor);
                             updateRule(rule.id, 'color', newColor);
                           }}
