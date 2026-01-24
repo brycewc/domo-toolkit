@@ -1,53 +1,31 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button, Spinner, Tooltip } from '@heroui/react';
 import { IconCookieOff } from '@tabler/icons-react';
 
-export function ClearCookies({ onStatusUpdate, isDisabled }) {
+export function ClearCookies({ currentContext, onStatusUpdate, isDisabled }) {
   const [isClearingCookies, setIsClearingCookies] = useState(false);
+  const [currentDomain, setCurrentDomain] = useState(null);
+
+  useEffect(() => {
+    if (currentContext?.url) {
+      const domain = new URL(currentContext.url).hostname;
+      setCurrentDomain(domain);
+    }
+  }, [currentContext]);
 
   const clearCookies = async () => {
     setIsClearingCookies(true);
 
     try {
-      // Get the current active tab
-      const [tab] = await chrome.tabs.query({
-        active: true,
-        currentWindow: true
-      });
-
-      if (!tab || !tab.url) {
+      if (!currentContext?.url) {
         onStatusUpdate?.('Error', 'Could not get active tab', 'danger');
         setIsClearingCookies(false);
         return;
       }
 
-      // Extract domain from URL
-      const url = new URL(tab.url);
-      const currentDomain = url.hostname;
-
-      // Check if we're on a domo.com domain
-      if (!currentDomain.includes('domo.com')) {
-        onStatusUpdate?.(
-          'Not a Domo Instance',
-          `Current tab is not a Domo instance (${currentDomain})`,
-          'danger'
-        );
-        setIsClearingCookies(false);
-        return;
-      }
-
       // Get all cookies
-      const allCookies = await chrome.cookies.getAll({});
-
-      // Filter for cookies matching the current Domo instance
-      // This includes both exact match and wildcard (.customer.domo.com)
-      const domoCookies = allCookies.filter((cookie) => {
-        const cookieDomain = cookie.domain.startsWith('.')
-          ? cookie.domain.substring(1)
-          : cookie.domain;
-        return (
-          cookieDomain === currentDomain || currentDomain.endsWith(cookieDomain)
-        );
+      const domoCookies = await chrome.cookies.getAll({
+        domain: currentDomain
       });
 
       // Remove each cookie
@@ -115,23 +93,27 @@ export function ClearCookies({ onStatusUpdate, isDisabled }) {
   return (
     <Tooltip delay={400} closeDelay={0}>
       <Button
+        variant='tertiary'
+        fullWidth
+        isIconOnly
         onPress={clearCookies}
         isPending={isClearingCookies}
         isDisabled={isDisabled}
-        isIconOnly
-        fullWidth
       >
         {({ isPending }) => (
           <>
             {isPending ? (
-              <Spinner color='white' size='sm' />
+              <Spinner color='currentColor' size='sm' />
             ) : (
-              <IconCookieOff className='h-4 w-4' />
+              <IconCookieOff size={4} className='text-danger' />
             )}
           </>
         )}
       </Button>
-      <Tooltip.Content>Clear cookies for current instance</Tooltip.Content>
+      <Tooltip.Content>
+        Clear cookies for{' '}
+        <span className='font-semibold lowercase'>{currentDomain}</span>
+      </Tooltip.Content>
     </Tooltip>
   );
 }

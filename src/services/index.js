@@ -6,6 +6,7 @@ export {
   getAppStudioPageParent,
   getChildPages,
   sharePagesWithSelf,
-  getPagesForCards
+  getPagesForCards,
+  deletePageAndAllCards
 } from './pages';
 export { getCurrentUserId } from './users';

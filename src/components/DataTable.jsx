@@ -171,7 +171,7 @@ export function DataTable({
             {/* Column Visibility Dropdown */}
             <Dropdown>
               <Button variant='tertiary'>
-                <IconColumns className='size-4' />
+                <IconColumns size={4} />
                 Columns
                 <IconChevronDown className='size-4 text-foreground' />
               </Button>
@@ -246,7 +246,7 @@ export function DataTable({
             {/* Add New Button */}
             {onAdd && (
               <Button onPress={onAdd}>
-                <IconPlus className='size-4' />
+                <IconPlus size={4} />
                 Add New
               </Button>
             )}

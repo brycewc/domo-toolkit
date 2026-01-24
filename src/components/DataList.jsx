@@ -102,9 +102,13 @@ function DataListItem({
   return (
     <>
       {index !== 0 && <Separator />}
-      <Disclosure isOpen={isOpen} onOpenChange={setIsOpen} className='py-[5px]'>
-        <Disclosure.Heading className='flex flex-row justify-between'>
-          <div className='flex min-w-0 flex-1 items-center'>
+      <Disclosure
+        isOpen={isOpen}
+        onOpenChange={setIsOpen}
+        className='w-full py-[5px]'
+      >
+        <Disclosure.Heading className='flex w-full flex-row justify-between'>
+          <div className='flex w-full min-w-0 flex-4/5 items-center'>
             <Tooltip delay={100} closeDelay={0} className='flex-1'>
               {item.url ? (
                 <Link
@@ -119,7 +123,11 @@ function DataListItem({
                   {item.label}
                 </span>
               )}
-              <Tooltip.Content placement='right' offset={8}>
+              <Tooltip.Content
+                placement='right'
+                offset={8}
+                className='text-nowrap'
+              >
                 ID: {item.id}
               </Tooltip.Content>
             </Tooltip>
@@ -137,49 +145,65 @@ function DataListItem({
             )}
           </div>
           {showActions && (
-            <ButtonGroup variant='ghost' size='sm' className='flex-shrink-0'>
-              {hasChildren && (
-                <Tooltip delay={500} closeDelay={0}>
+            <div className='flex-1/5'>
+              <ButtonGroup
+                variant='tertiary'
+                size='sm'
+                className='max-w-xs'
+                fullWidth
+              >
+                {hasChildren && (
+                  <Tooltip delay={400} closeDelay={0}>
+                    <Button
+                      variant='tertiary'
+                      size='sm'
+                      fullWidth
+                      isIconOnly
+                      onPress={() => handleAction('openAll')}
+                      aria-label='Open All'
+                    >
+                      <IconFolders size={4} />
+                    </Button>
+                    <Tooltip.Content className='text-xs'>
+                      Open all
+                    </Tooltip.Content>
+                  </Tooltip>
+                )}
+                <Tooltip delay={400} closeDelay={0}>
                   <Button
+                    variant='tertiary'
+                    size='sm'
+                    fullWidth
                     isIconOnly
-                    onPress={() => handleAction('openAll')}
-                    aria-label='Open All'
+                    onPress={() => handleAction('copy')}
+                    aria-label='Copy'
                   >
-                    <IconFolders className='size-4' />
+                    <IconClipboard size={4} />
+                  </Button>
+                  <Tooltip.Content className='text-xs'>Copy ID</Tooltip.Content>
+                </Tooltip>
+                <Tooltip delay={400} closeDelay={0}>
+                  <Button
+                    variant='tertiary'
+                    size='sm'
+                    fullWidth
+                    isIconOnly
+                    onPress={() => handleAction('share')}
+                    aria-label='Share'
+                  >
+                    <IconUserPlus size={4} />
                   </Button>
                   <Tooltip.Content className='text-xs'>
-                    Open all
+                    Share with yourself
                   </Tooltip.Content>
                 </Tooltip>
-              )}
-              <Tooltip delay={500} closeDelay={0}>
-                <Button
-                  isIconOnly
-                  onPress={() => handleAction('copy')}
-                  aria-label='Copy'
-                >
-                  <IconClipboard className='size-4' />
-                </Button>
-                <Tooltip.Content className='text-xs'>Copy ID</Tooltip.Content>
-              </Tooltip>
-              <Tooltip delay={500} closeDelay={0}>
-                <Button
-                  isIconOnly
-                  onPress={() => handleAction('share')}
-                  aria-label='Share'
-                >
-                  <IconUserPlus className='size-4' />
-                </Button>
-                <Tooltip.Content className='text-xs'>
-                  Share with yourself
-                </Tooltip.Content>
-              </Tooltip>
-            </ButtonGroup>
+              </ButtonGroup>
+            </div>
           )}
         </Disclosure.Heading>
         {hasChildren && (
-          <Disclosure.Content>
-            <Disclosure.Body className='pl-[5px]'>
+          <Disclosure.Content className='w-full'>
+            <Disclosure.Body className='w-full pl-[5px]'>
               <DisclosureGroup>
                 {item.children.map((child, index) => (
                   <DataListItem

@@ -93,6 +93,7 @@ export function GetPages({ currentContext, onStatusUpdate, isDisabled }) {
 
   return (
     <Button
+      variant='tertiary'
       fullWidth
       onPress={handleGetPages}
       isDisabled={isDisabled}

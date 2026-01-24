@@ -65,9 +65,7 @@ export function ShareWithSelf({ currentContext, onStatusUpdate, isDisabled }) {
         object: currentContext.domoObject,
         setStatus: onStatusUpdate
       });
-      chrome.tabs.reload(
-        currentContext?.tabId
-      )
+      chrome.tabs.reload(currentContext?.tabId);
       window.close();
     } catch (error) {
       // Error is already handled in shareWithSelf, but catch here in case
@@ -98,36 +96,32 @@ export function ShareWithSelf({ currentContext, onStatusUpdate, isDisabled }) {
   return (
     <Tooltip delay={200} closeDelay={0} disabled={!buttonDisabled}>
       <Button
+        variant='tertiary'
+        fullWidth
+        isIconOnly
         onPress={handleShare}
         isDisabled={buttonDisabled}
-        isIconOnly
-        fullWidth
       >
         {isSharing ? (
-          <Spinner size='sm' color='white' />
+          <Spinner size='sm' color='currentColor' />
         ) : (
-          <IconUserPlus className='size-4' />
+          <IconUserPlus size={4} />
         )}
       </Button>
       <Tooltip.Content>
         {currentContext?.domoObject?.typeId === 'DATA_SOURCE' ? (
-          <div className='flex items-center gap-2'>
-            <span>
-              Share account{' '}
-              {currentContext?.domoObject?.metadata?.details?.accountId || ''}{' '}
-              with yourself
-            </span>
-            <Chip size='sm' variant='soft' color='accent'>
-              Account (ACCOUNT)
-            </Chip>
-          </div>
+          <>
+            Share <span className='font-semibold'>dataset account</span> with
+            yourself
+          </>
         ) : (
-          <div className='flex items-center gap-2'>
-            <span>Share {currentContext?.domoObject?.name} with yourself</span>
-            <Chip size='sm' variant='soft' color='accent'>
-              {`${currentContext?.domoObject?.typeName} (${currentContext?.domoObject?.typeId})`}
-            </Chip>
-          </div>
+          <>
+            Share{' '}
+            <span className='font-semibold lowercase'>
+              {currentContext?.domoObject?.name}
+            </span>{' '}
+            with yourself
+          </>
         )}
       </Tooltip.Content>
     </Tooltip>

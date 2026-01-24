@@ -1,15 +1,13 @@
 import { useEffect, useState } from 'react';
-import { useTheme } from '@/hooks';
 import { ActionButtons } from '@/components';
+import { useTheme } from '@/hooks';
 import { DomoContext } from '@/models';
-import { Button, ButtonGroup } from '@heroui/react';
 
 export default function App() {
   // Apply theme
   useTheme();
 
   const [currentContext, setCurrentContext] = useState(null);
-  const [isDomoPage, setIsDomoPage] = useState(true);
   const [isLoadingCurrentContext, setIsLoadingCurrentContext] = useState(true);
   const [currentTabId, setCurrentTabId] = useState(null);
 
@@ -30,16 +28,13 @@ export default function App() {
           console.log('[Popup] Reconstructed context:', context);
           setCurrentContext(context);
           setCurrentTabId(response.tabId);
-          setIsDomoPage(true);
         } else {
           setCurrentContext(null);
           setCurrentTabId(response.tabId);
-          setIsDomoPage(false);
         }
       } catch (error) {
         console.error('[Popup] Error getting tab context:', error);
         setCurrentContext(null);
-        setIsDomoPage(false);
       } finally {
         setIsLoadingCurrentContext(false);
       }
@@ -55,7 +50,6 @@ export default function App() {
           console.log('[Popup] Received context update:', message.context);
           const context = DomoContext.fromJSON(message.context);
           setCurrentContext(context);
-          setIsDomoPage(true);
         }
       }
     };
@@ -67,12 +61,9 @@ export default function App() {
   }, [currentTabId]);
 
   return (
-    <div className='h-full min-h-36 w-full min-w-xs'>
-      <ActionButtons
-        currentContext={currentContext}
-        isDomoPage={isDomoPage}
-        isLoadingCurrentContext={isLoadingCurrentContext}
-      />
-    </div>
+    <ActionButtons
+      currentContext={currentContext}
+      isLoadingCurrentContext={isLoadingCurrentContext}
+    />
   );
 }

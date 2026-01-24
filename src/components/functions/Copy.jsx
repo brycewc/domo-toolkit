@@ -45,12 +45,13 @@ export function Copy({
         }
       >
         <Button
-          isDisabled={isDisabled || !currentContext?.domoObject?.id}
-          onPress={handlePress}
-          isIconOnly
+          variant='tertiary'
           fullWidth
+          isIconOnly
+          onPress={handlePress}
+          isDisabled={isDisabled || !currentContext?.domoObject?.id}
         >
-          <IconClipboard className='size-4' />
+          <IconClipboard size={4} />
         </Button>
         <Dropdown.Popover
           className='w-full min-w-[12rem]'
@@ -59,7 +60,7 @@ export function Copy({
           <Dropdown.Menu onAction={handleAction}>
             {currentContext?.domoObject?.typeId === 'DATA_SOURCE' && (
               <Dropdown.Item id='stream' textValue='Copy Stream ID'>
-                <IconClipboard className='size-4' />
+                <IconClipboard size={4} />
                 <Label>Copy Stream ID</Label>
               </Dropdown.Item>
             )}

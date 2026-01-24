@@ -5,7 +5,7 @@ export function StatusBar({
   title,
   description = '',
   status = 'accent',
-  timeout = 5000,
+  timeout = 3000,
   onClose
 }) {
   const [progress, setProgress] = useState(100);
@@ -58,7 +58,7 @@ export function StatusBar({
   return (
     <Alert
       status={status}
-      className={`h-full min-h-[6rem] w-full overflow-hidden bg-linear-to-r to-${status}/10`}
+      className={`h-fit min-h-[6rem] w-full overflow-hidden bg-linear-to-r to-${status}/10`}
     >
       {timeout && (
         <div

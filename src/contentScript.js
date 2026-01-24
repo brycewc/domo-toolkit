@@ -95,7 +95,6 @@ window.addEventListener('focus', async () => {
     '[ContentScript] Window gained focus, checking clipboard and tab title'
   );
   await checkAndCacheClipboard();
-  updateTabTitle();
 });
 
 // NOTE: URL change detection and instance tracking are handled by service worker

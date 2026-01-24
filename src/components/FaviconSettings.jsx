@@ -305,7 +305,7 @@ export function FaviconSettings() {
                         onPress={() => removeRow(rule.id)}
                         isIconOnly
                       >
-                        <IconTrash className='size-4' />
+                        <IconTrash size={4} />
                       </Button>
                     </div>
                   )}

@@ -1,7 +1,9 @@
 import { Alert, Chip, Spinner, Tooltip } from '@heroui/react';
 import { IconBoltOff } from '@tabler/icons-react';
 
-export function ContextFooter({ isDomoPage, currentContext, isLoading }) {
+export function ContextFooter({ currentContext, isLoading }) {
+  const isDomoPage = currentContext?.isDomoPage ?? false;
+
   return (
     <Tooltip isDisabled={!isDomoPage} delay={400} closeDelay={0}>
       <Tooltip.Trigger>

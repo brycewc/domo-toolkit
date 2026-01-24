@@ -22,16 +22,16 @@ import { ACTION_COLOR_PATTERNS } from '@/utils';
  */
 function getActionColor(action) {
   if (!action) return 'default';
-  
+
   const actionLower = action.toLowerCase();
-  
+
   // Try partial matches
   for (const [pattern, color] of Object.entries(ACTION_COLOR_PATTERNS)) {
     if (actionLower.includes(pattern)) {
       return color;
     }
   }
-  
+
   return 'default';
 }
 
@@ -154,7 +154,7 @@ function createObjectColumn({
             <Link
               href={url}
               target='_blank'
-              className='text-sm font-medium no-underline hover:underline hover:text-accent/80 decoration-accent/80'
+              className='text-sm font-medium no-underline decoration-accent/80 hover:text-accent/80 hover:underline'
             >
               {name || '-'}
             </Link>
@@ -617,7 +617,7 @@ export function ActivityLogTable() {
           isDisabled={isInitialLoad || isSearching}
           isPending={isInitialLoad}
         >
-          <IconRefresh className='h-4 w-4' />
+          <IconRefresh size={4} />
           Refresh
         </Button>
       </div>
@@ -637,7 +637,7 @@ export function ActivityLogTable() {
             {dateOptions.length > 0 && (
               <Dropdown>
                 <Button variant='tertiary'>
-                  <IconFilter className='size-4' />
+                  <IconFilter size={4} />
                   Date
                   <IconChevronDown className='size-4 text-foreground' />
                 </Button>
@@ -662,7 +662,7 @@ export function ActivityLogTable() {
             {userOptions.length > 0 && (
               <Dropdown>
                 <Button variant='tertiary'>
-                  <IconFilter className='size-4' />
+                  <IconFilter size={4} />
                   User
                   <IconChevronDown className='size-4 text-foreground' />
                 </Button>
@@ -687,7 +687,7 @@ export function ActivityLogTable() {
             {actionOptions.length > 0 && (
               <Dropdown>
                 <Button variant='tertiary'>
-                  <IconFilter className='size-4' />
+                  <IconFilter size={4} />
                   Action
                   <IconChevronDown className='size-4 text-foreground' />
                 </Button>
@@ -723,7 +723,7 @@ export function ActivityLogTable() {
             {objectTypeOptions.length > 0 && (
               <Dropdown>
                 <Button variant='tertiary'>
-                  <IconFilter className='size-4' />
+                  <IconFilter size={4} />
                   Object Type
                   <IconChevronDown className='size-4 text-foreground' />
                 </Button>
