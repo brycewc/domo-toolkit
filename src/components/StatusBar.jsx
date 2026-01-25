@@ -5,7 +5,7 @@ export function StatusBar({
   title,
   description = '',
   status = 'accent',
-  timeout = 3000,
+  timeout,
   onClose
 }) {
   const [progress, setProgress] = useState(100);

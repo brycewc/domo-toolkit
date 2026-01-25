@@ -47,9 +47,12 @@ export default function App() {
       if (message.type === 'TAB_CONTEXT_UPDATED') {
         // Only update if this is for the tab we're currently showing
         if (message.tabId === currentTabId) {
-          console.log('[Popup] Received context update:', message.context);
           const context = DomoContext.fromJSON(message.context);
           setCurrentContext(context);
+          console.log(
+            '[Popup] Received update and reconstructed context:',
+            context
+          );
         }
       }
     };

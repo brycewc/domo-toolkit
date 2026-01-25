@@ -3,6 +3,7 @@ import {
   Alert,
   Button,
   ButtonGroup,
+  CloseButton,
   Separator,
   Spinner,
   Tooltip
@@ -207,10 +208,10 @@ export function GetPagesView({ lockedTabId = null, onBackToDefault = null }) {
   return (
     <div className='flex w-full flex-col gap-4 p-1'>
       {viewType === 'childPagesWarning' && (
-        <Alert variant='warning'>
+        <Alert status='warning'>
           <Alert.Indicator />
           <Alert.Content>
-            <Alert.Heading>Cannot Delete Page</Alert.Heading>
+            <Alert.Title>Cannot Delete Page</Alert.Title>
             <Alert.Description>
               The page <strong>{pageData?.pageName}</strong> cannot be deleted
               because it has {items.length} child page
@@ -218,6 +219,7 @@ export function GetPagesView({ lockedTabId = null, onBackToDefault = null }) {
               child pages first.
             </Alert.Description>
           </Alert.Content>
+          <CloseButton variant='ghost' />
         </Alert>
       )}
       <div className='flex items-center justify-between'>

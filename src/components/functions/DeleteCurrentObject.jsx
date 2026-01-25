@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   AlertDialog,
   Button,
@@ -8,8 +9,8 @@ import {
   Tooltip
 } from '@heroui/react';
 import { IconTrash } from '@tabler/icons-react';
-import { deletePageAndAllCards, getChildPages } from '@/services';
-import { useState } from 'react';
+import { deletePageAndAllCards } from '@/services';
+import { openSidepanel } from '@/utils';
 
 export function DeleteCurrentObject({
   currentContext,
@@ -38,23 +39,6 @@ export function DeleteCurrentObject({
 
     try {
       if (typeId === 'PAGE' || typeId === 'DATA_APP_VIEW') {
-        // Get the current active tab for the window ID and origin
-        const [tab] = await chrome.tabs.query({
-          active: true,
-          currentWindow: true
-        });
-
-        if (!tab || !tab.url) {
-          onStatusUpdate?.('Error', 'Could not get active tab', 'danger');
-          setIsLoading(false);
-          return;
-        }
-
-        // Open sidepanel immediately while user gesture is valid
-        await chrome.sidePanel.open({
-          windowId: tab.windowId
-        });
-
         const pageId = parseInt(id);
         const pageType = typeId;
         const appId =
@@ -63,18 +47,17 @@ export function DeleteCurrentObject({
             ? parseInt(currentContext.domoObject.metadata.parent.id)
             : null;
 
-        // For regular pages, check for child pages first while user gesture is still valid
+        // For regular pages, check pre-fetched child pages
         if (pageType === 'PAGE') {
-          const childPages = await getChildPages({
-            pageId,
-            pageType,
-            appId,
-            includeGrandchildren: true
-          });
+          const childPages =
+            currentContext.domoObject.metadata?.details?.childPages || [];
 
           if (childPages.length > 0) {
-            // Store child pages data immediately
-            await chrome.storage.local.set({
+            // Open sidepanel first (while user gesture is valid)
+            openSidepanel();
+
+            // Then store child pages data
+            chrome.storage.local.set({
               sidepanelDataList: {
                 type: 'childPagesWarning',
                 pageId,
@@ -93,21 +76,27 @@ export function DeleteCurrentObject({
               'warning'
             );
 
-            window.close(); // Close popup after opening sidepanel
+            // window.close(); // Close popup after opening sidepanel
             return;
           }
         }
 
         // No child pages, proceed with deletion
-        await deletePageAndAllCards({
-          pageId,
-          pageType,
-          appId,
-          setStatus: onStatusUpdate,
-          tabId: currentContext.tabId,
-          currentContext,
-          skipChildPageCheck: true // Skip the check since we already did it
-        });
+        // await deletePageAndAllCards({
+        //   pageId,
+        //   pageType,
+        //   appId,
+        //   setStatus: onStatusUpdate,
+        //   tabId: currentContext.tabId,
+        //   currentContext,
+        //   skipChildPageCheck: true // Skip the check since we already did it
+        // });
+        console.log('Here a delete would happen...');
+        onStatusUpdate?.(
+          'Not Implemented',
+          `Delete functionality for ${typeId} is not implemented yet. Please check back in a future release.`,
+          'warning'
+        );
       } else {
         onStatusUpdate?.(
           'Not Implemented',

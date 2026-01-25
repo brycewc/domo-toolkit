@@ -78,7 +78,8 @@ export async function getChildPages({
   pageId,
   pageType,
   appId,
-  includeGrandchildren = false
+  includeGrandchildren = false,
+  tabId = null
 }) {
   try {
     // Execute fetch in page context to use authenticated session
@@ -167,7 +168,8 @@ export async function getChildPages({
 
         return childPages;
       },
-      [pageId, pageType, appId, includeGrandchildren]
+      [pageId, pageType, appId, includeGrandchildren],
+      tabId
     );
 
     return result;

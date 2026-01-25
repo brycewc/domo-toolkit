@@ -1,5 +1,5 @@
 import { DomoObject, DomoContext, getObjectType } from '@/models';
-import { fetchObjectDetailsInPage } from '@/services';
+import { fetchObjectDetailsInPage, getChildPages } from '@/services';
 import {
   detectCurrentObject,
   EXCLUDED_HOSTNAMES,
@@ -537,7 +537,60 @@ async function detectAndStoreContext(tabId) {
       context
     );
     setTabContext(tabId, context);
-    return context.toJSON();
+
+    // For PAGE and DATA_APP_VIEW types, fetch child pages asynchronously (non-blocking)
+    // This happens in the background while the user interacts with the popup
+    if (typeModel.id === 'PAGE' || typeModel.id === 'DATA_APP_VIEW') {
+      const appId =
+        typeModel.id === 'DATA_APP_VIEW' && domoObject.metadata?.parent?.id
+          ? parseInt(domoObject.metadata.parent.id)
+          : null;
+
+      // Fetch child pages in background without blocking
+      getChildPages({
+        pageId: parseInt(objectId),
+        pageType: typeModel.id,
+        appId,
+        includeGrandchildren: true,
+        tabId
+      })
+        .then((childPages) => {
+          // Get the current context (it might have been updated)
+          const currentContext = getTabContext(tabId);
+          if (currentContext?.domoObject) {
+            // Store child pages in metadata.details.childPages
+            if (!currentContext.domoObject.metadata.details) {
+              currentContext.domoObject.metadata.details = {};
+            }
+            currentContext.domoObject.metadata.details.childPages =
+              childPages || [];
+
+            // Update the stored context
+            setTabContext(tabId, currentContext);
+
+            console.log(
+              `[Background] Fetched ${childPages?.length || 0} child pages for ${typeModel.id} ${objectId}`
+            );
+          }
+        })
+        .catch((error) => {
+          console.error(
+            `[Background] Error fetching child pages for ${typeModel.id} ${objectId}:`,
+            error
+          );
+          // Store empty array on error
+          const currentContext = getTabContext(tabId);
+          if (currentContext?.domoObject) {
+            if (!currentContext.domoObject.metadata.details) {
+              currentContext.domoObject.metadata.details = {};
+            }
+            currentContext.domoObject.metadata.details.childPages = [];
+            setTabContext(tabId, currentContext);
+          }
+        });
+    }
+
+    return context;
   } catch (error) {
     console.error(
       `[Background] Error detecting context for tab ${tabId}:`,
@@ -563,9 +616,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             if (!context) {
               // Trigger detection if not cached
               const detected = await detectAndStoreContext(tabId);
-              sendResponse({ success: true, context: detected });
+              sendResponse({ success: true, context: detected?.toJSON() });
             } else {
-              sendResponse({ success: true, context });
+              sendResponse({ success: true, context: context?.toJSON() });
             }
             return;
           }
@@ -585,7 +638,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             context = await detectAndStoreContext(activeTabId);
           }
 
-          sendResponse({ success: true, context, tabId: activeTabId });
+          sendResponse({
+            success: true,
+            context: context?.toJSON(),
+            tabId: activeTabId
+          });
           break;
         }
 
@@ -597,7 +654,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             return;
           }
           const context = await detectAndStoreContext(targetTabId);
-          sendResponse({ success: true, context });
+          sendResponse({ success: true, context: context?.toJSON() });
           break;
         }
 

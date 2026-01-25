@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Button } from '@heroui/react';
+import { openSidepanel } from '@/utils';
 
 export function GetPages({ currentContext, onStatusUpdate, isDisabled }) {
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleGetPages = async () => {
+  const handleGetPages = () => {
     setIsLoading(true);
 
     try {
@@ -31,18 +32,6 @@ export function GetPages({ currentContext, onStatusUpdate, isDisabled }) {
         return;
       }
 
-      // Get the current active tab for the window ID and origin
-      const [tab] = await chrome.tabs.query({
-        active: true,
-        currentWindow: true
-      });
-
-      if (!tab || !tab.url) {
-        onStatusUpdate?.('Error', 'Could not get active tab', 'danger');
-        setIsLoading(false);
-        return;
-      }
-
       const pageId = parseInt(currentContext.domoObject.id);
       const pageName =
         currentContext.domoObject.metadata?.name || 'Unknown Page';
@@ -54,8 +43,8 @@ export function GetPages({ currentContext, onStatusUpdate, isDisabled }) {
           ? parseInt(currentContext.domoObject.metadata.parent.id)
           : null;
 
-      // Store the page information for the sidepanel to use
-      await chrome.storage.local.set({
+      // Then store the page information for the sidepanel to use
+      chrome.storage.local.set({
         sidepanelDataList: {
           type: 'getPages',
           pageId,
@@ -63,14 +52,14 @@ export function GetPages({ currentContext, onStatusUpdate, isDisabled }) {
           pageType,
           pageName,
           currentContext: currentContext.toJSON(),
+          tabId: currentContext?.tabId || null,
           timestamp: Date.now()
         }
       });
 
       // Open the sidepanel
-      await chrome.sidePanel.open({
-        windowId: tab.windowId
-      });
+      openSidepanel();
+
       window.close();
 
       onStatusUpdate?.(
