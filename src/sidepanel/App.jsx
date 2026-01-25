@@ -169,29 +169,16 @@ export default function App() {
     };
   }, [lockedTabId]);
 
-  // Render the appropriate view
-  if (activeView === 'getPages' || activeView === 'childPagesWarning') {
-    const handleBackToDefault = () => {
-      setActiveView('default');
-      setLockedTabId(null);
-      chrome.storage.local.remove('sidepanelDataList');
-    };
-
-    return (
-      <div className='flex min-h-screen w-full flex-col items-center gap-2 p-2'>
-        <GetPagesView
-          lockedTabId={lockedTabId}
-          onBackToDefault={handleBackToDefault}
-        />
-      </div>
-    );
-  }
-
   return (
-    <div className='flex min-h-screen w-full items-start'>
+    <div className='flex min-h-screen w-full flex-col items-center gap-2 p-2'>
       <ActionButtons
         currentContext={currentContext}
         isLoadingCurrentContext={isLoadingCurrentContext}
+      />
+
+      <GetPagesView
+        lockedTabId={lockedTabId}
+        onBackToDefault={handleBackToDefault}
       />
     </div>
   );
