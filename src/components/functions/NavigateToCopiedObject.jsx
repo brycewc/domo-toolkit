@@ -15,13 +15,17 @@ import {
   IconChevronDown,
   Spinner
 } from '@heroui/react';
-import { DomoObject, getAllObjectTypesWithApiConfig, getAllObjectTypesWithUrl } from '@/models';
+import {
+  DomoObject,
+  getAllObjectTypesWithApiConfig,
+  getAllObjectTypesWithUrl
+} from '@/models';
 import { fetchObjectDetailsInPage } from '@/services';
 import { executeInPage } from '@/utils';
 import { IconExternalLink } from '@tabler/icons-react';
 
 export const NavigateToCopiedObject = forwardRef(
-  function NavigateToCopiedObject({ isDomoPage, currentContext }, ref) {
+  function NavigateToCopiedObject({ currentContext }, ref) {
     const [copiedObjectId, setCopiedObjectId] = useState(null);
     const [objectDetails, setObjectDetails] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -30,6 +34,8 @@ export const NavigateToCopiedObject = forwardRef(
     const [defaultDomoInstance, setDefaultDomoInstance] = useState('');
     const lastCheckedClipboard = useRef('');
     const [allTypes, setAllTypes] = useState([]);
+
+    const isDomoPage = currentContext?.isDomoPage ?? false;
 
     async function detectAndSetObject(objectId) {
       console.log('[NavigateToCopiedObject] detectAndSetObject called with:', {
@@ -42,7 +48,9 @@ export const NavigateToCopiedObject = forwardRef(
 
       // Get all object types that have API configurations and match the ID pattern
       const allTypesWithApi = getAllObjectTypesWithApiConfig();
-      console.log(`[NavigateToCopiedObject] Total object types with API: ${allTypesWithApi.length}`);
+      console.log(
+        `[NavigateToCopiedObject] Total object types with API: ${allTypesWithApi.length}`
+      );
 
       const typesToTry = allTypesWithApi
         .filter((type) => type.isValidObjectId(objectId))
@@ -99,10 +107,18 @@ export const NavigateToCopiedObject = forwardRef(
           // If parent is required, try to get it via executeInPage
           if (typeConfig.requiresParentForApi()) {
             try {
-              const domoObject = new DomoObject(typeConfig.id, objectId, baseUrl);
-              const parentId = await domoObject.getParentWithTabId(currentContext.tabId);
+              const domoObject = new DomoObject(
+                typeConfig.id,
+                objectId,
+                baseUrl
+              );
+              const parentId = await domoObject.getParentWithTabId(
+                currentContext.tabId
+              );
               params.parentId = parentId;
-              console.log(`[NavigateToCopiedObject] Got parent ${parentId} for ${typeConfig.id}`);
+              console.log(
+                `[NavigateToCopiedObject] Got parent ${parentId} for ${typeConfig.id}`
+              );
             } catch (parentError) {
               console.log(
                 `[NavigateToCopiedObject] Could not get parent for ${typeConfig.id}:`,
@@ -113,16 +129,38 @@ export const NavigateToCopiedObject = forwardRef(
           }
 
           // Try fetching with this type
-          const metadata = await executeInPage(fetchObjectDetailsInPage, [params], currentContext.tabId);
+          const metadata = await executeInPage(
+            fetchObjectDetailsInPage,
+            [params],
+            currentContext.tabId
+          );
 
           if (metadata && metadata.details) {
+            // Check if this is a deleted dataflow - skip it if so
+            if (
+              typeConfig.id === 'DATAFLOW_TYPE' &&
+              metadata.details.deleted === true
+            ) {
+              console.log(
+                `[NavigateToCopiedObject] Skipping deleted dataflow ${objectId}`
+              );
+              continue;
+            }
+
             // Success! Create DomoObject and set details
-            console.log(`[NavigateToCopiedObject] ✓ Successfully detected type ${typeConfig.id}`);
-            
-            const domoObject = new DomoObject(typeConfig.id, objectId, baseUrl, {
-              details: metadata.details,
-              name: metadata.name
-            });
+            console.log(
+              `[NavigateToCopiedObject] ✓ Successfully detected type ${typeConfig.id}`
+            );
+
+            const domoObject = new DomoObject(
+              typeConfig.id,
+              objectId,
+              baseUrl,
+              {
+                details: metadata.details,
+                name: metadata.name
+              }
+            );
 
             setObjectDetails(domoObject);
             setError(null);
@@ -130,13 +168,18 @@ export const NavigateToCopiedObject = forwardRef(
             return;
           }
         } catch (error) {
-          console.log(`[NavigateToCopiedObject] Error trying type ${typeConfig.id}:`, error.message);
+          console.log(
+            `[NavigateToCopiedObject] Error trying type ${typeConfig.id}:`,
+            error.message
+          );
           continue;
         }
       }
 
       // If all types failed
-      console.warn(`[NavigateToCopiedObject] ⚠ All ${typesToTry.length} type(s) failed for ID ${objectId}`);
+      console.warn(
+        `[NavigateToCopiedObject] ⚠ All ${typesToTry.length} type(s) failed for ID ${objectId}`
+      );
       setError(`Could not determine object type for ID: ${objectId}`);
       setObjectDetails(null);
       setIsLoading(false);
@@ -390,9 +433,9 @@ export const NavigateToCopiedObject = forwardRef(
 
     return showDropdown ? (
       <Dropdown>
-        <Button className='w-full'>
+        <Button variant='tertiary' fullWidth>
+          <IconChevronDown size={4} />
           Navigate from Clipboard
-          <IconChevronDown className='size-4' />
         </Button>
         <Dropdown.Popover className='min-w-[18rem]' placement='bottom end'>
           <Dropdown.Menu
@@ -411,17 +454,18 @@ export const NavigateToCopiedObject = forwardRef(
     ) : (
       <Tooltip delay={400} closeDelay={0}>
         <Button
+          variant='tertiary'
+          fullWidth
           onPress={() => handleClick()}
           isDisabled={!copiedObjectId || isLoading || !!error}
-          className='w-full'
           isPending={isLoading}
         >
           {isLoading ? (
             <Spinner className='size-4' color='current' />
           ) : (
             <>
-              <span>Navigate from Clipboard</span>
               <IconExternalLink />
+              <span>Navigate from Clipboard</span>
             </>
           )}
         </Button>

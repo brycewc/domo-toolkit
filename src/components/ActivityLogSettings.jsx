@@ -261,7 +261,7 @@ export function ActivityLogSettings() {
                       onPress={() => removeRow(config.id)}
                       isIconOnly
                     >
-                      <IconTrash className='size-4' />
+                      <IconTrash size={4} />
                     </Button>
                   </div>
                 )}

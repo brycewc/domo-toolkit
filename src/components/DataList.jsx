@@ -9,15 +9,7 @@ import {
   Separator,
   Tooltip
 } from '@heroui/react';
-import {
-  IconExternalLink,
-  IconCopy,
-  IconShare,
-  IconChevronDown,
-  IconClipboard,
-  IconFolders,
-  IconUserPlus
-} from '@tabler/icons-react';
+import { IconClipboard, IconFolders, IconUserPlus } from '@tabler/icons-react';
 
 /**
  * DataList Component
@@ -42,7 +34,6 @@ import {
 export function DataList({
   items = [],
   header,
-  onItemClick,
   onItemAction,
   showActions = true,
   showCounts = true
@@ -63,7 +54,6 @@ export function DataList({
               key={item.id || index}
               item={item}
               index={index}
-              onItemClick={onItemClick}
               onItemAction={onItemAction}
               showActions={showActions}
               showCounts={showCounts}
@@ -87,14 +77,12 @@ export function DataList({
  * @param {Number} props.item.count - Optional count to display
  * @param {Array} props.item.children - Optional nested children
  * @param {Object} props.item.metadata - Optional additional metadata
- * @param {Function} props.onItemClick - Callback when item is clicked
  * @param {Function} props.onItemAction - Callback when action is clicked
  * @param {Boolean} props.showActions - Whether to show action buttons
  * @param {Boolean} props.showCounts - Whether to show counts
  */
 function DataListItem({
   item,
-  onItemClick,
   onItemAction,
   showActions = true,
   showCounts = true,
@@ -103,12 +91,6 @@ function DataListItem({
 }) {
   const hasChildren = item.children && item.children.length > 0;
   const [isOpen, setIsOpen] = useState(false);
-
-  const handleClick = () => {
-    if (onItemClick) {
-      onItemClick(item);
-    }
-  };
 
   const handleAction = (actionType) => {
     if (onItemAction) {
@@ -119,15 +101,19 @@ function DataListItem({
   return (
     <>
       {index !== 0 && <Separator />}
-      <Disclosure isOpen={isOpen} onOpenChange={setIsOpen} className='py-[5px]'>
-        <Disclosure.Heading className='flex flex-row justify-between'>
-          <div className='flex min-w-0 flex-1 items-center'>
+      <Disclosure
+        isOpen={isOpen}
+        onOpenChange={setIsOpen}
+        className='w-full py-[5px]'
+      >
+        <Disclosure.Heading className='flex w-full flex-row justify-between'>
+          <div className='flex w-full min-w-0 flex-4/5 items-center'>
             <Tooltip delay={100} closeDelay={0} className='flex-1'>
               {item.url ? (
                 <Link
                   href={item.url}
-                  onPress={handleClick}
-                  className='truncate text-sm font-medium no-underline hover:underline hover:text-accent/80 decoration-accent/80'
+                  target='_blank'
+                  className='truncate text-sm font-medium no-underline decoration-accent/80 hover:text-accent/80 hover:underline'
                 >
                   {item.label}
                 </Link>
@@ -136,7 +122,11 @@ function DataListItem({
                   {item.label}
                 </span>
               )}
-              <Tooltip.Content placement='right' offset={8}>
+              <Tooltip.Content
+                placement='right'
+                offset={8}
+                className='text-nowrap'
+              >
                 ID: {item.id}
               </Tooltip.Content>
             </Tooltip>
@@ -154,56 +144,71 @@ function DataListItem({
             )}
           </div>
           {showActions && (
-            <ButtonGroup variant='ghost' size='sm' className='flex-shrink-0'>
-              {hasChildren && (
-                <Tooltip delay={500} closeDelay={0}>
+            <div className='flex-1/5'>
+              <ButtonGroup
+                variant='tertiary'
+                size='sm'
+                className='max-w-xs'
+                fullWidth
+              >
+                {hasChildren && (
+                  <Tooltip delay={400} closeDelay={0}>
+                    <Button
+                      variant='tertiary'
+                      size='sm'
+                      fullWidth
+                      isIconOnly
+                      onPress={() => handleAction('openAll')}
+                      aria-label='Open All'
+                    >
+                      <IconFolders size={4} />
+                    </Button>
+                    <Tooltip.Content className='text-xs'>
+                      Open all
+                    </Tooltip.Content>
+                  </Tooltip>
+                )}
+                <Tooltip delay={400} closeDelay={0}>
                   <Button
+                    variant='tertiary'
+                    size='sm'
+                    fullWidth
                     isIconOnly
-                    onPress={() => handleAction('openAll')}
-                    aria-label='Open All'
+                    onPress={() => handleAction('copy')}
+                    aria-label='Copy'
                   >
-                    <IconFolders className='size-4' />
+                    <IconClipboard size={4} />
+                  </Button>
+                  <Tooltip.Content className='text-xs'>Copy ID</Tooltip.Content>
+                </Tooltip>
+                <Tooltip delay={400} closeDelay={0}>
+                  <Button
+                    variant='tertiary'
+                    size='sm'
+                    fullWidth
+                    isIconOnly
+                    onPress={() => handleAction('share')}
+                    aria-label='Share'
+                  >
+                    <IconUserPlus size={4} />
                   </Button>
                   <Tooltip.Content className='text-xs'>
-                    Open all
+                    Share with yourself
                   </Tooltip.Content>
                 </Tooltip>
-              )}
-              <Tooltip delay={500} closeDelay={0}>
-                <Button
-                  isIconOnly
-                  onPress={() => handleAction('copy')}
-                  aria-label='Copy'
-                >
-                  <IconClipboard className='size-4' />
-                </Button>
-                <Tooltip.Content className='text-xs'>Copy ID</Tooltip.Content>
-              </Tooltip>
-              <Tooltip delay={500} closeDelay={0}>
-                <Button
-                  isIconOnly
-                  onPress={() => handleAction('share')}
-                  aria-label='Share'
-                >
-                  <IconUserPlus className='size-4' />
-                </Button>
-                <Tooltip.Content className='text-xs'>
-                  Share with yourself
-                </Tooltip.Content>
-              </Tooltip>
-            </ButtonGroup>
+              </ButtonGroup>
+            </div>
           )}
         </Disclosure.Heading>
         {hasChildren && (
-          <Disclosure.Content>
-            <Disclosure.Body className='pl-[5px]'>
+          <Disclosure.Content className='w-full'>
+            <Disclosure.Body className='w-full pl-[5px]'>
               <DisclosureGroup>
                 {item.children.map((child, index) => (
                   <DataListItem
                     key={child.id || index}
                     item={child}
                     index={index}
-                    onItemClick={onItemClick}
                     onItemAction={onItemAction}
                     showActions={showActions}
                     showCounts={showCounts}
@@ -217,24 +222,4 @@ function DataListItem({
       </Disclosure>
     </>
   );
-}
-
-/**
- * Helper function to create list items from page hierarchy data
- * Useful for converting Domo page data into DataList format
- *
- * @param {Object} page - Page object with id, name, and optional children
- * @returns {Object} Formatted item for DataList
- */
-export function createListItemFromPage(page) {
-  return {
-    id: page.id,
-    label: page.name || page.title,
-    url: page.url,
-    count: page.cardCount || page.count,
-    metadata: page.id ? `ID: ${page.id}` : undefined,
-    children: page.children
-      ? page.children.map(createListItemFromPage)
-      : undefined
-  };
 }

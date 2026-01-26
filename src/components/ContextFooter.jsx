@@ -1,7 +1,9 @@
 import { Alert, Chip, Spinner, Tooltip } from '@heroui/react';
 import { IconBoltOff } from '@tabler/icons-react';
 
-export function ContextFooter({ isDomoPage, currentContext, isLoading }) {
+export function ContextFooter({ currentContext, isLoading }) {
+  const isDomoPage = currentContext?.isDomoPage ?? false;
+
   return (
     <Tooltip isDisabled={!isDomoPage} delay={400} closeDelay={0}>
       <Tooltip.Trigger>
@@ -63,7 +65,10 @@ export function ContextFooter({ isDomoPage, currentContext, isLoading }) {
           </Alert.Content>
         </Alert>
       </Tooltip.Trigger>
-      <Tooltip.Content className='max-w-[calc(var(--container-xs)-1.5rem)] text-center text-wrap'>
+      <Tooltip.Content
+        placement='bottom'
+        className='max-w-[calc(var(--container-xs)-1.5rem)] text-center text-wrap'
+      >
         <>
           Unless otherwise noted (with{' '}
           <IconBoltOff className='inline h-4 w-4' />

@@ -94,7 +94,12 @@ export function FilterActivityLog({ currentContext, isDisabled }) {
   };
 
   return (
-    <Button onPress={handleFilter} fullWidth isDisabled={isDisabled}>
+    <Button
+      variant='tertiary'
+      fullWidth
+      onPress={handleFilter}
+      isDisabled={isDisabled}
+    >
       Activity Log
     </Button>
   );

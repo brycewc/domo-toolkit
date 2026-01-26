@@ -1,6 +1,10 @@
 import { DomoObject, DomoContext, getObjectType } from '@/models';
-import { fetchObjectDetailsInPage } from '@/services';
-import { detectCurrentObject, EXCLUDED_HOSTNAMES, executeInPage } from '@/utils';
+import { fetchObjectDetailsInPage, getChildPages } from '@/services';
+import {
+  detectCurrentObject,
+  EXCLUDED_HOSTNAMES,
+  executeInPage
+} from '@/utils';
 
 /**
  * Send a message to a tab with retry logic
@@ -19,7 +23,7 @@ async function sendMessageWithRetry(tabId, message, maxRetries = 3) {
         throw error;
       }
       // Wait with exponential backoff: 100ms, 200ms, 400ms
-      await new Promise(resolve => setTimeout(resolve, 100 * Math.pow(2, i)));
+      await new Promise((resolve) => setTimeout(resolve, 100 * Math.pow(2, i)));
     }
   }
 }
@@ -95,7 +99,7 @@ function touchTab(tabId) {
 }
 
 /**
- * Store context for a specific tab
+ * Store context for a specific tab and push to content script
  */
 function setTabContext(tabId, context) {
   evictLRUIfNeeded();
@@ -104,6 +108,54 @@ function setTabContext(tabId, context) {
 
   // Persist to session storage (async, non-blocking)
   persistToSession();
+
+  if (context.domoObject?.metadata?.name) {
+    setTabTitle(tabId, context.domoObject.metadata.name);
+  }
+
+  const contextData = context.toJSON();
+
+  // Send to content script in the specific tab
+  chrome.tabs
+    .sendMessage(tabId, {
+      type: 'TAB_CONTEXT_UPDATED',
+      context: contextData
+    })
+    .catch((error) => {
+      console.log(
+        `[Background] Could not send context to tab ${tabId}:`,
+        error.message
+      );
+    });
+
+  // Broadcast to extension pages (popup, sidepanel)
+  chrome.runtime
+    .sendMessage({
+      type: 'TAB_CONTEXT_UPDATED',
+      tabId: tabId,
+      context: contextData
+    })
+    .catch((error) => {
+      // No listeners, that's fine (popup/sidepanel might not be open)
+    });
+}
+
+function setTabTitle(tabId, objectName) {
+  try {
+    chrome.scripting.executeScript({
+      target: { tabId },
+      func: (objectName) => {
+        if (document.title.trim() !== 'Domo') {
+          return;
+        }
+        document.title = `${objectName} - Domo`;
+      },
+      args: [objectName],
+      world: 'MAIN'
+    });
+  } catch (error) {
+    console.error(`[Background] Error updating title for tab ${tabId}:`, error);
+  }
 }
 
 /**
@@ -335,23 +387,26 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   }
 
   // Apply favicon when favIconUrl changes (page loaded or favicon updated)
-  if (changeInfo.favIconUrl && tab.url?.includes('domo.com')) {
-    console.log(
-      `[Background] Favicon changed for tab ${tabId}, applying rules`
-    );
-    sendMessageWithRetry(tabId, { type: 'APPLY_FAVICON' }, 3)
-      .then(() => {
-        console.log(`[Background] Applied favicon for tab ${tabId}`);
-      })
-      .catch((error) => {
-        console.log(`[Background] Could not send APPLY_FAVICON to tab ${tabId}:`, error.message);
-      });
-  }
+  // if (changeInfo.favIconUrl && tab.url?.includes('domo.com')) {
+  //   console.log(
+  //     `[Background] Favicon changed for tab ${tabId}, applying rules`
+  //   );
+  //   sendMessageWithRetry(tabId, { type: 'APPLY_FAVICON' }, 3)
+  //     .then(() => {
+  //       console.log(`[Background] Applied favicon for tab ${tabId}`);
+  //     })
+  //     .catch((error) => {
+  //       console.log(`[Background] Could not send APPLY_FAVICON to tab ${tabId}:`, error.message);
+  //     });
+  // }
 
   // Update title if it's just "Domo" and we have object metadata
   if (changeInfo.title === 'Domo' && tab.url?.includes('domo.com')) {
     const context = getTabContext(tabId);
     if (context?.domoObject?.metadata?.name) {
+      console.log(
+        `[Background] Updating title for tab ${tabId} to include object name`
+      );
       try {
         await chrome.scripting.executeScript({
           target: { tabId },
@@ -395,7 +450,10 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
           console.log(`[Background] Updated favicon for tab ${tab.id}`);
         })
         .catch((error) => {
-          console.log(`[Background] Could not notify tab ${tab.id}:`, error.message);
+          console.log(
+            `[Background] Could not notify tab ${tab.id}:`,
+            error.message
+          );
         });
     }
   }
@@ -465,7 +523,11 @@ async function detectAndStoreContext(tabId) {
     };
 
     // Enrich with details - throw on error for current object detection
-    domoObject.metadata = await executeInPage(fetchObjectDetailsInPage, [params], tabId);
+    domoObject.metadata = await executeInPage(
+      fetchObjectDetailsInPage,
+      [params],
+      tabId
+    );
 
     // Update DomoContext with DomoObject
     context.domoObject = domoObject;
@@ -475,7 +537,60 @@ async function detectAndStoreContext(tabId) {
       context
     );
     setTabContext(tabId, context);
-    return context.toJSON();
+
+    // For PAGE and DATA_APP_VIEW types, fetch child pages asynchronously (non-blocking)
+    // This happens in the background while the user interacts with the popup
+    if (typeModel.id === 'PAGE' || typeModel.id === 'DATA_APP_VIEW') {
+      const appId =
+        typeModel.id === 'DATA_APP_VIEW' && domoObject.metadata?.parent?.id
+          ? parseInt(domoObject.metadata.parent.id)
+          : null;
+
+      // Fetch child pages in background without blocking
+      getChildPages({
+        pageId: parseInt(objectId),
+        pageType: typeModel.id,
+        appId,
+        includeGrandchildren: true,
+        tabId
+      })
+        .then((childPages) => {
+          // Get the current context (it might have been updated)
+          const currentContext = getTabContext(tabId);
+          if (currentContext?.domoObject) {
+            // Store child pages in metadata.details.childPages
+            if (!currentContext.domoObject.metadata.details) {
+              currentContext.domoObject.metadata.details = {};
+            }
+            currentContext.domoObject.metadata.details.childPages =
+              childPages || [];
+
+            // Update the stored context
+            setTabContext(tabId, currentContext);
+
+            console.log(
+              `[Background] Fetched ${childPages?.length || 0} child pages for ${typeModel.id} ${objectId}`
+            );
+          }
+        })
+        .catch((error) => {
+          console.error(
+            `[Background] Error fetching child pages for ${typeModel.id} ${objectId}:`,
+            error
+          );
+          // Store empty array on error
+          const currentContext = getTabContext(tabId);
+          if (currentContext?.domoObject) {
+            if (!currentContext.domoObject.metadata.details) {
+              currentContext.domoObject.metadata.details = {};
+            }
+            currentContext.domoObject.metadata.details.childPages = [];
+            setTabContext(tabId, currentContext);
+          }
+        });
+    }
+
+    return context;
   } catch (error) {
     console.error(
       `[Background] Error detecting context for tab ${tabId}:`,
@@ -501,9 +616,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             if (!context) {
               // Trigger detection if not cached
               const detected = await detectAndStoreContext(tabId);
-              sendResponse({ success: true, context: detected });
+              sendResponse({ success: true, context: detected?.toJSON() });
             } else {
-              sendResponse({ success: true, context });
+              sendResponse({ success: true, context: context?.toJSON() });
             }
             return;
           }
@@ -523,7 +638,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             context = await detectAndStoreContext(activeTabId);
           }
 
-          sendResponse({ success: true, context, tabId: activeTabId });
+          sendResponse({
+            success: true,
+            context: context?.toJSON(),
+            tabId: activeTabId
+          });
           break;
         }
 
@@ -535,7 +654,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             return;
           }
           const context = await detectAndStoreContext(targetTabId);
-          sendResponse({ success: true, context });
+          sendResponse({ success: true, context: context?.toJSON() });
           break;
         }
 
@@ -578,7 +697,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           sendResponse({ success: true });
           break;
         }
-
         default:
           sendResponse({ success: false, error: 'Unknown message type' });
       }

@@ -7,8 +7,8 @@ import {
   Dropdown,
   Label
 } from '@heroui/react';
-import { getCardsForObject } from '@/services/cards';
-import { getPagesForCards, getChildPages } from '@/services/pages';
+import { getCardsForObject, getPagesForCards, getChildPages } from '@/services';
+import { IconFileDescription } from '@tabler/icons-react';
 
 export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
   const [isLoading, setIsLoading] = useState(false);
@@ -188,25 +188,30 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
     <div className='flex flex-col gap-2'>
       <ButtonGroup>
         <Button
+          variant='tertiary'
+          fullWidth
           onPress={handleClick}
           isDisabled={isDisabled}
-          className='w-full'
+          className={!isDropdownDisabled ? 'pl-10' : ''}
           isPending={isLoading}
         >
-          <span className={!isDropdownDisabled ? 'pl-10' : ''}>
-            Activity Log
-          </span>
+          <IconFileDescription size={4} />
+          Activity Log
         </Button>
         {!isDropdownDisabled && (
           <Dropdown>
             <Button
+              variant='tertiary'
               isIconOnly
               aria-label='More options'
               isDisabled={isDropdownDisabled}
             >
-              <IconChevronDown className='h-4 w-4' />
+              <IconChevronDown size={4} />
             </Button>
-            <Dropdown.Popover className='max-w-[290px]' placement='bottom end'>
+            <Dropdown.Popover
+              className='w-full max-w-[290px]'
+              placement='bottom end'
+            >
               <Dropdown.Menu onAction={handleClick}>
                 <Dropdown.Item
                   className='flex flex-col items-start gap-1'

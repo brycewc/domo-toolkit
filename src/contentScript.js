@@ -1,3 +1,4 @@
+import { DomoContext } from '@/models';
 import {
   EXCLUDED_HOSTNAMES,
   applyFaviconRules,
@@ -20,10 +21,24 @@ async function applyFavicon() {
   }
 }
 
+// Store current tab context
+let currentTabContext = null;
+
 // Listen for messages from service worker
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'APPLY_FAVICON') {
     applyFavicon();
+    sendResponse({ success: true });
+    return true;
+  }
+
+  if (message.type === 'TAB_CONTEXT_UPDATED') {
+    console.log(
+      '[ContentScript] Received tab context update:',
+      message.context
+    );
+    currentTabContext = DomoContext.fromJSON(message.context);
+    // Update title when context is received
     sendResponse({ success: true });
     return true;
   }
@@ -33,6 +48,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 (async () => {
   console.log('[ContentScript] Initialized, applying favicon');
   await applyFavicon();
+
+  // Title will be updated when we receive tab context from background
 })();
 
 // Track last known clipboard value to detect changes
@@ -74,7 +91,9 @@ document.addEventListener('copy', async () => {
 // Listen for window focus to detect when user returns to tab
 // This handles the case where user copied from another application
 window.addEventListener('focus', async () => {
-  console.log('[ContentScript] Window gained focus, checking clipboard');
+  console.log(
+    '[ContentScript] Window gained focus, checking clipboard and tab title'
+  );
   await checkAndCacheClipboard();
 });
 

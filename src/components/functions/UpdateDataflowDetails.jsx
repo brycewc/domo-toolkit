@@ -81,8 +81,8 @@ export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
   return (
     <Modal onOpenChange={setIsOpen}>
       <Button
-        className='w-full'
-        variant='primary'
+        variant='tertiary'
+        fullWidth
         isDisabled={currentContext?.domoObject.typeId !== 'DATAFLOW_TYPE'}
       >
         Update DataFlow Details
@@ -96,7 +96,12 @@ export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
                 <Modal.Heading>Update DataFlow Details</Modal.Heading>
               </Modal.Header>
               <Modal.Body className='flex flex-col gap-4'>
-                <TextField className='w-full' variant='secondary'  name='name' id='dataflow-name'>
+                <TextField
+                  className='w-full'
+                  variant='secondary'
+                  name='name'
+                  id='dataflow-name'
+                >
                   <Label>DataFlow Name</Label>
                   <Input
                     className='h-8'

@@ -7,7 +7,7 @@ import { getCurrentUserId } from '@/services';
  * This version can be executed in page context via executeInPage
  * @param {Object} params - Parameters object
  * @param {string} params.typeId - The object type ID
- * @param {string} params.objectId - The object ID  
+ * @param {string} params.objectId - The object ID
  * @param {string} params.baseUrl - The base URL
  * @param {Object} params.apiConfig - The API configuration {method, endpoint, pathToName, bodyTemplate}
  * @param {boolean} params.requiresParent - Whether parent ID is required for API
@@ -218,6 +218,82 @@ export async function shareWithSelf({ object, setStatus, tabId = null }) {
   } catch (error) {
     console.error('Error sharing object with self:', error);
     setStatus?.('Share Failed', error.message, 'danger');
+    throw error;
+  }
+}
+
+export async function deleteObject({ object, setStatus, tabId = null }) {
+  try {
+    if (!object || !object.typeId || !object.id) {
+      setStatus?.(
+        'Delete Failed',
+        'Invalid object provided for deletion',
+        'danger'
+      );
+      throw new Error('Invalid object provided for deletion');
+    }
+    const result = await executeInPage(
+      async (object) => {
+        const fetchRequest = {
+          method: 'DELETE',
+          url: ''
+        };
+        switch (object.typeId) {
+          case 'MAGNUM_COLLECTION':
+            fetchRequest.url = `/api/datastores/v1/collections/${object.id}`;
+            break;
+          case 'ACCESS_TOKEN':
+            fetchRequest.url = `/api/data/v1/accesstokens/${object.id}`;
+            break;
+          case 'APP':
+            fetchRequest.url = `/api/apps/v1/designs/${object.id}`;
+            break;
+          case 'BEAST_MODE':
+          case 'FUNCTION_TEMPLATE':
+          case 'VARIABLE':
+            fetchRequest.url = `/api/query/v1/functions/template/${object.id}`;
+            break;
+          default:
+            break;
+        }
+
+        if (!fetchRequest.url) {
+          setStatus?.(
+            'Delete Failed',
+            `Deletion not supported for object type: ${object.typeId}`,
+            'danger'
+          );
+          throw new Error(
+            `Deletion not supported for object type: ${object.typeId}`
+          );
+        }
+
+        const response = await fetch(fetchRequest.url, {
+          method: fetchRequest.method
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          setStatus?.(
+            'Delete Failed',
+            `Failed to delete object. Status: ${response.status}. ${errorText}`,
+            'danger'
+          );
+          throw new Error(
+            `Failed to delete object. Status: ${response.status}. ${errorText}`
+          );
+        }
+      },
+      [object],
+      tabId
+    );
+    setStatus?.(
+      'Deleted Successfully',
+      `Deleted object ${object.id}`,
+      'success'
+    );
+  } catch (error) {
+    setStatus?.('Delete Failed', error.message, 'danger');
     throw error;
   }
 }

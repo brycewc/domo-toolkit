@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   Button,
   ButtonGroup,
+  CloseButton,
   Separator,
   Spinner,
   Tooltip
@@ -10,18 +11,24 @@ import {
   IconClipboard,
   IconFolders,
   IconRefresh,
-  IconUsersPlus
+  IconUsersPlus,
+  IconX
 } from '@tabler/icons-react';
 import { DataList } from '@/components';
 import { getChildPages, sharePagesWithSelf } from '@/services';
 import { DomoContext } from '@/models';
 
-export function GetPagesView({lockedTabId = null}) {
+export function GetPagesView({
+  lockedTabId = null,
+  onBackToDefault = null,
+  onStatusUpdate = null
+}) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [items, setItems] = useState([]);
   const [pageData, setPageData] = useState(null); // Store metadata for rebuilding
   const [tabId, setTabId] = useState(lockedTabId);
+  const [viewType, setViewType] = useState('getPages'); // 'getPages' or 'childPagesWarning'
 
   // Load data on mount
   useEffect(() => {
@@ -37,30 +44,46 @@ export function GetPagesView({lockedTabId = null}) {
       const result = await chrome.storage.local.get(['sidepanelDataList']);
       const data = result.sidepanelDataList;
 
-      if (!data || data.type !== 'getPages') {
+      if (
+        !data ||
+        (data.type !== 'getPages' && data.type !== 'childPagesWarning')
+      ) {
         setError('No page data found. Please try again from a page URL.');
         setIsLoading(false);
         return;
       }
 
-      const { pageId, appId, pageType, pageName, currentContext } = data;
+      // Set the view type based on the data type
+      setViewType(data.type);
+
+      const { pageId, appId, pageType, pageName, currentContext, childPages } =
+        data;
       const context = DomoContext.fromJSON(currentContext);
-      if(context.tabId) {
+      if (context.tabId) {
         setTabId(context.tabId);
       }
       const origin = `https://${context.instance}.domo.com`;
+      const finalPageName =
+        pageName || context.domoObject?.metadata?.name || `Page ${pageId}`;
 
-      console.log('Fetching child pages with:', { pageId, appId, pageType });
+      let allPages;
 
-      // Fetch child pages and grandchildren using service (single call with includeGrandchildren)
-      const allPages = await getChildPages({
-        pageId,
-        appId,
-        pageType,
-        includeGrandchildren: true
-      });
+      // If this is a childPagesWarning type, we already have the child pages in the data
+      if (data.type === 'childPagesWarning') {
+        allPages = childPages;
+      } else {
+        // Otherwise, fetch child pages using the service
+        console.log('Fetching child pages with:', { pageId, appId, pageType });
 
-      console.log('Received all pages:', allPages);
+        allPages = await getChildPages({
+          pageId,
+          appId,
+          pageType,
+          includeGrandchildren: true
+        });
+
+        console.log('Received all pages:', allPages);
+      }
 
       if (!allPages || !allPages.length) {
         setError(
@@ -72,16 +95,30 @@ export function GetPagesView({lockedTabId = null}) {
         return;
       }
 
+      // Store metadata for rebuilding items later
+      setPageData({ pageId, appId, pageType, pageName: finalPageName, origin });
+
       // Separate children and grandchildren based on parentPageId
       const children = allPages.filter((page) =>
         pageType === 'DATA_APP_VIEW' ? true : page.parentPageId === pageId
       );
 
-      // Store metadata for rebuilding items later
-      setPageData({ pageId, appId, pageType, pageName, origin });
-
       // Build items structure with all pages at once
       buildItemsFromPages(children, allPages, appId, pageType, origin);
+
+      // If this is a childPagesWarning, show the warning status only if not already shown
+      if (
+        data.type === 'childPagesWarning' &&
+        onStatusUpdate &&
+        !data.statusShown
+      ) {
+        onStatusUpdate(
+          'Cannot Delete Page',
+          `This page has **${allPages.length} child page${allPages.length !== 1 ? 's' : ''}**. Please delete or reassign the child pages first.`,
+          'warning',
+          0 // No timeout - user must dismiss manually
+        );
+      }
     } catch (err) {
       console.error('Error loading pages:', err);
       setError(err.message || 'Failed to load child pages');
@@ -143,11 +180,13 @@ export function GetPagesView({lockedTabId = null}) {
   const handleItemAction = async (action, item) => {
     switch (action) {
       case 'open':
-        item.children.forEach(async (child) => {
-          if (child.url) {
-            await chrome.tabs.create({ url: child.url });
-          }
-        });
+        if (item.children) {
+          item.children.forEach(async (child) => {
+            if (child.url) {
+              await chrome.tabs.create({ url: child.url });
+            }
+          });
+        }
         break;
       case 'copy':
         if (item.id) {
@@ -155,16 +194,10 @@ export function GetPagesView({lockedTabId = null}) {
         }
         break;
       case 'share':
-        await sharePagesWithSelf({ pageIds: [item.id], tabId: lockedTabId });
+        sharePagesWithSelf({ pageIds: [item.id], tabId: tabId });
         break;
       default:
         break;
-    }
-  };
-
-  const handleItemClick = async (item) => {
-    if (item.url) {
-      await chrome.tabs.create({ url: item.url });
     }
   };
 
@@ -191,49 +224,76 @@ export function GetPagesView({lockedTabId = null}) {
   }
 
   return (
-    <div className='flex w-full flex-col gap-4 p-1'>
+    <div className='flex w-full flex-col gap-2 p-1'>
       <div className='flex items-center justify-between'>
         <h1 className='text-2xl font-bold'>Child Pages</h1>
-        <Button size='sm' variant='ghost' isIconOnly onPress={loadPagesData}>
-          <IconRefresh className='size-4' />
-        </Button>
+        <ButtonGroup hideSeparator>
+          <Tooltip delay={400} closeDelay={0}>
+            <Button
+              variant='ghost'
+              size='sm'
+              isIconOnly
+              onPress={loadPagesData}
+            >
+              <IconRefresh size={4} />
+            </Button>
+            <Tooltip.Content className='text-xs'>Refresh</Tooltip.Content>
+          </Tooltip>
+          {onBackToDefault && (
+            <Tooltip delay={400} closeDelay={0}>
+              <Button
+                variant='ghost'
+                size='sm'
+                isIconOnly
+                onPress={onBackToDefault}
+              >
+                <IconX size={4} />
+              </Button>
+              <Tooltip.Content className='text-xs'>Close</Tooltip.Content>
+            </Tooltip>
+          )}
+        </ButtonGroup>
       </div>
       <DataList
         items={items}
         header={
           pageData.pageName && (
             <div className='flex flex-col'>
-              <div className='flex flex-row justify-between'>
-                <div className='flex items-center gap-2'>
+              <div className='flex flex-row items-start justify-between'>
+                <div className='flex flex-wrap items-center gap-2'>
                   <span className='text-xl font-semibold'>
                     {pageData.pageName}
                   </span>
 
-                  <span className='text-base text-muted'>
+                  <span className='text-base text-nowrap text-muted'>
                     (ID: {pageData.pageId})
                   </span>
                 </div>
                 <ButtonGroup
-                  variant='ghost'
+                  variant='tertiary'
                   size='sm'
                   className='flex-shrink-0'
                 >
-                  <Tooltip delay={500} closeDelay={0}>
+                  <Tooltip delay={400} closeDelay={0}>
                     <Button
+                      variant='tertiary'
+                      size='sm'
                       isIconOnly
                       onPress={() =>
                         items.forEach((item) => window.open(item.url, '_blank'))
                       }
                       aria-label='Open All'
                     >
-                      <IconFolders className='size-4' />
+                      <IconFolders size={4} />
                     </Button>
                     <Tooltip.Content className='text-xs'>
                       Open all pages in new tabs
                     </Tooltip.Content>
                   </Tooltip>
-                  <Tooltip delay={500} closeDelay={0}>
+                  <Tooltip delay={400} closeDelay={0}>
                     <Button
+                      variant='tertiary'
+                      size='sm'
                       isIconOnly
                       onPress={async () =>
                         await navigator.clipboard.writeText(
@@ -242,23 +302,26 @@ export function GetPagesView({lockedTabId = null}) {
                       }
                       aria-label='Copy'
                     >
-                      <IconClipboard className='size-4' />
+                      <IconClipboard size={4} />
                     </Button>
                     <Tooltip.Content className='text-xs'>
                       Copy ID
                     </Tooltip.Content>
                   </Tooltip>
-                  <Tooltip delay={500} closeDelay={0}>
+                  <Tooltip delay={400} closeDelay={0}>
                     <Button
+                      variant='tertiary'
+                      size='sm'
                       isIconOnly
                       onPress={async () =>
-                        await sharePagesWithSelf(
-                          items.map((item) => item.pageId)
+                        sharePagesWithSelf(
+                          items.map((item) => item.pageId),
+                          tabId
                         )
                       }
                       aria-label='Share'
                     >
-                      <IconUsersPlus className='size-4' />
+                      <IconUsersPlus size={4} />
                     </Button>
                     <Tooltip.Content className='text-xs'>
                       Share all pages with yourself
@@ -293,7 +356,6 @@ export function GetPagesView({lockedTabId = null}) {
             </div>
           )
         }
-        onItemClick={handleItemClick}
         onItemAction={handleItemAction}
         showActions={true}
         showCounts={true}
