@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Button } from '@heroui/react';
 import { GetPagesView, ActionButtons } from '@/components';
 import { useTheme } from '@/hooks';
@@ -13,6 +13,7 @@ export default function App() {
   const [currentContext, setCurrentContext] = useState(null);
   const [currentTabId, setCurrentTabId] = useState(null);
   const [isLoadingCurrentContext, setIsLoadingCurrentContext] = useState(true);
+  const statusCallbackRef = useRef(null);
 
   // Listen for storage changes to detect when sidepanel data is set
   useEffect(() => {
@@ -95,39 +96,79 @@ export default function App() {
 
   // Listen for context updates while sidepanel is open
   useEffect(() => {
+    console.log('[Sidepanel] Setting up message listener');
     const handleMessage = (message, sender, sendResponse) => {
+      console.log('[Sidepanel] Received message:', message.type, message);
+
+      // Always send a response to keep the message channel open
+      const response = { received: true };
+
       if (message.type === 'TAB_CONTEXT_UPDATED') {
         // Only update if we're not locked to a specific tab, or if it's for the locked tab
-        if (!lockedTabId) {
-          // In default view, update context if this is the active tab
-          chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-            if (tabs[0] && message.tabId === tabs[0].id) {
-              console.log(
-                '[Sidepanel] Received context update for active tab:',
-                message.context
-              );
-              const context = DomoContext.fromJSON(message.context);
-              setCurrentContext(context);
-              setCurrentTabId(message.tabId);
-            }
-          });
-        } else if (message.tabId === lockedTabId) {
-          // Locked to a specific tab, only update for that tab
+        // Read current lockedTabId value instead of using closure
+        chrome.storage.local.get(['sidepanelDataList'], (result) => {
+          const currentLockedTabId = result.sidepanelDataList?.tabId || null;
+
+          if (!currentLockedTabId) {
+            // In default view, update context if this is the active tab
+            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+              if (tabs[0] && message.tabId === tabs[0].id) {
+                console.log(
+                  '[Sidepanel] Received context update for active tab:',
+                  message.context
+                );
+                const context = DomoContext.fromJSON(message.context);
+                setCurrentContext(context);
+                setCurrentTabId(message.tabId);
+              }
+            });
+          } else if (message.tabId === currentLockedTabId) {
+            // Locked to a specific tab, only update for that tab
+            console.log(
+              '[Sidepanel] Received context update for locked tab:',
+              message.context
+            );
+            const context = DomoContext.fromJSON(message.context);
+            setCurrentContext(context);
+          }
+        });
+      } else if (message.type === 'SHOW_STATUS') {
+        // Display status in the sidepanel's StatusBar
+        console.log('[Sidepanel] Received SHOW_STATUS message:', message);
+        console.log(
+          '[Sidepanel] statusCallbackRef.current exists?',
+          !!statusCallbackRef.current
+        );
+        if (statusCallbackRef.current) {
           console.log(
-            '[Sidepanel] Received context update for locked tab:',
-            message.context
+            '[Sidepanel] Calling statusCallbackRef.current with timeout:',
+            message.timeout
           );
-          const context = DomoContext.fromJSON(message.context);
-          setCurrentContext(context);
+          statusCallbackRef.current(
+            message.title,
+            message.description,
+            message.status || 'accent',
+            message.timeout !== undefined ? message.timeout : 3000
+          );
+        } else {
+          console.warn(
+            '[Sidepanel] statusCallbackRef.current is null, cannot show status'
+          );
         }
       }
+
+      // Send response and return true to keep channel open
+      sendResponse(response);
+      return true;
     };
 
     chrome.runtime.onMessage.addListener(handleMessage);
+    console.log('[Sidepanel] Message listener registered');
     return () => {
+      console.log('[Sidepanel] Message listener removed');
       chrome.runtime.onMessage.removeListener(handleMessage);
     };
-  }, [lockedTabId]);
+  }, []); // Remove lockedTabId from dependencies
 
   // Listen for tab activation changes (only when not locked)
   useEffect(() => {
@@ -169,17 +210,31 @@ export default function App() {
     };
   }, [lockedTabId]);
 
+  const handleBackToDefault = () => {
+    setActiveView('default');
+    setLockedTabId(null);
+    // Clear the sidepanel data
+    chrome.storage.local.remove(['sidepanelDataList']);
+  };
+
   return (
     <div className='flex min-h-screen w-full flex-col items-center gap-2 p-2'>
       <ActionButtons
         currentContext={currentContext}
         isLoadingCurrentContext={isLoadingCurrentContext}
+        collapsable={true}
+        onStatusCallbackReady={(callback) => {
+          statusCallbackRef.current = callback;
+        }}
       />
 
-      <GetPagesView
-        lockedTabId={lockedTabId}
-        onBackToDefault={handleBackToDefault}
-      />
+      {activeView === 'default' ? null : (
+        <GetPagesView
+          lockedTabId={lockedTabId}
+          onBackToDefault={handleBackToDefault}
+          onStatusUpdate={statusCallbackRef.current}
+        />
+      )}
     </div>
   );
 }

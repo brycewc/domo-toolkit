@@ -59,9 +59,5 @@ export function openSidepanel() {
     });
   } catch (error) {
     // Sidepanel is likely already open, which is fine
-    console.log(
-      '[DeleteCurrentObject] Sidepanel may already be open:',
-      error.message
-    );
   }
 }

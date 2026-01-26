@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import {
-  Alert,
   Button,
   ButtonGroup,
   CloseButton,
@@ -12,13 +11,18 @@ import {
   IconClipboard,
   IconFolders,
   IconRefresh,
-  IconUsersPlus
+  IconUsersPlus,
+  IconX
 } from '@tabler/icons-react';
 import { DataList } from '@/components';
 import { getChildPages, sharePagesWithSelf } from '@/services';
 import { DomoContext } from '@/models';
 
-export function GetPagesView({ lockedTabId = null, onBackToDefault = null }) {
+export function GetPagesView({
+  lockedTabId = null,
+  onBackToDefault = null,
+  onStatusUpdate = null
+}) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [items, setItems] = useState([]);
@@ -101,6 +105,20 @@ export function GetPagesView({ lockedTabId = null, onBackToDefault = null }) {
 
       // Build items structure with all pages at once
       buildItemsFromPages(children, allPages, appId, pageType, origin);
+
+      // If this is a childPagesWarning, show the warning status only if not already shown
+      if (
+        data.type === 'childPagesWarning' &&
+        onStatusUpdate &&
+        !data.statusShown
+      ) {
+        onStatusUpdate(
+          'Cannot Delete Page',
+          `This page has **${allPages.length} child page${allPages.length !== 1 ? 's' : ''}**. Please delete or reassign the child pages first.`,
+          'warning',
+          0 // No timeout - user must dismiss manually
+        );
+      }
     } catch (err) {
       console.error('Error loading pages:', err);
       setError(err.message || 'Failed to load child pages');
@@ -206,34 +224,35 @@ export function GetPagesView({ lockedTabId = null, onBackToDefault = null }) {
   }
 
   return (
-    <div className='flex w-full flex-col gap-4 p-1'>
-      {viewType === 'childPagesWarning' && (
-        <Alert status='warning'>
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>Cannot Delete Page</Alert.Title>
-            <Alert.Description>
-              The page <strong>{pageData?.pageName}</strong> cannot be deleted
-              because it has {items.length} child page
-              {items.length !== 1 ? 's' : ''}. Please delete or reassign the
-              child pages first.
-            </Alert.Description>
-          </Alert.Content>
-          <CloseButton variant='ghost' />
-        </Alert>
-      )}
+    <div className='flex w-full flex-col gap-2 p-1'>
       <div className='flex items-center justify-between'>
         <h1 className='text-2xl font-bold'>Child Pages</h1>
-        <div className='flex gap-2'>
-          {onBackToDefault && (
-            <Button size='sm' variant='ghost' onPress={onBackToDefault}>
-              Back to Default
+        <ButtonGroup hideSeparator>
+          <Tooltip delay={400} closeDelay={0}>
+            <Button
+              variant='ghost'
+              size='sm'
+              isIconOnly
+              onPress={loadPagesData}
+            >
+              <IconRefresh size={4} />
             </Button>
+            <Tooltip.Content className='text-xs'>Refresh</Tooltip.Content>
+          </Tooltip>
+          {onBackToDefault && (
+            <Tooltip delay={400} closeDelay={0}>
+              <Button
+                variant='ghost'
+                size='sm'
+                isIconOnly
+                onPress={onBackToDefault}
+              >
+                <IconX size={4} />
+              </Button>
+              <Tooltip.Content className='text-xs'>Close</Tooltip.Content>
+            </Tooltip>
           )}
-          <Button size='sm' variant='ghost' isIconOnly onPress={loadPagesData}>
-            <IconRefresh className='size-4' />
-          </Button>
-        </div>
+        </ButtonGroup>
       </div>
       <DataList
         items={items}

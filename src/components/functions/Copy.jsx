@@ -11,8 +11,7 @@ export function Copy({
     showStatus(
       'Success',
       `Copied ${currentContext?.domoObject?.typeName} ID ${currentContext?.domoObject?.id} to clipboard`,
-      'success',
-      null
+      'success'
     );
     // Trigger detection in NavigateToCopiedObject
     navigateToCopiedRef.current?.triggerDetection(
@@ -27,8 +26,7 @@ export function Copy({
       showStatus(
         'Success',
         `Copied Stream ID ${currentContext?.domoObject?.metadata?.details?.streamId} to clipboard`,
-        'success',
-        null
+        'success'
       );
       // Trigger detection in NavigateToCopiedObject
       navigateToCopiedRef.current?.triggerDetection(

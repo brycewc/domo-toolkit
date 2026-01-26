@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Button,
   ButtonGroup,
@@ -8,6 +8,10 @@ import {
   Skeleton,
   Tooltip
 } from '@heroui/react';
+import {
+  IconLayoutSidebarRightExpand,
+  IconSettings
+} from '@tabler/icons-react';
 import {
   ActivityLogCurrentObject,
   ClearCookies,
@@ -21,12 +25,13 @@ import {
   UpdateDataflowDetails,
   ShareWithSelf
 } from '@/components';
-import { IconSettings } from '@tabler/icons-react';
+import { openSidepanel } from '@/utils';
 
 export function ActionButtons({
   currentContext,
   isLoadingCurrentContext,
-  collapsable = false
+  collapsable = false,
+  onStatusCallbackReady = null
 }) {
   const navigateToCopiedRef = useRef();
   const [isExpanded, setIsExpanded] = useState(!collapsable);
@@ -34,22 +39,43 @@ export function ActionButtons({
     title: '',
     description: '',
     status: 'accent',
-    timeout: 3000,
-    visible: false
+    timeout: null,
+    visible: false,
+    key: Date.now()
   });
 
-  const showStatus = (
-    title,
-    description,
-    status = 'accent',
-    timeout = 3000
-  ) => {
-    setStatusBar({ title, description, status, timeout, visible: true });
-  };
+  const showStatus = useCallback(
+    (title, description, status = 'accent', timeout = 3000) => {
+      console.log('[ActionButtons] showStatus called:', {
+        title,
+        description,
+        status,
+        timeout,
+        key: Date.now()
+      });
+      setStatusBar({
+        title,
+        description,
+        status,
+        timeout,
+        visible: true,
+        key: Date.now()
+      });
+    },
+    []
+  );
 
   const hideStatus = useCallback(() => {
+    console.log('[ActionButtons] hideStatus called');
     setStatusBar((prev) => ({ ...prev, visible: false }));
   }, []);
+
+  // Provide the showStatus callback to parent component when it mounts/changes
+  useEffect(() => {
+    if (onStatusCallbackReady) {
+      onStatusCallbackReady(showStatus);
+    }
+  }, [onStatusCallbackReady, showStatus]);
 
   const isDomoPage = currentContext?.isDomoPage ?? false;
 
@@ -106,17 +132,34 @@ export function ActionButtons({
                     </Button>
                     <Tooltip.Content>Extension settings</Tooltip.Content>
                   </Tooltip>
-                  {collapsable && (
-                    <Button
-                      variant='tertiary'
-                      slot='trigger'
-                      fullWidth
-                      isIconOnly
-                    >
-                      <Disclosure.Indicator>
-                        <IconChevronDown size={4} />
-                      </Disclosure.Indicator>
-                    </Button>
+                  {collapsable ? (
+                    <Tooltip delay={400} closeDelay={0}>
+                      <Button
+                        variant='tertiary'
+                        slot='trigger'
+                        fullWidth
+                        isIconOnly
+                      >
+                        <Disclosure.Indicator>
+                          <IconChevronDown size={4} />
+                        </Disclosure.Indicator>
+                      </Button>
+                      <Tooltip.Content>Expand</Tooltip.Content>
+                    </Tooltip>
+                  ) : (
+                    <Tooltip delay={400} closeDelay={0}>
+                      <Button
+                        variant='tertiary'
+                        fullWidth
+                        isIconOnly
+                        onPress={openSidepanel}
+                      >
+                        <Disclosure.Indicator>
+                          <IconLayoutSidebarRightExpand size={4} />
+                        </Disclosure.Indicator>
+                      </Button>
+                      <Tooltip.Content>Open side panel</Tooltip.Content>
+                    </Tooltip>
                   )}
                 </ButtonGroup>
               </Disclosure.Heading>
@@ -126,9 +169,9 @@ export function ActionButtons({
                   onStatusUpdate={showStatus}
                 />
                 {/* <FilterActivityLog
-  currentContext={currentContext}
-  // isDisabled={!isDomoPage}
-  /> */}
+                currentContext={currentContext}
+                // isDisabled={!isDomoPage}
+                /> */}
                 <NavigateToCopiedObject
                   ref={navigateToCopiedRef}
                   currentContext={currentContext}
@@ -168,6 +211,7 @@ export function ActionButtons({
         {statusBar.visible && (
           <div className='absolute inset-0 h-full min-h-[6rem] translate-y-0 opacity-100 transition-all duration-300 ease-in-out'>
             <StatusBar
+              key={statusBar.key}
               title={statusBar.title}
               description={statusBar.description}
               status={statusBar.status}
@@ -176,6 +220,7 @@ export function ActionButtons({
             />
           </div>
         )}
+        {/* Debug: statusBar.visible = {statusBar.visible.toString()}, key = {statusBar.key} */}
       </div>
     </div>
   );

@@ -77,7 +77,6 @@ export function DataList({
  * @param {Number} props.item.count - Optional count to display
  * @param {Array} props.item.children - Optional nested children
  * @param {Object} props.item.metadata - Optional additional metadata
- * @param {Function} props.onItemClick - Callback when item is clicked
  * @param {Function} props.onItemAction - Callback when action is clicked
  * @param {Boolean} props.showActions - Whether to show action buttons
  * @param {Boolean} props.showCounts - Whether to show counts
@@ -210,7 +209,6 @@ function DataListItem({
                     key={child.id || index}
                     item={child}
                     index={index}
-                    onItemClick={onItemClick}
                     onItemAction={onItemAction}
                     showActions={showActions}
                     showCounts={showCounts}

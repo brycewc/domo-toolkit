@@ -65,7 +65,10 @@ export function ContextFooter({ currentContext, isLoading }) {
           </Alert.Content>
         </Alert>
       </Tooltip.Trigger>
-      <Tooltip.Content className='max-w-[calc(var(--container-xs)-1.5rem)] text-center text-wrap'>
+      <Tooltip.Content
+        placement='bottom'
+        className='max-w-[calc(var(--container-xs)-1.5rem)] text-center text-wrap'
+      >
         <>
           Unless otherwise noted (with{' '}
           <IconBoltOff className='inline h-4 w-4' />

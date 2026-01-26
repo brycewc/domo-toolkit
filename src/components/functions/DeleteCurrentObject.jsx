@@ -6,7 +6,8 @@ import {
   Chip,
   Label,
   Spinner,
-  Tooltip
+  Tooltip,
+  useOverlayState
 } from '@heroui/react';
 import { IconTrash } from '@tabler/icons-react';
 import { deletePageAndAllCards } from '@/services';
@@ -18,6 +19,7 @@ export function DeleteCurrentObject({
   isDisabled
 }) {
   const [isDeleting, setIsDeleting] = useState(false);
+  const state = useOverlayState({});
 
   const supportedTypes = [
     'ACCESS_TOKEN',
@@ -49,14 +51,79 @@ export function DeleteCurrentObject({
 
         // For regular pages, check pre-fetched child pages
         if (pageType === 'PAGE') {
-          const childPages =
-            currentContext.domoObject.metadata?.details?.childPages || [];
+          let childPages =
+            currentContext.domoObject.metadata?.details?.childPages;
+
+          // Three states:
+          // 1. undefined/null: Not yet checked for child pages - need to wait
+          // 2. []: Checked and found no child pages - safe to delete
+          // 3. [...]: Has child pages - cannot delete
+
+          if (childPages === undefined || childPages === null) {
+            console.log(
+              '[DeleteCurrentObject] Child pages not yet loaded, waiting...'
+            );
+
+            // Poll for child pages to be loaded (max 5 seconds)
+            const maxAttempts = 50; // 50 * 100ms = 5 seconds
+            let attempts = 0;
+
+            const checkChildPages = async () => {
+              while (attempts < maxAttempts) {
+                attempts++;
+                await new Promise((resolve) => setTimeout(resolve, 100));
+
+                // Re-fetch the current context to get updated child pages
+                const response = await chrome.runtime.sendMessage({
+                  type: 'GET_TAB_CONTEXT',
+                  tabId: currentContext.tabId
+                });
+
+                if (
+                  response?.success &&
+                  response?.context?.domoObject?.metadata?.details
+                    ?.childPages !== undefined
+                ) {
+                  childPages =
+                    response.context.domoObject.metadata.details.childPages;
+                  console.log(
+                    '[DeleteCurrentObject] Child pages loaded:',
+                    childPages.length
+                  );
+                  break;
+                }
+              }
+
+              if (childPages === undefined || childPages === null) {
+                console.log(
+                  '[DeleteCurrentObject] Timeout waiting for child pages'
+                );
+                onStatusUpdate?.(
+                  'Error',
+                  'Timeout while checking for child pages. Please try again.',
+                  'danger',
+                  3000
+                );
+                setIsDeleting(false);
+                return false;
+              }
+
+              return true;
+            };
+
+            const loaded = await checkChildPages();
+            if (!loaded) return;
+          }
 
           if (childPages.length > 0) {
-            // Open sidepanel first (while user gesture is valid)
-            openSidepanel();
+            console.log(
+              '[DeleteCurrentObject] Page has child pages:',
+              childPages.length
+            );
 
-            // Then store child pages data
+            const isSidepanel = window.location.pathname.includes('/sidepanel');
+
+            // Store child pages data
             chrome.storage.local.set({
               sidepanelDataList: {
                 type: 'childPagesWarning',
@@ -66,17 +133,56 @@ export function DeleteCurrentObject({
                 childPages,
                 currentContext: currentContext?.toJSON?.() || currentContext,
                 tabId: currentContext?.tabId || null,
-                timestamp: Date.now()
+                timestamp: Date.now(),
+                statusShown: isSidepanel
               }
             });
 
-            onStatusUpdate?.(
-              'Cannot Delete Page',
-              `This page has ${childPages.length} child pages. View them in the sidepanel.`,
-              'warning'
-            );
+            if (isSidepanel) {
+              // If we're in the sidepanel, just call onStatusUpdate directly
+              onStatusUpdate?.(
+                'Cannot Delete Page',
+                `This page has **${childPages.length} child page${childPages.length !== 1 ? 's' : ''}**. Please delete or reassign the child pages first.`,
+                'warning',
+                0
+              );
+            } else {
+              openSidepanel();
+              window.close();
+              // If we're in the popup, send message to sidepanel
+              console.log(
+                '[DeleteCurrentObject] Sending SHOW_STATUS message to sidepanel'
+              );
+              chrome.runtime
+                .sendMessage({
+                  type: 'SHOW_STATUS',
+                  title: 'Cannot Delete Page',
+                  description: `This page has **${childPages.length} child page${childPages.length !== 1 ? 's' : ''}**. View them in the sidepanel.`,
+                  status: 'warning',
+                  timeout: 0
+                })
+                .then(() => {
+                  console.log(
+                    '[DeleteCurrentObject] SHOW_STATUS message sent successfully'
+                  );
+                })
+                .catch((error) => {
+                  console.log(
+                    '[DeleteCurrentObject] SHOW_STATUS message failed, showing in popup instead:',
+                    error
+                  );
+                  // If sidepanel is not open, show in popup instead
+                  onStatusUpdate?.(
+                    'Cannot Delete Page',
+                    `This page has ${childPages.length} child pages. View them in the sidepanel.`,
+                    'warning'
+                  );
+                });
+            }
 
-            // window.close(); // Close popup after opening sidepanel
+            // Close the dialog after showing status
+            state.close();
+            setIsDeleting(false);
             return;
           }
         }
@@ -97,12 +203,14 @@ export function DeleteCurrentObject({
           `Delete functionality for ${typeId} is not implemented yet. Please check back in a future release.`,
           'warning'
         );
+        state.close();
       } else {
         onStatusUpdate?.(
           'Not Implemented',
           `Delete functionality for ${typeId} is not implemented yet. Please check back in a future release.`,
           'warning'
         );
+        state.close();
       }
     } catch (error) {
       console.error('Error deleting object:', error);
@@ -111,13 +219,14 @@ export function DeleteCurrentObject({
         error.message || 'Failed to delete object',
         'danger'
       );
+      state.close();
     } finally {
       setIsDeleting(false);
     }
   };
 
   return (
-    <AlertDialog>
+    <AlertDialog isOpen={state.isOpen} onOpenChange={state.setOpen}>
       <Tooltip
         delay={400}
         closeDelay={0}
@@ -132,17 +241,8 @@ export function DeleteCurrentObject({
             isDisabled || !currentContext?.domoObject
             // !supportedTypes.includes(currentContext?.domoObject?.typeId)
           }
-          isPending={isDeleting}
         >
-          {({ isPending }) => (
-            <>
-              {isPending ? (
-                <Spinner size='sm' />
-              ) : (
-                <IconTrash size={4} className='text-danger' />
-              )}
-            </>
-          )}
+          <IconTrash size={4} className='text-danger' />
         </Button>
         <Tooltip.Content>
           Delete{' '}
@@ -181,18 +281,30 @@ export function DeleteCurrentObject({
               permanently?
             </AlertDialog.Body>
             <AlertDialog.Footer>
-              <Button slot='close' variant='tertiary' size='sm'>
+              <Button
+                slot='close'
+                variant='tertiary'
+                size='sm'
+                isDisabled={isDeleting}
+              >
                 Cancel
               </Button>
               <Button
-                slot='close'
                 variant='danger'
                 size='sm'
                 className='uppercase'
                 onPress={handleDelete}
-                isLoading={isDeleting}
+                isPending={isDeleting}
               >
-                Delete {currentContext?.domoObject?.typeName}
+                {({ isPending }) => (
+                  <>
+                    {isPending ? (
+                      <Spinner color='currentColor' size='sm' />
+                    ) : (
+                      `Delete ${currentContext?.domoObject?.typeName}`
+                    )}
+                  </>
+                )}
               </Button>
             </AlertDialog.Footer>
           </AlertDialog.Dialog>
