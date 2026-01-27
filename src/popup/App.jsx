@@ -21,7 +21,7 @@ export default function App() {
           type: 'GET_TAB_CONTEXT',
           windowId: window.id
         });
-
+        console.log('[Popup] GET_TAB_CONTEXT response:', response);
         if (response.success && response.context) {
           // Reconstruct DomoContext from plain object to get class instance with methods
           const context = DomoContext.fromJSON(response.context);
@@ -50,11 +50,14 @@ export default function App() {
           const context = DomoContext.fromJSON(message.context);
           setCurrentContext(context);
           console.log(
-            '[Popup] Received update and reconstructed context:',
-            context
+            '[Popup] Received update and reconstructed message context:',
+            message
           );
         }
+        sendResponse({ received: true });
+        return true;
       }
+      return false;
     };
 
     chrome.runtime.onMessage.addListener(handleMessage);
@@ -64,9 +67,11 @@ export default function App() {
   }, [currentTabId]);
 
   return (
-    <ActionButtons
-      currentContext={currentContext}
-      isLoadingCurrentContext={isLoadingCurrentContext}
-    />
+    <div className='p-1'>
+      <ActionButtons
+        currentContext={currentContext}
+        isLoadingCurrentContext={isLoadingCurrentContext}
+      />
+    </div>
   );
 }

@@ -1,11 +1,17 @@
 import { useState } from 'react';
-import { Button } from '@heroui/react';
-import { openSidepanel } from '@/utils';
+import { Button, Spinner } from '@heroui/react';
+import {
+  waitForChildPages,
+  isSidepanel,
+  showStatus,
+  storeSidepanelData,
+  openSidepanel
+} from '@/utils';
 
 export function GetPages({ currentContext, onStatusUpdate, isDisabled }) {
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleGetPages = () => {
+  const handleGetPages = async () => {
     setIsLoading(true);
 
     try {
@@ -43,33 +49,57 @@ export function GetPages({ currentContext, onStatusUpdate, isDisabled }) {
           ? parseInt(currentContext.domoObject.metadata.parent.id)
           : null;
 
-      // Then store the page information for the sidepanel to use
-      chrome.storage.local.set({
-        sidepanelDataList: {
-          type: 'getPages',
-          pageId,
-          appId,
-          pageType,
-          pageName,
-          currentContext: currentContext.toJSON(),
-          tabId: currentContext?.tabId || null,
-          timestamp: Date.now()
+      // For regular pages, wait for child pages to be loaded first
+      if (pageType === 'PAGE') {
+        const result = await waitForChildPages(currentContext);
+
+        if (!result.success) {
+          onStatusUpdate?.('Error', result.error, 'danger', 3000);
+          setIsLoading(false);
+          return;
         }
-      });
 
-      // Open the sidepanel
-      openSidepanel();
+        const childPages = result.childPages;
 
-      window.close();
+        // If no child pages, show message
+        if (childPages.length > 0) {
+          const inSidepanel = isSidepanel();
 
-      onStatusUpdate?.(
-        'Opening Sidepanel',
-        'Loading child pages...',
-        'success',
-        2000
-      );
+          if (!inSidepanel) openSidepanel();
+
+          // Store the page information for the sidepanel to use
+          await storeSidepanelData({
+            type: 'getPages',
+            pageId,
+            appId,
+            pageType,
+            currentContext,
+            childPages,
+            statusShown: false
+          });
+
+          // Show status message
+          await showStatus({
+            onStatusUpdate,
+            title: 'Opening Sidepanel',
+            description: 'Loading child pages...',
+            status: 'success',
+            timeout: 2000,
+            inSidepanel
+          });
+        } else {
+          onStatusUpdate?.(
+            'No Child Pages',
+            'This page has no child pages.',
+            'accent',
+            3000
+          );
+          setIsLoading(false);
+          return;
+        }
+      }
     } catch (error) {
-      console.error('Error opening sidepanel:', error);
+      console.error('[GetPages] Error opening sidepanel:', error);
       onStatusUpdate?.(
         'Error',
         error.message || 'Failed to open sidepanel',
@@ -86,9 +116,15 @@ export function GetPages({ currentContext, onStatusUpdate, isDisabled }) {
       fullWidth
       onPress={handleGetPages}
       isDisabled={isDisabled}
-      isLoading={isLoading}
+      isPending={isLoading}
     >
-      Get Child Pages
+      {({ isPending }) =>
+        isPending ? (
+          <Spinner color='currentColor' size='sm' />
+        ) : (
+          'Get Child Pages'
+        )
+      }
     </Button>
   );
 }

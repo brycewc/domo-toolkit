@@ -11,8 +11,8 @@ export function ContextFooter({ currentContext, isLoading }) {
           status={isDomoPage || isLoading ? 'accent' : 'warning'}
           className={
             isDomoPage || isLoading
-              ? 'min-h-[6rem] bg-linear-to-r to-accent/10'
-              : 'min-h-[6rem] bg-linear-to-r to-warning/10'
+              ? 'bg-linear-to-r to-accent/10'
+              : 'bg-linear-to-r to-warning/10'
           }
         >
           <Alert.Content>
@@ -32,30 +32,28 @@ export function ContextFooter({ currentContext, isLoading }) {
                     'Not a Domo Instance'
                   )}
                 </Alert.Title>
-                <Alert.Description>
+                <Alert.Description className='flex flex-wrap items-center gap-x-1'>
                   {isDomoPage ? (
-                    <div className='flex flex-col gap-1'>
-                      {isLoading ? (
-                        <Spinner size='sm' color='accent' />
-                      ) : !currentContext?.instance ||
-                        !currentContext?.domoObject?.id ? (
-                        <span className='text-sm text-muted'>
-                          No object detected on this page
+                    isLoading ? (
+                      <Spinner size='sm' color='accent' />
+                    ) : !currentContext?.instance ||
+                      !currentContext?.domoObject?.id ? (
+                      <span className='text-sm text-muted'>
+                        No object detected on this page
+                      </span>
+                    ) : (
+                      <>
+                        <Chip color='accent' variant='soft' className='w-fit'>
+                          {currentContext.domoObject.typeName}
+                          {' ('}
+                          {currentContext.domoObject.typeId}
+                          {')'}
+                        </Chip>
+                        <span className='text-sm'>
+                          ID: {currentContext.domoObject.id}
                         </span>
-                      ) : (
-                        <>
-                          <Chip color='accent' variant='soft' className='w-fit'>
-                            {currentContext.domoObject.typeName}
-                            {' ('}
-                            {currentContext.domoObject.typeId}
-                            {')'}
-                          </Chip>
-                          <span className='text-sm'>
-                            ID: {currentContext.domoObject.id}
-                          </span>
-                        </>
-                      )}
-                    </div>
+                      </>
+                    )
                   ) : (
                     'Navigate to an instance to enable most extension features'
                   )}

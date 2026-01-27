@@ -433,9 +433,9 @@ export const NavigateToCopiedObject = forwardRef(
 
     return showDropdown ? (
       <Dropdown>
-        <Button variant='tertiary' fullWidth>
+        <Button variant='tertiary' className='min-w-fit flex-1 basis-[49%]'>
           <IconChevronDown size={4} />
-          Navigate from Clipboard
+          Nav from Clipboard
         </Button>
         <Dropdown.Popover className='min-w-[18rem]' placement='bottom end'>
           <Dropdown.Menu
@@ -454,20 +454,15 @@ export const NavigateToCopiedObject = forwardRef(
     ) : (
       <Tooltip delay={400} closeDelay={0}>
         <Button
+          className='min-w-fit flex-1 basis-[49%]'
           variant='tertiary'
-          fullWidth
           onPress={() => handleClick()}
           isDisabled={!copiedObjectId || isLoading || !!error}
           isPending={isLoading}
+          isIconOnly={isLoading}
         >
-          {isLoading ? (
-            <Spinner className='size-4' color='current' />
-          ) : (
-            <>
-              <IconExternalLink />
-              <span>Navigate from Clipboard</span>
-            </>
-          )}
+          <IconExternalLink size={4} />
+          Nav from Clipboard
         </Button>
         <Tooltip.Content placement='top' className='flex flex-col gap-2'>
           {error ? (

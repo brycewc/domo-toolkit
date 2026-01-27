@@ -151,10 +151,10 @@ export function FaviconSettings() {
 
   return (
     <div className='flex h-full min-h-[calc(100vh-20)] w-full flex-col justify-between pt-4'>
-      <div className='flex w-full flex-col gap-4'>
-        <Form className='flex w-full flex-col gap-4' onSubmit={onSave}>
+      <div className='flex w-full flex-col gap-2'>
+        <Form className='flex w-full flex-col gap-2' onSubmit={onSave}>
           {isLoading ? (
-            <div className='skeleton--shimmer relative flex w-full flex-col gap-4 overflow-hidden'>
+            <div className='skeleton--shimmer relative flex w-full flex-col gap-2 overflow-hidden'>
               <Skeleton animationType='none' className='h-24 rounded-xl' />
               <Skeleton animationType='none' className='h-24 rounded-xl' />
               <Skeleton animationType='none' className='h-24 rounded-xl' />
@@ -172,7 +172,7 @@ export function FaviconSettings() {
                   draggedIndex === index ? 'opacity-50' : ''
                 }`}
               >
-                <Card.Content className='flex flex-row items-center justify-start gap-3'>
+                <Card.Content className='flex flex-row items-center justify-start gap-2'>
                   <div className='flex items-center justify-center'>
                     <IconGripVertical className='mt-[1.5rem] size-4' />
                   </div>
@@ -301,7 +301,6 @@ export function FaviconSettings() {
                     <div className='mt-[1.5rem] flex items-center'>
                       <Button
                         variant='danger'
-                        size='sm'
                         onPress={() => removeRow(rule.id)}
                         isIconOnly
                       >

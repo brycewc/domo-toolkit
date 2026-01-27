@@ -95,7 +95,7 @@ export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
               <Modal.Header>
                 <Modal.Heading>Update DataFlow Details</Modal.Heading>
               </Modal.Header>
-              <Modal.Body className='flex flex-col gap-4'>
+              <Modal.Body className='flex flex-col gap-2'>
                 <TextField
                   className='w-full'
                   variant='secondary'

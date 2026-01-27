@@ -8,7 +8,11 @@ import {
   Label
 } from '@heroui/react';
 import { getCardsForObject, getPagesForCards, getChildPages } from '@/services';
-import { IconFileDescription } from '@tabler/icons-react';
+import {
+  IconChartBar,
+  IconCopy,
+  IconFileDescription
+} from '@tabler/icons-react';
 
 export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
   const [isLoading, setIsLoading] = useState(false);
@@ -185,63 +189,63 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
     );
 
   return (
-    <div className='flex flex-col gap-2'>
-      <ButtonGroup>
-        <Button
-          variant='tertiary'
-          fullWidth
-          onPress={handleClick}
-          isDisabled={isDisabled}
-          className={!isDropdownDisabled ? 'pl-10' : ''}
-          isPending={isLoading}
-        >
-          <IconFileDescription size={4} />
-          Activity Log
-        </Button>
-        {!isDropdownDisabled && (
-          <Dropdown>
-            <Button
-              variant='tertiary'
-              isIconOnly
-              aria-label='More options'
-              isDisabled={isDropdownDisabled}
-            >
-              <IconChevronDown size={4} />
-            </Button>
-            <Dropdown.Popover
-              className='w-full max-w-[290px]'
-              placement='bottom end'
-            >
-              <Dropdown.Menu onAction={handleClick}>
-                <Dropdown.Item
-                  className='flex flex-col items-start gap-1'
-                  id='child-cards'
-                  textValue='Child cards'
-                >
+    <ButtonGroup className='min-w-fit flex-1 basis-[49%]'>
+      <Button
+        variant='tertiary'
+        onPress={handleClick}
+        isDisabled={isDisabled}
+        // className={!isDropdownDisabled ? 'pl-10' : ''}
+        isPending={isLoading}
+        fullWidth
+      >
+        <IconFileDescription size={4} />
+        Activity Log
+      </Button>
+      {!isDropdownDisabled && (
+        <Dropdown>
+          <Button
+            variant='tertiary'
+            isIconOnly
+            aria-label='More options'
+            isDisabled={isDropdownDisabled}
+          >
+            <IconChevronDown size={4} />
+          </Button>
+          <Dropdown.Popover
+            className='w-full max-w-[290px]'
+            placement='bottom end'
+          >
+            <Dropdown.Menu onAction={handleClick}>
+              <Dropdown.Item id='child-cards' textValue='Child cards'>
+                <div className='flex h-8 items-start justify-center pt-px'>
+                  <IconChartBar size={4} className='size-4 shrink-0' />
+                </div>
+                <div className='flex flex-col'>
                   <Label>Child cards</Label>
                   <Description className='text-xs'>
                     View activity log for all cards on this{' '}
                     {currentContext?.domoObject?.typeName?.toLowerCase() ||
                       'object'}
                   </Description>
-                </Dropdown.Item>
-                <Dropdown.Item
-                  className='flex flex-col items-start gap-1'
-                  id='child-pages'
-                  textValue='Child pages'
-                >
+                </div>
+              </Dropdown.Item>
+              <Dropdown.Item id='child-pages' textValue='Child pages'>
+                <div className='flex h-8 items-start justify-center pt-px'>
+                  <IconCopy size={4} className='size-4 shrink-0' />
+                </div>
+                <div className='flex flex-col'>
                   <Label>Child pages</Label>
                   <Description className='text-xs'>
                     View activity log for all pages containing cards from this{' '}
                     {currentContext?.domoObject?.typeName?.toLowerCase() ||
                       'object'}
                   </Description>
-                </Dropdown.Item>
-              </Dropdown.Menu>
-            </Dropdown.Popover>
-          </Dropdown>
-        )}
-      </ButtonGroup>
-    </div>
+                </div>
+              </Dropdown.Item>
+            </Dropdown.Menu>
+          </Dropdown.Popover>
+        </Dropdown>
+      )}
+    </ButtonGroup>
   );
 }

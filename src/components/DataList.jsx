@@ -39,16 +39,11 @@ export function DataList({
   showCounts = true
 }) {
   return (
-    <Card className='w-full'>
-      {header && (
-        <>
-          <Card.Header>{header}</Card.Header>
-          <Separator className='h-1' />
-        </>
-      )}
+    <Card className='w-full overflow-y-auto p-2'>
+      {header && <Card.Header>{header}</Card.Header>}
 
       <Card.Content>
-        <DisclosureGroup className='gap-2'>
+        <DisclosureGroup className='flex flex-col gap-1'>
           {items.map((item, index) => (
             <DataListItem
               key={item.id || index}
@@ -99,127 +94,122 @@ function DataListItem({
   };
 
   return (
-    <>
-      {index !== 0 && <Separator />}
-      <Disclosure
-        isOpen={isOpen}
-        onOpenChange={setIsOpen}
-        className='w-full py-[5px]'
-      >
-        <Disclosure.Heading className='flex w-full flex-row justify-between'>
-          <div className='flex w-full min-w-0 flex-4/5 items-center'>
-            <Tooltip delay={100} closeDelay={0} className='flex-1'>
-              {item.url ? (
-                <Link
-                  href={item.url}
-                  target='_blank'
-                  className='truncate text-sm font-medium no-underline decoration-accent/80 hover:text-accent/80 hover:underline'
-                >
-                  {item.label}
-                </Link>
-              ) : (
-                <span className='truncate text-sm font-medium'>
-                  {item.label}
-                </span>
-              )}
-              <Tooltip.Content
-                placement='right'
-                offset={8}
-                className='text-nowrap'
+    <Disclosure
+      isOpen={isOpen}
+      onOpenChange={setIsOpen}
+      className='w-full border-t border-border'
+    >
+      <Disclosure.Heading className='flex w-full flex-row justify-between pt-1'>
+        <div className='flex w-full min-w-0 flex-1 basis-4/5 items-center'>
+          <Tooltip delay={200} closeDelay={0} className='flex-1'>
+            {item.url ? (
+              <Link
+                href={item.url}
+                target='_blank'
+                className='truncate text-sm font-medium no-underline decoration-accent/80 hover:text-accent/80 hover:underline'
               >
-                ID: {item.id}
-              </Tooltip.Content>
-            </Tooltip>
-            {hasChildren && (
-              <Disclosure.Trigger
-                variant='tertiary'
-                aria-label='Toggle'
-                className='button--sm flex flex-shrink-0 flex-row items-center gap-1'
-              >
-                {showCounts && item.count !== undefined && (
-                  <span className='text-sm text-muted'>({item.count})</span>
-                )}
-                <Disclosure.Indicator />
-              </Disclosure.Trigger>
+                {item.label}
+              </Link>
+            ) : (
+              <span className='truncate text-sm font-medium'>{item.label}</span>
             )}
-          </div>
-          {showActions && (
-            <div className='flex-1/5'>
-              <ButtonGroup
-                variant='tertiary'
-                size='sm'
-                className='max-w-xs'
-                fullWidth
-              >
-                {hasChildren && (
-                  <Tooltip delay={400} closeDelay={0}>
-                    <Button
-                      variant='tertiary'
-                      size='sm'
-                      fullWidth
-                      isIconOnly
-                      onPress={() => handleAction('openAll')}
-                      aria-label='Open All'
-                    >
-                      <IconFolders size={4} />
-                    </Button>
-                    <Tooltip.Content className='text-xs'>
-                      Open all
-                    </Tooltip.Content>
-                  </Tooltip>
-                )}
+            <Tooltip.Content
+              placement='right'
+              offset={8}
+              className='text-nowrap'
+            >
+              ID: {item.id}
+            </Tooltip.Content>
+          </Tooltip>
+          {hasChildren && (
+            <Disclosure.Trigger
+              variant='tertiary'
+              aria-label='Toggle'
+              className='button--sm flex flex-shrink-0 flex-row items-center gap-1'
+            >
+              {showCounts && item.count !== undefined && (
+                <span className='text-sm text-muted'>({item.count})</span>
+              )}
+              <Disclosure.Indicator />
+            </Disclosure.Trigger>
+          )}
+        </div>
+        {showActions && (
+          <div className='flex-1 basis-1/5'>
+            <ButtonGroup
+              variant='ghost'
+              size='sm'
+              className='flex max-w-xs justify-end'
+              fullWidth
+            >
+              {hasChildren && (
                 <Tooltip delay={400} closeDelay={0}>
                   <Button
-                    variant='tertiary'
+                    variant='ghost'
                     size='sm'
                     fullWidth
                     isIconOnly
-                    onPress={() => handleAction('copy')}
-                    aria-label='Copy'
+                    onPress={() => handleAction('openAll')}
+                    aria-label='Open All'
                   >
-                    <IconClipboard size={4} />
-                  </Button>
-                  <Tooltip.Content className='text-xs'>Copy ID</Tooltip.Content>
-                </Tooltip>
-                <Tooltip delay={400} closeDelay={0}>
-                  <Button
-                    variant='tertiary'
-                    size='sm'
-                    fullWidth
-                    isIconOnly
-                    onPress={() => handleAction('share')}
-                    aria-label='Share'
-                  >
-                    <IconUserPlus size={4} />
+                    <IconFolders size={4} />
                   </Button>
                   <Tooltip.Content className='text-xs'>
-                    Share with yourself
+                    Open all
                   </Tooltip.Content>
                 </Tooltip>
-              </ButtonGroup>
-            </div>
-          )}
-        </Disclosure.Heading>
-        {hasChildren && (
-          <Disclosure.Content className='w-full'>
-            <Disclosure.Body className='w-full pl-[5px]'>
-              <DisclosureGroup>
-                {item.children.map((child, index) => (
-                  <DataListItem
-                    key={child.id || index}
-                    item={child}
-                    index={index}
-                    onItemAction={onItemAction}
-                    showActions={showActions}
-                    showCounts={showCounts}
-                    depth={depth + 1}
-                  />
-                ))}
-              </DisclosureGroup>
-            </Disclosure.Body>
-          </Disclosure.Content>
+              )}
+              <Tooltip delay={400} closeDelay={0}>
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  fullWidth
+                  isIconOnly
+                  onPress={() => handleAction('copy')}
+                  aria-label='Copy'
+                >
+                  <IconClipboard size={4} />
+                </Button>
+                <Tooltip.Content className='text-xs'>Copy ID</Tooltip.Content>
+              </Tooltip>
+              <Tooltip delay={400} closeDelay={0}>
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  fullWidth
+                  isIconOnly
+                  onPress={() => handleAction('share')}
+                  aria-label='Share'
+                >
+                  <IconUserPlus size={4} />
+                </Button>
+                <Tooltip.Content className='text-xs'>
+                  Share with yourself
+                </Tooltip.Content>
+              </Tooltip>
+            </ButtonGroup>
+          </div>
         )}
-      </Disclosure>
-    </>
+      </Disclosure.Heading>
+      {hasChildren && (
+        <Disclosure.Content className='w-full'>
+          <Disclosure.Body className='w-full pl-[5px]'>
+            <DisclosureGroup>
+              {item.children.map((child, index) => (
+                <DataListItem
+                  key={child.id || index}
+                  item={child}
+                  index={index}
+                  onItemAction={onItemAction}
+                  showActions={showActions}
+                  showCounts={showCounts}
+                  depth={depth + 1}
+                />
+              ))}
+            </DisclosureGroup>
+          </Disclosure.Body>
+        </Disclosure.Content>
+      )}
+    </Disclosure>
   );
 }

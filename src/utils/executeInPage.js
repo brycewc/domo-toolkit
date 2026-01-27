@@ -48,16 +48,3 @@ export async function executeInPage(func, args = [], tabId = null) {
     throw error;
   }
 }
-
-export function openSidepanel() {
-  // Try to open the sidepanel
-  // If it's already open, this will fail, but that's okay -
-  // the already-open sidepanel will detect the storage change
-  try {
-    chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
-      chrome.sidePanel.open({ tabId: tab.id });
-    });
-  } catch (error) {
-    // Sidepanel is likely already open, which is fine
-  }
-}

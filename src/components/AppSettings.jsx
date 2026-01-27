@@ -159,8 +159,8 @@ export function AppSettings({ theme = 'system' }) {
   };
 
   return (
-    <div className='flex flex-col gap-4 pt-4'>
-      <Form onSubmit={handleSubmit} className='flex flex-col gap-4'>
+    <div className='flex flex-col gap-2 pt-4'>
+      <Form onSubmit={handleSubmit} className='flex flex-col gap-2'>
         <Select
           value={settings.themePreference}
           onChange={handleThemeChange}

@@ -94,7 +94,7 @@ export function ShareWithSelf({ currentContext, onStatusUpdate, isDisabled }) {
     isDisabled || isSharing || !currentContext?.domoObject || !isSupportedType;
 
   return (
-    <Tooltip delay={200} closeDelay={0} disabled={!buttonDisabled}>
+    <Tooltip delay={400} closeDelay={0} disabled={!buttonDisabled}>
       <Button
         variant='tertiary'
         fullWidth

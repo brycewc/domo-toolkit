@@ -167,10 +167,10 @@ export function ActivityLogSettings() {
   };
 
   return (
-    <div className='flex w-full flex-col gap-4 pt-4'>
-      <Form className='flex w-full flex-col gap-4' onSubmit={onSubmit}>
+    <div className='flex w-full flex-col gap-2 pt-4'>
+      <Form className='flex w-full flex-col gap-2' onSubmit={onSubmit}>
         {isLoading ? (
-          <div className='skeleton--shimmer relative flex w-full flex-col gap-4 overflow-hidden'>
+          <div className='skeleton--shimmer relative flex w-full flex-col gap-2 overflow-hidden'>
             <Skeleton animationType='none' className='h-20 rounded-xl' />
           </div>
         ) : (

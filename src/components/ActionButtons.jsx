@@ -4,13 +4,14 @@ import {
   ButtonGroup,
   Card,
   Disclosure,
-  IconChevronDown,
   Skeleton,
   Tooltip
 } from '@heroui/react';
 import {
+  IconChevronDown,
   IconLayoutSidebarRightExpand,
-  IconSettings
+  IconSettings,
+  IconSquare
 } from '@tabler/icons-react';
 import {
   ActivityLogCurrentObject,
@@ -80,9 +81,9 @@ export function ActionButtons({
   const isDomoPage = currentContext?.isDomoPage ?? false;
 
   return (
-    <div className='flex w-full min-w-xs flex-col items-start justify-start gap-1 p-1'>
+    <div className='flex w-full min-w-xs flex-col items-center justify-center gap-1'>
       <Card className='h-full w-full p-0'>
-        <Card.Content className='flex w-full flex-col gap-1 p-2'>
+        <Card.Content className='p-2'>
           {isLoadingCurrentContext ? (
             <>
               <Skeleton className='h-10 w-full rounded-4xl' />
@@ -94,9 +95,9 @@ export function ActionButtons({
             <Disclosure
               isExpanded={isExpanded}
               onExpandedChange={setIsExpanded}
-              className='flex w-full flex-col gap-1'
+              className={isExpanded ? 'space-y-1' : ''}
             >
-              <Disclosure.Heading className='flex w-full flex-col gap-1'>
+              <Disclosure.Heading className='w-full'>
                 <ButtonGroup fullWidth>
                   <Copy
                     currentContext={currentContext}
@@ -126,6 +127,7 @@ export function ActionButtons({
                       isIconOnly
                       onPress={() => {
                         chrome.runtime.openOptionsPage();
+                        window.close();
                       }}
                     >
                       <IconSettings size={4} />
@@ -144,6 +146,7 @@ export function ActionButtons({
                           <IconChevronDown size={4} />
                         </Disclosure.Indicator>
                       </Button>
+
                       <Tooltip.Content>Expand</Tooltip.Content>
                     </Tooltip>
                   ) : (
@@ -154,28 +157,28 @@ export function ActionButtons({
                         isIconOnly
                         onPress={openSidepanel}
                       >
-                        <Disclosure.Indicator>
-                          <IconLayoutSidebarRightExpand size={4} />
-                        </Disclosure.Indicator>
+                        <IconLayoutSidebarRightExpand size={4} />
                       </Button>
                       <Tooltip.Content>Open side panel</Tooltip.Content>
                     </Tooltip>
                   )}
                 </ButtonGroup>
               </Disclosure.Heading>
-              <Disclosure.Content className='flex w-full flex-col gap-1'>
-                <ActivityLogCurrentObject
-                  currentContext={currentContext}
-                  onStatusUpdate={showStatus}
-                />
-                {/* <FilterActivityLog
+              <Disclosure.Content className='space-y-1'>
+                <div className='flex w-full flex-wrap place-items-center items-center justify-center gap-1'>
+                  <ActivityLogCurrentObject
+                    currentContext={currentContext}
+                    onStatusUpdate={showStatus}
+                  />
+                  {/* <FilterActivityLog
                 currentContext={currentContext}
                 // isDisabled={!isDomoPage}
                 /> */}
-                <NavigateToCopiedObject
-                  ref={navigateToCopiedRef}
-                  currentContext={currentContext}
-                />
+                  <NavigateToCopiedObject
+                    ref={navigateToCopiedRef}
+                    currentContext={currentContext}
+                  />
+                </div>
                 {(currentContext?.domoObject?.typeId === 'PAGE' ||
                   currentContext?.domoObject?.typeId === 'DATA_APP_VIEW') && (
                   <GetPages
@@ -195,7 +198,7 @@ export function ActionButtons({
           )}
         </Card.Content>
       </Card>
-      <div className='relative min-h-[6rem] w-full'>
+      <div className='relative w-full'>
         <div
           className={`transition-all duration-300 ease-in-out ${
             statusBar.visible
@@ -209,7 +212,7 @@ export function ActionButtons({
           />
         </div>
         {statusBar.visible && (
-          <div className='absolute inset-0 h-full min-h-[6rem] translate-y-0 opacity-100 transition-all duration-300 ease-in-out'>
+          <div className='absolute inset-0 translate-y-0 opacity-100 transition-all duration-300 ease-in-out'>
             <StatusBar
               key={statusBar.key}
               title={statusBar.title}

@@ -132,11 +132,14 @@ function setTabContext(tabId, context) {
   chrome.runtime
     .sendMessage({
       type: 'TAB_CONTEXT_UPDATED',
-      tabId: tabId,
       context: contextData
     })
     .catch((error) => {
       // No listeners, that's fine (popup/sidepanel might not be open)
+      console.log(
+        `[Background] No listeners for TAB_CONTEXT_UPDATED:`,
+        error.message
+      );
     });
 }
 
@@ -253,7 +256,11 @@ async function checkClipboard() {
   try {
     // Service workers can't directly access navigator.clipboard
     // We need to execute in an active tab context
-    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const tabs = await chrome.tabs.query({
+      active: true,
+      currentWindow: true,
+      windowType: 'normal'
+    });
     if (!tabs || tabs.length === 0) {
       console.log('[Background] No active tab found for clipboard check');
       // Return cached value from session storage if available
@@ -442,7 +449,10 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
     console.log('[Background] Favicon rules changed, notifying all Domo tabs');
 
     // Get all tabs with domo.com URLs
-    const tabs = await chrome.tabs.query({ url: '*://*.domo.com/*' });
+    const tabs = await chrome.tabs.query({
+      url: '*://*.domo.com/*',
+      windowType: 'normal'
+    });
 
     for (const tab of tabs) {
       sendMessageWithRetry(tab.id, { type: 'APPLY_FAVICON' }, 3)
@@ -476,6 +486,16 @@ async function detectAndStoreContext(tabId) {
   try {
     // Get tab info for URL
     const tab = await chrome.tabs.get(tabId);
+    if (!tab || !tab?.url?.includes('domo.com')) {
+      // Not a Domo domain - clear any existing context and return
+      console.log(
+        `[Background] Tab ${tabId} is not on a Domo domain, clearing context`
+      );
+      tabContexts.delete(tabId);
+      tabAccessTimes.delete(tabId);
+      persistToSession();
+      return null;
+    }
     const context = new DomoContext(tabId, tab.url, null);
     setTabContext(tabId, context);
 
@@ -562,8 +582,7 @@ async function detectAndStoreContext(tabId) {
             if (!currentContext.domoObject.metadata.details) {
               currentContext.domoObject.metadata.details = {};
             }
-            currentContext.domoObject.metadata.details.childPages =
-              childPages || [];
+            currentContext.domoObject.metadata.details.childPages = childPages;
 
             // Update the stored context
             setTabContext(tabId, currentContext);
@@ -624,7 +643,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           }
 
           // Otherwise, get active tab in the specified window (popup)
-          const tabs = await chrome.tabs.query({ active: true, windowId });
+          const tabs = await chrome.tabs.query({
+            active: true,
+            windowId
+          });
+          console.log(
+            '[Background] GET_TAB_CONTEXT for window',
+            windowId,
+            tabs
+          );
           if (!tabs || tabs.length === 0) {
             sendResponse({ success: false, error: 'No active tab found' });
             return;

@@ -11,7 +11,8 @@ export function Copy({
     showStatus(
       'Success',
       `Copied ${currentContext?.domoObject?.typeName} ID ${currentContext?.domoObject?.id} to clipboard`,
-      'success'
+      'success',
+      2000
     );
     // Trigger detection in NavigateToCopiedObject
     navigateToCopiedRef.current?.triggerDetection(
@@ -26,7 +27,8 @@ export function Copy({
       showStatus(
         'Success',
         `Copied Stream ID ${currentContext?.domoObject?.metadata?.details?.streamId} to clipboard`,
-        'success'
+        'success',
+        2000
       );
       // Trigger detection in NavigateToCopiedObject
       navigateToCopiedRef.current?.triggerDetection(
@@ -58,7 +60,7 @@ export function Copy({
           <Dropdown.Menu onAction={handleAction}>
             {currentContext?.domoObject?.typeId === 'DATA_SOURCE' && (
               <Dropdown.Item id='stream' textValue='Copy Stream ID'>
-                <IconClipboard size={4} />
+                <IconClipboard size={4} className='size-4 shrink-0' />
                 <Label>Copy Stream ID</Label>
               </Dropdown.Item>
             )}

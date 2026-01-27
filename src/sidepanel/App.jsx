@@ -72,7 +72,7 @@ export default function App() {
         // Request context for active tab in this window
         const response = await chrome.runtime.sendMessage({
           type: 'GET_TAB_CONTEXT',
-          ...(lockedTabId ? { tabId: lockedTabId } : { windowId: window.id })
+          windowId: window.id
         });
 
         if (response.success && response.context) {
@@ -83,7 +83,7 @@ export default function App() {
           setCurrentTabId(response.tabId);
         } else {
           setCurrentContext(null);
-          setCurrentTabId(lockedTabId);
+          setCurrentTabId(null);
         }
       } catch (error) {
         console.error('[Sidepanel] Error getting tab context:', error);
@@ -100,38 +100,18 @@ export default function App() {
     const handleMessage = (message, sender, sendResponse) => {
       console.log('[Sidepanel] Received message:', message.type, message);
 
-      // Always send a response to keep the message channel open
-      const response = { received: true };
-
+      // Only handle messages meant for the sidepanel
       if (message.type === 'TAB_CONTEXT_UPDATED') {
-        // Only update if we're not locked to a specific tab, or if it's for the locked tab
-        // Read current lockedTabId value instead of using closure
-        chrome.storage.local.get(['sidepanelDataList'], (result) => {
-          const currentLockedTabId = result.sidepanelDataList?.tabId || null;
-
-          if (!currentLockedTabId) {
-            // In default view, update context if this is the active tab
-            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-              if (tabs[0] && message.tabId === tabs[0].id) {
-                console.log(
-                  '[Sidepanel] Received context update for active tab:',
-                  message.context
-                );
-                const context = DomoContext.fromJSON(message.context);
-                setCurrentContext(context);
-                setCurrentTabId(message.tabId);
-              }
-            });
-          } else if (message.tabId === currentLockedTabId) {
-            // Locked to a specific tab, only update for that tab
-            console.log(
-              '[Sidepanel] Received context update for locked tab:',
-              message.context
-            );
-            const context = DomoContext.fromJSON(message.context);
-            setCurrentContext(context);
-          }
-        });
+        if (message.tabId === currentTabId) {
+          const context = DomoContext.fromJSON(message.context);
+          setCurrentContext(context);
+          console.log(
+            '[Popup] Received update and reconstructed message context:',
+            message
+          );
+        }
+        sendResponse({ received: true });
+        return true;
       } else if (message.type === 'SHOW_STATUS') {
         // Display status in the sidepanel's StatusBar
         console.log('[Sidepanel] Received SHOW_STATUS message:', message);
@@ -155,11 +135,14 @@ export default function App() {
             '[Sidepanel] statusCallbackRef.current is null, cannot show status'
           );
         }
+
+        // Send response for this message type
+        sendResponse({ received: true });
+        return true;
       }
 
-      // Send response and return true to keep channel open
-      sendResponse(response);
-      return true;
+      // Don't respond to other message types - let them pass through to background
+      return false;
     };
 
     chrome.runtime.onMessage.addListener(handleMessage);
@@ -172,11 +155,6 @@ export default function App() {
 
   // Listen for tab activation changes (only when not locked)
   useEffect(() => {
-    if (lockedTabId) {
-      // Don't listen to tab changes when locked
-      return;
-    }
-
     const handleTabActivated = async (activeInfo) => {
       try {
         // Fetch context for the newly activated tab
@@ -208,7 +186,7 @@ export default function App() {
     return () => {
       chrome.tabs.onActivated.removeListener(handleTabActivated);
     };
-  }, [lockedTabId]);
+  }, []);
 
   const handleBackToDefault = () => {
     setActiveView('default');
@@ -218,7 +196,7 @@ export default function App() {
   };
 
   return (
-    <div className='flex min-h-screen w-full flex-col items-center gap-2 p-2'>
+    <div className='h-screen w-full space-y-1 overflow-hidden p-1'>
       <ActionButtons
         currentContext={currentContext}
         isLoadingCurrentContext={isLoadingCurrentContext}
