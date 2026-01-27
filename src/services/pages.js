@@ -1,4 +1,4 @@
-import { executeInPage } from '@/utils';
+import { executeInPage, waitForCards } from '@/utils';
 
 /**
  * Get the App ID (parent) for an App Studio Page
@@ -327,9 +327,9 @@ export async function deletePageAndAllCards({
   pageId,
   pageType,
   appId = null,
-  setStatus,
   currentContext = null,
-  skipChildPageCheck = false
+  skipChildPageCheck = false,
+  tabId = null
 }) {
   try {
     // Check for child pages if this is a regular PAGE (not DATA_APP_VIEW) and we haven't already checked
@@ -356,48 +356,52 @@ export async function deletePageAndAllCards({
           }
         });
 
-        // Return flag indicating child pages were found
+        // Return status information indicating child pages were found
         return {
+          success: false,
           hasChildPages: true,
           childPagesCount: childPages.length,
-          windowId: currentContext?.tab?.windowId
+          windowId: currentContext?.tab?.windowId,
+          statusTitle: 'Cannot Delete Page',
+          statusDescription: `This page has ${childPages.length} child page${childPages.length !== 1 ? 's' : ''}. Please delete or reassign the child pages first.`,
+          statusType: 'warning'
         };
       }
     }
 
+    // Wait for cards to be loaded from background process
+    const cardsResult = await waitForCards(currentContext);
+
+    if (!cardsResult.success) {
+      return {
+        success: false,
+        statusTitle: 'Error',
+        statusDescription: cardsResult.error,
+        statusType: 'danger'
+      };
+    }
+
+    const cards = cardsResult.cards;
+    const cardIds = cards.map((card) => card.id);
+
     // Execute deletion logic in page context to inherit authentication
     const result = await executeInPage(
-      async (pageId, pageType, appId) => {
-        // Fetch all cards on the page
-        const cardsResponse = await fetch(
-          `/api/content/v3/stacks/${pageId}/cards`,
-          {
-            method: 'GET',
-            credentials: 'include'
-          }
-        );
-
-        if (!cardsResponse.ok) {
-          throw new Error(
-            `Failed to fetch cards for page ${pageId}. HTTP status: ${cardsResponse.status}`
+      async (pageId, pageType, appId, cardIds) => {
+        // Delete all cards if there are any
+        if (cardIds.length > 0) {
+          const cardIdsString = cardIds.join(',');
+          const deleteCardsResponse = await fetch(
+            `/api/content/v1/cards/bulk?cardIds=${cardIdsString}`,
+            {
+              method: 'DELETE'
+            }
           );
-        }
 
-        const page = await cardsResponse.json();
-        const cardIds = page.cards.map((card) => card.id).join(',');
-
-        // Delete all cards
-        const deleteCardsResponse = await fetch(
-          `/api/content/v1/cards/bulk?cardIds=${cardIds}`,
-          {
-            method: 'DELETE'
+          if (!deleteCardsResponse.ok) {
+            throw new Error(
+              `Failed to delete cards for page ${pageId}. HTTP status: ${deleteCardsResponse.status}`
+            );
           }
-        );
-
-        if (!deleteCardsResponse.ok) {
-          throw new Error(
-            `Failed to delete cards for page ${pageId}. HTTP status: ${deleteCardsResponse.status}`
-          );
         }
 
         // Delete the page
@@ -413,64 +417,64 @@ export async function deletePageAndAllCards({
         if (!deletePageResponse.ok) {
           return {
             success: false,
-            cardsDeleted: page.cards.length,
+            cardsDeleted: cardIds.length,
             statusCode: deletePageResponse.status
           };
         }
 
         return {
           success: true,
-          cardsDeleted: page.cards.length
+          cardsDeleted: cardIds.length
         };
       },
-      [pageId, pageType, appId],
+      [pageId, pageType, appId, cardIds],
       tabId
     );
 
     if (result.success) {
-      setStatus?.(
-        `Page ${pageId} and all ${result.cardsDeleted} Cards were deleted successfully`,
-        '',
-        'success'
-      );
-      return { success: true };
+      return {
+        success: true,
+        cardsDeleted: result.cardsDeleted,
+        statusTitle: 'Delete Successful',
+        statusDescription: `Page ${pageId} and all ${result.cardsDeleted} card${result.cardsDeleted !== 1 ? 's' : ''} were deleted successfully`,
+        statusType: 'success'
+      };
     } else {
-      setStatus?.(
-        `Failed to delete page ${pageId}.`,
-        `All ${result.cardsDeleted} cards were deleted successfully.\nHTTP status: ${result.statusCode}`,
-        'danger'
-      );
-      return { success: false };
+      return {
+        success: false,
+        cardsDeleted: result.cardsDeleted,
+        statusCode: result.statusCode,
+        statusTitle: `Failed to Delete Page`,
+        statusDescription: `All ${result.cardsDeleted} card${result.cardsDeleted !== 1 ? 's were' : ' was'} deleted successfully, but page deletion failed.\nHTTP status: ${result.statusCode}`,
+        statusType: 'danger'
+      };
     }
   } catch (error) {
     const errorMessage = error.message || 'Unknown error occurred';
+    let statusTitle, statusDescription;
 
     if (error.message?.includes('check for child pages')) {
-      setStatus?.(
-        `Failed to check for child pages.`,
-        `Error: ${errorMessage}\nDeletion cancelled for safety.`,
-        'danger'
-      );
+      statusTitle = 'Failed to Check for Child Pages';
+      statusDescription = `Error: ${errorMessage}\nDeletion cancelled for safety.`;
     } else if (error.message?.includes('fetch cards')) {
-      setStatus?.(
-        `Failed to fetch cards for page ${pageId}. Page and cards will not be deleted.`,
-        errorMessage,
-        'danger'
-      );
+      statusTitle = 'Failed to Fetch Cards';
+      statusDescription = `${errorMessage}\nPage and cards will not be deleted.`;
     } else if (error.message?.includes('delete cards')) {
-      setStatus?.(
-        `Failed to delete cards for page ${pageId}. Page will not be deleted.`,
-        errorMessage,
-        'danger'
-      );
+      statusTitle = 'Failed to Delete Cards';
+      statusDescription = `${errorMessage}\nPage will not be deleted.`;
     } else {
-      setStatus?.(
-        `An error occurred while deleting page ${pageId}.`,
-        errorMessage,
-        'danger'
-      );
+      statusTitle = 'Delete Failed';
+      statusDescription = errorMessage;
     }
 
     console.error('Error in deletePageAndAllCards:', error);
+
+    return {
+      success: false,
+      error: errorMessage,
+      statusTitle,
+      statusDescription,
+      statusType: 'danger'
+    };
   }
 }

@@ -257,6 +257,8 @@ export class DomoObject {
       baseUrl: this.baseUrl,
       metadata: this.metadata,
       url: this.url,
+      typeId: this.objectType.id,
+      typeName: this.objectType.name,
       objectType: {
         id: this.objectType.id,
         name: this.objectType.name,

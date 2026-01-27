@@ -58,7 +58,24 @@ let lastKnownClipboard = '';
 // Helper function to check and cache clipboard
 async function checkAndCacheClipboard() {
   try {
-    const clipboardText = await navigator.clipboard.readText();
+    const clipboardText = await navigator.clipboard.readText().trim();
+
+    // Validate that clipboard contains a valid Domo object ID
+    // Check if it looks like a Domo object ID (numeric including negative, or UUID)
+    const isNumeric = /^-?\d+$/.test(clipboardText);
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        clipboardText
+      );
+
+    if (!isNumeric && !isUuid) {
+      console.log(
+        '[Background] Clipboard does not contain a valid Domo object ID:',
+        clipboardText
+      );
+      // Don't store or notify about invalid IDs
+      return null;
+    }
 
     // Only send if clipboard has changed
     if (clipboardText !== lastKnownClipboard) {

@@ -46,12 +46,12 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
       switch (key) {
         case 'child-cards':
           // Get all cards for the current object
-          const cardIds = await getCardsForObject({
+          const cards = await getCardsForObject({
             objectId: currentContext?.domoObject.id,
             objectType: currentContext?.domoObject.typeId
           });
 
-          if (!cardIds || cardIds.length === 0) {
+          if (!cards || cards.length === 0) {
             onStatusUpdate?.(
               'No Cards Found',
               `No cards found on ${objectName}`,
@@ -61,27 +61,27 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
             return;
           }
 
-          // Store as array of objects with type and id
-          const cardObjects = cardIds.map((id) => ({
+          // Map to IDs and store as array of objects with type and id
+          const cardObjects = cardIds.map((card) => ({
             type: 'CARD',
-            id: String(id)
+            id: String(card.id)
           }));
 
           activityLogObjects = cardObjects;
           activityLogType = 'child-cards';
-          message = `Navigating to activity log for ${cardIds.length} cards on ${objectName}`;
+          message = `Navigating to activity log for ${cards.length} cards on ${objectName}`;
           break;
         case 'child-pages':
           activityLogType = 'child-pages';
           // Handle differently based on object type
           if (currentContext?.domoObject.typeId === 'DATA_SOURCE') {
             // For datasets: Get all cards, then get all pages those cards appear on
-            const cardIds = await getCardsForObject({
+            const cards = await getCardsForObject({
               objectId: currentContext?.domoObject.id,
               objectType: currentContext?.domoObject.typeId
             });
 
-            if (!cardIds || cardIds.length === 0) {
+            if (!cards || cards.length === 0) {
               onStatusUpdate?.(
                 'No Cards Found',
                 `No cards found on ${objectName}`,
@@ -91,7 +91,7 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
             }
 
             // Then get all pages that those cards appear on
-            const pages = await getPagesForCards(cardIds);
+            const pages = await getPagesForCards(cards.map((card) => card.id));
 
             if (pages.length === 0) {
               onStatusUpdate?.(

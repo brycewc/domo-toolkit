@@ -1,5 +1,9 @@
 export { getActivityLogEvents, getActivityLogForObject } from './activityLog';
-export { fetchObjectDetailsInPage, shareWithSelf } from './allObjects';
+export {
+  fetchObjectDetailsInPage,
+  shareWithSelf,
+  deleteObject
+} from './allObjects';
 export { updateDataflowDetails } from './dataflows';
 export { getDrillParentCardId, getPageCards, getCardsForObject } from './cards';
 export {

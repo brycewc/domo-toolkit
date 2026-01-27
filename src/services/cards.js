@@ -73,7 +73,7 @@ export async function getPageCards(pageId) {
  * @param {Object} params - Parameters for fetching cards
  * @param {string} params.objectId - The object ID (page or dataset ID)
  * @param {string} params.objectType - The object type ('PAGE', 'DATA_APP_VIEW', 'DATA_SOURCE')
- * @returns {Promise<Array>} Array of card IDs
+ * @returns {Promise<Array>} Array of card objects with details
  * @throws {Error} If the fetch fails
  */
 export async function getCardsForObject({ objectId, objectType }) {
@@ -100,7 +100,8 @@ export async function getCardsForObject({ objectId, objectType }) {
             if (!cards.length) {
               throw new Error(`${objectType} ${objectId} has no cards.`);
             }
-            return cards.map((c) => c.id).filter((id) => Number.isFinite(id));
+            // Return full card objects with details
+            return cards.filter((c) => Number.isFinite(c.id));
           }
 
           case 'DATA_SOURCE': {
@@ -119,18 +120,18 @@ export async function getCardsForObject({ objectId, objectType }) {
             if (!cards.length) {
               throw new Error(`DataSet ${objectId} has no cards.`);
             }
+            // Normalize cards to have id property
             return cards
-              .map(
-                (card) =>
+              .map((card) => ({
+                ...card,
+                id:
                   card.id ||
                   card.kpiId ||
                   (typeof card.urn === 'string'
-                    ? card.urn.split(':').pop()
-                    : '')
-              )
-              .filter(Boolean)
-              .map((id) => parseInt(id, 10))
-              .filter((id) => Number.isFinite(id));
+                    ? parseInt(card.urn.split(':').pop(), 10)
+                    : null)
+              }))
+              .filter((card) => Number.isFinite(card.id));
           }
 
           default:

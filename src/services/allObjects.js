@@ -222,21 +222,24 @@ export async function shareWithSelf({ object, setStatus, tabId = null }) {
   }
 }
 
-export async function deleteObject({ object, setStatus, tabId = null }) {
+export async function deleteObject({ object, tabId = null }) {
+  console.log('deleteObject called with:', object, tabId);
   try {
     if (!object || !object.typeId || !object.id) {
-      setStatus?.(
-        'Delete Failed',
-        'Invalid object provided for deletion',
-        'danger'
-      );
-      throw new Error('Invalid object provided for deletion');
+      return {
+        success: false,
+        statusTitle: 'Delete Failed',
+        statusDescription: 'Invalid object provided for deletion',
+        statusType: 'danger'
+      };
     }
+
     const result = await executeInPage(
       async (object) => {
+        console.log('Executing delete for object:', object);
         const fetchRequest = {
           method: 'DELETE',
-          url: ''
+          url: null
         };
         switch (object.typeId) {
           case 'MAGNUM_COLLECTION':
@@ -248,7 +251,7 @@ export async function deleteObject({ object, setStatus, tabId = null }) {
           case 'APP':
             fetchRequest.url = `/api/apps/v1/designs/${object.id}`;
             break;
-          case 'BEAST_MODE':
+          case 'BEAST_MODE_FORMULA':
           case 'FUNCTION_TEMPLATE':
           case 'VARIABLE':
             fetchRequest.url = `/api/query/v1/functions/template/${object.id}`;
@@ -258,42 +261,62 @@ export async function deleteObject({ object, setStatus, tabId = null }) {
         }
 
         if (!fetchRequest.url) {
-          setStatus?.(
-            'Delete Failed',
-            `Deletion not supported for object type: ${object.typeId}`,
-            'danger'
-          );
-          throw new Error(
-            `Deletion not supported for object type: ${object.typeId}`
-          );
+          return {
+            success: false,
+            error: `Deletion not supported for object type: ${object.typeId}`
+          };
         }
 
+        console.log('Delete fetch request:', fetchRequest);
         const response = await fetch(fetchRequest.url, {
           method: fetchRequest.method
         });
+        console.log('Delete response:', response);
 
         if (!response.ok) {
           const errorText = await response.text();
-          setStatus?.(
-            'Delete Failed',
-            `Failed to delete object. Status: ${response.status}. ${errorText}`,
-            'danger'
-          );
-          throw new Error(
-            `Failed to delete object. Status: ${response.status}. ${errorText}`
-          );
+          return {
+            success: false,
+            statusCode: response.status,
+            error: errorText
+          };
+        } else {
+          return {
+            success: true,
+            objectId: object.id,
+            typeName: object.typeName
+          };
         }
       },
-      [object],
+      [object.toJSON()],
       tabId
     );
-    setStatus?.(
-      'Deleted Successfully',
-      `Deleted object ${object.id}`,
-      'success'
-    );
+
+    if (result.success) {
+      return {
+        success: true,
+        statusTitle: 'Deleted Successfully',
+        statusDescription: `Deleted ${result.typeName?.toLowerCase() || 'object'} ${result.objectId}`,
+        statusType: 'success'
+      };
+    } else {
+      return {
+        success: false,
+        statusTitle: 'Delete Failed',
+        statusDescription:
+          result.error ||
+          `Failed to delete object. Status: ${result.statusCode || 'unknown'}`,
+        statusType: 'danger'
+      };
+    }
   } catch (error) {
-    setStatus?.('Delete Failed', error.message, 'danger');
-    throw error;
+    console.error('Error in deleteObject:', error);
+    return {
+      success: false,
+      error: error.message,
+      statusTitle: 'Delete Failed',
+      statusDescription: error.message,
+      statusType: 'danger'
+    };
   }
 }

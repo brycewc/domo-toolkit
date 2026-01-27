@@ -8,20 +8,26 @@ import zip from 'vite-plugin-zip-pack';
 import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
-	resolve: {
-		alias: {
-			'@': `${path.resolve(__dirname, 'src')}`
-		}
-	},
-	plugins: [
-		react(),
-		crx({ manifest }),
-		tailwindcss(),
-		zip({ outDir: 'release', outFileName: `crx-${name}-${version}.zip` })
-	],
-	server: {
-		cors: {
-			origin: [/chrome-extension:\/\//]
-		}
-	}
+  resolve: {
+    alias: {
+      '@': `${path.resolve(__dirname, 'src')}`
+    }
+  },
+  plugins: [
+    react(),
+    crx({ manifest }),
+    tailwindcss(),
+    zip({ outDir: 'release', outFileName: `crx-${name}-${version}.zip` })
+  ],
+  server: {
+    port: 3000,
+    cors: {
+      origin: [/chrome-extension:\/\//]
+    },
+    hmr: {
+      host: 'localhost',
+      protocol: 'ws',
+      port: 3000
+    }
+  }
 });

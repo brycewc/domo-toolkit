@@ -1,5 +1,6 @@
 import { Button, Dropdown, Label, Tooltip } from '@heroui/react';
-import { IconClipboard } from '@tabler/icons-react';
+import { IconClipboard, IconJson } from '@tabler/icons-react';
+import { JsonStringifyOrder } from '@/utils';
 export function Copy({
   currentContext,
   showStatus,
@@ -20,30 +21,39 @@ export function Copy({
     );
   };
   const handleAction = (key) => {
-    if (key === 'stream') {
-      navigator.clipboard.writeText(
-        currentContext?.domoObject?.metadata?.details?.streamId
-      );
-      showStatus(
-        'Success',
-        `Copied Stream ID ${currentContext?.domoObject?.metadata?.details?.streamId} to clipboard`,
-        'success',
-        2000
-      );
-      // Trigger detection in NavigateToCopiedObject
-      navigateToCopiedRef.current?.triggerDetection(
-        currentContext?.domoObject?.metadata?.details?.streamId
-      );
+    switch (key) {
+      case 'context-json':
+        const contextJson = JsonStringifyOrder(currentContext, 2);
+        navigator.clipboard.writeText(contextJson);
+        showStatus(
+          'Success',
+          `Copied Context JSON to clipboard`,
+          'success',
+          2000
+        );
+        break;
+      case 'stream':
+        navigator.clipboard.writeText(
+          currentContext?.domoObject?.metadata?.details?.streamId
+        );
+        showStatus(
+          'Success',
+          `Copied Stream ID ${currentContext?.domoObject?.metadata?.details?.streamId} to clipboard`,
+          'success',
+          2000
+        );
+        // Trigger detection in NavigateToCopiedObject
+        navigateToCopiedRef.current?.triggerDetection(
+          currentContext?.domoObject?.metadata?.details?.streamId
+        );
+        break;
+      default:
+        break;
     }
   };
   return (
     <Tooltip delay={400} closeDelay={0}>
-      <Dropdown
-        trigger='longPress'
-        isDisabled={
-          isDisabled || !(currentContext?.domoObject?.typeId === 'DATA_SOURCE')
-        }
-      >
+      <Dropdown trigger='longPress' isDisabled={isDisabled}>
         <Button
           variant='tertiary'
           fullWidth
@@ -58,6 +68,10 @@ export function Copy({
           placement='bottom left'
         >
           <Dropdown.Menu onAction={handleAction}>
+            <Dropdown.Item id='context-json' textValue='Copy Context JSON'>
+              <IconJson size={4} className='size-4 shrink-0' />
+              <Label>Copy Context JSON</Label>
+            </Dropdown.Item>
             {currentContext?.domoObject?.typeId === 'DATA_SOURCE' && (
               <Dropdown.Item id='stream' textValue='Copy Stream ID'>
                 <IconClipboard size={4} className='size-4 shrink-0' />

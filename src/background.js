@@ -1,5 +1,9 @@
 import { DomoObject, DomoContext, getObjectType } from '@/models';
-import { fetchObjectDetailsInPage, getChildPages } from '@/services';
+import {
+  fetchObjectDetailsInPage,
+  getChildPages,
+  getCardsForObject
+} from '@/services';
 import {
   detectCurrentObject,
   EXCLUDED_HOSTNAMES,
@@ -269,7 +273,6 @@ async function checkClipboard() {
     }
 
     const tabId = tabs[0].id;
-    const tabUrl = tabs[0].url;
 
     console.log(`[Background] Checking clipboard in tab ${tabId}`, tabs[0]);
 
@@ -295,7 +298,24 @@ async function checkClipboard() {
       const result = results?.[0]?.result;
 
       if (result?.success && result?.text) {
-        const clipboardText = result.text;
+        const clipboardText = result.text.trim();
+
+        // Validate that clipboard contains a valid Domo object ID
+        // Check if it looks like a Domo object ID (numeric including negative, or UUID)
+        const isNumeric = /^-?\d+$/.test(clipboardText);
+        const isUuid =
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+            clipboardText
+          );
+
+        if (!isNumeric && !isUuid) {
+          console.log(
+            '[Background] Clipboard does not contain a valid Domo object ID:',
+            clipboardText
+          );
+          // Don't store or notify about invalid IDs
+          return null;
+        }
 
         // Cache in session storage for later retrieval
         await chrome.storage.session.set({ lastClipboardValue: clipboardText });
@@ -604,6 +624,52 @@ async function detectAndStoreContext(tabId) {
               currentContext.domoObject.metadata.details = {};
             }
             currentContext.domoObject.metadata.details.childPages = [];
+            setTabContext(tabId, currentContext);
+          }
+        });
+    }
+
+    // For PAGE, DATA_APP_VIEW, and DATA_SOURCE types, fetch cards asynchronously (non-blocking)
+    if (
+      typeModel.id === 'PAGE' ||
+      typeModel.id === 'DATA_APP_VIEW' ||
+      typeModel.id === 'DATA_SOURCE'
+    ) {
+      // Fetch cards in background without blocking
+      getCardsForObject({
+        objectId,
+        objectType: typeModel.id
+      })
+        .then((cards) => {
+          // Get the current context (it might have been updated)
+          const currentContext = getTabContext(tabId);
+          if (currentContext?.domoObject) {
+            // Store cards in metadata.details.cards
+            if (!currentContext.domoObject.metadata.details) {
+              currentContext.domoObject.metadata.details = {};
+            }
+            currentContext.domoObject.metadata.details.cards = cards;
+
+            // Update the stored context
+            setTabContext(tabId, currentContext);
+
+            console.log(
+              `[Background] Fetched ${cards?.length || 0} cards for ${typeModel.id} ${objectId}`
+            );
+          }
+        })
+        .catch((error) => {
+          console.error(
+            `[Background] Error fetching cards for ${typeModel.id} ${objectId}:`,
+            error
+          );
+          // Store empty array on error
+          const currentContext = getTabContext(tabId);
+          if (currentContext?.domoObject) {
+            if (!currentContext.domoObject.metadata.details) {
+              currentContext.domoObject.metadata.details = {};
+            }
+            currentContext.domoObject.metadata.details.cards = [];
             setTabContext(tabId, currentContext);
           }
         });

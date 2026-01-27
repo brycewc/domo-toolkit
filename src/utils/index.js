@@ -1,15 +1,17 @@
-export { detectCurrentObject } from './currentObject';
-export {
-  applyFaviconRules,
-  applyInstanceLogoAuto,
-  clearFaviconCache
-} from './faviconModifier';
-export { executeInPage } from './executeInPage';
+export { waitForCards } from './cardHelpers';
 export {
   EXCLUDED_HOSTNAMES,
   EXCLUDED_INSTANCES,
   ACTION_COLOR_PATTERNS
 } from './constants';
+export { detectCurrentObject } from './currentObject';
+export { executeInPage } from './executeInPage';
+export {
+  applyFaviconRules,
+  applyInstanceLogoAuto,
+  clearFaviconCache
+} from './faviconModifier';
+export { JsonStringifyOrder } from './general';
 export {
   waitForChildPages,
   isSidepanel,
