@@ -599,7 +599,7 @@ async function detectAndStoreContext(tabId) {
           const currentContext = getTabContext(tabId);
           if (currentContext?.domoObject) {
             // Store child pages in metadata.details.childPages
-            if (!currentContext.domoObject.metadata.details) {
+            if (!currentContext.domoObject.metadata?.details) {
               currentContext.domoObject.metadata.details = {};
             }
             currentContext.domoObject.metadata.details.childPages = childPages;
@@ -620,7 +620,7 @@ async function detectAndStoreContext(tabId) {
           // Store empty array on error
           const currentContext = getTabContext(tabId);
           if (currentContext?.domoObject) {
-            if (!currentContext.domoObject.metadata.details) {
+            if (!currentContext.domoObject.metadata?.details) {
               currentContext.domoObject.metadata.details = {};
             }
             currentContext.domoObject.metadata.details.childPages = [];
@@ -645,7 +645,7 @@ async function detectAndStoreContext(tabId) {
           const currentContext = getTabContext(tabId);
           if (currentContext?.domoObject) {
             // Store cards in metadata.details.cards
-            if (!currentContext.domoObject.metadata.details) {
+            if (!currentContext.domoObject.metadata?.details) {
               currentContext.domoObject.metadata.details = {};
             }
             currentContext.domoObject.metadata.details.cards = cards;
@@ -666,7 +666,7 @@ async function detectAndStoreContext(tabId) {
           // Store empty array on error
           const currentContext = getTabContext(tabId);
           if (currentContext?.domoObject) {
-            if (!currentContext.domoObject.metadata.details) {
+            if (!currentContext.domoObject.metadata?.details) {
               currentContext.domoObject.metadata.details = {};
             }
             currentContext.domoObject.metadata.details.cards = [];

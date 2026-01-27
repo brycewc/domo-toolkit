@@ -58,34 +58,35 @@ let lastKnownClipboard = '';
 // Helper function to check and cache clipboard
 async function checkAndCacheClipboard() {
   try {
-    const clipboardText = await navigator.clipboard.readText().trim();
+    const clipboardText = await navigator.clipboard.readText();
+    const trimmedText = clipboardText.trim();
 
     // Validate that clipboard contains a valid Domo object ID
     // Check if it looks like a Domo object ID (numeric including negative, or UUID)
-    const isNumeric = /^-?\d+$/.test(clipboardText);
+    const isNumeric = /^-?\d+$/.test(trimmedText);
     const isUuid =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-        clipboardText
+        trimmedText
       );
 
     if (!isNumeric && !isUuid) {
       console.log(
         '[Background] Clipboard does not contain a valid Domo object ID:',
-        clipboardText
+        trimmedText
       );
       // Don't store or notify about invalid IDs
       return null;
     }
 
     // Only send if clipboard has changed
-    if (clipboardText !== lastKnownClipboard) {
-      lastKnownClipboard = clipboardText;
+    if (trimmedText !== lastKnownClipboard) {
+      lastKnownClipboard = trimmedText;
 
       // Send to background script to cache
       chrome.runtime
         .sendMessage({
           type: 'CLIPBOARD_COPIED',
-          clipboardData: clipboardText
+          clipboardData: trimmedText
         })
         .catch((err) => {
           console.log('[ContentScript] Error sending clipboard data:', err);
