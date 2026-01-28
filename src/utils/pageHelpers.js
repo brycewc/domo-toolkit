@@ -127,6 +127,7 @@ export async function showStatus({
  * @param {number} options.pageId - Page ID
  * @param {number} options.appId - App ID (for app studio pages)
  * @param {string} options.pageType - Page type ('PAGE' or 'DATA_APP_VIEW')
+ * @param {string} options.objectType - Object type ('PAGE', 'DATA_APP_VIEW', 'CARD')
  * @param {Object} options.currentContext - Current DomoContext
  * @param {Array} options.childPages - Optional child pages array
  * @param {boolean} options.statusShown - Whether status was already shown
@@ -135,18 +136,20 @@ export async function showStatus({
  */
 export async function storeSidepanelData({
   type,
-  pageId,
+  objectId,
+  objectName,
+  objectType,
   appId,
-  pageType,
   currentContext,
   childPages = null,
   statusShown = false
 }) {
   const data = {
     type,
-    pageId,
+    objectId,
+    objectName,
+    objectType,
     appId,
-    pageType,
     currentContext: currentContext?.toJSON?.() || currentContext,
     tabId: currentContext?.tabId || null,
     timestamp: Date.now(),

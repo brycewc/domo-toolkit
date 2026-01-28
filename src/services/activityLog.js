@@ -80,8 +80,8 @@ export async function getActivityLogEvents({
   try {
     // Default start to 1 year ago, end to now (in epoch milliseconds)
     const now = Date.now();
-    const oneYearAgo = now - 365 * 24 * 60 * 60 * 1000;
-    const startTimestamp = start ?? oneYearAgo;
+    const begin = new Date('2012-01-01').getTime();
+    const startTimestamp = start ?? begin;
     const endTimestamp = end ?? now;
 
     // Ensure all arguments are serializable (convert undefined to null)
@@ -118,6 +118,7 @@ export async function getActivityLogEvents({
         if (userId) queryParams.append('userId', userId);
         if (start) queryParams.append('start', start);
         if (end) queryParams.append('end', end);
+        console.log('Activity Log Query Params:', queryParams.toString());
 
         // First, get the total count
         const countResponse = await fetch(

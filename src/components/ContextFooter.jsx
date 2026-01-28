@@ -5,7 +5,7 @@ export function ContextFooter({ currentContext, isLoading }) {
   const isDomoPage = currentContext?.isDomoPage ?? false;
 
   return (
-    <Tooltip isDisabled={!isDomoPage} delay={400} closeDelay={0}>
+    <Tooltip isDisabled={!isDomoPage} delay={1000} closeDelay={0}>
       <Tooltip.Trigger>
         <Alert
           status={isDomoPage || isLoading ? 'accent' : 'warning'}

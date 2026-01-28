@@ -6,10 +6,15 @@ import {
   Disclosure,
   DisclosureGroup,
   Link,
-  Separator,
   Tooltip
 } from '@heroui/react';
-import { IconClipboard, IconFolders, IconUserPlus } from '@tabler/icons-react';
+import {
+  IconCheck,
+  IconClipboard,
+  IconFolders,
+  IconUserPlus,
+  IconUsersPlus
+} from '@tabler/icons-react';
 
 /**
  * DataList Component
@@ -43,12 +48,11 @@ export function DataList({
       {header && <Card.Header>{header}</Card.Header>}
 
       <Card.Content>
-        <DisclosureGroup className='flex flex-col gap-1'>
+        <DisclosureGroup className='flex flex-col gap-1' allowsMultipleExpanded>
           {items.map((item, index) => (
             <DataListItem
               key={item.id || index}
               item={item}
-              index={index}
               onItemAction={onItemAction}
               showActions={showActions}
               showCounts={showCounts}
@@ -81,13 +85,18 @@ function DataListItem({
   onItemAction,
   showActions = true,
   showCounts = true,
-  index,
   depth = 0
 }) {
   const hasChildren = item.children && item.children.length > 0;
   const [isOpen, setIsOpen] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
 
   const handleAction = (actionType) => {
+    if (actionType === 'copy') {
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 1000);
+    }
+
     if (onItemAction) {
       onItemAction(actionType, item);
     }
@@ -101,48 +110,50 @@ function DataListItem({
     >
       <Disclosure.Heading className='flex w-full flex-row justify-between pt-1'>
         <div className='flex w-full min-w-0 flex-1 basis-4/5 items-center'>
-          <Tooltip delay={200} closeDelay={0} className='flex-1'>
-            {item.url ? (
-              <Link
-                href={item.url}
-                target='_blank'
-                className='truncate text-sm font-medium no-underline decoration-accent/80 hover:text-accent/80 hover:underline'
-              >
-                {item.label}
-              </Link>
-            ) : (
-              <span className='truncate text-sm font-medium'>{item.label}</span>
-            )}
-            <Tooltip.Content
-              placement='right'
-              offset={8}
-              className='text-nowrap'
-            >
-              ID: {item.id}
-            </Tooltip.Content>
-          </Tooltip>
-          {hasChildren && (
-            <Disclosure.Trigger
-              variant='tertiary'
-              aria-label='Toggle'
-              className='button--sm flex flex-shrink-0 flex-row items-center gap-1'
-            >
-              {showCounts && item.count !== undefined && (
-                <span className='text-sm text-muted'>({item.count})</span>
+          {!item.isVirtualParent && (
+            <Tooltip delay={200} closeDelay={0} className='flex-1'>
+              {item.url ? (
+                <Link
+                  href={item.url}
+                  target='_blank'
+                  className='truncate text-sm font-medium no-underline decoration-accent/80 hover:text-accent/80 hover:underline'
+                >
+                  {item.label}
+                </Link>
+              ) : (
+                <Tooltip.Trigger>
+                  <span className='truncate text-sm font-medium'>
+                    {item.label}
+                  </span>
+                </Tooltip.Trigger>
               )}
-              <Disclosure.Indicator />
-            </Disclosure.Trigger>
+              <Tooltip.Content
+                placement='right'
+                offset={8}
+                className='text-nowrap'
+              >
+                ID: {item.id}
+              </Tooltip.Content>
+            </Tooltip>
           )}
-        </div>
-        {showActions && (
-          <div className='flex-1 basis-1/5'>
-            <ButtonGroup
-              variant='ghost'
-              size='sm'
-              className='flex max-w-xs justify-end'
-              fullWidth
-            >
-              {hasChildren && (
+          {hasChildren && (
+            <>
+              <Disclosure.Trigger
+                variant='tertiary'
+                aria-label='Toggle'
+                className='flex flex-shrink-0 flex-row items-center gap-2'
+              >
+                {item.isVirtualParent && (
+                  <span className='truncate text-sm font-medium'>
+                    {item.label}
+                  </span>
+                )}
+                {showCounts && item.count !== undefined && (
+                  <span className='text-sm text-muted'>({item.count})</span>
+                )}
+                <Disclosure.Indicator />
+              </Disclosure.Trigger>
+              <ButtonGroup>
                 <Tooltip delay={400} closeDelay={0}>
                   <Button
                     variant='ghost'
@@ -155,10 +166,36 @@ function DataListItem({
                     <IconFolders size={4} />
                   </Button>
                   <Tooltip.Content className='text-xs'>
-                    Open all
+                    Open all children in new tabs
                   </Tooltip.Content>
                 </Tooltip>
-              )}
+                <Tooltip delay={400} closeDelay={0}>
+                  <Button
+                    variant='ghost'
+                    size='sm'
+                    fullWidth
+                    isIconOnly
+                    onPress={() => handleAction('share')}
+                    aria-label='Share'
+                  >
+                    <IconUsersPlus size={4} />
+                  </Button>
+                  <Tooltip.Content className='text-xs'>
+                    Share all children with yourself
+                  </Tooltip.Content>
+                </Tooltip>
+              </ButtonGroup>
+            </>
+          )}
+        </div>
+        {showActions && (
+          <div className='flex-1 basis-1/5'>
+            <ButtonGroup
+              variant='ghost'
+              size='sm'
+              className='flex max-w-xs justify-end'
+              fullWidth
+            >
               <Tooltip delay={400} closeDelay={0}>
                 <Button
                   variant='ghost'
@@ -168,9 +205,15 @@ function DataListItem({
                   onPress={() => handleAction('copy')}
                   aria-label='Copy'
                 >
-                  <IconClipboard size={4} />
+                  {isCopied ? (
+                    <IconCheck size={4} />
+                  ) : (
+                    <IconClipboard size={4} />
+                  )}
                 </Button>
-                <Tooltip.Content className='text-xs'>Copy ID</Tooltip.Content>
+                <Tooltip.Content className='text-xs'>
+                  {isCopied ? 'Copied!' : 'Copy ID'}
+                </Tooltip.Content>
               </Tooltip>
               <Tooltip delay={400} closeDelay={0}>
                 <Button
@@ -192,21 +235,19 @@ function DataListItem({
         )}
       </Disclosure.Heading>
       {hasChildren && (
-        <Disclosure.Content className='w-full'>
-          <Disclosure.Body className='w-full pl-[5px]'>
-            <DisclosureGroup>
-              {item.children.map((child, index) => (
-                <DataListItem
-                  key={child.id || index}
-                  item={child}
-                  index={index}
-                  onItemAction={onItemAction}
-                  showActions={showActions}
-                  showCounts={showCounts}
-                  depth={depth + 1}
-                />
-              ))}
-            </DisclosureGroup>
+        <Disclosure.Content>
+          <Disclosure.Body>
+            {item.children.map((child, index) => (
+              <DataListItem
+                key={child.id || index}
+                item={child}
+                index={index}
+                onItemAction={onItemAction}
+                showActions={showActions}
+                showCounts={showCounts}
+                depth={depth + 1}
+              />
+            ))}
           </Disclosure.Body>
         </Disclosure.Content>
       )}

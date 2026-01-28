@@ -180,7 +180,8 @@ export function ActionButtons({
                   />
                 </div>
                 {(currentContext?.domoObject?.typeId === 'PAGE' ||
-                  currentContext?.domoObject?.typeId === 'DATA_APP_VIEW') && (
+                  currentContext?.domoObject?.typeId === 'DATA_APP_VIEW' ||
+                  currentContext?.domoObject?.typeId === 'CARD') && (
                   <GetPages
                     currentContext={currentContext}
                     onStatusUpdate={showStatus}

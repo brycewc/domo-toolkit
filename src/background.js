@@ -2,7 +2,8 @@ import { DomoObject, DomoContext, getObjectType } from '@/models';
 import {
   fetchObjectDetailsInPage,
   getChildPages,
-  getCardsForObject
+  getCardsForObject,
+  getPagesForCard
 } from '@/services';
 import {
   detectCurrentObject,
@@ -597,7 +598,46 @@ async function detectAndStoreContext(tabId) {
         .then((childPages) => {
           // Get the current context (it might have been updated)
           const currentContext = getTabContext(tabId);
+          if (currentContext?.domoObject?.id === objectId) {
+            // Store child pages in metadata.details.childPages
+            if (!currentContext.domoObject.metadata?.details) {
+              currentContext.domoObject.metadata.details = {};
+            }
+            currentContext.domoObject.metadata.details.childPages = childPages;
+
+            // Update the stored context
+            setTabContext(tabId, currentContext);
+
+            console.log(
+              `[Background] Fetched ${childPages?.length || 0} child pages for ${typeModel.id} ${objectId}`
+            );
+          }
+        })
+        .catch((error) => {
+          console.error(
+            `[Background] Error fetching child pages for ${typeModel.id} ${objectId}:`,
+            error
+          );
+          // Store empty array on error
+          const currentContext = getTabContext(tabId);
           if (currentContext?.domoObject) {
+            if (!currentContext.domoObject.metadata?.details) {
+              currentContext.domoObject.metadata.details = {};
+            }
+            currentContext.domoObject.metadata.details.childPages = [];
+            setTabContext(tabId, currentContext);
+          }
+        });
+    }
+
+    // For CARD types, fetch child pages asynchronously (non-blocking)
+    if (typeModel.id === 'CARD') {
+      // Fetch pages for card in background without blocking
+      getPagesForCard({ cardId: parseInt(objectId), tabId })
+        .then((childPages) => {
+          // Get the current context (it might have been updated)
+          const currentContext = getTabContext(tabId);
+          if (currentContext?.domoObject?.id === objectId) {
             // Store child pages in metadata.details.childPages
             if (!currentContext.domoObject.metadata?.details) {
               currentContext.domoObject.metadata.details = {};

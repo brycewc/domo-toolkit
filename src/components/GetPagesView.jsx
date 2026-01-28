@@ -3,7 +3,6 @@ import {
   Button,
   ButtonGroup,
   Card,
-  CloseButton,
   Separator,
   Spinner,
   Tooltip
@@ -16,8 +15,79 @@ import {
   IconX
 } from '@tabler/icons-react';
 import { DataList } from '@/components';
-import { getChildPages, sharePagesWithSelf } from '@/services';
+import { sharePagesWithSelf } from '@/services';
 import { DomoContext } from '@/models';
+
+/**
+ * Transform card pages data into hierarchical structure
+ * For CARD type, childPages is a flat array with pageType property
+ * We group by pageType and create virtual parent items
+ */
+function transformCardPagesData(childPages, origin) {
+  if (!childPages || !childPages.length) return [];
+
+  // Group pages by pageType
+  const pagesByType = {
+    PAGE: [],
+    DATA_APP_VIEW: [],
+    REPORT_BUILDER_VIEW: []
+  };
+
+  childPages.forEach((page) => {
+    const type = page.pageType;
+    if (pagesByType[type]) {
+      pagesByType[type].push(page);
+    }
+  });
+
+  // Create virtual parent items for each page type that has pages
+  const items = [];
+  const typeLabels = {
+    PAGE: 'Pages/Dashboards',
+    DATA_APP_VIEW: 'App Studio Pages',
+    REPORT_BUILDER_VIEW: 'Report Builder Pages'
+  };
+
+  Object.entries(pagesByType).forEach(([type, pages]) => {
+    if (pages.length > 0) {
+      // Sort pages by title
+      const sortedPages = pages.sort((a, b) =>
+        a.pageTitle.localeCompare(b.pageTitle)
+      );
+
+      // Create children array with proper URLs
+      const children = sortedPages.map((page) => {
+        let url;
+        if (type === 'DATA_APP_VIEW') {
+          url = `${origin}/app-studio/${page.appId}/pages/${page.pageId}`;
+        } else if (type === 'PAGE') {
+          url = `${origin}/page/${page.pageId}`;
+        } else {
+          url = '';
+        }
+
+        return {
+          id: page.pageId,
+          label: page.pageTitle,
+          url,
+          metadata: `ID: ${page.pageId}`
+        };
+      });
+
+      // Create virtual parent item for this page type
+      items.push({
+        id: `${type}_group`,
+        label: typeLabels[type],
+        count: children.length,
+        metadata: `${children.length} page${children.length !== 1 ? 's' : ''}`,
+        children,
+        isVirtualParent: true // Flag to identify this as a grouping, not an actual page
+      });
+    }
+  });
+
+  return items;
+}
 
 export function GetPagesView({
   lockedTabId = null,
@@ -44,7 +114,7 @@ export function GetPagesView({
       // Get the stored page data from local storage
       const result = await chrome.storage.local.get(['sidepanelDataList']);
       const data = result.sidepanelDataList;
-
+      console.log('Loaded sidepanel data:', data);
       if (
         !data ||
         (data.type !== 'getPages' && data.type !== 'childPagesWarning')
@@ -57,36 +127,58 @@ export function GetPagesView({
       // Set the view type based on the data type
       setViewType(data.type);
 
-      const { pageId, appId, pageType, pageName, currentContext, childPages } =
-        data;
+      const {
+        objectId,
+        appId,
+        objectType,
+        objectName,
+        currentContext,
+        childPages
+      } = data;
       const context = DomoContext.fromJSON(currentContext);
       if (context.tabId) {
         setTabId(context.tabId);
       }
       const origin = `https://${context.instance}.domo.com`;
-      const finalPageName =
-        pageName || context.domoObject?.metadata?.name || `Page ${pageId}`;
 
       if (!childPages || !childPages.length) {
         setError(
-          pageType === 'DATA_APP_VIEW'
+          objectType === 'DATA_APP_VIEW'
             ? `No views (pages) found for app studio app ${appId}`
-            : `No child pages found for page ${pageId}`
+            : objectType === 'CARD'
+              ? `No pages found for card ${objectId}`
+              : `No child pages found for page ${objectId}`
         );
         setIsLoading(false);
         return;
       }
 
       // Store metadata for rebuilding items later
-      setPageData({ pageId, appId, pageType, pageName: finalPageName, origin });
+      setPageData({
+        objectId,
+        appId,
+        objectType,
+        objectName:
+          objectName ||
+          context.domoObject?.metadata?.name ||
+          `${objectType} ${objectId}`,
+        origin
+      });
 
-      // Separate children and grandchildren based on parentPageId
-      const children = childPages.filter((page) =>
-        pageType === 'DATA_APP_VIEW' ? true : page.parentPageId === pageId
-      );
+      if (objectType === 'CARD') {
+        const transformedItems = transformCardPagesData(childPages, origin);
+        // This is CARD data - use the transformed structure
+        setItems(transformedItems);
+      } else {
+        // Normal PAGE or DATA_APP_VIEW data - use existing logic
+        // Separate children and grandchildren based on parentPageId
+        const children = childPages.filter((page) =>
+          objectType === 'DATA_APP_VIEW' ? true : page.parentPageId === objectId
+        );
 
-      // Build items structure with all pages at once
-      buildItemsFromPages(children, childPages, appId, pageType, origin);
+        // Build items structure with all pages at once
+        buildItemsFromPages(children, childPages, appId, objectType, origin);
+      }
 
       // If this is a childPagesWarning, show the warning status only if not already shown
       if (
@@ -109,7 +201,13 @@ export function GetPagesView({
     }
   };
 
-  const buildItemsFromPages = (pages, childPages, appId, pageType, origin) => {
+  const buildItemsFromPages = (
+    pages,
+    childPages,
+    appId,
+    objectType,
+    origin
+  ) => {
     // Sort pages by title
     const sortedPages = (pages || []).sort((a, b) =>
       a.pageTitle.localeCompare(b.pageTitle)
@@ -118,7 +216,7 @@ export function GetPagesView({
     // Build items array - just the child pages
     const childItems = sortedPages?.map((page) => {
       const pageUrl =
-        pageType === 'DATA_APP_VIEW'
+        objectType === 'DATA_APP_VIEW'
           ? `${origin}/app-studio/${appId}/pages/${page.pageId}`
           : `${origin}/page/${page.pageId}`;
 
@@ -141,7 +239,7 @@ export function GetPagesView({
                   id: childPage.pageId,
                   label: childPage.pageTitle,
                   url:
-                    pageType === 'DATA_APP_VIEW'
+                    objectType === 'DATA_APP_VIEW'
                       ? `${origin}/app-studio/${appId}/pages/${childPage.pageId}`
                       : `${origin}/page/${childPage.pageId}`,
                   metadata: `ID: ${childPage.pageId}`
@@ -155,7 +253,7 @@ export function GetPagesView({
 
   const handleItemAction = async (action, item) => {
     switch (action) {
-      case 'open':
+      case 'openAll':
         if (item.children) {
           item.children.forEach(async (child) => {
             if (child.url) {
@@ -171,6 +269,12 @@ export function GetPagesView({
         break;
       case 'share':
         sharePagesWithSelf({ pageIds: [item.id], tabId: tabId });
+        break;
+      case 'shareAll':
+        sharePagesWithSelf({
+          pageIds: item.children.map((child) => child.id),
+          tabId: tabId
+        });
         break;
       default:
         break;
@@ -206,7 +310,8 @@ export function GetPagesView({
         <div className='flex flex-col gap-1'>
           <Card.Title className='flex items-start justify-between'>
             <div className='flex min-h-8 flex-wrap items-center justify-start gap-x-1'>
-              <span className='font-bold'>{pageData.pageName}</span> Child Pages
+              <span className='font-bold'>{pageData.objectName}</span>
+              {pageData.objectType === 'CARD' ? 'Pages' : 'Child Pages'}
             </div>
             <ButtonGroup hideSeparator>
               <Tooltip delay={400} closeDelay={0}>
@@ -286,9 +391,9 @@ export function GetPagesView({
               )}
             </ButtonGroup>
           </Card.Title>
-          <Card.Description>
-            {items.length !== undefined &&
-              (() => {
+          {items.length !== undefined &&
+            (() => {
+              if (pageData.objectType !== 'CARD') {
                 const grandchildCount = items.reduce(
                   (total, item) => total + (item.children?.length || 0),
                   0
@@ -314,8 +419,8 @@ export function GetPagesView({
                     )}
                   </div>
                 );
-              })()}
-          </Card.Description>
+              }
+            })()}
         </div>
       }
       onItemAction={handleItemAction}

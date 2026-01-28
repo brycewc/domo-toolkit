@@ -25,10 +25,14 @@ export function GetPages({ currentContext, onStatusUpdate, isDisabled }) {
         setIsLoading(false);
         return;
       }
+      const objectType = currentContext.domoObject.typeId;
 
-      // Check if the current object is a page type
-      const pageType = currentContext.domoObject.typeId;
-      if (pageType !== 'PAGE' && pageType !== 'DATA_APP_VIEW') {
+      // Check if the current object is a valid type
+      if (
+        objectType !== 'PAGE' &&
+        objectType !== 'DATA_APP_VIEW' &&
+        objectType !== 'CARD'
+      ) {
         onStatusUpdate?.(
           'Invalid Object Type',
           `This function only works on pages. Current object is: ${currentContext.domoObject.typeName}`,
@@ -38,19 +42,19 @@ export function GetPages({ currentContext, onStatusUpdate, isDisabled }) {
         return;
       }
 
-      const pageId = parseInt(currentContext.domoObject.id);
-      const pageName =
-        currentContext.domoObject.metadata?.name || 'Unknown Page';
+      const objectId = parseInt(currentContext.domoObject.id);
+      const objectName =
+        currentContext.domoObject.metadata?.name || `Unknown ${objectType}`;
 
       // Get appId from metadata for app studio pages
       const appId =
-        pageType === 'DATA_APP_VIEW' &&
+        objectType === 'DATA_APP_VIEW' &&
         currentContext.domoObject.metadata?.parent?.id
           ? parseInt(currentContext.domoObject.metadata.parent.id)
           : null;
 
-      // For regular pages, wait for child pages to be loaded first
-      if (pageType === 'PAGE') {
+      // For pages and cards, get child pages
+      if (objectType === 'PAGE' || objectType === 'CARD') {
         const result = await waitForChildPages(currentContext);
 
         if (!result.success) {
@@ -70,30 +74,59 @@ export function GetPages({ currentContext, onStatusUpdate, isDisabled }) {
           // Store the page information for the sidepanel to use
           await storeSidepanelData({
             type: 'getPages',
-            pageId,
+            objectId,
+            objectName,
+            objectType,
             appId,
-            pageType,
             currentContext,
             childPages,
-            statusShown: false
+            statusShown: true
           });
 
           // Show status message
           await showStatus({
             onStatusUpdate,
             title: 'Opening Sidepanel',
-            description: 'Loading child pages...',
+            description: 'Loading pages...',
             status: 'success',
             timeout: 2000,
             inSidepanel
           });
         } else {
-          onStatusUpdate?.(
-            'No Child Pages',
-            'This page has no child pages.',
-            'accent',
-            3000
-          );
+          switch (currentContext.domoObject.typeId) {
+            case 'PAGE':
+              onStatusUpdate?.(
+                'No Child Pages',
+                `This page has no child pages.`,
+                'warning',
+                3000
+              );
+              break;
+            case 'DATA_APP_VIEW':
+              onStatusUpdate?.(
+                'No Pages',
+                `This app studio app has no pages.`,
+                'warning',
+                3000
+              );
+              break;
+            case 'CARD':
+              onStatusUpdate?.(
+                'No Pages',
+                `This card is not used in any pages, app studio pages, or report builder pages.`,
+                'warning',
+                3000
+              );
+              break;
+            default:
+              onStatusUpdate?.(
+                'No Pages',
+                `No pages found for this object.`,
+                'warning',
+                3000
+              );
+          }
+
           setIsLoading(false);
           return;
         }
@@ -122,7 +155,7 @@ export function GetPages({ currentContext, onStatusUpdate, isDisabled }) {
         isPending ? (
           <Spinner color='currentColor' size='sm' />
         ) : (
-          'Get Child Pages'
+          `Get ${currentContext?.domoObject?.typeId === 'CARD' ? '' : 'Child '}Pages`
         )
       }
     </Button>

@@ -230,7 +230,7 @@ export async function sharePagesWithSelf({ pageIds, tabId }) {
 /**
  * Get all pages that cards appear on (including regular pages, app studio pages, and report builder pages)
  * @param {Array<number>} cardIds - Array of card IDs
- * @returns {Promise<Object>} Object with pageIds array and objectTypes array (parallel arrays)
+ * @returns {Promise<Object>} Array of page objects with type and id
  * @throws {Error} If the fetch fails
  */
 export async function getPagesForCards(cardIds) {
@@ -309,9 +309,7 @@ export async function getPagesForCards(cardIds) {
           }))
         ];
 
-        return {
-          pageObjects
-        };
+        return pageObjects;
       },
       [cardIds]
     );

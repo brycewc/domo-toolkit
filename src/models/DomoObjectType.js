@@ -99,7 +99,7 @@ export class DomoObjectType {
     return this.urlPath !== null && this.urlPath !== undefined;
   }
 
-    /**
+  /**
    * Check if this object type has an API configuration
    * @returns {boolean} Whether the object type has an API configuration
    */
@@ -1291,7 +1291,7 @@ export const ObjectTypeRegistry = {
   WORKFLOW_MODEL: new DomoObjectType(
     'WORKFLOW_MODEL',
     'Workflow',
-    '/workflows/{id}',
+    '/workflows/models/{id}',
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     { keyword: 'workflows', offset: 2 },
     {
@@ -1364,5 +1364,7 @@ export function getAllObjectTypesWithUrl() {
  * @returns {DomoObjectType[]} Array of DomoObjectType instances with apiConfig defined
  */
 export function getAllObjectTypesWithApiConfig() {
-  return Object.values(ObjectTypeRegistry).filter((type) => type.hasApiConfig());
+  return Object.values(ObjectTypeRegistry).filter((type) =>
+    type.hasApiConfig()
+  );
 }
