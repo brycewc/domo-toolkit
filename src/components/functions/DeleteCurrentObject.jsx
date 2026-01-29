@@ -30,7 +30,8 @@ export function DeleteCurrentObject({
     'BEAST_MODE_FORMULA',
     'DATA_APP_VIEW',
     'PAGE',
-    'MAGNUM_COLLECTION'
+    'MAGNUM_COLLECTION',
+    'WORKFLOW_MODEL'
   ];
 
   const handleDelete = async () => {
@@ -50,6 +51,7 @@ export function DeleteCurrentObject({
         case 'APP':
         case 'BEAST_MODE_FORMULA':
         case 'MAGNUM_COLLECTION':
+        case 'WORKFLOW_MODEL':
           // Use generic deleteObject function
           deleteResult = await deleteObject({
             object: currentContext.domoObject,
@@ -65,6 +67,13 @@ export function DeleteCurrentObject({
             );
           }
           state.close();
+
+          if (
+            deleteResult.statusType === 'success' &&
+            typeId === 'WORKFLOW_MODEL'
+          ) {
+            chrome.tabs.update(currentContext.tabId, { url: '/workflows' });
+          }
           break;
 
         case 'PAGE':
@@ -72,9 +81,8 @@ export function DeleteCurrentObject({
           const pageId = parseInt(id);
           const pageType = typeId;
           const appId =
-            typeId === 'DATA_APP_VIEW' &&
-            currentContext.domoObject.metadata?.parent?.id
-              ? parseInt(currentContext.domoObject.metadata.parent.id)
+            typeId === 'DATA_APP_VIEW' && currentContext.domoObject.parentId
+              ? parseInt(currentContext.domoObject.parentId)
               : null;
 
           // For regular pages, check pre-fetched child pages

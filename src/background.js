@@ -137,6 +137,7 @@ function setTabContext(tabId, context) {
   chrome.runtime
     .sendMessage({
       type: 'TAB_CONTEXT_UPDATED',
+      tabId: tabId,
       context: contextData
     })
     .catch((error) => {
@@ -312,7 +313,7 @@ async function checkClipboard() {
         if (!isNumeric && !isUuid) {
           console.log(
             '[Background] Clipboard does not contain a valid Domo object ID:',
-            clipboardText
+            clipboardText.slice(0, 32)
           );
           // Don't store or notify about invalid IDs
           return null;
@@ -508,13 +509,31 @@ async function detectAndStoreContext(tabId) {
     // Get tab info for URL
     const tab = await chrome.tabs.get(tabId);
     if (!tab || !tab?.url?.includes('domo.com')) {
-      // Not a Domo domain - clear any existing context and return
+      // Not a Domo domain - clear any existing context and broadcast the update
       console.log(
         `[Background] Tab ${tabId} is not on a Domo domain, clearing context`
       );
+      const hadContext = tabContexts.has(tabId);
       tabContexts.delete(tabId);
       tabAccessTimes.delete(tabId);
       persistToSession();
+
+      // Broadcast null context to extension pages so they update their UI
+      if (hadContext) {
+        chrome.runtime
+          .sendMessage({
+            type: 'TAB_CONTEXT_UPDATED',
+            tabId: tabId,
+            context: null
+          })
+          .catch((error) => {
+            console.log(
+              `[Background] No listeners for TAB_CONTEXT_UPDATED (null):`,
+              error.message
+            );
+          });
+      }
+
       return null;
     }
     const context = new DomoContext(tabId, tab.url, null);
@@ -544,12 +563,17 @@ async function detectAndStoreContext(tabId) {
       return null;
     }
 
-    // Create DomoObject
+    // Extract parent ID from URL if available
+    const parentId = typeModel.extractParentId(detected.url);
+
+    // Create DomoObject with original URL and parent ID for immediate URL building
     const domoObject = new DomoObject(
       detected.typeId,
       objectId,
       detected.baseUrl,
-      {} // metadata will be enriched below
+      {}, // metadata will be enriched below
+      detected.url, // pass original URL for parent extraction
+      parentId // pass parent ID if extracted from URL
     );
 
     // Prepare parameters for page-safe enrichment function
@@ -559,16 +583,28 @@ async function detectAndStoreContext(tabId) {
       baseUrl: detected.baseUrl,
       apiConfig: typeModel.api,
       requiresParent: typeModel.requiresParentForApi(),
-      parentId: null,
+      parentId: parentId || null,
       throwOnError: true
     };
 
     // Enrich with details - throw on error for current object detection
-    domoObject.metadata = await executeInPage(
-      fetchObjectDetailsInPage,
-      [params],
-      tabId
-    );
+    domoObject.metadata =
+      (await executeInPage(fetchObjectDetailsInPage, [params], tabId)) || {};
+
+    // For objects with parents, enrich metadata with parent details
+    if (parentId && typeModel.parents && typeModel.parents.length > 0) {
+      try {
+        await domoObject.getParent(false, detected.url);
+        console.log(
+          `[Background] Enriched parent metadata for ${typeModel.id} ${objectId}`
+        );
+      } catch (error) {
+        console.warn(
+          `[Background] Could not enrich parent metadata for ${typeModel.id} ${objectId}:`,
+          error
+        );
+      }
+    }
 
     // Update DomoContext with DomoObject
     context.domoObject = domoObject;
@@ -583,8 +619,8 @@ async function detectAndStoreContext(tabId) {
     // This happens in the background while the user interacts with the popup
     if (typeModel.id === 'PAGE' || typeModel.id === 'DATA_APP_VIEW') {
       const appId =
-        typeModel.id === 'DATA_APP_VIEW' && domoObject.metadata?.parent?.id
-          ? parseInt(domoObject.metadata.parent.id)
+        typeModel.id === 'DATA_APP_VIEW' && domoObject.parentId
+          ? parseInt(domoObject.parentId)
           : null;
 
       // Fetch child pages in background without blocking
@@ -599,17 +635,28 @@ async function detectAndStoreContext(tabId) {
           // Get the current context (it might have been updated)
           const currentContext = getTabContext(tabId);
           if (currentContext?.domoObject?.id === objectId) {
-            // Store child pages in metadata.details.childPages
+            // Store pages in metadata.details.childPages or appPages
+            if (!currentContext.domoObject?.metadata) {
+              currentContext.domoObject.metadata = {};
+            }
             if (!currentContext.domoObject.metadata?.details) {
               currentContext.domoObject.metadata.details = {};
             }
-            currentContext.domoObject.metadata.details.childPages = childPages;
+
+            // For DATA_APP_VIEW, store in appPages (sibling pages in the app)
+            // For PAGE, store in childPages (actual child pages)
+            if (typeModel.id === 'DATA_APP_VIEW') {
+              currentContext.domoObject.metadata.details.appPages = childPages;
+            } else {
+              currentContext.domoObject.metadata.details.childPages =
+                childPages;
+            }
 
             // Update the stored context
             setTabContext(tabId, currentContext);
 
             console.log(
-              `[Background] Fetched ${childPages?.length || 0} child pages for ${typeModel.id} ${objectId}`
+              `[Background] Fetched ${childPages?.length || 0} ${typeModel.id === 'DATA_APP_VIEW' ? 'app pages' : 'child pages'} for ${typeModel.id} ${objectId}`
             );
           }
         })
@@ -618,13 +665,20 @@ async function detectAndStoreContext(tabId) {
             `[Background] Error fetching child pages for ${typeModel.id} ${objectId}:`,
             error
           );
-          // Store empty array on error
+          // Store empty array on error so we don't keep retrying
           const currentContext = getTabContext(tabId);
           if (currentContext?.domoObject) {
+            if (!currentContext.domoObject?.metadata) {
+              currentContext.domoObject.metadata = {};
+            }
             if (!currentContext.domoObject.metadata?.details) {
               currentContext.domoObject.metadata.details = {};
             }
-            currentContext.domoObject.metadata.details.childPages = [];
+            if (typeModel.id === 'DATA_APP_VIEW') {
+              currentContext.domoObject.metadata.details.appPages = [];
+            } else {
+              currentContext.domoObject.metadata.details.childPages = [];
+            }
             setTabContext(tabId, currentContext);
           }
         });
@@ -639,6 +693,9 @@ async function detectAndStoreContext(tabId) {
           const currentContext = getTabContext(tabId);
           if (currentContext?.domoObject?.id === objectId) {
             // Store child pages in metadata.details.childPages
+            if (!currentContext.domoObject?.metadata) {
+              currentContext.domoObject.metadata = {};
+            }
             if (!currentContext.domoObject.metadata?.details) {
               currentContext.domoObject.metadata.details = {};
             }
@@ -660,6 +717,9 @@ async function detectAndStoreContext(tabId) {
           // Store empty array on error
           const currentContext = getTabContext(tabId);
           if (currentContext?.domoObject) {
+            if (!currentContext.domoObject?.metadata) {
+              currentContext.domoObject.metadata = {};
+            }
             if (!currentContext.domoObject.metadata?.details) {
               currentContext.domoObject.metadata.details = {};
             }
@@ -685,6 +745,9 @@ async function detectAndStoreContext(tabId) {
           const currentContext = getTabContext(tabId);
           if (currentContext?.domoObject) {
             // Store cards in metadata.details.cards
+            if (!currentContext.domoObject?.metadata) {
+              currentContext.domoObject.metadata = {};
+            }
             if (!currentContext.domoObject.metadata?.details) {
               currentContext.domoObject.metadata.details = {};
             }
@@ -706,6 +769,9 @@ async function detectAndStoreContext(tabId) {
           // Store empty array on error
           const currentContext = getTabContext(tabId);
           if (currentContext?.domoObject) {
+            if (!currentContext.domoObject?.metadata) {
+              currentContext.domoObject.metadata = {};
+            }
             if (!currentContext.domoObject.metadata?.details) {
               currentContext.domoObject.metadata.details = {};
             }

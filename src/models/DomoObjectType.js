@@ -141,6 +141,36 @@ export class DomoObjectType {
 
     return parts[index + offset] || null;
   }
+
+  /**
+   * Extract the parent ID from a URL for this object type
+   * @param {string} url - The URL to extract from
+   * @returns {string|null} The extracted parent ID or null if not found/configured
+   */
+  extractParentId(url) {
+    if (!this.extractConfig || !this.extractConfig.parentExtract) {
+      return null;
+    }
+
+    const parts = url.split(/[/?=&]/);
+    const {
+      keyword,
+      offset = 1,
+      fromEnd = false
+    } = this.extractConfig.parentExtract;
+
+    if (fromEnd) {
+      // Extract from end of URL
+      return parts[parts.length - offset] || null;
+    }
+
+    const index = parts.indexOf(keyword);
+    if (index === -1) {
+      return null;
+    }
+
+    return parts[index + offset] || null;
+  }
 }
 
 /**
@@ -505,7 +535,10 @@ export const ObjectTypeRegistry = {
     'App page',
     '/app-studio/{parent}/pages/{id}',
     /^\d+$/,
-    { keyword: 'pages' },
+    {
+      keyword: 'pages',
+      parentExtract: { keyword: 'app-studio', offset: 1 }
+    },
     {
       method: 'GET',
       endpoint: '/content/v3/stacks/{id}',
@@ -611,7 +644,7 @@ export const ObjectTypeRegistry = {
     'Drill Path',
     '/analyzer?cardid=${parent}&drillviewid=${id}',
     /^\d+$/,
-    { keyword: 'drillviewid' },
+    { keyword: 'drillviewid', parentExtract: { keyword: 'cardid', offset: 1 } },
     {
       method: 'GET',
       endpoint: '/content/v1/cards?urns={id}:{parent}',

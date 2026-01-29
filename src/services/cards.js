@@ -120,18 +120,17 @@ export async function getCardsForObject({ objectId, objectType }) {
             if (!cards.length) {
               throw new Error(`DataSet ${objectId} has no cards.`);
             }
+            console.log(cards);
             // Normalize cards to have id property
-            return cards
-              .map((card) => ({
-                ...card,
-                id:
-                  card.id ||
-                  card.kpiId ||
-                  (typeof card.urn === 'string'
-                    ? parseInt(card.urn.split(':').pop(), 10)
-                    : null)
-              }))
-              .filter((card) => Number.isFinite(card.id));
+            return cards.map((card) => ({
+              ...card,
+              id:
+                card.id ||
+                card.kpiId ||
+                (typeof card.urn === 'string'
+                  ? parseInt(card.urn.split(':').pop(), 10)
+                  : null)
+            }));
           }
 
           default:

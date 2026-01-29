@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Button, Chip, Spinner, Tooltip } from '@heroui/react';
-import { shareWithSelf } from '@/services';
+import { Button, Spinner, Tooltip } from '@heroui/react';
 import { IconUserPlus } from '@tabler/icons-react';
+import { shareWithSelf } from '@/services';
+import { isSidepanel } from '@/utils';
 
 /**
  * ShareWithSelf component - Shares the current object with the current user
@@ -66,7 +67,9 @@ export function ShareWithSelf({ currentContext, onStatusUpdate, isDisabled }) {
         setStatus: onStatusUpdate
       });
       chrome.tabs.reload(currentContext?.tabId);
-      window.close();
+
+      const inSidepanel = isSidepanel();
+      if (!inSidepanel) window.close();
     } catch (error) {
       // Error is already handled in shareWithSelf, but catch here in case
       console.error('Error in ShareWithSelf component:', error);

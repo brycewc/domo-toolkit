@@ -68,6 +68,7 @@ export function DataTable({
   );
   const [rowSelection, setRowSelection] = useState({});
   const [globalFilter, setGlobalFilter] = useState('');
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   const tableContainerRef = useRef(null);
 
@@ -105,21 +106,59 @@ export function DataTable({
   // Trigger onLoadMore when scrolling near the end
   useEffect(() => {
     const scrollElement = tableContainerRef.current;
+
+    console.log('[DataTable] Setting up scroll listener', {
+      hasScrollElement: !!scrollElement,
+      hasOnLoadMore: !!onLoadMore
+    });
+
     if (!scrollElement || !onLoadMore) return;
 
     const handleScroll = () => {
       const { scrollTop, scrollHeight, clientHeight } = scrollElement;
       const scrollPercentage = (scrollTop + clientHeight) / scrollHeight;
 
+      console.log('[DataTable] Scroll event fired', {
+        scrollTop,
+        scrollHeight,
+        clientHeight,
+        scrollPercentage: (scrollPercentage * 100).toFixed(2) + '%',
+        isLoadingMore,
+        threshold: '80%'
+      });
+
+      if (isLoadingMore) {
+        console.log('[DataTable] Already loading more, skipping...');
+        return;
+      }
+
       // Load more when scrolled 80% down
       if (scrollPercentage > 0.8) {
-        onLoadMore();
+        console.log('[DataTable] Triggering onLoadMore...');
+        setIsLoadingMore(true);
+        Promise.resolve(onLoadMore()).finally(() => {
+          console.log('[DataTable] onLoadMore completed');
+          setIsLoadingMore(false);
+        });
       }
     };
 
     scrollElement.addEventListener('scroll', handleScroll);
-    return () => scrollElement.removeEventListener('scroll', handleScroll);
-  }, [onLoadMore]);
+
+    // Log initial scroll state
+    const { scrollTop, scrollHeight, clientHeight } = scrollElement;
+    console.log('[DataTable] Initial scroll state', {
+      scrollTop,
+      scrollHeight,
+      clientHeight,
+      canScroll: scrollHeight > clientHeight
+    });
+
+    return () => {
+      console.log('[DataTable] Removing scroll listener');
+      scrollElement.removeEventListener('scroll', handleScroll);
+    };
+  }, [onLoadMore, isLoadingMore]);
 
   const selectedCount = Object.keys(rowSelection).length;
   const totalCount = data.length;
@@ -261,7 +300,10 @@ export function DataTable({
       </Card.Header>
       {/* Table */}
       <Card.Content className='overflow-hidden rounded-lg border border-default'>
-        <div ref={tableContainerRef} className='overflow-auto'>
+        <div
+          ref={tableContainerRef}
+          className='max-h-[calc(100vh-15rem)] overflow-auto'
+        >
           <table className='w-full'>
             <thead className='sticky top-0 z-10 bg-background'>
               {table.getHeaderGroups().map((headerGroup) => (
@@ -270,6 +312,11 @@ export function DataTable({
                     <th
                       key={header.id}
                       className='p-3 text-left text-xs font-medium tracking-wider uppercase'
+                      style={{
+                        width: header.column.columnDef.size,
+                        minWidth: header.column.columnDef.minSize,
+                        maxWidth: header.column.columnDef.maxSize
+                      }}
                     >
                       {header.isPlaceholder ? null : (
                         <div
@@ -337,7 +384,15 @@ export function DataTable({
                         ref={(node) => rowVirtualizer.measureElement(node)}
                       >
                         {row.getVisibleCells().map((cell) => (
-                          <td key={cell.id} className='p-3'>
+                          <td
+                            key={cell.id}
+                            className='p-3'
+                            style={{
+                              width: cell.column.columnDef.size,
+                              minWidth: cell.column.columnDef.minSize,
+                              maxWidth: cell.column.columnDef.maxSize
+                            }}
+                          >
                             {flexRender(
                               cell.column.columnDef.cell,
                               cell.getContext()

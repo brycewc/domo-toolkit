@@ -5,11 +5,13 @@ import {
   Button,
   Dropdown,
   Label,
-  IconChevronDown,
   Skeleton,
-  Link
+  Link,
+  DateField,
+  DateInputGroup,
+  Popover
 } from '@heroui/react';
-import { IconRefresh, IconFilter } from '@tabler/icons-react';
+import { IconChevronDown, IconRefresh, IconFilter } from '@tabler/icons-react';
 import { DataTable } from '@/components';
 import { getActivityLogForObject } from '@/services';
 import { DomoObject } from '@/models';
@@ -42,6 +44,9 @@ function createTimestampColumn({ accessorKey = 'time' } = {}) {
   return {
     accessorKey,
     header: 'Timestamp',
+    size: 160,
+    minSize: 160,
+    maxSize: 160,
     cell: ({ row }) => {
       const timestamp = row.getValue(accessorKey);
       if (!timestamp) return '-';
@@ -67,14 +72,23 @@ function createUserColumn({ nameKey = 'userName', idKey = 'userId' } = {}) {
   return {
     accessorKey: nameKey,
     header: 'User',
+    size: 180,
+    minSize: 180,
+    maxSize: 180,
     cell: ({ row }) => {
       const name = row.getValue(nameKey);
       const id = row.original[idKey];
 
       return (
         <div className='flex flex-col'>
-          <span className='text-sm font-medium'>{name || '-'}</span>
-          {id && <span className='text-xs text-muted'>{id}</span>}
+          <span className='truncate text-sm font-medium' title={name}>
+            {name || '-'}
+          </span>
+          {id && (
+            <span className='truncate text-xs text-muted' title={id}>
+              {id}
+            </span>
+          )}
         </div>
       );
     }
@@ -88,6 +102,9 @@ function createActionColumn({ accessorKey = 'actionType' } = {}) {
   return {
     accessorKey,
     header: 'Action',
+    size: 150,
+    minSize: 150,
+    maxSize: 150,
     cell: ({ row }) => {
       const action = row.getValue(accessorKey);
       const color = getActionColor(action);
@@ -213,7 +230,8 @@ export function ActivityLogTable() {
   const [error, setError] = useState(null);
   const [total, setTotal] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [dateFilter, setDateFilter] = useState(new Set());
+  const [startDate, setStartDate] = useState(null);
+  const [endDate, setEndDate] = useState(null);
   const [userFilter, setUserFilter] = useState(new Set());
   const [actionFilter, setActionFilter] = useState(new Set());
   const [objectTypeFilter, setObjectTypeFilter] = useState(new Set());
@@ -257,18 +275,7 @@ export function ActivityLogTable() {
     loadObjects();
   }, []);
 
-  // Get unique dates and users for filters
-  const dateOptions = useMemo(() => {
-    const dates = new Set();
-    events.forEach((event) => {
-      if (event.time) {
-        const date = new Date(event.time).toLocaleDateString();
-        dates.add(date);
-      }
-    });
-    return Array.from(dates).sort((a, b) => new Date(b) - new Date(a));
-  }, [events]);
-
+  // Get unique users for filters
   const userOptions = useMemo(() => {
     const users = new Set();
     events.forEach((event) => {
@@ -305,10 +312,28 @@ export function ActivityLogTable() {
   const filteredEvents = useMemo(() => {
     let filtered = events;
 
-    if (dateFilter.size > 0) {
+    // Filter by date range
+    if (startDate || endDate) {
       filtered = filtered.filter((event) => {
-        const eventDate = new Date(event.time).toLocaleDateString();
-        return dateFilter.has(eventDate);
+        const eventDate = new Date(event.time);
+        eventDate.setHours(0, 0, 0, 0); // Reset time to start of day for comparison
+
+        if (startDate && endDate) {
+          const start = new Date(startDate);
+          const end = new Date(endDate);
+          start.setHours(0, 0, 0, 0);
+          end.setHours(23, 59, 59, 999); // End of day
+          return eventDate >= start && eventDate <= end;
+        } else if (startDate) {
+          const start = new Date(startDate);
+          start.setHours(0, 0, 0, 0);
+          return eventDate >= start;
+        } else if (endDate) {
+          const end = new Date(endDate);
+          end.setHours(23, 59, 59, 999);
+          return eventDate <= end;
+        }
+        return true;
       });
     }
 
@@ -332,7 +357,7 @@ export function ActivityLogTable() {
     }
 
     return filtered;
-  }, [events, dateFilter, userFilter, actionFilter, objectTypeFilter]);
+  }, [events, startDate, endDate, userFilter, actionFilter, objectTypeFilter]);
 
   // Define columns
   const columns = useMemo(() => {
@@ -410,8 +435,8 @@ export function ActivityLogTable() {
         // Update object states with totals and hasMore
         const newStates = {};
         let combinedTotal = 0;
-        results.forEach(({ type, id, events, total }) => {
-          const key = `${type}:${id}`;
+        results.forEach(({ objectType, objectId, events, total }) => {
+          const key = `${objectType}:${objectId}`;
           newStates[key] = {
             offset: events.length,
             total,
@@ -441,23 +466,71 @@ export function ActivityLogTable() {
 
   // Check if any objects still have more events to fetch
   const hasMore = useMemo(() => {
-    return Object.values(objectStates).some((state) => state.hasMore);
+    const result = Object.values(objectStates).some((state) => state.hasMore);
+    console.log('[ActivityLogTable] hasMore calculated:', {
+      result,
+      objectStates
+    });
+    return result;
   }, [objectStates]);
 
   // Fetch more events when scrolling - only from objects that still have more
   const fetchMoreEvents = useCallback(async () => {
-    if (isFetchingMore || !hasMore || isInitialLoad || isSearching) return;
+    console.log('[ActivityLogTable] fetchMoreEvents called', {
+      isFetchingMore,
+      hasMore,
+      isInitialLoad,
+      isSearching,
+      objectsCount: objects.length
+    });
 
+    if (isFetchingMore || !hasMore || isInitialLoad || isSearching) {
+      console.log('[ActivityLogTable] Skipping fetch:', {
+        reason: isFetchingMore
+          ? 'already fetching'
+          : !hasMore
+            ? 'no more data'
+            : isInitialLoad
+              ? 'initial load'
+              : 'searching'
+      });
+      return;
+    }
+
+    console.log('[ActivityLogTable] Starting to fetch more events...');
     setIsFetchingMore(true);
 
     try {
+      // Log the objects array and objectStates before filtering
+      console.log('[ActivityLogTable] Current objects array:', objects);
+      console.log('[ActivityLogTable] Current objectStates:', objectStates);
+
       // Filter to only objects that still have more events
       const objectsWithMore = objects.filter(({ type, id }) => {
         const key = `${type}:${id}`;
-        return objectStates[key]?.hasMore;
+        const hasMoreData = objectStates[key]?.hasMore;
+        console.log('[ActivityLogTable] Checking object:', {
+          type,
+          id,
+          key,
+          hasMoreData,
+          stateExists: !!objectStates[key],
+          state: objectStates[key]
+        });
+        return hasMoreData;
+      });
+
+      console.log('[ActivityLogTable] Objects with more data:', {
+        count: objectsWithMore.length,
+        objects: objectsWithMore.map(({ type, id }) => ({
+          type,
+          id,
+          state: objectStates[`${type}:${id}`]
+        }))
       });
 
       if (objectsWithMore.length === 0) {
+        console.log('[ActivityLogTable] No objects with more data, stopping');
         setIsFetchingMore(false);
         return;
       }
@@ -467,6 +540,15 @@ export function ActivityLogTable() {
         const key = `${type}:${id}`;
         const state = objectStates[key];
 
+        console.log('[ActivityLogTable] Fetching events for object:', {
+          type,
+          id,
+          key,
+          offset: state.offset,
+          pageSize,
+          tabId
+        });
+
         return getActivityLogForObject({
           objectType: type,
           objectId: id,
@@ -474,12 +556,21 @@ export function ActivityLogTable() {
           offset: state.offset,
           tabId
         })
-          .then((result) => ({
-            objectType: type,
-            objectId: id,
-            events: result?.events ?? [],
-            total: result?.total ?? 0
-          }))
+          .then((result) => {
+            console.log('[ActivityLogTable] Received events for object:', {
+              type,
+              id,
+              eventsCount: result?.events?.length ?? 0,
+              total: result?.total ?? 0
+            });
+
+            return {
+              objectType: type,
+              objectId: id,
+              events: result?.events ?? [],
+              total: result?.total ?? 0
+            };
+          })
           .catch((err) => {
             console.error(`Error fetching more for ${type}:${id}:`, err);
             return {
@@ -492,17 +583,41 @@ export function ActivityLogTable() {
           });
       });
 
+      console.log('[ActivityLogTable] Waiting for all fetch promises...', {
+        promisesCount: fetchPromises.length
+      });
+
       const results = await Promise.all(fetchPromises);
+
+      console.log('[ActivityLogTable] All fetches complete:', {
+        resultsCount: results.length,
+        totalEventsReceived: results.reduce(
+          (sum, r) => sum + r.events.length,
+          0
+        )
+      });
 
       // Update object states
       const newStates = { ...objectStates };
-      results.forEach(({ type, id, events, total }) => {
-        const key = `${type}:${id}`;
+      results.forEach(({ objectType, objectId, events, total }) => {
+        const key = `${objectType}:${objectId}`;
         const currentState = newStates[key];
-        newStates[key] = {
-          offset: currentState.offset + events.length,
+        const newOffset = currentState.offset + events.length;
+        const newHasMore = newOffset < total;
+
+        console.log('[ActivityLogTable] Updating state for object:', {
+          key,
+          oldOffset: currentState.offset,
+          newOffset,
+          eventsLength: events.length,
           total,
-          hasMore: currentState.offset + events.length < total
+          newHasMore
+        });
+
+        newStates[key] = {
+          offset: newOffset,
+          total,
+          hasMore: newHasMore
         };
       });
       setObjectStates(newStates);
@@ -512,10 +627,17 @@ export function ActivityLogTable() {
       const allEvents = [...events, ...newEvents];
       allEvents.sort((a, b) => new Date(b.time) - new Date(a.time));
 
+      console.log('[ActivityLogTable] Updated events:', {
+        previousCount: events.length,
+        newEventsCount: newEvents.length,
+        totalCount: allEvents.length
+      });
+
       setEvents(allEvents);
     } catch (err) {
       console.error('Error fetching more events:', err);
     } finally {
+      console.log('[ActivityLogTable] Finished fetching more events');
       setIsFetchingMore(false);
     }
   }, [
@@ -526,7 +648,8 @@ export function ActivityLogTable() {
     hasMore,
     isFetchingMore,
     isInitialLoad,
-    isSearching
+    isSearching,
+    pageSize
   ]);
 
   // Handle refresh
@@ -633,30 +756,59 @@ export function ActivityLogTable() {
         onLoadMore={fetchMoreEvents}
         customFilters={
           <>
-            {/* Date Filter */}
-            {dateOptions.length > 0 && (
-              <Dropdown>
-                <Button variant='tertiary'>
-                  <IconFilter size={4} />
-                  Date
-                  <IconChevronDown className='size-4 text-foreground' />
-                </Button>
-                <Dropdown.Popover className='max-h-64 overflow-y-auto'>
-                  <Dropdown.Menu
-                    selectionMode='multiple'
-                    selectedKeys={dateFilter}
-                    onSelectionChange={setDateFilter}
+            {/* Date Range Filter */}
+            <Popover>
+              <Button variant='tertiary'>
+                <IconFilter size={4} />
+                Date Range
+                <IconChevronDown size={4} />
+              </Button>
+              <Popover.Content className='w-72'>
+                <Popover.Dialog className='flex flex-col gap-3'>
+                  <DateField
+                    name='Start Date'
+                    value={startDate}
+                    onChange={setStartDate}
+                    granularity='day'
                   >
-                    {dateOptions.map((date) => (
-                      <Dropdown.Item id={date} textValue={date}>
-                        <Dropdown.ItemIndicator />
-                        <Label>{date}</Label>
-                      </Dropdown.Item>
-                    ))}
-                  </Dropdown.Menu>
-                </Dropdown.Popover>
-              </Dropdown>
-            )}
+                    <Label>Start Date</Label>
+                    <DateInputGroup>
+                      <DateInputGroup.Input>
+                        {(segment) => (
+                          <DateInputGroup.Segment segment={segment} />
+                        )}
+                      </DateInputGroup.Input>
+                    </DateInputGroup>
+                  </DateField>
+                  <DateField
+                    name='End Date'
+                    value={endDate}
+                    onChange={setEndDate}
+                    granularity='day'
+                  >
+                    <Label>End Date</Label>
+                    <DateInputGroup>
+                      <DateInputGroup.Input>
+                        {(segment) => (
+                          <DateInputGroup.Segment segment={segment} />
+                        )}
+                      </DateInputGroup.Input>
+                    </DateInputGroup>
+                  </DateField>
+                  <Button
+                    variant='tertiary'
+                    size='sm'
+                    onPress={() => {
+                      setStartDate(null);
+                      setEndDate(null);
+                    }}
+                    isDisabled={!startDate && !endDate}
+                  >
+                    Clear
+                  </Button>
+                </Popover.Dialog>
+              </Popover.Content>
+            </Popover>
 
             {/* User Filter */}
             {userOptions.length > 0 && (
@@ -664,7 +816,7 @@ export function ActivityLogTable() {
                 <Button variant='tertiary'>
                   <IconFilter size={4} />
                   User
-                  <IconChevronDown className='size-4 text-foreground' />
+                  <IconChevronDown size={4} />
                 </Button>
                 <Dropdown.Popover className='max-h-64 overflow-y-auto'>
                   <Dropdown.Menu
@@ -689,7 +841,7 @@ export function ActivityLogTable() {
                 <Button variant='tertiary'>
                   <IconFilter size={4} />
                   Action
-                  <IconChevronDown className='size-4 text-foreground' />
+                  <IconChevronDown size={4} />
                 </Button>
                 <Dropdown.Popover className='max-h-64 overflow-y-auto'>
                   <Dropdown.Menu
@@ -725,7 +877,7 @@ export function ActivityLogTable() {
                 <Button variant='tertiary'>
                   <IconFilter size={4} />
                   Object Type
-                  <IconChevronDown className='size-4 text-foreground' />
+                  <IconChevronDown size={4} />
                 </Button>
                 <Dropdown.Popover className='max-h-64 overflow-y-auto'>
                   <Dropdown.Menu

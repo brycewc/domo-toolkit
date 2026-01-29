@@ -41,6 +41,7 @@ export default function App() {
         className='h-[calc(100vh-4)] w-full items-center rounded-sm'
         selectedKey={selectedTab}
         onSelectionChange={handleTabChange}
+        variant='secondary'
       >
         <Tabs.ListContainer className='flex w-full max-w-3xl flex-row justify-center'>
           <Tabs.List>

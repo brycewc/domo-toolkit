@@ -9,24 +9,28 @@
  * @returns {Promise<{success: boolean, childPages: Array|null, error: string|null}>}
  */
 export async function waitForChildPages(currentContext, maxAttempts = 50) {
-  let childPages = currentContext.domoObject.metadata?.details?.childPages;
+  const objectType = currentContext.domoObject?.typeId;
+  const propertyName =
+    objectType === 'DATA_APP_VIEW' ? 'appPages' : 'childPages';
+
+  let childPages = currentContext.domoObject.metadata?.details?.[propertyName];
 
   // Three states:
-  // 1. undefined/null: Not yet checked for child pages - need to wait
-  // 2. []: Checked and found no child pages - safe to proceed
-  // 3. [...]: Has child pages
+  // 1. undefined/null: Not yet checked for pages - need to wait
+  // 2. []: Checked and found no pages - safe to proceed
+  // 3. [...]: Has pages
 
   if (childPages === undefined || childPages === null) {
-    console.log('[pageHelpers] Child pages not yet loaded, waiting...');
+    console.log(`[pageHelpers] ${propertyName} not yet loaded, waiting...`);
 
-    // Poll for child pages to be loaded (max 5 seconds by default)
+    // Poll for pages to be loaded (max 5 seconds by default)
     let attempts = 0;
 
     while (attempts < maxAttempts) {
       attempts++;
       await new Promise((resolve) => setTimeout(resolve, 100));
 
-      // Re-fetch the current context to get updated child pages
+      // Re-fetch the current context to get updated pages
       const response = await chrome.runtime.sendMessage({
         type: 'GET_TAB_CONTEXT',
         tabId: currentContext.tabId
@@ -34,12 +38,12 @@ export async function waitForChildPages(currentContext, maxAttempts = 50) {
 
       if (
         response?.success &&
-        response?.context?.domoObject?.metadata?.details?.childPages !==
+        response?.context?.domoObject?.metadata?.details?.[propertyName] !==
           undefined
       ) {
-        childPages = response.context.domoObject.metadata.details.childPages;
+        childPages = response.context.domoObject.metadata.details[propertyName];
         console.log(
-          '[pageHelpers] Child pages loaded:',
+          `[pageHelpers] ${propertyName} loaded:`,
           childPages?.length || 0
         );
         break;
@@ -47,11 +51,11 @@ export async function waitForChildPages(currentContext, maxAttempts = 50) {
     }
 
     if (childPages === undefined || childPages === null) {
-      console.log('[pageHelpers] Timeout waiting for child pages');
+      console.log(`[pageHelpers] Timeout waiting for ${propertyName}`);
       return {
         success: false,
         childPages: null,
-        error: 'Timeout while checking for child pages. Please try again.'
+        error: `Timeout while checking for ${objectType === 'DATA_APP_VIEW' ? 'app pages' : 'child pages'}. Please try again.`
       };
     }
   }
@@ -124,9 +128,8 @@ export async function showStatus({
  * Store data for sidepanel and optionally open it
  * @param {Object} options
  * @param {string} options.type - Type of data (e.g., 'getPages', 'childPagesWarning')
- * @param {number} options.pageId - Page ID
- * @param {number} options.appId - App ID (for app studio pages)
- * @param {string} options.pageType - Page type ('PAGE' or 'DATA_APP_VIEW')
+ * @param {number} options.objectId - Object ID
+ * @param {string} options.objectName - Object name
  * @param {string} options.objectType - Object type ('PAGE', 'DATA_APP_VIEW', 'CARD')
  * @param {Object} options.currentContext - Current DomoContext
  * @param {Array} options.childPages - Optional child pages array
@@ -139,7 +142,6 @@ export async function storeSidepanelData({
   objectId,
   objectName,
   objectType,
-  appId,
   currentContext,
   childPages = null,
   statusShown = false
@@ -149,7 +151,6 @@ export async function storeSidepanelData({
     objectId,
     objectName,
     objectType,
-    appId,
     currentContext: currentContext?.toJSON?.() || currentContext,
     tabId: currentContext?.tabId || null,
     timestamp: Date.now(),

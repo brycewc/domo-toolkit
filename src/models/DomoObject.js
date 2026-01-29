@@ -11,27 +11,42 @@ export class DomoObject {
    * @param {string} id - The object ID
    * @param {string} baseUrl - The base URL (e.g., https://instance.domo.com)
    * @param {Object} [metadata] - Optional metadata about the object
+   * @param {string} [originalUrl] - Optional original URL for parent extraction
+   * @param {string} [parentId] - Optional parent ID if already known
    */
-  constructor(type, id, baseUrl, metadata = {}) {
+  constructor(
+    type,
+    id,
+    baseUrl,
+    metadata = {},
+    originalUrl = null,
+    parentId = null
+  ) {
     this.id = id;
     this.baseUrl = baseUrl;
     this.metadata = metadata;
+    this.originalUrl = originalUrl; // Store for parent extraction
+    this.parentId = parentId; // Store parent ID if already known
     this.objectType = getObjectType(type);
 
     if (!this.objectType) {
       throw new Error(`Unknown object type: ${type}`);
     }
 
-    // Build and cache the URL only if the type has a navigable URL and doesn't require a parent
-    // For types requiring a parent, the URL will be built asynchronously when needed
+    // Build and cache the URL
     if (!this.objectType.hasUrl()) {
       // For types without URLs, we can't navigate
       this.url = null;
     } else if (this.requiresParentForUrl()) {
-      // For types requiring a parent, don't build URL yet (it's async)
-      this.url = null;
+      // For types requiring a parent, build URL if we have the parent ID
+      if (parentId) {
+        this.url = `${baseUrl}${this.objectType.urlPath.replace('{parent}', parentId).replace('{id}', id)}`;
+      } else {
+        // Don't build URL yet (it's async)
+        this.url = null;
+      }
     } else {
-      // For simple types, build URL synchronously (don't call async buildObjectUrl)
+      // For simple types, build URL synchronously
       this.url = `${baseUrl}${this.objectType.urlPath.replace('{id}', id)}`;
     }
   }
@@ -87,23 +102,38 @@ export class DomoObject {
   /**
    * Get the parent ID for this object and enrich metadata with parent details
    * @param {boolean} [inPageContext=false] - Whether already in page context (skip executeInPage)
+   * @param {string} [url=null] - Optional URL to extract parent ID from (overrides this.originalUrl)
    * @returns {Promise<string>} The parent ID
    * @throws {Error} If the parent cannot be fetched or is not supported
    */
-  async getParent(inPageContext = false) {
+  async getParent(inPageContext = false, url = null) {
     let parentId;
 
-    switch (this.objectType.id) {
-      case 'DATA_APP_VIEW':
-        parentId = await getAppStudioPageParent(this.id, inPageContext);
-        break;
-      case 'DRILL_PATH':
-        parentId = await getDrillParentCardId(this.id, inPageContext);
-        break;
-      default:
-        throw new Error(
-          `Parent lookup not supported for type: ${this.objectType.id}`
-        );
+    // First check if we already have the parent ID stored
+    if (this.parentId) {
+      parentId = this.parentId;
+    } else {
+      // Try to extract parent ID from URL if available
+      const urlToUse = url || this.originalUrl;
+      if (urlToUse) {
+        parentId = this.objectType.extractParentId(urlToUse);
+      }
+
+      // Fall back to API lookup if URL extraction didn't work
+      if (!parentId) {
+        switch (this.objectType.id) {
+          case 'DATA_APP_VIEW':
+            parentId = await getAppStudioPageParent(this.id, inPageContext);
+            break;
+          case 'DRILL_PATH':
+            parentId = await getDrillParentCardId(this.id, inPageContext);
+            break;
+          default:
+            throw new Error(
+              `Parent lookup not supported for type: ${this.objectType.id}`
+            );
+        }
+      }
     }
 
     // Fetch parent details and store in metadata
@@ -198,17 +228,30 @@ export class DomoObject {
   async getParentWithTabId(tabId) {
     let parentId;
 
-    switch (this.objectType.id) {
-      case 'DATA_APP_VIEW':
-        parentId = await getAppStudioPageParent(this.id, false, tabId);
-        break;
-      case 'DRILL_PATH':
-        parentId = await getDrillParentCardId(this.id, false, tabId);
-        break;
-      default:
-        throw new Error(
-          `Parent lookup not supported for type: ${this.objectType.id}`
-        );
+    // First check if we already have the parent ID stored
+    if (this.parentId) {
+      parentId = this.parentId;
+    } else {
+      // Try to extract parent ID from URL if available
+      if (this.originalUrl) {
+        parentId = this.objectType.extractParentId(this.originalUrl);
+      }
+
+      // Fall back to API lookup if URL extraction didn't work
+      if (!parentId) {
+        switch (this.objectType.id) {
+          case 'DATA_APP_VIEW':
+            parentId = await getAppStudioPageParent(this.id, false, tabId);
+            break;
+          case 'DRILL_PATH':
+            parentId = await getDrillParentCardId(this.id, false, tabId);
+            break;
+          default:
+            throw new Error(
+              `Parent lookup not supported for type: ${this.objectType.id}`
+            );
+        }
+      }
     }
 
     return parentId;
@@ -257,6 +300,8 @@ export class DomoObject {
       baseUrl: this.baseUrl,
       metadata: this.metadata,
       url: this.url,
+      originalUrl: this.originalUrl,
+      parentId: this.parentId,
       typeId: this.objectType.id,
       typeName: this.objectType.name,
       objectType: {
@@ -276,12 +321,14 @@ export class DomoObject {
   static fromJSON(data) {
     if (!data) return null;
 
-    // Create instance using the objectType.id
+    // Create instance using the objectType.id, including originalUrl and parentId
     const instance = new DomoObject(
       data.objectType.id,
       data.id,
       data.baseUrl,
-      data.metadata || {}
+      data.metadata || {},
+      data.originalUrl || null,
+      data.parentId || null
     );
 
     // Restore the URL if it was already built

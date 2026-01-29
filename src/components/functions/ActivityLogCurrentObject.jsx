@@ -62,7 +62,7 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
           }
 
           // Map to IDs and store as array of objects with type and id
-          const cardObjects = cardIds.map((card) => ({
+          const cardObjects = cards.map((card) => ({
             type: 'CARD',
             id: String(card.id)
           }));

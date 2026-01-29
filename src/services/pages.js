@@ -85,65 +85,23 @@ export async function getChildPages({
     // Execute fetch in page context to use authenticated session
     const result = await executeInPage(
       async (pageId, pageType, appId, includeGrandchildren) => {
-        // Normalize pageId to array
-        const pageIds = Array.isArray(pageId) ? pageId : [pageId];
-
-        // Build request body
-        const body = {
-          orderBy: 'lastModified',
-          ascending: true
-        };
-
-        if (pageType === 'DATA_APP_VIEW') {
-          body.includeDataAppIdsClause = true;
-          body.includeDataAppViews = true;
-          body.dataAppIds = [appId];
-        } else {
-          body.includeParentPageIdsClause = true;
-          body.parentPageIds = pageIds;
-        }
-
-        // Make API call to fetch pages with relative URL
-        const response = await fetch(
-          `/api/content/v1/pages/adminsummary?limit=100&skip=0`,
-          {
-            method: 'POST',
-            body: JSON.stringify(body),
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json'
-            },
-            credentials: 'include'
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch pages (HTTP ${response.status})`);
-        }
-
-        const adminSummaryResponse = await response.json();
-        const childPages = adminSummaryResponse.pageAdminSummaries || [];
-
-        // If includeGrandchildren is true, fetch grandchildren for each child page
-        if (
-          includeGrandchildren &&
-          childPages.length > 0 &&
-          pageType === 'PAGE'
-        ) {
-          const grandchildPageIds = childPages.map((page) => page.pageId);
-
-          const grandchildrenBody = {
+        let childPages = [];
+        if (pageType === 'PAGE') {
+          // Build request body
+          const body = {
             orderBy: 'lastModified',
-            ascending: true,
-            includeParentPageIdsClause: true,
-            parentPageIds: grandchildPageIds
+            ascending: true
           };
 
-          const grandchildrenResponse = await fetch(
+          body.includeParentPageIdsClause = true;
+          body.parentPageIds = [pageId];
+
+          // Make API call to fetch pages with relative URL
+          const response = await fetch(
             `/api/content/v1/pages/adminsummary?limit=100&skip=0`,
             {
               method: 'POST',
-              body: JSON.stringify(grandchildrenBody),
+              body: JSON.stringify(body),
               headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json'
@@ -152,18 +110,67 @@ export async function getChildPages({
             }
           );
 
-          if (!grandchildrenResponse.ok) {
-            console.warn(
-              `Failed to fetch grandchildren pages (HTTP ${grandchildrenResponse.status})`
-            );
-            return childPages;
+          if (!response.ok) {
+            throw new Error(`Failed to fetch pages (HTTP ${response.status})`);
           }
 
-          const grandchildrenData = await grandchildrenResponse.json();
-          const grandchildPages = grandchildrenData.pageAdminSummaries || [];
+          const adminSummaryResponse = await response.json();
+          childPages = adminSummaryResponse.pageAdminSummaries || [];
 
-          // Return both children and grandchildren
-          return [...childPages, ...grandchildPages];
+          // If includeGrandchildren is true, fetch grandchildren for each child page
+          if (includeGrandchildren && childPages.length > 0) {
+            const grandchildPageIds = childPages.map((page) => page.pageId);
+
+            const grandchildrenBody = {
+              orderBy: 'lastModified',
+              ascending: true,
+              includeParentPageIdsClause: true,
+              parentPageIds: grandchildPageIds
+            };
+
+            const grandchildrenResponse = await fetch(
+              `/api/content/v1/pages/adminsummary?limit=100&skip=0`,
+              {
+                method: 'POST',
+                body: JSON.stringify(grandchildrenBody),
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Accept': 'application/json'
+                },
+                credentials: 'include'
+              }
+            );
+
+            if (!grandchildrenResponse.ok) {
+              console.warn(
+                `Failed to fetch grandchildren pages (HTTP ${grandchildrenResponse.status})`
+              );
+              return childPages;
+            }
+
+            const grandchildrenData = await grandchildrenResponse.json();
+            const grandchildPages = grandchildrenData.pageAdminSummaries || [];
+
+            // Return both children and grandchildren
+            childPages = [...childPages, ...grandchildPages];
+          }
+        } else if (pageType === 'DATA_APP_VIEW') {
+          const appResponse = await fetch(`/api/content/v1/dataapps/${appId}`, {
+            method: 'GET'
+          });
+
+          if (!appResponse.ok) {
+            throw new Error(
+              `Failed to fetch app studio app ${appId} (HTTP ${appResponse.status})`
+            );
+          }
+
+          const appData = await appResponse.json();
+          childPages = appData.views.map((view) => ({
+            pageId: view.viewId,
+            pageTitle: view.title,
+            typeId: 'DATA_APP_VIEW'
+          }));
         }
 
         return childPages;
@@ -230,7 +237,7 @@ export async function sharePagesWithSelf({ pageIds, tabId }) {
 /**
  * Get all pages that cards appear on (including regular pages, app studio pages, and report builder pages)
  * @param {Array<number>} cardIds - Array of card IDs
- * @returns {Promise<Object>} Array of page objects with type and id
+ * @returns {Promise<Object>} Array of page objects with type, id, and name
  * @throws {Error} If the fetch fails
  */
 export async function getPagesForCards(cardIds) {
@@ -255,57 +262,82 @@ export async function getPagesForCards(cardIds) {
         if (!detailCards.length) {
           throw new Error('No cards found.');
         }
-
+        console.log(detailCards);
         // Build flat lists of all pages, app pages, and report pages from all cards
-        const allPageIds = [];
-        const allAppPageIds = [];
-        const allReportPageIds = [];
+        const allPages = [];
+        const allAppPages = [];
+        const allReportPages = [];
 
         detailCards.forEach((card) => {
           // Regular pages
           if (Array.isArray(card.adminAllPages)) {
             card.adminAllPages.forEach((page) => {
-              if (page && page.id) {
-                allPageIds.push(page.id);
+              if (page && page.pageId) {
+                allPages.push({
+                  id: page.pageId,
+                  name: page.title || `Page ${page.pageId}`
+                });
               }
             });
           }
           // App studio pages
           if (Array.isArray(card.adminAllAppPages)) {
             card.adminAllAppPages.forEach((page) => {
-              if (page && page.id) {
-                allAppPageIds.push(page.id);
+              if (page && page.appPageId) {
+                allAppPages.push({
+                  id: page.appPageId,
+                  name: page.appPageTitle || `App Page ${page.appPageId}`,
+                  appId: page.appId // Include appId for URL building
+                });
               }
             });
           }
           // Report builder pages
           if (Array.isArray(card.adminAllReportPages)) {
             card.adminAllReportPages.forEach((page) => {
-              if (page && page.id) {
-                allReportPageIds.push(page.id);
+              if (page && page.reportPageId) {
+                allReportPages.push({
+                  id: page.reportPageId,
+                  name:
+                    page.reportPageTitle || `Report Page ${page.reportPageId}`
+                });
               }
             });
           }
         });
 
-        // Deduplicate page IDs for each type
-        const pageIds = [...new Set(allPageIds)];
-        const appPageIds = [...new Set(allAppPageIds)];
-        const reportPageIds = [...new Set(allReportPageIds)];
+        // Deduplicate pages by ID for each type (keep first occurrence's data)
+        const deduplicatePages = (pages) => {
+          const map = new Map();
+          pages.forEach((page) => {
+            if (!map.has(page.id)) {
+              map.set(page.id, page);
+            }
+          });
+          return Array.from(map.values());
+        };
+
+        const pages = deduplicatePages(allPages);
+        const appPages = deduplicatePages(allAppPages);
+        const reportPages = deduplicatePages(allReportPages);
 
         // Combine all page types into array of objects
         const pageObjects = [
-          ...pageIds.map((id) => ({
+          ...pages.map(({ id, name }) => ({
             type: 'PAGE',
-            id: String(id)
+            id: String(id),
+            name
           })),
-          ...appPageIds.map((id) => ({
+          ...appPages.map(({ id, name, appId }) => ({
             type: 'DATA_APP_VIEW',
-            id: String(id)
+            id: String(id),
+            name,
+            appId // Include appId for URL building
           })),
-          ...reportPageIds.map((id) => ({
+          ...reportPages.map(({ id, name }) => ({
             type: 'REPORT_BUILDER_VIEW',
-            id: String(id)
+            id: String(id),
+            name
           }))
         ];
 

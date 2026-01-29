@@ -35,13 +35,15 @@ import {
  * @param {Function} props.onItemAction - Callback when an action button is clicked
  * @param {Boolean} props.showActions - Whether to show action buttons
  * @param {Boolean} props.showCounts - Whether to show item counts
+ * @param {String} props.objectType - The type of object being displayed (e.g., 'DATA_APP_VIEW', 'PAGE')
  */
 export function DataList({
   items = [],
   header,
   onItemAction,
   showActions = true,
-  showCounts = true
+  showCounts = true,
+  objectType
 }) {
   return (
     <Card className='w-full overflow-y-auto p-2'>
@@ -56,6 +58,7 @@ export function DataList({
               onItemAction={onItemAction}
               showActions={showActions}
               showCounts={showCounts}
+              objectType={objectType}
             />
           ))}
         </DisclosureGroup>
@@ -79,13 +82,15 @@ export function DataList({
  * @param {Function} props.onItemAction - Callback when action is clicked
  * @param {Boolean} props.showActions - Whether to show action buttons
  * @param {Boolean} props.showCounts - Whether to show counts
+ * @param {String} props.objectType - The type of object being displayed
  */
 function DataListItem({
   item,
   onItemAction,
   showActions = true,
   showCounts = true,
-  depth = 0
+  depth = 0,
+  objectType
 }) {
   const hasChildren = item.children && item.children.length > 0;
   const [isOpen, setIsOpen] = useState(false);
@@ -215,21 +220,23 @@ function DataListItem({
                   {isCopied ? 'Copied!' : 'Copy ID'}
                 </Tooltip.Content>
               </Tooltip>
-              <Tooltip delay={400} closeDelay={0}>
-                <Button
-                  variant='ghost'
-                  size='sm'
-                  fullWidth
-                  isIconOnly
-                  onPress={() => handleAction('share')}
-                  aria-label='Share'
-                >
-                  <IconUserPlus size={4} />
-                </Button>
-                <Tooltip.Content className='text-xs'>
-                  Share with yourself
-                </Tooltip.Content>
-              </Tooltip>
+              {objectType !== 'DATA_APP_VIEW' && (
+                <Tooltip delay={400} closeDelay={0}>
+                  <Button
+                    variant='ghost'
+                    size='sm'
+                    fullWidth
+                    isIconOnly
+                    onPress={() => handleAction('share')}
+                    aria-label='Share'
+                  >
+                    <IconUserPlus size={4} />
+                  </Button>
+                  <Tooltip.Content className='text-xs'>
+                    Share with yourself
+                  </Tooltip.Content>
+                </Tooltip>
+              )}
             </ButtonGroup>
           </div>
         )}
@@ -246,6 +253,7 @@ function DataListItem({
                 showActions={showActions}
                 showCounts={showCounts}
                 depth={depth + 1}
+                objectType={objectType}
               />
             ))}
           </Disclosure.Body>

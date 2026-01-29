@@ -71,6 +71,8 @@ export class DomoContext {
             baseUrl: this.domoObject.baseUrl,
             metadata: this.domoObject.metadata,
             url: this.domoObject.url,
+            originalUrl: this.domoObject.originalUrl,
+            parentId: this.domoObject.parentId,
             typeId: this.domoObject.typeId,
             typeName: this.domoObject.typeName,
             objectType: {

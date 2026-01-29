@@ -75,12 +75,18 @@ export default function App() {
           windowId: window.id
         });
 
-        if (response.success && response.context) {
-          // Reconstruct DomoContext from plain object to get class instance with methods
-          const context = DomoContext.fromJSON(response.context);
-          console.log('[Sidepanel] Reconstructed context:', context);
-          setCurrentContext(context);
+        if (response.success) {
+          // Always set the tab ID so we receive updates for this tab
           setCurrentTabId(response.tabId);
+
+          if (response.context) {
+            // Reconstruct DomoContext from plain object to get class instance with methods
+            const context = DomoContext.fromJSON(response.context);
+            console.log('[Sidepanel] Reconstructed context:', context);
+            setCurrentContext(context);
+          } else {
+            setCurrentContext(null);
+          }
         } else {
           setCurrentContext(null);
           setCurrentTabId(null);
@@ -102,13 +108,23 @@ export default function App() {
 
       // Only handle messages meant for the sidepanel
       if (message.type === 'TAB_CONTEXT_UPDATED') {
-        if (message.tabId === currentTabId) {
-          const context = DomoContext.fromJSON(message.context);
+        console.log(
+          `[Sidepanel] TAB_CONTEXT_UPDATED: message.tabId=${message.tabId}, currentTabId=${currentTabId}, lockedTabId=${lockedTabId}`
+        );
+
+        // Update context if it's for the current tab (or if we're not locked to a specific tab)
+        const shouldUpdate = lockedTabId
+          ? message.tabId === lockedTabId
+          : message.tabId === currentTabId;
+
+        console.log(`[Sidepanel] shouldUpdate=${shouldUpdate}`);
+
+        if (shouldUpdate) {
+          const context = message.context
+            ? DomoContext.fromJSON(message.context)
+            : null;
           setCurrentContext(context);
-          console.log(
-            '[Popup] Received update and reconstructed message context:',
-            message
-          );
+          console.log('[Sidepanel] Updated context:', context);
         }
         sendResponse({ received: true });
         return true;
@@ -151,7 +167,7 @@ export default function App() {
       console.log('[Sidepanel] Message listener removed');
       chrome.runtime.onMessage.removeListener(handleMessage);
     };
-  }, []); // Remove lockedTabId from dependencies
+  }, [currentTabId, lockedTabId]); // Add dependencies so handleMessage has current values
 
   // Listen for tab activation changes (only when not locked)
   useEffect(() => {

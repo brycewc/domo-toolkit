@@ -256,6 +256,9 @@ export async function deleteObject({ object, tabId = null }) {
           case 'VARIABLE':
             fetchRequest.url = `/api/query/v1/functions/template/${object.id}`;
             break;
+          case 'WORKFLOW_MODEL':
+            fetchRequest.url = `/api/workflow/v1/models/${object.id}`;
+            break;
           default:
             break;
         }

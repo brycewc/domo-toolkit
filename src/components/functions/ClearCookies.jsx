@@ -82,6 +82,7 @@ export function ClearCookies({ currentContext, onStatusUpdate, isDisabled }) {
           'warning'
         );
       }
+      chrome.tabs.reload(currentContext?.tabId);
 
       setIsClearingCookies(false);
     } catch (error) {

@@ -19,11 +19,11 @@ import { sharePagesWithSelf } from '@/services';
 import { DomoContext } from '@/models';
 
 /**
- * Transform card pages data into hierarchical structure
- * For CARD type, childPages is a flat array with pageType property
+ * Transform grouped pages data into hierarchical structure
+ * For CARD and DATA_SOURCE types, childPages is a flat array with pageType property
  * We group by pageType and create virtual parent items
  */
-function transformCardPagesData(childPages, origin) {
+function transformGroupedPagesData(childPages, origin) {
   if (!childPages || !childPages.length) return [];
 
   // Group pages by pageType
@@ -95,6 +95,7 @@ export function GetPagesView({
   onStatusUpdate = null
 }) {
   const [isLoading, setIsLoading] = useState(true);
+  const [showSpinner, setShowSpinner] = useState(false);
   const [error, setError] = useState(null);
   const [items, setItems] = useState([]);
   const [pageData, setPageData] = useState(null); // Store metadata for rebuilding
@@ -108,7 +109,13 @@ export function GetPagesView({
 
   const loadPagesData = async () => {
     setIsLoading(true);
+    setShowSpinner(false);
     setError(null);
+
+    // Delay showing spinner to avoid flash on quick loads
+    const spinnerTimer = setTimeout(() => {
+      setShowSpinner(true);
+    }, 200); // 200ms delay
 
     try {
       // Get the stored page data from local storage
@@ -127,14 +134,8 @@ export function GetPagesView({
       // Set the view type based on the data type
       setViewType(data.type);
 
-      const {
-        objectId,
-        appId,
-        objectType,
-        objectName,
-        currentContext,
-        childPages
-      } = data;
+      const { objectId, objectType, objectName, currentContext, childPages } =
+        data;
       const context = DomoContext.fromJSON(currentContext);
       if (context.tabId) {
         setTabId(context.tabId);
@@ -144,7 +145,7 @@ export function GetPagesView({
       if (!childPages || !childPages.length) {
         setError(
           objectType === 'DATA_APP_VIEW'
-            ? `No views (pages) found for app studio app ${appId}`
+            ? `No views (pages) found for app studio app ${objectId}`
             : objectType === 'CARD'
               ? `No pages found for card ${objectId}`
               : `No child pages found for page ${objectId}`
@@ -156,7 +157,6 @@ export function GetPagesView({
       // Store metadata for rebuilding items later
       setPageData({
         objectId,
-        appId,
         objectType,
         objectName:
           objectName ||
@@ -165,9 +165,9 @@ export function GetPagesView({
         origin
       });
 
-      if (objectType === 'CARD') {
-        const transformedItems = transformCardPagesData(childPages, origin);
-        // This is CARD data - use the transformed structure
+      if (objectType === 'CARD' || objectType === 'DATA_SOURCE') {
+        const transformedItems = transformGroupedPagesData(childPages, origin);
+        // This is CARD or DATA_SOURCE data - use the transformed structure
         setItems(transformedItems);
       } else {
         // Normal PAGE or DATA_APP_VIEW data - use existing logic
@@ -177,7 +177,14 @@ export function GetPagesView({
         );
 
         // Build items structure with all pages at once
-        buildItemsFromPages(children, childPages, appId, objectType, origin);
+        buildItemsFromPages({
+          pages: children,
+          childPages,
+          objectId,
+          objectName,
+          objectType,
+          origin
+        });
       }
 
       // If this is a childPagesWarning, show the warning status only if not already shown
@@ -197,17 +204,20 @@ export function GetPagesView({
       console.error('Error loading pages:', err);
       setError(err.message || 'Failed to load child pages');
     } finally {
+      clearTimeout(spinnerTimer);
       setIsLoading(false);
+      setShowSpinner(false);
     }
   };
 
-  const buildItemsFromPages = (
+  const buildItemsFromPages = ({
     pages,
     childPages,
-    appId,
+    objectId,
+    objectName,
     objectType,
     origin
-  ) => {
+  }) => {
     // Sort pages by title
     const sortedPages = (pages || []).sort((a, b) =>
       a.pageTitle.localeCompare(b.pageTitle)
@@ -217,7 +227,7 @@ export function GetPagesView({
     const childItems = sortedPages?.map((page) => {
       const pageUrl =
         objectType === 'DATA_APP_VIEW'
-          ? `${origin}/app-studio/${appId}/pages/${page.pageId}`
+          ? `${origin}/app-studio/${objectId}/pages/${page.pageId}`
           : `${origin}/page/${page.pageId}`;
 
       // Filter child pages by parentPageId
@@ -240,7 +250,7 @@ export function GetPagesView({
                   label: childPage.pageTitle,
                   url:
                     objectType === 'DATA_APP_VIEW'
-                      ? `${origin}/app-studio/${appId}/pages/${childPage.pageId}`
+                      ? `${origin}/app-studio/${objectId}/pages/${childPage.pageId}`
                       : `${origin}/page/${childPage.pageId}`,
                   metadata: `ID: ${childPage.pageId}`
                 }))
@@ -281,7 +291,7 @@ export function GetPagesView({
     }
   };
 
-  if (isLoading) {
+  if (isLoading && showSpinner) {
     return (
       <div className='flex items-center justify-center'>
         <div className='flex flex-col items-center gap-2'>
@@ -306,12 +316,16 @@ export function GetPagesView({
   return (
     <DataList
       items={items}
+      objectType={pageData?.objectType}
       header={
         <div className='flex flex-col gap-1'>
           <Card.Title className='flex items-start justify-between'>
             <div className='flex min-h-8 flex-wrap items-center justify-start gap-x-1'>
-              <span className='font-bold'>{pageData.objectName}</span>
-              {pageData.objectType === 'CARD' ? 'Pages' : 'Child Pages'}
+              <span className='font-bold'>{pageData?.objectName}</span>
+              {pageData?.objectType === 'CARD' ||
+              pageData?.objectType === 'DATA_SOURCE'
+                ? 'Pages'
+                : 'Child Pages'}
             </div>
             <ButtonGroup hideSeparator>
               <Tooltip delay={400} closeDelay={0}>
@@ -337,7 +351,7 @@ export function GetPagesView({
                   isIconOnly
                   onPress={async () =>
                     await navigator.clipboard.writeText(
-                      pageData.pageId.toString()
+                      pageData.objectId.toString()
                     )
                   }
                   aria-label='Copy'
@@ -393,7 +407,10 @@ export function GetPagesView({
           </Card.Title>
           {items.length !== undefined &&
             (() => {
-              if (pageData.objectType !== 'CARD') {
+              if (
+                pageData?.objectType !== 'CARD' &&
+                pageData?.objectType !== 'DATA_SOURCE'
+              ) {
                 const grandchildCount = items.reduce(
                   (total, item) => total + (item.children?.length || 0),
                   0

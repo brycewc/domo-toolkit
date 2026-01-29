@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { Button, Dropdown, Label, Tooltip } from '@heroui/react';
-import { IconClipboard, IconJson } from '@tabler/icons-react';
+import { IconCheck, IconClipboard, IconJson } from '@tabler/icons-react';
 import { JsonStringifyOrder } from '@/utils';
 export function Copy({
   currentContext,
@@ -7,18 +8,30 @@ export function Copy({
   isDisabled,
   navigateToCopiedRef
 }) {
+  const [isCopied, setIsCopied] = useState(false);
+
   const handlePress = () => {
-    navigator.clipboard.writeText(currentContext?.domoObject?.id);
-    showStatus(
-      'Success',
-      `Copied ${currentContext?.domoObject?.typeName} ID ${currentContext?.domoObject?.id} to clipboard`,
-      'success',
-      2000
-    );
-    // Trigger detection in NavigateToCopiedObject
-    navigateToCopiedRef.current?.triggerDetection(
-      currentContext?.domoObject?.id
-    );
+    try {
+      navigator.clipboard.writeText(currentContext?.domoObject?.id);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+      showStatus(
+        'Success',
+        `Copied ${currentContext?.domoObject?.typeName} ID ${currentContext?.domoObject?.id} to clipboard`,
+        'success',
+        2000
+      );
+      navigateToCopiedRef.current?.triggerDetection(
+        currentContext?.domoObject?.id
+      );
+    } catch (error) {
+      showStatus(
+        'Error',
+        `Failed to copy ${currentContext?.domoObject?.typeName.toLowerCase()} ID to clipboard`,
+        'error',
+        3000
+      );
+    }
   };
   const handleAction = (key) => {
     switch (key) {
@@ -47,6 +60,19 @@ export function Copy({
           currentContext?.domoObject?.metadata?.details?.streamId
         );
         break;
+      case 'data-app':
+        navigator.clipboard.writeText(currentContext?.domoObject?.parentId);
+        showStatus(
+          'Success',
+          `Copied App Studio App ID ${currentContext?.domoObject?.parentId} to clipboard`,
+          'success',
+          2000
+        );
+        // Trigger detection in NavigateToCopiedObject
+        navigateToCopiedRef.current?.triggerDetection(
+          currentContext?.domoObject?.parentId
+        );
+        break;
       default:
         break;
     }
@@ -61,7 +87,7 @@ export function Copy({
           onPress={handlePress}
           isDisabled={isDisabled || !currentContext?.domoObject?.id}
         >
-          <IconClipboard size={4} />
+          {isCopied ? <IconCheck size={4} /> : <IconClipboard size={4} />}
         </Button>
         <Dropdown.Popover
           className='w-full min-w-[12rem]'
@@ -76,6 +102,12 @@ export function Copy({
               <Dropdown.Item id='stream' textValue='Copy Stream ID'>
                 <IconClipboard size={4} className='size-4 shrink-0' />
                 <Label>Copy Stream ID</Label>
+              </Dropdown.Item>
+            )}
+            {currentContext?.domoObject?.typeId === 'DATA_APP_VIEW' && (
+              <Dropdown.Item id='data-app' textValue='Copy App ID'>
+                <IconClipboard size={4} className='size-4 shrink-0' />
+                <Label>Copy App ID</Label>
               </Dropdown.Item>
             )}
           </Dropdown.Menu>
