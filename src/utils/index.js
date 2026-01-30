@@ -1,4 +1,5 @@
 export { waitForCards } from './cardHelpers';
+export { clearCookies } from './clearCookies';
 export {
   EXCLUDED_HOSTNAMES,
   EXCLUDED_INSTANCES,

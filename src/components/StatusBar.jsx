@@ -86,10 +86,7 @@ export function StatusBar({
   const bgColor = bgColorMap[status] || 'bg-accent';
 
   return (
-    <Alert
-      status={status}
-      className={`h-fit w-full overflow-hidden bg-linear-to-r to-${status}/10`}
-    >
+    <Alert status={status} className={`relative h-fit w-full overflow-hidden`}>
       {timeout ? (
         <div
           id='status-bar-timeout-indicator'

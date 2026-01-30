@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Button, Spinner, Tooltip } from '@heroui/react';
+import { Button, Dropdown, Label, Spinner, Tooltip } from '@heroui/react';
 import { IconCookieOff } from '@tabler/icons-react';
+import { clearCookies } from '@/utils';
 
 export function ClearCookies({ currentContext, onStatusUpdate, isDisabled }) {
   const [isClearingCookies, setIsClearingCookies] = useState(false);
@@ -13,104 +14,59 @@ export function ClearCookies({ currentContext, onStatusUpdate, isDisabled }) {
     }
   }, [currentContext]);
 
-  const clearCookies = async () => {
+  const handleAction = async (key) => {
     setIsClearingCookies(true);
-
-    try {
-      if (!currentContext?.url) {
-        onStatusUpdate?.('Error', 'Could not get active tab', 'danger');
-        setIsClearingCookies(false);
-        return;
-      }
-
-      // Get all cookies
-      const domoCookies = await chrome.cookies.getAll({
-        domain: currentDomain
-      });
-
-      // Remove each cookie
-      let removedCount = 0;
-      const errors = [];
-
-      const removePromises = domoCookies.map(async (cookie) => {
-        try {
-          // Clean up domain (remove leading dot if present)
-          let domain = cookie.domain;
-          if (domain.startsWith('.')) {
-            domain = domain.substring(1);
-          }
-
-          // Construct proper URL
-          const protocol = cookie.secure ? 'https:' : 'http:';
-          const cookieUrl = `${protocol}//${domain}${cookie.path}`;
-
-          const result = await chrome.cookies.remove({
-            url: cookieUrl,
-            name: cookie.name,
-            storeId: cookie.storeId
-          });
-
-          if (result) {
-            removedCount++;
-          } else {
-            errors.push(`Failed to remove: ${cookie.name}`);
-          }
-        } catch (err) {
-          errors.push(`${cookie.name}: ${err.message}`);
-        }
-      });
-
-      await Promise.all(removePromises);
-
-      // Show result message
-      if (errors.length === 0) {
-        onStatusUpdate?.(
-          'Cookies Cleared',
-          `Successfully cleared ${removedCount} cookie${
-            removedCount !== 1 ? 's' : ''
-          } for ${currentDomain}`,
-          'success'
-        );
-      } else {
-        onStatusUpdate?.(
-          'Partial Success',
-          `Cleared ${removedCount} cookie${
-            removedCount !== 1 ? 's' : ''
-          }, but ${errors.length} error${
-            errors.length !== 1 ? 's' : ''
-          } occurred`,
-          'warning'
-        );
-      }
-      chrome.tabs.reload(currentContext?.tabId);
-
-      setIsClearingCookies(false);
-    } catch (error) {
-      onStatusUpdate?.('Error', error.message, 'danger');
-      setIsClearingCookies(false);
-    }
+    const result = await clearCookies({
+      domains: key === 'clear-all' ? null : [currentDomain],
+      excludeDomains: key === 'clear-others',
+      tabId: currentContext?.tabId
+    });
+    onStatusUpdate(
+      result.title,
+      result.description,
+      result.status,
+      result.timeout
+    );
+    setIsClearingCookies(false);
   };
 
   return (
     <Tooltip delay={400} closeDelay={0}>
-      <Button
-        variant='tertiary'
-        fullWidth
-        isIconOnly
-        onPress={clearCookies}
-        isPending={isClearingCookies}
-        isDisabled={isDisabled}
-      >
-        {({ isPending }) => (
-          <>
-            {isPending ? (
-              <Spinner color='currentColor' size='sm' />
-            ) : (
-              <IconCookieOff size={4} className='text-danger' />
-            )}
-          </>
-        )}
-      </Button>
+      <Dropdown trigger='longPress' isDisabled={isDisabled}>
+        <Button
+          variant='tertiary'
+          fullWidth
+          isIconOnly
+          onPress={handleAction}
+          isPending={isClearingCookies}
+          isDisabled={isDisabled}
+        >
+          {({ isPending }) => (
+            <>
+              {isPending ? (
+                <Spinner color='currentColor' size='sm' />
+              ) : (
+                <IconCookieOff size={4} className='text-danger' />
+              )}
+            </>
+          )}
+        </Button>
+        <Dropdown.Popover
+          className='w-full min-w-[12rem]'
+          placement='bottom left'
+        >
+          <Dropdown.Menu onAction={handleAction}>
+            <Dropdown.Item id='clear-others' textValue='Clear Other Instances'>
+              <IconCookieOff size={4} className='size-4 shrink-0 text-warning' />
+              <Label>Clear Other Instances</Label>
+            </Dropdown.Item>
+            <Dropdown.Item id='clear-all' textValue='Clear All Domo Cookies'>
+              <IconCookieOff size={4} className='size-4 shrink-0 text-danger' />
+              <Label>Clear All Domo Cookies</Label>
+            </Dropdown.Item>
+          </Dropdown.Menu>
+        </Dropdown.Popover>
+      </Dropdown>
       <Tooltip.Content>
         Clear cookies for{' '}
         <span className='font-semibold lowercase'>{currentDomain}</span>

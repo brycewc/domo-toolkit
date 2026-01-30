@@ -203,32 +203,22 @@ export function ActionButtons({
           )}
         </Card.Content>
       </Card>
-      <div className='relative w-full'>
-        <div
-          className={`transition-all duration-300 ease-in-out ${
-            statusBar.visible
-              ? '-translate-y-2 opacity-0'
-              : 'translate-y-0 opacity-100'
-          }`}
-        >
+      <div className='w-full'>
+        {statusBar.visible ? (
+          <StatusBar
+            key={statusBar.key}
+            title={statusBar.title}
+            description={statusBar.description}
+            status={statusBar.status}
+            timeout={statusBar.timeout}
+            onClose={hideStatus}
+          />
+        ) : (
           <ContextFooter
             currentContext={currentContext}
             isLoading={isLoadingCurrentContext}
           />
-        </div>
-        {statusBar.visible && (
-          <div className='absolute inset-0 translate-y-0 opacity-100 transition-all duration-300 ease-in-out'>
-            <StatusBar
-              key={statusBar.key}
-              title={statusBar.title}
-              description={statusBar.description}
-              status={statusBar.status}
-              timeout={statusBar.timeout}
-              onClose={hideStatus}
-            />
-          </div>
         )}
-        {/* Debug: statusBar.visible = {statusBar.visible.toString()}, key = {statusBar.key} */}
       </div>
     </div>
   );

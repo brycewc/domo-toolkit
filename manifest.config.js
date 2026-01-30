@@ -17,9 +17,10 @@ export default defineManifest({
     'clipboardRead',
     'clipboardWrite',
     'cookies',
-    'webNavigation'
+    'webNavigation',
+    'webRequest'
   ],
-  host_permissions: ['https://*.domo.com/*'],
+  host_permissions: ['*://*.domo.com/*'],
   action: {
     default_icon: {
       48: 'public/toolkit.png'

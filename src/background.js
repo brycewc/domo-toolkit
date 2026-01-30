@@ -6,6 +6,7 @@ import {
   getPagesForCard
 } from '@/services';
 import {
+  clearCookies,
   detectCurrentObject,
   EXCLUDED_HOSTNAMES,
   executeInPage
@@ -223,12 +224,12 @@ chrome.runtime.onInstalled.addListener((details) => {
   console.log('Extension installed:', details);
 
   // Open options page with activity tab on fresh install
-  if (details.reason === 'install') {
-    // Create a new tab with the activity hash directly
-    chrome.tabs.create({
-      url: chrome.runtime.getURL('src/options/index.html#activity')
-    });
-  }
+  // if (details.reason === 'install') {
+  //   // Create a new tab with the activity hash directly
+  //   chrome.tabs.create({
+  //     url: chrome.runtime.getURL('src/options/index.html#activity')
+  //   });
+  // }
 
   // Set default configurations
   chrome.storage.sync.get(null, (result) => {
@@ -362,6 +363,139 @@ async function checkClipboard() {
   }
 }
 
+// 431 error handler function (stored for add/remove)
+async function handle431Response(details) {
+  if (details.statusCode === 431) {
+    try {
+      // Find all Domo tabs to determine which instances to preserve
+      const allTabs = await chrome.tabs.query({ url: '*://*.domo.com/*' });
+      const domoTabs = allTabs.filter((tab) => {
+        try {
+          const tabHostname = new URL(tab.url).hostname;
+          return !EXCLUDED_HOSTNAMES.includes(tabHostname);
+        } catch {
+          return false;
+        }
+      });
+      console.log(
+        '[Background] Found Domo tabs:',
+        domoTabs.map((t) => t.url)
+      );
+
+      // Get unique domains from Domo tabs, prioritizing most recently accessed
+      // Sort by lastAccessed if available, otherwise by tab id (higher = more recent)
+      domoTabs.sort(
+        (a, b) => (b.lastAccessed || b.id) - (a.lastAccessed || a.id)
+      );
+
+      const seenDomains = new Set();
+      const recentDomoTabs = [];
+      for (const tab of domoTabs) {
+        const domain = new URL(tab.url).hostname;
+        if (!seenDomains.has(domain)) {
+          seenDomains.add(domain);
+          recentDomoTabs.push({ tab, domain });
+          if (recentDomoTabs.length >= 2) break;
+        }
+      }
+
+      // Get DA-SID cookie names for each domain to preserve
+      const daSidsToPreserve = [];
+      for (const { tab } of recentDomoTabs) {
+        try {
+          const data = await executeInPage(
+            async () => window.bootstrap?.data,
+            [],
+            tab.id
+          );
+          if (data?.environmentId && data?.analytics?.company) {
+            daSidsToPreserve.push(
+              `DA-SID-${data.environmentId}-${data.analytics.company}`
+            );
+            console.log(
+              '[Background] Preserving DA-SID for tab',
+              tab.id,
+              daSidsToPreserve[daSidsToPreserve.length - 1]
+            );
+          }
+        } catch (e) {
+          console.warn(
+            `[Background] Could not get DA-SID for tab ${tab.id}:`,
+            e
+          );
+        }
+      }
+
+      let domainsToPreserve = recentDomoTabs.map((t) => t.domain);
+
+      // Safeguard: if no Domo tabs found, at least preserve the current domain
+      if (domainsToPreserve.length === 0) {
+        const currentDomain = new URL(details.url).hostname;
+        domainsToPreserve = [currentDomain];
+        console.log(
+          '[Background] No Domo tabs found, preserving current domain:',
+          currentDomain
+        );
+      }
+
+      console.log(
+        '[Background] Preserving domains:',
+        domainsToPreserve,
+        'DA-SIDs:',
+        daSidsToPreserve
+      );
+
+      const result = await clearCookies({
+        domains: domainsToPreserve,
+        excludeDomains: true,
+        daSidsToPreserve
+      });
+      console.log('[Background] Handled 431 response:', result.description);
+      recentDomoTabs.forEach(({ tab }) => {
+        chrome.tabs.reload(tab.id);
+      });
+    } catch (error) {
+      console.error('[Background] Error handling 431 response:', error);
+    }
+  }
+}
+
+const webRequestFilter = {
+  urls: ['*://*.domo.com/*'],
+  types: ['main_frame']
+};
+
+// Track if 431 listener is currently active
+let is431ListenerActive = false;
+
+function enable431Listener() {
+  if (!is431ListenerActive) {
+    chrome.webRequest.onResponseStarted.addListener(
+      handle431Response,
+      webRequestFilter
+    );
+    is431ListenerActive = true;
+    console.log('[Background] 431 auto-clear listener enabled');
+  }
+}
+
+function disable431Listener() {
+  if (is431ListenerActive) {
+    chrome.webRequest.onResponseStarted.removeListener(handle431Response);
+    is431ListenerActive = false;
+    console.log('[Background] 431 auto-clear listener disabled');
+  }
+}
+
+// Initialize 431 listener based on stored setting
+chrome.storage.sync.get(['autoClearCookiesOn431'], (result) => {
+  // Default to true if not set
+  const enabled = result.autoClearCookiesOn431 ?? true;
+  if (enabled) {
+    enable431Listener();
+  }
+});
+
 // Clean up when tabs are closed
 chrome.tabs.onRemoved.addListener((tabId) => {
   console.log(`[Background] Tab ${tabId} removed, cleaning up context`);
@@ -465,8 +599,17 @@ chrome.webNavigation.onHistoryStateUpdated.addListener(async (details) => {
   }
 });
 
-// Listen for favicon rule changes and notify all Domo tabs
+// Listen for setting changes
 chrome.storage.onChanged.addListener(async (changes, areaName) => {
+  if (areaName === 'sync' && changes.autoClearCookiesOn431 !== undefined) {
+    const enabled = changes.autoClearCookiesOn431.newValue ?? true;
+    if (enabled) {
+      enable431Listener();
+    } else {
+      disable431Listener();
+    }
+  }
+
   if (areaName === 'sync' && changes.faviconRules) {
     console.log('[Background] Favicon rules changed, notifying all Domo tabs');
 

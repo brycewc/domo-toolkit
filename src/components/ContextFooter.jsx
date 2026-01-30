@@ -9,11 +9,11 @@ export function ContextFooter({ currentContext, isLoading }) {
       <Tooltip.Trigger>
         <Alert
           status={isDomoPage || isLoading ? 'accent' : 'warning'}
-          className={
-            isDomoPage || isLoading
-              ? 'bg-linear-to-r to-accent/10'
-              : 'bg-linear-to-r to-warning/10'
-          }
+          // className={
+          //   isDomoPage || isLoading
+          //     ? 'bg-linear-to-r to-accent/10'
+          //     : 'bg-linear-to-r to-warning/10'
+          // }
         >
           <Alert.Content>
             {isLoading ? (

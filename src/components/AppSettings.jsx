@@ -7,7 +7,8 @@ import {
   Input,
   Label,
   ListBox,
-  Select
+  Select,
+  Switch
 } from '@heroui/react';
 import { StatusBar } from '@/components';
 import { EXCLUDED_INSTANCES } from '@/utils';
@@ -16,13 +17,15 @@ export function AppSettings({ theme = 'system' }) {
   // Store all settings in a single state object for extensibility
   const [settings, setSettings] = useState({
     themePreference: theme,
-    defaultDomoInstance: ''
+    defaultDomoInstance: '',
+    autoClearCookiesOn431: true
   });
 
   // Track original settings to detect changes
   const [originalSettings, setOriginalSettings] = useState({
     themePreference: theme,
-    defaultDomoInstance: ''
+    defaultDomoInstance: '',
+    autoClearCookiesOn431: true
   });
 
   // Track visited Domo instances for the ComboBox
@@ -41,11 +44,17 @@ export function AppSettings({ theme = 'system' }) {
   useEffect(() => {
     // Load all settings from storage
     chrome.storage.sync.get(
-      ['themePreference', 'defaultDomoInstance', 'visitedDomoInstances'],
+      [
+        'themePreference',
+        'defaultDomoInstance',
+        'visitedDomoInstances',
+        'autoClearCookiesOn431'
+      ],
       (result) => {
         const loadedSettings = {
           themePreference: result.themePreference || theme || 'system',
-          defaultDomoInstance: result.defaultDomoInstance || ''
+          defaultDomoInstance: result.defaultDomoInstance || '',
+          autoClearCookiesOn431: result.autoClearCookiesOn431 ?? true
         };
         setSettings(loadedSettings);
         setOriginalSettings(loadedSettings);
@@ -67,6 +76,12 @@ export function AppSettings({ theme = 'system' }) {
         if (changes.defaultDomoInstance) {
           updatedSettings.defaultDomoInstance =
             changes.defaultDomoInstance.newValue;
+          hasChanges = true;
+        }
+
+        if (changes.autoClearCookiesOn431 !== undefined) {
+          updatedSettings.autoClearCookiesOn431 =
+            changes.autoClearCookiesOn431.newValue;
           hasChanges = true;
         }
 
@@ -160,7 +175,7 @@ export function AppSettings({ theme = 'system' }) {
 
   return (
     <div className='flex flex-col gap-2 pt-4'>
-      <Form onSubmit={handleSubmit} className='flex flex-col gap-2'>
+      <Form onSubmit={handleSubmit} className='flex flex-col gap-3'>
         <Select
           value={settings.themePreference}
           onChange={handleThemeChange}
@@ -233,6 +248,28 @@ export function AppSettings({ theme = 'system' }) {
             websites.
           </Description>
         </ComboBox>
+        <Switch
+          isSelected={settings.autoClearCookiesOn431}
+          onChange={(isSelected) =>
+            setSettings((prev) => ({
+              ...prev,
+              autoClearCookiesOn431: isSelected
+            }))
+          }
+        >
+          <div className='flex flex-col gap-1'>
+            <div className='flex flex-row gap-1'>
+              <Switch.Control>
+                <Switch.Thumb />
+              </Switch.Control>
+              <Label>Auto-clear cookies on 431 errors</Label>
+            </div>
+            <Description>
+              Automatically clear cookies when a 431 (Request Header Fields Too
+              Large) error is detected.
+            </Description>
+          </div>
+        </Switch>
         <Button type='submit' variant='primary' isDisabled={!hasChanges}>
           Save Settings
         </Button>
@@ -245,7 +282,7 @@ export function AppSettings({ theme = 'system' }) {
       >
         {isClearing ? 'Clearing...' : 'Clear All Visited Instances'}
       </Button>
-      <div className='min-h-[5rem]'>
+      <div>
         {statusBar.visible && (
           <StatusBar
             title={statusBar.title}
