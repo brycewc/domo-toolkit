@@ -323,3 +323,103 @@ export async function deleteObject({ object, tabId = null }) {
     };
   }
 }
+
+export async function updateOwner({ object, owner, tabId = null }) {
+  try {
+    if (!object || !object.typeId || !object.id) {
+      return {
+        success: false,
+        statusTitle: 'Update Failed',
+        statusDescription: 'Invalid object provided for owner update',
+        statusType: 'danger'
+      };
+    }
+
+    const result = await executeInPage(
+      async (object, newOwnerId) => {
+        console.log('Executing updateOwner:', object, newOwnerId);
+        const fetchRequest = {
+          method: 'PUT',
+          url: null,
+          body: { id: object.id, owner: parseInt(newOwnerId) }
+        };
+        switch (object.typeId) {
+          case 'ALERT':
+            fetchRequest.method = 'PATCH';
+            fetchRequest.url = `/api/social/v4/alerts/${object.id}`;
+            fetchRequest.body = {
+              id: parseInt(object.id),
+              owner: parseInt(newOwnerId)
+            };
+            break;
+          case 'WORKFLOW_MODEL':
+            fetchRequest.url = `/api/workflow/v1/models/${object.id}`;
+            fetchRequest.body.owner = newOwnerId.toString();
+            break;
+          default:
+            break;
+        }
+
+        if (!fetchRequest.url) {
+          return {
+            success: false,
+            error: `Update not supported for object type: ${object.typeId}`
+          };
+        }
+
+        console.log('Update fetch request:', fetchRequest);
+        const response = await fetch(fetchRequest.url, {
+          method: fetchRequest.method,
+          body: JSON.stringify(fetchRequest.body),
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        console.log('Update response:', response);
+        if (!response.ok) {
+          const errorText = await response.text();
+          return {
+            success: false,
+            statusCode: response.status,
+            error: errorText
+          };
+        } else {
+          return {
+            success: true,
+            objectId: object.id,
+            typeName: object.typeName
+          };
+        }
+      },
+      [object.toJSON(), owner],
+      tabId
+    );
+
+    if (result.success) {
+      return {
+        success: true,
+        statusTitle: 'Updated Successfully',
+        statusDescription: `Updated ${result.typeName?.toLowerCase() || 'object'} ${result.objectId}`,
+        statusType: 'success'
+      };
+    } else {
+      return {
+        success: false,
+        statusTitle: 'Update Failed',
+        statusDescription:
+          result.error ||
+          `Failed to update object. Status: ${result.statusCode || 'unknown'}`,
+        statusType: 'danger'
+      };
+    }
+  } catch (error) {
+    console.error('Error in updateOwner:', error);
+    return {
+      success: false,
+      error: error.message,
+      statusTitle: 'Update Failed',
+      statusDescription: error.message,
+      statusType: 'danger'
+    };
+  }
+}

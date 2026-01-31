@@ -451,9 +451,7 @@ async function handle431Response(details) {
         daSidsToPreserve
       });
       console.log('[Background] Handled 431 response:', result.description);
-      recentDomoTabs.forEach(({ tab }) => {
-        chrome.tabs.reload(tab.id);
-      });
+      chrome.tabs.reload(details.tabId);
     } catch (error) {
       console.error('[Background] Error handling 431 response:', error);
     }

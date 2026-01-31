@@ -7,3 +7,4 @@ export { GetPages } from './GetPages';
 export { NavigateToCopiedObject } from './NavigateToCopiedObject';
 export { ShareWithSelf } from './ShareWithSelf';
 export { UpdateDataflowDetails } from './UpdateDataflowDetails';
+export { UpdateOwner } from './UpdateOwner';

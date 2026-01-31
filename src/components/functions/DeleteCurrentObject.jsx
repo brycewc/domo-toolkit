@@ -253,12 +253,11 @@ export function DeleteCurrentObject({
                 size='sm'
                 isDisabled={isDeleting}
               >
-                CANCEL
+                Cancel
               </Button>
               <Button
                 variant='danger'
                 size='sm'
-                className='uppercase'
                 onPress={handleDelete}
                 isPending={isDeleting}
                 isIconOnly={isDeleting}
@@ -267,7 +266,7 @@ export function DeleteCurrentObject({
                   isPending ? (
                     <Spinner color='currentColor' size='sm' />
                   ) : (
-                    `DELETE ${currentContext?.domoObject?.typeName}`
+                    `Delete ${currentContext?.domoObject?.typeName}`
                   )
                 }
               </Button>

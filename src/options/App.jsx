@@ -75,7 +75,7 @@ export default function App() {
           <FaviconSettings />
         </Tabs.Panel>
         <Tabs.Panel
-          className='flex max-w-3xl flex-col items-start px-4'
+          className='flex h-full max-w-3xl flex-col px-4'
           id='settings'
         >
           <div className='w-full justify-start'>

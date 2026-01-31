@@ -174,115 +174,114 @@ export function AppSettings({ theme = 'system' }) {
   };
 
   return (
-    <div className='flex flex-col gap-2 pt-4'>
-      <Form onSubmit={handleSubmit} className='flex flex-col gap-3'>
-        <Select
-          value={settings.themePreference}
-          onChange={handleThemeChange}
-          className='w-[10rem]'
-          placeholder={theme}
-        >
-          <Label>Theme</Label>
-          <Select.Trigger>
-            <Select.Value />
-            <Select.Indicator />
-          </Select.Trigger>
-          <Select.Popover>
-            <ListBox>
-              <ListBox.Item id='system' textValue='System'>
-                System
-                <ListBox.ItemIndicator />
-              </ListBox.Item>
-              <ListBox.Item id='light' textValue='Light'>
-                Light
-                <ListBox.ItemIndicator />
-              </ListBox.Item>
-              <ListBox.Item id='dark' textValue='Dark'>
-                Dark
-                <ListBox.ItemIndicator />
-              </ListBox.Item>
-            </ListBox>
-          </Select.Popover>
-        </Select>
-        <ComboBox
-          allowsCustomValue
-          inputValue={settings.defaultDomoInstance}
-          onInputChange={handleDefaultInstanceChange}
-          className='w-[28rem]'
-        >
-          <Label>Default Domo Instance</Label>
-          <ComboBox.InputGroup>
-            <Input placeholder='Search or enter instance (e.g., company for company.domo.com)' />
-            <ComboBox.Trigger />
-          </ComboBox.InputGroup>
-          <ComboBox.Popover>
-            <ListBox>
-              {visitedInstances.filter(
-                (instance) => !EXCLUDED_INSTANCES.includes(instance)
-              ).length === 0 ? (
-                <ListBox.Item
-                  id='_no_instances'
-                  textValue='No instances visited yet'
-                >
-                  No instances visited yet
+    <div className='flex h-full min-h-[calc(100vh-20)] w-full flex-col justify-between pt-4'>
+      <div className='flex flex-col gap-2'>
+        <Form onSubmit={handleSubmit} className='flex flex-col gap-2'>
+          <Select
+            value={settings.themePreference}
+            onChange={handleThemeChange}
+            className='w-[10rem]'
+            placeholder={theme}
+          >
+            <Label>Theme</Label>
+            <Select.Trigger>
+              <Select.Value />
+              <Select.Indicator />
+            </Select.Trigger>
+            <Select.Popover>
+              <ListBox>
+                <ListBox.Item id='system' textValue='System'>
+                  System
+                  <ListBox.ItemIndicator />
                 </ListBox.Item>
-              ) : (
-                visitedInstances
-                  .filter((instance) => !EXCLUDED_INSTANCES.includes(instance))
-                  .map((instance) => (
-                    <ListBox.Item
-                      key={instance}
-                      id={instance}
-                      textValue={instance}
-                    >
-                      {instance}
-                      <ListBox.ItemIndicator />
-                    </ListBox.Item>
-                  ))
-              )}
-            </ListBox>
-          </ComboBox.Popover>
-          <Description>
-            Select a previously visited instance or enter a custom one. This
-            will be used when navigating to copied objects from non-Domo
-            websites.
-          </Description>
-        </ComboBox>
-        <Switch
-          isSelected={settings.autoClearCookiesOn431}
-          onChange={(isSelected) =>
-            setSettings((prev) => ({
-              ...prev,
-              autoClearCookiesOn431: isSelected
-            }))
-          }
-        >
+                <ListBox.Item id='light' textValue='Light'>
+                  Light
+                  <ListBox.ItemIndicator />
+                </ListBox.Item>
+                <ListBox.Item id='dark' textValue='Dark'>
+                  Dark
+                  <ListBox.ItemIndicator />
+                </ListBox.Item>
+              </ListBox>
+            </Select.Popover>
+          </Select>
+          <ComboBox
+            allowsCustomValue
+            inputValue={settings.defaultDomoInstance}
+            onInputChange={handleDefaultInstanceChange}
+            className='w-[28rem]'
+          >
+            <Label>Default Domo Instance</Label>
+            <ComboBox.InputGroup>
+              <Input placeholder='Search or enter instance (e.g., company for company.domo.com)' />
+              <ComboBox.Trigger />
+            </ComboBox.InputGroup>
+            <ComboBox.Popover>
+              <ListBox>
+                {visitedInstances.filter(
+                  (instance) => !EXCLUDED_INSTANCES.includes(instance)
+                ).length === 0 ? (
+                  <ListBox.Item
+                    id='_no_instances'
+                    textValue='No instances visited yet'
+                  >
+                    No instances visited yet
+                  </ListBox.Item>
+                ) : (
+                  visitedInstances
+                    .filter(
+                      (instance) => !EXCLUDED_INSTANCES.includes(instance)
+                    )
+                    .map((instance) => (
+                      <ListBox.Item
+                        key={instance}
+                        id={instance}
+                        textValue={instance}
+                      >
+                        {instance}
+                        <ListBox.ItemIndicator />
+                      </ListBox.Item>
+                    ))
+                )}
+              </ListBox>
+            </ComboBox.Popover>
+            <Description>
+              Select a previously visited instance or enter a custom one. This
+              will be used when navigating to copied objects from non-Domo
+              websites.
+            </Description>
+          </ComboBox>
           <div className='flex flex-col gap-1'>
-            <div className='flex flex-row gap-1'>
+            <Label>Auto-clear cookies on 431 errors</Label>
+            <Switch
+              isSelected={settings.autoClearCookiesOn431}
+              onChange={(isSelected) =>
+                setSettings((prev) => ({
+                  ...prev,
+                  autoClearCookiesOn431: isSelected
+                }))
+              }
+            >
               <Switch.Control>
                 <Switch.Thumb />
               </Switch.Control>
-              <Label>Auto-clear cookies on 431 errors</Label>
-            </div>
+            </Switch>
             <Description>
               Automatically clear cookies when a 431 (Request Header Fields Too
               Large) error is detected.
             </Description>
           </div>
-        </Switch>
-        <Button type='submit' variant='primary' isDisabled={!hasChanges}>
-          Save Settings
-        </Button>
-      </Form>
-      <Button
-        variant='danger'
-        onPress={handleClearInstances}
-        isPending={isClearing}
-        isDisabled={visitedInstances.length === 0}
-      >
-        {isClearing ? 'Clearing...' : 'Clear All Visited Instances'}
-      </Button>
-      <div>
+          <div className='pt-1'>
+            <Button
+              type='submit'
+              variant='primary'
+              size='sm'
+              isDisabled={!hasChanges}
+            >
+              Save Settings
+            </Button>
+          </div>
+        </Form>
         {statusBar.visible && (
           <StatusBar
             title={statusBar.title}
@@ -293,6 +292,15 @@ export function AppSettings({ theme = 'system' }) {
           />
         )}
       </div>
+      <Button
+        variant='danger'
+        size='sm'
+        onPress={handleClearInstances}
+        isPending={isClearing}
+        isDisabled={visitedInstances.length === 0}
+      >
+        {isClearing ? 'Clearing...' : 'Clear All Visited Instances'}
+      </Button>
     </div>
   );
 }

@@ -2,6 +2,8 @@
  * Domo API service for user-related operations
  */
 
+import { executeInPage } from '@/utils';
+
 /**
  * Get the current user's ID
  * @returns {Promise<number>} The current user ID
@@ -14,14 +16,10 @@ export async function getCurrentUserId() {
   }
 
   // Fallback to API
-  const response = await fetch('/api/sessions/v1/me', {
-    credentials: 'include'
-  });
+  const response = await fetch('/api/sessions/v1/me');
 
   if (!response.ok) {
-    throw new Error(
-      `Failed to fetch current user. Status: ${response.status}`
-    );
+    throw new Error(`Failed to fetch current user. Status: ${response.status}`);
   }
 
   const user = await response.json();
@@ -30,4 +28,45 @@ export async function getCurrentUserId() {
   }
 
   return user.userId;
+}
+
+export async function searchUsers(text, tabId = null) {
+  const result = await executeInPage(
+    async (text) => {
+      const url = '/api/identity/v1/users/search?explain=false';
+      const body = {
+        cacheBuster: Date.now(),
+        filters: [{ filterType: 'text', text }],
+        showCount: true,
+        includeDeleted: false,
+        onlyDeleted: false,
+        includeSupport: false,
+        limit: 50,
+        offset: 0,
+        sort: { field: 'displayName', order: 'ASC' },
+        parts: ['MINIMAL'],
+        attributes: ['department', 'title', 'avatarKey', 'created']
+      };
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body),
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to search users. Status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      // console.log('searchUsers response data:', data);
+      return data.users || [];
+    },
+    [text],
+    tabId
+  );
+
+  return result;
 }

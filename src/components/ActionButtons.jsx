@@ -23,8 +23,9 @@ import {
   GetPages,
   NavigateToCopiedObject,
   StatusBar,
+  ShareWithSelf,
   UpdateDataflowDetails,
-  ShareWithSelf
+  UpdateOwner
 } from '@/components';
 import { openSidepanel } from '@/utils';
 
@@ -179,25 +180,35 @@ export function ActionButtons({
                     currentContext={currentContext}
                   />
                 </div>
-                {(currentContext?.domoObject?.typeId === 'PAGE' ||
-                  currentContext?.domoObject?.typeId === 'DATA_APP_VIEW' ||
-                  currentContext?.domoObject?.typeId === 'CARD' ||
-                  currentContext?.domoObject?.typeId === 'DATA_SOURCE') && (
-                  <GetPages
-                    currentContext={currentContext}
-                    onStatusUpdate={showStatus}
-                    isDisabled={!isDomoPage}
-                    onCollapseActions={
-                      collapsable ? () => setIsExpanded(false) : undefined
-                    }
-                  />
-                )}
-                {currentContext?.domoObject?.typeId === 'DATAFLOW_TYPE' && (
-                  <UpdateDataflowDetails
-                    currentContext={currentContext}
-                    onStatusUpdate={showStatus}
-                  />
-                )}
+                <div className='flex w-full flex-wrap place-items-center items-center justify-center gap-1'>
+                  {(currentContext?.domoObject?.typeId === 'PAGE' ||
+                    currentContext?.domoObject?.typeId === 'DATA_APP_VIEW' ||
+                    currentContext?.domoObject?.typeId === 'CARD' ||
+                    currentContext?.domoObject?.typeId === 'DATA_SOURCE') && (
+                    <GetPages
+                      currentContext={currentContext}
+                      onStatusUpdate={showStatus}
+                      isDisabled={!isDomoPage}
+                      onCollapseActions={
+                        collapsable ? () => setIsExpanded(false) : undefined
+                      }
+                    />
+                  )}
+                  {currentContext?.domoObject?.typeId === 'DATAFLOW_TYPE' && (
+                    <UpdateDataflowDetails
+                      currentContext={currentContext}
+                      onStatusUpdate={showStatus}
+                    />
+                  )}
+                  {(currentContext?.domoObject?.typeId === 'ALERT' ||
+                    currentContext?.domoObject?.typeId ===
+                      'WORKFLOW_MODEL') && (
+                    <UpdateOwner
+                      currentContext={currentContext}
+                      onStatusUpdate={showStatus}
+                    />
+                  )}
+                </div>
               </Disclosure.Content>
             </Disclosure>
           )}

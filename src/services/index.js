@@ -2,7 +2,8 @@ export { getActivityLogEvents, getActivityLogForObject } from './activityLog';
 export {
   fetchObjectDetailsInPage,
   shareWithSelf,
-  deleteObject
+  deleteObject,
+  updateOwner
 } from './allObjects';
 export { updateDataflowDetails } from './dataflows';
 export {
@@ -18,4 +19,4 @@ export {
   getPagesForCards,
   deletePageAndAllCards
 } from './pages';
-export { getCurrentUserId } from './users';
+export { getCurrentUserId, searchUsers } from './users';

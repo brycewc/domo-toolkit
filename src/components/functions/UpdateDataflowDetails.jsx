@@ -9,6 +9,7 @@ import {
   TextArea
 } from '@heroui/react';
 import { updateDataflowDetails } from '@/services';
+import { IconArrowFork } from '@tabler/icons-react';
 
 export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -85,6 +86,7 @@ export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
         fullWidth
         isDisabled={currentContext?.domoObject.typeId !== 'DATAFLOW_TYPE'}
       >
+        <IconArrowFork size={4} className='rotate-180' />
         Update DataFlow Details
       </Button>
       <Modal.Backdrop>
@@ -136,7 +138,7 @@ export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
                   type='submit'
                   isDisabled={isSubmitting}
                 >
-                  {isSubmitting ? 'Updating...' : 'Confirm'}
+                  {isSubmitting ? 'Updating...' : 'Save'}
                 </Button>
               </Modal.Footer>
             </Form>
