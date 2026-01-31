@@ -190,14 +190,17 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
       <Modal.Backdrop>
         <Modal.Container scroll='outside' placement='top' className='p-1'>
           <Modal.Dialog className='p-2'>
-            <Modal.CloseTrigger className='absolute top-2 right-2' />
+            <Modal.CloseTrigger
+              className='absolute top-2 right-2'
+              variant='ghost'
+            />
             <Form onSubmit={handleSubmit} id='update-owner-form'>
               <Modal.Header>
                 <Modal.Heading>
                   Update {currentContext?.domoObject.typeName} Owner
                 </Modal.Heading>
               </Modal.Header>
-              <Modal.Body className='flex flex-col gap-2'>
+              <Modal.Body className='flex justify-center'>
                 <ComboBox
                   allowsEmptyCollection
                   autoFocus
@@ -210,7 +213,7 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
                   name='owner'
                   form='update-owner-form'
                   formValue='key'
-                  fullWidth
+                  className='w-[95%]'
                 >
                   <ComboBox.InputGroup variant='secondary'>
                     <Input placeholder='Search users...' />
@@ -276,7 +279,7 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
                   </Button>
                   <Tooltip.Content>Update owner to yourself</Tooltip.Content>
                 </Tooltip>
-                <div className='flex gap-1'>
+                <div className='flex gap-2'>
                   <Button
                     slot='close'
                     variant='tertiary'

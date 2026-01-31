@@ -90,20 +90,18 @@ export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
         Update DataFlow Details
       </Button>
       <Modal.Backdrop>
-        <Modal.Container scroll='outside' size='xs' className=''>
-          <Modal.Dialog className='max-w-[360px] p-3'>
-            <Modal.CloseTrigger />
+        <Modal.Container scroll='outside' placement='top' className='p-1'>
+          <Modal.Dialog className='p-2'>
+            <Modal.CloseTrigger
+              className='absolute top-2 right-2'
+              variant='ghost'
+            />
             <Form onSubmit={handleSubmit}>
               <Modal.Header>
                 <Modal.Heading>Update DataFlow Details</Modal.Heading>
               </Modal.Header>
               <Modal.Body className='flex flex-col gap-2'>
-                <TextField
-                  className='w-full'
-                  variant='secondary'
-                  name='name'
-                  id='dataflow-name'
-                >
+                <TextField variant='secondary' name='name' id='dataflow-name'>
                   <Label>DataFlow Name</Label>
                   <Input
                     className='h-8'
@@ -114,11 +112,11 @@ export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
                 <div className='flex flex-col gap-2'>
                   <Label>DataFlow Description</Label>
                   <TextArea
-                    className='max-h-[100px] w-full'
                     variant='secondary'
                     name='description'
                     id='dataflow-description'
                     rows={2}
+                    resize='vertical'
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                   />
@@ -128,6 +126,7 @@ export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
                 <Button
                   slot='close'
                   variant='tertiary'
+                  size='sm'
                   isDisabled={isSubmitting}
                 >
                   Cancel
@@ -135,6 +134,7 @@ export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
                 <Button
                   slot='close'
                   variant='primary'
+                  size='sm'
                   type='submit'
                   isDisabled={isSubmitting}
                 >

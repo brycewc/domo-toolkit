@@ -219,12 +219,15 @@ export function DeleteCurrentObject({
         </Tooltip.Content>
       </Tooltip>
       <AlertDialog.Backdrop>
-        <AlertDialog.Container placement='center'>
-          <AlertDialog.Dialog>
+        <AlertDialog.Container placement='top' className='p-1'>
+          <AlertDialog.Dialog className='p-2 pt-3'>
             <div
               className={`absolute top-[0px] left-[0px] h-[5px] w-full bg-danger`}
             />
-            <AlertDialog.CloseTrigger />
+            <AlertDialog.CloseTrigger
+              className='absolute top-3 right-2'
+              variant='ghost'
+            />
             <AlertDialog.Header>
               {/* <AlertDialog.Icon status='danger' /> */}
               <AlertDialog.Heading>
