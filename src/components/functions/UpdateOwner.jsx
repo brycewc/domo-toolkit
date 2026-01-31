@@ -1,17 +1,20 @@
 import { useState, useEffect } from 'react';
 import {
-  Autocomplete,
   Avatar,
   AvatarFallback,
   AvatarImage,
+  CloseButton,
+  Collection,
+  ComboBox,
   Description,
   Button,
   EmptyState,
   Form,
+  Input,
   Label,
   ListBox,
+  ListBoxLoadMoreItem,
   Modal,
-  SearchField,
   Spinner,
   Tooltip
 } from '@heroui/react';
@@ -22,7 +25,6 @@ import { executeInPage, isSidepanel } from '@/utils';
 export function UpdateOwner({ currentContext, onStatusUpdate }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
-  const [owner, setOwner] = useState(null);
   const [isOpen, setIsOpen] = useState(false);
 
   // Async user search state (replaces useAsyncList)
@@ -30,7 +32,12 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
   const [users, setUsers] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Fetch users when modal opens or filter text changes
+  // Pagination state
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+
+  // Fetch users when modal opens or filter text changes (resets pagination)
   useEffect(() => {
     // Only fetch when modal is open
     if (!isOpen) return;
@@ -39,15 +46,19 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
 
     async function fetchUsers() {
       setIsLoading(true);
+      setOffset(0);
       try {
-        const fetchedUsers = await searchUsers(
+        const { users: fetchedUsers, totalCount } = await searchUsers(
           filterText,
-          currentContext?.tabId
+          currentContext?.tabId,
+          0
         );
-        console.log('Fetched users:', fetchedUsers);
+        console.log('Fetched users:', fetchedUsers, 'Total:', totalCount);
         // Only update if this request wasn't aborted
         if (!controller.signal.aborted) {
           setUsers(fetchedUsers);
+          setHasMore(totalCount !== null && fetchedUsers.length < totalCount);
+          setOffset(fetchedUsers.length);
         }
       } catch (error) {
         // Ignore abort errors, log others
@@ -68,6 +79,28 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
       controller.abort();
     };
   }, [isOpen, filterText, currentContext?.tabId]);
+
+  // Load more users (pagination)
+  const loadMore = async () => {
+    if (isLoadingMore || !hasMore) return;
+
+    setIsLoadingMore(true);
+    try {
+      const { users: fetchedUsers, totalCount } = await searchUsers(
+        filterText,
+        currentContext?.tabId,
+        offset
+      );
+      const newUsers = [...users, ...fetchedUsers];
+      setUsers(newUsers);
+      setHasMore(totalCount !== null && newUsers.length < totalCount);
+      setOffset(newUsers.length);
+    } catch (error) {
+      console.error('Error loading more users:', error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
 
   // Initialize form values when modal opens
   useEffect(() => {
@@ -132,11 +165,12 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    await submitOwnerUpdate(owner);
+    const formData = new FormData(e.currentTarget);
+    console.log('Submitted value:', formData.get('owner')); // Will be the selected owner ID
+    await submitOwnerUpdate(formData.get('owner'));
   };
 
   const handleSetToSelf = async () => {
-    setOwner(currentUserId);
     await submitOwnerUpdate(currentUserId);
   };
 
@@ -157,63 +191,43 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
         <Modal.Container scroll='outside' placement='top' className='p-1'>
           <Modal.Dialog className='p-2'>
             <Modal.CloseTrigger className='absolute top-2 right-2' />
-            <Form onSubmit={handleSubmit}>
+            <Form onSubmit={handleSubmit} id='update-owner-form'>
               <Modal.Header>
                 <Modal.Heading>
                   Update {currentContext?.domoObject.typeName} Owner
                 </Modal.Heading>
               </Modal.Header>
               <Modal.Body className='flex flex-col gap-2'>
-                <Autocomplete
-                  fullWidth
-                  placeholder='Select owner'
-                  selectionMode='single'
+                <ComboBox
+                  allowsEmptyCollection
+                  autoFocus
                   isRequired
-                  variant='secondary'
-                  value={owner}
-                  onChange={setOwner}
+                  menuTrigger='input'
+                  inputValue={filterText}
+                  onInputChange={setFilterText}
+                  defaultInputValue={null}
                   aria-label='Owner'
+                  name='owner'
+                  form='update-owner-form'
+                  formValue='key'
+                  fullWidth
                 >
-                  {/* <Label>Owner</Label> */}
-                  <Autocomplete.Trigger>
-                    <Autocomplete.Value />
-                    <Autocomplete.ClearButton />
-                    <Autocomplete.Indicator />
-                  </Autocomplete.Trigger>
-                  <Autocomplete.Popover className='overflow-y-hidden'>
-                    <Autocomplete.Filter
-                      inputValue={filterText}
-                      onInputChange={setFilterText}
+                  <ComboBox.InputGroup variant='secondary'>
+                    <Input placeholder='Search users...' />
+                    <ComboBox.Trigger />
+                  </ComboBox.InputGroup>
+                  <ComboBox.Popover placement='bottom start'>
+                    <ListBox
+                      className={`overflow-y-auto ${isSidepanel() ? 'max-h-100' : 'max-h-30'}`}
+                      renderEmptyState={() => (
+                        <EmptyState>No users found</EmptyState>
+                      )}
                     >
-                      <SearchField
-                        autoFocus
-                        className='sticky top-0 z-10 w-full'
-                        name='search'
-                        aria-label='Search users'
-                      >
-                        <SearchField.Group>
-                          <SearchField.SearchIcon />
-                          <SearchField.Input placeholder='Search users...' />
-                          {isLoading ? (
-                            <Spinner
-                              className='absolute top-1/2 right-2 -translate-y-1/2'
-                              size='sm'
-                            />
-                          ) : (
-                            <SearchField.ClearButton />
-                          )}
-                        </SearchField.Group>
-                      </SearchField>
-                      <ListBox
-                        className={`overflow-y-auto ${isSidepanel() ? 'max-h-100' : 'max-h-30'}`}
-                        renderEmptyState={() => (
-                          <EmptyState>No users found</EmptyState>
-                        )}
-                        items={users}
-                      >
+                      <Collection items={users}>
                         {(user) => (
                           <ListBox.Item
                             id={user.id}
+                            key={user.id}
                             textValue={user.displayName}
                           >
                             <Avatar size='sm'>
@@ -231,10 +245,23 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
                             <ListBox.ItemIndicator />
                           </ListBox.Item>
                         )}
-                      </ListBox>
-                    </Autocomplete.Filter>
-                  </Autocomplete.Popover>
-                </Autocomplete>
+                      </Collection>
+                      {hasMore && (
+                        <ListBoxLoadMoreItem
+                          isLoading={isLoadingMore}
+                          onLoadMore={loadMore}
+                        >
+                          <div className='flex items-center justify-center gap-2 py-2'>
+                            <Spinner size='sm' />
+                            <span className='text-sm text-muted'>
+                              Loading more...
+                            </span>
+                          </div>
+                        </ListBoxLoadMoreItem>
+                      )}
+                    </ListBox>
+                  </ComboBox.Popover>
+                </ComboBox>
               </Modal.Body>
               <Modal.Footer className='flex items-center justify-between'>
                 <Tooltip delay={200} closeDelay={0}>
@@ -247,7 +274,7 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
                   >
                     <IconUser size={4} />
                   </Button>
-                  <Tooltip.Content>Set to yourself</Tooltip.Content>
+                  <Tooltip.Content>Update owner to yourself</Tooltip.Content>
                 </Tooltip>
                 <div className='flex gap-1'>
                   <Button

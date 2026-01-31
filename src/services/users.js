@@ -30,9 +30,11 @@ export async function getCurrentUserId() {
   return user.userId;
 }
 
-export async function searchUsers(text, tabId = null) {
+const USERS_PAGE_SIZE = 50;
+
+export async function searchUsers(text, tabId = null, offset = 0) {
   const result = await executeInPage(
-    async (text) => {
+    async (text, offset, limit) => {
       const url = '/api/identity/v1/users/search?explain=false';
       const body = {
         cacheBuster: Date.now(),
@@ -41,8 +43,8 @@ export async function searchUsers(text, tabId = null) {
         includeDeleted: false,
         onlyDeleted: false,
         includeSupport: false,
-        limit: 50,
-        offset: 0,
+        limit,
+        offset,
         sort: { field: 'displayName', order: 'ASC' },
         parts: ['MINIMAL'],
         attributes: ['department', 'title', 'avatarKey', 'created']
@@ -61,10 +63,12 @@ export async function searchUsers(text, tabId = null) {
       }
 
       const data = await response.json();
-      // console.log('searchUsers response data:', data);
-      return data.users || [];
+      return {
+        users: data.users || [],
+        totalCount: data.count ?? null
+      };
     },
-    [text],
+    [text, offset, USERS_PAGE_SIZE],
     tabId
   );
 
