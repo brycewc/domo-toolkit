@@ -1,12 +1,15 @@
-import { Alert, Chip, Spinner, Tooltip } from '@heroui/react';
-import { IconBoltOff } from '@tabler/icons-react';
+import { Alert, Chip, Spinner, Popover } from '@heroui/react';
+import JsonView from 'react18-json-view';
+import 'react18-json-view/src/style.css';
+import { useTheme } from '@/hooks';
 
 export function ContextFooter({ currentContext, isLoading }) {
   const isDomoPage = currentContext?.isDomoPage ?? false;
+  const theme = useTheme();
 
   return (
-    <Tooltip isDisabled={!isDomoPage} delay={1000} closeDelay={0}>
-      <Tooltip.Trigger>
+    <Popover isDisabled={!isDomoPage}>
+      <Popover.Trigger>
         <Alert
           status={isDomoPage || isLoading ? 'accent' : 'warning'}
           // className={
@@ -45,9 +48,6 @@ export function ContextFooter({ currentContext, isLoading }) {
                       <>
                         <Chip color='accent' variant='soft' className='w-fit'>
                           {currentContext.domoObject.typeName}
-                          {' ('}
-                          {currentContext.domoObject.typeId}
-                          {')'}
                         </Chip>
                         <span className='text-sm'>
                           ID: {currentContext.domoObject.id}
@@ -62,18 +62,26 @@ export function ContextFooter({ currentContext, isLoading }) {
             )}
           </Alert.Content>
         </Alert>
-      </Tooltip.Trigger>
-      <Tooltip.Content
-        placement='bottom'
-        className='max-w-[calc(var(--container-xs)-1.5rem)] text-center text-wrap'
+      </Popover.Trigger>
+      <Popover.Content
+        placement='bottom left'
+        className='flex w-[95%] flex-col gap-2 overflow-y-auto p-2'
       >
-        <>
-          Unless otherwise noted (with{' '}
-          <IconBoltOff className='inline h-4 w-4' />
-          ), all buttons take current context into account to make the action
-          dynamic
-        </>
-      </Tooltip.Content>
-    </Tooltip>
+        <Chip color='accent' variant='soft' className='w-fit'>
+          {currentContext?.domoObject?.typeId}
+        </Chip>
+
+        <JsonView
+          src={currentContext?.domoObject?.metadata?.details}
+          collapsed={1}
+          theme='vscode'
+          dark={theme === 'dark'}
+          matchesURL
+          displaySize
+          collapseStringMode='word'
+          enableClipboard={false}
+        />
+      </Popover.Content>
+    </Popover>
   );
 }

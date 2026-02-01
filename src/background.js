@@ -874,7 +874,8 @@ async function detectAndStoreContext(tabId) {
     if (
       typeModel.id === 'PAGE' ||
       typeModel.id === 'DATA_APP_VIEW' ||
-      typeModel.id === 'DATA_SOURCE'
+      typeModel.id === 'DATA_SOURCE' ||
+      typeModel.id === 'WORKSHEET_VIEW'
     ) {
       // Fetch cards in background without blocking
       getCardsForObject({

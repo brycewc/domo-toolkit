@@ -20,7 +20,8 @@ export class DomoObjectType {
     idPattern,
     extractConfig = null,
     api = null,
-    parents = null
+    parents = null,
+    deprecated = false
   ) {
     this.id = id;
     this.name = name;
@@ -29,6 +30,7 @@ export class DomoObjectType {
     this.extractConfig = extractConfig;
     this.api = api;
     this.parents = parents;
+    this.deprecated = deprecated;
   }
 
   /**
@@ -204,7 +206,11 @@ export const ObjectTypeRegistry = {
     null,
     /.*/,
     null,
-    null
+    {
+      method: 'GET',
+      endpoint: '/content/v1/achievements/{id}',
+      pathToName: 'name'
+    }
   ),
   ACHIEVEMENT_ADMIN: new DomoObjectType(
     'ACHIEVEMENT_ADMIN',
@@ -217,8 +223,8 @@ export const ObjectTypeRegistry = {
   ACTIVITY_LOG: new DomoObjectType(
     'ACTIVITY_LOG',
     'Activity log',
+    '/admin/logging',
     null,
-    /.*/,
     null,
     null
   ),
@@ -226,7 +232,7 @@ export const ObjectTypeRegistry = {
     'ACTIVITY_LOG_CSV',
     'Activity log csv',
     null,
-    /.*/,
+    null,
     null,
     null
   ),
@@ -234,7 +240,7 @@ export const ObjectTypeRegistry = {
     'ADC_COLUMN_POLICY',
     'Column PDP Policy',
     null,
-    /.*/,
+    /^\d+$/,
     null,
     null
   ),
@@ -242,7 +248,7 @@ export const ObjectTypeRegistry = {
     'ADC_COLUMN_POLICY_GROUP',
     'Column PDP Policy Group',
     null,
-    /.*/,
+    /^\d+$/,
     null,
     null
   ),
@@ -258,16 +264,23 @@ export const ObjectTypeRegistry = {
     'ADC_FILTER',
     'PDP Filter',
     null,
-    /.*/,
+    /^\d+$/,
     null,
     null
   ),
-  ADC_MASK: new DomoObjectType('ADC_MASK', 'Adc mask', null, /.*/, null, null),
+  ADC_MASK: new DomoObjectType(
+    'ADC_MASK',
+    'Adc mask',
+    null,
+    /^\d+$/,
+    null,
+    null
+  ),
   ADC_POLICY: new DomoObjectType(
     'ADC_POLICY',
     'PDP Policy',
     null,
-    /.*/,
+    /^\d+$/,
     null,
     null
   ),
@@ -313,7 +326,7 @@ export const ObjectTypeRegistry = {
     'ALERT_SUBSCRIBER',
     'Alert subscriber',
     null,
-    /.*/,
+    /^\d+$/,
     null,
     null
   ),
@@ -341,7 +354,8 @@ export const ObjectTypeRegistry = {
         query:
           'query getApprovalForDetails($id: ID!) {\n  request: approval(id: $id) {\n    ...approvalFields\n    __name\n  }\n}\n\nfragment approvalFields on Approval {\n  newActivity\n  observers {\n    id\n    id\n    displayName\n    title\n    ... on Group {\n      currentUserIsMember\n      memberCount: userCount\n      __name\n    }\n    __name\n  }\n  lastViewed\n  newActivity\n  newMessage {\n    created\n    createdByType\n    createdBy {\n      id\n      displayName\n      __name\n    }\n    content {\n      text\n      __name\n    }\n    __name\n  }\n  lastAction\n  version\n  submittedTime\n  id\n  title\n  status\n  providerName\n  templateTitle\n  buzzChannelId\n  buzzGeneralThreadId\n  templateInstructions\n  templateDescription\n  acknowledgment\n  snooze\n  snoozed\n  id\n  categories {\n    id\n    name\n    __name\n  }\n  total {\n    value\n    currency\n    __name\n  }\n  modifiedTime\n  previousApprover: previousApproverEx {\n    id\n    id\n    displayName\n    ... on User {\n      title\n      avatarKey\n      isCurrentUser\n      __name\n    }\n    ... on Group {\n      currentUserIsMember\n      userCount\n      isDeleted\n      actor {\n        displayName\n        id\n        __name\n      }\n      __name\n    }\n    __name\n  }\n  pendingApprover: pendingApproverEx {\n    id\n    id\n    displayName\n    ... on User {\n      title\n      avatarKey\n      isCurrentUser\n      __name\n    }\n    ... on Group {\n      currentUserIsMember\n      userCount\n      isDeleted\n      __name\n    }\n    __name\n  }\n  submitter {\n    id\n    displayName\n    title\n    avatarKey\n    isCurrentUser\n    id\n    __name\n  }\n  approvalChainIdx\n  reminder {\n    sent\n    sentBy {\n      displayName\n      title\n      id\n      isCurrentUser\n      id\n      __name\n    }\n    __name\n  }\n  chain {\n    actor {\n      displayName\n      __name\n    }\n    approver {\n      id\n      id\n      displayName\n      ... on User {\n        title\n        avatarKey\n        isCurrentUser\n        __name\n      }\n      ... on Group {\n        currentUserIsMember\n        userCount\n        isDeleted\n        __name\n      }\n      __name\n    }\n    status\n    time\n    id\n    key\n    __name\n  }\n  fields {\n    data\n    name\n    id\n    key\n    ... on HeaderField {\n      fields {\n        data\n        name\n        id\n        key\n        ... on HeaderField {\n          fields {\n            data\n            name\n            id\n            key\n            __name\n          }\n          __name\n        }\n        __name\n      }\n      __name\n    }\n    ... on ItemListField {\n      fields {\n        data\n        name\n        id\n        key\n        ... on HeaderField {\n          fields {\n            data\n            name\n            id\n            key\n            ... on HeaderField {\n              fields {\n                data\n                name\n                id\n                key\n                __name\n              }\n              __name\n            }\n            __name\n          }\n          __name\n        }\n        __name\n      }\n      __name\n    }\n    ... on NumberField {\n      value\n      __name\n    }\n    ... on CurrencyField {\n      number: value\n      currency\n      __name\n    }\n    ... on DateField {\n      date: value\n      __name\n    }\n    ... on DataSetAttachmentField {\n      dataSet: value {\n        id\n        name\n        description\n        owner {\n          id\n          displayName\n          __name\n        }\n        provider\n        cardCount\n        __name\n      }\n      __name\n    }\n    __name\n  }\n  history {\n    actor {\n      id\n      id\n      displayName\n      ... on User {\n        avatarKey\n        isCurrentUser\n        __name\n      }\n      __name\n    }\n    status\n    time\n    __name\n  }\n  latestMessage {\n    created\n    __name\n  }\n  latestMentioned {\n    created\n    __name\n  }\n  workflowIntegration {\n    modelId\n    modelVersion\n    startName\n    instanceId\n    modelName\n    __name\n  }\n  __name\n}'
       }
-    }
+    },
+    ['TEMPLATE']
   ),
   APP: new DomoObjectType(
     'APP',
@@ -397,7 +411,7 @@ export const ObjectTypeRegistry = {
     'CERTIFICATION',
     'Certification',
     null,
-    /.*/,
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     null,
     null
   ),
@@ -405,7 +419,7 @@ export const ObjectTypeRegistry = {
     'CERTIFICATION_PROCESS',
     'Certification Process',
     null,
-    /.*/,
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     null,
     null
   ),
@@ -413,7 +427,7 @@ export const ObjectTypeRegistry = {
     'CHANNEL',
     'Buzz channel',
     null,
-    /.*/,
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     null,
     null
   ),
@@ -441,9 +455,13 @@ export const ObjectTypeRegistry = {
     'CODEENGINE_PACKAGE_VERSION',
     'CodeEngine Package Version',
     null,
-    /.*/,
+    /^[0-9]+\.[0-9]+\.[0-9]+$/,
     null,
-    null
+    {
+      method: 'GET',
+      endpoint: '/codeengine/v2/packages/{parent}/versions/{id}'
+    },
+    ['CODEENGINE_PACKAGE']
   ),
   COLLECTION: new DomoObjectType(
     'COLLECTION',
@@ -516,7 +534,11 @@ export const ObjectTypeRegistry = {
     null,
     /.*/,
     null,
-    null
+    {
+      method: 'GET',
+      endpoint: '/content/v1/customer-states/{id}',
+      pathToName: 'name'
+    }
   ),
   DATA_APP: new DomoObjectType(
     'DATA_APP',
@@ -550,7 +572,7 @@ export const ObjectTypeRegistry = {
     'DATA_DICTIONARY',
     'Data dictionary',
     null,
-    /.*/,
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     null,
     null
   ),
@@ -584,7 +606,8 @@ export const ObjectTypeRegistry = {
       method: 'GET',
       endpoint: '/data/v3/datasources/{id}?includeAllDetails=true',
       pathToName: 'name'
-    }
+    },
+    ['DATAFLOW_TYPE', 'DATA_SOURCE']
   ),
   DATAFLOW_TYPE: new DomoObjectType(
     'DATAFLOW_TYPE',
@@ -598,12 +621,16 @@ export const ObjectTypeRegistry = {
       pathToName: 'name'
     }
   ),
-  DATAFLOW: new DomoObjectType('DATAFLOW', 'Dataflow', null, /.*/, null, null),
+  DATAFLOW: new DomoObjectType('DATAFLOW', 'Dataflow', null, /^\d+$/, null, {
+    method: 'GET',
+    endpoint: '/dataprocessing/v2/dataflows/{id}',
+    pathToName: 'name'
+  }),
   DATASET_QUERY: new DomoObjectType(
     'DATASET_QUERY',
     'Dataset query',
     null,
-    /.*/,
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     null,
     null
   ),
@@ -611,7 +638,7 @@ export const ObjectTypeRegistry = {
     'DATASOURCE',
     'Datasource',
     null,
-    /.*/,
+    /^\d+$/,
     null,
     null
   ),
@@ -627,7 +654,7 @@ export const ObjectTypeRegistry = {
     'DEPLOYMENT',
     'Deployment',
     null,
-    /.*/,
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     null,
     null
   ),
@@ -656,7 +683,7 @@ export const ObjectTypeRegistry = {
     'DUPLICATED_DATA_SOURCE',
     'Duplicated data source',
     null,
-    /.*/,
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     null,
     null
   ),
@@ -681,7 +708,7 @@ export const ObjectTypeRegistry = {
     'ENIGMA_FORM',
     'Form',
     null,
-    /.*/,
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     null,
     null
   ),
@@ -689,7 +716,7 @@ export const ObjectTypeRegistry = {
     'ENIGMA_FORM_INSTANCE',
     'Enigma form instance',
     null,
-    /.*/,
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     null,
     null
   ),
@@ -697,7 +724,7 @@ export const ObjectTypeRegistry = {
     'EXECUTOR_APPLICATION',
     'Executor Application',
     null,
-    /.*/,
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     null,
     null
   ),
@@ -705,18 +732,32 @@ export const ObjectTypeRegistry = {
     'EXECUTOR_JOB',
     'Executor Job',
     null,
-    /.*/,
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     null,
-    null
+    {
+      method: 'GET',
+      endpoint: '/executor/v1/applications/{parent}/jobs/{id}',
+      pathToName: 'jobName'
+    },
+    ['EXECUTOR_APPLICATION']
   ),
-  FILE: new DomoObjectType('FILE', 'File', null, /.*/, null, null),
+  FILE: new DomoObjectType('FILE', 'File', null, /^\d+$/, null, {
+    method: 'GET',
+    endpoint: '/data/v1/data-files/{id}/details',
+    pathToName: 'name'
+  }),
   FILE_REVISION: new DomoObjectType(
     'FILE_REVISION',
     'File version',
     null,
-    /.*/,
+    /^\d+$/,
     null,
-    null
+    {
+      method: 'GET',
+      endpoint: '/data/v1/data-files/{parent}/revisions/{id}',
+      pathToName: 'name'
+    },
+    ['FILE']
   ),
   FILESET: new DomoObjectType(
     'FILESET',
@@ -742,12 +783,30 @@ export const ObjectTypeRegistry = {
     'FILESET_FILE',
     'FileSet File',
     null,
-    /.*/,
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     null,
-    null
+    {
+      method: 'GET',
+      endpoint: '/files/v1/filesets/{parent}/files/{id}',
+      pathToName: 'name'
+    },
+    ['FILESET']
   ),
-  FUNCTION: new DomoObjectType('FUNCTION', 'Function', null, /.*/, null, null),
-  GOAL: new DomoObjectType('GOAL', 'Goal', null, /.*/, null, null),
+  FUNCTION: new DomoObjectType(
+    'FUNCTION',
+    'Function',
+    null,
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    null,
+    null,
+    null,
+    true
+  ),
+  GOAL: new DomoObjectType('GOAL', 'Goal', null, /^\d+$/, null, {
+    method: 'GET',
+    endpoint: '/social/v1/objectives/{id}',
+    pathToName: 'name'
+  }),
   GOAL_DELEGATE: new DomoObjectType(
     'GOAL_DELEGATE',
     'Goal delegate',
@@ -760,11 +819,23 @@ export const ObjectTypeRegistry = {
     'GOAL_PERIOD',
     'Goal period',
     null,
-    /.*/,
+    /^\d+$/,
     null,
-    null
+    {
+      method: 'GET',
+      endpoint: '/social/v1/objectives/periods/{id}',
+      pathToName: 'name'
+    }
   ),
-  GOAL_TAG: new DomoObjectType('GOAL_TAG', 'Goal tag', null, /.*/, null, null),
+  GOAL_TAG: new DomoObjectType(
+    'GOAL_TAG',
+    'Goal tag',
+    null,
+    /^\d+$/,
+    null,
+    null,
+    ['TAG_CATEGORY']
+  ),
   GROUP: new DomoObjectType(
     'GROUP',
     'Group',
@@ -781,7 +852,7 @@ export const ObjectTypeRegistry = {
     'GROUP_CHAT',
     'Buzz group chat',
     null,
-    /.*/,
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     null,
     null
   ),
@@ -808,11 +879,19 @@ export const ObjectTypeRegistry = {
       method: 'GET',
       endpoint: '/queues/v1/{parent}/tasks/{id}',
       pathToName: 'displayEntity.name'
-    }
+    },
+    ['HOPPER_QUEUE']
   ),
-  HUDDLE: new DomoObjectType('HUDDLE', 'Buzz thread', null, /.*/, null, null),
+  HUDDLE: new DomoObjectType(
+    'HUDDLE',
+    'Buzz thread',
+    null,
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    null,
+    null
+  ),
   IMAGE: new DomoObjectType('IMAGE', 'Image', null, /.*/, null, null),
-  JOB: new DomoObjectType('JOB', 'Job', null, /.*/, null, null),
+  JOB: new DomoObjectType('JOB', 'Job', null, /^\d+$/, null, null),
   KEY_RESULT: new DomoObjectType(
     'KEY_RESULT',
     'Key Result',
@@ -823,7 +902,8 @@ export const ObjectTypeRegistry = {
       method: 'GET',
       endpoint: '/social/v1/objectives/key-results/{id}',
       pathToName: 'name'
-    }
+    },
+    ['GOAL']
   ),
   LANDING_ENTITY: new DomoObjectType(
     'LANDING_ENTITY',
@@ -851,15 +931,20 @@ export const ObjectTypeRegistry = {
       method: 'GET',
       endpoint: '/datastores/v1/collections/{id}',
       pathToName: 'name'
-    }
+    },
+    ['MAGNUM_DATASTORE']
   ),
   MAGNUM_DATASTORE: new DomoObjectType(
     'MAGNUM_DATASTORE',
     'AppDB Datastore',
     null,
-    /.*/,
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     null,
-    null
+    {
+      method: 'GET',
+      endpoint: '/datastores/v1/{id}',
+      pathToName: 'name'
+    }
   ),
   METRIC: new DomoObjectType('METRIC', 'Metric', null, /.*/, null, null),
   NAME: new DomoObjectType('NAME', 'Name', null, /.*/, null, null),
@@ -867,7 +952,7 @@ export const ObjectTypeRegistry = {
     'NAV_PIN_ITEM',
     'Nav pin item',
     null,
-    /.*/,
+    /^\d+$/,
     null,
     null
   ),
@@ -889,11 +974,11 @@ export const ObjectTypeRegistry = {
     'OAUTH2_CLIENT_CREDENTIALS',
     'Oauth 2.0 Client Credentials',
     null,
-    /.*/,
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     null,
     null
   ),
-  OTP_KEY: new DomoObjectType('OTP_KEY', 'OTP Key', null, /.*/, null, null),
+  OTP_KEY: new DomoObjectType('OTP_KEY', 'OTP Key', null, null, null, null),
   PAGE: new DomoObjectType(
     'PAGE',
     'Page',
@@ -906,7 +991,8 @@ export const ObjectTypeRegistry = {
       method: 'GET',
       endpoint: '/content/v3/stacks/{id}',
       pathToName: 'title'
-    }
+    },
+    ['PAGE']
   ),
   PAGE_ANALYZER: new DomoObjectType(
     'PAGE_ANALYZER',
@@ -920,9 +1006,10 @@ export const ObjectTypeRegistry = {
     'PAGE_COLLECTION',
     'Page collection',
     null,
-    /.*/,
+    /^\d+$/,
     null,
-    null
+    null,
+    ['PAGE']
   ),
   PAGE_TEMPLATE: new DomoObjectType(
     'PAGE_TEMPLATE',
@@ -958,9 +1045,14 @@ export const ObjectTypeRegistry = {
     'PROJECT_LIST',
     'Project list',
     null,
-    /.*/,
+    /^\d+$/,
     null,
-    null
+    {
+      method: 'GET',
+      endpoint: '/content/v1/projects/{parent}/lists/{id}',
+      pathToName: 'name'
+    },
+    ['PROJECT']
   ),
   PROJECT_TASK: new DomoObjectType(
     'PROJECT_TASK',
@@ -972,7 +1064,8 @@ export const ObjectTypeRegistry = {
       method: 'GET',
       endpoint: '/content/v1/tasks/{id}',
       pathToName: 'taskName'
-    }
+    },
+    ['PROJECT', 'PROJECT_LIST']
   ),
   PROJECT_TASK_ATTACHMENT: new DomoObjectType(
     'PROJECT_TASK_ATTACHMENT',
@@ -980,15 +1073,17 @@ export const ObjectTypeRegistry = {
     null,
     /.*/,
     null,
-    null
+    null,
+    ['PROJECT_TASK']
   ),
   PROJECT_TASK_OWNER: new DomoObjectType(
     'PROJECT_TASK_OWNER',
     'Project task owner',
     null,
-    /.*/,
+    /^\d+$/,
     null,
-    null
+    null,
+    ['PROJECT_TASK']
   ),
   PROXIER_EMAIL: new DomoObjectType(
     'PROXIER_EMAIL',
@@ -1030,7 +1125,7 @@ export const ObjectTypeRegistry = {
     'PUBLICATION_GROUP',
     'Publication group',
     null,
-    /.*/,
+    /^\d+$/,
     null,
     null
   ),
@@ -1050,24 +1145,28 @@ export const ObjectTypeRegistry = {
     'REPOSITORY_AUTHORIZATION',
     'Repository authorization',
     null,
-    /.*/,
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     null,
     null
   ),
-  REPORT: new DomoObjectType('REPORT', 'Report', null, /.*/, null, null),
+  REPORT: new DomoObjectType('REPORT', 'Report', null, /^\d+$/, null, null),
   REPORT_BUILDER: new DomoObjectType(
     'REPORT_BUILDER',
     'Report',
     null,
-    /.*/,
+    /^\d+$/,
     null,
-    null
+    {
+      method: 'GET',
+      endpoint: '/content/v1/reportbuilder/{id}',
+      pathToName: 'title'
+    }
   ),
   REPORT_BUILDER_PAGE: new DomoObjectType(
     'REPORT_BUILDER_PAGE',
     'Report page',
     null,
-    /.*/,
+    /^\d+$/,
     null,
     null
   ),
@@ -1075,17 +1174,26 @@ export const ObjectTypeRegistry = {
     'REPORT_BUILDER_VIEW',
     'Report view',
     null,
-    /.*/,
+    /^\d+$/,
     null,
-    null
+    {
+      method: 'GET',
+      endpoint: '/content/v1/reportbuilder/views/{id}',
+      pathToName: 'subject'
+    },
+    ['REPORT_BUILDER']
   ),
   REPORT_SCHEDULE: new DomoObjectType(
     'REPORT_SCHEDULE',
     'Report schedule',
     null,
-    /.*/,
+    /^\d+$/,
     null,
-    null
+    {
+      method: 'GET',
+      endpoint: '/content/v1/reportschedules/{id}',
+      pathToName: 'title'
+    }
   ),
   ROLE: new DomoObjectType(
     'ROLE',
@@ -1104,19 +1212,30 @@ export const ObjectTypeRegistry = {
   RYUU_APP: new DomoObjectType(
     'RYUU_APP',
     'Custom App',
+    '/assetlibrary/{id}/overview',
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    { keyword: 'assetlibrary' },
+    {
+      method: 'GET',
+      endpoint: '/apps/v1/designs/{id}',
+      pathToName: 'name'
+    }
+  ),
+  SCHEDULE: new DomoObjectType('SCHEDULE', 'Schedule', null, null, null, null),
+  SEGMENT: new DomoObjectType('SEGMENT', 'Segment', null, /^\d+$/, null, null),
+  SESSION: new DomoObjectType(
+    'SESSION',
+    'Session',
     null,
-    /.*/,
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     null,
     null
   ),
-  SCHEDULE: new DomoObjectType('SCHEDULE', 'Schedule', null, /.*/, null, null),
-  SEGMENT: new DomoObjectType('SEGMENT', 'Segment', null, /.*/, null, null),
-  SESSION: new DomoObjectType('SESSION', 'Session', null, /.*/, null, null),
   SMS_NOTIFICATION_COMMAND: new DomoObjectType(
     'SMS_NOTIFICATION_COMMAND',
     'Sms notification command',
     null,
-    /.*/,
+    null,
     null,
     null
   ),
@@ -1124,7 +1243,7 @@ export const ObjectTypeRegistry = {
     'SMS_NOTIFICATION_WEB',
     'Sms notification web',
     null,
-    /.*/,
+    null,
     null,
     null
   ),
@@ -1140,17 +1259,17 @@ export const ObjectTypeRegistry = {
     'SSO_SETTINGS',
     'SSO settings',
     null,
-    /.*/,
+    /^\d+$/,
     null,
     null
   ),
-  STORY: new DomoObjectType('STORY', 'Story', null, /.*/, null, null),
-  STREAM: new DomoObjectType('STREAM', 'Stream', null, /.*/, null, null),
+  STORY: new DomoObjectType('STORY', 'Story', null, /^\d+$/, null, null),
+  STREAM: new DomoObjectType('STREAM', 'Stream', null, /^\d+$/, null, null),
   SUBSCRIPTION: new DomoObjectType(
     'SUBSCRIPTION',
     'Subscription',
     null,
-    /.*/,
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     null,
     null
   ),
@@ -1177,12 +1296,28 @@ export const ObjectTypeRegistry = {
     'TAG_CATEGORY',
     'Goal tag category',
     null,
-    /.*/,
+    /^\d+$/,
     null,
     null
   ),
-  TEAM: new DomoObjectType('TEAM', 'Team', null, /.*/, null, null),
-  TOKEN: new DomoObjectType('TOKEN', 'API Client', null, /.*/, null, null),
+  TEAM: new DomoObjectType(
+    'TEAM',
+    'Team',
+    null,
+    /^\d+$/,
+    null,
+    null,
+    null,
+    true
+  ),
+  TOKEN: new DomoObjectType(
+    'TOKEN',
+    'API Client',
+    null,
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[X]{4}-[X]{4}-[X]{12}$/i,
+    null,
+    null
+  ),
   USER: new DomoObjectType(
     'USER',
     'User',
@@ -1199,13 +1334,21 @@ export const ObjectTypeRegistry = {
     'USAGE_REPORT_ROWS',
     'Usage Report: Rows',
     null,
-    /.*/,
+    null,
     null,
     null
   ),
   USER_ACHIEVEMENT: new DomoObjectType(
     'USER_ACHIEVEMENT',
     'User achievement',
+    null,
+    /^\d+$/,
+    null,
+    null
+  ),
+  USER_CUSTOM_KEY: new DomoObjectType(
+    'USER_CUSTOM_KEY',
+    'User Custom Attribute',
     null,
     /.*/,
     null,
@@ -1223,18 +1366,25 @@ export const ObjectTypeRegistry = {
     'USER_TEMPLATE',
     'User template',
     null,
-    /.*/,
+    /^\d+$/,
     null,
-    null
+    null,
+    null,
+    true
   ),
-  VARIABLE: new DomoObjectType('VARIABLE', 'Variable', null, /.*/, null, null),
+  VARIABLE: new DomoObjectType('VARIABLE', 'Variable', null, /^\d+$/, null, {
+    method: 'GET',
+    endpoint: '/query/v1/functions/template/{id}?hidden=true',
+    pathToName: 'name'
+  }),
   VARIABLE_CONTROL: new DomoObjectType(
     'VARIABLE_CONTROL',
     'Variable control',
     null,
-    /.*/,
+    /^\d+$/,
     null,
-    null
+    null,
+    ['VARIABLE']
   ),
   VECTOR_INDEX: new DomoObjectType(
     'VECTOR_INDEX',
@@ -1248,16 +1398,25 @@ export const ObjectTypeRegistry = {
     'VIDEO_ROOM',
     'Video call',
     null,
-    /.*/,
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    null,
+    null,
+    null,
+    true
+  ),
+  VIEW: new DomoObjectType(
+    'VIEW',
+    'View',
+    null,
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     null,
     null
   ),
-  VIEW: new DomoObjectType('VIEW', 'View', null, /.*/, null, null),
   VIEW_ADVANCED_EDITOR: new DomoObjectType(
     'VIEW_ADVANCED_EDITOR',
     'View advanced editor',
     null,
-    /.*/,
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     null,
     null
   ),
@@ -1265,7 +1424,7 @@ export const ObjectTypeRegistry = {
     'VIRTUAL_USER',
     'Virtual user',
     null,
-    /.*/,
+    /^vu:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     null,
     null
   ),
@@ -1273,9 +1432,10 @@ export const ObjectTypeRegistry = {
     'WAREHOUSE_ACCOUNT',
     'Warehouse account',
     null,
-    /.*/,
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     null,
-    null
+    null,
+    ['ACCOUNT']
   ),
   WORKBENCH_AGENT: new DomoObjectType(
     'WORKBENCH_AGENT',
@@ -1285,11 +1445,11 @@ export const ObjectTypeRegistry = {
     null,
     null
   ),
-  WORKBENCH_GROUP: new DomoObjectType(
-    'WORKBENCH_GROUP',
+  Workbench_GROUP: new DomoObjectType(
+    'Workbench_GROUP',
     'Workbench group',
     null,
-    /.*/,
+    /^\d+$/,
     null,
     null
   ),
@@ -1297,7 +1457,7 @@ export const ObjectTypeRegistry = {
     'WORKBENCH_JOB',
     'On premise job',
     null,
-    /.*/,
+    /^\d+$/,
     null,
     null
   ),
@@ -1305,21 +1465,22 @@ export const ObjectTypeRegistry = {
     'WORKBENCH_SCHEDULE',
     'On premise job schedule',
     null,
-    /.*/,
+    /0/,
     null,
     null
   ),
   WORKFLOW_INSTANCE: new DomoObjectType(
     'WORKFLOW_INSTANCE',
     'Workflow Execution',
-    '/workflows/instances/{id}',
+    '/workflows/instances/{parent}/{version}/{id}',
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    { keyword: null, fromEnd: true, offset: 1 },
+    { keyword: 'instances', offset: 3 },
     {
       method: 'GET',
       endpoint: '/workflows/v2/executions/{id}',
       pathToName: 'modelName'
-    }
+    },
+    ['WORKFLOW_MODEL']
   ),
   WORKFLOW_MODEL: new DomoObjectType(
     'WORKFLOW_MODEL',
@@ -1336,10 +1497,19 @@ export const ObjectTypeRegistry = {
   WORKFLOW_MODEL_VERSION: new DomoObjectType(
     'WORKFLOW_MODEL_VERSION',
     'Workflow Model Version',
-    null,
-    /.*/,
-    null,
-    null
+    '/workflows/models/{parent}/{id}?_wfv=view',
+    /^[0-9]+\.[0-9]+\.[0-9]+$/,
+    {
+      keyword: 'workflows',
+      offset: 3,
+      parentExtract: { keyword: 'workflows', offset: 2 }
+    },
+    {
+      method: 'GET',
+      endpoint: '/workflows/v2/models/{parent}/versions/{id}',
+      pathToName: 'version'
+    },
+    ['WORKFLOW_MODEL']
   ),
   WORKFLOW_TIMER_START: new DomoObjectType(
     'WORKFLOW_TIMER_START',
@@ -1347,23 +1517,48 @@ export const ObjectTypeRegistry = {
     null,
     /.*/,
     null,
-    null
+    null,
+    ['WORKFLOW_INSTANCE']
   ),
   WORKSHEET: new DomoObjectType(
     'WORKSHEET',
     'Worksheet',
-    null,
-    /.*/,
-    null,
-    null
+    '/app-studio/{id}',
+    /^\d+$/,
+    { keyword: 'app-studio' },
+    {
+      method: 'GET',
+      endpoint: '/content/v1/dataapps/{id}',
+      pathToName: 'title'
+    }
   ),
   WORKSHEET_VIEW: new DomoObjectType(
     'WORKSHEET_VIEW',
     'Worksheet view',
-    null,
-    /.*/,
-    null,
-    null
+    '/app-studio/{parent}/pages/{id}',
+    /^\d+$/,
+    {
+      keyword: 'pages',
+      parentExtract: { keyword: 'app-studio', offset: 1 }
+    },
+    {
+      method: 'GET',
+      endpoint: '/content/v3/stacks/{id}',
+      pathToName: 'title'
+    },
+    ['WORKSHEET']
+  ),
+  WORKSPACE: new DomoObjectType(
+    'WORKSPACE',
+    'Workspace',
+    '/workspaces/{id}',
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    { keyword: 'workspaces' },
+    {
+      method: 'GET',
+      endpoint: '/nav/v1/workspaces/{id}',
+      pathToName: 'name'
+    }
   )
 };
 
@@ -1381,7 +1576,7 @@ export function getObjectType(type) {
  * @returns {DomoObjectType[]} Array of all DomoObjectType instances
  */
 export function getAllObjectTypes() {
-  return Object.values(ObjectTypeRegistry);
+  return Object.values(ObjectTypeRegistry).filter((type) => !type.deprecated);
 }
 
 /**
@@ -1389,7 +1584,9 @@ export function getAllObjectTypes() {
  * @returns {DomoObjectType[]} Array of DomoObjectType instances with urlPath defined
  */
 export function getAllObjectTypesWithUrl() {
-  return Object.values(ObjectTypeRegistry).filter((type) => type.hasUrl());
+  return Object.values(ObjectTypeRegistry).filter(
+    (type) => type.hasUrl() && !type.deprecated
+  );
 }
 
 /**
@@ -1397,7 +1594,7 @@ export function getAllObjectTypesWithUrl() {
  * @returns {DomoObjectType[]} Array of DomoObjectType instances with apiConfig defined
  */
 export function getAllObjectTypesWithApiConfig() {
-  return Object.values(ObjectTypeRegistry).filter((type) =>
-    type.hasApiConfig()
+  return Object.values(ObjectTypeRegistry).filter(
+    (type) => type.hasApiConfig() && !type.deprecated
   );
 }

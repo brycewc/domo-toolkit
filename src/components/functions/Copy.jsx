@@ -73,6 +73,19 @@ export function Copy({
           currentContext?.domoObject?.parentId
         );
         break;
+      case 'worksheet':
+        navigator.clipboard.writeText(currentContext?.domoObject?.parentId);
+        showStatus(
+          'Success',
+          `Copied Worksheet ID ${currentContext?.domoObject?.parentId} to clipboard`,
+          'success',
+          2000
+        );
+        // Trigger detection in NavigateToCopiedObject
+        navigateToCopiedRef.current?.triggerDetection(
+          currentContext?.domoObject?.parentId
+        );
+        break;
       default:
         break;
     }
@@ -90,7 +103,7 @@ export function Copy({
           {isCopied ? <IconCheck size={4} /> : <IconClipboard size={4} />}
         </Button>
         <Dropdown.Popover
-          className='w-full min-w-[12rem]'
+          className='w-fit min-w-[12rem]'
           placement='bottom left'
         >
           <Dropdown.Menu onAction={handleAction}>
@@ -108,6 +121,12 @@ export function Copy({
               <Dropdown.Item id='data-app' textValue='Copy App ID'>
                 <IconClipboard size={4} className='size-4 shrink-0' />
                 <Label>Copy App ID</Label>
+              </Dropdown.Item>
+            )}
+            {currentContext?.domoObject?.typeId === 'WORKSHEET_VIEW' && (
+              <Dropdown.Item id='worksheet' textValue='Copy Worksheet ID'>
+                <IconClipboard size={4} className='size-4 shrink-0' />
+                <Label>Copy Worksheet ID</Label>
               </Dropdown.Item>
             )}
           </Dropdown.Menu>

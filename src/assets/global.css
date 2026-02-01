@@ -12,9 +12,16 @@
 .default,
 [data-theme='light'],
 [data-theme='default'] {
-  /* Theme Colors (Light Mode) */
+  /* Custom Colors */
   --domo: oklch(0.8214 0.0716 237.95);
   --domo-orange: oklch(0.7728 0.1683 62.5);
+  --json-property: oklch(0.6296 0.1554 137.99);
+  --json-index: oklch(62.04% 0.195 253.83);
+  --json-number: oklch(0.6296 0.1554 137.99);
+  --json-string: oklch(0.8411 0.1723 84.94);
+  --json-boolean: oklch(0.6424 0.1761 26.85);
+  --json-null: oklch(0.6424 0.1761 26.85);
+  /* Theme Colors (Light Mode) */
   --accent: oklch(62.04% 0.195 253.83);
   --accent-foreground: oklch(99.11% 0 0);
   --background: oklch(0.9702 0 0);
@@ -41,7 +48,6 @@
   --surface-foreground: oklch(0.2103 0.0059 285.89);
   --warning: oklch(0.8411 0.1723 84.94);
   --warning-foreground: oklch(0.2103 0.0059 285.89);
-
   /* Border Radius */
   --radius: 1px;
   --field-radius: 2px;
@@ -89,4 +95,10 @@
 @theme inline {
   --color-domo: var(--domo);
   --color-domo-orange: var(--domo-orange);
+  --color-json-property: var(--json-property);
+  --color-json-index: var(--json-index);
+  --color-json-number: var(--json-number);
+  --color-json-string: var(--json-string);
+  --color-json-boolean: var(--json-boolean);
+  --color-json-null: var(--json-null);
 }

@@ -1,5 +1,4 @@
 import { useEffect, useState, useRef } from 'react';
-import { Button } from '@heroui/react';
 import { GetPagesView, ActionButtons } from '@/components';
 import { useTheme } from '@/hooks';
 import { DomoContext } from '@/models';

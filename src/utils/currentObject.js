@@ -6,7 +6,7 @@ import { getObjectType } from '@/models';
  * It must have no external dependencies and returns serializable data
  * @returns {Object|null} Plain object with typeId, id, url, baseUrl properties
  */
-export function detectCurrentObject() {
+export async function detectCurrentObject() {
   const url = location.href;
 
   if (!location.hostname.includes('domo.com')) {
@@ -71,7 +71,32 @@ export function detectCurrentObject() {
         objectType = 'CARD';
         id = kpiId;
       } else {
-        objectType = url.includes('app-studio') ? 'DATA_APP_VIEW' : 'PAGE';
+        if (!url.includes('app-studio')) {
+          objectType = 'PAGE';
+        } else {
+          console.log('Fetching App Studio object type...');
+          // Need to fetch to determine if Worksheet or Data App
+          try {
+            const response = await fetch(
+              `/api/content/v1/dataapps/${parts[parts.indexOf('app-studio') + 1]}`
+            );
+            console.log('Fetch response received:', response);
+            if (response.ok) {
+              const data = await response.json();
+              console.log('Fetch data:', data);
+              if (data && data.type === 'worksheet') {
+                objectType = 'WORKSHEET_VIEW';
+              } else {
+                objectType = 'DATA_APP_VIEW';
+              }
+            } else {
+              objectType = 'DATA_APP_VIEW';
+            }
+          } catch (e) {
+            console.error('Error fetching App Studio object type:', e);
+            objectType = 'DATA_APP_VIEW';
+          }
+        }
       }
       break;
 
@@ -105,7 +130,7 @@ export function detectCurrentObject() {
       objectType = 'ROLE';
       break;
 
-    case url.includes('instances/') && parts.length >= 8:
+    case url.includes('instances/') && parts[parts.indexOf('instances') + 3]:
       objectType = 'WORKFLOW_INSTANCE';
       break;
 
@@ -205,6 +230,9 @@ export function detectCurrentObject() {
       objectType = 'REPOSITORY';
       break;
 
+    case url.includes('workspaces/'):
+      objectType = 'WORKSPACE';
+      break;
     default:
       return null;
   }

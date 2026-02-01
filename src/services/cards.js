@@ -83,7 +83,9 @@ export async function getCardsForObject({ objectId, objectType }) {
       async (objectId, objectType) => {
         switch (objectType) {
           case 'PAGE':
-          case 'DATA_APP_VIEW': {
+          case 'DATA_APP_VIEW':
+          case 'REPORT_BUILDER_VIEW':
+          case 'WORKSHEET_VIEW': {
             const response = await fetch(
               `/api/content/v3/stacks/${objectId}/cards`,
               {
