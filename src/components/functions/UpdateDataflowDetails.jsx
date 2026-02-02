@@ -16,32 +16,41 @@ export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [isOpen, setIsOpen] = useState(false);
+  const [originalValues, setOriginalValues] = useState({
+    name: '',
+    description: ''
+  });
 
   // Initialize form values when modal opens
   useEffect(() => {
     if (isOpen) {
-      setName(currentContext?.domoObject?.metadata?.details?.name || '');
-      setDescription(
-        currentContext?.domoObject?.metadata?.details?.description || ''
-      );
+      const originalName =
+        currentContext?.domoObject?.metadata?.details?.name || '';
+      const originalDescription =
+        currentContext?.domoObject?.metadata?.details?.description || '';
+      setName(originalName);
+      setDescription(originalDescription);
+      setOriginalValues({ name: originalName, description: originalDescription });
     }
   }, [isOpen, currentContext?.domoObject]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Only include fields that have values
+    // Only include fields that actually changed
     const updates = {};
-    if (name?.trim()) updates.name = name.trim();
-    if (description?.trim()) updates.description = description.trim();
+    const trimmedName = name?.trim() || '';
+    const trimmedDescription = description?.trim() || '';
+
+    if (trimmedName !== originalValues.name) {
+      updates.name = trimmedName;
+    }
+    if (trimmedDescription !== originalValues.description) {
+      updates.description = trimmedDescription;
+    }
 
     if (Object.keys(updates).length === 0) {
-      onStatusUpdate?.(
-        'No changes to update',
-        'Please enter a name or description',
-        'warning',
-        2000
-      );
+      onStatusUpdate?.('No changes to update', 'No fields were modified', 'warning', 2000);
       return;
     }
 
@@ -50,12 +59,19 @@ export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
     try {
       await updateDataflowDetails(currentContext?.domoObject?.id, updates);
 
-      // Refresh the page immediately to show the changes
+      // Update the cached context in background so popup shows new values
       const [tab] = await chrome.tabs.query({
         active: true,
         currentWindow: true
       });
       if (tab?.id) {
+        await chrome.runtime.sendMessage({
+          type: 'UPDATE_CONTEXT_METADATA',
+          tabId: tab.id,
+          metadataUpdates: updates
+        });
+
+        // Refresh the page to show the changes
         chrome.tabs.reload(tab.id);
       }
 

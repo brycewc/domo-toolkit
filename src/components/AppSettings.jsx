@@ -17,14 +17,14 @@ export function AppSettings({ theme = 'system' }) {
   const [settings, setSettings] = useState({
     themePreference: theme,
     defaultDomoInstance: '',
-    defaultClearCookiesHandling: 'auto'
+    defaultClearCookiesHandling: 'default'
   });
 
   // Track original settings to detect changes
   const [originalSettings, setOriginalSettings] = useState({
     themePreference: theme,
     defaultDomoInstance: '',
-    defaultClearCookiesHandling: 'auto'
+    defaultClearCookiesHandling: 'default'
   });
 
   const [isClearing, setIsClearing] = useState(false);
@@ -46,7 +46,7 @@ export function AppSettings({ theme = 'system' }) {
           themePreference: result.themePreference || theme || 'system',
           defaultDomoInstance: result.defaultDomoInstance || '',
           defaultClearCookiesHandling:
-            result.defaultClearCookiesHandling || 'auto'
+            result.defaultClearCookiesHandling || 'default'
         };
         setSettings(loadedSettings);
         setOriginalSettings(loadedSettings);

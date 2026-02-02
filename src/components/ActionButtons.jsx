@@ -178,6 +178,7 @@ export function ActionButtons({
                   <NavigateToCopiedObject
                     ref={navigateToCopiedRef}
                     currentContext={currentContext}
+                    onStatusUpdate={showStatus}
                   />
                 </div>
                 <div className='flex w-full flex-wrap place-items-center items-center justify-center gap-1'>

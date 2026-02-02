@@ -1,7 +1,12 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Button, Dropdown, Label, Tooltip } from '@heroui/react';
 import { IconCheck, IconClipboard, IconJson } from '@tabler/icons-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { JsonStringifyOrder } from '@/utils';
+
+const LONG_PRESS_DURATION = 1000; // ms - matches HeroUI's default
+const LONG_PRESS_SECONDS = LONG_PRESS_DURATION / 1000;
+
 export function Copy({
   currentContext,
   showStatus,
@@ -9,6 +14,24 @@ export function Copy({
   navigateToCopiedRef
 }) {
   const [isCopied, setIsCopied] = useState(false);
+  const [isHolding, setIsHolding] = useState(false);
+  const holdTimeoutRef = useRef(null);
+
+  const handlePressStart = () => {
+    setIsHolding(true);
+    // Clear holding state after long press duration (dropdown will open)
+    holdTimeoutRef.current = setTimeout(() => {
+      setIsHolding(false);
+    }, LONG_PRESS_DURATION);
+  };
+
+  const handlePressEnd = () => {
+    setIsHolding(false);
+    if (holdTimeoutRef.current) {
+      clearTimeout(holdTimeoutRef.current);
+      holdTimeoutRef.current = null;
+    }
+  };
 
   const handlePress = () => {
     try {
@@ -98,14 +121,42 @@ export function Copy({
           fullWidth
           isIconOnly
           onPress={handlePress}
+          onPressStart={handlePressStart}
+          onPressEnd={handlePressEnd}
           isDisabled={isDisabled || !currentContext?.domoObject?.id}
+          className='relative overflow-visible'
         >
           {isCopied ? <IconCheck size={4} /> : <IconClipboard size={4} />}
+          <AnimatePresence>
+            {isHolding && (
+              <motion.svg
+                className='pointer-events-none absolute inset-x-0.5 -inset-y-0.5 size-full'
+                viewBox='0 0 100 100'
+                preserveAspectRatio='none'
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0, transition: { duration: 0.1 } }}
+              >
+                <motion.rect
+                  x='2'
+                  y='2'
+                  width='96'
+                  height='96'
+                  rx='6'
+                  fill='none'
+                  stroke='currentColor'
+                  strokeWidth='3'
+                  className='text-accent'
+                  style={{ vectorEffect: 'non-scaling-stroke' }}
+                  initial={{ pathLength: 0 }}
+                  animate={{ pathLength: 1 }}
+                  transition={{ duration: LONG_PRESS_SECONDS, ease: 'linear' }}
+                />
+              </motion.svg>
+            )}
+          </AnimatePresence>
         </Button>
-        <Dropdown.Popover
-          className='w-fit min-w-[12rem]'
-          placement='bottom left'
-        >
+        <Dropdown.Popover className='w-fit min-w-48' placement='bottom left'>
           <Dropdown.Menu onAction={handleAction}>
             <Dropdown.Item id='context-json' textValue='Copy Context JSON'>
               <IconJson size={4} className='size-4 shrink-0' />
@@ -133,7 +184,12 @@ export function Copy({
         </Dropdown.Popover>
       </Dropdown>
 
-      <Tooltip.Content>Copy ID</Tooltip.Content>
+      <Tooltip.Content className='flex flex-col items-center text-center'>
+        <span>Copy ID</span>
+        <span className='text-foreground-500 text-xs'>
+          Hold for more options
+        </span>
+      </Tooltip.Content>
     </Tooltip>
   );
 }

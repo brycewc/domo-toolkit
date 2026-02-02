@@ -1477,7 +1477,7 @@ export const ObjectTypeRegistry = {
     { keyword: 'instances', offset: 3 },
     {
       method: 'GET',
-      endpoint: '/workflows/v2/executions/{id}',
+      endpoint: '/workflow/v2/executions/{id}',
       pathToName: 'modelName'
     },
     ['WORKFLOW_MODEL']
@@ -1490,7 +1490,7 @@ export const ObjectTypeRegistry = {
     { keyword: 'workflows', offset: 2 },
     {
       method: 'GET',
-      endpoint: '/workflows/v1/models/{id}',
+      endpoint: '/workflow/v1/models/{id}',
       pathToName: 'name'
     }
   ),
@@ -1506,7 +1506,7 @@ export const ObjectTypeRegistry = {
     },
     {
       method: 'GET',
-      endpoint: '/workflows/v2/models/{parent}/versions/{id}',
+      endpoint: '/workflow/v2/models/{parent}/versions/{id}',
       pathToName: 'version'
     },
     ['WORKFLOW_MODEL']

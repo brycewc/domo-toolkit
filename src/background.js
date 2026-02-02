@@ -1016,6 +1016,35 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           sendResponse({ success: true });
           break;
         }
+
+        case 'UPDATE_CONTEXT_METADATA': {
+          // Update cached context metadata without re-fetching from API
+          const { tabId, metadataUpdates } = message;
+          const context = getTabContext(tabId);
+
+          if (!context) {
+            sendResponse({ success: false, error: 'No context found for tab' });
+            return;
+          }
+
+          // Merge updates into metadata.details
+          if (context.domoObject?.metadata) {
+            context.domoObject.metadata.details = {
+              ...context.domoObject.metadata.details,
+              ...metadataUpdates
+            };
+            // Also update the top-level name if it was changed
+            if (metadataUpdates.name !== undefined) {
+              context.domoObject.metadata.name = metadataUpdates.name;
+            }
+          }
+
+          // Re-store to persist and broadcast update
+          setTabContext(tabId, context);
+          sendResponse({ success: true, context: context.toJSON() });
+          break;
+        }
+
         default:
           sendResponse({ success: false, error: 'Unknown message type' });
       }
