@@ -79,7 +79,8 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
             // For datasets: Get all cards, then get all pages those cards appear on
             const cards = await getCardsForObject({
               objectId: currentContext?.domoObject.id,
-              objectType: currentContext?.domoObject.typeId
+              objectType: currentContext?.domoObject.typeId,
+              tabId: currentContext?.tabId
             });
 
             if (!cards || cards.length === 0) {
@@ -92,7 +93,10 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
             }
 
             // Then get all pages that those cards appear on
-            const pages = await getPagesForCards(cards.map((card) => card.id));
+            const pages = await getPagesForCards(
+              cards.map((card) => card.id),
+              currentContext?.tabId
+            );
 
             if (pages.length === 0) {
               onStatusUpdate?.(

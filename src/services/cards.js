@@ -76,7 +76,11 @@ export async function getPageCards(pageId) {
  * @returns {Promise<Array>} Array of card objects with details
  * @throws {Error} If the fetch fails
  */
-export async function getCardsForObject({ objectId, objectType }) {
+export async function getCardsForObject({
+  objectId,
+  objectType,
+  tabId = null
+}) {
   try {
     // Execute fetch in page context to use authenticated session
     const result = await executeInPage(
@@ -139,7 +143,8 @@ export async function getCardsForObject({ objectId, objectType }) {
             throw new Error(`Cannot get cards for object type ${objectType}`);
         }
       },
-      [objectId, objectType]
+      [objectId, objectType],
+      tabId
     );
 
     return result;

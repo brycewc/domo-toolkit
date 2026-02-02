@@ -268,11 +268,14 @@ export function GetPagesView({
         tabId
       });
 
-      if (!cards || cards.length === 0) {
+      if (!cards || !cards.length) {
         return [];
       }
 
-      const pages = await getPagesForCards(cards.map((card) => card.id));
+      const pages = await getPagesForCards(
+        cards.map((card) => card.id),
+        tabId
+      );
 
       // Transform to match expected format with pageType
       return pages.map((page) => ({

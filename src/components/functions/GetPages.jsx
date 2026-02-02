@@ -87,7 +87,8 @@ export function GetPages({
       if (objectType === 'DATA_SOURCE') {
         const cards = await getCardsForObject({
           objectId: currentContext.domoObject.id,
-          objectType: currentContext.domoObject.typeId
+          objectType: currentContext.domoObject.typeId,
+          tabId: currentContext?.tabId
         });
 
         if (!cards || cards.length === 0) {
@@ -102,7 +103,10 @@ export function GetPages({
         }
 
         // Get all pages that those cards appear on
-        const pages = await getPagesForCards(cards.map((card) => card.id));
+        const pages = await getPagesForCards(
+          cards.map((card) => card.id),
+          currentContext?.tabId
+        );
 
         if (!pages || pages.length === 0) {
           clearLoadingState();

@@ -459,7 +459,7 @@ function disable431Listener() {
 
 // Initialize 431 listener based on stored setting
 chrome.storage.sync.get(['defaultClearCookiesHandling'], (result) => {
-  const mode = result.defaultClearCookiesHandling || 'auto';
+  const mode = result.defaultClearCookiesHandling || 'default';
 
   // Only enable 431 auto-clear listener for 'auto' mode
   if (mode === 'auto') {
@@ -573,7 +573,7 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
     areaName === 'sync' &&
     changes.defaultClearCookiesHandling !== undefined
   ) {
-    const mode = changes.defaultClearCookiesHandling.newValue || 'auto';
+    const mode = changes.defaultClearCookiesHandling.newValue || 'default';
 
     // Only enable 431 auto-clear listener for 'auto' mode
     if (mode === 'auto') {
@@ -889,7 +889,8 @@ async function detectAndStoreContext(tabId) {
       // Fetch cards in background without blocking
       getCardsForObject({
         objectId,
-        objectType: typeModel.id
+        objectType: typeModel.id,
+        tabId
       })
         .then((cards) => {
           // Get the current context (it might have been updated)

@@ -241,7 +241,7 @@ export async function sharePagesWithSelf({ pageIds, tabId }) {
  * @returns {Promise<Object>} Array of page objects with type, id, and name
  * @throws {Error} If the fetch fails
  */
-export async function getPagesForCards(cardIds) {
+export async function getPagesForCards(cardIds, tabId = null) {
   try {
     // Execute fetch in page context to use authenticated session
     const result = await executeInPage(
@@ -361,7 +361,8 @@ export async function getPagesForCards(cardIds) {
 
         return pageObjects;
       },
-      [cardIds]
+      [cardIds],
+      tabId
     );
 
     return result;
