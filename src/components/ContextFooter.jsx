@@ -1,16 +1,42 @@
-import { Alert, Button, Chip, Spinner, Popover } from '@heroui/react';
+import { useState } from 'react';
+import { Alert, Button, Chip, Spinner, Popover, Tooltip } from '@heroui/react';
+import { IconCheck, IconClipboard } from '@tabler/icons-react';
 import JsonView from 'react18-json-view';
 import 'react18-json-view/src/style.css';
 import { useTheme } from '@/hooks';
+import { JsonStringifyOrder } from '@/utils';
 
-export function ContextFooter({ currentContext, isLoading }) {
-  const isDomoPage = currentContext?.isDomoPage ?? false;
+export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
   const theme = useTheme();
+
+  const [isCopied, setIsCopied] = useState(false);
+
+  const handleCopy = () => {
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
+    try {
+      const contextJson = JsonStringifyOrder(currentContext, 2);
+      navigator.clipboard.writeText(contextJson);
+      onStatusUpdate?.(
+        'Success',
+        `Copied Context JSON to clipboard`,
+        'success',
+        2000
+      );
+    } catch (error) {
+      onStatusUpdate?.(
+        'Error',
+        `Failed to copy context JSON: ${error.message}`,
+        'danger',
+        3000
+      );
+    }
+  };
 
   const alertContent = (
     <Alert
-      status={isDomoPage || isLoading ? 'accent' : 'warning'}
-      className='p-2'
+      status={currentContext?.isDomoPage || isLoading ? 'accent' : 'warning'}
+      className='w-full p-2'
     >
       <Alert.Content
         className={`flex flex-col ${isLoading ? 'items-center' : 'items-start'}`}
@@ -20,7 +46,7 @@ export function ContextFooter({ currentContext, isLoading }) {
         ) : (
           <>
             <Alert.Title>
-              {isDomoPage ? (
+              {currentContext?.isDomoPage ? (
                 <>
                   Current Context:{' '}
                   <span className='underline'>
@@ -32,7 +58,7 @@ export function ContextFooter({ currentContext, isLoading }) {
               )}
             </Alert.Title>
             <Alert.Description className='flex flex-wrap items-center gap-x-1'>
-              {isDomoPage ? (
+              {currentContext?.isDomoPage ? (
                 isLoading ? (
                   <Spinner size='sm' color='accent' />
                 ) : !currentContext?.instance ||
@@ -61,23 +87,37 @@ export function ContextFooter({ currentContext, isLoading }) {
     </Alert>
   );
 
-  // Only wrap with Popover when on a Domo page
-  if (!isDomoPage) {
+  // Only wrap with Popover when on a Domo page with an object
+  if (
+    !currentContext?.isDomoPage ||
+    isLoading ||
+    !currentContext?.domoObject?.id
+  ) {
     return alertContent;
   }
 
   return (
-    <Popover>
-      <Popover.Trigger>{alertContent}</Popover.Trigger>
+    <Popover className='flex w-full items-start justify-start'>
+      <Popover.Trigger className='w-full'>{alertContent}</Popover.Trigger>
       <Popover.Content
-        placement='bottom left'
-        className='flex w-[95%] flex-col gap-2 overflow-y-auto p-2'
+        placement='bottom'
+        className='flex h-[90%] w-[90%] flex-col gap-2 overflow-y-auto p-2'
       >
-        <Chip color='accent' variant='soft' className='w-fit'>
-          {currentContext?.domoObject?.typeId}
-        </Chip>
+        <div className='flex flex-row items-center justify-start'>
+          <Chip color='accent' variant='soft' className='w-fit'>
+            {currentContext?.domoObject?.typeId}
+          </Chip>
+          <Tooltip delay={400} closeDelay={0}>
+            <Button variant='ghost' size='sm' isIconOnly onPress={handleCopy}>
+              {isCopied ? <IconCheck size={4} /> : <IconClipboard size={4} />}
+            </Button>
+            <Tooltip.Content>
+              Copy current context JSON to clipboard
+            </Tooltip.Content>
+          </Tooltip>
+        </div>
         <JsonView
-          src={currentContext?.domoObject?.metadata?.details}
+          src={currentContext?.domoObject?.metadata}
           collapsed={1}
           theme='vscode'
           dark={theme === 'dark'}

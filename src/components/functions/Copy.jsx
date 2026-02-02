@@ -9,7 +9,7 @@ const LONG_PRESS_SECONDS = LONG_PRESS_DURATION / 1000;
 
 export function Copy({
   currentContext,
-  showStatus,
+  onStatusUpdate,
   isDisabled,
   navigateToCopiedRef
 }) {
@@ -38,9 +38,9 @@ export function Copy({
       navigator.clipboard.writeText(currentContext?.domoObject?.id);
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
-      showStatus(
+      onStatusUpdate?.(
         'Success',
-        `Copied ${currentContext?.domoObject?.typeName} ID ${currentContext?.domoObject?.id} to clipboard`,
+        `Copied ${currentContext?.domoObject?.typeName} ID **${currentContext?.domoObject?.id}** to clipboard`,
         'success',
         2000
       );
@@ -48,7 +48,7 @@ export function Copy({
         currentContext?.domoObject?.id
       );
     } catch (error) {
-      showStatus(
+      onStatusUpdate?.(
         'Error',
         `Failed to copy ${currentContext?.domoObject?.typeName.toLowerCase()} ID to clipboard`,
         'error',
@@ -61,7 +61,7 @@ export function Copy({
       case 'context-json':
         const contextJson = JsonStringifyOrder(currentContext, 2);
         navigator.clipboard.writeText(contextJson);
-        showStatus(
+        onStatusUpdate?.(
           'Success',
           `Copied Context JSON to clipboard`,
           'success',
@@ -72,9 +72,9 @@ export function Copy({
         navigator.clipboard.writeText(
           currentContext?.domoObject?.metadata?.details?.streamId
         );
-        showStatus(
+        onStatusUpdate?.(
           'Success',
-          `Copied Stream ID ${currentContext?.domoObject?.metadata?.details?.streamId} to clipboard`,
+          `Copied Stream ID **${currentContext?.domoObject?.metadata?.details?.streamId}** to clipboard`,
           'success',
           2000
         );
@@ -85,9 +85,9 @@ export function Copy({
         break;
       case 'data-app':
         navigator.clipboard.writeText(currentContext?.domoObject?.parentId);
-        showStatus(
+        onStatusUpdate?.(
           'Success',
-          `Copied App Studio App ID ${currentContext?.domoObject?.parentId} to clipboard`,
+          `Copied App Studio App ID **${currentContext?.domoObject?.parentId}** to clipboard`,
           'success',
           2000
         );
@@ -98,9 +98,9 @@ export function Copy({
         break;
       case 'worksheet':
         navigator.clipboard.writeText(currentContext?.domoObject?.parentId);
-        showStatus(
+        onStatusUpdate?.(
           'Success',
-          `Copied Worksheet ID ${currentContext?.domoObject?.parentId} to clipboard`,
+          `Copied Worksheet ID **${currentContext?.domoObject?.parentId}** to clipboard`,
           'success',
           2000
         );
@@ -186,9 +186,8 @@ export function Copy({
 
       <Tooltip.Content className='flex flex-col items-center text-center'>
         <span>Copy ID</span>
-        <span className='text-foreground-500 text-xs'>
-          Hold for more options
-        </span>
+        {[''].includes(currentContext?.domoObject?.typeId)}
+        <span className='italic'>Hold for more options</span>
       </Tooltip.Content>
     </Tooltip>
   );

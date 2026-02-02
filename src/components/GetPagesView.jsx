@@ -290,9 +290,19 @@ export function GetPagesView({
     setIsRefreshing(true);
     try {
       await loadPagesData(true); // Force fresh API call
-      onStatusUpdate?.('Refreshed', 'Page data updated successfully', 'success', 2000);
+      onStatusUpdate?.(
+        'Refreshed',
+        'Page data updated successfully',
+        'success',
+        2000
+      );
     } catch (err) {
-      onStatusUpdate?.('Refresh Failed', err.message || 'Failed to refresh data', 'danger', 3000);
+      onStatusUpdate?.(
+        'Refresh Failed',
+        err.message || 'Failed to refresh data',
+        'danger',
+        3000
+      );
     } finally {
       setIsRefreshing(false);
     }
@@ -371,7 +381,12 @@ export function GetPagesView({
         case 'copy':
           if (item.id) {
             await navigator.clipboard.writeText(item.id.toString());
-            onStatusUpdate?.('Copied', `ID **${item.id}** copied to clipboard`, 'success', 2000);
+            onStatusUpdate?.(
+              'Copied',
+              `ID **${item.id}** copied to clipboard`,
+              'success',
+              2000
+            );
           }
           break;
         case 'share':
@@ -407,7 +422,12 @@ export function GetPagesView({
       }
     } catch (err) {
       console.error(`[GetPagesView] Error in action ${action}:`, err);
-      onStatusUpdate?.('Error', err.message || `Failed to ${action}`, 'danger', 3000);
+      onStatusUpdate?.(
+        'Error',
+        err.message || `Failed to ${action}`,
+        'danger',
+        3000
+      );
     }
   };
 
@@ -438,7 +458,7 @@ export function GetPagesView({
       items={items}
       objectType={pageData?.objectType}
       onStatusUpdate={onStatusUpdate}
-        header={
+      header={
         <div className='flex flex-col gap-1'>
           <Card.Title className='flex items-start justify-between'>
             <div className='flex min-h-8 flex-wrap items-center justify-start gap-x-1'>
@@ -446,7 +466,9 @@ export function GetPagesView({
               {pageData?.objectType === 'CARD' ||
               pageData?.objectType === 'DATA_SOURCE'
                 ? 'Pages'
-                : 'Child Pages'}
+                : pageData?.objectType === 'DATA_APP_VIEW'
+                  ? 'App Pages'
+                  : 'Child Pages'}
             </div>
             <ButtonGroup hideSeparator>
               <Tooltip delay={400} closeDelay={0}>
@@ -511,7 +533,12 @@ export function GetPagesView({
                         );
                         chrome.tabs.reload(tabId);
                       } catch (err) {
-                        onStatusUpdate?.('Error', err.message || 'Failed to share pages', 'danger', 3000);
+                        onStatusUpdate?.(
+                          'Error',
+                          err.message || 'Failed to share pages',
+                          'danger',
+                          3000
+                        );
                       }
                     }
                   }}
@@ -566,8 +593,9 @@ export function GetPagesView({
                 return (
                   <div className='flex flex-row items-center gap-1'>
                     <span className='text-sm text-muted'>
-                      {items.length} child{' '}
-                      {items.length === 1 ? 'page' : 'pages'}
+                      {items.length}{' '}
+                      {pageData?.objectType === 'PAGE' ? 'child page' : 'page'}
+                      {items.length === 1 ? '' : 's'}
                     </span>
                     {grandchildCount > 0 && (
                       <div className='flex flex-row items-end gap-1'>
@@ -588,9 +616,9 @@ export function GetPagesView({
             })()}
         </div>
       }
-        onItemAction={handleItemAction}
-        showActions={true}
-        showCounts={true}
+      onItemAction={handleItemAction}
+      showActions={true}
+      showCounts={true}
     />
   );
 }

@@ -8,6 +8,7 @@ import {
   openSidepanel
 } from '@/utils';
 import { getCardsForObject, getPagesForCards } from '@/services';
+import { IconCopy } from '@tabler/icons-react';
 
 export function GetPages({
   currentContext,
@@ -229,6 +230,7 @@ export function GetPages({
       onPress={handleGetPages}
       isDisabled={isDisabled}
       isPending={isLoading}
+      isIconOnly={isLoading}
     >
       {({ isPending }) => {
         if (isPending) {
@@ -236,19 +238,29 @@ export function GetPages({
         }
 
         const typeId = currentContext?.domoObject?.typeId;
-
-        if (typeId === 'DATA_SOURCE') {
-          return 'Get Pages for DataSet Cards';
+        let message = 'Get Pages';
+        switch (typeId) {
+          case 'DATA_SOURCE':
+            message = 'Get Pages for DataSet Cards';
+            break;
+          case 'CARD':
+            message = 'Get Pages for Card';
+            break;
+          case 'DATA_APP_VIEW':
+            message = 'Get App Pages';
+            break;
+          case 'PAGE':
+            message = 'Get Child Pages';
+            break;
+          default:
+            break;
         }
 
-        let prefix = 'Child ';
-        if (typeId === 'CARD') {
-          prefix = '';
-        } else if (typeId === 'DATA_APP_VIEW') {
-          prefix = 'App ';
-        }
-
-        return `Get ${prefix}Pages`;
+        return (
+          <>
+            <IconCopy size={4} /> {message}
+          </>
+        );
       }}
     </Button>
   );

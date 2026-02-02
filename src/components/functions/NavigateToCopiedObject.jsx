@@ -493,7 +493,10 @@ export const NavigateToCopiedObject = forwardRef(
           <IconExternalLink size={4} />
           Nav from Clipboard
         </Button>
-        <Tooltip.Content placement='top' className='flex flex-col gap-2'>
+        <Tooltip.Content
+          placement='top'
+          className='flex flex-row flex-wrap items-center gap-1'
+        >
           {error ? (
             `Error: ${error}`
           ) : isDomoPage ? (
@@ -503,10 +506,15 @@ export const NavigateToCopiedObject = forwardRef(
                   <span>
                     Navigate to {objectDetails.metadata?.name || 'Unknown'}
                   </span>
-                  <Chip size='sm' variant='soft' color='accent'>
+                  <Chip
+                    size='sm'
+                    variant='soft'
+                    color='accent'
+                    className='w-fit'
+                  >
                     {objectDetails.metadata?.parent
-                      ? `${objectDetails.metadata.parent.objectType.name} > ${objectDetails.typeName}`
-                      : `${objectDetails.typeName} (${objectDetails.typeId})`}
+                      ? `${objectDetails.metadata?.parent?.objectType?.name} > ${objectDetails?.typeName}`
+                      : `${objectDetails?.typeName}`}
                   </Chip>
                 </>
               ) : (

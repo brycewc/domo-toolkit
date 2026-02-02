@@ -102,7 +102,7 @@ export function ActionButtons({
                 <ButtonGroup fullWidth>
                   <Copy
                     currentContext={currentContext}
-                    showStatus={showStatus}
+                    onStatusUpdate={showStatus}
                     isDisabled={!isDomoPage}
                     navigateToCopiedRef={navigateToCopiedRef}
                   />
@@ -215,7 +215,7 @@ export function ActionButtons({
           )}
         </Card.Content>
       </Card>
-      <div className='w-full'>
+      <div className='flex w-full items-start justify-start'>
         {statusBar.visible ? (
           <StatusBar
             key={statusBar.key}
@@ -229,6 +229,7 @@ export function ActionButtons({
           <ContextFooter
             currentContext={currentContext}
             isLoading={isLoadingCurrentContext}
+            onStatusUpdate={showStatus}
           />
         )}
       </div>

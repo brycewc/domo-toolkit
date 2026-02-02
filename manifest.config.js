@@ -3,7 +3,7 @@ import pkg from './package.json';
 
 export default defineManifest({
   manifest_version: 3,
-  name: pkg.name,
+  name: 'Domo Toolkit',
   version: pkg.version,
   icons: {
     48: 'public/toolkit.png'
@@ -43,12 +43,12 @@ export default defineManifest({
   },
   options_page: 'src/options/index.html',
   commands: {
-    check_clipboard: {
+    copy_id: {
       suggested_key: {
-        default: 'Ctrl+Shift+V',
-        mac: 'Command+Shift+V'
+        default: 'Ctrl+Shift+1',
+        mac: 'Command+Shift+1'
       },
-      description: 'Check clipboard for Domo object ID'
+      description: 'Copy current Domo object ID to clipboard'
     }
   }
 });

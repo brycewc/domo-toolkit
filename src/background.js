@@ -505,9 +505,6 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
       `[Background] URL changed for tab ${tabId}, triggering detection`
     );
 
-    // Track this Domo instance
-    await trackDomoInstance(changeInfo.url);
-
     await detectAndStoreContext(tabId);
 
     // Trigger favicon application for new URL with retry logic
@@ -612,9 +609,43 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
 
 // Listen for keyboard commands
 chrome.commands.onCommand.addListener((command) => {
-  if (command === 'check_clipboard') {
-    console.log('[Background] Keyboard command triggered: check_clipboard');
-    checkClipboard();
+  if (command === 'copy_id') {
+    console.log('[Background] Keyboard command triggered: copy_id');
+    // Get the active tab
+    chrome.tabs.query(
+      { active: true, currentWindow: true, windowType: 'normal' },
+      async (tabs) => {
+        if (tabs.length === 0) {
+          console.log('[Background] No active tab found for copy_id command');
+          return;
+        }
+        const tab = tabs[0];
+        const context = getTabContext(tab.id);
+        if (context?.domoObject?.id) {
+          try {
+            await executeInPage(
+              async (text) => {
+                await navigator.clipboard.writeText(text);
+              },
+              [context.domoObject.id],
+              tab.id
+            );
+            console.log(
+              `[Background] Copied ID ${context.domoObject.id} to clipboard`
+            );
+          } catch (error) {
+            console.error(
+              `[Background] Failed to copy ID to clipboard:`,
+              error
+            );
+          }
+        } else {
+          console.log(
+            '[Background] No Domo object ID found in context for copy_id command'
+          );
+        }
+      }
+    );
   }
 });
 
