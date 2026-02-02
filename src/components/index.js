@@ -1,10 +1,7 @@
 export { ActionButtons } from './ActionButtons';
-export { ActivityLogTable } from './ActivityLogTable';
-export { AppSettings } from './AppSettings';
 export { ContextFooter } from './ContextFooter';
 export { DataList } from './DataList';
-export { DataTable } from './DataTable';
-export { FaviconSettings } from './FaviconSettings';
 export { GetPagesView } from './GetPagesView';
 export { StatusBar } from './StatusBar';
 export * from './functions';
+export * from './options';

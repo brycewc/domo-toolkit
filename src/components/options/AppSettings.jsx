@@ -10,7 +10,7 @@ import {
   Select,
   TextField
 } from '@heroui/react';
-import { StatusBar } from '@/components';
+import { StatusBar } from './../StatusBar';
 
 export function AppSettings({ theme = 'system' }) {
   // Store all settings in a single state object for extensibility

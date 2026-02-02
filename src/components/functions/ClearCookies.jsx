@@ -67,20 +67,20 @@ async function getDomainsToPreserve() {
 }
 
 export function ClearCookies({ currentContext, onStatusUpdate, isDisabled }) {
-  const [cookieClearingMode, setCookieClearingMode] = useState('auto');
+  const [cookieClearingMode, setCookieClearingMode] = useState('default');
   const [isClearingCookies, setIsClearingCookies] = useState(false);
 
   // Load cookie clearing mode setting
   useEffect(() => {
     chrome.storage.sync.get(['defaultClearCookiesHandling'], (result) => {
-      setCookieClearingMode(result.defaultClearCookiesHandling || 'auto');
+      setCookieClearingMode(result.defaultClearCookiesHandling || 'default');
     });
 
     // Listen for changes to the setting
     const handleStorageChange = (changes, areaName) => {
       if (areaName === 'sync' && changes.defaultClearCookiesHandling) {
         setCookieClearingMode(
-          changes.defaultClearCookiesHandling.newValue || 'auto'
+          changes.defaultClearCookiesHandling.newValue || 'default'
         );
       }
     };

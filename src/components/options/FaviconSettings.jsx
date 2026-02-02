@@ -21,7 +21,7 @@ import {
 } from '@tabler/icons-react';
 import { ColorPicker } from 'react-color-pikr';
 import { clearFaviconCache } from '@/utils';
-import { StatusBar } from '@/components';
+import { StatusBar } from './../StatusBar';
 
 export function FaviconSettings() {
   const [rules, setRules] = useState([]);

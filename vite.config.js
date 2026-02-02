@@ -19,6 +19,33 @@ export default defineConfig({
     tailwindcss(),
     zip({ outDir: 'release', outFileName: `crx-${name}-${version}.zip` })
   ],
+  build: {
+    // Extensions load from disk, not network - large chunks are fine
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        // Group related modules into the same chunk to avoid cross-chunk circular dependencies
+        manualChunks: (id) => {
+          // All components in one chunk (options components share StatusBar with others)
+          if (id.includes('/src/components/')) {
+            return 'components';
+          }
+          if (id.includes('/src/hooks/')) {
+            return 'hooks';
+          }
+          if (id.includes('/src/models/')) {
+            return 'models';
+          }
+          if (id.includes('/src/services/')) {
+            return 'services';
+          }
+          if (id.includes('/src/utils/')) {
+            return 'utils';
+          }
+        }
+      }
+    }
+  },
   server: {
     port: 5173,
     cors: {

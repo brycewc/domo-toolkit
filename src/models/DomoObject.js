@@ -1,4 +1,4 @@
-import { getObjectType } from '@/models';
+import { getObjectType } from './DomoObjectType';
 import { getAppStudioPageParent, getDrillParentCardId } from '@/services';
 import { executeInPage } from '@/utils';
 

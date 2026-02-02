@@ -12,7 +12,7 @@ import {
   Popover
 } from '@heroui/react';
 import { IconChevronDown, IconRefresh, IconFilter } from '@tabler/icons-react';
-import { DataTable } from '@/components';
+import { DataTable } from './DataTable';
 import { getActivityLogForObject } from '@/services';
 import { DomoObject } from '@/models';
 import { ACTION_COLOR_PATTERNS } from '@/utils';

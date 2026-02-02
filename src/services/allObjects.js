@@ -1,6 +1,6 @@
 import { DomoObject } from '@/models';
 import { executeInPage } from '@/utils';
-import { getCurrentUserId } from '@/services';
+import { getCurrentUserId } from './users';
 
 /**
  * Fetch object details from the Domo API and enrich metadata (page-safe version)

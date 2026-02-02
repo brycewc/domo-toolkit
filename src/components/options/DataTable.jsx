@@ -3,24 +3,20 @@ import {
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
-  getPaginationRowModel,
   getSortedRowModel,
   useReactTable
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   Button,
-  ButtonGroup,
   Card,
   Checkbox,
-  Chip,
   Dropdown,
   Label,
   IconChevronDown,
-  IconChevronRight,
   SearchField
 } from '@heroui/react';
-import { IconFilter, IconColumns, IconPlus } from '@tabler/icons-react';
+import { IconColumns, IconPlus } from '@tabler/icons-react';
 
 /**
  * DataTable Component

@@ -84,11 +84,11 @@ function setTabContext(tabId, context) {
   // Persist to session storage (async, non-blocking)
   persistToSession();
 
-  if (context.domoObject?.metadata?.name) {
+  if (context?.domoObject?.metadata?.name) {
     setTabTitle(tabId, context.domoObject.metadata.name);
   }
 
-  const contextData = context.toJSON();
+  const contextData = context?.toJSON();
 
   // Send to content script in the specific tab
   chrome.tabs
@@ -119,6 +119,14 @@ function setTabContext(tabId, context) {
     });
 }
 
+/**
+ * Get context for a specific tab
+ */
+function getTabContext(tabId) {
+  touchTab(tabId);
+  return tabContexts.get(tabId) || null;
+}
+
 function setTabTitle(tabId, objectName) {
   try {
     chrome.scripting.executeScript({
@@ -135,14 +143,6 @@ function setTabTitle(tabId, objectName) {
   } catch (error) {
     console.error(`[Background] Error updating title for tab ${tabId}:`, error);
   }
-}
-
-/**
- * Get context for a specific tab
- */
-function getTabContext(tabId) {
-  touchTab(tabId);
-  return tabContexts.get(tabId) || null;
 }
 
 /**
@@ -174,7 +174,9 @@ async function restoreFromSession() {
       tabContexts.clear();
       tabAccessTimes.clear();
 
-      for (const [tabId, context] of contextsArray) {
+      for (const [tabId, contextData] of contextsArray) {
+        // Reconstruct DomoContext instance from plain object
+        const context = DomoContext.fromJSON(contextData);
         tabContexts.set(tabId, context);
         touchTab(tabId);
       }

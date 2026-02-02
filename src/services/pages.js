@@ -1,4 +1,4 @@
-import { getCurrentUserId } from '@/services';
+import { getCurrentUserId } from './users';
 import { executeInPage, waitForCards } from '@/utils';
 
 /**

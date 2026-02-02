@@ -1,4 +1,4 @@
-import { DomoObject } from '@/models';
+import { DomoObject } from './DomoObject';
 import { EXCLUDED_HOSTNAMES } from '@/utils/constants';
 
 /**

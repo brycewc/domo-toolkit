@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Button,
   ButtonGroup,
@@ -7,13 +7,13 @@ import {
   Dropdown,
   Label
 } from '@heroui/react';
-import { getCardsForObject, getPagesForCards } from '@/services';
-import { waitForChildPages } from '@/utils';
 import {
   IconChartBar,
   IconCopy,
   IconFileDescription
 } from '@tabler/icons-react';
+import { getCardsForObject, getPagesForCards } from '@/services';
+import { waitForChildPages } from '@/utils';
 
 export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
   const [isLoading, setIsLoading] = useState(false);
