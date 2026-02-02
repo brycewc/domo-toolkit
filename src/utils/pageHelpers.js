@@ -28,7 +28,7 @@ export async function waitForChildPages(currentContext, maxAttempts = 50) {
 
     while (attempts < maxAttempts) {
       attempts++;
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 200)); // Wait 200ms
 
       // Re-fetch the current context to get updated pages
       const response = await chrome.runtime.sendMessage({

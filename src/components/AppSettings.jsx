@@ -8,28 +8,24 @@ import {
   Label,
   ListBox,
   Select,
-  Switch
+  TextField
 } from '@heroui/react';
 import { StatusBar } from '@/components';
-import { EXCLUDED_INSTANCES } from '@/utils';
 
 export function AppSettings({ theme = 'system' }) {
   // Store all settings in a single state object for extensibility
   const [settings, setSettings] = useState({
     themePreference: theme,
     defaultDomoInstance: '',
-    autoClearCookiesOn431: true
+    defaultClearCookiesHandling: 'auto'
   });
 
   // Track original settings to detect changes
   const [originalSettings, setOriginalSettings] = useState({
     themePreference: theme,
     defaultDomoInstance: '',
-    autoClearCookiesOn431: true
+    defaultClearCookiesHandling: 'auto'
   });
-
-  // Track visited Domo instances for the ComboBox
-  const [visitedInstances, setVisitedInstances] = useState([]);
 
   const [isClearing, setIsClearing] = useState(false);
 
@@ -44,21 +40,16 @@ export function AppSettings({ theme = 'system' }) {
   useEffect(() => {
     // Load all settings from storage
     chrome.storage.sync.get(
-      [
-        'themePreference',
-        'defaultDomoInstance',
-        'visitedDomoInstances',
-        'autoClearCookiesOn431'
-      ],
+      ['themePreference', 'defaultDomoInstance', 'defaultClearCookiesHandling'],
       (result) => {
         const loadedSettings = {
           themePreference: result.themePreference || theme || 'system',
           defaultDomoInstance: result.defaultDomoInstance || '',
-          autoClearCookiesOn431: result.autoClearCookiesOn431 ?? true
+          defaultClearCookiesHandling:
+            result.defaultClearCookiesHandling || 'auto'
         };
         setSettings(loadedSettings);
         setOriginalSettings(loadedSettings);
-        setVisitedInstances(result.visitedDomoInstances || []);
       }
     );
 
@@ -79,14 +70,10 @@ export function AppSettings({ theme = 'system' }) {
           hasChanges = true;
         }
 
-        if (changes.autoClearCookiesOn431 !== undefined) {
-          updatedSettings.autoClearCookiesOn431 =
-            changes.autoClearCookiesOn431.newValue;
+        if (changes.defaultClearCookiesHandling !== undefined) {
+          updatedSettings.defaultClearCookiesHandling =
+            changes.defaultClearCookiesHandling.newValue;
           hasChanges = true;
-        }
-
-        if (changes.visitedDomoInstances) {
-          setVisitedInstances(changes.visitedDomoInstances.newValue || []);
         }
 
         if (hasChanges) {
@@ -144,163 +131,110 @@ export function AppSettings({ theme = 'system' }) {
     setStatusBar((prev) => ({ ...prev, visible: false }));
   };
 
-  const handleClearInstances = async () => {
-    setIsClearing(true);
-
-    try {
-      // Clear visited instances from storage
-      await chrome.storage.sync.set({ visitedDomoInstances: [] });
-
-      // Update local state
-      setVisitedInstances([]);
-
-      // Also clear the default instance if it was one of the visited instances
-      if (visitedInstances.includes(settings.defaultDomoInstance)) {
-        const clearedSettings = {
-          ...settings,
-          defaultDomoInstance: ''
-        };
-        setSettings(clearedSettings);
-        setOriginalSettings(clearedSettings);
-        await chrome.storage.sync.set({ defaultDomoInstance: '' });
-      }
-
-      showStatus('All visited instances cleared successfully!', '', 'success');
-    } catch (error) {
-      showStatus('Error', 'Failed to clear visited instances.', 'danger');
-    } finally {
-      setIsClearing(false);
-    }
-  };
-
   return (
-    <div className='flex h-full min-h-[calc(100vh-20)] w-full flex-col justify-between pt-4'>
-      <div className='flex flex-col gap-2'>
-        <Form onSubmit={handleSubmit} className='flex flex-col gap-2'>
-          <Select
-            value={settings.themePreference}
-            onChange={handleThemeChange}
-            className='w-[10rem]'
-            placeholder={theme}
+    <div className='flex h-full min-h-[calc(100vh-20)] w-md flex-col gap-2 pt-4'>
+      <Form onSubmit={handleSubmit} className='flex flex-col gap-2'>
+        <Select
+          value={settings.themePreference}
+          onChange={handleThemeChange}
+          className='w-40'
+          placeholder={theme}
+        >
+          <Label>Theme</Label>
+          <Select.Trigger>
+            <Select.Value />
+            <Select.Indicator />
+          </Select.Trigger>
+          <Select.Popover>
+            <ListBox>
+              <ListBox.Item id='system' textValue='System'>
+                System
+                <ListBox.ItemIndicator />
+              </ListBox.Item>
+              <ListBox.Item id='light' textValue='Light'>
+                Light
+                <ListBox.ItemIndicator />
+              </ListBox.Item>
+              <ListBox.Item id='dark' textValue='Dark'>
+                Dark
+                <ListBox.ItemIndicator />
+              </ListBox.Item>
+            </ListBox>
+          </Select.Popover>
+        </Select>
+        <TextField
+          inputValue={settings.defaultDomoInstance}
+          onInputChange={handleDefaultInstanceChange}
+          className='w-40'
+        >
+          <Label>Default Domo Instance</Label>
+          <Input placeholder='Enter an instance' />
+          <Description className='w-md'>
+            This is used when navigating to copied objects from non-Domo
+            websites. Enter without .domo.com (e.g., company for
+            company.domo.com).
+          </Description>
+        </TextField>
+        <Select
+          value={settings.defaultClearCookiesHandling}
+          onChange={(value) =>
+            setSettings((prev) => ({
+              ...prev,
+              defaultClearCookiesHandling: value
+            }))
+          }
+          className='w-40'
+        >
+          <Label>Cookie Clearing Behavior</Label>
+          <Select.Trigger>
+            <Select.Value />
+            <Select.Indicator />
+          </Select.Trigger>
+          <Select.Popover>
+            <ListBox>
+              <ListBox.Item id='auto' textValue='Auto'>
+                Auto
+                <ListBox.ItemIndicator />
+              </ListBox.Item>
+              <ListBox.Item id='default' textValue='Default'>
+                Default
+                <ListBox.ItemIndicator />
+              </ListBox.Item>
+              <ListBox.Item id='all' textValue='All'>
+                All
+                <ListBox.ItemIndicator />
+              </ListBox.Item>
+            </ListBox>
+          </Select.Popover>
+          <Description className='w-lg'>
+            <p>Auto: Clear cookies on 431 errors, preserve last 2 instances.</p>
+            <p>
+              Default: Preserve last 2 instances (only manual, no
+              auto-clearing).
+            </p>
+            <p>All: Clear all Domo cookies (only manual, no auto-clearing).</p>
+          </Description>
+        </Select>
+        <div className='pt-1'>
+          <Button
+            type='submit'
+            variant='primary'
+            size='sm'
+            isDisabled={!hasChanges}
           >
-            <Label>Theme</Label>
-            <Select.Trigger>
-              <Select.Value />
-              <Select.Indicator />
-            </Select.Trigger>
-            <Select.Popover>
-              <ListBox>
-                <ListBox.Item id='system' textValue='System'>
-                  System
-                  <ListBox.ItemIndicator />
-                </ListBox.Item>
-                <ListBox.Item id='light' textValue='Light'>
-                  Light
-                  <ListBox.ItemIndicator />
-                </ListBox.Item>
-                <ListBox.Item id='dark' textValue='Dark'>
-                  Dark
-                  <ListBox.ItemIndicator />
-                </ListBox.Item>
-              </ListBox>
-            </Select.Popover>
-          </Select>
-          <ComboBox
-            allowsCustomValue
-            inputValue={settings.defaultDomoInstance}
-            onInputChange={handleDefaultInstanceChange}
-            className='w-[28rem]'
-          >
-            <Label>Default Domo Instance</Label>
-            <ComboBox.InputGroup>
-              <Input placeholder='Search or enter instance (e.g., company for company.domo.com)' />
-              <ComboBox.Trigger />
-            </ComboBox.InputGroup>
-            <ComboBox.Popover>
-              <ListBox>
-                {visitedInstances.filter(
-                  (instance) => !EXCLUDED_INSTANCES.includes(instance)
-                ).length === 0 ? (
-                  <ListBox.Item
-                    id='_no_instances'
-                    textValue='No instances visited yet'
-                  >
-                    No instances visited yet
-                  </ListBox.Item>
-                ) : (
-                  visitedInstances
-                    .filter(
-                      (instance) => !EXCLUDED_INSTANCES.includes(instance)
-                    )
-                    .map((instance) => (
-                      <ListBox.Item
-                        key={instance}
-                        id={instance}
-                        textValue={instance}
-                      >
-                        {instance}
-                        <ListBox.ItemIndicator />
-                      </ListBox.Item>
-                    ))
-                )}
-              </ListBox>
-            </ComboBox.Popover>
-            <Description>
-              Select a previously visited instance or enter a custom one. This
-              will be used when navigating to copied objects from non-Domo
-              websites.
-            </Description>
-          </ComboBox>
-          <div className='flex flex-col gap-1'>
-            <Label>Auto-clear cookies on 431 errors</Label>
-            <Switch
-              isSelected={settings.autoClearCookiesOn431}
-              onChange={(isSelected) =>
-                setSettings((prev) => ({
-                  ...prev,
-                  autoClearCookiesOn431: isSelected
-                }))
-              }
-            >
-              <Switch.Control>
-                <Switch.Thumb />
-              </Switch.Control>
-            </Switch>
-            <Description>
-              Automatically clear cookies when a 431 (Request Header Fields Too
-              Large) error is detected.
-            </Description>
-          </div>
-          <div className='pt-1'>
-            <Button
-              type='submit'
-              variant='primary'
-              size='sm'
-              isDisabled={!hasChanges}
-            >
-              Save Settings
-            </Button>
-          </div>
-        </Form>
-        {statusBar.visible && (
-          <StatusBar
-            title={statusBar.title}
-            description={statusBar.description}
-            status={statusBar.status}
-            timeout={statusBar.timeout}
-            onClose={hideStatus}
-          />
-        )}
-      </div>
-      <Button
-        variant='danger'
-        size='sm'
-        onPress={handleClearInstances}
-        isPending={isClearing}
-        isDisabled={visitedInstances.length === 0}
-      >
-        {isClearing ? 'Clearing...' : 'Clear All Visited Instances'}
-      </Button>
+            Save Settings
+          </Button>
+        </div>
+      </Form>
+      {statusBar.visible && (
+        <StatusBar
+          title={statusBar.title}
+          description={statusBar.description}
+          status={statusBar.status}
+          timeout={statusBar.timeout}
+          onClose={hideStatus}
+        />
+      )}
     </div>
   );
 }

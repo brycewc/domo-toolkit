@@ -86,24 +86,24 @@ export function StatusBar({
   const bgColor = bgColorMap[status] || 'bg-accent';
 
   return (
-    <Alert status={status} className={`relative h-fit w-full overflow-hidden`}>
+    <Alert
+      status={status}
+      className='relative h-fit w-full max-w-md overflow-hidden p-2'
+    >
       {timeout ? (
         <div
           id='status-bar-timeout-indicator'
-          className={`absolute top-[1px] left-[0px] h-[3px] opacity-75 transition-all duration-50 ${bgColor}`}
+          className={`absolute top-0 left-0 h-0.75 opacity-75 transition-all duration-50 ${bgColor}`}
           style={{ width: `calc(${progress}% - 2rem)` }}
         />
       ) : null}
       {/* <Alert.Indicator className={timeout ? 'mt-[3px]' : ''} /> */}
-      <Alert.Content className={timeout ? 'pt-[3px]' : ''}>
+      <Alert.Content>
         <Alert.Title>{title}</Alert.Title>
         <Alert.Description>{parseDescription(description)}</Alert.Description>
       </Alert.Content>
       {!timeout ? (
-        <CloseButton
-          className={timeout ? 'mt-[3px] rounded-full' : 'rounded-full'}
-          onPress={handleClose}
-        />
+        <CloseButton className='rounded-full' onPress={handleClose} />
       ) : null}
     </Alert>
   );

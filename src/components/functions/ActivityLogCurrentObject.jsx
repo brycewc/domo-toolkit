@@ -7,7 +7,8 @@ import {
   Dropdown,
   Label
 } from '@heroui/react';
-import { getCardsForObject, getPagesForCards, getChildPages } from '@/services';
+import { getCardsForObject, getPagesForCards } from '@/services';
+import { waitForChildPages } from '@/utils';
 import {
   IconChartBar,
   IconCopy,
@@ -110,17 +111,16 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
             currentContext?.domoObject.typeId === 'PAGE' ||
             currentContext?.domoObject.typeId === 'DATA_APP_VIEW'
           ) {
-            // For pages: Get child pages directly
-            const childPages = await getChildPages({
-              pageId: parseInt(currentContext?.domoObject.id),
-              appId:
-                currentContext?.domoObject.typeId === 'DATA_APP_VIEW'
-                  ? currentContext?.domoObject.parentId
-                    ? parseInt(currentContext?.domoObject.parentId)
-                    : null
-                  : null,
-              pageType: currentContext?.domoObject.typeId
-            });
+            // For pages: Use cached childPages from context or wait for them to load
+            const result = await waitForChildPages(currentContext);
+
+            if (!result.success) {
+              onStatusUpdate?.('Error', result.error, 'danger');
+              setIsLoading(false);
+              return;
+            }
+
+            const childPages = result.childPages;
 
             if (!childPages || childPages.length === 0) {
               onStatusUpdate?.(
@@ -128,6 +128,7 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
                 `No child pages found for ${currentContext?.domoObject.typeName} ${currentContext?.domoObject.id}`,
                 'warning'
               );
+              setIsLoading(false);
               return;
             }
 
@@ -194,7 +195,7 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
         variant='tertiary'
         onPress={handleClick}
         isDisabled={isDisabled}
-        // className={!isDropdownDisabled ? 'pl-10' : ''}
+        className={!isDropdownDisabled ? 'pl-10' : ''}
         isPending={isLoading}
         fullWidth
       >
@@ -212,7 +213,7 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
             <IconChevronDown size={4} />
           </Button>
           <Dropdown.Popover
-            className='w-full max-w-[290px]'
+            className='w-full max-w-72.5'
             placement='bottom end'
           >
             <Dropdown.Menu onAction={handleClick}>

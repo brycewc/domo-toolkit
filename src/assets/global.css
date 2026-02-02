@@ -101,4 +101,16 @@
   --color-json-string: var(--json-string);
   --color-json-boolean: var(--json-boolean);
   --color-json-null: var(--json-null);
+
+  /* Animations */
+  --animate-spin: spin 1s linear infinite;
+
+  @keyframes spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
 }

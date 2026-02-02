@@ -1,3 +1,4 @@
+import { getCurrentUserId } from '@/services';
 import { executeInPage, waitForCards } from '@/utils';
 
 /**
@@ -195,7 +196,7 @@ export async function getChildPages({
 export async function sharePagesWithSelf({ pageIds, tabId }) {
   try {
     // Get current user ID
-    const userId = await executeInPage(getCurrentUserId, [], tabId);
+    const userId = await getCurrentUserId(tabId);
 
     // Execute fetch in page context to use authenticated session
     executeInPage(
@@ -266,6 +267,7 @@ export async function getPagesForCards(cardIds) {
         // Build flat lists of all pages, app pages, and report pages from all cards
         const allPages = [];
         const allAppPages = [];
+        const allWorksheetViews = [];
         const allReportPages = [];
 
         detailCards.forEach((card) => {
@@ -280,15 +282,24 @@ export async function getPagesForCards(cardIds) {
               }
             });
           }
-          // App studio pages
+          // App studio pages and worksheet views
           if (Array.isArray(card.adminAllAppPages)) {
             card.adminAllAppPages.forEach((page) => {
               if (page && page.appPageId) {
-                allAppPages.push({
-                  id: page.appPageId,
-                  name: page.appPageTitle || `App Page ${page.appPageId}`,
-                  appId: page.appId // Include appId for URL building
-                });
+                if (page.dataAppType === 'worksheet') {
+                  allWorksheetViews.push({
+                    id: page.appPageId,
+                    name:
+                      page.appPageTitle || `Worksheet View ${page.appPageId}`,
+                    appId: page.appId // Include appId for URL building
+                  });
+                } else {
+                  allAppPages.push({
+                    id: page.appPageId,
+                    name: page.appPageTitle || `App Page ${page.appPageId}`,
+                    appId: page.appId // Include appId for URL building
+                  });
+                }
               }
             });
           }
@@ -319,6 +330,7 @@ export async function getPagesForCards(cardIds) {
 
         const pages = deduplicatePages(allPages);
         const appPages = deduplicatePages(allAppPages);
+        const worksheetViews = deduplicatePages(allWorksheetViews);
         const reportPages = deduplicatePages(allReportPages);
 
         // Combine all page types into array of objects
@@ -330,6 +342,12 @@ export async function getPagesForCards(cardIds) {
           })),
           ...appPages.map(({ id, name, appId }) => ({
             type: 'DATA_APP_VIEW',
+            id: String(id),
+            name,
+            appId // Include appId for URL building
+          })),
+          ...worksheetViews.map(({ id, name, appId }) => ({
+            type: 'WORKSHEET_VIEW',
             id: String(id),
             name,
             appId // Include appId for URL building

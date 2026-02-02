@@ -1,76 +1,176 @@
-import { useEffect, useState } from 'react';
-import { Button, Dropdown, Label, Spinner, Tooltip } from '@heroui/react';
+import { useState, useEffect } from 'react';
+import { Button, Spinner, Tooltip } from '@heroui/react';
 import { IconCookieOff } from '@tabler/icons-react';
-import { clearCookies } from '@/utils';
+import { clearCookies, executeInPage } from '@/utils';
+
+// Excluded hostnames that shouldn't be considered Domo instances
+const EXCLUDED_HOSTNAMES = [
+  'domo-support.domo.com',
+  'developer.domo.com',
+  'www.domo.com',
+  'domo.com'
+];
+
+/**
+ * Get domains and DA-SIDs to preserve (last 2 active instances)
+ * Shared logic used by both auto-clear (background.js) and manual clear
+ */
+async function getDomainsToPreserve() {
+  const allTabs = await chrome.tabs.query({ url: '*://*.domo.com/*' });
+  const domoTabs = allTabs.filter((tab) => {
+    try {
+      const tabHostname = new URL(tab.url).hostname;
+      return !EXCLUDED_HOSTNAMES.includes(tabHostname);
+    } catch {
+      return false;
+    }
+  });
+
+  // Sort by lastAccessed if available, otherwise by tab id (higher = more recent)
+  domoTabs.sort((a, b) => (b.lastAccessed || b.id) - (a.lastAccessed || a.id));
+
+  // Get up to 2 unique domains
+  const seenDomains = new Set();
+  const recentDomoTabs = [];
+  for (const tab of domoTabs) {
+    const domain = new URL(tab.url).hostname;
+    if (!seenDomains.has(domain)) {
+      seenDomains.add(domain);
+      recentDomoTabs.push({ tab, domain });
+      if (recentDomoTabs.length >= 2) break;
+    }
+  }
+
+  // Get DA-SID cookie names for each domain to preserve
+  const daSidsToPreserve = [];
+  for (const { tab } of recentDomoTabs) {
+    try {
+      const data = await executeInPage(
+        async () => window.bootstrap?.data,
+        [],
+        tab.id
+      );
+      if (data?.environmentId && data?.analytics?.company) {
+        daSidsToPreserve.push(
+          `DA-SID-${data.environmentId}-${data.analytics.company}`
+        );
+      }
+    } catch (e) {
+      console.warn(`[ClearCookies] Could not get DA-SID for tab ${tab.id}:`, e);
+    }
+  }
+
+  return {
+    domains: recentDomoTabs.map((t) => t.domain),
+    daSidsToPreserve
+  };
+}
 
 export function ClearCookies({ currentContext, onStatusUpdate, isDisabled }) {
+  const [cookieClearingMode, setCookieClearingMode] = useState('auto');
   const [isClearingCookies, setIsClearingCookies] = useState(false);
-  const [currentDomain, setCurrentDomain] = useState(null);
 
+  // Load cookie clearing mode setting
   useEffect(() => {
-    if (currentContext?.url) {
-      const domain = new URL(currentContext.url).hostname;
-      setCurrentDomain(domain);
-    }
-  }, [currentContext]);
-
-  const handleAction = async (key) => {
-    setIsClearingCookies(true);
-    const result = await clearCookies({
-      domains: key === 'clear-all' ? null : [currentDomain],
-      excludeDomains: key === 'clear-others',
-      tabId: currentContext?.tabId
+    chrome.storage.sync.get(['defaultClearCookiesHandling'], (result) => {
+      setCookieClearingMode(result.defaultClearCookiesHandling || 'auto');
     });
-    onStatusUpdate(
-      result.title,
-      result.description,
-      result.status,
-      result.timeout
-    );
-    setIsClearingCookies(false);
+
+    // Listen for changes to the setting
+    const handleStorageChange = (changes, areaName) => {
+      if (areaName === 'sync' && changes.defaultClearCookiesHandling) {
+        setCookieClearingMode(
+          changes.defaultClearCookiesHandling.newValue || 'auto'
+        );
+      }
+    };
+
+    chrome.storage.onChanged.addListener(handleStorageChange);
+    return () => {
+      chrome.storage.onChanged.removeListener(handleStorageChange);
+    };
+  }, []);
+
+  // Don't render the button when mode is 'auto' (auto-clear handles 431 errors)
+  if (cookieClearingMode === 'auto') {
+    return null;
+  }
+
+  const handleClearCookies = async () => {
+    setIsClearingCookies(true);
+
+    try {
+      let result;
+
+      if (cookieClearingMode === 'all') {
+        // Clear ALL Domo cookies
+        result = await clearCookies({
+          domains: null,
+          excludeDomains: false,
+          tabId: currentContext?.tabId
+        });
+      } else {
+        // 'default' mode: preserve last 2 instances
+        const { domains, daSidsToPreserve } = await getDomainsToPreserve();
+
+        if (domains.length === 0) {
+          // No Domo tabs found, just clear all
+          result = await clearCookies({
+            domains: null,
+            excludeDomains: false,
+            tabId: currentContext?.tabId
+          });
+        } else {
+          result = await clearCookies({
+            domains,
+            excludeDomains: true,
+            daSidsToPreserve
+          });
+          // Reload current tab after clearing in exclude mode
+          if (currentContext?.tabId) {
+            chrome.tabs.reload(currentContext.tabId);
+          }
+        }
+      }
+
+      onStatusUpdate(result.title, result.description, result.status);
+    } catch (error) {
+      onStatusUpdate(
+        'Error',
+        error.message || 'Failed to clear cookies',
+        'danger'
+      );
+    } finally {
+      setIsClearingCookies(false);
+    }
   };
+
+  const tooltipText =
+    cookieClearingMode === 'all'
+      ? 'Clear all Domo cookies'
+      : 'Clear cookies (preserve last 2 instances)';
 
   return (
     <Tooltip delay={400} closeDelay={0}>
-      <Dropdown trigger='longPress' isDisabled={isDisabled}>
-        <Button
-          variant='tertiary'
-          fullWidth
-          isIconOnly
-          onPress={handleAction}
-          isPending={isClearingCookies}
-          isDisabled={isDisabled}
-        >
-          {({ isPending }) => (
-            <>
-              {isPending ? (
-                <Spinner color='currentColor' size='sm' />
-              ) : (
-                <IconCookieOff size={4} className='text-danger' />
-              )}
-            </>
-          )}
-        </Button>
-        <Dropdown.Popover
-          className='w-full min-w-[12rem]'
-          placement='bottom left'
-        >
-          <Dropdown.Menu onAction={handleAction}>
-            <Dropdown.Item id='clear-others' textValue='Clear Other Instances'>
-              <IconCookieOff size={4} className='size-4 shrink-0 text-warning' />
-              <Label>Clear Other Instances</Label>
-            </Dropdown.Item>
-            <Dropdown.Item id='clear-all' textValue='Clear All Domo Cookies'>
-              <IconCookieOff size={4} className='size-4 shrink-0 text-danger' />
-              <Label>Clear All Domo Cookies</Label>
-            </Dropdown.Item>
-          </Dropdown.Menu>
-        </Dropdown.Popover>
-      </Dropdown>
-      <Tooltip.Content>
-        Clear cookies for{' '}
-        <span className='font-semibold lowercase'>{currentDomain}</span>
-      </Tooltip.Content>
+      <Button
+        variant='tertiary'
+        fullWidth
+        isIconOnly
+        onPress={handleClearCookies}
+        isPending={isClearingCookies}
+        isDisabled={isDisabled}
+      >
+        {({ isPending }) => (
+          <>
+            {isPending ? (
+              <Spinner color='currentColor' size='sm' />
+            ) : (
+              <IconCookieOff size={4} className='text-danger' />
+            )}
+          </>
+        )}
+      </Button>
+      <Tooltip.Content>{tooltipText}</Tooltip.Content>
     </Tooltip>
   );
 }

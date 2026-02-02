@@ -106,11 +106,7 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
   useEffect(() => {
     async function fetchCurrentUserId() {
       try {
-        const userId = await executeInPage(
-          getCurrentUserId,
-          [],
-          currentContext?.tabId
-        );
+        const userId = await getCurrentUserId(currentContext?.tabId);
         setCurrentUserId(userId);
       } catch (error) {
         console.error('Error fetching current user ID:', error);

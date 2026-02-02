@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
+import { Card, Spinner } from '@heroui/react';
 import { GetPagesView, ActionButtons } from '@/components';
 import { useTheme } from '@/hooks';
 import { DomoContext } from '@/models';
@@ -8,7 +9,7 @@ export default function App() {
   useTheme();
 
   const [activeView, setActiveView] = useState('default');
-  const [lockedTabId, setLockedTabId] = useState(null); // Ephemeral lock for specific tab context
+  const [loadingMessage, setLoadingMessage] = useState('Loading...');
   const [currentContext, setCurrentContext] = useState(null);
   const [currentTabId, setCurrentTabId] = useState(null);
   const [isLoadingCurrentContext, setIsLoadingCurrentContext] = useState(true);
@@ -19,18 +20,16 @@ export default function App() {
     const handleStorageChange = (changes, areaName) => {
       if (areaName === 'local' && changes.sidepanelDataList) {
         const data = changes.sidepanelDataList.newValue;
-        if (data?.type === 'getPages') {
+        if (!data) {
+          // Data was cleared - return to default view
+          setActiveView('default');
+        } else if (data?.type === 'loading') {
+          setActiveView('loading');
+          setLoadingMessage(data.message || 'Loading...');
+        } else if (data?.type === 'getPages') {
           setActiveView('getPages');
-          // Lock to the tab that triggered this view
-          if (data.tabId) {
-            setLockedTabId(data.tabId);
-          }
         } else if (data?.type === 'childPagesWarning') {
           setActiveView('childPagesWarning');
-          // Lock to the tab that triggered this view
-          if (data.tabId) {
-            setLockedTabId(data.tabId);
-          }
         }
       }
     };
@@ -45,14 +44,8 @@ export default function App() {
         if (age < 1000) {
           if (result.sidepanelDataList.type === 'getPages') {
             setActiveView('getPages');
-            if (result.sidepanelDataList.tabId) {
-              setLockedTabId(result.sidepanelDataList.tabId);
-            }
           } else if (result.sidepanelDataList.type === 'childPagesWarning') {
             setActiveView('childPagesWarning');
-            if (result.sidepanelDataList.tabId) {
-              setLockedTabId(result.sidepanelDataList.tabId);
-            }
           }
         }
       }
@@ -97,7 +90,7 @@ export default function App() {
         setIsLoadingCurrentContext(false);
       }
     });
-  }, [lockedTabId]);
+  }, []);
 
   // Listen for context updates while sidepanel is open
   useEffect(() => {
@@ -108,17 +101,11 @@ export default function App() {
       // Only handle messages meant for the sidepanel
       if (message.type === 'TAB_CONTEXT_UPDATED') {
         console.log(
-          `[Sidepanel] TAB_CONTEXT_UPDATED: message.tabId=${message.tabId}, currentTabId=${currentTabId}, lockedTabId=${lockedTabId}`
+          `[Sidepanel] TAB_CONTEXT_UPDATED: message.tabId=${message.tabId}, currentTabId=${currentTabId}`
         );
 
-        // Update context if it's for the current tab (or if we're not locked to a specific tab)
-        const shouldUpdate = lockedTabId
-          ? message.tabId === lockedTabId
-          : message.tabId === currentTabId;
-
-        console.log(`[Sidepanel] shouldUpdate=${shouldUpdate}`);
-
-        if (shouldUpdate) {
+        // Update context if it's for the current tab
+        if (message.tabId === currentTabId) {
           const context = message.context
             ? DomoContext.fromJSON(message.context)
             : null;
@@ -166,7 +153,7 @@ export default function App() {
       console.log('[Sidepanel] Message listener removed');
       chrome.runtime.onMessage.removeListener(handleMessage);
     };
-  }, [currentTabId, lockedTabId]); // Add dependencies so handleMessage has current values
+  }, [currentTabId]);
 
   // Listen for tab activation changes (only when not locked)
   useEffect(() => {
@@ -205,7 +192,6 @@ export default function App() {
 
   const handleBackToDefault = () => {
     setActiveView('default');
-    setLockedTabId(null);
     // Clear the sidepanel data
     chrome.storage.local.remove(['sidepanelDataList']);
   };
@@ -221,9 +207,17 @@ export default function App() {
         }}
       />
 
-      {activeView === 'default' ? null : (
+      {activeView === 'loading' && (
+        <Card className='w-full'>
+          <Card.Content className='flex flex-col items-center justify-center gap-2 py-8'>
+            <Spinner size='lg' />
+            <p className='text-sm text-muted'>{loadingMessage}</p>
+          </Card.Content>
+        </Card>
+      )}
+
+      {(activeView === 'getPages' || activeView === 'childPagesWarning') && (
         <GetPagesView
-          lockedTabId={lockedTabId}
           onBackToDefault={handleBackToDefault}
           onStatusUpdate={statusCallbackRef.current}
         />

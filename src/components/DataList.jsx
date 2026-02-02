@@ -33,6 +33,7 @@ import {
  * @param {React.ReactNode} props.header - Optional header component to display above the list
  * @param {Function} props.onItemClick - Callback when an item is clicked
  * @param {Function} props.onItemAction - Callback when an action button is clicked
+ * @param {Function} props.onStatusUpdate - Callback to show status messages (title, description, status, timeout)
  * @param {Boolean} props.showActions - Whether to show action buttons
  * @param {Boolean} props.showCounts - Whether to show item counts
  * @param {String} props.objectType - The type of object being displayed (e.g., 'DATA_APP_VIEW', 'PAGE')
@@ -41,6 +42,7 @@ export function DataList({
   items = [],
   header,
   onItemAction,
+  onStatusUpdate,
   showActions = true,
   showCounts = true,
   objectType
@@ -114,7 +116,7 @@ function DataListItem({
       className='w-full border-t border-border'
     >
       <Disclosure.Heading className='flex w-full flex-row justify-between pt-1'>
-        <div className='flex w-full min-w-0 flex-1 basis-4/5 items-center'>
+        <div className='flex w-full min-w-0 flex-1 basis-4/5 items-center gap-1'>
           {!item.isVirtualParent && (
             <Tooltip delay={200} closeDelay={0} className='flex-1'>
               {item.url ? (
@@ -146,15 +148,13 @@ function DataListItem({
               <Disclosure.Trigger
                 variant='tertiary'
                 aria-label='Toggle'
-                className='flex flex-shrink-0 flex-row items-center gap-2'
+                className='flex shrink-0 flex-row items-center gap-1'
               >
                 {item.isVirtualParent && (
-                  <span className='truncate text-sm font-medium'>
-                    {item.label}
-                  </span>
+                  <p className='truncate text-sm font-medium'>{item.label}</p>
                 )}
                 {showCounts && item.count !== undefined && (
-                  <span className='text-sm text-muted'>({item.count})</span>
+                  <p className='text-sm text-muted'> ({item.count})</p>
                 )}
                 <Disclosure.Indicator />
               </Disclosure.Trigger>

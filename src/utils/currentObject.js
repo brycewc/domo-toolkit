@@ -1,4 +1,36 @@
-import { getObjectType } from '@/models';
+/**
+ * Get a valid tab ID for making API calls to the specified Domo instance.
+ * Prefers the current active tab if it's on the correct instance.
+ * @param {string} instance - The Domo instance subdomain (e.g., 'mycompany')
+ * @returns {Promise<number>} The tab ID to use for API calls
+ * @throws {Error} If no valid tab is found on the correct instance
+ */
+export async function getValidTabForInstance(instance) {
+  const expectedOrigin = `https://${instance}.domo.com`;
+
+  // First, try the current active tab
+  const [activeTab] = await chrome.tabs.query({
+    active: true,
+    currentWindow: true
+  });
+
+  if (activeTab?.url?.startsWith(expectedOrigin)) {
+    return activeTab.id;
+  }
+
+  // If active tab isn't on the right instance, search for any tab on that instance
+  const matchingTabs = await chrome.tabs.query({
+    url: `${expectedOrigin}/*`
+  });
+
+  if (matchingTabs.length > 0) {
+    return matchingTabs[0].id;
+  }
+
+  throw new Error(
+    `No open tab found for ${instance}.domo.com. Please open a tab on that Domo instance and try again.`
+  );
+}
 
 /**
  * Main detection function that runs in page context

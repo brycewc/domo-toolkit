@@ -90,7 +90,7 @@ export function ActionButtons({
               <Skeleton className='h-10 w-full rounded-4xl' />
               <Skeleton className='h-10 w-full rounded-4xl' />
               <Skeleton className='h-10 w-full rounded-4xl' />
-              <Skeleton className='from-bg-foreground/10 h-[6rem] w-full rounded-4xl bg-linear-to-r to-accent/10' />
+              <Skeleton className='from-bg-foreground/10 h-24 w-full rounded-4xl bg-linear-to-r to-accent/10' />
             </>
           ) : (
             <Disclosure

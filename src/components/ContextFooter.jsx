@@ -12,6 +12,7 @@ export function ContextFooter({ currentContext, isLoading }) {
       <Popover.Trigger>
         <Alert
           status={isDomoPage || isLoading ? 'accent' : 'warning'}
+          className='p-2'
           // className={
           //   isDomoPage || isLoading
           //     ? 'bg-linear-to-r to-accent/10'
@@ -41,17 +42,18 @@ export function ContextFooter({ currentContext, isLoading }) {
                       <Spinner size='sm' color='accent' />
                     ) : !currentContext?.instance ||
                       !currentContext?.domoObject?.id ? (
-                      <span className='text-sm text-muted'>
-                        No object detected on this page
-                      </span>
+                      'No object detected on this page'
                     ) : (
                       <>
-                        <Chip color='accent' variant='soft' className='w-fit'>
+                        <Chip
+                          color='accent'
+                          variant='soft'
+                          className='w-fit'
+                          size='sm'
+                        >
                           {currentContext.domoObject.typeName}
                         </Chip>
-                        <span className='text-sm'>
-                          ID: {currentContext.domoObject.id}
-                        </span>
+                        ID: {currentContext.domoObject.id}
                       </>
                     )
                   ) : (

@@ -1,12 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Tabs } from '@heroui/react';
 import { useTheme } from '@/hooks';
-import {
-  ActivityLogSettings,
-  ActivityLogTable,
-  FaviconSettings,
-  AppSettings
-} from '@/components';
+import { ActivityLogTable, FaviconSettings, AppSettings } from '@/components';
 
 export default function App() {
   // Apply theme

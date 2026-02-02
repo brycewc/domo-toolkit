@@ -104,7 +104,7 @@ export async function shareWithSelf({ object, setStatus, tabId = null }) {
     }
 
     // Get current user ID
-    const userId = await executeInPage(getCurrentUserId, [], tabId);
+    const userId = await getCurrentUserId(tabId);
 
     // Execute share based on object type
     const result = await executeInPage(
@@ -151,7 +151,7 @@ export async function shareWithSelf({ object, setStatus, tabId = null }) {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify([userId])
             };
-            successMessage = `Custom App Design shared successfully`;
+            successMessage = `Custom App Design ${objectId} shared successfully`;
             break;
           }
 
@@ -170,7 +170,7 @@ export async function shareWithSelf({ object, setStatus, tabId = null }) {
                 ]
               })
             };
-            successMessage = `Page shared successfully`;
+            successMessage = `Page ${objectId} shared successfully`;
             break;
           }
 
@@ -188,7 +188,7 @@ export async function shareWithSelf({ object, setStatus, tabId = null }) {
                 ]
               })
             };
-            successMessage = `Studio App shared successfully`;
+            successMessage = `Studio App ${objectId} shared successfully`;
             break;
           }
 

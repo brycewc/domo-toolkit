@@ -22,14 +22,29 @@ export function GetPages({
 
     // Collapse action buttons if in sidepanel
     if (onCollapseActions) {
+      // Store loading state immediately so sidepanel shows loading indicator
+      await storeSidepanelData({
+        type: 'loading',
+        message: 'Loading pages...',
+        timestamp: Date.now()
+      });
+
       onCollapseActions();
       // Wait for collapse animation to complete before triggering view change
       await new Promise((resolve) => setTimeout(resolve, 175));
     }
 
+    // Helper to clear loading state from sidepanel when we hit an error/early exit
+    const clearLoadingState = () => {
+      if (onCollapseActions) {
+        chrome.storage.local.remove(['sidepanelDataList']);
+      }
+    };
+
     try {
       // Validate we have a current object and it's a page type
       if (!currentContext?.domoObject) {
+        clearLoadingState();
         onStatusUpdate?.(
           'No Page Detected',
           'Please navigate to a Domo page and try again',
@@ -47,6 +62,7 @@ export function GetPages({
         objectType !== 'CARD' &&
         objectType !== 'DATA_SOURCE'
       ) {
+        clearLoadingState();
         onStatusUpdate?.(
           'Invalid Object Type',
           `This function only works on pages, cards, and datasets. Current object is: ${currentContext.domoObject.typeName}`,
@@ -74,6 +90,7 @@ export function GetPages({
         });
 
         if (!cards || cards.length === 0) {
+          clearLoadingState();
           onStatusUpdate?.(
             'No Cards Found',
             `No cards found using ${objectName}`,
@@ -87,6 +104,7 @@ export function GetPages({
         const pages = await getPagesForCards(cards.map((card) => card.id));
 
         if (!pages || pages.length === 0) {
+          clearLoadingState();
           onStatusUpdate?.(
             'No Pages Found',
             `Cards using ${objectName} are not used on any pages`,
@@ -108,6 +126,7 @@ export function GetPages({
         const result = await waitForChildPages(currentContext);
 
         if (!result.success) {
+          clearLoadingState();
           onStatusUpdate?.('Error', result.error, 'danger', 3000);
           setIsLoading(false);
           return;
@@ -144,6 +163,7 @@ export function GetPages({
           statusShown: true
         });
       } else {
+        clearLoadingState();
         switch (currentContext.domoObject.typeId) {
           case 'PAGE':
             onStatusUpdate?.(
@@ -190,6 +210,7 @@ export function GetPages({
         return;
       }
     } catch (error) {
+      clearLoadingState();
       console.error('[GetPages] Error opening sidepanel:', error);
       onStatusUpdate?.(
         'Error',

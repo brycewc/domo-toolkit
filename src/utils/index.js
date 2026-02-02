@@ -5,7 +5,7 @@ export {
   EXCLUDED_INSTANCES,
   ACTION_COLOR_PATTERNS
 } from './constants';
-export { detectCurrentObject } from './currentObject';
+export { getValidTabForInstance, detectCurrentObject } from './currentObject';
 export { executeInPage } from './executeInPage';
 export {
   applyFaviconRules,

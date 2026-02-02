@@ -15,8 +15,14 @@ import {
   IconX
 } from '@tabler/icons-react';
 import { DataList } from '@/components';
-import { sharePagesWithSelf } from '@/services';
+import {
+  getCardsForObject,
+  getChildPages,
+  getPagesForCards,
+  sharePagesWithSelf
+} from '@/services';
 import { DomoContext } from '@/models';
+import { getValidTabForInstance } from '@/utils';
 
 /**
  * Transform grouped pages data into hierarchical structure
@@ -90,24 +96,22 @@ function transformGroupedPagesData(childPages, origin) {
 }
 
 export function GetPagesView({
-  lockedTabId = null,
   onBackToDefault = null,
   onStatusUpdate = null
 }) {
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [showSpinner, setShowSpinner] = useState(false);
   const [error, setError] = useState(null);
   const [items, setItems] = useState([]);
   const [pageData, setPageData] = useState(null); // Store metadata for rebuilding
-  const [tabId, setTabId] = useState(lockedTabId);
-  const [viewType, setViewType] = useState('getPages'); // 'getPages' or 'childPagesWarning'
 
   // Load data on mount
   useEffect(() => {
     loadPagesData();
   }, []);
 
-  const loadPagesData = async () => {
+  const loadPagesData = async (forceRefresh = false) => {
     setIsLoading(true);
     setShowSpinner(false);
     setError(null);
@@ -131,16 +135,29 @@ export function GetPagesView({
         return;
       }
 
-      // Set the view type based on the data type
-      setViewType(data.type);
-
-      const { objectId, objectType, objectName, currentContext, childPages } =
-        data;
+      const { objectId, objectType, objectName, currentContext } = data;
       const context = DomoContext.fromJSON(currentContext);
-      if (context.tabId) {
-        setTabId(context.tabId);
+      const instance = context.instance;
+      const origin = `https://${instance}.domo.com`;
+
+      // Get appId for DATA_APP_VIEW types (stored as parentId in domoObject)
+      const appId =
+        objectType === 'DATA_APP_VIEW'
+          ? context.domoObject?.parentId || context.domoObject?.id
+          : null;
+
+      // Either use cached childPages or fetch fresh data
+      let childPages = data.childPages;
+
+      if (forceRefresh) {
+        console.log('[GetPagesView] Refreshing data for', objectType, objectId);
+        childPages = await fetchFreshChildPages({
+          objectId,
+          objectType,
+          appId,
+          instance
+        });
       }
-      const origin = `https://${context.instance}.domo.com`;
 
       if (!childPages || !childPages.length) {
         setError(
@@ -154,7 +171,7 @@ export function GetPagesView({
         return;
       }
 
-      // Store metadata for rebuilding items later
+      // Store metadata for rebuilding items later (including instance for refresh)
       setPageData({
         objectId,
         objectType,
@@ -162,7 +179,9 @@ export function GetPagesView({
           objectName ||
           context.domoObject?.metadata?.name ||
           `${objectType} ${objectId}`,
-        origin
+        origin,
+        appId,
+        instance
       });
 
       if (objectType === 'CARD' || objectType === 'DATA_SOURCE') {
@@ -207,6 +226,75 @@ export function GetPagesView({
       clearTimeout(spinnerTimer);
       setIsLoading(false);
       setShowSpinner(false);
+    }
+  };
+
+  /**
+   * Fetch fresh child pages data from API based on object type.
+   * Dynamically finds a valid tab on the same Domo instance for API calls.
+   */
+  const fetchFreshChildPages = async ({
+    objectId,
+    objectType,
+    appId,
+    instance
+  }) => {
+    // Find a valid tab on the same Domo instance for API calls
+    const tabId = await getValidTabForInstance(instance);
+
+    if (objectType === 'PAGE') {
+      // Fetch child pages for regular PAGE
+      const pages = await getChildPages({
+        pageId: objectId,
+        pageType: 'PAGE',
+        includeGrandchildren: true,
+        tabId
+      });
+      return pages;
+    } else if (objectType === 'DATA_APP_VIEW') {
+      // Fetch all views for the app studio app
+      const pages = await getChildPages({
+        pageId: objectId,
+        pageType: 'DATA_APP_VIEW',
+        appId,
+        tabId
+      });
+      return pages;
+    } else if (objectType === 'CARD' || objectType === 'DATA_SOURCE') {
+      // For CARD/DATA_SOURCE: get cards then get pages for those cards
+      const cards = await getCardsForObject({
+        objectId,
+        objectType,
+        tabId
+      });
+
+      if (!cards || cards.length === 0) {
+        return [];
+      }
+
+      const pages = await getPagesForCards(cards.map((card) => card.id));
+
+      // Transform to match expected format with pageType
+      return pages.map((page) => ({
+        pageId: page.id,
+        pageTitle: page.name,
+        pageType: page.type,
+        appId: page.appId || null
+      }));
+    }
+
+    return [];
+  };
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await loadPagesData(true); // Force fresh API call
+      onStatusUpdate?.('Refreshed', 'Page data updated successfully', 'success', 2000);
+    } catch (err) {
+      onStatusUpdate?.('Refresh Failed', err.message || 'Failed to refresh data', 'danger', 3000);
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -262,32 +350,64 @@ export function GetPagesView({
   };
 
   const handleItemAction = async (action, item) => {
-    switch (action) {
-      case 'openAll':
-        if (item.children) {
-          item.children.forEach(async (child) => {
-            if (child.url) {
-              await chrome.tabs.create({ url: child.url });
-            }
-          });
-        }
-        break;
-      case 'copy':
-        if (item.id) {
-          await navigator.clipboard.writeText(item.id.toString());
-        }
-        break;
-      case 'share':
-        sharePagesWithSelf({ pageIds: [item.id], tabId: tabId });
-        break;
-      case 'shareAll':
-        sharePagesWithSelf({
-          pageIds: item.children.map((child) => child.id),
-          tabId: tabId
-        });
-        break;
-      default:
-        break;
+    try {
+      switch (action) {
+        case 'openAll':
+          if (item.children) {
+            const count = item.children.length;
+            item.children.forEach(async (child) => {
+              if (child.url) {
+                await chrome.tabs.create({ url: child.url });
+              }
+            });
+            onStatusUpdate?.(
+              'Opened Pages',
+              `Opened **${count}** page${count !== 1 ? 's' : ''} in new tabs`,
+              'success',
+              2000
+            );
+          }
+          break;
+        case 'copy':
+          if (item.id) {
+            await navigator.clipboard.writeText(item.id.toString());
+            onStatusUpdate?.('Copied', `ID **${item.id}** copied to clipboard`, 'success', 2000);
+          }
+          break;
+        case 'share':
+          if (pageData?.instance) {
+            const tabId = await getValidTabForInstance(pageData.instance);
+            await sharePagesWithSelf({ pageIds: [item.id], tabId });
+            onStatusUpdate?.(
+              'Shared',
+              `Page **${item.label || item.id}** shared with yourself`,
+              'success',
+              2000
+            );
+          }
+          break;
+        case 'shareAll':
+          if (pageData?.instance && item.children) {
+            const tabId = await getValidTabForInstance(pageData.instance);
+            const count = item.children.length;
+            await sharePagesWithSelf({
+              pageIds: item.children.map((child) => child.id),
+              tabId
+            });
+            onStatusUpdate?.(
+              'Shared',
+              `**${count}** page${count !== 1 ? 's' : ''} shared with yourself`,
+              'success',
+              2000
+            );
+          }
+          break;
+        default:
+          break;
+      }
+    } catch (err) {
+      console.error(`[GetPagesView] Error in action ${action}:`, err);
+      onStatusUpdate?.('Error', err.message || `Failed to ${action}`, 'danger', 3000);
     }
   };
 
@@ -317,7 +437,8 @@ export function GetPagesView({
     <DataList
       items={items}
       objectType={pageData?.objectType}
-      header={
+      onStatusUpdate={onStatusUpdate}
+        header={
         <div className='flex flex-col gap-1'>
           <Card.Title className='flex items-start justify-between'>
             <div className='flex min-h-8 flex-wrap items-center justify-start gap-x-1'>
@@ -349,11 +470,17 @@ export function GetPagesView({
                   variant='ghost'
                   size='sm'
                   isIconOnly
-                  onPress={async () =>
+                  onPress={async () => {
                     await navigator.clipboard.writeText(
                       pageData.objectId.toString()
-                    )
-                  }
+                    );
+                    onStatusUpdate?.(
+                      'Copied',
+                      `ID **${pageData.objectId}** copied to clipboard`,
+                      'success',
+                      2000
+                    );
+                  }}
                   aria-label='Copy'
                 >
                   <IconClipboard size={4} />
@@ -365,12 +492,29 @@ export function GetPagesView({
                   variant='ghost'
                   size='sm'
                   isIconOnly
-                  onPress={async () =>
-                    sharePagesWithSelf(
-                      items.map((item) => item.pageId),
-                      tabId
-                    )
-                  }
+                  onPress={async () => {
+                    if (pageData?.instance) {
+                      try {
+                        const tabId = await getValidTabForInstance(
+                          pageData.instance
+                        );
+                        const count = items.length;
+                        await sharePagesWithSelf({
+                          pageIds: items.map((item) => item.id),
+                          tabId
+                        });
+                        onStatusUpdate?.(
+                          'Shared',
+                          `**${count}** page${count !== 1 ? 's' : ''} shared with yourself`,
+                          'success',
+                          2000
+                        );
+                        chrome.tabs.reload(tabId);
+                      } catch (err) {
+                        onStatusUpdate?.('Error', err.message || 'Failed to share pages', 'danger', 3000);
+                      }
+                    }
+                  }}
                   aria-label='Share'
                 >
                   <IconUsersPlus size={4} />
@@ -384,9 +528,13 @@ export function GetPagesView({
                   variant='ghost'
                   size='sm'
                   isIconOnly
-                  onPress={loadPagesData}
+                  isDisabled={isRefreshing}
+                  onPress={handleRefresh}
                 >
-                  <IconRefresh size={4} />
+                  <IconRefresh
+                    size={16}
+                    className={isRefreshing ? 'animate-spin' : ''}
+                  />
                 </Button>
                 <Tooltip.Content className='text-xs'>Refresh</Tooltip.Content>
               </Tooltip>
@@ -440,9 +588,9 @@ export function GetPagesView({
             })()}
         </div>
       }
-      onItemAction={handleItemAction}
-      showActions={true}
-      showCounts={true}
+        onItemAction={handleItemAction}
+        showActions={true}
+        showCounts={true}
     />
   );
 }

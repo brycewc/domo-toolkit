@@ -44,37 +44,6 @@ const MAX_CACHED_TABS = 10;
 const SESSION_STORAGE_KEY = 'tabContextsBackup';
 
 /**
- * Track visited Domo instances
- * @param {string} url - The tab URL
- */
-async function trackDomoInstance(url) {
-  try {
-    const urlObj = new URL(url);
-    const hostname = urlObj.hostname;
-
-    // Only track .domo.com domains that aren't excluded
-    if (
-      hostname.includes('domo.com') &&
-      !EXCLUDED_HOSTNAMES.includes(hostname)
-    ) {
-      // Extract subdomain (e.g., 'mycompany' from 'mycompany.domo.com')
-      const instance = hostname.replace('.domo.com', '');
-      const result = await chrome.storage.sync.get(['visitedDomoInstances']);
-      const visited = result.visitedDomoInstances || [];
-
-      // Add instance if not already in list
-      if (!visited.includes(instance)) {
-        const updated = [...visited, instance].sort();
-        await chrome.storage.sync.set({ visitedDomoInstances: updated });
-        console.log(`[Background] Tracked new Domo instance: ${instance}`);
-      }
-    }
-  } catch (error) {
-    console.error('[Background] Error tracking Domo instance:', error);
-  }
-}
-
-/**
  * LRU eviction - remove least recently used tab if cache is full
  */
 function evictLRUIfNeeded() {
@@ -364,9 +333,12 @@ async function checkClipboard() {
 }
 
 // 431 error handler function (stored for add/remove)
+// Only active when mode is 'auto' - preserves last 2 instances
 async function handle431Response(details) {
   if (details.statusCode === 431) {
     try {
+      console.log('[Background] 431 detected, auto-clearing with preservation');
+
       // Find all Domo tabs to determine which instances to preserve
       const allTabs = await chrome.tabs.query({ url: '*://*.domo.com/*' });
       const domoTabs = allTabs.filter((tab) => {
@@ -486,10 +458,11 @@ function disable431Listener() {
 }
 
 // Initialize 431 listener based on stored setting
-chrome.storage.sync.get(['autoClearCookiesOn431'], (result) => {
-  // Default to true if not set
-  const enabled = result.autoClearCookiesOn431 ?? true;
-  if (enabled) {
+chrome.storage.sync.get(['defaultClearCookiesHandling'], (result) => {
+  const mode = result.defaultClearCookiesHandling || 'auto';
+
+  // Only enable 431 auto-clear listener for 'auto' mode
+  if (mode === 'auto') {
     enable431Listener();
   }
 });
@@ -599,9 +572,14 @@ chrome.webNavigation.onHistoryStateUpdated.addListener(async (details) => {
 
 // Listen for setting changes
 chrome.storage.onChanged.addListener(async (changes, areaName) => {
-  if (areaName === 'sync' && changes.autoClearCookiesOn431 !== undefined) {
-    const enabled = changes.autoClearCookiesOn431.newValue ?? true;
-    if (enabled) {
+  if (
+    areaName === 'sync' &&
+    changes.defaultClearCookiesHandling !== undefined
+  ) {
+    const mode = changes.defaultClearCookiesHandling.newValue || 'auto';
+
+    // Only enable 431 auto-clear listener for 'auto' mode
+    if (mode === 'auto') {
       enable431Listener();
     } else {
       disable431Listener();

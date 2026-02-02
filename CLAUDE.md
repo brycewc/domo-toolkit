@@ -6,6 +6,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Majordomo Toolkit is a Chrome Extension (Manifest V3) that enhances the Domo platform experience for power users. It provides quick access to operations, data discovery, and administrative tools within Domo.
 
+## Best Pracetices
+
+- This extension hasn't launched yet and has no users. For cleaner code, do not provide backwards compatibility when changing features or redoing code that would have otherwise broken things if there were users.
+- Follow existing code style and conventions as closely as possible.
+- Always use index files for barrel exports in folders.
+- Use named exports only (no default exports).
+- Always import from top folder level using barrel exports.
+- Use path alias `@/` to refer to `src/` directory. For example, `import { Copy } from '@/components'` and not `import { Copy } from '@/components/functions/Copy'`. and also not `import { Copy } from '@/components/functions'`.
+
 **Tech Stack:** React 19 + Vite 7 + HeroUI + Tailwind CSS 4 + TanStack Table/Virtual
 
 ## Development Commands
@@ -22,6 +31,7 @@ npm run preview
 ```
 
 **Loading the extension:**
+
 1. Run `npm run dev`
 2. Navigate to `chrome://extensions/`
 3. Enable "Developer mode"
@@ -49,6 +59,7 @@ Content Script (detects page context via URL/DOM)
 ```
 
 **Key message types:**
+
 - `TAB_CONTEXT_UPDATED` - Background broadcasts context changes to all listeners
 - `GET_TAB_CONTEXT` - Popup/sidepanel requests current tab's context
 - `DETECT_CONTEXT` - Force re-detection of current page
@@ -58,17 +69,20 @@ Content Script (detects page context via URL/DOM)
 ### Core Models
 
 **DomoContext** (`src/models/DomoContext.js`)
+
 - Represents a tab's full context (tabId, URL, instance, detected object)
 - Serializable via `toJSON()` / `fromJSON()` for message passing
 - Automatically extracts instance subdomain from URL
 
 **DomoObject** (`src/models/DomoObject.js`)
+
 - Represents a Domo object (Card, Page, Dataset, etc.) with ID and type
 - Has `metadata` (from API), `url` (navigable URL), `parentId` (for nested objects)
 - Supports async parent resolution for types like DATA_APP_VIEW, DRILL_PATH
 - Methods: `buildUrl()`, `navigateTo()`, `getParent()`, `toJSON()`, `fromJSON()`
 
 **DomoObjectType** (`src/models/DomoObjectType.js`)
+
 - Registry of ~100+ supported object types with URL patterns, ID validation, API configs
 - Each type has: `id`, `name`, `urlPath`, `idPattern`, `extractConfig`, `api`, `parents`
 - URL paths can include `{id}` and `{parent}` placeholders
@@ -86,14 +100,15 @@ import { executeInPage } from '@/utils/executeInPage';
 const result = await executeInPage(
   (arg1, arg2) => {
     // This runs in MAIN world with page's auth
-    return fetch('/api/endpoint').then(r => r.json());
+    return fetch('/api/endpoint').then((r) => r.json());
   },
   [arg1, arg2],
-  tabId  // Optional, defaults to active tab
+  tabId // Optional, defaults to active tab
 );
 ```
 
 **Rules:**
+
 - Background and popup/sidepanel run in isolated contexts (no page access)
 - Use `executeInPage()` to run code in page context via `chrome.scripting.executeScript`
 - Functions passed to `executeInPage()` are serialized, so no closure variables
@@ -123,29 +138,35 @@ Some object types require a parent ID for URLs or API calls:
 ## Code Conventions
 
 ### Path Alias
+
 - `@/` maps to `src/` directory
 - Example: `import { Copy } from '@/components/functions'`
 
 ### Exports
+
 - Use named exports only (no default exports)
 - Barrel exports via index.js files
 
 ### React
+
 - Functional components only
 - React 19 - no `forwardRef` needed
 - Custom hooks in `src/hooks/`
 
 ### Model Serialization
+
 - ES6 classes must implement `toJSON()` and `static fromJSON()`
 - Required for chrome.runtime message passing between contexts
 
 ### Styling
+
 - Tailwind utility classes only (no inline styles)
 - HeroUI components for complex UI
 - Dark mode via `data-theme` attribute
 - OKLch color space for theme colors (`src/assets/global.css`)
 
 ### Formatting (Prettier)
+
 - Single quotes for strings and JSX attributes
 - No trailing commas
 - 2-space indentation
@@ -162,12 +183,14 @@ Some object types require a parent ID for URLs or API calls:
 ## Services Pattern
 
 Services in `src/services/` typically:
+
 1. Accept parameters including `tabId` or `inPageContext` flag
 2. Use `executeInPage()` to run API calls in page context
 3. Return structured data or throw errors
 4. Handle both current object (throw on error) and related objects (return null on error)
 
 Example:
+
 ```javascript
 export async function fetchObjectDetails(typeId, objectId, tabId) {
   return executeInPage(fetchObjectDetailsInPage, [params], tabId);
@@ -185,6 +208,7 @@ export async function fetchObjectDetails(typeId, objectId, tabId) {
 ## Object Type Detection
 
 Content script detects objects via:
+
 1. **URL patterns:** Most types detected by URL structure (e.g., `/page/123`)
 2. **Modal detection:** Card modals detected via MutationObserver watching for `.card-details-modal`
 3. **ID extraction:** Uses `extractConfig` with keyword/offset or fromEnd patterns
@@ -197,20 +221,10 @@ Content script detects objects via:
 - Background broadcasts `CLIPBOARD_UPDATED` when value changes
 - Keyboard shortcut: Ctrl+Shift+V (Cmd+Shift+V on Mac) triggers clipboard check
 
-## Activity Log Filtering
-
-Content script can auto-filter activity log page (`/admin/logging`):
-1. Function stores filter in `chrome.storage.local` with timestamp
-2. Content script checks for pending filter on activity log page load
-3. Simulates typing object type name character-by-character to trigger dropdown
-4. Scrolls dropdown to find exact match
-5. After type selection, waits for loading to complete
-6. Applies object ID filter by name
-7. Removes auto-applied date filter
-
 ## Testing in Development
 
 When running `npm run dev`:
+
 - Vite dev server runs on port 5173 with HMR
 - WebSocket HMR endpoint: `ws://localhost:5173`
 - Changes to React components hot-reload without losing state
