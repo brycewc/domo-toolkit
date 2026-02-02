@@ -7,4 +7,5 @@ export { DataTable } from './DataTable';
 export { FaviconSettings } from './FaviconSettings';
 export { GetPagesView } from './GetPagesView';
 export { StatusBar } from './StatusBar';
+export { WelcomePage, shouldShowWelcomePage, resetWelcomePage } from './WelcomePage';
 export * from './functions';

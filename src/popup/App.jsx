@@ -1,31 +1,31 @@
 import { useEffect, useState } from 'react';
-import { ActionButtons } from '@/components';
+import { ActionButtons, WelcomePage, shouldShowWelcomePage } from '@/components';
 import { useTheme } from '@/hooks';
 import { DomoContext } from '@/models';
 
 export default function App() {
-  // Apply theme
   useTheme();
 
+  const [showWelcome, setShowWelcome] = useState(null); // null = loading, true/false = known
   const [currentContext, setCurrentContext] = useState(null);
   const [isLoadingCurrentContext, setIsLoadingCurrentContext] = useState(true);
   const [currentTabId, setCurrentTabId] = useState(null);
 
-  // Request initial context on mount
+  // Check if we should show welcome page
   useEffect(() => {
-    // Get current window and request context from service worker
+    shouldShowWelcomePage().then(setShowWelcome);
+  }, []);
+
+  // Get context from service worker
+  useEffect(() => {
     chrome.windows.getCurrent(async (window) => {
       try {
-        // Request context for active tab in this window
         const response = await chrome.runtime.sendMessage({
           type: 'GET_TAB_CONTEXT',
           windowId: window.id
         });
-        console.log('[Popup] GET_TAB_CONTEXT response:', response);
         if (response.success && response.context) {
-          // Reconstruct DomoContext from plain object to get class instance with methods
           const context = DomoContext.fromJSON(response.context);
-          console.log('[Popup] Reconstructed context:', context);
           setCurrentContext(context);
           setCurrentTabId(response.tabId);
         } else {
@@ -41,18 +41,13 @@ export default function App() {
     });
   }, []);
 
-  // Listen for context updates while popup is open
+  // Listen for context updates
   useEffect(() => {
     const handleMessage = (message, sender, sendResponse) => {
       if (message.type === 'TAB_CONTEXT_UPDATED') {
-        // Only update if this is for the tab we're currently showing
         if (message.tabId === currentTabId) {
           const context = DomoContext.fromJSON(message.context);
           setCurrentContext(context);
-          console.log(
-            '[Popup] Received update and reconstructed message context:',
-            message
-          );
         }
         sendResponse({ received: true });
         return true;
@@ -66,8 +61,19 @@ export default function App() {
     };
   }, [currentTabId]);
 
+  // Still checking welcome status
+  if (showWelcome === null) {
+    return null;
+  }
+
+  // Show welcome page for new users
+  if (showWelcome) {
+    return <WelcomePage onDismiss={() => setShowWelcome(false)} />;
+  }
+
+  // Show main interface
   return (
-    <div className='p-1'>
+    <div className="p-2">
       <ActionButtons
         currentContext={currentContext}
         isLoadingCurrentContext={isLoadingCurrentContext}
