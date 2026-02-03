@@ -20,11 +20,11 @@ import {
   IconColorSwatch,
   IconPlus,
   IconDeviceFloppy,
-  IconChevronDown
+  IconChevronDown,
+  IconCheck
 } from '@tabler/icons-react';
 import { ColorPicker } from 'react-color-pikr';
 import { clearFaviconCache } from '@/utils';
-import { AnimatedCheck } from './../AnimatedCheck';
 import { StatusBar } from './../StatusBar';
 
 export function FaviconSettings() {
@@ -241,7 +241,7 @@ export function FaviconSettings() {
                             instance-logo
                             <ListBox.ItemIndicator>
                               {({ isSelected }) =>
-                                isSelected ? <AnimatedCheck /> : null
+                                isSelected ? <IconCheck stroke={1.5} /> : null
                               }
                             </ListBox.ItemIndicator>
                           </ListBox.Item>
@@ -249,7 +249,7 @@ export function FaviconSettings() {
                             domo-logo-colored
                             <ListBox.ItemIndicator>
                               {({ isSelected }) =>
-                                isSelected ? <AnimatedCheck /> : null
+                                isSelected ? <IconCheck stroke={1.5} /> : null
                               }
                             </ListBox.ItemIndicator>
                           </ListBox.Item>
@@ -257,7 +257,7 @@ export function FaviconSettings() {
                             top
                             <ListBox.ItemIndicator>
                               {({ isSelected }) =>
-                                isSelected ? <AnimatedCheck /> : null
+                                isSelected ? <IconCheck stroke={1.5} /> : null
                               }
                             </ListBox.ItemIndicator>
                           </ListBox.Item>
@@ -265,7 +265,7 @@ export function FaviconSettings() {
                             right
                             <ListBox.ItemIndicator>
                               {({ isSelected }) =>
-                                isSelected ? <AnimatedCheck /> : null
+                                isSelected ? <IconCheck stroke={1.5} /> : null
                               }
                             </ListBox.ItemIndicator>
                           </ListBox.Item>
@@ -273,7 +273,7 @@ export function FaviconSettings() {
                             bottom
                             <ListBox.ItemIndicator>
                               {({ isSelected }) =>
-                                isSelected ? <AnimatedCheck /> : null
+                                isSelected ? <IconCheck stroke={1.5} /> : null
                               }
                             </ListBox.ItemIndicator>
                           </ListBox.Item>
@@ -281,7 +281,7 @@ export function FaviconSettings() {
                             left
                             <ListBox.ItemIndicator>
                               {({ isSelected }) =>
-                                isSelected ? <AnimatedCheck /> : null
+                                isSelected ? <IconCheck stroke={1.5} /> : null
                               }
                             </ListBox.ItemIndicator>
                           </ListBox.Item>

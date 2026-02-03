@@ -11,8 +11,11 @@ import {
   TextField
 } from '@heroui/react';
 import { StatusBar } from './../StatusBar';
-import { AnimatedCheck } from './../AnimatedCheck';
-import { IconChevronDown, IconDeviceFloppy } from '@tabler/icons-react';
+import {
+  IconCheck,
+  IconChevronDown,
+  IconDeviceFloppy
+} from '@tabler/icons-react';
 
 export function AppSettings({ theme = 'system' }) {
   const [isLoading, setIsLoading] = useState(true);
@@ -189,15 +192,27 @@ export function AppSettings({ theme = 'system' }) {
             <ListBox>
               <ListBox.Item id='system' textValue='System'>
                 System
-                <ListBox.ItemIndicator />
+                <ListBox.ItemIndicator>
+                  {({ isSelected }) =>
+                    isSelected ? <IconCheck stroke={1.5} /> : null
+                  }
+                </ListBox.ItemIndicator>
               </ListBox.Item>
               <ListBox.Item id='light' textValue='Light'>
                 Light
-                <ListBox.ItemIndicator />
+                <ListBox.ItemIndicator>
+                  {({ isSelected }) =>
+                    isSelected ? <IconCheck stroke={1.5} /> : null
+                  }
+                </ListBox.ItemIndicator>
               </ListBox.Item>
               <ListBox.Item id='dark' textValue='Dark'>
                 Dark
-                <ListBox.ItemIndicator />
+                <ListBox.ItemIndicator>
+                  {({ isSelected }) =>
+                    isSelected ? <IconCheck stroke={1.5} /> : null
+                  }
+                </ListBox.ItemIndicator>
               </ListBox.Item>
             </ListBox>
           </Select.Popover>
@@ -230,15 +245,27 @@ export function AppSettings({ theme = 'system' }) {
             <ListBox>
               <ListBox.Item id='default' textValue='Default'>
                 Default
-                <ListBox.ItemIndicator />
+                <ListBox.ItemIndicator>
+                  {({ isSelected }) =>
+                    isSelected ? <IconCheck stroke={1.5} /> : null
+                  }
+                </ListBox.ItemIndicator>
               </ListBox.Item>
               <ListBox.Item id='all' textValue='All'>
                 All
-                <ListBox.ItemIndicator />
+                <ListBox.ItemIndicator>
+                  {({ isSelected }) =>
+                    isSelected ? <IconCheck stroke={1.5} /> : null
+                  }
+                </ListBox.ItemIndicator>
               </ListBox.Item>
               <ListBox.Item id='auto' textValue='Auto'>
                 Auto
-                <ListBox.ItemIndicator />
+                <ListBox.ItemIndicator>
+                  {({ isSelected }) =>
+                    isSelected ? <IconCheck stroke={1.5} /> : null
+                  }
+                </ListBox.ItemIndicator>
               </ListBox.Item>
             </ListBox>
           </Select.Popover>
