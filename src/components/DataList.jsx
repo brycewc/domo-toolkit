@@ -9,12 +9,13 @@ import {
   Tooltip
 } from '@heroui/react';
 import {
-  IconCheck,
+  IconChevronDown,
   IconClipboard,
   IconFolders,
   IconUserPlus,
   IconUsersPlus
 } from '@tabler/icons-react';
+import { AnimatedCheck } from './AnimatedCheck';
 
 /**
  * DataList Component
@@ -156,7 +157,9 @@ function DataListItem({
                 {showCounts && item.count !== undefined && (
                   <p className='text-sm text-muted'> ({item.count})</p>
                 )}
-                <Disclosure.Indicator />
+                <Disclosure.Indicator>
+                  <IconChevronDown stroke={1.5} />
+                </Disclosure.Indicator>
               </Disclosure.Trigger>
               <ButtonGroup>
                 <Tooltip delay={400} closeDelay={0}>
@@ -168,7 +171,7 @@ function DataListItem({
                     onPress={() => handleAction('openAll')}
                     aria-label='Open All'
                   >
-                    <IconFolders size={4} />
+                    <IconFolders stroke={1.5} />
                   </Button>
                   <Tooltip.Content className='text-xs'>
                     Open all children in new tabs
@@ -183,7 +186,7 @@ function DataListItem({
                     onPress={() => handleAction('share')}
                     aria-label='Share'
                   >
-                    <IconUsersPlus size={4} />
+                    <IconUsersPlus stroke={1.5} />
                   </Button>
                   <Tooltip.Content className='text-xs'>
                     Share all children with yourself
@@ -211,9 +214,9 @@ function DataListItem({
                   aria-label='Copy'
                 >
                   {isCopied ? (
-                    <IconCheck size={4} />
+                    <AnimatedCheck stroke={1.5} />
                   ) : (
-                    <IconClipboard size={4} />
+                    <IconClipboard stroke={1.5} />
                   )}
                 </Button>
                 <Tooltip.Content className='text-xs'>
@@ -230,7 +233,7 @@ function DataListItem({
                     onPress={() => handleAction('share')}
                     aria-label='Share'
                   >
-                    <IconUserPlus size={4} />
+                    <IconUserPlus stroke={1.5} />
                   </Button>
                   <Tooltip.Content className='text-xs'>
                     Share with yourself

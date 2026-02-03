@@ -11,6 +11,8 @@ import {
   TextField
 } from '@heroui/react';
 import { StatusBar } from './../StatusBar';
+import { AnimatedCheck } from './../AnimatedCheck';
+import { IconChevronDown, IconDeviceFloppy } from '@tabler/icons-react';
 
 export function AppSettings({ theme = 'system' }) {
   // Store all settings in a single state object for extensibility
@@ -26,8 +28,6 @@ export function AppSettings({ theme = 'system' }) {
     defaultDomoInstance: '',
     defaultClearCookiesHandling: 'default'
   });
-
-  const [isClearing, setIsClearing] = useState(false);
 
   const [statusBar, setStatusBar] = useState({
     title: '',
@@ -53,33 +53,57 @@ export function AppSettings({ theme = 'system' }) {
       }
     );
 
-    // Listen for storage changes
+    // Listen for storage changes (e.g., from other tabs or extension pages)
     const handleStorageChange = (changes, areaName) => {
       if (areaName === 'sync') {
-        const updatedSettings = { ...settings };
-        let hasChanges = false;
+        // Use functional updates to avoid stale closure issues
+        setSettings((prevSettings) => {
+          const updatedSettings = { ...prevSettings };
+          let hasChanges = false;
 
-        if (changes.themePreference) {
-          updatedSettings.themePreference = changes.themePreference.newValue;
-          hasChanges = true;
-        }
+          if (changes.themePreference) {
+            updatedSettings.themePreference = changes.themePreference.newValue;
+            hasChanges = true;
+          }
 
-        if (changes.defaultDomoInstance) {
-          updatedSettings.defaultDomoInstance =
-            changes.defaultDomoInstance.newValue;
-          hasChanges = true;
-        }
+          if (changes.defaultDomoInstance) {
+            updatedSettings.defaultDomoInstance =
+              changes.defaultDomoInstance.newValue;
+            hasChanges = true;
+          }
 
-        if (changes.defaultClearCookiesHandling !== undefined) {
-          updatedSettings.defaultClearCookiesHandling =
-            changes.defaultClearCookiesHandling.newValue;
-          hasChanges = true;
-        }
+          if (changes.defaultClearCookiesHandling !== undefined) {
+            updatedSettings.defaultClearCookiesHandling =
+              changes.defaultClearCookiesHandling.newValue;
+            hasChanges = true;
+          }
 
-        if (hasChanges) {
-          setSettings(updatedSettings);
-          setOriginalSettings(updatedSettings);
-        }
+          return hasChanges ? updatedSettings : prevSettings;
+        });
+
+        setOriginalSettings((prevOriginal) => {
+          const updatedOriginal = { ...prevOriginal };
+          let hasChanges = false;
+
+          if (changes.themePreference) {
+            updatedOriginal.themePreference = changes.themePreference.newValue;
+            hasChanges = true;
+          }
+
+          if (changes.defaultDomoInstance) {
+            updatedOriginal.defaultDomoInstance =
+              changes.defaultDomoInstance.newValue;
+            hasChanges = true;
+          }
+
+          if (changes.defaultClearCookiesHandling !== undefined) {
+            updatedOriginal.defaultClearCookiesHandling =
+              changes.defaultClearCookiesHandling.newValue;
+            hasChanges = true;
+          }
+
+          return hasChanges ? updatedOriginal : prevOriginal;
+        });
       }
     };
 
@@ -114,6 +138,13 @@ export function AppSettings({ theme = 'system' }) {
     }));
   };
 
+  const handleClearCookiesHandlingChange = (value) => {
+    setSettings((prev) => ({
+      ...prev,
+      defaultClearCookiesHandling: value
+    }));
+  };
+
   // Check if settings have changed
   const hasChanges =
     JSON.stringify(settings) !== JSON.stringify(originalSettings);
@@ -143,32 +174,39 @@ export function AppSettings({ theme = 'system' }) {
           <Label>Theme</Label>
           <Select.Trigger>
             <Select.Value />
-            <Select.Indicator />
+            <Select.Indicator>
+              <IconChevronDown stroke={1} />
+            </Select.Indicator>
           </Select.Trigger>
           <Select.Popover>
             <ListBox>
               <ListBox.Item id='system' textValue='System'>
                 System
-                <ListBox.ItemIndicator />
+                <ListBox.ItemIndicator>
+                  {({ isSelected }) => (isSelected ? <AnimatedCheck /> : null)}
+                </ListBox.ItemIndicator>
               </ListBox.Item>
               <ListBox.Item id='light' textValue='Light'>
                 Light
-                <ListBox.ItemIndicator />
+                <ListBox.ItemIndicator>
+                  {({ isSelected }) => (isSelected ? <AnimatedCheck /> : null)}
+                </ListBox.ItemIndicator>
               </ListBox.Item>
               <ListBox.Item id='dark' textValue='Dark'>
                 Dark
-                <ListBox.ItemIndicator />
+                <ListBox.ItemIndicator>
+                  {({ isSelected }) => (isSelected ? <AnimatedCheck /> : null)}
+                </ListBox.ItemIndicator>
               </ListBox.Item>
             </ListBox>
           </Select.Popover>
         </Select>
-        <TextField
-          inputValue={settings.defaultDomoInstance}
-          onInputChange={handleDefaultInstanceChange}
-          className='w-40'
-        >
+        <TextField onChange={handleDefaultInstanceChange} className='w-40'>
           <Label>Default Domo Instance</Label>
-          <Input placeholder='Enter an instance' />
+          <Input
+            placeholder='Enter an instance'
+            value={settings.defaultDomoInstance}
+          />
           <Description className='w-md'>
             This is used when navigating to copied objects from non-Domo
             websites. Enter without .domo.com (e.g., company for
@@ -177,32 +215,35 @@ export function AppSettings({ theme = 'system' }) {
         </TextField>
         <Select
           value={settings.defaultClearCookiesHandling}
-          onChange={(value) =>
-            setSettings((prev) => ({
-              ...prev,
-              defaultClearCookiesHandling: value
-            }))
-          }
+          onChange={handleClearCookiesHandlingChange}
           className='w-40'
         >
           <Label>Cookie Clearing Behavior</Label>
           <Select.Trigger>
             <Select.Value />
-            <Select.Indicator />
+            <Select.Indicator>
+              <IconChevronDown stroke={1} />
+            </Select.Indicator>
           </Select.Trigger>
           <Select.Popover>
             <ListBox>
               <ListBox.Item id='auto' textValue='Auto'>
                 Auto
-                <ListBox.ItemIndicator />
+                <ListBox.ItemIndicator>
+                  {({ isSelected }) => (isSelected ? <AnimatedCheck /> : null)}
+                </ListBox.ItemIndicator>
               </ListBox.Item>
               <ListBox.Item id='default' textValue='Default'>
                 Default
-                <ListBox.ItemIndicator />
+                <ListBox.ItemIndicator>
+                  {({ isSelected }) => (isSelected ? <AnimatedCheck /> : null)}
+                </ListBox.ItemIndicator>
               </ListBox.Item>
               <ListBox.Item id='all' textValue='All'>
                 All
-                <ListBox.ItemIndicator />
+                <ListBox.ItemIndicator>
+                  {({ isSelected }) => (isSelected ? <AnimatedCheck /> : null)}
+                </ListBox.ItemIndicator>
               </ListBox.Item>
             </ListBox>
           </Select.Popover>
@@ -222,6 +263,7 @@ export function AppSettings({ theme = 'system' }) {
             size='sm'
             isDisabled={!hasChanges}
           >
+            <IconDeviceFloppy />
             Save Settings
           </Button>
         </div>

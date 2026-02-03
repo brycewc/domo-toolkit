@@ -17,6 +17,7 @@ import {
   SearchField
 } from '@heroui/react';
 import { IconColumns, IconPlus } from '@tabler/icons-react';
+import { AnimatedCheck } from './../AnimatedCheck';
 
 /**
  * DataTable Component
@@ -206,9 +207,12 @@ export function DataTable({
             {/* Column Visibility Dropdown */}
             <Dropdown>
               <Button variant='tertiary'>
-                <IconColumns size={4} />
+                <IconColumns stroke={1.5} />
                 Columns
-                <IconChevronDown className='size-4 text-foreground' />
+                <IconChevronDown
+                  stroke={1.5}
+                  className='size-4 text-foreground'
+                />
               </Button>
               <Dropdown.Popover>
                 <Dropdown.Menu
@@ -231,7 +235,11 @@ export function DataTable({
                       id={column.id}
                       textValue={column.columnDef.header}
                     >
-                      <Dropdown.ItemIndicator />
+                      <Dropdown.ItemIndicator>
+                        {({ isSelected }) =>
+                          isSelected ? <AnimatedCheck stroke={1.5} /> : null
+                        }
+                      </Dropdown.ItemIndicator>
                       <Label>{column.columnDef.header}</Label>
                     </Dropdown.Item>
                   ))}
@@ -247,7 +255,10 @@ export function DataTable({
               <Dropdown>
                 <Button variant='secondary' isDisabled={selectedCount === 0}>
                   Actions ({selectedCount})
-                  <IconChevronDown className='size-4 text-foreground' />
+                  <IconChevronDown
+                    stroke={1.5}
+                    className='size-4 text-foreground'
+                  />
                 </Button>
                 <Dropdown.Popover>
                   <Dropdown.Menu
@@ -281,7 +292,7 @@ export function DataTable({
             {/* Add New Button */}
             {onAdd && (
               <Button onPress={onAdd}>
-                <IconPlus size={4} />
+                <IconPlus stroke={1.5} />
                 Add New
               </Button>
             )}
@@ -330,9 +341,15 @@ export function DataTable({
                           {header.column.getCanSort() && (
                             <span className='text-muted'>
                               {header.column.getIsSorted() === 'asc' ? (
-                                <IconChevronDown className='size-4 rotate-180 text-foreground' />
+                                <IconChevronDown
+                                  stroke={1.5}
+                                  className='size-4 rotate-180 text-foreground'
+                                />
                               ) : header.column.getIsSorted() === 'desc' ? (
-                                <IconChevronDown className='size-4 text-foreground' />
+                                <IconChevronDown
+                                  stroke={1.5}
+                                  className='size-4 text-foreground'
+                                />
                               ) : (
                                 <div className='size-4' />
                               )}

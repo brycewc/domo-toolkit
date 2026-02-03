@@ -59,6 +59,7 @@ let lastKnownClipboard = '';
 async function checkAndCacheClipboard() {
   try {
     const clipboardText = await navigator.clipboard.readText();
+    console.log('[ContentScript] Read clipboard text:', clipboardText);
     const trimmedText = clipboardText.trim();
 
     // Validate that clipboard contains a valid Domo object ID

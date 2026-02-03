@@ -740,7 +740,7 @@ export function ActivityLogTable() {
           isDisabled={isInitialLoad || isSearching}
           isPending={isInitialLoad}
         >
-          <IconRefresh size={4} />
+          <IconRefresh />
           Refresh
         </Button>
       </div>
@@ -759,9 +759,9 @@ export function ActivityLogTable() {
             {/* Date Range Filter */}
             <Popover>
               <Button variant='tertiary'>
-                <IconFilter size={4} />
+                <IconFilter stroke={1.5} />
                 Date Range
-                <IconChevronDown size={4} />
+                <IconChevronDown stroke={1.5} />
               </Button>
               <Popover.Content className='w-72'>
                 <Popover.Dialog className='flex flex-col gap-3'>
@@ -814,9 +814,9 @@ export function ActivityLogTable() {
             {userOptions.length > 0 && (
               <Dropdown>
                 <Button variant='tertiary'>
-                  <IconFilter size={4} />
+                  <IconFilter stroke={1.5} />
                   User
-                  <IconChevronDown size={4} />
+                  <IconChevronDown stroke={1.5} />
                 </Button>
                 <Dropdown.Popover className='max-h-64 overflow-y-auto'>
                   <Dropdown.Menu
@@ -839,9 +839,9 @@ export function ActivityLogTable() {
             {actionOptions.length > 0 && (
               <Dropdown>
                 <Button variant='tertiary'>
-                  <IconFilter size={4} />
+                  <IconFilter stroke={1.5} />
                   Action
-                  <IconChevronDown size={4} />
+                  <IconChevronDown stroke={1.5} />
                 </Button>
                 <Dropdown.Popover className='max-h-64 overflow-y-auto'>
                   <Dropdown.Menu
@@ -875,9 +875,9 @@ export function ActivityLogTable() {
             {objectTypeOptions.length > 0 && (
               <Dropdown>
                 <Button variant='tertiary'>
-                  <IconFilter size={4} />
+                  <IconFilter stroke={1.5} />
                   Object Type
-                  <IconChevronDown size={4} />
+                  <IconChevronDown stroke={1.5} />
                 </Button>
                 <Dropdown.Popover className='max-h-64 overflow-y-auto'>
                   <Dropdown.Menu

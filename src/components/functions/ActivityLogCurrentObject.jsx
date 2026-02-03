@@ -194,7 +194,7 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
     );
 
   return (
-    <ButtonGroup className='min-w-fit flex-1 basis-[49%]'>
+    <ButtonGroup className='h-full min-w-fit flex-1 basis-[49%]'>
       <Button
         variant='tertiary'
         onPress={handleClick}
@@ -203,7 +203,7 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
         isPending={isLoading}
         fullWidth
       >
-        <IconFileDescription size={4} />
+        <IconFileDescription stroke={1.5} />
         Activity Log
       </Button>
       {!isDropdownDisabled && (
@@ -214,7 +214,7 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
             aria-label='More options'
             isDisabled={isDropdownDisabled}
           >
-            <IconChevronDown size={4} />
+            <IconChevronDown stroke={1} />
           </Button>
           <Dropdown.Popover
             className='w-full max-w-72.5'
@@ -223,7 +223,7 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
             <Dropdown.Menu onAction={handleClick}>
               <Dropdown.Item id='child-cards' textValue='Child cards'>
                 <div className='flex h-8 items-start justify-center pt-px'>
-                  <IconChartBar size={4} className='size-4 shrink-0' />
+                  <IconChartBar className='size-4 shrink-0' stroke={1.5} />
                 </div>
                 <div className='flex flex-col'>
                   <Label>Child cards</Label>
@@ -236,7 +236,7 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
               </Dropdown.Item>
               <Dropdown.Item id='child-pages' textValue='Child pages'>
                 <div className='flex h-8 items-start justify-center pt-px'>
-                  <IconCopy size={4} className='size-4 shrink-0' />
+                  <IconCopy className='size-4 shrink-0' stroke={1.5} />
                 </div>
                 <div className='flex flex-col'>
                   <Label>Child pages</Label>

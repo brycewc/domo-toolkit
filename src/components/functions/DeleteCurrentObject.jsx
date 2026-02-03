@@ -6,7 +6,7 @@ import {
   Tooltip,
   useOverlayState
 } from '@heroui/react';
-import { IconTrash } from '@tabler/icons-react';
+import { IconTrash, IconX } from '@tabler/icons-react';
 import { deletePageAndAllCards, deleteObject } from '@/services';
 import {
   waitForChildPages,
@@ -202,7 +202,7 @@ export function DeleteCurrentObject({
             !supportedTypes.includes(currentContext?.domoObject?.typeId)
           }
         >
-          <IconTrash size={4} className='text-danger' />
+          <IconTrash stroke={1.5} className='text-danger' />
         </Button>
         <Tooltip.Content>
           Delete{' '}
@@ -221,13 +221,13 @@ export function DeleteCurrentObject({
       <AlertDialog.Backdrop>
         <AlertDialog.Container placement='top' className='p-1'>
           <AlertDialog.Dialog className='p-2 pt-3'>
-            <div
-              className={`absolute top-[0px] left-[0px] h-[5px] w-full bg-danger`}
-            />
+            <div className={`absolute top-0 left-0 h-1.25 w-full bg-danger`} />
             <AlertDialog.CloseTrigger
               className='absolute top-3 right-2'
               variant='ghost'
-            />
+            >
+              <IconX stroke={1.5} />
+            </AlertDialog.CloseTrigger>
             <AlertDialog.Header>
               {/* <AlertDialog.Icon status='danger' /> */}
               <AlertDialog.Heading>

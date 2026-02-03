@@ -235,6 +235,7 @@ export function GetPages({
       isDisabled={isDisabled}
       isPending={isLoading}
       isIconOnly={isLoading}
+      size='md'
     >
       {({ isPending }) => {
         if (isPending) {
@@ -262,7 +263,7 @@ export function GetPages({
 
         return (
           <>
-            <IconCopy size={4} /> {message}
+            <IconCopy stroke={1.5} /> {message}
           </>
         );
       }}

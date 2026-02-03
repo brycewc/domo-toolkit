@@ -1011,15 +1011,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
         }
 
-        case 'CHECK_CLIPBOARD': {
-          // Check clipboard and return current value
-          console.log('[Background] CHECK_CLIPBOARD message received');
-          const clipboardData = await checkClipboard();
-          console.log('[Background] Returning clipboard data:', clipboardData);
-          sendResponse({ success: true, clipboardData });
-          break;
-        }
-
         case 'CLIPBOARD_COPIED': {
           // Content script detected a copy event and read the clipboard
           const { clipboardData } = message;

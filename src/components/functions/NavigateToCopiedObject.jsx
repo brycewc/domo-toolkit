@@ -167,10 +167,10 @@ export const NavigateToCopiedObject = forwardRef(
             return;
           }
         } catch (error) {
-          // console.log(
-          //   `[NavigateToCopiedObject] Error trying type ${typeConfig.id}:`,
-          //   error.message
-          // );
+          console.log(
+            `[NavigateToCopiedObject] Error trying type ${typeConfig.id}:`,
+            error.message
+          );
           continue;
         }
       }
@@ -446,13 +446,13 @@ export const NavigateToCopiedObject = forwardRef(
 
     return showDropdown ? (
       needsDefaultInstance ? (
-        <Tooltip delay={200} closeDelay={0}>
+        <Tooltip delay={200} closeDelay={0} className='h-fit'>
           <Button
             variant='tertiary'
             className='min-w-fit flex-1 basis-[49%] cursor-not-allowed opacity-50'
             onPress={() => {}}
           >
-            <IconChevronDown size={4} />
+            <IconChevronDown stroke={1} />
             Nav from Clipboard
           </Button>
           <Tooltip.Content placement='top'>
@@ -462,7 +462,7 @@ export const NavigateToCopiedObject = forwardRef(
       ) : (
         <Dropdown>
           <Button variant='tertiary' className='min-w-fit flex-1 basis-[49%]'>
-            <IconChevronDown size={4} />
+            <IconChevronDown stroke={1.5} />
             Nav from Clipboard
           </Button>
           <Dropdown.Popover className='min-w-[18rem]' placement='bottom end'>
@@ -490,7 +490,7 @@ export const NavigateToCopiedObject = forwardRef(
           isPending={isLoading}
           isIconOnly={isLoading}
         >
-          <IconExternalLink size={4} />
+          <IconExternalLink stroke={1.5} />
           Nav from Clipboard
         </Button>
         <Tooltip.Content

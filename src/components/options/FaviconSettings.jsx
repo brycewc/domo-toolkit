@@ -17,14 +17,19 @@ import {
   IconTrash,
   IconGripVertical,
   IconColorSwatchOff,
-  IconColorSwatch
+  IconColorSwatch,
+  IconPlus,
+  IconDeviceFloppy,
+  IconChevronDown
 } from '@tabler/icons-react';
 import { ColorPicker } from 'react-color-pikr';
 import { clearFaviconCache } from '@/utils';
+import { AnimatedCheck } from './../AnimatedCheck';
 import { StatusBar } from './../StatusBar';
 
 export function FaviconSettings() {
   const [rules, setRules] = useState([]);
+  const [originalRules, setOriginalRules] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [draggedIndex, setDraggedIndex] = useState(null);
   const [activeColorPicker, setActiveColorPicker] = useState(null);
@@ -55,20 +60,26 @@ export function FaviconSettings() {
           return rest;
         });
         setRules(migratedRules);
+        setOriginalRules(migratedRules);
       } else {
         // Set default rules if none exist (matches background.js default)
-        setRules([
+        const defaultRules = [
           {
             id: Date.now(),
             pattern: '.*',
             effect: 'instance-logo',
             color: '#000000'
           }
-        ]);
+        ];
+        setRules(defaultRules);
+        setOriginalRules(defaultRules);
       }
       setIsLoading(false);
     });
   }, []);
+
+  // Check if rules have changed from original
+  const hasChanges = JSON.stringify(rules) !== JSON.stringify(originalRules);
 
   const showStatus = (
     title,
@@ -95,6 +106,7 @@ export function FaviconSettings() {
         faviconRules: rules
       },
       () => {
+        setOriginalRules(rules);
         showStatus('Settings saved successfully!', '', 'success');
       }
     );
@@ -102,13 +114,13 @@ export function FaviconSettings() {
 
   const addRow = () => {
     setRules([
-      ...rules,
       {
         id: Date.now(),
         pattern: '.*',
         effect: 'domo-logo-colored',
         color: '#000FFF'
-      }
+      },
+      ...rules
     ]);
   };
 
@@ -153,6 +165,17 @@ export function FaviconSettings() {
     <div className='flex h-full min-h-[calc(100vh-20)] w-full flex-col justify-between pt-4'>
       <div className='flex w-full flex-col gap-2'>
         <Form className='flex w-full flex-col gap-2' onSubmit={onSave}>
+          <div className='flex flex-row gap-2'>
+            <Button type='submit' isDisabled={!hasChanges}>
+              <IconDeviceFloppy />
+              Save Settings
+            </Button>
+            <Button type='button' variant='secondary' onPress={addRow}>
+              <IconPlus />
+              Add Rule
+            </Button>
+          </div>
+
           {isLoading ? (
             <div className='skeleton--shimmer relative flex w-full flex-col gap-2 overflow-hidden'>
               <Skeleton animationType='none' className='h-24 rounded-xl' />
@@ -174,9 +197,9 @@ export function FaviconSettings() {
               >
                 <Card.Content className='flex flex-row items-center justify-start gap-2'>
                   <div className='flex items-center justify-center'>
-                    <IconGripVertical className='mt-[1.5rem] size-4' />
+                    <IconGripVertical className='mt-6 size-4' />
                   </div>
-                  <div className='text-fg-muted mt-[1.5rem] text-sm font-semibold'>
+                  <div className='text-fg-muted mt-6 text-sm font-semibold'>
                     {index + 1}
                   </div>
 
@@ -208,20 +231,60 @@ export function FaviconSettings() {
                       <Label className='sr-only'>Effect</Label>
                       <Select.Trigger>
                         <Select.Value />
-                        <Select.Indicator />
+                        <Select.Indicator>
+                          <IconChevronDown stroke={1} />
+                        </Select.Indicator>
                       </Select.Trigger>
                       <Select.Popover>
                         <ListBox>
                           <ListBox.Item id='instance-logo'>
                             instance-logo
+                            <ListBox.ItemIndicator>
+                              {({ isSelected }) =>
+                                isSelected ? <AnimatedCheck /> : null
+                              }
+                            </ListBox.ItemIndicator>
                           </ListBox.Item>
                           <ListBox.Item id='domo-logo-colored'>
                             domo-logo-colored
+                            <ListBox.ItemIndicator>
+                              {({ isSelected }) =>
+                                isSelected ? <AnimatedCheck /> : null
+                              }
+                            </ListBox.ItemIndicator>
                           </ListBox.Item>
-                          <ListBox.Item id='top'>top</ListBox.Item>
-                          <ListBox.Item id='right'>right</ListBox.Item>
-                          <ListBox.Item id='bottom'>bottom</ListBox.Item>
-                          <ListBox.Item id='left'>left</ListBox.Item>
+                          <ListBox.Item id='top'>
+                            top
+                            <ListBox.ItemIndicator>
+                              {({ isSelected }) =>
+                                isSelected ? <AnimatedCheck /> : null
+                              }
+                            </ListBox.ItemIndicator>
+                          </ListBox.Item>
+                          <ListBox.Item id='right'>
+                            right
+                            <ListBox.ItemIndicator>
+                              {({ isSelected }) =>
+                                isSelected ? <AnimatedCheck /> : null
+                              }
+                            </ListBox.ItemIndicator>
+                          </ListBox.Item>
+                          <ListBox.Item id='bottom'>
+                            bottom
+                            <ListBox.ItemIndicator>
+                              {({ isSelected }) =>
+                                isSelected ? <AnimatedCheck /> : null
+                              }
+                            </ListBox.ItemIndicator>
+                          </ListBox.Item>
+                          <ListBox.Item id='left'>
+                            left
+                            <ListBox.ItemIndicator>
+                              {({ isSelected }) =>
+                                isSelected ? <AnimatedCheck /> : null
+                              }
+                            </ListBox.ItemIndicator>
+                          </ListBox.Item>
                         </ListBox>
                       </Select.Popover>
                     </Select>
@@ -277,9 +340,9 @@ export function FaviconSettings() {
                           onPress={() => setPopoverOffset(8)}
                         >
                           {rule.effect === 'instance-logo' ? (
-                            <IconColorSwatchOff size={4} />
+                            <IconColorSwatchOff />
                           ) : (
-                            <IconColorSwatch size={4} />
+                            <IconColorSwatch />
                           )}
                         </Button>
                       </ButtonGroup>
@@ -298,13 +361,13 @@ export function FaviconSettings() {
                   </div>
 
                   {rules.length > 1 && (
-                    <div className='mt-[1.5rem] flex items-center'>
+                    <div className='mt-6 flex items-center'>
                       <Button
-                        variant='danger'
+                        variant='tertiary'
                         onPress={() => removeRow(rule.id)}
                         isIconOnly
                       >
-                        <IconTrash size={4} />
+                        <IconTrash className='text-danger' />
                       </Button>
                     </div>
                   )}
@@ -312,13 +375,6 @@ export function FaviconSettings() {
               </Card>
             ))
           )}
-
-          <div className='flex flex-row gap-2'>
-            <Button type='submit'>Save Settings</Button>
-            <Button type='button' variant='secondary' onPress={addRow}>
-              Add Row
-            </Button>
-          </div>
         </Form>
 
         <div>
@@ -339,7 +395,9 @@ export function FaviconSettings() {
           <Accordion.Heading>
             <Accordion.Trigger>
               Rule Priority & Ordering
-              <Accordion.Indicator />
+              <Accordion.Indicator>
+                <IconChevronDown />
+              </Accordion.Indicator>
             </Accordion.Trigger>
           </Accordion.Heading>
           <Accordion.Panel>
@@ -361,7 +419,9 @@ export function FaviconSettings() {
           <Accordion.Heading>
             <Accordion.Trigger>
               Effects
-              <Accordion.Indicator />
+              <Accordion.Indicator>
+                <IconChevronDown />
+              </Accordion.Indicator>
             </Accordion.Trigger>
           </Accordion.Heading>
           <Accordion.Panel>
@@ -400,7 +460,9 @@ export function FaviconSettings() {
           <Accordion.Heading>
             <Accordion.Trigger>
               Regex Pattern
-              <Accordion.Indicator />
+              <Accordion.Indicator>
+                <IconChevronDown />
+              </Accordion.Indicator>
             </Accordion.Trigger>
           </Accordion.Heading>
           <Accordion.Panel>

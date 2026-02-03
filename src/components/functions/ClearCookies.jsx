@@ -165,7 +165,7 @@ export function ClearCookies({ currentContext, onStatusUpdate, isDisabled }) {
             {isPending ? (
               <Spinner color='currentColor' size='sm' />
             ) : (
-              <IconCookieOff size={4} className='text-danger' />
+              <IconCookieOff className='text-danger' />
             )}
           </>
         )}

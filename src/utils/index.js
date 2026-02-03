@@ -13,10 +13,5 @@ export {
   clearFaviconCache
 } from './faviconModifier';
 export { JsonStringifyOrder } from './general';
-export {
-  waitForChildPages,
-  isSidepanel,
-  showStatus,
-  storeSidepanelData,
-  openSidepanel
-} from './pageHelpers';
+export { waitForChildPages, storeSidepanelData } from './pageHelpers';
+export { isSidepanel, openSidepanel, showStatus } from './sidepanel';

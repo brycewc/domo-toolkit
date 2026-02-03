@@ -1,11 +1,28 @@
 import { useState, useRef } from 'react';
 import { Button, Dropdown, Label, Tooltip } from '@heroui/react';
-import { IconCheck, IconClipboard, IconJson } from '@tabler/icons-react';
+import { IconClipboard, IconJson } from '@tabler/icons-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { AnimatedCheck } from '@/components';
 import { JsonStringifyOrder } from '@/utils';
 
 const LONG_PRESS_DURATION = 1000; // ms - matches HeroUI's default
 const LONG_PRESS_SECONDS = LONG_PRESS_DURATION / 1000;
+
+/**
+ * Notify background script about clipboard update so it can broadcast to all contexts
+ */
+const notifyClipboardUpdate = (value) => {
+  if (!value) return;
+
+  chrome.runtime
+    .sendMessage({
+      type: 'CLIPBOARD_COPIED',
+      clipboardData: String(value)
+    })
+    .catch(() => {
+      // Ignore errors (e.g., no listeners)
+    });
+};
 
 export function Copy({
   currentContext,
@@ -34,19 +51,19 @@ export function Copy({
   };
 
   const handlePress = () => {
+    const id = currentContext?.domoObject?.id;
     try {
-      navigator.clipboard.writeText(currentContext?.domoObject?.id);
+      navigator.clipboard.writeText(id);
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
       onStatusUpdate?.(
         'Success',
-        `Copied ${currentContext?.domoObject?.typeName} ID **${currentContext?.domoObject?.id}** to clipboard`,
+        `Copied ${currentContext?.domoObject?.typeName} ID **${id}** to clipboard`,
         'success',
         2000
       );
-      navigateToCopiedRef.current?.triggerDetection(
-        currentContext?.domoObject?.id
-      );
+      notifyClipboardUpdate(id);
+      navigateToCopiedRef.current?.triggerDetection(id);
     } catch (error) {
       onStatusUpdate?.(
         'Error',
@@ -58,64 +75,60 @@ export function Copy({
   };
   const handleAction = (key) => {
     switch (key) {
-      case 'context-json':
-        const contextJson = JsonStringifyOrder(currentContext, 2);
-        navigator.clipboard.writeText(contextJson);
+      case 'stream': {
+        const streamId = currentContext?.domoObject?.metadata?.details?.streamId;
+        navigator.clipboard.writeText(streamId);
         onStatusUpdate?.(
           'Success',
-          `Copied Context JSON to clipboard`,
+          `Copied Stream ID **${streamId}** to clipboard`,
           'success',
           2000
         );
+        notifyClipboardUpdate(streamId);
+        navigateToCopiedRef.current?.triggerDetection(streamId);
         break;
-      case 'stream':
-        navigator.clipboard.writeText(
-          currentContext?.domoObject?.metadata?.details?.streamId
-        );
+      }
+      case 'data-app': {
+        const appId = currentContext?.domoObject?.parentId;
+        navigator.clipboard.writeText(appId);
         onStatusUpdate?.(
           'Success',
-          `Copied Stream ID **${currentContext?.domoObject?.metadata?.details?.streamId}** to clipboard`,
+          `Copied App Studio App ID **${appId}** to clipboard`,
           'success',
           2000
         );
-        // Trigger detection in NavigateToCopiedObject
-        navigateToCopiedRef.current?.triggerDetection(
-          currentContext?.domoObject?.metadata?.details?.streamId
-        );
+        notifyClipboardUpdate(appId);
+        navigateToCopiedRef.current?.triggerDetection(appId);
         break;
-      case 'data-app':
-        navigator.clipboard.writeText(currentContext?.domoObject?.parentId);
+      }
+      case 'worksheet': {
+        const worksheetId = currentContext?.domoObject?.parentId;
+        navigator.clipboard.writeText(worksheetId);
         onStatusUpdate?.(
           'Success',
-          `Copied App Studio App ID **${currentContext?.domoObject?.parentId}** to clipboard`,
+          `Copied Worksheet ID **${worksheetId}** to clipboard`,
           'success',
           2000
         );
-        // Trigger detection in NavigateToCopiedObject
-        navigateToCopiedRef.current?.triggerDetection(
-          currentContext?.domoObject?.parentId
-        );
+        notifyClipboardUpdate(worksheetId);
+        navigateToCopiedRef.current?.triggerDetection(worksheetId);
         break;
-      case 'worksheet':
-        navigator.clipboard.writeText(currentContext?.domoObject?.parentId);
-        onStatusUpdate?.(
-          'Success',
-          `Copied Worksheet ID **${currentContext?.domoObject?.parentId}** to clipboard`,
-          'success',
-          2000
-        );
-        // Trigger detection in NavigateToCopiedObject
-        navigateToCopiedRef.current?.triggerDetection(
-          currentContext?.domoObject?.parentId
-        );
-        break;
+      }
       default:
         break;
     }
   };
   return (
     <Tooltip delay={400} closeDelay={0}>
-      <Dropdown trigger='longPress' isDisabled={isDisabled}>
+      <Dropdown
+        trigger='longPress'
+        isDisabled={
+          isDisabled ||
+          !['DATA_SOURCE', 'DATA_APP_VIEW', 'WORKSHEET_VIEW'].includes(
+            currentContext?.domoObject?.typeId
+          )
+        }
+      >
         <Button
           variant='tertiary'
           fullWidth
@@ -126,7 +139,11 @@ export function Copy({
           isDisabled={isDisabled || !currentContext?.domoObject?.id}
           className='relative overflow-visible'
         >
-          {isCopied ? <IconCheck size={4} /> : <IconClipboard size={4} />}
+          {isCopied ? (
+            <AnimatedCheck stroke={1.5} />
+          ) : (
+            <IconClipboard stroke={1.5} />
+          )}
           <AnimatePresence>
             {isHolding && (
               <motion.svg
@@ -158,25 +175,21 @@ export function Copy({
         </Button>
         <Dropdown.Popover className='w-fit min-w-48' placement='bottom left'>
           <Dropdown.Menu onAction={handleAction}>
-            <Dropdown.Item id='context-json' textValue='Copy Context JSON'>
-              <IconJson size={4} className='size-4 shrink-0' />
-              <Label>Copy Context JSON</Label>
-            </Dropdown.Item>
             {currentContext?.domoObject?.typeId === 'DATA_SOURCE' && (
               <Dropdown.Item id='stream' textValue='Copy Stream ID'>
-                <IconClipboard size={4} className='size-4 shrink-0' />
+                <IconClipboard className='size-4 shrink-0' />
                 <Label>Copy Stream ID</Label>
               </Dropdown.Item>
             )}
             {currentContext?.domoObject?.typeId === 'DATA_APP_VIEW' && (
               <Dropdown.Item id='data-app' textValue='Copy App ID'>
-                <IconClipboard size={4} className='size-4 shrink-0' />
+                <IconClipboard className='size-4 shrink-0' />
                 <Label>Copy App ID</Label>
               </Dropdown.Item>
             )}
             {currentContext?.domoObject?.typeId === 'WORKSHEET_VIEW' && (
               <Dropdown.Item id='worksheet' textValue='Copy Worksheet ID'>
-                <IconClipboard size={4} className='size-4 shrink-0' />
+                <IconClipboard className='size-4 shrink-0' />
                 <Label>Copy Worksheet ID</Label>
               </Dropdown.Item>
             )}

@@ -1,14 +1,12 @@
 import { useState } from 'react';
 import { Alert, Button, Chip, Spinner, Popover, Tooltip } from '@heroui/react';
-import { IconCheck, IconClipboard } from '@tabler/icons-react';
+import { IconClipboard } from '@tabler/icons-react';
+import { AnimatedCheck } from './AnimatedCheck';
 import JsonView from 'react18-json-view';
-import 'react18-json-view/src/style.css';
-import { useTheme } from '@/hooks';
+import '@/assets/json-view-theme.css';
 import { JsonStringifyOrder } from '@/utils';
 
 export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
-  const theme = useTheme();
-
   const [isCopied, setIsCopied] = useState(false);
 
   const handleCopy = () => {
@@ -57,7 +55,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
                 'Not a Domo Instance'
               )}
             </Alert.Title>
-            <Alert.Description className='flex flex-wrap items-center gap-x-1'>
+            <div className='flex flex-wrap items-center gap-x-1 text-sm'>
               {currentContext?.isDomoPage ? (
                 isLoading ? (
                   <Spinner size='sm' color='accent' />
@@ -80,7 +78,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
               ) : (
                 'Navigate to an instance to enable most extension features'
               )}
-            </Alert.Description>
+            </div>
           </>
         )}
       </Alert.Content>
@@ -109,7 +107,11 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
           </Chip>
           <Tooltip delay={400} closeDelay={0}>
             <Button variant='ghost' size='sm' isIconOnly onPress={handleCopy}>
-              {isCopied ? <IconCheck size={4} /> : <IconClipboard size={4} />}
+              {isCopied ? (
+                <AnimatedCheck stroke={1.5} />
+              ) : (
+                <IconClipboard stroke={1.5} />
+              )}
             </Button>
             <Tooltip.Content>
               Copy current context JSON to clipboard
@@ -119,8 +121,6 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
         <JsonView
           src={currentContext?.domoObject?.metadata}
           collapsed={1}
-          theme='vscode'
-          dark={theme === 'dark'}
           matchesURL
           displaySize
           collapseStringMode='word'

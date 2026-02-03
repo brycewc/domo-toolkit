@@ -9,7 +9,7 @@ import {
   TextArea
 } from '@heroui/react';
 import { updateDataflowDetails } from '@/services';
-import { IconArrowFork } from '@tabler/icons-react';
+import { IconArrowFork, IconX } from '@tabler/icons-react';
 
 export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -30,7 +30,10 @@ export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
         currentContext?.domoObject?.metadata?.details?.description || '';
       setName(originalName);
       setDescription(originalDescription);
-      setOriginalValues({ name: originalName, description: originalDescription });
+      setOriginalValues({
+        name: originalName,
+        description: originalDescription
+      });
     }
   }, [isOpen, currentContext?.domoObject]);
 
@@ -50,7 +53,12 @@ export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
     }
 
     if (Object.keys(updates).length === 0) {
-      onStatusUpdate?.('No changes to update', 'No fields were modified', 'warning', 2000);
+      onStatusUpdate?.(
+        'No changes to update',
+        'No fields were modified',
+        'warning',
+        2000
+      );
       return;
     }
 
@@ -102,7 +110,7 @@ export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
         fullWidth
         isDisabled={currentContext?.domoObject.typeId !== 'DATAFLOW_TYPE'}
       >
-        <IconArrowFork size={4} className='rotate-180' />
+        <IconArrowFork stroke={1.5} className='rotate-180' />
         Update DataFlow Details
       </Button>
       <Modal.Backdrop>
@@ -111,7 +119,9 @@ export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
             <Modal.CloseTrigger
               className='absolute top-2 right-2'
               variant='ghost'
-            />
+            >
+              <IconX stroke={1.5} />
+            </Modal.CloseTrigger>
             <Form onSubmit={handleSubmit}>
               <Modal.Header>
                 <Modal.Heading>Update DataFlow Details</Modal.Heading>

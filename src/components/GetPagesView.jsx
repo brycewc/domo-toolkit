@@ -484,7 +484,7 @@ export function GetPagesView({
                   }
                   aria-label='Open All'
                 >
-                  <IconFolders size={4} />
+                  <IconFolders stroke={1.5} />
                 </Button>
                 <Tooltip.Content className='text-xs'>
                   Open all pages in new tabs
@@ -508,7 +508,7 @@ export function GetPagesView({
                   }}
                   aria-label='Copy'
                 >
-                  <IconClipboard size={4} />
+                  <IconClipboard stroke={1.5} />
                 </Button>
                 <Tooltip.Content className='text-xs'>Copy ID</Tooltip.Content>
               </Tooltip>
@@ -547,7 +547,7 @@ export function GetPagesView({
                   }}
                   aria-label='Share'
                 >
-                  <IconUsersPlus size={4} />
+                  <IconUsersPlus stroke={1.5} />
                 </Button>
                 <Tooltip.Content className='text-xs'>
                   Share all pages with yourself
@@ -562,6 +562,7 @@ export function GetPagesView({
                   onPress={handleRefresh}
                 >
                   <IconRefresh
+                    stroke={1.5}
                     size={16}
                     className={isRefreshing ? 'animate-spin' : ''}
                   />
@@ -576,7 +577,7 @@ export function GetPagesView({
                     isIconOnly
                     onPress={onBackToDefault}
                   >
-                    <IconX size={4} />
+                    <IconX stroke={1.5} />
                   </Button>
                   <Tooltip.Content className='text-xs'>Close</Tooltip.Content>
                 </Tooltip>
