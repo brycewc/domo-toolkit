@@ -194,13 +194,13 @@ async function restoreFromSession() {
 chrome.runtime.onInstalled.addListener((details) => {
   console.log('Extension installed:', details);
 
-  // Open options page with activity tab on fresh install
-  // if (details.reason === 'install') {
-  //   // Create a new tab with the activity hash directly
-  //   chrome.tabs.create({
-  //     url: chrome.runtime.getURL('src/options/index.html#activity')
-  //   });
-  // }
+  // Open welcome page on fresh install
+  if (details.reason === 'install') {
+    // Create a new tab with the activity hash directly
+    chrome.tabs.create({
+      url: chrome.runtime.getURL('src/options/index.html#welcome')
+    });
+  }
 
   // Set default configurations
   chrome.storage.sync.get(null, (result) => {

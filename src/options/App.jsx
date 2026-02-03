@@ -1,7 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Tabs } from '@heroui/react';
 import { useTheme } from '@/hooks';
-import { ActivityLogTable, FaviconSettings, AppSettings } from '@/components';
+import {
+  ActivityLogTable,
+  FaviconSettings,
+  AppSettings,
+  WelcomePage
+} from '@/components';
 
 export default function App() {
   // Apply theme
@@ -40,6 +45,12 @@ export default function App() {
       >
         <Tabs.ListContainer className='flex w-full max-w-3xl flex-row justify-center'>
           <Tabs.List>
+            {selectedTab === 'welcome' && (
+              <Tabs.Tab id='welcome'>
+                Welcome
+                <Tabs.Indicator />
+              </Tabs.Tab>
+            )}
             <Tabs.Tab id='favicon'>
               Favicon
               <Tabs.Indicator />
@@ -48,6 +59,7 @@ export default function App() {
               Settings
               <Tabs.Indicator />
             </Tabs.Tab>
+
             {selectedTab === 'activity-log' && (
               <Tabs.Tab id='activity-log'>
                 Activity Log
@@ -56,6 +68,19 @@ export default function App() {
             )}
           </Tabs.List>
         </Tabs.ListContainer>
+        <Tabs.Panel
+          className='flex h-full max-w-3xl flex-col px-4'
+          id='welcome'
+        >
+          <div className='w-full justify-start'>
+            <h3 className='mb-2 text-lg font-semibold'>Welcome</h3>
+            <p className='text-sm text-muted'>
+              Welcome to the application! Use the tabs above to navigate through
+              different settings and features.
+            </p>
+          </div>
+          <WelcomePage />
+        </Tabs.Panel>
         <Tabs.Panel
           className='flex h-full max-w-3xl flex-col px-4'
           id='favicon'
