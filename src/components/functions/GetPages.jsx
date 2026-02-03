@@ -9,6 +9,7 @@ import {
 } from '@/utils';
 import { getCardsForObject, getPagesForCards } from '@/services';
 import { IconCopy } from '@tabler/icons-react';
+import { object } from 'motion/react-client';
 
 export function GetPages({
   currentContext,
@@ -124,7 +125,8 @@ export function GetPages({
           pageId: page.id,
           pageTitle: page.name,
           pageType: page.type,
-          appId: page.appId || null // Include appId for DATA_APP_VIEW URLs
+          appId: page.appId || null, // Include appId for DATA_APP_VIEW URLs
+          appName: page.appName || null
         }));
       } else {
         // For PAGE, DATA_APP_VIEW, and CARD - use existing logic
@@ -138,6 +140,16 @@ export function GetPages({
         }
 
         childPages = result.childPages;
+        if (objectType === 'CARD') {
+          // Transform to match CARD format (grouped by page type)
+          childPages = childPages.map((page) => ({
+            pageId: page.id,
+            pageTitle: page.name,
+            pageType: page.type,
+            appId: page.appId || null, // Include appId for DATA_APP_VIEW URLs
+            appName: page.appName || null
+          }));
+        }
       }
 
       // If no child pages, show message

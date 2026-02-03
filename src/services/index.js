@@ -6,12 +6,7 @@ export {
   updateOwner
 } from './allObjects';
 export { updateDataflowDetails } from './dataflows';
-export {
-  getDrillParentCardId,
-  getPageCards,
-  getCardsForObject,
-  getPagesForCard
-} from './cards';
+export { getDrillParentCardId, getPageCards, getCardsForObject } from './cards';
 export {
   getAppStudioPageParent,
   getChildPages,

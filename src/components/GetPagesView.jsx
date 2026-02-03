@@ -28,6 +28,7 @@ import { getValidTabForInstance } from '@/utils';
  * Transform grouped pages data into hierarchical structure
  * For CARD and DATA_SOURCE types, childPages is a flat array with pageType property
  * We group by pageType and create virtual parent items
+ * For App Studio pages, we create a nested hierarchy: App Studio Apps > App > Pages
  */
 function transformGroupedPagesData(childPages, origin) {
   if (!childPages || !childPages.length) return [];
@@ -46,51 +47,105 @@ function transformGroupedPagesData(childPages, origin) {
     }
   });
 
-  // Create virtual parent items for each page type that has pages
   const items = [];
-  const typeLabels = {
-    PAGE: 'Pages/Dashboards',
-    DATA_APP_VIEW: 'App Studio Pages',
-    REPORT_BUILDER_VIEW: 'Report Builder Pages'
-  };
 
-  Object.entries(pagesByType).forEach(([type, pages]) => {
-    if (pages.length > 0) {
-      // Sort pages by title
-      const sortedPages = pages.sort((a, b) =>
-        a.pageTitle.localeCompare(b.pageTitle)
-      );
+  // Handle regular Pages/Dashboards
+  if (pagesByType.PAGE.length > 0) {
+    const sortedPages = pagesByType.PAGE.sort((a, b) =>
+      a.pageTitle.localeCompare(b.pageTitle)
+    );
 
-      // Create children array with proper URLs
-      const children = sortedPages.map((page) => {
-        let url;
-        if (type === 'DATA_APP_VIEW') {
-          url = `${origin}/app-studio/${page.appId}/pages/${page.pageId}`;
-        } else if (type === 'PAGE') {
-          url = `${origin}/page/${page.pageId}`;
-        } else {
-          url = '';
-        }
+    const children = sortedPages.map((page) => ({
+      id: page.pageId,
+      label: page.pageTitle,
+      url: `${origin}/page/${page.pageId}`,
+      metadata: `ID: ${page.pageId}`
+    }));
 
-        return {
+    items.push({
+      id: 'PAGE_group',
+      label: 'Pages/Dashboards',
+      count: children.length,
+      metadata: `${children.length} page${children.length !== 1 ? 's' : ''}`,
+      children,
+      isVirtualParent: true
+    });
+  }
+
+  // Handle App Studio pages - group by app first
+  if (pagesByType.DATA_APP_VIEW.length > 0) {
+    // Group pages by appId
+    const pagesByApp = new Map();
+    pagesByType.DATA_APP_VIEW.forEach((page) => {
+      const appId = page.appId;
+      if (!pagesByApp.has(appId)) {
+        pagesByApp.set(appId, {
+          appName: page.appName || `App ${appId}`,
+          pages: []
+        });
+      }
+      pagesByApp.get(appId).pages.push(page);
+    });
+
+    // Create app children with their pages nested inside
+    const appChildren = Array.from(pagesByApp.entries())
+      .sort(([, a], [, b]) => a.appName.localeCompare(b.appName))
+      .map(([appId, { appName, pages }]) => {
+        const sortedPages = pages.sort((a, b) =>
+          a.pageTitle.localeCompare(b.pageTitle)
+        );
+
+        const pageChildren = sortedPages.map((page) => ({
           id: page.pageId,
           label: page.pageTitle,
-          url,
-          metadata: `ID: ${page.pageId}`
+          url: `${origin}/app-studio/${appId}/pages/${page.pageId}`,
+          metadata: { typeId: 'DATA_APP_VIEW', info: `ID: ${page.pageId}` },
+          isVirtualParent: false
+        }));
+
+        return {
+          id: appId,
+          label: appName,
+          url: `${origin}/app-studio/${appId}`,
+          count: pageChildren.length,
+          metadata: { typeId: 'DATA_APP' },
+          children: pageChildren,
+          isVirtualParent: false
         };
       });
 
-      // Create virtual parent item for this page type
-      items.push({
-        id: `${type}_group`,
-        label: typeLabels[type],
-        count: children.length,
-        metadata: `${children.length} page${children.length !== 1 ? 's' : ''}`,
-        children,
-        isVirtualParent: true // Flag to identify this as a grouping, not an actual page
-      });
-    }
-  });
+    items.push({
+      id: 'DATA_APP_VIEW_group',
+      label: 'App Studio Apps',
+      count: pagesByType.DATA_APP_VIEW.length,
+      metadata: `${pagesByApp.size} app${pagesByApp.size !== 1 ? 's' : ''}, ${pagesByType.DATA_APP_VIEW.length} page${pagesByType.DATA_APP_VIEW.length !== 1 ? 's' : ''}`,
+      children: appChildren,
+      isVirtualParent: true
+    });
+  }
+
+  // Handle Report Builder pages
+  if (pagesByType.REPORT_BUILDER_VIEW.length > 0) {
+    const sortedPages = pagesByType.REPORT_BUILDER_VIEW.sort((a, b) =>
+      a.pageTitle.localeCompare(b.pageTitle)
+    );
+
+    const children = sortedPages.map((page) => ({
+      id: page.pageId,
+      label: page.pageTitle,
+      url: '',
+      metadata: `ID: ${page.pageId}`
+    }));
+
+    items.push({
+      id: 'REPORT_BUILDER_VIEW_group',
+      label: 'Report Builder Pages',
+      count: children.length,
+      metadata: `${children.length} page${children.length !== 1 ? 's' : ''}`,
+      children,
+      isVirtualParent: true
+    });
+  }
 
   return items;
 }
@@ -282,7 +337,19 @@ export function GetPagesView({
         pageId: page.id,
         pageTitle: page.name,
         pageType: page.type,
-        appId: page.appId || null
+        appId: page.appId || null,
+        appName: page.appName || null
+      }));
+    } else if (objectType === 'CARD') {
+      const pages = await getPagesForCards([objectId], tabId);
+
+      // Transform to match expected format with pageType
+      return pages.map((page) => ({
+        pageId: page.id,
+        pageTitle: page.name,
+        pageType: page.type,
+        appId: page.appId || null,
+        appName: page.appName || null
       }));
     }
 

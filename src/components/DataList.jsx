@@ -114,35 +114,30 @@ function DataListItem({
     <Disclosure
       isOpen={isOpen}
       onOpenChange={setIsOpen}
-      className='w-full border-t border-border'
+      className='mb-1 w-full border-t border-border'
     >
-      <Disclosure.Heading className='flex w-full flex-row justify-between pt-1'>
-        <div className='flex w-full min-w-0 flex-1 basis-4/5 items-center gap-1'>
-          {!item.isVirtualParent && (
-            <Tooltip delay={200} closeDelay={0} className='flex-1'>
-              {item.url ? (
-                <Link
-                  href={item.url}
-                  target='_blank'
-                  className='truncate text-sm font-medium no-underline decoration-accent/80 hover:text-accent/80 hover:underline'
+      <Disclosure.Heading className='flex min-h-8 w-full flex-row justify-between pt-1'>
+        <div
+          className={`flex w-full min-w-0 flex-1 basis-4/5 items-center gap-1 text-sm font-medium ${item.url ? 'hover:text-accent/80 hover:underline hover:decoration-accent/80' : ''}`}
+        >
+          {!item?.isVirtualParent && (
+            <Link
+              href={item.url}
+              target='_blank'
+              className={`truncate text-sm font-medium ${item.url ? 'hover:text-accent/80 hover:underline hover:decoration-accent/80' : ''}`}
+              isDisabled={!item.url}
+            >
+              <Tooltip delay={200} closeDelay={0} className='flex-1'>
+                <Tooltip.Trigger>{item.label}</Tooltip.Trigger>
+                <Tooltip.Content
+                  placement='right'
+                  offset={8}
+                  className='text-nowrap'
                 >
-                  {item.label}
-                </Link>
-              ) : (
-                <Tooltip.Trigger>
-                  <span className='truncate text-sm font-medium'>
-                    {item.label}
-                  </span>
-                </Tooltip.Trigger>
-              )}
-              <Tooltip.Content
-                placement='right'
-                offset={8}
-                className='text-nowrap'
-              >
-                ID: {item.id}
-              </Tooltip.Content>
-            </Tooltip>
+                  ID: {item.id}
+                </Tooltip.Content>
+              </Tooltip>
+            </Link>
           )}
           {hasChildren && (
             <>
@@ -161,42 +156,44 @@ function DataListItem({
                   <IconChevronDown stroke={1.5} />
                 </Disclosure.Indicator>
               </Disclosure.Trigger>
-              <ButtonGroup>
-                <Tooltip delay={400} closeDelay={0}>
-                  <Button
-                    variant='ghost'
-                    size='sm'
-                    fullWidth
-                    isIconOnly
-                    onPress={() => handleAction('openAll')}
-                    aria-label='Open All'
-                  >
-                    <IconFolders stroke={1.5} />
-                  </Button>
-                  <Tooltip.Content className='text-xs'>
-                    Open all children in new tabs
-                  </Tooltip.Content>
-                </Tooltip>
-                <Tooltip delay={400} closeDelay={0}>
-                  <Button
-                    variant='ghost'
-                    size='sm'
-                    fullWidth
-                    isIconOnly
-                    onPress={() => handleAction('share')}
-                    aria-label='Share'
-                  >
-                    <IconUsersPlus stroke={1.5} />
-                  </Button>
-                  <Tooltip.Content className='text-xs'>
-                    Share all children with yourself
-                  </Tooltip.Content>
-                </Tooltip>
-              </ButtonGroup>
+              {!item?.metadata?.typeId === 'DATA_APP' && (
+                <ButtonGroup>
+                  <Tooltip delay={400} closeDelay={0}>
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      fullWidth
+                      isIconOnly
+                      onPress={() => handleAction('openAll')}
+                      aria-label='Open All'
+                    >
+                      <IconFolders stroke={1.5} />
+                    </Button>
+                    <Tooltip.Content className='text-xs'>
+                      Open all children in new tabs
+                    </Tooltip.Content>
+                  </Tooltip>
+                  <Tooltip delay={400} closeDelay={0}>
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      fullWidth
+                      isIconOnly
+                      onPress={() => handleAction('share')}
+                      aria-label='Share'
+                    >
+                      <IconUsersPlus stroke={1.5} />
+                    </Button>
+                    <Tooltip.Content className='text-xs'>
+                      Share all children with yourself
+                    </Tooltip.Content>
+                  </Tooltip>
+                </ButtonGroup>
+              )}
             </>
           )}
         </div>
-        {showActions && (
+        {showActions && !item.isVirtualParent && (
           <div className='flex-1 basis-1/5'>
             <ButtonGroup
               variant='ghost'
@@ -223,23 +220,24 @@ function DataListItem({
                   {isCopied ? 'Copied!' : 'Copy ID'}
                 </Tooltip.Content>
               </Tooltip>
-              {objectType !== 'DATA_APP_VIEW' && (
-                <Tooltip delay={400} closeDelay={0}>
-                  <Button
-                    variant='ghost'
-                    size='sm'
-                    fullWidth
-                    isIconOnly
-                    onPress={() => handleAction('share')}
-                    aria-label='Share'
-                  >
-                    <IconUserPlus stroke={1.5} />
-                  </Button>
-                  <Tooltip.Content className='text-xs'>
-                    Share with yourself
-                  </Tooltip.Content>
-                </Tooltip>
-              )}
+              {objectType !== 'DATA_APP_VIEW' &&
+                item?.metadata?.typeId !== 'DATA_APP_VIEW' && (
+                  <Tooltip delay={400} closeDelay={0}>
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      fullWidth
+                      isIconOnly
+                      onPress={() => handleAction('share')}
+                      aria-label='Share'
+                    >
+                      <IconUserPlus stroke={1.5} />
+                    </Button>
+                    <Tooltip.Content className='text-xs'>
+                      Share with yourself
+                    </Tooltip.Content>
+                  </Tooltip>
+                )}
             </ButtonGroup>
           </div>
         )}

@@ -213,12 +213,12 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
                 </Link>
               );
             }
-            if (params.indexOrName.toLowerCase().includes('id')) {
+            if (params.indexOrName?.toLowerCase().includes('id')) {
               return { enableClipboard: true };
             } else if (
               (typeof params.node === 'number' ||
                 typeof params.node === 'string') &&
-              params.node.toString().length >= 7
+              params.node?.toString().length >= 7
             ) {
               return { enableClipboard: true };
             } else {

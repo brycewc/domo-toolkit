@@ -167,16 +167,14 @@ export default function App() {
 
   return (
     <div className='h-screen w-full min-w-xs space-y-1 p-1'>
-      {activeView === 'default' && (
-        <ActionButtons
-          currentContext={currentContext}
-          isLoadingCurrentContext={isLoadingCurrentContext}
-          collapsable={true}
-          onStatusCallbackReady={(callback) => {
-            statusCallbackRef.current = callback;
-          }}
-        />
-      )}
+      <ActionButtons
+        currentContext={currentContext}
+        isLoadingCurrentContext={isLoadingCurrentContext}
+        collapsable={true}
+        onStatusCallbackReady={(callback) => {
+          statusCallbackRef.current = callback;
+        }}
+      />
 
       {activeView === 'loading' && (
         <Card className='w-full'>

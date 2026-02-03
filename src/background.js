@@ -3,7 +3,7 @@ import {
   fetchObjectDetailsInPage,
   getChildPages,
   getCardsForObject,
-  getPagesForCard
+  getPagesForCards
 } from '@/services';
 import {
   clearCookies,
@@ -820,7 +820,7 @@ async function detectAndStoreContext(tabId) {
     // For CARD types, fetch child pages asynchronously (non-blocking)
     if (typeModel.id === 'CARD') {
       // Fetch pages for card in background without blocking
-      getPagesForCard({ cardId: parseInt(objectId), tabId })
+      getPagesForCards([parseInt(objectId)], tabId)
         .then((childPages) => {
           // Get the current context (it might have been updated)
           const currentContext = getTabContext(tabId);
