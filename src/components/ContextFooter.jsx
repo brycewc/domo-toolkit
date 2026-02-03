@@ -1,13 +1,24 @@
 import { useState } from 'react';
-import { Alert, Button, Chip, Spinner, Popover, Tooltip } from '@heroui/react';
-import { IconClipboard } from '@tabler/icons-react';
+import {
+  Alert,
+  Button,
+  Chip,
+  Spinner,
+  Popover,
+  Tooltip,
+  Link,
+  ButtonGroup
+} from '@heroui/react';
+import { IconClipboard, IconEye, IconEyeOff } from '@tabler/icons-react';
 import { AnimatedCheck } from './AnimatedCheck';
 import JsonView from 'react18-json-view';
 import '@/assets/json-view-theme.css';
 import { JsonStringifyOrder } from '@/utils';
+import { s } from 'motion/react-client';
 
 export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
   const [isCopied, setIsCopied] = useState(false);
+  const [fullContextVisible, setFullContextVisible] = useState(false);
 
   const handleCopy = () => {
     setIsCopied(true);
@@ -29,6 +40,10 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
         3000
       );
     }
+  };
+
+  const handleContextEye = () => {
+    setFullContextVisible(!fullContextVisible);
   };
 
   const alertContent = (
@@ -96,36 +111,120 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
   }
 
   return (
-    <Popover className='flex w-full items-start justify-start'>
+    <Popover
+      className='flex w-full items-start justify-start'
+      onOpenChange={() => {
+        setTimeout(() => {
+          setFullContextVisible(false);
+        }, 100);
+      }}
+    >
       <Popover.Trigger className='w-full'>{alertContent}</Popover.Trigger>
       <Popover.Content
         placement='bottom'
-        className='flex h-[90%] w-[90%] flex-col gap-2 overflow-y-auto p-2'
+        className='flex h-[90%] w-[92%] flex-col justify-start gap-1 p-1'
       >
-        <div className='flex flex-row items-center justify-start'>
+        <div className='flex flex-row items-center justify-between'>
           <Chip color='accent' variant='soft' className='w-fit'>
             {currentContext?.domoObject?.typeId}
           </Chip>
-          <Tooltip delay={400} closeDelay={0}>
-            <Button variant='ghost' size='sm' isIconOnly onPress={handleCopy}>
-              {isCopied ? (
-                <AnimatedCheck stroke={1.5} />
-              ) : (
-                <IconClipboard stroke={1.5} />
-              )}
-            </Button>
-            <Tooltip.Content>
-              Copy current context JSON to clipboard
-            </Tooltip.Content>
-          </Tooltip>
+          {process.env.NODE_ENV === 'development' && (
+            <ButtonGroup>
+              <Tooltip delay={400} closeDelay={0}>
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  isIconOnly
+                  fullWidth
+                  onPress={handleContextEye}
+                >
+                  {fullContextVisible ? (
+                    <IconEye stroke={1.5} />
+                  ) : (
+                    <IconEyeOff stroke={1.5} />
+                  )}
+                </Button>
+                <Tooltip.Content>
+                  Toggle full current context JSON
+                </Tooltip.Content>
+              </Tooltip>
+              <Tooltip delay={400} closeDelay={0}>
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  isIconOnly
+                  onPress={handleCopy}
+                  fullWidth
+                >
+                  {isCopied ? (
+                    <AnimatedCheck stroke={1.5} />
+                  ) : (
+                    <IconClipboard stroke={1.5} />
+                  )}
+                </Button>
+                <Tooltip.Content>
+                  Copy full current context JSON to clipboard
+                </Tooltip.Content>
+              </Tooltip>
+            </ButtonGroup>
+          )}
         </div>
         <JsonView
-          src={currentContext?.domoObject?.metadata}
+          className='overflow-auto'
+          src={
+            fullContextVisible
+              ? currentContext
+              : currentContext?.domoObject?.metadata
+          }
           collapsed={1}
-          matchesURL
+          matchesURL={false}
           displaySize
           collapseStringMode='word'
-          enableClipboard={false}
+          collapseStringsAfterLength={50}
+          CopyComponent={({ onClick, className, style }) => (
+            <IconClipboard
+              onClick={onClick}
+              className={className}
+              style={style}
+              size={16}
+              stroke={1.5}
+            />
+          )}
+          CopiedComponent={({ className, style }) => (
+            <AnimatedCheck
+              className={className}
+              style={style}
+              size={16}
+              stroke={1.5}
+            />
+          )}
+          customizeNode={(params) => {
+            if (
+              typeof params.node === 'string' &&
+              params.node.startsWith('https://')
+            ) {
+              return (
+                <Link
+                  href={params.node}
+                  target='_blank'
+                  className='text-(--json-boolean) no-underline decoration-(--json-boolean) hover:underline'
+                >
+                  {params.node}
+                </Link>
+              );
+            }
+            if (params.indexOrName.toLowerCase().includes('id')) {
+              return { enableClipboard: true };
+            } else if (
+              (typeof params.node === 'number' ||
+                typeof params.node === 'string') &&
+              params.node.toString().length >= 7
+            ) {
+              return { enableClipboard: true };
+            } else {
+              return { enableClipboard: false };
+            }
+          }}
         />
       </Popover.Content>
     </Popover>
