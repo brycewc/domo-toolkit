@@ -6,7 +6,11 @@ export default defineManifest({
   name: 'Domo Toolkit',
   version: pkg.version,
   icons: {
-    48: 'public/toolkit.png'
+    16: 'public/toolkit-16.png',
+    24: 'public/toolkit-24.png',
+    32: 'public/toolkit-32.png',
+    48: 'public/toolkit-48.png',
+    128: 'public/toolkit-128.png'
   },
   permissions: [
     'sidePanel',
@@ -23,9 +27,14 @@ export default defineManifest({
   host_permissions: ['*://*.domo.com/*'],
   action: {
     default_icon: {
-      48: 'public/toolkit.png'
+      16: 'public/toolkit-16.png',
+      24: 'public/toolkit-24.png',
+      32: 'public/toolkit-32.png',
+      48: 'public/toolkit-48.png',
+      128: 'public/toolkit-128.png'
     },
-    default_popup: 'src/popup/index.html'
+    default_popup: 'src/popup/index.html',
+    default_title: 'Domo Toolkit'
   },
   background: {
     service_worker: 'src/background.js',
@@ -50,5 +59,17 @@ export default defineManifest({
       },
       description: 'Copy current Domo object ID to clipboard'
     }
-  }
+  },
+  web_accessible_resources: [
+    {
+      resources: [
+        'public/toolkit-dark-16.png',
+        'public/toolkit-dark-24.png',
+        'public/toolkit-dark-32.png',
+        'public/toolkit-dark-48.png',
+        'public/toolkit-dark-128.png'
+      ],
+      matches: ['<all_urls>']
+    }
+  ]
 });

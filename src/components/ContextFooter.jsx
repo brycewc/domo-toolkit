@@ -43,19 +43,20 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
           <Spinner size='sm' color='accent' />
         ) : (
           <>
-            <Alert.Title>
+            <Alert.Title className='flex w-full items-center justify-between gap-1'>
               {currentContext?.isDomoPage ? (
-                <>
+                <div>
                   Current Context:{' '}
                   <span className='underline'>
                     {currentContext?.instance}.domo.com
                   </span>
-                </>
+                </div>
               ) : (
                 'Not a Domo Instance'
               )}
+              <Alert.Indicator />
             </Alert.Title>
-            <div className='flex flex-wrap items-center gap-x-1 text-sm'>
+            <Alert.Description className='flex flex-wrap items-center gap-x-1'>
               {currentContext?.isDomoPage ? (
                 isLoading ? (
                   <Spinner size='sm' color='accent' />
@@ -78,7 +79,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
               ) : (
                 'Navigate to an instance to enable most extension features'
               )}
-            </div>
+            </Alert.Description>
           </>
         )}
       </Alert.Content>

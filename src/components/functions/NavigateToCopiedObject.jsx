@@ -6,15 +6,7 @@ import {
   forwardRef,
   useCallback
 } from 'react';
-import {
-  Button,
-  Dropdown,
-  Label,
-  Tooltip,
-  Chip,
-  IconChevronDown,
-  Spinner
-} from '@heroui/react';
+import { Button, Dropdown, Label, Tooltip, Chip, Spinner } from '@heroui/react';
 import {
   DomoObject,
   getAllObjectTypesWithApiConfig,
@@ -22,7 +14,7 @@ import {
 } from '@/models';
 import { fetchObjectDetailsInPage } from '@/services';
 import { executeInPage } from '@/utils';
-import { IconExternalLink } from '@tabler/icons-react';
+import { IconExternalLink, IconChevronDown } from '@tabler/icons-react';
 
 export const NavigateToCopiedObject = forwardRef(
   function NavigateToCopiedObject({ currentContext, onStatusUpdate }, ref) {
@@ -449,10 +441,10 @@ export const NavigateToCopiedObject = forwardRef(
         <Tooltip delay={200} closeDelay={0} className='h-fit'>
           <Button
             variant='tertiary'
-            className='min-w-fit flex-1 basis-[49%] cursor-not-allowed opacity-50'
+            className='min-w-fit flex-1 basis-[48%] cursor-not-allowed opacity-50'
             onPress={() => {}}
           >
-            <IconChevronDown stroke={1} />
+            <IconExternalLink stroke={1.5} />
             Nav from Clipboard
           </Button>
           <Tooltip.Content placement='top'>
@@ -461,8 +453,8 @@ export const NavigateToCopiedObject = forwardRef(
         </Tooltip>
       ) : (
         <Dropdown>
-          <Button variant='tertiary' className='min-w-fit flex-1 basis-[49%]'>
-            <IconChevronDown stroke={1.5} />
+          <Button variant='tertiary' className='min-w-fit flex-1 basis-[48%]'>
+            <IconExternalLink stroke={1.5} />
             Nav from Clipboard
           </Button>
           <Dropdown.Popover className='min-w-[18rem]' placement='bottom end'>
@@ -483,7 +475,7 @@ export const NavigateToCopiedObject = forwardRef(
     ) : (
       <Tooltip delay={400} closeDelay={0}>
         <Button
-          className='min-w-fit flex-1 basis-[49%]'
+          className='min-w-fit flex-1 basis-[48%]'
           variant='tertiary'
           onPress={() => handleClick()}
           isDisabled={!copiedObjectId || isLoading || !!error}

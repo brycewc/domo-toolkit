@@ -222,117 +222,46 @@ chrome.runtime.onInstalled.addListener((details) => {
 // Restore contexts on service worker startup
 restoreFromSession();
 
+/**
+ * Update extension icon based on system color scheme
+ * Uses dark icon variant (dark icon) for light mode and regular icon (light icon) for dark mode
+ */
+function updateExtensionIcon(isDark) {
+  const iconPath = isDark
+    ? {
+        16: 'public/toolkit-16.png',
+        24: 'public/toolkit-24.png',
+        32: 'public/toolkit-32.png',
+        48: 'public/toolkit-48.png',
+        128: 'public/toolkit-128.png'
+      }
+    : {
+        16: 'public/toolkit-dark-16.png',
+        24: 'public/toolkit-dark-24.png',
+        32: 'public/toolkit-dark-32.png',
+        48: 'public/toolkit-dark-48.png',
+        128: 'public/toolkit-dark-128.png'
+      };
+
+  chrome.action.setIcon({ path: iconPath }).catch((error) => {
+    console.error('[Background] Error setting icon:', error);
+  });
+}
+
+// Set initial icon and listen for color scheme changes
+if (typeof self !== 'undefined' && self.matchMedia) {
+  const darkModeQuery = self.matchMedia('(prefers-color-scheme: dark)');
+  updateExtensionIcon(darkModeQuery.matches);
+  darkModeQuery.addEventListener('change', (e) =>
+    updateExtensionIcon(e.matches)
+  );
+} else {
+  // Fallback: default to light mode icon (dark icon for visibility)
+  updateExtensionIcon(false);
+}
+
 // Track last clipboard value to detect changes
 let lastClipboardValue = '';
-
-/**
- * Check clipboard and notify listeners if it contains a valid Domo object ID
- * Note: Reading clipboard requires document focus, which may not be available when popup is open
- * This function will attempt to read, but may return cached value from session storage if read fails
- */
-async function checkClipboard() {
-  try {
-    // Service workers can't directly access navigator.clipboard
-    // We need to execute in an active tab context
-    const tabs = await chrome.tabs.query({
-      active: true,
-      currentWindow: true,
-      windowType: 'normal'
-    });
-    if (!tabs || tabs.length === 0) {
-      console.log('[Background] No active tab found for clipboard check');
-      // Return cached value from session storage if available
-      const cached = await chrome.storage.session.get(['lastClipboardValue']);
-      return cached.lastClipboardValue || null;
-    }
-
-    const tabId = tabs[0].id;
-
-    console.log(`[Background] Checking clipboard in tab ${tabId}`, tabs[0]);
-
-    // Execute clipboard read in the tab's context
-    // Note: This may fail if the tab doesn't have focus (e.g., when popup is open)
-    try {
-      const results = await chrome.scripting.executeScript({
-        target: { tabId },
-        func: async () => {
-          try {
-            // Try to read clipboard - this requires the document to have focus
-            const text = await navigator.clipboard.readText();
-            return { success: true, text };
-          } catch (err) {
-            // If clipboard read fails (usually due to focus), return error
-            return { success: false, error: err.message };
-          }
-        },
-        world: 'MAIN'
-      });
-
-      console.log('[Background] Clipboard check results:', results);
-      const result = results?.[0]?.result;
-
-      if (result?.success && result?.text) {
-        const clipboardText = result.text.trim();
-
-        // Validate that clipboard contains a valid Domo object ID
-        // Check if it looks like a Domo object ID (numeric including negative, or UUID)
-        const isNumeric = /^-?\d+$/.test(clipboardText);
-        const isUuid =
-          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-            clipboardText
-          );
-
-        if (!isNumeric && !isUuid) {
-          console.log(
-            '[Background] Clipboard does not contain a valid Domo object ID:',
-            clipboardText.slice(0, 32)
-          );
-          // Don't store or notify about invalid IDs
-          return null;
-        }
-
-        // Cache in session storage for later retrieval
-        await chrome.storage.session.set({ lastClipboardValue: clipboardText });
-
-        // Only send CLIPBOARD_UPDATED message if the value has changed
-        if (clipboardText !== lastClipboardValue) {
-          lastClipboardValue = clipboardText;
-
-          // Notify all extension contexts (popup, sidepanel) about clipboard change
-          chrome.runtime
-            .sendMessage({
-              type: 'CLIPBOARD_UPDATED',
-              clipboardData: clipboardText
-            })
-            .catch(() => {
-              // No listeners, that's fine
-            });
-        }
-
-        return clipboardText;
-      } else {
-        console.log(
-          '[Background] Clipboard read failed, using cached value:',
-          result?.error
-        );
-        // Return cached value from session storage
-        const cached = await chrome.storage.session.get(['lastClipboardValue']);
-        return cached.lastClipboardValue || null;
-      }
-    } catch (execError) {
-      console.log(
-        '[Background] Execute script failed, using cached value:',
-        execError
-      );
-      // Return cached value from session storage
-      const cached = await chrome.storage.session.get(['lastClipboardValue']);
-      return cached.lastClipboardValue || null;
-    }
-  } catch (error) {
-    console.error('[Background] Error checking clipboard:', error);
-    return null;
-  }
-}
 
 // 431 error handler function (stored for add/remove)
 // Only active when mode is 'auto' - preserves last 2 instances

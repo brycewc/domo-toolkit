@@ -13,10 +13,9 @@ import {
   Checkbox,
   Dropdown,
   Label,
-  IconChevronDown,
   SearchField
 } from '@heroui/react';
-import { IconColumns, IconPlus } from '@tabler/icons-react';
+import { IconChevronDown, IconColumns, IconPlus } from '@tabler/icons-react';
 import { AnimatedCheck } from './../AnimatedCheck';
 
 /**
@@ -209,10 +208,7 @@ export function DataTable({
               <Button variant='tertiary'>
                 <IconColumns stroke={1.5} />
                 Columns
-                <IconChevronDown
-                  stroke={1.5}
-                  className='size-4 text-foreground'
-                />
+                <IconChevronDown stroke={1.5} />
               </Button>
               <Dropdown.Popover>
                 <Dropdown.Menu

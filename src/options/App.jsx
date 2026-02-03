@@ -31,7 +31,7 @@ export default function App() {
   }, []);
 
   return (
-    <div className='flex h-screen justify-center bg-background p-4'>
+    <div className='flex h-screen justify-center p-4'>
       <Tabs
         className='h-[calc(100vh-4)] w-full items-center rounded-sm'
         selectedKey={selectedTab}

@@ -67,7 +67,7 @@ export default function App() {
   }, [currentTabId]);
 
   return (
-    <div className='p-1'>
+    <div className='min-w-xs p-1'>
       <ActionButtons
         currentContext={currentContext}
         isLoadingCurrentContext={isLoadingCurrentContext}

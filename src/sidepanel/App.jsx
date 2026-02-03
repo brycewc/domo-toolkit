@@ -197,7 +197,7 @@ export default function App() {
   };
 
   return (
-    <div className='h-screen w-full space-y-1 overflow-hidden p-1'>
+    <div className='h-screen w-full min-w-xs space-y-1 p-1'>
       <ActionButtons
         currentContext={currentContext}
         isLoadingCurrentContext={isLoadingCurrentContext}

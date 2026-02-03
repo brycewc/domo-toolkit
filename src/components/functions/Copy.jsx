@@ -76,7 +76,8 @@ export function Copy({
   const handleAction = (key) => {
     switch (key) {
       case 'stream': {
-        const streamId = currentContext?.domoObject?.metadata?.details?.streamId;
+        const streamId =
+          currentContext?.domoObject?.metadata?.details?.streamId;
         navigator.clipboard.writeText(streamId);
         onStatusUpdate?.(
           'Success',

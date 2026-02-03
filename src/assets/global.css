@@ -15,72 +15,14 @@
   /* Custom Colors */
   --domo: oklch(0.8214 0.0716 237.95);
   --domo-orange: oklch(0.7728 0.1683 62.5);
-  /* Theme Colors (Light Mode) */
-  --accent: oklch(62.04% 0.195 253.83);
-  --accent-foreground: oklch(99.11% 0 0);
-  --background: oklch(0.9702 0 0);
-  --border: oklch(0 0 0 / 15%);
-  --danger: oklch(0.6424 0.1761 26.85);
-  --danger-foreground: oklch(99.11% 0 0);
-  --default: oklch(94% 0.0098 253.83);
-  --default-foreground: var(--color-gray-700);
-  --field-background: oklch(100% 0.0049 253.83);
-  --field-foreground: oklch(0.2103 0.0059 285.89);
-  --field-placeholder: oklch(55.17% 0.0195 253.83);
-  --focus: oklch(62.04% 0.195 253.83);
-  --foreground: var(--color-gray-700);
-  --muted: oklch(55.17% 0.0195 253.83);
-  --overlay: oklch(100% 0.0029 253.83);
-  --overlay-foreground: oklch(0.2103 0.0059 285.89);
-  --scrollbar: oklch(87.1% 0.0098 253.83);
-  --segment: oklch(100% 0.0098 253.83);
-  --segment-foreground: oklch(0.2103 0.0059 285.89);
-  --separator: oklch(0.9067 0 0);
-  --success: oklch(0.6296 0.1554 137.99);
-  --success-foreground: oklch(0.2103 0.0059 150.81);
-  --surface: oklch(100% 0.0049 253.83);
-  --surface-foreground: oklch(0.2103 0.0059 285.89);
-  --warning: oklch(0.8411 0.1723 84.94);
-  --warning-foreground: oklch(0.2103 0.0059 285.89);
+
   /* Border Radius */
-  --radius: 1px;
-  --field-radius: 2px;
+  --radius: 3px;
+  --field-radius: 6px;
 
   /* Font Family */
   /* Make sure to load Open Sans font in your app */
   --font-sans: 'Open Sans', sans-serif;
-}
-
-.dark,
-[data-theme='dark'] {
-  color-scheme: dark;
-  /* Theme Colors (Dark Mode) */
-  --accent: oklch(62.04% 0.195 253.83);
-  --accent-foreground: oklch(99.11% 0 0);
-  --background: oklch(12% 0.0015 253.83);
-  --border: oklch(28% 0.0015 253.83);
-  --danger: oklch(59.4% 0.1973 24.63);
-  --danger-foreground: oklch(99.11% 0 0);
-  --default: oklch(27.4% 0.0015 253.83);
-  --default-foreground: oklch(99.11% 0 0);
-  --field-background: oklch(21.03% 0.003 253.83);
-  --field-foreground: oklch(99.11% 0 0);
-  --field-placeholder: oklch(70.5% 0.003 253.83);
-  --focus: oklch(62.04% 0.195 253.83);
-  --foreground: oklch(99.11% 0 0);
-  --muted: oklch(70.5% 0.003 253.83);
-  --overlay: oklch(21.03% 0.003 253.83);
-  --overlay-foreground: oklch(99.11% 0 0);
-  --scrollbar: oklch(70.5% 0.0015 253.83);
-  --segment: oklch(39.64% 0.0015 253.83);
-  --segment-foreground: oklch(99.11% 0 0);
-  --separator: oklch(25% 0.0015 253.83);
-  --success: oklch(73.29% 0.1941 150.81);
-  --success-foreground: oklch(21.03% 0.0059 150.81);
-  --surface: oklch(21.03% 0.003 253.83);
-  --surface-foreground: oklch(99.11% 0 0);
-  --warning: oklch(82.03% 0.1392 76.34);
-  --warning-foreground: oklch(21.03% 0.0059 76.34);
 }
 
 /* Make the color available to Tailwind */

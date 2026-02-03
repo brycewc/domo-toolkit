@@ -15,6 +15,8 @@ import { AnimatedCheck } from './../AnimatedCheck';
 import { IconChevronDown, IconDeviceFloppy } from '@tabler/icons-react';
 
 export function AppSettings({ theme = 'system' }) {
+  const [isLoading, setIsLoading] = useState(true);
+
   // Store all settings in a single state object for extensibility
   const [settings, setSettings] = useState({
     themePreference: theme,
@@ -50,6 +52,7 @@ export function AppSettings({ theme = 'system' }) {
         };
         setSettings(loadedSettings);
         setOriginalSettings(loadedSettings);
+        setIsLoading(false);
       }
     );
 
@@ -162,6 +165,10 @@ export function AppSettings({ theme = 'system' }) {
     setStatusBar((prev) => ({ ...prev, visible: false }));
   };
 
+  if (isLoading) {
+    return null;
+  }
+
   return (
     <div className='flex h-full min-h-[calc(100vh-20)] w-md flex-col gap-2 pt-4'>
       <Form onSubmit={handleSubmit} className='flex flex-col gap-2'>
@@ -257,12 +264,7 @@ export function AppSettings({ theme = 'system' }) {
           </Description>
         </Select>
         <div className='pt-1'>
-          <Button
-            type='submit'
-            variant='primary'
-            size='sm'
-            isDisabled={!hasChanges}
-          >
+          <Button type='submit' variant='primary' isDisabled={!hasChanges}>
             <IconDeviceFloppy />
             Save Settings
           </Button>

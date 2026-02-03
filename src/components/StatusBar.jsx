@@ -97,9 +97,11 @@ export function StatusBar({
           style={{ width: `calc(${progress}% - 2rem)` }}
         />
       ) : null}
-      {/* <Alert.Indicator className={timeout ? 'mt-[3px]' : ''} /> */}
       <Alert.Content>
-        <Alert.Title>{title}</Alert.Title>
+        <Alert.Title className='flex w-full items-center justify-between gap-1'>
+          {title}
+          <Alert.Indicator />
+        </Alert.Title>
         <Alert.Description>{parseDescription(description)}</Alert.Description>
       </Alert.Content>
       {!timeout ? (
