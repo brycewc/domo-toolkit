@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react';
-import { ActionButtons } from '@/components';
+import {
+  ActionButtons,
+  WelcomePage,
+  shouldShowWelcomePage
+} from '@/components';
 import { useTheme } from '@/hooks';
 import { DomoContext } from '@/models';
 
@@ -7,11 +11,17 @@ export default function App() {
   // Apply theme
   useTheme();
 
+  const [showWelcome, setShowWelcome] = useState(null); // null = loading, true/false = known
   const [currentContext, setCurrentContext] = useState(null);
   const [isLoadingCurrentContext, setIsLoadingCurrentContext] = useState(true);
   const [currentTabId, setCurrentTabId] = useState(null);
 
-  // Request initial context on mount
+  // Check if we should show welcome page
+  useEffect(() => {
+    shouldShowWelcomePage().then(setShowWelcome);
+  }, []);
+
+  // Get context from service worker
   useEffect(() => {
     // Get current window and request context from service worker
     chrome.windows.getCurrent(async (window) => {
@@ -21,11 +31,9 @@ export default function App() {
           type: 'GET_TAB_CONTEXT',
           windowId: window.id
         });
-        console.log('[Popup] GET_TAB_CONTEXT response:', response);
         if (response.success && response.context) {
           // Reconstruct DomoContext from plain object to get class instance with methods
           const context = DomoContext.fromJSON(response.context);
-          console.log('[Popup] Reconstructed context:', context);
           setCurrentContext(context);
           setCurrentTabId(response.tabId);
         } else {
@@ -49,10 +57,6 @@ export default function App() {
         if (message.tabId === currentTabId) {
           const context = DomoContext.fromJSON(message.context);
           setCurrentContext(context);
-          console.log(
-            '[Popup] Received update and reconstructed message context:',
-            message
-          );
         }
         sendResponse({ received: true });
         return true;
@@ -66,6 +70,17 @@ export default function App() {
     };
   }, [currentTabId]);
 
+  // Still checking welcome status
+  if (showWelcome === null) {
+    return null;
+  }
+
+  // Show welcome page for new users
+  if (showWelcome) {
+    return <WelcomePage onDismiss={() => setShowWelcome(false)} />;
+  }
+
+  // Show main interface
   return (
     <div className='min-w-xs p-1'>
       <ActionButtons

@@ -1,6 +1,11 @@
 import { useEffect, useState, useRef } from 'react';
 import { Card, Spinner } from '@heroui/react';
-import { GetPagesView, ActionButtons } from '@/components';
+import {
+  ActionButtons,
+  GetPagesView,
+  WelcomePage,
+  shouldShowWelcomePage
+} from '@/components';
 import { useTheme } from '@/hooks';
 import { DomoContext } from '@/models';
 
@@ -8,6 +13,7 @@ export default function App() {
   // Apply theme
   useTheme();
 
+  const [showWelcome, setShowWelcome] = useState(null);
   const [activeView, setActiveView] = useState('default');
   const [loadingMessage, setLoadingMessage] = useState('Loading...');
   const [currentContext, setCurrentContext] = useState(null);
@@ -15,7 +21,12 @@ export default function App() {
   const [isLoadingCurrentContext, setIsLoadingCurrentContext] = useState(true);
   const statusCallbackRef = useRef(null);
 
-  // Listen for storage changes to detect when sidepanel data is set
+  // Check if we should show welcome page
+  useEffect(() => {
+    shouldShowWelcomePage().then(setShowWelcome);
+  }, []);
+
+  // Listen for storage changes for sidepanel data
   useEffect(() => {
     const handleStorageChange = (changes, areaName) => {
       if (areaName === 'local' && changes.sidepanelDataList) {
@@ -56,7 +67,7 @@ export default function App() {
     };
   }, []);
 
-  // Fetch context on mount and when lock changes
+  // Get context on mount
   useEffect(() => {
     // Get current window and request context from service worker
     chrome.windows.getCurrent(async (window) => {
@@ -94,47 +105,23 @@ export default function App() {
 
   // Listen for context updates while sidepanel is open
   useEffect(() => {
-    console.log('[Sidepanel] Setting up message listener');
     const handleMessage = (message, sender, sendResponse) => {
-      console.log('[Sidepanel] Received message:', message.type, message);
-
-      // Only handle messages meant for the sidepanel
       if (message.type === 'TAB_CONTEXT_UPDATED') {
-        console.log(
-          `[Sidepanel] TAB_CONTEXT_UPDATED: message.tabId=${message.tabId}, currentTabId=${currentTabId}`
-        );
-
-        // Update context if it's for the current tab
         if (message.tabId === currentTabId) {
           const context = message.context
             ? DomoContext.fromJSON(message.context)
             : null;
           setCurrentContext(context);
-          console.log('[Sidepanel] Updated context:', context);
         }
         sendResponse({ received: true });
         return true;
       } else if (message.type === 'SHOW_STATUS') {
-        // Display status in the sidepanel's StatusBar
-        console.log('[Sidepanel] Received SHOW_STATUS message:', message);
-        console.log(
-          '[Sidepanel] statusCallbackRef.current exists?',
-          !!statusCallbackRef.current
-        );
         if (statusCallbackRef.current) {
-          console.log(
-            '[Sidepanel] Calling statusCallbackRef.current with timeout:',
-            message.timeout
-          );
           statusCallbackRef.current(
             message.title,
             message.description,
             message.status || 'accent',
             message.timeout !== undefined ? message.timeout : 3000
-          );
-        } else {
-          console.warn(
-            '[Sidepanel] statusCallbackRef.current is null, cannot show status'
           );
         }
 
@@ -148,18 +135,15 @@ export default function App() {
     };
 
     chrome.runtime.onMessage.addListener(handleMessage);
-    console.log('[Sidepanel] Message listener registered');
     return () => {
-      console.log('[Sidepanel] Message listener removed');
       chrome.runtime.onMessage.removeListener(handleMessage);
     };
   }, [currentTabId]);
 
-  // Listen for tab activation changes (only when not locked)
+  // Listen for tab activation changes
   useEffect(() => {
     const handleTabActivated = async (activeInfo) => {
       try {
-        // Fetch context for the newly activated tab
         const response = await chrome.runtime.sendMessage({
           type: 'GET_TAB_CONTEXT',
           tabId: activeInfo.tabId
@@ -167,7 +151,6 @@ export default function App() {
 
         if (response.success && response.context) {
           const context = DomoContext.fromJSON(response.context);
-          console.log('[Sidepanel] Tab activated, updated context:', context);
           setCurrentContext(context);
           setCurrentTabId(activeInfo.tabId);
         } else {
@@ -175,10 +158,7 @@ export default function App() {
           setCurrentTabId(activeInfo.tabId);
         }
       } catch (error) {
-        console.error(
-          '[Sidepanel] Error fetching context for activated tab:',
-          error
-        );
+        console.error('[Sidepanel] Error fetching context:', error);
         setCurrentContext(null);
       }
     };
@@ -196,16 +176,32 @@ export default function App() {
     chrome.storage.local.remove(['sidepanelDataList']);
   };
 
+  // Still checking welcome status
+  if (showWelcome === null) {
+    return null;
+  }
+
+  // Show welcome page for new users
+  if (showWelcome) {
+    return (
+      <div className='h-screen w-full overflow-y-auto'>
+        <WelcomePage onDismiss={() => setShowWelcome(false)} />
+      </div>
+    );
+  }
+
   return (
     <div className='h-screen w-full min-w-xs space-y-1 p-1'>
-      <ActionButtons
-        currentContext={currentContext}
-        isLoadingCurrentContext={isLoadingCurrentContext}
-        collapsable={true}
-        onStatusCallbackReady={(callback) => {
-          statusCallbackRef.current = callback;
-        }}
-      />
+      {activeView === 'default' && (
+        <ActionButtons
+          currentContext={currentContext}
+          isLoadingCurrentContext={isLoadingCurrentContext}
+          collapsable={true}
+          onStatusCallbackReady={(callback) => {
+            statusCallbackRef.current = callback;
+          }}
+        />
+      )}
 
       {activeView === 'loading' && (
         <Card className='w-full'>
