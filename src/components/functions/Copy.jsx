@@ -10,14 +10,17 @@ const LONG_PRESS_SECONDS = LONG_PRESS_DURATION / 1000;
 
 /**
  * Notify background script about clipboard update so it can broadcast to all contexts
+ * @param {string} value - The copied value (ID)
+ * @param {Object} [domoObject] - Optional DomoObject with type and metadata info
  */
-const notifyClipboardUpdate = (value) => {
+const notifyClipboardUpdate = (value, domoObject = null) => {
   if (!value) return;
 
   chrome.runtime
     .sendMessage({
       type: 'CLIPBOARD_COPIED',
-      clipboardData: String(value)
+      clipboardData: String(value),
+      domoObject: domoObject?.toJSON?.() ?? domoObject
     })
     .catch(() => {
       // Ignore errors (e.g., no listeners)
@@ -51,23 +54,24 @@ export function Copy({
   };
 
   const handlePress = () => {
-    const id = currentContext?.domoObject?.id;
+    const domoObject = currentContext?.domoObject;
+    const id = domoObject?.id;
     try {
       navigator.clipboard.writeText(id);
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
       onStatusUpdate?.(
         'Success',
-        `Copied ${currentContext?.domoObject?.typeName} ID **${id}** to clipboard`,
+        `Copied ${domoObject?.typeName} ID **${id}** to clipboard`,
         'success',
         2000
       );
-      notifyClipboardUpdate(id);
-      navigateToCopiedRef.current?.triggerDetection(id);
+      notifyClipboardUpdate(id, domoObject);
+      navigateToCopiedRef.current?.triggerDetection(id, domoObject);
     } catch (error) {
       onStatusUpdate?.(
         'Error',
-        `Failed to copy ${currentContext?.domoObject?.typeName.toLowerCase()} ID to clipboard`,
+        `Failed to copy ${domoObject?.typeName?.toLowerCase()} ID to clipboard`,
         'error',
         3000
       );

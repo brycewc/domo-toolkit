@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Checkbox, Input } from '@heroui/react';
+import { Button, Card, Checkbox, Input, Link } from '@heroui/react';
 import {
   IconArrowRight,
   IconBrandGithub,
@@ -11,11 +11,11 @@ import {
   IconShare
 } from '@tabler/icons-react';
 import { motion } from 'motion/react';
-import toolkitLogo from '@/assets/toolkit.png';
+import toolkitLogo from '@/assets/toolkit-128.png';
 
 const STORAGE_KEY = 'welcomePageDismissed';
 
-export function WelcomePage({ onDismiss }) {
+export function WelcomePage() {
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const [email, setEmail] = useState('');
   const [emailStatus, setEmailStatus] = useState(null); // null | 'loading' | 'success' | 'error'
@@ -24,7 +24,11 @@ export function WelcomePage({ onDismiss }) {
     if (dontShowAgain) {
       chrome.storage.local.set({ [STORAGE_KEY]: true });
     }
-    onDismiss();
+    window.open(
+      '/src/options/index.html#favicon',
+      '_self',
+      'noopener,noreferrer'
+    );
   };
 
   const handleEmailSubmit = async (e) => {
@@ -66,13 +70,13 @@ export function WelcomePage({ onDismiss }) {
   ];
 
   return (
-    <div className='flex h-full min-h-[calc(100vh-20)] w-full flex-col justify-between pt-4'>
+    <div className='flex h-full min-h-[calc(100vh-20)] w-full flex-col justify-between space-y-6 pt-4'>
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className='mb-6 text-center'
+        className='text-center'
       >
         <img
           src={toolkitLogo}
@@ -92,7 +96,6 @@ export function WelcomePage({ onDismiss }) {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.3, delay: 0.1 }}
-        className='mb-6'
       >
         <p className='mb-3 text-xs font-medium tracking-wide text-muted uppercase'>
           What you can do
@@ -118,31 +121,36 @@ export function WelcomePage({ onDismiss }) {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.3, delay: 0.2 }}
-        className='mb-6 rounded-lg border border-border bg-surface/50 p-4'
       >
-        <p className='mb-2 text-sm font-medium text-foreground'>
-          Getting Started
-        </p>
-        <ol className='space-y-2 text-xs text-muted'>
-          <li className='flex gap-2'>
-            <span className='flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent/10 text-xs font-medium text-accent'>
-              1
-            </span>
-            <span>Navigate to any page in Domo</span>
-          </li>
-          <li className='flex gap-2'>
-            <span className='flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent/10 text-xs font-medium text-accent'>
-              2
-            </span>
-            <span>Click the extension icon or use the side panel</span>
-          </li>
-          <li className='flex gap-2'>
-            <span className='flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent/10 text-xs font-medium text-accent'>
-              3
-            </span>
-            <span>Use the tools to copy, share, find, and more</span>
-          </li>
-        </ol>
+        <Card>
+          <Card.Header>
+            <Card.Title className='text-sm font-medium text-foreground'>
+              Quick Start Guide
+            </Card.Title>
+          </Card.Header>
+          <Card.Content>
+            <ol className='space-y-2 text-xs text-muted'>
+              <li className='flex gap-2'>
+                <span className='flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent/10 text-xs font-medium text-accent'>
+                  1
+                </span>
+                <span>Navigate to any page in Domo</span>
+              </li>
+              <li className='flex gap-2'>
+                <span className='flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent/10 text-xs font-medium text-accent'>
+                  2
+                </span>
+                <span>Click the extension icon or use the side panel</span>
+              </li>
+              <li className='flex gap-2'>
+                <span className='flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent/10 text-xs font-medium text-accent'>
+                  3
+                </span>
+                <span>Use the tools to copy, share, find, and more</span>
+              </li>
+            </ol>
+          </Card.Content>
+        </Card>
       </motion.div>
 
       {/* Email Signup */}
@@ -150,7 +158,6 @@ export function WelcomePage({ onDismiss }) {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.3, delay: 0.25 }}
-        className='mb-6'
       >
         <p className='mb-2 text-xs font-medium tracking-wide text-muted uppercase'>
           Stay Updated
@@ -190,19 +197,19 @@ export function WelcomePage({ onDismiss }) {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.3, delay: 0.3 }}
-        className='mb-6 flex flex-wrap gap-2'
+        className='flex flex-wrap gap-2'
       >
         {links.map((link) => (
-          <a
+          <Button
+            onPress={() =>
+              window.open(link.url, '_blank', 'noopener,noreferrer')
+            }
             key={link.label}
-            href={link.url}
-            target='_blank'
-            rel='noopener noreferrer'
-            className='inline-flex items-center gap-1 rounded-md bg-surface px-3 py-1.5 text-xs text-muted transition-colors hover:bg-surface/80 hover:text-foreground'
+            className='bg-surface text-muted transition-colors hover:bg-surface/80 hover:text-foreground'
           >
-            <link.icon size={14} />
+            <link.icon />
             {link.label}
-          </a>
+          </Button>
         ))}
       </motion.div>
 

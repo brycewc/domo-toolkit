@@ -14,7 +14,7 @@ import {
 } from '@/models';
 import { fetchObjectDetailsInPage } from '@/services';
 import { executeInPage } from '@/utils';
-import { IconExternalLink, IconChevronDown } from '@tabler/icons-react';
+import { IconExternalLink } from '@tabler/icons-react';
 
 export const NavigateToCopiedObject = forwardRef(
   function NavigateToCopiedObject({ currentContext, onStatusUpdate }, ref) {
@@ -26,8 +26,6 @@ export const NavigateToCopiedObject = forwardRef(
     const [defaultDomoInstance, setDefaultDomoInstance] = useState('');
     const lastCheckedClipboard = useRef('');
     const [allTypes, setAllTypes] = useState([]);
-
-    const isDomoPage = currentContext?.isDomoPage ?? false;
 
     async function detectAndSetObject(objectId) {
       // console.log('[NavigateToCopiedObject] detectAndSetObject called with:', {
@@ -178,17 +176,28 @@ export const NavigateToCopiedObject = forwardRef(
 
     // Expose method to parent to trigger detection when Copy ID is clicked
     useImperativeHandle(ref, () => ({
-      triggerDetection: (copiedId) => {
+      triggerDetection: (copiedId, domoObjectData = null) => {
         if (!copiedId || !currentContext?.instance) return;
 
-        setIsLoading(true);
         setCopiedObjectId(copiedId);
         setSelectedType(null);
-        setObjectDetails(null);
         setError(null);
         lastCheckedClipboard.current = copiedId;
 
-        detectAndSetObject(copiedId);
+        // If we already have the object info, use it directly (no API calls needed)
+        if (domoObjectData) {
+          const domoObject =
+            domoObjectData instanceof DomoObject
+              ? domoObjectData
+              : DomoObject.fromJSON(domoObjectData);
+          setObjectDetails(domoObject);
+          setIsLoading(false);
+        } else {
+          // Fall back to detection via API calls
+          setObjectDetails(null);
+          setIsLoading(true);
+          detectAndSetObject(copiedId);
+        }
       }
     }));
 
@@ -222,20 +231,23 @@ export const NavigateToCopiedObject = forwardRef(
 
     // Load cached clipboard value from session storage on mount
     useEffect(() => {
-      if (!isDomoPage) {
+      if (!currentContext?.isDomoPage) {
         return;
       }
 
-      // Get cached clipboard value from session storage
+      // Get cached clipboard value and object from session storage
       chrome.storage.session
-        .get(['lastClipboardValue'])
+        .get(['lastClipboardValue', 'lastClipboardObject'])
         .then((result) => {
           if (result.lastClipboardValue) {
             // console.log(
             //   '[NavigateToCopiedObject] Loaded cached clipboard:',
             //   result.lastClipboardValue
             // );
-            handleClipboardData(result.lastClipboardValue);
+            handleClipboardData(
+              result.lastClipboardValue,
+              result.lastClipboardObject
+            );
           }
         })
         .catch((err) => {
@@ -244,11 +256,11 @@ export const NavigateToCopiedObject = forwardRef(
             err
           );
         });
-    }, [isDomoPage]);
+    }, [currentContext?.isDomoPage]);
 
     // Handle clipboard data from service worker
     const handleClipboardData = useCallback(
-      (text) => {
+      (text, domoObjectData = null) => {
         // Skip if clipboard hasn't changed AND we already have the object ID set
         if (text === lastCheckedClipboard.current && copiedObjectId) {
           // console.log('[NavigateToCopiedObject] Clipboard unchanged, skipping');
@@ -269,9 +281,19 @@ export const NavigateToCopiedObject = forwardRef(
         if (isNumeric || isUuid) {
           setCopiedObjectId(trimmedText);
           setSelectedType(null);
-          setObjectDetails(null);
           setError(null);
-          if (currentContext?.instance) {
+
+          // If we have object data, use it directly (no API calls needed)
+          if (domoObjectData) {
+            const domoObject =
+              domoObjectData instanceof DomoObject
+                ? domoObjectData
+                : DomoObject.fromJSON(domoObjectData);
+            setObjectDetails(domoObject);
+            setIsLoading(false);
+          } else if (currentContext?.instance) {
+            // Fall back to detection via API calls
+            setObjectDetails(null);
             setIsLoading(true);
             detectAndSetObject(trimmedText);
           }
@@ -289,7 +311,7 @@ export const NavigateToCopiedObject = forwardRef(
     useEffect(() => {
       const handleMessage = (message, sender, sendResponse) => {
         if (message.type === 'CLIPBOARD_UPDATED' && message.clipboardData) {
-          handleClipboardData(message.clipboardData);
+          handleClipboardData(message.clipboardData, message.domoObject);
         }
       };
 
@@ -305,7 +327,7 @@ export const NavigateToCopiedObject = forwardRef(
       let objectIdToUse = copiedObjectId;
 
       // If not on a Domo page and no clipboard data yet, read clipboard now
-      if (!isDomoPage && !objectIdToUse) {
+      if (!currentContext?.isDomoPage && !objectIdToUse) {
         navigator.clipboard
           .readText()
           .then((text) => {
@@ -395,7 +417,7 @@ export const NavigateToCopiedObject = forwardRef(
           let baseUrl;
 
           // Check if on a Domo page
-          if (isDomoPage && currentContext?.instance) {
+          if (currentContext?.isDomoPage && currentContext?.instance) {
             // Use current Domo instance
             baseUrl = `https://${currentContext?.instance}.domo.com`;
           } else {
@@ -431,10 +453,12 @@ export const NavigateToCopiedObject = forwardRef(
 
     // If object type is unknown, show dropdown for manual selection
     // Show dropdown when: not on Domo page with copied ID but no objectDetails, or no ID at all
-    const showDropdown = !isDomoPage || (!objectDetails && copiedObjectId);
+    const showDropdown =
+      !currentContext?.isDomoPage || (!objectDetails && copiedObjectId);
 
     // Disable dropdown when not on Domo page and no default instance configured
-    const needsDefaultInstance = !isDomoPage && !defaultDomoInstance;
+    const needsDefaultInstance =
+      !currentContext?.isDomoPage && !defaultDomoInstance;
 
     return showDropdown ? (
       needsDefaultInstance ? (
@@ -491,7 +515,7 @@ export const NavigateToCopiedObject = forwardRef(
         >
           {error ? (
             `Error: ${error}`
-          ) : isDomoPage ? (
+          ) : currentContext?.isDomoPage ? (
             copiedObjectId ? (
               objectDetails ? (
                 <>

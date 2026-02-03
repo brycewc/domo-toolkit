@@ -1,11 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { Card, Spinner } from '@heroui/react';
-import {
-  ActionButtons,
-  GetPagesView,
-  WelcomePage,
-  shouldShowWelcomePage
-} from '@/components';
+import { ActionButtons, GetPagesView } from '@/components';
 import { useTheme } from '@/hooks';
 import { DomoContext } from '@/models';
 
@@ -13,18 +8,12 @@ export default function App() {
   // Apply theme
   useTheme();
 
-  const [showWelcome, setShowWelcome] = useState(null);
   const [activeView, setActiveView] = useState('default');
   const [loadingMessage, setLoadingMessage] = useState('Loading...');
   const [currentContext, setCurrentContext] = useState(null);
   const [currentTabId, setCurrentTabId] = useState(null);
   const [isLoadingCurrentContext, setIsLoadingCurrentContext] = useState(true);
   const statusCallbackRef = useRef(null);
-
-  // Check if we should show welcome page
-  useEffect(() => {
-    shouldShowWelcomePage().then(setShowWelcome);
-  }, []);
 
   // Listen for storage changes for sidepanel data
   useEffect(() => {
@@ -175,20 +164,6 @@ export default function App() {
     // Clear the sidepanel data
     chrome.storage.local.remove(['sidepanelDataList']);
   };
-
-  // Still checking welcome status
-  if (showWelcome === null) {
-    return null;
-  }
-
-  // Show welcome page for new users
-  if (showWelcome) {
-    return (
-      <div className='h-screen w-full overflow-y-auto'>
-        <WelcomePage onDismiss={() => setShowWelcome(false)} />
-      </div>
-    );
-  }
 
   return (
     <div className='h-screen w-full min-w-xs space-y-1 p-1'>

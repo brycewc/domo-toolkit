@@ -3,8 +3,9 @@ import { Tabs } from '@heroui/react';
 import { useTheme } from '@/hooks';
 import {
   ActivityLogTable,
-  FaviconSettings,
   AppSettings,
+  FaviconSettings,
+  shouldShowWelcomePage,
   WelcomePage
 } from '@/components';
 
@@ -19,6 +20,16 @@ export default function App() {
   };
 
   const [selectedTab, setSelectedTab] = useState(getInitialTab);
+  const [showWelcome, setShowWelcome] = useState(null);
+
+  // Check if we should show welcome page
+  useEffect(() => {
+    async function checkWelcome() {
+      const shouldShow = await shouldShowWelcomePage();
+      setShowWelcome(shouldShow);
+    }
+    checkWelcome();
+  }, []);
 
   // Update URL hash when tab changes
   const handleTabChange = (tabId) => {
@@ -45,7 +56,7 @@ export default function App() {
       >
         <Tabs.ListContainer className='flex w-full max-w-3xl flex-row justify-center'>
           <Tabs.List>
-            {selectedTab === 'welcome' && (
+            {showWelcome && (
               <Tabs.Tab id='welcome'>
                 Welcome
                 <Tabs.Indicator />
@@ -59,7 +70,6 @@ export default function App() {
               Settings
               <Tabs.Indicator />
             </Tabs.Tab>
-
             {selectedTab === 'activity-log' && (
               <Tabs.Tab id='activity-log'>
                 Activity Log

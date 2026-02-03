@@ -173,7 +173,7 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
         'src/options/index.html#activity-log'
       );
 
-      await chrome.tabs.create({ url: optionsUrl });
+      window.open(optionsUrl, '_blank', 'noopener,noreferrer');
     } catch (err) {
       console.error('Error opening activity log:', err);
       onStatusUpdate?.(

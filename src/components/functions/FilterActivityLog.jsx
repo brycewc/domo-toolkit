@@ -80,10 +80,7 @@ export function FilterActivityLog({ currentContext, isDisabled }) {
       });
 
       // Create a new tab with the activity log page
-      chrome.tabs.create({
-        url: loggingUrl,
-        active: true
-      });
+      window.open(loggingUrl, '_blank', 'noopener,noreferrer');
 
       console.log(
         '[FilterActivityLog] Tab created, filter will be applied on page load'

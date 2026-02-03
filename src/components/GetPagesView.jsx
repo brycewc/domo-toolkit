@@ -370,7 +370,7 @@ export function GetPagesView({
             const count = item.children.length;
             item.children.forEach(async (child) => {
               if (child.url) {
-                await chrome.tabs.create({ url: child.url });
+                window.open(child.url, '_blank', 'noopener,noreferrer');
               }
             });
             onStatusUpdate?.(

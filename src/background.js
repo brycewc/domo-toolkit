@@ -223,24 +223,24 @@ chrome.runtime.onInstalled.addListener((details) => {
 restoreFromSession();
 
 /**
- * Update extension icon based on system color scheme
- * Uses dark icon variant (dark icon) for light mode and regular icon (light icon) for dark mode
+ * Update extension icon based on theme preference
+ * Uses dark icon variant for light mode and regular icon for dark mode
  */
 function updateExtensionIcon(isDark) {
   const iconPath = isDark
     ? {
-        16: 'public/toolkit-16.png',
-        24: 'public/toolkit-24.png',
-        32: 'public/toolkit-32.png',
-        48: 'public/toolkit-48.png',
-        128: 'public/toolkit-128.png'
-      }
-    : {
         16: 'public/toolkit-dark-16.png',
         24: 'public/toolkit-dark-24.png',
         32: 'public/toolkit-dark-32.png',
         48: 'public/toolkit-dark-48.png',
         128: 'public/toolkit-dark-128.png'
+      }
+    : {
+        16: 'public/toolkit-16.png',
+        24: 'public/toolkit-24.png',
+        32: 'public/toolkit-32.png',
+        48: 'public/toolkit-48.png',
+        128: 'public/toolkit-128.png'
       };
 
   chrome.action.setIcon({ path: iconPath }).catch((error) => {
@@ -248,17 +248,51 @@ function updateExtensionIcon(isDark) {
   });
 }
 
-// Set initial icon and listen for color scheme changes
-if (typeof self !== 'undefined' && self.matchMedia) {
-  const darkModeQuery = self.matchMedia('(prefers-color-scheme: dark)');
-  updateExtensionIcon(darkModeQuery.matches);
-  darkModeQuery.addEventListener('change', (e) =>
-    updateExtensionIcon(e.matches)
-  );
-} else {
-  // Fallback: default to light mode icon (dark icon for visibility)
-  updateExtensionIcon(false);
+/**
+ * Detect system color scheme by querying an active tab
+ * @returns {Promise<boolean>} true if dark mode, false otherwise
+ */
+async function detectSystemColorScheme() {
+  try {
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tabs.length === 0) return false;
+
+    const results = await chrome.scripting.executeScript({
+      target: { tabId: tabs[0].id },
+      func: () => window.matchMedia('(prefers-color-scheme: dark)').matches,
+      world: 'MAIN'
+    });
+
+    return results?.[0]?.result ?? false;
+  } catch (error) {
+    console.log(
+      '[Background] Could not detect system color scheme:',
+      error.message
+    );
+    return false;
+  }
 }
+
+/**
+ * Update icon based on stored theme preference
+ */
+async function updateIconFromThemePreference() {
+  const result = await chrome.storage.sync.get(['themePreference']);
+  const theme = result.themePreference || 'system';
+
+  if (theme === 'dark') {
+    updateExtensionIcon(true);
+  } else if (theme === 'light') {
+    updateExtensionIcon(false);
+  } else {
+    // System theme - detect from active tab
+    const isDark = await detectSystemColorScheme();
+    updateExtensionIcon(isDark);
+  }
+}
+
+// Set initial icon based on stored theme preference
+updateIconFromThemePreference();
 
 // Track last clipboard value to detect changes
 let lastClipboardValue = '';
@@ -410,6 +444,9 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 chrome.tabs.onActivated.addListener(async ({ tabId, windowId }) => {
   console.log(`[Background] Tab ${tabId} activated in window ${windowId}`);
 
+  // Always update icon based on current theme preference
+  updateIconFromThemePreference();
+
   // Check if we already have context for this tab
   if (!tabContexts.has(tabId)) {
     // Trigger detection for the active tab
@@ -500,6 +537,21 @@ chrome.webNavigation.onHistoryStateUpdated.addListener(async (details) => {
 
 // Listen for setting changes
 chrome.storage.onChanged.addListener(async (changes, areaName) => {
+  if (areaName === 'sync' && changes.themePreference !== undefined) {
+    const theme = changes.themePreference.newValue || 'system';
+    console.log('[Background] Theme preference changed to:', theme);
+
+    if (theme === 'dark') {
+      updateExtensionIcon(true);
+    } else if (theme === 'light') {
+      updateExtensionIcon(false);
+    } else {
+      // System theme - detect from active tab
+      const isDark = await detectSystemColorScheme();
+      updateExtensionIcon(isDark);
+    }
+  }
+
   if (
     areaName === 'sync' &&
     changes.defaultClearCookiesHandling !== undefined
@@ -941,14 +993,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         case 'CLIPBOARD_COPIED': {
-          // Content script detected a copy event and read the clipboard
-          const { clipboardData } = message;
+          // Content script or Copy component detected a copy event
+          const { clipboardData, domoObject } = message;
           console.log('[Background] CLIPBOARD_COPIED received:', clipboardData);
 
           if (clipboardData) {
-            // Cache in session storage
+            // Cache in session storage (include object info if available)
             await chrome.storage.session.set({
-              lastClipboardValue: clipboardData
+              lastClipboardValue: clipboardData,
+              lastClipboardObject: domoObject || null
             });
 
             // Update in-memory value and notify if changed
@@ -959,7 +1012,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               chrome.runtime
                 .sendMessage({
                   type: 'CLIPBOARD_UPDATED',
-                  clipboardData: clipboardData
+                  clipboardData: clipboardData,
+                  domoObject: domoObject || null
                 })
                 .catch(() => {
                   // No listeners, that's fine

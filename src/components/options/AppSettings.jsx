@@ -189,21 +189,15 @@ export function AppSettings({ theme = 'system' }) {
             <ListBox>
               <ListBox.Item id='system' textValue='System'>
                 System
-                <ListBox.ItemIndicator>
-                  {({ isSelected }) => (isSelected ? <AnimatedCheck /> : null)}
-                </ListBox.ItemIndicator>
+                <ListBox.ItemIndicator />
               </ListBox.Item>
               <ListBox.Item id='light' textValue='Light'>
                 Light
-                <ListBox.ItemIndicator>
-                  {({ isSelected }) => (isSelected ? <AnimatedCheck /> : null)}
-                </ListBox.ItemIndicator>
+                <ListBox.ItemIndicator />
               </ListBox.Item>
               <ListBox.Item id='dark' textValue='Dark'>
                 Dark
-                <ListBox.ItemIndicator>
-                  {({ isSelected }) => (isSelected ? <AnimatedCheck /> : null)}
-                </ListBox.ItemIndicator>
+                <ListBox.ItemIndicator />
               </ListBox.Item>
             </ListBox>
           </Select.Popover>
@@ -234,33 +228,27 @@ export function AppSettings({ theme = 'system' }) {
           </Select.Trigger>
           <Select.Popover>
             <ListBox>
-              <ListBox.Item id='auto' textValue='Auto'>
-                Auto
-                <ListBox.ItemIndicator>
-                  {({ isSelected }) => (isSelected ? <AnimatedCheck /> : null)}
-                </ListBox.ItemIndicator>
-              </ListBox.Item>
               <ListBox.Item id='default' textValue='Default'>
                 Default
-                <ListBox.ItemIndicator>
-                  {({ isSelected }) => (isSelected ? <AnimatedCheck /> : null)}
-                </ListBox.ItemIndicator>
+                <ListBox.ItemIndicator />
               </ListBox.Item>
               <ListBox.Item id='all' textValue='All'>
                 All
-                <ListBox.ItemIndicator>
-                  {({ isSelected }) => (isSelected ? <AnimatedCheck /> : null)}
-                </ListBox.ItemIndicator>
+                <ListBox.ItemIndicator />
+              </ListBox.Item>
+              <ListBox.Item id='auto' textValue='Auto'>
+                Auto
+                <ListBox.ItemIndicator />
               </ListBox.Item>
             </ListBox>
           </Select.Popover>
           <Description className='w-lg'>
-            <p>Auto: Clear cookies on 431 errors, preserve last 2 instances.</p>
             <p>
               Default: Preserve last 2 instances (only manual, no
               auto-clearing).
             </p>
             <p>All: Clear all Domo cookies (only manual, no auto-clearing).</p>
+            <p>Auto: Clear cookies on 431 errors, preserve last 2 instances.</p>
           </Description>
         </Select>
         <div className='pt-1'>

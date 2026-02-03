@@ -1,9 +1,5 @@
 import { useEffect, useState } from 'react';
-import {
-  ActionButtons,
-  WelcomePage,
-  shouldShowWelcomePage
-} from '@/components';
+import { ActionButtons } from '@/components';
 import { useTheme } from '@/hooks';
 import { DomoContext } from '@/models';
 
@@ -11,15 +7,9 @@ export default function App() {
   // Apply theme
   useTheme();
 
-  const [showWelcome, setShowWelcome] = useState(null); // null = loading, true/false = known
   const [currentContext, setCurrentContext] = useState(null);
   const [isLoadingCurrentContext, setIsLoadingCurrentContext] = useState(true);
   const [currentTabId, setCurrentTabId] = useState(null);
-
-  // Check if we should show welcome page
-  useEffect(() => {
-    shouldShowWelcomePage().then(setShowWelcome);
-  }, []);
 
   // Get context from service worker
   useEffect(() => {
@@ -70,19 +60,8 @@ export default function App() {
     };
   }, [currentTabId]);
 
-  // Still checking welcome status
-  if (showWelcome === null) {
-    return null;
-  }
-
-  // Show welcome page for new users
-  if (showWelcome) {
-    return <WelcomePage onDismiss={() => setShowWelcome(false)} />;
-  }
-
-  // Show main interface
   return (
-    <div className='min-w-xs p-1'>
+    <div className='h-fit min-w-xs p-1'>
       <ActionButtons
         currentContext={currentContext}
         isLoadingCurrentContext={isLoadingCurrentContext}
