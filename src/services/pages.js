@@ -246,31 +246,43 @@ export async function getPagesForCards(cardIds, tabId = null) {
     // Execute fetch in page context to use authenticated session
     const result = await executeInPage(
       async (cardIds) => {
-        // Fetch cards with adminAllPages to get all pages they appear on
-        const response = await fetch(
-          `/api/content/v1/cards?urns=${cardIds.join(',')}&parts=adminAllPages`,
-          { method: 'GET' }
-        );
+        const BATCH_SIZE = 100;
 
-        if (!response.ok) {
-          throw new Error(
-            `Failed to fetch cards. HTTP status: ${response.status}`
-          );
+        // Split cardIds into batches of 100
+        const batches = [];
+        for (let i = 0; i < cardIds.length; i += BATCH_SIZE) {
+          batches.push(cardIds.slice(i, i + BATCH_SIZE));
         }
 
-        const detailCards = await response.json();
+        // Fetch all batches and collect all card details
+        const allDetailCards = [];
+        for (const batch of batches) {
+          const response = await fetch(
+            `/api/content/v1/cards?urns=${batch.join(',')}&parts=adminAllPages`,
+            { method: 'GET' }
+          );
 
-        if (!detailCards.length) {
+          if (!response.ok) {
+            throw new Error(
+              `Failed to fetch cards. HTTP status: ${response.status}`
+            );
+          }
+
+          const detailCards = await response.json();
+          allDetailCards.push(...detailCards);
+        }
+
+        if (!allDetailCards.length) {
           throw new Error('No cards found.');
         }
-        console.log(detailCards);
+        console.log(allDetailCards);
         // Build flat lists of all pages, app pages, and report pages from all cards
         const allPages = [];
         const allAppPages = [];
         const allWorksheetViews = [];
         const allReportPages = [];
 
-        detailCards.forEach((card) => {
+        allDetailCards.forEach((card) => {
           // Regular pages
           if (Array.isArray(card.adminAllPages)) {
             card.adminAllPages.forEach((page) => {

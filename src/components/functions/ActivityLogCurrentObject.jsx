@@ -2,13 +2,13 @@ import { useState } from 'react';
 import {
   Button,
   ButtonGroup,
-  IconChevronDown,
   Description,
   Dropdown,
   Label
 } from '@heroui/react';
 import {
   IconChartBar,
+  IconChevronDown,
   IconCopy,
   IconFileDescription
 } from '@tabler/icons-react';
@@ -201,9 +201,9 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
         aria-label='More options'
         isDisabled={isDropdownDisabled}
       >
-        <IconChevronDown stroke={1} />
+        <IconChevronDown stroke={1.5} />
       </Button>
-      <Dropdown.Popover className='w-full max-w-72.5' placement='bottom end'>
+      <Dropdown.Popover className='w-full max-w-80' placement='bottom end'>
         <Dropdown.Menu onAction={handleClick}>
           <Dropdown.Item id='child-cards' textValue='Child cards'>
             <div className='flex h-8 items-start justify-center pt-px'>
@@ -237,13 +237,14 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
   );
 
   return (
-    <ButtonGroup className='h-full min-w-fit flex-1 basis-[48%]'>
+    <ButtonGroup className='min-w-fit flex-1 basis-[48%]'>
       <Button
         variant='tertiary'
         onPress={handleClick}
         isDisabled={isDisabled}
         isPending={isLoading}
         fullWidth
+        className={isDropdownDisabled ? '' : 'pl-13'}
       >
         <IconFileDescription stroke={1.5} />
         Activity Log

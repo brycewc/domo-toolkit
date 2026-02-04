@@ -469,7 +469,7 @@ export const NavigateToCopiedObject = forwardRef(
             onPress={() => {}}
           >
             <IconExternalLink stroke={1.5} />
-            Nav from Clipboard
+            From Clipboard
           </Button>
           <Tooltip.Content placement='top'>
             Set a default Domo instance in settings
@@ -479,7 +479,7 @@ export const NavigateToCopiedObject = forwardRef(
         <Dropdown>
           <Button variant='tertiary' className='min-w-fit flex-1 basis-[48%]'>
             <IconExternalLink stroke={1.5} />
-            Nav from Clipboard
+            From Clipboard
           </Button>
           <Dropdown.Popover className='min-w-[18rem]' placement='bottom end'>
             <Dropdown.Menu
@@ -507,7 +507,7 @@ export const NavigateToCopiedObject = forwardRef(
           isIconOnly={isLoading}
         >
           <IconExternalLink stroke={1.5} />
-          Nav from Clipboard
+          From Clipboard
         </Button>
         <Tooltip.Content
           placement='top'

@@ -166,7 +166,7 @@ export default function App() {
   };
 
   return (
-    <div className='flex h-screen w-full flex-col space-y-1 overflow-clip overscroll-contain p-1'>
+    <div className='flex h-screen w-full flex-col space-y-1 overscroll-contain p-1'>
       <ActionButtons
         currentContext={currentContext}
         isLoadingCurrentContext={isLoadingCurrentContext}

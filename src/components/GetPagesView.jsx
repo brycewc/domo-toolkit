@@ -327,7 +327,7 @@ export function GetPagesView({
         tabId
       });
       return pages;
-    } else if (objectType === 'CARD' || objectType === 'DATA_SOURCE') {
+    } else if (objectType === 'DATA_SOURCE') {
       // For CARD/DATA_SOURCE: get cards then get pages for those cards
       const cards = await getCardsForObject({
         objectId,
@@ -604,7 +604,7 @@ export function GetPagesView({
                 <Button variant='ghost' size='sm' isIconOnly>
                   <IconDots stroke={1.5} />
                 </Button>
-                <Popover.Content placement='left' offset={-8}>
+                <Popover.Content placement='left' offset={1}>
                   <Popover.Dialog className='p-0'>
                     <ButtonGroup size='sm' fullWidth variant='ghost'>
                       <Tooltip delay={400} closeDelay={0}>
