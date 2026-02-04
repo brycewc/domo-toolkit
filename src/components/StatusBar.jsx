@@ -88,7 +88,7 @@ export function StatusBar({
   return (
     <Alert
       status={status}
-      className='relative h-fit w-full max-w-md overflow-hidden p-2'
+      className='relative min-h-20 w-full overflow-hidden p-2'
     >
       {timeout ? (
         <div

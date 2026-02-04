@@ -126,7 +126,7 @@ export async function getCardsForObject({
             if (!cards.length) {
               throw new Error(`DataSet ${objectId} has no cards.`);
             }
-            console.log(cards);
+            // console.log(cards);
             // Normalize cards to have id property
             return cards.map((card) => ({
               ...card,

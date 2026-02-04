@@ -49,7 +49,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
   const alertContent = (
     <Alert
       status={currentContext?.isDomoPage || isLoading ? 'accent' : 'warning'}
-      className='w-full p-2'
+      className='min-h-20 w-full p-2'
     >
       <Alert.Content
         className={`flex flex-col ${isLoading ? 'items-center' : 'items-start'}`}

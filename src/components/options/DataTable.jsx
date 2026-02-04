@@ -236,7 +236,7 @@ export function DataTable({
     <Card className='h-fit max-h-[calc(100vh-10rem)] w-full'>
       <Card.Header>
         {/* Top Controls Bar */}
-        <div className='items-between flex flex-col justify-center gap-1 sm:flex-row sm:items-center sm:justify-between'>
+        <div className='items-between flex w-full flex-col justify-center gap-1 sm:flex-row sm:items-center sm:justify-between'>
           <div
             className={`flex items-center gap-1 ${
               enableSelection && hasSelectColumn
@@ -262,9 +262,10 @@ export function DataTable({
             )}
 
             {/* Custom Filters */}
-            <div className='flex max-w-lg flex-1 flex-row justify-start gap-1'>
+            <div className='flex flex-1 flex-row justify-start gap-1'>
               {customFilters}
             </div>
+
             <div className='flex flex-row items-center justify-end gap-1'>
               {/* Column Visibility Dropdown */}
               <Dropdown>

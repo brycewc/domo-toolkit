@@ -1,37 +1,21 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
-  Autocomplete,
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
   Chip,
   Alert,
   Button,
-  Description,
   Dropdown,
-  EmptyState,
   Label,
-  ListBox,
-  ListBoxLoadMoreItem,
-  SearchField,
   Skeleton,
   Link,
-  Spinner,
-  Tag,
-  TagGroup,
   DateField,
   DateInputGroup,
   Popover,
   ButtonGroup
 } from '@heroui/react';
-import {
-  IconCalendarTime,
-  IconChevronDown,
-  IconFilter,
-  IconUser
-} from '@tabler/icons-react';
+import { IconCalendarTime, IconFilter } from '@tabler/icons-react';
 import { DataTable } from './DataTable';
-import { getActivityLogForObject, searchUsers } from '@/services';
+import { UserFilterAutocomplete } from './UserFilterAutocomplete';
+import { getActivityLogForObject } from '@/services';
 import { DomoObject } from '@/models';
 import { ACTION_COLOR_PATTERNS } from '@/utils';
 
@@ -256,15 +240,6 @@ export function ActivityLogTable() {
   // Track pagination state per object: { "type:id": { offset, total, hasMore } }
   const [objectStates, setObjectStates] = useState({});
 
-  // User search state for user filter
-  const [userSearchText, setUserSearchText] = useState('');
-  const [searchedUsers, setSearchedUsers] = useState([]);
-  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
-  const [userSearchOffset, setUserSearchOffset] = useState(0);
-  const [hasMoreUsers, setHasMoreUsers] = useState(false);
-  const [isLoadingMoreUsers, setIsLoadingMoreUsers] = useState(false);
-  const [isUserFilterOpen, setIsUserFilterOpen] = useState(false);
-
   const pageSize = 100; // Fetch in chunks per object
 
   // Load objects from storage on mount
@@ -302,17 +277,6 @@ export function ActivityLogTable() {
     loadObjects();
   }, []);
 
-  // Get unique users for filters
-  const userOptions = useMemo(() => {
-    const users = new Set();
-    events.forEach((event) => {
-      if (event.userName) {
-        users.add(event.userName);
-      }
-    });
-    return Array.from(users).sort();
-  }, [events]);
-
   // Get unique action types for filter
   const actionOptions = useMemo(() => {
     const actions = new Set();
@@ -334,71 +298,6 @@ export function ActivityLogTable() {
     });
     return Array.from(types).sort();
   }, [events]);
-
-  // Fetch users when user filter opens or search text changes
-  useEffect(() => {
-    if (!isUserFilterOpen || !tabId) return;
-
-    const controller = new AbortController();
-
-    async function fetchUsers() {
-      setIsLoadingUsers(true);
-      setUserSearchOffset(0);
-      try {
-        const { users, totalCount } = await searchUsers(
-          userSearchText,
-          tabId,
-          0
-        );
-        if (!controller.signal.aborted) {
-          setSearchedUsers(users);
-          setHasMoreUsers(totalCount !== null && users.length < totalCount);
-          setUserSearchOffset(users.length);
-        }
-      } catch (error) {
-        if (error.name !== 'AbortError') {
-          console.error('Error fetching users:', error);
-        }
-      } finally {
-        if (!controller.signal.aborted) {
-          setIsLoadingUsers(false);
-        }
-      }
-    }
-
-    fetchUsers();
-
-    return () => {
-      controller.abort();
-    };
-  }, [isUserFilterOpen, userSearchText, tabId]);
-
-  // Load more users for pagination
-  const loadMoreUsers = async () => {
-    if (isLoadingMoreUsers || !hasMoreUsers) return;
-
-    setIsLoadingMoreUsers(true);
-    try {
-      const { users, totalCount } = await searchUsers(
-        userSearchText,
-        tabId,
-        userSearchOffset
-      );
-      const newUsers = [...searchedUsers, ...users];
-      setSearchedUsers(newUsers);
-      setHasMoreUsers(totalCount !== null && newUsers.length < totalCount);
-      setUserSearchOffset(newUsers.length);
-    } catch (error) {
-      console.error('Error loading more users:', error);
-    } finally {
-      setIsLoadingMoreUsers(false);
-    }
-  };
-
-  // Handle removing tags from user filter
-  const onRemoveUserTags = (keys) => {
-    setUserFilter((prev) => prev.filter((key) => !keys.has(key)));
-  };
 
   // Filter events by date, user, and action
   const filteredEvents = useMemo(() => {
@@ -431,8 +330,12 @@ export function ActivityLogTable() {
 
     if (userFilter.length > 0) {
       filtered = filtered.filter((event) => {
-        // Filter by userId (stored as number in events, as string in filter)
-        return userFilter.includes(String(event.userId));
+        // Filter by userId - handle both numeric and string ID types
+        const eventUserId = event.userId;
+        return userFilter.some(
+          (filterId) =>
+            filterId === eventUserId || String(filterId) === String(eventUserId)
+        );
       });
     }
 
@@ -865,7 +768,6 @@ export function ActivityLogTable() {
           <Alert.Indicator />
           <Alert.Content>
             <Alert.Title>Error Loading Activity Log</Alert.Title>
-
             <Alert.Description>{error}</Alert.Description>
           </Alert.Content>
         </Alert>
@@ -954,8 +856,8 @@ export function ActivityLogTable() {
         onRefresh={handleRefresh}
         isRefreshing={isInitialLoad || isSearching}
         customFilters={
-          <div className='flex flex-row items-center justify-start'>
-            <ButtonGroup variant='tertiary' fullWidth>
+          <div className='flex w-full flex-row items-center justify-start gap-1'>
+            <ButtonGroup variant='tertiary' fullWidth className='flex-1/2'>
               {/* Date Range Filter */}
               <Popover>
                 <Button variant='tertiary' fullWidth>
@@ -1072,129 +974,12 @@ export function ActivityLogTable() {
                 </Dropdown>
               )}
             </ButtonGroup>
-            {/* User Filter */}
-            <Autocomplete
-              className='w-64'
-              placeholder='Filter by user...'
-              selectionMode='multiple'
-              isOpen={isUserFilterOpen}
-              onOpenChange={setIsUserFilterOpen}
+            <UserFilterAutocomplete
               value={userFilter}
-              onChange={(keys) => setUserFilter(keys || [])}
-            >
-              <Label>User</Label>
-              <Autocomplete.Trigger>
-                <Autocomplete.Value>
-                  {({ defaultChildren, isPlaceholder, state }) => {
-                    if (isPlaceholder || state.selectedItems.length === 0) {
-                      return defaultChildren;
-                    }
-                    const selectedItemsKeys = state.selectedItems.map(
-                      (item) => item.key
-                    );
-                    return (
-                      <TagGroup size='sm' onRemove={onRemoveUserTags}>
-                        <TagGroup.List>
-                          {selectedItemsKeys.map((selectedItemKey) => {
-                            const selectedUser = searchedUsers.find(
-                              (user) => String(user.id) === selectedItemKey
-                            );
-                            if (!selectedUser) {
-                              return (
-                                <Tag key={selectedItemKey} id={selectedItemKey}>
-                                  User {selectedItemKey}
-                                </Tag>
-                              );
-                            }
-                            return (
-                              <Tag
-                                key={selectedUser.id}
-                                id={String(selectedUser.id)}
-                              >
-                                <Avatar className='size-4' size='sm'>
-                                  <AvatarImage
-                                    src={`https://${domoInstance}.domo.com/api/content/v1/avatar/USER/${selectedUser.id}?size=100`}
-                                  />
-                                  <AvatarFallback>
-                                    {selectedUser.displayName
-                                      ?.charAt(0)
-                                      .toUpperCase()}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <span>{selectedUser.displayName}</span>
-                              </Tag>
-                            );
-                          })}
-                        </TagGroup.List>
-                      </TagGroup>
-                    );
-                  }}
-                </Autocomplete.Value>
-                <Autocomplete.ClearButton />
-                <Autocomplete.Indicator />
-              </Autocomplete.Trigger>
-              <Autocomplete.Popover>
-                <Autocomplete.Filter
-                  inputValue={userSearchText}
-                  onInputChange={setUserSearchText}
-                >
-                  <SearchField autoFocus name='user-search' variant='secondary'>
-                    <SearchField.Group>
-                      <SearchField.SearchIcon />
-                      <SearchField.Input placeholder='Search users...' />
-                      {isLoadingUsers ? (
-                        <Spinner size='sm' className='mr-2' />
-                      ) : (
-                        <SearchField.ClearButton />
-                      )}
-                    </SearchField.Group>
-                  </SearchField>
-                  <ListBox
-                    className='max-h-64 overflow-y-auto'
-                    renderEmptyState={() => (
-                      <EmptyState>
-                        {isLoadingUsers ? 'Loading...' : 'No users found'}
-                      </EmptyState>
-                    )}
-                  >
-                    {searchedUsers.map((user) => (
-                      <ListBox.Item
-                        key={user.id}
-                        id={String(user.id)}
-                        textValue={user.displayName}
-                      >
-                        <Avatar size='sm'>
-                          <AvatarImage
-                            src={`https://${domoInstance}.domo.com/api/content/v1/avatar/USER/${user.id}?size=100`}
-                          />
-                          <AvatarFallback>
-                            {user.displayName?.charAt(0).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className='flex flex-col'>
-                          <Label>{user.displayName}</Label>
-                          <Description>{user.emailAddress}</Description>
-                        </div>
-                        <ListBox.ItemIndicator />
-                      </ListBox.Item>
-                    ))}
-                    {hasMoreUsers && (
-                      <ListBoxLoadMoreItem
-                        isLoading={isLoadingMoreUsers}
-                        onLoadMore={loadMoreUsers}
-                      >
-                        <div className='flex items-center justify-center gap-2 py-2'>
-                          <Spinner size='sm' />
-                          <span className='text-sm text-muted'>
-                            Loading more...
-                          </span>
-                        </div>
-                      </ListBoxLoadMoreItem>
-                    )}
-                  </ListBox>
-                </Autocomplete.Filter>
-              </Autocomplete.Popover>
-            </Autocomplete>
+              onChange={setUserFilter}
+              tabId={tabId}
+              domoInstance={domoInstance}
+            />
           </div>
         }
       />

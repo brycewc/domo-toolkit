@@ -3,12 +3,16 @@ import {
   Button,
   ButtonGroup,
   Card,
+  Dropdown,
+  Popover,
   Separator,
   Spinner,
   Tooltip
 } from '@heroui/react';
 import {
   IconClipboard,
+  IconDots,
+  IconDotsVertical,
   IconFolders,
   IconRefresh,
   IconUsersPlus,
@@ -134,7 +138,7 @@ function transformGroupedPagesData(childPages, origin) {
       id: page.pageId,
       label: page.pageTitle,
       url: '',
-      metadata: `ID: ${page.pageId}`
+      metadata: { typeId: 'REPORT_BUILDER_VIEW', info: `ID: ${page.pageId}` }
     }));
 
     items.push({
@@ -226,6 +230,13 @@ export function GetPagesView({
         return;
       }
 
+      const pageTypeLabel =
+        objectType === 'CARD' || objectType === 'DATA_SOURCE'
+          ? 'Pages'
+          : objectType === 'DATA_APP_VIEW'
+            ? 'App Pages'
+            : 'Child Pages';
+
       // Store metadata for rebuilding items later (including instance for refresh)
       setPageData({
         objectId,
@@ -236,7 +247,8 @@ export function GetPagesView({
           `${objectType} ${objectId}`,
         origin,
         appId,
-        instance
+        instance,
+        pageTypeLabel
       });
 
       if (objectType === 'CARD' || objectType === 'DATA_SOURCE') {
@@ -501,6 +513,58 @@ export function GetPagesView({
     }
   };
 
+  /**
+   * Recursively collect all URLs from items and their children
+   * Skips virtual parent nodes (grouping headers) that don't have real URLs
+   */
+  const collectAllUrls = (itemList) => {
+    const urls = [];
+    const traverse = (list) => {
+      for (const item of list) {
+        // Add URL if it exists and item is not a virtual parent (grouping node)
+        if (
+          item.url &&
+          !item.isVirtualParent &&
+          item?.metadata?.typeId !== 'DATA_APP'
+        ) {
+          urls.push(item.url);
+        }
+        // Recursively process children
+        if (item.children && item.children.length > 0) {
+          traverse(item.children);
+        }
+      }
+    };
+    traverse(itemList);
+    return urls;
+  };
+
+  const handleOpenAll = async () => {
+    try {
+      const urls = collectAllUrls(items);
+      const count = urls.length;
+
+      urls.forEach((url) => {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      });
+
+      onStatusUpdate?.(
+        'Opened Pages',
+        `Opened **${count}** page${count !== 1 ? 's' : ''} in new tabs`,
+        'success',
+        2000
+      );
+    } catch (err) {
+      console.error('[GetPagesView] Error opening all pages:', err);
+      onStatusUpdate?.(
+        'Error',
+        err.message || 'Failed to open all pages',
+        'danger',
+        3000
+      );
+    }
+  };
+
   if (isLoading && showSpinner) {
     return (
       <div className='flex items-center justify-center'>
@@ -530,112 +594,120 @@ export function GetPagesView({
       onStatusUpdate={onStatusUpdate}
       header={
         <div className='flex flex-col gap-1'>
-          <Card.Title className='flex items-start justify-between'>
-            <div className='flex min-h-8 flex-wrap items-center justify-start gap-x-1'>
+          <Card.Title className='flex items-center justify-between'>
+            <div className='flex flex-wrap items-center justify-start gap-x-1'>
               <span className='font-bold'>{pageData?.objectName}</span>
-              {pageData?.objectType === 'CARD' ||
-              pageData?.objectType === 'DATA_SOURCE'
-                ? 'Pages'
-                : pageData?.objectType === 'DATA_APP_VIEW'
-                  ? 'App Pages'
-                  : 'Child Pages'}
+              {pageData?.pageTypeLabel}
             </div>
             <ButtonGroup hideSeparator>
-              <Tooltip delay={400} closeDelay={0}>
-                <Button
-                  variant='ghost'
-                  size='sm'
-                  isIconOnly
-                  onPress={() =>
-                    items.forEach((item) => window.open(item.url, '_blank'))
-                  }
-                  aria-label='Open All'
-                >
-                  <IconFolders stroke={1.5} />
+              <Popover>
+                <Button variant='ghost' size='sm' isIconOnly>
+                  <IconDots stroke={1.5} />
                 </Button>
-                <Tooltip.Content className='text-xs'>
-                  Open all pages in new tabs
-                </Tooltip.Content>
-              </Tooltip>
-              <Tooltip delay={400} closeDelay={0}>
-                <Button
-                  variant='ghost'
-                  size='sm'
-                  isIconOnly
-                  onPress={async () => {
-                    await navigator.clipboard.writeText(
-                      pageData.objectId.toString()
-                    );
-                    onStatusUpdate?.(
-                      'Copied',
-                      `ID **${pageData.objectId}** copied to clipboard`,
-                      'success',
-                      2000
-                    );
-                  }}
-                  aria-label='Copy'
-                >
-                  <IconClipboard stroke={1.5} />
-                </Button>
-                <Tooltip.Content className='text-xs'>Copy ID</Tooltip.Content>
-              </Tooltip>
-              <Tooltip delay={400} closeDelay={0}>
-                <Button
-                  variant='ghost'
-                  size='sm'
-                  isIconOnly
-                  onPress={async () => {
-                    if (pageData?.instance) {
-                      try {
-                        const tabId = await getValidTabForInstance(
-                          pageData.instance
-                        );
-                        const count = items.length;
-                        await sharePagesWithSelf({
-                          pageIds: items.map((item) => item.id),
-                          tabId
-                        });
-                        onStatusUpdate?.(
-                          'Shared',
-                          `**${count}** page${count !== 1 ? 's' : ''} shared with yourself`,
-                          'success',
-                          2000
-                        );
-                        chrome.tabs.reload(tabId);
-                      } catch (err) {
-                        onStatusUpdate?.(
-                          'Error',
-                          err.message || 'Failed to share pages',
-                          'danger',
-                          3000
-                        );
-                      }
-                    }
-                  }}
-                  aria-label='Share'
-                >
-                  <IconUsersPlus stroke={1.5} />
-                </Button>
-                <Tooltip.Content className='text-xs'>
-                  Share all pages with yourself
-                </Tooltip.Content>
-              </Tooltip>
-              <Tooltip delay={400} closeDelay={0}>
-                <Button
-                  variant='ghost'
-                  size='sm'
-                  isIconOnly
-                  isDisabled={isRefreshing}
-                  onPress={handleRefresh}
-                >
-                  <IconRefresh
-                    stroke={1.5}
-                    size={16}
-                    className={isRefreshing ? 'animate-spin' : ''}
-                  />
-                </Button>
-                <Tooltip.Content className='text-xs'>Refresh</Tooltip.Content>
-              </Tooltip>
+                <Popover.Content placement='left' offset={-8}>
+                  <Popover.Dialog className='p-0'>
+                    <ButtonGroup size='sm' fullWidth variant='ghost'>
+                      <Tooltip delay={400} closeDelay={0}>
+                        <Button
+                          variant='ghost'
+                          size='sm'
+                          isIconOnly
+                          onPress={handleOpenAll}
+                          aria-label='Open All'
+                        >
+                          <IconFolders stroke={1.5} />
+                        </Button>
+                        <Tooltip.Content className='text-xs'>
+                          Open all pages in new tabs
+                        </Tooltip.Content>
+                      </Tooltip>
+                      <Tooltip delay={400} closeDelay={0}>
+                        <Button
+                          variant='ghost'
+                          size='sm'
+                          isIconOnly
+                          onPress={async () => {
+                            await navigator.clipboard.writeText(
+                              pageData.objectId.toString()
+                            );
+                            onStatusUpdate?.(
+                              'Copied',
+                              `ID **${pageData.objectId}** copied to clipboard`,
+                              'success',
+                              2000
+                            );
+                          }}
+                          aria-label='Copy'
+                        >
+                          <IconClipboard stroke={1.5} />
+                        </Button>
+                        <Tooltip.Content className='text-xs'>
+                          Copy ID
+                        </Tooltip.Content>
+                      </Tooltip>
+                      <Tooltip delay={400} closeDelay={0}>
+                        <Button
+                          variant='ghost'
+                          size='sm'
+                          isIconOnly
+                          onPress={async () => {
+                            if (pageData?.instance) {
+                              try {
+                                const tabId = await getValidTabForInstance(
+                                  pageData.instance
+                                );
+                                const count = items.length;
+                                await sharePagesWithSelf({
+                                  pageIds: items.map((item) => item.id),
+                                  tabId
+                                });
+                                onStatusUpdate?.(
+                                  'Shared',
+                                  `**${count}** page${count !== 1 ? 's' : ''} shared with yourself`,
+                                  'success',
+                                  2000
+                                );
+                                chrome.tabs.reload(tabId);
+                              } catch (err) {
+                                onStatusUpdate?.(
+                                  'Error',
+                                  err.message || 'Failed to share pages',
+                                  'danger',
+                                  3000
+                                );
+                              }
+                            }
+                          }}
+                          aria-label='Share'
+                        >
+                          <IconUsersPlus stroke={1.5} />
+                        </Button>
+                        <Tooltip.Content className='text-xs'>
+                          Share all pages with yourself
+                        </Tooltip.Content>
+                      </Tooltip>
+                      <Tooltip delay={400} closeDelay={0}>
+                        <Button
+                          variant='ghost'
+                          size='sm'
+                          isIconOnly
+                          isDisabled={isRefreshing}
+                          onPress={handleRefresh}
+                        >
+                          <IconRefresh
+                            stroke={1.5}
+                            size={16}
+                            className={isRefreshing ? 'animate-spin' : ''}
+                          />
+                        </Button>
+                        <Tooltip.Content className='text-xs'>
+                          Refresh
+                        </Tooltip.Content>
+                      </Tooltip>
+                    </ButtonGroup>
+                  </Popover.Dialog>
+                </Popover.Content>
+              </Popover>
               {onBackToDefault && (
                 <Tooltip delay={400} closeDelay={0}>
                   <Button
@@ -646,7 +718,9 @@ export function GetPagesView({
                   >
                     <IconX stroke={1.5} />
                   </Button>
-                  <Tooltip.Content className='text-xs'>Close</Tooltip.Content>
+                  <Tooltip.Content className='text-xs'>
+                    Close {pageData?.pageTypeLabel} View
+                  </Tooltip.Content>
                 </Tooltip>
               )}
             </ButtonGroup>

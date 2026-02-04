@@ -166,7 +166,7 @@ export default function App() {
   };
 
   return (
-    <div className='h-screen w-full min-w-xs space-y-1 p-1'>
+    <div className='flex h-screen w-full flex-col space-y-1 overflow-clip overscroll-contain p-1'>
       <ActionButtons
         currentContext={currentContext}
         isLoadingCurrentContext={isLoadingCurrentContext}
@@ -177,7 +177,7 @@ export default function App() {
       />
 
       {activeView === 'loading' && (
-        <Card className='w-full'>
+        <Card className='h-full w-full'>
           <Card.Content className='flex flex-col items-center justify-center gap-2 py-8'>
             <Spinner size='lg' />
             <p className='text-sm text-muted'>{loadingMessage}</p>
