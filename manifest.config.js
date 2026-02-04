@@ -15,7 +15,6 @@ export default defineManifest({
   },
   permissions: [
     'sidePanel',
-    'contentSettings',
     'storage',
     'scripting',
     'activeTab',

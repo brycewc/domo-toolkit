@@ -105,5 +105,5 @@ export async function storeSidepanelData({
     data.childPages = childPages;
   }
 
-  await chrome.storage.local.set({ sidepanelDataList: data });
+  await chrome.storage.session.set({ sidepanelDataList: data });
 }

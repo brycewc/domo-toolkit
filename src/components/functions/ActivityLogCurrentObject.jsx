@@ -159,7 +159,7 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
           break;
       }
 
-      await chrome.storage.local.set({
+      await chrome.storage.session.set({
         activityLogTabId: currentContext?.tabId,
         activityLogObjects: activityLogObjects,
         activityLogType: activityLogType,

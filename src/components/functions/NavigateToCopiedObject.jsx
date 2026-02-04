@@ -28,11 +28,11 @@ export const NavigateToCopiedObject = forwardRef(
     const [allTypes, setAllTypes] = useState([]);
 
     async function detectAndSetObject(objectId) {
-      // console.log('[NavigateToCopiedObject] detectAndSetObject called with:', {
-      //   objectId,
-      //   instance: currentContext.instance,
-      //   tabId: currentContext.tabId
-      // });
+      console.log('[NavigateToCopiedObject] detectAndSetObject called with:', {
+        objectId,
+        instance: currentContext.instance,
+        tabId: currentContext.tabId
+      });
 
       const baseUrl = `https://${currentContext.instance}.domo.com`;
 
@@ -311,6 +311,10 @@ export const NavigateToCopiedObject = forwardRef(
     useEffect(() => {
       const handleMessage = (message, sender, sendResponse) => {
         if (message.type === 'CLIPBOARD_UPDATED' && message.clipboardData) {
+          console.log(
+            '[NavigateToCopiedObject] CLIPBOARD_UPDATED received:',
+            message.clipboardData
+          );
           handleClipboardData(message.clipboardData, message.domoObject);
         }
       };

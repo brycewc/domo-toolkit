@@ -12,6 +12,11 @@ import {
   executeInPage
 } from '@/utils';
 
+// Set session storage access level so content scripts can access it
+chrome.storage.session.setAccessLevel({
+  accessLevel: 'TRUSTED_AND_UNTRUSTED_CONTEXTS'
+});
+
 /**
  * Send a message to a tab with retry logic
  * @param {number} tabId - The tab ID

@@ -37,7 +37,7 @@ export default function App() {
     chrome.storage.onChanged.addListener(handleStorageChange);
 
     // Check if there's already sidepanel data on mount
-    chrome.storage.local.get(['sidepanelDataList'], (result) => {
+    chrome.storage.session.get(['sidepanelDataList'], (result) => {
       if (result.sidepanelDataList) {
         // Only use it if it's recent (within last 10 seconds)
         const age = Date.now() - (result.sidepanelDataList.timestamp || 0);
@@ -162,7 +162,7 @@ export default function App() {
   const handleBackToDefault = () => {
     setActiveView('default');
     // Clear the sidepanel data
-    chrome.storage.local.remove(['sidepanelDataList']);
+    chrome.storage.session.remove(['sidepanelDataList']);
   };
 
   return (

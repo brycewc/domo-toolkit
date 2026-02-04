@@ -43,7 +43,6 @@ export function WelcomePage() {
       // Placeholder for email signup API call
       await new Promise((resolve) => setTimeout(resolve, 800));
       setEmailStatus('success');
-      chrome.storage.local.set({ subscribedEmail: email });
     } catch (error) {
       setEmailStatus('error');
     }

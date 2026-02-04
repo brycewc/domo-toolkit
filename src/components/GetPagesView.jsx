@@ -182,7 +182,7 @@ export function GetPagesView({
 
     try {
       // Get the stored page data from local storage
-      const result = await chrome.storage.local.get(['sidepanelDataList']);
+      const result = await chrome.storage.session.get(['sidepanelDataList']);
       const data = result.sidepanelDataList;
       console.log('Loaded sidepanel data:', data);
       if (

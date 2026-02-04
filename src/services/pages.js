@@ -408,7 +408,7 @@ export async function deletePageAndAllCards({
 
       if (childPages.length > 0) {
         // Store child pages data for sidepanel to read
-        await chrome.storage.local.set({
+        await chrome.storage.session.set({
           sidepanelDataList: {
             type: 'childPagesWarning',
             pageId,
