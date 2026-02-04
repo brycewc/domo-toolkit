@@ -147,9 +147,9 @@ function DataListItem({
     <Disclosure
       isOpen={isOpen}
       onOpenChange={setIsOpen}
-      className='mb-1 w-full border-t border-border'
+      className='w-full border-t border-border p-1'
     >
-      <Disclosure.Heading className='flex min-h-8 w-full flex-row justify-between pt-1'>
+      <Disclosure.Heading className='flex min-h-9 w-full flex-row justify-between'>
         <div className='flex w-full min-w-0 flex-1 basis-4/5 items-center gap-2'>
           {!item?.isVirtualParent &&
             (item.url ? (
@@ -195,7 +195,7 @@ function DataListItem({
               <Button variant='ghost' size='sm' isIconOnly>
                 <IconDots stroke={1.5} />
               </Button>
-              <Popover.Content placement='left' offset={-8}>
+              <Popover.Content placement='left' offset={1}>
                 <Popover.Dialog className='p-0'>
                   <ButtonGroup
                     variant='ghost'
