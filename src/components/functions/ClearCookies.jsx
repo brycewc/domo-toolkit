@@ -160,15 +160,13 @@ export function ClearCookies({ currentContext, onStatusUpdate, isDisabled }) {
         isPending={isClearingCookies}
         isDisabled={isDisabled}
       >
-        {({ isPending }) => (
-          <>
-            {isPending ? (
-              <Spinner color='currentColor' size='sm' />
-            ) : (
-              <IconCookieOff className='text-danger' />
-            )}
-          </>
-        )}
+        {({ isPending }) =>
+          isPending ? (
+            <Spinner color='currentColor' size='sm' />
+          ) : (
+            <IconCookieOff className='text-danger' />
+          )
+        }
       </Button>
       <Tooltip.Content>{tooltipText}</Tooltip.Content>
     </Tooltip>

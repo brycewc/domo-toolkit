@@ -15,3 +15,8 @@ export {
 export { JsonStringifyOrder } from './general';
 export { waitForChildPages, storeSidepanelData } from './pageHelpers';
 export { isSidepanel, openSidepanel, showStatus } from './sidepanel';
+export {
+  exportToCSV,
+  exportToExcel,
+  generateExportFilename
+} from './exportData';

@@ -1,19 +1,37 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
+  Autocomplete,
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
   Chip,
   Alert,
   Button,
+  Description,
   Dropdown,
+  EmptyState,
   Label,
+  ListBox,
+  ListBoxLoadMoreItem,
+  SearchField,
   Skeleton,
   Link,
+  Spinner,
+  Tag,
+  TagGroup,
   DateField,
   DateInputGroup,
-  Popover
+  Popover,
+  ButtonGroup
 } from '@heroui/react';
-import { IconChevronDown, IconRefresh, IconFilter } from '@tabler/icons-react';
+import {
+  IconCalendarTime,
+  IconChevronDown,
+  IconFilter,
+  IconUser
+} from '@tabler/icons-react';
 import { DataTable } from './DataTable';
-import { getActivityLogForObject } from '@/services';
+import { getActivityLogForObject, searchUsers } from '@/services';
 import { DomoObject } from '@/models';
 import { ACTION_COLOR_PATTERNS } from '@/utils';
 
@@ -232,11 +250,20 @@ export function ActivityLogTable() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
-  const [userFilter, setUserFilter] = useState(new Set());
+  const [userFilter, setUserFilter] = useState([]); // Array of user IDs for Autocomplete
   const [actionFilter, setActionFilter] = useState(new Set());
   const [objectTypeFilter, setObjectTypeFilter] = useState(new Set());
   // Track pagination state per object: { "type:id": { offset, total, hasMore } }
   const [objectStates, setObjectStates] = useState({});
+
+  // User search state for user filter
+  const [userSearchText, setUserSearchText] = useState('');
+  const [searchedUsers, setSearchedUsers] = useState([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [userSearchOffset, setUserSearchOffset] = useState(0);
+  const [hasMoreUsers, setHasMoreUsers] = useState(false);
+  const [isLoadingMoreUsers, setIsLoadingMoreUsers] = useState(false);
+  const [isUserFilterOpen, setIsUserFilterOpen] = useState(false);
 
   const pageSize = 100; // Fetch in chunks per object
 
@@ -308,6 +335,71 @@ export function ActivityLogTable() {
     return Array.from(types).sort();
   }, [events]);
 
+  // Fetch users when user filter opens or search text changes
+  useEffect(() => {
+    if (!isUserFilterOpen || !tabId) return;
+
+    const controller = new AbortController();
+
+    async function fetchUsers() {
+      setIsLoadingUsers(true);
+      setUserSearchOffset(0);
+      try {
+        const { users, totalCount } = await searchUsers(
+          userSearchText,
+          tabId,
+          0
+        );
+        if (!controller.signal.aborted) {
+          setSearchedUsers(users);
+          setHasMoreUsers(totalCount !== null && users.length < totalCount);
+          setUserSearchOffset(users.length);
+        }
+      } catch (error) {
+        if (error.name !== 'AbortError') {
+          console.error('Error fetching users:', error);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsLoadingUsers(false);
+        }
+      }
+    }
+
+    fetchUsers();
+
+    return () => {
+      controller.abort();
+    };
+  }, [isUserFilterOpen, userSearchText, tabId]);
+
+  // Load more users for pagination
+  const loadMoreUsers = async () => {
+    if (isLoadingMoreUsers || !hasMoreUsers) return;
+
+    setIsLoadingMoreUsers(true);
+    try {
+      const { users, totalCount } = await searchUsers(
+        userSearchText,
+        tabId,
+        userSearchOffset
+      );
+      const newUsers = [...searchedUsers, ...users];
+      setSearchedUsers(newUsers);
+      setHasMoreUsers(totalCount !== null && newUsers.length < totalCount);
+      setUserSearchOffset(newUsers.length);
+    } catch (error) {
+      console.error('Error loading more users:', error);
+    } finally {
+      setIsLoadingMoreUsers(false);
+    }
+  };
+
+  // Handle removing tags from user filter
+  const onRemoveUserTags = (keys) => {
+    setUserFilter((prev) => prev.filter((key) => !keys.has(key)));
+  };
+
   // Filter events by date, user, and action
   const filteredEvents = useMemo(() => {
     let filtered = events;
@@ -337,9 +429,10 @@ export function ActivityLogTable() {
       });
     }
 
-    if (userFilter.size > 0) {
+    if (userFilter.length > 0) {
       filtered = filtered.filter((event) => {
-        return userFilter.has(event.userName);
+        // Filter by userId (stored as number in events, as string in filter)
+        return userFilter.includes(String(event.userId));
       });
     }
 
@@ -657,13 +750,112 @@ export function ActivityLogTable() {
     setRefreshKey((prev) => prev + 1);
   }, []);
 
+  // Fetch all data for export - paginates through all objects
+  const fetchAllDataForExport = useCallback(async () => {
+    if (!tabId || objects.length === 0) {
+      return filteredEvents; // Return currently filtered events if no tab/objects
+    }
+
+    const allEvents = [];
+    const exportPageSize = 1000; // Use max page size for export
+
+    // Fetch all events from each object
+    for (const { type, id } of objects) {
+      let offset = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        try {
+          const result = await getActivityLogForObject({
+            objectType: type,
+            objectId: id,
+            limit: exportPageSize,
+            offset,
+            tabId
+          });
+
+          const events = result?.events ?? [];
+          const total = result?.total ?? 0;
+
+          allEvents.push(...events);
+
+          offset += events.length;
+          hasMore = offset < total && events.length > 0;
+        } catch (err) {
+          console.error(`Error fetching all events for ${type}:${id}:`, err);
+          hasMore = false; // Stop on error for this object
+        }
+      }
+    }
+
+    // Sort all events by timestamp descending
+    allEvents.sort((a, b) => new Date(b.time) - new Date(a.time));
+
+    // Apply filters to match current view
+    let filtered = allEvents;
+
+    // Filter by date range
+    if (startDate || endDate) {
+      filtered = filtered.filter((event) => {
+        const eventDate = new Date(event.time);
+        eventDate.setHours(0, 0, 0, 0);
+
+        if (startDate && endDate) {
+          const start = new Date(startDate);
+          const end = new Date(endDate);
+          start.setHours(0, 0, 0, 0);
+          end.setHours(23, 59, 59, 999);
+          return eventDate >= start && eventDate <= end;
+        } else if (startDate) {
+          const start = new Date(startDate);
+          start.setHours(0, 0, 0, 0);
+          return eventDate >= start;
+        } else if (endDate) {
+          const end = new Date(endDate);
+          end.setHours(23, 59, 59, 999);
+          return eventDate <= end;
+        }
+        return true;
+      });
+    }
+
+    if (userFilter.length > 0) {
+      filtered = filtered.filter((event) =>
+        userFilter.includes(String(event.userId))
+      );
+    }
+
+    if (actionFilter.size > 0) {
+      filtered = filtered.filter((event) => {
+        const action = event.actionType?.toLowerCase();
+        return action && actionFilter.has(action);
+      });
+    }
+
+    if (objectTypeFilter.size > 0) {
+      filtered = filtered.filter(
+        (event) => event.objectType && objectTypeFilter.has(event.objectType)
+      );
+    }
+
+    return filtered;
+  }, [
+    tabId,
+    objects,
+    filteredEvents,
+    startDate,
+    endDate,
+    userFilter,
+    actionFilter,
+    objectTypeFilter
+  ]);
+
   // Handle row action
   const handleRowAction = (action, selectedRows) => {
     console.log(
       `Action "${action}" on ${selectedRows.length} event(s):`,
       selectedRows
     );
-    // TODO: Implement actions like export, copy details, etc.
   };
 
   if (error) {
@@ -726,23 +918,23 @@ export function ActivityLogTable() {
           </h3>
           {total > 0 && (
             <p className='text-base text-muted'>
-              Showing {events.length.toLocaleString()} of{' '}
-              {total.toLocaleString()} events
+              {filteredEvents.length !== events.length ? (
+                <>
+                  Showing {filteredEvents.length.toLocaleString()} filtered of{' '}
+                  {events.length.toLocaleString()} fetched (
+                  {total.toLocaleString()} total)
+                </>
+              ) : (
+                <>
+                  Showing {events.length.toLocaleString()} of{' '}
+                  {total.toLocaleString()} events
+                </>
+              )}
               {isFetchingMore && ' (loading more...)'}
               {isSearching && ' (searching...)'}
             </p>
           )}
         </div>
-        <Button
-          variant='tertiary'
-          size='sm'
-          onPress={handleRefresh}
-          isDisabled={isInitialLoad || isSearching}
-          isPending={isInitialLoad}
-        >
-          <IconRefresh />
-          Refresh
-        </Button>
       </div>
       <DataTable
         columns={columns}
@@ -754,148 +946,256 @@ export function ActivityLogTable() {
         enableSelection={false}
         enableSearch={false}
         onLoadMore={fetchMoreEvents}
+        exportConfig={{
+          enabled: true,
+          filename: `activity-log_${activityLogType || 'export'}`,
+          onFetchAllData: fetchAllDataForExport
+        }}
+        onRefresh={handleRefresh}
+        isRefreshing={isInitialLoad || isSearching}
         customFilters={
-          <>
-            {/* Date Range Filter */}
-            <Popover>
-              <Button variant='tertiary'>
-                <IconFilter stroke={1.5} />
-                Date Range
-                <IconChevronDown stroke={1.5} />
-              </Button>
-              <Popover.Content className='w-72'>
-                <Popover.Dialog className='flex flex-col gap-3'>
-                  <DateField
-                    name='Start Date'
-                    value={startDate}
-                    onChange={setStartDate}
-                    granularity='day'
-                  >
-                    <Label>Start Date</Label>
-                    <DateInputGroup>
-                      <DateInputGroup.Input>
-                        {(segment) => (
-                          <DateInputGroup.Segment segment={segment} />
-                        )}
-                      </DateInputGroup.Input>
-                    </DateInputGroup>
-                  </DateField>
-                  <DateField
-                    name='End Date'
-                    value={endDate}
-                    onChange={setEndDate}
-                    granularity='day'
-                  >
-                    <Label>End Date</Label>
-                    <DateInputGroup>
-                      <DateInputGroup.Input>
-                        {(segment) => (
-                          <DateInputGroup.Segment segment={segment} />
-                        )}
-                      </DateInputGroup.Input>
-                    </DateInputGroup>
-                  </DateField>
-                  <Button
-                    variant='tertiary'
-                    size='sm'
-                    onPress={() => {
-                      setStartDate(null);
-                      setEndDate(null);
-                    }}
-                    isDisabled={!startDate && !endDate}
-                  >
-                    Clear
+          <div className='flex flex-row items-center justify-start'>
+            <ButtonGroup variant='tertiary' fullWidth>
+              {/* Date Range Filter */}
+              <Popover>
+                <Button variant='tertiary' fullWidth>
+                  <IconCalendarTime stroke={1.5} />
+                  Date Range
+                </Button>
+                <Popover.Content className='w-72'>
+                  <Popover.Dialog className='flex flex-col gap-3'>
+                    <DateField
+                      name='Start Date'
+                      value={startDate}
+                      onChange={setStartDate}
+                      granularity='day'
+                    >
+                      <Label>Start Date</Label>
+                      <DateInputGroup>
+                        <DateInputGroup.Input>
+                          {(segment) => (
+                            <DateInputGroup.Segment segment={segment} />
+                          )}
+                        </DateInputGroup.Input>
+                      </DateInputGroup>
+                    </DateField>
+                    <DateField
+                      name='End Date'
+                      value={endDate}
+                      onChange={setEndDate}
+                      granularity='day'
+                    >
+                      <Label>End Date</Label>
+                      <DateInputGroup>
+                        <DateInputGroup.Input>
+                          {(segment) => (
+                            <DateInputGroup.Segment segment={segment} />
+                          )}
+                        </DateInputGroup.Input>
+                      </DateInputGroup>
+                    </DateField>
+                    <Button
+                      variant='tertiary'
+                      size='sm'
+                      onPress={() => {
+                        setStartDate(null);
+                        setEndDate(null);
+                      }}
+                      isDisabled={!startDate && !endDate}
+                    >
+                      Clear
+                    </Button>
+                  </Popover.Dialog>
+                </Popover.Content>
+              </Popover>
+
+              {/* Action Filter */}
+              {actionOptions.length > 0 && (
+                <Dropdown>
+                  <Button variant='tertiary' fullWidth>
+                    <IconFilter stroke={1.5} />
+                    Action
                   </Button>
-                </Popover.Dialog>
-              </Popover.Content>
-            </Popover>
+                  <Dropdown.Popover className='max-h-64 overflow-y-auto'>
+                    <Dropdown.Menu
+                      selectionMode='multiple'
+                      selectedKeys={actionFilter}
+                      onSelectionChange={setActionFilter}
+                    >
+                      {actionOptions.map((action) => {
+                        const color = getActionColor(action);
+                        return (
+                          <Dropdown.Item
+                            id={action}
+                            key={action}
+                            textValue={action}
+                          >
+                            <Dropdown.ItemIndicator />
+                            <Label>
+                              <Chip
+                                color={color}
+                                variant='soft'
+                                className='uppercase'
+                              >
+                                {action}
+                              </Chip>
+                            </Label>
+                          </Dropdown.Item>
+                        );
+                      })}
+                    </Dropdown.Menu>
+                  </Dropdown.Popover>
+                </Dropdown>
+              )}
 
-            {/* User Filter */}
-            {userOptions.length > 0 && (
-              <Dropdown>
-                <Button variant='tertiary'>
-                  <IconFilter stroke={1.5} />
-                  User
-                  <IconChevronDown stroke={1.5} />
-                </Button>
-                <Dropdown.Popover className='max-h-64 overflow-y-auto'>
-                  <Dropdown.Menu
-                    selectionMode='multiple'
-                    selectedKeys={userFilter}
-                    onSelectionChange={setUserFilter}
-                  >
-                    {userOptions.map((user) => (
-                      <Dropdown.Item id={user} textValue={user}>
-                        <Dropdown.ItemIndicator />
-                        <Label>{user}</Label>
-                      </Dropdown.Item>
-                    ))}
-                  </Dropdown.Menu>
-                </Dropdown.Popover>
-              </Dropdown>
-            )}
-
-            {/* Action Filter */}
-            {actionOptions.length > 0 && (
-              <Dropdown>
-                <Button variant='tertiary'>
-                  <IconFilter stroke={1.5} />
-                  Action
-                  <IconChevronDown stroke={1.5} />
-                </Button>
-                <Dropdown.Popover className='max-h-64 overflow-y-auto'>
-                  <Dropdown.Menu
-                    selectionMode='multiple'
-                    selectedKeys={actionFilter}
-                    onSelectionChange={setActionFilter}
-                  >
-                    {actionOptions.map((action) => {
-                      const color = getActionColor(action);
-                      return (
-                        <Dropdown.Item id={action} textValue={action}>
+              {/* Object Type Filter */}
+              {objectTypeOptions.length > 0 && (
+                <Dropdown>
+                  <Button variant='tertiary' fullWidth>
+                    <IconFilter stroke={1.5} />
+                    Object Type
+                  </Button>
+                  <Dropdown.Popover className='max-h-64 overflow-y-auto'>
+                    <Dropdown.Menu
+                      selectionMode='multiple'
+                      selectedKeys={objectTypeFilter}
+                      onSelectionChange={setObjectTypeFilter}
+                    >
+                      {objectTypeOptions.map((type) => (
+                        <Dropdown.Item id={type} key={type} textValue={type}>
                           <Dropdown.ItemIndicator />
-                          <Label>
-                            <Chip
-                              color={color}
-                              variant='soft'
-                              className='uppercase'
-                            >
-                              {action}
-                            </Chip>
-                          </Label>
+                          <Label>{type}</Label>
                         </Dropdown.Item>
-                      );
-                    })}
-                  </Dropdown.Menu>
-                </Dropdown.Popover>
-              </Dropdown>
-            )}
-
-            {/* Object Type Filter */}
-            {objectTypeOptions.length > 0 && (
-              <Dropdown>
-                <Button variant='tertiary'>
-                  <IconFilter stroke={1.5} />
-                  Object Type
-                  <IconChevronDown stroke={1.5} />
-                </Button>
-                <Dropdown.Popover className='max-h-64 overflow-y-auto'>
-                  <Dropdown.Menu
-                    selectionMode='multiple'
-                    selectedKeys={objectTypeFilter}
-                    onSelectionChange={setObjectTypeFilter}
+                      ))}
+                    </Dropdown.Menu>
+                  </Dropdown.Popover>
+                </Dropdown>
+              )}
+            </ButtonGroup>
+            {/* User Filter */}
+            <Autocomplete
+              className='w-64'
+              placeholder='Filter by user...'
+              selectionMode='multiple'
+              isOpen={isUserFilterOpen}
+              onOpenChange={setIsUserFilterOpen}
+              value={userFilter}
+              onChange={(keys) => setUserFilter(keys || [])}
+            >
+              <Label>User</Label>
+              <Autocomplete.Trigger>
+                <Autocomplete.Value>
+                  {({ defaultChildren, isPlaceholder, state }) => {
+                    if (isPlaceholder || state.selectedItems.length === 0) {
+                      return defaultChildren;
+                    }
+                    const selectedItemsKeys = state.selectedItems.map(
+                      (item) => item.key
+                    );
+                    return (
+                      <TagGroup size='sm' onRemove={onRemoveUserTags}>
+                        <TagGroup.List>
+                          {selectedItemsKeys.map((selectedItemKey) => {
+                            const selectedUser = searchedUsers.find(
+                              (user) => String(user.id) === selectedItemKey
+                            );
+                            if (!selectedUser) {
+                              return (
+                                <Tag key={selectedItemKey} id={selectedItemKey}>
+                                  User {selectedItemKey}
+                                </Tag>
+                              );
+                            }
+                            return (
+                              <Tag
+                                key={selectedUser.id}
+                                id={String(selectedUser.id)}
+                              >
+                                <Avatar className='size-4' size='sm'>
+                                  <AvatarImage
+                                    src={`https://${domoInstance}.domo.com/api/content/v1/avatar/USER/${selectedUser.id}?size=100`}
+                                  />
+                                  <AvatarFallback>
+                                    {selectedUser.displayName
+                                      ?.charAt(0)
+                                      .toUpperCase()}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <span>{selectedUser.displayName}</span>
+                              </Tag>
+                            );
+                          })}
+                        </TagGroup.List>
+                      </TagGroup>
+                    );
+                  }}
+                </Autocomplete.Value>
+                <Autocomplete.ClearButton />
+                <Autocomplete.Indicator />
+              </Autocomplete.Trigger>
+              <Autocomplete.Popover>
+                <Autocomplete.Filter
+                  inputValue={userSearchText}
+                  onInputChange={setUserSearchText}
+                >
+                  <SearchField autoFocus name='user-search' variant='secondary'>
+                    <SearchField.Group>
+                      <SearchField.SearchIcon />
+                      <SearchField.Input placeholder='Search users...' />
+                      {isLoadingUsers ? (
+                        <Spinner size='sm' className='mr-2' />
+                      ) : (
+                        <SearchField.ClearButton />
+                      )}
+                    </SearchField.Group>
+                  </SearchField>
+                  <ListBox
+                    className='max-h-64 overflow-y-auto'
+                    renderEmptyState={() => (
+                      <EmptyState>
+                        {isLoadingUsers ? 'Loading...' : 'No users found'}
+                      </EmptyState>
+                    )}
                   >
-                    {objectTypeOptions.map((type) => (
-                      <Dropdown.Item id={type} textValue={type}>
-                        <Dropdown.ItemIndicator />
-                        <Label>{type}</Label>
-                      </Dropdown.Item>
+                    {searchedUsers.map((user) => (
+                      <ListBox.Item
+                        key={user.id}
+                        id={String(user.id)}
+                        textValue={user.displayName}
+                      >
+                        <Avatar size='sm'>
+                          <AvatarImage
+                            src={`https://${domoInstance}.domo.com/api/content/v1/avatar/USER/${user.id}?size=100`}
+                          />
+                          <AvatarFallback>
+                            {user.displayName?.charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className='flex flex-col'>
+                          <Label>{user.displayName}</Label>
+                          <Description>{user.emailAddress}</Description>
+                        </div>
+                        <ListBox.ItemIndicator />
+                      </ListBox.Item>
                     ))}
-                  </Dropdown.Menu>
-                </Dropdown.Popover>
-              </Dropdown>
-            )}
-          </>
+                    {hasMoreUsers && (
+                      <ListBoxLoadMoreItem
+                        isLoading={isLoadingMoreUsers}
+                        onLoadMore={loadMoreUsers}
+                      >
+                        <div className='flex items-center justify-center gap-2 py-2'>
+                          <Spinner size='sm' />
+                          <span className='text-sm text-muted'>
+                            Loading more...
+                          </span>
+                        </div>
+                      </ListBoxLoadMoreItem>
+                    )}
+                  </ListBox>
+                </Autocomplete.Filter>
+              </Autocomplete.Popover>
+            </Autocomplete>
+          </div>
         }
       />
     </div>

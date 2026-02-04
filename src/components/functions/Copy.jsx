@@ -36,6 +36,12 @@ export function Copy({
   const [isCopied, setIsCopied] = useState(false);
   const [isHolding, setIsHolding] = useState(false);
   const holdTimeoutRef = useRef(null);
+  const longPressDisabled =
+    isDisabled ||
+    !currentContext?.domoObject?.id ||
+    !['DATA_SOURCE', 'DATA_APP_VIEW', 'WORKSHEET_VIEW'].includes(
+      currentContext?.domoObject?.typeId
+    );
 
   const handlePressStart = () => {
     setIsHolding(true);
@@ -125,22 +131,14 @@ export function Copy({
   };
   return (
     <Tooltip delay={400} closeDelay={0}>
-      <Dropdown
-        trigger='longPress'
-        isDisabled={
-          isDisabled ||
-          !['DATA_SOURCE', 'DATA_APP_VIEW', 'WORKSHEET_VIEW'].includes(
-            currentContext?.domoObject?.typeId
-          )
-        }
-      >
+      <Dropdown trigger='longPress' isDisabled={longPressDisabled}>
         <Button
           variant='tertiary'
           fullWidth
           isIconOnly
           onPress={handlePress}
-          onPressStart={handlePressStart}
-          onPressEnd={handlePressEnd}
+          onPressStart={longPressDisabled ? undefined : handlePressStart}
+          onPressEnd={longPressDisabled ? undefined : handlePressEnd}
           isDisabled={isDisabled || !currentContext?.domoObject?.id}
           className='relative overflow-visible'
         >
@@ -204,8 +202,9 @@ export function Copy({
 
       <Tooltip.Content className='flex flex-col items-center text-center'>
         <span>Copy ID</span>
-        {[''].includes(currentContext?.domoObject?.typeId)}
-        <span className='italic'>Hold for more options</span>
+        {!longPressDisabled && (
+          <span className='italic'>Hold for more options</span>
+        )}
       </Tooltip.Content>
     </Tooltip>
   );
