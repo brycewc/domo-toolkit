@@ -108,7 +108,7 @@ export function ShareWithSelf({ currentContext, onStatusUpdate, isDisabled }) {
         {isSharing ? (
           <Spinner size='sm' color='currentColor' />
         ) : (
-          <IconUserPlus size={4} />
+          <IconUserPlus stroke={1.5} />
         )}
       </Button>
       <Tooltip.Content>

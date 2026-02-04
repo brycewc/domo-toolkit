@@ -1,7 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Tabs } from '@heroui/react';
 import { useTheme } from '@/hooks';
-import { ActivityLogTable, FaviconSettings, AppSettings } from '@/components';
+import {
+  ActivityLogTable,
+  AppSettings,
+  FaviconSettings,
+  shouldShowWelcomePage,
+  WelcomePage
+} from '@/components';
 
 export default function App() {
   // Apply theme
@@ -14,6 +20,16 @@ export default function App() {
   };
 
   const [selectedTab, setSelectedTab] = useState(getInitialTab);
+  const [showWelcome, setShowWelcome] = useState(null);
+
+  // Check if we should show welcome page
+  useEffect(() => {
+    async function checkWelcome() {
+      const shouldShow = await shouldShowWelcomePage();
+      setShowWelcome(shouldShow);
+    }
+    checkWelcome();
+  }, []);
 
   // Update URL hash when tab changes
   const handleTabChange = (tabId) => {
@@ -31,7 +47,7 @@ export default function App() {
   }, []);
 
   return (
-    <div className='flex h-screen justify-center bg-background p-4'>
+    <div className='flex h-screen justify-center p-4'>
       <Tabs
         className='h-[calc(100vh-4)] w-full items-center rounded-sm'
         selectedKey={selectedTab}
@@ -40,6 +56,12 @@ export default function App() {
       >
         <Tabs.ListContainer className='flex w-full max-w-3xl flex-row justify-center'>
           <Tabs.List>
+            {showWelcome && (
+              <Tabs.Tab id='welcome'>
+                Welcome
+                <Tabs.Indicator />
+              </Tabs.Tab>
+            )}
             <Tabs.Tab id='favicon'>
               Favicon
               <Tabs.Indicator />
@@ -56,6 +78,19 @@ export default function App() {
             )}
           </Tabs.List>
         </Tabs.ListContainer>
+        <Tabs.Panel
+          className='flex h-full max-w-3xl flex-col px-4'
+          id='welcome'
+        >
+          <div className='w-full justify-start'>
+            <h3 className='mb-2 text-lg font-semibold'>Welcome</h3>
+            <p className='text-sm text-muted'>
+              Welcome to the application! Use the tabs above to navigate through
+              different settings and features.
+            </p>
+          </div>
+          <WelcomePage />
+        </Tabs.Panel>
         <Tabs.Panel
           className='flex h-full max-w-3xl flex-col px-4'
           id='favicon'

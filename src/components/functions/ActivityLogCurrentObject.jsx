@@ -173,7 +173,7 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
         'src/options/index.html#activity-log'
       );
 
-      await chrome.tabs.create({ url: optionsUrl });
+      window.open(optionsUrl, '_blank', 'noopener,noreferrer');
     } catch (err) {
       console.error('Error opening activity log:', err);
       onStatusUpdate?.(
@@ -193,64 +193,62 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
       currentContext?.domoObject?.typeId
     );
 
+  const dropdowContent = (
+    <Dropdown>
+      <Button
+        variant='tertiary'
+        isIconOnly
+        aria-label='More options'
+        isDisabled={isDropdownDisabled}
+      >
+        <IconChevronDown stroke={1} />
+      </Button>
+      <Dropdown.Popover className='w-full max-w-72.5' placement='bottom end'>
+        <Dropdown.Menu onAction={handleClick}>
+          <Dropdown.Item id='child-cards' textValue='Child cards'>
+            <div className='flex h-8 items-start justify-center pt-px'>
+              <IconChartBar className='size-4 shrink-0' stroke={1.5} />
+            </div>
+            <div className='flex flex-col'>
+              <Label>Child cards</Label>
+              <Description className='text-xs'>
+                View activity log for all cards on this{' '}
+                {currentContext?.domoObject?.typeName?.toLowerCase() ||
+                  'object'}
+              </Description>
+            </div>
+          </Dropdown.Item>
+          <Dropdown.Item id='child-pages' textValue='Child pages'>
+            <div className='flex h-8 items-start justify-center pt-px'>
+              <IconCopy className='size-4 shrink-0' stroke={1.5} />
+            </div>
+            <div className='flex flex-col'>
+              <Label>Child pages</Label>
+              <Description className='text-xs'>
+                View activity log for all pages containing cards from this{' '}
+                {currentContext?.domoObject?.typeName?.toLowerCase() ||
+                  'object'}
+              </Description>
+            </div>
+          </Dropdown.Item>
+        </Dropdown.Menu>
+      </Dropdown.Popover>
+    </Dropdown>
+  );
+
   return (
-    <ButtonGroup className='min-w-fit flex-1 basis-[49%]'>
+    <ButtonGroup className='h-full min-w-fit flex-1 basis-[48%]'>
       <Button
         variant='tertiary'
         onPress={handleClick}
         isDisabled={isDisabled}
-        className={!isDropdownDisabled ? 'pl-10' : ''}
         isPending={isLoading}
         fullWidth
       >
-        <IconFileDescription size={4} />
+        <IconFileDescription stroke={1.5} />
         Activity Log
       </Button>
-      {!isDropdownDisabled && (
-        <Dropdown>
-          <Button
-            variant='tertiary'
-            isIconOnly
-            aria-label='More options'
-            isDisabled={isDropdownDisabled}
-          >
-            <IconChevronDown size={4} />
-          </Button>
-          <Dropdown.Popover
-            className='w-full max-w-72.5'
-            placement='bottom end'
-          >
-            <Dropdown.Menu onAction={handleClick}>
-              <Dropdown.Item id='child-cards' textValue='Child cards'>
-                <div className='flex h-8 items-start justify-center pt-px'>
-                  <IconChartBar size={4} className='size-4 shrink-0' />
-                </div>
-                <div className='flex flex-col'>
-                  <Label>Child cards</Label>
-                  <Description className='text-xs'>
-                    View activity log for all cards on this{' '}
-                    {currentContext?.domoObject?.typeName?.toLowerCase() ||
-                      'object'}
-                  </Description>
-                </div>
-              </Dropdown.Item>
-              <Dropdown.Item id='child-pages' textValue='Child pages'>
-                <div className='flex h-8 items-start justify-center pt-px'>
-                  <IconCopy size={4} className='size-4 shrink-0' />
-                </div>
-                <div className='flex flex-col'>
-                  <Label>Child pages</Label>
-                  <Description className='text-xs'>
-                    View activity log for all pages containing cards from this{' '}
-                    {currentContext?.domoObject?.typeName?.toLowerCase() ||
-                      'object'}
-                  </Description>
-                </div>
-              </Dropdown.Item>
-            </Dropdown.Menu>
-          </Dropdown.Popover>
-        </Dropdown>
-      )}
+      {!isDropdownDisabled && dropdowContent}
     </ButtonGroup>
   );
 }

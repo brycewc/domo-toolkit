@@ -13,10 +13,21 @@ import {
   Checkbox,
   Dropdown,
   Label,
-  IconChevronDown,
-  SearchField
+  SearchField,
+  Spinner,
+  Tooltip
 } from '@heroui/react';
-import { IconColumns, IconPlus } from '@tabler/icons-react';
+import {
+  IconChevronDown,
+  IconColumns,
+  IconDownload,
+  IconFileTypeCsv,
+  IconFileTypeXls,
+  IconPlus,
+  IconRefresh
+} from '@tabler/icons-react';
+import { exportToCSV, exportToExcel, generateExportFilename } from '@/utils';
+import { AnimatedCheck } from './../AnimatedCheck';
 
 /**
  * DataTable Component
@@ -42,6 +53,12 @@ import { IconColumns, IconPlus } from '@tabler/icons-react';
  * @param {Object} props.initialColumnVisibility - Initial column visibility state
  * @param {Boolean} props.enableSearch - Enable search field (default: true)
  * @param {React.ReactNode} props.customFilters - Custom filter components to render
+ * @param {Object} props.exportConfig - Export configuration
+ * @param {Boolean} props.exportConfig.enabled - Enable export functionality
+ * @param {String} props.exportConfig.filename - Base filename for exports
+ * @param {Function} props.exportConfig.onFetchAllData - Async function to fetch all data for export (returns Promise<Array>)
+ * @param {Function} props.onRefresh - Callback when refresh button is clicked
+ * @param {Boolean} props.isRefreshing - Whether the table is currently refreshing
  */
 export function DataTable({
   columns = [],
@@ -55,7 +72,10 @@ export function DataTable({
   enableSelection = true,
   enableSearch = true,
   onLoadMore,
-  customFilters = null
+  customFilters = null,
+  exportConfig = null,
+  onRefresh = null,
+  isRefreshing = false
 }) {
   const [sorting, setSorting] = useState(initialSorting);
   const [columnFilters, setColumnFilters] = useState([]);
@@ -65,6 +85,7 @@ export function DataTable({
   const [rowSelection, setRowSelection] = useState({});
   const [globalFilter, setGlobalFilter] = useState('');
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   const tableContainerRef = useRef(null);
 
@@ -169,11 +190,53 @@ export function DataTable({
     .getAllColumns()
     .filter((column) => column.getCanHide() && column.id !== 'select');
 
+  // Get visible columns for export (excluding select column)
+  const getVisibleColumnsForExport = () => {
+    return table
+      .getAllColumns()
+      .filter((col) => col.getIsVisible() && col.id !== 'select')
+      .map((col) => col.columnDef);
+  };
+
+  // Handle export
+  const handleExport = async (format) => {
+    if (!exportConfig?.enabled) return;
+
+    setIsExporting(true);
+    try {
+      // Get data to export - either fetch all or use current filtered data
+      let exportData;
+      if (exportConfig.onFetchAllData) {
+        // Fetch all data (paginate through API)
+        exportData = await exportConfig.onFetchAllData();
+      } else {
+        // Use currently filtered/visible data
+        exportData = table
+          .getFilteredRowModel()
+          .rows.map((row) => row.original);
+      }
+
+      const visibleColumns = getVisibleColumnsForExport();
+      const filename =
+        exportConfig.filename || generateExportFilename(entityName);
+
+      if (format === 'csv') {
+        exportToCSV(exportData, visibleColumns, filename);
+      } else if (format === 'xlsx') {
+        exportToExcel(exportData, visibleColumns, filename);
+      }
+    } catch (error) {
+      console.error('Export failed:', error);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <Card className='h-fit max-h-[calc(100vh-10rem)] w-full'>
       <Card.Header>
         {/* Top Controls Bar */}
-        <div className='items-between flex flex-col justify-center gap-1 sm:flex-row sm:items-center sm:justify-between'>
+        <div className='items-between flex w-full flex-col justify-center gap-1 sm:flex-row sm:items-center sm:justify-between'>
           <div
             className={`flex items-center gap-1 ${
               enableSelection && hasSelectColumn
@@ -199,45 +262,107 @@ export function DataTable({
             )}
 
             {/* Custom Filters */}
-            <div className='flex flex-row justify-start gap-1'>
+            <div className='flex flex-1 flex-row justify-start gap-1'>
               {customFilters}
             </div>
 
-            {/* Column Visibility Dropdown */}
-            <Dropdown>
-              <Button variant='tertiary'>
-                <IconColumns size={4} />
-                Columns
-                <IconChevronDown className='size-4 text-foreground' />
-              </Button>
-              <Dropdown.Popover>
-                <Dropdown.Menu
-                  selectionMode='multiple'
-                  selectedKeys={
-                    new Set(
-                      toggleableColumns
-                        .filter((col) => col.getIsVisible())
-                        .map((col) => col.id)
-                    )
-                  }
-                  onSelectionChange={(keys) => {
-                    toggleableColumns.forEach((column) => {
-                      column.toggleVisibility(keys.has(column.id));
-                    });
-                  }}
-                >
-                  {toggleableColumns.map((column) => (
-                    <Dropdown.Item
-                      id={column.id}
-                      textValue={column.columnDef.header}
+            <div className='flex flex-row items-center justify-end gap-1'>
+              {/* Column Visibility Dropdown */}
+              <Dropdown>
+                <Button variant='tertiary'>
+                  <IconColumns stroke={1.5} />
+                  Columns
+                </Button>
+                <Dropdown.Popover>
+                  <Dropdown.Menu
+                    selectionMode='multiple'
+                    selectedKeys={
+                      new Set(
+                        toggleableColumns
+                          .filter((col) => col.getIsVisible())
+                          .map((col) => col.id)
+                      )
+                    }
+                    onSelectionChange={(keys) => {
+                      toggleableColumns.forEach((column) => {
+                        column.toggleVisibility(keys.has(column.id));
+                      });
+                    }}
+                  >
+                    {toggleableColumns.map((column) => (
+                      <Dropdown.Item
+                        id={column.id}
+                        textValue={column.columnDef.header}
+                      >
+                        <Dropdown.ItemIndicator>
+                          {({ isSelected }) =>
+                            isSelected ? <AnimatedCheck stroke={1.5} /> : null
+                          }
+                        </Dropdown.ItemIndicator>
+                        <Label>{column.columnDef.header}</Label>
+                      </Dropdown.Item>
+                    ))}
+                  </Dropdown.Menu>
+                </Dropdown.Popover>
+              </Dropdown>
+
+              {/* Export Dropdown */}
+              {exportConfig?.enabled && (
+                <Tooltip delay={400} closeDelay={0}>
+                  <Dropdown>
+                    <Button
+                      variant='tertiary'
+                      isDisabled={isExporting || data.length === 0}
+                      isPending={isExporting}
+                      isIconOnly
                     >
-                      <Dropdown.ItemIndicator />
-                      <Label>{column.columnDef.header}</Label>
-                    </Dropdown.Item>
-                  ))}
-                </Dropdown.Menu>
-              </Dropdown.Popover>
-            </Dropdown>
+                      {({ isPending }) =>
+                        isPending ? (
+                          <Spinner size='sm' color='currentColor' />
+                        ) : (
+                          <IconDownload stroke={1.5} />
+                        )
+                      }
+                    </Button>
+                    <Dropdown.Popover>
+                      <Dropdown.Menu onAction={(key) => handleExport(key)}>
+                        <Dropdown.Item id='csv' textValue='Export as CSV'>
+                          <IconFileTypeCsv stroke={1.5} />
+                          <Label>Export as CSV</Label>
+                        </Dropdown.Item>
+                        <Dropdown.Item id='xlsx' textValue='Export as Excel'>
+                          <IconFileTypeXls stroke={1.5} />
+                          <Label>Export as Excel</Label>
+                        </Dropdown.Item>
+                      </Dropdown.Menu>
+                    </Dropdown.Popover>
+                  </Dropdown>
+                  <Tooltip.Content>Export</Tooltip.Content>
+                </Tooltip>
+              )}
+
+              {/* Refresh Button */}
+              {onRefresh && (
+                <Tooltip delay={400} closeDelay={0}>
+                  <Button
+                    variant='tertiary'
+                    onPress={onRefresh}
+                    isDisabled={isRefreshing}
+                    isPending={isRefreshing}
+                    isIconOnly
+                  >
+                    {({ isPending }) =>
+                      isPending ? (
+                        <Spinner size='sm' color='currentColor' />
+                      ) : (
+                        <IconRefresh stroke={1.5} />
+                      )
+                    }
+                  </Button>
+                  <Tooltip.Content>Refresh</Tooltip.Content>
+                </Tooltip>
+              )}
+            </div>
           </div>
 
           {/* Bulk Actions & Add New Buttons */}
@@ -247,7 +372,10 @@ export function DataTable({
               <Dropdown>
                 <Button variant='secondary' isDisabled={selectedCount === 0}>
                   Actions ({selectedCount})
-                  <IconChevronDown className='size-4 text-foreground' />
+                  <IconChevronDown
+                    stroke={1.5}
+                    className='size-4 text-foreground'
+                  />
                 </Button>
                 <Dropdown.Popover>
                   <Dropdown.Menu
@@ -281,7 +409,7 @@ export function DataTable({
             {/* Add New Button */}
             {onAdd && (
               <Button onPress={onAdd}>
-                <IconPlus size={4} />
+                <IconPlus stroke={1.5} />
                 Add New
               </Button>
             )}
@@ -330,9 +458,15 @@ export function DataTable({
                           {header.column.getCanSort() && (
                             <span className='text-muted'>
                               {header.column.getIsSorted() === 'asc' ? (
-                                <IconChevronDown className='size-4 rotate-180 text-foreground' />
+                                <IconChevronDown
+                                  stroke={1.5}
+                                  className='size-4 rotate-180 text-foreground'
+                                />
                               ) : header.column.getIsSorted() === 'desc' ? (
-                                <IconChevronDown className='size-4 text-foreground' />
+                                <IconChevronDown
+                                  stroke={1.5}
+                                  className='size-4 text-foreground'
+                                />
                               ) : (
                                 <div className='size-4' />
                               )}

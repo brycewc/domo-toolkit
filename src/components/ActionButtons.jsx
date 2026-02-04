@@ -26,7 +26,7 @@ import {
   UpdateDataflowDetails,
   UpdateOwner
 } from '@/components';
-import { openSidepanel } from '@/utils';
+import { openSidepanel, isSidepanel } from '@/utils';
 
 export function ActionButtons({
   currentContext,
@@ -47,13 +47,13 @@ export function ActionButtons({
 
   const showStatus = useCallback(
     (title, description, status = 'accent', timeout = 3000) => {
-      console.log('[ActionButtons] showStatus called:', {
-        title,
-        description,
-        status,
-        timeout,
-        key: Date.now()
-      });
+      // console.log('[ActionButtons] showStatus called:', {
+      //   title,
+      //   description,
+      //   status,
+      //   timeout,
+      //   key: Date.now()
+      // });
       setStatusBar({
         title,
         description,
@@ -81,7 +81,7 @@ export function ActionButtons({
   const isDomoPage = currentContext?.isDomoPage ?? false;
 
   return (
-    <div className='flex w-full min-w-xs flex-col items-center justify-center gap-1'>
+    <div className='flex w-full flex-col items-center justify-center space-y-1'>
       {isLoadingCurrentContext ? (
         <>
           <Skeleton className='h-10 w-full' />
@@ -92,11 +92,11 @@ export function ActionButtons({
       ) : (
         <>
           <Card className='h-full w-full p-0'>
-            <Card.Content className='p-2'>
+            <Card.Content className='p-1'>
               <Disclosure
                 isExpanded={isExpanded}
                 onExpandedChange={setIsExpanded}
-                className={isExpanded ? 'space-y-1' : ''}
+                className='flex h-full w-full flex-col'
               >
                 <Disclosure.Heading className='w-full'>
                   <ButtonGroup fullWidth>
@@ -128,10 +128,10 @@ export function ActionButtons({
                         isIconOnly
                         onPress={() => {
                           chrome.runtime.openOptionsPage();
-                          window.close();
+                          if (isSidepanel()) window.close();
                         }}
                       >
-                        <IconSettings size={4} />
+                        <IconSettings stroke={1.5} />
                       </Button>
                       <Tooltip.Content>Extension settings</Tooltip.Content>
                     </Tooltip>
@@ -144,7 +144,7 @@ export function ActionButtons({
                           isIconOnly
                         >
                           <Disclosure.Indicator>
-                            <IconChevronDown size={4} />
+                            <IconChevronDown stroke={1.5} />
                           </Disclosure.Indicator>
                         </Button>
 
@@ -158,15 +158,15 @@ export function ActionButtons({
                           isIconOnly
                           onPress={openSidepanel}
                         >
-                          <IconLayoutSidebarRightExpand size={4} />
+                          <IconLayoutSidebarRightExpand stroke={1.5} />
                         </Button>
                         <Tooltip.Content>Open side panel</Tooltip.Content>
                       </Tooltip>
                     )}
                   </ButtonGroup>
                 </Disclosure.Heading>
-                <Disclosure.Content className='space-y-1'>
-                  <div className='flex w-full flex-wrap place-items-center items-center justify-center gap-1'>
+                <Disclosure.Content className='flex h-full w-full flex-col items-center justify-center gap-1'>
+                  <div className='mt-1 flex h-full w-full flex-wrap place-items-center items-center justify-center gap-1'>
                     <ActivityLogCurrentObject
                       currentContext={currentContext}
                       onStatusUpdate={showStatus}
@@ -181,35 +181,33 @@ export function ActionButtons({
                       onStatusUpdate={showStatus}
                     />
                   </div>
-                  <div className='flex w-full flex-wrap place-items-center items-center justify-center gap-1'>
-                    {(currentContext?.domoObject?.typeId === 'PAGE' ||
-                      currentContext?.domoObject?.typeId === 'DATA_APP_VIEW' ||
-                      currentContext?.domoObject?.typeId === 'CARD' ||
-                      currentContext?.domoObject?.typeId === 'DATA_SOURCE') && (
-                      <GetPages
-                        currentContext={currentContext}
-                        onStatusUpdate={showStatus}
-                        isDisabled={!isDomoPage}
-                        onCollapseActions={
-                          collapsable ? () => setIsExpanded(false) : undefined
-                        }
-                      />
-                    )}
-                    {currentContext?.domoObject?.typeId === 'DATAFLOW_TYPE' && (
-                      <UpdateDataflowDetails
-                        currentContext={currentContext}
-                        onStatusUpdate={showStatus}
-                      />
-                    )}
-                    {(currentContext?.domoObject?.typeId === 'ALERT' ||
-                      currentContext?.domoObject?.typeId ===
-                        'WORKFLOW_MODEL') && (
-                      <UpdateOwner
-                        currentContext={currentContext}
-                        onStatusUpdate={showStatus}
-                      />
-                    )}
-                  </div>
+                  {(currentContext?.domoObject?.typeId === 'PAGE' ||
+                    currentContext?.domoObject?.typeId === 'DATA_APP_VIEW' ||
+                    currentContext?.domoObject?.typeId === 'CARD' ||
+                    currentContext?.domoObject?.typeId === 'DATA_SOURCE') && (
+                    <GetPages
+                      currentContext={currentContext}
+                      onStatusUpdate={showStatus}
+                      isDisabled={!isDomoPage}
+                      onCollapseActions={
+                        collapsable ? () => setIsExpanded(false) : undefined
+                      }
+                    />
+                  )}
+                  {currentContext?.domoObject?.typeId === 'DATAFLOW_TYPE' && (
+                    <UpdateDataflowDetails
+                      currentContext={currentContext}
+                      onStatusUpdate={showStatus}
+                    />
+                  )}
+                  {(currentContext?.domoObject?.typeId === 'ALERT' ||
+                    currentContext?.domoObject?.typeId ===
+                      'WORKFLOW_MODEL') && (
+                    <UpdateOwner
+                      currentContext={currentContext}
+                      onStatusUpdate={showStatus}
+                    />
+                  )}
                 </Disclosure.Content>
               </Disclosure>
             </Card.Content>

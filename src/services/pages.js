@@ -291,13 +291,15 @@ export async function getPagesForCards(cardIds, tabId = null) {
                     id: page.appPageId,
                     name:
                       page.appPageTitle || `Worksheet View ${page.appPageId}`,
-                    appId: page.appId // Include appId for URL building
+                    appId: page.appId,
+                    appName: page.appTitle || `App ${page.appId}`
                   });
                 } else {
                   allAppPages.push({
                     id: page.appPageId,
                     name: page.appPageTitle || `App Page ${page.appPageId}`,
-                    appId: page.appId // Include appId for URL building
+                    appId: page.appId,
+                    appName: page.appTitle || `App ${page.appId}`
                   });
                 }
               }
@@ -340,17 +342,19 @@ export async function getPagesForCards(cardIds, tabId = null) {
             id: String(id),
             name
           })),
-          ...appPages.map(({ id, name, appId }) => ({
+          ...appPages.map(({ id, name, appId, appName }) => ({
             type: 'DATA_APP_VIEW',
             id: String(id),
             name,
-            appId // Include appId for URL building
+            appId,
+            appName
           })),
-          ...worksheetViews.map(({ id, name, appId }) => ({
+          ...worksheetViews.map(({ id, name, appId, appName }) => ({
             type: 'WORKSHEET_VIEW',
             id: String(id),
             name,
-            appId // Include appId for URL building
+            appId,
+            appName
           })),
           ...reportPages.map(({ id, name }) => ({
             type: 'REPORT_BUILDER_VIEW',

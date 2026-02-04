@@ -11,7 +11,7 @@ export default function App() {
   const [isLoadingCurrentContext, setIsLoadingCurrentContext] = useState(true);
   const [currentTabId, setCurrentTabId] = useState(null);
 
-  // Request initial context on mount
+  // Get context from service worker
   useEffect(() => {
     // Get current window and request context from service worker
     chrome.windows.getCurrent(async (window) => {
@@ -21,11 +21,9 @@ export default function App() {
           type: 'GET_TAB_CONTEXT',
           windowId: window.id
         });
-        console.log('[Popup] GET_TAB_CONTEXT response:', response);
         if (response.success && response.context) {
           // Reconstruct DomoContext from plain object to get class instance with methods
           const context = DomoContext.fromJSON(response.context);
-          console.log('[Popup] Reconstructed context:', context);
           setCurrentContext(context);
           setCurrentTabId(response.tabId);
         } else {
@@ -49,10 +47,6 @@ export default function App() {
         if (message.tabId === currentTabId) {
           const context = DomoContext.fromJSON(message.context);
           setCurrentContext(context);
-          console.log(
-            '[Popup] Received update and reconstructed message context:',
-            message
-          );
         }
         sendResponse({ received: true });
         return true;
@@ -67,7 +61,7 @@ export default function App() {
   }, [currentTabId]);
 
   return (
-    <div className='p-1'>
+    <div className='h-fit min-w-xs p-1'>
       <ActionButtons
         currentContext={currentContext}
         isLoadingCurrentContext={isLoadingCurrentContext}

@@ -287,7 +287,7 @@ export class DomoObject {
       );
     }
     const url = this.url || (await this.buildUrl(this.baseUrl, tabId));
-    await chrome.tabs.create({ url });
+    window.open(url, '_blank', 'noopener,noreferrer');
   }
 
   /**

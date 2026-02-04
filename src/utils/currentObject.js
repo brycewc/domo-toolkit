@@ -70,6 +70,11 @@ export async function detectCurrentObject() {
       objectType = 'DRILL_VIEW';
       break;
 
+    case url.includes('cardid='):
+      objectType = 'CARD';
+      id = parts[parts.indexOf('cardid') + 1];
+      break;
+
     case url.includes('kpis/details/'):
       // Prefer Drill Path ID from breadcrumb when on a drill path
       try {

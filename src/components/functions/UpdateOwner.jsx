@@ -3,7 +3,6 @@ import {
   Avatar,
   AvatarFallback,
   AvatarImage,
-  CloseButton,
   Collection,
   ComboBox,
   Description,
@@ -18,9 +17,14 @@ import {
   Spinner,
   Tooltip
 } from '@heroui/react';
-import { IconUser, IconUserEdit } from '@tabler/icons-react';
+import {
+  IconChevronDown,
+  IconUser,
+  IconUserEdit,
+  IconX
+} from '@tabler/icons-react';
 import { updateOwner, getCurrentUserId, searchUsers } from '@/services';
-import { executeInPage, isSidepanel } from '@/utils';
+import { isSidepanel } from '@/utils';
 
 export function UpdateOwner({ currentContext, onStatusUpdate }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -180,7 +184,7 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
           currentContext?.domoObject.typeId !== 'WORKFLOW_MODEL'
         }
       >
-        <IconUserEdit size={4} />
+        <IconUserEdit stroke={1.5} />
         Update {currentContext?.domoObject.typeName} Owner
       </Button>
       <Modal.Backdrop>
@@ -189,7 +193,9 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
             <Modal.CloseTrigger
               className='absolute top-2 right-2'
               variant='ghost'
-            />
+            >
+              <IconX stroke={1.5} />
+            </Modal.CloseTrigger>
             <Form onSubmit={handleSubmit} id='update-owner-form'>
               <Modal.Header>
                 <Modal.Heading>
@@ -213,7 +219,9 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
                 >
                   <ComboBox.InputGroup variant='secondary'>
                     <Input placeholder='Search users...' />
-                    <ComboBox.Trigger />
+                    <ComboBox.Trigger>
+                      <IconChevronDown stroke={1} />
+                    </ComboBox.Trigger>
                   </ComboBox.InputGroup>
                   <ComboBox.Popover placement='bottom start'>
                     <ListBox
@@ -271,7 +279,7 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
                     isDisabled={isSubmitting || !currentUserId}
                     isIconOnly
                   >
-                    <IconUser size={4} />
+                    <IconUser stroke={1.5} />
                   </Button>
                   <Tooltip.Content>Update owner to yourself</Tooltip.Content>
                 </Tooltip>

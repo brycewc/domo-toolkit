@@ -9,10 +9,12 @@ import {
   Link,
   DateField,
   DateInputGroup,
-  Popover
+  Popover,
+  ButtonGroup
 } from '@heroui/react';
-import { IconChevronDown, IconRefresh, IconFilter } from '@tabler/icons-react';
+import { IconCalendarTime, IconFilter } from '@tabler/icons-react';
 import { DataTable } from './DataTable';
+import { UserFilterAutocomplete } from './UserFilterAutocomplete';
 import { getActivityLogForObject } from '@/services';
 import { DomoObject } from '@/models';
 import { ACTION_COLOR_PATTERNS } from '@/utils';
@@ -232,7 +234,7 @@ export function ActivityLogTable() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
-  const [userFilter, setUserFilter] = useState(new Set());
+  const [userFilter, setUserFilter] = useState([]); // Array of user IDs for Autocomplete
   const [actionFilter, setActionFilter] = useState(new Set());
   const [objectTypeFilter, setObjectTypeFilter] = useState(new Set());
   // Track pagination state per object: { "type:id": { offset, total, hasMore } }
@@ -274,17 +276,6 @@ export function ActivityLogTable() {
 
     loadObjects();
   }, []);
-
-  // Get unique users for filters
-  const userOptions = useMemo(() => {
-    const users = new Set();
-    events.forEach((event) => {
-      if (event.userName) {
-        users.add(event.userName);
-      }
-    });
-    return Array.from(users).sort();
-  }, [events]);
 
   // Get unique action types for filter
   const actionOptions = useMemo(() => {
@@ -337,9 +328,14 @@ export function ActivityLogTable() {
       });
     }
 
-    if (userFilter.size > 0) {
+    if (userFilter.length > 0) {
       filtered = filtered.filter((event) => {
-        return userFilter.has(event.userName);
+        // Filter by userId - handle both numeric and string ID types
+        const eventUserId = event.userId;
+        return userFilter.some(
+          (filterId) =>
+            filterId === eventUserId || String(filterId) === String(eventUserId)
+        );
       });
     }
 
@@ -657,13 +653,112 @@ export function ActivityLogTable() {
     setRefreshKey((prev) => prev + 1);
   }, []);
 
+  // Fetch all data for export - paginates through all objects
+  const fetchAllDataForExport = useCallback(async () => {
+    if (!tabId || objects.length === 0) {
+      return filteredEvents; // Return currently filtered events if no tab/objects
+    }
+
+    const allEvents = [];
+    const exportPageSize = 1000; // Use max page size for export
+
+    // Fetch all events from each object
+    for (const { type, id } of objects) {
+      let offset = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        try {
+          const result = await getActivityLogForObject({
+            objectType: type,
+            objectId: id,
+            limit: exportPageSize,
+            offset,
+            tabId
+          });
+
+          const events = result?.events ?? [];
+          const total = result?.total ?? 0;
+
+          allEvents.push(...events);
+
+          offset += events.length;
+          hasMore = offset < total && events.length > 0;
+        } catch (err) {
+          console.error(`Error fetching all events for ${type}:${id}:`, err);
+          hasMore = false; // Stop on error for this object
+        }
+      }
+    }
+
+    // Sort all events by timestamp descending
+    allEvents.sort((a, b) => new Date(b.time) - new Date(a.time));
+
+    // Apply filters to match current view
+    let filtered = allEvents;
+
+    // Filter by date range
+    if (startDate || endDate) {
+      filtered = filtered.filter((event) => {
+        const eventDate = new Date(event.time);
+        eventDate.setHours(0, 0, 0, 0);
+
+        if (startDate && endDate) {
+          const start = new Date(startDate);
+          const end = new Date(endDate);
+          start.setHours(0, 0, 0, 0);
+          end.setHours(23, 59, 59, 999);
+          return eventDate >= start && eventDate <= end;
+        } else if (startDate) {
+          const start = new Date(startDate);
+          start.setHours(0, 0, 0, 0);
+          return eventDate >= start;
+        } else if (endDate) {
+          const end = new Date(endDate);
+          end.setHours(23, 59, 59, 999);
+          return eventDate <= end;
+        }
+        return true;
+      });
+    }
+
+    if (userFilter.length > 0) {
+      filtered = filtered.filter((event) =>
+        userFilter.includes(String(event.userId))
+      );
+    }
+
+    if (actionFilter.size > 0) {
+      filtered = filtered.filter((event) => {
+        const action = event.actionType?.toLowerCase();
+        return action && actionFilter.has(action);
+      });
+    }
+
+    if (objectTypeFilter.size > 0) {
+      filtered = filtered.filter(
+        (event) => event.objectType && objectTypeFilter.has(event.objectType)
+      );
+    }
+
+    return filtered;
+  }, [
+    tabId,
+    objects,
+    filteredEvents,
+    startDate,
+    endDate,
+    userFilter,
+    actionFilter,
+    objectTypeFilter
+  ]);
+
   // Handle row action
   const handleRowAction = (action, selectedRows) => {
     console.log(
       `Action "${action}" on ${selectedRows.length} event(s):`,
       selectedRows
     );
-    // TODO: Implement actions like export, copy details, etc.
   };
 
   if (error) {
@@ -673,7 +768,6 @@ export function ActivityLogTable() {
           <Alert.Indicator />
           <Alert.Content>
             <Alert.Title>Error Loading Activity Log</Alert.Title>
-
             <Alert.Description>{error}</Alert.Description>
           </Alert.Content>
         </Alert>
@@ -726,23 +820,23 @@ export function ActivityLogTable() {
           </h3>
           {total > 0 && (
             <p className='text-base text-muted'>
-              Showing {events.length.toLocaleString()} of{' '}
-              {total.toLocaleString()} events
+              {filteredEvents.length !== events.length ? (
+                <>
+                  Showing {filteredEvents.length.toLocaleString()} filtered of{' '}
+                  {events.length.toLocaleString()} fetched (
+                  {total.toLocaleString()} total)
+                </>
+              ) : (
+                <>
+                  Showing {events.length.toLocaleString()} of{' '}
+                  {total.toLocaleString()} events
+                </>
+              )}
               {isFetchingMore && ' (loading more...)'}
               {isSearching && ' (searching...)'}
             </p>
           )}
         </div>
-        <Button
-          variant='tertiary'
-          size='sm'
-          onPress={handleRefresh}
-          isDisabled={isInitialLoad || isSearching}
-          isPending={isInitialLoad}
-        >
-          <IconRefresh size={4} />
-          Refresh
-        </Button>
       </div>
       <DataTable
         columns={columns}
@@ -754,148 +848,139 @@ export function ActivityLogTable() {
         enableSelection={false}
         enableSearch={false}
         onLoadMore={fetchMoreEvents}
+        exportConfig={{
+          enabled: true,
+          filename: `activity-log_${activityLogType || 'export'}`,
+          onFetchAllData: fetchAllDataForExport
+        }}
+        onRefresh={handleRefresh}
+        isRefreshing={isInitialLoad || isSearching}
         customFilters={
-          <>
-            {/* Date Range Filter */}
-            <Popover>
-              <Button variant='tertiary'>
-                <IconFilter size={4} />
-                Date Range
-                <IconChevronDown size={4} />
-              </Button>
-              <Popover.Content className='w-72'>
-                <Popover.Dialog className='flex flex-col gap-3'>
-                  <DateField
-                    name='Start Date'
-                    value={startDate}
-                    onChange={setStartDate}
-                    granularity='day'
-                  >
-                    <Label>Start Date</Label>
-                    <DateInputGroup>
-                      <DateInputGroup.Input>
-                        {(segment) => (
-                          <DateInputGroup.Segment segment={segment} />
-                        )}
-                      </DateInputGroup.Input>
-                    </DateInputGroup>
-                  </DateField>
-                  <DateField
-                    name='End Date'
-                    value={endDate}
-                    onChange={setEndDate}
-                    granularity='day'
-                  >
-                    <Label>End Date</Label>
-                    <DateInputGroup>
-                      <DateInputGroup.Input>
-                        {(segment) => (
-                          <DateInputGroup.Segment segment={segment} />
-                        )}
-                      </DateInputGroup.Input>
-                    </DateInputGroup>
-                  </DateField>
-                  <Button
-                    variant='tertiary'
-                    size='sm'
-                    onPress={() => {
-                      setStartDate(null);
-                      setEndDate(null);
-                    }}
-                    isDisabled={!startDate && !endDate}
-                  >
-                    Clear
+          <div className='flex w-full flex-row items-center justify-start gap-1'>
+            <ButtonGroup variant='tertiary' fullWidth className='flex-1/2'>
+              {/* Date Range Filter */}
+              <Popover>
+                <Button variant='tertiary' fullWidth>
+                  <IconCalendarTime stroke={1.5} />
+                  Date Range
+                </Button>
+                <Popover.Content className='w-72'>
+                  <Popover.Dialog className='flex flex-col gap-3'>
+                    <DateField
+                      name='Start Date'
+                      value={startDate}
+                      onChange={setStartDate}
+                      granularity='day'
+                    >
+                      <Label>Start Date</Label>
+                      <DateInputGroup>
+                        <DateInputGroup.Input>
+                          {(segment) => (
+                            <DateInputGroup.Segment segment={segment} />
+                          )}
+                        </DateInputGroup.Input>
+                      </DateInputGroup>
+                    </DateField>
+                    <DateField
+                      name='End Date'
+                      value={endDate}
+                      onChange={setEndDate}
+                      granularity='day'
+                    >
+                      <Label>End Date</Label>
+                      <DateInputGroup>
+                        <DateInputGroup.Input>
+                          {(segment) => (
+                            <DateInputGroup.Segment segment={segment} />
+                          )}
+                        </DateInputGroup.Input>
+                      </DateInputGroup>
+                    </DateField>
+                    <Button
+                      variant='tertiary'
+                      size='sm'
+                      onPress={() => {
+                        setStartDate(null);
+                        setEndDate(null);
+                      }}
+                      isDisabled={!startDate && !endDate}
+                    >
+                      Clear
+                    </Button>
+                  </Popover.Dialog>
+                </Popover.Content>
+              </Popover>
+
+              {/* Action Filter */}
+              {actionOptions.length > 0 && (
+                <Dropdown>
+                  <Button variant='tertiary' fullWidth>
+                    <IconFilter stroke={1.5} />
+                    Action
                   </Button>
-                </Popover.Dialog>
-              </Popover.Content>
-            </Popover>
+                  <Dropdown.Popover className='max-h-64 overflow-y-auto'>
+                    <Dropdown.Menu
+                      selectionMode='multiple'
+                      selectedKeys={actionFilter}
+                      onSelectionChange={setActionFilter}
+                    >
+                      {actionOptions.map((action) => {
+                        const color = getActionColor(action);
+                        return (
+                          <Dropdown.Item
+                            id={action}
+                            key={action}
+                            textValue={action}
+                          >
+                            <Dropdown.ItemIndicator />
+                            <Label>
+                              <Chip
+                                color={color}
+                                variant='soft'
+                                className='uppercase'
+                              >
+                                {action}
+                              </Chip>
+                            </Label>
+                          </Dropdown.Item>
+                        );
+                      })}
+                    </Dropdown.Menu>
+                  </Dropdown.Popover>
+                </Dropdown>
+              )}
 
-            {/* User Filter */}
-            {userOptions.length > 0 && (
-              <Dropdown>
-                <Button variant='tertiary'>
-                  <IconFilter size={4} />
-                  User
-                  <IconChevronDown size={4} />
-                </Button>
-                <Dropdown.Popover className='max-h-64 overflow-y-auto'>
-                  <Dropdown.Menu
-                    selectionMode='multiple'
-                    selectedKeys={userFilter}
-                    onSelectionChange={setUserFilter}
-                  >
-                    {userOptions.map((user) => (
-                      <Dropdown.Item id={user} textValue={user}>
-                        <Dropdown.ItemIndicator />
-                        <Label>{user}</Label>
-                      </Dropdown.Item>
-                    ))}
-                  </Dropdown.Menu>
-                </Dropdown.Popover>
-              </Dropdown>
-            )}
-
-            {/* Action Filter */}
-            {actionOptions.length > 0 && (
-              <Dropdown>
-                <Button variant='tertiary'>
-                  <IconFilter size={4} />
-                  Action
-                  <IconChevronDown size={4} />
-                </Button>
-                <Dropdown.Popover className='max-h-64 overflow-y-auto'>
-                  <Dropdown.Menu
-                    selectionMode='multiple'
-                    selectedKeys={actionFilter}
-                    onSelectionChange={setActionFilter}
-                  >
-                    {actionOptions.map((action) => {
-                      const color = getActionColor(action);
-                      return (
-                        <Dropdown.Item id={action} textValue={action}>
+              {/* Object Type Filter */}
+              {objectTypeOptions.length > 0 && (
+                <Dropdown>
+                  <Button variant='tertiary' fullWidth>
+                    <IconFilter stroke={1.5} />
+                    Object Type
+                  </Button>
+                  <Dropdown.Popover className='max-h-64 overflow-y-auto'>
+                    <Dropdown.Menu
+                      selectionMode='multiple'
+                      selectedKeys={objectTypeFilter}
+                      onSelectionChange={setObjectTypeFilter}
+                    >
+                      {objectTypeOptions.map((type) => (
+                        <Dropdown.Item id={type} key={type} textValue={type}>
                           <Dropdown.ItemIndicator />
-                          <Label>
-                            <Chip
-                              color={color}
-                              variant='soft'
-                              className='uppercase'
-                            >
-                              {action}
-                            </Chip>
-                          </Label>
+                          <Label>{type}</Label>
                         </Dropdown.Item>
-                      );
-                    })}
-                  </Dropdown.Menu>
-                </Dropdown.Popover>
-              </Dropdown>
-            )}
-
-            {/* Object Type Filter */}
-            {objectTypeOptions.length > 0 && (
-              <Dropdown>
-                <Button variant='tertiary'>
-                  <IconFilter size={4} />
-                  Object Type
-                  <IconChevronDown size={4} />
-                </Button>
-                <Dropdown.Popover className='max-h-64 overflow-y-auto'>
-                  <Dropdown.Menu
-                    selectionMode='multiple'
-                    selectedKeys={objectTypeFilter}
-                    onSelectionChange={setObjectTypeFilter}
-                  >
-                    {objectTypeOptions.map((type) => (
-                      <Dropdown.Item id={type} textValue={type}>
-                        <Dropdown.ItemIndicator />
-                        <Label>{type}</Label>
-                      </Dropdown.Item>
-                    ))}
-                  </Dropdown.Menu>
-                </Dropdown.Popover>
-              </Dropdown>
-            )}
-          </>
+                      ))}
+                    </Dropdown.Menu>
+                  </Dropdown.Popover>
+                </Dropdown>
+              )}
+            </ButtonGroup>
+            <UserFilterAutocomplete
+              value={userFilter}
+              onChange={setUserFilter}
+              tabId={tabId}
+              domoInstance={domoInstance}
+            />
+          </div>
         }
       />
     </div>
