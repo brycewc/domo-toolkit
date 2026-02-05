@@ -6,7 +6,7 @@ export {
   ACTION_COLOR_PATTERNS
 } from './constants';
 export { getValidTabForInstance, detectCurrentObject } from './currentObject';
-export { executeInPage } from './executeInPage';
+export { executeInPage, executeInAllFrames } from './executeInPage';
 export {
   applyFaviconRules,
   applyInstanceLogoAuto,

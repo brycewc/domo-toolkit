@@ -16,6 +16,7 @@ import {
   ActivityLogCurrentObject,
   ClearCookies,
   Copy,
+  CopyFilteredUrl,
   ContextFooter,
   DeleteCurrentObject,
   FilterActivityLog,
@@ -192,6 +193,14 @@ export function ActionButtons({
                       onCollapseActions={
                         collapsable ? () => setIsExpanded(false) : undefined
                       }
+                    />
+                  )}
+                  {(currentContext?.domoObject?.typeId === 'PAGE' ||
+                    currentContext?.domoObject?.typeId === 'DATA_APP_VIEW') && (
+                    <CopyFilteredUrl
+                      currentContext={currentContext}
+                      onStatusUpdate={showStatus}
+                      isDisabled={!isDomoPage}
                     />
                   )}
                   {currentContext?.domoObject?.typeId === 'DATAFLOW_TYPE' && (

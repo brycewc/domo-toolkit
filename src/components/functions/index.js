@@ -1,6 +1,7 @@
 export { ActivityLogCurrentObject } from './ActivityLogCurrentObject';
 export { ClearCookies } from './ClearCookies';
 export { Copy } from './Copy';
+export { CopyFilteredUrl } from './CopyFilteredUrl';
 export { DeleteCurrentObject } from './DeleteCurrentObject';
 export { FilterActivityLog } from './FilterActivityLog';
 export { GetPages } from './GetPages';

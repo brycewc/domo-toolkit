@@ -15,3 +15,13 @@ export {
   deletePageAndAllCards
 } from './pages';
 export { getCurrentUserId, searchUsers } from './users';
+export {
+  getUrlPfilters,
+  getPageFilters,
+  getFiltersFromAllFrames,
+  getIframePfilters,
+  mergeFilters,
+  encodeFilters,
+  buildPfilterUrl,
+  getAllFilters
+} from './filters';
