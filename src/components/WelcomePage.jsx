@@ -1,9 +1,12 @@
-import { useState } from 'react';
-import { Button, Card, Checkbox, Input, Link } from '@heroui/react';
+import { useState, useEffect } from 'react';
+import { Button, Card, Checkbox, Input, ListBox, Select } from '@heroui/react';
 import {
   IconArrowRight,
   IconBrandGithub,
+  IconCheck,
+  IconChevronDown,
   IconClipboard,
+  IconCookie,
   IconCookieOff,
   IconExternalLink,
   IconMail,
@@ -15,10 +18,43 @@ import toolkitLogo from '@/assets/toolkit-128.png';
 
 const STORAGE_KEY = 'welcomePageDismissed';
 
+const cookieOptions = [
+  {
+    id: 'default',
+    label: 'Default',
+    description: 'Manual clearing only, preserves last 2 instances'
+  },
+  {
+    id: 'auto',
+    label: 'Auto (Recommended)',
+    description: 'Auto-clear on 431 errors, preserves last 2 instances'
+  },
+  {
+    id: 'all',
+    label: 'All',
+    description: 'Manual clearing only, clears all Domo cookies'
+  }
+];
+
 export function WelcomePage() {
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const [email, setEmail] = useState('');
   const [emailStatus, setEmailStatus] = useState(null); // null | 'loading' | 'success' | 'error'
+  const [cookieSetting, setCookieSetting] = useState('default');
+
+  // Load cookie setting on mount
+  useEffect(() => {
+    chrome.storage.sync.get(['defaultClearCookiesHandling'], (result) => {
+      if (result.defaultClearCookiesHandling) {
+        setCookieSetting(result.defaultClearCookiesHandling);
+      }
+    });
+  }, []);
+
+  const handleCookieSettingChange = (value) => {
+    setCookieSetting(value);
+    chrome.storage.sync.set({ defaultClearCookiesHandling: value });
+  };
 
   const handleGetStarted = () => {
     if (dontShowAgain) {
@@ -69,6 +105,8 @@ export function WelcomePage() {
     }
   ];
 
+  const selectedCookieOption = cookieOptions.find((opt) => opt.id === cookieSetting);
+
   return (
     <div className='flex h-full min-h-[calc(100vh-20)] w-full flex-col justify-between space-y-6 pt-4'>
       {/* Header */}
@@ -114,6 +152,57 @@ export function WelcomePage() {
             </motion.div>
           ))}
         </div>
+      </motion.div>
+
+      {/* Cookie Management Setting */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3, delay: 0.15 }}
+      >
+        <Card className='border-domo-orange/20 bg-domo-orange/5'>
+          <Card.Header className='pb-2'>
+            <div className='flex items-center gap-2'>
+              <IconCookie size={18} className='text-domo-orange' />
+              <Card.Title className='text-sm font-medium text-foreground'>
+                Cookie Management
+              </Card.Title>
+            </div>
+          </Card.Header>
+          <Card.Content className='space-y-3'>
+            <p className='text-xs text-muted'>
+              Work with multiple Domo instances? Enable auto-clearing to avoid 431 errors.
+            </p>
+            <Select
+              value={cookieSetting}
+              onChange={handleCookieSettingChange}
+              className='w-full'
+              aria-label='Cookie clearing behavior'
+            >
+              <Select.Trigger className='w-full'>
+                <Select.Value>{selectedCookieOption?.label || 'Select...'}</Select.Value>
+                <Select.Indicator>
+                  <IconChevronDown className='h-4 w-4' stroke={1.5} />
+                </Select.Indicator>
+              </Select.Trigger>
+              <Select.Popover>
+                <ListBox>
+                  {cookieOptions.map((option) => (
+                    <ListBox.Item key={option.id} id={option.id} textValue={option.label}>
+                      <div className='flex flex-col items-start'>
+                        <span>{option.label}</span>
+                        <span className='text-xs text-muted'>{option.description}</span>
+                      </div>
+                      <ListBox.ItemIndicator>
+                        {({ isSelected }) => (isSelected ? <IconCheck stroke={1.5} /> : null)}
+                      </ListBox.ItemIndicator>
+                    </ListBox.Item>
+                  ))}
+                </ListBox>
+              </Select.Popover>
+            </Select>
+          </Card.Content>
+        </Card>
       </motion.div>
 
       {/* Getting Started */}

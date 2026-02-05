@@ -20,6 +20,8 @@ export {
   getPageFilters,
   getFiltersFromAllFrames,
   getIframePfilters,
+  getVariableControlFilters,
+  getAngularScopeFilters,
   mergeFilters,
   encodeFilters,
   buildPfilterUrl,

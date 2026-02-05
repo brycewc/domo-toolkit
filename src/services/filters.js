@@ -636,6 +636,233 @@ export async function getIframePfilters(tabId = null, delayMs = 500) {
 }
 
 /**
+ * Get filters from AngularJS scope (for pages using Angular filter components)
+ * @param {number} tabId - Optional Chrome tab ID
+ * @returns {Promise<Array>} Array of filter objects in pfilter format
+ */
+export async function getAngularScopeFilters(tabId = null) {
+  try {
+    const result = await executeInPage(
+      () => {
+        const filters = [];
+
+        // Look for Angular filter components
+        const filterSelectors = [
+          '[filters]',
+          '[page-filter-count]',
+          'fb-policy-selector',
+          '[ng-controller*="filter"]',
+          '[ng-controller*="Filter"]',
+          '.page-filters',
+          '[data-filter]'
+        ];
+
+        for (const selector of filterSelectors) {
+          const elements = document.querySelectorAll(selector);
+          for (const el of elements) {
+            try {
+              // Try to get Angular scope
+              const angularEl = window.angular?.element?.(el);
+              if (angularEl) {
+                const scope = angularEl.scope?.() || angularEl.isolateScope?.();
+                if (scope) {
+                  // Look for filter data in scope
+                  const filterSources = [
+                    scope.filters,
+                    scope.$ctrl?.filters,
+                    scope.vm?.filters,
+                    scope.pageFilters,
+                    scope.$ctrl?.pageFilters,
+                    scope.currentFilters,
+                    scope.$ctrl?.currentFilters
+                  ];
+
+                  for (const source of filterSources) {
+                    if (Array.isArray(source) && source.length > 0) {
+                      source.forEach((f) => {
+                        if (f.column && f.values && f.values.length > 0) {
+                          filters.push({
+                            column: f.column,
+                            operand: (f.operand || f.operator || 'IN').toUpperCase(),
+                            values: f.values,
+                            dataSetId: f.dataSourceId || f.dataSetId
+                          });
+                        }
+                      });
+                      if (filters.length > 0) return filters;
+                    }
+                  }
+                }
+              }
+            } catch (e) {
+              // Scope access failed
+            }
+          }
+        }
+
+        // Try to access filters from global Angular services/factories
+        if (window.angular) {
+          try {
+            const injector = window.angular.element(document.body).injector?.();
+            if (injector) {
+              // Try to get filter-related services
+              const serviceNames = [
+                'FilterService',
+                'filterService',
+                'PageFilterService',
+                'pageFilterService',
+                'variableControlService'
+              ];
+
+              for (const name of serviceNames) {
+                try {
+                  const service = injector.get(name);
+                  if (service) {
+                    const filterMethods = [
+                      service.getFilters,
+                      service.getCurrentFilters,
+                      service.getActiveFilters,
+                      service.filters
+                    ];
+
+                    for (const method of filterMethods) {
+                      let filterData;
+                      if (typeof method === 'function') {
+                        filterData = method.call(service);
+                      } else if (Array.isArray(method)) {
+                        filterData = method;
+                      }
+
+                      if (Array.isArray(filterData) && filterData.length > 0) {
+                        filterData.forEach((f) => {
+                          if (f.column && f.values && f.values.length > 0) {
+                            filters.push({
+                              column: f.column,
+                              operand: (f.operand || f.operator || 'IN').toUpperCase(),
+                              values: f.values,
+                              dataSetId: f.dataSourceId || f.dataSetId
+                            });
+                          }
+                        });
+                        if (filters.length > 0) return filters;
+                      }
+                    }
+                  }
+                } catch (e) {
+                  // Service not found
+                }
+              }
+            }
+          } catch (e) {
+            // Injector access failed
+          }
+        }
+
+        return filters;
+      },
+      [],
+      tabId
+    );
+
+    return result || [];
+  } catch (error) {
+    console.warn('Failed to get Angular scope filters:', error);
+    return [];
+  }
+}
+
+/**
+ * Get variable controls (filter cards) from page cards via API
+ * This fetches the current filter selections from Domo's variable controls system
+ * @param {string} pageId - The page ID
+ * @param {number} tabId - Optional Chrome tab ID
+ * @returns {Promise<Array>} Array of filter objects in pfilter format
+ */
+export async function getVariableControlFilters(pageId, tabId = null) {
+  try {
+    const result = await executeInPage(
+      async (pageId) => {
+        const filters = [];
+
+        // First, get all cards on the page
+        const cardsResponse = await fetch(`/api/content/v1/pages/${pageId}/cards`, {
+          credentials: 'include'
+        });
+
+        if (!cardsResponse.ok) {
+          return [];
+        }
+
+        const cards = await cardsResponse.json();
+        if (!Array.isArray(cards) || cards.length === 0) {
+          return [];
+        }
+
+        // Filter to only cards that might have variable controls (filter cards)
+        // Filter cards typically have specific types or metadata
+        const potentialFilterCards = cards.filter(
+          (card) =>
+            card.type?.toLowerCase().includes('filter') ||
+            card.cardType?.toLowerCase().includes('filter') ||
+            card.metadata?.type?.toLowerCase().includes('filter') ||
+            card.metadata?.chartType?.toLowerCase().includes('filter') ||
+            card.metadata?.variableControl
+        );
+
+        // If no obvious filter cards, try all cards (some may have controls)
+        const cardsToCheck = potentialFilterCards.length > 0 ? potentialFilterCards : cards;
+
+        // For each card, try to get its variable controls
+        const controlPromises = cardsToCheck.map(async (card) => {
+          try {
+            const controlsResponse = await fetch(
+              `/api/content/v1/cards/${card.id}/variable/controls`,
+              { credentials: 'include' }
+            );
+
+            if (controlsResponse.ok) {
+              const controls = await controlsResponse.json();
+              if (Array.isArray(controls)) {
+                return controls;
+              }
+            }
+          } catch (e) {
+            // Card doesn't have variable controls
+          }
+          return [];
+        });
+
+        const allControls = await Promise.all(controlPromises);
+
+        // Flatten and process controls
+        allControls.forEach((controls) => {
+          controls.forEach((control) => {
+            // Only include controls that have values selected
+            if (control.column && control.values && control.values.length > 0) {
+              filters.push({
+                column: control.column,
+                operand: (control.operand || 'IN').toUpperCase(),
+                values: control.values,
+                dataSetId: control.dataSourceId || control.dataSetId
+              });
+            }
+          });
+        });
+
+        return filters;
+      },
+      [pageId],
+      tabId
+    );
+
+    return result || [];
+  } catch (error) {
+    console.warn('Failed to get variable control filters:', error);
+    return [];
+  }
+}
+
+/**
  * Get all filters for a page (from both URL and page filter cards)
  * @param {Object} params - Parameters
  * @param {string} params.url - Current page URL
@@ -647,14 +874,31 @@ export async function getAllFilters({ url, pageId, tabId = null }) {
   // Get URL pfilters (synchronous)
   const urlFilters = getUrlPfilters(url);
 
-  // Get page filter card filters (async)
+  // Get page filter card filters (async) - tries client-side state first
   const pageFilters = await getPageFilters(pageId, tabId);
 
-  // If we didn't find filters via traditional methods, try other approaches
+  // Try variable controls API (filter cards with dropdowns)
+  let variableControlFilters = [];
+  if (pageFilters.length === 0) {
+    variableControlFilters = await getVariableControlFilters(pageId, tabId);
+  }
+
+  // Try AngularJS scope filters (for pages using Angular filter components)
+  let angularFilters = [];
+  if (pageFilters.length === 0 && variableControlFilters.length === 0) {
+    angularFilters = await getAngularScopeFilters(tabId);
+  }
+
+  // If we still don't have filters, try other approaches
   let iframeFilters = [];
   let frameFilters = [];
 
-  if (pageFilters.length === 0 && urlFilters.length === 0) {
+  if (
+    pageFilters.length === 0 &&
+    variableControlFilters.length === 0 &&
+    angularFilters.length === 0 &&
+    urlFilters.length === 0
+  ) {
     // Try getting filters from domoFilterService in any frame (embedded apps)
     frameFilters = await getFiltersFromAllFrames(tabId);
 
@@ -664,12 +908,21 @@ export async function getAllFilters({ url, pageId, tabId = null }) {
     }
   }
 
-  // Merge all sources (URL > frame > iframe > page)
-  const allFilters = mergeFilters(pageFilters, iframeFilters, frameFilters, urlFilters);
+  // Merge all sources (URL > frame > iframe > angular > variableControl > page)
+  const allFilters = mergeFilters(
+    pageFilters,
+    variableControlFilters,
+    angularFilters,
+    iframeFilters,
+    frameFilters,
+    urlFilters
+  );
 
   return {
     urlFilters,
     pageFilters,
+    variableControlFilters,
+    angularFilters,
     frameFilters,
     iframeFilters,
     allFilters,
