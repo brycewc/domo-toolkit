@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Button, Card, Checkbox, Input, ListBox, Select } from '@heroui/react';
+import { Button, Card, Checkbox, ListBox, Select } from '@heroui/react';
 import {
   IconArrowRight,
   IconBrandGithub,
@@ -9,7 +9,6 @@ import {
   IconCookie,
   IconCookieOff,
   IconExternalLink,
-  IconMail,
   IconSearch,
   IconShare
 } from '@tabler/icons-react';
@@ -38,8 +37,6 @@ const cookieOptions = [
 
 export function WelcomePage() {
   const [dontShowAgain, setDontShowAgain] = useState(false);
-  const [email, setEmail] = useState('');
-  const [emailStatus, setEmailStatus] = useState(null); // null | 'loading' | 'success' | 'error'
   const [cookieSetting, setCookieSetting] = useState('default');
 
   // Load cookie setting on mount
@@ -65,24 +62,6 @@ export function WelcomePage() {
       '_self',
       'noopener,noreferrer'
     );
-  };
-
-  const handleEmailSubmit = async (e) => {
-    e.preventDefault();
-    if (!email || !email.includes('@')) return;
-
-    setEmailStatus('loading');
-
-    // TODO: Replace with actual email signup endpoint
-    // For now, simulate a successful signup
-    try {
-      // Placeholder for email signup API call
-      await new Promise((resolve) => setTimeout(resolve, 800));
-      setEmailStatus('success');
-      chrome.storage.local.set({ subscribedEmail: email });
-    } catch (error) {
-      setEmailStatus('error');
-    }
   };
 
   const features = [
@@ -185,17 +164,26 @@ export function WelcomePage() {
                   <IconChevronDown className='h-4 w-4' stroke={1.5} />
                 </Select.Indicator>
               </Select.Trigger>
-              <Select.Popover>
+              <Select.Popover className='border border-domo-orange/40'>
                 <ListBox>
-                  {cookieOptions.map((option) => (
-                    <ListBox.Item key={option.id} id={option.id} textValue={option.label}>
-                      <div className='flex flex-col items-start'>
-                        <span>{option.label}</span>
-                        <span className='text-xs text-muted'>{option.description}</span>
-                      </div>
-                      <ListBox.ItemIndicator>
-                        {({ isSelected }) => (isSelected ? <IconCheck stroke={1.5} /> : null)}
-                      </ListBox.ItemIndicator>
+                  {cookieOptions.map((option, index) => (
+                    <ListBox.Item
+                      key={option.id}
+                      id={option.id}
+                      textValue={option.label}
+                      className={index % 2 === 1 ? 'bg-surface/50' : ''}
+                    >
+                      {({ isSelected }) => (
+                        <div className='flex w-full items-center gap-2'>
+                          <span className='w-4 shrink-0'>
+                            {isSelected && <IconCheck size={16} stroke={1.5} />}
+                          </span>
+                          <div className='flex flex-col items-start'>
+                            <span>{option.label}</span>
+                            <span className='text-xs text-muted'>{option.description}</span>
+                          </div>
+                        </div>
+                      )}
                     </ListBox.Item>
                   ))}
                 </ListBox>
@@ -242,50 +230,11 @@ export function WelcomePage() {
         </Card>
       </motion.div>
 
-      {/* Email Signup */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.3, delay: 0.25 }}
-      >
-        <p className='mb-2 text-xs font-medium tracking-wide text-muted uppercase'>
-          Stay Updated
-        </p>
-        {emailStatus === 'success' ? (
-          <div className='rounded-lg bg-success/10 p-3 text-center'>
-            <p className='text-sm text-success'>Thanks for subscribing!</p>
-          </div>
-        ) : (
-          <form onSubmit={handleEmailSubmit} className='flex gap-2'>
-            <Input
-              type='email'
-              placeholder='your@email.com'
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className='flex-1'
-              size='sm'
-            />
-            <Button
-              type='submit'
-              variant='secondary'
-              size='sm'
-              isLoading={emailStatus === 'loading'}
-              isDisabled={!email || !email.includes('@')}
-            >
-              <IconMail size={16} />
-            </Button>
-          </form>
-        )}
-        <p className='mt-1 text-xs text-muted'>
-          Get notified about new features and updates
-        </p>
-      </motion.div>
-
       {/* Links */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ duration: 0.3, delay: 0.3 }}
+        transition={{ duration: 0.3, delay: 0.25 }}
         className='flex flex-wrap gap-2'
       >
         {links.map((link) => (
@@ -306,7 +255,7 @@ export function WelcomePage() {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ duration: 0.3, delay: 0.35 }}
+        transition={{ duration: 0.3, delay: 0.3 }}
         className='mt-auto space-y-3'
       >
         <label className='flex cursor-pointer items-center justify-end gap-2'>
