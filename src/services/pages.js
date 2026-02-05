@@ -1,4 +1,3 @@
-import { getCurrentUserId } from './users';
 import { executeInPage, waitForCards } from '@/utils';
 
 /**
@@ -190,14 +189,13 @@ export async function getChildPages({
 /**
  * Share pages with self
  * @param {Array} pageIds - IDs of the pages to share
+ * @param {number} userId - The current user's ID
+ * @param {number} tabId - The tab ID to execute in
  * @returns {Promise<void>} Resolves when sharing is complete
  * @throws {Error} If the fetch fails
  */
-export async function sharePagesWithSelf({ pageIds, tabId }) {
+export async function sharePagesWithSelf({ pageIds, userId, tabId }) {
   try {
-    // Get current user ID
-    const userId = await getCurrentUserId(tabId);
-
     // Execute fetch in page context to use authenticated session
     executeInPage(
       async (pageIds, userId) => {

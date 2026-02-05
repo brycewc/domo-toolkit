@@ -1,6 +1,5 @@
 import { DomoObject } from '@/models';
 import { executeInPage } from '@/utils';
-import { getCurrentUserId } from './users';
 
 /**
  * Fetch object details from the Domo API and enrich metadata (page-safe version)
@@ -93,18 +92,16 @@ export async function fetchObjectDetailsInPage(params) {
  * Share a Domo object with the current user
  * @param {Object} params
  * @param {DomoObject} params.object - The Domo object to share
+ * @param {number} params.userId - The current user's ID
  * @param {Function} params.setStatus - Callback to update status (title, description, status)
  * @param {number} [params.tabId] - Optional Chrome tab ID for context
  * @returns {Promise<void>}
  */
-export async function shareWithSelf({ object, setStatus, tabId = null }) {
+export async function shareWithSelf({ object, userId, setStatus, tabId = null }) {
   try {
     if (!object || !object.typeId || !object.id) {
       throw new Error('Invalid object provided');
     }
-
-    // Get current user ID
-    const userId = await getCurrentUserId(tabId);
 
     // Execute share based on object type
     const result = await executeInPage(

@@ -3,7 +3,8 @@ import {
   fetchObjectDetailsInPage,
   getChildPages,
   getCardsForObject,
-  getPagesForCards
+  getPagesForCards,
+  getCurrentUser
 } from '@/services';
 import {
   clearCookies,
@@ -676,6 +677,17 @@ async function detectAndStoreContext(tabId) {
     }
     const context = new DomoContext(tabId, tab.url, null);
     setTabContext(tabId, context);
+
+    // Fetch current user (non-blocking, updates context when complete)
+    getCurrentUser(tabId)
+      .then((user) => {
+        context.user = user;
+        setTabContext(tabId, context);
+        console.log(`[Background] Fetched current user for tab ${tabId}:`, user?.id);
+      })
+      .catch((error) => {
+        console.warn(`[Background] Could not fetch current user for tab ${tabId}:`, error.message);
+      });
 
     // Execute detection script in page context
     const detected = await executeInPage(detectCurrentObject, [], tabId);

@@ -248,7 +248,8 @@ export function GetPagesView({
         origin,
         appId,
         instance,
-        pageTypeLabel
+        pageTypeLabel,
+        userId: context.user?.id
       });
 
       if (objectType === 'CARD' || objectType === 'DATA_SOURCE') {
@@ -474,7 +475,7 @@ export function GetPagesView({
         case 'share':
           if (pageData?.instance) {
             const tabId = await getValidTabForInstance(pageData.instance);
-            await sharePagesWithSelf({ pageIds: [item.id], tabId });
+            await sharePagesWithSelf({ pageIds: [item.id], userId: pageData.userId, tabId });
             onStatusUpdate?.(
               'Shared',
               `Page **${item.label || item.id}** shared with yourself`,
@@ -489,6 +490,7 @@ export function GetPagesView({
             const count = item.children.length;
             await sharePagesWithSelf({
               pageIds: item.children.map((child) => child.id),
+              userId: pageData.userId,
               tabId
             });
             onStatusUpdate?.(
@@ -659,6 +661,7 @@ export function GetPagesView({
                                 const count = items.length;
                                 await sharePagesWithSelf({
                                   pageIds: items.map((item) => item.id),
+                                  userId: pageData.userId,
                                   tabId
                                 });
                                 onStatusUpdate?.(

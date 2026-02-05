@@ -11,8 +11,9 @@ export class DomoContext {
    * @param {string} url - The full URL of the tab
    * @param {DomoObject} [domoObject] - The detected Domo object (optional)
    * @param {chrome.tabs.Tab} [tab] - The Chrome tab object (optional)
+   * @param {{id: number, metadata: Object}} [user] - The current user (optional)
    */
-  constructor(tabId, url, domoObject = null, tab = null) {
+  constructor(tabId, url, domoObject = null, tab = null, user = null) {
     this.tabId = tabId;
     this.url = url;
     this.tab = tab;
@@ -35,6 +36,7 @@ export class DomoContext {
     }
 
     this.domoObject = domoObject;
+    this.user = user;
 
     // Fetch tab object if not provided but tabId is available
     if (
@@ -82,7 +84,8 @@ export class DomoContext {
               parents: this.domoObject.objectType.parents
             }
           }
-        : null
+        : null,
+      user: this.user || null
     };
   }
 
@@ -101,7 +104,8 @@ export class DomoContext {
       data.tabId,
       data.url,
       domoObject,
-      data.tab || null
+      data.tab || null,
+      data.user || null
     );
 
     // Override isDomoPage if it was explicitly set in the serialized data

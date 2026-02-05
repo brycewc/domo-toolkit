@@ -23,7 +23,7 @@ import {
   IconUserEdit,
   IconX
 } from '@tabler/icons-react';
-import { updateOwner, getCurrentUserId, searchUsers } from '@/services';
+import { updateOwner, searchUsers } from '@/services';
 import { isSidepanel } from '@/utils';
 
 export function UpdateOwner({ currentContext, onStatusUpdate }) {
@@ -106,21 +106,12 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
     }
   };
 
-  // Initialize form values when modal opens
+  // Set current user ID from context when modal opens
   useEffect(() => {
-    async function fetchCurrentUserId() {
-      try {
-        const userId = await getCurrentUserId(currentContext?.tabId);
-        setCurrentUserId(userId);
-      } catch (error) {
-        console.error('Error fetching current user ID:', error);
-      }
+    if (isOpen && currentContext?.user?.id) {
+      setCurrentUserId(currentContext.user.id);
     }
-
-    if (isOpen) {
-      fetchCurrentUserId();
-    }
-  }, [isOpen, currentContext?.tabId]);
+  }, [isOpen, currentContext?.user?.id]);
 
   // Core submit logic - accepts ownerId directly to avoid async state issues
   const submitOwnerUpdate = async (ownerId) => {

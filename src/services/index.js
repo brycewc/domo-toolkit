@@ -14,4 +14,4 @@ export {
   getPagesForCards,
   deletePageAndAllCards
 } from './pages';
-export { getCurrentUserId, searchUsers } from './users';
+export { getCurrentUser, getCurrentUserId, searchUsers } from './users';
