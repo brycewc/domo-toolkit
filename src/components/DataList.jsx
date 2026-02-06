@@ -423,8 +423,27 @@ function DataListItem({
     </Tooltip>
   );
 
+  // Action button builders
+  const openAllButton = (
+    <Tooltip key='openAll' delay={400} closeDelay={0}>
+      <Button
+        variant='ghost'
+        size='sm'
+        fullWidth
+        isIconOnly
+        onPress={() => handleAction('openAll')}
+        aria-label='Open All'
+      >
+        <IconFolders stroke={1.5} />
+      </Button>
+      <Tooltip.Content className='text-xs'>
+        Open all in new tabs
+      </Tooltip.Content>
+    </Tooltip>
+  );
+
   const copyButton = (
-    <Tooltip delay={400} closeDelay={0}>
+    <Tooltip key='copy' delay={400} closeDelay={0}>
       <Button
         variant='ghost'
         size='sm'
@@ -444,6 +463,85 @@ function DataListItem({
       </Tooltip.Content>
     </Tooltip>
   );
+
+  const shareAllButton = (
+    <Tooltip key='shareAll' delay={400} closeDelay={0}>
+      <Button
+        variant='ghost'
+        size='sm'
+        fullWidth
+        isIconOnly
+        onPress={() => handleAction('shareAll')}
+        aria-label='Share All'
+      >
+        <IconUsersPlus stroke={1.5} />
+      </Button>
+      <Tooltip.Content className='text-xs'>
+        Share all with yourself
+      </Tooltip.Content>
+    </Tooltip>
+  );
+
+  const shareButton = (
+    <Tooltip key='share' delay={400} closeDelay={0}>
+      <Button
+        variant='ghost'
+        size='sm'
+        fullWidth
+        isIconOnly
+        onPress={() => handleAction('share')}
+        aria-label='Share'
+      >
+        <IconUserPlus stroke={1.5} />
+      </Button>
+      <Tooltip.Content className='text-xs'>
+        Share with yourself
+      </Tooltip.Content>
+    </Tooltip>
+  );
+
+  // Compute which actions apply to this item
+  const getApplicableActions = () => {
+    if (item.isVirtualParent) {
+      if (!hasChildren) return [];
+      const actions = [];
+      if (itemActions ? itemActions.includes('openAll') : true)
+        actions.push(openAllButton);
+      if (itemActions ? itemActions.includes('shareAll') : true)
+        actions.push(shareAllButton);
+      return actions;
+    }
+
+    if (itemActions) {
+      const actions = [];
+      if (itemActions.includes('openAll') && hasChildren)
+        actions.push(openAllButton);
+      if (itemActions.includes('copy')) actions.push(copyButton);
+      if (itemActions.includes('shareAll') && hasChildren)
+        actions.push(shareAllButton);
+      if (itemActions.includes('share')) actions.push(shareButton);
+      return actions;
+    }
+
+    // Default logic
+    const isViewType =
+      item.typeId === 'DATA_APP_VIEW' ||
+      item.typeId === 'REPORT_BUILDER_VIEW' ||
+      objectType === 'DATA_APP_VIEW';
+
+    if (isViewType) return [copyButton];
+
+    const actions = [];
+    if (hasChildren && item.typeId !== 'DATA_APP') {
+      actions.push(openAllButton);
+      actions.push(shareAllButton);
+    }
+    actions.push(copyButton);
+    if (!isViewType) actions.push(shareButton);
+    return actions;
+  };
+
+  const applicableActions = showActions ? getApplicableActions() : [];
 
   return (
     <Disclosure
@@ -486,99 +584,9 @@ function DataListItem({
             </>
           )}
         </div>
-        {showActions &&
-          !item.isVirtualParent &&
-          (() => {
-            // If itemActions is explicitly provided, use it to determine which buttons to show
-            if (itemActions) {
-              // If only copy is allowed, show just the copy button
-              if (itemActions.length === 1 && itemActions.includes('copy')) {
-                return copyButton;
-              }
-
-              // Otherwise show a popover with the allowed actions
-              return (
-                <Popover>
-                  <Button variant='ghost' size='sm' isIconOnly>
-                    <IconDots stroke={1.5} />
-                  </Button>
-                  <Popover.Content placement='left' offset={2}>
-                    <Popover.Dialog className='p-0'>
-                      <ButtonGroup
-                        variant='ghost'
-                        size='sm'
-                        className='flex max-w-xs justify-end'
-                        fullWidth
-                      >
-                        {itemActions.includes('openAll') && hasChildren && (
-                          <Tooltip delay={400} closeDelay={0}>
-                            <Button
-                              variant='ghost'
-                              size='sm'
-                              fullWidth
-                              isIconOnly
-                              onPress={() => handleAction('openAll')}
-                              aria-label='Open All'
-                            >
-                              <IconFolders stroke={1.5} />
-                            </Button>
-                            <Tooltip.Content className='text-xs'>
-                              Open all children in new tabs
-                            </Tooltip.Content>
-                          </Tooltip>
-                        )}
-                        {itemActions.includes('copy') && copyButton}
-                        {itemActions.includes('shareAll') && hasChildren && (
-                          <Tooltip delay={400} closeDelay={0}>
-                            <Button
-                              variant='ghost'
-                              size='sm'
-                              fullWidth
-                              isIconOnly
-                              onPress={() => handleAction('shareAll')}
-                              aria-label='Share All'
-                            >
-                              <IconUsersPlus stroke={1.5} />
-                            </Button>
-                            <Tooltip.Content className='text-xs'>
-                              Share all children with yourself
-                            </Tooltip.Content>
-                          </Tooltip>
-                        )}
-                        {itemActions.includes('share') && (
-                          <Tooltip delay={400} closeDelay={0}>
-                            <Button
-                              variant='ghost'
-                              size='sm'
-                              fullWidth
-                              isIconOnly
-                              onPress={() => handleAction('share')}
-                              aria-label='Share'
-                            >
-                              <IconUserPlus stroke={1.5} />
-                            </Button>
-                            <Tooltip.Content className='text-xs'>
-                              Share with yourself
-                            </Tooltip.Content>
-                          </Tooltip>
-                        )}
-                      </ButtonGroup>
-                    </Popover.Dialog>
-                  </Popover.Content>
-                </Popover>
-              );
-            }
-
-            // Default logic when itemActions is not provided
-            if (
-              item.typeId === 'DATA_APP_VIEW' ||
-              item.typeId === 'REPORT_BUILDER_VIEW' ||
-              objectType === 'DATA_APP_VIEW'
-            ) {
-              return copyButton;
-            }
-
-            return (
+        {applicableActions.length === 1
+          ? applicableActions[0]
+          : applicableActions.length > 1 && (
               <Popover>
                 <Button variant='ghost' size='sm' isIconOnly>
                   <IconDots stroke={1.5} />
@@ -591,66 +599,12 @@ function DataListItem({
                       className='flex max-w-xs justify-end'
                       fullWidth
                     >
-                      {hasChildren && item.typeId !== 'DATA_APP' && (
-                        <>
-                          <Tooltip delay={400} closeDelay={0}>
-                            <Button
-                              variant='ghost'
-                              size='sm'
-                              fullWidth
-                              isIconOnly
-                              onPress={() => handleAction('openAll')}
-                              aria-label='Open All'
-                            >
-                              <IconFolders stroke={1.5} />
-                            </Button>
-                            <Tooltip.Content className='text-xs'>
-                              Open all children in new tabs
-                            </Tooltip.Content>
-                          </Tooltip>
-                          <Tooltip delay={400} closeDelay={0}>
-                            <Button
-                              variant='ghost'
-                              size='sm'
-                              fullWidth
-                              isIconOnly
-                              onPress={() => handleAction('shareAll')}
-                              aria-label='Share'
-                            >
-                              <IconUsersPlus stroke={1.5} />
-                            </Button>
-                            <Tooltip.Content className='text-xs'>
-                              Share all children with yourself
-                            </Tooltip.Content>
-                          </Tooltip>
-                        </>
-                      )}
-                      {copyButton}
-                      {item.typeId !== 'DATA_APP_VIEW' &&
-                        item.typeId !== 'REPORT_BUILDER_VIEW' &&
-                        objectType !== 'DATA_APP_VIEW' && (
-                          <Tooltip delay={400} closeDelay={0}>
-                            <Button
-                              variant='ghost'
-                              size='sm'
-                              fullWidth
-                              isIconOnly
-                              onPress={() => handleAction('share')}
-                              aria-label='Share'
-                            >
-                              <IconUserPlus stroke={1.5} />
-                            </Button>
-                            <Tooltip.Content className='text-xs'>
-                              Share with yourself
-                            </Tooltip.Content>
-                          </Tooltip>
-                        )}
+                      {applicableActions}
                     </ButtonGroup>
                   </Popover.Dialog>
                 </Popover.Content>
               </Popover>
-            );
-          })()}
+            )}
       </Disclosure.Heading>
       {hasChildren && (
         <Disclosure.Content>

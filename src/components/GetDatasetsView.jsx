@@ -19,11 +19,15 @@ function transformDatasetsToItems(datasets, origin) {
   return datasets.map(
     (ds) =>
       new DataListItem({
-        id: ds.id,
-        label: ds.name || `Dataset ${ds.id}`,
+        id: ds.id || ds.datasetId || ds.dataSourceId,
+        label:
+          ds.name ||
+          ds.datasetName ||
+          ds.dataSourceName ||
+          `Dataset ${ds.id || ds.datasetId || ds.dataSourceId}`,
         url: `${origin}/datasources/${ds.id}/details/overview`,
         typeId: 'DATA_SOURCE',
-        metadata: `ID: ${ds.id}`
+        metadata: `ID: ${ds.id || ds.datasetId || ds.dataSourceId}`
       })
   );
 }
@@ -83,14 +87,18 @@ export function GetDatasetsView({
   }, []);
 
   const loadDatasetsData = async (forceRefresh = false) => {
-    setIsLoading(true);
-    setShowSpinner(false);
+    if (!forceRefresh) {
+      setIsLoading(true);
+      setShowSpinner(false);
+    }
     setError(null);
 
     // Delay showing spinner to avoid flash on quick loads
-    const spinnerTimer = setTimeout(() => {
-      setShowSpinner(true);
-    }, 200);
+    const spinnerTimer = !forceRefresh
+      ? setTimeout(() => {
+          setShowSpinner(true);
+        }, 200)
+      : null;
 
     try {
       // Get the stored data from session storage
@@ -174,7 +182,10 @@ export function GetDatasetsView({
         console.log('[GetDatasetsView] Transforming datasets:', datasets);
         // Defensive check - ensure datasets is an array
         if (!datasets || !Array.isArray(datasets)) {
-          console.error('[GetDatasetsView] datasets is not an array:', datasets);
+          console.error(
+            '[GetDatasetsView] datasets is not an array:',
+            datasets
+          );
           setError('Invalid dataset data received. Please try again.');
           return;
         }
@@ -185,9 +196,11 @@ export function GetDatasetsView({
       console.error('Error loading datasets:', err);
       setError(err.message || 'Failed to load datasets');
     } finally {
-      clearTimeout(spinnerTimer);
-      setIsLoading(false);
-      setShowSpinner(false);
+      if (spinnerTimer) clearTimeout(spinnerTimer);
+      if (!forceRefresh) {
+        setIsLoading(false);
+        setShowSpinner(false);
+      }
     }
   };
 
@@ -207,7 +220,7 @@ export function GetDatasetsView({
     } else if (objectType === 'DATAFLOW_TYPE') {
       return getDatasetsForDataflow({ details });
     } else if (objectType === 'DATA_SOURCE') {
-      return getDatasetsForView({ dataSourceId: objectId, tabId });
+      return getDatasetsForView({ datasetId: objectId, tabId });
     }
 
     return [];
@@ -301,7 +314,7 @@ export function GetDatasetsView({
       onClose={onBackToDefault}
       closeLabel={`Close ${viewData?.typeLabel} View`}
       isRefreshing={isRefreshing}
-      itemActions={['copy']}
+      itemActions={['copy', 'openAll']}
       showActions={true}
       showCounts={true}
       itemLabel='dataset'

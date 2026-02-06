@@ -167,17 +167,23 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
 
   return (
     <Modal isOpen={isOpen} onOpenChange={setIsOpen}>
-      <Button
-        variant='tertiary'
-        fullWidth
-        isDisabled={
-          currentContext?.domoObject.typeId !== 'ALERT' &&
-          currentContext?.domoObject.typeId !== 'WORKFLOW_MODEL'
-        }
-      >
-        <IconUserEdit stroke={1.5} />
-        Update {currentContext?.domoObject.typeName} Owner
-      </Button>
+      <Tooltip delay={400} closeDelay={0}>
+        <Button
+          variant='tertiary'
+          fullWidth
+          isDisabled={
+            currentContext?.domoObject.typeId !== 'ALERT' &&
+            currentContext?.domoObject.typeId !== 'WORKFLOW_MODEL'
+          }
+          className='relative min-w-fit flex-1 basis-[48%] overflow-visible'
+        >
+          <IconUserEdit stroke={1.5} />
+          Update Owner
+        </Button>
+        <Tooltip.Content>
+          Update {currentContext?.domoObject.typeName} owner
+        </Tooltip.Content>
+      </Tooltip>
       <Modal.Backdrop>
         <Modal.Container scroll='outside' placement='top' className='p-1'>
           <Modal.Dialog className='p-2'>

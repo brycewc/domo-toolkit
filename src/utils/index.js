@@ -13,8 +13,13 @@ export {
   clearFaviconCache
 } from './faviconModifier';
 export { JsonStringifyOrder } from './general';
-export { waitForChildPages, storeSidepanelData } from './pageHelpers';
-export { isSidepanel, openSidepanel, showStatus } from './sidepanel';
+export { waitForChildPages } from './pageHelpers';
+export {
+  isSidepanel,
+  openSidepanel,
+  storeSidepanelData,
+  showStatus
+} from './sidepanel';
 export {
   exportToCSV,
   exportToExcel,

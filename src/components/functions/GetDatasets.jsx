@@ -41,7 +41,12 @@ export function GetDatasets({
       const objectId = currentContext.domoObject.id;
 
       // Check if the current object is a valid type
-      const validTypes = ['PAGE', 'DATA_APP_VIEW', 'DATAFLOW_TYPE', 'DATA_SOURCE'];
+      const validTypes = [
+        'PAGE',
+        'DATA_APP_VIEW',
+        'DATAFLOW_TYPE',
+        'DATA_SOURCE'
+      ];
       if (!validTypes.includes(objectType)) {
         onStatusUpdate?.(
           'Invalid Object Type',
@@ -88,14 +93,19 @@ export function GetDatasets({
         console.log('[GetDatasets] getDatasetsForDataflow returned:', result);
       } else if (objectType === 'DATA_SOURCE') {
         datasets = await getDatasetsForView({
-          dataSourceId: objectId,
+          datasetId: objectId,
           tabId: currentContext?.tabId
         });
         console.log('[GetDatasets] getDatasetsForView returned:', datasets);
       }
 
       // Check if we got any datasets
-      console.log('[GetDatasets] Final datasets array:', datasets, 'length:', datasets?.length);
+      console.log(
+        '[GetDatasets] Final datasets array:',
+        datasets,
+        'length:',
+        datasets?.length
+      );
       if (!datasets || datasets.length === 0) {
         const message =
           objectType === 'DATAFLOW_TYPE'
@@ -183,7 +193,7 @@ export function GetDatasets({
       isDisabled={isDisabled}
       isPending={isLoading}
       isIconOnly={isLoading}
-      size='md'
+      className='relative min-w-fit flex-1 basis-[48%] overflow-visible'
     >
       {({ isPending }) => {
         if (isPending) {

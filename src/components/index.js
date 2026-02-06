@@ -2,6 +2,7 @@ export { ActionButtons } from './ActionButtons';
 export { AnimatedCheck } from './AnimatedCheck';
 export { ContextFooter } from './ContextFooter';
 export { DataList } from './DataList';
+export { GetCardsView } from './GetCardsView';
 export { GetDatasetsView } from './GetDatasetsView';
 export { GetPagesView } from './GetPagesView';
 export { StatusBar } from './StatusBar';

@@ -229,7 +229,7 @@ export function GetPages({
       isDisabled={isDisabled}
       isPending={isLoading}
       isIconOnly={isLoading}
-      size='md'
+      className='relative min-w-fit flex-1 basis-[48%] overflow-visible'
     >
       {({ isPending }) => {
         if (isPending) {

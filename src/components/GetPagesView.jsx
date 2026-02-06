@@ -163,14 +163,18 @@ export function GetPagesView({
   }, []);
 
   const loadPagesData = async (forceRefresh = false) => {
-    setIsLoading(true);
-    setShowSpinner(false);
+    if (!forceRefresh) {
+      setIsLoading(true);
+      setShowSpinner(false);
+    }
     setError(null);
 
     // Delay showing spinner to avoid flash on quick loads
-    const spinnerTimer = setTimeout(() => {
-      setShowSpinner(true);
-    }, 200); // 200ms delay
+    const spinnerTimer = !forceRefresh
+      ? setTimeout(() => {
+          setShowSpinner(true);
+        }, 200)
+      : null;
 
     try {
       // Get the stored page data from local storage
@@ -289,9 +293,11 @@ export function GetPagesView({
       console.error('Error loading pages:', err);
       setError(err.message || 'Failed to load child pages');
     } finally {
-      clearTimeout(spinnerTimer);
-      setIsLoading(false);
-      setShowSpinner(false);
+      if (spinnerTimer) clearTimeout(spinnerTimer);
+      if (!forceRefresh) {
+        setIsLoading(false);
+        setShowSpinner(false);
+      }
     }
   };
 
@@ -613,7 +619,11 @@ export function GetPagesView({
       objectType={pageData?.objectType}
       onStatusUpdate={onStatusUpdate}
       title={renderTitle()}
-      headerActions={['openAll', 'copy', 'shareAll', 'refresh']}
+      headerActions={
+        pageData?.objectType === 'DATA_APP_VIEW'
+          ? ['openAll', 'copy', 'refresh']
+          : ['openAll', 'copy', 'shareAll', 'refresh']
+      }
       objectId={pageData?.objectId}
       onRefresh={handleRefresh}
       onShareAll={handleShareAll}

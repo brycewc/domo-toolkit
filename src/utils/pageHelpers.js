@@ -66,28 +66,3 @@ export async function waitForChildPages(currentContext, maxAttempts = 50) {
     error: null
   };
 }
-
-/**
- * Store data for sidepanel and optionally open it
- * Accepts any properties and passes them through to storage.
- * Special handling for currentContext to call toJSON() if available.
- *
- * @param {Object} options - Data to store
- * @param {string} options.type - Type of data (e.g., 'getPages', 'getDatasets', 'childPagesWarning')
- * @param {Object} [options.currentContext] - Current DomoContext (will be serialized via toJSON)
- * @param {boolean} [options.statusShown] - Whether status was already shown
- * @param {...any} options - Any additional properties to store
- */
-export async function storeSidepanelData(options) {
-  const { currentContext, ...rest } = options;
-
-  const data = {
-    ...rest,
-    currentContext: currentContext?.toJSON?.() || currentContext,
-    tabId: currentContext?.tabId || null,
-    timestamp: Date.now()
-  };
-
-  console.log('[storeSidepanelData] Storing data:', data);
-  await chrome.storage.session.set({ sidepanelDataList: data });
-}

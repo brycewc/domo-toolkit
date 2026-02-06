@@ -17,8 +17,10 @@ import {
   ClearCookies,
   Copy,
   ContextFooter,
+  DataRepair,
   DeleteCurrentObject,
   FilterActivityLog,
+  GetCards,
   GetDatasets,
   GetPages,
   NavigateToCopiedObject,
@@ -182,46 +184,66 @@ export function ActionButtons({
                       onStatusUpdate={showStatus}
                     />
                   </div>
-                  {(currentContext?.domoObject?.typeId === 'PAGE' ||
-                    currentContext?.domoObject?.typeId === 'DATA_APP_VIEW' ||
-                    currentContext?.domoObject?.typeId === 'CARD' ||
-                    currentContext?.domoObject?.typeId === 'DATA_SOURCE') && (
-                    <GetPages
-                      currentContext={currentContext}
-                      onStatusUpdate={showStatus}
-                      isDisabled={!isDomoPage}
-                      onCollapseActions={
-                        collapsable ? () => setIsExpanded(false) : undefined
-                      }
-                    />
-                  )}
-                  {(currentContext?.domoObject?.typeId === 'PAGE' ||
-                    currentContext?.domoObject?.typeId === 'DATA_APP_VIEW' ||
-                    currentContext?.domoObject?.typeId === 'DATAFLOW_TYPE' ||
-                    currentContext?.domoObject?.typeId === 'DATA_SOURCE') && (
-                    <GetDatasets
-                      currentContext={currentContext}
-                      onStatusUpdate={showStatus}
-                      isDisabled={!isDomoPage}
-                      onCollapseActions={
-                        collapsable ? () => setIsExpanded(false) : undefined
-                      }
-                    />
-                  )}
-                  {currentContext?.domoObject?.typeId === 'DATAFLOW_TYPE' && (
-                    <UpdateDataflowDetails
-                      currentContext={currentContext}
-                      onStatusUpdate={showStatus}
-                    />
-                  )}
-                  {(currentContext?.domoObject?.typeId === 'ALERT' ||
-                    currentContext?.domoObject?.typeId ===
-                      'WORKFLOW_MODEL') && (
-                    <UpdateOwner
-                      currentContext={currentContext}
-                      onStatusUpdate={showStatus}
-                    />
-                  )}
+                  <div className='flex w-full flex-wrap place-items-center items-center justify-center gap-1'>
+                    {(currentContext?.domoObject?.typeId === 'PAGE' ||
+                      currentContext?.domoObject?.typeId === 'DATA_APP_VIEW' ||
+                      currentContext?.domoObject?.typeId === 'CARD' ||
+                      currentContext?.domoObject?.typeId === 'DATA_SOURCE') && (
+                      <GetPages
+                        currentContext={currentContext}
+                        onStatusUpdate={showStatus}
+                        isDisabled={!isDomoPage}
+                        onCollapseActions={
+                          collapsable ? () => setIsExpanded(false) : undefined
+                        }
+                      />
+                    )}
+                    {(currentContext?.domoObject?.typeId === 'PAGE' ||
+                      currentContext?.domoObject?.typeId ===
+                        'DATA_APP_VIEW') && (
+                      <GetCards
+                        currentContext={currentContext}
+                        onStatusUpdate={showStatus}
+                        isDisabled={!isDomoPage}
+                        onCollapseActions={
+                          collapsable ? () => setIsExpanded(false) : undefined
+                        }
+                      />
+                    )}
+                    {(currentContext?.domoObject?.typeId === 'PAGE' ||
+                      currentContext?.domoObject?.typeId === 'DATA_APP_VIEW' ||
+                      currentContext?.domoObject?.typeId === 'DATAFLOW_TYPE' ||
+                      currentContext?.domoObject?.typeId === 'DATA_SOURCE') && (
+                      <GetDatasets
+                        currentContext={currentContext}
+                        onStatusUpdate={showStatus}
+                        isDisabled={!isDomoPage}
+                        onCollapseActions={
+                          collapsable ? () => setIsExpanded(false) : undefined
+                        }
+                      />
+                    )}
+                    {currentContext?.domoObject?.typeId === 'DATA_SOURCE' && (
+                      <DataRepair
+                        currentContext={currentContext}
+                        isDisabled={!isDomoPage}
+                      />
+                    )}
+                    {currentContext?.domoObject?.typeId === 'DATAFLOW_TYPE' && (
+                      <UpdateDataflowDetails
+                        currentContext={currentContext}
+                        onStatusUpdate={showStatus}
+                      />
+                    )}
+                    {(currentContext?.domoObject?.typeId === 'ALERT' ||
+                      currentContext?.domoObject?.typeId ===
+                        'WORKFLOW_MODEL') && (
+                      <UpdateOwner
+                        currentContext={currentContext}
+                        onStatusUpdate={showStatus}
+                      />
+                    )}
+                  </div>
                 </Disclosure.Content>
               </Disclosure>
             </Card.Content>

@@ -1,6 +1,11 @@
 import { useEffect, useState, useRef } from 'react';
 import { Card, Spinner } from '@heroui/react';
-import { ActionButtons, GetDatasetsView, GetPagesView } from '@/components';
+import {
+  ActionButtons,
+  GetCardsView,
+  GetDatasetsView,
+  GetPagesView
+} from '@/components';
 import { useTheme } from '@/hooks';
 import { DomoContext } from '@/models';
 
@@ -30,6 +35,8 @@ export default function App() {
           setActiveView('getPages');
         } else if (data?.type === 'childPagesWarning') {
           setActiveView('childPagesWarning');
+        } else if (data?.type === 'getCards') {
+          setActiveView('getCards');
         } else if (data?.type === 'getDatasets') {
           setActiveView('getDatasets');
         }
@@ -48,6 +55,8 @@ export default function App() {
             setActiveView('getPages');
           } else if (result.sidepanelDataList.type === 'childPagesWarning') {
             setActiveView('childPagesWarning');
+          } else if (result.sidepanelDataList.type === 'getCards') {
+            setActiveView('getCards');
           } else if (result.sidepanelDataList.type === 'getDatasets') {
             setActiveView('getDatasets');
           }
@@ -191,6 +200,13 @@ export default function App() {
 
       {(activeView === 'getPages' || activeView === 'childPagesWarning') && (
         <GetPagesView
+          onBackToDefault={handleBackToDefault}
+          onStatusUpdate={statusCallbackRef.current}
+        />
+      )}
+
+      {activeView === 'getCards' && (
+        <GetCardsView
           onBackToDefault={handleBackToDefault}
           onStatusUpdate={statusCallbackRef.current}
         />

@@ -77,66 +77,17 @@ export function isViewType(details) {
 }
 
 /**
- * Extract dataset IDs from a view schema
- * Handles both DataFusion schema (has 'views' array) and SQL schema (has 'select' object)
- * @param {Object} schema - The schema object from the indexed endpoint
- * @returns {string[]} Array of dataset IDs
- */
-function extractDatasetIdsFromSchema(schema) {
-  const idsSet = new Set();
-  const stripTicks = (s) => (typeof s === 'string' ? s.replace(/`/g, '') : s);
-
-  // Handle DataFusion schema structure (has 'views' array)
-  if (schema.views && Array.isArray(schema.views)) {
-    for (const view of schema.views) {
-      // Extract from 'from' field
-      if (view.from) {
-        idsSet.add(stripTicks(view.from));
-      }
-      // Extract from columnFuses datasource references
-      if (view.columnFuses && Array.isArray(view.columnFuses)) {
-        for (const fuse of view.columnFuses) {
-          if (fuse.datasource) {
-            idsSet.add(stripTicks(fuse.datasource));
-          }
-        }
-      }
-    }
-  }
-  // Handle SQL schema structure (has 'select' object)
-  else if (schema.select && schema.select.selectBody) {
-    const sel = schema.select.selectBody;
-    if (sel.fromItem && sel.fromItem.name) {
-      idsSet.add(stripTicks(sel.fromItem.name));
-    }
-    if (Array.isArray(sel.joins)) {
-      for (const j of sel.joins) {
-        if (!j) continue;
-        // If left is true, use rightItem.name; if left is false, use leftItem.name
-        const name =
-          j.left === false
-            ? j.leftItem && j.leftItem.name
-            : j.rightItem && j.rightItem.name;
-        if (name) idsSet.add(stripTicks(name));
-      }
-    }
-  }
-
-  return Array.from(idsSet);
-}
-
-/**
  * Get datasets used by a dataset view (dataset-view or datafusion)
  * @param {Object} params - Parameters
- * @param {string|number} params.dataSourceId - The datasource ID
+ * @param {string|number} params.datasetId - The datasource ID
  * @param {number} [params.tabId] - Optional Chrome tab ID
  * @returns {Promise<Array<{id: string, name: string}>>} Array of dataset objects
  */
-export async function getDatasetsForView({ dataSourceId, tabId }) {
-  const fetchLogic = async (dataSourceId) => {
+export async function getDatasetsForView({ datasetId, tabId }) {
+  const fetchLogic = async (datasetId) => {
     // 1) Get the schema to extract dataset IDs
     const schemaResponse = await fetch(
-      `/api/query/v1/datasources/${dataSourceId}/schema/indexed?includeHidden=true`,
+      `/api/query/v1/datasources/${datasetId}/schema/indexed?includeHidden=true`,
       {
         method: 'GET',
         credentials: 'include'
@@ -145,7 +96,7 @@ export async function getDatasetsForView({ dataSourceId, tabId }) {
 
     if (!schemaResponse.ok) {
       throw new Error(
-        `Failed to fetch schema for datasource ${dataSourceId}. HTTP status: ${schemaResponse.status}`
+        `Failed to fetch schema for datasource ${datasetId}. HTTP status: ${schemaResponse.status}`
       );
     }
 
@@ -189,8 +140,7 @@ export async function getDatasetsForView({ dataSourceId, tabId }) {
         }
       }
     }
-
-    const datasetIds = Array.from(idsSet);
+    const datasetIds = Array.from(idsSet).filter(Boolean);
 
     if (datasetIds.length === 0) {
       return [];
@@ -215,28 +165,18 @@ export async function getDatasetsForView({ dataSourceId, tabId }) {
       return datasetIds.map((id) => ({ id, name: `Dataset ${id}` }));
     }
 
-    const bulkData = await bulkResponse.json();
-
-    // Map the bulk response to our format
-    // The response is an array of datasource objects
-    const datasourceMap = new Map();
-    for (const ds of bulkData) {
-      const id = ds.id || ds.dataSourceId;
-      const name = ds.dataSourceName || ds.name || `Dataset ${id}`;
-      if (id) {
-        datasourceMap.set(id.toString(), { id: id.toString(), name });
-      }
-    }
-
-    // Return datasets in order, using map for names
-    return datasetIds.map((id) => {
-      const ds = datasourceMap.get(id.toString());
-      return ds || { id, name: `Dataset ${id}` };
-    });
+    const namesResponse = await bulkResponse.json();
+    const namesData = namesResponse.dataSources || [];
+    const byId = Object.fromEntries(
+      namesData.map((d) => [d.id || d.datasetId, d])
+    );
+    const ordered = datasetIds.map((id) => byId[id]).filter(Boolean);
+    // console.log('[getDatasetsForView] ordered:', ordered);
+    return ordered;
   };
 
   try {
-    return await executeInPage(fetchLogic, [dataSourceId], tabId);
+    return await executeInPage(fetchLogic, [datasetId], tabId);
   } catch (error) {
     console.error('Error fetching datasets for view:', error);
     throw error;
