@@ -69,41 +69,25 @@ export async function waitForChildPages(currentContext, maxAttempts = 50) {
 
 /**
  * Store data for sidepanel and optionally open it
- * @param {Object} options
- * @param {string} options.type - Type of data (e.g., 'getPages', 'childPagesWarning')
- * @param {number} options.objectId - Object ID
- * @param {string} options.objectName - Object name
- * @param {string} options.objectType - Object type ('PAGE', 'DATA_APP_VIEW', 'CARD')
- * @param {Object} options.currentContext - Current DomoContext
- * @param {Array} options.childPages - Optional child pages array
- * @param {boolean} options.statusShown - Whether status was already shown
- * @param {boolean} options.openPanel - Whether to open the sidepanel after storing
- * @param {boolean} options.closeWindow - Whether to close the current window after opening sidepanel
+ * Accepts any properties and passes them through to storage.
+ * Special handling for currentContext to call toJSON() if available.
+ *
+ * @param {Object} options - Data to store
+ * @param {string} options.type - Type of data (e.g., 'getPages', 'getDatasets', 'childPagesWarning')
+ * @param {Object} [options.currentContext] - Current DomoContext (will be serialized via toJSON)
+ * @param {boolean} [options.statusShown] - Whether status was already shown
+ * @param {...any} options - Any additional properties to store
  */
-export async function storeSidepanelData({
-  type,
-  objectId,
-  objectName,
-  objectType,
-  currentContext,
-  childPages = null,
-  statusShown = false
-}) {
+export async function storeSidepanelData(options) {
+  const { currentContext, ...rest } = options;
+
   const data = {
-    type,
-    objectId,
-    objectName,
-    objectType,
+    ...rest,
     currentContext: currentContext?.toJSON?.() || currentContext,
     tabId: currentContext?.tabId || null,
-    timestamp: Date.now(),
-    statusShown
+    timestamp: Date.now()
   };
 
-  // Add childPages if provided
-  if (childPages !== null) {
-    data.childPages = childPages;
-  }
-
+  console.log('[storeSidepanelData] Storing data:', data);
   await chrome.storage.session.set({ sidepanelDataList: data });
 }

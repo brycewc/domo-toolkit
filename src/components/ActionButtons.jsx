@@ -19,6 +19,7 @@ import {
   ContextFooter,
   DeleteCurrentObject,
   FilterActivityLog,
+  GetDatasets,
   GetPages,
   NavigateToCopiedObject,
   StatusBar,
@@ -186,6 +187,19 @@ export function ActionButtons({
                     currentContext?.domoObject?.typeId === 'CARD' ||
                     currentContext?.domoObject?.typeId === 'DATA_SOURCE') && (
                     <GetPages
+                      currentContext={currentContext}
+                      onStatusUpdate={showStatus}
+                      isDisabled={!isDomoPage}
+                      onCollapseActions={
+                        collapsable ? () => setIsExpanded(false) : undefined
+                      }
+                    />
+                  )}
+                  {(currentContext?.domoObject?.typeId === 'PAGE' ||
+                    currentContext?.domoObject?.typeId === 'DATA_APP_VIEW' ||
+                    currentContext?.domoObject?.typeId === 'DATAFLOW_TYPE' ||
+                    currentContext?.domoObject?.typeId === 'DATA_SOURCE') && (
+                    <GetDatasets
                       currentContext={currentContext}
                       onStatusUpdate={showStatus}
                       isDisabled={!isDomoPage}

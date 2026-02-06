@@ -406,15 +406,13 @@ export async function deletePageAndAllCards({
 
       if (childPages.length > 0) {
         // Store child pages data for sidepanel to read
+        // Only store type, currentContext, and feature-specific data (childPages)
+        // pageId, appId, pageType are derived from currentContext.domoObject
         await chrome.storage.session.set({
           sidepanelDataList: {
             type: 'childPagesWarning',
-            pageId,
-            appId,
-            pageType,
-            childPages,
             currentContext: currentContext?.toJSON?.() || currentContext,
-            tabId: currentContext?.tabId || null,
+            childPages,
             timestamp: Date.now()
           }
         });

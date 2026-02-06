@@ -50,9 +50,7 @@ export function GetPages({
         return;
       }
 
-      const objectId = parseInt(
-        currentContext.domoObject?.parentId || currentContext.domoObject.id
-      );
+      // Derive objectName for status messages (not stored, just for local use)
       const objectName =
         currentContext.domoObject.metadata?.parent?.name ||
         currentContext.domoObject.metadata?.name ||
@@ -157,11 +155,10 @@ export function GetPages({
         }
 
         // Store the page information for the sidepanel to use
+        // Only store type, currentContext, and feature-specific data (childPages)
+        // objectId, objectName, objectType are derived from currentContext.domoObject
         await storeSidepanelData({
           type: 'getPages',
-          objectId,
-          objectName,
-          objectType,
           currentContext,
           childPages,
           statusShown: true

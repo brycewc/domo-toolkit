@@ -149,30 +149,19 @@ export function Copy({
           )}
           <AnimatePresence>
             {isHolding && (
-              <motion.svg
-                className='pointer-events-none absolute inset-x-0.5 -inset-y-0.5 size-full'
-                viewBox='0 0 100 100'
-                preserveAspectRatio='none'
+              <motion.div
+                className='pointer-events-none absolute inset-0 overflow-hidden rounded-md'
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0, transition: { duration: 0.1 } }}
               >
-                <motion.rect
-                  x='2'
-                  y='2'
-                  width='96'
-                  height='96'
-                  rx='6'
-                  fill='none'
-                  stroke='currentColor'
-                  strokeWidth='3'
-                  className='text-accent'
-                  style={{ vectorEffect: 'non-scaling-stroke' }}
-                  initial={{ pathLength: 0 }}
-                  animate={{ pathLength: 1 }}
+                <motion.div
+                  className='absolute left-1/2 top-1/2 aspect-square w-[200%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent/20'
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
                   transition={{ duration: LONG_PRESS_SECONDS, ease: 'linear' }}
                 />
-              </motion.svg>
+              </motion.div>
             )}
           </AnimatePresence>
         </Button>

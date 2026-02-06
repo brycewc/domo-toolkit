@@ -111,9 +111,6 @@ export function DeleteCurrentObject({
               // Store child pages data
               await storeSidepanelData({
                 type: 'childPagesWarning',
-                pageId,
-                appId,
-                pageType,
                 currentContext,
                 childPages,
                 statusShown: inSidepanel
