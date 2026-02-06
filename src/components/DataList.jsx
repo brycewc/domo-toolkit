@@ -240,7 +240,7 @@ export function DataList({
       {(title || hasHeaderActions) && (
         <Card.Header>
           <div className='flex flex-col gap-1'>
-            <Card.Title className='flex items-center justify-between'>
+            <Card.Title className='flex items-start justify-between'>
               {title}
               {hasHeaderActions && (
                 <ButtonGroup hideSeparator>
@@ -449,9 +449,9 @@ function DataListItem({
     <Disclosure
       isOpen={isOpen}
       onOpenChange={setIsOpen}
-      className='w-full border-t border-border p-1'
+      className='space-0 w-full border-t border-border'
     >
-      <Disclosure.Heading className='flex min-h-9 w-full flex-row justify-between'>
+      <Disclosure.Heading className='m-1 flex min-h-9 w-full flex-row justify-between'>
         <div className='flex w-full min-w-0 flex-1 basis-4/5 items-center gap-2'>
           {!item?.isVirtualParent &&
             (item.url ? (

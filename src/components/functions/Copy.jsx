@@ -156,7 +156,7 @@ export function Copy({
                 exit={{ opacity: 0, transition: { duration: 0.1 } }}
               >
                 <motion.div
-                  className='absolute left-1/2 top-1/2 aspect-square w-[200%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent/20'
+                  className='absolute top-1/2 left-1/2 aspect-square w-[200%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent-soft-hover'
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   transition={{ duration: LONG_PRESS_SECONDS, ease: 'linear' }}
