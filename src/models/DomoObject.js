@@ -103,10 +103,11 @@ export class DomoObject {
    * Get the parent ID for this object and enrich metadata with parent details
    * @param {boolean} [inPageContext=false] - Whether already in page context (skip executeInPage)
    * @param {string} [url=null] - Optional URL to extract parent ID from (overrides this.originalUrl)
+   * @param {number} [tabId=null] - Optional Chrome tab ID for executing in-page lookups
    * @returns {Promise<string>} The parent ID
    * @throws {Error} If the parent cannot be fetched or is not supported
    */
-  async getParent(inPageContext = false, url = null) {
+  async getParent(inPageContext = false, url = null, tabId = null) {
     let parentId;
 
     // First check if we already have the parent ID stored
@@ -123,10 +124,10 @@ export class DomoObject {
       if (!parentId) {
         switch (this.objectType.id) {
           case 'DATA_APP_VIEW':
-            parentId = await getAppStudioPageParent(this.id, inPageContext);
+            parentId = await getAppStudioPageParent(this.id, inPageContext, tabId);
             break;
           case 'DRILL_PATH':
-            parentId = await getDrillParentCardId(this.id, inPageContext);
+            parentId = await getDrillParentCardId(this.id, inPageContext, tabId);
             break;
           default:
             throw new Error(
@@ -146,15 +147,30 @@ export class DomoObject {
       const parentType = getObjectType(parentTypeId);
       const parentTypeName = parentType ? parentType.name : parentTypeId;
 
+      console.log(
+        `[getParent] parentType=${parentTypeId}, hasApi=${!!parentType?.api}, method=${parentType?.api?.method}, hasBodyTemplate=${!!parentType?.api?.bodyTemplate}`
+      );
       if (parentType && parentType.api) {
         try {
           // Fetch parent details using its API configuration
-          const { method, endpoint, pathToName } = parentType.api;
+          const {
+            method,
+            endpoint,
+            pathToName,
+            pathToDetails = null,
+            bodyTemplate = null
+          } = parentType.api;
+
+          console.log(
+            `[getParent] Fetching parent details: method=${method}, endpoint=${endpoint}, parentId=${parentId}, inPageContext=${inPageContext}, tabId=${tabId}`
+          );
 
           const fetchParentDetails = async (
             endpoint,
             method,
             pathToName,
+            pathToDetails,
+            bodyTemplate,
             parentId,
             parentTypeId,
             parentTypeName
@@ -165,16 +181,39 @@ export class DomoObject {
               credentials: 'include'
             };
 
+            if (method !== 'GET' && bodyTemplate) {
+              options.body = JSON.stringify(bodyTemplate).replace(
+                /{id}/g,
+                parentId
+              );
+              options.headers = {
+                'Content-Type': 'application/json'
+              };
+            }
+
+            console.log(`[getParent:fetchParentDetails] Fetching ${method} ${url}, hasBody=${!!options.body}`);
+
             const response = await fetch(url, options);
+
+            console.log(`[getParent:fetchParentDetails] Response status: ${response.status}`);
 
             if (!response.ok) {
               throw new Error(`HTTP ${response.status}`);
             }
 
             const data = await response.json();
+            console.log(`[getParent:fetchParentDetails] Response data keys:`, Object.keys(data));
+
+            const details = pathToDetails
+              ? pathToDetails
+                  .split('.')
+                  .reduce((current, prop) => current?.[prop], data)
+              : data;
             const name = pathToName
               .split('.')
               .reduce((current, prop) => current?.[prop], data);
+
+            console.log(`[getParent:fetchParentDetails] Extracted name=${name}, hasDetails=${!!details}`);
 
             return {
               id: parentId,
@@ -183,7 +222,7 @@ export class DomoObject {
                 name: parentTypeName
               },
               name: name,
-              details: data
+              details: details
             };
           };
 
@@ -193,63 +232,33 @@ export class DomoObject {
                 endpoint,
                 method,
                 pathToName,
+                pathToDetails,
+                bodyTemplate,
                 parentId,
                 parentTypeId,
                 parentTypeName
               )
-            : await executeInPage(fetchParentDetails, [
-                endpoint,
-                method,
-                pathToName,
-                parentId,
-                parentTypeId,
-                parentTypeName
-              ]);
+            : await executeInPage(
+                fetchParentDetails,
+                [
+                  endpoint,
+                  method,
+                  pathToName,
+                  pathToDetails,
+                  bodyTemplate,
+                  parentId,
+                  parentTypeId,
+                  parentTypeName
+                ],
+                tabId
+              );
 
           // Store parent details in metadata
           this.metadata.parent = parentDetails;
-          console.log('Enriched parent metadata:', parentDetails);
+          console.log('[getParent] Successfully set parent:', parentDetails);
         } catch (error) {
-          console.error('Error fetching parent details:', error);
+          console.error('[getParent] Error fetching parent details:', error);
           // Still return the parentId even if we can't fetch details
-        }
-      }
-    }
-
-    return parentId;
-  }
-
-  /**
-   * Get the parent ID for this object using a specific tab ID
-   * @param {number} tabId - The Chrome tab ID to execute the lookup in
-   * @returns {Promise<string>} The parent ID
-   * @throws {Error} If the parent cannot be fetched or is not supported
-   */
-  async getParentWithTabId(tabId) {
-    let parentId;
-
-    // First check if we already have the parent ID stored
-    if (this.parentId) {
-      parentId = this.parentId;
-    } else {
-      // Try to extract parent ID from URL if available
-      if (this.originalUrl) {
-        parentId = this.objectType.extractParentId(this.originalUrl);
-      }
-
-      // Fall back to API lookup if URL extraction didn't work
-      if (!parentId) {
-        switch (this.objectType.id) {
-          case 'DATA_APP_VIEW':
-            parentId = await getAppStudioPageParent(this.id, false, tabId);
-            break;
-          case 'DRILL_PATH':
-            parentId = await getDrillParentCardId(this.id, false, tabId);
-            break;
-          default:
-            throw new Error(
-              `Parent lookup not supported for type: ${this.objectType.id}`
-            );
         }
       }
     }
@@ -265,9 +274,7 @@ export class DomoObject {
    */
   async buildUrl(baseUrl, tabId = null) {
     if (this.requiresParentForUrl()) {
-      const parentId = tabId
-        ? await this.getParentWithTabId(tabId)
-        : await this.getParent();
+      const parentId = await this.getParent(false, null, tabId);
       console.log(
         `Building URL for ${this.typeName} ${this.id} with parent ${parentId}`
       );

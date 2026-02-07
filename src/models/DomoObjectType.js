@@ -55,7 +55,7 @@ export class DomoObjectType {
         if (tabId) {
           const domoObject = new DomoObject(this.id, id, baseUrl);
           try {
-            parentId = await domoObject.getParentWithTabId(tabId);
+            parentId = await domoObject.getParent(false, null, tabId);
           } catch (error) {
             throw new Error(
               `Parent ID is required for ${this.id} and could not be fetched: ${error.message}`
@@ -346,13 +346,15 @@ export const ObjectTypeRegistry = {
     { keyword: 'request-details' },
     {
       method: 'POST',
-      endpoint: 'synapse/approval/graphql',
+      endpoint: '/synapse/approval/graphql',
       pathToName: 'data.request.title',
+      pathToDetails: 'data.request',
+      pathToParentId: 'data.request.templateID',
       bodyTemplate: {
         operationName: 'getApprovalForDetails',
         variables: { id: '{id}' },
         query:
-          'query getApprovalForDetails($id: ID!) {\n  request: approval(id: $id) {\n    ...approvalFields\n    __name\n  }\n}\n\nfragment approvalFields on Approval {\n  newActivity\n  observers {\n    id\n    id\n    displayName\n    title\n    ... on Group {\n      currentUserIsMember\n      memberCount: userCount\n      __name\n    }\n    __name\n  }\n  lastViewed\n  newActivity\n  newMessage {\n    created\n    createdByType\n    createdBy {\n      id\n      displayName\n      __name\n    }\n    content {\n      text\n      __name\n    }\n    __name\n  }\n  lastAction\n  version\n  submittedTime\n  id\n  title\n  status\n  providerName\n  templateTitle\n  buzzChannelId\n  buzzGeneralThreadId\n  templateInstructions\n  templateDescription\n  acknowledgment\n  snooze\n  snoozed\n  id\n  categories {\n    id\n    name\n    __name\n  }\n  total {\n    value\n    currency\n    __name\n  }\n  modifiedTime\n  previousApprover: previousApproverEx {\n    id\n    id\n    displayName\n    ... on User {\n      title\n      avatarKey\n      isCurrentUser\n      __name\n    }\n    ... on Group {\n      currentUserIsMember\n      userCount\n      isDeleted\n      actor {\n        displayName\n        id\n        __name\n      }\n      __name\n    }\n    __name\n  }\n  pendingApprover: pendingApproverEx {\n    id\n    id\n    displayName\n    ... on User {\n      title\n      avatarKey\n      isCurrentUser\n      __name\n    }\n    ... on Group {\n      currentUserIsMember\n      userCount\n      isDeleted\n      __name\n    }\n    __name\n  }\n  submitter {\n    id\n    displayName\n    title\n    avatarKey\n    isCurrentUser\n    id\n    __name\n  }\n  approvalChainIdx\n  reminder {\n    sent\n    sentBy {\n      displayName\n      title\n      id\n      isCurrentUser\n      id\n      __name\n    }\n    __name\n  }\n  chain {\n    actor {\n      displayName\n      __name\n    }\n    approver {\n      id\n      id\n      displayName\n      ... on User {\n        title\n        avatarKey\n        isCurrentUser\n        __name\n      }\n      ... on Group {\n        currentUserIsMember\n        userCount\n        isDeleted\n        __name\n      }\n      __name\n    }\n    status\n    time\n    id\n    key\n    __name\n  }\n  fields {\n    data\n    name\n    id\n    key\n    ... on HeaderField {\n      fields {\n        data\n        name\n        id\n        key\n        ... on HeaderField {\n          fields {\n            data\n            name\n            id\n            key\n            __name\n          }\n          __name\n        }\n        __name\n      }\n      __name\n    }\n    ... on ItemListField {\n      fields {\n        data\n        name\n        id\n        key\n        ... on HeaderField {\n          fields {\n            data\n            name\n            id\n            key\n            ... on HeaderField {\n              fields {\n                data\n                name\n                id\n                key\n                __name\n              }\n              __name\n            }\n            __name\n          }\n          __name\n        }\n        __name\n      }\n      __name\n    }\n    ... on NumberField {\n      value\n      __name\n    }\n    ... on CurrencyField {\n      number: value\n      currency\n      __name\n    }\n    ... on DateField {\n      date: value\n      __name\n    }\n    ... on DataSetAttachmentField {\n      dataSet: value {\n        id\n        name\n        description\n        owner {\n          id\n          displayName\n          __name\n        }\n        provider\n        cardCount\n        __name\n      }\n      __name\n    }\n    __name\n  }\n  history {\n    actor {\n      id\n      id\n      displayName\n      ... on User {\n        avatarKey\n        isCurrentUser\n        __name\n      }\n      __name\n    }\n    status\n    time\n    __name\n  }\n  latestMessage {\n    created\n    __name\n  }\n  latestMentioned {\n    created\n    __name\n  }\n  workflowIntegration {\n    modelId\n    modelVersion\n    startName\n    instanceId\n    modelName\n    __name\n  }\n  __name\n}'
+          'query getApprovalForDetails($id: ID!) {\n  request: approval(id: $id) {\n    ...approvalFields\n    __typename\n  }\n}\n\nfragment approvalFields on Approval {\n  newActivity\n  observers {\n    id\n    type\n    displayName\n    title\n    ... on Group {\n      currentUserIsMember\n      memberCount: userCount\n      __typename\n    }\n    __typename\n  }\n  lastViewed\n  newActivity\n  newMessage {\n    created\n    createdByType\n    createdBy {\n      id\n      displayName\n      __typename\n    }\n    content {\n      text\n      __typename\n    }\n    __typename\n  }\n  lastAction\n  version\n  submittedTime\n  id\n  title\n  status\n  providerName\n  templateTitle\n  buzzChannelId\n  buzzGeneralThreadId\n  templateID\n  templateInstructions\n  templateDescription\n  acknowledgment\n  snooze\n  snoozed\n  type\n  categories {\n    id\n    name\n    __typename\n  }\n  total {\n    value\n    currency\n    __typename\n  }\n  modifiedTime\n  previousApprover: previousApproverEx {\n    id\n    type\n    displayName\n    ... on User {\n      title\n      avatarKey\n      isCurrentUser\n      __typename\n    }\n    ... on Group {\n      currentUserIsMember\n      userCount\n      isDeleted\n      actor {\n        displayName\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  pendingApprover: pendingApproverEx {\n    id\n    type\n    displayName\n    ... on User {\n      title\n      avatarKey\n      isCurrentUser\n      __typename\n    }\n    ... on Group {\n      currentUserIsMember\n      userCount\n      isDeleted\n      __typename\n    }\n    __typename\n  }\n  submitter {\n    id\n    displayName\n    title\n    avatarKey\n    isCurrentUser\n    type\n    __typename\n  }\n  approvalChainIdx\n  reminder {\n    sent\n    sentBy {\n      displayName\n      title\n      id\n      isCurrentUser\n      type\n      __typename\n    }\n    __typename\n  }\n  chain {\n    actor {\n      displayName\n      __typename\n    }\n    approver {\n      id\n      type\n      displayName\n      ... on User {\n        title\n        avatarKey\n        isCurrentUser\n        __typename\n      }\n      ... on Group {\n        currentUserIsMember\n        userCount\n        isDeleted\n        __typename\n      }\n      __typename\n    }\n    status\n    time\n    type\n    key\n    __typename\n  }\n  fields {\n    data\n    name\n    type\n    key\n    ... on HeaderField {\n      fields {\n        data\n        name\n        type\n        key\n        ... on HeaderField {\n          fields {\n            data\n            name\n            type\n            key\n            __typename\n          }\n          __typename\n        }\n        __typename\n      }\n      __typename\n    }\n    ... on ItemListField {\n      fields {\n        data\n        name\n        type\n        key\n        ... on HeaderField {\n          fields {\n            data\n            name\n            type\n            key\n            ... on HeaderField {\n              fields {\n                data\n                name\n                type\n                key\n                __typename\n              }\n              __typename\n            }\n            __typename\n          }\n          __typename\n        }\n        __typename\n      }\n      __typename\n    }\n    ... on NumberField {\n      value\n      __typename\n    }\n    ... on CurrencyField {\n      number: value\n      currency\n      __typename\n    }\n    ... on DateField {\n      date: value\n      __typename\n    }\n    ... on DataSetAttachmentField {\n      dataSet: value {\n        id\n        name\n        description\n        owner {\n          id\n          displayName\n          __typename\n        }\n        provider\n        cardCount\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  history {\n    actor {\n      type\n      id\n      displayName\n      ... on User {\n        avatarKey\n        isCurrentUser\n        __typename\n      }\n      __typename\n    }\n    status\n    time\n    __typename\n  }\n  latestMessage {\n    created\n    __typename\n  }\n  latestMentioned {\n    created\n    __typename\n  }\n  workflowIntegration {\n    modelId\n    modelVersion\n    startName\n    instanceId\n    modelName\n    __typename\n  }\n  __typename\n}'
       }
     },
     ['TEMPLATE']
@@ -707,18 +709,32 @@ export const ObjectTypeRegistry = {
   ENIGMA_FORM: new DomoObjectType(
     'ENIGMA_FORM',
     'Form',
-    null,
+    '/advancedForms/{id}/revisions',
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    null,
-    null
+    {
+      keyword: 'advancedForms'
+    },
+    {
+      method: 'GET',
+      endpoint: '/forms/v1/advanced-forms/{id}',
+      pathToName: 'title'
+    }
   ),
   ENIGMA_FORM_INSTANCE: new DomoObjectType(
     'ENIGMA_FORM_INSTANCE',
     'Enigma form instance',
-    null,
+    '/advancedForms/{parent}/revisions/{id}/design',
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    null,
-    null
+    {
+      keyword: 'revisions',
+      parentExtract: { keyword: 'advancedForms', offset: 1 }
+    },
+    {
+      method: 'GET',
+      endpoint: '/forms/v1/advanced-forms/{parent}/revisions/{id}',
+      pathToName: 'revision'
+    },
+    ['ENIGMA_FORM']
   ),
   EXECUTOR_APPLICATION: new DomoObjectType(
     'EXECUTOR_APPLICATION',
@@ -1284,6 +1300,7 @@ export const ObjectTypeRegistry = {
       method: 'POST',
       endpoint: '/synapse/approval/graphql',
       pathToName: 'data.template.title',
+      pathToDetails: 'data.template',
       bodyTemplate: {
         operationName: 'getTemplateForEdit',
         variables: { id: '{id}' },

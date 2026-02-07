@@ -89,11 +89,7 @@ export function GetCardsView({
       let cards = data.cards;
 
       if (forceRefresh) {
-        console.log(
-          '[GetCardsView] Forcing refresh...',
-          objectType,
-          objectId
-        );
+        console.log('[GetCardsView] Forcing refresh...', objectType, objectId);
         const tabId = await getValidTabForInstance(instance);
         cards = await getCardsForObject({
           objectId,
@@ -146,9 +142,9 @@ export function GetCardsView({
   const renderTitle = () => {
     return (
       <div className='flex flex-col gap-1'>
-        <div className='flex flex-wrap items-center justify-start gap-x-1'>
-          <span className='font-bold'>{viewData?.objectName}</span>
-          Cards
+        <div className='flex min-w-0 items-center justify-start gap-x-1'>
+          <span className='truncate font-bold'>{viewData?.objectName}</span>
+          <span className='shrink-0'>Cards</span>
         </div>
         {items.length > 0 && (
           <div className='flex flex-row items-center gap-1'>

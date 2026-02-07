@@ -580,10 +580,10 @@ export function GetPagesView({
     );
 
     return (
-      <div className='flex flex-col gap-1'>
-        <div className='flex flex-wrap items-center justify-start gap-x-1'>
-          <span className='font-bold'>{pageData?.objectName}</span>
-          {pageData?.pageTypeLabel}
+      <div className='flex w-full flex-col gap-1'>
+        <div className='flex w-full min-w-0 items-center justify-start gap-x-1'>
+          <span className='truncate font-bold'>{pageData?.objectName}</span>
+          <span className='shrink-0'>{pageData?.pageTypeLabel}</span>
         </div>
         {items.length !== undefined &&
           pageData?.objectType !== 'CARD' &&

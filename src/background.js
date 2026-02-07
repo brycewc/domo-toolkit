@@ -430,7 +430,7 @@ function disable431Listener() {
 
 // Initialize 431 listener based on stored setting
 chrome.storage.sync.get(['defaultClearCookiesHandling'], (result) => {
-  const mode = result.defaultClearCookiesHandling || 'default';
+  const mode = result.defaultClearCookiesHandling || 'auto';
 
   // Only enable 431 auto-clear listener for 'auto' mode
   if (mode === 'auto') {
@@ -562,7 +562,7 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
     areaName === 'sync' &&
     changes.defaultClearCookiesHandling !== undefined
   ) {
-    const mode = changes.defaultClearCookiesHandling.newValue || 'default';
+    const mode = changes.defaultClearCookiesHandling.newValue || 'auto';
 
     // Only enable 431 auto-clear listener for 'auto' mode
     if (mode === 'auto') {
@@ -683,10 +683,16 @@ async function detectAndStoreContext(tabId) {
       .then((user) => {
         context.user = user;
         setTabContext(tabId, context);
-        console.log(`[Background] Fetched current user for tab ${tabId}:`, user?.id);
+        console.log(
+          `[Background] Fetched current user for tab ${tabId}:`,
+          user?.id
+        );
       })
       .catch((error) => {
-        console.warn(`[Background] Could not fetch current user for tab ${tabId}:`, error.message);
+        console.warn(
+          `[Background] Could not fetch current user for tab ${tabId}:`,
+          error.message
+        );
       });
 
     // Execute detection script in page context
@@ -714,7 +720,7 @@ async function detectAndStoreContext(tabId) {
     }
 
     // Extract parent ID from URL if available
-    const parentId = typeModel.extractParentId(detected.url);
+    let parentId = typeModel.extractParentId(detected.url);
 
     // Create DomoObject with original URL and parent ID for immediate URL building
     const domoObject = new DomoObject(
@@ -738,15 +744,38 @@ async function detectAndStoreContext(tabId) {
     };
 
     // Enrich with details - throw on error for current object detection
-    domoObject.metadata =
+    const enrichedMetadata =
       (await executeInPage(fetchObjectDetailsInPage, [params], tabId)) || {};
 
+    // Set parentId from API response if not already extracted from URL
+    console.log(
+      `[Background] enrichedMetadata keys:`,
+      Object.keys(enrichedMetadata),
+      `parentId from URL: ${parentId}, parentId from API: ${enrichedMetadata.parentId}`
+    );
+    if (!parentId && enrichedMetadata.parentId) {
+      parentId = enrichedMetadata.parentId;
+      domoObject.parentId = parentId;
+      console.log(
+        `[Background] Set parentId from API response: ${parentId}`
+      );
+    }
+
+    domoObject.metadata = enrichedMetadata;
+
     // For objects with parents, enrich metadata with parent details
+    console.log(
+      `[Background] Parent enrichment check: parentId=${parentId}, parents=${JSON.stringify(typeModel.parents)}`
+    );
     if (parentId && typeModel.parents && typeModel.parents.length > 0) {
       try {
-        await domoObject.getParent(false, detected.url);
         console.log(
-          `[Background] Enriched parent metadata for ${typeModel.id} ${objectId}`
+          `[Background] Calling getParent for ${typeModel.id} ${objectId} with tabId=${tabId}`
+        );
+        await domoObject.getParent(false, detected.url, tabId);
+        console.log(
+          `[Background] Enriched parent metadata for ${typeModel.id} ${objectId}:`,
+          domoObject.metadata?.parent
         );
       } catch (error) {
         console.warn(
@@ -765,9 +794,14 @@ async function detectAndStoreContext(tabId) {
     );
     setTabContext(tabId, context);
 
-    // For PAGE and DATA_APP_VIEW types, fetch child pages asynchronously (non-blocking)
+    // For PAGE, DATA_APP_VIEW, WORKSHEET_VIEW, and REPORT_BUILDER_VIEW types, fetch child pages asynchronously (non-blocking)
     // This happens in the background while the user interacts with the popup
-    if (typeModel.id === 'PAGE' || typeModel.id === 'DATA_APP_VIEW') {
+    if (
+      typeModel.id === 'PAGE' ||
+      typeModel.id === 'DATA_APP_VIEW' ||
+      typeModel.id === 'WORKSHEET_VIEW' ||
+      typeModel.id === 'REPORT_BUILDER_VIEW'
+    ) {
       const appId =
         typeModel.id === 'DATA_APP_VIEW' && domoObject.parentId
           ? parseInt(domoObject.parentId)
@@ -793,9 +827,13 @@ async function detectAndStoreContext(tabId) {
               currentContext.domoObject.metadata.details = {};
             }
 
-            // For DATA_APP_VIEW, store in appPages (sibling pages in the app)
+            // For DATA_APP_VIEW, WORKSHEET_VIEW, and REPORT_BUILDER_VIEW, store in appPages (sibling pages in the app)
             // For PAGE, store in childPages (actual child pages)
-            if (typeModel.id === 'DATA_APP_VIEW') {
+            if (
+              typeModel.id === 'DATA_APP_VIEW' ||
+              typeModel.id === 'WORKSHEET_VIEW' ||
+              typeModel.id === 'REPORT_BUILDER_VIEW'
+            ) {
               currentContext.domoObject.metadata.details.appPages = childPages;
             } else {
               currentContext.domoObject.metadata.details.childPages =
@@ -806,7 +844,7 @@ async function detectAndStoreContext(tabId) {
             setTabContext(tabId, currentContext);
 
             console.log(
-              `[Background] Fetched ${childPages?.length || 0} ${typeModel.id === 'DATA_APP_VIEW' ? 'app pages' : 'child pages'} for ${typeModel.id} ${objectId}`
+              `[Background] Fetched ${childPages?.length || 0} ${typeModel.id === 'DATA_APP_VIEW' || typeModel.id === 'WORKSHEET_VIEW' || typeModel.id === 'REPORT_BUILDER_VIEW' ? 'app pages' : 'child pages'} for ${typeModel.id} ${objectId}`
             );
           }
         })
@@ -824,7 +862,11 @@ async function detectAndStoreContext(tabId) {
             if (!currentContext.domoObject.metadata?.details) {
               currentContext.domoObject.metadata.details = {};
             }
-            if (typeModel.id === 'DATA_APP_VIEW') {
+            if (
+              typeModel.id === 'DATA_APP_VIEW' ||
+              typeModel.id === 'WORKSHEET_VIEW' ||
+              typeModel.id === 'REPORT_BUILDER_VIEW'
+            ) {
               currentContext.domoObject.metadata.details.appPages = [];
             } else {
               currentContext.domoObject.metadata.details.childPages = [];
@@ -884,7 +926,8 @@ async function detectAndStoreContext(tabId) {
       typeModel.id === 'PAGE' ||
       typeModel.id === 'DATA_APP_VIEW' ||
       typeModel.id === 'DATA_SOURCE' ||
-      typeModel.id === 'WORKSHEET_VIEW'
+      typeModel.id === 'WORKSHEET_VIEW' ||
+      typeModel.id === 'REPORT_BUILDER_VIEW'
     ) {
       // Fetch cards in background without blocking
       getCardsForObject({

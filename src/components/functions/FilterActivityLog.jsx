@@ -96,7 +96,9 @@ export function FilterActivityLog({ currentContext, isDisabled }) {
       fullWidth
       onPress={handleFilter}
       isDisabled={isDisabled}
+      className='relative min-w-fit flex-1 basis-[48%] overflow-visible'
     >
+      <IconFilter stroke={1.5} />
       Activity Log
     </Button>
   );

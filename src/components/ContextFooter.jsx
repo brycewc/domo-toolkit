@@ -60,12 +60,12 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
           <>
             <Alert.Title className='flex w-full items-center justify-between gap-1'>
               {currentContext?.isDomoPage ? (
-                <div>
+                <span>
                   Current Context:{' '}
                   <span className='underline'>
                     {currentContext?.instance}.domo.com
                   </span>
-                </div>
+                </span>
               ) : (
                 'Not a Domo Instance'
               )}

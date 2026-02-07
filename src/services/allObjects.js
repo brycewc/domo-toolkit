@@ -25,7 +25,14 @@ export async function fetchObjectDetailsInPage(params) {
     throwOnError = true
   } = params;
 
-  const { method, endpoint, pathToName, bodyTemplate } = apiConfig;
+  const {
+    method,
+    endpoint,
+    pathToName,
+    pathToDetails = null,
+    pathToParentId = null,
+    bodyTemplate = null
+  } = apiConfig;
   let url;
   let parentId = providedParentId;
 
@@ -76,11 +83,19 @@ export async function fetchObjectDetailsInPage(params) {
     }
 
     const data = await response.json();
+    const details = pathToDetails
+      ? pathToDetails.split('.').reduce((current, prop) => current?.[prop], data)
+      : data;
     const name = pathToName
       .split('.')
       .reduce((current, prop) => current?.[prop], data);
+    const extractedParentId = pathToParentId
+      ? pathToParentId
+          .split('.')
+          .reduce((current, prop) => current?.[prop], data)
+      : undefined;
 
-    return { details: data, name };
+    return { details, name, parentId: extractedParentId };
   } catch (error) {
     console.error(`Error fetching details for ${typeId}:`, error);
     if (throwOnError) throw error;

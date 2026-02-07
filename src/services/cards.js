@@ -103,10 +103,6 @@ export async function getCardsForObject({
             }
             const page = await response.json();
             const cards = page.cards || [];
-            if (!cards.length) {
-              throw new Error(`${objectType} ${objectId} has no cards.`);
-            }
-            // Return full card objects with details
             return cards.filter((c) => Number.isFinite(c.id));
           }
 
@@ -123,10 +119,7 @@ export async function getCardsForObject({
               );
             }
             const cards = await response.json();
-            if (!cards.length) {
-              throw new Error(`DataSet ${objectId} has no cards.`);
-            }
-            // console.log(cards);
+            if (!cards.length) return [];
             // Normalize cards to have id property
             return cards.map((card) => ({
               ...card,

@@ -236,14 +236,14 @@ export function DataList({
   const hasHeaderActions = headerActions.length > 0 || onClose;
 
   return (
-    <Card className='w-full overflow-x-hidden overflow-y-scroll overscroll-x-none overscroll-y-contain p-2'>
+    <Card className='overflow-y-scroll overscroll-x-none overscroll-y-contain p-2'>
       {(title || hasHeaderActions) && (
         <Card.Header>
           <div className='flex flex-col gap-1'>
             <Card.Title className='flex items-start justify-between'>
-              {title}
+              <div className='min-w-0 flex-1'>{title}</div>
               {hasHeaderActions && (
-                <ButtonGroup hideSeparator>
+                <ButtonGroup hideSeparator className='shrink-0'>
                   {headerActions.length > 0 && (
                     <Popover>
                       <Button variant='ghost' size='sm' isIconOnly>
@@ -354,7 +354,10 @@ export function DataList({
       )}
 
       <Card.Content>
-        <DisclosureGroup className='flex flex-col' allowsMultipleExpanded>
+        <DisclosureGroup
+          className='flex w-full flex-col'
+          allowsMultipleExpanded
+        >
           {items.map((item, index) => (
             <DataListItem
               key={item.id || index}
@@ -494,9 +497,7 @@ function DataListItem({
       >
         <IconUserPlus stroke={1.5} />
       </Button>
-      <Tooltip.Content className='text-xs'>
-        Share with yourself
-      </Tooltip.Content>
+      <Tooltip.Content className='text-xs'>Share with yourself</Tooltip.Content>
     </Tooltip>
   );
 
@@ -549,7 +550,7 @@ function DataListItem({
       onOpenChange={setIsOpen}
       className='space-0 w-full border-t border-border'
     >
-      <Disclosure.Heading className='m-1 flex min-h-9 w-full flex-row justify-between'>
+      <Disclosure.Heading className='my-1 flex min-h-9 w-full flex-row justify-between gap-1'>
         <div className='flex w-full min-w-0 flex-1 basis-4/5 items-center gap-2'>
           {!item?.isVirtualParent &&
             (item.url ? (

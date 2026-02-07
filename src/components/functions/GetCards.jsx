@@ -7,7 +7,24 @@ import {
   storeSidepanelData,
   openSidepanel
 } from '@/utils';
+import { getCardsForObject } from '@/services';
 import { IconChartBar } from '@tabler/icons-react';
+
+const VALID_TYPES = [
+  'PAGE',
+  'DATA_APP_VIEW',
+  'REPORT_BUILDER_VIEW',
+  'WORKSHEET_VIEW',
+  'DATA_SOURCE'
+];
+
+// Types that have cards pre-fetched in background
+const PRE_FETCHED_TYPES = [
+  'PAGE',
+  'DATA_APP_VIEW',
+  'DATA_SOURCE',
+  'WORKSHEET_VIEW'
+];
 
 export function GetCards({
   currentContext,
@@ -33,32 +50,38 @@ export function GetCards({
 
       const objectType = currentContext.domoObject.typeId;
 
-      if (objectType !== 'PAGE' && objectType !== 'DATA_APP_VIEW') {
+      if (!VALID_TYPES.includes(objectType)) {
         onStatusUpdate?.(
           'Invalid Object Type',
-          `This function only works on pages and app studio pages. Current object is: ${currentContext.domoObject.typeName}`,
+          `This function does not support ${currentContext.domoObject.typeName}.`,
           'danger'
         );
         setIsLoading(false);
         return;
       }
 
-      const result = await waitForCards(currentContext);
+      let cards;
 
-      if (!result.success) {
-        onStatusUpdate?.('Error', result.error, 'danger', 3000);
-        setIsLoading(false);
-        return;
+      if (PRE_FETCHED_TYPES.includes(objectType)) {
+        const result = await waitForCards(currentContext);
+        if (!result.success) {
+          onStatusUpdate?.('Error', result.error, 'danger', 3000);
+          setIsLoading(false);
+          return;
+        }
+        cards = result.cards;
+      } else {
+        cards = await getCardsForObject({
+          objectId: currentContext.domoObject.id,
+          objectType,
+          tabId: currentContext?.tabId
+        });
       }
-
-      const cards = result.cards;
 
       if (!cards || cards.length === 0) {
         onStatusUpdate?.(
           'No Cards Found',
-          objectType === 'DATA_APP_VIEW'
-            ? 'This app studio page has no cards.'
-            : 'This page has no cards.',
+          'No cards found for this object.',
           'warning',
           3000
         );

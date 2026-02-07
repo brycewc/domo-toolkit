@@ -95,7 +95,7 @@ export function ActionButtons({
       ) : (
         <>
           <Card className='h-full w-full p-0'>
-            <Card.Content className='p-1'>
+            <Card.Content className='p-2'>
               <Disclosure
                 isExpanded={isExpanded}
                 onExpandedChange={setIsExpanded}
@@ -184,23 +184,13 @@ export function ActionButtons({
                       onStatusUpdate={showStatus}
                     />
                   </div>
-                  <div className='flex w-full flex-wrap place-items-center items-center justify-center gap-1'>
+                  <div className='flex w-full flex-wrap place-items-center items-center justify-center gap-1 empty:hidden'>
                     {(currentContext?.domoObject?.typeId === 'PAGE' ||
                       currentContext?.domoObject?.typeId === 'DATA_APP_VIEW' ||
-                      currentContext?.domoObject?.typeId === 'CARD' ||
-                      currentContext?.domoObject?.typeId === 'DATA_SOURCE') && (
-                      <GetPages
-                        currentContext={currentContext}
-                        onStatusUpdate={showStatus}
-                        isDisabled={!isDomoPage}
-                        onCollapseActions={
-                          collapsable ? () => setIsExpanded(false) : undefined
-                        }
-                      />
-                    )}
-                    {(currentContext?.domoObject?.typeId === 'PAGE' ||
                       currentContext?.domoObject?.typeId ===
-                        'DATA_APP_VIEW') && (
+                        'REPORT_BUILDER_VIEW' ||
+                      currentContext?.domoObject?.typeId === 'WORKSHEET_VIEW' ||
+                      currentContext?.domoObject?.typeId === 'DATA_SOURCE') && (
                       <GetCards
                         currentContext={currentContext}
                         onStatusUpdate={showStatus}
@@ -215,6 +205,19 @@ export function ActionButtons({
                       currentContext?.domoObject?.typeId === 'DATAFLOW_TYPE' ||
                       currentContext?.domoObject?.typeId === 'DATA_SOURCE') && (
                       <GetDatasets
+                        currentContext={currentContext}
+                        onStatusUpdate={showStatus}
+                        isDisabled={!isDomoPage}
+                        onCollapseActions={
+                          collapsable ? () => setIsExpanded(false) : undefined
+                        }
+                      />
+                    )}
+                    {(currentContext?.domoObject?.typeId === 'PAGE' ||
+                      currentContext?.domoObject?.typeId === 'DATA_APP_VIEW' ||
+                      currentContext?.domoObject?.typeId === 'CARD' ||
+                      currentContext?.domoObject?.typeId === 'DATA_SOURCE') && (
+                      <GetPages
                         currentContext={currentContext}
                         onStatusUpdate={showStatus}
                         isDisabled={!isDomoPage}

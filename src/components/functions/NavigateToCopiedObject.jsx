@@ -102,7 +102,9 @@ export const NavigateToCopiedObject = forwardRef(
                 objectId,
                 baseUrl
               );
-              const parentId = await domoObject.getParentWithTabId(
+              const parentId = await domoObject.getParent(
+                false,
+                null,
                 currentContext.tabId
               );
               params.parentId = parentId;

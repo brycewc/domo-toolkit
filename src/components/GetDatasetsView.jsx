@@ -264,11 +264,9 @@ export function GetDatasetsView({
     const totalCount = getTotalCount();
 
     return (
-      <div className='flex flex-col gap-1'>
-        <div className='flex flex-wrap items-center justify-start gap-x-1'>
-          <span className='font-bold'>{viewData?.objectName}</span>
-          {viewData?.typeLabel}
-        </div>
+      <div className='flex min-w-0 flex-col items-start justify-start'>
+        <div className='truncate font-bold'>{viewData?.objectName}</div>
+        <div className='shrink-0'>{viewData?.typeLabel}</div>
         {totalCount > 0 && (
           <div className='flex flex-row items-center gap-1'>
             <span className='text-sm text-muted'>
