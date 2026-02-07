@@ -13,6 +13,37 @@ import {
   executeInPage
 } from '@/utils';
 
+/**
+ * Resolve an object ID via API when it cannot be extracted from the URL.
+ * Used for types like FILESET_FILE where the URL contains a file path
+ * instead of the actual object UUID.
+ * @param {string} typeId - The object type ID
+ * @param {Object} context - Extra context from detectCurrentObject
+ * @param {number} tabId - The Chrome tab ID for executing in-page API calls
+ * @returns {Promise<string|null>} The resolved object ID, or null
+ */
+async function resolveObjectId(typeId, context, tabId) {
+  switch (typeId) {
+    case 'FILESET_FILE': {
+      const { filesetId, filePath } = context;
+      return executeInPage(
+        async (filesetId, filePath) => {
+          const res = await fetch(
+            `/api/files/v1/filesets/${filesetId}/path?path=${filePath}`
+          );
+          if (!res.ok) return null;
+          const data = await res.json();
+          return data?.id || null;
+        },
+        [filesetId, filePath],
+        tabId
+      );
+    }
+    default:
+      return null;
+  }
+}
+
 // Set session storage access level so content scripts can access it
 chrome.storage.session.setAccessLevel({
   accessLevel: 'TRUSTED_AND_UNTRUSTED_CONTEXTS'
@@ -714,6 +745,15 @@ async function detectAndStoreContext(tabId) {
       objectId = typeModel.extractObjectId(detected.url);
     }
 
+    // Resolve ID via API if needed (e.g., FILESET_FILE where ID isn't in the URL)
+    if (!objectId && detected.resolveContext) {
+      objectId = await resolveObjectId(
+        detected.typeId,
+        detected.resolveContext,
+        tabId
+      );
+    }
+
     if (!objectId) {
       console.warn(`[Background] Could not extract ID for ${detected.typeId}`);
       return null;
@@ -721,6 +761,11 @@ async function detectAndStoreContext(tabId) {
 
     // Extract parent ID from URL if available
     let parentId = typeModel.extractParentId(detected.url);
+
+    // For types resolved via resolveContext, extract parentId if available
+    if (!parentId && detected.resolveContext?.filesetId) {
+      parentId = detected.resolveContext.filesetId;
+    }
 
     // Create DomoObject with original URL and parent ID for immediate URL building
     const domoObject = new DomoObject(
@@ -756,9 +801,7 @@ async function detectAndStoreContext(tabId) {
     if (!parentId && enrichedMetadata.parentId) {
       parentId = enrichedMetadata.parentId;
       domoObject.parentId = parentId;
-      console.log(
-        `[Background] Set parentId from API response: ${parentId}`
-      );
+      console.log(`[Background] Set parentId from API response: ${parentId}`);
     }
 
     domoObject.metadata = enrichedMetadata;

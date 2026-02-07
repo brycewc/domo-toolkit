@@ -192,9 +192,27 @@ export async function detectCurrentObject() {
       id = parts[parts.indexOf('pro-code-editor') + 1];
       break;
 
-    case url.includes('filesets/'):
+    case url.includes('filesets/'): {
+      const filesetId = parts[parts.indexOf('filesets') + 1];
+      if (url.includes('/preview/')) {
+        objectType = 'FILESET_FILE';
+        // Extract file path: everything after /preview/
+        const previewIndex = url.indexOf('/preview/');
+        const filePath = url
+          .substring(previewIndex + '/preview/'.length)
+          .split('?')[0];
+        // Return early with extra context for async ID resolution
+        return {
+          typeId: objectType,
+          id: null,
+          url,
+          baseUrl: `${location.protocol}//${location.hostname}`,
+          resolveContext: { filesetId, filePath }
+        };
+      }
       objectType = 'FILESET';
       break;
+    }
 
     case url.includes('ai-services/projects/'):
       objectType = 'AI_PROJECT';
