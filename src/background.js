@@ -1100,28 +1100,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           const { clipboardData, domoObject } = message;
           console.log('[Background] CLIPBOARD_COPIED received:', clipboardData);
 
-          if (clipboardData) {
-            // Cache in session storage (include object info if available)
-            await chrome.storage.session.set({
-              lastClipboardValue: clipboardData,
-              lastClipboardObject: domoObject || null
-            });
+          // Cache in session storage (include object info if available)
+          await chrome.storage.session.set({
+            lastClipboardValue: clipboardData || '',
+            lastClipboardObject: clipboardData ? domoObject || null : null
+          });
 
-            // Update in-memory value and notify if changed
-            if (clipboardData !== lastClipboardValue) {
-              lastClipboardValue = clipboardData;
+          // Update in-memory value and notify if changed
+          if ((clipboardData || '') !== lastClipboardValue) {
+            lastClipboardValue = clipboardData || '';
 
-              // Notify all extension contexts about clipboard change
-              chrome.runtime
-                .sendMessage({
-                  type: 'CLIPBOARD_UPDATED',
-                  clipboardData: clipboardData,
-                  domoObject: domoObject || null
-                })
-                .catch(() => {
-                  // No listeners, that's fine
-                });
-            }
+            // Notify all extension contexts about clipboard change
+            chrome.runtime
+              .sendMessage({
+                type: 'CLIPBOARD_UPDATED',
+                clipboardData: clipboardData || '',
+                domoObject: clipboardData ? domoObject || null : null
+              })
+              .catch(() => {
+                // No listeners, that's fine
+              });
           }
 
           sendResponse({ success: true });

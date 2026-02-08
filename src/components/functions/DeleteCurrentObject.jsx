@@ -199,7 +199,12 @@ export function DeleteCurrentObject({
             !supportedTypes.includes(currentContext?.domoObject?.typeId)
           }
         >
-          <IconTrash stroke={1.5} className='text-danger' />
+          {({ isDisabled }) => (
+            <IconTrash
+              stroke={1.5}
+              className={isDisabled ? '' : 'text-danger'}
+            />
+          )}
         </Button>
         <Tooltip.Content>
           Delete{' '}

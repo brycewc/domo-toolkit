@@ -157,6 +157,7 @@ export class DomoObject {
             method,
             endpoint,
             pathToName,
+            nameTemplate = null,
             pathToDetails = null,
             bodyTemplate = null
           } = parentType.api;
@@ -169,6 +170,7 @@ export class DomoObject {
             endpoint,
             method,
             pathToName,
+            nameTemplate,
             pathToDetails,
             bodyTemplate,
             parentId,
@@ -209,9 +211,13 @@ export class DomoObject {
                   .split('.')
                   .reduce((current, prop) => current?.[prop], data)
               : data;
-            const name = pathToName
-              .split('.')
-              .reduce((current, prop) => current?.[prop], data);
+            const resolvePath = (path) =>
+              path.split('.').reduce((current, prop) => current?.[prop], data);
+            const name = nameTemplate
+              ? nameTemplate.replace(/{([^}]+)}/g, (_, path) =>
+                  path === 'id' ? parentId : resolvePath(path) ?? ''
+                )
+              : resolvePath(pathToName);
 
             console.log(`[getParent:fetchParentDetails] Extracted name=${name}, hasDetails=${!!details}`);
 
@@ -232,6 +238,7 @@ export class DomoObject {
                 endpoint,
                 method,
                 pathToName,
+                nameTemplate,
                 pathToDetails,
                 bodyTemplate,
                 parentId,
@@ -244,6 +251,7 @@ export class DomoObject {
                   endpoint,
                   method,
                   pathToName,
+                  nameTemplate,
                   pathToDetails,
                   bodyTemplate,
                   parentId,

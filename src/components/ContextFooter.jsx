@@ -199,6 +199,9 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
             />
           )}
           customizeNode={(params) => {
+            if (params.node === null || params.node === undefined) {
+              return { enableClipboard: false };
+            }
             if (
               typeof params.node === 'string' &&
               params.node.startsWith('https://')
@@ -219,6 +222,16 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
               (typeof params.node === 'number' ||
                 typeof params.node === 'string') &&
               params.node?.toString().length >= 7
+            ) {
+              return { enableClipboard: true };
+            } else if (
+              typeof params.node === 'object' &&
+              Object.keys(params.node).length > 0
+            ) {
+              return { enableClipboard: true };
+            } else if (
+              typeof params.node === 'array' &&
+              params.node.length > 0
             ) {
               return { enableClipboard: true };
             } else {

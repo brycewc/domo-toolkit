@@ -29,6 +29,7 @@ export async function fetchObjectDetailsInPage(params) {
     method,
     endpoint,
     pathToName,
+    nameTemplate = null,
     pathToDetails = null,
     pathToParentId = null,
     bodyTemplate = null
@@ -86,9 +87,13 @@ export async function fetchObjectDetailsInPage(params) {
     const details = pathToDetails
       ? pathToDetails.split('.').reduce((current, prop) => current?.[prop], data)
       : data;
-    const name = pathToName
-      .split('.')
-      .reduce((current, prop) => current?.[prop], data);
+    const resolvePath = (path) =>
+      path.split('.').reduce((current, prop) => current?.[prop], data);
+    const name = nameTemplate
+      ? nameTemplate.replace(/{([^}]+)}/g, (_, path) =>
+          path === 'id' ? objectId : resolvePath(path) ?? ''
+        )
+      : resolvePath(pathToName);
     const extractedParentId = pathToParentId
       ? pathToParentId
           .split('.')

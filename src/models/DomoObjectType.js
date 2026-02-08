@@ -455,7 +455,7 @@ export const ObjectTypeRegistry = {
   ),
   CODEENGINE_PACKAGE_VERSION: new DomoObjectType(
     'CODEENGINE_PACKAGE_VERSION',
-    'CodeEngine Package Version',
+    'Code Engine Package Version',
     null,
     /^[0-9]+\.[0-9]+\.[0-9]+$/,
     null,
@@ -1280,7 +1280,20 @@ export const ObjectTypeRegistry = {
     null
   ),
   STORY: new DomoObjectType('STORY', 'Story', null, /^\d+$/, null, null),
-  STREAM: new DomoObjectType('STREAM', 'Stream', null, /^\d+$/, null, null),
+  STREAM: new DomoObjectType(
+    'STREAM',
+    'Stream',
+    null,
+    /^\d+$/,
+    null,
+    {
+      method: 'GET',
+      endpoint: '/data/v1/streams/{id}?fields=all',
+      pathToName: 'dataProvider.name',
+      nameTemplate: '{dataProvider.name} Stream {id}'
+    },
+    ['DATA_SOURCE']
+  ),
   SUBSCRIPTION: new DomoObjectType(
     'SUBSCRIPTION',
     'Subscription',

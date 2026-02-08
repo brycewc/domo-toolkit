@@ -220,7 +220,7 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
           isDisabled={isDisabled}
           isPending={isLoading}
           fullWidth
-          className='relative min-w-fit flex-1 basis-[48%] overflow-visible'
+          className='min-w-fit flex-1 basis-[48%]'
         >
           <IconFileDescription stroke={1.5} />
           Activity Log

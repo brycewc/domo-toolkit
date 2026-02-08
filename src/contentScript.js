@@ -72,10 +72,19 @@ async function checkAndCacheClipboard() {
 
     if (!isNumeric && !isUuid) {
       console.log(
-        '[Background] Clipboard does not contain a valid Domo object ID:',
+        '[ContentScript] Clipboard does not contain a valid Domo object ID:',
         trimmedText
       );
-      // Don't store or notify about invalid IDs
+      // If the previous clipboard was a Domo ID, clear it
+      if (lastKnownClipboard) {
+        lastKnownClipboard = '';
+        chrome.runtime
+          .sendMessage({
+            type: 'CLIPBOARD_COPIED',
+            clipboardData: ''
+          })
+          .catch(() => {});
+      }
       return null;
     }
 

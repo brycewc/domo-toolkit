@@ -1,19 +1,18 @@
 import { useEffect, useState } from 'react';
 import {
   Button,
+  ButtonGroup,
   Card,
   Chip,
   Disclosure,
   Spinner,
   Tooltip
 } from '@heroui/react';
-import {
-  IconChevronDown,
-  IconClipboard,
-  IconX
-} from '@tabler/icons-react';
+import { IconChevronDown, IconClipboard, IconX } from '@tabler/icons-react';
+import JsonView from 'react18-json-view';
+import '@/assets/json-view-theme.css';
 import { AnimatedCheck } from '@/components';
-import { DomoContext, DomoObject } from '@/models';
+import { DomoObject } from '@/models';
 
 /**
  * Known fields to display prominently with human-readable labels.
@@ -48,7 +47,12 @@ function formatValue(value, format) {
 
   switch (format) {
     case 'date': {
-      const date = new Date(value);
+      // Detect epoch timestamps in seconds (10 digits) vs milliseconds (13 digits)
+      const timestamp =
+        typeof value === 'number' && value > 0 && value < 1e11
+          ? value * 1000
+          : value;
+      const date = new Date(timestamp);
       if (isNaN(date.getTime())) return String(value);
       return date.toLocaleString();
     }
@@ -99,8 +103,6 @@ export function ObjectDetailsView({
   const [error, setError] = useState(null);
   const [domoObject, setDomoObject] = useState(null);
   const [keyFields, setKeyFields] = useState([]);
-  const [jsonString, setJsonString] = useState('');
-  const [isCopied, setIsCopied] = useState(false);
 
   // Load data on mount
   useEffect(() => {
@@ -135,31 +137,12 @@ export function ObjectDetailsView({
       // Extract key fields from metadata details
       const details = obj.metadata?.details || {};
       setKeyFields(extractKeyFields(details));
-
-      // Build JSON string for the collapsible section
-      setJsonString(JSON.stringify(details, null, 2));
     } catch (err) {
       console.error('[ObjectDetailsView] Error loading details:', err);
       setError(err.message || 'Failed to load object details');
     } finally {
       setIsLoading(false);
       clearTimeout(spinnerTimer);
-    }
-  };
-
-  const handleCopyJson = async () => {
-    try {
-      await navigator.clipboard.writeText(jsonString);
-      setIsCopied(true);
-      setTimeout(() => setIsCopied(false), 2000);
-      onStatusUpdate?.(
-        'Copied',
-        'Full JSON copied to clipboard',
-        'success',
-        2000
-      );
-    } catch (err) {
-      onStatusUpdate?.('Error', 'Failed to copy JSON', 'danger', 3000);
     }
   };
 
@@ -203,26 +186,30 @@ export function ObjectDetailsView({
   if (!domoObject) return null;
 
   return (
-    <Card className='w-full overflow-x-hidden overflow-y-scroll overscroll-x-none overscroll-y-contain p-2'>
+    <Card className='overflow-y-scroll overscroll-x-none overscroll-y-contain p-2'>
       <Card.Header>
-        <Card.Title className='flex items-center justify-between'>
-          <div className='flex flex-col gap-1'>
+        <Card.Title className='flex items-start justify-between'>
+          <div className='flex min-w-0 flex-1 flex-col gap-1'>
             <div className='flex flex-wrap items-center gap-x-2'>
-              <span className='font-bold'>
-                {domoObject.metadata?.name || `ID: ${domoObject.id}`}
-              </span>
-              <Chip size='sm' variant='soft' color='secondary'>
+              <span>{domoObject.metadata?.name || `ID: ${domoObject.id}`}</span>
+              <Chip size='sm' variant='soft' color='accent'>
                 {domoObject.typeName}
               </Chip>
             </div>
-            <span className='text-sm text-muted'>ID: {domoObject.id}</span>
+            {domoObject.id &&
+              !(
+                domoObject.metadata?.name || domoObject.typeId === 'STREAM'
+              ) && (
+                <span className='text-sm text-muted'>ID: {domoObject.id}</span>
+              )}
           </div>
-          <div className='flex items-center gap-1'>
+          <ButtonGroup className='shrink-0' hideSeparator>
             <Tooltip delay={400} closeDelay={0}>
               <Button
                 variant='ghost'
                 size='sm'
                 isIconOnly
+                fullWidth
                 onPress={handleCopyId}
               >
                 <IconClipboard stroke={1.5} />
@@ -235,6 +222,7 @@ export function ObjectDetailsView({
                   variant='ghost'
                   size='sm'
                   isIconOnly
+                  fullWidth
                   onPress={onBackToDefault}
                 >
                   <IconX stroke={1.5} />
@@ -242,7 +230,7 @@ export function ObjectDetailsView({
                 <Tooltip.Content className='text-xs'>Close</Tooltip.Content>
               </Tooltip>
             )}
-          </div>
+          </ButtonGroup>
         </Card.Title>
       </Card.Header>
 
@@ -253,60 +241,104 @@ export function ObjectDetailsView({
             {keyFields.map(({ label, value }) => (
               <div
                 key={label}
-                className='flex flex-row items-start gap-2 border-b border-border py-1.5 last:border-b-0'
+                className='flex flex-row items-start justify-between gap-2 border-b border-border py-1.5 last:border-b-0'
               >
-                <span className='w-28 shrink-0 text-xs font-medium text-muted'>
+                <span className='shrink-0 text-xs font-medium text-muted'>
                   {label}
                 </span>
-                <span className='break-all text-xs'>{value}</span>
+                <span className='text-xs break-all'>{value}</span>
               </div>
             ))}
           </div>
         )}
 
         {/* Full JSON */}
-        {jsonString && jsonString !== '{}' && (
-          <Disclosure className='w-full'>
-            <Disclosure.Heading>
-              <Disclosure.Trigger
-                variant='tertiary'
-                className='flex w-full items-center justify-between'
-              >
-                <span className='text-xs font-medium'>Full JSON</span>
-                <Disclosure.Indicator>
-                  <IconChevronDown stroke={1.5} size={16} />
-                </Disclosure.Indicator>
-              </Disclosure.Trigger>
-            </Disclosure.Heading>
-            <Disclosure.Content>
-              <Disclosure.Body>
-                <div className='relative'>
-                  <Tooltip delay={400} closeDelay={0}>
-                    <Button
-                      variant='ghost'
-                      size='sm'
-                      isIconOnly
-                      onPress={handleCopyJson}
-                      className='absolute right-1 top-1 z-10'
-                    >
-                      {isCopied ? (
-                        <AnimatedCheck stroke={1.5} size={14} />
-                      ) : (
-                        <IconClipboard stroke={1.5} size={14} />
-                      )}
-                    </Button>
-                    <Tooltip.Content className='text-xs'>
-                      {isCopied ? 'Copied!' : 'Copy JSON'}
-                    </Tooltip.Content>
-                  </Tooltip>
-                  <pre className='max-h-96 overflow-auto rounded-md bg-default-100 p-2 pr-8 text-xs'>
-                    {jsonString}
-                  </pre>
-                </div>
-              </Disclosure.Body>
-            </Disclosure.Content>
-          </Disclosure>
-        )}
+        {domoObject.metadata?.details &&
+          domoObject.metadata?.details !== '{}' && (
+            <Disclosure className='w-full'>
+              <Disclosure.Heading>
+                <Button
+                  slot='trigger'
+                  variant='ghost'
+                  className='flex w-full items-center justify-between'
+                >
+                  Full JSON
+                  <Disclosure.Indicator>
+                    <IconChevronDown stroke={1.5} />
+                  </Disclosure.Indicator>
+                </Button>
+              </Disclosure.Heading>
+              <Disclosure.Content>
+                <Disclosure.Body>
+                  <JsonView
+                    src={domoObject.metadata?.details}
+                    collapsed={1}
+                    matchesURL={false}
+                    displaySize
+                    collapseStringMode='word'
+                    collapseStringsAfterLength={50}
+                    CopyComponent={({ onClick, className, style }) => (
+                      <IconClipboard
+                        onClick={onClick}
+                        className={className}
+                        style={style}
+                        size={16}
+                        stroke={1.5}
+                      />
+                    )}
+                    CopiedComponent={({ className, style }) => (
+                      <AnimatedCheck
+                        className={`${className} text-success`}
+                        style={style}
+                        size={16}
+                        stroke={1.5}
+                      />
+                    )}
+                    customizeNode={(params) => {
+                      if (params.node === null || params.node === undefined) {
+                        return { enableClipboard: false };
+                      }
+                      if (
+                        typeof params.node === 'string' &&
+                        params.node.startsWith('https://')
+                      ) {
+                        return (
+                          <Link
+                            href={params.node}
+                            target='_blank'
+                            className='text-(--json-boolean) no-underline decoration-(--json-boolean) hover:underline'
+                          >
+                            {params.node}
+                          </Link>
+                        );
+                      }
+                      if (params.indexOrName?.toLowerCase().includes('id')) {
+                        return { enableClipboard: true };
+                      } else if (
+                        (typeof params.node === 'number' ||
+                          typeof params.node === 'string') &&
+                        params.node?.toString().length >= 7
+                      ) {
+                        return { enableClipboard: true };
+                      } else if (
+                        typeof params.node === 'object' &&
+                        Object.keys(params.node).length > 0
+                      ) {
+                        return { enableClipboard: true };
+                      } else if (
+                        typeof params.node === 'array' &&
+                        params.node.length > 0
+                      ) {
+                        return { enableClipboard: true };
+                      } else {
+                        return { enableClipboard: false };
+                      }
+                    }}
+                  />
+                </Disclosure.Body>
+              </Disclosure.Content>
+            </Disclosure>
+          )}
       </Card.Content>
     </Card>
   );
