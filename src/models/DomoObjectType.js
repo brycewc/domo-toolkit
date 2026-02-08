@@ -1615,3 +1615,18 @@ export function getAllObjectTypesWithApiConfig() {
     (type) => type.hasApiConfig() && !type.deprecated
   );
 }
+
+/**
+ * Get all object types that have either a navigable URL or an API configuration.
+ * Suitable for the clipboard navigation dropdown where non-URL types
+ * can be viewed in the sidepanel instead.
+ * @returns {DomoObjectType[]} Array of DomoObjectType instances
+ */
+export function getAllNavigableObjectTypes() {
+  return Object.values(ObjectTypeRegistry).filter(
+    (type) =>
+      (type.hasUrl() || type.hasApiConfig()) &&
+      !type.deprecated &&
+      type.idPattern !== null
+  );
+}

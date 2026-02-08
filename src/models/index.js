@@ -6,5 +6,6 @@ export {
   getObjectType,
   getAllObjectTypes,
   getAllObjectTypesWithUrl,
-  getAllObjectTypesWithApiConfig
+  getAllObjectTypesWithApiConfig,
+  getAllNavigableObjectTypes
 } from './DomoObjectType';

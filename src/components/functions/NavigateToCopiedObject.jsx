@@ -10,11 +10,16 @@ import { Button, Dropdown, Label, Tooltip, Chip, Spinner } from '@heroui/react';
 import {
   DomoObject,
   getAllObjectTypesWithApiConfig,
-  getAllObjectTypesWithUrl
+  getAllNavigableObjectTypes
 } from '@/models';
 import { fetchObjectDetailsInPage } from '@/services';
-import { executeInPage } from '@/utils';
-import { IconExternalLink } from '@tabler/icons-react';
+import {
+  executeInPage,
+  isSidepanel,
+  openSidepanel,
+  storeSidepanelData
+} from '@/utils';
+import { IconExternalLink, IconEye } from '@tabler/icons-react';
 
 export const NavigateToCopiedObject = forwardRef(
   function NavigateToCopiedObject({ currentContext, onStatusUpdate }, ref) {
@@ -204,9 +209,11 @@ export const NavigateToCopiedObject = forwardRef(
     }));
 
     useEffect(() => {
-      // Load all object types for dropdown
-      const types = getAllObjectTypesWithUrl()
-        .filter((type) => !type.requiresParentForUrl())
+      // Load all object types for dropdown (includes non-URL types with API configs)
+      const types = getAllNavigableObjectTypes()
+        .filter(
+          (type) => type.hasUrl() ? !type.requiresParentForUrl() : true
+        )
         .sort((a, b) => a.name.localeCompare(b.name));
       setAllTypes(types);
     }, []);
@@ -381,7 +388,7 @@ export const NavigateToCopiedObject = forwardRef(
       handleNavigate(objectIdToUse, manuallySelectedType);
     };
 
-    const handleNavigate = (objectIdToUse, manuallySelectedType) => {
+    const handleNavigate = async (objectIdToUse, manuallySelectedType) => {
       const typeToUse = manuallySelectedType || selectedType;
 
       // console.log('[handleNavigate] objectIdToUse:', objectIdToUse);
@@ -407,16 +414,9 @@ export const NavigateToCopiedObject = forwardRef(
 
         if (objectDetails && !manuallySelectedType) {
           // Use the already detected DomoObject (auto-detected path)
-          // console.log('[handleNavigate] Using auto-detected objectDetails');
           domoObject = objectDetails;
         } else if (typeToUse) {
           // User manually selected a type - create new DomoObject
-          // console.log(
-          //   '[handleNavigate] Creating new DomoObject with typeToUse:',
-          //   typeToUse,
-          //   typeof typeToUse
-          // );
-          // Also update state for UI consistency
           if (manuallySelectedType) {
             setSelectedType(manuallySelectedType);
           }
@@ -424,10 +424,8 @@ export const NavigateToCopiedObject = forwardRef(
 
           // Check if on a Domo page
           if (currentContext?.isDomoPage && currentContext?.instance) {
-            // Use current Domo instance
             baseUrl = `https://${currentContext?.instance}.domo.com`;
           } else {
-            // Use default Domo instance from settings (button should be disabled if not set)
             baseUrl = `https://${defaultDomoInstance}.domo.com`;
           }
 
@@ -436,7 +434,20 @@ export const NavigateToCopiedObject = forwardRef(
           // No object details and no type selected
           return;
         }
-        // console.log(domoObject);
+
+        // For types without a URL, open the sidepanel with object details
+        if (!domoObject.hasUrl()) {
+          await storeSidepanelData({
+            type: 'viewObjectDetails',
+            currentContext,
+            domoObject: domoObject.toJSON()
+          });
+          if (!isSidepanel()) {
+            openSidepanel();
+          }
+          return;
+        }
+
         domoObject.navigateTo(currentContext?.tabId).catch((err) => {
           console.error('Error navigating to object:', err);
           onStatusUpdate?.(
@@ -496,6 +507,11 @@ export const NavigateToCopiedObject = forwardRef(
               {allTypes.map((type) => (
                 <Dropdown.Item id={type.id} textValue={type.name} key={type.id}>
                   <Label>{type.name}</Label>
+                  {!type.hasUrl() && (
+                    <Chip size='sm' variant='soft' color='secondary'>
+                      Details
+                    </Chip>
+                  )}
                 </Dropdown.Item>
               ))}
             </Dropdown.Menu>
@@ -512,7 +528,11 @@ export const NavigateToCopiedObject = forwardRef(
           isPending={isLoading}
           isIconOnly={isLoading}
         >
-          <IconExternalLink stroke={1.5} />
+          {objectDetails && !objectDetails.hasUrl() ? (
+            <IconEye stroke={1.5} />
+          ) : (
+            <IconExternalLink stroke={1.5} />
+          )}
           From Clipboard
         </Button>
         <Tooltip.Content
@@ -526,12 +546,14 @@ export const NavigateToCopiedObject = forwardRef(
               objectDetails ? (
                 <>
                   <span>
-                    Navigate to {objectDetails.metadata?.name || 'Unknown'}
+                    {objectDetails.hasUrl()
+                      ? `Navigate to ${objectDetails.metadata?.name || 'Unknown'}`
+                      : `View details for ${objectDetails.metadata?.name || 'Unknown'}`}
                   </span>
                   <Chip
                     size='sm'
                     variant='soft'
-                    color='accent'
+                    color={objectDetails.hasUrl() ? 'accent' : 'secondary'}
                     className='w-fit'
                   >
                     {objectDetails.metadata?.parent

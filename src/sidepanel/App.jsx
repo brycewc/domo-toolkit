@@ -4,7 +4,8 @@ import {
   ActionButtons,
   GetCardsView,
   GetDatasetsView,
-  GetPagesView
+  GetPagesView,
+  ObjectDetailsView
 } from '@/components';
 import { useTheme } from '@/hooks';
 import { DomoContext } from '@/models';
@@ -39,6 +40,8 @@ export default function App() {
           setActiveView('getCards');
         } else if (data?.type === 'getDatasets') {
           setActiveView('getDatasets');
+        } else if (data?.type === 'viewObjectDetails') {
+          setActiveView('viewObjectDetails');
         }
       }
     };
@@ -59,6 +62,8 @@ export default function App() {
             setActiveView('getCards');
           } else if (result.sidepanelDataList.type === 'getDatasets') {
             setActiveView('getDatasets');
+          } else if (result.sidepanelDataList.type === 'viewObjectDetails') {
+            setActiveView('viewObjectDetails');
           }
         }
       }
@@ -214,6 +219,13 @@ export default function App() {
 
       {activeView === 'getDatasets' && (
         <GetDatasetsView
+          onBackToDefault={handleBackToDefault}
+          onStatusUpdate={statusCallbackRef.current}
+        />
+      )}
+
+      {activeView === 'viewObjectDetails' && (
+        <ObjectDetailsView
           onBackToDefault={handleBackToDefault}
           onStatusUpdate={statusCallbackRef.current}
         />
