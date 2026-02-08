@@ -326,7 +326,7 @@ export function ObjectDetailsView({
                       ) {
                         return { enableClipboard: true };
                       } else if (
-                        typeof params.node === 'array' &&
+                        Array.isArray(params.node) &&
                         params.node.length > 0
                       ) {
                         return { enableClipboard: true };

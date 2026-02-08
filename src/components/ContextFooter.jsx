@@ -229,10 +229,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
               Object.keys(params.node).length > 0
             ) {
               return { enableClipboard: true };
-            } else if (
-              typeof params.node === 'array' &&
-              params.node.length > 0
-            ) {
+            } else if (Array.isArray(params.node) && params.node.length > 0) {
               return { enableClipboard: true };
             } else {
               return { enableClipboard: false };

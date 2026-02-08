@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Accordion,
   Button,
@@ -9,21 +9,25 @@ import {
   ListBox,
   TextField,
   Form,
-  Popover,
   Skeleton,
-  ButtonGroup
+  ColorArea,
+  ColorInputGroup,
+  ColorField,
+  ColorSlider,
+  ColorSwatch,
+  ColorPicker,
+  ColorSwatchPicker,
+  parseColor
 } from '@heroui/react';
 import {
   IconTrash,
   IconGripVertical,
-  IconColorSwatchOff,
-  IconColorSwatch,
   IconPlus,
   IconDeviceFloppy,
   IconChevronDown,
-  IconCheck
+  IconCheck,
+  IconArrowsShuffle
 } from '@tabler/icons-react';
-import { ColorPicker } from 'react-color-pikr';
 import { clearFaviconCache } from '@/utils';
 import { StatusBar } from './../StatusBar';
 
@@ -32,8 +36,6 @@ export function FaviconSettings() {
   const [originalRules, setOriginalRules] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [draggedIndex, setDraggedIndex] = useState(null);
-  const [activeColorPicker, setActiveColorPicker] = useState(null);
-  const [tempColor, setTempColor] = useState('#000000');
   const [statusBar, setStatusBar] = useState({
     title: '',
     description: '',
@@ -41,7 +43,26 @@ export function FaviconSettings() {
     timeout: 3000,
     visible: false
   });
-  const [popoverOffset, setPopoverOffset] = useState(8);
+  const colorPresets = [
+    '#F43F5EFF',
+    '#D946EFFF',
+    '#8B5CF6FF',
+    '#3B82F6FF',
+    '#06B6D4FF',
+    '#10B981FF',
+    '#84CC16FF'
+  ];
+  const nextPresetIndex = useRef(0);
+  const shuffleColor = (ruleId) => {
+    const randomHue = Math.floor(Math.random() * 360);
+    const randomSaturation = 50 + Math.floor(Math.random() * 50); // 50-100%
+    const randomLightness = 40 + Math.floor(Math.random() * 30); // 40-70%
+    const randomAlpha = 0.5 + Math.random() * 0.5; // 0.5-1.0
+    const newColor = parseColor(
+      `hsla(${randomHue}, ${randomSaturation}%, ${randomLightness}%, ${randomAlpha})`
+    );
+    updateRule(ruleId, 'color', newColor.toString('hexa'));
+  };
 
   // Load settings from Chrome storage on component mount
   useEffect(() => {
@@ -68,7 +89,7 @@ export function FaviconSettings() {
             id: Date.now(),
             pattern: '.*',
             effect: 'instance-logo',
-            color: '#000000'
+            color: '#00000000'
           }
         ];
         setRules(defaultRules);
@@ -113,12 +134,14 @@ export function FaviconSettings() {
   };
 
   const addRow = () => {
+    const color = colorPresets[nextPresetIndex.current % colorPresets.length];
+    nextPresetIndex.current++;
     setRules([
       {
         id: Date.now(),
         pattern: '.*',
         effect: 'domo-logo-colored',
-        color: '#000FFF'
+        color
       },
       ...rules
     ]);
@@ -195,12 +218,15 @@ export function FaviconSettings() {
                   draggedIndex === index ? 'opacity-50' : ''
                 }`}
               >
-                <Card.Content className='flex flex-row items-center justify-start gap-2'>
-                  <div className='flex items-center justify-center'>
-                    <IconGripVertical className='mt-6 size-4' />
-                  </div>
-                  <div className='text-fg-muted mt-6 text-sm font-semibold'>
-                    {index + 1}
+                <Card.Content className='flex flex-row items-end justify-start gap-2'>
+                  <div className='flex flex-col items-center justify-end gap-2'>
+                    <span className='text-fg-muted text-sm font-semibold'>
+                      {index + 1}
+                    </span>
+                    <IconGripVertical
+                      stroke={1.5}
+                      className='size-8 text-muted'
+                    />
                   </div>
 
                   <div className='min-w-0 flex-1'>
@@ -291,83 +317,122 @@ export function FaviconSettings() {
                   </div>
 
                   <div className='flex w-25 flex-col gap-1'>
-                    <Label>Color</Label>
-                    <Popover
-                      onOpenChange={(isOpen) => {
-                        if (isOpen) {
-                          setActiveColorPicker(rule.id);
-                          setTempColor(
-                            rule.effect !== 'instance-logo'
-                              ? rule.color
-                              : '#000000'
-                          );
-                        } else {
-                          setActiveColorPicker(null);
-                        }
-                      }}
+                    <ColorPicker
+                      value={parseColor(rule.color)}
+                      onChange={(newColor) =>
+                        updateRule(rule.id, 'color', newColor.toString('hexa'))
+                      }
+                      className='flex flex-col items-start justify-start gap-1'
                     >
-                      <ButtonGroup>
-                        <Button
-                          fullWidth
-                          onPress={() => setPopoverOffset(49)}
-                          className={
-                            rule.effect === 'instance-logo'
-                              ? 'bg-default opacity-100'
-                              : 'opacity-100'
-                          }
-                          style={
-                            rule.effect !== 'instance-logo'
-                              ? {
-                                  backgroundColor:
-                                    activeColorPicker === rule.id
-                                      ? tempColor
-                                      : rule.color
-                                }
-                              : undefined
-                          }
-                          isDisabled={rule.effect === 'instance-logo'}
-                        ></Button>
-                        <Button
-                          variant='tertiary'
-                          isIconOnly
-                          isDisabled={rule.effect === 'instance-logo'}
-                          fullWidth
-                          className={
-                            rule.effect === 'instance-logo'
-                              ? 'bg-default opacity-100'
-                              : 'opacity-100'
-                          }
-                          onPress={() => setPopoverOffset(8)}
-                        >
-                          {rule.effect === 'instance-logo' ? (
-                            <IconColorSwatchOff />
-                          ) : (
-                            <IconColorSwatch />
-                          )}
-                        </Button>
-                      </ButtonGroup>
-                      <Popover.Content placement='right' offset={popoverOffset}>
-                        <ColorPicker
-                          value={tempColor}
-                          onChange={(newColor) => {
-                            setPopoverOffset(8);
-                            setTempColor(newColor);
-                            updateRule(rule.id, 'color', newColor);
-                          }}
-                          showAlpha={true}
+                      <Label
+                        htmlFor='color-picker-trigger'
+                        aria-label='Color picker label'
+                      >
+                        Color
+                      </Label>
+                      <ColorPicker.Trigger
+                        aria-label='Color picker trigger'
+                        id='color-picker-trigger'
+                        isDisabled={rule.effect === 'instance-logo'}
+                      >
+                        <ColorSwatch
+                          size='lg'
+                          shape='square'
+                          className='w-25 rounded-2xl'
                         />
-                      </Popover.Content>
-                    </Popover>
+                      </ColorPicker.Trigger>
+                      <ColorPicker.Popover
+                        className='w-65 gap-2'
+                        placement='right'
+                      >
+                        <ColorSwatchPicker
+                          aria-label='Color swatch picker'
+                          className='justify-center gap-0.5'
+                          variant='square'
+                        >
+                          {colorPresets.map((preset) => (
+                            <ColorSwatchPicker.Item key={preset} color={preset}>
+                              <ColorSwatchPicker.Swatch />
+                              <ColorSwatchPicker.Indicator>
+                                {({ isSelected }) =>
+                                  isSelected ? <IconCheck /> : null
+                                }
+                              </ColorSwatchPicker.Indicator>
+                            </ColorSwatchPicker.Item>
+                          ))}
+                        </ColorSwatchPicker>
+                        <ColorArea
+                          aria-label='Color area'
+                          className='max-w-full'
+                          colorSpace='hsl'
+                          xChannel='saturation'
+                          yChannel='lightness'
+                        >
+                          <ColorArea.Thumb />
+                        </ColorArea>
+                        <div className='flex flex-col justify-center gap-1'>
+                          <ColorSlider
+                            aria-label='Hue slider'
+                            channel='hue'
+                            className='flex-1'
+                            colorSpace='hsl'
+                          >
+                            <Label>Hue</Label>
+                            <ColorSlider.Track>
+                              <ColorSlider.Thumb />
+                            </ColorSlider.Track>
+                          </ColorSlider>
+                          <ColorSlider
+                            aria-label='Alpha slider'
+                            channel='alpha'
+                            className='flex-1'
+                            colorSpace='hsl'
+                          >
+                            <Label>Opacity</Label>
+                            <ColorSlider.Output className='text-muted' />
+                            <ColorSlider.Track>
+                              <ColorSlider.Thumb />
+                            </ColorSlider.Track>
+                          </ColorSlider>
+                        </div>
+                        <div className='flex w-full flex-row items-center justify-start gap-1'>
+                          <ColorField
+                            colorSpace='hsl'
+                            aria-label='Color field'
+                            className='min-w-0 flex-1 truncate'
+                          >
+                            <ColorInputGroup
+                              variant='secondary'
+                              aria-label='Color input group'
+                            >
+                              <ColorInputGroup.Prefix>
+                                <ColorSwatch size='xs' shape='square' />
+                              </ColorInputGroup.Prefix>
+                              <ColorInputGroup.Input aria-label='Color input' />
+                            </ColorInputGroup>
+                          </ColorField>
+                          <Button
+                            isIconOnly
+                            aria-label='Shuffle color'
+                            variant='tertiary'
+                            onPress={() => shuffleColor(rule.id)}
+                            className='shrink-0'
+                          >
+                            <IconArrowsShuffle stroke={1.5} />
+                          </Button>
+                        </div>
+                      </ColorPicker.Popover>
+                    </ColorPicker>
                   </div>
 
                   {rules.length > 1 && (
-                    <div className='mt-6 flex items-center'>
+                    <div className='flex items-center'>
                       <Button
                         variant='tertiary'
                         onPress={() => removeRow(rule.id)}
                         isIconOnly
                       >
-                        <IconTrash className='text-danger' />
+                        <IconTrash stroke={1.5} className='text-danger' />
                       </Button>
                     </div>
                   )}
