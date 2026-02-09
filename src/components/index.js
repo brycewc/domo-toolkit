@@ -7,6 +7,5 @@ export { GetDatasetsView } from './GetDatasetsView';
 export { GetPagesView } from './GetPagesView';
 export { ObjectDetailsView } from './ObjectDetailsView';
 export { StatusBar } from './StatusBar';
-export { WelcomePage, shouldShowWelcomePage, resetWelcomePage } from './WelcomePage';
 export * from './functions';
 export * from './options';

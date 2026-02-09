@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { Alert, Chip, Disclosure, Link, Spinner, Tabs } from '@heroui/react';
 import { IconClipboard } from '@tabler/icons-react';
 import { AnimatedCheck } from './AnimatedCheck';
@@ -14,7 +14,7 @@ import '@/assets/json-view-theme.css';
 function MetadataJsonView({ src }) {
   return (
     <JsonView
-      className='overflow-auto'
+      className='min-h-0 flex-1'
       src={src}
       collapsed={1}
       matchesURL={false}
@@ -83,6 +83,45 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [relatedCache, setRelatedCache] = useState({});
   const [loadingTabs, setLoadingTabs] = useState({});
+  const disclosureRef = useRef(null);
+
+  // Directly set max-height on tab panels via DOM to bypass HeroUI internals
+  const updatePanelMaxHeight = useCallback(() => {
+    if (!disclosureRef.current) return;
+    const viewportHeight = window.innerHeight;
+    const alertEl = disclosureRef.current.querySelector('.disclosure__heading');
+    const tabList = disclosureRef.current.querySelector(
+      '.tabs__list-container'
+    );
+    const alertRect = alertEl?.getBoundingClientRect();
+    const alertTop = Math.max(0, alertRect?.top || 0);
+    const alertHeight = alertRect?.height || 0;
+    const tabListHeight = tabList?.offsetHeight || 0;
+    const buffer = 65;
+    const available =
+      viewportHeight - alertTop - alertHeight - tabListHeight - buffer;
+    const maxH = `${Math.max(available, 100)}px`;
+
+    // Apply directly to all tab panels and the single-view fallback
+    disclosureRef.current
+      .querySelectorAll('.tabs__panel, [data-json-scroll]')
+      .forEach((el) => {
+        el.style.maxHeight = maxH;
+      });
+  }, []);
+
+  useEffect(() => {
+    if (!isExpanded) return;
+
+    // Measure after expansion animation settles
+    const timer = setTimeout(updatePanelMaxHeight, 100);
+    window.addEventListener('resize', updatePanelMaxHeight);
+
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', updatePanelMaxHeight);
+    };
+  }, [isExpanded, updatePanelMaxHeight]);
 
   // Compute available tabs: current object + related objects
   const tabs = useMemo(() => {
@@ -217,7 +256,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
               )}
               <Alert.Indicator />
             </Alert.Title>
-            <Alert.Description className='flex flex-wrap items-center gap-x-1'>
+            <Alert.Description className='flex h-full flex-wrap items-center gap-x-1'>
               {currentContext?.isDomoPage ? (
                 isLoading ? (
                   <Spinner size='sm' color='accent' />
@@ -258,9 +297,10 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
 
   return (
     <Disclosure
+      ref={disclosureRef}
       isExpanded={isExpanded}
       onExpandedChange={setIsExpanded}
-      className='flex w-full flex-col'
+      className='w-full'
     >
       <Disclosure.Heading>
         <Disclosure.Trigger className='w-full cursor-pointer'>
@@ -270,7 +310,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
       <Disclosure.Content
         className={`card bg-surface p-0 ${isExpanded ? 'mt-1' : ''}`}
       >
-        <Disclosure.Body className='card__content flex flex-col gap-1 p-0'>
+        <Disclosure.Body className='card__content gap-1 p-0'>
           {tabs.length > 1 ? (
             <Tabs variant='secondary' onSelectionChange={handleTabChange}>
               <Tabs.ListContainer>
@@ -284,7 +324,11 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
                 </Tabs.List>
               </Tabs.ListContainer>
               {tabs.map((tab) => (
-                <Tabs.Panel key={tab.id} id={tab.id}>
+                <Tabs.Panel
+                  key={tab.id}
+                  id={tab.id}
+                  className='overflow-y-auto overscroll-y-contain'
+                >
                   {tab.isCurrentObject ? (
                     <MetadataJsonView
                       src={
@@ -309,12 +353,17 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
               ))}
             </Tabs>
           ) : (
-            <MetadataJsonView
-              src={
-                currentContext?.domoObject?.metadata?.details ||
-                currentContext?.domoObject?.metadata
-              }
-            />
+            <div
+              data-json-scroll
+              className='overflow-y-auto overscroll-y-contain'
+            >
+              <MetadataJsonView
+                src={
+                  currentContext?.domoObject?.metadata?.details ||
+                  currentContext?.domoObject?.metadata
+                }
+              />
+            </div>
           )}
         </Disclosure.Body>
       </Disclosure.Content>

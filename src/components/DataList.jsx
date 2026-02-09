@@ -236,7 +236,7 @@ export function DataList({
   const hasHeaderActions = headerActions.length > 0 || onClose;
 
   return (
-    <Card className='overflow-y-scroll overscroll-x-none overscroll-y-contain p-2'>
+    <Card className='min-h-0 w-full flex-1 overflow-y-scroll overscroll-x-none overscroll-y-contain p-2'>
       {(title || hasHeaderActions) && (
         <Card.Header>
           <div className='flex flex-col gap-1'>

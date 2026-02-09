@@ -10,7 +10,11 @@ import { motion } from 'motion/react';
  * @param {number} [props.stroke=1.5] - Stroke width (matches Tabler icons default)
  * @param {string} [props.className] - Additional CSS classes
  */
-export function AnimatedCheck({ stroke = 1.5, className = '', ...props }) {
+export function AnimatedCheck({
+  stroke = 1.5,
+  className = 'text-success',
+  ...props
+}) {
   return (
     <motion.svg
       xmlns='http://www.w3.org/2000/svg'

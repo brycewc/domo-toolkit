@@ -83,7 +83,7 @@ Domo Toolkit is a browser extension that enhances the Domo platform experience f
 - **Domo Credentials:** We never read, access, store, or transmit your Domo username and password, SSO data, API access tokens, or API OAuth client IDs & secrets.
 - **Domo Content:** We do not read or store data stored in the Domo instances you access.
 - **Cookie Values:** We only read cookie names for identification purposes; cookie values are never accessed.
-- **Browsing History:** We do not track your browsing activity outside of \*.domo.com domains. Any tracking only informs current context and event listeners, and is never stored or used to track your behavior.
+- **Browsing History:** We do not track your browsing activity outside of \*.domo.com domains. Any tracking only informs current context and event listeners and is never stored or used to track your behavior.
 - **Analytics:** We do not collect usage analytics or telemetry of any kind ever.
 
 ## How We Use Information
@@ -136,7 +136,7 @@ All information accessed by the extension is used exclusively to provide the fea
 
 - **Session data:** Close your browser to clear all session storage.
 - **Preferences:** Uninstall the extension to remove all stored data.
-- **Favicon cache:** Use the "Clear Favicon Cache" option in settings, or uninstall the extension.
+- **Favicon cache:** Use the "Clear Favicon Cache" option in settings or uninstall the extension.
 
 ### Disabling Features
 
@@ -159,8 +159,8 @@ You don't just have to take our word for it. Domo Toolkit is entirely open sourc
 
 If you have questions about this privacy policy or the extension's data practices, please contact us:
 
-- **Email:** [Your Contact Email]
-- **GitHub Issues:** [Repository Issues URL]
+- **Email:** bryce.cindrich@gmail.com
+- **GitHub Issues:** [https://github.com/brycewc/majordomo-toolkit/issues](https://github.com/brycewc/majordomo-toolkit/issues)
 
 ## Limited Use Disclosure
 

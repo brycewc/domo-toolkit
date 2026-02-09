@@ -270,12 +270,12 @@ export function AppSettings({ theme = 'system' }) {
             </ListBox>
           </Select.Popover>
           <Description className='w-lg'>
-            <p>Auto: Clear cookies on 431 errors, preserve last 2 instances.</p>
+            <p>Auto: Clear cookies on 431 errors, preserve last 2 instances</p>
             <p>
               Preserve: Preserve last 2 instances (only manual, no
-              auto-clearing).
+              auto-clearing)
             </p>
-            <p>All: Clear all Domo cookies (only manual, no auto-clearing).</p>
+            <p>All: Clear all Domo cookies (only manual, no auto-clearing)</p>
           </Description>
         </Select>
         <div className='pt-1'>

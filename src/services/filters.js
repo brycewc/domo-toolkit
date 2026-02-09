@@ -350,10 +350,15 @@ export async function getPageFilters(pageId, tabId = null) {
           filters.push(pfilter);
         }
       });
-      // Deduplicate by column
+      // Deduplicate: bare (no dataSetId) filters take precedence
+      const bareColumns = new Set();
+      filters.forEach((f) => {
+        if (!f.dataSetId) bareColumns.add(f.column);
+      });
       const uniqueFilters = [];
       const seen = new Set();
       filters.forEach((f) => {
+        if (f.dataSetId && bareColumns.has(f.column)) return;
         const key = f.dataSetId ? `${f.column}:${f.dataSetId}` : f.column;
         if (!seen.has(key)) {
           seen.add(key);
@@ -380,19 +385,34 @@ export async function getPageFilters(pageId, tabId = null) {
  */
 export function mergeFilters(...filterArrays) {
   const filterMap = new Map();
+  // Track columns that have a filter without a dataSetId
+  const bareColumns = new Set();
 
+  // First pass: collect all filters, tracking bare (no dataSetId) entries
+  const allFilters = [];
   filterArrays.forEach((filters) => {
     if (Array.isArray(filters)) {
       filters.forEach((filter) => {
         if (filter.column) {
-          // Use column + dataSetId as key for uniqueness
-          const key = filter.dataSetId
-            ? `${filter.column}:${filter.dataSetId}`
-            : filter.column;
-          filterMap.set(key, filter);
+          allFilters.push(filter);
+          if (!filter.dataSetId) {
+            bareColumns.add(filter.column);
+          }
         }
       });
     }
+  });
+
+  // Second pass: add filters, skipping dataSetId variants when a bare version exists
+  allFilters.forEach((filter) => {
+    if (filter.dataSetId && bareColumns.has(filter.column)) {
+      // A bare version exists for this column — skip the dataSetId variant
+      return;
+    }
+    const key = filter.dataSetId
+      ? `${filter.column}:${filter.dataSetId}`
+      : filter.column;
+    filterMap.set(key, filter);
   });
 
   return Array.from(filterMap.values());
