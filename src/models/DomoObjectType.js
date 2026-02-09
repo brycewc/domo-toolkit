@@ -12,6 +12,8 @@ export class DomoObjectType {
    * @param {Object} [extractConfig] - Configuration for extracting ID from URL
    * @param {Object} [api] - API configuration for fetching object details
    * @param {Array<string>} [parents] - Array of parent object type IDs this object can have
+   * @param {Array<Object>} [relatedObjects] - Array of related object configs [{field, typeId, label, source?}]
+   * @param {boolean} [deprecated] - Whether this object type is deprecated
    */
   constructor(
     id,
@@ -21,6 +23,7 @@ export class DomoObjectType {
     extractConfig = null,
     api = null,
     parents = null,
+    relatedObjects = null,
     deprecated = false
   ) {
     this.id = id;
@@ -30,6 +33,7 @@ export class DomoObjectType {
     this.extractConfig = extractConfig;
     this.api = api;
     this.parents = parents;
+    this.relatedObjects = relatedObjects;
     this.deprecated = deprecated;
   }
 
@@ -357,7 +361,8 @@ export const ObjectTypeRegistry = {
           'query getApprovalForDetails($id: ID!) {\n  request: approval(id: $id) {\n    ...approvalFields\n    __typename\n  }\n}\n\nfragment approvalFields on Approval {\n  newActivity\n  observers {\n    id\n    type\n    displayName\n    title\n    ... on Group {\n      currentUserIsMember\n      memberCount: userCount\n      __typename\n    }\n    __typename\n  }\n  lastViewed\n  newActivity\n  newMessage {\n    created\n    createdByType\n    createdBy {\n      id\n      displayName\n      __typename\n    }\n    content {\n      text\n      __typename\n    }\n    __typename\n  }\n  lastAction\n  version\n  submittedTime\n  id\n  title\n  status\n  providerName\n  templateTitle\n  buzzChannelId\n  buzzGeneralThreadId\n  templateID\n  templateInstructions\n  templateDescription\n  acknowledgment\n  snooze\n  snoozed\n  type\n  categories {\n    id\n    name\n    __typename\n  }\n  total {\n    value\n    currency\n    __typename\n  }\n  modifiedTime\n  previousApprover: previousApproverEx {\n    id\n    type\n    displayName\n    ... on User {\n      title\n      avatarKey\n      isCurrentUser\n      __typename\n    }\n    ... on Group {\n      currentUserIsMember\n      userCount\n      isDeleted\n      actor {\n        displayName\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  pendingApprover: pendingApproverEx {\n    id\n    type\n    displayName\n    ... on User {\n      title\n      avatarKey\n      isCurrentUser\n      __typename\n    }\n    ... on Group {\n      currentUserIsMember\n      userCount\n      isDeleted\n      __typename\n    }\n    __typename\n  }\n  submitter {\n    id\n    displayName\n    title\n    avatarKey\n    isCurrentUser\n    type\n    __typename\n  }\n  approvalChainIdx\n  reminder {\n    sent\n    sentBy {\n      displayName\n      title\n      id\n      isCurrentUser\n      type\n      __typename\n    }\n    __typename\n  }\n  chain {\n    actor {\n      displayName\n      __typename\n    }\n    approver {\n      id\n      type\n      displayName\n      ... on User {\n        title\n        avatarKey\n        isCurrentUser\n        __typename\n      }\n      ... on Group {\n        currentUserIsMember\n        userCount\n        isDeleted\n        __typename\n      }\n      __typename\n    }\n    status\n    time\n    type\n    key\n    __typename\n  }\n  fields {\n    data\n    name\n    type\n    key\n    ... on HeaderField {\n      fields {\n        data\n        name\n        type\n        key\n        ... on HeaderField {\n          fields {\n            data\n            name\n            type\n            key\n            __typename\n          }\n          __typename\n        }\n        __typename\n      }\n      __typename\n    }\n    ... on ItemListField {\n      fields {\n        data\n        name\n        type\n        key\n        ... on HeaderField {\n          fields {\n            data\n            name\n            type\n            key\n            ... on HeaderField {\n              fields {\n                data\n                name\n                type\n                key\n                __typename\n              }\n              __typename\n            }\n            __typename\n          }\n          __typename\n        }\n        __typename\n      }\n      __typename\n    }\n    ... on NumberField {\n      value\n      __typename\n    }\n    ... on CurrencyField {\n      number: value\n      currency\n      __typename\n    }\n    ... on DateField {\n      date: value\n      __typename\n    }\n    ... on DataSetAttachmentField {\n      dataSet: value {\n        id\n        name\n        description\n        owner {\n          id\n          displayName\n          __typename\n        }\n        provider\n        cardCount\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  history {\n    actor {\n      type\n      id\n      displayName\n      ... on User {\n        avatarKey\n        isCurrentUser\n        __typename\n      }\n      __typename\n    }\n    status\n    time\n    __typename\n  }\n  latestMessage {\n    created\n    __typename\n  }\n  latestMentioned {\n    created\n    __typename\n  }\n  workflowIntegration {\n    modelId\n    modelVersion\n    startName\n    instanceId\n    modelName\n    __typename\n  }\n  __typename\n}'
       }
     },
-    ['TEMPLATE']
+    ['TEMPLATE'],
+    [{ source: 'parentId', typeId: 'TEMPLATE', label: 'Template' }]
   ),
   APP: new DomoObjectType(
     'APP',
@@ -568,7 +573,8 @@ export const ObjectTypeRegistry = {
       endpoint: '/content/v3/stacks/{id}',
       pathToName: 'title'
     },
-    ['DATA_APP']
+    ['DATA_APP'],
+    [{ source: 'parentId', typeId: 'DATA_APP', label: 'App' }]
   ),
   DATA_DICTIONARY: new DomoObjectType(
     'DATA_DICTIONARY',
@@ -609,7 +615,11 @@ export const ObjectTypeRegistry = {
       endpoint: '/data/v3/datasources/{id}?includeAllDetails=true',
       pathToName: 'name'
     },
-    ['DATAFLOW_TYPE', 'DATA_SOURCE']
+    ['DATAFLOW_TYPE', 'DATA_SOURCE'],
+    [
+      { field: 'streamId', typeId: 'STREAM', label: 'Stream' },
+      { field: 'accountId', typeId: 'ACCOUNT', label: 'Account' }
+    ]
   ),
   DATAFLOW_TYPE: new DomoObjectType(
     'DATAFLOW_TYPE',
@@ -813,6 +823,7 @@ export const ObjectTypeRegistry = {
     'Function',
     null,
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    null,
     null,
     null,
     null,
@@ -1338,6 +1349,7 @@ export const ObjectTypeRegistry = {
     null,
     null,
     null,
+    null,
     true
   ),
   TOKEN: new DomoObjectType(
@@ -1400,6 +1412,7 @@ export const ObjectTypeRegistry = {
     null,
     null,
     null,
+    null,
     true
   ),
   VARIABLE: new DomoObjectType('VARIABLE', 'Variable', null, /^\d+$/, null, {
@@ -1429,6 +1442,7 @@ export const ObjectTypeRegistry = {
     'Video call',
     null,
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    null,
     null,
     null,
     null,
@@ -1576,7 +1590,8 @@ export const ObjectTypeRegistry = {
       endpoint: '/content/v3/stacks/{id}',
       pathToName: 'title'
     },
-    ['WORKSHEET']
+    ['WORKSHEET'],
+    [{ source: 'parentId', typeId: 'WORKSHEET', label: 'Worksheet' }]
   ),
   WORKSPACE: new DomoObjectType(
     'WORKSPACE',
