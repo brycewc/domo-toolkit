@@ -1,10 +1,8 @@
 import { useState, useRef } from 'react';
 import { Button, Dropdown, Label, Tooltip } from '@heroui/react';
-import { IconClipboard, IconFilterShare, IconJson } from '@tabler/icons-react';
+import { IconClipboard, IconJson } from '@tabler/icons-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AnimatedCheck } from '@/components';
-import { JsonStringifyOrder } from '@/utils';
-import { getAllFilters, buildPfilterUrl } from '@/services';
 
 const LONG_PRESS_DURATION = 1000; // ms - matches HeroUI's default
 const LONG_PRESS_SECONDS = LONG_PRESS_DURATION / 1000;
@@ -90,42 +88,6 @@ export function Copy({
 
   const handleAction = async (key) => {
     switch (key) {
-      case 'filtered-url': {
-        try {
-          const pageId = currentContext?.domoObject?.id;
-          const currentUrl = currentContext?.url;
-
-          const { allFilters, hasFilters } = await getAllFilters({
-            url: currentUrl,
-            pageId,
-            tabId: currentContext?.tabId
-          });
-
-          if (!hasFilters) {
-            onStatusUpdate?.(
-              'No Filters',
-              'No filters are currently active on this page',
-              'warning',
-              3000
-            );
-            return;
-          }
-
-          const filteredUrl = buildPfilterUrl(currentUrl, pageId, allFilters);
-          await navigator.clipboard.writeText(filteredUrl);
-
-          onStatusUpdate?.(
-            'Success',
-            `Copied URL with ${allFilters.length} filter${allFilters.length !== 1 ? 's' : ''}`,
-            'success',
-            2000
-          );
-        } catch (error) {
-          console.error('Failed to copy filtered URL:', error);
-          onStatusUpdate?.('Error', 'Failed to detect filters', 'error', 3000);
-        }
-        break;
-      }
       case 'stream': {
         const streamId =
           currentContext?.domoObject?.metadata?.details?.streamId;
@@ -220,13 +182,6 @@ export function Copy({
         </Button>
         <Dropdown.Popover className='w-fit min-w-48' placement='bottom left'>
           <Dropdown.Menu onAction={handleAction}>
-            {(currentContext?.domoObject?.typeId === 'PAGE' ||
-              currentContext?.domoObject?.typeId === 'DATA_APP_VIEW') && (
-              <Dropdown.Item id='filtered-url' textValue='Copy Filtered URL'>
-                <IconFilterShare className='size-4 shrink-0' />
-                <Label>Copy Filtered URL</Label>
-              </Dropdown.Item>
-            )}
             {currentContext?.domoObject?.typeId === 'DATA_SOURCE' && (
               <Dropdown.Item id='stream' textValue='Copy Stream ID'>
                 <IconClipboard className='size-4 shrink-0' />

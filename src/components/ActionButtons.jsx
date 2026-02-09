@@ -68,7 +68,6 @@ export function ActionButtons({
   );
 
   const hideStatus = useCallback(() => {
-    console.log('[ActionButtons] hideStatus called');
     setStatusBar((prev) => ({ ...prev, visible: false }));
   }, []);
 
@@ -186,23 +185,24 @@ export function ActionButtons({
                     currentContext?.domoObject?.typeId === 'DATA_APP_VIEW' ||
                     currentContext?.domoObject?.typeId === 'CARD' ||
                     currentContext?.domoObject?.typeId === 'DATA_SOURCE') && (
-                    <GetPages
-                      currentContext={currentContext}
-                      onStatusUpdate={showStatus}
-                      isDisabled={!isDomoPage}
-                      onCollapseActions={
-                        collapsable ? () => setIsExpanded(false) : undefined
-                      }
-                    />
-                  )}
+                      <GetPages
+                        currentContext={currentContext}
+                        onStatusUpdate={showStatus}
+                        isDisabled={!isDomoPage}
+                        onCollapseActions={
+                          collapsable ? () => setIsExpanded(false) : undefined
+                        }
+                      />
+                    )}
                   {(currentContext?.domoObject?.typeId === 'PAGE' ||
-                    currentContext?.domoObject?.typeId === 'DATA_APP_VIEW') && (
-                    <CopyFilteredUrl
-                      currentContext={currentContext}
-                      onStatusUpdate={showStatus}
-                      isDisabled={!isDomoPage}
-                    />
-                  )}
+                    currentContext?.domoObject?.typeId === 'DATA_APP_VIEW' ||
+                    currentContext?.domoObject?.typeId === 'CARD') && (
+                      <CopyFilteredUrl
+                        currentContext={currentContext}
+                        onStatusUpdate={showStatus}
+                        isDisabled={!isDomoPage}
+                      />
+                    )}
                   {currentContext?.domoObject?.typeId === 'DATAFLOW_TYPE' && (
                     <UpdateDataflowDetails
                       currentContext={currentContext}
@@ -211,12 +211,12 @@ export function ActionButtons({
                   )}
                   {(currentContext?.domoObject?.typeId === 'ALERT' ||
                     currentContext?.domoObject?.typeId ===
-                      'WORKFLOW_MODEL') && (
-                    <UpdateOwner
-                      currentContext={currentContext}
-                      onStatusUpdate={showStatus}
-                    />
-                  )}
+                    'WORKFLOW_MODEL') && (
+                      <UpdateOwner
+                        currentContext={currentContext}
+                        onStatusUpdate={showStatus}
+                      />
+                    )}
                 </Disclosure.Content>
               </Disclosure>
             </Card.Content>
