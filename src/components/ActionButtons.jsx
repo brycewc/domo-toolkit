@@ -16,6 +16,7 @@ import {
   ActivityLogCurrentObject,
   ClearCookies,
   Copy,
+  CopyFilteredUrl,
   ContextFooter,
   DataRepair,
   DeleteCurrentObject,
@@ -70,7 +71,6 @@ export function ActionButtons({
   );
 
   const hideStatus = useCallback(() => {
-    console.log('[ActionButtons] hideStatus called');
     setStatusBar((prev) => ({ ...prev, visible: false }));
   }, []);
 
@@ -229,6 +229,15 @@ export function ActionButtons({
                     {currentContext?.domoObject?.typeId === 'DATA_SOURCE' && (
                       <DataRepair
                         currentContext={currentContext}
+                        isDisabled={!isDomoPage}
+                      />
+                    )}
+                    {(currentContext?.domoObject?.typeId === 'PAGE' ||
+                      currentContext?.domoObject?.typeId === 'DATA_APP_VIEW' ||
+                      currentContext?.domoObject?.typeId === 'CARD') && (
+                      <CopyFilteredUrl
+                        currentContext={currentContext}
+                        onStatusUpdate={showStatus}
                         isDisabled={!isDomoPage}
                       />
                     )}

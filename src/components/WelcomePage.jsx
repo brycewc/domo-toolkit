@@ -1,12 +1,14 @@
-import { useState } from 'react';
-import { Button, Card, Checkbox, Input, Link } from '@heroui/react';
+import { useState, useEffect } from 'react';
+import { Button, Card, Checkbox, ListBox, Select } from '@heroui/react';
 import {
   IconArrowRight,
   IconBrandGithub,
+  IconCheck,
+  IconChevronDown,
   IconClipboard,
+  IconCookie,
   IconCookieOff,
   IconExternalLink,
-  IconMail,
   IconSearch,
   IconShare
 } from '@tabler/icons-react';
@@ -15,10 +17,41 @@ import toolkitLogo from '@/assets/toolkit-128.png';
 
 const STORAGE_KEY = 'welcomePageDismissed';
 
+const cookieOptions = [
+  {
+    id: 'default',
+    label: 'Default',
+    description: 'Manual clearing only, preserves last 2 instances'
+  },
+  {
+    id: 'auto',
+    label: 'Auto (Recommended)',
+    description: 'Auto-clear on 431 errors, preserves last 2 instances'
+  },
+  {
+    id: 'all',
+    label: 'All',
+    description: 'Manual clearing only, clears all Domo cookies'
+  }
+];
+
 export function WelcomePage() {
   const [dontShowAgain, setDontShowAgain] = useState(false);
-  const [email, setEmail] = useState('');
-  const [emailStatus, setEmailStatus] = useState(null); // null | 'loading' | 'success' | 'error'
+  const [cookieSetting, setCookieSetting] = useState('default');
+
+  // Load cookie setting on mount
+  useEffect(() => {
+    chrome.storage.sync.get(['defaultClearCookiesHandling'], (result) => {
+      if (result.defaultClearCookiesHandling) {
+        setCookieSetting(result.defaultClearCookiesHandling);
+      }
+    });
+  }, []);
+
+  const handleCookieSettingChange = (value) => {
+    setCookieSetting(value);
+    chrome.storage.sync.set({ defaultClearCookiesHandling: value });
+  };
 
   const handleGetStarted = () => {
     if (dontShowAgain) {
@@ -29,23 +62,6 @@ export function WelcomePage() {
       '_self',
       'noopener,noreferrer'
     );
-  };
-
-  const handleEmailSubmit = async (e) => {
-    e.preventDefault();
-    if (!email || !email.includes('@')) return;
-
-    setEmailStatus('loading');
-
-    // TODO: Replace with actual email signup endpoint
-    // For now, simulate a successful signup
-    try {
-      // Placeholder for email signup API call
-      await new Promise((resolve) => setTimeout(resolve, 800));
-      setEmailStatus('success');
-    } catch (error) {
-      setEmailStatus('error');
-    }
   };
 
   const features = [
@@ -67,6 +83,10 @@ export function WelcomePage() {
       icon: IconBrandGithub
     }
   ];
+
+  const selectedCookieOption = cookieOptions.find(
+    (opt) => opt.id === cookieSetting
+  );
 
   return (
     <div className='flex h-full min-h-[calc(100vh-20)] w-full flex-col justify-between space-y-6 pt-4'>
@@ -115,6 +135,71 @@ export function WelcomePage() {
         </div>
       </motion.div>
 
+      {/* Cookie Management Setting */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3, delay: 0.15 }}
+      >
+        <Card className='border-domo-orange/20 bg-domo-orange/5'>
+          <Card.Header className='pb-2'>
+            <div className='flex items-center gap-2'>
+              <IconCookie size={18} className='text-domo-orange' />
+              <Card.Title className='text-sm font-medium text-foreground'>
+                Cookie Management
+              </Card.Title>
+            </div>
+          </Card.Header>
+          <Card.Content className='space-y-3'>
+            <p className='text-xs text-muted'>
+              Work with multiple Domo instances? Enable auto-clearing to avoid
+              431 errors.
+            </p>
+            <Select
+              value={cookieSetting}
+              onChange={handleCookieSettingChange}
+              className='w-full'
+              aria-label='Cookie clearing behavior'
+            >
+              <Select.Trigger className='w-full'>
+                <Select.Value>
+                  {selectedCookieOption?.label || 'Select...'}
+                </Select.Value>
+                <Select.Indicator>
+                  <IconChevronDown className='h-4 w-4' stroke={1.5} />
+                </Select.Indicator>
+              </Select.Trigger>
+              <Select.Popover className='border border-domo-orange/40'>
+                <ListBox>
+                  {cookieOptions.map((option, index) => (
+                    <ListBox.Item
+                      key={option.id}
+                      id={option.id}
+                      textValue={option.label}
+                      className={index % 2 === 1 ? 'bg-surface/50' : ''}
+                    >
+                      {({ isSelected }) => (
+                        <div className='flex w-full items-center gap-2'>
+                          <span className='w-4 shrink-0'>
+                            {isSelected && <IconCheck size={16} stroke={1.5} />}
+                          </span>
+                          <div className='flex flex-col items-start'>
+                            <span>{option.label}</span>
+                            <span className='text-xs text-muted'>
+                              {option.description}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </ListBox.Item>
+                  ))}
+                </ListBox>
+              </Select.Popover>
+            </Select>
+          </Card.Content>
+        </Card>
+      </motion.div>
+
       {/* Getting Started */}
       <motion.div
         initial={{ opacity: 0 }}
@@ -152,50 +237,11 @@ export function WelcomePage() {
         </Card>
       </motion.div>
 
-      {/* Email Signup */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.3, delay: 0.25 }}
-      >
-        <p className='mb-2 text-xs font-medium tracking-wide text-muted uppercase'>
-          Stay Updated
-        </p>
-        {emailStatus === 'success' ? (
-          <div className='rounded-lg bg-success/10 p-3 text-center'>
-            <p className='text-sm text-success'>Thanks for subscribing!</p>
-          </div>
-        ) : (
-          <form onSubmit={handleEmailSubmit} className='flex gap-2'>
-            <Input
-              type='email'
-              placeholder='your@email.com'
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className='flex-1'
-              size='sm'
-            />
-            <Button
-              type='submit'
-              variant='secondary'
-              size='sm'
-              isLoading={emailStatus === 'loading'}
-              isDisabled={!email || !email.includes('@')}
-            >
-              <IconMail size={16} />
-            </Button>
-          </form>
-        )}
-        <p className='mt-1 text-xs text-muted'>
-          Get notified about new features and updates
-        </p>
-      </motion.div>
-
       {/* Links */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ duration: 0.3, delay: 0.3 }}
+        transition={{ duration: 0.3, delay: 0.25 }}
         className='flex flex-wrap gap-2'
       >
         {links.map((link) => (
@@ -216,7 +262,7 @@ export function WelcomePage() {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ duration: 0.3, delay: 0.35 }}
+        transition={{ duration: 0.3, delay: 0.3 }}
         className='mt-auto space-y-3'
       >
         <label className='flex cursor-pointer items-center justify-end gap-2'>

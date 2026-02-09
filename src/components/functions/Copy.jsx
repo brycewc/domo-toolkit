@@ -218,6 +218,7 @@ export function Copy({
         break;
     }
   };
+
   return (
     <Tooltip delay={400} closeDelay={0}>
       <Dropdown trigger='longPress' isDisabled={longPressDisabled}>
@@ -257,11 +258,7 @@ export function Copy({
         <Dropdown.Popover className='w-fit min-w-48' placement='bottom left'>
           <Dropdown.Menu onAction={handleAction}>
             {dropdownItems.map((item) => (
-              <Dropdown.Item
-                key={item.id}
-                id={item.id}
-                textValue={item.label}
-              >
+              <Dropdown.Item key={item.id} id={item.id} textValue={item.label}>
                 <IconClipboard className='size-4 shrink-0' />
                 <Label>{item.label}</Label>
               </Dropdown.Item>

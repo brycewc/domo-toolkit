@@ -68,9 +68,6 @@ export const NavigateToCopiedObject = forwardRef(
 
       // Get all object types that have API configurations and match the ID pattern
       const allTypesWithApi = getAllObjectTypesWithApiConfig();
-      // console.log(
-      //   `[NavigateToCopiedObject] Total object types with API: ${allTypesWithApi.length}`
-      // );
 
       const typesToTry = allTypesWithApi
         .filter((type) => type.isValidObjectId(objectId))
@@ -96,11 +93,6 @@ export const NavigateToCopiedObject = forwardRef(
           return 0;
         });
 
-      // console.log(
-      //   `[NavigateToCopiedObject] Found ${typesToTry.length} types to try for ID ${objectId}:`,
-      //   typesToTry.map((t) => t.id)
-      // );
-
       if (typesToTry.length === 0) {
         setError(`No object types match ID pattern for: ${objectId}`);
         setObjectDetails(null);
@@ -110,8 +102,6 @@ export const NavigateToCopiedObject = forwardRef(
 
       // Try each type until we find a match
       for (const typeConfig of typesToTry) {
-        // console.log(`[NavigateToCopiedObject] Trying type: ${typeConfig.id}`);
-
         try {
           // Prepare parameters for page-safe function
           const params = {
@@ -138,14 +128,7 @@ export const NavigateToCopiedObject = forwardRef(
                 currentContext.tabId
               );
               params.parentId = parentId;
-              // console.log(
-              //   `[NavigateToCopiedObject] Got parent ${parentId} for ${typeConfig.id}`
-              // );
             } catch (parentError) {
-              // console.log(
-              //   `[NavigateToCopiedObject] Could not get parent for ${typeConfig.id}:`,
-              //   parentError.message
-              // );
               continue; // Skip this type
             }
           }
@@ -163,16 +146,10 @@ export const NavigateToCopiedObject = forwardRef(
               typeConfig.id === 'DATAFLOW_TYPE' &&
               metadata.details.deleted === true
             ) {
-              // console.log(
-              //   `[NavigateToCopiedObject] Skipping deleted dataflow ${objectId}`
-              // );
               continue;
             }
 
             // Success! Create DomoObject and set details
-            // console.log(
-            //   `[NavigateToCopiedObject] ✓ Successfully detected type ${typeConfig.id}`
-            // );
             const domoObject = new DomoObject(
               typeConfig.id,
               objectId,
@@ -189,7 +166,7 @@ export const NavigateToCopiedObject = forwardRef(
             return;
           }
         } catch (error) {
-          console.log(
+          console.error(
             `[NavigateToCopiedObject] Error trying type ${typeConfig.id}:`,
             error.message
           );
@@ -198,9 +175,6 @@ export const NavigateToCopiedObject = forwardRef(
       }
 
       // If all types failed
-      // console.warn(
-      //   `[NavigateToCopiedObject] ⚠ All ${typesToTry.length} type(s) failed for ID ${objectId}`
-      // );
       setError(`Could not determine object type for ID: ${objectId}`);
       setObjectDetails(null);
       setIsLoading(false);
@@ -272,10 +246,6 @@ export const NavigateToCopiedObject = forwardRef(
         .get(['lastClipboardValue', 'lastClipboardObject'])
         .then((result) => {
           if (result.lastClipboardValue) {
-            // console.log(
-            //   '[NavigateToCopiedObject] Loaded cached clipboard:',
-            //   result.lastClipboardValue
-            // );
             handleClipboardData(
               result.lastClipboardValue,
               result.lastClipboardObject
@@ -416,15 +386,6 @@ export const NavigateToCopiedObject = forwardRef(
 
     const handleNavigate = async (objectIdToUse, manuallySelectedType) => {
       const typeToUse = manuallySelectedType || selectedType;
-
-      // console.log('[handleNavigate] objectIdToUse:', objectIdToUse);
-      // console.log(
-      //   '[handleNavigate] manuallySelectedType:',
-      //   manuallySelectedType
-      // );
-      // console.log('[handleNavigate] selectedType:', selectedType);
-      // console.log('[handleNavigate] typeToUse:', typeToUse);
-      // console.log('[handleNavigate] objectDetails:', objectDetails);
 
       if (!objectIdToUse) {
         return;

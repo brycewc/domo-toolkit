@@ -21,3 +21,16 @@ export {
   deletePageAndAllCards
 } from './pages';
 export { getCurrentUser, getCurrentUserId, searchUsers } from './users';
+export {
+  getUrlPfilters,
+  getPageFilters,
+  getFiltersFromAllFrames,
+  getIframePfilters,
+  getVariableControlFilters,
+  getAngularScopeFilters,
+  getAppStudioFilters,
+  mergeFilters,
+  encodeFilters,
+  buildPfilterUrl,
+  getAllFilters
+} from './filters';

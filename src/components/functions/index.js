@@ -2,6 +2,7 @@ export { ActivityLogCurrentObject } from './ActivityLogCurrentObject';
 export { ClearCookies } from './ClearCookies';
 export { Copy } from './Copy';
 export { DataRepair } from './DataRepair';
+export { CopyFilteredUrl } from './CopyFilteredUrl';
 export { DeleteCurrentObject } from './DeleteCurrentObject';
 export { FilterActivityLog } from './FilterActivityLog';
 export { GetCards } from './GetCards';

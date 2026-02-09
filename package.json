@@ -15,7 +15,7 @@
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/react-table": "^8.21.3",
     "@tanstack/react-virtual": "^3.13.18",
-    "motion": "^12.29.2",
+    "motion": "^12.29.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react18-json-view": "^0.2.9",

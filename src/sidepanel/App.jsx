@@ -92,7 +92,6 @@ export default function App() {
           if (response.context) {
             // Reconstruct DomoContext from plain object to get class instance with methods
             const context = DomoContext.fromJSON(response.context);
-            console.log('[Sidepanel] Reconstructed context:', context);
             setCurrentContext(context);
           } else {
             setCurrentContext(null);
