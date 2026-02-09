@@ -64,6 +64,7 @@ export function ShareWithSelf({ currentContext, onStatusUpdate, isDisabled }) {
       // Call the shareWithSelf service function
       await shareWithSelf({
         object: currentContext.domoObject,
+        userId: currentContext.user?.id,
         setStatus: onStatusUpdate
       });
       chrome.tabs.reload(currentContext?.tabId);

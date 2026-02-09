@@ -82,13 +82,6 @@ export default function App() {
           className='flex h-full max-w-3xl flex-col px-4'
           id='welcome'
         >
-          <div className='w-full justify-start'>
-            <h3 className='mb-2 text-lg font-semibold'>Welcome</h3>
-            <p className='text-sm text-muted'>
-              Welcome to the application! Use the tabs above to navigate through
-              different settings and features.
-            </p>
-          </div>
           <WelcomePage />
         </Tabs.Panel>
         <Tabs.Panel

@@ -3,7 +3,8 @@ import {
   fetchObjectDetailsInPage,
   getChildPages,
   getCardsForObject,
-  getPagesForCards
+  getPagesForCards,
+  getCurrentUser
 } from '@/services';
 import {
   clearCookies,
@@ -11,6 +12,42 @@ import {
   EXCLUDED_HOSTNAMES,
   executeInPage
 } from '@/utils';
+
+/**
+ * Resolve an object ID via API when it cannot be extracted from the URL.
+ * Used for types like FILESET_FILE where the URL contains a file path
+ * instead of the actual object UUID.
+ * @param {string} typeId - The object type ID
+ * @param {Object} context - Extra context from detectCurrentObject
+ * @param {number} tabId - The Chrome tab ID for executing in-page API calls
+ * @returns {Promise<string|null>} The resolved object ID, or null
+ */
+async function resolveObjectId(typeId, context, tabId) {
+  switch (typeId) {
+    case 'FILESET_FILE': {
+      const { filesetId, filePath } = context;
+      return executeInPage(
+        async (filesetId, filePath) => {
+          const res = await fetch(
+            `/api/files/v1/filesets/${filesetId}/path?path=${filePath}`
+          );
+          if (!res.ok) return null;
+          const data = await res.json();
+          return data?.id || null;
+        },
+        [filesetId, filePath],
+        tabId
+      );
+    }
+    default:
+      return null;
+  }
+}
+
+// Set session storage access level so content scripts can access it
+chrome.storage.session.setAccessLevel({
+  accessLevel: 'TRUSTED_AND_UNTRUSTED_CONTEXTS'
+});
 
 /**
  * Send a message to a tab with retry logic
@@ -424,7 +461,7 @@ function disable431Listener() {
 
 // Initialize 431 listener based on stored setting
 chrome.storage.sync.get(['defaultClearCookiesHandling'], (result) => {
-  const mode = result.defaultClearCookiesHandling || 'default';
+  const mode = result.defaultClearCookiesHandling || 'auto';
 
   // Only enable 431 auto-clear listener for 'auto' mode
   if (mode === 'auto') {
@@ -556,7 +593,7 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
     areaName === 'sync' &&
     changes.defaultClearCookiesHandling !== undefined
   ) {
-    const mode = changes.defaultClearCookiesHandling.newValue || 'default';
+    const mode = changes.defaultClearCookiesHandling.newValue || 'auto';
 
     // Only enable 431 auto-clear listener for 'auto' mode
     if (mode === 'auto') {
@@ -672,6 +709,23 @@ async function detectAndStoreContext(tabId) {
     const context = new DomoContext(tabId, tab.url, null);
     setTabContext(tabId, context);
 
+    // Fetch current user (non-blocking, updates context when complete)
+    getCurrentUser(tabId)
+      .then((user) => {
+        context.user = user;
+        setTabContext(tabId, context);
+        console.log(
+          `[Background] Fetched current user for tab ${tabId}:`,
+          user?.id
+        );
+      })
+      .catch((error) => {
+        console.warn(
+          `[Background] Could not fetch current user for tab ${tabId}:`,
+          error.message
+        );
+      });
+
     // Execute detection script in page context
     const detected = await executeInPage(detectCurrentObject, [], tabId);
     if (!detected) {
@@ -691,13 +745,27 @@ async function detectAndStoreContext(tabId) {
       objectId = typeModel.extractObjectId(detected.url);
     }
 
+    // Resolve ID via API if needed (e.g., FILESET_FILE where ID isn't in the URL)
+    if (!objectId && detected.resolveContext) {
+      objectId = await resolveObjectId(
+        detected.typeId,
+        detected.resolveContext,
+        tabId
+      );
+    }
+
     if (!objectId) {
       console.warn(`[Background] Could not extract ID for ${detected.typeId}`);
       return null;
     }
 
     // Extract parent ID from URL if available
-    const parentId = typeModel.extractParentId(detected.url);
+    let parentId = typeModel.extractParentId(detected.url);
+
+    // For types resolved via resolveContext, extract parentId if available
+    if (!parentId && detected.resolveContext?.filesetId) {
+      parentId = detected.resolveContext.filesetId;
+    }
 
     // Create DomoObject with original URL and parent ID for immediate URL building
     const domoObject = new DomoObject(
@@ -721,15 +789,36 @@ async function detectAndStoreContext(tabId) {
     };
 
     // Enrich with details - throw on error for current object detection
-    domoObject.metadata =
+    const enrichedMetadata =
       (await executeInPage(fetchObjectDetailsInPage, [params], tabId)) || {};
 
+    // Set parentId from API response if not already extracted from URL
+    console.log(
+      `[Background] enrichedMetadata keys:`,
+      Object.keys(enrichedMetadata),
+      `parentId from URL: ${parentId}, parentId from API: ${enrichedMetadata.parentId}`
+    );
+    if (!parentId && enrichedMetadata.parentId) {
+      parentId = enrichedMetadata.parentId;
+      domoObject.parentId = parentId;
+      console.log(`[Background] Set parentId from API response: ${parentId}`);
+    }
+
+    domoObject.metadata = enrichedMetadata;
+
     // For objects with parents, enrich metadata with parent details
+    console.log(
+      `[Background] Parent enrichment check: parentId=${parentId}, parents=${JSON.stringify(typeModel.parents)}`
+    );
     if (parentId && typeModel.parents && typeModel.parents.length > 0) {
       try {
-        await domoObject.getParent(false, detected.url);
         console.log(
-          `[Background] Enriched parent metadata for ${typeModel.id} ${objectId}`
+          `[Background] Calling getParent for ${typeModel.id} ${objectId} with tabId=${tabId}`
+        );
+        await domoObject.getParent(false, detected.url, tabId);
+        console.log(
+          `[Background] Enriched parent metadata for ${typeModel.id} ${objectId}:`,
+          domoObject.metadata?.parent
         );
       } catch (error) {
         console.warn(
@@ -748,9 +837,14 @@ async function detectAndStoreContext(tabId) {
     );
     setTabContext(tabId, context);
 
-    // For PAGE and DATA_APP_VIEW types, fetch child pages asynchronously (non-blocking)
+    // For PAGE, DATA_APP_VIEW, WORKSHEET_VIEW, and REPORT_BUILDER_VIEW types, fetch child pages asynchronously (non-blocking)
     // This happens in the background while the user interacts with the popup
-    if (typeModel.id === 'PAGE' || typeModel.id === 'DATA_APP_VIEW') {
+    if (
+      typeModel.id === 'PAGE' ||
+      typeModel.id === 'DATA_APP_VIEW' ||
+      typeModel.id === 'WORKSHEET_VIEW' ||
+      typeModel.id === 'REPORT_BUILDER_VIEW'
+    ) {
       const appId =
         typeModel.id === 'DATA_APP_VIEW' && domoObject.parentId
           ? parseInt(domoObject.parentId)
@@ -776,9 +870,13 @@ async function detectAndStoreContext(tabId) {
               currentContext.domoObject.metadata.details = {};
             }
 
-            // For DATA_APP_VIEW, store in appPages (sibling pages in the app)
+            // For DATA_APP_VIEW, WORKSHEET_VIEW, and REPORT_BUILDER_VIEW, store in appPages (sibling pages in the app)
             // For PAGE, store in childPages (actual child pages)
-            if (typeModel.id === 'DATA_APP_VIEW') {
+            if (
+              typeModel.id === 'DATA_APP_VIEW' ||
+              typeModel.id === 'WORKSHEET_VIEW' ||
+              typeModel.id === 'REPORT_BUILDER_VIEW'
+            ) {
               currentContext.domoObject.metadata.details.appPages = childPages;
             } else {
               currentContext.domoObject.metadata.details.childPages =
@@ -789,7 +887,7 @@ async function detectAndStoreContext(tabId) {
             setTabContext(tabId, currentContext);
 
             console.log(
-              `[Background] Fetched ${childPages?.length || 0} ${typeModel.id === 'DATA_APP_VIEW' ? 'app pages' : 'child pages'} for ${typeModel.id} ${objectId}`
+              `[Background] Fetched ${childPages?.length || 0} ${typeModel.id === 'DATA_APP_VIEW' || typeModel.id === 'WORKSHEET_VIEW' || typeModel.id === 'REPORT_BUILDER_VIEW' ? 'app pages' : 'child pages'} for ${typeModel.id} ${objectId}`
             );
           }
         })
@@ -807,7 +905,11 @@ async function detectAndStoreContext(tabId) {
             if (!currentContext.domoObject.metadata?.details) {
               currentContext.domoObject.metadata.details = {};
             }
-            if (typeModel.id === 'DATA_APP_VIEW') {
+            if (
+              typeModel.id === 'DATA_APP_VIEW' ||
+              typeModel.id === 'WORKSHEET_VIEW' ||
+              typeModel.id === 'REPORT_BUILDER_VIEW'
+            ) {
               currentContext.domoObject.metadata.details.appPages = [];
             } else {
               currentContext.domoObject.metadata.details.childPages = [];
@@ -867,7 +969,8 @@ async function detectAndStoreContext(tabId) {
       typeModel.id === 'PAGE' ||
       typeModel.id === 'DATA_APP_VIEW' ||
       typeModel.id === 'DATA_SOURCE' ||
-      typeModel.id === 'WORKSHEET_VIEW'
+      typeModel.id === 'WORKSHEET_VIEW' ||
+      typeModel.id === 'REPORT_BUILDER_VIEW'
     ) {
       // Fetch cards in background without blocking
       getCardsForObject({
@@ -997,28 +1100,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           const { clipboardData, domoObject } = message;
           console.log('[Background] CLIPBOARD_COPIED received:', clipboardData);
 
-          if (clipboardData) {
-            // Cache in session storage (include object info if available)
-            await chrome.storage.session.set({
-              lastClipboardValue: clipboardData,
-              lastClipboardObject: domoObject || null
-            });
+          // Cache in session storage (include object info if available)
+          await chrome.storage.session.set({
+            lastClipboardValue: clipboardData || '',
+            lastClipboardObject: clipboardData ? domoObject || null : null
+          });
 
-            // Update in-memory value and notify if changed
-            if (clipboardData !== lastClipboardValue) {
-              lastClipboardValue = clipboardData;
+          // Update in-memory value and notify if changed
+          if ((clipboardData || '') !== lastClipboardValue) {
+            lastClipboardValue = clipboardData || '';
 
-              // Notify all extension contexts about clipboard change
-              chrome.runtime
-                .sendMessage({
-                  type: 'CLIPBOARD_UPDATED',
-                  clipboardData: clipboardData,
-                  domoObject: domoObject || null
-                })
-                .catch(() => {
-                  // No listeners, that's fine
-                });
-            }
+            // Notify all extension contexts about clipboard change
+            chrome.runtime
+              .sendMessage({
+                type: 'CLIPBOARD_UPDATED',
+                clipboardData: clipboardData || '',
+                domoObject: clipboardData ? domoObject || null : null
+              })
+              .catch(() => {
+                // No listeners, that's fine
+              });
           }
 
           sendResponse({ success: true });

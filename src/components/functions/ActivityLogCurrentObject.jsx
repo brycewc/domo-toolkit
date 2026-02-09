@@ -1,22 +1,45 @@
-import { useState } from 'react';
-import {
-  Button,
-  ButtonGroup,
-  Description,
-  Dropdown,
-  Label
-} from '@heroui/react';
+import { useState, useRef } from 'react';
+import { Button, Description, Dropdown, Label, Tooltip } from '@heroui/react';
 import {
   IconChartBar,
-  IconChevronDown,
   IconCopy,
   IconFileDescription
 } from '@tabler/icons-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { getCardsForObject, getPagesForCards } from '@/services';
 import { waitForChildPages } from '@/utils';
 
+const LONG_PRESS_DURATION = 1000; // ms - matches HeroUI's default
+const LONG_PRESS_SECONDS = LONG_PRESS_DURATION / 1000;
+
 export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
   const [isLoading, setIsLoading] = useState(false);
+  const [isHolding, setIsHolding] = useState(false);
+  const holdTimeoutRef = useRef(null);
+
+  const isDisabled = !currentContext?.domoObject?.id || isLoading;
+  const longPressEnabled =
+    !isDisabled &&
+    ['PAGE', 'DATA_APP_VIEW', 'DATA_SOURCE'].includes(
+      currentContext?.domoObject?.typeId
+    );
+
+  const handlePressStart = () => {
+    if (!longPressEnabled) return;
+    setIsHolding(true);
+    // Clear holding state after long press duration (dropdown will open)
+    holdTimeoutRef.current = setTimeout(() => {
+      setIsHolding(false);
+    }, LONG_PRESS_DURATION);
+  };
+
+  const handlePressEnd = () => {
+    setIsHolding(false);
+    if (holdTimeoutRef.current) {
+      clearTimeout(holdTimeoutRef.current);
+      holdTimeoutRef.current = null;
+    }
+  };
 
   const handleClick = async (key = null) => {
     if (
@@ -159,7 +182,7 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
           break;
       }
 
-      await chrome.storage.local.set({
+      await chrome.storage.session.set({
         activityLogTabId: currentContext?.tabId,
         activityLogObjects: activityLogObjects,
         activityLogType: activityLogType,
@@ -186,70 +209,77 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
     }
   };
 
-  const isDisabled = !currentContext?.domoObject?.id || isLoading;
-  const isDropdownDisabled =
-    isDisabled ||
-    !['PAGE', 'DATA_APP_VIEW', 'DATA_SOURCE'].includes(
-      currentContext?.domoObject?.typeId
-    );
-
-  const dropdowContent = (
-    <Dropdown>
-      <Button
-        variant='tertiary'
-        isIconOnly
-        aria-label='More options'
-        isDisabled={isDropdownDisabled}
-      >
-        <IconChevronDown stroke={1.5} />
-      </Button>
-      <Dropdown.Popover className='w-full max-w-80' placement='bottom end'>
-        <Dropdown.Menu onAction={handleClick}>
-          <Dropdown.Item id='child-cards' textValue='Child cards'>
-            <div className='flex h-8 items-start justify-center pt-px'>
-              <IconChartBar className='size-4 shrink-0' stroke={1.5} />
-            </div>
-            <div className='flex flex-col'>
-              <Label>Child cards</Label>
-              <Description className='text-xs'>
-                View activity log for all cards on this{' '}
-                {currentContext?.domoObject?.typeName?.toLowerCase() ||
-                  'object'}
-              </Description>
-            </div>
-          </Dropdown.Item>
-          <Dropdown.Item id='child-pages' textValue='Child pages'>
-            <div className='flex h-8 items-start justify-center pt-px'>
-              <IconCopy className='size-4 shrink-0' stroke={1.5} />
-            </div>
-            <div className='flex flex-col'>
-              <Label>Child pages</Label>
-              <Description className='text-xs'>
-                View activity log for all pages containing cards from this{' '}
-                {currentContext?.domoObject?.typeName?.toLowerCase() ||
-                  'object'}
-              </Description>
-            </div>
-          </Dropdown.Item>
-        </Dropdown.Menu>
-      </Dropdown.Popover>
-    </Dropdown>
-  );
-
   return (
-    <ButtonGroup className='min-w-fit flex-1 basis-[48%]'>
-      <Button
-        variant='tertiary'
-        onPress={handleClick}
-        isDisabled={isDisabled}
-        isPending={isLoading}
-        fullWidth
-        className={isDropdownDisabled ? '' : 'pl-13'}
-      >
-        <IconFileDescription stroke={1.5} />
-        Activity Log
-      </Button>
-      {!isDropdownDisabled && dropdowContent}
-    </ButtonGroup>
+    <Tooltip delay={400} closeDelay={0}>
+      <Dropdown trigger='longPress' isDisabled={!longPressEnabled}>
+        <Button
+          variant='tertiary'
+          onPress={() => handleClick()}
+          onPressStart={longPressEnabled ? handlePressStart : undefined}
+          onPressEnd={longPressEnabled ? handlePressEnd : undefined}
+          isDisabled={isDisabled}
+          isPending={isLoading}
+          fullWidth
+          className='min-w-fit flex-1 basis-[48%]'
+        >
+          <IconFileDescription stroke={1.5} />
+          Activity Log
+          <AnimatePresence>
+            {isHolding && (
+              <motion.div
+                className='pointer-events-none absolute inset-0 overflow-hidden rounded-md'
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0, transition: { duration: 0.1 } }}
+              >
+                <motion.div
+                  className='absolute top-1/2 left-1/2 aspect-square w-[200%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent-soft-hover'
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ duration: LONG_PRESS_SECONDS, ease: 'linear' }}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </Button>
+        <Dropdown.Popover className='w-full max-w-80' placement='bottom'>
+          <Dropdown.Menu onAction={handleClick}>
+            <Dropdown.Item id='child-cards' textValue='Child cards'>
+              <div className='flex h-8 items-start justify-center pt-px'>
+                <IconChartBar className='size-4 shrink-0' stroke={1.5} />
+              </div>
+              <div className='flex flex-col'>
+                <Label>Child cards</Label>
+                <Description className='text-xs'>
+                  View activity log for all cards on this{' '}
+                  {currentContext?.domoObject?.typeName?.toLowerCase() ||
+                    'object'}
+                </Description>
+              </div>
+            </Dropdown.Item>
+            <Dropdown.Item id='child-pages' textValue='Child pages'>
+              <div className='flex h-8 items-start justify-center pt-px'>
+                <IconCopy className='size-4 shrink-0' stroke={1.5} />
+              </div>
+              <div className='flex flex-col'>
+                <Label>Child pages</Label>
+                <Description className='text-xs'>
+                  View activity log for all pages containing cards from this{' '}
+                  {currentContext?.domoObject?.typeName?.toLowerCase() ||
+                    'object'}
+                </Description>
+              </div>
+            </Dropdown.Item>
+          </Dropdown.Menu>
+        </Dropdown.Popover>
+      </Dropdown>
+
+      <Tooltip.Content className='flex flex-col items-center text-center'>
+        <span>Activity Log</span>
+        {longPressEnabled && (
+          <span className='italic'>Hold for more options</span>
+        )}
+      </Tooltip.Content>
+    </Tooltip>
   );
 }

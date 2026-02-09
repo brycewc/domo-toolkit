@@ -72,10 +72,19 @@ async function checkAndCacheClipboard() {
 
     if (!isNumeric && !isUuid) {
       console.log(
-        '[Background] Clipboard does not contain a valid Domo object ID:',
+        '[ContentScript] Clipboard does not contain a valid Domo object ID:',
         trimmedText
       );
-      // Don't store or notify about invalid IDs
+      // If the previous clipboard was a Domo ID, clear it
+      if (lastKnownClipboard) {
+        lastKnownClipboard = '';
+        chrome.runtime
+          .sendMessage({
+            type: 'CLIPBOARD_COPIED',
+            clipboardData: ''
+          })
+          .catch(() => {});
+      }
       return null;
     }
 
@@ -240,7 +249,7 @@ async function checkForActivityLogFilter() {
   );
 
   try {
-    const result = await chrome.storage.local.get(['activityLogFilter']);
+    const result = await chrome.storage.session.get(['activityLogFilter']);
 
     if (!result.activityLogFilter) {
       console.log('[ContentScript] No pending filter found');
@@ -254,7 +263,7 @@ async function checkForActivityLogFilter() {
     const age = Date.now() - timestamp;
     if (age > 10000) {
       console.log('[ContentScript] Filter is too old, ignoring');
-      await chrome.storage.local.remove(['activityLogFilter']);
+      await chrome.storage.session.remove(['activityLogFilter']);
       return;
     }
 
@@ -269,14 +278,14 @@ async function checkForActivityLogFilter() {
       .then(() => {
         applyActivityLogFilter(typeName, objectId, objectName);
         // Clear the filter after applying
-        chrome.storage.local.remove(['activityLogFilter']);
+        chrome.storage.session.remove(['activityLogFilter']);
       })
       .catch((error) => {
         console.error(
           '[ContentScript] Timeout waiting for input element:',
           error
         );
-        chrome.storage.local.remove(['activityLogFilter']);
+        chrome.storage.session.remove(['activityLogFilter']);
       });
   } catch (error) {
     console.error(

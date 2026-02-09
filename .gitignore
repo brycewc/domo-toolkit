@@ -27,3 +27,5 @@ dist-ssr
 # Chrome build keys
 dist.crx
 dist.pem
+.hidden/meeting-prep-bryce.md
+.gitignore

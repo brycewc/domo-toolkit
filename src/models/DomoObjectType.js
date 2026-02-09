@@ -12,6 +12,8 @@ export class DomoObjectType {
    * @param {Object} [extractConfig] - Configuration for extracting ID from URL
    * @param {Object} [api] - API configuration for fetching object details
    * @param {Array<string>} [parents] - Array of parent object type IDs this object can have
+   * @param {Array<Object>} [relatedObjects] - Array of related object configs [{field, typeId, label, source?}]
+   * @param {boolean} [deprecated] - Whether this object type is deprecated
    */
   constructor(
     id,
@@ -21,6 +23,7 @@ export class DomoObjectType {
     extractConfig = null,
     api = null,
     parents = null,
+    relatedObjects = null,
     deprecated = false
   ) {
     this.id = id;
@@ -30,6 +33,7 @@ export class DomoObjectType {
     this.extractConfig = extractConfig;
     this.api = api;
     this.parents = parents;
+    this.relatedObjects = relatedObjects;
     this.deprecated = deprecated;
   }
 
@@ -55,7 +59,7 @@ export class DomoObjectType {
         if (tabId) {
           const domoObject = new DomoObject(this.id, id, baseUrl);
           try {
-            parentId = await domoObject.getParentWithTabId(tabId);
+            parentId = await domoObject.getParent(false, null, tabId);
           } catch (error) {
             throw new Error(
               `Parent ID is required for ${this.id} and could not be fetched: ${error.message}`
@@ -346,16 +350,19 @@ export const ObjectTypeRegistry = {
     { keyword: 'request-details' },
     {
       method: 'POST',
-      endpoint: 'synapse/approval/graphql',
+      endpoint: '/synapse/approval/graphql',
       pathToName: 'data.request.title',
+      pathToDetails: 'data.request',
+      pathToParentId: 'data.request.templateID',
       bodyTemplate: {
         operationName: 'getApprovalForDetails',
         variables: { id: '{id}' },
         query:
-          'query getApprovalForDetails($id: ID!) {\n  request: approval(id: $id) {\n    ...approvalFields\n    __name\n  }\n}\n\nfragment approvalFields on Approval {\n  newActivity\n  observers {\n    id\n    id\n    displayName\n    title\n    ... on Group {\n      currentUserIsMember\n      memberCount: userCount\n      __name\n    }\n    __name\n  }\n  lastViewed\n  newActivity\n  newMessage {\n    created\n    createdByType\n    createdBy {\n      id\n      displayName\n      __name\n    }\n    content {\n      text\n      __name\n    }\n    __name\n  }\n  lastAction\n  version\n  submittedTime\n  id\n  title\n  status\n  providerName\n  templateTitle\n  buzzChannelId\n  buzzGeneralThreadId\n  templateInstructions\n  templateDescription\n  acknowledgment\n  snooze\n  snoozed\n  id\n  categories {\n    id\n    name\n    __name\n  }\n  total {\n    value\n    currency\n    __name\n  }\n  modifiedTime\n  previousApprover: previousApproverEx {\n    id\n    id\n    displayName\n    ... on User {\n      title\n      avatarKey\n      isCurrentUser\n      __name\n    }\n    ... on Group {\n      currentUserIsMember\n      userCount\n      isDeleted\n      actor {\n        displayName\n        id\n        __name\n      }\n      __name\n    }\n    __name\n  }\n  pendingApprover: pendingApproverEx {\n    id\n    id\n    displayName\n    ... on User {\n      title\n      avatarKey\n      isCurrentUser\n      __name\n    }\n    ... on Group {\n      currentUserIsMember\n      userCount\n      isDeleted\n      __name\n    }\n    __name\n  }\n  submitter {\n    id\n    displayName\n    title\n    avatarKey\n    isCurrentUser\n    id\n    __name\n  }\n  approvalChainIdx\n  reminder {\n    sent\n    sentBy {\n      displayName\n      title\n      id\n      isCurrentUser\n      id\n      __name\n    }\n    __name\n  }\n  chain {\n    actor {\n      displayName\n      __name\n    }\n    approver {\n      id\n      id\n      displayName\n      ... on User {\n        title\n        avatarKey\n        isCurrentUser\n        __name\n      }\n      ... on Group {\n        currentUserIsMember\n        userCount\n        isDeleted\n        __name\n      }\n      __name\n    }\n    status\n    time\n    id\n    key\n    __name\n  }\n  fields {\n    data\n    name\n    id\n    key\n    ... on HeaderField {\n      fields {\n        data\n        name\n        id\n        key\n        ... on HeaderField {\n          fields {\n            data\n            name\n            id\n            key\n            __name\n          }\n          __name\n        }\n        __name\n      }\n      __name\n    }\n    ... on ItemListField {\n      fields {\n        data\n        name\n        id\n        key\n        ... on HeaderField {\n          fields {\n            data\n            name\n            id\n            key\n            ... on HeaderField {\n              fields {\n                data\n                name\n                id\n                key\n                __name\n              }\n              __name\n            }\n            __name\n          }\n          __name\n        }\n        __name\n      }\n      __name\n    }\n    ... on NumberField {\n      value\n      __name\n    }\n    ... on CurrencyField {\n      number: value\n      currency\n      __name\n    }\n    ... on DateField {\n      date: value\n      __name\n    }\n    ... on DataSetAttachmentField {\n      dataSet: value {\n        id\n        name\n        description\n        owner {\n          id\n          displayName\n          __name\n        }\n        provider\n        cardCount\n        __name\n      }\n      __name\n    }\n    __name\n  }\n  history {\n    actor {\n      id\n      id\n      displayName\n      ... on User {\n        avatarKey\n        isCurrentUser\n        __name\n      }\n      __name\n    }\n    status\n    time\n    __name\n  }\n  latestMessage {\n    created\n    __name\n  }\n  latestMentioned {\n    created\n    __name\n  }\n  workflowIntegration {\n    modelId\n    modelVersion\n    startName\n    instanceId\n    modelName\n    __name\n  }\n  __name\n}'
+          'query getApprovalForDetails($id: ID!) {\n  request: approval(id: $id) {\n    ...approvalFields\n    __typename\n  }\n}\n\nfragment approvalFields on Approval {\n  newActivity\n  observers {\n    id\n    type\n    displayName\n    title\n    ... on Group {\n      currentUserIsMember\n      memberCount: userCount\n      __typename\n    }\n    __typename\n  }\n  lastViewed\n  newActivity\n  newMessage {\n    created\n    createdByType\n    createdBy {\n      id\n      displayName\n      __typename\n    }\n    content {\n      text\n      __typename\n    }\n    __typename\n  }\n  lastAction\n  version\n  submittedTime\n  id\n  title\n  status\n  providerName\n  templateTitle\n  buzzChannelId\n  buzzGeneralThreadId\n  templateID\n  templateInstructions\n  templateDescription\n  acknowledgment\n  snooze\n  snoozed\n  type\n  categories {\n    id\n    name\n    __typename\n  }\n  total {\n    value\n    currency\n    __typename\n  }\n  modifiedTime\n  previousApprover: previousApproverEx {\n    id\n    type\n    displayName\n    ... on User {\n      title\n      avatarKey\n      isCurrentUser\n      __typename\n    }\n    ... on Group {\n      currentUserIsMember\n      userCount\n      isDeleted\n      actor {\n        displayName\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  pendingApprover: pendingApproverEx {\n    id\n    type\n    displayName\n    ... on User {\n      title\n      avatarKey\n      isCurrentUser\n      __typename\n    }\n    ... on Group {\n      currentUserIsMember\n      userCount\n      isDeleted\n      __typename\n    }\n    __typename\n  }\n  submitter {\n    id\n    displayName\n    title\n    avatarKey\n    isCurrentUser\n    type\n    __typename\n  }\n  approvalChainIdx\n  reminder {\n    sent\n    sentBy {\n      displayName\n      title\n      id\n      isCurrentUser\n      type\n      __typename\n    }\n    __typename\n  }\n  chain {\n    actor {\n      displayName\n      __typename\n    }\n    approver {\n      id\n      type\n      displayName\n      ... on User {\n        title\n        avatarKey\n        isCurrentUser\n        __typename\n      }\n      ... on Group {\n        currentUserIsMember\n        userCount\n        isDeleted\n        __typename\n      }\n      __typename\n    }\n    status\n    time\n    type\n    key\n    __typename\n  }\n  fields {\n    data\n    name\n    type\n    key\n    ... on HeaderField {\n      fields {\n        data\n        name\n        type\n        key\n        ... on HeaderField {\n          fields {\n            data\n            name\n            type\n            key\n            __typename\n          }\n          __typename\n        }\n        __typename\n      }\n      __typename\n    }\n    ... on ItemListField {\n      fields {\n        data\n        name\n        type\n        key\n        ... on HeaderField {\n          fields {\n            data\n            name\n            type\n            key\n            ... on HeaderField {\n              fields {\n                data\n                name\n                type\n                key\n                __typename\n              }\n              __typename\n            }\n            __typename\n          }\n          __typename\n        }\n        __typename\n      }\n      __typename\n    }\n    ... on NumberField {\n      value\n      __typename\n    }\n    ... on CurrencyField {\n      number: value\n      currency\n      __typename\n    }\n    ... on DateField {\n      date: value\n      __typename\n    }\n    ... on DataSetAttachmentField {\n      dataSet: value {\n        id\n        name\n        description\n        owner {\n          id\n          displayName\n          __typename\n        }\n        provider\n        cardCount\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  history {\n    actor {\n      type\n      id\n      displayName\n      ... on User {\n        avatarKey\n        isCurrentUser\n        __typename\n      }\n      __typename\n    }\n    status\n    time\n    __typename\n  }\n  latestMessage {\n    created\n    __typename\n  }\n  latestMentioned {\n    created\n    __typename\n  }\n  workflowIntegration {\n    modelId\n    modelVersion\n    startName\n    instanceId\n    modelName\n    __typename\n  }\n  __typename\n}'
       }
     },
-    ['TEMPLATE']
+    ['TEMPLATE'],
+    [{ source: 'parentId', typeId: 'TEMPLATE', label: 'Template' }]
   ),
   APP: new DomoObjectType(
     'APP',
@@ -453,7 +460,7 @@ export const ObjectTypeRegistry = {
   ),
   CODEENGINE_PACKAGE_VERSION: new DomoObjectType(
     'CODEENGINE_PACKAGE_VERSION',
-    'CodeEngine Package Version',
+    'Code Engine Package Version',
     null,
     /^[0-9]+\.[0-9]+\.[0-9]+$/,
     null,
@@ -566,7 +573,8 @@ export const ObjectTypeRegistry = {
       endpoint: '/content/v3/stacks/{id}',
       pathToName: 'title'
     },
-    ['DATA_APP']
+    ['DATA_APP'],
+    [{ source: 'parentId', typeId: 'DATA_APP', label: 'App' }]
   ),
   DATA_DICTIONARY: new DomoObjectType(
     'DATA_DICTIONARY',
@@ -607,7 +615,11 @@ export const ObjectTypeRegistry = {
       endpoint: '/data/v3/datasources/{id}?includeAllDetails=true',
       pathToName: 'name'
     },
-    ['DATAFLOW_TYPE', 'DATA_SOURCE']
+    ['DATAFLOW_TYPE', 'DATA_SOURCE'],
+    [
+      { field: 'streamId', typeId: 'STREAM', label: 'Stream' },
+      { field: 'accountId', typeId: 'ACCOUNT', label: 'Account' }
+    ]
   ),
   DATAFLOW_TYPE: new DomoObjectType(
     'DATAFLOW_TYPE',
@@ -707,18 +719,32 @@ export const ObjectTypeRegistry = {
   ENIGMA_FORM: new DomoObjectType(
     'ENIGMA_FORM',
     'Form',
-    null,
+    '/advancedForms/{id}/revisions',
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    null,
-    null
+    {
+      keyword: 'advancedForms'
+    },
+    {
+      method: 'GET',
+      endpoint: '/forms/v1/advanced-forms/{id}',
+      pathToName: 'title'
+    }
   ),
   ENIGMA_FORM_INSTANCE: new DomoObjectType(
     'ENIGMA_FORM_INSTANCE',
     'Enigma form instance',
-    null,
+    '/advancedForms/{parent}/revisions/{id}/design',
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    null,
-    null
+    {
+      keyword: 'revisions',
+      parentExtract: { keyword: 'advancedForms', offset: 1 }
+    },
+    {
+      method: 'GET',
+      endpoint: '/forms/v1/advanced-forms/{parent}/revisions/{id}',
+      pathToName: 'revision'
+    },
+    ['ENIGMA_FORM']
   ),
   EXECUTOR_APPLICATION: new DomoObjectType(
     'EXECUTOR_APPLICATION',
@@ -797,6 +823,7 @@ export const ObjectTypeRegistry = {
     'Function',
     null,
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    null,
     null,
     null,
     null,
@@ -1264,7 +1291,20 @@ export const ObjectTypeRegistry = {
     null
   ),
   STORY: new DomoObjectType('STORY', 'Story', null, /^\d+$/, null, null),
-  STREAM: new DomoObjectType('STREAM', 'Stream', null, /^\d+$/, null, null),
+  STREAM: new DomoObjectType(
+    'STREAM',
+    'Stream',
+    null,
+    /^\d+$/,
+    null,
+    {
+      method: 'GET',
+      endpoint: '/data/v1/streams/{id}?fields=all',
+      pathToName: 'dataProvider.name',
+      nameTemplate: '{dataProvider.name} Stream {id}'
+    },
+    ['DATA_SOURCE']
+  ),
   SUBSCRIPTION: new DomoObjectType(
     'SUBSCRIPTION',
     'Subscription',
@@ -1284,6 +1324,7 @@ export const ObjectTypeRegistry = {
       method: 'POST',
       endpoint: '/synapse/approval/graphql',
       pathToName: 'data.template.title',
+      pathToDetails: 'data.template',
       bodyTemplate: {
         operationName: 'getTemplateForEdit',
         variables: { id: '{id}' },
@@ -1305,6 +1346,7 @@ export const ObjectTypeRegistry = {
     'Team',
     null,
     /^\d+$/,
+    null,
     null,
     null,
     null,
@@ -1370,6 +1412,7 @@ export const ObjectTypeRegistry = {
     null,
     null,
     null,
+    null,
     true
   ),
   VARIABLE: new DomoObjectType('VARIABLE', 'Variable', null, /^\d+$/, null, {
@@ -1399,6 +1442,7 @@ export const ObjectTypeRegistry = {
     'Video call',
     null,
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    null,
     null,
     null,
     null,
@@ -1546,7 +1590,8 @@ export const ObjectTypeRegistry = {
       endpoint: '/content/v3/stacks/{id}',
       pathToName: 'title'
     },
-    ['WORKSHEET']
+    ['WORKSHEET'],
+    [{ source: 'parentId', typeId: 'WORKSHEET', label: 'Worksheet' }]
   ),
   WORKSPACE: new DomoObjectType(
     'WORKSPACE',
@@ -1596,5 +1641,20 @@ export function getAllObjectTypesWithUrl() {
 export function getAllObjectTypesWithApiConfig() {
   return Object.values(ObjectTypeRegistry).filter(
     (type) => type.hasApiConfig() && !type.deprecated
+  );
+}
+
+/**
+ * Get all object types that have either a navigable URL or an API configuration.
+ * Suitable for the clipboard navigation dropdown where non-URL types
+ * can be viewed in the sidepanel instead.
+ * @returns {DomoObjectType[]} Array of DomoObjectType instances
+ */
+export function getAllNavigableObjectTypes() {
+  return Object.values(ObjectTypeRegistry).filter(
+    (type) =>
+      (type.hasUrl() || type.hasApiConfig()) &&
+      !type.deprecated &&
+      type.idPattern !== null
   );
 }

@@ -1,8 +1,12 @@
 export { ActivityLogCurrentObject } from './ActivityLogCurrentObject';
 export { ClearCookies } from './ClearCookies';
 export { Copy } from './Copy';
+export { DataRepair } from './DataRepair';
+export { CopyFilteredUrl } from './CopyFilteredUrl';
 export { DeleteCurrentObject } from './DeleteCurrentObject';
 export { FilterActivityLog } from './FilterActivityLog';
+export { GetCards } from './GetCards';
+export { GetDatasets } from './GetDatasets';
 export { GetPages } from './GetPages';
 export { NavigateToCopiedObject } from './NavigateToCopiedObject';
 export { ShareWithSelf } from './ShareWithSelf';

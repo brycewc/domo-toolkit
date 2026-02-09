@@ -7,14 +7,27 @@ import {
   useCallback
 } from 'react';
 import { Button, Dropdown, Label, Tooltip, Chip, Spinner } from '@heroui/react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   DomoObject,
   getAllObjectTypesWithApiConfig,
-  getAllObjectTypesWithUrl
+  getAllNavigableObjectTypes
 } from '@/models';
 import { fetchObjectDetailsInPage } from '@/services';
-import { executeInPage } from '@/utils';
-import { IconExternalLink } from '@tabler/icons-react';
+import {
+  executeInPage,
+  isSidepanel,
+  openSidepanel,
+  storeSidepanelData
+} from '@/utils';
+import {
+  IconExternalLink,
+  IconEye,
+  IconLayoutSidebarRightExpand
+} from '@tabler/icons-react';
+
+const LONG_PRESS_DURATION = 1000;
+const LONG_PRESS_SECONDS = LONG_PRESS_DURATION / 1000;
 
 export const NavigateToCopiedObject = forwardRef(
   function NavigateToCopiedObject({ currentContext, onStatusUpdate }, ref) {
@@ -26,21 +39,35 @@ export const NavigateToCopiedObject = forwardRef(
     const [defaultDomoInstance, setDefaultDomoInstance] = useState('');
     const lastCheckedClipboard = useRef('');
     const [allTypes, setAllTypes] = useState([]);
+    const [isHolding, setIsHolding] = useState(false);
+    const holdTimeoutRef = useRef(null);
+
+    const handlePressStart = () => {
+      setIsHolding(true);
+      holdTimeoutRef.current = setTimeout(() => {
+        setIsHolding(false);
+      }, LONG_PRESS_DURATION);
+    };
+
+    const handlePressEnd = () => {
+      setIsHolding(false);
+      if (holdTimeoutRef.current) {
+        clearTimeout(holdTimeoutRef.current);
+        holdTimeoutRef.current = null;
+      }
+    };
 
     async function detectAndSetObject(objectId) {
-      // console.log('[NavigateToCopiedObject] detectAndSetObject called with:', {
-      //   objectId,
-      //   instance: currentContext.instance,
-      //   tabId: currentContext.tabId
-      // });
+      console.log('[NavigateToCopiedObject] detectAndSetObject called with:', {
+        objectId,
+        instance: currentContext.instance,
+        tabId: currentContext.tabId
+      });
 
       const baseUrl = `https://${currentContext.instance}.domo.com`;
 
       // Get all object types that have API configurations and match the ID pattern
       const allTypesWithApi = getAllObjectTypesWithApiConfig();
-      // console.log(
-      //   `[NavigateToCopiedObject] Total object types with API: ${allTypesWithApi.length}`
-      // );
 
       const typesToTry = allTypesWithApi
         .filter((type) => type.isValidObjectId(objectId))
@@ -66,11 +93,6 @@ export const NavigateToCopiedObject = forwardRef(
           return 0;
         });
 
-      // console.log(
-      //   `[NavigateToCopiedObject] Found ${typesToTry.length} types to try for ID ${objectId}:`,
-      //   typesToTry.map((t) => t.id)
-      // );
-
       if (typesToTry.length === 0) {
         setError(`No object types match ID pattern for: ${objectId}`);
         setObjectDetails(null);
@@ -80,8 +102,6 @@ export const NavigateToCopiedObject = forwardRef(
 
       // Try each type until we find a match
       for (const typeConfig of typesToTry) {
-        // console.log(`[NavigateToCopiedObject] Trying type: ${typeConfig.id}`);
-
         try {
           // Prepare parameters for page-safe function
           const params = {
@@ -102,18 +122,13 @@ export const NavigateToCopiedObject = forwardRef(
                 objectId,
                 baseUrl
               );
-              const parentId = await domoObject.getParentWithTabId(
+              const parentId = await domoObject.getParent(
+                false,
+                null,
                 currentContext.tabId
               );
               params.parentId = parentId;
-              // console.log(
-              //   `[NavigateToCopiedObject] Got parent ${parentId} for ${typeConfig.id}`
-              // );
             } catch (parentError) {
-              // console.log(
-              //   `[NavigateToCopiedObject] Could not get parent for ${typeConfig.id}:`,
-              //   parentError.message
-              // );
               continue; // Skip this type
             }
           }
@@ -131,16 +146,10 @@ export const NavigateToCopiedObject = forwardRef(
               typeConfig.id === 'DATAFLOW_TYPE' &&
               metadata.details.deleted === true
             ) {
-              // console.log(
-              //   `[NavigateToCopiedObject] Skipping deleted dataflow ${objectId}`
-              // );
               continue;
             }
 
             // Success! Create DomoObject and set details
-            // console.log(
-            //   `[NavigateToCopiedObject] ✓ Successfully detected type ${typeConfig.id}`
-            // );
             const domoObject = new DomoObject(
               typeConfig.id,
               objectId,
@@ -157,7 +166,7 @@ export const NavigateToCopiedObject = forwardRef(
             return;
           }
         } catch (error) {
-          console.log(
+          console.error(
             `[NavigateToCopiedObject] Error trying type ${typeConfig.id}:`,
             error.message
           );
@@ -166,9 +175,6 @@ export const NavigateToCopiedObject = forwardRef(
       }
 
       // If all types failed
-      // console.warn(
-      //   `[NavigateToCopiedObject] ⚠ All ${typesToTry.length} type(s) failed for ID ${objectId}`
-      // );
       setError(`Could not determine object type for ID: ${objectId}`);
       setObjectDetails(null);
       setIsLoading(false);
@@ -202,9 +208,9 @@ export const NavigateToCopiedObject = forwardRef(
     }));
 
     useEffect(() => {
-      // Load all object types for dropdown
-      const types = getAllObjectTypesWithUrl()
-        .filter((type) => !type.requiresParentForUrl())
+      // Load all object types for dropdown (includes non-URL types with API configs)
+      const types = getAllNavigableObjectTypes()
+        .filter((type) => (type.hasUrl() ? !type.requiresParentForUrl() : true))
         .sort((a, b) => a.name.localeCompare(b.name));
       setAllTypes(types);
     }, []);
@@ -240,10 +246,6 @@ export const NavigateToCopiedObject = forwardRef(
         .get(['lastClipboardValue', 'lastClipboardObject'])
         .then((result) => {
           if (result.lastClipboardValue) {
-            // console.log(
-            //   '[NavigateToCopiedObject] Loaded cached clipboard:',
-            //   result.lastClipboardValue
-            // );
             handleClipboardData(
               result.lastClipboardValue,
               result.lastClipboardObject
@@ -310,7 +312,14 @@ export const NavigateToCopiedObject = forwardRef(
     // Listen for clipboard updates from service worker
     useEffect(() => {
       const handleMessage = (message, sender, sendResponse) => {
-        if (message.type === 'CLIPBOARD_UPDATED' && message.clipboardData) {
+        if (
+          message.type === 'CLIPBOARD_UPDATED' &&
+          message.clipboardData !== undefined
+        ) {
+          console.log(
+            '[NavigateToCopiedObject] CLIPBOARD_UPDATED received:',
+            message.clipboardData
+          );
           handleClipboardData(message.clipboardData, message.domoObject);
         }
       };
@@ -375,17 +384,8 @@ export const NavigateToCopiedObject = forwardRef(
       handleNavigate(objectIdToUse, manuallySelectedType);
     };
 
-    const handleNavigate = (objectIdToUse, manuallySelectedType) => {
+    const handleNavigate = async (objectIdToUse, manuallySelectedType) => {
       const typeToUse = manuallySelectedType || selectedType;
-
-      // console.log('[handleNavigate] objectIdToUse:', objectIdToUse);
-      // console.log(
-      //   '[handleNavigate] manuallySelectedType:',
-      //   manuallySelectedType
-      // );
-      // console.log('[handleNavigate] selectedType:', selectedType);
-      // console.log('[handleNavigate] typeToUse:', typeToUse);
-      // console.log('[handleNavigate] objectDetails:', objectDetails);
 
       if (!objectIdToUse) {
         return;
@@ -401,16 +401,9 @@ export const NavigateToCopiedObject = forwardRef(
 
         if (objectDetails && !manuallySelectedType) {
           // Use the already detected DomoObject (auto-detected path)
-          // console.log('[handleNavigate] Using auto-detected objectDetails');
           domoObject = objectDetails;
         } else if (typeToUse) {
           // User manually selected a type - create new DomoObject
-          // console.log(
-          //   '[handleNavigate] Creating new DomoObject with typeToUse:',
-          //   typeToUse,
-          //   typeof typeToUse
-          // );
-          // Also update state for UI consistency
           if (manuallySelectedType) {
             setSelectedType(manuallySelectedType);
           }
@@ -418,10 +411,8 @@ export const NavigateToCopiedObject = forwardRef(
 
           // Check if on a Domo page
           if (currentContext?.isDomoPage && currentContext?.instance) {
-            // Use current Domo instance
             baseUrl = `https://${currentContext?.instance}.domo.com`;
           } else {
-            // Use default Domo instance from settings (button should be disabled if not set)
             baseUrl = `https://${defaultDomoInstance}.domo.com`;
           }
 
@@ -430,7 +421,25 @@ export const NavigateToCopiedObject = forwardRef(
           // No object details and no type selected
           return;
         }
-        // console.log(domoObject);
+
+        // For types without a URL, open the sidepanel with object details
+        if (!domoObject.hasUrl()) {
+          await storeSidepanelData({
+            type: 'loading',
+            message: 'Loading object details...',
+            timestamp: Date.now()
+          });
+          if (!isSidepanel()) {
+            openSidepanel();
+          }
+          await storeSidepanelData({
+            type: 'viewObjectDetails',
+            currentContext,
+            domoObject: domoObject.toJSON()
+          });
+          return;
+        }
+
         domoObject.navigateTo(currentContext?.tabId).catch((err) => {
           console.error('Error navigating to object:', err);
           onStatusUpdate?.(
@@ -451,17 +460,15 @@ export const NavigateToCopiedObject = forwardRef(
       }
     };
 
-    // If object type is unknown, show dropdown for manual selection
-    // Show dropdown when: not on Domo page with copied ID but no objectDetails, or no ID at all
-    const showDropdown =
-      !currentContext?.isDomoPage || (!objectDetails && copiedObjectId);
-
     // Disable dropdown when not on Domo page and no default instance configured
     const needsDefaultInstance =
       !currentContext?.isDomoPage && !defaultDomoInstance;
 
-    return showDropdown ? (
-      needsDefaultInstance ? (
+    const longPressDisabled =
+      needsDefaultInstance || (!currentContext?.isDomoPage && !copiedObjectId);
+
+    if (needsDefaultInstance) {
+      return (
         <Tooltip delay={200} closeDelay={0} className='h-fit'>
           <Button
             variant='tertiary'
@@ -475,11 +482,59 @@ export const NavigateToCopiedObject = forwardRef(
             Set a default Domo instance in settings
           </Tooltip.Content>
         </Tooltip>
-      ) : (
-        <Dropdown>
-          <Button variant='tertiary' className='min-w-fit flex-1 basis-[48%]'>
-            <IconExternalLink stroke={1.5} />
-            From Clipboard
+      );
+    }
+
+    return (
+      <Tooltip delay={400} closeDelay={0}>
+        <Dropdown
+          trigger={longPressDisabled ? 'click' : 'longPress'}
+          isDisabled={longPressDisabled}
+        >
+          <Button
+            className='min-w-fit flex-1 basis-[48%]'
+            variant='tertiary'
+            onPress={() => handleClick()}
+            onPressStart={longPressDisabled ? undefined : handlePressStart}
+            onPressEnd={longPressDisabled ? undefined : handlePressEnd}
+            isDisabled={isLoading || !copiedObjectId}
+            isPending={isLoading}
+            isIconOnly={isLoading}
+          >
+            {({ isPending }) =>
+              isPending ? (
+                <Spinner color='currentColor' size='sm' />
+              ) : (
+                <>
+                  {objectDetails && !objectDetails.hasUrl() ? (
+                    <IconEye stroke={1.5} />
+                  ) : (
+                    <IconExternalLink stroke={1.5} />
+                  )}
+                  From Clipboard
+                  <AnimatePresence>
+                    {isHolding && (
+                      <motion.div
+                        className='pointer-events-none absolute inset-0 overflow-hidden rounded-md'
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0, transition: { duration: 0.1 } }}
+                      >
+                        <motion.div
+                          className='absolute top-1/2 left-1/2 aspect-square w-[200%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent-soft-hover'
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          transition={{
+                            duration: LONG_PRESS_SECONDS,
+                            ease: 'linear'
+                          }}
+                        />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </>
+              )
+            }
           </Button>
           <Dropdown.Popover className='min-w-[18rem]' placement='bottom end'>
             <Dropdown.Menu
@@ -489,58 +544,62 @@ export const NavigateToCopiedObject = forwardRef(
             >
               {allTypes.map((type) => (
                 <Dropdown.Item id={type.id} textValue={type.name} key={type.id}>
+                  <Tooltip key={type.id} delay={400} closeDelay={0}>
+                    <Tooltip.Trigger>
+                      {type.hasUrl() ? (
+                        <IconExternalLink stroke={1.5} />
+                      ) : (
+                        <IconLayoutSidebarRightExpand stroke={1.5} />
+                      )}
+                    </Tooltip.Trigger>
+                    <Tooltip.Content>
+                      {type.hasUrl()
+                        ? 'Open in new tab'
+                        : 'View details in side panel'}
+                    </Tooltip.Content>
+                  </Tooltip>
                   <Label>{type.name}</Label>
                 </Dropdown.Item>
               ))}
             </Dropdown.Menu>
           </Dropdown.Popover>
         </Dropdown>
-      )
-    ) : (
-      <Tooltip delay={400} closeDelay={0}>
-        <Button
-          className='min-w-fit flex-1 basis-[48%]'
-          variant='tertiary'
-          onPress={() => handleClick()}
-          isDisabled={!copiedObjectId || isLoading || !!error}
-          isPending={isLoading}
-          isIconOnly={isLoading}
-        >
-          <IconExternalLink stroke={1.5} />
-          From Clipboard
-        </Button>
-        <Tooltip.Content
-          placement='top'
-          className='flex flex-row flex-wrap items-center gap-1'
-        >
-          {error ? (
-            `Error: ${error}`
-          ) : currentContext?.isDomoPage ? (
-            copiedObjectId ? (
-              objectDetails ? (
-                <>
-                  <span>
-                    Navigate to {objectDetails.metadata?.name || 'Unknown'}
-                  </span>
-                  <Chip
-                    size='sm'
-                    variant='soft'
-                    color='accent'
-                    className='w-fit'
-                  >
-                    {objectDetails.metadata?.parent
-                      ? `${objectDetails.metadata?.parent?.objectType?.name} > ${objectDetails?.typeName}`
-                      : `${objectDetails?.typeName}`}
-                  </Chip>
-                </>
+        <Tooltip.Content placement='top' className='flex flex-col items-center'>
+          <span className='flex flex-row items-start justify-start gap-1'>
+            {error ? (
+              `Error: ${error}`
+            ) : currentContext?.isDomoPage ? (
+              copiedObjectId ? (
+                objectDetails ? (
+                  <>
+                    <span className='text-wrap'>
+                      {objectDetails.hasUrl()
+                        ? `Navigate to ${objectDetails.metadata?.name || 'Unknown'}`
+                        : `View details for ${objectDetails.metadata?.name || 'Unknown'}`}
+                    </span>
+                    <Chip
+                      size='sm'
+                      variant='soft'
+                      color={objectDetails.hasUrl() ? 'accent' : 'secondary'}
+                      className='w-fit'
+                    >
+                      {objectDetails.metadata?.parent
+                        ? `${objectDetails.metadata?.parent?.objectType?.name} > ${objectDetails?.typeName}`
+                        : `${objectDetails?.typeName}`}
+                    </Chip>
+                  </>
+                ) : (
+                  'Loading object details...'
+                )
               ) : (
-                'Loading object details...'
+                'No valid Domo object ID in clipboard'
               )
             ) : (
-              'No valid Domo object ID in clipboard'
-            )
-          ) : (
-            'Click to read clipboard and navigate to object'
+              'Click to read clipboard and navigate to object'
+            )}
+          </span>
+          {!longPressDisabled && (
+            <span className='italic'>Hold for more options</span>
           )}
         </Tooltip.Content>
       </Tooltip>

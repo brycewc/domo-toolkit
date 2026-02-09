@@ -1,23 +1,5 @@
 import { useEffect, useState } from 'react';
-import {
-  Button,
-  ButtonGroup,
-  Card,
-  Dropdown,
-  Popover,
-  Separator,
-  Spinner,
-  Tooltip
-} from '@heroui/react';
-import {
-  IconClipboard,
-  IconDots,
-  IconDotsVertical,
-  IconFolders,
-  IconRefresh,
-  IconUsersPlus,
-  IconX
-} from '@tabler/icons-react';
+import { Button, Separator, Spinner } from '@heroui/react';
 import { DataList } from '@/components';
 import {
   getCardsForObject,
@@ -25,7 +7,7 @@ import {
   getPagesForCards,
   sharePagesWithSelf
 } from '@/services';
-import { DomoContext } from '@/models';
+import { DataListItem, DomoContext } from '@/models';
 import { getValidTabForInstance } from '@/utils';
 
 /**
@@ -59,21 +41,25 @@ function transformGroupedPagesData(childPages, origin) {
       a.pageTitle.localeCompare(b.pageTitle)
     );
 
-    const children = sortedPages.map((page) => ({
-      id: page.pageId,
-      label: page.pageTitle,
-      url: `${origin}/page/${page.pageId}`,
-      metadata: `ID: ${page.pageId}`
-    }));
+    const children = sortedPages.map(
+      (page) =>
+        new DataListItem({
+          id: page.pageId,
+          label: page.pageTitle,
+          url: `${origin}/page/${page.pageId}`,
+          typeId: 'PAGE',
+          metadata: `ID: ${page.pageId}`
+        })
+    );
 
-    items.push({
-      id: 'PAGE_group',
-      label: 'Pages/Dashboards',
-      count: children.length,
-      metadata: `${children.length} page${children.length !== 1 ? 's' : ''}`,
-      children,
-      isVirtualParent: true
-    });
+    items.push(
+      DataListItem.createGroup({
+        id: 'PAGE_group',
+        label: 'Pages/Dashboards',
+        children,
+        metadata: `${children.length} page${children.length !== 1 ? 's' : ''}`
+      })
+    );
   }
 
   // Handle App Studio pages - group by app first
@@ -99,33 +85,35 @@ function transformGroupedPagesData(childPages, origin) {
           a.pageTitle.localeCompare(b.pageTitle)
         );
 
-        const pageChildren = sortedPages.map((page) => ({
-          id: page.pageId,
-          label: page.pageTitle,
-          url: `${origin}/app-studio/${appId}/pages/${page.pageId}`,
-          metadata: { typeId: 'DATA_APP_VIEW', info: `ID: ${page.pageId}` },
-          isVirtualParent: false
-        }));
+        const pageChildren = sortedPages.map(
+          (page) =>
+            new DataListItem({
+              id: page.pageId,
+              label: page.pageTitle,
+              url: `${origin}/app-studio/${appId}/pages/${page.pageId}`,
+              typeId: 'DATA_APP_VIEW',
+              metadata: `ID: ${page.pageId}`
+            })
+        );
 
-        return {
+        return new DataListItem({
           id: appId,
           label: appName,
           url: `${origin}/app-studio/${appId}`,
+          typeId: 'DATA_APP',
           count: pageChildren.length,
-          metadata: { typeId: 'DATA_APP' },
-          children: pageChildren,
-          isVirtualParent: false
-        };
+          children: pageChildren
+        });
       });
 
-    items.push({
-      id: 'DATA_APP_VIEW_group',
-      label: 'App Studio Apps',
-      count: pagesByType.DATA_APP_VIEW.length,
-      metadata: `${pagesByApp.size} app${pagesByApp.size !== 1 ? 's' : ''}, ${pagesByType.DATA_APP_VIEW.length} page${pagesByType.DATA_APP_VIEW.length !== 1 ? 's' : ''}`,
-      children: appChildren,
-      isVirtualParent: true
-    });
+    items.push(
+      DataListItem.createGroup({
+        id: 'DATA_APP_VIEW_group',
+        label: 'App Studio Apps',
+        children: appChildren,
+        metadata: `${pagesByApp.size} app${pagesByApp.size !== 1 ? 's' : ''}, ${pagesByType.DATA_APP_VIEW.length} page${pagesByType.DATA_APP_VIEW.length !== 1 ? 's' : ''}`
+      })
+    );
   }
 
   // Handle Report Builder pages
@@ -134,21 +122,25 @@ function transformGroupedPagesData(childPages, origin) {
       a.pageTitle.localeCompare(b.pageTitle)
     );
 
-    const children = sortedPages.map((page) => ({
-      id: page.pageId,
-      label: page.pageTitle,
-      url: '',
-      metadata: { typeId: 'REPORT_BUILDER_VIEW', info: `ID: ${page.pageId}` }
-    }));
+    const children = sortedPages.map(
+      (page) =>
+        new DataListItem({
+          id: page.pageId,
+          label: page.pageTitle,
+          url: '',
+          typeId: 'REPORT_BUILDER_VIEW',
+          metadata: `ID: ${page.pageId}`
+        })
+    );
 
-    items.push({
-      id: 'REPORT_BUILDER_VIEW_group',
-      label: 'Report Builder Pages',
-      count: children.length,
-      metadata: `${children.length} page${children.length !== 1 ? 's' : ''}`,
-      children,
-      isVirtualParent: true
-    });
+    items.push(
+      DataListItem.createGroup({
+        id: 'REPORT_BUILDER_VIEW_group',
+        label: 'Report Builder Pages',
+        children,
+        metadata: `${children.length} page${children.length !== 1 ? 's' : ''}`
+      })
+    );
   }
 
   return items;
@@ -171,18 +163,22 @@ export function GetPagesView({
   }, []);
 
   const loadPagesData = async (forceRefresh = false) => {
-    setIsLoading(true);
-    setShowSpinner(false);
+    if (!forceRefresh) {
+      setIsLoading(true);
+      setShowSpinner(false);
+    }
     setError(null);
 
     // Delay showing spinner to avoid flash on quick loads
-    const spinnerTimer = setTimeout(() => {
-      setShowSpinner(true);
-    }, 200); // 200ms delay
+    const spinnerTimer = !forceRefresh
+      ? setTimeout(() => {
+          setShowSpinner(true);
+        }, 200)
+      : null;
 
     try {
       // Get the stored page data from local storage
-      const result = await chrome.storage.local.get(['sidepanelDataList']);
+      const result = await chrome.storage.session.get(['sidepanelDataList']);
       const data = result.sidepanelDataList;
       console.log('Loaded sidepanel data:', data);
       if (
@@ -194,15 +190,24 @@ export function GetPagesView({
         return;
       }
 
-      const { objectId, objectType, objectName, currentContext } = data;
-      const context = DomoContext.fromJSON(currentContext);
+      // Derive all values from currentContext - no duplication needed
+      const context = DomoContext.fromJSON(data.currentContext);
+      const domoObject = context.domoObject;
+      const objectType = domoObject.typeId;
+      const objectId = parseInt(domoObject.parentId || domoObject.id);
+      const objectName =
+        domoObject.metadata?.parent?.name ||
+        domoObject.metadata?.name ||
+        `${objectType} ${objectId}`;
       const instance = context.instance;
       const origin = `https://${instance}.domo.com`;
 
       // Get appId for DATA_APP_VIEW types (stored as parentId in domoObject)
       const appId =
         objectType === 'DATA_APP_VIEW'
-          ? context.domoObject?.parentId || context.domoObject?.id
+          ? domoObject.parentId ||
+            domoObject?.metadata?.parent?.id ||
+            domoObject.id
           : null;
 
       // Either use cached childPages or fetch fresh data
@@ -241,14 +246,12 @@ export function GetPagesView({
       setPageData({
         objectId,
         objectType,
-        objectName:
-          objectName ||
-          context.domoObject?.metadata?.name ||
-          `${objectType} ${objectId}`,
+        objectName,
         origin,
         appId,
         instance,
-        pageTypeLabel
+        pageTypeLabel,
+        userId: context.user?.id
       });
 
       if (objectType === 'CARD' || objectType === 'DATA_SOURCE') {
@@ -290,9 +293,11 @@ export function GetPagesView({
       console.error('Error loading pages:', err);
       setError(err.message || 'Failed to load child pages');
     } finally {
-      clearTimeout(spinnerTimer);
-      setIsLoading(false);
-      setShowSpinner(false);
+      if (spinnerTimer) clearTimeout(spinnerTimer);
+      if (!forceRefresh) {
+        setIsLoading(false);
+        setShowSpinner(false);
+      }
     }
   };
 
@@ -403,6 +408,10 @@ export function GetPagesView({
       a.pageTitle.localeCompare(b.pageTitle)
     );
 
+    // Determine the typeId for pages based on the parent object type
+    const pageTypeId =
+      objectType === 'DATA_APP_VIEW' ? 'DATA_APP_VIEW' : 'PAGE';
+
     // Build items array - just the child pages
     const childItems = sortedPages?.map((page) => {
       const pageUrl =
@@ -415,98 +424,63 @@ export function GetPagesView({
         (childPage) => childPage.parentPageId === page.pageId
       );
 
-      return {
+      const nestedChildren =
+        childPagesForPage.length > 0
+          ? childPagesForPage
+              .sort((a, b) => a.pageTitle.localeCompare(b.pageTitle))
+              .map(
+                (childPage) =>
+                  new DataListItem({
+                    id: childPage.pageId,
+                    label: childPage.pageTitle,
+                    url:
+                      objectType === 'DATA_APP_VIEW'
+                        ? `${origin}/app-studio/${objectId}/pages/${childPage.pageId}`
+                        : `${origin}/page/${childPage.pageId}`,
+                    typeId: pageTypeId,
+                    metadata: `ID: ${childPage.pageId}`
+                  })
+              )
+          : undefined;
+
+      return new DataListItem({
         id: page.pageId,
         label: page.pageTitle,
         url: pageUrl,
+        typeId: pageTypeId,
         count: childPagesForPage.length,
         metadata: `ID: ${page.pageId}`,
-        children:
-          childPagesForPage.length > 0
-            ? childPagesForPage
-                .sort((a, b) => a.pageTitle.localeCompare(b.pageTitle))
-                .map((childPage) => ({
-                  id: childPage.pageId,
-                  label: childPage.pageTitle,
-                  url:
-                    objectType === 'DATA_APP_VIEW'
-                      ? `${origin}/app-studio/${objectId}/pages/${childPage.pageId}`
-                      : `${origin}/page/${childPage.pageId}`,
-                  metadata: `ID: ${childPage.pageId}`
-                }))
-            : undefined
-      };
+        children: nestedChildren
+      });
     });
 
     setItems(childItems);
   };
 
-  const handleItemAction = async (action, item) => {
+  /**
+   * Handle share item action (custom - page specific)
+   */
+  const handleItemShare = async (actionType, item) => {
     try {
-      switch (action) {
-        case 'openAll':
-          if (item.children) {
-            const count = item.children.length;
-            item.children.forEach(async (child) => {
-              if (child.url) {
-                window.open(child.url, '_blank', 'noopener,noreferrer');
-              }
-            });
-            onStatusUpdate?.(
-              'Opened Pages',
-              `Opened **${count}** page${count !== 1 ? 's' : ''} in new tabs`,
-              'success',
-              2000
-            );
-          }
-          break;
-        case 'copy':
-          if (item.id) {
-            await navigator.clipboard.writeText(item.id.toString());
-            onStatusUpdate?.(
-              'Copied',
-              `ID **${item.id}** copied to clipboard`,
-              'success',
-              2000
-            );
-          }
-          break;
-        case 'share':
-          if (pageData?.instance) {
-            const tabId = await getValidTabForInstance(pageData.instance);
-            await sharePagesWithSelf({ pageIds: [item.id], tabId });
-            onStatusUpdate?.(
-              'Shared',
-              `Page **${item.label || item.id}** shared with yourself`,
-              'success',
-              2000
-            );
-          }
-          break;
-        case 'shareAll':
-          if (pageData?.instance && item.children) {
-            const tabId = await getValidTabForInstance(pageData.instance);
-            const count = item.children.length;
-            await sharePagesWithSelf({
-              pageIds: item.children.map((child) => child.id),
-              tabId
-            });
-            onStatusUpdate?.(
-              'Shared',
-              `**${count}** page${count !== 1 ? 's' : ''} shared with yourself`,
-              'success',
-              2000
-            );
-          }
-          break;
-        default:
-          break;
+      if (pageData?.instance) {
+        const tabId = await getValidTabForInstance(pageData.instance);
+        await sharePagesWithSelf({
+          pageIds: [item.id],
+          userId: pageData.userId,
+          tabId
+        });
+        onStatusUpdate?.(
+          'Shared',
+          `Page **${item.label || item.id}** shared with yourself`,
+          'success',
+          2000
+        );
       }
     } catch (err) {
-      console.error(`[GetPagesView] Error in action ${action}:`, err);
+      console.error('[GetPagesView] Error in share action:', err);
       onStatusUpdate?.(
         'Error',
-        err.message || `Failed to ${action}`,
+        err.message || 'Failed to share',
         'danger',
         3000
       );
@@ -514,51 +488,62 @@ export function GetPagesView({
   };
 
   /**
-   * Recursively collect all URLs from items and their children
-   * Skips virtual parent nodes (grouping headers) that don't have real URLs
+   * Handle shareAll item action (custom - page specific)
    */
-  const collectAllUrls = (itemList) => {
-    const urls = [];
-    const traverse = (list) => {
-      for (const item of list) {
-        // Add URL if it exists and item is not a virtual parent (grouping node)
-        if (
-          item.url &&
-          !item.isVirtualParent &&
-          item?.metadata?.typeId !== 'DATA_APP'
-        ) {
-          urls.push(item.url);
-        }
-        // Recursively process children
-        if (item.children && item.children.length > 0) {
-          traverse(item.children);
-        }
-      }
-    };
-    traverse(itemList);
-    return urls;
-  };
-
-  const handleOpenAll = async () => {
+  const handleItemShareAll = async (actionType, item) => {
     try {
-      const urls = collectAllUrls(items);
-      const count = urls.length;
-
-      urls.forEach((url) => {
-        window.open(url, '_blank', 'noopener,noreferrer');
-      });
-
-      onStatusUpdate?.(
-        'Opened Pages',
-        `Opened **${count}** page${count !== 1 ? 's' : ''} in new tabs`,
-        'success',
-        2000
-      );
+      if (pageData?.instance && item.children) {
+        const tabId = await getValidTabForInstance(pageData.instance);
+        const count = item.children.length;
+        await sharePagesWithSelf({
+          pageIds: item.children.map((child) => child.id),
+          userId: pageData.userId,
+          tabId
+        });
+        onStatusUpdate?.(
+          'Shared',
+          `**${count}** page${count !== 1 ? 's' : ''} shared with yourself`,
+          'success',
+          2000
+        );
+      }
     } catch (err) {
-      console.error('[GetPagesView] Error opening all pages:', err);
+      console.error('[GetPagesView] Error in shareAll action:', err);
       onStatusUpdate?.(
         'Error',
-        err.message || 'Failed to open all pages',
+        err.message || 'Failed to share',
+        'danger',
+        3000
+      );
+    }
+  };
+
+  /**
+   * Handle shareAll header action (custom - page specific)
+   */
+  const handleShareAll = async () => {
+    try {
+      if (pageData?.instance) {
+        const tabId = await getValidTabForInstance(pageData.instance);
+        const count = items.length;
+        await sharePagesWithSelf({
+          pageIds: items.map((item) => item.id),
+          userId: pageData.userId,
+          tabId
+        });
+        onStatusUpdate?.(
+          'Shared',
+          `**${count}** page${count !== 1 ? 's' : ''} shared with yourself`,
+          'success',
+          2000
+        );
+        chrome.tabs.reload(tabId);
+      }
+    } catch (err) {
+      console.error('[GetPagesView] Error in shareAll header action:', err);
+      onStatusUpdate?.(
+        'Error',
+        err.message || 'Failed to share',
         'danger',
         3000
       );
@@ -587,183 +572,69 @@ export function GetPagesView({
     );
   }
 
+  // Build the title section with name, label, and stats
+  const renderTitle = () => {
+    const grandchildCount = items.reduce(
+      (total, item) => total + (item.children?.length || 0),
+      0
+    );
+
+    return (
+      <div className='flex w-full flex-col gap-1'>
+        <div className='flex w-full min-w-0 items-center justify-start gap-x-1'>
+          <span className='truncate font-bold'>{pageData?.objectName}</span>
+          <span className='shrink-0'>{pageData?.pageTypeLabel}</span>
+        </div>
+        {items.length !== undefined &&
+          pageData?.objectType !== 'CARD' &&
+          pageData?.objectType !== 'DATA_SOURCE' && (
+            <div className='flex flex-row items-center gap-1'>
+              <span className='text-sm text-muted'>
+                {items.length}{' '}
+                {pageData?.objectType === 'PAGE' ? 'child page' : 'page'}
+                {items.length === 1 ? '' : 's'}
+              </span>
+              {grandchildCount > 0 && (
+                <div className='flex flex-row items-end gap-1'>
+                  <Separator
+                    orientation='vertical'
+                    className='mx-1 h-4'
+                    size='sm'
+                  />
+                  <span className='text-sm text-muted'>
+                    {grandchildCount} grandchild{' '}
+                    {grandchildCount === 1 ? 'page' : 'pages'}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+      </div>
+    );
+  };
+
   return (
     <DataList
       items={items}
       objectType={pageData?.objectType}
       onStatusUpdate={onStatusUpdate}
-      header={
-        <div className='flex flex-col gap-1'>
-          <Card.Title className='flex items-center justify-between'>
-            <div className='flex flex-wrap items-center justify-start gap-x-1'>
-              <span className='font-bold'>{pageData?.objectName}</span>
-              {pageData?.pageTypeLabel}
-            </div>
-            <ButtonGroup hideSeparator>
-              <Popover>
-                <Button variant='ghost' size='sm' isIconOnly>
-                  <IconDots stroke={1.5} />
-                </Button>
-                <Popover.Content placement='left' offset={1}>
-                  <Popover.Dialog className='p-0'>
-                    <ButtonGroup size='sm' fullWidth variant='ghost'>
-                      <Tooltip delay={400} closeDelay={0}>
-                        <Button
-                          variant='ghost'
-                          size='sm'
-                          isIconOnly
-                          onPress={handleOpenAll}
-                          aria-label='Open All'
-                        >
-                          <IconFolders stroke={1.5} />
-                        </Button>
-                        <Tooltip.Content className='text-xs'>
-                          Open all pages in new tabs
-                        </Tooltip.Content>
-                      </Tooltip>
-                      <Tooltip delay={400} closeDelay={0}>
-                        <Button
-                          variant='ghost'
-                          size='sm'
-                          isIconOnly
-                          onPress={async () => {
-                            await navigator.clipboard.writeText(
-                              pageData.objectId.toString()
-                            );
-                            onStatusUpdate?.(
-                              'Copied',
-                              `ID **${pageData.objectId}** copied to clipboard`,
-                              'success',
-                              2000
-                            );
-                          }}
-                          aria-label='Copy'
-                        >
-                          <IconClipboard stroke={1.5} />
-                        </Button>
-                        <Tooltip.Content className='text-xs'>
-                          Copy ID
-                        </Tooltip.Content>
-                      </Tooltip>
-                      <Tooltip delay={400} closeDelay={0}>
-                        <Button
-                          variant='ghost'
-                          size='sm'
-                          isIconOnly
-                          onPress={async () => {
-                            if (pageData?.instance) {
-                              try {
-                                const tabId = await getValidTabForInstance(
-                                  pageData.instance
-                                );
-                                const count = items.length;
-                                await sharePagesWithSelf({
-                                  pageIds: items.map((item) => item.id),
-                                  tabId
-                                });
-                                onStatusUpdate?.(
-                                  'Shared',
-                                  `**${count}** page${count !== 1 ? 's' : ''} shared with yourself`,
-                                  'success',
-                                  2000
-                                );
-                                chrome.tabs.reload(tabId);
-                              } catch (err) {
-                                onStatusUpdate?.(
-                                  'Error',
-                                  err.message || 'Failed to share pages',
-                                  'danger',
-                                  3000
-                                );
-                              }
-                            }
-                          }}
-                          aria-label='Share'
-                        >
-                          <IconUsersPlus stroke={1.5} />
-                        </Button>
-                        <Tooltip.Content className='text-xs'>
-                          Share all pages with yourself
-                        </Tooltip.Content>
-                      </Tooltip>
-                      <Tooltip delay={400} closeDelay={0}>
-                        <Button
-                          variant='ghost'
-                          size='sm'
-                          isIconOnly
-                          isDisabled={isRefreshing}
-                          onPress={handleRefresh}
-                        >
-                          <IconRefresh
-                            stroke={1.5}
-                            size={16}
-                            className={isRefreshing ? 'animate-spin' : ''}
-                          />
-                        </Button>
-                        <Tooltip.Content className='text-xs'>
-                          Refresh
-                        </Tooltip.Content>
-                      </Tooltip>
-                    </ButtonGroup>
-                  </Popover.Dialog>
-                </Popover.Content>
-              </Popover>
-              {onBackToDefault && (
-                <Tooltip delay={400} closeDelay={0}>
-                  <Button
-                    variant='ghost'
-                    size='sm'
-                    isIconOnly
-                    onPress={onBackToDefault}
-                  >
-                    <IconX stroke={1.5} />
-                  </Button>
-                  <Tooltip.Content className='text-xs'>
-                    Close {pageData?.pageTypeLabel} View
-                  </Tooltip.Content>
-                </Tooltip>
-              )}
-            </ButtonGroup>
-          </Card.Title>
-          {items.length !== undefined &&
-            (() => {
-              if (
-                pageData?.objectType !== 'CARD' &&
-                pageData?.objectType !== 'DATA_SOURCE'
-              ) {
-                const grandchildCount = items.reduce(
-                  (total, item) => total + (item.children?.length || 0),
-                  0
-                );
-                return (
-                  <div className='flex flex-row items-center gap-1'>
-                    <span className='text-sm text-muted'>
-                      {items.length}{' '}
-                      {pageData?.objectType === 'PAGE' ? 'child page' : 'page'}
-                      {items.length === 1 ? '' : 's'}
-                    </span>
-                    {grandchildCount > 0 && (
-                      <div className='flex flex-row items-end gap-1'>
-                        <Separator
-                          orientation='vertical'
-                          className='mx-1 h-4'
-                          size='sm'
-                        />
-                        <span className='text-sm text-muted'>
-                          {grandchildCount} grandchild{' '}
-                          {grandchildCount === 1 ? 'page' : 'pages'}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                );
-              }
-            })()}
-        </div>
+      title={renderTitle()}
+      headerActions={
+        pageData?.objectType === 'DATA_APP_VIEW'
+          ? ['openAll', 'copy', 'refresh']
+          : ['openAll', 'copy', 'shareAll', 'refresh']
       }
-      onItemAction={handleItemAction}
+      objectId={pageData?.objectId}
+      onRefresh={handleRefresh}
+      onShareAll={handleShareAll}
+      onClose={onBackToDefault}
+      closeLabel={`Close ${pageData?.pageTypeLabel} View`}
+      isRefreshing={isRefreshing}
+      onItemShare={handleItemShare}
+      onItemShareAll={handleItemShareAll}
       showActions={true}
       showCounts={true}
+      itemLabel='page'
     />
   );
 }

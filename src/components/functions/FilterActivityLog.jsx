@@ -37,7 +37,7 @@ export function FilterActivityLog({ currentContext, isDisabled }) {
         console.log('[FilterActivityLog] Using test object:', testObject);
 
         // Store the filter and trigger it immediately
-        await chrome.storage.local.set({
+        await chrome.storage.session.set({
           activityLogFilter: {
             typeName: testObject.typeName,
             objectId: testObject.id,
@@ -68,7 +68,7 @@ export function FilterActivityLog({ currentContext, isDisabled }) {
       console.log('[FilterActivityLog] Storing filter value and creating tab');
 
       // Store the filter value in local storage to be picked up by content script
-      await chrome.storage.local.set({
+      await chrome.storage.session.set({
         activityLogFilter: {
           typeName: currentContext.domoObject.typeName,
           objectId: currentContext.domoObject.id,
@@ -96,7 +96,9 @@ export function FilterActivityLog({ currentContext, isDisabled }) {
       fullWidth
       onPress={handleFilter}
       isDisabled={isDisabled}
+      className='relative min-w-fit flex-1 basis-[48%] overflow-visible'
     >
+      <IconFilter stroke={1.5} />
       Activity Log
     </Button>
   );

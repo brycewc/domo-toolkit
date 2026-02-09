@@ -1,6 +1,12 @@
 import { useEffect, useState, useRef } from 'react';
 import { Card, Spinner } from '@heroui/react';
-import { ActionButtons, GetPagesView } from '@/components';
+import {
+  ActionButtons,
+  GetCardsView,
+  GetDatasetsView,
+  GetPagesView,
+  ObjectDetailsView
+} from '@/components';
 import { useTheme } from '@/hooks';
 import { DomoContext } from '@/models';
 
@@ -18,7 +24,7 @@ export default function App() {
   // Listen for storage changes for sidepanel data
   useEffect(() => {
     const handleStorageChange = (changes, areaName) => {
-      if (areaName === 'local' && changes.sidepanelDataList) {
+      if (areaName === 'session' && changes.sidepanelDataList) {
         const data = changes.sidepanelDataList.newValue;
         if (!data) {
           // Data was cleared - return to default view
@@ -30,6 +36,12 @@ export default function App() {
           setActiveView('getPages');
         } else if (data?.type === 'childPagesWarning') {
           setActiveView('childPagesWarning');
+        } else if (data?.type === 'getCards') {
+          setActiveView('getCards');
+        } else if (data?.type === 'getDatasets') {
+          setActiveView('getDatasets');
+        } else if (data?.type === 'viewObjectDetails') {
+          setActiveView('viewObjectDetails');
         }
       }
     };
@@ -37,7 +49,7 @@ export default function App() {
     chrome.storage.onChanged.addListener(handleStorageChange);
 
     // Check if there's already sidepanel data on mount
-    chrome.storage.local.get(['sidepanelDataList'], (result) => {
+    chrome.storage.session.get(['sidepanelDataList'], (result) => {
       if (result.sidepanelDataList) {
         // Only use it if it's recent (within last 10 seconds)
         const age = Date.now() - (result.sidepanelDataList.timestamp || 0);
@@ -46,6 +58,12 @@ export default function App() {
             setActiveView('getPages');
           } else if (result.sidepanelDataList.type === 'childPagesWarning') {
             setActiveView('childPagesWarning');
+          } else if (result.sidepanelDataList.type === 'getCards') {
+            setActiveView('getCards');
+          } else if (result.sidepanelDataList.type === 'getDatasets') {
+            setActiveView('getDatasets');
+          } else if (result.sidepanelDataList.type === 'viewObjectDetails') {
+            setActiveView('viewObjectDetails');
           }
         }
       }
@@ -74,7 +92,6 @@ export default function App() {
           if (response.context) {
             // Reconstruct DomoContext from plain object to get class instance with methods
             const context = DomoContext.fromJSON(response.context);
-            console.log('[Sidepanel] Reconstructed context:', context);
             setCurrentContext(context);
           } else {
             setCurrentContext(null);
@@ -162,11 +179,11 @@ export default function App() {
   const handleBackToDefault = () => {
     setActiveView('default');
     // Clear the sidepanel data
-    chrome.storage.local.remove(['sidepanelDataList']);
+    chrome.storage.session.remove(['sidepanelDataList']);
   };
 
   return (
-    <div className='flex h-screen w-full flex-col space-y-1 overscroll-contain p-1'>
+    <div className='flex h-full max-h-screen w-full flex-col items-start justify-start space-y-1 overscroll-contain p-1'>
       <ActionButtons
         currentContext={currentContext}
         isLoadingCurrentContext={isLoadingCurrentContext}
@@ -187,6 +204,27 @@ export default function App() {
 
       {(activeView === 'getPages' || activeView === 'childPagesWarning') && (
         <GetPagesView
+          onBackToDefault={handleBackToDefault}
+          onStatusUpdate={statusCallbackRef.current}
+        />
+      )}
+
+      {activeView === 'getCards' && (
+        <GetCardsView
+          onBackToDefault={handleBackToDefault}
+          onStatusUpdate={statusCallbackRef.current}
+        />
+      )}
+
+      {activeView === 'getDatasets' && (
+        <GetDatasetsView
+          onBackToDefault={handleBackToDefault}
+          onStatusUpdate={statusCallbackRef.current}
+        />
+      )}
+
+      {activeView === 'viewObjectDetails' && (
+        <ObjectDetailsView
           onBackToDefault={handleBackToDefault}
           onStatusUpdate={statusCallbackRef.current}
         />

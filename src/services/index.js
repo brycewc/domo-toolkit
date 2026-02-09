@@ -6,6 +6,12 @@ export {
   updateOwner
 } from './allObjects';
 export { updateDataflowDetails } from './dataflows';
+export {
+  getDatasetsForPage,
+  getDatasetsForDataflow,
+  getDatasetsForView,
+  isViewType
+} from './datasets';
 export { getDrillParentCardId, getPageCards, getCardsForObject } from './cards';
 export {
   getAppStudioPageParent,
@@ -14,4 +20,17 @@ export {
   getPagesForCards,
   deletePageAndAllCards
 } from './pages';
-export { getCurrentUserId, searchUsers } from './users';
+export { getCurrentUser, getCurrentUserId, searchUsers } from './users';
+export {
+  getUrlPfilters,
+  getPageFilters,
+  getFiltersFromAllFrames,
+  getIframePfilters,
+  getVariableControlFilters,
+  getAngularScopeFilters,
+  getAppStudioFilters,
+  mergeFilters,
+  encodeFilters,
+  buildPfilterUrl,
+  getAllFilters
+} from './filters';

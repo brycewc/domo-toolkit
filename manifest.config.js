@@ -15,7 +15,6 @@ export default defineManifest({
   },
   permissions: [
     'sidePanel',
-    'contentSettings',
     'storage',
     'scripting',
     'activeTab',
@@ -45,7 +44,8 @@ export default defineManifest({
     {
       js: ['src/contentScript.js'],
       matches: ['https://*.domo.com/*'],
-      run_at: 'document_idle'
+      run_at: 'document_idle',
+      all_frames: true
     }
   ],
   side_panel: {

@@ -13,7 +13,7 @@ const EXCLUDED_HOSTNAMES = [
 
 /**
  * Get domains and DA-SIDs to preserve (last 2 active instances)
- * Shared logic used by both auto-clear (background.js) and manual clear
+ * Shared logic used by both auto-clear (background.js) and preserve clear
  */
 async function getDomainsToPreserve() {
   const allTabs = await chrome.tabs.query({ url: '*://*.domo.com/*' });
@@ -67,20 +67,20 @@ async function getDomainsToPreserve() {
 }
 
 export function ClearCookies({ currentContext, onStatusUpdate, isDisabled }) {
-  const [cookieClearingMode, setCookieClearingMode] = useState('default');
+  const [cookieClearingMode, setCookieClearingMode] = useState('auto');
   const [isClearingCookies, setIsClearingCookies] = useState(false);
 
   // Load cookie clearing mode setting
   useEffect(() => {
     chrome.storage.sync.get(['defaultClearCookiesHandling'], (result) => {
-      setCookieClearingMode(result.defaultClearCookiesHandling || 'default');
+      setCookieClearingMode(result.defaultClearCookiesHandling || 'auto');
     });
 
     // Listen for changes to the setting
     const handleStorageChange = (changes, areaName) => {
       if (areaName === 'sync' && changes.defaultClearCookiesHandling) {
         setCookieClearingMode(
-          changes.defaultClearCookiesHandling.newValue || 'default'
+          changes.defaultClearCookiesHandling.newValue || 'auto'
         );
       }
     };
