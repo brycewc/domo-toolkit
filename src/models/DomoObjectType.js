@@ -388,7 +388,7 @@ export const ObjectTypeRegistry = {
   BEAST_MODE_FORMULA: new DomoObjectType(
     'BEAST_MODE_FORMULA',
     'Beast Mode',
-    '/beastmode?id={id}',
+    '/datacenter/beastmode?id={id}',
     /^\d+$/,
     { keyword: 'id' },
     {

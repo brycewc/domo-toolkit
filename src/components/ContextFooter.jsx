@@ -237,16 +237,16 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
       className='min-h-20 w-full p-2'
     >
       <Alert.Content
-        className={`flex flex-col ${isLoading ? 'items-center' : 'items-start'}`}
+        className={`flex flex-col gap-2 ${isLoading ? 'items-center justify-center' : 'items-start'}`}
       >
         {isLoading ? (
           <Spinner size='sm' color='accent' />
         ) : (
           <>
-            <Alert.Title className='flex w-full items-center justify-between gap-1'>
+            <Alert.Title className='flex w-full items-start justify-between'>
               {currentContext?.isDomoPage ? (
-                <span>
-                  Current Context:{' '}
+                <span className='flex flex-wrap items-center justify-start gap-x-1'>
+                  Current Context:
                   <span className='underline'>
                     {currentContext?.instance}.domo.com
                   </span>

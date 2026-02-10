@@ -134,7 +134,7 @@ export function CopyFilteredUrl({
       isDisabled={buttonDisabled}
       isLoading={isLoading}
       isPending={isLoading}
-      className={`relative min-w-fit flex-1 basis-[48%] overflow-visible ${hasNewFilters ? 'animate-pulse' : ''}`}
+      className={` ${hasNewFilters ? 'animate-pulse' : ''}`}
     >
       {isCopied ? <AnimatedCheck /> : <IconFilterShare stroke={1.5} />}
       Copy Filtered URL
