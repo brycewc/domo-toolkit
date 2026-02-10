@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Button, Spinner } from '@heroui/react';
 import { DataList } from '@/components';
 import { getCardsForObject } from '@/services';
-import { DataListItem, DomoContext } from '@/models';
+import { DataListItem, DomoContext, DomoObject } from '@/models';
 import { getValidTabForInstance } from '@/utils';
 
 /**
@@ -18,16 +18,12 @@ function transformCardsToItems(cards, origin) {
       const nameB = b.title || b.name || '';
       return nameA.localeCompare(nameB);
     })
-    .map(
-      (card) =>
-        new DataListItem({
-          id: card.id,
-          label: card.title || card.name || `Card ${card.id}`,
-          url: `${origin}/kpis/details/${card.id}`,
-          typeId: 'CARD',
-          metadata: `ID: ${card.id}`
-        })
-    );
+    .map((card) => {
+      const domoObject = new DomoObject('CARD', card.id, origin, {
+        name: card.title || card.name
+      });
+      return DataListItem.fromDomoObject(domoObject);
+    });
 }
 
 export function GetCardsView({

@@ -33,10 +33,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === 'TAB_CONTEXT_UPDATED') {
-    console.log(
-      '[ContentScript] Received tab context update:',
-      message.context
-    );
+    // console.log(
+    //   '[ContentScript] Received tab context update:',
+    //   message.context
+    // );
     currentTabContext = DomoContext.fromJSON(message.context);
     // Update title when context is received
     sendResponse({ success: true });
@@ -46,7 +46,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 // Apply favicon on initial load
 (async () => {
-  console.log('[ContentScript] Initialized, applying favicon');
+  // console.log('[ContentScript] Initialized, applying favicon');
   await applyFavicon();
 
   // Title will be updated when we receive tab context from background
@@ -59,7 +59,7 @@ let lastKnownClipboard = '';
 async function checkAndCacheClipboard() {
   try {
     const clipboardText = await navigator.clipboard.readText();
-    console.log('[ContentScript] Read clipboard text:', clipboardText);
+    // console.log('[ContentScript] Read clipboard text:', clipboardText);
     const trimmedText = clipboardText.trim();
 
     // Validate that clipboard contains a valid Domo object ID
@@ -71,10 +71,10 @@ async function checkAndCacheClipboard() {
       );
 
     if (!isNumeric && !isUuid) {
-      console.log(
-        '[ContentScript] Clipboard does not contain a valid Domo object ID:',
-        trimmedText
-      );
+      // console.log(
+      //   '[ContentScript] Clipboard does not contain a valid Domo object ID:',
+      //   trimmedText
+      // );
       // If the previous clipboard was a Domo ID, clear it
       if (lastKnownClipboard) {
         lastKnownClipboard = '';
@@ -119,9 +119,9 @@ document.addEventListener('copy', async () => {
 // Listen for window focus to detect when user returns to tab
 // This handles the case where user copied from another application
 window.addEventListener('focus', async () => {
-  console.log(
-    '[ContentScript] Window gained focus, checking clipboard and tab title'
-  );
+  // console.log(
+  //   '[ContentScript] Window gained focus, checking clipboard and tab title'
+  // );
   await checkAndCacheClipboard();
 });
 
@@ -179,10 +179,10 @@ function checkForCardModalElement(mutations) {
             if (modalElement) {
               const cardId = extractCardIdFromModal();
               if (cardId && cardId !== lastDetectedCardId) {
-                console.log(
-                  '[ContentScript] Card modal detected with ID:',
-                  cardId
-                );
+                // console.log(
+                //   '[ContentScript] Card modal detected with ID:',
+                //   cardId
+                // );
                 lastDetectedCardId = cardId;
                 triggerContextRedetection();
               }
@@ -210,9 +210,9 @@ function checkForCardModalElement(mutations) {
             }
 
             if (wasModal) {
-              console.log(
-                '[ContentScript] Card modal element removed from DOM'
-              );
+              // console.log(
+              //   '[ContentScript] Card modal element removed from DOM'
+              // );
               if (lastDetectedCardId) {
                 lastDetectedCardId = null;
                 triggerContextRedetection();

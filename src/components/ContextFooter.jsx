@@ -1,5 +1,13 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { Alert, Chip, Disclosure, Link, Spinner, Tabs } from '@heroui/react';
+import {
+  Alert,
+  Chip,
+  Disclosure,
+  Link,
+  Spinner,
+  Tabs,
+  Tooltip
+} from '@heroui/react';
 import { IconClipboard } from '@tabler/icons-react';
 import { AnimatedCheck } from './AnimatedCheck';
 import { getObjectType } from '@/models';
@@ -245,18 +253,59 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
           <>
             <Alert.Title className='flex w-full items-start justify-between'>
               {currentContext?.isDomoPage ? (
-                <span className='flex flex-wrap items-center justify-start gap-x-1'>
-                  Current Context:
-                  <span className='underline'>
-                    {currentContext?.instance}.domo.com
+                <div className='flex flex-wrap items-center gap-x-1'>
+                  <span className='flex flex-wrap items-center justify-start gap-x-1'>
+                    Current Context
                   </span>
-                </span>
+                  <Tooltip delay={400} closeDelay={0}>
+                    <Tooltip.Trigger className='flex items-center'>
+                      <Chip
+                        color='accent'
+                        variant='soft'
+                        className='w-fit lowercase'
+                        size='sm'
+                      >
+                        {currentContext?.instance}
+                      </Chip>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content>
+                      Instance: {currentContext?.instance}.domo.com
+                    </Tooltip.Content>
+                  </Tooltip>
+                  <Tooltip delay={400} closeDelay={0}>
+                    <Tooltip.Trigger className='flex items-center'>
+                      <Chip
+                        color='accent'
+                        variant='soft'
+                        className='w-fit lowercase'
+                        size='sm'
+                      >
+                        {currentContext?.domoObject?.typeName}
+                      </Chip>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content className='flex items-center rounded p-0'>
+                      <Chip
+                        color='accent'
+                        variant='soft'
+                        className='w-fit rounded'
+                        size='sm'
+                      >
+                        {currentContext?.domoObject?.typeId}
+                      </Chip>
+                    </Tooltip.Content>
+                  </Tooltip>
+                </div>
               ) : (
                 'Not a Domo Instance'
               )}
-              <Alert.Indicator />
+              <Tooltip delay={400} closeDelay={0}>
+                <Tooltip.Trigger>
+                  <Alert.Indicator />
+                </Tooltip.Trigger>
+                <Tooltip.Content>Toggle context JSON view</Tooltip.Content>
+              </Tooltip>
             </Alert.Title>
-            <Alert.Description className='flex h-full flex-wrap items-center gap-x-1'>
+            <Alert.Description className='flex h-full flex-col flex-wrap items-start justify-center gap-1'>
               {currentContext?.isDomoPage ? (
                 isLoading ? (
                   <Spinner size='sm' color='accent' />
@@ -264,17 +313,12 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
                   !currentContext?.domoObject?.id ? (
                   'No object detected on this page'
                 ) : (
-                  <>
-                    <Chip
-                      color='accent'
-                      variant='soft'
-                      className='w-fit capitalize'
-                      size='sm'
-                    >
-                      {currentContext.domoObject.typeName}
-                    </Chip>
-                    ID: {currentContext.domoObject.id}
-                  </>
+                  <div className='flex flex-wrap items-center gap-x-1'>
+                    <span className='font-medium'>
+                      {currentContext?.domoObject?.metadata?.name}
+                    </span>
+                    <span>ID: {currentContext?.domoObject?.id}</span>
+                  </div>
                 )
               ) : (
                 'Navigate to an instance to enable most extension features'

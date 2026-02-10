@@ -146,3 +146,31 @@ export async function getCardsForObject({
     throw error;
   }
 }
+
+export async function removeCardFromPage({ pageId, cardId, tabId = null }) {
+  try {
+    const result = await executeInPage(
+      async (pageId, cardId) => {
+        const response = await fetch(
+          `/kpis/${cardId}/remove?pageid=${pageId}`,
+          {
+            method: 'POST'
+          }
+        );
+        if (!response.ok) {
+          throw new Error(
+            `Failed to remove card ${cardId} from page ${pageId}. HTTP status: ${response.status}`
+          );
+        }
+        return response.json();
+      },
+      [pageId, cardId],
+      tabId
+    );
+
+    return result;
+  } catch (error) {
+    console.error('Error removing card from page:', error);
+    throw error;
+  }
+}

@@ -12,6 +12,7 @@ import {
 import {
   IconChevronDown,
   IconClipboard,
+  IconCopyX,
   IconDots,
   IconFolders,
   IconRefresh,
@@ -28,7 +29,7 @@ import { AnimatedCheck } from './AnimatedCheck';
 
 /**
  * Available item action types for DataList items
- * @typedef {'openAll' | 'copy' | 'share' | 'shareAll'} ItemActionType
+ * @typedef {'remove' | 'openAll' | 'copy' | 'share' | 'shareAll'} ItemActionType
  */
 
 /**
@@ -86,6 +87,7 @@ function collectAllUrls(itemList, filter = null) {
  * @param {Function} props.onRefresh - Callback for refresh action
  * @param {Function} props.onShareAll - Callback for shareAll header action
  * @param {ItemActionType[]} props.itemActions - Array of action types to show on items (if not provided, uses default logic)
+ * @param {Function} props.onItemRemove - Callback for remove item action (item) => void
  * @param {Function} props.onItemShare - Callback for share item action (actionType, item) => void
  * @param {Function} props.onItemShareAll - Callback for shareAll item action (actionType, item) => void
  * @param {Function} props.onStatusUpdate - Callback to show status messages (title, description, status, timeout)
@@ -105,6 +107,7 @@ export function DataList({
   onRefresh,
   onShareAll,
   itemActions,
+  onItemRemove,
   onItemShare,
   onItemShareAll,
   onStatusUpdate,
@@ -178,22 +181,15 @@ export function DataList({
 
   /**
    * Handle item action button clicks
-   * Standard actions (copy, openAll) are handled here.
+   * Standard actions (copy, openAll, remove) are handled here.
    * Custom actions are delegated to callbacks.
    */
   const handleItemAction = async (actionType, item) => {
     try {
       switch (actionType) {
-        case 'copy':
-          await navigator.clipboard.writeText(item.id?.toString() || '');
-          onStatusUpdate?.(
-            'Copied',
-            `ID **${item.id}** copied to clipboard`,
-            'success',
-            2000
-          );
+        case 'remove':
+          onItemRemove?.(item);
           break;
-
         case 'openAll':
           if (item.children) {
             const count = item.children.length;
@@ -209,6 +205,15 @@ export function DataList({
               2000
             );
           }
+          break;
+        case 'copy':
+          await navigator.clipboard.writeText(item.id?.toString() || '');
+          onStatusUpdate?.(
+            'Copied',
+            `ID **${item.id}** copied to clipboard`,
+            'success',
+            2000
+          );
           break;
 
         case 'share':
@@ -427,6 +432,27 @@ function DataListItem({
   );
 
   // Action button builders
+  const removeButton = (
+    <Tooltip key='remove' delay={400} closeDelay={0}>
+      <Button
+        variant='ghost'
+        size='sm'
+        fullWidth
+        isIconOnly
+        onPress={() => handleAction('remove')}
+        aria-label='Remove'
+      >
+        <IconCopyX stroke={1.5} className='text-danger' />
+      </Button>
+      <Tooltip.Content className='text-xs'>
+        Remove{' '}
+        <span className='lowercase'>
+          {objectType} from {item?.domoObject?.typeName || item?.typeId}
+        </span>
+      </Tooltip.Content>
+    </Tooltip>
+  );
+
   const openAllButton = (
     <Tooltip key='openAll' delay={400} closeDelay={0}>
       <Button
@@ -530,13 +556,20 @@ function DataListItem({
       item.typeId === 'REPORT_BUILDER_VIEW' ||
       objectType === 'DATA_APP_VIEW';
 
-    if (isViewType) return [copyButton];
-
     const actions = [];
     if (hasChildren && item.typeId !== 'DATA_APP') {
       actions.push(openAllButton);
       actions.push(shareAllButton);
     }
+
+    if (
+      (objectType === 'CARD' &&
+        (item.typeId === 'PAGE' || item.typeId === 'DATA_APP_VIEW')) ||
+      (itemActions && itemActions?.includes('remove'))
+    ) {
+      actions.push(removeButton);
+    }
+
     actions.push(copyButton);
     if (!isViewType) actions.push(shareButton);
     return actions;
@@ -592,7 +625,7 @@ function DataListItem({
                 <Button variant='ghost' size='sm' isIconOnly>
                   <IconDots stroke={1.5} />
                 </Button>
-                <Popover.Content placement='left' offset={2}>
+                <Popover.Content placement='left' offset={4}>
                   <Popover.Dialog className='p-0'>
                     <ButtonGroup
                       variant='ghost'

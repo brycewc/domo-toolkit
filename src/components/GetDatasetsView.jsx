@@ -6,7 +6,7 @@ import {
   getDatasetsForDataflow,
   getDatasetsForView
 } from '@/services';
-import { DataListItem, DomoContext } from '@/models';
+import { DataListItem, DomoContext, DomoObject } from '@/models';
 import { getValidTabForInstance } from '@/utils';
 
 /**
@@ -16,20 +16,12 @@ import { getValidTabForInstance } from '@/utils';
  * @returns {DataListItem[]}
  */
 function transformDatasetsToItems(datasets, origin) {
-  return datasets.map(
-    (ds) =>
-      new DataListItem({
-        id: ds.id || ds.datasetId || ds.dataSourceId,
-        label:
-          ds.name ||
-          ds.datasetName ||
-          ds.dataSourceName ||
-          `Dataset ${ds.id || ds.datasetId || ds.dataSourceId}`,
-        url: `${origin}/datasources/${ds.id}/details/overview`,
-        typeId: 'DATA_SOURCE',
-        metadata: `ID: ${ds.id || ds.datasetId || ds.dataSourceId}`
-      })
-  );
+  return datasets.map((ds) => {
+    const id = ds.id || ds.datasetId || ds.dataSourceId;
+    const name = ds.name || ds.datasetName || ds.dataSourceName;
+    const domoObject = new DomoObject('DATA_SOURCE', id, origin, { name });
+    return DataListItem.fromDomoObject(domoObject);
+  });
 }
 
 /**

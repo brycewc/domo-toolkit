@@ -12,7 +12,12 @@ export {
   getDatasetsForView,
   isViewType
 } from './datasets';
-export { getDrillParentCardId, getPageCards, getCardsForObject } from './cards';
+export {
+  getDrillParentCardId,
+  getPageCards,
+  getCardsForObject,
+  removeCardFromPage
+} from './cards';
 export {
   getAppStudioPageParent,
   getChildPages,
