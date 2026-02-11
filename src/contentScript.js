@@ -807,7 +807,11 @@ checkForActivityLogFilter();
 // ============================================================
 
 // Inject MAIN world script that intercepts card API errors and displays them inline.
-(function injectCardErrorCapture() {
+// Only injected when the cardErrorDetection setting is enabled (default: on).
+(async function injectCardErrorCapture() {
+  const result = await chrome.storage.sync.get(['cardErrorDetection']);
+  if (result.cardErrorDetection === false) return;
+
   if (document.getElementById('domo-toolkit-card-errors-script')) return;
 
   const script = document.createElement('script');

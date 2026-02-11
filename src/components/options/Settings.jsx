@@ -8,30 +8,33 @@ import {
   Label,
   ListBox,
   Select,
+  Switch,
   TextField
 } from '@heroui/react';
-import { StatusBar } from './../StatusBar';
+import { StatusBar } from '../StatusBar';
 import {
   IconCheck,
   IconChevronDown,
   IconDeviceFloppy
 } from '@tabler/icons-react';
 
-export function AppSettings({ theme = 'system' }) {
+export function Settings({ theme = 'system' }) {
   const [isLoading, setIsLoading] = useState(true);
 
   // Store all settings in a single state object for extensibility
   const [settings, setSettings] = useState({
     themePreference: theme,
     defaultDomoInstance: '',
-    defaultClearCookiesHandling: 'auto'
+    defaultClearCookiesHandling: 'auto',
+    cardErrorDetection: true
   });
 
   // Track original settings to detect changes
   const [originalSettings, setOriginalSettings] = useState({
     themePreference: theme,
     defaultDomoInstance: '',
-    defaultClearCookiesHandling: 'auto'
+    defaultClearCookiesHandling: 'auto',
+    cardErrorDetection: true
   });
 
   const [statusBar, setStatusBar] = useState({
@@ -45,13 +48,19 @@ export function AppSettings({ theme = 'system' }) {
   useEffect(() => {
     // Load all settings from storage
     chrome.storage.sync.get(
-      ['themePreference', 'defaultDomoInstance', 'defaultClearCookiesHandling'],
+      [
+        'themePreference',
+        'defaultDomoInstance',
+        'defaultClearCookiesHandling',
+        'cardErrorDetection'
+      ],
       (result) => {
         const loadedSettings = {
           themePreference: result.themePreference || theme || 'system',
           defaultDomoInstance: result.defaultDomoInstance || '',
           defaultClearCookiesHandling:
-            result.defaultClearCookiesHandling || 'auto'
+            result.defaultClearCookiesHandling || 'auto',
+          cardErrorDetection: result.cardErrorDetection ?? true
         };
         setSettings(loadedSettings);
         setOriginalSettings(loadedSettings);
@@ -84,6 +93,12 @@ export function AppSettings({ theme = 'system' }) {
             hasChanges = true;
           }
 
+          if (changes.cardErrorDetection !== undefined) {
+            updatedSettings.cardErrorDetection =
+              changes.cardErrorDetection.newValue;
+            hasChanges = true;
+          }
+
           return hasChanges ? updatedSettings : prevSettings;
         });
 
@@ -105,6 +120,12 @@ export function AppSettings({ theme = 'system' }) {
           if (changes.defaultClearCookiesHandling !== undefined) {
             updatedOriginal.defaultClearCookiesHandling =
               changes.defaultClearCookiesHandling.newValue;
+            hasChanges = true;
+          }
+
+          if (changes.cardErrorDetection !== undefined) {
+            updatedOriginal.cardErrorDetection =
+              changes.cardErrorDetection.newValue;
             hasChanges = true;
           }
 
@@ -148,6 +169,13 @@ export function AppSettings({ theme = 'system' }) {
     setSettings((prev) => ({
       ...prev,
       defaultClearCookiesHandling: value
+    }));
+  };
+
+  const handleCardErrorDetectionChange = (value) => {
+    setSettings((prev) => ({
+      ...prev,
+      cardErrorDetection: value
     }));
   };
 
@@ -278,6 +306,19 @@ export function AppSettings({ theme = 'system' }) {
             <p>All: Clear all Domo cookies (only manual, no auto-clearing)</p>
           </Description>
         </Select>
+        <Switch
+          isSelected={settings.cardErrorDetection}
+          onChange={handleCardErrorDetectionChange}
+          className='flex flex-col items-start justify-start gap-2'
+        >
+          <Label>Card Error Detection</Label>
+          <Switch.Control>
+            <Switch.Thumb />
+          </Switch.Control>
+          <Description className='w-lg'>
+            Show inline error notifications when card API requests fail.
+          </Description>
+        </Switch>
         <div className='pt-1'>
           <Button type='submit' variant='primary' isDisabled={!hasChanges}>
             <IconDeviceFloppy />

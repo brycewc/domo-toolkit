@@ -341,7 +341,7 @@ export function WelcomePage() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.3, delay: 0.3 }}
-        className='mt-auto space-y-3'
+        className='mt-auto space-y-3 pb-4'
       >
         <label className='flex cursor-pointer items-center justify-start gap-2'>
           <Checkbox isSelected={dontShowAgain} onChange={setDontShowAgain}>

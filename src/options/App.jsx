@@ -3,7 +3,7 @@ import { Tabs } from '@heroui/react';
 import { useTheme } from '@/hooks';
 import {
   ActivityLogTable,
-  AppSettings,
+  Settings,
   FaviconSettings,
   shouldShowWelcomePage,
   WelcomePage
@@ -63,7 +63,7 @@ export default function App() {
               </Tabs.Tab>
             )}
             <Tabs.Tab id='favicon'>
-              Favicon
+              Favicon Preferences
               <Tabs.Indicator />
             </Tabs.Tab>
             <Tabs.Tab id='settings'>
@@ -102,12 +102,12 @@ export default function App() {
           id='settings'
         >
           <div className='w-full justify-start'>
-            <h3 className='mb-2 text-lg font-semibold'>App Settings</h3>
+            <h3 className='mb-2 text-lg font-semibold'>Settings</h3>
             <p className='text-sm text-muted'>
-              Configure general application settings.
+              Configure general extension settings.
             </p>
           </div>
-          <AppSettings theme={theme} />
+          <Settings theme={theme} />
         </Tabs.Panel>
         <Tabs.Panel
           className='flex flex-col items-start px-4'
