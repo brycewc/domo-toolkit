@@ -1,6 +1,6 @@
-# Majordomo Toolkit
+# Domo Toolkit
 
-A Chrome extension (Manifest V3) that enhances the Domo experience for power users ("MajorDomos"), providing quick access to frequently used operations, data discovery, and administrative tools within Domo's platform.
+A Chrome extension (Manifest V3) that enhances the Domo experience for power users ("Domos"), providing quick access to frequently used operations, data discovery, and administrative tools within Domo's platform.
 
 ## Tech Stack
 

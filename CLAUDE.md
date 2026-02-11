@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Majordomo Toolkit is a Chrome Extension (Manifest V3) that enhances the Domo platform experience for power users. It provides quick access to operations, data discovery, and administrative tools within Domo.
+Domo Toolkit is a Chrome Extension (Manifest V3) that enhances the Domo platform experience for power users. It provides quick access to operations, data discovery, and administrative tools within Domo.
 
 ## Best Pracetices
 

@@ -127,12 +127,12 @@ export function WelcomePage() {
   const links = [
     {
       label: 'Documentation',
-      url: 'https://github.com/brycewc/majordomo-toolkit#readme',
+      url: 'https://github.com/brycewc/domo-toolkit#readme',
       icon: IconExternalLink
     },
     {
       label: 'Report an Issue',
-      url: 'https://github.com/brycewc/majordomo-toolkit/issues',
+      url: 'https://github.com/brycewc/domo-toolkit/issues',
       icon: IconBrandGithub
     },
     {
