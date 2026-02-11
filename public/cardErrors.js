@@ -3,6 +3,11 @@
   var originalXHROpen = XMLHttpRequest.prototype.open;
   var originalXHRSend = XMLHttpRequest.prototype.send;
 
+  // Depth counter used by executeInPage to mark extension-initiated requests.
+  // When > 0, fetch/XHR interception is bypassed so extension requests never
+  // trigger card error notifications.
+  window.__domoToolkitExtDepth = 0;
+
   function isCardEndpoint(url) {
     var patterns = [
       /\/api\/.*\/cards/,
@@ -132,6 +137,11 @@
   // ---- Fetch interception ----
 
   window.fetch = function () {
+    // Bypass interception for extension-initiated requests
+    if (window.__domoToolkitExtDepth > 0) {
+      return originalFetch.apply(this, arguments);
+    }
+
     var args = arguments;
     var url = typeof args[0] === 'string' ? args[0] : args[0] && args[0].url;
     var method = (args[1] && args[1].method) || 'GET';
@@ -200,6 +210,11 @@
   };
 
   XMLHttpRequest.prototype.send = function () {
+    // Bypass interception for extension-initiated requests
+    if (window.__domoToolkitExtDepth > 0) {
+      return originalXHRSend.apply(this, arguments);
+    }
+
     var xhr = this;
 
     xhr.addEventListener('load', function () {

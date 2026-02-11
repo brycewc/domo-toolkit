@@ -273,7 +273,7 @@ export async function getPagesForCards(cardIds, tabId = null) {
         if (!allDetailCards.length) {
           throw new Error('No cards found.');
         }
-        console.log(allDetailCards);
+        // console.log(allDetailCards);
         // Build flat lists of all pages, app pages, and report pages from all cards
         const allPages = [];
         const allAppPages = [];

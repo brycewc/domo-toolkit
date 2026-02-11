@@ -321,8 +321,8 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
                   !currentContext?.domoObject?.id ? (
                   'No object detected on this page'
                 ) : (
-                  <div className='flex flex-wrap items-center gap-x-1'>
-                    <span className='font-medium'>
+                  <div className='flex flex-wrap items-center justify-start gap-x-1'>
+                    <span className='text-left font-medium'>
                       {currentContext?.domoObject?.metadata?.name}
                     </span>
                     <span>ID: {currentContext?.domoObject?.id}</span>
