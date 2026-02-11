@@ -298,11 +298,19 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
               ) : (
                 'Not a Domo Instance'
               )}
-              <Tooltip delay={400} closeDelay={0}>
+              <Tooltip
+                delay={400}
+                closeDelay={0}
+                isDisabled={
+                  !currentContext?.domoObject?.id || !currentContext?.isDomoPage
+                }
+              >
                 <Tooltip.Trigger>
                   <Alert.Indicator />
                 </Tooltip.Trigger>
-                <Tooltip.Content>Toggle context JSON view</Tooltip.Content>
+                <Tooltip.Content>
+                  Click to toggle context JSON view
+                </Tooltip.Content>
               </Tooltip>
             </Alert.Title>
             <Alert.Description className='flex h-full flex-col flex-wrap items-start justify-center gap-1'>

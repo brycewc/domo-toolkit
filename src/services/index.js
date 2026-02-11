@@ -9,8 +9,10 @@ export { updateDataflowDetails } from './dataflows';
 export {
   getDatasetsForPage,
   getDatasetsForDataflow,
+  isViewType,
   getDatasetsForView,
-  isViewType
+  getStreamExecution,
+  getStreamExecutions
 } from './datasets';
 export {
   getDrillParentCardId,

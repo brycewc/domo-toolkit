@@ -182,3 +182,68 @@ export async function getDatasetsForView({ datasetId, tabId }) {
     throw error;
   }
 }
+
+/**
+ * Get a single stream execution's detailed data
+ * @param {Object} params - Parameters
+ * @param {string|number} params.streamId - The stream ID
+ * @param {string|number} params.executionId - The execution ID
+ * @param {number} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<Object>} Execution object with detailed error data
+ */
+export async function getStreamExecution({ streamId, executionId, tabId }) {
+  return executeInPage(
+    async (streamId, executionId) => {
+      const response = await fetch(
+        `/api/data/v1/streams/${streamId}/executions/${executionId}`,
+        { method: 'GET' }
+      );
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch execution ${executionId} for stream ${streamId}. HTTP status: ${response.status}`
+        );
+      }
+      return response.json();
+    },
+    [streamId, executionId],
+    tabId
+  );
+}
+
+export async function getStreamExecutions({ streamId, limit = 100, tabId }) {
+  const result = await executeInPage(
+    async (streamId, limit) => {
+      const stateResponse = await fetch(
+        `/api/data/v1/streams/state/${streamId}`,
+        {
+          method: 'GET'
+        }
+      );
+      if (!stateResponse.ok) {
+        throw new Error(
+          `Failed to fetch stream state for stream ${streamId}. HTTP status: ${stateResponse.status}`
+        );
+      }
+      const stateData = await stateResponse.json();
+      const offset =
+        stateData[0].executionId < limit ? 0 : stateData[0].executionId - limit;
+
+      const response = await fetch(
+        `/api/data/v1/streams/${streamId}/executions?limit=${limit}&offset=${offset}`,
+        {
+          method: 'GET'
+        }
+      );
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch stream executions for stream ${streamId}. HTTP status: ${response.status}`
+        );
+      }
+      const data = await response.json();
+      return data;
+    },
+    [streamId, limit],
+    tabId
+  );
+  return result;
+}

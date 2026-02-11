@@ -9,6 +9,7 @@ import {
 } from '@heroui/react';
 import {
   IconChevronDown,
+  IconHelp,
   IconLayoutSidebarRightExpand,
   IconSettings
 } from '@tabler/icons-react';
@@ -115,6 +116,19 @@ export function ActionButtons({
                   onStatusUpdate={showStatus}
                   isDisabled={!isDomoPage}
                 />
+                <Tooltip delay={400} closeDelay={0}>
+                  <Button
+                    variant='tertiary'
+                    fullWidth
+                    isIconOnly
+                    onPress={() => {
+                      window.open('https://domotoolkit.com/feedback', '_blank');
+                    }}
+                  >
+                    <IconHelp stroke={1.5} />
+                  </Button>
+                  <Tooltip.Content>Feedback/help</Tooltip.Content>
+                </Tooltip>
                 <Tooltip delay={400} closeDelay={0}>
                   <Button
                     variant='tertiary'
