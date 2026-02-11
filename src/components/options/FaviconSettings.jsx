@@ -408,7 +408,27 @@ export function FaviconSettings() {
                               <ColorInputGroup.Prefix>
                                 <ColorSwatch size='xs' shape='square' />
                               </ColorInputGroup.Prefix>
-                              <ColorInputGroup.Input aria-label='Color input' />
+                              <ColorInputGroup.Input
+                                aria-label='Color input'
+                                onPaste={(e) => {
+                                  let text = e.clipboardData
+                                    .getData('text')
+                                    .trim();
+                                  if (/^[0-9a-f]{6,8}$/i.test(text)) {
+                                    text = '#' + text;
+                                  }
+                                  try {
+                                    const parsed = parseColor(text);
+                                    updateRule(
+                                      rule.id,
+                                      'color',
+                                      parsed.toString('hexa')
+                                    );
+                                  } catch {
+                                    // Not a valid color string, let default paste proceed
+                                  }
+                                }}
+                              />
                             </ColorInputGroup>
                           </ColorField>
                           <Button
