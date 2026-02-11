@@ -69,7 +69,8 @@ export default defineManifest({
         'public/toolkit-dark-32.png',
         'public/toolkit-dark-48.png',
         'public/toolkit-dark-128.png',
-        'public/streamErrors.js'
+        'public/streamErrors.js',
+        'public/cardErrors.js'
       ],
       matches: ['<all_urls>']
     }

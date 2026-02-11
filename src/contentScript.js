@@ -803,6 +803,20 @@ function removeDateFilter() {
 checkForActivityLogFilter();
 
 // ============================================================
+// Card error capture
+// ============================================================
+
+// Inject MAIN world script that intercepts card API errors and displays them inline.
+(function injectCardErrorCapture() {
+  if (document.getElementById('domo-toolkit-card-errors-script')) return;
+
+  const script = document.createElement('script');
+  script.id = 'domo-toolkit-card-errors-script';
+  script.src = chrome.runtime.getURL('public/cardErrors.js');
+  document.documentElement.appendChild(script);
+})();
+
+// ============================================================
 // Stream execution detailed errors
 // ============================================================
 
