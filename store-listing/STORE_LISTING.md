@@ -12,6 +12,7 @@ A compact toolbar gives you instant access to the operations you use most:
 Copy ID — Copy the current object's ID to your clipboard instantly. Long-press for additional IDs like Stream ID (for DataSets) or Studio App ID (for App Studio Pages).
 Share With Self — Instantly grant yourself access to Pages, Studio Apps, and Custom App designs. No more navigating through admin content tables.
 Delete Current Object — Delete Beast Modes, AppDB Collections, Workflows, and Pages/App Studio Pages and all their Cards — with a confirmation dialog and child Page safety checks.
+Copy Filtered URL - Copy URL with all applied filters on a Card, Page, or App Studio Page (Pfilters).
 Data Repair — Open the hidden data repair tab for any DataSet with a single click.
 Update Owner — Change the owner of Alerts and Workflows with a searchable user picker and a quick "Set to Self" button.
 Update DataFlow Details — Edit DataFlow names and descriptions without creating a new version.

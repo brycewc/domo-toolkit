@@ -1,7 +1,7 @@
 {
   "name": "domo-toolkit",
   "type": "module",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "private": true,
   "scripts": {
     "dev": "vite",
@@ -15,6 +15,7 @@
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/react-table": "^8.21.3",
     "@tanstack/react-virtual": "^3.13.18",
+    "eslint": "^10.0.0",
     "motion": "^12.29.3",
     "react": "19.2.4",
     "react-dom": "^19.1.0",

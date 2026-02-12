@@ -127,12 +127,12 @@ export function WelcomePage() {
   const links = [
     {
       label: 'Documentation',
-      url: 'https://github.com/brycewc/majordomo-toolkit#readme',
+      url: 'https://github.com/brycewc/domo-toolkit#readme',
       icon: IconExternalLink
     },
     {
       label: 'Report an Issue',
-      url: 'https://github.com/brycewc/majordomo-toolkit/issues',
+      url: 'https://github.com/brycewc/domo-toolkit/issues',
       icon: IconBrandGithub
     },
     {
@@ -341,7 +341,7 @@ export function WelcomePage() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.3, delay: 0.3 }}
-        className='mt-auto space-y-3'
+        className='mt-auto space-y-3 pb-4'
       >
         <label className='flex cursor-pointer items-center justify-start gap-2'>
           <Checkbox isSelected={dontShowAgain} onChange={setDontShowAgain}>

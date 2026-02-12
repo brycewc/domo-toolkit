@@ -30,32 +30,61 @@ export async function executeInAllFrames(func, args = [], tabId = null) {
       throw new Error('Not on a Domo page');
     }
 
-    // Execute function in ALL frames in the page context
-    const results = await chrome.scripting.executeScript({
-      target: { tabId: targetTabId, allFrames: true },
+    const target = { tabId: targetTabId, allFrames: true };
+
+    // Mark extension-initiated requests so cardErrors.js bypasses interception
+    await chrome.scripting.executeScript({
+      target,
       world: 'MAIN',
-      func,
-      args
+      func: () => {
+        window.__domoToolkitExtDepth =
+          (window.__domoToolkitExtDepth || 0) + 1;
+      }
     });
 
-    // Collect all valid results from frames
-    const validResults = [];
-    if (results && Array.isArray(results)) {
-      results.forEach((frameResult) => {
-        if (frameResult && frameResult.result !== undefined && frameResult.result !== null) {
-          // For array results, only include non-empty arrays
-          if (Array.isArray(frameResult.result)) {
-            if (frameResult.result.length > 0) {
-              validResults.push(...frameResult.result);
+    try {
+      // Execute function in ALL frames in the page context
+      const results = await chrome.scripting.executeScript({
+        target,
+        world: 'MAIN',
+        func,
+        args
+      });
+
+      // Collect all valid results from frames
+      const validResults = [];
+      if (results && Array.isArray(results)) {
+        results.forEach((frameResult) => {
+          if (
+            frameResult &&
+            frameResult.result !== undefined &&
+            frameResult.result !== null
+          ) {
+            // For array results, only include non-empty arrays
+            if (Array.isArray(frameResult.result)) {
+              if (frameResult.result.length > 0) {
+                validResults.push(...frameResult.result);
+              }
+            } else {
+              validResults.push(frameResult.result);
             }
-          } else {
-            validResults.push(frameResult.result);
           }
+        });
+      }
+
+      return validResults;
+    } finally {
+      await chrome.scripting.executeScript({
+        target,
+        world: 'MAIN',
+        func: () => {
+          window.__domoToolkitExtDepth = Math.max(
+            0,
+            (window.__domoToolkitExtDepth || 0) - 1
+          );
         }
       });
     }
-
-    return validResults;
   } catch (error) {
     console.error('Error executing script in all frames:', error);
     return [];
@@ -94,19 +123,44 @@ export async function executeInPage(func, args = [], tabId = null) {
       throw new Error('Not on a Domo page');
     }
 
-    // Execute function in the page context
-    const result = await chrome.scripting.executeScript({
-      target: { tabId: targetTabId },
+    const target = { tabId: targetTabId };
+
+    // Mark extension-initiated requests so cardErrors.js bypasses interception
+    await chrome.scripting.executeScript({
+      target,
       world: 'MAIN',
-      func,
-      args
+      func: () => {
+        window.__domoToolkitExtDepth =
+          (window.__domoToolkitExtDepth || 0) + 1;
+      }
     });
 
-    if (result && result[0] && result[0].result !== undefined) {
-      return result[0].result;
-    }
+    try {
+      // Execute function in the page context
+      const result = await chrome.scripting.executeScript({
+        target,
+        world: 'MAIN',
+        func,
+        args
+      });
 
-    throw new Error('No result from script execution');
+      if (result && result[0] && result[0].result !== undefined) {
+        return result[0].result;
+      }
+
+      throw new Error('No result from script execution');
+    } finally {
+      await chrome.scripting.executeScript({
+        target,
+        world: 'MAIN',
+        func: () => {
+          window.__domoToolkitExtDepth = Math.max(
+            0,
+            (window.__domoToolkitExtDepth || 0) - 1
+          );
+        }
+      });
+    }
   } catch (error) {
     console.error('Error executing script in page context:', error);
     throw error;

@@ -9,10 +9,19 @@ export { updateDataflowDetails } from './dataflows';
 export {
   getDatasetsForPage,
   getDatasetsForDataflow,
+  isViewType,
   getDatasetsForView,
-  isViewType
+  getStreamExecution,
+  getStreamExecutions
 } from './datasets';
-export { getDrillParentCardId, getPageCards, getCardsForObject } from './cards';
+export {
+  getDrillParentCardId,
+  getPageCards,
+  getCardsForObject,
+  removeCardFromPage,
+  getCardDefinition,
+  updateCardDefinition
+} from './cards';
 export {
   getAppStudioPageParent,
   getChildPages,

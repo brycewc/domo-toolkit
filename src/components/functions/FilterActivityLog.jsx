@@ -31,7 +31,7 @@ export function FilterActivityLog({ currentContext, isDisabled }) {
         const testObject = {
           typeName: 'DataFlow',
           id: '26922',
-          name: 'MajorDomo | All Active Objects'
+          name: 'Domo | All Active Objects'
         };
 
         console.log('[FilterActivityLog] Using test object:', testObject);

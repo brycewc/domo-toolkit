@@ -150,7 +150,10 @@ export async function getClientSideFilters(tabId = null) {
         // Method 7: Check Redux/MobX stores
         const storeKeys = ['__REDUX_STORE__', 'store', '__store'];
         for (const storeKey of storeKeys) {
-          if (window[storeKey] && typeof window[storeKey].getState === 'function') {
+          if (
+            window[storeKey] &&
+            typeof window[storeKey].getState === 'function'
+          ) {
             try {
               const state = window[storeKey].getState();
               if (state && state.filters) {
@@ -190,7 +193,8 @@ export async function getClientSideFilters(tabId = null) {
         // Method 9: Check TanStack Query client
         if (window.DOMO_TANSTACK_QUERY_CLIENT) {
           try {
-            const queryCache = window.DOMO_TANSTACK_QUERY_CLIENT.getQueryCache?.();
+            const queryCache =
+              window.DOMO_TANSTACK_QUERY_CLIENT.getQueryCache?.();
             if (queryCache) {
               const queries = queryCache.getAll?.() || [];
               for (const query of queries) {
@@ -234,7 +238,12 @@ export async function getClientSideFilters(tabId = null) {
 
         // Method 11: Check sessionStorage and localStorage
         try {
-          const storageKeys = ['filters', 'pageFilters', 'domoFilters', 'filterState'];
+          const storageKeys = [
+            'filters',
+            'pageFilters',
+            'domoFilters',
+            'filterState'
+          ];
           for (const key of storageKeys) {
             for (const storage of [sessionStorage, localStorage]) {
               const val = storage.getItem(key);
@@ -284,7 +293,8 @@ export async function getClientSideFilters(tabId = null) {
         );
         cardContainers.forEach((container) => {
           const pfiltersAttr =
-            container.getAttribute('data-pfilters') || container.getAttribute('data-filters');
+            container.getAttribute('data-pfilters') ||
+            container.getAttribute('data-filters');
           if (pfiltersAttr) {
             try {
               const parsed = JSON.parse(pfiltersAttr);
@@ -522,13 +532,22 @@ export async function getFiltersFromAllFrames(tabId = null) {
       if (result && result.filters && Array.isArray(result.filters)) {
         result.filters.forEach((filter) => {
           if (filter && filter.column) {
-            const key = JSON.stringify({ column: filter.column, values: filter.values });
+            const key = JSON.stringify({
+              column: filter.column,
+              values: filter.values
+            });
             if (!seen.has(key)) {
               seen.add(key);
               filters.push({
                 column: filter.column,
-                operand: (filter.operand || filter.operator || 'IN').toUpperCase(),
-                values: Array.isArray(filter.values) ? filter.values : [filter.values]
+                operand: (
+                  filter.operand ||
+                  filter.operator ||
+                  'IN'
+                ).toUpperCase(),
+                values: Array.isArray(filter.values)
+                  ? filter.values
+                  : [filter.values]
               });
             }
           }
@@ -650,7 +669,11 @@ export async function getAngularScopeFilters(tabId = null) {
                         if (f.column && f.values && f.values.length > 0) {
                           filters.push({
                             column: f.column,
-                            operand: (f.operand || f.operator || 'IN').toUpperCase(),
+                            operand: (
+                              f.operand ||
+                              f.operator ||
+                              'IN'
+                            ).toUpperCase(),
                             values: f.values,
                             dataSetId: f.dataSourceId || f.dataSetId
                           });
@@ -705,7 +728,11 @@ export async function getAngularScopeFilters(tabId = null) {
                           if (f.column && f.values && f.values.length > 0) {
                             filters.push({
                               column: f.column,
-                              operand: (f.operand || f.operator || 'IN').toUpperCase(),
+                              operand: (
+                                f.operand ||
+                                f.operator ||
+                                'IN'
+                              ).toUpperCase(),
                               values: f.values,
                               dataSetId: f.dataSourceId || f.dataSetId
                             });
@@ -752,9 +779,12 @@ export async function getVariableControlFilters(pageId, tabId = null) {
         const filters = [];
 
         // First, get all cards on the page
-        const cardsResponse = await fetch(`/api/content/v1/pages/${pageId}/cards`, {
-          credentials: 'include'
-        });
+        const cardsResponse = await fetch(
+          `/api/content/v1/pages/${pageId}/cards`,
+          {
+            credentials: 'include'
+          }
+        );
 
         if (!cardsResponse.ok) {
           return [];
@@ -777,7 +807,8 @@ export async function getVariableControlFilters(pageId, tabId = null) {
         );
 
         // If no obvious filter cards, try all cards (some may have controls)
-        const cardsToCheck = potentialFilterCards.length > 0 ? potentialFilterCards : cards;
+        const cardsToCheck =
+          potentialFilterCards.length > 0 ? potentialFilterCards : cards;
 
         // For each card, try to get its variable controls
         const controlPromises = cardsToCheck.map(async (card) => {
@@ -897,7 +928,11 @@ export async function getAppStudioFilters(tabId = null) {
                   }
 
                   // Look for selected values in variable controls
-                  if (obj.selectedValues && Array.isArray(obj.selectedValues) && obj.column) {
+                  if (
+                    obj.selectedValues &&
+                    Array.isArray(obj.selectedValues) &&
+                    obj.column
+                  ) {
                     filters.push({
                       column: obj.column,
                       operand: 'IN',
@@ -946,7 +981,9 @@ export async function getAppStudioFilters(tabId = null) {
 
                 // Check $$listeners for filter event handlers that might have state
                 if ($rootScope.$$listeners) {
-                  const filterEvents = Object.keys($rootScope.$$listeners).filter(
+                  const filterEvents = Object.keys(
+                    $rootScope.$$listeners
+                  ).filter(
                     (k) =>
                       k.includes('filter') ||
                       k.includes('Filter') ||
@@ -988,7 +1025,11 @@ export async function getAppStudioFilters(tabId = null) {
             for (const f of filterPaths) {
               if (Array.isArray(f) && f.length > 0) {
                 f.forEach((filter) => {
-                  if (filter.column && filter.values && filter.values.length > 0) {
+                  if (
+                    filter.column &&
+                    filter.values &&
+                    filter.values.length > 0
+                  ) {
                     filters.push({
                       column: filter.column,
                       operand: (filter.operand || 'IN').toUpperCase(),
@@ -1010,8 +1051,12 @@ export async function getAppStudioFilters(tabId = null) {
             const scope = window.angular?.element?.(dropdown).scope?.();
             if (scope) {
               // Look for selected value and column info in scope
-              const columnName = scope.column || scope.columnName || scope.$ctrl?.column;
-              const selectedValue = scope.selectedValue || scope.value || scope.$ctrl?.selectedValue;
+              const columnName =
+                scope.column || scope.columnName || scope.$ctrl?.column;
+              const selectedValue =
+                scope.selectedValue ||
+                scope.value ||
+                scope.$ctrl?.selectedValue;
 
               if (columnName && selectedValue) {
                 filters.push({
@@ -1062,7 +1107,10 @@ export async function getAppStudioFilters(tabId = null) {
                 });
               }
               // Check card.filters if available
-              if (scope.$ctrl.card?.filters && Array.isArray(scope.$ctrl.card.filters)) {
+              if (
+                scope.$ctrl.card?.filters &&
+                Array.isArray(scope.$ctrl.card.filters)
+              ) {
                 scope.$ctrl.card.filters.forEach((f) => {
                   if (f.column && f.values && f.values.length > 0) {
                     filters.push({
@@ -1102,14 +1150,23 @@ export async function getAppStudioFilters(tabId = null) {
                 // Check direct scope and $ctrl
                 const targets = [scope, scope.$ctrl].filter(Boolean);
                 targets.forEach((t) => {
-                  const fSources = [t.cardFilters, t.filters, t.pageFilters, t.pfilters];
+                  const fSources = [
+                    t.cardFilters,
+                    t.filters,
+                    t.pageFilters,
+                    t.pfilters
+                  ];
                   fSources.forEach((source) => {
                     if (Array.isArray(source) && source.length > 0) {
                       source.forEach((f) => {
                         if (f.column && f.values && f.values.length > 0) {
                           filters.push({
                             column: f.column,
-                            operand: (f.operand || f.operator || 'IN').toUpperCase(),
+                            operand: (
+                              f.operand ||
+                              f.operator ||
+                              'IN'
+                            ).toUpperCase(),
                             values: f.values,
                             dataSetId: f.dataSourceId || f.dataSetId
                           });
@@ -1119,18 +1176,23 @@ export async function getAppStudioFilters(tabId = null) {
                   });
                 });
               }
-            } catch (e) { }
+            } catch (e) {}
           });
         });
 
         // Method 7: Deep search scopes if we still have nothing (last resort)
         if (filters.length === 0 && window.angular) {
           try {
-            const allWithScope = document.querySelectorAll('.ng-scope, .ng-isolated-scope');
-            allWithScope.forEach(el => {
+            const allWithScope = document.querySelectorAll(
+              '.ng-scope, .ng-isolated-scope'
+            );
+            allWithScope.forEach((el) => {
               const scope = window.angular.element(el).scope?.();
-              if (scope?.$ctrl?.cardFilters && Array.isArray(scope.$ctrl.cardFilters)) {
-                scope.$ctrl.cardFilters.forEach(f => {
+              if (
+                scope?.$ctrl?.cardFilters &&
+                Array.isArray(scope.$ctrl.cardFilters)
+              ) {
+                scope.$ctrl.cardFilters.forEach((f) => {
                   if (f.column && f.values) {
                     filters.push({
                       column: f.column,
@@ -1141,7 +1203,7 @@ export async function getAppStudioFilters(tabId = null) {
                 });
               }
             });
-          } catch (e) { }
+          } catch (e) {}
         }
 
         // Deduplicate filters
@@ -1186,12 +1248,18 @@ async function isAppStudioPage(tabId = null) {
 
     if (!currentUrl) {
       try {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        const [tab] = await chrome.tabs.query({
+          active: true,
+          currentWindow: true
+        });
         currentUrl = tab?.url || '';
-      } catch (e) { }
+      } catch (e) {}
     }
 
-    if (currentUrl.includes('/app-studio/') || currentUrl.includes('/appstudio/')) {
+    if (
+      currentUrl.includes('/app-studio/') ||
+      currentUrl.includes('/appstudio/')
+    ) {
       return true;
     }
 
@@ -1205,7 +1273,8 @@ async function isAppStudioPage(tabId = null) {
 
         // Check 1: URL patterns (inside page just in case)
         const url = window.location.href;
-        const urlMatch = url.includes('/app-studio/') || url.includes('/appstudio/');
+        const urlMatch =
+          url.includes('/app-studio/') || url.includes('/appstudio/');
         detection.checks.urlMatch = urlMatch;
         if (urlMatch) {
           detection.isAppStudio = true;
@@ -1246,9 +1315,12 @@ async function isAppStudioPage(tabId = null) {
         }
 
         // Check 3: cd-control-menu elements (App Studio has many of these)
-        const controlMenus = document.querySelectorAll('[class*="cd-control-menu"]');
+        const controlMenus = document.querySelectorAll(
+          '[class*="cd-control-menu"]'
+        );
         detection.checks.controlMenuCount = controlMenus.length;
-        if (controlMenus.length > 5) { // Lowered threshold slightly
+        if (controlMenus.length > 5) {
+          // Lowered threshold slightly
           detection.isAppStudio = true;
           detection.reason = `Found ${controlMenus.length} control menus`;
           return detection;
@@ -1256,11 +1328,14 @@ async function isAppStudioPage(tabId = null) {
 
         // Check 4: Angular with $ctrl pattern and specific App Studio markers
         if (window.angular) {
-          const hasAppStudioAngular = !!document.querySelector('.app-canvas') ||
+          const hasAppStudioAngular =
+            !!document.querySelector('.app-canvas') ||
             !!document.querySelector('[ng-controller*="AppStudio" i]');
           detection.checks.hasAppStudioAngular = hasAppStudioAngular;
 
-          const filterIndicators = document.querySelectorAll('[class*="filterIndicator"]');
+          const filterIndicators = document.querySelectorAll(
+            '[class*="filterIndicator"]'
+          );
           detection.checks.filterIndicatorCount = filterIndicators.length;
 
           if (hasAppStudioAngular || filterIndicators.length > 0) {
@@ -1284,7 +1359,7 @@ async function isAppStudioPage(tabId = null) {
 
     return !!result;
   } catch (error) {
-    console.warn('[MajorDomo] App Studio detection failed:', error);
+    console.warn('[Domo] App Studio detection failed:', error);
     return false;
   }
 }
@@ -1371,7 +1446,10 @@ export async function getAllFilters({ url, pageId, tabId = null }) {
   );
 
   if (allFilters.length > 0) {
-    console.log(`[MajorDomo] Captured ${allFilters.length} filter(s):`, allFilters.map(f => f.column).join(', '));
+    console.log(
+      `[Domo] Captured ${allFilters.length} filter(s):`,
+      allFilters.map((f) => f.column).join(', ')
+    );
   }
 
   return {

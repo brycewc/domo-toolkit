@@ -84,20 +84,19 @@ export async function fetchObjectDetailsInPage(params) {
     }
 
     const data = await response.json();
-    const details = pathToDetails
-      ? pathToDetails.split('.').reduce((current, prop) => current?.[prop], data)
-      : data;
     const resolvePath = (path) =>
-      path.split('.').reduce((current, prop) => current?.[prop], data);
+      (path.match(/[^.[\]]+/g) || []).reduce(
+        (current, prop) => current?.[prop],
+        data
+      );
+    const details = pathToDetails ? resolvePath(pathToDetails) : data;
     const name = nameTemplate
       ? nameTemplate.replace(/{([^}]+)}/g, (_, path) =>
-          path === 'id' ? objectId : resolvePath(path) ?? ''
+          path === 'id' ? objectId : (resolvePath(path) ?? '')
         )
       : resolvePath(pathToName);
     const extractedParentId = pathToParentId
-      ? pathToParentId
-          .split('.')
-          .reduce((current, prop) => current?.[prop], data)
+      ? resolvePath(pathToParentId)
       : undefined;
 
     return { details, name, parentId: extractedParentId };
@@ -117,7 +116,12 @@ export async function fetchObjectDetailsInPage(params) {
  * @param {number} [params.tabId] - Optional Chrome tab ID for context
  * @returns {Promise<void>}
  */
-export async function shareWithSelf({ object, userId, setStatus, tabId = null }) {
+export async function shareWithSelf({
+  object,
+  userId,
+  setStatus,
+  tabId = null
+}) {
   try {
     if (!object || !object.typeId || !object.id) {
       throw new Error('Invalid object provided');
@@ -240,7 +244,7 @@ export async function shareWithSelf({ object, userId, setStatus, tabId = null })
 }
 
 export async function deleteObject({ object, tabId = null }) {
-  console.log('deleteObject called with:', object, tabId);
+  // console.log('deleteObject called with:', object, tabId);
   try {
     if (!object || !object.typeId || !object.id) {
       return {
@@ -253,7 +257,7 @@ export async function deleteObject({ object, tabId = null }) {
 
     const result = await executeInPage(
       async (object) => {
-        console.log('Executing delete for object:', object);
+        // console.log('Executing delete for object:', object);
         const fetchRequest = {
           method: 'DELETE',
           url: null
@@ -287,11 +291,11 @@ export async function deleteObject({ object, tabId = null }) {
           };
         }
 
-        console.log('Delete fetch request:', fetchRequest);
+        // console.log('Delete fetch request:', fetchRequest);
         const response = await fetch(fetchRequest.url, {
           method: fetchRequest.method
         });
-        console.log('Delete response:', response);
+        // console.log('Delete response:', response);
 
         if (!response.ok) {
           const errorText = await response.text();
@@ -354,7 +358,7 @@ export async function updateOwner({ object, owner, tabId = null }) {
 
     const result = await executeInPage(
       async (object, newOwnerId) => {
-        console.log('Executing updateOwner:', object, newOwnerId);
+        // console.log('Executing updateOwner:', object, newOwnerId);
         const fetchRequest = {
           method: 'PUT',
           url: null,
@@ -384,7 +388,7 @@ export async function updateOwner({ object, owner, tabId = null }) {
           };
         }
 
-        console.log('Update fetch request:', fetchRequest);
+        // console.log('Update fetch request:', fetchRequest);
         const response = await fetch(fetchRequest.url, {
           method: fetchRequest.method,
           body: JSON.stringify(fetchRequest.body),
@@ -392,7 +396,7 @@ export async function updateOwner({ object, owner, tabId = null }) {
             'Content-Type': 'application/json'
           }
         });
-        console.log('Update response:', response);
+        // console.log('Update response:', response);
         if (!response.ok) {
           const errorText = await response.text();
           return {

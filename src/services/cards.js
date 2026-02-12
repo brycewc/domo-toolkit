@@ -146,3 +146,138 @@ export async function getCardsForObject({
     throw error;
   }
 }
+
+export async function removeCardFromPage({ pageId, cardId, tabId = null }) {
+  try {
+    const result = await executeInPage(
+      async (pageId, cardId) => {
+        const response = await fetch(
+          `/kpis/${cardId}/remove?pageid=${pageId}`,
+          {
+            method: 'POST'
+          }
+        );
+        if (!response.ok) {
+          throw new Error(
+            `Failed to remove card ${cardId} from page ${pageId}. HTTP status: ${response.status}`
+          );
+        }
+        return response.json();
+      },
+      [pageId, cardId],
+      tabId
+    );
+
+    return result;
+  } catch (error) {
+    console.error('Error removing card from page:', error);
+    throw error;
+  }
+}
+
+export async function getCardDefinition({ cardId, tabId = null }) {
+  try {
+    return await executeInPage(
+      async (cardId) => {
+        const response = await fetch('/api/content/v3/cards/kpi/definition', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({
+            dynamicText: true,
+            variables: true,
+            urn: cardId
+          })
+        });
+        if (!response.ok) {
+          throw new Error(
+            `Failed to fetch card definition for ${cardId}. HTTP status: ${response.status}`
+          );
+        }
+        return response.json();
+      },
+      [cardId],
+      tabId
+    );
+  } catch (error) {
+    console.error('Error fetching card definition:', error);
+    throw error;
+  }
+}
+
+export async function updateCardDefinition({
+  cardId,
+  definition,
+  tabId = null
+}) {
+  try {
+    const datasetId = definition?.columns?.[0]?.sourceId;
+
+    delete definition.id;
+    delete definition.urn;
+    delete definition.columns;
+    delete definition.drillpath;
+    delete definition.embedded;
+    delete definition.dataSourceWrite;
+
+    definition.dataProvider = {
+      dataSourceId: datasetId || null
+    };
+    definition.variables = true;
+
+    definition.definition.formulas = {
+      dsUpdated: [],
+      dsDeleted: [],
+      card: []
+    };
+    definition.definition.annotations = {
+      new: [],
+      modified: [],
+      deleted: []
+    };
+
+    // Transform conditionalFormats from array to object with card and datasource arrays
+    if (Array.isArray(definition.definition.conditionalFormats)) {
+      const cardFormats = [];
+      const datasourceFormats = [];
+
+      definition.definition.conditionalFormats.forEach((format) => {
+        if (format.dataSourceId) {
+          datasourceFormats.push(format);
+        } else {
+          cardFormats.push(format);
+        }
+      });
+
+      definition.definition.conditionalFormats = {
+        card: cardFormats,
+        datasource: datasourceFormats
+      };
+    }
+
+    // Update the card with the modifications
+    const result = await executeInPage(
+      async (cardId, definition) => {
+        const response = await fetch(`/api/content/v3/cards/kpi/${cardId}`, {
+          method: 'PUT',
+          body: JSON.stringify(definition),
+          headers: { 'Content-Type': 'application/json' }
+        });
+        if (!response.ok) {
+          throw new Error(
+            `Failed to update card ${cardId}. HTTP status: ${response.status}`
+          );
+        }
+        return response.json();
+      },
+      [cardId, definition],
+      tabId
+    );
+    return result;
+  } catch (error) {
+    console.error('Error updating card definition:', error);
+    throw error;
+  }
+}

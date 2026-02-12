@@ -9,6 +9,7 @@ import {
 } from '@heroui/react';
 import {
   IconChevronDown,
+  IconHelp,
   IconLayoutSidebarRightExpand,
   IconSettings
 } from '@tabler/icons-react';
@@ -25,6 +26,7 @@ import {
   GetDatasets,
   GetPages,
   NavigateToCopiedObject,
+  RemoveEmptyStringsFromQuickFilters,
   StatusBar,
   ShareWithSelf,
   UpdateDataflowDetails,
@@ -115,6 +117,19 @@ export function ActionButtons({
                   onStatusUpdate={showStatus}
                   isDisabled={!isDomoPage}
                 />
+                <Tooltip delay={400} closeDelay={0}>
+                  <Button
+                    variant='tertiary'
+                    fullWidth
+                    isIconOnly
+                    onPress={() => {
+                      window.open('https://domotoolkit.com/feedback', '_blank');
+                    }}
+                  >
+                    <IconHelp stroke={1.5} />
+                  </Button>
+                  <Tooltip.Content>Feedback/help</Tooltip.Content>
+                </Tooltip>
                 <Tooltip delay={400} closeDelay={0}>
                   <Button
                     variant='tertiary'
@@ -245,6 +260,14 @@ export function ActionButtons({
                     onStatusUpdate={showStatus}
                   />
                 )}
+                {currentContext?.domoObject?.typeId === 'CARD' &&
+                  currentContext?.domoObject?.metadata?.details?.type !==
+                    'domoapp' && (
+                    <RemoveEmptyStringsFromQuickFilters
+                      currentContext={currentContext}
+                      onStatusUpdate={showStatus}
+                    />
+                  )}
               </div>
             </Disclosure.Content>
           </Disclosure>

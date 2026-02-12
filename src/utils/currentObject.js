@@ -111,16 +111,16 @@ export async function detectCurrentObject() {
         if (!url.includes('app-studio')) {
           objectType = 'PAGE';
         } else {
-          console.log('Fetching App Studio object type...');
+          // console.log('Fetching App Studio object type...');
           // Need to fetch to determine if Worksheet or Data App
           try {
             const response = await fetch(
               `/api/content/v1/dataapps/${parts[parts.indexOf('app-studio') + 1]}`
             );
-            console.log('Fetch response received:', response);
+            // console.log('Fetch response received:', response);
             if (response.ok) {
               const data = await response.json();
-              console.log('Fetch data:', data);
+              // console.log('Fetch data:', data);
               if (data && data.type === 'worksheet') {
                 objectType = 'WORKSHEET_VIEW';
               } else {

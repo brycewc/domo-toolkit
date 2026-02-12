@@ -388,7 +388,7 @@ export const ObjectTypeRegistry = {
   BEAST_MODE_FORMULA: new DomoObjectType(
     'BEAST_MODE_FORMULA',
     'Beast Mode',
-    '/beastmode?id={id}',
+    '/datacenter/beastmode?id={id}',
     /^\d+$/,
     { keyword: 'id' },
     {
@@ -407,12 +407,13 @@ export const ObjectTypeRegistry = {
       keyword: 'details'
     },
     {
-      method: 'PUT',
-      endpoint: '/content/v3/cards/kpi/definition',
-      bodyTemplate: { urn: '{id}' },
-      pathToName: 'definition.title'
+      method: 'GET',
+      endpoint:
+        '/content/v1/cards?urns={id}&includeFiltered=true&parts=metadata',
+      pathToName: '[0].title',
+      pathToDetails: '[0]'
     },
-    ['DATA_SOURCE']
+    ['DATA_SOURCE', 'APP']
   ),
   CERTIFICATION: new DomoObjectType(
     'CERTIFICATION',
