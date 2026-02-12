@@ -4,9 +4,9 @@ INSTANT CONTEXT DETECTION
 Domo Toolkit automatically detects what you're looking at. Navigate to any Page, card, DataSet, dataflow, App Studio Page, workflow, alert, or any of 100+ supported Domo object types — the extension immediately identifies it, enriches it with metadata from the Domo API, and makes relevant actions available. No manual input required. The extension even detects card modals, resolves parent objects for nested types like App Studio Pages, and updates your tab title with (or back to) the object's name for easier tab management. And with a click, you can explore the object's full JSON definition.
 AUTOMATIC 431 ERROR RESOLVING
 Domo's 431 "Request Header Fields Too Large" errors are a constant headache when working across multiple instances. Domo Toolkit offers three cookie clearing modes:
-Auto (default): Automatically detects 431 errors, clears cookies (preserving your last 2 active instances), and refreshs your page instantaneously–it's like it never happened.
+Auto (default): Automatically detects 431 errors, clears cookies (preserving your last 2 active instances), and refreshes your page instantaneously–it's like it never happened.
 Preserve: One-click clearing that preserves your last 2 instances.
-All: One-click clearing of all your Domo cookies, while maintaing all other websites and your history.
+All: One-click clearing of all your Domo cookies, while maintaining all other websites and your history.
 ONE-CLICK ACTIONS
 A compact toolbar gives you instant access to the operations you use most:
 Copy ID — Copy the current object's ID to your clipboard instantly. Long-press for additional IDs like Stream ID (for DataSets) or Studio App ID (for App Studio Pages).
@@ -30,7 +30,7 @@ For DataFlows: View input and output DataSets, grouped separately.
 For DataSet Views and DataFusions: See the underlying source DataSets.
 Every discovery list supports open all (open every item in new tabs), copy ID, share all (share all objects with yourself), and refresh. Items are grouped hierarchically with expand/collapse, counts, direct links, and IDs on hover.
 CLIPBOARD-POWERED NAVIGATION
-Copy any Domo object ID — from a Card, DataSet, spreadsheet, Slack message, support ticket, anywhere else — and navigate to it with one click. Domo Toolkit identifies the object type, fetches its name, and builds the url to navigate to.
+Copy any Domo object ID — from a Card, DataSet, spreadsheet, Slack message, support ticket, anywhere else — and navigate to it with one click. Domo Toolkit identifies the object type, fetches its name, and builds the URL to navigate to.
 Keyboard shortcut: Ctrl+Shift+1 (Cmd+Shift+1 on Mac) to trigger clipboard detection.
 ACTIVITY LOG INTEGRATION
 View activity log records for the current object with the click of a button. Long-press for advanced options:
