@@ -18,7 +18,9 @@ export {
   getDrillParentCardId,
   getPageCards,
   getCardsForObject,
-  removeCardFromPage
+  removeCardFromPage,
+  getCardDefinition,
+  updateCardDefinition
 } from './cards';
 export {
   getAppStudioPageParent,

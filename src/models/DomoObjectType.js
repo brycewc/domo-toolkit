@@ -407,12 +407,13 @@ export const ObjectTypeRegistry = {
       keyword: 'details'
     },
     {
-      method: 'PUT',
-      endpoint: '/content/v3/cards/kpi/definition',
-      bodyTemplate: { urn: '{id}' },
-      pathToName: 'definition.title'
+      method: 'GET',
+      endpoint:
+        '/content/v1/cards?urns={id}&includeFiltered=true&parts=metadata',
+      pathToName: '[0].title',
+      pathToDetails: '[0]'
     },
-    ['DATA_SOURCE']
+    ['DATA_SOURCE', 'APP']
   ),
   CERTIFICATION: new DomoObjectType(
     'CERTIFICATION',

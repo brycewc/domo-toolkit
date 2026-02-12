@@ -84,22 +84,19 @@ export async function fetchObjectDetailsInPage(params) {
     }
 
     const data = await response.json();
-    const details = pathToDetails
-      ? pathToDetails
-          .split('.')
-          .reduce((current, prop) => current?.[prop], data)
-      : data;
     const resolvePath = (path) =>
-      path.split('.').reduce((current, prop) => current?.[prop], data);
+      (path.match(/[^.[\]]+/g) || []).reduce(
+        (current, prop) => current?.[prop],
+        data
+      );
+    const details = pathToDetails ? resolvePath(pathToDetails) : data;
     const name = nameTemplate
       ? nameTemplate.replace(/{([^}]+)}/g, (_, path) =>
           path === 'id' ? objectId : (resolvePath(path) ?? '')
         )
       : resolvePath(pathToName);
     const extractedParentId = pathToParentId
-      ? pathToParentId
-          .split('.')
-          .reduce((current, prop) => current?.[prop], data)
+      ? resolvePath(pathToParentId)
       : undefined;
 
     return { details, name, parentId: extractedParentId };

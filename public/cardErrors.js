@@ -144,6 +144,12 @@
 
     var args = arguments;
     var url = typeof args[0] === 'string' ? args[0] : args[0] && args[0].url;
+
+    // Only intercept card endpoints
+    if (!isCardEndpoint(url) && !KPI_RENDER_PATTERN.test(url)) {
+      return originalFetch.apply(this, args);
+    }
+
     var method = (args[1] && args[1].method) || 'GET';
 
     return originalFetch
@@ -210,6 +216,16 @@
   };
 
   XMLHttpRequest.prototype.send = function () {
+    var monitor = this._domoToolkitMonitor;
+
+    // Only intercept card endpoints
+    if (
+      !monitor ||
+      (!isCardEndpoint(monitor.url) && !KPI_RENDER_PATTERN.test(monitor.url))
+    ) {
+      return originalXHRSend.apply(this, arguments);
+    }
+
     // Bypass interception for extension-initiated requests
     if (window.__domoToolkitExtDepth > 0) {
       return originalXHRSend.apply(this, arguments);

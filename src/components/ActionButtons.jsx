@@ -26,6 +26,7 @@ import {
   GetDatasets,
   GetPages,
   NavigateToCopiedObject,
+  RemoveEmptyStringsFromQuickFilters,
   StatusBar,
   ShareWithSelf,
   UpdateDataflowDetails,
@@ -259,6 +260,14 @@ export function ActionButtons({
                     onStatusUpdate={showStatus}
                   />
                 )}
+                {currentContext?.domoObject?.typeId === 'CARD' &&
+                  currentContext?.domoObject?.metadata?.details?.type !==
+                    'domoapp' && (
+                    <RemoveEmptyStringsFromQuickFilters
+                      currentContext={currentContext}
+                      onStatusUpdate={showStatus}
+                    />
+                  )}
               </div>
             </Disclosure.Content>
           </Disclosure>
