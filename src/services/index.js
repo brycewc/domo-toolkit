@@ -28,3 +28,5 @@ export {
   buildPfilterUrl,
   getAllFilters
 } from './filters';
+export { tracePipeline } from './lineageService';
+export { parseDataflow, searchTiles } from './etlParser';
