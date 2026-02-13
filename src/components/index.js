@@ -11,3 +11,4 @@ export { StatusBar } from './StatusBar';
 export { WelcomePage, shouldShowWelcomePage, resetWelcomePage } from './WelcomePage';
 export * from './functions';
 export * from './options';
+export * from './tracer';
