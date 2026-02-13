@@ -19,9 +19,9 @@ import {
 } from '@tabler/icons-react';
 
 const NODE_COLORS = {
-  DATA_SOURCE: { bg: '#dbeafe', border: '#3b82f6', text: '#1e40af' },
-  DATAFLOW: { bg: '#fef3c7', border: '#f59e0b', text: '#92400e' },
-  CARD: { bg: '#d1fae5', border: '#10b981', text: '#065f46' }
+  DATA_SOURCE: { bg: '#f8fafc', border: '#3b82f6', text: '#1e40af', icon: '#3b82f6' },
+  DATAFLOW: { bg: '#fefce8', border: '#eab308', text: '#854d0e', icon: '#eab308' },
+  CARD: { bg: '#f0fdf4', border: '#22c55e', text: '#166534', icon: '#22c55e' }
 };
 
 const NODE_ICONS = {
@@ -51,15 +51,14 @@ function PipelineNode({ data }) {
 
   return (
     <div
-      className={`px-3 py-2 rounded-lg border-2 bg-white shadow-sm min-w-[200px] ${
-        data.selected ? 'ring-2 ring-blue-400' : ''
-      } ${data.highlighted ? 'ring-2 ring-yellow-400' : ''}`}
+      className={`px-3 py-2 rounded-lg border-2 bg-white shadow-sm min-w-[200px] ${data.selected ? 'ring-2 ring-blue-400' : ''
+        } ${data.highlighted ? 'ring-2 ring-yellow-400' : ''}`}
       style={{ borderColor: colors.border }}
     >
       {data.hasIncoming && (
         <Handle type="target" position={Position.Left} className="w-2 h-2" />
       )}
-      
+
       <div className="flex items-center gap-2">
         <Icon className="w-4 h-4 shrink-0" style={{ color: colors.border }} />
         <div className="flex-1 min-w-0">
@@ -75,7 +74,7 @@ function PipelineNode({ data }) {
           )}
         </div>
       </div>
-      
+
       {data.hasOutgoing && (
         <Handle type="source" position={Position.Right} className="w-2 h-2" />
       )}
@@ -109,18 +108,21 @@ export function PipelineGraph({
   onNodeClick
 }) {
   const { initialNodes, initialEdges } = useMemo(() => {
-    if (!trace) return { initialNodes: [], initialEdges: [] };
+    if (!trace || !Array.isArray(trace.nodes)) {
+      return { initialNodes: [], initialEdges: [] };
+    }
 
     const depthGroups = new Map();
     for (const node of trace.nodes) {
+      if (!node) continue;
       const group = depthGroups.get(node.depth) || [];
       group.push(node);
       depthGroups.set(node.depth, group);
     }
 
     const sortedDepths = Array.from(depthGroups.keys()).sort((a, b) => a - b);
-
     const nodes = [];
+
     for (const depth of sortedDepths) {
       const group = depthGroups.get(depth);
       const depthIndex = sortedDepths.indexOf(depth);
@@ -145,12 +147,12 @@ export function PipelineGraph({
       });
     }
 
-    const edges = trace.edges.map((e) => ({
+    const edges = Array.isArray(trace.edges) ? trace.edges.map((e) => ({
       id: `${e.sourceId}->${e.targetId}`,
       source: e.sourceId,
       target: e.targetId,
       ...defaultEdgeOptions
-    }));
+    })) : [];
 
     const nodesWithIncoming = new Set(edges.map((e) => e.target));
     const nodesWithOutgoing = new Set(edges.map((e) => e.source));
