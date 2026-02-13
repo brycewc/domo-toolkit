@@ -23,9 +23,18 @@ export default defineManifest({
     'clipboardWrite',
     'cookies',
     'webNavigation',
-    'webRequest'
+    'webRequest',
+    'tabs'
   ],
-  host_permissions: ['*://*.domo.com/*'],
+  host_permissions: [
+    '*://*.domo.com/*',
+    '*://outlook.office.com/*',
+    '*://outlook.office365.com/*',
+    '*://outlook.live.com/*',
+    '*://app.gong.io/*',
+    '*://teams.microsoft.com/*',
+    'http://localhost/*'
+  ],
   action: {
     default_icon: {
       16: 'public/toolkit-16.png',
@@ -43,10 +52,38 @@ export default defineManifest({
   },
   content_scripts: [
     {
+      js: ['src/csp-poc.jsx'],
+      matches: ['https://*.domo.com/*'],
+      run_at: 'document_start',
+      all_frames: true
+    },
+    {
       js: ['src/contentScript.js'],
       matches: ['https://*.domo.com/*'],
       run_at: 'document_idle',
       all_frames: true
+    },
+    {
+      js: ['src/contentScript-outlook.js'],
+      matches: [
+        'https://outlook.office.com/mail/*',
+        'https://outlook.office365.com/mail/*',
+        'https://outlook.live.com/mail/*'
+      ],
+      run_at: 'document_idle',
+      all_frames: false
+    },
+    {
+      js: ['src/contentScript-gong.js'],
+      matches: ['https://app.gong.io/*'],
+      run_at: 'document_idle',
+      all_frames: false
+    },
+    {
+      js: ['src/contentScript-teams.js'],
+      matches: ['https://teams.microsoft.com/*'],
+      run_at: 'document_idle',
+      all_frames: false
     }
   ],
   side_panel: {
