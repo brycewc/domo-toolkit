@@ -47,6 +47,7 @@ Domo Toolkit is a browser extension that enhances the Domo platform experience f
 - Favicon customization rules (instance match regex patterns and colors)
 - Theme preference (light/dark/system)
 - Cookie clearing behavior preference (default/all/auto)
+- Display card errors (true/false)
 - Welcome page dismissal status (true/false)
 
 **Why:** To remember your preferences across browser sessions.
@@ -73,9 +74,9 @@ Domo Toolkit is a browser extension that enhances the Domo platform experience f
 
 **What:** When the auto cookie clearing is enabled (disabled by default), the extension monitors HTTP response status codes for requests to \*.domo.com.
 
-**Why:** To automatically detect and resolve HTTP 431 "Request Header Fields Too Large" errors by clearing excess cookies.
+**Why:** To automatically detect and resolve HTTP 431 "Request Header Fields Too Large" errors by clearing excess cookies, and HTTP errors on card URLs to display them to the user. If these options are disabled, these listeners are disabled entirely.
 
-**Storage:** Only the status code (431) is read and triggers any action. No other request or response content or metadata is ever read or stored.
+**Storage:** For cookies, only the status code (431) is read and triggers any action, never stored. For cards, only HTTP errors are read on card URLs and the response is displayed to the user directly from the content script, never stored.
 
 ## Information We Do NOT Collect
 
@@ -149,17 +150,17 @@ This extension is designed for business users of the Domo platform and is not di
 
 ## Changes to This Policy
 
-If we make material changes to this privacy policy, we will update the "Last Updated" date and notify users through the Chrome Web Store listing update notes.
+If we make material changes to this privacy policy, we will update the "Last Updated" date and notify users through the Chrome Web Store and Edge Add-Ons Store listing update notes.
 
 ## Open Source
 
-You don't just have to take our word for it. Domo Toolkit is entirely open source. You can review the complete source code to verify our privacy practices at: [Repository URL]
+You don't just have to take our word for it. Domo Toolkit is entirely open source. You can review the complete source code to verify our privacy practices at: [https://github.com/brycewc/domo-toolkit](https://github.com/brycewc/domo-toolkit)
 
 ## Contact
 
 If you have questions about this privacy policy or the extension's data practices, please contact us:
 
-- **Email:** bryce.cindrich@gmail.com
+- **Email:** bryce.cindrich@domo.com
 - **GitHub Issues:** [https://github.com/brycewc/domo-toolkit/issues](https://github.com/brycewc/domo-toolkit/issues)
 
 ## Limited Use Disclosure

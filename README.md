@@ -1,198 +1,119 @@
 # Domo Toolkit
 
-A Chrome extension (Manifest V3) that enhances the Domo experience for power users, providing quick access to frequently used operations, data discovery, and administrative tools within Domo's platform.
+Power tools for Domo administrators. Stop wasting time navigating menus, managing hundreds of identical browser tabs, copying DataSet IDs from the URL, and constantly clearing your cookies.
 
-## Tech Stack
+Domo Toolkit is a Chrome extension built for the people who live inside Domo every day -- administrators managing hundreds of objects, consultants jumping between client instances, and power users building on the platform. Every feature is built to save clicks, reduce context-switching, and surface information that Domo's native UI buries behind multiple navigations.
 
-| Category             | Technology              | Version      |
-| -------------------- | ----------------------- | ------------ |
-| **Framework**        | React                   | 19.1.0       |
-| **Bundler**          | Vite                    | 7.3.0        |
-| **Extension Plugin** | @crxjs/vite-plugin      | 2.0.3        |
-| **UI Library**       | @heroui/react           | 3.0.0-beta.5 |
-| **CSS**              | Tailwind CSS            | 4.1.18       |
-| **Icons**            | @tabler/icons-react     | 3.36.1       |
-| **Tables**           | @tanstack/react-table   | 8.21.3       |
-| **Virtualization**   | @tanstack/react-virtual | 3.13.18      |
-| **Formatter**        | Prettier                | 3.7.4        |
+## Installation
 
-## Project Structure
+### Chrome Web Store
 
-```
-src/
-├── popup/              # Popup UI (click on extension icon)
-├── sidepanel/          # Side panel UI (contextual panel alongside pages)
-├── options/            # Settings/options page
-├── components/         # Shared React components
-│   └── functions/      # Action button implementations
-├── services/           # Domo API service functions
-├── models/             # Data classes (DomoObject, DomoContext, DomoObjectType)
-├── hooks/              # Custom React hooks
-├── utils/              # Utility functions
-├── assets/             # Static assets and global CSS
-├── background.js       # Service worker (background script)
-└── contentScript.js    # Content script (injected into Domo pages)
-```
+[https://chromewebstore.google.com/detail/domo-toolkit/gagcendhhghphglhcgjakkkocbliekaj?authuser=0&hl=en](https://chromewebstore.google.com/detail/domo-toolkit/gagcendhhghphglhcgjakkkocbliekaj?authuser=0&hl=en)
 
-## Architecture
+### Edge Add-ons
 
-The extension has four main execution contexts:
+[https://microsoftedge.microsoft.com/addons/detail/domo-toolkit/bkhnonmfkljenhejgboholmhginiiipk](https://microsoftedge.microsoft.com/addons/detail/domo-toolkit/bkhnonmfkljenhejgboholmhginiiipk)
 
-1. **Popup** - Small interface when extension icon is clicked
-2. **Side Panel** - Persistent panel alongside Domo pages with richer UI
-3. **Content Script** - Injected into Domo pages; detects objects, applies favicons
-4. **Background Service Worker** - Handles message passing, maintains tab context cache
-
-### Data Flow
-
-```
-Content Script (detects page context)
-  → Background Service Worker (message relay, caches context)
-  → Popup/Sidepanel (receives context via chrome.runtime messages)
-  → User triggers action → Services execute via content script
-```
-
-### Core Models
-
-- **DomoContext** - Represents a tab's context (instance, URL, detected object)
-- **DomoObject** - Represents a Domo object (Card, Page, Dataset, etc.) with ID and type
-- **DomoObjectType** - Registry of ~30+ supported object types with URL patterns and validation
-
-## Development Setup
+### Manual Install (from source)
 
 ```bash
-# Install dependencies
-npm install
-
-# Start dev server (with HMR)
-npm run dev
-
-# Build for production
-npm run build
-
-# Preview production build
-npm run preview
+git clone https://github.com/brycewc/domo-toolkit.git
+cd domo-toolkit
+yarn          # or: npm install
+yarn build    # or: npm run build
 ```
 
-Load the extension in Chrome:
-
-1. Navigate to `chrome://extensions/`
+1. Navigate to `chrome://extensions/` or `edge://extensions`
 2. Enable "Developer mode"
 3. Click "Load unpacked" and select the `dist` directory
 
-## Code Conventions
+## Features
 
-### Formatting (via Prettier)
+### Context Detection
 
-- Single quotes for strings and JSX attributes
-- No trailing commas
-- 2-space indentation
-- Semicolons required
-- Tailwind classes auto-sorted
+Automatically detects the Domo object you're viewing -- Pages, Cards, DataSets, DataFlows, App Studio Pages, Workflows, Alerts, and 100+ other object types. The extension:
 
-### File Organization
+- Identifies the object and fetches metadata from the Domo API
+- Detects card modals and resolves parent objects for nested types (e.g. App Studio Pages)
+- Updates the tab title with the object's name
+- Provides one-click access to the object's full JSON definition
 
-- **Path alias:** `@/` maps to `src/` (e.g., `import { Copy } from '@/components'`)
-- **Barrel exports:** Index files re-export from directories
-- **Named exports only** (no default exports for components)
+### Automatic 431 Error Resolving
 
-### React Patterns
+Handles Domo's "Request Header Fields Too Large" errors with three cookie clearing modes:
 
-- Functional components only (no class components)
-- Custom hooks for reusable logic (see `src/hooks/`)
-- Props destructuring in function signatures
-- React 19 - no `forwardRef` needed
+- **Auto** (default) -- Detects 431 errors, clears cookies (preserving your last 2 active instances), and refreshes the page automatically
+- **Preserve** -- One-click clearing that keeps your last 2 instances
+- **All** -- Clears all Domo cookies while leaving other sites and history intact
 
-### Model Classes
+### One-Click Actions
 
-- ES6 classes with `toJSON()` and `static fromJSON()` for serialization (required for message passing between extension contexts)
+- **Copy ID** -- Copy the current object's ID. Long-press for related IDs like Stream ID (DataSets) or Studio App ID (App Studio Pages). Keyboard shortcut: `Ctrl+Shift+1` (`Cmd+Shift+1` on Mac).
+- **Share With Self** -- Grant yourself access to Pages, Studio Apps, and Custom App designs.
+- **Delete Current Object** -- Delete Beast Modes, AppDB Collections, Workflows, and Pages/App Studio Pages including their Cards. Includes confirmation dialog and child Page safety checks.
+- **Activity Log** -- View activity log records for the current object. Long-press for advanced options: view activity for all Cards on the current object, or for all Pages containing those Cards.
+- **Clipboard Navigation** -- Copy any Domo object ID from anywhere -- a Card, DataSet, spreadsheet, Slack message, or support ticket -- and navigate to it. The extension identifies the object type, fetches its name, and builds the URL. For objects that don't support navigation, detailed information is displayed in the side panel instead.
 
-### Styling
+### Data Discovery
 
-- Tailwind CSS utility classes only (no inline styles)
-- HeroUI components for complex UI elements
-- Dark mode support via `data-theme` attribute on document root
-- OKLch color space for theme colors (see `src/assets/global.css`)
+Opens in the side panel for persistent exploration without losing your place.
 
-## Key Patterns
+- **Get Cards** -- Lists every Card on a Page, App Studio Page, Worksheet Page, Report Builder Page, or DataSet. Supports opening all in new tabs.
+- **Get Pages** -- Shows where objects are used. For Pages: child and grandchild Pages in a hierarchical tree. For App Studio Pages: all Pages within the app, grouped by parent. For Cards: every Page, App Studio Page, and Report Builder Page where the Card appears. For DataSets: full downstream trace from DataSet to Cards to Pages.
+- **Get DataSets** -- Traces data lineage. For Pages: every DataSet powering Cards on the Page. For DataFlows: input and output DataSets. For DataSet Views and DataFusions: underlying source DataSets.
 
-### Executing Code in Page Context
+All discovery lists support open all, copy ID, share all, and refresh. Items are grouped hierarchically with expand/collapse, counts, direct links, and IDs on hover.
 
-Services need to inherit user session, authentication, and permissions by running in the page context:
+### Object-Specific Actions
 
-```javascript
-import { executeInPage } from '@/utils/executeInPage';
+- **Copy Filtered URL** -- Copy URL with all applied filters on a Card, Page, or App Studio Page (Pfilters).
+- **Data Repair** -- Open the hidden data repair tab for any DataSet.
+- **Update Owner** -- Change ownership of Alerts and Workflows with a searchable user picker and a "Set to Self" shortcut.
+- **Update DataFlow Details** -- Edit DataFlow names and descriptions without creating a new version.
 
-const result = await executeInPage(
-  (arg1, arg2) => {
-    // This runs in the Domo page context
-    return fetch('/api/endpoint').then((r) => r.json());
-  },
-  [arg1, arg2],
-  tabId
-);
-```
+### Custom Favicons
 
-### Message Passing
+Customize favicons per Domo instance using regex-based rules:
 
-Popup/Sidepanel listen for context updates from background:
+- **Instance Logo** -- Use the instance's own logo as the favicon
+- **Colored Domo Logo** -- Custom background color on the Domo logo
+- **Colored Stripes** -- Add a colored stripe to the top, right, bottom, or left edge
+- **Regex Patterns** -- Match instance subdomains with flexible patterns
+- **Priority Ordering** -- Drag-and-drop rule ordering
 
-```javascript
-useEffect(() => {
-  const handleMessage = (message) => {
-    if (message.type === 'TAB_CONTEXT_UPDATED') {
-      setCurrentContext(DomoContext.fromJSON(message.context));
-    }
-  };
-  chrome.runtime.onMessage.addListener(handleMessage);
-  return () => chrome.runtime.onMessage.removeListener(handleMessage);
-}, []);
-```
+### Side Panel & Popup
 
-### Status Bar Pattern
+- **Popup** -- Click the extension icon for quick access
+- **Side Panel** -- Persistent panel alongside the page for data discovery, with collapsible actions. Opens automatically from the popup when displaying discovery results.
 
-Actions use StatusBar (already in ActionButtons) to show transient messages:
+Both show the current context (instance, object type, object ID) and update as you navigate.
 
-```javascript
-const [statusData, setStatusData] = useState(null);
+### Settings
 
-const showStatus = (message, level = 'primary', timeout = 3000) => {
-  setStatusData({ message, level, timeout });
-};
+- **Theme** -- System, light, or dark mode
+- **Default Domo Instance** -- Set your go-to instance for clipboard navigation from non-Domo sites
+- **Cookie Clearing Behavior** -- Choose between auto, preserve, or all modes
+- **Card Error Detection** -- Toggle inline error notifications for card API failures
+- **Favicon Rules** -- Rule editor with pattern matching, effect selection, color picker, and drag-and-drop reordering
 
-<StatusBar data={statusData} onDismiss={() => setStatusData(null)} />;
-```
+## Supported Object Types
 
-## Extension Permissions
+Pages, Cards, DataSets, DataFlows, App Studio Apps/Pages, Worksheets, Report Builder, Users, Groups, Alerts, Workflows, Code Engine Packages, Pro-code Apps, Beast Modes, Variables, Access Tokens, AppDB Collections, Approvals, Approval Templates, Drill Paths, Jupyter Workspaces, FileSets, Files, Forms, and dozens more. Each type supports URL pattern detection, ID validation, and API-based metadata enrichment.
 
-| Permission            | Purpose                                   |
-| --------------------- | ----------------------------------------- |
-| `sidePanel`           | Open side panel UI                        |
-| `storage`             | Persist settings (sync) and cache (local) |
-| `scripting`           | Inject and execute scripts in pages       |
-| `activeTab`           | Access current tab info                   |
-| `clipboardRead/Write` | Copy object IDs                           |
-| `cookies`             | Clear Domo cookies                        |
-| `webNavigation`       | Listen for navigation events              |
+## Privacy
 
-Host permission: `https://*.domo.com/*`
+- Only runs on `.domo.com` domains
+- Uses Domo's existing authenticated session -- no additional login required
+- No data leaves the browser; no external servers are contacted
+- Settings sync via Chrome's built-in storage
+- Domo data is never read, stored, or sent off-device
 
-## Configuration Files
+See the full [Privacy Policy](docs/PRIVACY_POLICY.md) for details.
 
-| File                 | Purpose                                                           |
-| -------------------- | ----------------------------------------------------------------- |
-| `vite.config.js`     | Vite config with CRXJS, Tailwind, and path aliases                |
-| `manifest.config.js` | Chrome extension manifest v3 (permissions, content scripts, etc.) |
-| `.prettierrc`        | Code formatting rules                                             |
+## Contributing
 
-## Documentation
+Interested in contributing? See [CONTRIBUTING.md](CONTRIBUTING.md) for the tech stack, architecture, development setup, code conventions, and key patterns.
 
-- [React Documentation](https://react.dev/reference/react)
-- [Vite Documentation](https://vite.dev/guide/)
-- [CRXJS Documentation](https://crxjs.dev/concepts/manifest)
-- [Tailwind CSS Documentation](https://tailwindcss.com/docs)
-- [HeroUI Documentation](https://v3.heroui.com/docs/react/getting-started)
-- [Tabler Icons Documentation](https://tabler.io/icons)
-- [TanStack Table Documentation](https://tanstack.com/table/latest/docs/introduction)
-- [TanStack Virtual Documentation](https://tanstack.com/virtual/latest/docs/introduction)
-- [Prettier Documentation](https://prettier.io/docs)
+## Issues & Feedback
+
+Found a bug or have a feature request? [Open an issue](https://github.com/brycewc/domo-toolkit/issues).

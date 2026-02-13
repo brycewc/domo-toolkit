@@ -1,0 +1,33 @@
+---
+description: Keep CONTRIBUTING.md tech stack versions and project structure in sync with the codebase
+globs: CONTRIBUTING.md
+alwaysApply: false
+---
+
+# CONTRIBUTING.md Sync
+
+When editing `CONTRIBUTING.md`, verify the following sections are up to date:
+
+## Tech Stack Table
+
+Read `package.json` and ensure every version in the Tech Stack table matches. Check both `dependencies` and `devDependencies`:
+
+- React → `react`
+- Vite → `vite`
+- @crxjs/vite-plugin → `@crxjs/vite-plugin`
+- @heroui/react → `@heroui/react`
+- Tailwind CSS → `tailwindcss`
+- @tabler/icons-react → `@tabler/icons-react`
+- @tanstack/react-table → `@tanstack/react-table`
+- @tanstack/react-virtual → `@tanstack/react-virtual`
+- Prettier → `prettier`
+
+Strip the `^` prefix from semver ranges to get the base version.
+
+## Project Structure
+
+List `src/` directory contents and ensure the tree in CONTRIBUTING.md matches. Add any new top-level directories or files, remove any that no longer exist.
+
+## Extension Permissions
+
+Read `manifest.config.js` and ensure the permissions table lists every entry from the `permissions` array.

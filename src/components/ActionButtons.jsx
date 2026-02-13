@@ -21,7 +21,6 @@ import {
   ContextFooter,
   DataRepair,
   DeleteCurrentObject,
-  FilterActivityLog,
   GetCards,
   GetDatasets,
   GetPages,
@@ -53,13 +52,6 @@ export function ActionButtons({
 
   const showStatus = useCallback(
     (title, description, status = 'accent', timeout = 3000) => {
-      // console.log('[ActionButtons] showStatus called:', {
-      //   title,
-      //   description,
-      //   status,
-      //   timeout,
-      //   key: Date.now()
-      // });
       setStatusBar({
         title,
         description,
@@ -180,10 +172,6 @@ export function ActionButtons({
                   currentContext={currentContext}
                   onStatusUpdate={showStatus}
                 />
-                {/* <FilterActivityLog
-                currentContext={currentContext}
-                // isDisabled={!isDomoPage}
-                /> */}
                 <NavigateToCopiedObject
                   ref={navigateToCopiedRef}
                   currentContext={currentContext}

@@ -3222,9 +3222,9 @@ react-aria@^3.45.0:
     "@react-aria/visually-hidden" "^3.8.29"
     "@react-types/shared" "^3.32.1"
 
-react-dom@^19.1.0:
+react-dom@19.2.4:
   version "19.2.4"
-  resolved "https://registry.npmjs.org/react-dom/-/react-dom-19.2.4.tgz"
+  resolved "https://registry.yarnpkg.com/react-dom/-/react-dom-19.2.4.tgz#6fac6bd96f7db477d966c7ec17c1a2b1ad8e6591"
   integrity sha512-AXJdLo8kgMbimY95O2aKQqsz2iWi9jMgKJhRBAxECE4IFxfcazB2LmzloIoibJI3C12IlY20+KFaLv+71bUJeQ==
   dependencies:
     scheduler "^0.27.0"

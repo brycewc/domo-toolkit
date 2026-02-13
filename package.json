@@ -1,7 +1,45 @@
 {
   "name": "domo-toolkit",
+  "version": "0.3.7",
+  "license": "MIT",
+  "description": "Domo Toolkit — Power Tools for Domo Administrators. Stop wasting time navigating menus, managing hundreds of identical browser tabs, copying DataSet IDs from the URL, and constantly clearing your cookies.",
+  "homepage": "https://github.com/brycewc/domo-toolkit",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/brycewc/domo-toolkit.git"
+  },
+  "bugs": {
+    "url": "https://github.com/brycewc/domo-toolkit/issues",
+    "email": "toolkit@domo.com"
+  },
+  "keywords": [
+    "domo",
+    "majordomo",
+    "toolkit",
+    "administrators",
+    "power tools",
+    "431 error",
+    "beast modes"
+  ],
+  "author": {
+    "name": "Bryce Cindrich",
+    "email": "bryce.cindrich@domo.com",
+    "url": "https://github.com/brycewc"
+  },
+  "contributors": [
+    {
+      "name": "William West",
+      "email": "william.west@domo.com",
+      "url": "https://github.com/Willwwest"
+    },
+    {
+      "name": "Elliot Leonard",
+      "email": "elliot.leonard@domo.com",
+      "url": "https://github.com/ellibot88"
+    }
+  ],
   "type": "module",
-  "version": "0.3.6",
+  "browser": true,
   "private": true,
   "scripts": {
     "dev": "vite",
@@ -9,16 +47,16 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@heroui/react": "3.0.0-beta.6",
-    "@heroui/styles": "3.0.0-beta.6",
+    "@heroui/react": "^3.0.0-beta.6",
+    "@heroui/styles": "^3.0.0-beta.6",
     "@tabler/icons-react": "^3.36.1",
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/react-table": "^8.21.3",
     "@tanstack/react-virtual": "^3.13.18",
     "eslint": "^10.0.0",
     "motion": "^12.29.3",
-    "react": "19.2.4",
-    "react-dom": "^19.1.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
     "react18-json-view": "^0.2.9",
     "tailwindcss": "^4.1.18",
     "xlsx": "^0.18.5"
