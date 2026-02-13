@@ -1053,6 +1053,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
         }
 
+        case 'OPEN_TRACER_OVERLAY': {
+          const { entityType, entityId, tabId } = message;
+          
+          if (!tabId) {
+            sendResponse({ success: false, error: 'No tab ID provided' });
+            break;
+          }
+
+          try {
+            await chrome.tabs.sendMessage(tabId, {
+              type: 'MOUNT_TRACER_OVERLAY',
+              entityType,
+              entityId,
+              tabId
+            });
+            sendResponse({ success: true });
+          } catch (error) {
+            console.error('[Background] Error opening tracer overlay:', error);
+            sendResponse({ success: false, error: error.message });
+          }
+          break;
+        }
+
         default:
           sendResponse({ success: false, error: 'Unknown message type' });
       }
