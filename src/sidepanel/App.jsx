@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { Card, Spinner } from '@heroui/react';
-import { ActionButtons, EmailSyncPanel, IntelligenceBrief, GetPagesView, LineageView } from '@/components';
+import { ActionButtons, GetPagesView, LineageView } from '@/components';
 import { useTheme } from '@/hooks';
 import { DomoContext } from '@/models';
 
@@ -174,10 +174,6 @@ export default function App() {
           statusCallbackRef.current = callback;
         }}
       />
-
-      <EmailSyncPanel />
-
-      <IntelligenceBrief />
 
       <LineageView
         currentContext={currentContext}
