@@ -11,8 +11,6 @@
   function isCardEndpoint(url) {
     var patterns = [
       /\/api\/.*\/cards/,
-      /\/api\/.*\/page/,
-      /\/api\/.*\/content/,
       /\/api\/.*\/visualization/,
       /\/api\/.*\/cardviews/
     ];
@@ -23,9 +21,16 @@
 
   var KPI_RENDER_PATTERN = /\/api\/content\/v3\/cards\/kpi\/render\/preview/;
 
+  function isOnCardPage() {
+    var href = location.href.toLowerCase();
+    return href.includes('/kpis/') || href.includes('cardid');
+  }
+
   // ---- Notification UI ----
 
   function showErrorNotification(errorData) {
+    if (!isOnCardPage()) return;
+
     // Ignore "Bad Request" errors
     if (JSON.parse(errorData.response)?.message == 'Bad Request') {
       return;

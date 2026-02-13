@@ -195,6 +195,11 @@ export async function getChildPages({
  * @throws {Error} If the fetch fails
  */
 export async function sharePagesWithSelf({ pageIds, userId, tabId }) {
+  const validPageIds = pageIds.filter((id) => id >= 0);
+  if (validPageIds.length === 0) {
+    throw new Error('No valid pages to share (all page IDs are negative)');
+  }
+
   try {
     // Execute fetch in page context to use authenticated session
     executeInPage(
@@ -225,7 +230,7 @@ export async function sharePagesWithSelf({ pageIds, userId, tabId }) {
           throw new Error(`Failed to share pages (HTTP ${response.status})`);
         }
       },
-      [pageIds, userId]
+      [validPageIds, userId]
     );
   } catch (error) {
     console.error('Error sharing pages:', error);

@@ -125,9 +125,22 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
     const timer = setTimeout(updatePanelMaxHeight, 100);
     window.addEventListener('resize', updatePanelMaxHeight);
 
+    // Re-apply whenever the DOM inside the disclosure changes (tab switches,
+    // async content loading, etc.) since HeroUI may replace panel elements.
+    const observer = new MutationObserver(() => updatePanelMaxHeight());
+    if (disclosureRef.current) {
+      observer.observe(disclosureRef.current, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['hidden', 'class']
+      });
+    }
+
     return () => {
       clearTimeout(timer);
       window.removeEventListener('resize', updatePanelMaxHeight);
+      observer.disconnect();
     };
   }, [isExpanded, updatePanelMaxHeight]);
 
@@ -192,6 +205,9 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
 
   // Lazy-load related object details when a tab is selected
   const handleTabChange = async (key) => {
+    // Re-apply max-height after the new panel renders
+    requestAnimationFrame(() => updatePanelMaxHeight());
+
     // Skip if it's the current object tab or already cached/loading
     const tab = tabs.find((t) => t.id === key);
     if (!tab || tab.isCurrentObject || relatedCache[key] || loadingTabs[key]) {

@@ -543,9 +543,26 @@ export function GetPagesView({
     try {
       if (pageData?.instance) {
         const tabId = await getValidTabForInstance(pageData.instance);
-        const count = items.length;
+
+        // Collect all non-virtual page IDs, including children of virtual items
+        const collectPageIds = (itemList) => {
+          const ids = [];
+          for (const item of itemList) {
+            if (!item.isVirtualParent) {
+              ids.push(item.id);
+            }
+            if (item.children) {
+              ids.push(...collectPageIds(item.children));
+            }
+          }
+          return ids;
+        };
+
+        const pageIds = collectPageIds(items);
+        const count = pageIds.length;
+
         await sharePagesWithSelf({
-          pageIds: items.map((item) => item.id),
+          pageIds,
           userId: pageData.userId,
           tabId
         });

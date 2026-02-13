@@ -31,6 +31,7 @@ export function DeleteCurrentObject({
     'DATA_APP_VIEW',
     'PAGE',
     'MAGNUM_COLLECTION',
+    'TEMPLATE',
     'WORKFLOW_MODEL'
   ];
 
@@ -51,6 +52,7 @@ export function DeleteCurrentObject({
         case 'APP':
         case 'BEAST_MODE_FORMULA':
         case 'MAGNUM_COLLECTION':
+        case 'TEMPLATE':
         case 'WORKFLOW_MODEL':
           // Use generic deleteObject function
           deleteResult = await deleteObject({
