@@ -52,12 +52,6 @@ export default defineManifest({
   },
   content_scripts: [
     {
-      js: ['src/csp-poc.jsx'],
-      matches: ['https://*.domo.com/*'],
-      run_at: 'document_start',
-      all_frames: true
-    },
-    {
       js: ['src/contentScript.js'],
       matches: ['https://*.domo.com/*'],
       run_at: 'document_idle',
