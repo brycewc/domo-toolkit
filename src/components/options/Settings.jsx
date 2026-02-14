@@ -26,7 +26,7 @@ export function Settings({ theme = 'system' }) {
     themePreference: theme,
     defaultDomoInstance: '',
     defaultClearCookiesHandling: 'auto',
-    cardErrorDetection: true
+    cardErrorDetection: false
   });
 
   // Track original settings to detect changes
@@ -34,7 +34,7 @@ export function Settings({ theme = 'system' }) {
     themePreference: theme,
     defaultDomoInstance: '',
     defaultClearCookiesHandling: 'auto',
-    cardErrorDetection: true
+    cardErrorDetection: false
   });
 
   const [statusBar, setStatusBar] = useState({
@@ -60,7 +60,7 @@ export function Settings({ theme = 'system' }) {
           defaultDomoInstance: result.defaultDomoInstance || '',
           defaultClearCookiesHandling:
             result.defaultClearCookiesHandling || 'auto',
-          cardErrorDetection: result.cardErrorDetection ?? true
+          cardErrorDetection: result.cardErrorDetection ?? false
         };
         setSettings(loadedSettings);
         setOriginalSettings(loadedSettings);

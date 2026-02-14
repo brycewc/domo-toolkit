@@ -1,10 +1,8 @@
 import { defineConfig } from 'vite';
 import manifest from './manifest.config.js';
-import { name, version } from './package.json';
 import path from 'node:path';
 import { crx } from '@crxjs/vite-plugin';
 import react from '@vitejs/plugin-react';
-import zip from 'vite-plugin-zip-pack';
 import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
@@ -13,16 +11,7 @@ export default defineConfig({
       '@': `${path.resolve(__dirname, 'src')}`
     }
   },
-  plugins: [
-    react(),
-    crx({ manifest }),
-    tailwindcss(),
-    zip({
-      outDir: 'release',
-      outFileName: `crx-${name}-${version}.zip`,
-      filter: (fileName, filePath) => !filePath.includes('.vite')
-    })
-  ],
+  plugins: [react(), crx({ manifest }), tailwindcss()],
   build: {
     // Extensions load from disk, not network - large chunks are fine
     chunkSizeWarningLimit: 1000,

@@ -44,6 +44,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "release": "vite build && node scripts/release.js",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -64,6 +65,7 @@
   "devDependencies": {
     "@crxjs/vite-plugin": "^2.0.3",
     "@vitejs/plugin-react": "^4.7.0",
+    "archiver": "^7.0.1",
     "prettier": "^3.7.4",
     "prettier-plugin-tailwindcss": "^0.7.2",
     "vite": "^7.3.0",
