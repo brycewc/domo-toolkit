@@ -6,6 +6,7 @@ export { CopyFilteredUrl } from './CopyFilteredUrl';
 export { DeleteCurrentObject } from './DeleteCurrentObject';
 export { GetCards } from './GetCards';
 export { GetDatasets } from './GetDatasets';
+export { GetOtherPages } from './GetOtherPages';
 export { GetPages } from './GetPages';
 export { NavigateToCopiedObject } from './NavigateToCopiedObject';
 export { RemoveEmptyStringsFromQuickFilters } from './RemoveEmptyStringsFromQuickFilters';

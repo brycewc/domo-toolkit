@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Separator, Spinner } from '@heroui/react';
+import { Button, Card, Spinner } from '@heroui/react';
 import { DataList } from '@/components';
 import {
   getDatasetsForPage,
@@ -136,23 +136,13 @@ export function GetDatasetsView({
       let dataflowInputs = data.dataflowInputs;
       let dataflowOutputs = data.dataflowOutputs;
 
-      console.log('[GetDatasetsView] Loaded data from storage:', {
-        type: data.type,
-        datasets,
-        dataflowInputs,
-        dataflowOutputs,
-        objectType
-      });
-
-      if (forceRefresh) {
-        console.log('[GetDatasetsView] Forcing refresh...');
+      if ((!datasets && !dataflowInputs && !dataflowOutputs) || forceRefresh) {
         const refreshResult = await fetchFreshDatasets({
           objectId,
           objectType,
           instance,
           details: domoObject.metadata?.details
         });
-        console.log('[GetDatasetsView] Fresh data:', refreshResult);
 
         if (objectType === 'DATAFLOW_TYPE') {
           dataflowInputs = refreshResult.inputs;
@@ -256,9 +246,11 @@ export function GetDatasetsView({
     const totalCount = getTotalCount();
 
     return (
-      <div className='flex min-w-0 flex-col items-start justify-start'>
-        <div className='truncate font-bold'>{viewData?.objectName}</div>
-        <div className='shrink-0'>{viewData?.typeLabel}</div>
+      <div className='flex flex-col gap-1'>
+        <div className='flex min-w-0 items-start justify-start gap-x-1'>
+          <div className='truncate font-bold'>{viewData?.objectName}</div>
+          <div className='shrink-0'>{viewData?.typeLabel}</div>
+        </div>
         {totalCount > 0 && (
           <div className='flex flex-row items-center gap-1'>
             <span className='text-sm text-muted'>
@@ -272,23 +264,23 @@ export function GetDatasetsView({
 
   if (isLoading && showSpinner) {
     return (
-      <div className='flex items-center justify-center'>
-        <div className='flex flex-col items-center gap-2'>
+      <Card className='flex w-full items-center justify-center p-0'>
+        <Card.Content className='flex flex-col items-center justify-center gap-2 p-2'>
           <Spinner size='lg' />
           <p className='text-muted'>Loading datasets...</p>
-        </div>
-      </div>
+        </Card.Content>
+      </Card>
     );
   }
 
   if (error) {
     return (
-      <div className='flex items-center justify-center p-4'>
-        <div className='flex flex-col items-center gap-2 text-center'>
+      <Card className='flex w-full items-center justify-center p-0'>
+        <Card.Content className='flex flex-col items-center justify-center gap-2 p-2'>
           <p className='text-danger'>{error}</p>
           <Button onPress={loadDatasetsData}>Retry</Button>
-        </div>
-      </div>
+        </Card.Content>
+      </Card>
     );
   }
 

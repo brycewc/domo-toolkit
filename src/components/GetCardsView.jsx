@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Button, Spinner } from '@heroui/react';
+import { Button, Card, Spinner } from '@heroui/react';
 import { DataList } from '@/components';
 import { getCardsForObject } from '@/services';
 import { DataListItem, DomoContext, DomoObject } from '@/models';
-import { getValidTabForInstance } from '@/utils';
+import { getValidTabForInstance, waitForCards } from '@/utils';
 
 /**
  * Transform cards into DataListItem format
@@ -84,14 +84,20 @@ export function GetCardsView({
 
       let cards = data.cards;
 
+      if (!cards && !forceRefresh) {
+        // No pre-fetched cards (popup handoff) -- try background-cached context
+        const waitResult = await waitForCards(context);
+        if (waitResult.success && waitResult.cards?.length) {
+          cards = waitResult.cards;
+        } else {
+          const tabId = await getValidTabForInstance(instance);
+          cards = await getCardsForObject({ objectId, objectType, tabId });
+        }
+      }
+
       if (forceRefresh) {
-        console.log('[GetCardsView] Forcing refresh...', objectType, objectId);
         const tabId = await getValidTabForInstance(instance);
-        cards = await getCardsForObject({
-          objectId,
-          objectType,
-          tabId
-        });
+        cards = await getCardsForObject({ objectId, objectType, tabId });
       }
 
       if (!cards || !Array.isArray(cards)) {
@@ -155,23 +161,23 @@ export function GetCardsView({
 
   if (isLoading && showSpinner) {
     return (
-      <div className='flex items-center justify-center'>
-        <div className='flex flex-col items-center gap-2'>
+      <Card className='flex w-full items-center justify-center p-0'>
+        <Card.Content className='flex flex-col items-center justify-center gap-2 p-2'>
           <Spinner size='lg' />
           <p className='text-muted'>Loading cards...</p>
-        </div>
-      </div>
+        </Card.Content>
+      </Card>
     );
   }
 
   if (error) {
     return (
-      <div className='flex items-center justify-center p-4'>
-        <div className='flex flex-col items-center gap-2 text-center'>
+      <Card className='flex w-full items-center justify-center p-0'>
+        <Card.Content className='flex flex-col items-center justify-center gap-2 p-2'>
           <p className='text-danger'>{error}</p>
           <Button onPress={loadCardsData}>Retry</Button>
-        </div>
-      </div>
+        </Card.Content>
+      </Card>
     );
   }
 

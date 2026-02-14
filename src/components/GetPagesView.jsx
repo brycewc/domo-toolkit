@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Separator, Spinner } from '@heroui/react';
+import { Button, Card, Separator, Spinner } from '@heroui/react';
 import { DataList } from '@/components';
 import {
   getCardsForObject,
@@ -9,7 +9,7 @@ import {
   removeCardFromPage
 } from '@/services';
 import { DataListItem, DomoContext, DomoObject } from '@/models';
-import { getValidTabForInstance } from '@/utils';
+import { getValidTabForInstance, waitForChildPages } from '@/utils';
 
 /**
  * Transform grouped pages data into hierarchical structure
@@ -35,29 +35,6 @@ function transformGroupedPagesData(childPages, origin) {
   });
 
   const items = [];
-
-  // Handle regular Pages/Dashboards
-  if (pagesByType.PAGE.length > 0) {
-    const sortedPages = pagesByType.PAGE.sort((a, b) =>
-      a.pageTitle.localeCompare(b.pageTitle)
-    );
-
-    const children = sortedPages.map((page) => {
-      const domoObject = new DomoObject('PAGE', page.pageId, origin, {
-        name: page.pageTitle
-      });
-      return DataListItem.fromDomoObject(domoObject);
-    });
-
-    items.push(
-      DataListItem.createGroup({
-        id: 'PAGE_group',
-        label: 'Pages/Dashboards',
-        children,
-        metadata: `${children.length} page${children.length !== 1 ? 's' : ''}`
-      })
-    );
-  }
 
   // Handle App Studio pages - group by app first
   if (pagesByType.DATA_APP_VIEW.length > 0) {
@@ -109,6 +86,29 @@ function transformGroupedPagesData(childPages, origin) {
         label: 'App Studio Apps',
         children: appChildren,
         metadata: `${pagesByApp.size} app${pagesByApp.size !== 1 ? 's' : ''}, ${pagesByType.DATA_APP_VIEW.length} page${pagesByType.DATA_APP_VIEW.length !== 1 ? 's' : ''}`
+      })
+    );
+  }
+
+  // Handle regular Pages/Dashboards
+  if (pagesByType.PAGE.length > 0) {
+    const sortedPages = pagesByType.PAGE.sort((a, b) =>
+      a.pageTitle.localeCompare(b.pageTitle)
+    );
+
+    const children = sortedPages.map((page) => {
+      const domoObject = new DomoObject('PAGE', page.pageId, origin, {
+        name: page.pageTitle
+      });
+      return DataListItem.fromDomoObject(domoObject);
+    });
+
+    items.push(
+      DataListItem.createGroup({
+        id: 'PAGE_group',
+        label: 'Pages/Dashboards',
+        children,
+        metadata: `${children.length} page${children.length !== 1 ? 's' : ''}`
       })
     );
   }
@@ -179,7 +179,9 @@ export function GetPagesView({
       console.log('Loaded sidepanel data:', data);
       if (
         !data ||
-        (data.type !== 'getPages' && data.type !== 'childPagesWarning')
+        (data.type !== 'getPages' &&
+          data.type !== 'getOtherPages' &&
+          data.type !== 'childPagesWarning')
       ) {
         setError('No page data found. Please try again from a page URL.');
         setIsLoading(false);
@@ -206,16 +208,42 @@ export function GetPagesView({
             domoObject.id
           : null;
 
+      const sidepanelType = data.type;
+
       // Either use cached childPages or fetch fresh data
       let childPages = data.childPages;
 
+      if (!childPages && !forceRefresh) {
+        // No pre-fetched data (popup handoff)
+        if (
+          sidepanelType !== 'getOtherPages' &&
+          (objectType === 'PAGE' || objectType === 'DATA_APP_VIEW')
+        ) {
+          // These types have background-cached child pages -- try that first
+          const waitResult = await waitForChildPages(context);
+          if (waitResult.success) {
+            childPages = waitResult.childPages;
+          }
+        }
+        // If still no data (or type doesn't use cache), fetch fresh
+        if (!childPages) {
+          childPages = await fetchFreshChildPages({
+            objectId,
+            objectType,
+            appId,
+            instance,
+            sidepanelType
+          });
+        }
+      }
+
       if (forceRefresh) {
-        console.log('[GetPagesView] Refreshing data for', objectType, objectId);
         childPages = await fetchFreshChildPages({
           objectId,
           objectType,
           appId,
-          instance
+          instance,
+          sidepanelType
         });
       }
 
@@ -232,11 +260,13 @@ export function GetPagesView({
       }
 
       const pageTypeLabel =
-        objectType === 'CARD' || objectType === 'DATA_SOURCE'
-          ? 'Pages'
-          : objectType === 'DATA_APP_VIEW'
-            ? 'App Pages'
-            : 'Child Pages';
+        sidepanelType === 'getOtherPages'
+          ? 'Other Pages'
+          : objectType === 'CARD' || objectType === 'DATA_SOURCE'
+            ? 'Pages'
+            : objectType === 'DATA_APP_VIEW'
+              ? 'App Pages'
+              : 'Child Pages';
 
       // Store metadata for rebuilding items later (including instance for refresh)
       setPageData({
@@ -247,12 +277,16 @@ export function GetPagesView({
         appId,
         instance,
         pageTypeLabel,
+        sidepanelType,
         userId: context.user?.id
       });
 
-      if (objectType === 'CARD' || objectType === 'DATA_SOURCE') {
+      if (
+        objectType === 'CARD' ||
+        objectType === 'DATA_SOURCE' ||
+        sidepanelType === 'getOtherPages'
+      ) {
         const transformedItems = transformGroupedPagesData(childPages, origin);
-        // This is CARD or DATA_SOURCE data - use the transformed structure
         setItems(transformedItems);
       } else {
         // Normal PAGE or DATA_APP_VIEW data - use existing logic
@@ -305,10 +339,39 @@ export function GetPagesView({
     objectId,
     objectType,
     appId,
-    instance
+    instance,
+    sidepanelType
   }) => {
     // Find a valid tab on the same Domo instance for API calls
     const tabId = await getValidTabForInstance(instance);
+
+    // Get Other Pages: get cards on the page, then find all other pages for those cards
+    if (sidepanelType === 'getOtherPages') {
+      const cards = await getCardsForObject({
+        objectId,
+        objectType,
+        tabId
+      });
+
+      if (!cards || !cards.length) return [];
+
+      const pages = await getPagesForCards(
+        cards.map((card) => card.id),
+        tabId
+      );
+
+      // Filter out the current page
+      const stringId = String(objectId);
+      return pages
+        .filter((page) => String(page.id) !== stringId)
+        .map((page) => ({
+          pageId: page.id,
+          pageTitle: page.name,
+          pageType: page.type,
+          appId: page.appId || null,
+          appName: page.appName || null
+        }));
+    }
 
     if (objectType === 'PAGE') {
       // Fetch child pages for regular PAGE
@@ -585,28 +648,6 @@ export function GetPagesView({
     }
   };
 
-  if (isLoading && showSpinner) {
-    return (
-      <div className='flex items-center justify-center'>
-        <div className='flex flex-col items-center gap-2'>
-          <Spinner size='lg' />
-          <p className='text-muted'>Loading child pages...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className='flex items-center justify-center p-4'>
-        <div className='flex flex-col items-center gap-2 text-center'>
-          <p className='text-danger'>{error}</p>
-          <Button onPress={loadPagesData}>Retry</Button>
-        </div>
-      </div>
-    );
-  }
-
   // Build the title section with name, label, and stats
   const renderTitle = () => {
     const grandchildCount = items.reduce(
@@ -622,7 +663,8 @@ export function GetPagesView({
         </div>
         {items.length !== undefined &&
           pageData?.objectType !== 'CARD' &&
-          pageData?.objectType !== 'DATA_SOURCE' && (
+          pageData?.objectType !== 'DATA_SOURCE' &&
+          pageData?.sidepanelType !== 'getOtherPages' && (
             <div className='flex flex-row items-center gap-1'>
               <span className='text-sm text-muted'>
                 {items.length}{' '}
@@ -647,6 +689,27 @@ export function GetPagesView({
       </div>
     );
   };
+  if (isLoading && showSpinner) {
+    return (
+      <Card className='flex w-full items-center justify-center p-0'>
+        <Card.Content className='flex flex-col items-center justify-center gap-2 p-2'>
+          <Spinner size='lg' />
+          <p className='text-muted'>Loading child pages...</p>
+        </Card.Content>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className='flex w-full items-center justify-center p-0'>
+        <Card.Content className='flex flex-col items-center justify-center gap-2 p-2'>
+          <p className='text-danger'>{error}</p>
+          <Button onPress={loadPagesData}>Retry</Button>
+        </Card.Content>
+      </Card>
+    );
+  }
 
   return (
     <DataList

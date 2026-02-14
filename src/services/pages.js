@@ -249,31 +249,22 @@ export async function getPagesForCards(cardIds, tabId = null) {
     // Execute fetch in page context to use authenticated session
     const result = await executeInPage(
       async (cardIds) => {
-        const BATCH_SIZE = 100;
+        // Fetch all cards in parallel (one request per card for speed)
+        const results = await Promise.all(
+          cardIds.map((cardId) =>
+            fetch(
+              `/api/content/v1/cards?urns=${cardId}&parts=adminAllPages`,
+              { method: 'GET' }
+            ).then((response) => {
+              if (!response.ok) return null;
+              return response.json();
+            })
+          )
+        );
 
-        // Split cardIds into batches of 100
-        const batches = [];
-        for (let i = 0; i < cardIds.length; i += BATCH_SIZE) {
-          batches.push(cardIds.slice(i, i + BATCH_SIZE));
-        }
-
-        // Fetch all batches and collect all card details
-        const allDetailCards = [];
-        for (const batch of batches) {
-          const response = await fetch(
-            `/api/content/v1/cards?urns=${batch.join(',')}&parts=adminAllPages`,
-            { method: 'GET' }
-          );
-
-          if (!response.ok) {
-            throw new Error(
-              `Failed to fetch cards. HTTP status: ${response.status}`
-            );
-          }
-
-          const detailCards = await response.json();
-          allDetailCards.push(...detailCards);
-        }
+        const allDetailCards = results
+          .filter(Boolean)
+          .flat();
 
         if (!allDetailCards.length) {
           throw new Error('No cards found.');

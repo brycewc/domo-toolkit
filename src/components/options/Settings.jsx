@@ -11,12 +11,14 @@ import {
   Switch,
   TextField
 } from '@heroui/react';
-import { StatusBar } from '../StatusBar';
 import {
   IconCheck,
   IconChevronDown,
   IconDeviceFloppy
 } from '@tabler/icons-react';
+import { StatusBar } from '../StatusBar';
+import toolkitLogo from '@/assets/toolkit-128.png';
+import toolkitLogoDark from '@/assets/toolkit-dark-128.png';
 
 export function Settings({ theme = 'system' }) {
   const [isLoading, setIsLoading] = useState(true);
@@ -24,6 +26,7 @@ export function Settings({ theme = 'system' }) {
   // Store all settings in a single state object for extensibility
   const [settings, setSettings] = useState({
     themePreference: theme,
+    iconStyle: 'light',
     defaultDomoInstance: '',
     defaultClearCookiesHandling: 'auto',
     cardErrorDetection: false
@@ -32,6 +35,7 @@ export function Settings({ theme = 'system' }) {
   // Track original settings to detect changes
   const [originalSettings, setOriginalSettings] = useState({
     themePreference: theme,
+    iconStyle: 'light',
     defaultDomoInstance: '',
     defaultClearCookiesHandling: 'auto',
     cardErrorDetection: false
@@ -50,6 +54,7 @@ export function Settings({ theme = 'system' }) {
     chrome.storage.sync.get(
       [
         'themePreference',
+        'iconStyle',
         'defaultDomoInstance',
         'defaultClearCookiesHandling',
         'cardErrorDetection'
@@ -57,6 +62,7 @@ export function Settings({ theme = 'system' }) {
       (result) => {
         const loadedSettings = {
           themePreference: result.themePreference || theme || 'system',
+          iconStyle: result.iconStyle || 'light',
           defaultDomoInstance: result.defaultDomoInstance || '',
           defaultClearCookiesHandling:
             result.defaultClearCookiesHandling || 'auto',
@@ -78,6 +84,11 @@ export function Settings({ theme = 'system' }) {
 
           if (changes.themePreference) {
             updatedSettings.themePreference = changes.themePreference.newValue;
+            hasChanges = true;
+          }
+
+          if (changes.iconStyle) {
+            updatedSettings.iconStyle = changes.iconStyle.newValue;
             hasChanges = true;
           }
 
@@ -108,6 +119,11 @@ export function Settings({ theme = 'system' }) {
 
           if (changes.themePreference) {
             updatedOriginal.themePreference = changes.themePreference.newValue;
+            hasChanges = true;
+          }
+
+          if (changes.iconStyle) {
+            updatedOriginal.iconStyle = changes.iconStyle.newValue;
             hasChanges = true;
           }
 
@@ -155,6 +171,13 @@ export function Settings({ theme = 'system' }) {
     setSettings((prev) => ({
       ...prev,
       themePreference: value
+    }));
+  };
+
+  const handleIconStyleChange = (value) => {
+    setSettings((prev) => ({
+      ...prev,
+      iconStyle: value
     }));
   };
 
@@ -244,6 +267,48 @@ export function Settings({ theme = 'system' }) {
               </ListBox.Item>
             </ListBox>
           </Select.Popover>
+          <Description className='w-lg'>
+            System, light, or dark theme (applies to popup, side panel, and
+            options pages)
+          </Description>
+        </Select>
+        <Select
+          value={settings.iconStyle}
+          onChange={handleIconStyleChange}
+          className='w-40'
+        >
+          <Label>Extension Icon</Label>
+          <Select.Trigger>
+            <Select.Value className='flex items-center gap-2' />
+            <Select.Indicator>
+              <IconChevronDown stroke={1} />
+            </Select.Indicator>
+          </Select.Trigger>
+          <Select.Popover>
+            <ListBox>
+              <ListBox.Item id='light' textValue='Light'>
+                <img src={toolkitLogo} alt='Light' className='h-4 w-4' />
+                Light
+                <ListBox.ItemIndicator>
+                  {({ isSelected }) =>
+                    isSelected ? <IconCheck stroke={1.5} /> : null
+                  }
+                </ListBox.ItemIndicator>
+              </ListBox.Item>
+              <ListBox.Item id='dark' textValue='Dark'>
+                <img src={toolkitLogoDark} alt='Dark' className='h-4 w-4' />
+                Dark
+                <ListBox.ItemIndicator>
+                  {({ isSelected }) =>
+                    isSelected ? <IconCheck stroke={1.5} /> : null
+                  }
+                </ListBox.ItemIndicator>
+              </ListBox.Item>
+            </ListBox>
+          </Select.Popover>
+          <Description className='w-md'>
+            Light or dark extension icon, independent of theme preference
+          </Description>
         </Select>
         <TextField onChange={handleDefaultInstanceChange} className='w-40'>
           <Label>Default Domo Instance</Label>
@@ -254,7 +319,7 @@ export function Settings({ theme = 'system' }) {
           <Description className='w-md'>
             This is used when navigating to copied objects from non-Domo
             websites. Enter without .domo.com (e.g., company for
-            company.domo.com).
+            company.domo.com)
           </Description>
         </TextField>
         <Select
@@ -298,7 +363,10 @@ export function Settings({ theme = 'system' }) {
             </ListBox>
           </Select.Popover>
           <Description className='w-lg'>
-            <p>Auto: Clear cookies on 431 errors, preserve last 2 instances</p>
+            <p>
+              Auto: Clear cookies on 431 errors, preserve last 2 instances
+              (removes manual button)
+            </p>
             <p>
               Preserve: Preserve last 2 instances (only manual, no
               auto-clearing)
@@ -315,8 +383,8 @@ export function Settings({ theme = 'system' }) {
           <Switch.Control>
             <Switch.Thumb />
           </Switch.Control>
-          <Description className='w-lg'>
-            Show inline error notifications when card API requests fail.
+          <Description className='ml-1 w-lg'>
+            Show inline error notifications when card API requests fail
           </Description>
         </Switch>
         <div className='pt-1'>

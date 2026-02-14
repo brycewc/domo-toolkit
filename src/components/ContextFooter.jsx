@@ -267,7 +267,10 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
           <Spinner size='sm' color='accent' />
         ) : (
           <>
-            <Alert.Title className='flex w-full items-start justify-between'>
+            <div
+              className='alert__title flex w-full items-start justify-between'
+              data-slot='alert-title'
+            >
               {currentContext?.isDomoPage ? (
                 <div className='flex flex-wrap items-center gap-x-1'>
                   <span className='flex flex-wrap items-center justify-start gap-x-1'>
@@ -328,7 +331,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
                   Click to toggle context JSON view
                 </Tooltip.Content>
               </Tooltip>
-            </Alert.Title>
+            </div>
             <Alert.Description className='flex h-full flex-col flex-wrap items-start justify-center gap-1'>
               {currentContext?.isDomoPage ? (
                 isLoading ? (

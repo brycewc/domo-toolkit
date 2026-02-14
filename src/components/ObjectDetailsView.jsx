@@ -163,23 +163,23 @@ export function ObjectDetailsView({
 
   if (isLoading && showSpinner) {
     return (
-      <div className='flex items-center justify-center'>
-        <div className='flex flex-col items-center gap-2'>
+      <Card className='flex w-full items-center justify-center p-0'>
+        <Card.Content className='flex flex-col items-center justify-center gap-2 p-2'>
           <Spinner size='lg' />
           <p className='text-muted'>Loading object details...</p>
-        </div>
-      </div>
+        </Card.Content>
+      </Card>
     );
   }
 
   if (error) {
     return (
-      <div className='flex items-center justify-center p-4'>
-        <div className='flex flex-col items-center gap-2 text-center'>
+      <Card className='flex w-full items-center justify-center p-0'>
+        <Card.Content className='flex flex-col items-center justify-center gap-2 p-2'>
           <p className='text-danger'>{error}</p>
           <Button onPress={loadObjectDetails}>Retry</Button>
-        </div>
-      </div>
+        </Card.Content>
+      </Card>
     );
   }
 

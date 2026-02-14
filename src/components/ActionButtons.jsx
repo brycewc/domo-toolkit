@@ -23,6 +23,7 @@ import {
   DeleteCurrentObject,
   GetCards,
   GetDatasets,
+  GetOtherPages,
   GetPages,
   NavigateToCopiedObject,
   RemoveEmptyStringsFromQuickFilters,
@@ -212,6 +213,18 @@ export function ActionButtons({
                   currentContext?.domoObject?.typeId === 'CARD' ||
                   currentContext?.domoObject?.typeId === 'DATA_SOURCE') && (
                   <GetPages
+                    currentContext={currentContext}
+                    onStatusUpdate={showStatus}
+                    isDisabled={!isDomoPage}
+                    onCollapseActions={
+                      collapsable ? () => setIsExpanded(false) : undefined
+                    }
+                  />
+                )}
+                {(currentContext?.domoObject?.typeId === 'PAGE' ||
+                  currentContext?.domoObject?.typeId === 'DATA_APP_VIEW' ||
+                  currentContext?.domoObject?.typeId === 'WORKSHEET_VIEW') && (
+                  <GetOtherPages
                     currentContext={currentContext}
                     onStatusUpdate={showStatus}
                     isDisabled={!isDomoPage}

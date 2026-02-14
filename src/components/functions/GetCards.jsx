@@ -3,7 +3,6 @@ import { Button, Spinner } from '@heroui/react';
 import {
   waitForCards,
   isSidepanel,
-  showStatus,
   storeSidepanelData,
   openSidepanel
 } from '@/utils';
@@ -60,6 +59,17 @@ export function GetCards({
         return;
       }
 
+      // Popup: hand off intent to sidepanel immediately, no API calls
+      if (!isSidepanel()) {
+        await storeSidepanelData({
+          type: 'getCards',
+          currentContext
+        });
+        openSidepanel();
+        return;
+      }
+
+      // Sidepanel: fetch data, then display
       let cards;
 
       if (PRE_FETCHED_TYPES.includes(objectType)) {
@@ -89,8 +99,6 @@ export function GetCards({
         return;
       }
 
-      const inSidepanel = isSidepanel();
-
       if (onCollapseActions) {
         await storeSidepanelData({
           type: 'loading',
@@ -100,18 +108,6 @@ export function GetCards({
 
         onCollapseActions();
         await new Promise((resolve) => setTimeout(resolve, 175));
-      }
-
-      if (!inSidepanel) {
-        openSidepanel();
-        await showStatus({
-          onStatusUpdate,
-          title: 'Opening Sidepanel',
-          description: 'Loading cards...',
-          status: 'success',
-          timeout: 2000,
-          inSidepanel
-        });
       }
 
       await storeSidepanelData({

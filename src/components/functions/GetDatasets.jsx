@@ -1,11 +1,6 @@
 import { useState } from 'react';
 import { Button, Spinner } from '@heroui/react';
-import {
-  isSidepanel,
-  showStatus,
-  storeSidepanelData,
-  openSidepanel
-} from '@/utils';
+import { isSidepanel, storeSidepanelData, openSidepanel } from '@/utils';
 import {
   getDatasetsForPage,
   getDatasetsForDataflow,
@@ -71,41 +66,39 @@ export function GetDatasets({
         }
       }
 
+      // Popup: hand off intent to sidepanel immediately, no API calls
+      if (!isSidepanel()) {
+        await storeSidepanelData({
+          type: 'getDatasets',
+          currentContext
+        });
+        openSidepanel();
+        return;
+      }
+
+      // Sidepanel: fetch data, then display
       let datasets = [];
       let dataflowInputs = null;
       let dataflowOutputs = null;
 
-      // Fetch datasets based on object type
-      console.log('[GetDatasets] Fetching datasets for:', objectType, objectId);
       if (objectType === 'PAGE' || objectType === 'DATA_APP_VIEW') {
         datasets = await getDatasetsForPage({
           pageId: objectId,
           tabId: currentContext?.tabId
         });
-        console.log('[GetDatasets] getDatasetsForPage returned:', datasets);
       } else if (objectType === 'DATAFLOW_TYPE') {
         const details = currentContext.domoObject.metadata?.details;
         const result = getDatasetsForDataflow({ details });
         dataflowInputs = result.inputs;
         dataflowOutputs = result.outputs;
-        // Combine for empty check
         datasets = [...result.inputs, ...result.outputs];
-        console.log('[GetDatasets] getDatasetsForDataflow returned:', result);
       } else if (objectType === 'DATA_SOURCE') {
         datasets = await getDatasetsForView({
           datasetId: objectId,
           tabId: currentContext?.tabId
         });
-        console.log('[GetDatasets] getDatasetsForView returned:', datasets);
       }
 
-      // Check if we got any datasets
-      console.log(
-        '[GetDatasets] Final datasets array:',
-        datasets,
-        'length:',
-        datasets?.length
-      );
       if (!datasets || datasets.length === 0) {
         const message =
           objectType === 'DATAFLOW_TYPE'
@@ -119,10 +112,6 @@ export function GetDatasets({
         return;
       }
 
-      // Prepare to show in sidepanel
-      const inSidepanel = isSidepanel();
-
-      // Collapse action buttons if in sidepanel
       if (onCollapseActions) {
         await storeSidepanelData({
           type: 'loading',
@@ -134,29 +123,14 @@ export function GetDatasets({
         await new Promise((resolve) => setTimeout(resolve, 175));
       }
 
-      if (!inSidepanel) {
-        openSidepanel();
-        await showStatus({
-          onStatusUpdate,
-          title: 'Opening Sidepanel',
-          description: 'Loading datasets...',
-          status: 'success',
-          timeout: 2000,
-          inSidepanel
-        });
-      }
-
-      // Store the dataset information for the sidepanel
-      const sidepanelData = {
+      await storeSidepanelData({
         type: 'getDatasets',
         currentContext,
         datasets: objectType === 'DATAFLOW_TYPE' ? null : datasets,
         dataflowInputs,
         dataflowOutputs,
         statusShown: true
-      };
-      console.log('[GetDatasets] Storing sidepanel data:', sidepanelData);
-      await storeSidepanelData(sidepanelData);
+      });
     } catch (error) {
       console.error('[GetDatasets] Error:', error);
       onStatusUpdate?.(
