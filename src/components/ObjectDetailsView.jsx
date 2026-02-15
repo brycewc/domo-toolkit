@@ -5,6 +5,7 @@ import {
   Card,
   Chip,
   Disclosure,
+  ScrollShadow,
   Spinner,
   Tooltip
 } from '@heroui/react';
@@ -186,7 +187,7 @@ export function ObjectDetailsView({
   if (!domoObject) return null;
 
   return (
-    <Card className='overflow-y-scroll overscroll-x-none overscroll-y-contain p-2'>
+    <Card className='min-h-0 flex-1 overflow-hidden p-2'>
       <Card.Header>
         <Card.Title className='flex items-start justify-between'>
           <div className='flex min-w-0 flex-1 flex-col gap-1'>
@@ -234,6 +235,7 @@ export function ObjectDetailsView({
         </Card.Title>
       </Card.Header>
 
+      <ScrollShadow hideScrollBar className='min-h-0 flex-1 overflow-y-auto' orientation='vertical'>
       <Card.Content className='flex flex-col gap-3'>
         {/* Key Fields */}
         {keyFields.length > 0 && (
@@ -340,6 +342,7 @@ export function ObjectDetailsView({
             </Disclosure>
           )}
       </Card.Content>
+      </ScrollShadow>
     </Card>
   );
 }

@@ -1,13 +1,17 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, Spinner } from '@heroui/react';
+import { AnimatePresence, motion } from 'motion/react';
 import {
   ActionButtons,
+  ContextFooter,
   GetCardsView,
   GetDatasetsView,
   GetPagesView,
-  ObjectDetailsView
+  LinkPreview,
+  ObjectDetailsView,
+  StatusBar
 } from '@/components';
-import { useTheme } from '@/hooks';
+import { useStatusBar, useTheme } from '@/hooks';
 import { DomoContext } from '@/models';
 
 export default function App() {
@@ -19,7 +23,7 @@ export default function App() {
   const [currentContext, setCurrentContext] = useState(null);
   const [currentTabId, setCurrentTabId] = useState(null);
   const [isLoadingCurrentContext, setIsLoadingCurrentContext] = useState(true);
-  const statusCallbackRef = useRef(null);
+  const { statusBar, showStatus, hideStatus } = useStatusBar();
 
   // Listen for storage changes for sidepanel data
   useEffect(() => {
@@ -126,16 +130,12 @@ export default function App() {
         sendResponse({ received: true });
         return true;
       } else if (message.type === 'SHOW_STATUS') {
-        if (statusCallbackRef.current) {
-          statusCallbackRef.current(
-            message.title,
-            message.description,
-            message.status || 'accent',
-            message.timeout !== undefined ? message.timeout : 3000
-          );
-        }
-
-        // Send response for this message type
+        showStatus(
+          message.title,
+          message.description,
+          message.status || 'accent',
+          message.timeout !== undefined ? message.timeout : 3000
+        );
         sendResponse({ received: true });
         return true;
       }
@@ -148,7 +148,7 @@ export default function App() {
     return () => {
       chrome.runtime.onMessage.removeListener(handleMessage);
     };
-  }, [currentTabId]);
+  }, [currentTabId, showStatus]);
 
   // Listen for tab activation changes
   useEffect(() => {
@@ -187,54 +187,83 @@ export default function App() {
   };
 
   return (
-    <div className='flex h-full max-h-screen w-full flex-col items-start justify-start space-y-1 overscroll-contain p-1'>
-      <ActionButtons
-        currentContext={currentContext}
-        isLoadingCurrentContext={isLoadingCurrentContext}
-        collapsable={true}
-        onStatusCallbackReady={(callback) => {
-          statusCallbackRef.current = callback;
-        }}
-      />
-
-      {activeView === 'loading' && (
-        <Card className='h-full w-full'>
-          <Card.Content className='flex flex-col items-center justify-center gap-2 py-8'>
-            <Spinner size='lg' />
-            <p className='text-sm text-muted'>{loadingMessage}</p>
-          </Card.Content>
-        </Card>
-      )}
-
-      {(activeView === 'getPages' ||
-        activeView === 'getOtherPages' ||
-        activeView === 'childPagesWarning') && (
-        <GetPagesView
-          onBackToDefault={handleBackToDefault}
-          onStatusUpdate={statusCallbackRef.current}
+    <>
+      <div className='flex h-full max-h-screen min-h-0 w-full flex-col items-start justify-start space-y-1 overscroll-contain p-1'>
+        <ActionButtons
+          currentContext={currentContext}
+          isLoadingCurrentContext={isLoadingCurrentContext}
+          collapsable={true}
+          onStatusUpdate={showStatus}
         />
-      )}
 
-      {activeView === 'getCards' && (
-        <GetCardsView
-          onBackToDefault={handleBackToDefault}
-          onStatusUpdate={statusCallbackRef.current}
-        />
-      )}
+        <div className={`relative flex min-h-0 w-full flex-col ${activeView === 'default' || activeView === 'loading' ? 'flex-1' : ''}`}>
+          <ContextFooter
+            currentContext={currentContext}
+            isLoading={isLoadingCurrentContext}
+            onStatusUpdate={showStatus}
+          />
+          <AnimatePresence>
+            {statusBar.visible && (
+              <motion.div
+                key={statusBar.key}
+                className='absolute inset-0 z-10'
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.15 }}
+              >
+                <StatusBar
+                  title={statusBar.title}
+                  description={statusBar.description}
+                  status={statusBar.status}
+                  timeout={statusBar.timeout}
+                  onClose={hideStatus}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
-      {activeView === 'getDatasets' && (
-        <GetDatasetsView
-          onBackToDefault={handleBackToDefault}
-          onStatusUpdate={statusCallbackRef.current}
-        />
-      )}
+        {activeView === 'loading' && (
+          <Card className='h-full w-full'>
+            <Card.Content className='flex flex-col items-center justify-center gap-2 py-8'>
+              <Spinner size='lg' />
+              <p className='text-sm text-muted'>{loadingMessage}</p>
+            </Card.Content>
+          </Card>
+        )}
 
-      {activeView === 'viewObjectDetails' && (
-        <ObjectDetailsView
-          onBackToDefault={handleBackToDefault}
-          onStatusUpdate={statusCallbackRef.current}
-        />
-      )}
-    </div>
+        {(activeView === 'getPages' ||
+          activeView === 'getOtherPages' ||
+          activeView === 'childPagesWarning') && (
+          <GetPagesView
+            onBackToDefault={handleBackToDefault}
+            onStatusUpdate={showStatus}
+          />
+        )}
+
+        {activeView === 'getCards' && (
+          <GetCardsView
+            onBackToDefault={handleBackToDefault}
+            onStatusUpdate={showStatus}
+          />
+        )}
+
+        {activeView === 'getDatasets' && (
+          <GetDatasetsView
+            onBackToDefault={handleBackToDefault}
+            onStatusUpdate={showStatus}
+          />
+        )}
+
+        {activeView === 'viewObjectDetails' && (
+          <ObjectDetailsView
+            onBackToDefault={handleBackToDefault}
+            onStatusUpdate={showStatus}
+          />
+        )}
+      </div>
+      <LinkPreview />
+    </>
   );
 }

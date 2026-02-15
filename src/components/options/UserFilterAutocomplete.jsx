@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   Autocomplete,
   Avatar,
@@ -35,6 +35,7 @@ export function UserFilterAutocomplete({
   const [hasMore, setHasMore] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasFetchedInitial, setHasFetchedInitial] = useState(false);
+  const lastFetchedSearch = useRef(null);
 
   // Fetch initial users on mount
   useEffect(() => {
@@ -54,6 +55,7 @@ export function UserFilterAutocomplete({
           setUsers(fetchedUsers);
           setHasMore(totalCount !== null && fetchedUsers.length < totalCount);
           setSearchOffset(fetchedUsers.length);
+          lastFetchedSearch.current = '';
           setHasFetchedInitial(true);
         }
       } catch (error) {
@@ -78,8 +80,8 @@ export function UserFilterAutocomplete({
   useEffect(() => {
     // Skip if no tabId or if this is the initial empty search
     if (!tabId || !hasFetchedInitial) return;
-    // Also skip if searchText is empty and we already have initial data
-    if (searchText === '' && users.length > 0) return;
+    // Skip if we already fetched this exact search term
+    if (searchText === lastFetchedSearch.current) return;
 
     const controller = new AbortController();
     const debounceTimer = setTimeout(async () => {
@@ -95,6 +97,7 @@ export function UserFilterAutocomplete({
           setUsers(fetchedUsers);
           setHasMore(totalCount !== null && fetchedUsers.length < totalCount);
           setSearchOffset(fetchedUsers.length);
+          lastFetchedSearch.current = searchText;
         }
       } catch (error) {
         if (error.name !== 'AbortError') {
@@ -208,6 +211,7 @@ export function UserFilterAutocomplete({
       <Autocomplete.Popover
         aria-label='User autocomplete popover'
         placement='bottom left'
+        className='h-fit max-h-160'
       >
         <Autocomplete.Filter
           inputValue={searchText}

@@ -271,17 +271,18 @@ function injectStreamErrorEnricher() {
 }
 
 // Watch for .dc-repair-table to appear, then inject the MAIN world script
-const streamErrorTableObserver = new MutationObserver(() => {
-  if (document.querySelector('.dc-repair-table')) {
-    injectStreamErrorEnricher();
-  }
-});
-
 if (document.querySelector('.dc-repair-table')) {
   injectStreamErrorEnricher();
-}
+} else {
+  const streamErrorTableObserver = new MutationObserver(() => {
+    if (document.querySelector('.dc-repair-table')) {
+      injectStreamErrorEnricher();
+      streamErrorTableObserver.disconnect();
+    }
+  });
 
-streamErrorTableObserver.observe(document.body, {
-  childList: true,
-  subtree: true
-});
+  streamErrorTableObserver.observe(document.body, {
+    childList: true,
+    subtree: true
+  });
+}

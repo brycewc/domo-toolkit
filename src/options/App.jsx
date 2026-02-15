@@ -47,14 +47,14 @@ export default function App() {
   }, []);
 
   return (
-    <div className='flex h-screen justify-center p-4'>
+    <div className='flex h-screen w-full justify-center'>
       <Tabs
-        className='h-[calc(100vh-4)] w-full items-center rounded-sm'
+        className='h-full w-full items-center rounded-sm'
         selectedKey={selectedTab}
         onSelectionChange={handleTabChange}
         variant='secondary'
       >
-        <Tabs.ListContainer className='flex w-full max-w-3xl flex-row justify-center'>
+        <Tabs.ListContainer className='fixed top-0 z-10 flex h-fit w-full max-w-3xl flex-row items-end justify-center bg-background pt-4'>
           <Tabs.List>
             {showWelcome && (
               <Tabs.Tab id='welcome'>
@@ -79,13 +79,13 @@ export default function App() {
           </Tabs.List>
         </Tabs.ListContainer>
         <Tabs.Panel
-          className='flex h-full max-w-3xl flex-col px-4'
+          className='flex h-full max-w-3xl flex-col px-4 pt-16'
           id='welcome'
         >
           <WelcomePage />
         </Tabs.Panel>
         <Tabs.Panel
-          className='flex h-full max-w-3xl flex-col px-4'
+          className='flex h-full max-w-3xl flex-col px-4 pt-16'
           id='favicon'
         >
           <div className='w-full justify-start'>
@@ -98,7 +98,7 @@ export default function App() {
           <FaviconSettings />
         </Tabs.Panel>
         <Tabs.Panel
-          className='flex h-full max-w-3xl flex-col px-4'
+          className='flex h-full max-w-3xl flex-col px-4 pt-16'
           id='settings'
         >
           <div className='w-full justify-start'>
@@ -110,7 +110,7 @@ export default function App() {
           <Settings theme={theme} />
         </Tabs.Panel>
         <Tabs.Panel
-          className='flex flex-col items-start px-4'
+          className='flex flex-col items-start px-4 pt-16'
           id='activity-log'
         >
           {selectedTab === 'activity-log' && <ActivityLogTable />}

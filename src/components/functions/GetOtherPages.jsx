@@ -62,7 +62,7 @@ export function GetOtherPages({
         return;
       }
 
-      const pages = await getPagesForCards(
+      const { pages, cardsByPage } = await getPagesForCards(
         result.cards.map((card) => card.id),
         currentContext?.tabId
       );
@@ -114,6 +114,7 @@ export function GetOtherPages({
         type: 'getOtherPages',
         currentContext,
         childPages,
+        cardsByPage,
         statusShown: true
       });
     } catch (error) {

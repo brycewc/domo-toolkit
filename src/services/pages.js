@@ -262,19 +262,34 @@ export async function getPagesForCards(cardIds, tabId = null) {
           )
         );
 
-        const allDetailCards = results
-          .filter(Boolean)
-          .flat();
+        const allDetailCards = results.filter(Boolean).flat();
 
         if (!allDetailCards.length) {
           throw new Error('No cards found.');
         }
-        // console.log(allDetailCards);
+
         // Build flat lists of all pages, app pages, and report pages from all cards
+        // Also build reverse mapping: pageId -> [{ id, name }] for cards on each page
         const allPages = [];
         const allAppPages = [];
         const allWorksheetViews = [];
         const allReportPages = [];
+        const cardsByPage = {};
+
+        const addCardToPage = (pageId, card) => {
+          const key = String(pageId);
+          if (!cardsByPage[key]) {
+            cardsByPage[key] = [];
+          }
+          const cardId = card.id || card.urn;
+          // Avoid duplicate cards on the same page
+          if (!cardsByPage[key].some((c) => c.id === cardId)) {
+            cardsByPage[key].push({
+              id: cardId,
+              name: card.title || card.name || `Card ${cardId}`
+            });
+          }
+        };
 
         allDetailCards.forEach((card) => {
           // Regular pages
@@ -285,6 +300,7 @@ export async function getPagesForCards(cardIds, tabId = null) {
                   id: page.pageId,
                   name: page.title || `Page ${page.pageId}`
                 });
+                addCardToPage(page.pageId, card);
               }
             });
           }
@@ -308,6 +324,7 @@ export async function getPagesForCards(cardIds, tabId = null) {
                     appName: page.appTitle || `App ${page.appId}`
                   });
                 }
+                addCardToPage(page.appPageId, card);
               }
             });
           }
@@ -320,6 +337,7 @@ export async function getPagesForCards(cardIds, tabId = null) {
                   name:
                     page.reportPageTitle || `Report Page ${page.reportPageId}`
                 });
+                addCardToPage(page.reportPageId, card);
               }
             });
           }
@@ -369,7 +387,7 @@ export async function getPagesForCards(cardIds, tabId = null) {
           }))
         ];
 
-        return pageObjects;
+        return { pages: pageObjects, cardsByPage };
       },
       [cardIds],
       tabId

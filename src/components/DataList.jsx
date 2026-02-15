@@ -6,6 +6,7 @@ import {
   Disclosure,
   DisclosureGroup,
   Link,
+  ScrollShadow,
   Tooltip,
   Popover
 } from '@heroui/react';
@@ -15,6 +16,7 @@ import {
   IconCopyX,
   IconDots,
   IconFolders,
+  IconChartBar,
   IconRefresh,
   IconUserPlus,
   IconUsersPlus,
@@ -241,7 +243,7 @@ export function DataList({
   const hasHeaderActions = headerActions.length > 0 || onClose;
 
   return (
-    <Card className='min-h-0 w-full flex-1 overflow-y-scroll overscroll-x-none overscroll-y-contain p-2'>
+    <Card className='min-h-60 w-full flex-1 p-2'>
       {(title || hasHeaderActions) && (
         <Card.Header>
           <div className='flex flex-col gap-1'>
@@ -358,24 +360,30 @@ export function DataList({
         </Card.Header>
       )}
 
-      <Card.Content>
-        <DisclosureGroup
-          className='flex w-full flex-col'
-          allowsMultipleExpanded
-        >
-          {items.map((item, index) => (
-            <DataListItem
-              key={item.id || index}
-              item={item}
-              itemActions={itemActions}
-              onItemAction={handleItemAction}
-              showActions={showActions}
-              showCounts={showCounts}
-              objectType={objectType}
-            />
-          ))}
-        </DisclosureGroup>
-      </Card.Content>
+      <ScrollShadow
+        orientation='vertical'
+        hideScrollBar
+        className='h-full overflow-y-auto overscroll-x-none overscroll-y-contain'
+      >
+        <Card.Content>
+          <DisclosureGroup
+            className='flex w-full flex-col'
+            allowsMultipleExpanded
+          >
+            {items.map((item, index) => (
+              <DataListItem
+                key={item.id || index}
+                item={item}
+                itemActions={itemActions}
+                onItemAction={handleItemAction}
+                showActions={showActions}
+                showCounts={showCounts}
+                objectType={objectType}
+              />
+            ))}
+          </DisclosureGroup>
+        </Card.Content>
+      </ScrollShadow>
     </Card>
   );
 }
@@ -421,15 +429,6 @@ function DataListItem({
       onItemAction(actionType, item);
     }
   };
-
-  const labelTooltip = (
-    <Tooltip delay={200} closeDelay={0} className='flex-1'>
-      <Tooltip.Trigger className='truncate'>{item.label}</Tooltip.Trigger>
-      <Tooltip.Content placement='top left' offset={8}>
-        ID: {item.id}
-      </Tooltip.Content>
-    </Tooltip>
-  );
 
   // Action button builders
   const removeButton = (
@@ -577,6 +576,73 @@ function DataListItem({
 
   const applicableActions = showActions ? getApplicableActions() : [];
 
+  const labelTooltip = (
+    <Tooltip delay={200} closeDelay={0} className='flex-1'>
+      <Tooltip.Trigger className='flex items-center truncate'>
+        {item.typeId === 'CARD' && (
+          <IconChartBar
+            stroke={1.5}
+            size={14}
+            className='mr-1 inline shrink-0 align-text-bottom'
+          />
+        )}
+        {item.label}
+      </Tooltip.Trigger>
+      <Tooltip.Content placement='top left' offset={4}>
+        ID: {item.id}
+      </Tooltip.Content>
+    </Tooltip>
+  );
+
+  const itemLabel =
+    !item?.isVirtualParent &&
+    (item.url ? (
+      <Link
+        href={item.url}
+        target='_blank'
+        className='truncate text-sm font-normal no-underline decoration-accent hover:text-accent hover:underline'
+        isDisabled={!item.url}
+      >
+        {labelTooltip}
+      </Link>
+    ) : (
+      <span className='text-sm'>{labelTooltip}</span>
+    ));
+
+  const actions =
+    applicableActions.length === 1
+      ? applicableActions[0]
+      : applicableActions.length > 1 && (
+          <Popover>
+            <Button variant='ghost' size='sm' isIconOnly>
+              <IconDots stroke={1.5} />
+            </Button>
+            <Popover.Content placement='left' offset={4}>
+              <Popover.Dialog className='p-0'>
+                <ButtonGroup
+                  variant='ghost'
+                  size='sm'
+                  className='flex max-w-xs justify-end'
+                  fullWidth
+                >
+                  {applicableActions}
+                </ButtonGroup>
+              </Popover.Dialog>
+            </Popover.Content>
+          </Popover>
+        );
+
+  if (!hasChildren) {
+    return (
+      <div className='flex min-h-9 w-full flex-row items-center justify-between gap-1 border-t border-border py-1'>
+        <div className='flex w-full min-w-0 flex-1 basis-4/5 items-center gap-2'>
+          {itemLabel}
+        </div>
+        {actions}
+      </div>
+    );
+  }
+
   return (
     <Disclosure
       isOpen={isOpen}
@@ -585,80 +651,46 @@ function DataListItem({
     >
       <Disclosure.Heading className='my-1 flex min-h-9 w-full flex-row justify-between gap-1'>
         <div className='flex w-full min-w-0 flex-1 basis-4/5 items-center gap-2'>
-          {!item?.isVirtualParent &&
-            (item.url ? (
-              <Link
-                href={item.url}
-                target='_blank'
-                className='truncate text-sm font-normal no-underline decoration-accent hover:text-accent hover:underline'
-                isDisabled={!item.url}
-              >
-                {labelTooltip}
-              </Link>
-            ) : (
-              <span className='text-sm'>{labelTooltip}</span>
-            ))}
-          {hasChildren && (
-            <>
-              <Disclosure.Trigger
-                variant='tertiary'
-                aria-label='Toggle'
-                className='flex shrink-0 flex-row items-center gap-1'
-              >
-                {item.isVirtualParent && (
-                  <p className='truncate text-sm font-medium'>{item.label}</p>
-                )}
-                {showCounts && item.count !== undefined && (
-                  <p className='text-sm text-muted'> ({item.count})</p>
-                )}
-                <Disclosure.Indicator>
-                  <IconChevronDown stroke={1.5} />
-                </Disclosure.Indicator>
-              </Disclosure.Trigger>
-            </>
-          )}
-        </div>
-        {applicableActions.length === 1
-          ? applicableActions[0]
-          : applicableActions.length > 1 && (
-              <Popover>
-                <Button variant='ghost' size='sm' isIconOnly>
-                  <IconDots stroke={1.5} />
-                </Button>
-                <Popover.Content placement='left' offset={4}>
-                  <Popover.Dialog className='p-0'>
-                    <ButtonGroup
-                      variant='ghost'
-                      size='sm'
-                      className='flex max-w-xs justify-end'
-                      fullWidth
-                    >
-                      {applicableActions}
-                    </ButtonGroup>
-                  </Popover.Dialog>
-                </Popover.Content>
-              </Popover>
+          {itemLabel}
+          <Disclosure.Trigger
+            variant='tertiary'
+            aria-label='Toggle'
+            className='flex shrink-0 flex-row items-center gap-1'
+          >
+            {item.isVirtualParent && (
+              <p className='truncate text-sm font-medium'>{item.label}</p>
             )}
+            {showCounts && item.count !== undefined && (
+              <p className='text-sm text-muted'>
+                {' '}
+                ({item.count}
+                {item.countLabel ? ` ${item.countLabel}` : ''})
+              </p>
+            )}
+            <Disclosure.Indicator>
+              <IconChevronDown stroke={1.5} />
+            </Disclosure.Indicator>
+          </Disclosure.Trigger>
+        </div>
+        {actions}
       </Disclosure.Heading>
-      {hasChildren && (
-        <Disclosure.Content>
-          <Disclosure.Body>
-            {item.children.map((child, index) => (
-              <DataListItem
-                key={child.id || index}
-                item={child}
-                index={index}
-                itemActions={itemActions}
-                onItemAction={onItemAction}
-                showActions={showActions}
-                showCounts={showCounts}
-                depth={depth + 1}
-                objectType={objectType}
-              />
-            ))}
-          </Disclosure.Body>
-        </Disclosure.Content>
-      )}
+      <Disclosure.Content>
+        <Disclosure.Body>
+          {item.children.map((child, index) => (
+            <DataListItem
+              key={child.id || index}
+              item={child}
+              index={index}
+              itemActions={itemActions}
+              onItemAction={onItemAction}
+              showActions={showActions}
+              showCounts={showCounts}
+              depth={depth + 1}
+              objectType={objectType}
+            />
+          ))}
+        </Disclosure.Body>
+      </Disclosure.Content>
     </Disclosure>
   );
 }

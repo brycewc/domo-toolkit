@@ -9,9 +9,12 @@ import { getValidTabForInstance, waitForCards } from '@/utils';
  * Transform cards into DataListItem format
  * @param {Array} cards - Array of card objects
  * @param {string} origin - The base URL origin
+ * @param {string} [objectType] - The parent object type (e.g., 'PAGE', 'DATA_APP_VIEW')
+ * @param {string|number} [objectId] - The parent object ID (page or view ID)
+ * @param {string|number} [parentId] - The grandparent ID (e.g., appId for DATA_APP_VIEW)
  * @returns {DataListItem[]}
  */
-function transformCardsToItems(cards, origin) {
+function transformCardsToItems(cards, origin, objectType, objectId, parentId) {
   return cards
     .sort((a, b) => {
       const nameA = a.title || a.name || '';
@@ -22,6 +25,12 @@ function transformCardsToItems(cards, origin) {
       const domoObject = new DomoObject('CARD', card.id, origin, {
         name: card.title || card.name
       });
+      // Override generic card URL with page-specific URL when on a page or app
+      if (objectType === 'DATA_APP_VIEW' || objectType === 'WORKSHEET_VIEW') {
+        domoObject.url = `${origin}/app-studio/${parentId}/pages/${objectId}/kpis/details/${card.id}`;
+      } else if (objectType === 'PAGE') {
+        domoObject.url = `${origin}/page/${objectId}/kpis/details/${card.id}`;
+      }
       return DataListItem.fromDomoObject(domoObject);
     });
 }
@@ -74,12 +83,15 @@ export function GetCardsView({
       const instance = context.instance;
       const origin = `https://${instance}.domo.com`;
 
+      const parentId = domoObject.parentId || null;
+
       setViewData({
         objectId,
         objectType,
         objectName,
         origin,
-        instance
+        instance,
+        parentId
       });
 
       let cards = data.cards;
@@ -105,7 +117,13 @@ export function GetCardsView({
         return;
       }
 
-      const transformedItems = transformCardsToItems(cards, origin);
+      const transformedItems = transformCardsToItems(
+        cards,
+        origin,
+        objectType,
+        objectId,
+        parentId
+      );
       setItems(transformedItems);
     } catch (err) {
       console.error('Error loading cards:', err);

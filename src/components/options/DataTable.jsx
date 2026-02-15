@@ -233,7 +233,7 @@ export function DataTable({
   };
 
   return (
-    <Card className='h-fit max-h-[calc(100vh-10rem)] w-full'>
+    <Card className='h-fit w-full'>
       <Card.Header>
         {/* Top Controls Bar */}
         <div className='items-between flex w-full flex-col justify-center gap-1 sm:flex-row sm:items-center sm:justify-between'>
@@ -426,7 +426,7 @@ export function DataTable({
       <Card.Content className='overflow-hidden rounded-lg border border-default'>
         <div
           ref={tableContainerRef}
-          className='max-h-[calc(100vh-15rem)] overflow-auto'
+          className='max-h-[calc(100vh-15rem)] overflow-auto overscroll-y-contain'
         >
           <table className='w-full'>
             <thead className='sticky top-0 z-10 bg-background'>
@@ -516,7 +516,7 @@ export function DataTable({
                         {row.getVisibleCells().map((cell) => (
                           <td
                             key={cell.id}
-                            className='p-3'
+                            className='px-3 py-2'
                             style={{
                               width: cell.column.columnDef.size,
                               minWidth: cell.column.columnDef.minSize,
@@ -560,7 +560,7 @@ export function DataTable({
  * Helper function to create a checkbox column for row selection
  * Use this as the first column in your columns array
  */
-export function createCheckboxColumn() {
+function createCheckboxColumn() {
   return {
     id: 'select',
     header: ({ table }) => (

@@ -43,3 +43,27 @@
     }
   }
 }
+
+.scrollable-container {
+  overflow-y: auto; /* Standard overflow */
+}
+
+/* WebKit/Blink: Hide scrollbar space */
+.scrollable-container::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  background: transparent;
+}
+
+/* WebKit/Blink: Style scrollbar thumb */
+.scrollable-container::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.scrollable-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.gutter-stable {
+  scrollbar-gutter: stable;
+}

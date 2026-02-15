@@ -13,6 +13,7 @@ export default defineConfig({
   },
   plugins: [react(), crx({ manifest }), tailwindcss()],
   build: {
+    sourcemap: false,
     // Extensions load from disk, not network - large chunks are fine
     chunkSizeWarningLimit: 1000,
     rollupOptions: {

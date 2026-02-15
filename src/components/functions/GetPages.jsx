@@ -84,7 +84,7 @@ export function GetPages({
           return;
         }
 
-        const pages = await getPagesForCards(
+        const { pages } = await getPagesForCards(
           cards.map((card) => card.id),
           currentContext?.tabId
         );

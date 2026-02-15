@@ -14,6 +14,7 @@ export class DataListItem {
    * @param {string} [config.typeId] - Object type identifier (e.g., 'PAGE', 'DATA_APP_VIEW')
    * @param {string} [config.metadata] - Optional metadata string for display (e.g., "ID: 123")
    * @param {number} [config.count] - Optional count for children or related items
+   * @param {string} [config.countLabel] - Optional label for count display (e.g., 'cards', 'pages')
    * @param {DataListItem[]} [config.children] - Optional nested child items
    * @param {boolean} [config.isVirtualParent] - Whether this is a grouping/virtual parent node
    * @param {DomoObject} [config.domoObject] - Optional DomoObject instance for richer functionality
@@ -25,6 +26,7 @@ export class DataListItem {
     typeId = null,
     metadata = null,
     count = undefined,
+    countLabel = null,
     children = undefined,
     isVirtualParent = false,
     domoObject = null
@@ -35,6 +37,7 @@ export class DataListItem {
     this.typeId = typeId;
     this.metadata = metadata;
     this.count = count;
+    this.countLabel = countLabel;
     this.children = children;
     this.isVirtualParent = isVirtualParent;
     this.domoObject = domoObject;
@@ -63,10 +66,11 @@ export class DataListItem {
    * @param {string} [options.label] - Override the label (defaults to domoObject.metadata.name)
    * @param {DataListItem[]} [options.children] - Optional children
    * @param {number} [options.count] - Optional count override
+   * @param {string} [options.countLabel] - Optional label for count display (e.g., 'cards')
    * @returns {DataListItem}
    */
   static fromDomoObject(domoObject, options = {}) {
-    const { label, children, count } = options;
+    const { label, children, count, countLabel } = options;
 
     return new DataListItem({
       id: domoObject.id,
@@ -75,6 +79,7 @@ export class DataListItem {
       typeId: domoObject.typeId,
       metadata: `ID: ${domoObject.id}`,
       count: count !== undefined ? count : children?.length,
+      countLabel,
       children,
       isVirtualParent: false,
       domoObject
@@ -116,6 +121,7 @@ export class DataListItem {
       typeId: this.typeId,
       metadata: this.metadata,
       count: this.count,
+      countLabel: this.countLabel,
       children: this.children?.map((child) =>
         child instanceof DataListItem ? child.toJSON() : child
       ),
@@ -139,6 +145,7 @@ export class DataListItem {
       typeId: data.typeId,
       metadata: data.metadata,
       count: data.count,
+      countLabel: data.countLabel || null,
       children: data.children?.map((child) => DataListItem.fromJSON(child)),
       isVirtualParent: data.isVirtualParent || false,
       domoObject: data.domoObject ? DomoObject.fromJSON(data.domoObject) : null

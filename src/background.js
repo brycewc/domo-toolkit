@@ -879,7 +879,7 @@ async function detectAndStoreContext(tabId) {
     if (typeModel.id === 'CARD') {
       // Fetch pages for card in background without blocking
       getPagesForCards([parseInt(objectId)], tabId)
-        .then((childPages) => {
+        .then(({ pages: childPages }) => {
           // Get the current context (it might have been updated)
           const currentContext = getTabContext(tabId);
           if (currentContext?.domoObject?.id === objectId) {

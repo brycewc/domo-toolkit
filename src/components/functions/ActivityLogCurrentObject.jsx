@@ -116,7 +116,7 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
             }
 
             // Then get all pages that those cards appear on
-            const pages = await getPagesForCards(
+            const { pages } = await getPagesForCards(
               cards.map((card) => card.id),
               currentContext?.tabId
             );

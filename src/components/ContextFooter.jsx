@@ -1,9 +1,10 @@
-import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Alert,
   Chip,
   Disclosure,
   Link,
+  ScrollShadow,
   Spinner,
   Tabs,
   Tooltip
@@ -58,7 +59,7 @@ function MetadataJsonView({ src }) {
             <Link
               href={params.node}
               target='_blank'
-              className='text-(--json-boolean) no-underline decoration-(--json-boolean) hover:underline'
+              className='text-sm text-accent no-underline decoration-accent hover:underline'
             >
               {params.node}
             </Link>
@@ -91,58 +92,8 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [relatedCache, setRelatedCache] = useState({});
   const [loadingTabs, setLoadingTabs] = useState({});
+  const [activeTabId, setActiveTabId] = useState(null);
   const disclosureRef = useRef(null);
-
-  // Directly set max-height on tab panels via DOM to bypass HeroUI internals
-  const updatePanelMaxHeight = useCallback(() => {
-    if (!disclosureRef.current) return;
-    const viewportHeight = window.innerHeight;
-    const alertEl = disclosureRef.current.querySelector('.disclosure__heading');
-    const tabList = disclosureRef.current.querySelector(
-      '.tabs__list-container'
-    );
-    const alertRect = alertEl?.getBoundingClientRect();
-    const alertTop = Math.max(0, alertRect?.top || 0);
-    const alertHeight = alertRect?.height || 0;
-    const tabListHeight = tabList?.offsetHeight || 0;
-    const buffer = 65;
-    const available =
-      viewportHeight - alertTop - alertHeight - tabListHeight - buffer;
-    const maxH = `${Math.max(available, 100)}px`;
-
-    // Apply directly to all tab panels and the single-view fallback
-    disclosureRef.current
-      .querySelectorAll('.tabs__panel, [data-json-scroll]')
-      .forEach((el) => {
-        el.style.maxHeight = maxH;
-      });
-  }, []);
-
-  useEffect(() => {
-    if (!isExpanded) return;
-
-    // Measure after expansion animation settles
-    const timer = setTimeout(updatePanelMaxHeight, 100);
-    window.addEventListener('resize', updatePanelMaxHeight);
-
-    // Re-apply whenever the DOM inside the disclosure changes (tab switches,
-    // async content loading, etc.) since HeroUI may replace panel elements.
-    const observer = new MutationObserver(() => updatePanelMaxHeight());
-    if (disclosureRef.current) {
-      observer.observe(disclosureRef.current, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeFilter: ['hidden', 'class']
-      });
-    }
-
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener('resize', updatePanelMaxHeight);
-      observer.disconnect();
-    };
-  }, [isExpanded, updatePanelMaxHeight]);
 
   // Compute available tabs: current object + related objects
   const tabs = useMemo(() => {
@@ -203,10 +154,16 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
     currentContext?.domoObject?.metadata
   ]);
 
+  // Default activeTabId to first tab when tabs change
+  useEffect(() => {
+    if (tabs.length > 0 && !tabs.find((t) => t.id === activeTabId)) {
+      setActiveTabId(tabs[0].id);
+    }
+  }, [tabs, activeTabId]);
+
   // Lazy-load related object details when a tab is selected
   const handleTabChange = async (key) => {
-    // Re-apply max-height after the new panel renders
-    requestAnimationFrame(() => updatePanelMaxHeight());
+    setActiveTabId(key);
 
     // Skip if it's the current object tab or already cached/loading
     const tab = tabs.find((t) => t.id === key);
@@ -253,6 +210,45 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
     } finally {
       setLoadingTabs((prev) => ({ ...prev, [key]: false }));
     }
+  };
+
+  // Derive the JSON source for the active tab
+  const activeTab = tabs.find((t) => t.id === activeTabId);
+  const renderJsonContent = () => {
+    if (!activeTab) return null;
+
+    if (activeTab.isCurrentObject) {
+      return (
+        <MetadataJsonView
+          src={
+            currentContext?.domoObject?.metadata?.details ||
+            currentContext?.domoObject?.metadata
+          }
+        />
+      );
+    }
+
+    if (activeTab.isFullContext) {
+      return <MetadataJsonView src={currentContext} />;
+    }
+
+    if (loadingTabs[activeTabId]) {
+      return (
+        <div className='flex items-center justify-center py-4'>
+          <Spinner size='sm' />
+        </div>
+      );
+    }
+
+    if (relatedCache[activeTabId]) {
+      return <MetadataJsonView src={relatedCache[activeTabId]} />;
+    }
+
+    return (
+      <p className='py-2 text-center text-sm text-muted'>
+        Select this tab to load details
+      </p>
+    );
   };
 
   const alertContent = (
@@ -348,7 +344,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
                   </div>
                 )
               ) : (
-                'Navigate to an instance to enable most extension features'
+                'Navigate to an instance to enable most features'
               )}
             </Alert.Description>
           </>
@@ -371,7 +367,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
       ref={disclosureRef}
       isExpanded={isExpanded}
       onExpandedChange={setIsExpanded}
-      className='w-full'
+      className={`w-full ${isExpanded ? 'flex min-h-0 flex-1 flex-col' : ''}`}
     >
       <Disclosure.Heading>
         <Disclosure.Trigger className='w-full cursor-pointer'>
@@ -379,11 +375,15 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
         </Disclosure.Trigger>
       </Disclosure.Heading>
       <Disclosure.Content
-        className={`card bg-surface p-0 ${isExpanded ? 'mt-1' : ''}`}
+        className={`card flex min-h-0 flex-1 flex-col bg-surface p-0 ${isExpanded ? 'mt-1' : ''}`}
       >
-        <Disclosure.Body className='card__content gap-1 p-0'>
-          {tabs.length > 1 ? (
-            <Tabs variant='secondary' onSelectionChange={handleTabChange}>
+        <div className='card__content flex min-h-0 flex-1 flex-col gap-2 p-2'>
+          {tabs.length > 1 && (
+            <Tabs
+              variant='secondary'
+              selectedKey={activeTabId}
+              onSelectionChange={handleTabChange}
+            >
               <Tabs.ListContainer>
                 <Tabs.List aria-label='Object details'>
                   {tabs.map((tab) => (
@@ -394,49 +394,16 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
                   ))}
                 </Tabs.List>
               </Tabs.ListContainer>
-              {tabs.map((tab) => (
-                <Tabs.Panel
-                  key={tab.id}
-                  id={tab.id}
-                  className='overflow-y-auto overscroll-y-contain'
-                >
-                  {tab.isCurrentObject ? (
-                    <MetadataJsonView
-                      src={
-                        currentContext?.domoObject?.metadata?.details ||
-                        currentContext?.domoObject?.metadata
-                      }
-                    />
-                  ) : tab.isFullContext ? (
-                    <MetadataJsonView src={currentContext} />
-                  ) : loadingTabs[tab.id] ? (
-                    <div className='flex items-center justify-center py-4'>
-                      <Spinner size='sm' />
-                    </div>
-                  ) : relatedCache[tab.id] ? (
-                    <MetadataJsonView src={relatedCache[tab.id]} />
-                  ) : (
-                    <p className='py-2 text-center text-sm text-muted'>
-                      Select this tab to load details
-                    </p>
-                  )}
-                </Tabs.Panel>
-              ))}
             </Tabs>
-          ) : (
-            <div
-              data-json-scroll
-              className='overflow-y-auto overscroll-y-contain'
-            >
-              <MetadataJsonView
-                src={
-                  currentContext?.domoObject?.metadata?.details ||
-                  currentContext?.domoObject?.metadata
-                }
-              />
-            </div>
           )}
-        </Disclosure.Body>
+          <ScrollShadow
+            hideScrollBar
+            className='overflow-y-auto overscroll-y-contain'
+            orientation='vertical'
+          >
+            {renderJsonContent()}
+          </ScrollShadow>
+        </div>
       </Disclosure.Content>
     </Disclosure>
   );

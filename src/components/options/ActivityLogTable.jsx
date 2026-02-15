@@ -46,9 +46,9 @@ function createTimestampColumn({ accessorKey = 'time' } = {}) {
   return {
     accessorKey,
     header: 'Timestamp',
-    size: 160,
-    minSize: 160,
-    maxSize: 160,
+    size: 75,
+    minSize: 75,
+    maxSize: 75,
     cell: ({ row }) => {
       const timestamp = row.getValue(accessorKey);
       if (!timestamp) return '-';
@@ -74,8 +74,8 @@ function createUserColumn({ nameKey = 'userName', idKey = 'userId' } = {}) {
   return {
     accessorKey: nameKey,
     header: 'User',
-    size: 180,
-    minSize: 180,
+    size: 75,
+    minSize: 60,
     maxSize: 180,
     cell: ({ row }) => {
       const name = row.getValue(nameKey);
@@ -104,8 +104,8 @@ function createActionColumn({ accessorKey = 'actionType' } = {}) {
   return {
     accessorKey,
     header: 'Action',
-    size: 150,
-    minSize: 150,
+    size: 75,
+    minSize: 60,
     maxSize: 150,
     cell: ({ row }) => {
       const action = row.getValue(accessorKey);
@@ -200,6 +200,9 @@ function createAdditionalCommentColumn({
   return {
     accessorKey,
     header: 'Comment',
+    size: 75,
+    minSize: 40,
+    maxSize: 300,
     cell: ({ row }) => {
       const comment = row.getValue(accessorKey);
       if (!comment) return '-';

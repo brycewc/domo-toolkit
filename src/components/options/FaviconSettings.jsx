@@ -318,7 +318,11 @@ export function FaviconSettings() {
 
                   <div className='flex w-25 flex-col gap-1'>
                     <ColorPicker
-                      value={parseColor(rule.color)}
+                      value={
+                        rule.effect === 'instance-logo'
+                          ? '#00000000'
+                          : parseColor(rule.color)
+                      }
                       onChange={(newColor) =>
                         updateRule(rule.id, 'color', newColor.toString('hexa'))
                       }
