@@ -67,21 +67,9 @@ export function GetOtherPages({
         currentContext?.tabId
       );
 
-      if (!pages || pages.length === 0) {
-        onStatusUpdate?.(
-          'No Other Pages',
-          `Cards on ${objectName} are not used on any other pages`,
-          'warning'
-        );
-        setIsLoading(false);
-        return;
-      }
+      const otherPages = pages.filter((page) => String(page.id) !== objectId);
 
-      const otherPages = pages.filter(
-        (page) => String(page.id) !== objectId
-      );
-
-      if (otherPages.length === 0) {
+      if (!pages || pages.length === 0 || otherPages.length === 0) {
         onStatusUpdate?.(
           'No Other Pages',
           `Cards on ${objectName} are not used on any other pages`,

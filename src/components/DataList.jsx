@@ -246,117 +246,113 @@ export function DataList({
     <Card className='min-h-60 w-full flex-1 p-2'>
       {(title || hasHeaderActions) && (
         <Card.Header>
-          <div className='flex flex-col gap-1'>
-            <Card.Title className='flex items-start justify-between'>
-              <div className='min-w-0 flex-1'>{title}</div>
-              {hasHeaderActions && (
-                <ButtonGroup hideSeparator className='shrink-0'>
-                  {headerActions.length > 0 && (
-                    <Popover>
-                      <Button variant='ghost' size='sm' isIconOnly>
-                        <IconDots stroke={1.5} />
-                      </Button>
-                      <Popover.Content placement='left' offset={2}>
-                        <Popover.Dialog className='p-0'>
-                          <ButtonGroup size='sm' fullWidth variant='ghost'>
-                            {headerActions.includes('openAll') && (
-                              <Tooltip delay={400} closeDelay={0}>
-                                <Button
-                                  variant='ghost'
-                                  size='sm'
-                                  isIconOnly
-                                  onPress={() => handleHeaderAction('openAll')}
-                                  aria-label='Open All'
-                                >
-                                  <IconFolders stroke={1.5} />
-                                </Button>
-                                <Tooltip.Content className='text-xs'>
-                                  Open all in new tabs
-                                </Tooltip.Content>
-                              </Tooltip>
-                            )}
-                            {headerActions.includes('copy') && (
-                              <Tooltip delay={400} closeDelay={0}>
-                                <Button
-                                  variant='ghost'
-                                  size='sm'
-                                  isIconOnly
-                                  onPress={() => handleHeaderAction('copy')}
-                                  aria-label='Copy'
-                                >
-                                  {isCopied ? (
-                                    <AnimatedCheck stroke={1.5} />
-                                  ) : (
-                                    <IconClipboard stroke={1.5} />
-                                  )}
-                                </Button>
-                                <Tooltip.Content className='text-xs'>
-                                  {isCopied ? 'Copied!' : 'Copy ID'}
-                                </Tooltip.Content>
-                              </Tooltip>
-                            )}
-                            {headerActions.includes('shareAll') && (
-                              <Tooltip delay={400} closeDelay={0}>
-                                <Button
-                                  variant='ghost'
-                                  size='sm'
-                                  isIconOnly
-                                  onPress={() => handleHeaderAction('shareAll')}
-                                  aria-label='Share All'
-                                >
-                                  <IconUsersPlus stroke={1.5} />
-                                </Button>
-                                <Tooltip.Content className='text-xs'>
-                                  Share all with yourself
-                                </Tooltip.Content>
-                              </Tooltip>
-                            )}
-                            {headerActions.includes('refresh') && (
-                              <Tooltip delay={400} closeDelay={0}>
-                                <Button
-                                  variant='ghost'
-                                  size='sm'
-                                  isIconOnly
-                                  isDisabled={isRefreshing}
-                                  onPress={() => handleHeaderAction('refresh')}
-                                >
-                                  <IconRefresh
-                                    stroke={1.5}
-                                    size={16}
-                                    className={
-                                      isRefreshing ? 'animate-spin' : ''
-                                    }
-                                  />
-                                </Button>
-                                <Tooltip.Content className='text-xs'>
-                                  Refresh
-                                </Tooltip.Content>
-                              </Tooltip>
-                            )}
-                          </ButtonGroup>
-                        </Popover.Dialog>
-                      </Popover.Content>
-                    </Popover>
-                  )}
-                  {onClose && (
-                    <Tooltip delay={400} closeDelay={0}>
-                      <Button
-                        variant='ghost'
-                        size='sm'
-                        isIconOnly
-                        onPress={onClose}
-                      >
-                        <IconX stroke={1.5} />
-                      </Button>
-                      <Tooltip.Content className='text-xs'>
-                        {closeLabel}
-                      </Tooltip.Content>
-                    </Tooltip>
-                  )}
-                </ButtonGroup>
-              )}
-            </Card.Title>
-          </div>
+          <Card.Title className='flex items-start justify-between gap-2'>
+            <div className='min-w-0 flex-1 pt-1'>{title}</div>
+            {hasHeaderActions && (
+              <ButtonGroup hideSeparator className='flex shrink-0'>
+                {headerActions.length > 0 && (
+                  <Popover>
+                    <Button variant='ghost' size='sm' isIconOnly>
+                      <IconDots stroke={1.5} />
+                    </Button>
+                    <Popover.Content placement='left' offset={2}>
+                      <Popover.Dialog className='p-0'>
+                        <ButtonGroup size='sm' fullWidth variant='ghost'>
+                          {headerActions.includes('openAll') && (
+                            <Tooltip delay={400} closeDelay={0}>
+                              <Button
+                                variant='ghost'
+                                size='sm'
+                                isIconOnly
+                                onPress={() => handleHeaderAction('openAll')}
+                                aria-label='Open All'
+                              >
+                                <IconFolders stroke={1.5} />
+                              </Button>
+                              <Tooltip.Content className='text-xs'>
+                                Open all in new tabs
+                              </Tooltip.Content>
+                            </Tooltip>
+                          )}
+                          {headerActions.includes('copy') && (
+                            <Tooltip delay={400} closeDelay={0}>
+                              <Button
+                                variant='ghost'
+                                size='sm'
+                                isIconOnly
+                                onPress={() => handleHeaderAction('copy')}
+                                aria-label='Copy'
+                              >
+                                {isCopied ? (
+                                  <AnimatedCheck stroke={1.5} />
+                                ) : (
+                                  <IconClipboard stroke={1.5} />
+                                )}
+                              </Button>
+                              <Tooltip.Content className='text-xs'>
+                                {isCopied ? 'Copied!' : 'Copy ID'}
+                              </Tooltip.Content>
+                            </Tooltip>
+                          )}
+                          {headerActions.includes('shareAll') && (
+                            <Tooltip delay={400} closeDelay={0}>
+                              <Button
+                                variant='ghost'
+                                size='sm'
+                                isIconOnly
+                                onPress={() => handleHeaderAction('shareAll')}
+                                aria-label='Share All'
+                              >
+                                <IconUsersPlus stroke={1.5} />
+                              </Button>
+                              <Tooltip.Content className='text-xs'>
+                                Share all with yourself
+                              </Tooltip.Content>
+                            </Tooltip>
+                          )}
+                          {headerActions.includes('refresh') && (
+                            <Tooltip delay={400} closeDelay={0}>
+                              <Button
+                                variant='ghost'
+                                size='sm'
+                                isIconOnly
+                                isDisabled={isRefreshing}
+                                onPress={() => handleHeaderAction('refresh')}
+                              >
+                                <IconRefresh
+                                  stroke={1.5}
+                                  size={16}
+                                  className={isRefreshing ? 'animate-spin' : ''}
+                                />
+                              </Button>
+                              <Tooltip.Content className='text-xs'>
+                                Refresh
+                              </Tooltip.Content>
+                            </Tooltip>
+                          )}
+                        </ButtonGroup>
+                      </Popover.Dialog>
+                    </Popover.Content>
+                  </Popover>
+                )}
+                {onClose && (
+                  <Tooltip delay={400} closeDelay={0}>
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      isIconOnly
+                      onPress={onClose}
+                    >
+                      <IconX stroke={1.5} />
+                    </Button>
+                    <Tooltip.Content className='text-xs'>
+                      {closeLabel}
+                    </Tooltip.Content>
+                  </Tooltip>
+                )}
+              </ButtonGroup>
+            )}
+          </Card.Title>
         </Card.Header>
       )}
 
@@ -550,10 +546,12 @@ function DataListItem({
     }
 
     // Default logic
-    const isViewType =
+    const isUnshareable =
       item.typeId === 'DATA_APP_VIEW' ||
       item.typeId === 'REPORT_BUILDER_VIEW' ||
-      objectType === 'DATA_APP_VIEW';
+      item.typeId === 'CARD' ||
+      objectType === 'DATA_APP_VIEW' ||
+      Number(item.id) < 0;
 
     const actions = [];
     if (hasChildren && item.typeId !== 'DATA_APP') {
@@ -570,7 +568,7 @@ function DataListItem({
     }
 
     actions.push(copyButton);
-    if (!isViewType) actions.push(shareButton);
+    if (!isUnshareable) actions.push(shareButton);
     return actions;
   };
 

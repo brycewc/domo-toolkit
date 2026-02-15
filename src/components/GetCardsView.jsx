@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Spinner } from '@heroui/react';
+import { Alert, Button, Card, CloseButton, Spinner } from '@heroui/react';
 import { DataList } from '@/components';
 import { getCardsForObject } from '@/services';
 import { DataListItem, DomoContext, DomoObject } from '@/models';
@@ -162,9 +162,9 @@ export function GetCardsView({
   const renderTitle = () => {
     return (
       <div className='flex flex-col gap-1'>
-        <div className='flex min-w-0 items-center justify-start gap-x-1'>
-          <span className='truncate font-bold'>{viewData?.objectName}</span>
-          <span className='shrink-0'>Cards</span>
+        <div className='line-clamp-2 min-w-0'>
+          <span>Cards for</span>{' '}
+          <span className='font-bold'>{viewData?.objectName}</span>
         </div>
         {items.length > 0 && (
           <div className='flex flex-row items-center gap-1'>
@@ -190,12 +190,21 @@ export function GetCardsView({
 
   if (error) {
     return (
-      <Card className='flex w-full items-center justify-center p-0'>
-        <Card.Content className='flex flex-col items-center justify-center gap-2 p-2'>
-          <p className='text-danger'>{error}</p>
-          <Button onPress={loadCardsData}>Retry</Button>
-        </Card.Content>
-      </Card>
+      <Alert className='w-full' status='warning'>
+        <Alert.Indicator />
+        <Alert.Content>
+          <Alert.Title>Error</Alert.Title>
+          <div className='flex flex-col items-start justify-center gap-2'>
+            <Alert.Description>{error}</Alert.Description>
+            <Button onPress={loadCardsData}>Retry</Button>
+          </div>
+        </Alert.Content>
+        <CloseButton
+          variant='ghost'
+          className='rounded-full'
+          onPress={() => onBackToDefault?.()}
+        />
+      </Alert>
     );
   }
 

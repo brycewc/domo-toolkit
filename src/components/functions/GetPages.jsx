@@ -116,6 +116,54 @@ export function GetPages({
         }
 
         childPages = result.childPages;
+
+        if (!childPages || childPages.length === 0) {
+          switch (currentContext.domoObject.typeId) {
+            case 'PAGE':
+              onStatusUpdate?.(
+                'No Child Pages',
+                `This page has no child pages.`,
+                'warning',
+                3000
+              );
+              break;
+            case 'DATA_APP_VIEW':
+              onStatusUpdate?.(
+                'No Pages',
+                `This app studio app has no pages.`,
+                'warning',
+                3000
+              );
+              break;
+            case 'CARD':
+              onStatusUpdate?.(
+                'No Pages',
+                `This card is not used in any pages, app studio pages, or report builder pages.`,
+                'warning',
+                3000
+              );
+              break;
+            case 'DATA_SOURCE':
+              onStatusUpdate?.(
+                'No Cards Found',
+                `No cards found using this dataset.`,
+                'warning',
+                3000
+              );
+              break;
+            default:
+              onStatusUpdate?.(
+                'No Pages',
+                `No pages found for this object.`,
+                'warning',
+                3000
+              );
+          }
+
+          setIsLoading(false);
+          return;
+        }
+
         if (objectType === 'CARD') {
           childPages = childPages.map((page) => ({
             pageId: page.id,
@@ -127,70 +175,23 @@ export function GetPages({
         }
       }
 
-      if (childPages.length > 0) {
-        if (onCollapseActions) {
-          await storeSidepanelData({
-            type: 'loading',
-            message: 'Loading pages...',
-            timestamp: Date.now()
-          });
-
-          onCollapseActions();
-          await new Promise((resolve) => setTimeout(resolve, 175));
-        }
-
+      if (onCollapseActions) {
         await storeSidepanelData({
-          type: 'getPages',
-          currentContext,
-          childPages,
-          statusShown: true
+          type: 'loading',
+          message: 'Loading pages...',
+          timestamp: Date.now()
         });
-      } else {
-        switch (currentContext.domoObject.typeId) {
-          case 'PAGE':
-            onStatusUpdate?.(
-              'No Child Pages',
-              `This page has no child pages.`,
-              'warning',
-              3000
-            );
-            break;
-          case 'DATA_APP_VIEW':
-            onStatusUpdate?.(
-              'No Pages',
-              `This app studio app has no pages.`,
-              'warning',
-              3000
-            );
-            break;
-          case 'CARD':
-            onStatusUpdate?.(
-              'No Pages',
-              `This card is not used in any pages, app studio pages, or report builder pages.`,
-              'warning',
-              3000
-            );
-            break;
-          case 'DATA_SOURCE':
-            onStatusUpdate?.(
-              'No Cards Found',
-              `No cards found using this dataset.`,
-              'warning',
-              3000
-            );
-            break;
-          default:
-            onStatusUpdate?.(
-              'No Pages',
-              `No pages found for this object.`,
-              'warning',
-              3000
-            );
-        }
 
-        setIsLoading(false);
-        return;
+        onCollapseActions();
+        await new Promise((resolve) => setTimeout(resolve, 175));
       }
+
+      await storeSidepanelData({
+        type: 'getPages',
+        currentContext,
+        childPages,
+        statusShown: true
+      });
     } catch (error) {
       console.error('[GetPages] Error opening sidepanel:', error);
       onStatusUpdate?.(

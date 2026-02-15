@@ -1,5 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Separator, Spinner } from '@heroui/react';
+import {
+  Alert,
+  Button,
+  Card,
+  CloseButton,
+  Separator,
+  Spinner
+} from '@heroui/react';
 import { DataList } from './DataList';
 import { DataListItem, DomoContext, DomoObject } from '@/models';
 import {
@@ -9,7 +16,11 @@ import {
   sharePagesWithSelf,
   removeCardFromPage
 } from '@/services';
-import { getValidTabForInstance, waitForChildPages } from '@/utils';
+import {
+  getValidTabForInstance,
+  waitForCards,
+  waitForChildPages
+} from '@/utils';
 
 /**
  * Build card DataListItem children for a page from the cardsByPage mapping
@@ -279,6 +290,7 @@ export function GetPagesView({
   const [error, setError] = useState(null);
   const [items, setItems] = useState([]);
   const [pageData, setPageData] = useState(null); // Store metadata for rebuilding
+  const [pageTypeLabel, setPageTypeLabel] = useState('pages');
 
   // Load data on mount
   useEffect(() => {
@@ -337,20 +349,63 @@ export function GetPagesView({
 
       const sidepanelType = data.type;
 
+      // Set label early so the loading spinner shows the right text
+      setPageTypeLabel(
+        sidepanelType === 'getOtherPages'
+          ? 'Other Pages for Cards on'
+          : objectType === 'CARD' || objectType === 'DATA_SOURCE'
+            ? 'Pages'
+            : objectType === 'DATA_APP_VIEW'
+              ? 'App Pages'
+              : 'Child Pages'
+      );
+
       // Either use cached childPages or fetch fresh data
       let childPages = data.childPages;
       let cardsByPage = data.cardsByPage;
 
       if (!childPages && !forceRefresh) {
         // No pre-fetched data (popup handoff)
-        if (
-          sidepanelType !== 'getOtherPages' &&
-          (objectType === 'PAGE' || objectType === 'DATA_APP_VIEW')
+        if (sidepanelType === 'getOtherPages') {
+          // Get cards from background cache, then find pages for those cards
+          const waitResult = await waitForCards(context);
+          if (waitResult.success && waitResult.cards?.length) {
+            const tabId = await getValidTabForInstance(instance);
+            const result = await getPagesForCards(
+              waitResult.cards.map((card) => card.id),
+              tabId
+            );
+            const stringId = String(objectId);
+            childPages = result.pages
+              .filter((page) => String(page.id) !== stringId)
+              .map((page) => ({
+                pageId: page.id,
+                pageTitle: page.name,
+                pageType: page.type,
+                appId: page.appId || null,
+                appName: page.appName || null
+              }));
+            cardsByPage = result.cardsByPage;
+          }
+        } else if (
+          objectType === 'PAGE' ||
+          objectType === 'DATA_APP_VIEW' ||
+          objectType === 'CARD'
         ) {
           // These types have background-cached child pages -- try that first
           const waitResult = await waitForChildPages(context);
           if (waitResult.success) {
             childPages = waitResult.childPages;
+            if (objectType === 'CARD') {
+              // Transform to match grouped pages format
+              childPages = childPages.map((page) => ({
+                pageId: page.id,
+                pageTitle: page.name,
+                pageType: page.type,
+                appId: page.appId || null,
+                appName: page.appName || null
+              }));
+            }
           }
         }
         // If still no data (or type doesn't use cache), fetch fresh
@@ -380,25 +435,19 @@ export function GetPagesView({
       }
 
       if (!childPages || !childPages.length) {
-        setError(
-          objectType === 'DATA_APP_VIEW'
-            ? `No views (pages) found for app studio app ${objectId}`
-            : objectType === 'CARD'
-              ? `No pages found for card ${objectId}`
-              : `No child pages found for page ${objectId}`
-        );
+        const message =
+          sidepanelType === 'getOtherPages'
+            ? 'Cards on this page are not used on any other pages'
+            : objectType === 'DATA_APP_VIEW'
+              ? `No views (pages) found for app studio app ${objectId}`
+              : objectType === 'CARD'
+                ? `No pages found for card ${objectId}`
+                : `No child pages found for page ${objectId}`;
+        onStatusUpdate?.('No Pages Found', message, 'warning');
+        onBackToDefault?.();
         setIsLoading(false);
         return;
       }
-
-      const pageTypeLabel =
-        sidepanelType === 'getOtherPages'
-          ? 'Other Pages for Cards'
-          : objectType === 'CARD' || objectType === 'DATA_SOURCE'
-            ? 'Pages'
-            : objectType === 'DATA_APP_VIEW'
-              ? 'App Pages'
-              : 'Child Pages';
 
       // Store metadata for rebuilding items later (including instance for refresh)
       setPageData({
@@ -408,7 +457,6 @@ export function GetPagesView({
         origin,
         appId,
         instance,
-        pageTypeLabel,
         sidepanelType,
         userId: context.user?.id
       });
@@ -747,11 +795,15 @@ export function GetPagesView({
       if (pageData?.instance) {
         const tabId = await getValidTabForInstance(pageData.instance);
 
-        // Collect all non-virtual page IDs, including children of virtual items
+        // Collect all shareable page IDs, excluding cards, virtual parents, and negative IDs
         const collectPageIds = (itemList) => {
           const ids = [];
           for (const item of itemList) {
-            if (!item.isVirtualParent) {
+            if (
+              !item.isVirtualParent &&
+              item.typeId !== 'CARD' &&
+              Number(item.id) >= 0
+            ) {
               ids.push(item.id);
             }
             if (item.children) {
@@ -797,9 +849,9 @@ export function GetPagesView({
 
     return (
       <div className='flex w-full flex-col gap-1'>
-        <div className='flex w-full min-w-0 items-center justify-start gap-x-1'>
-          <span className='truncate font-bold'>{pageData?.objectName}</span>
-          <span className='shrink-0'>{pageData?.pageTypeLabel}</span>
+        <div className='line-clamp-2 min-w-0'>
+          <span>{pageTypeLabel}{pageTypeLabel.endsWith('on') ? '' : ' for'}</span>{' '}
+          <span className='font-bold'>{pageData?.objectName}</span>
         </div>
         {items.length !== undefined &&
           pageData?.objectType !== 'CARD' &&
@@ -834,7 +886,7 @@ export function GetPagesView({
       <Card className='flex w-full items-center justify-center p-0'>
         <Card.Content className='flex flex-col items-center justify-center gap-2 p-2'>
           <Spinner size='lg' />
-          <p className='text-muted'>Loading child pages...</p>
+          <p className='text-muted'>Loading {pageTypeLabel}...</p>
         </Card.Content>
       </Card>
     );
@@ -842,12 +894,21 @@ export function GetPagesView({
 
   if (error) {
     return (
-      <Card className='flex w-full items-center justify-center p-0'>
-        <Card.Content className='flex flex-col items-center justify-center gap-2 p-2'>
-          <p className='text-danger'>{error}</p>
-          <Button onPress={loadPagesData}>Retry</Button>
-        </Card.Content>
-      </Card>
+      <Alert className='w-full' status='warning'>
+        <Alert.Indicator />
+        <Alert.Content>
+          <Alert.Title>Error</Alert.Title>
+          <div className='flex flex-col items-start justify-center gap-2'>
+            <Alert.Description>{error}</Alert.Description>
+            <Button onPress={loadPagesData}>Retry</Button>
+          </div>
+        </Alert.Content>
+        <CloseButton
+          variant='ghost'
+          className='rounded-full'
+          onPress={() => onBackToDefault?.()}
+        />
+      </Alert>
     );
   }
 
@@ -866,8 +927,13 @@ export function GetPagesView({
       onRefresh={handleRefresh}
       onShareAll={handleShareAll}
       onClose={onBackToDefault}
-      closeLabel={`Close ${pageData?.pageTypeLabel} View`}
+      closeLabel={`Close ${pageTypeLabel} View`}
       isRefreshing={isRefreshing}
+      itemActions={
+        pageData?.sidepanelType === 'getOtherPages'
+          ? ['openAll', 'copy', 'share']
+          : undefined
+      }
       onItemRemove={handleItemRemove}
       onItemShare={handleItemShare}
       onItemShareAll={handleItemShareAll}

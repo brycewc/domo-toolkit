@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import {
+  Alert,
   Button,
   ButtonGroup,
   Card,
   Chip,
+  CloseButton,
   Disclosure,
   ScrollShadow,
   Spinner,
@@ -175,12 +177,21 @@ export function ObjectDetailsView({
 
   if (error) {
     return (
-      <Card className='flex w-full items-center justify-center p-0'>
-        <Card.Content className='flex flex-col items-center justify-center gap-2 p-2'>
-          <p className='text-danger'>{error}</p>
-          <Button onPress={loadObjectDetails}>Retry</Button>
-        </Card.Content>
-      </Card>
+      <Alert className='w-full' status='warning'>
+        <Alert.Indicator />
+        <Alert.Content>
+          <Alert.Title>Error</Alert.Title>
+          <div className='flex flex-col items-start justify-center gap-2'>
+            <Alert.Description>{error}</Alert.Description>
+            <Button onPress={loadObjectDetails}>Retry</Button>
+          </div>
+        </Alert.Content>
+        <CloseButton
+          variant='ghost'
+          className='rounded-full'
+          onPress={() => onBackToDefault?.()}
+        />
+      </Alert>
     );
   }
 
@@ -235,113 +246,118 @@ export function ObjectDetailsView({
         </Card.Title>
       </Card.Header>
 
-      <ScrollShadow hideScrollBar className='min-h-0 flex-1 overflow-y-auto' orientation='vertical'>
-      <Card.Content className='flex flex-col gap-3'>
-        {/* Key Fields */}
-        {keyFields.length > 0 && (
-          <div className='flex flex-col gap-1'>
-            {keyFields.map(({ label, value }) => (
-              <div
-                key={label}
-                className='flex flex-row items-start justify-between gap-2 border-b border-border py-1.5 last:border-b-0'
-              >
-                <span className='shrink-0 text-xs font-medium text-muted'>
-                  {label}
-                </span>
-                <span className='text-xs break-all'>{value}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Full JSON */}
-        {domoObject.metadata?.details &&
-          domoObject.metadata?.details !== '{}' && (
-            <Disclosure className='w-full'>
-              <Disclosure.Heading>
-                <Button
-                  slot='trigger'
-                  variant='ghost'
-                  className='flex w-full items-center justify-between'
+      <ScrollShadow
+        hideScrollBar
+        className='min-h-0 flex-1 overflow-y-auto'
+        orientation='vertical'
+      >
+        <Card.Content className='flex flex-col gap-3'>
+          {/* Key Fields */}
+          {keyFields.length > 0 && (
+            <div className='flex flex-col gap-1'>
+              {keyFields.map(({ label, value }) => (
+                <div
+                  key={label}
+                  className='flex flex-row items-start justify-between gap-2 border-b border-border py-1.5 last:border-b-0'
                 >
-                  Full JSON
-                  <Disclosure.Indicator>
-                    <IconChevronDown stroke={1.5} />
-                  </Disclosure.Indicator>
-                </Button>
-              </Disclosure.Heading>
-              <Disclosure.Content>
-                <Disclosure.Body>
-                  <JsonView
-                    src={domoObject.metadata?.details}
-                    collapsed={1}
-                    matchesURL={false}
-                    displaySize
-                    collapseStringMode='word'
-                    collapseStringsAfterLength={50}
-                    CopyComponent={({ onClick, className, style }) => (
-                      <IconClipboard
-                        onClick={onClick}
-                        className={className}
-                        style={style}
-                        size={16}
-                        stroke={1.5}
-                      />
-                    )}
-                    CopiedComponent={({ className, style }) => (
-                      <AnimatedCheck
-                        className={`${className} text-success`}
-                        style={style}
-                        size={16}
-                        stroke={1.5}
-                      />
-                    )}
-                    customizeNode={(params) => {
-                      if (params.node === null || params.node === undefined) {
-                        return { enableClipboard: false };
-                      }
-                      if (
-                        typeof params.node === 'string' &&
-                        params.node.startsWith('https://')
-                      ) {
-                        return (
-                          <Link
-                            href={params.node}
-                            target='_blank'
-                            className='text-(--json-boolean) no-underline decoration-(--json-boolean) hover:underline'
-                          >
-                            {params.node}
-                          </Link>
-                        );
-                      }
-                      if (params.indexOrName?.toLowerCase().includes('id')) {
-                        return { enableClipboard: true };
-                      } else if (
-                        (typeof params.node === 'number' ||
-                          typeof params.node === 'string') &&
-                        params.node?.toString().length >= 7
-                      ) {
-                        return { enableClipboard: true };
-                      } else if (
-                        typeof params.node === 'object' &&
-                        Object.keys(params.node).length > 0
-                      ) {
-                        return { enableClipboard: true };
-                      } else if (
-                        Array.isArray(params.node) &&
-                        params.node.length > 0
-                      ) {
-                        return { enableClipboard: true };
-                      } else {
-                        return { enableClipboard: false };
-                      }
-                    }}
-                  />
-                </Disclosure.Body>
-              </Disclosure.Content>
-            </Disclosure>
+                  <span className='shrink-0 text-xs font-medium text-muted'>
+                    {label}
+                  </span>
+                  <span className='text-xs break-all'>{value}</span>
+                </div>
+              ))}
+            </div>
           )}
-      </Card.Content>
+
+          {/* Full JSON */}
+          {domoObject.metadata?.details &&
+            domoObject.metadata?.details !== '{}' && (
+              <Disclosure className='w-full'>
+                <Disclosure.Heading>
+                  <Button
+                    slot='trigger'
+                    variant='ghost'
+                    className='flex w-full items-center justify-between'
+                  >
+                    Full JSON
+                    <Disclosure.Indicator>
+                      <IconChevronDown stroke={1.5} />
+                    </Disclosure.Indicator>
+                  </Button>
+                </Disclosure.Heading>
+                <Disclosure.Content>
+                  <Disclosure.Body>
+                    <JsonView
+                      className='min-h-0 flex-1 text-sm'
+                      src={domoObject.metadata?.details}
+                      collapsed={1}
+                      matchesURL={false}
+                      displaySize
+                      collapseStringMode='word'
+                      collapseStringsAfterLength={50}
+                      CopyComponent={({ onClick, className, style }) => (
+                        <IconClipboard
+                          onClick={onClick}
+                          className={className}
+                          style={style}
+                          size={16}
+                          stroke={1.5}
+                        />
+                      )}
+                      CopiedComponent={({ className, style }) => (
+                        <AnimatedCheck
+                          className={className}
+                          style={style}
+                          size={16}
+                          stroke={1.5}
+                        />
+                      )}
+                      customizeNode={(params) => {
+                        if (params.node === null || params.node === undefined) {
+                          return { enableClipboard: false };
+                        }
+                        if (
+                          typeof params.node === 'string' &&
+                          params.node.startsWith('https://')
+                        ) {
+                          return (
+                            <Link
+                              href={params.node}
+                              target='_blank'
+                              className='text-sm text-accent no-underline decoration-accent hover:underline'
+                            >
+                              {params.node}
+                            </Link>
+                          );
+                        }
+                        if (params.indexOrName?.toLowerCase().includes('id')) {
+                          return { enableClipboard: true };
+                        } else if (
+                          (typeof params.node === 'number' ||
+                            typeof params.node === 'string') &&
+                          params.node?.toString().length >= 7
+                        ) {
+                          return { enableClipboard: true };
+                        } else if (
+                          typeof params.node === 'object' &&
+                          Object.keys(params.node).length > 0
+                        ) {
+                          return { enableClipboard: true };
+                        } else if (
+                          Array.isArray(params.node) &&
+                          params.node.length > 0
+                        ) {
+                          return { enableClipboard: true };
+                        } else {
+                          return { enableClipboard: false };
+                        }
+                      }}
+                    />
+                  </Disclosure.Body>
+                </Disclosure.Content>
+              </Disclosure>
+            )}
+        </Card.Content>
       </ScrollShadow>
     </Card>
   );
