@@ -4,6 +4,7 @@ import { DataList } from '@/components';
 import { getCardsForObject } from '@/services';
 import { DataListItem, DomoContext, DomoObject } from '@/models';
 import { getValidTabForInstance, waitForCards } from '@/utils';
+import { IconRefresh } from '@tabler/icons-react';
 
 /**
  * Transform cards into DataListItem format
@@ -41,6 +42,7 @@ export function GetCardsView({
 }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
   const [showSpinner, setShowSpinner] = useState(false);
   const [error, setError] = useState(null);
   const [items, setItems] = useState([]);
@@ -52,11 +54,10 @@ export function GetCardsView({
   }, []);
 
   const loadCardsData = async (forceRefresh = false) => {
-    if (!forceRefresh) {
+    if (!forceRefresh && !isRetrying) {
       setIsLoading(true);
       setShowSpinner(false);
     }
-    setError(null);
 
     const spinnerTimer = !forceRefresh
       ? setTimeout(() => {
@@ -124,6 +125,7 @@ export function GetCardsView({
         objectId,
         parentId
       );
+      setError(null);
       setItems(transformedItems);
     } catch (err) {
       console.error('Error loading cards:', err);
@@ -177,7 +179,8 @@ export function GetCardsView({
     );
   };
 
-  if (isLoading && showSpinner) {
+  if (isLoading) {
+    if (!showSpinner) return null;
     return (
       <Card className='flex w-full items-center justify-center p-0'>
         <Card.Content className='flex flex-col items-center justify-center gap-2 p-2'>
@@ -188,6 +191,12 @@ export function GetCardsView({
     );
   }
 
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    await loadCardsData();
+    setIsRetrying(false);
+  };
+
   if (error) {
     return (
       <Alert className='w-full' status='warning'>
@@ -196,7 +205,14 @@ export function GetCardsView({
           <Alert.Title>Error</Alert.Title>
           <div className='flex flex-col items-start justify-center gap-2'>
             <Alert.Description>{error}</Alert.Description>
-            <Button onPress={loadCardsData}>Retry</Button>
+            <Button size='sm' onPress={handleRetry} isPending={isRetrying}>
+              {isRetrying ? (
+                <Spinner size='sm' color='currentColor' />
+              ) : (
+                <IconRefresh stroke={1.5} />
+              )}
+              Retry
+            </Button>
           </div>
         </Alert.Content>
         <CloseButton

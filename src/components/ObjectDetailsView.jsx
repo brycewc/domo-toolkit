@@ -11,7 +11,12 @@ import {
   Spinner,
   Tooltip
 } from '@heroui/react';
-import { IconChevronDown, IconClipboard, IconX } from '@tabler/icons-react';
+import {
+  IconChevronDown,
+  IconClipboard,
+  IconRefresh,
+  IconX
+} from '@tabler/icons-react';
 import JsonView from 'react18-json-view';
 import '@/assets/json-view-theme.css';
 import { AnimatedCheck } from '@/components';
@@ -183,7 +188,10 @@ export function ObjectDetailsView({
           <Alert.Title>Error</Alert.Title>
           <div className='flex flex-col items-start justify-center gap-2'>
             <Alert.Description>{error}</Alert.Description>
-            <Button onPress={loadObjectDetails}>Retry</Button>
+            <Button size='sm' onPress={loadObjectDetails}>
+              <IconRefresh stroke={1.5} />
+              Retry
+            </Button>
           </div>
         </Alert.Content>
         <CloseButton

@@ -21,6 +21,7 @@ import {
   waitForCards,
   waitForChildPages
 } from '@/utils';
+import { IconRefresh } from '@tabler/icons-react';
 
 /**
  * Build card DataListItem children for a page from the cardsByPage mapping
@@ -286,6 +287,7 @@ export function GetPagesView({
 }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
   const [showSpinner, setShowSpinner] = useState(false);
   const [error, setError] = useState(null);
   const [items, setItems] = useState([]);
@@ -298,11 +300,10 @@ export function GetPagesView({
   }, []);
 
   const loadPagesData = async (forceRefresh = false) => {
-    if (!forceRefresh) {
+    if (!forceRefresh && !isRetrying) {
       setIsLoading(true);
       setShowSpinner(false);
     }
-    setError(null);
 
     // Delay showing spinner to avoid flash on quick loads
     const spinnerTimer = !forceRefresh
@@ -460,6 +461,8 @@ export function GetPagesView({
         sidepanelType,
         userId: context.user?.id
       });
+
+      setError(null);
 
       if (
         objectType === 'CARD' ||
@@ -884,7 +887,8 @@ export function GetPagesView({
       </div>
     );
   };
-  if (isLoading && showSpinner) {
+  if (isLoading) {
+    if (!showSpinner) return null;
     return (
       <Card className='flex w-full items-center justify-center p-0'>
         <Card.Content className='flex flex-col items-center justify-center gap-2 p-2'>
@@ -895,6 +899,12 @@ export function GetPagesView({
     );
   }
 
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    await loadPagesData();
+    setIsRetrying(false);
+  };
+
   if (error) {
     return (
       <Alert className='w-full' status='warning'>
@@ -903,7 +913,14 @@ export function GetPagesView({
           <Alert.Title>Error</Alert.Title>
           <div className='flex flex-col items-start justify-center gap-2'>
             <Alert.Description>{error}</Alert.Description>
-            <Button onPress={loadPagesData}>Retry</Button>
+            <Button size='sm' onPress={handleRetry} isPending={isRetrying}>
+              {isRetrying ? (
+                <Spinner size='sm' color='currentColor' />
+              ) : (
+                <IconRefresh stroke={1.5} />
+              )}
+              Retry
+            </Button>
           </div>
         </Alert.Content>
         <CloseButton
