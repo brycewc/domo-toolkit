@@ -119,6 +119,7 @@ export function DataList({
   itemLabel = 'item'
 }) {
   const [isCopied, setIsCopied] = useState(false);
+  const [isHeaderShared, setIsHeaderShared] = useState(false);
 
   /**
    * Handle header action button clicks
@@ -164,7 +165,9 @@ export function DataList({
           break;
 
         case 'shareAll':
-          onShareAll?.();
+          await onShareAll?.();
+          setIsHeaderShared(true);
+          setTimeout(() => setIsHeaderShared(false), 1500);
           break;
 
         default:
@@ -219,11 +222,11 @@ export function DataList({
           break;
 
         case 'share':
-          onItemShare?.(actionType, item);
+          await onItemShare?.(actionType, item);
           break;
 
         case 'shareAll':
-          onItemShareAll?.(actionType, item);
+          await onItemShareAll?.(actionType, item);
           break;
 
         default:
@@ -274,6 +277,28 @@ export function DataList({
                               </Tooltip.Content>
                             </Tooltip>
                           )}
+                          {headerActions.includes('shareAll') && (
+                            <Tooltip delay={400} closeDelay={0}>
+                              <Button
+                                variant='ghost'
+                                size='sm'
+                                isIconOnly
+                                onPress={() => handleHeaderAction('shareAll')}
+                                aria-label='Share All'
+                              >
+                                {isHeaderShared ? (
+                                  <AnimatedCheck stroke={1.5} />
+                                ) : (
+                                  <IconUsersPlus stroke={1.5} />
+                                )}
+                              </Button>
+                              <Tooltip.Content className='text-xs'>
+                                {isHeaderShared
+                                  ? 'Shared!'
+                                  : 'Share all with yourself'}
+                              </Tooltip.Content>
+                            </Tooltip>
+                          )}
                           {headerActions.includes('copy') && (
                             <Tooltip delay={400} closeDelay={0}>
                               <Button
@@ -294,22 +319,7 @@ export function DataList({
                               </Tooltip.Content>
                             </Tooltip>
                           )}
-                          {headerActions.includes('shareAll') && (
-                            <Tooltip delay={400} closeDelay={0}>
-                              <Button
-                                variant='ghost'
-                                size='sm'
-                                isIconOnly
-                                onPress={() => handleHeaderAction('shareAll')}
-                                aria-label='Share All'
-                              >
-                                <IconUsersPlus stroke={1.5} />
-                              </Button>
-                              <Tooltip.Content className='text-xs'>
-                                Share all with yourself
-                              </Tooltip.Content>
-                            </Tooltip>
-                          )}
+
                           {headerActions.includes('refresh') && (
                             <Tooltip delay={400} closeDelay={0}>
                               <Button
@@ -414,15 +424,24 @@ function DataListItem({
   const hasChildren = item.children && item.children.length > 0;
   const [isOpen, setIsOpen] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const [isShared, setIsShared] = useState(false);
 
-  const handleAction = (actionType) => {
+  const handleAction = async (actionType) => {
     if (actionType === 'copy') {
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 1000);
     }
 
     if (onItemAction) {
-      onItemAction(actionType, item);
+      try {
+        await onItemAction(actionType, item);
+        if (actionType === 'share' || actionType === 'shareAll') {
+          setIsShared(true);
+          setTimeout(() => setIsShared(false), 1500);
+        }
+      } catch {
+        // Error handled by parent via onStatusUpdate
+      }
     }
   };
 
@@ -498,10 +517,14 @@ function DataListItem({
         onPress={() => handleAction('shareAll')}
         aria-label='Share All'
       >
-        <IconUsersPlus stroke={1.5} />
+        {isShared ? (
+          <AnimatedCheck stroke={1.5} />
+        ) : (
+          <IconUsersPlus stroke={1.5} />
+        )}
       </Button>
       <Tooltip.Content className='text-xs'>
-        Share all with yourself
+        {isShared ? 'Shared!' : 'Share all with yourself'}
       </Tooltip.Content>
     </Tooltip>
   );
@@ -516,9 +539,15 @@ function DataListItem({
         onPress={() => handleAction('share')}
         aria-label='Share'
       >
-        <IconUserPlus stroke={1.5} />
+        {isShared ? (
+          <AnimatedCheck stroke={1.5} />
+        ) : (
+          <IconUserPlus stroke={1.5} />
+        )}
       </Button>
-      <Tooltip.Content className='text-xs'>Share with yourself</Tooltip.Content>
+      <Tooltip.Content className='text-xs'>
+        {isShared ? 'Shared!' : 'Share with yourself'}
+      </Tooltip.Content>
     </Tooltip>
   );
 
