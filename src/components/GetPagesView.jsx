@@ -137,7 +137,7 @@ function transformGroupedPagesData(childPages, origin, cardsByPage) {
 
     items.push(
       DataListItem.createGroup({
-        id: 'DATA_APP_VIEW_group',
+        id: 'DATA_APP_group',
         label: 'App Studio Apps',
         children: appChildren,
         metadata: `${pagesByApp.size} app${pagesByApp.size !== 1 ? 's' : ''}, ${pagesByType.DATA_APP_VIEW.length} page${pagesByType.DATA_APP_VIEW.length !== 1 ? 's' : ''}`
@@ -206,7 +206,7 @@ function transformGroupedPagesData(childPages, origin, cardsByPage) {
 
     items.push(
       DataListItem.createGroup({
-        id: 'REPORT_BUILDER_VIEW_group',
+        id: 'REPORT_BUILDER_group',
         label: 'Report Builder Pages',
         children,
         metadata: `${children.length} page${children.length !== 1 ? 's' : ''}`
@@ -269,7 +269,7 @@ function transformGroupedPagesData(childPages, origin, cardsByPage) {
 
     items.push(
       DataListItem.createGroup({
-        id: 'WORKSHEET_VIEW_group',
+        id: 'WORKSHEET_group',
         label: 'Worksheet Views',
         children: appChildren,
         metadata: `${pagesByApp.size} app${pagesByApp.size !== 1 ? 's' : ''}, ${pagesByType.WORKSHEET_VIEW.length} view${pagesByType.WORKSHEET_VIEW.length !== 1 ? 's' : ''}`
@@ -850,7 +850,10 @@ export function GetPagesView({
     return (
       <div className='flex w-full flex-col gap-1'>
         <div className='line-clamp-2 min-w-0'>
-          <span>{pageTypeLabel}{pageTypeLabel.endsWith('on') ? '' : ' for'}</span>{' '}
+          <span>
+            {pageTypeLabel}
+            {pageTypeLabel.endsWith('on') ? '' : ' for'}
+          </span>{' '}
           <span className='font-bold'>{pageData?.objectName}</span>
         </div>
         {items.length !== undefined &&
@@ -931,7 +934,7 @@ export function GetPagesView({
       isRefreshing={isRefreshing}
       itemActions={
         pageData?.sidepanelType === 'getOtherPages'
-          ? ['openAll', 'copy', 'share']
+          ? ['openAll', 'copy', 'share', 'shareAll']
           : undefined
       }
       onItemRemove={handleItemRemove}

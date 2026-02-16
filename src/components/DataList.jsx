@@ -243,7 +243,7 @@ export function DataList({
   const hasHeaderActions = headerActions.length > 0 || onClose;
 
   return (
-    <Card className='min-h-60 w-full flex-1 p-2'>
+    <Card className='w-full p-2'>
       {(title || hasHeaderActions) && (
         <Card.Header>
           <Card.Title className='flex items-start justify-between gap-2'>
@@ -359,7 +359,7 @@ export function DataList({
       <ScrollShadow
         orientation='vertical'
         hideScrollBar
-        className='h-full overflow-y-auto overscroll-x-none overscroll-y-contain'
+        className='max-h-[calc(100vh-10rem)] overflow-y-auto overscroll-x-none overscroll-y-contain'
       >
         <Card.Content>
           <DisclosureGroup
@@ -524,13 +524,25 @@ function DataListItem({
 
   // Compute which actions apply to this item
   const getApplicableActions = () => {
+    const isUnshareable =
+      item.typeId === 'DATA_APP_VIEW' ||
+      item.typeId === 'REPORT_BUILDER_VIEW' ||
+      item.typeId === 'CARD' ||
+      objectType === 'DATA_APP_VIEW' ||
+      Number(item.id) < 0;
+
+    // items that shouldn't have shareAll button
+    const isUnshareableParent = item.typeId === 'DATA_APP';
+
     if (item.isVirtualParent) {
       if (!hasChildren) return [];
       const actions = [];
-      if (itemActions ? itemActions.includes('openAll') : true)
+      if (item.id !== 'REPORT_BUILDER_group') {
+        // if (itemActions && itemActions?.includes('openAll'))
         actions.push(openAllButton);
-      if (itemActions ? itemActions.includes('shareAll') : true)
+        // if (itemActions && itemActions?.includes('shareAll'))
         actions.push(shareAllButton);
+      }
       return actions;
     }
 
@@ -538,20 +550,21 @@ function DataListItem({
       const actions = [];
       if (itemActions.includes('openAll') && hasChildren)
         actions.push(openAllButton);
-      if (itemActions.includes('copy')) actions.push(copyButton);
-      if (itemActions.includes('shareAll') && hasChildren)
+      if (
+        itemActions.includes('shareAll') &&
+        hasChildren &&
+        !isUnshareable &&
+        !isUnshareableParent &&
+        item.countLabel !== 'cards'
+      )
         actions.push(shareAllButton);
-      if (itemActions.includes('share')) actions.push(shareButton);
+      if (itemActions.includes('share') && !isUnshareable)
+        actions.push(shareButton);
+      if (itemActions.includes('copy')) actions.push(copyButton);
       return actions;
     }
 
     // Default logic
-    const isUnshareable =
-      item.typeId === 'DATA_APP_VIEW' ||
-      item.typeId === 'REPORT_BUILDER_VIEW' ||
-      item.typeId === 'CARD' ||
-      objectType === 'DATA_APP_VIEW' ||
-      Number(item.id) < 0;
 
     const actions = [];
     if (hasChildren && item.typeId !== 'DATA_APP') {
@@ -567,8 +580,8 @@ function DataListItem({
       actions.push(removeButton);
     }
 
-    actions.push(copyButton);
     if (!isUnshareable) actions.push(shareButton);
+    actions.push(copyButton);
     return actions;
   };
 
