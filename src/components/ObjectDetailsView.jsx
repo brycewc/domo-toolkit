@@ -107,6 +107,7 @@ export function ObjectDetailsView({
   onStatusUpdate = null
 }) {
   const [isLoading, setIsLoading] = useState(true);
+  const [isRetrying, setIsRetrying] = useState(false);
   const [showSpinner, setShowSpinner] = useState(false);
   const [error, setError] = useState(null);
   const [domoObject, setDomoObject] = useState(null);
@@ -118,9 +119,10 @@ export function ObjectDetailsView({
   }, []);
 
   const loadObjectDetails = async () => {
-    setIsLoading(true);
-    setShowSpinner(false);
-    setError(null);
+    if (!isRetrying) {
+      setIsLoading(true);
+      setShowSpinner(false);
+    }
 
     // Delay showing spinner to avoid flash on quick loads
     const spinnerTimer = setTimeout(() => {
@@ -140,6 +142,7 @@ export function ObjectDetailsView({
 
       // Reconstruct the DomoObject
       const obj = DomoObject.fromJSON(data.domoObject);
+      setError(null);
       setDomoObject(obj);
 
       // Extract key fields from metadata details
@@ -169,7 +172,14 @@ export function ObjectDetailsView({
     }
   };
 
-  if (isLoading && showSpinner) {
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    await loadObjectDetails();
+    setIsRetrying(false);
+  };
+
+  if (isLoading) {
+    if (!showSpinner) return null;
     return (
       <Card className='flex w-full items-center justify-center p-0'>
         <Card.Content className='flex flex-col items-center justify-center gap-2 p-2'>
@@ -188,8 +198,12 @@ export function ObjectDetailsView({
           <Alert.Title>Error</Alert.Title>
           <div className='flex flex-col items-start justify-center gap-2'>
             <Alert.Description>{error}</Alert.Description>
-            <Button size='sm' onPress={loadObjectDetails}>
-              <IconRefresh stroke={1.5} />
+            <Button size='sm' onPress={handleRetry} isPending={isRetrying}>
+              {isRetrying ? (
+                <Spinner size='sm' color='currentColor' />
+              ) : (
+                <IconRefresh stroke={1.5} />
+              )}
               Retry
             </Button>
           </div>

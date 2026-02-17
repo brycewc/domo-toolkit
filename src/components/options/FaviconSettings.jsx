@@ -342,7 +342,7 @@ export function FaviconSettings() {
                         <ColorSwatch
                           size='lg'
                           shape='square'
-                          className='w-25 rounded-2xl'
+                          className='w-25 rounded-3xl'
                         />
                       </ColorPicker.Trigger>
                       <ColorPicker.Popover
@@ -403,7 +403,7 @@ export function FaviconSettings() {
                           <ColorField
                             colorSpace='hsl'
                             aria-label='Color field'
-                            className='min-w-0 flex-1 truncate'
+                            className=''
                           >
                             <ColorInputGroup
                               variant='secondary'

@@ -3,6 +3,7 @@
  * Applies visual effects to page favicons based on configured rules
  */
 
+import domoLogo from '@/assets/domo-logo.png';
 import domoLogoTransparent from '@/assets/domo-logo-no-background.png';
 import { EXCLUDED_HOSTNAMES } from './constants';
 
@@ -401,12 +402,7 @@ async function applyDomoLogoColored(favicon, color) {
  * @returns {Promise<string>} The favicon data URL
  */
 async function applyColorEffect(favicon, effect, color) {
-  // Get the original favicon URL
-  const originalHref = favicon.href || '/favicon.ico';
-
-  // Load the original favicon as an image
   const img = new Image();
-  img.crossOrigin = 'anonymous';
 
   return new Promise((resolve, reject) => {
     img.onload = () => {
@@ -417,7 +413,7 @@ async function applyColorEffect(favicon, effect, color) {
       canvas.height = size;
       const ctx = canvas.getContext('2d');
 
-      // Draw the original favicon
+      // Draw the fresh Domo logo as a clean base
       ctx.drawImage(img, 0, 0, size, size);
 
       // Apply the effect
@@ -427,16 +423,16 @@ async function applyColorEffect(favicon, effect, color) {
       const newFaviconUrl = canvas.toDataURL('image/png');
       favicon.href = newFaviconUrl;
 
-      // console.log('Applied favicon effect:', effect, color);
       resolve(newFaviconUrl);
     };
 
     img.onerror = (error) => {
-      console.error('Error loading favicon:', error);
+      console.error('Error loading Domo logo for effect:', error);
       reject(error);
     };
 
-    img.src = originalHref;
+    // Always use the fresh Domo logo to prevent effect stacking
+    img.src = chrome.runtime.getURL(domoLogo);
   });
 }
 
@@ -466,73 +462,5 @@ function applyEffect(ctx, size, effect, color) {
     case 'left':
       ctx.fillRect(0, 0, size / 4, size);
       break;
-
-    case 'cover':
-      ctx.globalAlpha = 0.5;
-      ctx.fillRect(0, 0, size, size);
-      ctx.globalAlpha = 1.0;
-      break;
-
-    case 'replace':
-      // Get image data and replace non-transparent pixels
-      const imageData = ctx.getImageData(0, 0, size, size);
-      const data = imageData.data;
-      const rgb = hexToRgb(color);
-
-      for (let i = 0; i < data.length; i += 4) {
-        // If pixel is not transparent
-        if (data[i + 3] > 0) {
-          data[i] = rgb.r;
-          data[i + 1] = rgb.g;
-          data[i + 2] = rgb.b;
-        }
-      }
-
-      ctx.putImageData(imageData, 0, 0);
-      break;
-
-    case 'background':
-      // Draw color behind the icon
-      const tempCanvas = document.createElement('canvas');
-      tempCanvas.width = size;
-      tempCanvas.height = size;
-      const tempCtx = tempCanvas.getContext('2d');
-
-      // Copy current canvas
-      tempCtx.drawImage(ctx.canvas, 0, 0);
-
-      // Draw background color
-      ctx.fillRect(0, 0, size, size);
-
-      // Draw icon on top
-      ctx.drawImage(tempCanvas, 0, 0);
-      break;
-
-    case 'xor-top':
-      // Draw white rectangle
-      ctx.fillStyle = '#FFFFFF';
-      ctx.fillRect(0, 0, size, size / 4);
-      // Draw colored rectangle with XOR blending
-      ctx.globalCompositeOperation = 'xor';
-      ctx.fillStyle = color;
-      ctx.fillRect(0, 0, size, size / 4);
-      ctx.globalCompositeOperation = 'source-over';
-      break;
   }
-}
-
-/**
- * Convert hex color to RGB
- * @param {string} hex - Hex color string
- * @returns {{r: number, g: number, b: number}}
- */
-function hexToRgb(hex) {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  return result
-    ? {
-        r: parseInt(result[1], 16),
-        g: parseInt(result[2], 16),
-        b: parseInt(result[3], 16)
-      }
-    : { r: 0, g: 0, b: 0 };
 }

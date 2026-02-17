@@ -86,10 +86,7 @@ export function StatusBar({
   const bgColor = bgColorMap[status] || 'bg-accent';
 
   return (
-    <Alert
-      status={status}
-      className='relative min-h-20 w-full overflow-hidden p-2'
-    >
+    <Alert status={status} className='relative w-full overflow-hidden p-2'>
       {timeout ? (
         <div
           id='status-bar-timeout-indicator'
@@ -102,7 +99,9 @@ export function StatusBar({
           {title}
           <Alert.Indicator />
         </Alert.Title>
-        <Alert.Description>{parseDescription(description)}</Alert.Description>
+        <Alert.Description className='h-15 min-h-0 flex-1'>
+          {parseDescription(description)}
+        </Alert.Description>
       </Alert.Content>
       {!timeout ? (
         <CloseButton className='rounded-full' onPress={handleClose} />
