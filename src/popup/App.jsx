@@ -63,7 +63,7 @@ export default function App() {
   }, [currentTabId]);
 
   return (
-    <div className='flex max-h-[600px] max-w-[800px] min-w-90 flex-col space-y-1 overflow-hidden p-1'>
+    <div className='flex h-full max-h-[600px] max-w-[800px] min-w-90 flex-col items-start justify-start space-y-1 overflow-hidden overscroll-contain p-1'>
       <ActionButtons
         currentContext={currentContext}
         isLoadingCurrentContext={isLoadingCurrentContext}

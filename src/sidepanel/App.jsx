@@ -196,7 +196,9 @@ export default function App() {
           onStatusUpdate={showStatus}
         />
 
-        <div className={`relative flex min-h-0 w-full flex-col ${activeView === 'default' || activeView === 'loading' ? 'flex-1' : ''}`}>
+        <div
+          className={`relative flex max-h-fit min-h-0 w-full flex-1 flex-col`}
+        >
           <ContextFooter
             currentContext={currentContext}
             isLoading={isLoadingCurrentContext}
@@ -233,34 +235,38 @@ export default function App() {
           </Card>
         )}
 
-        {(activeView === 'getPages' ||
-          activeView === 'getOtherPages' ||
-          activeView === 'childPagesWarning') && (
-          <GetPagesView
-            onBackToDefault={handleBackToDefault}
-            onStatusUpdate={showStatus}
-          />
-        )}
+        {activeView !== 'default' && activeView !== 'loading' && (
+          <div className='flex min-h-0 w-full flex-1 flex-col'>
+            {(activeView === 'getPages' ||
+              activeView === 'getOtherPages' ||
+              activeView === 'childPagesWarning') && (
+              <GetPagesView
+                onBackToDefault={handleBackToDefault}
+                onStatusUpdate={showStatus}
+              />
+            )}
 
-        {activeView === 'getCards' && (
-          <GetCardsView
-            onBackToDefault={handleBackToDefault}
-            onStatusUpdate={showStatus}
-          />
-        )}
+            {activeView === 'getCards' && (
+              <GetCardsView
+                onBackToDefault={handleBackToDefault}
+                onStatusUpdate={showStatus}
+              />
+            )}
 
-        {activeView === 'getDatasets' && (
-          <GetDatasetsView
-            onBackToDefault={handleBackToDefault}
-            onStatusUpdate={showStatus}
-          />
-        )}
+            {activeView === 'getDatasets' && (
+              <GetDatasetsView
+                onBackToDefault={handleBackToDefault}
+                onStatusUpdate={showStatus}
+              />
+            )}
 
-        {activeView === 'viewObjectDetails' && (
-          <ObjectDetailsView
-            onBackToDefault={handleBackToDefault}
-            onStatusUpdate={showStatus}
-          />
+            {activeView === 'viewObjectDetails' && (
+              <ObjectDetailsView
+                onBackToDefault={handleBackToDefault}
+                onStatusUpdate={showStatus}
+              />
+            )}
+          </div>
         )}
       </div>
       <LinkPreview />

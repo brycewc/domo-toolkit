@@ -23,7 +23,6 @@ import '@/assets/json-view-theme.css';
 function MetadataJsonView({ src }) {
   return (
     <JsonView
-      className='min-h-0 flex-1'
       src={src}
       collapsed={1}
       matchesURL={false}
@@ -367,7 +366,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
       ref={disclosureRef}
       isExpanded={isExpanded}
       onExpandedChange={setIsExpanded}
-      className={`w-full ${isExpanded ? 'flex min-h-0 flex-1 flex-col' : ''}`}
+      className={`w-full ${isExpanded ? 'flex min-h-0 flex-1 flex-col gap-1' : ''}`}
     >
       <Disclosure.Heading>
         <Disclosure.Trigger className='w-full cursor-pointer'>
@@ -375,7 +374,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
         </Disclosure.Trigger>
       </Disclosure.Heading>
       <Disclosure.Content
-        className={`card flex min-h-0 flex-1 flex-col bg-surface p-0 ${isExpanded ? 'mt-1' : ''}`}
+        className={`card flex min-h-0 flex-1 flex-col bg-surface p-0 ${isExpanded ? '' : 'collapse'}`}
       >
         <div className='card__content flex min-h-0 flex-1 flex-col gap-2 p-2'>
           {tabs.length > 1 && (
@@ -398,7 +397,8 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
           )}
           <ScrollShadow
             hideScrollBar
-            className='overflow-y-auto overscroll-y-contain'
+            offset={2}
+            className='min-h-0 flex-1 overflow-y-auto overscroll-y-contain'
             orientation='vertical'
           >
             {renderJsonContent()}

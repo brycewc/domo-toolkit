@@ -246,7 +246,7 @@ export function DataList({
   const hasHeaderActions = headerActions.length > 0 || onClose;
 
   return (
-    <Card className='w-full p-2'>
+    <Card className='flex max-h-fit min-h-0 w-full flex-1 flex-col p-2'>
       {(title || hasHeaderActions) && (
         <Card.Header>
           <Card.Title className='flex items-start justify-between gap-2'>
@@ -369,7 +369,8 @@ export function DataList({
       <ScrollShadow
         orientation='vertical'
         hideScrollBar
-        className='max-h-[calc(100vh-10rem)] overflow-y-auto overscroll-x-none overscroll-y-contain'
+        offset={2}
+        className='min-h-0 flex-1 overflow-y-auto overscroll-x-none overscroll-y-contain'
       >
         <Card.Content>
           <DisclosureGroup
