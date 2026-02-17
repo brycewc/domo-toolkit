@@ -1,11 +1,5 @@
 import { useRef, useState } from 'react';
-import {
-  Button,
-  ButtonGroup,
-  Card,
-  Disclosure,
-  Tooltip
-} from '@heroui/react';
+import { Button, ButtonGroup, Card, Disclosure, Tooltip } from '@heroui/react';
 import {
   IconChevronDown,
   IconHelp,
@@ -79,12 +73,17 @@ export function ActionButtons({
                   fullWidth
                   isIconOnly
                   onPress={() => {
-                    window.open('https://domotoolkit.com/feedback', '_blank');
+                    window.open(
+                      'https://github.com/brycewc/domo-toolkit/issues',
+                      '_blank'
+                    );
                   }}
                 >
                   <IconHelp stroke={1.5} />
                 </Button>
-                <Tooltip.Content>Feedback/help</Tooltip.Content>
+                <Tooltip.Content>
+                  Report an issue or request a feature
+                </Tooltip.Content>
               </Tooltip>
               <Tooltip delay={400} closeDelay={0}>
                 <Button
@@ -145,8 +144,7 @@ export function ActionButtons({
             <div className='flex w-full flex-wrap place-items-center items-center justify-center gap-1 empty:hidden'>
               {(currentContext?.domoObject?.typeId === 'PAGE' ||
                 currentContext?.domoObject?.typeId === 'DATA_APP_VIEW' ||
-                currentContext?.domoObject?.typeId ===
-                  'REPORT_BUILDER_VIEW' ||
+                currentContext?.domoObject?.typeId === 'REPORT_BUILDER_VIEW' ||
                 currentContext?.domoObject?.typeId === 'WORKSHEET_VIEW' ||
                 currentContext?.domoObject?.typeId === 'DATA_SOURCE') && (
                 <GetCards

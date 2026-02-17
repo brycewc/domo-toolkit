@@ -27,6 +27,10 @@ yarn build    # or: npm run build
 2. Enable "Developer mode"
 3. Click "Load unpacked" and select the `dist` directory
 
+## Issues & Feedback
+
+Found a bug or have a feature request? [Open an issue](https://github.com/brycewc/domo-toolkit/issues) on GitHub. An issue is just a post describing what bug you ran into or what you'd like to see -- no coding or technical knowledge required. You'll need a free GitHub account to create one. Include as much detail as you can (what you were doing, what happened, what you expected) and I'll take it from there.
+
 ## Features
 
 ### Context Detection
@@ -113,7 +117,3 @@ See the full [Privacy Policy](docs/PRIVACY_POLICY.md) for details.
 ## Contributing
 
 Interested in contributing? See [CONTRIBUTING.md](CONTRIBUTING.md) for the tech stack, architecture, development setup, code conventions, and key patterns.
-
-## Issues & Feedback
-
-Found a bug or have a feature request? [Open an issue](https://github.com/brycewc/domo-toolkit/issues).
