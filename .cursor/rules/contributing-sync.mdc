@@ -1,7 +1,5 @@
 ---
-description: Keep CONTRIBUTING.md tech stack versions and project structure in sync with the codebase
-globs: CONTRIBUTING.md
-alwaysApply: false
+alwaysApply: true
 ---
 
 # CONTRIBUTING.md Sync
