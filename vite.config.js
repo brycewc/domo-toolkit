@@ -12,6 +12,9 @@ export default defineConfig({
     }
   },
   plugins: [react(), crx({ manifest }), tailwindcss()],
+  esbuild: {
+    pure: ['console.log', 'console.warn']
+  },
   build: {
     sourcemap: false,
     // Extensions load from disk, not network - large chunks are fine

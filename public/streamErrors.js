@@ -51,10 +51,12 @@
 
       var data = await response.json();
 
-      if (!data.errors || data.errors.length === 0) {
-        errorRow.setAttribute(INJECTED_ATTR, 'done');
-        return;
-      }
+      // Separate root-level execution details from the errors array
+      var rootDetails = {};
+      Object.keys(data).forEach(function (k) {
+        if (k !== 'errors') rootDetails[k] = data[k];
+      });
+      var hasRootDetails = Object.keys(rootDetails).length > 0;
 
       // Build a set of error IDs already shown by Domo's UI
       var uiErrorIds = {};
@@ -67,7 +69,7 @@
       }
 
       // Filter out errors that Domo already displays (same id, no parameters)
-      var filteredErrors = data.errors.filter(function (err) {
+      var filteredErrors = (data.errors || []).filter(function (err) {
         if (
           err.parameters === null &&
           err.id !== undefined &&
@@ -78,7 +80,7 @@
         return true;
       });
 
-      if (filteredErrors.length === 0) {
+      if (!hasRootDetails && filteredErrors.length === 0) {
         errorRow.setAttribute(INJECTED_ATTR, 'done');
         return;
       }
@@ -88,11 +90,27 @@
         'margin-top:8px;border-top:1px solid rgba(128,128,128,0.3);padding-top:8px;';
 
       var heading = document.createElement('div');
-      heading.textContent = 'Detailed Errors (Domo Toolkit)';
+      heading.textContent = 'Execution Details (Domo Toolkit)';
       heading.style.cssText =
         'font-weight:600;margin-bottom:6px;font-size:12px;opacity:0.7;';
       container.appendChild(heading);
 
+      // Render root-level execution details
+      if (hasRootDetails) {
+        var detailsDiv = document.createElement('div');
+        detailsDiv.style.cssText =
+          'margin-bottom:8px;padding:6px 8px;background:rgba(128,128,128,0.05);border-radius:4px;border:1px solid rgba(128,128,128,0.2);';
+
+        var pre = document.createElement('pre');
+        pre.textContent = JSON.stringify(rootDetails, null, 2);
+        pre.style.cssText =
+          'font-size:11px;opacity:0.8;white-space:pre-wrap;word-break:break-all;margin:0;';
+        detailsDiv.appendChild(pre);
+
+        container.appendChild(detailsDiv);
+      }
+
+      // Render individual errors
       filteredErrors.forEach(function (err) {
         var errDiv = document.createElement('div');
         errDiv.style.cssText =
@@ -121,11 +139,11 @@
           extraKeys.forEach(function (k) {
             extra[k] = err[k];
           });
-          var pre = document.createElement('pre');
-          pre.textContent = JSON.stringify(extra, null, 2);
-          pre.style.cssText =
+          var errPre = document.createElement('pre');
+          errPre.textContent = JSON.stringify(extra, null, 2);
+          errPre.style.cssText =
             'font-size:11px;opacity:0.7;margin-top:4px;white-space:pre-wrap;word-break:break-all;background:rgba(0,0,0,0.03);padding:4px 6px;border-radius:2px;';
-          errDiv.appendChild(pre);
+          errDiv.appendChild(errPre);
         }
 
         container.appendChild(errDiv);
