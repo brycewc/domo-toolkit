@@ -66,6 +66,7 @@ export function GetPages({
         `Unknown ${objectType}`;
 
       let childPages = [];
+      let cardsByPage;
 
       if (objectType === 'DATA_SOURCE') {
         const cards = await getCardsForObject({
@@ -84,10 +85,12 @@ export function GetPages({
           return;
         }
 
-        const { pages } = await getPagesForCards(
+        const pagesResult = await getPagesForCards(
           cards.map((card) => card.id),
           currentContext?.tabId
         );
+        const pages = pagesResult.pages;
+        cardsByPage = pagesResult.cardsByPage;
 
         if (!pages || pages.length === 0) {
           onStatusUpdate?.(
@@ -190,6 +193,7 @@ export function GetPages({
         type: 'getPages',
         currentContext,
         childPages,
+        cardsByPage,
         statusShown: true
       });
     } catch (error) {

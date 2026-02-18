@@ -592,7 +592,7 @@ export function GetPagesView({
         return { childPages: [] };
       }
 
-      const { pages } = await getPagesForCards(
+      const { pages, cardsByPage } = await getPagesForCards(
         cards.map((card) => card.id),
         tabId
       );
@@ -605,7 +605,7 @@ export function GetPagesView({
         appId: page.appId || null,
         appName: page.appName || null
       }));
-      return { childPages };
+      return { childPages, cardsByPage };
     } else if (objectType === 'CARD') {
       const { pages } = await getPagesForCards([objectId], tabId);
 
