@@ -1,4 +1,6 @@
-Domo Toolkit is designed for the people who live inside Domo every day — administrators managing hundreds of objects, consultants jumping between client instances, and power users building on the platform. Every feature is built to save clicks, reduce context-switching, and surface information that Domo's native UI buries behind multiple navigations. Whether you're creating, updating, troubleshooting, auditing, or cleaning, Domo Toolkit puts the tools you need one click away.
+Domo Toolkit — Power Tools for Domo Administrators
+Stop wasting time navigating menus, managing hundreds of identical browser tabs, copying DataSet IDs from the URL, and constantly clearing your cookies. Domo Toolkit is designed for the people who live inside Domo every day — administrators managing hundreds of objects, consultants jumping between client instances, and power users building on the platform. Every feature is built to save clicks, reduce context-switching, and surface information that Domo's native UI buries behind multiple navigations. Whether you're creating, updating, troubleshooting, auditing, or cleaning, Domo Toolkit puts the tools you need one click away.
+DISCLAIMER: This extension is an independent, community-developed project. Domo, Inc. has no responsibility for its functionality or performance or for any consequences arising from its use.
 INSTANT CONTEXT DETECTION
 Domo Toolkit automatically detects what you're looking at. Navigate to any Page, card, DataSet, dataflow, App Studio Page, workflow, alert, or any of 100+ supported Domo object types — the extension immediately identifies it, enriches it with metadata from the Domo API, and makes relevant actions available. No manual input required. The extension even detects card modals, resolves parent objects for nested types like App Studio Pages, and updates your tab title with (or back to) the object's name for easier tab management. And with a click, you can explore the object's full JSON definition.
 AUTOMATIC 431 ERROR RESOLVING
@@ -10,7 +12,7 @@ ONE-CLICK ACTIONS
 A compact toolbar gives you instant access to the operations you use most:
 Copy ID — Copy the current object's ID to your clipboard instantly. Long-press for additional IDs like Stream ID (for DataSets) or Studio App ID (for App Studio Pages).
 Share With Self — Instantly grant yourself access to Pages, Studio Apps, and Custom App designs. No more navigating through admin content tables.
-Delete Current Object — Delete Beast Modes, AppDB Collections, Workflows, and Pages/App Studio Pages and all their Cards — with a confirmation dialog and child Page safety checks.
+Delete Current Object — Delete Beast Modes, AppDB Collections, Workflows, Approval Templates, and Pages/App Studio Pages and all their Cards — with a confirmation dialog and child Page safety checks.
 Copy Filtered URL - Copy URL with all applied filters on a Card, Page, or App Studio Page (Pfilters).
 Data Repair — Open the hidden data repair tab for any DataSet with a single click.
 Update Owner — Change the owner of Alerts and Workflows with a searchable user picker and a quick "Set to Self" button.
@@ -19,7 +21,7 @@ DATA DISCOVERY — SEE HOW EVERYTHING CONNECTS
 Understanding dependencies across your Domo environment is critical. Domo Toolkit's discovery features open in a persistent side panel so you can explore relationships without losing your place:
 Get Cards — See every card on a Page, App Studio Page, Worksheet Page, Report Builder Page, or DataSet. Open them all in new tabs with one click.
 Get Pages — Discover where things are used:
-For Pages: View all child Pages and grandchild Pages in a hierarchical tree.
+For Pages: View all child Pages and grandchild Pages in a hierarchical tree and view the other pages cards live on.
 For App Studio Pages: See all Pages within the app, grouped by parent app.
 For Cards: Find every Page, App Studio Page, and Report Builder Page where a card lives.
 For DataSets: Trace all the way from DataSet → Cards → Pages to see the full downstream impact.

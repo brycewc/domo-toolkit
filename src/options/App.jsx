@@ -46,6 +46,42 @@ export default function App() {
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
+  // Update document title based on selected tab
+  useEffect(() => {
+    const tabTitles = {
+      welcome: 'Welcome',
+      favicon: 'Favicon Preferences',
+      settings: 'Settings'
+    };
+
+    if (selectedTab === 'activity-log') {
+      chrome.storage.session
+        .get(['activityLogObjects', 'activityLogType'])
+        .then((result) => {
+          const objects = result.activityLogObjects || [];
+          const logType = result.activityLogType;
+          let label;
+
+          if (logType === 'single-object' && objects[0]) {
+            label = objects[0].name || `${objects[0].type} ${objects[0].id}`;
+          } else if (logType === 'child-cards') {
+            label = `${objects.length} ${objects.length === 1 ? 'Card' : 'Cards'}`;
+          } else if (logType === 'child-pages') {
+            label = `${objects.length} ${objects.length === 1 ? 'Page' : 'Pages'}`;
+          } else {
+            label = `${objects.length} ${objects.length === 1 ? 'Object' : 'Objects'}`;
+          }
+
+          document.title = `Activity Log: ${label} - Domo Toolkit`;
+        })
+        .catch(() => {
+          document.title = 'Activity Log - Domo Toolkit';
+        });
+    } else {
+      document.title = `${tabTitles[selectedTab] || 'Options'} - Domo Toolkit`;
+    }
+  }, [selectedTab]);
+
   return (
     <div className='flex h-screen w-full justify-center'>
       <Tabs

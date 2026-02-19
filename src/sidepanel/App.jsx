@@ -54,25 +54,20 @@ export default function App() {
 
     chrome.storage.onChanged.addListener(handleStorageChange);
 
-    // Check if there's already sidepanel data on mount
+    // Check if there's already sidepanel data on mount.
+    // Uses a generous threshold because the popup writes data before opening the
+    // sidepanel, and the cold-start can take several seconds (missing the
+    // storage.onChanged event that fires before the listener is registered).
     chrome.storage.session.get(['sidepanelDataList'], (result) => {
       if (result.sidepanelDataList) {
-        // Only use it if it's recent (within last 10 seconds)
         const age = Date.now() - (result.sidepanelDataList.timestamp || 0);
-        if (age < 1000) {
-          if (result.sidepanelDataList.type === 'getPages') {
-            setActiveView('getPages');
-          } else if (result.sidepanelDataList.type === 'getOtherPages') {
-            setActiveView('getOtherPages');
-          } else if (result.sidepanelDataList.type === 'childPagesWarning') {
-            setActiveView('childPagesWarning');
-          } else if (result.sidepanelDataList.type === 'getCards') {
-            setActiveView('getCards');
-          } else if (result.sidepanelDataList.type === 'getDatasets') {
-            setActiveView('getDatasets');
-          } else if (result.sidepanelDataList.type === 'viewObjectDetails') {
-            setActiveView('viewObjectDetails');
-          }
+        if (age < 10000) {
+          handleStorageChange(
+            {
+              sidepanelDataList: { newValue: result.sidepanelDataList }
+            },
+            'session'
+          );
         }
       }
     });
