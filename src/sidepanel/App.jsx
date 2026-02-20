@@ -19,6 +19,7 @@ export default function App() {
   useTheme();
 
   const [activeView, setActiveView] = useState('default');
+  const [viewKey, setViewKey] = useState(0);
   const [loadingMessage, setLoadingMessage] = useState('Loading...');
   const [currentContext, setCurrentContext] = useState(null);
   const [currentTabId, setCurrentTabId] = useState(null);
@@ -38,16 +39,22 @@ export default function App() {
           setLoadingMessage(data.message || 'Loading...');
         } else if (data?.type === 'getPages') {
           setActiveView('getPages');
+          setViewKey(data.timestamp || Date.now());
         } else if (data?.type === 'getOtherPages') {
           setActiveView('getOtherPages');
+          setViewKey(data.timestamp || Date.now());
         } else if (data?.type === 'childPagesWarning') {
           setActiveView('childPagesWarning');
+          setViewKey(data.timestamp || Date.now());
         } else if (data?.type === 'getCards') {
           setActiveView('getCards');
+          setViewKey(data.timestamp || Date.now());
         } else if (data?.type === 'getDatasets') {
           setActiveView('getDatasets');
+          setViewKey(data.timestamp || Date.now());
         } else if (data?.type === 'viewObjectDetails') {
           setActiveView('viewObjectDetails');
+          setViewKey(data.timestamp || Date.now());
         }
       }
     };
@@ -236,6 +243,7 @@ export default function App() {
               activeView === 'getOtherPages' ||
               activeView === 'childPagesWarning') && (
               <GetPagesView
+                key={viewKey}
                 onBackToDefault={handleBackToDefault}
                 onStatusUpdate={showStatus}
               />
@@ -243,6 +251,7 @@ export default function App() {
 
             {activeView === 'getCards' && (
               <GetCardsView
+                key={viewKey}
                 onBackToDefault={handleBackToDefault}
                 onStatusUpdate={showStatus}
               />
@@ -250,6 +259,7 @@ export default function App() {
 
             {activeView === 'getDatasets' && (
               <GetDatasetsView
+                key={viewKey}
                 onBackToDefault={handleBackToDefault}
                 onStatusUpdate={showStatus}
               />
@@ -257,6 +267,7 @@ export default function App() {
 
             {activeView === 'viewObjectDetails' && (
               <ObjectDetailsView
+                key={viewKey}
                 onBackToDefault={handleBackToDefault}
                 onStatusUpdate={showStatus}
               />
