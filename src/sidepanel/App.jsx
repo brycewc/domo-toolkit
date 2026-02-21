@@ -250,7 +250,7 @@ export default function App() {
         )}
       </div>
       <LinkPreview />
-      <Toast.Provider placement='bottom' className='right-2 bottom-2' />
+      <Toast.Provider />
     </>
   );
 }

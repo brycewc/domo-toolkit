@@ -152,7 +152,7 @@ export default function App() {
           {selectedTab === 'activity-log' && <ActivityLogTable />}
         </Tabs.Panel>
       </Tabs>
-      <Toast.Provider placement='bottom' className='p-2' />
+      <Toast.Provider placement='bottom' className='right-2 bottom-2' />
     </div>
   );
 }

@@ -11,9 +11,11 @@ import {
 } from '@heroui/react';
 import { IconArrowFork, IconX } from '@tabler/icons-react';
 import { updateDataflowDetails } from '@/services';
+import { useStatusBar } from '@/hooks';
 
 export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { showPromiseStatus } = useStatusBar();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [isOpen, setIsOpen] = useState(false);
@@ -65,10 +67,11 @@ export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
 
     setIsSubmitting(true);
 
-    try {
+    const fields = Object.keys(updates).join(' and ');
+
+    const promise = (async () => {
       await updateDataflowDetails(currentContext?.domoObject?.id, updates);
 
-      // Update the cached context in background so popup shows new values
       const [tab] = await chrome.tabs.query({
         active: true,
         currentWindow: true
@@ -79,29 +82,19 @@ export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
           tabId: tab.id,
           metadataUpdates: updates
         });
-
-        // Refresh the page to show the changes
         chrome.tabs.reload(tab.id);
       }
 
-      // Show success message in popup (popup stays open)
-      onStatusUpdate?.(
-        `DataFlow Details Updated Successfully`,
-        `Updated ${Object.keys(updates).join(' and ')}`,
-        'success',
-        3000
-      );
-    } catch (error) {
-      console.error('Error updating DataFlow:', error);
-      onStatusUpdate?.(
-        'Failed to Update DataFlow',
-        error.message || 'An error occurred',
-        'danger',
-        5000
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
+      return fields;
+    })();
+
+    showPromiseStatus(promise, {
+      loading: `Updating DataFlow **${fields}**…`,
+      success: (f) => `Updated ${f}`,
+      error: (err) => err.message || 'An error occurred'
+    });
+
+    promise.finally(() => setIsSubmitting(false));
   };
 
   return (
@@ -169,7 +162,7 @@ export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
                   type='submit'
                   isDisabled={isSubmitting}
                 >
-                  {isSubmitting ? 'Updating...' : 'Save'}
+                  Save
                 </Button>
               </Modal.Footer>
             </Form>

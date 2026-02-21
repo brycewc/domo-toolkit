@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, Button, Card, CloseButton, Spinner } from '@heroui/react';
 import { DataList } from '@/components';
 import { getCardsForObject } from '@/services';
@@ -48,9 +48,13 @@ export function GetCardsView({
   const [items, setItems] = useState([]);
   const [viewData, setViewData] = useState(null);
 
-  // Load data on mount
+  const mountedRef = useRef(true);
   useEffect(() => {
+    mountedRef.current = true;
     loadCardsData();
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   const loadCardsData = async (forceRefresh = false) => {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, Button, Card, CloseButton, Spinner } from '@heroui/react';
 import { DataList } from '@/components';
 import {
@@ -75,9 +75,13 @@ export function GetDatasetsView({
   const [items, setItems] = useState([]);
   const [viewData, setViewData] = useState(null);
 
-  // Load data on mount
+  const mountedRef = useRef(true);
   useEffect(() => {
+    mountedRef.current = true;
     loadDatasetsData();
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   const loadDatasetsData = async (forceRefresh = false) => {

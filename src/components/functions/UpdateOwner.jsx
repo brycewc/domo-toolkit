@@ -24,10 +24,12 @@ import {
   IconX
 } from '@tabler/icons-react';
 import { updateOwner, searchUsers } from '@/services';
+import { useStatusBar } from '@/hooks';
 import { isSidepanel } from '@/utils';
 
 export function UpdateOwner({ currentContext, onStatusUpdate }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { showPromiseStatus } = useStatusBar();
   const [currentUserId, setCurrentUserId] = useState(null);
   const [isOpen, setIsOpen] = useState(false);
 
@@ -113,8 +115,7 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
     }
   }, [isOpen, currentContext?.user?.id]);
 
-  // Core submit logic - accepts ownerId directly to avoid async state issues
-  const submitOwnerUpdate = async (ownerId) => {
+  const submitOwnerUpdate = (ownerId) => {
     if (!ownerId) {
       onStatusUpdate?.('Blank owner', 'Please enter an owner', 'warning', 2000);
       return;
@@ -122,36 +123,26 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
 
     setIsSubmitting(true);
 
-    try {
-      await updateOwner({
-        object: currentContext?.domoObject,
-        owner: ownerId,
-        tabId: currentContext?.tabId
-      });
+    const typeName = currentContext?.domoObject?.typeName;
 
-      // Show success message in popup (popup stays open)
-      onStatusUpdate?.(
-        `${currentContext.domoObject.typeName} Owner Updated Successfully`,
-        `Updated ${currentContext.domoObject.typeName.toLowerCase()} owner to ${ownerId}`,
-        'success',
-        3000
-      );
+    const promise = updateOwner({
+      object: currentContext?.domoObject,
+      owner: ownerId,
+      tabId: currentContext?.tabId
+    }).then(() => {
       setIsOpen(false);
       chrome.tabs.reload(currentContext?.tabId);
-    } catch (error) {
-      console.error(
-        `Error updating ${currentContext.domoObject.typeName}:`,
-        error
-      );
-      onStatusUpdate?.(
-        `Failed to Update ${currentContext.domoObject.typeName} Owner`,
-        error.message || 'An error occurred',
-        'danger',
-        5000
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
+      return ownerId;
+    });
+
+    showPromiseStatus(promise, {
+      loading: `Updating **${typeName}** owner…`,
+      success: (id) =>
+        `Updated ${typeName?.toLowerCase()} owner to **${id}**`,
+      error: (err) => err.message || 'An error occurred'
+    });
+
+    promise.finally(() => setIsSubmitting(false));
   };
 
   const handleSubmit = async (e) => {
@@ -294,16 +285,8 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
                     type='submit'
                     size='sm'
                     isDisabled={isSubmitting}
-                    isPending={isSubmitting}
-                    isIconOnly={isSubmitting}
                   >
-                    {({ isPending }) =>
-                      isPending ? (
-                        <Spinner color='currentColor' size='sm' />
-                      ) : (
-                        'Save'
-                      )
-                    }
+                    Save
                   </Button>
                 </div>
               </Modal.Footer>

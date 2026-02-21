@@ -8,7 +8,6 @@ import {
   Skeleton,
   Link,
   DateField,
-  DateInputGroup,
   Popover,
   ButtonGroup
 } from '@heroui/react';
@@ -876,13 +875,11 @@ export function ActivityLogTable() {
                       granularity='day'
                     >
                       <Label>Start Date</Label>
-                      <DateInputGroup>
-                        <DateInputGroup.Input>
-                          {(segment) => (
-                            <DateInputGroup.Segment segment={segment} />
-                          )}
-                        </DateInputGroup.Input>
-                      </DateInputGroup>
+                      <DateField.Group>
+                        <DateField.Input>
+                          {(segment) => <DateField.Segment segment={segment} />}
+                        </DateField.Input>
+                      </DateField.Group>
                     </DateField>
                     <DateField
                       name='End Date'
@@ -891,13 +888,11 @@ export function ActivityLogTable() {
                       granularity='day'
                     >
                       <Label>End Date</Label>
-                      <DateInputGroup>
-                        <DateInputGroup.Input>
-                          {(segment) => (
-                            <DateInputGroup.Segment segment={segment} />
-                          )}
-                        </DateInputGroup.Input>
-                      </DateInputGroup>
+                      <DateField.Group>
+                        <DateField.Input>
+                          {(segment) => <DateField.Segment segment={segment} />}
+                        </DateField.Input>
+                      </DateField.Group>
                     </DateField>
                     <Button
                       variant='tertiary'

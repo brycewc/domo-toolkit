@@ -284,7 +284,9 @@ export async function detectCurrentObject() {
     case url.includes('sandbox/repositories/'):
       objectType = 'REPOSITORY';
       break;
-
+    case url.includes('cloud-integrations/'):
+      objectType = 'WAREHOUSE_ACCOUNT';
+      break;
     case url.includes('workspaces/'):
       objectType = 'WORKSPACE';
       break;

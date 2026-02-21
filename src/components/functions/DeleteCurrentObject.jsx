@@ -2,12 +2,12 @@ import { useState } from 'react';
 import {
   AlertDialog,
   Button,
-  Spinner,
   Tooltip,
   useOverlayState
 } from '@heroui/react';
 import { IconTrash, IconX } from '@tabler/icons-react';
 import { deletePageAndAllCards, deleteObject } from '@/services';
+import { useStatusBar } from '@/hooks';
 import {
   waitForChildPages,
   isSidepanel,
@@ -22,7 +22,8 @@ export function DeleteCurrentObject({
   isDisabled
 }) {
   const [isDeleting, setIsDeleting] = useState(false);
-  const state = useOverlayState({});
+  const dialogState = useOverlayState({});
+  const { showPromiseStatus } = useStatusBar();
 
   const supportedTypes = [
     'ACCESS_TOKEN',
@@ -42,146 +43,116 @@ export function DeleteCurrentObject({
     }
 
     const { typeId, id } = currentContext.domoObject;
+    const typeName = currentContext.domoObject.typeName;
+    const objectName =
+      currentContext.domoObject.metadata?.name || id;
 
-    setIsDeleting(true);
+    // PAGE/DATA_APP_VIEW: check for child pages before deleting
+    if (typeId === 'PAGE' || typeId === 'DATA_APP_VIEW') {
+      const pageId = parseInt(id);
+      const pageType = typeId;
+      const appId =
+        typeId === 'DATA_APP_VIEW' && currentContext.domoObject.parentId
+          ? parseInt(currentContext.domoObject.parentId)
+          : null;
 
-    try {
-      let deleteResult = null;
-      switch (typeId) {
-        case 'ACCESS_TOKEN':
-        case 'APP':
-        case 'BEAST_MODE_FORMULA':
-        case 'MAGNUM_COLLECTION':
-        case 'TEMPLATE':
-        case 'WORKFLOW_MODEL':
-          // Use generic deleteObject function
-          deleteResult = await deleteObject({
-            object: currentContext.domoObject,
-            tabId: currentContext.tabId
-          });
+      if (pageType === 'PAGE') {
+        const result = await waitForChildPages(currentContext);
 
-          // Handle the result and show appropriate status
-          if (deleteResult.statusTitle && deleteResult.statusDescription) {
-            onStatusUpdate?.(
-              deleteResult.statusTitle,
-              deleteResult.statusDescription,
-              deleteResult.statusType || 'accent'
-            );
-          }
-          state.close();
+        if (!result.success) {
+          onStatusUpdate?.('Error', result.error, 'danger', 3000);
+          return;
+        }
 
-          if (
-            deleteResult.statusType === 'success' &&
-            typeId === 'WORKFLOW_MODEL'
-          ) {
-            chrome.tabs.update(currentContext.tabId, { url: '/workflows' });
-          }
-          break;
+        if (result.childPages.length > 0) {
+          const inSidepanel = isSidepanel();
+          if (!inSidepanel) openSidepanel();
 
-        case 'PAGE':
-        case 'DATA_APP_VIEW':
-          const pageId = parseInt(id);
-          const pageType = typeId;
-          const appId =
-            typeId === 'DATA_APP_VIEW' && currentContext.domoObject.parentId
-              ? parseInt(currentContext.domoObject.parentId)
-              : null;
-
-          // For regular pages, check pre-fetched child pages
-          if (pageType === 'PAGE') {
-            // Wait for child pages to be loaded
-            const result = await waitForChildPages(currentContext);
-
-            if (!result.success) {
-              onStatusUpdate?.('Error', result.error, 'danger', 3000);
-              setIsDeleting(false);
-              return;
-            }
-
-            const childPages = result.childPages;
-
-            if (childPages.length > 0) {
-              console.log(
-                '[DeleteCurrentObject] Page has child pages:',
-                childPages.length
-              );
-
-              const inSidepanel = isSidepanel();
-
-              if (!inSidepanel) openSidepanel();
-
-              // Store child pages data
-              await storeSidepanelData({
-                type: 'childPagesWarning',
-                currentContext,
-                childPages,
-                statusShown: inSidepanel
-              });
-
-              // Show status message
-              await showStatus({
-                onStatusUpdate,
-                title: 'Cannot Delete Page',
-                description: inSidepanel
-                  ? `This page has **${childPages.length} child page${childPages.length !== 1 ? 's' : ''}**. Please delete or reassign the child pages first.`
-                  : `This page has **${childPages.length} child page${childPages.length !== 1 ? 's' : ''}**. View them in the sidepanel.`,
-                status: 'warning',
-                timeout: 0,
-                inSidepanel
-              });
-
-              // Close the dialog after showing status
-              state.close();
-              setIsDeleting(false);
-              return;
-            }
-          }
-
-          // No child pages, proceed with deletion
-          deleteResult = await deletePageAndAllCards({
-            pageId,
-            pageType,
-            appId,
-            tabId: currentContext.tabId,
+          await storeSidepanelData({
+            type: 'childPagesWarning',
             currentContext,
-            skipChildPageCheck: true // Skip the check since we already did it
+            childPages: result.childPages,
+            statusShown: inSidepanel
           });
 
-          // Handle the result and show appropriate status
-          if (deleteResult.statusTitle && deleteResult.statusDescription) {
-            onStatusUpdate?.(
-              deleteResult.statusTitle,
-              deleteResult.statusDescription,
-              deleteResult.statusType || 'accent'
-            );
-          }
+          await showStatus({
+            onStatusUpdate,
+            title: 'Cannot Delete Page',
+            description: inSidepanel
+              ? `This page has **${result.childPages.length} child page${result.childPages.length !== 1 ? 's' : ''}**. Please delete or reassign the child pages first.`
+              : `This page has **${result.childPages.length} child page${result.childPages.length !== 1 ? 's' : ''}**. View them in the sidepanel.`,
+            status: 'warning',
+            timeout: 0,
+            inSidepanel
+          });
 
-          state.close();
-          break;
-
-        default:
-          onStatusUpdate?.(
-            'Error',
-            `Deletion not supported for object type: ${typeId}`,
-            'danger'
-          );
-          state.close();
+          dialogState.close();
+          return;
+        }
       }
-    } catch (error) {
-      console.error('Error deleting object:', error);
-      onStatusUpdate?.(
-        'Error',
-        error.message || 'Failed to delete object',
-        'danger'
-      );
-      state.close();
-    } finally {
-      setIsDeleting(false);
+
+      setIsDeleting(true);
+
+      const promise = deletePageAndAllCards({
+        pageId,
+        pageType,
+        appId,
+        tabId: currentContext.tabId,
+        currentContext,
+        skipChildPageCheck: true
+      }).then((result) => {
+        dialogState.close();
+        return result;
+      });
+
+      showPromiseStatus(promise, {
+        loading: `Deleting **${objectName}** and its cards…`,
+        success: (result) => result.statusDescription || `**${objectName}** deleted`,
+        error: (err) => err.message || 'Failed to delete object'
+      });
+
+      promise.finally(() => setIsDeleting(false));
+      return;
     }
+
+    // Generic object delete
+    if (supportedTypes.includes(typeId)) {
+      setIsDeleting(true);
+
+      const promise = deleteObject({
+        object: currentContext.domoObject,
+        tabId: currentContext.tabId
+      }).then((result) => {
+        dialogState.close();
+        if (result.statusType === 'success' && typeId === 'WORKFLOW_MODEL') {
+          chrome.tabs.update(currentContext.tabId, { url: '/workflows' });
+        }
+        if (result.statusType !== 'success') {
+          throw new Error(result.statusDescription || 'Delete failed');
+        }
+        return result;
+      });
+
+      showPromiseStatus(promise, {
+        loading: `Deleting **${objectName}**…`,
+        success: (result) => result.statusDescription || `**${objectName}** deleted`,
+        error: (err) => err.message || 'Failed to delete object'
+      });
+
+      promise.finally(() => setIsDeleting(false));
+      return;
+    }
+
+    onStatusUpdate?.(
+      'Error',
+      `Deletion not supported for object type: ${typeId}`,
+      'danger'
+    );
+    dialogState.close();
   };
 
   return (
-    <AlertDialog isOpen={state.isOpen} onOpenChange={state.setOpen}>
+    <AlertDialog isOpen={dialogState.isOpen} onOpenChange={dialogState.setOpen}>
       <Tooltip
         delay={400}
         closeDelay={0}
@@ -233,7 +204,6 @@ export function DeleteCurrentObject({
               <IconX stroke={1.5} />
             </AlertDialog.CloseTrigger>
             <AlertDialog.Header>
-              {/* <AlertDialog.Icon status='danger' /> */}
               <AlertDialog.Heading>
                 Delete {currentContext?.domoObject?.typeName}
               </AlertDialog.Heading>
@@ -266,16 +236,9 @@ export function DeleteCurrentObject({
                 variant='danger'
                 size='sm'
                 onPress={handleDelete}
-                isPending={isDeleting}
-                isIconOnly={isDeleting}
+                isDisabled={isDeleting}
               >
-                {({ isPending }) =>
-                  isPending ? (
-                    <Spinner color='currentColor' size='sm' />
-                  ) : (
-                    `Delete ${currentContext?.domoObject?.typeName}`
-                  )
-                }
+                Delete {currentContext?.domoObject?.typeName}
               </Button>
             </AlertDialog.Footer>
           </AlertDialog.Dialog>

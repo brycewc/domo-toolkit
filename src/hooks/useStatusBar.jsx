@@ -44,5 +44,22 @@ export function useStatusBar() {
     []
   );
 
-  return { showStatus };
+  const showPromiseStatus = useCallback(
+    (promise, { loading, success, error }) => {
+      return toast.promise(promise, {
+        loading,
+        success: (data) => {
+          const msg = typeof success === 'function' ? success(data) : success;
+          return parseDescription(msg);
+        },
+        error: (err) => {
+          const msg = typeof error === 'function' ? error(err) : error;
+          return parseDescription(msg);
+        }
+      });
+    },
+    []
+  );
+
+  return { showStatus, showPromiseStatus };
 }

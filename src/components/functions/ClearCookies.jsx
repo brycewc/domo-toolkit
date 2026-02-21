@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Button, Spinner, Tooltip } from '@heroui/react';
+import { Button, Tooltip } from '@heroui/react';
 import { IconCookieOff } from '@tabler/icons-react';
 import { clearCookies, executeInPage } from '@/utils';
+import { useStatusBar } from '@/hooks';
 
-// Excluded hostnames that shouldn't be considered Domo instances
 const EXCLUDED_HOSTNAMES = [
   'domo-support.domo.com',
   'developer.domo.com',
@@ -11,10 +11,6 @@ const EXCLUDED_HOSTNAMES = [
   'domo.com'
 ];
 
-/**
- * Get domains and DA-SIDs to preserve (last 2 active instances)
- * Shared logic used by both auto-clear (background.js) and preserve clear
- */
 async function getDomainsToPreserve() {
   const allTabs = await chrome.tabs.query({ url: '*://*.domo.com/*' });
   const domoTabs = allTabs.filter((tab) => {
@@ -26,10 +22,10 @@ async function getDomainsToPreserve() {
     }
   });
 
-  // Sort by lastAccessed if available, otherwise by tab id (higher = more recent)
-  domoTabs.sort((a, b) => (b.lastAccessed || b.id) - (a.lastAccessed || a.id));
+  domoTabs.sort(
+    (a, b) => (b.lastAccessed || b.id) - (a.lastAccessed || a.id)
+  );
 
-  // Get up to 2 unique domains
   const seenDomains = new Set();
   const recentDomoTabs = [];
   for (const tab of domoTabs) {
@@ -41,7 +37,6 @@ async function getDomainsToPreserve() {
     }
   }
 
-  // Get DA-SID cookie names for each domain to preserve
   const daSidsToPreserve = [];
   for (const { tab } of recentDomoTabs) {
     try {
@@ -56,7 +51,10 @@ async function getDomainsToPreserve() {
         );
       }
     } catch (e) {
-      console.warn(`[ClearCookies] Could not get DA-SID for tab ${tab.id}:`, e);
+      console.warn(
+        `[ClearCookies] Could not get DA-SID for tab ${tab.id}:`,
+        e
+      );
     }
   }
 
@@ -66,17 +64,15 @@ async function getDomainsToPreserve() {
   };
 }
 
-export function ClearCookies({ currentContext, onStatusUpdate, isDisabled }) {
+export function ClearCookies({ currentContext, isDisabled }) {
   const [cookieClearingMode, setCookieClearingMode] = useState('auto');
-  const [isClearingCookies, setIsClearingCookies] = useState(false);
+  const { showPromiseStatus } = useStatusBar();
 
-  // Load cookie clearing mode setting
   useEffect(() => {
     chrome.storage.sync.get(['defaultClearCookiesHandling'], (result) => {
       setCookieClearingMode(result.defaultClearCookiesHandling || 'auto');
     });
 
-    // Listen for changes to the setting
     const handleStorageChange = (changes, areaName) => {
       if (areaName === 'sync' && changes.defaultClearCookiesHandling) {
         setCookieClearingMode(
@@ -91,30 +87,24 @@ export function ClearCookies({ currentContext, onStatusUpdate, isDisabled }) {
     };
   }, []);
 
-  // Don't render the button when mode is 'auto' (auto-clear handles 431 errors)
   if (cookieClearingMode === 'auto') {
     return null;
   }
 
-  const handleClearCookies = async () => {
-    setIsClearingCookies(true);
-
-    try {
+  const handleClearCookies = () => {
+    const promise = (async () => {
       let result;
 
       if (cookieClearingMode === 'all') {
-        // Clear ALL Domo cookies
         result = await clearCookies({
           domains: null,
           excludeDomains: false,
           tabId: currentContext?.tabId
         });
       } else {
-        // 'default' mode: preserve last 2 instances
         const { domains, daSidsToPreserve } = await getDomainsToPreserve();
 
         if (domains.length === 0) {
-          // No Domo tabs found, just clear all
           result = await clearCookies({
             domains: null,
             excludeDomains: false,
@@ -126,23 +116,20 @@ export function ClearCookies({ currentContext, onStatusUpdate, isDisabled }) {
             excludeDomains: true,
             daSidsToPreserve
           });
-          // Reload current tab after clearing in exclude mode
           if (currentContext?.tabId) {
             chrome.tabs.reload(currentContext.tabId);
           }
         }
       }
 
-      onStatusUpdate(result.title, result.description, result.status);
-    } catch (error) {
-      onStatusUpdate(
-        'Error',
-        error.message || 'Failed to clear cookies',
-        'danger'
-      );
-    } finally {
-      setIsClearingCookies(false);
-    }
+      return result;
+    })();
+
+    showPromiseStatus(promise, {
+      loading: 'Clearing cookies…',
+      success: (result) => result.description,
+      error: (err) => err.message || 'Failed to clear cookies'
+    });
   };
 
   const tooltipText =
@@ -157,16 +144,9 @@ export function ClearCookies({ currentContext, onStatusUpdate, isDisabled }) {
         fullWidth
         isIconOnly
         onPress={handleClearCookies}
-        isPending={isClearingCookies}
         isDisabled={isDisabled}
       >
-        {({ isPending }) =>
-          isPending ? (
-            <Spinner color='currentColor' size='sm' />
-          ) : (
-            <IconCookieOff className='text-danger' />
-          )
-        }
+        <IconCookieOff className='text-danger' />
       </Button>
       <Tooltip.Content>{tooltipText}</Tooltip.Content>
     </Tooltip>

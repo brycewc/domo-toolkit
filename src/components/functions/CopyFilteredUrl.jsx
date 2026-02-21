@@ -1,25 +1,21 @@
 import { useState, useEffect } from 'react';
-import { Button, Tooltip, Chip } from '@heroui/react';
+import { Button, Chip } from '@heroui/react';
 import { IconFilterShare } from '@tabler/icons-react';
 import { AnimatedCheck } from '@/components';
 import { getAllFilters, buildPfilterUrl } from '@/services';
+import { useStatusBar } from '@/hooks';
 
-export function CopyFilteredUrl({
-  currentContext,
-  onStatusUpdate,
-  isDisabled
-}) {
+export function CopyFilteredUrl({ currentContext, isDisabled }) {
   const [isCopied, setIsCopied] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const [filterCount, setFilterCount] = useState(0);
   const [heldFilters, setHeldFilters] = useState([]);
   const [hasNewFilters, setHasNewFilters] = useState(false);
+  const { showPromiseStatus } = useStatusBar();
 
   const typeId = currentContext?.domoObject?.typeId;
   const isSupported =
     typeId === 'PAGE' || typeId === 'DATA_APP_VIEW' || typeId === 'CARD';
 
-  // Detect filters whenever context changes to update badge count
   useEffect(() => {
     let isMounted = true;
 
@@ -40,11 +36,9 @@ export function CopyFilteredUrl({
         if (isMounted) {
           setFilterCount(allFilters.length);
 
-          // Compare with held filters to see if something changed
           if (heldFilters.length !== allFilters.length) {
             setHasNewFilters(heldFilters.length > 0 && allFilters.length > 0);
           } else if (allFilters.length > 0) {
-            // Shallow compare strings
             const heldStr = JSON.stringify(
               [...heldFilters].sort((a, b) => a.column.localeCompare(b.column))
             );
@@ -71,12 +65,10 @@ export function CopyFilteredUrl({
     };
   }, [currentContext, isSupported, typeId, heldFilters]);
 
-  const handleCopyFilteredUrl = async () => {
+  const handleCopyFilteredUrl = () => {
     if (!currentContext?.domoObject?.id || !isSupported) return;
 
-    setIsLoading(true);
-
-    try {
+    const promise = (async () => {
       const objectId = currentContext.domoObject.id;
       const currentUrl =
         typeId === 'CARD' &&
@@ -87,7 +79,6 @@ export function CopyFilteredUrl({
             ? currentContext.domoObject.url
             : currentContext.url;
 
-      // Fresh detection on click
       const { allFilters } = await getAllFilters({
         url: currentUrl,
         pageId: typeId === 'CARD' ? null : objectId,
@@ -98,42 +89,31 @@ export function CopyFilteredUrl({
       setFilterCount(allFilters.length);
       setHasNewFilters(false);
 
-      // Build the filtered URL
       const filteredUrl = buildPfilterUrl(currentUrl, objectId, allFilters);
-
-      // Copy to clipboard
       await navigator.clipboard.writeText(filteredUrl);
 
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
 
-      const count = allFilters.length;
-      onStatusUpdate?.(
-        'Captured & Held',
+      return allFilters.length;
+    })();
+
+    showPromiseStatus(promise, {
+      loading: 'Detecting filters…',
+      success: (count) =>
         count > 0
           ? `Captured ${count} filter${count !== 1 ? 's' : ''} and copied URL`
           : 'Copied Base URL (No filters active)',
-        'success',
-        2000
-      );
-    } catch (error) {
-      console.error('Failed to copy filtered URL:', error);
-      onStatusUpdate?.('Error', 'Failed to detect filters', 'error', 3000);
-    } finally {
-      setIsLoading(false);
-    }
+      error: () => 'Failed to detect filters'
+    });
   };
-
-  const buttonDisabled = isDisabled || !isSupported || isLoading;
 
   return (
     <Button
       variant='tertiary'
       fullWidth
       onPress={handleCopyFilteredUrl}
-      isDisabled={buttonDisabled}
-      isLoading={isLoading}
-      isPending={isLoading}
+      isDisabled={isDisabled || !isSupported}
       className={` ${hasNewFilters ? 'animate-pulse' : ''}`}
     >
       {isCopied ? <AnimatedCheck /> : <IconFilterShare stroke={1.5} />}

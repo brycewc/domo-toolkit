@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { Button, Spinner } from '@heroui/react';
+import { Button } from '@heroui/react';
 import { IconXboxX } from '@tabler/icons-react';
 import { getCardDefinition, updateCardDefinition } from '@/services';
+import { useStatusBar } from '@/hooks';
 
 function countEmptyStringFilters(definition) {
   if (!Array.isArray(definition?.definition?.controls)) return 0;
@@ -17,11 +18,11 @@ export function RemoveEmptyStringsFromQuickFilters({
   currentContext,
   onStatusUpdate
 }) {
-  const [isLoading, setIsLoading] = useState(false);
   const [emptyCount, setEmptyCount] = useState(null);
   const definitionRef = useRef(null);
   const cardId = currentContext?.domoObject?.id;
   const tabId = currentContext?.tabId;
+  const { showPromiseStatus } = useStatusBar();
 
   useEffect(() => {
     definitionRef.current = null;
@@ -49,9 +50,7 @@ export function RemoveEmptyStringsFromQuickFilters({
 
   if (!cardId || !emptyCount) return null;
 
-  const handleClick = async () => {
-    setIsLoading(true);
-
+  const handleClick = () => {
     const definition = definitionRef.current;
     if (!definition) {
       onStatusUpdate?.(
@@ -59,11 +58,9 @@ export function RemoveEmptyStringsFromQuickFilters({
         `No definition found for card **${cardId}**`,
         'warning'
       );
-      setIsLoading(false);
       return;
     }
 
-    // Remove empty string filters from controls
     let removed = 0;
     definition.definition.controls.forEach((control) => {
       if (
@@ -76,45 +73,32 @@ export function RemoveEmptyStringsFromQuickFilters({
       }
     });
 
-    try {
-      await updateCardDefinition({ cardId, definition, tabId });
-      onStatusUpdate?.(
-        'Successfully Updated',
-        `Removed ${removed} empty string quick filter${removed === 1 ? '' : 's'} from card **${cardId}**`,
-        'success'
-      );
-      chrome.tabs.reload(tabId);
-    } catch {
-      onStatusUpdate?.(
-        'Update Failed',
-        `Failed to remove empty strings from card **${cardId}** quick filters`,
-        'danger'
-      );
-    }
-    setIsLoading(false);
+    const promise = updateCardDefinition({ cardId, definition, tabId }).then(
+      () => {
+        chrome.tabs.reload(tabId);
+        return removed;
+      }
+    );
+
+    showPromiseStatus(promise, {
+      loading: `Removing empty strings from card **${cardId}**…`,
+      success: (count) =>
+        `Removed ${count} empty string quick filter${count === 1 ? '' : 's'} from card **${cardId}**`,
+      error: () =>
+        `Failed to remove empty strings from card **${cardId}** quick filters`
+    });
   };
 
   return (
     <Button
       variant='tertiary'
-      onPress={() => handleClick()}
-      isDisabled={isLoading || emptyCount === null}
-      isPending={isLoading}
+      onPress={handleClick}
+      isDisabled={emptyCount === null}
       fullWidth
       className='min-w-fit flex-1 basis-[48%]'
     >
-      {({ isPending }) => {
-        if (isPending) {
-          return <Spinner color='currentColor' size='sm' />;
-        }
-
-        return (
-          <>
-            <IconXboxX stroke={1.5} />
-            Remove Empty Strings from Quick Filters
-          </>
-        );
-      }}
+      <IconXboxX stroke={1.5} />
+      Remove Empty Strings from Quick Filters
     </Button>
   );
 }

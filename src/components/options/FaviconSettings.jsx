@@ -11,7 +11,6 @@ import {
   Form,
   Skeleton,
   ColorArea,
-  ColorInputGroup,
   ColorField,
   ColorSlider,
   ColorSwatch,
@@ -95,11 +94,19 @@ export function FaviconSettings() {
   // Check if rules have changed from original
   const hasChanges = JSON.stringify(rules) !== JSON.stringify(originalRules);
 
-  const showStatus = (title, description, status = 'accent', timeout = 3000) => {
+  const showStatus = (
+    title,
+    description,
+    status = 'accent',
+    timeout = 3000
+  ) => {
     const method =
-      status === 'success' ? toast.success
-        : status === 'warning' ? toast.warning
-          : status === 'danger' ? toast.danger
+      status === 'success'
+        ? toast.success
+        : status === 'warning'
+          ? toast.warning
+          : status === 'danger'
+            ? toast.danger
             : toast;
     method(title, { description, timeout: timeout || 0 });
   };
@@ -394,14 +401,14 @@ export function FaviconSettings() {
                             aria-label='Color field'
                             className=''
                           >
-                            <ColorInputGroup
+                            <ColorField.Group
                               variant='secondary'
                               aria-label='Color input group'
                             >
-                              <ColorInputGroup.Prefix>
+                              <ColorField.Prefix>
                                 <ColorSwatch size='xs' shape='square' />
-                              </ColorInputGroup.Prefix>
-                              <ColorInputGroup.Input
+                              </ColorField.Prefix>
+                              <ColorField.Input
                                 aria-label='Color input'
                                 onPaste={(e) => {
                                   let text = e.clipboardData
@@ -422,7 +429,7 @@ export function FaviconSettings() {
                                   }
                                 }}
                               />
-                            </ColorInputGroup>
+                            </ColorField.Group>
                           </ColorField>
                           <Button
                             isIconOnly
@@ -454,7 +461,6 @@ export function FaviconSettings() {
             ))
           )}
         </Form>
-
       </div>
 
       <Accordion className='cursor-pointer'>

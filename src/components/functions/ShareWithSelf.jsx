@@ -1,72 +1,67 @@
 import { useState } from 'react';
-import { Button, Spinner, Tooltip } from '@heroui/react';
+import { Button, Tooltip } from '@heroui/react';
 import { IconUserPlus } from '@tabler/icons-react';
 import { shareWithSelf } from '@/services';
+import { useStatusBar } from '@/hooks';
 import { isSidepanel } from '@/utils';
 
-/**
- * ShareWithSelf component - Shares the current object with the current user
- * Supports: DATA_SOURCE (accounts), PAGE, DATA_APP, DATA_APP_VIEW, and APP (custom app designs)
- */
+const SUPPORTED_TYPES = [
+  'DATA_SOURCE',
+  'PAGE',
+  'DATA_APP',
+  'DATA_APP_VIEW',
+  'APP'
+];
+
 export function ShareWithSelf({ currentContext, onStatusUpdate, isDisabled }) {
   const [isSharing, setIsSharing] = useState(false);
+  const { showPromiseStatus } = useStatusBar();
 
-  const handleShare = async () => {
+  const handleShare = () => {
+    if (
+      !currentContext?.domoObject ||
+      !currentContext.domoObject.id ||
+      !currentContext.domoObject.typeId
+    ) {
+      onStatusUpdate?.(
+        'No Object Detected',
+        'Please navigate to a valid Domo object and try again',
+        'danger'
+      );
+      return;
+    }
+
+    if (!SUPPORTED_TYPES.includes(currentContext.domoObject.typeId)) {
+      onStatusUpdate?.(
+        'Unsupported Object Type',
+        `Share with Self is not supported for ${currentContext.domoObject.typeName}. Supported types: DataSet, Page, Studio App, App Studio Page, Custom App Design.`,
+        'danger'
+      );
+      return;
+    }
+
+    if (currentContext.domoObject.typeId === 'DATA_SOURCE') {
+      if (!currentContext.domoObject.metadata?.details?.accountId) {
+        onStatusUpdate?.(
+          'Missing Account Information',
+          'DataSet account information not found. Please refresh and try again.',
+          'danger'
+        );
+        return;
+      }
+    }
+
     setIsSharing(true);
 
-    try {
-      // Validate current object
-      if (
-        !currentContext?.domoObject ||
-        !currentContext.domoObject.id ||
-        !currentContext.domoObject.typeId
-      ) {
-        onStatusUpdate?.(
-          'No Object Detected',
-          'Please navigate to a valid Domo object and try again',
-          'danger'
-        );
-        setIsSharing(false);
-        return;
-      }
+    const objectName =
+      currentContext.domoObject.metadata?.name ||
+      currentContext.domoObject.typeName;
 
-      // Check if object type is supported
-      const supportedTypes = [
-        'DATA_SOURCE',
-        'PAGE',
-        'DATA_APP',
-        'DATA_APP_VIEW',
-        'APP'
-      ];
-      if (!supportedTypes.includes(currentContext.domoObject.typeId)) {
-        onStatusUpdate?.(
-          'Unsupported Object Type',
-          `Share with Self is not supported for ${currentContext.domoObject.typeName}. Supported types: DataSet, Page, Studio App, App Studio Page, Custom App Design.`,
-          'danger'
-        );
-        setIsSharing(false);
-        return;
-      }
-
-      // For DATA_SOURCE, verify we have the accountId in metadata
-      if (currentContext.domoObject.typeId === 'DATA_SOURCE') {
-        if (!currentContext.domoObject.metadata?.details?.accountId) {
-          onStatusUpdate?.(
-            'Missing Account Information',
-            'DataSet account information not found. Please refresh and try again.',
-            'danger'
-          );
-          setIsSharing(false);
-          return;
-        }
-      }
-
-      // Call the shareWithSelf service function
-      await shareWithSelf({
-        object: currentContext.domoObject,
-        userId: currentContext.user?.id,
-        setStatus: onStatusUpdate
-      });
+    const promise = shareWithSelf({
+      object: currentContext.domoObject,
+      userId: currentContext.user?.id,
+      tabId: currentContext.tabId
+    }).then((result) => {
       const tabId = currentContext?.tabId;
       chrome.tabs.reload(tabId);
 
@@ -82,29 +77,22 @@ export function ShareWithSelf({ currentContext, onStatusUpdate, isDisabled }) {
 
       const inSidepanel = isSidepanel();
       if (!inSidepanel) window.close();
-    } catch (error) {
-      // Error is already handled in shareWithSelf, but catch here in case
-      console.error('Error in ShareWithSelf component:', error);
-    } finally {
-      setIsSharing(false);
-    }
+
+      return result;
+    });
+
+    showPromiseStatus(promise, {
+      loading: `Sharing **${objectName}** with yourself…`,
+      success: () => `**${objectName}** shared successfully`,
+      error: (err) => err.message
+    });
+
+    promise.finally(() => setIsSharing(false));
   };
 
-  // Disable button if:
-  // 1. Explicitly disabled via prop
-  // 2. Currently sharing
-  // 3. No current object
-  // 4. Object type is not supported
-  const supportedTypes = [
-    'DATA_SOURCE',
-    'PAGE',
-    'DATA_APP',
-    'DATA_APP_VIEW',
-    'APP'
-  ];
   const isSupportedType =
     currentContext?.domoObject?.typeId &&
-    supportedTypes.includes(currentContext.domoObject.typeId);
+    SUPPORTED_TYPES.includes(currentContext.domoObject.typeId);
   const buttonDisabled =
     isDisabled || isSharing || !currentContext?.domoObject || !isSupportedType;
 
@@ -117,11 +105,7 @@ export function ShareWithSelf({ currentContext, onStatusUpdate, isDisabled }) {
         onPress={handleShare}
         isDisabled={buttonDisabled}
       >
-        {isSharing ? (
-          <Spinner size='sm' color='currentColor' />
-        ) : (
-          <IconUserPlus stroke={1.5} />
-        )}
+        <IconUserPlus stroke={1.5} />
       </Button>
       <Tooltip.Content>
         {currentContext?.domoObject?.typeId === 'DATA_SOURCE' ? (

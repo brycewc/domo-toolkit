@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Button,
@@ -294,9 +294,13 @@ export function GetPagesView({
   const [pageData, setPageData] = useState(null); // Store metadata for rebuilding
   const [pageTypeLabel, setPageTypeLabel] = useState('pages');
 
-  // Load data on mount
+  const mountedRef = useRef(true);
   useEffect(() => {
+    mountedRef.current = true;
     loadPagesData();
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   const loadPagesData = async (forceRefresh = false) => {
@@ -436,6 +440,7 @@ export function GetPagesView({
       }
 
       if (!childPages || !childPages.length) {
+        if (!mountedRef.current) return;
         const message =
           sidepanelType === 'getOtherPages'
             ? 'Cards on this page are not used on any other pages'

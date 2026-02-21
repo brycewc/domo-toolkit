@@ -191,11 +191,18 @@ export const ObjectTypeRegistry = {
     null,
     null
   ),
-  ACCOUNT: new DomoObjectType('ACCOUNT', 'Account', null, /^\d+$/, null, {
-    method: 'GET',
-    endpoint: '/data/v1/accounts/{id}',
-    pathToName: 'name'
-  }),
+  ACCOUNT: new DomoObjectType(
+    'ACCOUNT',
+    'Account',
+    '/datacenter/accounts?id={id}',
+    /^\d+$/,
+    null,
+    {
+      method: 'GET',
+      endpoint: '/data/v1/accounts/{id}',
+      pathToName: 'name'
+    }
+  ),
   ACCOUNT_TEMPLATE: new DomoObjectType(
     'ACCOUNT_TEMPLATE',
     'Account Template',
@@ -1475,12 +1482,18 @@ export const ObjectTypeRegistry = {
   ),
   WAREHOUSE_ACCOUNT: new DomoObjectType(
     'WAREHOUSE_ACCOUNT',
-    'Warehouse account',
-    null,
+    'Warehouse Account',
+    '/cloud-integrations/{id}/settings',
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    null,
-    null,
-    ['ACCOUNT']
+    { keyword: 'cloud-integrations' },
+    {
+      method: 'GET',
+      endpoint: '/query/v1/byos/accounts/{id}',
+      pathToName: 'friendlyName',
+      pathToParentId: 'serviceAccountId'
+    },
+    ['ACCOUNT'],
+    [{ source: 'parentId', typeId: 'ACCOUNT', label: 'Account' }]
   ),
   WORKBENCH_AGENT: new DomoObjectType(
     'WORKBENCH_AGENT',
