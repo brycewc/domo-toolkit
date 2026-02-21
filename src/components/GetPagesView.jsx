@@ -332,7 +332,7 @@ export function GetPagesView({
       const context = DomoContext.fromJSON(data.currentContext);
       const domoObject = context.domoObject;
       const objectType = domoObject.typeId;
-      const objectId = parseInt(domoObject.parentId || domoObject.id);
+      const objectId = domoObject.parentId || domoObject.id;
       const objectName =
         domoObject.metadata?.parent?.name ||
         domoObject.metadata?.name ||
@@ -443,7 +443,9 @@ export function GetPagesView({
               ? `No views (pages) found for app studio app ${objectId}`
               : objectType === 'CARD'
                 ? `No pages found for card ${objectId}`
-                : `No child pages found for page ${objectId}`;
+                : objectType === 'DATA_SOURCE'
+                  ? `No pages found for cards using dataset **${objectName}**`
+                  : `No child pages found for page ${objectId}`;
         onStatusUpdate?.('No Pages Found', message, 'warning');
         onBackToDefault?.();
         setIsLoading(false);
@@ -479,7 +481,9 @@ export function GetPagesView({
         // Normal PAGE or DATA_APP_VIEW data - use existing logic
         // Separate children and grandchildren based on parentPageId
         const children = childPages.filter((page) =>
-          objectType === 'DATA_APP_VIEW' ? true : page.parentPageId === objectId
+          objectType === 'DATA_APP_VIEW'
+            ? true
+            : String(page.parentPageId) === String(objectId)
         );
 
         // Build items structure with all pages at once
