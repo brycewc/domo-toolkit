@@ -7,6 +7,5 @@ export { GetDatasetsView } from './GetDatasetsView';
 export { GetPagesView } from './GetPagesView';
 export { LinkPreview } from './LinkPreview';
 export { ObjectDetailsView } from './ObjectDetailsView';
-export { StatusBar } from './StatusBar';
 export * from './functions';
 export * from './options';

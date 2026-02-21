@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
-import { ActionButtons, ContextFooter, StatusBar } from '@/components';
+import { Toast } from '@heroui/react';
+import { ActionButtons, ContextFooter } from '@/components';
 import { useStatusBar, useTheme } from '@/hooks';
 import { DomoContext } from '@/models';
 
@@ -11,7 +11,7 @@ export default function App() {
   const [currentContext, setCurrentContext] = useState(null);
   const [isLoadingCurrentContext, setIsLoadingCurrentContext] = useState(true);
   const [currentTabId, setCurrentTabId] = useState(null);
-  const { statusBar, showStatus, hideStatus } = useStatusBar();
+  const { showStatus } = useStatusBar();
 
   // Get context from service worker
   useEffect(() => {
@@ -70,33 +70,12 @@ export default function App() {
         collapsable={false}
         onStatusUpdate={showStatus}
       />
-      <div className='relative flex min-h-0 w-full flex-1 flex-col'>
-        <ContextFooter
-          currentContext={currentContext}
-          isLoading={isLoadingCurrentContext}
-          onStatusUpdate={showStatus}
-        />
-        <AnimatePresence>
-          {statusBar.visible && (
-            <motion.div
-              key={statusBar.key}
-              className='absolute inset-0 z-10'
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.15 }}
-            >
-              <StatusBar
-                title={statusBar.title}
-                description={statusBar.description}
-                status={statusBar.status}
-                timeout={statusBar.timeout}
-                onClose={hideStatus}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+      <ContextFooter
+        currentContext={currentContext}
+        isLoading={isLoadingCurrentContext}
+        onStatusUpdate={showStatus}
+      />
+      <Toast.Provider placement='bottom' className='p-2' />
     </div>
   );
 }

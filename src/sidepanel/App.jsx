@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card, Spinner } from '@heroui/react';
-import { AnimatePresence, motion } from 'motion/react';
+import { Card, Spinner, Toast } from '@heroui/react';
 import {
   ActionButtons,
   ContextFooter,
@@ -8,8 +7,7 @@ import {
   GetDatasetsView,
   GetPagesView,
   LinkPreview,
-  ObjectDetailsView,
-  StatusBar
+  ObjectDetailsView
 } from '@/components';
 import { useStatusBar, useTheme } from '@/hooks';
 import { DomoContext } from '@/models';
@@ -23,7 +21,7 @@ export default function App() {
   const [currentContext, setCurrentContext] = useState(null);
   const [currentTabId, setCurrentTabId] = useState(null);
   const [isLoadingCurrentContext, setIsLoadingCurrentContext] = useState(true);
-  const { statusBar, showStatus, hideStatus } = useStatusBar();
+  const { showStatus } = useStatusBar();
 
   // Listen for storage changes for sidepanel data
   useEffect(() => {
@@ -191,35 +189,11 @@ export default function App() {
           onStatusUpdate={showStatus}
         />
 
-        <div
-          className={`relative flex max-h-fit min-h-0 w-full flex-1 flex-col`}
-        >
-          <ContextFooter
-            currentContext={currentContext}
-            isLoading={isLoadingCurrentContext}
-            onStatusUpdate={showStatus}
-          />
-          <AnimatePresence>
-            {statusBar.visible && (
-              <motion.div
-                key={statusBar.key}
-                className='absolute inset-0 z-10'
-                initial={{ opacity: 0, y: -8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.15 }}
-              >
-                <StatusBar
-                  title={statusBar.title}
-                  description={statusBar.description}
-                  status={statusBar.status}
-                  timeout={statusBar.timeout}
-                  onClose={hideStatus}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+        <ContextFooter
+          currentContext={currentContext}
+          isLoading={isLoadingCurrentContext}
+          onStatusUpdate={showStatus}
+        />
 
         {activeView === 'loading' && (
           <Card className='h-full w-full'>
@@ -265,6 +239,7 @@ export default function App() {
         )}
       </div>
       <LinkPreview />
+      <Toast.Provider placement='bottom' className='right-2 bottom-2' />
     </>
   );
 }

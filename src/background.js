@@ -71,6 +71,25 @@ async function sendMessageWithRetry(tabId, message, maxRetries = 3) {
   }
 }
 
+/**
+ * Ping the content script on a tab and re-inject it if it doesn't respond.
+ * Keeps clipboard monitoring, modal detection, and favicon logic alive
+ * on long-lived tabs where the content script may have been disconnected.
+ */
+async function ensureContentScript(tabId) {
+  try {
+    await chrome.tabs.sendMessage(tabId, { type: 'PING' });
+  } catch {
+    console.log(
+      `[Background] Content script not responding on tab ${tabId}, re-injecting`
+    );
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ['src/contentScript.js']
+    });
+  }
+}
+
 // In-memory cache of tab contexts (tabId -> context object)
 const tabContexts = new Map();
 // LRU tracking (tabId -> timestamp)
@@ -449,21 +468,21 @@ chrome.tabs.onActivated.addListener(async ({ tabId, windowId }) => {
   // Always update icon based on current preference
   updateIconFromPreference();
 
-  // Check if we already have context for this tab
-  if (!tabContexts.has(tabId)) {
-    // Trigger detection for the active tab
-    try {
-      const tab = await chrome.tabs.get(tabId);
-      if (tab.url && tab.url.includes('domo.com')) {
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    if (tab.url && tab.url.includes('domo.com')) {
+      await ensureContentScript(tabId);
+
+      if (!tabContexts.has(tabId)) {
         console.log(`[Background] Eager detection for active tab ${tabId}`);
         await detectAndStoreContext(tabId);
       }
-    } catch (error) {
-      console.error(
-        `[Background] Error in eager detection for tab ${tabId}:`,
-        error
-      );
     }
+  } catch (error) {
+    console.error(
+      `[Background] Error in tab activation for ${tabId}:`,
+      error
+    );
   }
 });
 

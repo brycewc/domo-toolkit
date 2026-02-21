@@ -28,21 +28,14 @@ import {
   IconCheck,
   IconArrowsShuffle
 } from '@tabler/icons-react';
+import { toast } from '@heroui/react';
 import { clearFaviconCache } from '@/utils';
-import { StatusBar } from './../StatusBar';
 
 export function FaviconSettings() {
   const [rules, setRules] = useState([]);
   const [originalRules, setOriginalRules] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [draggedIndex, setDraggedIndex] = useState(null);
-  const [statusBar, setStatusBar] = useState({
-    title: '',
-    description: '',
-    status: 'accent',
-    timeout: 3000,
-    visible: false
-  });
   const colorPresets = [
     '#F43F5EFF',
     '#D946EFFF',
@@ -102,17 +95,13 @@ export function FaviconSettings() {
   // Check if rules have changed from original
   const hasChanges = JSON.stringify(rules) !== JSON.stringify(originalRules);
 
-  const showStatus = (
-    title,
-    description,
-    status = 'accent',
-    timeout = 3000
-  ) => {
-    setStatusBar({ title, description, status, timeout, visible: true });
-  };
-
-  const hideStatus = () => {
-    setStatusBar((prev) => ({ ...prev, visible: false }));
+  const showStatus = (title, description, status = 'accent', timeout = 3000) => {
+    const method =
+      status === 'success' ? toast.success
+        : status === 'warning' ? toast.warning
+          : status === 'danger' ? toast.danger
+            : toast;
+    method(title, { description, timeout: timeout || 0 });
   };
 
   const onSave = async (e) => {
@@ -466,17 +455,6 @@ export function FaviconSettings() {
           )}
         </Form>
 
-        <div>
-          {statusBar.visible && (
-            <StatusBar
-              title={statusBar.title}
-              description={statusBar.description}
-              status={statusBar.status}
-              timeout={statusBar.timeout}
-              onClose={hideStatus}
-            />
-          )}
-        </div>
       </div>
 
       <Accordion className='cursor-pointer'>

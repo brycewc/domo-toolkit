@@ -26,6 +26,11 @@ let currentTabContext = null;
 
 // Listen for messages from service worker
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === 'PING') {
+    sendResponse({ alive: true });
+    return;
+  }
+
   if (message.type === 'APPLY_FAVICON') {
     applyFavicon();
     sendResponse({ success: true });

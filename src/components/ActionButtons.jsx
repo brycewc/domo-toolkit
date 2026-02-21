@@ -13,6 +13,7 @@ import {
   CopyFilteredUrl,
   DataRepair,
   DeleteCurrentObject,
+  Export,
   GetCards,
   GetDatasets,
   GetOtherPages,
@@ -222,6 +223,11 @@ export function ActionButtons({
                   onStatusUpdate={onStatusUpdate}
                 />
               )}
+              <Export
+                currentContext={currentContext}
+                onStatusUpdate={onStatusUpdate}
+                isDisabled={!isDomoPage}
+              />
               {currentContext?.domoObject?.typeId === 'CARD' &&
                 currentContext?.domoObject?.metadata?.details?.type !==
                   'domoapp' && (

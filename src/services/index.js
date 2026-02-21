@@ -22,6 +22,7 @@ export {
   getCardDefinition,
   updateCardDefinition
 } from './cards';
+export { exportCard } from './exportCard';
 export {
   getAppStudioPageParent,
   getChildPages,

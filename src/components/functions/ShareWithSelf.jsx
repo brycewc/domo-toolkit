@@ -67,7 +67,18 @@ export function ShareWithSelf({ currentContext, onStatusUpdate, isDisabled }) {
         userId: currentContext.user?.id,
         setStatus: onStatusUpdate
       });
-      chrome.tabs.reload(currentContext?.tabId);
+      const tabId = currentContext?.tabId;
+      chrome.tabs.reload(tabId);
+
+      if (tabId) {
+        const listener = (updatedTabId, changeInfo) => {
+          if (updatedTabId === tabId && changeInfo.status === 'complete') {
+            chrome.tabs.onUpdated.removeListener(listener);
+            chrome.runtime.sendMessage({ type: 'DETECT_CONTEXT', tabId });
+          }
+        };
+        chrome.tabs.onUpdated.addListener(listener);
+      }
 
       const inSidepanel = isSidepanel();
       if (!inSidepanel) window.close();

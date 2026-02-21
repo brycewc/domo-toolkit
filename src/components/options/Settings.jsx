@@ -16,7 +16,7 @@ import {
   IconChevronDown,
   IconDeviceFloppy
 } from '@tabler/icons-react';
-import { StatusBar } from '../StatusBar';
+import { toast } from '@heroui/react';
 import toolkitLogo from '@/assets/toolkit-128.png';
 import toolkitLogoDark from '@/assets/toolkit-dark-128.png';
 
@@ -39,14 +39,6 @@ export function Settings({ theme = 'system' }) {
     defaultDomoInstance: '',
     defaultClearCookiesHandling: 'auto',
     cardErrorDetection: false
-  });
-
-  const [statusBar, setStatusBar] = useState({
-    title: '',
-    description: '',
-    status: 'accent',
-    timeout: 3000,
-    visible: false
   });
 
   useEffect(() => {
@@ -206,17 +198,13 @@ export function Settings({ theme = 'system' }) {
   const hasChanges =
     JSON.stringify(settings) !== JSON.stringify(originalSettings);
 
-  const showStatus = (
-    title,
-    description,
-    status = 'accent',
-    timeout = 3000
-  ) => {
-    setStatusBar({ title, description, status, timeout, visible: true });
-  };
-
-  const hideStatus = () => {
-    setStatusBar((prev) => ({ ...prev, visible: false }));
+  const showStatus = (title, description, status = 'accent', timeout = 3000) => {
+    const method =
+      status === 'success' ? toast.success
+        : status === 'warning' ? toast.warning
+          : status === 'danger' ? toast.danger
+            : toast;
+    method(title, { description, timeout: timeout || 0 });
   };
 
   if (isLoading) {
@@ -394,15 +382,6 @@ export function Settings({ theme = 'system' }) {
           </Button>
         </div>
       </Form>
-      {statusBar.visible && (
-        <StatusBar
-          title={statusBar.title}
-          description={statusBar.description}
-          status={statusBar.status}
-          timeout={statusBar.timeout}
-          onClose={hideStatus}
-        />
-      )}
     </div>
   );
 }

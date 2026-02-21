@@ -1,8 +1,8 @@
 {
   "name": "domo-toolkit",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "license": "MIT",
-  "description": "Domo Toolkit — Power Tools for Domo Administrators. Stop wasting time navigating menus, managing hundreds of identical browser tabs, copying DataSet IDs from the URL, and constantly clearing your cookies.",
+  "description": "Domo Toolkit — Tools for Domo admins and power users",
   "homepage": "https://github.com/brycewc/domo-toolkit",
   "repository": {
     "type": "git",

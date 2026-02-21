@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Tabs } from '@heroui/react';
+import { Tabs, Toast } from '@heroui/react';
 import { useTheme } from '@/hooks';
 import {
   ActivityLogTable,
@@ -152,6 +152,7 @@ export default function App() {
           {selectedTab === 'activity-log' && <ActivityLogTable />}
         </Tabs.Panel>
       </Tabs>
+      <Toast.Provider placement='bottom' className='p-2' />
     </div>
   );
 }
