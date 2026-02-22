@@ -416,11 +416,12 @@ export const ObjectTypeRegistry = {
     {
       method: 'GET',
       endpoint:
-        '/content/v1/cards?urns={id}&includeFiltered=true&parts=metadata',
+        '/content/v1/cards?urns={id}&includeFiltered=true&parts=metadata,datasources',
       pathToName: '[0].title',
       pathToDetails: '[0]'
     },
-    ['DATA_SOURCE', 'APP']
+    ['DATA_SOURCE', 'APP'],
+    [{ field: 'datasources', label: 'DataSets', isArray: true }]
   ),
   CERTIFICATION: new DomoObjectType(
     'CERTIFICATION',
@@ -640,7 +641,12 @@ export const ObjectTypeRegistry = {
       method: 'GET',
       endpoint: '/dataprocessing/v2/dataflows/{id}',
       pathToName: 'name'
-    }
+    },
+    null,
+    [
+      { field: 'inputs', label: 'Input DataSets', isArray: true },
+      { field: 'outputs', label: 'Output DataSets', isArray: true }
+    ]
   ),
   DATAFLOW: new DomoObjectType(
     'DATAFLOW',

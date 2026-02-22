@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Alert, Button, Card, CloseButton, Spinner } from '@heroui/react';
 import { DataList } from '@/components';
 import {
+  getCardDatasets,
   getDatasetsForPage,
   getDatasetsForDataflow,
   getDatasetsForView
@@ -202,8 +203,9 @@ export function GetDatasetsView({
     details
   }) => {
     const tabId = await getValidTabForInstance(instance);
-
-    if (objectType === 'PAGE' || objectType === 'DATA_APP_VIEW') {
+    if (objectType === 'CARD') {
+      return getCardDatasets({ cardId: objectId, tabId });
+    } else if (objectType === 'PAGE' || objectType === 'DATA_APP_VIEW') {
       return getDatasetsForPage({ pageId: objectId, tabId });
     } else if (objectType === 'DATAFLOW_TYPE') {
       return getDatasetsForDataflow({ details });

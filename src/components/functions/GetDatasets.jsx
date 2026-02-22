@@ -39,13 +39,14 @@ export function GetDatasets({
       const validTypes = [
         'PAGE',
         'DATA_APP_VIEW',
+        'CARD',
         'DATAFLOW_TYPE',
         'DATA_SOURCE'
       ];
       if (!validTypes.includes(objectType)) {
         onStatusUpdate?.(
           'Invalid Object Type',
-          `This function only works on pages, dataflows, and datasets. Current object is: ${currentContext.domoObject.typeName}`,
+          `This function only works on pages, cards, dataflows, and datasets. Current object is: ${currentContext.domoObject.typeName}`,
           'danger'
         );
         setIsLoading(false);
@@ -86,6 +87,9 @@ export function GetDatasets({
           pageId: objectId,
           tabId: currentContext?.tabId
         });
+      } else if (objectType === 'CARD') {
+        datasets =
+          currentContext.domoObject.metadata?.details?.datasources || [];
       } else if (objectType === 'DATAFLOW_TYPE') {
         const details = currentContext.domoObject.metadata?.details;
         const result = getDatasetsForDataflow({ details });
@@ -105,7 +109,9 @@ export function GetDatasets({
             ? 'This dataflow has no input or output datasets.'
             : objectType === 'DATA_SOURCE'
               ? 'No underlying datasets found in this view.'
-              : 'No datasets found for this page.';
+              : objectType === 'CARD'
+                ? 'No datasets found for this card.'
+                : 'No datasets found for this page.';
 
         onStatusUpdate?.('No Datasets Found', message, 'warning', 3000);
         setIsLoading(false);
@@ -152,11 +158,19 @@ export function GetDatasets({
     return null;
   }
 
-  let buttonText = 'Get DataSets';
-  if (objectType === 'DATA_SOURCE') {
-    buttonText = 'Get DataSets Used in View';
-  } else if (objectType === 'DATAFLOW_TYPE') {
-    buttonText = 'Get DataFlow DataSets';
+  let buttonText;
+  switch (objectType) {
+    case 'DATA_SOURCE':
+      buttonText = 'Get DataSets Used in View';
+      break;
+    case 'CARD':
+      buttonText = 'Get Card DataSets';
+      break;
+    case 'DATAFLOW_TYPE':
+      buttonText = 'Get DataFlow DataSets';
+      break;
+    default:
+      buttonText = 'Get DataSets';
   }
 
   return (

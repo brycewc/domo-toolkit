@@ -7,8 +7,6 @@ import {
 import { exportCard } from '@/services';
 import { useStatusBar } from '@/hooks';
 
-const EXPORTABLE_TYPES = new Set(['CARD']);
-
 const NON_EXPORTABLE_CARD_TYPES = new Set(['domoapp', 'text']);
 
 const EXPORT_OPTIONS = [
@@ -31,7 +29,6 @@ export function Export({ currentContext, isDisabled }) {
   const cardType =
     currentContext?.domoObject?.metadata?.details?.type?.toLowerCase();
 
-  if (!EXPORTABLE_TYPES.has(typeId)) return null;
   if (typeId === 'CARD' && NON_EXPORTABLE_CARD_TYPES.has(cardType)) return null;
 
   const handleExport = (format) => {

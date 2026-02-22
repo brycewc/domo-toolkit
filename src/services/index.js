@@ -5,7 +5,10 @@ export {
   deleteObject,
   updateOwner
 } from './allObjects';
-export { updateDataflowDetails } from './dataflows';
+export {
+  getDataflowForOutputDataset,
+  updateDataflowDetails
+} from './dataflows';
 export {
   getDatasetsForPage,
   getDatasetsForDataflow,
@@ -15,6 +18,7 @@ export {
   getStreamExecutions
 } from './datasets';
 export {
+  getCardDatasets,
   getDrillParentCardId,
   getPageCards,
   getCardsForObject,

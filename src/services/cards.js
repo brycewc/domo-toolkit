@@ -281,3 +281,30 @@ export async function updateCardDefinition({
     throw error;
   }
 }
+
+export async function getCardDatasets({ cardId, tabId = null }) {
+  try {
+    return await executeInPage(
+      async (cardId) => {
+        const response = await fetch(
+          `/api/content/v1/cards?urns=${cardId}&includeFiltered=true&parts=datasources`,
+          {
+            method: 'GET'
+          }
+        );
+        if (!response.ok) {
+          throw new Error(
+            `Failed to fetch card datasets for ${cardId}. HTTP status: ${response.status}`
+          );
+        }
+        const card = await response.json();
+        return card.datasources || [];
+      },
+      [cardId],
+      tabId
+    );
+  } catch (error) {
+    console.error('Error fetching card datasets:', error);
+    throw error;
+  }
+}

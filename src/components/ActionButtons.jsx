@@ -157,6 +157,7 @@ export function ActionButtons({
               )}
               {(currentContext?.domoObject?.typeId === 'PAGE' ||
                 currentContext?.domoObject?.typeId === 'DATA_APP_VIEW' ||
+                currentContext?.domoObject?.typeId === 'CARD' ||
                 currentContext?.domoObject?.typeId === 'DATAFLOW_TYPE' ||
                 currentContext?.domoObject?.typeId === 'DATA_SOURCE') && (
                 <GetDatasets
@@ -221,11 +222,13 @@ export function ActionButtons({
                   onStatusUpdate={onStatusUpdate}
                 />
               )}
-              <Export
-                currentContext={currentContext}
-                onStatusUpdate={onStatusUpdate}
-                isDisabled={!isDomoPage}
-              />
+              {currentContext?.domoObject?.typeId === 'CARD' && (
+                <Export
+                  currentContext={currentContext}
+                  onStatusUpdate={onStatusUpdate}
+                  isDisabled={!isDomoPage}
+                />
+              )}
               {currentContext?.domoObject?.typeId === 'CARD' &&
                 currentContext?.domoObject?.metadata?.details?.type !==
                   'domoapp' && (

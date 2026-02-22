@@ -3,6 +3,7 @@ import {
   fetchObjectDetailsInPage,
   getChildPages,
   getCardsForObject,
+  getDataflowForOutputDataset,
   getPagesForCards,
   getCurrentUser
 } from '@/services';
@@ -479,10 +480,7 @@ chrome.tabs.onActivated.addListener(async ({ tabId, windowId }) => {
       }
     }
   } catch (error) {
-    console.error(
-      `[Background] Error in tab activation for ${tabId}:`,
-      error
-    );
+    console.error(`[Background] Error in tab activation for ${tabId}:`, error);
   }
 });
 
@@ -780,6 +778,27 @@ async function detectAndStoreContext(tabId) {
     }
 
     domoObject.metadata = enrichedMetadata;
+
+    // DATA_SOURCE: resolve DATAFLOW_TYPE parent via reverse-lookup API
+    if (
+      !parentId &&
+      typeModel.id === 'DATA_SOURCE' &&
+      enrichedMetadata.details?.type?.toLowerCase() === 'dataflow'
+    ) {
+      try {
+        const dataflowId = await getDataflowForOutputDataset(objectId, tabId);
+        parentId = dataflowId;
+        domoObject.parentId = dataflowId;
+        console.log(
+          `[Background] Resolved DATAFLOW_TYPE parent ${dataflowId} for DATA_SOURCE ${objectId}`
+        );
+      } catch (error) {
+        console.warn(
+          `[Background] Could not resolve DataFlow parent for DATA_SOURCE ${objectId}:`,
+          error.message
+        );
+      }
+    }
 
     // For objects with parents, enrich metadata with parent details
     console.log(

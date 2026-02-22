@@ -20,11 +20,12 @@ import '@/assets/json-view-theme.css';
 /**
  * Shared JsonView configuration used across all tabs
  */
-function MetadataJsonView({ src }) {
+function MetadataJsonView({ src, collapsed = 1 }) {
   return (
     <JsonView
+      className='text-sm'
       src={src}
-      collapsed={1}
+      collapsed={collapsed}
       matchesURL={false}
       displaySize
       collapseStringMode='word'
@@ -40,7 +41,7 @@ function MetadataJsonView({ src }) {
       )}
       CopiedComponent={({ className, style }) => (
         <AnimatedCheck
-          className={className}
+          className={className + ' text-success'}
           style={style}
           size={16}
           stroke={1.5}
@@ -116,6 +117,20 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
     // Additional tabs from relatedObjects config
     if (typeModel.relatedObjects) {
       for (const related of typeModel.relatedObjects) {
+        if (related.isArray) {
+          const arrayData = domoObject.metadata?.details?.[related.field];
+          if (arrayData?.length > 0) {
+            result.push({
+              id: related.field,
+              label: `${related.label} (${arrayData.length})`,
+              data: arrayData,
+              isArray: true,
+              isCurrentObject: false
+            });
+          }
+          continue;
+        }
+
         let relatedId;
         if (related.source === 'parentId') {
           relatedId = domoObject.parentId;
@@ -164,9 +179,15 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
   const handleTabChange = async (key) => {
     setActiveTabId(key);
 
-    // Skip if it's the current object tab or already cached/loading
+    // Skip if it's the current object tab, an array tab, or already cached/loading
     const tab = tabs.find((t) => t.id === key);
-    if (!tab || tab.isCurrentObject || relatedCache[key] || loadingTabs[key]) {
+    if (
+      !tab ||
+      tab.isCurrentObject ||
+      tab.isArray ||
+      relatedCache[key] ||
+      loadingTabs[key]
+    ) {
       return;
     }
 
@@ -225,6 +246,10 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
           }
         />
       );
+    }
+
+    if (activeTab.isArray) {
+      return <MetadataJsonView src={activeTab.data} collapsed={2} />;
     }
 
     if (activeTab.isFullContext) {
