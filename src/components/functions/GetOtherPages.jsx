@@ -125,7 +125,7 @@ export function GetOtherPages({
       isDisabled={isDisabled}
       isPending={isLoading}
       isIconOnly={isLoading}
-      className='relative min-w-fit flex-1 basis-[48%] overflow-visible'
+      className='min-w-36 flex-1 whitespace-normal'
     >
       {({ isPending }) => {
         if (isPending) {

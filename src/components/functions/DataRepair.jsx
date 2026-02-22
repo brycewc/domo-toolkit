@@ -17,7 +17,7 @@ export function DataRepair({ currentContext, isDisabled }) {
         onPress={handleDataRepair}
         isDisabled={isDisabled}
         isIconOnly
-        className='relative min-w-fit flex-1 basis-[48%] overflow-visible'
+        className='min-w-36 flex-1 whitespace-normal'
       >
         <IconBandage stroke={1.5} />
         Data Repair

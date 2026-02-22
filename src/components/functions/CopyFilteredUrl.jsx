@@ -114,7 +114,7 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
       fullWidth
       onPress={handleCopyFilteredUrl}
       isDisabled={isDisabled || !isSupported}
-      className={` ${hasNewFilters ? 'animate-pulse' : ''}`}
+      className={`min-w-36 flex-1 whitespace-normal ${hasNewFilters ? 'animate-pulse' : ''}`}
     >
       {isCopied ? <AnimatedCheck /> : <IconFilterShare stroke={1.5} />}
       Copy Filtered URL

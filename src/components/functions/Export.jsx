@@ -62,7 +62,7 @@ export function Export({ currentContext, isDisabled }) {
         variant='tertiary'
         fullWidth
         isDisabled={isDisabled}
-        className='min-w-fit flex-1 basis-[48%]'
+        className='min-w-36 flex-1 whitespace-normal'
       >
         <IconFileDownload stroke={1.5} />
         Export

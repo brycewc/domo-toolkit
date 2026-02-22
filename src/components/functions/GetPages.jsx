@@ -216,7 +216,7 @@ export function GetPages({
       isDisabled={isDisabled}
       isPending={isLoading}
       isIconOnly={isLoading}
-      className='relative min-w-fit flex-1 basis-[48%] overflow-visible'
+      className='min-w-36 flex-1 whitespace-normal'
     >
       {({ isPending }) => {
         if (isPending) {
@@ -244,7 +244,8 @@ export function GetPages({
 
         return (
           <>
-            <IconCopy stroke={1.5} /> {message}
+            <IconCopy stroke={1.5} />
+            {message}
           </>
         );
       }}

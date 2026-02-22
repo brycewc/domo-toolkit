@@ -137,8 +137,7 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
 
     showPromiseStatus(promise, {
       loading: `Updating **${typeName}** owner…`,
-      success: (id) =>
-        `Updated ${typeName?.toLowerCase()} owner to **${id}**`,
+      success: (id) => `Updated ${typeName?.toLowerCase()} owner to **${id}**`,
       error: (err) => err.message || 'An error occurred'
     });
 
@@ -166,7 +165,7 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
             currentContext?.domoObject.typeId !== 'ALERT' &&
             currentContext?.domoObject.typeId !== 'WORKFLOW_MODEL'
           }
-          className='relative min-w-fit flex-1 basis-[48%] overflow-visible'
+          className='min-w-36 flex-1 whitespace-normal'
         >
           <IconUserEdit stroke={1.5} />
           Update Owner

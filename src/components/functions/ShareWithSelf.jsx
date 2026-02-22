@@ -108,7 +108,8 @@ export function ShareWithSelf({ currentContext, onStatusUpdate, isDisabled }) {
         <IconUserPlus stroke={1.5} />
       </Button>
       <Tooltip.Content>
-        {currentContext?.domoObject?.typeId === 'DATA_SOURCE' ? (
+        {currentContext?.domoObject?.typeId === 'DATA_SOURCE' &&
+        currentContext?.domoObject?.metadata?.details?.accountId ? (
           <>
             Share <span className='font-semibold'>dataset account</span> with
             yourself

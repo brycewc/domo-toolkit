@@ -626,7 +626,8 @@ export const ObjectTypeRegistry = {
     ['DATAFLOW_TYPE', 'DATA_SOURCE'],
     [
       { field: 'streamId', typeId: 'STREAM', label: 'Stream' },
-      { field: 'accountId', typeId: 'ACCOUNT', label: 'Account' }
+      { field: 'accountId', typeId: 'ACCOUNT', label: 'Account' },
+      { source: 'parentId', typeId: 'DATAFLOW_TYPE', label: 'DataFlow' }
     ]
   ),
   DATAFLOW_TYPE: new DomoObjectType(
@@ -641,11 +642,18 @@ export const ObjectTypeRegistry = {
       pathToName: 'name'
     }
   ),
-  DATAFLOW: new DomoObjectType('DATAFLOW', 'Dataflow', null, /^\d+$/, null, {
-    method: 'GET',
-    endpoint: '/dataprocessing/v2/dataflows/{id}',
-    pathToName: 'name'
-  }),
+  DATAFLOW: new DomoObjectType(
+    'DATAFLOW',
+    'Dataflow',
+    '/datacenter/dataflows/{id}/details',
+    /^\d+$/,
+    null,
+    {
+      method: 'GET',
+      endpoint: '/dataprocessing/v2/dataflows/{id}',
+      pathToName: 'name'
+    }
+  ),
   DATASET_QUERY: new DomoObjectType(
     'DATASET_QUERY',
     'Dataset query',
@@ -657,10 +665,14 @@ export const ObjectTypeRegistry = {
   DATASOURCE: new DomoObjectType(
     'DATASOURCE',
     'Datasource',
+    '/datasources/{id}/details/data/table',
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     null,
-    /^\d+$/,
-    null,
-    null
+    {
+      method: 'GET',
+      endpoint: '/data/v3/datasources/{id}?includeAllDetails=true',
+      pathToName: 'name'
+    }
   ),
   DEFAULT_POLICY: new DomoObjectType(
     'DEFAULT_POLICY',

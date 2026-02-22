@@ -95,7 +95,7 @@ export function RemoveEmptyStringsFromQuickFilters({
       onPress={handleClick}
       isDisabled={emptyCount === null}
       fullWidth
-      className='min-w-fit flex-1 basis-[48%]'
+      className='min-w-36 flex-1 whitespace-normal'
     >
       <IconXboxX stroke={1.5} />
       Remove Empty Strings from Quick Filters

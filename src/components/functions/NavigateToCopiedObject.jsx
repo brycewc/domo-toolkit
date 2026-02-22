@@ -472,11 +472,12 @@ export const NavigateToCopiedObject = forwardRef(
         <Tooltip delay={200} closeDelay={0} className='h-fit'>
           <Button
             variant='tertiary'
-            className='min-w-fit flex-1 basis-[48%] cursor-not-allowed opacity-50'
+            isIconOnly
+            fullWidth
+            className='cursor-not-allowed opacity-50'
             onPress={() => {}}
           >
             <IconExternalLink stroke={1.5} />
-            From Clipboard
           </Button>
           <Tooltip.Content placement='top'>
             Set a default Domo instance in settings
@@ -492,14 +493,14 @@ export const NavigateToCopiedObject = forwardRef(
           isDisabled={longPressDisabled}
         >
           <Button
-            className='min-w-fit flex-1 basis-[48%]'
             variant='tertiary'
+            fullWidth
             onPress={() => handleClick()}
             onPressStart={longPressDisabled ? undefined : handlePressStart}
             onPressEnd={longPressDisabled ? undefined : handlePressEnd}
             isDisabled={isLoading || !copiedObjectId}
             isPending={isLoading}
-            isIconOnly={isLoading}
+            isIconOnly
           >
             {({ isPending }) =>
               isPending ? (
@@ -511,7 +512,6 @@ export const NavigateToCopiedObject = forwardRef(
                   ) : (
                     <IconExternalLink stroke={1.5} />
                   )}
-                  From Clipboard
                   <AnimatePresence>
                     {isHolding && (
                       <motion.div

@@ -220,10 +220,9 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
           isDisabled={isDisabled}
           isPending={isLoading}
           fullWidth
-          className='min-w-fit flex-1 basis-[48%]'
+          isIconOnly
         >
           <IconFileDescription stroke={1.5} />
-          Activity Log
           <AnimatePresence>
             {isHolding && (
               <motion.div

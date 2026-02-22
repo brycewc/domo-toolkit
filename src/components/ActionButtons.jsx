@@ -58,6 +58,15 @@ export function ActionButtons({
                 onStatusUpdate={onStatusUpdate}
                 isDisabled={!isDomoPage}
               />
+              <ActivityLogCurrentObject
+                currentContext={currentContext}
+                onStatusUpdate={onStatusUpdate}
+              />
+              <NavigateToCopiedObject
+                ref={navigateToCopiedRef}
+                currentContext={currentContext}
+                onStatusUpdate={onStatusUpdate}
+              />
               <ClearCookies
                 currentContext={currentContext}
                 onStatusUpdate={onStatusUpdate}
@@ -68,7 +77,7 @@ export function ActionButtons({
                 onStatusUpdate={onStatusUpdate}
                 isDisabled={!isDomoPage}
               />
-              <Tooltip delay={400} closeDelay={0}>
+              {/* <Tooltip delay={400} closeDelay={0}>
                 <Button
                   variant='tertiary'
                   fullWidth
@@ -85,7 +94,7 @@ export function ActionButtons({
                 <Tooltip.Content>
                   Report an issue or request a feature
                 </Tooltip.Content>
-              </Tooltip>
+              </Tooltip> */}
               <Tooltip delay={400} closeDelay={0}>
                 <Button
                   variant='tertiary'
@@ -131,18 +140,7 @@ export function ActionButtons({
             </ButtonGroup>
           </Disclosure.Heading>
           <Disclosure.Content className='flex h-full w-full flex-col items-center justify-center gap-1'>
-            <div className='mt-1 flex w-full flex-wrap place-items-center items-center justify-center gap-1'>
-              <ActivityLogCurrentObject
-                currentContext={currentContext}
-                onStatusUpdate={onStatusUpdate}
-              />
-              <NavigateToCopiedObject
-                ref={navigateToCopiedRef}
-                currentContext={currentContext}
-                onStatusUpdate={onStatusUpdate}
-              />
-            </div>
-            <div className='flex w-full flex-wrap place-items-center items-center justify-center gap-1 empty:hidden'>
+            <div className='flex w-full flex-wrap place-items-center items-center justify-center gap-1 not-empty:mt-1 empty:hidden'>
               {(currentContext?.domoObject?.typeId === 'PAGE' ||
                 currentContext?.domoObject?.typeId === 'DATA_APP_VIEW' ||
                 currentContext?.domoObject?.typeId === 'REPORT_BUILDER_VIEW' ||

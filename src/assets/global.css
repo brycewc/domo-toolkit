@@ -125,6 +125,6 @@
   /* Override HeroUI toast close button to always use hover-only behavior
    (default shows it permanently on viewports < sm breakpoint) */
   .toast__close-button {
-    @apply absolute top-2.5 right-2.5 size-5 border-border bg-default opacity-100;
+    @apply pointer-events-none -top-1 -right-1 rounded-full border bg-overlay opacity-0;
   }
 }

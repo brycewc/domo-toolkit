@@ -104,7 +104,7 @@ export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
           variant='tertiary'
           fullWidth
           isDisabled={currentContext?.domoObject.typeId !== 'DATAFLOW_TYPE'}
-          className='relative min-w-fit flex-1 basis-[48%] overflow-visible'
+          className='min-w-36 flex-1 whitespace-normal'
         >
           <IconArrowFork stroke={1.5} className='rotate-180' />
           Update DataFlow Details
