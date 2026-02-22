@@ -100,15 +100,7 @@ export function FaviconSettings() {
     status = 'accent',
     timeout = 3000
   ) => {
-    const method =
-      status === 'success'
-        ? toast.success
-        : status === 'warning'
-          ? toast.warning
-          : status === 'danger'
-            ? toast.danger
-            : toast;
-    method(title, { description, timeout: timeout || 0 });
+    toast(title, { description, variant: status, timeout: timeout || 0 });
   };
 
   const onSave = async (e) => {

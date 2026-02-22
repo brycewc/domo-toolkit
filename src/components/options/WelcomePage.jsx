@@ -256,7 +256,7 @@ export function WelcomePage() {
                   {selectedCookieOption?.label || 'Select...'}
                 </Select.Value>
                 <Select.Indicator>
-                  <IconChevronDown stroke={1.5} />
+                  <IconChevronDown stroke={1} />
                 </Select.Indicator>
               </Select.Trigger>
               <Select.Popover>

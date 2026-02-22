@@ -7,7 +7,7 @@ import { motion } from 'motion/react';
  * mimicking HeroUI's built-in checkmark animation style.
  *
  * @param {Object} props - Component props (passed to SVG element)
- * @param {number} [props.stroke=1.5] - Stroke width (matches Tabler icons default)
+ * @param {number} [props.stroke=1.5] - Stroke width
  * @param {string} [props.className] - Additional CSS classes
  */
 export function AnimatedCheck({
@@ -33,6 +33,7 @@ export function AnimatedCheck({
         points='5 12 10 17 20 7'
         initial={{ pathLength: 0 }}
         animate={{ pathLength: 1 }}
+        exit={{ pathLength: 0 }}
         transition={{
           duration: 0.3,
           ease: 'easeOut'

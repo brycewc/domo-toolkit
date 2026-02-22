@@ -11,6 +11,7 @@ import {
   Button,
   Card,
   Checkbox,
+  Chip,
   Dropdown,
   Label,
   SearchField,
@@ -26,6 +27,7 @@ import {
   IconPlus,
   IconRefresh
 } from '@tabler/icons-react';
+import { AnimatePresence } from 'motion/react';
 import { exportToCSV, exportToExcel, generateExportFilename } from '@/utils';
 import { AnimatedCheck } from './../AnimatedCheck';
 
@@ -124,37 +126,20 @@ export function DataTable({
   useEffect(() => {
     const scrollElement = tableContainerRef.current;
 
-    console.log('[DataTable] Setting up scroll listener', {
-      hasScrollElement: !!scrollElement,
-      hasOnLoadMore: !!onLoadMore
-    });
-
     if (!scrollElement || !onLoadMore) return;
 
     const handleScroll = () => {
       const { scrollTop, scrollHeight, clientHeight } = scrollElement;
       const scrollPercentage = (scrollTop + clientHeight) / scrollHeight;
 
-      console.log('[DataTable] Scroll event fired', {
-        scrollTop,
-        scrollHeight,
-        clientHeight,
-        scrollPercentage: (scrollPercentage * 100).toFixed(2) + '%',
-        isLoadingMore,
-        threshold: '80%'
-      });
-
       if (isLoadingMore) {
-        console.log('[DataTable] Already loading more, skipping...');
         return;
       }
 
       // Load more when scrolled 80% down
       if (scrollPercentage > 0.8) {
-        console.log('[DataTable] Triggering onLoadMore...');
         setIsLoadingMore(true);
         Promise.resolve(onLoadMore()).finally(() => {
-          console.log('[DataTable] onLoadMore completed');
           setIsLoadingMore(false);
         });
       }
@@ -164,15 +149,8 @@ export function DataTable({
 
     // Log initial scroll state
     const { scrollTop, scrollHeight, clientHeight } = scrollElement;
-    console.log('[DataTable] Initial scroll state', {
-      scrollTop,
-      scrollHeight,
-      clientHeight,
-      canScroll: scrollHeight > clientHeight
-    });
 
     return () => {
-      console.log('[DataTable] Removing scroll listener');
       scrollElement.removeEventListener('scroll', handleScroll);
     };
   }, [onLoadMore, isLoadingMore]);
@@ -272,6 +250,13 @@ export function DataTable({
                 <Button variant='tertiary'>
                   <IconColumns stroke={1.5} />
                   Columns
+                  <Chip variant='soft' size='sm' color='accent'>
+                    {
+                      toggleableColumns.filter((col) => col.getIsVisible())
+                        .length
+                    }
+                    /{toggleableColumns.length}
+                  </Chip>
                 </Button>
                 <Dropdown.Popover>
                   <Dropdown.Menu
@@ -295,9 +280,16 @@ export function DataTable({
                         textValue={column.columnDef.header}
                       >
                         <Dropdown.ItemIndicator>
-                          {({ isSelected }) =>
-                            isSelected ? <AnimatedCheck stroke={1.5} /> : null
-                          }
+                          {({ isSelected }) => (
+                            <AnimatePresence>
+                              {isSelected && (
+                                <AnimatedCheck
+                                  stroke={1.5}
+                                  className='text-muted'
+                                />
+                              )}
+                            </AnimatePresence>
+                          )}
                         </Dropdown.ItemIndicator>
                         <Label>{column.columnDef.header}</Label>
                       </Dropdown.Item>

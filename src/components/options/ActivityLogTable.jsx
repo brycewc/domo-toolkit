@@ -3,19 +3,23 @@ import {
   Chip,
   Alert,
   Button,
+  ButtonGroup,
   Dropdown,
   Label,
   Skeleton,
   Link,
   DateField,
-  Popover,
-  ButtonGroup
+  DateRangePicker,
+  RangeCalendar
 } from '@heroui/react';
-import { IconCalendarTime, IconFilter } from '@tabler/icons-react';
+import { getLocalTimeZone, parseDate, today } from '@internationalized/date';
+import { IconCalendarWeek, IconFilter } from '@tabler/icons-react';
+import { AnimatePresence } from 'motion/react';
+import { AnimatedCheck } from './../AnimatedCheck';
 import { DataTable } from './DataTable';
 import { UserFilterAutocomplete } from './UserFilterAutocomplete';
-import { getActivityLogForObject } from '@/services';
 import { DomoObject } from '@/models';
+import { getActivityLogForObject } from '@/services';
 import { ACTION_COLOR_PATTERNS } from '@/utils';
 
 /**
@@ -234,8 +238,7 @@ export function ActivityLogTable() {
   const [error, setError] = useState(null);
   const [total, setTotal] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [startDate, setStartDate] = useState(null);
-  const [endDate, setEndDate] = useState(null);
+  const [dateRange, setDateRange] = useState(null);
   const [userFilter, setUserFilter] = useState([]); // Array of user IDs for Autocomplete
   const [actionFilter, setActionFilter] = useState(new Set());
   const [objectTypeFilter, setObjectTypeFilter] = useState(new Set());
@@ -306,27 +309,15 @@ export function ActivityLogTable() {
     let filtered = events;
 
     // Filter by date range
-    if (startDate || endDate) {
+    if (dateRange) {
       filtered = filtered.filter((event) => {
         const eventDate = new Date(event.time);
         eventDate.setHours(0, 0, 0, 0); // Reset time to start of day for comparison
-
-        if (startDate && endDate) {
-          const start = new Date(startDate);
-          const end = new Date(endDate);
-          start.setHours(0, 0, 0, 0);
-          end.setHours(23, 59, 59, 999); // End of day
-          return eventDate >= start && eventDate <= end;
-        } else if (startDate) {
-          const start = new Date(startDate);
-          start.setHours(0, 0, 0, 0);
-          return eventDate >= start;
-        } else if (endDate) {
-          const end = new Date(endDate);
-          end.setHours(23, 59, 59, 999);
-          return eventDate <= end;
-        }
-        return true;
+        const start = dateRange.start.toDate(getLocalTimeZone());
+        const end = dateRange.end.toDate(getLocalTimeZone());
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999); // End of day
+        return eventDate >= start && eventDate <= end;
       });
     }
 
@@ -355,7 +346,7 @@ export function ActivityLogTable() {
     }
 
     return filtered;
-  }, [events, startDate, endDate, userFilter, actionFilter, objectTypeFilter]);
+  }, [events, dateRange, userFilter, actionFilter, objectTypeFilter]);
 
   // Define columns
   const columns = useMemo(() => {
@@ -464,71 +455,26 @@ export function ActivityLogTable() {
 
   // Check if any objects still have more events to fetch
   const hasMore = useMemo(() => {
-    const result = Object.values(objectStates).some((state) => state.hasMore);
-    console.log('[ActivityLogTable] hasMore calculated:', {
-      result,
-      objectStates
-    });
-    return result;
+    return Object.values(objectStates).some((state) => state.hasMore);
   }, [objectStates]);
 
   // Fetch more events when scrolling - only from objects that still have more
   const fetchMoreEvents = useCallback(async () => {
-    console.log('[ActivityLogTable] fetchMoreEvents called', {
-      isFetchingMore,
-      hasMore,
-      isInitialLoad,
-      isSearching,
-      objectsCount: objects.length
-    });
-
     if (isFetchingMore || !hasMore || isInitialLoad || isSearching) {
-      console.log('[ActivityLogTable] Skipping fetch:', {
-        reason: isFetchingMore
-          ? 'already fetching'
-          : !hasMore
-            ? 'no more data'
-            : isInitialLoad
-              ? 'initial load'
-              : 'searching'
-      });
       return;
     }
 
-    console.log('[ActivityLogTable] Starting to fetch more events...');
     setIsFetchingMore(true);
 
     try {
-      // Log the objects array and objectStates before filtering
-      console.log('[ActivityLogTable] Current objects array:', objects);
-      console.log('[ActivityLogTable] Current objectStates:', objectStates);
-
       // Filter to only objects that still have more events
       const objectsWithMore = objects.filter(({ type, id }) => {
         const key = `${type}:${id}`;
         const hasMoreData = objectStates[key]?.hasMore;
-        console.log('[ActivityLogTable] Checking object:', {
-          type,
-          id,
-          key,
-          hasMoreData,
-          stateExists: !!objectStates[key],
-          state: objectStates[key]
-        });
         return hasMoreData;
       });
 
-      console.log('[ActivityLogTable] Objects with more data:', {
-        count: objectsWithMore.length,
-        objects: objectsWithMore.map(({ type, id }) => ({
-          type,
-          id,
-          state: objectStates[`${type}:${id}`]
-        }))
-      });
-
       if (objectsWithMore.length === 0) {
-        console.log('[ActivityLogTable] No objects with more data, stopping');
         setIsFetchingMore(false);
         return;
       }
@@ -538,15 +484,6 @@ export function ActivityLogTable() {
         const key = `${type}:${id}`;
         const state = objectStates[key];
 
-        console.log('[ActivityLogTable] Fetching events for object:', {
-          type,
-          id,
-          key,
-          offset: state.offset,
-          pageSize,
-          tabId
-        });
-
         return getActivityLogForObject({
           objectType: type,
           objectId: id,
@@ -555,13 +492,6 @@ export function ActivityLogTable() {
           tabId
         })
           .then((result) => {
-            console.log('[ActivityLogTable] Received events for object:', {
-              type,
-              id,
-              eventsCount: result?.events?.length ?? 0,
-              total: result?.total ?? 0
-            });
-
             return {
               objectType: type,
               objectId: id,
@@ -581,19 +511,7 @@ export function ActivityLogTable() {
           });
       });
 
-      console.log('[ActivityLogTable] Waiting for all fetch promises...', {
-        promisesCount: fetchPromises.length
-      });
-
       const results = await Promise.all(fetchPromises);
-
-      console.log('[ActivityLogTable] All fetches complete:', {
-        resultsCount: results.length,
-        totalEventsReceived: results.reduce(
-          (sum, r) => sum + r.events.length,
-          0
-        )
-      });
 
       // Update object states
       const newStates = { ...objectStates };
@@ -602,15 +520,6 @@ export function ActivityLogTable() {
         const currentState = newStates[key];
         const newOffset = currentState.offset + events.length;
         const newHasMore = newOffset < total;
-
-        console.log('[ActivityLogTable] Updating state for object:', {
-          key,
-          oldOffset: currentState.offset,
-          newOffset,
-          eventsLength: events.length,
-          total,
-          newHasMore
-        });
 
         newStates[key] = {
           offset: newOffset,
@@ -625,17 +534,10 @@ export function ActivityLogTable() {
       const allEvents = [...events, ...newEvents];
       allEvents.sort((a, b) => new Date(b.time) - new Date(a.time));
 
-      console.log('[ActivityLogTable] Updated events:', {
-        previousCount: events.length,
-        newEventsCount: newEvents.length,
-        totalCount: allEvents.length
-      });
-
       setEvents(allEvents);
     } catch (err) {
       console.error('Error fetching more events:', err);
     } finally {
-      console.log('[ActivityLogTable] Finished fetching more events');
       setIsFetchingMore(false);
     }
   }, [
@@ -700,27 +602,16 @@ export function ActivityLogTable() {
     let filtered = allEvents;
 
     // Filter by date range
-    if (startDate || endDate) {
+    if (dateRange) {
       filtered = filtered.filter((event) => {
         const eventDate = new Date(event.time);
         eventDate.setHours(0, 0, 0, 0);
 
-        if (startDate && endDate) {
-          const start = new Date(startDate);
-          const end = new Date(endDate);
-          start.setHours(0, 0, 0, 0);
-          end.setHours(23, 59, 59, 999);
-          return eventDate >= start && eventDate <= end;
-        } else if (startDate) {
-          const start = new Date(startDate);
-          start.setHours(0, 0, 0, 0);
-          return eventDate >= start;
-        } else if (endDate) {
-          const end = new Date(endDate);
-          end.setHours(23, 59, 59, 999);
-          return eventDate <= end;
-        }
-        return true;
+        const start = dateRange.start.toDate(getLocalTimeZone());
+        const end = dateRange.end.toDate(getLocalTimeZone());
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
+        return eventDate >= start && eventDate <= end;
       });
     }
 
@@ -748,8 +639,7 @@ export function ActivityLogTable() {
     tabId,
     objects,
     filteredEvents,
-    startDate,
-    endDate,
+    dateRange,
     userFilter,
     actionFilter,
     objectTypeFilter
@@ -859,56 +749,75 @@ export function ActivityLogTable() {
         isRefreshing={isInitialLoad || isSearching}
         customFilters={
           <div className='flex w-full flex-row items-center justify-start gap-1'>
+            {/* Date Range Filter */}
+            <DateRangePicker
+              className='w-72'
+              endName='endDate'
+              startName='startDate'
+              granularity='day'
+              shouldForceLeadingZeros
+              value={dateRange}
+              onChange={setDateRange}
+              aria-label='Date Range Picker'
+              minValue={parseDate('2008-01-01')}
+              maxValue={today(getLocalTimeZone())}
+            >
+              <DateField.Group variant='secondary'>
+                <DateField.Input slot='start'>
+                  {(segment) => <DateField.Segment segment={segment} />}
+                </DateField.Input>
+                <DateRangePicker.RangeSeparator />
+                <DateField.Input slot='end'>
+                  {(segment) => <DateField.Segment segment={segment} />}
+                </DateField.Input>
+                <DateField.Suffix>
+                  <DateRangePicker.Trigger>
+                    <DateRangePicker.TriggerIndicator>
+                      <IconCalendarWeek
+                        stroke={1.5}
+                        className='text-foreground'
+                      />
+                    </DateRangePicker.TriggerIndicator>
+                  </DateRangePicker.Trigger>
+                </DateField.Suffix>
+              </DateField.Group>
+              <DateRangePicker.Popover>
+                <RangeCalendar
+                  aria-label='Date Range Calendar'
+                  minValue={parseDate('2008-01-01')}
+                  maxValue={today(getLocalTimeZone())}
+                >
+                  <RangeCalendar.Header>
+                    <RangeCalendar.YearPickerTrigger>
+                      <RangeCalendar.YearPickerTriggerHeading />
+                      <RangeCalendar.YearPickerTriggerIndicator />
+                    </RangeCalendar.YearPickerTrigger>
+                    <RangeCalendar.NavButton slot='previous' />
+                    <RangeCalendar.NavButton slot='next' />
+                  </RangeCalendar.Header>
+                  <RangeCalendar.Grid>
+                    <RangeCalendar.GridHeader>
+                      {(day) => (
+                        <RangeCalendar.HeaderCell>
+                          {day}
+                        </RangeCalendar.HeaderCell>
+                      )}
+                    </RangeCalendar.GridHeader>
+                    <RangeCalendar.GridBody>
+                      {(date) => <RangeCalendar.Cell date={date} />}
+                    </RangeCalendar.GridBody>
+                  </RangeCalendar.Grid>
+                  <RangeCalendar.YearPickerGrid>
+                    <RangeCalendar.YearPickerGridBody>
+                      {({ year }) => (
+                        <RangeCalendar.YearPickerCell year={year} />
+                      )}
+                    </RangeCalendar.YearPickerGridBody>
+                  </RangeCalendar.YearPickerGrid>
+                </RangeCalendar>
+              </DateRangePicker.Popover>
+            </DateRangePicker>
             <ButtonGroup variant='tertiary' fullWidth className='flex-1/2'>
-              {/* Date Range Filter */}
-              <Popover>
-                <Button variant='tertiary' fullWidth>
-                  <IconCalendarTime stroke={1.5} />
-                  Date Range
-                </Button>
-                <Popover.Content className='w-72'>
-                  <Popover.Dialog className='flex flex-col gap-3'>
-                    <DateField
-                      name='Start Date'
-                      value={startDate}
-                      onChange={setStartDate}
-                      granularity='day'
-                    >
-                      <Label>Start Date</Label>
-                      <DateField.Group>
-                        <DateField.Input>
-                          {(segment) => <DateField.Segment segment={segment} />}
-                        </DateField.Input>
-                      </DateField.Group>
-                    </DateField>
-                    <DateField
-                      name='End Date'
-                      value={endDate}
-                      onChange={setEndDate}
-                      granularity='day'
-                    >
-                      <Label>End Date</Label>
-                      <DateField.Group>
-                        <DateField.Input>
-                          {(segment) => <DateField.Segment segment={segment} />}
-                        </DateField.Input>
-                      </DateField.Group>
-                    </DateField>
-                    <Button
-                      variant='tertiary'
-                      size='sm'
-                      onPress={() => {
-                        setStartDate(null);
-                        setEndDate(null);
-                      }}
-                      isDisabled={!startDate && !endDate}
-                    >
-                      Clear
-                    </Button>
-                  </Popover.Dialog>
-                </Popover.Content>
-              </Popover>
-
               {/* Action Filter */}
               {actionOptions.length > 0 && (
                 <Dropdown>
@@ -930,7 +839,18 @@ export function ActivityLogTable() {
                             key={action}
                             textValue={action}
                           >
-                            <Dropdown.ItemIndicator />
+                            <Dropdown.ItemIndicator>
+                              {({ isSelected }) => (
+                                <AnimatePresence>
+                                  {isSelected && (
+                                    <AnimatedCheck
+                                      stroke={1.5}
+                                      className='text-muted'
+                                    />
+                                  )}
+                                </AnimatePresence>
+                              )}
+                            </Dropdown.ItemIndicator>
                             <Label>
                               <Chip
                                 color={color}
@@ -963,7 +883,18 @@ export function ActivityLogTable() {
                     >
                       {objectTypeOptions.map((type) => (
                         <Dropdown.Item id={type} key={type} textValue={type}>
-                          <Dropdown.ItemIndicator />
+                          <Dropdown.ItemIndicator>
+                            {({ isSelected }) => (
+                              <AnimatePresence>
+                                {isSelected && (
+                                  <AnimatedCheck
+                                    stroke={1.5}
+                                    className='text-muted'
+                                  />
+                                )}
+                              </AnimatePresence>
+                            )}
+                          </Dropdown.ItemIndicator>
                           <Label>{type}</Label>
                         </Dropdown.Item>
                       ))}

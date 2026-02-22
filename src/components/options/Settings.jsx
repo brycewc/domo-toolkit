@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
   Button,
-  ComboBox,
   Description,
   Form,
   Input,
@@ -198,13 +197,13 @@ export function Settings({ theme = 'system' }) {
   const hasChanges =
     JSON.stringify(settings) !== JSON.stringify(originalSettings);
 
-  const showStatus = (title, description, status = 'accent', timeout = 3000) => {
-    const method =
-      status === 'success' ? toast.success
-        : status === 'warning' ? toast.warning
-          : status === 'danger' ? toast.danger
-            : toast;
-    method(title, { description, timeout: timeout || 0 });
+  const showStatus = (
+    title,
+    description,
+    status = 'accent',
+    timeout = 3000
+  ) => {
+    toast(title, { description, variant: status, timeout: timeout || 0 });
   };
 
   if (isLoading) {

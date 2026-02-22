@@ -27,17 +27,9 @@ function parseDescription(text) {
 export function useStatusBar() {
   const showStatus = useCallback(
     (title, description, status = 'accent', timeout = 3000) => {
-      const method =
-        status === 'success'
-          ? toast.success
-          : status === 'warning'
-            ? toast.warning
-            : status === 'danger'
-              ? toast.danger
-              : toast;
-
-      method(title, {
+      toast(title, {
         description: parseDescription(description),
+        variant: status,
         timeout: timeout || 0
       });
     },
