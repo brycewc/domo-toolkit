@@ -260,34 +260,3 @@ modalObserver.observe(document.body, {
   document.documentElement.appendChild(script);
 })();
 
-// ============================================================
-// Stream execution detailed errors
-// ============================================================
-
-// Inject MAIN world script that enriches expanded error rows with detailed API data.
-// Loaded as an external file to comply with the page's Content Security Policy.
-function injectStreamErrorEnricher() {
-  if (document.getElementById('domo-toolkit-stream-errors-script')) return;
-
-  const script = document.createElement('script');
-  script.id = 'domo-toolkit-stream-errors-script';
-  script.src = chrome.runtime.getURL('public/streamErrors.js');
-  document.documentElement.appendChild(script);
-}
-
-// Watch for .dc-repair-table to appear, then inject the MAIN world script
-if (document.querySelector('.dc-repair-table')) {
-  injectStreamErrorEnricher();
-} else {
-  const streamErrorTableObserver = new MutationObserver(() => {
-    if (document.querySelector('.dc-repair-table')) {
-      injectStreamErrorEnricher();
-      streamErrorTableObserver.disconnect();
-    }
-  });
-
-  streamErrorTableObserver.observe(document.body, {
-    childList: true,
-    subtree: true
-  });
-}
