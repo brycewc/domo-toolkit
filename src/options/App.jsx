@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Tabs, Toast } from '@heroui/react';
+import { Button, Link, Tabs, Toast } from '@heroui/react';
 import { useTheme } from '@/hooks';
 import {
   ActivityLogTable,
@@ -8,6 +8,7 @@ import {
   shouldShowWelcomePage,
   WelcomePage
 } from '@/components';
+import { IconHelp, IconInbox } from '@tabler/icons-react';
 
 export default function App() {
   // Apply theme
@@ -84,6 +85,16 @@ export default function App() {
 
   return (
     <div className='flex h-screen w-full justify-center'>
+      <Link
+        href='https://github.com/brycewc/domo-toolkit/issues'
+        target='_blank'
+        className='fixed right-1 bottom-4 z-10 no-underline'
+      >
+        <Button>
+          <IconInbox stroke={1.5} />
+          Submit Feedback
+        </Button>
+      </Link>
       <Tabs
         className='h-full w-full items-center rounded-sm'
         selectedKey={selectedTab}

@@ -210,8 +210,8 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
   };
 
   return (
-    <Tooltip delay={400} closeDelay={0}>
-      <Dropdown trigger='longPress' isDisabled={!longPressEnabled}>
+    <Dropdown trigger='longPress' isDisabled={!longPressEnabled}>
+      <Tooltip delay={400} closeDelay={0}>
         <Button
           variant='tertiary'
           onPress={() => handleClick()}
@@ -241,44 +241,43 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
             )}
           </AnimatePresence>
         </Button>
-        <Dropdown.Popover className='w-full max-w-80' placement='bottom'>
-          <Dropdown.Menu onAction={handleClick}>
-            <Dropdown.Item id='child-cards' textValue='Child cards'>
-              <div className='flex h-8 items-start justify-center pt-px'>
-                <IconChartBar className='size-4 shrink-0' stroke={1.5} />
-              </div>
-              <div className='flex flex-col'>
-                <Label>Child cards</Label>
-                <Description className='text-xs'>
-                  View activity log for all cards on this{' '}
-                  {currentContext?.domoObject?.typeName?.toLowerCase() ||
-                    'object'}
-                </Description>
-              </div>
-            </Dropdown.Item>
-            <Dropdown.Item id='child-pages' textValue='Child pages'>
-              <div className='flex h-8 items-start justify-center pt-px'>
-                <IconCopy className='size-4 shrink-0' stroke={1.5} />
-              </div>
-              <div className='flex flex-col'>
-                <Label>Child pages</Label>
-                <Description className='text-xs'>
-                  View activity log for all pages containing cards from this{' '}
-                  {currentContext?.domoObject?.typeName?.toLowerCase() ||
-                    'object'}
-                </Description>
-              </div>
-            </Dropdown.Item>
-          </Dropdown.Menu>
-        </Dropdown.Popover>
-      </Dropdown>
-
-      <Tooltip.Content className='flex flex-col items-center text-center'>
-        <span>Activity Log</span>
-        {longPressEnabled && (
-          <span className='italic'>Hold for more options</span>
-        )}
-      </Tooltip.Content>
-    </Tooltip>
+        <Tooltip.Content className='flex flex-col items-center text-center'>
+          <span>Activity Log</span>
+          {longPressEnabled && (
+            <span className='italic'>Hold for more options</span>
+          )}
+        </Tooltip.Content>
+      </Tooltip>
+      <Dropdown.Popover className='w-full max-w-80' placement='bottom'>
+        <Dropdown.Menu onAction={handleClick}>
+          <Dropdown.Item id='child-cards' textValue='Child cards'>
+            <div className='flex h-8 items-start justify-center pt-px'>
+              <IconChartBar className='size-4 shrink-0' stroke={1.5} />
+            </div>
+            <div className='flex flex-col'>
+              <Label>Child cards</Label>
+              <Description className='text-xs'>
+                View activity log for all cards on this{' '}
+                {currentContext?.domoObject?.typeName?.toLowerCase() ||
+                  'object'}
+              </Description>
+            </div>
+          </Dropdown.Item>
+          <Dropdown.Item id='child-pages' textValue='Child pages'>
+            <div className='flex h-8 items-start justify-center pt-px'>
+              <IconCopy className='size-4 shrink-0' stroke={1.5} />
+            </div>
+            <div className='flex flex-col'>
+              <Label>Child pages</Label>
+              <Description className='text-xs'>
+                View activity log for all pages containing cards from this{' '}
+                {currentContext?.domoObject?.typeName?.toLowerCase() ||
+                  'object'}
+              </Description>
+            </div>
+          </Dropdown.Item>
+        </Dropdown.Menu>
+      </Dropdown.Popover>
+    </Dropdown>
   );
 }

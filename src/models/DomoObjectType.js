@@ -373,7 +373,7 @@ export const ObjectTypeRegistry = {
   ),
   APP: new DomoObjectType(
     'APP',
-    'Custom App',
+    'Custom App (Brick)',
     '/assetlibrary/{id}/overview',
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     { keyword: 'assetlibrary' },
@@ -650,7 +650,7 @@ export const ObjectTypeRegistry = {
   ),
   DATAFLOW: new DomoObjectType(
     'DATAFLOW',
-    'Dataflow',
+    'DataFlow',
     '/datacenter/dataflows/{id}/details',
     /^\d+$/,
     null,
@@ -1264,7 +1264,7 @@ export const ObjectTypeRegistry = {
   ),
   RYUU_APP: new DomoObjectType(
     'RYUU_APP',
-    'Custom App',
+    'Custom App (Pro-Code)',
     '/assetlibrary/{id}/overview',
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     { keyword: 'assetlibrary' },
@@ -1500,7 +1500,7 @@ export const ObjectTypeRegistry = {
   ),
   WAREHOUSE_ACCOUNT: new DomoObjectType(
     'WAREHOUSE_ACCOUNT',
-    'Warehouse Account',
+    'Cloud Integration',
     '/cloud-integrations/{id}/settings',
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     { keyword: 'cloud-integrations' },

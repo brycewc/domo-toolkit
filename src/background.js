@@ -81,9 +81,6 @@ async function ensureContentScript(tabId) {
   try {
     await chrome.tabs.sendMessage(tabId, { type: 'PING' });
   } catch {
-    console.log(
-      `[Background] Content script not responding on tab ${tabId}, re-injecting`
-    );
     await chrome.scripting.executeScript({
       target: { tabId },
       files: ['src/contentScript.js']
@@ -116,7 +113,6 @@ function evictLRUIfNeeded() {
     }
 
     if (oldestTabId !== null) {
-      console.log(`[Background] Evicting LRU tab ${oldestTabId}`);
       tabContexts.delete(oldestTabId);
       tabAccessTimes.delete(oldestTabId);
     }
@@ -154,7 +150,7 @@ function setTabContext(tabId, context) {
       context: contextData
     })
     .catch((error) => {
-      console.log(
+      console.warn(
         `[Background] Could not send context to tab ${tabId}:`,
         error.message
       );
@@ -169,10 +165,10 @@ function setTabContext(tabId, context) {
     })
     .catch((error) => {
       // No listeners, that's fine (popup/sidepanel might not be open)
-      console.log(
-        `[Background] No listeners for TAB_CONTEXT_UPDATED:`,
-        error.message
-      );
+      // console.log(
+      //   `[Background] No listeners for TAB_CONTEXT_UPDATED:`,
+      //   error.message
+      // );
     });
 }
 
@@ -237,10 +233,6 @@ async function restoreFromSession() {
         tabContexts.set(tabId, context);
         touchTab(tabId);
       }
-
-      console.log(
-        `[Background] Restored ${tabContexts.size} tab contexts from session`
-      );
     }
   } catch (error) {
     console.error('[Background] Error restoring from session storage:', error);
@@ -249,8 +241,6 @@ async function restoreFromSession() {
 
 // Handle extension installation
 chrome.runtime.onInstalled.addListener((details) => {
-  console.log('Extension installed:', details);
-
   // Open welcome page on fresh install
   if (details.reason === 'install') {
     // Create a new tab with the activity hash directly
@@ -324,8 +314,6 @@ let lastClipboardValue = '';
 async function handle431Response(details) {
   if (details.statusCode === 431) {
     try {
-      console.log('[Background] 431 detected, auto-clearing with preservation');
-
       // Find all Domo tabs to determine which instances to preserve
       const allTabs = await chrome.tabs.query({ url: '*://*.domo.com/*' });
       const domoTabs = allTabs.filter((tab) => {
@@ -336,10 +324,6 @@ async function handle431Response(details) {
           return false;
         }
       });
-      console.log(
-        '[Background] Found Domo tabs:',
-        domoTabs.map((t) => t.url)
-      );
 
       // Get unique domains from Domo tabs, prioritizing most recently accessed
       // Sort by lastAccessed if available, otherwise by tab id (higher = more recent)
@@ -371,11 +355,6 @@ async function handle431Response(details) {
             daSidsToPreserve.push(
               `DA-SID-${data.environmentId}-${data.analytics.company}`
             );
-            console.log(
-              '[Background] Preserving DA-SID for tab',
-              tab.id,
-              daSidsToPreserve[daSidsToPreserve.length - 1]
-            );
           }
         } catch (e) {
           console.warn(
@@ -391,25 +370,13 @@ async function handle431Response(details) {
       if (domainsToPreserve.length === 0) {
         const currentDomain = new URL(details.url).hostname;
         domainsToPreserve = [currentDomain];
-        console.log(
-          '[Background] No Domo tabs found, preserving current domain:',
-          currentDomain
-        );
       }
-
-      console.log(
-        '[Background] Preserving domains:',
-        domainsToPreserve,
-        'DA-SIDs:',
-        daSidsToPreserve
-      );
 
       const result = await clearCookies({
         domains: domainsToPreserve,
         excludeDomains: true,
         daSidsToPreserve
       });
-      console.log('[Background] Handled 431 response:', result.description);
       chrome.tabs.reload(details.tabId);
     } catch (error) {
       console.error('[Background] Error handling 431 response:', error);
@@ -432,7 +399,6 @@ function enable431Listener() {
       webRequestFilter
     );
     is431ListenerActive = true;
-    console.log('[Background] 431 auto-clear listener enabled');
   }
 }
 
@@ -440,7 +406,6 @@ function disable431Listener() {
   if (is431ListenerActive) {
     chrome.webRequest.onResponseStarted.removeListener(handle431Response);
     is431ListenerActive = false;
-    console.log('[Background] 431 auto-clear listener disabled');
   }
 }
 
@@ -456,7 +421,6 @@ chrome.storage.sync.get(['defaultClearCookiesHandling'], (result) => {
 
 // Clean up when tabs are closed
 chrome.tabs.onRemoved.addListener((tabId) => {
-  console.log(`[Background] Tab ${tabId} removed, cleaning up context`);
   tabContexts.delete(tabId);
   tabAccessTimes.delete(tabId);
   persistToSession();
@@ -464,8 +428,6 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 
 // Detect context when tab becomes active (eager detection)
 chrome.tabs.onActivated.addListener(async ({ tabId, windowId }) => {
-  console.log(`[Background] Tab ${tabId} activated in window ${windowId}`);
-
   // Always update icon based on current preference
   updateIconFromPreference();
 
@@ -475,7 +437,6 @@ chrome.tabs.onActivated.addListener(async ({ tabId, windowId }) => {
       await ensureContentScript(tabId);
 
       if (!tabContexts.has(tabId)) {
-        console.log(`[Background] Eager detection for active tab ${tabId}`);
         await detectAndStoreContext(tabId);
       }
     }
@@ -488,57 +449,27 @@ chrome.tabs.onActivated.addListener(async ({ tabId, windowId }) => {
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   // React to URL changes on Domo domains
   if (changeInfo.url && changeInfo.url.includes('domo.com')) {
-    console.log(
-      `[Background] URL changed for tab ${tabId}, triggering detection`
-    );
-
     await detectAndStoreContext(tabId);
 
-    // Trigger favicon application for new URL with retry logic
-    // sendMessageWithRetry(tabId, { type: 'APPLY_FAVICON' }, 3)
-    //   .then(() => {
-    //     console.log(`[Background] Applied favicon for tab ${tabId}`);
-    //   })
-    //   .catch((error) => {
-    //     console.log(`[Background] Could not send APPLY_FAVICON to tab ${tabId}:`, error.message);
-    //   });
-  }
-
-  // Apply favicon when favIconUrl changes (page loaded or favicon updated)
-  // if (changeInfo.favIconUrl && tab.url?.includes('domo.com')) {
-  //   console.log(
-  //     `[Background] Favicon changed for tab ${tabId}, applying rules`
-  //   );
-  //   sendMessageWithRetry(tabId, { type: 'APPLY_FAVICON' }, 3)
-  //     .then(() => {
-  //       console.log(`[Background] Applied favicon for tab ${tabId}`);
-  //     })
-  //     .catch((error) => {
-  //       console.log(`[Background] Could not send APPLY_FAVICON to tab ${tabId}:`, error.message);
-  //     });
-  // }
-
-  // Update title if it's just "Domo" and we have object metadata
-  if (changeInfo.title === 'Domo' && tab.url?.includes('domo.com')) {
-    const context = getTabContext(tabId);
-    if (context?.domoObject?.metadata?.name) {
-      console.log(
-        `[Background] Updating title for tab ${tabId} to include object name`
-      );
-      try {
-        await chrome.scripting.executeScript({
-          target: { tabId },
-          func: (name) => {
-            document.title = `${name} - Domo`;
-          },
-          args: [context.domoObject.metadata.name],
-          world: 'MAIN'
-        });
-      } catch (error) {
-        console.error(
-          `[Background] Error updating title for tab ${tabId}:`,
-          error
-        );
+    // Update title if it's just "Domo" and we have object metadata
+    if (changeInfo.title === 'Domo' && tab.url?.includes('domo.com')) {
+      const context = getTabContext(tabId);
+      if (context?.domoObject?.metadata?.name) {
+        try {
+          await chrome.scripting.executeScript({
+            target: { tabId },
+            func: (name) => {
+              document.title = `${name} - Domo`;
+            },
+            args: [context.domoObject.metadata.name],
+            world: 'MAIN'
+          });
+        } catch (error) {
+          console.error(
+            `[Background] Error updating title for tab ${tabId}:`,
+            error
+          );
+        }
       }
     }
   }
@@ -547,9 +478,6 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 // Detect context when history state changes (SPA navigation)
 chrome.webNavigation.onHistoryStateUpdated.addListener(async (details) => {
   if (details.url && details.url.includes('domo.com')) {
-    console.log(
-      `[Background] History state updated for tab ${details.tabId}, triggering detection`
-    );
     await detectAndStoreContext(details.tabId);
   }
 });
@@ -558,7 +486,6 @@ chrome.webNavigation.onHistoryStateUpdated.addListener(async (details) => {
 chrome.storage.onChanged.addListener(async (changes, areaName) => {
   if (areaName === 'sync' && changes.iconStyle !== undefined) {
     const style = changes.iconStyle.newValue || 'light';
-    console.log('[Background] Icon style changed to:', style);
     updateExtensionIcon(style === 'dark');
   }
 
@@ -577,8 +504,6 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
   }
 
   if (areaName === 'sync' && changes.faviconRules) {
-    console.log('[Background] Favicon rules changed, notifying all Domo tabs');
-
     // Get all tabs with domo.com URLs
     const tabs = await chrome.tabs.query({
       url: '*://*.domo.com/*',
@@ -586,16 +511,14 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
     });
 
     for (const tab of tabs) {
-      sendMessageWithRetry(tab.id, { type: 'APPLY_FAVICON' }, 3)
-        .then(() => {
-          console.log(`[Background] Updated favicon for tab ${tab.id}`);
-        })
-        .catch((error) => {
-          console.log(
-            `[Background] Could not notify tab ${tab.id}:`,
+      sendMessageWithRetry(tab.id, { type: 'APPLY_FAVICON' }, 3).catch(
+        (error) => {
+          console.warn(
+            `[Background] Could not notify tab ${tab.id} of favicon rules change:`,
             error.message
           );
-        });
+        }
+      );
     }
   }
 });
@@ -603,13 +526,11 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
 // Listen for keyboard commands
 chrome.commands.onCommand.addListener((command) => {
   if (command === 'copy_id') {
-    console.log('[Background] Keyboard command triggered: copy_id');
     // Get the active tab
     chrome.tabs.query(
       { active: true, currentWindow: true, windowType: 'normal' },
       async (tabs) => {
         if (tabs.length === 0) {
-          console.log('[Background] No active tab found for copy_id command');
           return;
         }
         const tab = tabs[0];
@@ -623,19 +544,12 @@ chrome.commands.onCommand.addListener((command) => {
               [context.domoObject.id],
               tab.id
             );
-            console.log(
-              `[Background] Copied ID ${context.domoObject.id} to clipboard`
-            );
           } catch (error) {
             console.error(
               `[Background] Failed to copy ID to clipboard:`,
               error
             );
           }
-        } else {
-          console.log(
-            '[Background] No Domo object ID found in context for copy_id command'
-          );
         }
       }
     );
@@ -653,9 +567,6 @@ async function detectAndStoreContext(tabId) {
     const tab = await chrome.tabs.get(tabId);
     if (!tab || !tab?.url?.includes('domo.com')) {
       // Not a Domo domain - clear any existing context and broadcast the update
-      console.log(
-        `[Background] Tab ${tabId} is not on a Domo domain, clearing context`
-      );
       const hadContext = tabContexts.has(tabId);
       tabContexts.delete(tabId);
       tabAccessTimes.delete(tabId);
@@ -670,7 +581,7 @@ async function detectAndStoreContext(tabId) {
             context: null
           })
           .catch((error) => {
-            console.log(
+            console.warn(
               `[Background] No listeners for TAB_CONTEXT_UPDATED (null):`,
               error.message
             );
@@ -687,10 +598,6 @@ async function detectAndStoreContext(tabId) {
       .then((user) => {
         context.user = user;
         setTabContext(tabId, context);
-        console.log(
-          `[Background] Fetched current user for tab ${tabId}:`,
-          user?.id
-        );
       })
       .catch((error) => {
         console.warn(
@@ -702,7 +609,6 @@ async function detectAndStoreContext(tabId) {
     // Execute detection script in page context
     const detected = await executeInPage(detectCurrentObject, [], tabId);
     if (!detected) {
-      console.log(`[Background] No Domo object detected on tab ${tabId}`);
       return null;
     }
     const typeModel = getObjectType(detected.typeId);
@@ -766,15 +672,9 @@ async function detectAndStoreContext(tabId) {
       (await executeInPage(fetchObjectDetailsInPage, [params], tabId)) || {};
 
     // Set parentId from API response if not already extracted from URL
-    console.log(
-      `[Background] enrichedMetadata keys:`,
-      Object.keys(enrichedMetadata),
-      `parentId from URL: ${parentId}, parentId from API: ${enrichedMetadata.parentId}`
-    );
     if (!parentId && enrichedMetadata.parentId) {
       parentId = enrichedMetadata.parentId;
       domoObject.parentId = parentId;
-      console.log(`[Background] Set parentId from API response: ${parentId}`);
     }
 
     domoObject.metadata = enrichedMetadata;
@@ -789,9 +689,6 @@ async function detectAndStoreContext(tabId) {
         const dataflowId = await getDataflowForOutputDataset(objectId, tabId);
         parentId = dataflowId;
         domoObject.parentId = dataflowId;
-        console.log(
-          `[Background] Resolved DATAFLOW_TYPE parent ${dataflowId} for DATA_SOURCE ${objectId}`
-        );
       } catch (error) {
         console.warn(
           `[Background] Could not resolve DataFlow parent for DATA_SOURCE ${objectId}:`,
@@ -801,19 +698,9 @@ async function detectAndStoreContext(tabId) {
     }
 
     // For objects with parents, enrich metadata with parent details
-    console.log(
-      `[Background] Parent enrichment check: parentId=${parentId}, parents=${JSON.stringify(typeModel.parents)}`
-    );
     if (parentId && typeModel.parents && typeModel.parents.length > 0) {
       try {
-        console.log(
-          `[Background] Calling getParent for ${typeModel.id} ${objectId} with tabId=${tabId}`
-        );
         await domoObject.getParent(false, detected.url, tabId);
-        console.log(
-          `[Background] Enriched parent metadata for ${typeModel.id} ${objectId}:`,
-          domoObject.metadata?.parent
-        );
       } catch (error) {
         console.warn(
           `[Background] Could not enrich parent metadata for ${typeModel.id} ${objectId}:`,
@@ -824,11 +711,6 @@ async function detectAndStoreContext(tabId) {
 
     // Update DomoContext with DomoObject
     context.domoObject = domoObject;
-
-    console.log(
-      `[Background] Detected and stored context for tab ${tabId}:`,
-      context
-    );
     setTabContext(tabId, context);
 
     // For PAGE, DATA_APP_VIEW, WORKSHEET_VIEW, and REPORT_BUILDER_VIEW types, fetch child pages asynchronously (non-blocking)
@@ -879,10 +761,6 @@ async function detectAndStoreContext(tabId) {
 
             // Update the stored context
             setTabContext(tabId, currentContext);
-
-            console.log(
-              `[Background] Fetched ${childPages?.length || 0} ${typeModel.id === 'DATA_APP_VIEW' || typeModel.id === 'WORKSHEET_VIEW' || typeModel.id === 'REPORT_BUILDER_VIEW' ? 'app pages' : 'child pages'} for ${typeModel.id} ${objectId}`
-            );
           }
         })
         .catch((error) => {
@@ -932,10 +810,6 @@ async function detectAndStoreContext(tabId) {
 
             // Update the stored context
             setTabContext(tabId, currentContext);
-
-            console.log(
-              `[Background] Fetched ${childPages?.length || 0} child pages for ${typeModel.id} ${objectId}`
-            );
           }
         })
         .catch((error) => {
@@ -987,10 +861,6 @@ async function detectAndStoreContext(tabId) {
 
             // Update the stored context
             setTabContext(tabId, currentContext);
-
-            console.log(
-              `[Background] Fetched ${cards?.length || 0} cards for ${typeModel.id} ${objectId}`
-            );
           }
         })
         .catch((error) => {
@@ -1051,11 +921,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             active: true,
             windowId
           });
-          console.log(
-            '[Background] GET_TAB_CONTEXT for window',
-            windowId,
-            tabs
-          );
+
           if (!tabs || tabs.length === 0) {
             sendResponse({ success: false, error: 'No active tab found' });
             return;
@@ -1092,7 +958,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         case 'CLIPBOARD_COPIED': {
           // Content script or Copy component detected a copy event
           const { clipboardData, domoObject } = message;
-          console.log('[Background] CLIPBOARD_COPIED received:', clipboardData);
 
           // Cache in session storage (include object info if available)
           await chrome.storage.session.set({

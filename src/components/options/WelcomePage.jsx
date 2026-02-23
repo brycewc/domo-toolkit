@@ -327,10 +327,12 @@ export function WelcomePage() {
               href={link.url}
               target='_blank'
               key={link.label}
-              className='button button--tertiary flex gap-2'
+              className='no-underline'
             >
-              <link.icon stroke={1.5} />
-              {link.label}
+              <Button variant='tertiary'>
+                <link.icon stroke={1.5} />
+                {link.label}
+              </Button>
             </Link>
           ))}
         </div>

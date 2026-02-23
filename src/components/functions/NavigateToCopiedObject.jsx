@@ -4,7 +4,8 @@ import {
   useRef,
   useImperativeHandle,
   forwardRef,
-  useCallback
+  useCallback,
+  useMemo
 } from 'react';
 import { Button, Dropdown, Label, Tooltip, Chip, Spinner } from '@heroui/react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -208,12 +209,28 @@ export const NavigateToCopiedObject = forwardRef(
     }));
 
     useEffect(() => {
-      // Load all object types for dropdown (includes non-URL types with API configs)
+      const seen = new Set();
       const types = getAllNavigableObjectTypes()
         .filter((type) => (type.hasUrl() ? !type.requiresParentForUrl() : true))
-        .sort((a, b) => a.name.localeCompare(b.name));
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .filter((type) => {
+          const key = type.urlPath || type.api?.endpoint;
+          if (!key || !seen.has(key)) {
+            if (key) seen.add(key);
+            return true;
+          }
+          return false;
+        });
       setAllTypes(types);
     }, []);
+
+    const filteredTypes = useMemo(
+      () =>
+        copiedObjectId
+          ? allTypes.filter((type) => type.isValidObjectId(copiedObjectId))
+          : allTypes,
+      [allTypes, copiedObjectId]
+    );
 
     // Load default Domo instance from settings
     useEffect(() => {
@@ -487,11 +504,11 @@ export const NavigateToCopiedObject = forwardRef(
     }
 
     return (
-      <Tooltip delay={400} closeDelay={0}>
-        <Dropdown
-          trigger={longPressDisabled ? 'click' : 'longPress'}
-          isDisabled={longPressDisabled}
-        >
+      <Dropdown
+        trigger={longPressDisabled ? 'click' : 'longPress'}
+        isDisabled={longPressDisabled}
+      >
+        <Tooltip delay={400} closeDelay={0}>
           <Button
             variant='tertiary'
             fullWidth
@@ -536,36 +553,10 @@ export const NavigateToCopiedObject = forwardRef(
               )
             }
           </Button>
-          <Dropdown.Popover className='min-w-[18rem]' placement='bottom end'>
-            <Dropdown.Menu
-              onAction={(key) => {
-                handleClick(key);
-              }}
-            >
-              {allTypes.map((type) => (
-                <Dropdown.Item id={type.id} textValue={type.name} key={type.id}>
-                  <Tooltip key={type.id} delay={400} closeDelay={0}>
-                    <Tooltip.Trigger>
-                      {type.hasUrl() ? (
-                        <IconExternalLink stroke={1.5} />
-                      ) : (
-                        <IconLayoutSidebarRightExpand stroke={1.5} />
-                      )}
-                    </Tooltip.Trigger>
-                    <Tooltip.Content>
-                      {type.hasUrl()
-                        ? 'Open in new tab'
-                        : 'View details in side panel'}
-                    </Tooltip.Content>
-                  </Tooltip>
-                  <Label>{type.name}</Label>
-                </Dropdown.Item>
-              ))}
-            </Dropdown.Menu>
-          </Dropdown.Popover>
-        </Dropdown>
-        <Tooltip.Content placement='top' className='flex flex-col items-center'>
-          <span className='flex flex-row items-start justify-start gap-1'>
+          <Tooltip.Content
+            placement='top'
+            className='flex flex-col items-center'
+          >
             {error ? (
               `Error: ${error}`
             ) : currentContext?.isDomoPage ? (
@@ -573,20 +564,18 @@ export const NavigateToCopiedObject = forwardRef(
                 objectDetails ? (
                   <>
                     <span className='text-wrap'>
-                      {objectDetails.hasUrl()
-                        ? `Navigate to ${objectDetails.metadata?.name || 'Unknown'}`
-                        : `View details for ${objectDetails.metadata?.name || 'Unknown'}`}
+                      {objectDetails.hasUrl() ? (
+                        <>
+                          Navigate to
+                          <span className='font-medium'>
+                            {' '}
+                            {objectDetails.metadata?.name || 'Unknown'}
+                          </span>
+                        </>
+                      ) : (
+                        `View details for ${objectDetails.metadata?.name || 'Unknown'}`
+                      )}
                     </span>
-                    <Chip
-                      size='sm'
-                      variant='soft'
-                      color={objectDetails.hasUrl() ? 'accent' : 'secondary'}
-                      className='w-fit'
-                    >
-                      {objectDetails.metadata?.parent
-                        ? `${objectDetails.metadata?.parent?.objectType?.name} > ${objectDetails?.typeName}`
-                        : `${objectDetails?.typeName}`}
-                    </Chip>
                   </>
                 ) : (
                   'Loading object details...'
@@ -597,12 +586,46 @@ export const NavigateToCopiedObject = forwardRef(
             ) : (
               'Click to read clipboard and navigate to object'
             )}
-          </span>
-          {!longPressDisabled && (
-            <span className='italic'>Hold for more options</span>
-          )}
-        </Tooltip.Content>
-      </Tooltip>
+            <div className='flex flex-row items-center justify-start gap-1'>
+              {objectDetails && (
+                <span className='capitalize'>
+                  {objectDetails?.typeName?.toLowerCase()}
+                </span>
+              )}
+              {!longPressDisabled && (
+                <span className='italic'> - Hold for more options</span>
+              )}
+            </div>
+          </Tooltip.Content>
+        </Tooltip>
+        <Dropdown.Popover className='min-w-[18rem]' placement='bottom end'>
+          <Dropdown.Menu
+            onAction={(key) => {
+              handleClick(key);
+            }}
+          >
+            {filteredTypes.map((type) => (
+              <Dropdown.Item id={type.id} textValue={type.name} key={type.id}>
+                <Tooltip key={type.id} delay={400} closeDelay={0}>
+                  <Tooltip.Trigger>
+                    {type.hasUrl() ? (
+                      <IconExternalLink stroke={1.5} />
+                    ) : (
+                      <IconLayoutSidebarRightExpand stroke={1.5} />
+                    )}
+                  </Tooltip.Trigger>
+                  <Tooltip.Content>
+                    {type.hasUrl()
+                      ? 'Open in new tab'
+                      : 'View details in side panel'}
+                  </Tooltip.Content>
+                </Tooltip>
+                <Label>{type.name}</Label>
+              </Dropdown.Item>
+            ))}
+          </Dropdown.Menu>
+        </Dropdown.Popover>
+      </Dropdown>
     );
   }
 );

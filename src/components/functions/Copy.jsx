@@ -76,26 +76,27 @@ export function Copy({
   const typeId = currentContext?.domoObject?.typeId;
   const details = currentContext?.domoObject?.metadata?.details;
 
-  const dropdownItems = [
-    typeId === 'DATA_SOURCE' &&
-      details?.streamId && {
-        id: 'stream',
-        label: 'Copy Stream ID'
-      },
-    typeId === 'DATA_SOURCE' &&
-      details?.accountId && {
-        id: 'account',
-        label: 'Copy Account ID'
-      },
-    typeId === 'DATA_APP_VIEW' && {
-      id: 'data-app',
-      label: 'Copy App ID'
-    },
-    typeId === 'WORKSHEET_VIEW' && {
-      id: 'worksheet',
-      label: 'Copy Worksheet ID'
-    }
-  ].filter(Boolean);
+  let dropdownItems;
+  switch (typeId) {
+    case 'DATA_SOURCE':
+      dropdownItems = [
+        details?.streamId && { id: 'stream', label: 'Copy Stream ID' },
+        details?.accountId && { id: 'account', label: 'Copy Account ID' },
+        details?.type?.toLowerCase() === 'dataflow' && {
+          id: 'dataflow',
+          label: 'Copy Dataflow ID'
+        }
+      ].filter(Boolean);
+      break;
+    case 'DATA_APP_VIEW':
+      dropdownItems = [{ id: 'data-app', label: 'Copy App ID' }];
+      break;
+    case 'WORKSHEET_VIEW':
+      dropdownItems = [{ id: 'worksheet', label: 'Copy Worksheet ID' }];
+      break;
+    default:
+      dropdownItems = [];
+  }
 
   const longPressDisabled =
     isDisabled || !currentContext?.domoObject?.id || dropdownItems.length === 0;
@@ -177,6 +178,28 @@ export function Copy({
         navigateToCopiedRef.current?.triggerDetection(accountId, accountObject);
         break;
       }
+      case 'dataflow': {
+        const dataflowId = currentContext?.domoObject?.parentId;
+        const dataflowObject = new DomoObject(
+          'DATAFLOW_TYPE',
+          dataflowId,
+          baseUrl
+        );
+        navigator.clipboard.writeText(dataflowId);
+        onStatusUpdate?.(
+          'Success',
+          `Copied Dataflow ID **${dataflowId}** to clipboard`,
+          'success',
+          2000
+        );
+        await enrichDomoObject(dataflowObject, tabId);
+        notifyClipboardUpdate(dataflowId, dataflowObject);
+        navigateToCopiedRef.current?.triggerDetection(
+          dataflowId,
+          dataflowObject
+        );
+        break;
+      }
       case 'data-app': {
         const appId = currentContext?.domoObject?.parentId;
         const appObject = new DomoObject('DATA_APP', appId, baseUrl);
@@ -220,8 +243,8 @@ export function Copy({
   };
 
   return (
-    <Tooltip delay={400} closeDelay={0}>
-      <Dropdown trigger='longPress' isDisabled={longPressDisabled}>
+    <Dropdown trigger='longPress' isDisabled={longPressDisabled}>
+      <Tooltip delay={400} closeDelay={0}>
         <Button
           variant='tertiary'
           fullWidth
@@ -255,24 +278,23 @@ export function Copy({
             )}
           </AnimatePresence>
         </Button>
-        <Dropdown.Popover className='w-fit min-w-48' placement='bottom left'>
-          <Dropdown.Menu onAction={handleAction}>
-            {dropdownItems.map((item) => (
-              <Dropdown.Item key={item.id} id={item.id} textValue={item.label}>
-                <IconClipboard className='size-4 shrink-0' />
-                <Label>{item.label}</Label>
-              </Dropdown.Item>
-            ))}
-          </Dropdown.Menu>
-        </Dropdown.Popover>
-      </Dropdown>
-
-      <Tooltip.Content className='flex flex-col items-center text-center'>
-        <span>Copy ID</span>
-        {!longPressDisabled && (
-          <span className='italic'>Hold for more options</span>
-        )}
-      </Tooltip.Content>
-    </Tooltip>
+        <Tooltip.Content className='flex flex-col items-center text-center'>
+          <span>Copy ID</span>
+          {!longPressDisabled && (
+            <span className='italic'>Hold for more options</span>
+          )}
+        </Tooltip.Content>
+      </Tooltip>
+      <Dropdown.Popover className='w-fit min-w-48' placement='bottom left'>
+        <Dropdown.Menu onAction={handleAction}>
+          {dropdownItems.map((item) => (
+            <Dropdown.Item key={item.id} id={item.id} textValue={item.label}>
+              <IconClipboard className='size-4 shrink-0' />
+              <Label>{item.label}</Label>
+            </Dropdown.Item>
+          ))}
+        </Dropdown.Menu>
+      </Dropdown.Popover>
+    </Dropdown>
   );
 }

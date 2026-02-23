@@ -326,7 +326,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
                       <Chip
                         color='accent'
                         variant='soft'
-                        className='w-fit rounded'
+                        className='w-fit rounded-xl'
                         size='sm'
                       >
                         {currentContext?.domoObject?.typeId}
