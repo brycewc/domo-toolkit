@@ -222,7 +222,9 @@ export function ActionButtons({
                   onStatusUpdate={onStatusUpdate}
                 />
               )}
-              {currentContext?.domoObject?.typeId === 'CARD' && (
+              {(currentContext?.domoObject?.typeId === 'CARD' ||
+                currentContext?.domoObject?.typeId ===
+                  'CODEENGINE_PACKAGE') && (
                 <Export
                   currentContext={currentContext}
                   onStatusUpdate={onStatusUpdate}

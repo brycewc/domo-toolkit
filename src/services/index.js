@@ -17,6 +17,7 @@ export {
   getStreamExecution,
   getStreamExecutions
 } from './datasets';
+export { getCodeEngineCode } from './codeEngine';
 export {
   getCardDatasets,
   getDrillParentCardId,
