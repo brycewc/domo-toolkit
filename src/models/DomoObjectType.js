@@ -814,7 +814,7 @@ export const ObjectTypeRegistry = {
   FILESET: new DomoObjectType(
     'FILESET',
     'FileSet',
-    '/datacenter/filesets/{id}',
+    '/datacenter/filesets/{id}/overview',
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     { keyword: 'filesets' },
     {
