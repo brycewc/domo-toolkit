@@ -13,8 +13,8 @@ export async function getDataflowForOutputDataset(datasetId, tabId = null) {
     const response = await fetch(
       `/api/dataprocessing/v2/dataflows/${datasetId}?populateActions=false&excludeFields=executionCount`,
       {
-        method: 'GET',
-        credentials: 'include'
+        credentials: 'include',
+        method: 'GET'
       }
     );
 
@@ -64,12 +64,12 @@ export async function updateDataflowDetails(dataflowId, updates) {
         const updateResponse = await fetch(
           `/api/dataprocessing/v1/dataflows/${dataflowId}/patch`,
           {
-            method: 'PUT',
+            body: JSON.stringify(payload),
             credentials: 'include',
             headers: {
               'Content-Type': 'application/json'
             },
-            body: JSON.stringify(payload)
+            method: 'PUT'
           }
         );
 

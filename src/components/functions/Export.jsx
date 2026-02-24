@@ -1,27 +1,28 @@
 import { Button, Dropdown, Label, Tooltip } from '@heroui/react';
 import {
-  IconCsv,
-  IconFileTypeXls,
-  IconFileDownload,
   IconBrandPython,
-  IconFileTypeJs
+  IconCsv,
+  IconFileDownload,
+  IconFileTypeJs,
+  IconFileTypeXls
 } from '@tabler/icons-react';
 import { js_beautify } from 'js-beautify';
-import { exportCard, getCodeEngineCode } from '@/services';
+
 import { useStatusBar } from '@/hooks';
+import { exportCard, getCodeEngineCode } from '@/services';
 
 const NON_EXPORTABLE_CARD_TYPES = new Set(['domoapp', 'text']);
 
 const CARD_EXPORT_OPTIONS = [
   {
+    icon: IconFileTypeXls,
     id: 'excel',
-    label: 'Export as Excel',
-    icon: IconFileTypeXls
+    label: 'Export as Excel'
   },
   {
+    icon: IconCsv,
     id: 'csv',
-    label: 'Export as CSV',
-    icon: IconCsv
+    label: 'Export as CSV'
   }
 ];
 
@@ -69,20 +70,20 @@ export function Export({ currentContext, isDisabled }) {
       });
 
       showPromiseStatus(exportPromise, {
+        error: (err) => `Could not export code – ${err.message}`,
         loading: `Exporting **${name}** code…`,
-        success: (data) => `Downloading **${data.fileName}**`,
-        error: (err) => `Could not export code – ${err.message}`
+        success: (data) => `Downloading **${data.fileName}**`
       });
     };
 
     return (
-      <Tooltip delay={400} closeDelay={0}>
+      <Tooltip closeDelay={0} delay={400}>
         <Button
-          variant='tertiary'
           fullWidth
-          isDisabled={isDisabled}
-          onPress={handleCodeExport}
           className='min-w-36 flex-1 whitespace-normal'
+          isDisabled={isDisabled}
+          variant='tertiary'
+          onPress={handleCodeExport}
         >
           {isPython ? (
             <IconBrandPython stroke={1.5} />
@@ -114,9 +115,9 @@ export function Export({ currentContext, isDisabled }) {
         tabId: currentContext.tabId
       }),
       {
+        error: (err) => `Could not export card **${objectId}** – ${err.message}`,
         loading: `Exporting **${title}**…`,
-        success: (data) => `Downloading **${data.fileName}**`,
-        error: (err) => `Could not export card **${objectId}** – ${err.message}`
+        success: (data) => `Downloading **${data.fileName}**`
       }
     );
   };
@@ -124,10 +125,10 @@ export function Export({ currentContext, isDisabled }) {
   return (
     <Dropdown isDisabled={isDisabled}>
       <Button
-        variant='tertiary'
         fullWidth
-        isDisabled={isDisabled}
         className='min-w-36 flex-1 whitespace-normal'
+        isDisabled={isDisabled}
+        variant='tertiary'
       >
         <IconFileDownload stroke={1.5} />
         Export
@@ -135,7 +136,7 @@ export function Export({ currentContext, isDisabled }) {
       <Dropdown.Popover className='w-fit min-w-40' placement='bottom'>
         <Dropdown.Menu onAction={(key) => handleCardExport(key)}>
           {CARD_EXPORT_OPTIONS.map((opt) => (
-            <Dropdown.Item key={opt.id} id={opt.id} textValue={opt.label}>
+            <Dropdown.Item id={opt.id} key={opt.id} textValue={opt.label}>
               <opt.icon className='size-4 shrink-0' stroke={1.5} />
               <Label>{opt.label}</Label>
             </Dropdown.Item>

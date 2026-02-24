@@ -28,21 +28,37 @@ export const EXCLUDED_INSTANCES = EXCLUDED_HOSTNAMES.map((hostname) =>
 // Partial match patterns for action colors
 // Checked after exact matches, uses .includes() for matching
 export const ACTION_COLOR_PATTERNS = {
+  added: 'success',
+  canceled: 'danger',
+  changed: 'warning',
+  completed: 'success',
   created: 'success',
   deleted: 'danger',
   enabled: 'success',
   exported: 'warning',
+  failed: 'danger',
   imported: 'success',
   killed: 'danger',
-  shared: 'accent',
-  updated: 'warning',
-  viewed: 'accent',
-  changed: 'warning',
-  added: 'success',
   removed: 'danger',
-  failed: 'danger',
+  shared: 'accent',
   started: 'success',
   stopped: 'danger',
-  completed: 'success',
-  canceled: 'danger',
+  updated: 'warning',
+  viewed: 'accent'
+};
+
+export const EXPORT_FORMATS = {
+  csv: {
+    accept: 'text/csv',
+    extension: 'csv'
+  },
+  excel: {
+    accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    extension: 'xlsx'
+  },
+  powerpoint: {
+    accept:
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    extension: 'pptx'
+  }
 };

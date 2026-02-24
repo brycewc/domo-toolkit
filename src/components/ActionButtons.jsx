@@ -1,11 +1,11 @@
-import { useRef, useState } from 'react';
 import { Button, ButtonGroup, Card, Disclosure, Tooltip } from '@heroui/react';
 import {
   IconChevronDown,
-  IconHelp,
   IconLayoutSidebarRightExpand,
   IconSettings
 } from '@tabler/icons-react';
+import { useRef, useState } from 'react';
+
 import {
   ActivityLogCurrentObject,
   ClearCookies,
@@ -25,12 +25,11 @@ import {
   UpdateDataflowDetails,
   UpdateOwner
 } from '@/components';
-import { openSidepanel, isSidepanel } from '@/utils';
+import { isSidepanel, openSidepanel } from '@/utils';
 
 export function ActionButtons({
-  currentContext,
-  isLoadingCurrentContext,
   collapsable = false,
+  currentContext,
   onStatusUpdate
 }) {
   const navigateToCopiedRef = useRef();
@@ -42,41 +41,41 @@ export function ActionButtons({
     <Card className='w-full shrink-0 p-0'>
       <Card.Content className='p-2'>
         <Disclosure
+          className='flex w-full flex-col'
           isExpanded={isExpanded}
           onExpandedChange={setIsExpanded}
-          className='flex w-full flex-col'
         >
           <Disclosure.Heading className='w-full'>
             <ButtonGroup fullWidth>
               <Copy
                 currentContext={currentContext}
-                onStatusUpdate={onStatusUpdate}
                 isDisabled={!isDomoPage}
                 navigateToCopiedRef={navigateToCopiedRef}
+                onStatusUpdate={onStatusUpdate}
               />
               <ShareWithSelf
                 currentContext={currentContext}
-                onStatusUpdate={onStatusUpdate}
                 isDisabled={!isDomoPage}
+                onStatusUpdate={onStatusUpdate}
               />
               <ActivityLogCurrentObject
                 currentContext={currentContext}
                 onStatusUpdate={onStatusUpdate}
               />
               <NavigateToCopiedObject
-                ref={navigateToCopiedRef}
                 currentContext={currentContext}
+                ref={navigateToCopiedRef}
                 onStatusUpdate={onStatusUpdate}
               />
               <ClearCookies
                 currentContext={currentContext}
-                onStatusUpdate={onStatusUpdate}
                 isDisabled={!isDomoPage}
+                onStatusUpdate={onStatusUpdate}
               />
               <DeleteCurrentObject
                 currentContext={currentContext}
-                onStatusUpdate={onStatusUpdate}
                 isDisabled={!isDomoPage}
+                onStatusUpdate={onStatusUpdate}
               />
               {/* <Tooltip delay={400} closeDelay={0}>
                 <Button
@@ -96,11 +95,11 @@ export function ActionButtons({
                   Report an issue or request a feature
                 </Tooltip.Content>
               </Tooltip> */}
-              <Tooltip delay={400} closeDelay={0}>
+              <Tooltip closeDelay={0} delay={400}>
                 <Button
-                  variant='tertiary'
                   fullWidth
                   isIconOnly
+                  variant='tertiary'
                   onPress={() => {
                     chrome.runtime.openOptionsPage();
                     if (!isSidepanel()) window.close();
@@ -111,12 +110,12 @@ export function ActionButtons({
                 <Tooltip.Content>Extension settings</Tooltip.Content>
               </Tooltip>
               {collapsable ? (
-                <Tooltip delay={400} closeDelay={0}>
+                <Tooltip closeDelay={0} delay={400}>
                   <Button
-                    variant='tertiary'
-                    slot='trigger'
                     fullWidth
                     isIconOnly
+                    slot='trigger'
+                    variant='tertiary'
                   >
                     <Disclosure.Indicator>
                       <IconChevronDown stroke={1.5} />
@@ -126,11 +125,11 @@ export function ActionButtons({
                   <Tooltip.Content>Expand</Tooltip.Content>
                 </Tooltip>
               ) : (
-                <Tooltip delay={400} closeDelay={0}>
+                <Tooltip closeDelay={0} delay={400}>
                   <Button
-                    variant='tertiary'
                     fullWidth
                     isIconOnly
+                    variant='tertiary'
                     onPress={openSidepanel}
                   >
                     <IconLayoutSidebarRightExpand stroke={1.5} />
@@ -149,11 +148,11 @@ export function ActionButtons({
                 currentContext?.domoObject?.typeId === 'DATA_SOURCE') && (
                 <GetCards
                   currentContext={currentContext}
-                  onStatusUpdate={onStatusUpdate}
                   isDisabled={!isDomoPage}
                   onCollapseActions={
                     collapsable ? () => setIsExpanded(false) : undefined
                   }
+                  onStatusUpdate={onStatusUpdate}
                 />
               )}
               {(currentContext?.domoObject?.typeId === 'PAGE' ||
@@ -163,11 +162,11 @@ export function ActionButtons({
                 currentContext?.domoObject?.typeId === 'DATA_SOURCE') && (
                 <GetDatasets
                   currentContext={currentContext}
-                  onStatusUpdate={onStatusUpdate}
                   isDisabled={!isDomoPage}
                   onCollapseActions={
                     collapsable ? () => setIsExpanded(false) : undefined
                   }
+                  onStatusUpdate={onStatusUpdate}
                 />
               )}
               {(currentContext?.domoObject?.typeId === 'PAGE' ||
@@ -176,11 +175,11 @@ export function ActionButtons({
                 currentContext?.domoObject?.typeId === 'DATA_SOURCE') && (
                 <GetPages
                   currentContext={currentContext}
-                  onStatusUpdate={onStatusUpdate}
                   isDisabled={!isDomoPage}
                   onCollapseActions={
                     collapsable ? () => setIsExpanded(false) : undefined
                   }
+                  onStatusUpdate={onStatusUpdate}
                 />
               )}
               {(currentContext?.domoObject?.typeId === 'PAGE' ||
@@ -188,11 +187,11 @@ export function ActionButtons({
                 currentContext?.domoObject?.typeId === 'WORKSHEET_VIEW') && (
                 <GetOtherPages
                   currentContext={currentContext}
-                  onStatusUpdate={onStatusUpdate}
                   isDisabled={!isDomoPage}
                   onCollapseActions={
                     collapsable ? () => setIsExpanded(false) : undefined
                   }
+                  onStatusUpdate={onStatusUpdate}
                 />
               )}
               {currentContext?.domoObject?.typeId === 'DATA_SOURCE' && (
@@ -208,8 +207,8 @@ export function ActionButtons({
                 currentContext?.domoObject?.typeId === 'DATA_SOURCE') && (
                 <LockCards
                   currentContext={currentContext}
-                  onStatusUpdate={onStatusUpdate}
                   isDisabled={!isDomoPage}
+                  onStatusUpdate={onStatusUpdate}
                 />
               )}
               {(currentContext?.domoObject?.typeId === 'PAGE' ||
@@ -217,8 +216,8 @@ export function ActionButtons({
                 currentContext?.domoObject?.typeId === 'CARD') && (
                 <CopyFilteredUrl
                   currentContext={currentContext}
-                  onStatusUpdate={onStatusUpdate}
                   isDisabled={!isDomoPage}
+                  onStatusUpdate={onStatusUpdate}
                 />
               )}
               {currentContext?.domoObject?.typeId === 'DATAFLOW_TYPE' && (
@@ -239,18 +238,18 @@ export function ActionButtons({
                   'CODEENGINE_PACKAGE') && (
                 <Export
                   currentContext={currentContext}
-                  onStatusUpdate={onStatusUpdate}
                   isDisabled={!isDomoPage}
+                  onStatusUpdate={onStatusUpdate}
                 />
               )}
               {currentContext?.domoObject?.typeId === 'CARD' &&
                 currentContext?.domoObject?.metadata?.details?.type !==
                   'domoapp' && (
-                  <RemoveEmptyStringsFromQuickFilters
-                    currentContext={currentContext}
-                    onStatusUpdate={onStatusUpdate}
-                  />
-                )}
+                <RemoveEmptyStringsFromQuickFilters
+                  currentContext={currentContext}
+                  onStatusUpdate={onStatusUpdate}
+                />
+              )}
             </div>
           </Disclosure.Content>
         </Disclosure>

@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
 import { Button, Chip } from '@heroui/react';
 import { IconFilterShare } from '@tabler/icons-react';
+import { useEffect, useState } from 'react';
+
 import { AnimatedCheck } from '@/components';
-import { getAllFilters, buildPfilterUrl } from '@/services';
 import { useStatusBar } from '@/hooks';
+import { buildPfilterUrl, getAllFilters } from '@/services';
 
 export function CopyFilteredUrl({ currentContext, isDisabled }) {
   const [isCopied, setIsCopied] = useState(false);
@@ -28,9 +29,9 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
 
       try {
         const { allFilters } = await getAllFilters({
-          url: currentContext.url,
           pageId: typeId === 'CARD' ? null : currentContext.domoObject.id,
-          tabId: currentContext.tabId
+          tabId: currentContext.tabId,
+          url: currentContext.url
         });
 
         if (isMounted) {
@@ -80,9 +81,9 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
             : currentContext.url;
 
       const { allFilters } = await getAllFilters({
-        url: currentUrl,
         pageId: typeId === 'CARD' ? null : objectId,
-        tabId: currentContext.tabId
+        tabId: currentContext.tabId,
+        url: currentUrl
       });
 
       setHeldFilters(allFilters);
@@ -99,31 +100,31 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
     })();
 
     showPromiseStatus(promise, {
+      error: () => 'Failed to detect filters',
       loading: 'Detecting filters…',
       success: (count) =>
         count > 0
           ? `Captured ${count} filter${count !== 1 ? 's' : ''} and copied URL`
-          : 'Copied Base URL (No filters active)',
-      error: () => 'Failed to detect filters'
+          : 'Copied Base URL (No filters active)'
     });
   };
 
   return (
     <Button
-      variant='tertiary'
       fullWidth
-      onPress={handleCopyFilteredUrl}
-      isDisabled={isDisabled || !isSupported}
       className={`min-w-36 flex-1 whitespace-normal ${hasNewFilters ? 'animate-pulse' : ''}`}
+      isDisabled={isDisabled || !isSupported}
+      variant='tertiary'
+      onPress={handleCopyFilteredUrl}
     >
       {isCopied ? <AnimatedCheck /> : <IconFilterShare stroke={1.5} />}
       Copy Filtered URL
       {filterCount > 0 && (
         <Chip
-          size='sm'
-          color='accent'
-          variant='soft'
           className='absolute top-1 right-1 h-5 min-w-5 justify-center rounded-3xl'
+          color='accent'
+          size='sm'
+          variant='soft'
         >
           {filterCount}
         </Chip>

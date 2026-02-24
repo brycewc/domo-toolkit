@@ -1,10 +1,10 @@
 export { ActivityLogTable } from './ActivityLogTable';
-export { Settings } from './Settings';
 export { DataTable } from './DataTable';
 export { FaviconSettings } from './FaviconSettings';
+export { Settings } from './Settings';
 export { UserFilterAutocomplete } from './UserFilterAutocomplete';
 export {
-  WelcomePage,
+  resetWelcomePage,
   shouldShowWelcomePage,
-  resetWelcomePage
+  WelcomePage
 } from './WelcomePage';

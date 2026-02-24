@@ -3,148 +3,10 @@
  * Applies visual effects to page favicons based on configured rules
  */
 
-import domoLogo from '@/assets/domo-logo.png';
 import domoLogoTransparent from '@/assets/domo-logo-no-background.png';
+import domoLogo from '@/assets/domo-logo.png';
+
 import { EXCLUDED_HOSTNAMES } from './constants';
-
-/**
- * Convert hex color (with optional alpha) to rgba format
- * @param {string} hex - Hex color code (e.g., '#FF0000' or '#FF0000FF')
- * @returns {string} RGBA color string (e.g., 'rgba(255, 0, 0, 1)')
- */
-function hexToRgba(hex) {
-  // Remove the # if present
-  hex = hex.replace('#', '');
-
-  // Parse RGB values
-  const r = parseInt(hex.substring(0, 2), 16);
-  const g = parseInt(hex.substring(2, 4), 16);
-  const b = parseInt(hex.substring(4, 6), 16);
-
-  // Parse alpha if present (8-character hex)
-  let a = 1;
-  if (hex.length === 8) {
-    a = parseInt(hex.substring(6, 8), 16) / 255;
-  }
-
-  return `rgba(${r}, ${g}, ${b}, ${a})`;
-}
-
-/**
- * Generate a cache key for a favicon rule
- * @param {string} subdomain - The subdomain
- * @param {Object} rule - The favicon rule
- * @returns {string} Cache key
- */
-function generateCacheKey(subdomain, rule) {
-  return `favicon_${subdomain}_${rule.effect}_${rule.color || 'none'}`;
-}
-
-/**
- * Generate a cache key for instance logo
- * @param {string} subdomain - The subdomain
- * @returns {string} Cache key for instance logo data
- */
-function generateInstanceLogoCacheKey(subdomain) {
-  return `favicon_instance_logo_${subdomain}`;
-}
-
-/**
- * Generate a cache key for instance logo ID
- * @param {string} subdomain - The subdomain
- * @returns {string} Cache key for instance logo ID
- */
-function generateInstanceLogoIdCacheKey(subdomain) {
-  return `favicon_instance_logo_id_${subdomain}`;
-}
-
-/**
- * Get cached favicon if it exists
- * @param {string} cacheKey - The cache key
- * @returns {Promise<string|null>} Cached favicon data URL or null
- */
-async function getCachedFavicon(cacheKey) {
-  try {
-    const result = await chrome.storage.local.get([cacheKey]);
-    return result[cacheKey] || null;
-  } catch (error) {
-    console.error('Error getting cached favicon:', error);
-    return null;
-  }
-}
-
-/**
- * Cache a favicon data URL
- * @param {string} cacheKey - The cache key
- * @param {string} dataUrl - The favicon data URL
- */
-async function cacheFavicon(cacheKey, dataUrl) {
-  try {
-    await chrome.storage.local.set({ [cacheKey]: dataUrl });
-    // console.log('Cached favicon:', cacheKey);
-  } catch (error) {
-    console.error('Error caching favicon:', error);
-  }
-}
-
-/**
- * Clear all cached favicons (called when rules change)
- */
-export async function clearFaviconCache() {
-  try {
-    const storage = await chrome.storage.local.get(null);
-    const faviconKeys = Object.keys(storage).filter((key) =>
-      key.startsWith('favicon_')
-    );
-
-    if (faviconKeys.length > 0) {
-      await chrome.storage.local.remove(faviconKeys);
-      // console.log(
-      //   'Cleared favicon cache (including instance logos):',
-      //   faviconKeys.length,
-      //   'items'
-      // );
-    }
-  } catch (error) {
-    console.error('Error clearing favicon cache:', error);
-  }
-}
-
-/**
- * Automatically apply instance logo for any .domo.com domain
- * This runs automatically when visiting a new domain, regardless of configured rules
- */
-export async function applyInstanceLogoAuto() {
-  // Check if current hostname is in the excluded list
-  const hostname = location.hostname;
-  if (EXCLUDED_HOSTNAMES.includes(hostname)) {
-    return;
-  }
-
-  // Skip auth pages - user isn't logged in yet so API calls will fail
-  if (location.pathname.startsWith('/auth/')) {
-    return;
-  }
-
-  // Extract subdomain from current URL
-  const subdomainMatch = hostname.match(/^(.+?)\.domo\.com$/);
-
-  if (!subdomainMatch) {
-    return;
-  }
-
-  const subdomain = subdomainMatch[1];
-
-  // Get the favicon element
-  const favicon = getFavicon();
-  if (!favicon) {
-    console.warn('No favicon found on page');
-    return;
-  }
-
-  // Apply the instance logo
-  await applyInstanceLogo(favicon, subdomain);
-}
 
 /**
  * Apply favicon modifications based on rules
@@ -251,21 +113,176 @@ export async function applyFaviconRules(rules) {
 }
 
 /**
- * Get the favicon link element from the page
- * @returns {HTMLLinkElement|null}
+ * Automatically apply instance logo for any .domo.com domain
+ * This runs automatically when visiting a new domain, regardless of configured rules
  */
-function getFavicon() {
-  // Look for existing favicon
-  let favicon = document.querySelector('link[rel*="icon"]');
-
-  if (!favicon) {
-    // Create a new favicon link if none exists
-    favicon = document.createElement('link');
-    favicon.rel = 'icon';
-    document.head.appendChild(favicon);
+export async function applyInstanceLogoAuto() {
+  // Check if current hostname is in the excluded list
+  const hostname = location.hostname;
+  if (EXCLUDED_HOSTNAMES.includes(hostname)) {
+    return;
   }
 
-  return favicon;
+  // Skip auth pages - user isn't logged in yet so API calls will fail
+  if (location.pathname.startsWith('/auth/')) {
+    return;
+  }
+
+  // Extract subdomain from current URL
+  const subdomainMatch = hostname.match(/^(.+?)\.domo\.com$/);
+
+  if (!subdomainMatch) {
+    return;
+  }
+
+  const subdomain = subdomainMatch[1];
+
+  // Get the favicon element
+  const favicon = getFavicon();
+  if (!favicon) {
+    console.warn('No favicon found on page');
+    return;
+  }
+
+  // Apply the instance logo
+  await applyInstanceLogo(favicon, subdomain);
+}
+
+/**
+ * Clear all cached favicons (called when rules change)
+ */
+export async function clearFaviconCache() {
+  try {
+    const storage = await chrome.storage.local.get(null);
+    const faviconKeys = Object.keys(storage).filter((key) =>
+      key.startsWith('favicon_')
+    );
+
+    if (faviconKeys.length > 0) {
+      await chrome.storage.local.remove(faviconKeys);
+      // console.log(
+      //   'Cleared favicon cache (including instance logos):',
+      //   faviconKeys.length,
+      //   'items'
+      // );
+    }
+  } catch (error) {
+    console.error('Error clearing favicon cache:', error);
+  }
+}
+
+/**
+ * Apply color effect to favicon
+ * @param {HTMLLinkElement} favicon - The favicon element
+ * @param {string} effect - The effect type (top, right, bottom, left, cover, replace, background, xor-top)
+ * @param {string} color - The color to apply
+ * @returns {Promise<string>} The favicon data URL
+ */
+async function applyColorEffect(favicon, effect, color) {
+  const img = new Image();
+
+  return new Promise((resolve, reject) => {
+    img.onload = () => {
+      // Create a canvas to draw the modified favicon
+      const canvas = document.createElement('canvas');
+      const size = 32; // Standard favicon size
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+
+      // Draw the fresh Domo logo as a clean base
+      ctx.drawImage(img, 0, 0, size, size);
+
+      // Apply the effect
+      applyEffect(ctx, size, effect, color);
+
+      // Convert canvas to data URL and set as new favicon
+      const newFaviconUrl = canvas.toDataURL('image/png');
+      favicon.href = newFaviconUrl;
+
+      resolve(newFaviconUrl);
+    };
+
+    img.onerror = (error) => {
+      console.error('Error loading Domo logo for effect:', error);
+      reject(error);
+    };
+
+    // Always use the fresh Domo logo to prevent effect stacking
+    img.src = chrome.runtime.getURL(domoLogo);
+  });
+}
+
+/**
+ * Apply Domo logo with colored background
+ * @param {HTMLLinkElement} favicon - The favicon element
+ * @param {string} color - The background color to apply
+ * @returns {Promise<string>} The favicon data URL
+ */
+async function applyDomoLogoColored(favicon, color) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+
+    img.onload = () => {
+      // Create a canvas to draw the colored favicon
+      const canvas = document.createElement('canvas');
+      const size = 32; // Standard favicon size
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+
+      // Draw colored background
+      ctx.fillStyle = hexToRgba(color);
+      ctx.fillRect(0, 0, size, size);
+
+      // Draw the Domo logo on top
+      ctx.drawImage(img, 0, 0, size, size);
+
+      // Convert canvas to data URL and set as new favicon
+      const newFaviconUrl = canvas.toDataURL('image/png');
+      favicon.href = newFaviconUrl;
+
+      // console.log('Applied Domo logo with colored background:', color);
+      resolve(newFaviconUrl);
+    };
+
+    img.onerror = (error) => {
+      console.error('Error loading Domo logo:', error);
+      reject(error);
+    };
+
+    // Load the transparent Domo logo
+    img.src = chrome.runtime.getURL(domoLogoTransparent);
+  });
+}
+
+/**
+ * Apply visual effect to canvas context
+ * @param {CanvasRenderingContext2D} ctx - Canvas context
+ * @param {number} size - Canvas size
+ * @param {string} effect - Effect type
+ * @param {string} color - Color to apply
+ */
+function applyEffect(ctx, size, effect, color) {
+  ctx.fillStyle = hexToRgba(color);
+
+  switch (effect) {
+    case 'bottom':
+      ctx.fillRect(0, (size * 3) / 4, size, size / 4);
+      break;
+
+    case 'left':
+      ctx.fillRect(0, 0, size / 4, size);
+      break;
+
+    case 'right':
+      ctx.fillRect((size * 3) / 4, 0, size / 4, size);
+      break;
+
+    case 'top':
+      ctx.fillRect(0, 0, size, size / 4);
+      break;
+  }
 }
 
 /**
@@ -352,115 +369,99 @@ async function applyInstanceLogo(favicon, subdomain) {
 }
 
 /**
- * Apply Domo logo with colored background
- * @param {HTMLLinkElement} favicon - The favicon element
- * @param {string} color - The background color to apply
- * @returns {Promise<string>} The favicon data URL
+ * Cache a favicon data URL
+ * @param {string} cacheKey - The cache key
+ * @param {string} dataUrl - The favicon data URL
  */
-async function applyDomoLogoColored(favicon, color) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-
-    img.onload = () => {
-      // Create a canvas to draw the colored favicon
-      const canvas = document.createElement('canvas');
-      const size = 32; // Standard favicon size
-      canvas.width = size;
-      canvas.height = size;
-      const ctx = canvas.getContext('2d');
-
-      // Draw colored background
-      ctx.fillStyle = hexToRgba(color);
-      ctx.fillRect(0, 0, size, size);
-
-      // Draw the Domo logo on top
-      ctx.drawImage(img, 0, 0, size, size);
-
-      // Convert canvas to data URL and set as new favicon
-      const newFaviconUrl = canvas.toDataURL('image/png');
-      favicon.href = newFaviconUrl;
-
-      // console.log('Applied Domo logo with colored background:', color);
-      resolve(newFaviconUrl);
-    };
-
-    img.onerror = (error) => {
-      console.error('Error loading Domo logo:', error);
-      reject(error);
-    };
-
-    // Load the transparent Domo logo
-    img.src = chrome.runtime.getURL(domoLogoTransparent);
-  });
-}
-
-/**
- * Apply color effect to favicon
- * @param {HTMLLinkElement} favicon - The favicon element
- * @param {string} effect - The effect type (top, right, bottom, left, cover, replace, background, xor-top)
- * @param {string} color - The color to apply
- * @returns {Promise<string>} The favicon data URL
- */
-async function applyColorEffect(favicon, effect, color) {
-  const img = new Image();
-
-  return new Promise((resolve, reject) => {
-    img.onload = () => {
-      // Create a canvas to draw the modified favicon
-      const canvas = document.createElement('canvas');
-      const size = 32; // Standard favicon size
-      canvas.width = size;
-      canvas.height = size;
-      const ctx = canvas.getContext('2d');
-
-      // Draw the fresh Domo logo as a clean base
-      ctx.drawImage(img, 0, 0, size, size);
-
-      // Apply the effect
-      applyEffect(ctx, size, effect, color);
-
-      // Convert canvas to data URL and set as new favicon
-      const newFaviconUrl = canvas.toDataURL('image/png');
-      favicon.href = newFaviconUrl;
-
-      resolve(newFaviconUrl);
-    };
-
-    img.onerror = (error) => {
-      console.error('Error loading Domo logo for effect:', error);
-      reject(error);
-    };
-
-    // Always use the fresh Domo logo to prevent effect stacking
-    img.src = chrome.runtime.getURL(domoLogo);
-  });
-}
-
-/**
- * Apply visual effect to canvas context
- * @param {CanvasRenderingContext2D} ctx - Canvas context
- * @param {number} size - Canvas size
- * @param {string} effect - Effect type
- * @param {string} color - Color to apply
- */
-function applyEffect(ctx, size, effect, color) {
-  ctx.fillStyle = hexToRgba(color);
-
-  switch (effect) {
-    case 'top':
-      ctx.fillRect(0, 0, size, size / 4);
-      break;
-
-    case 'right':
-      ctx.fillRect((size * 3) / 4, 0, size / 4, size);
-      break;
-
-    case 'bottom':
-      ctx.fillRect(0, (size * 3) / 4, size, size / 4);
-      break;
-
-    case 'left':
-      ctx.fillRect(0, 0, size / 4, size);
-      break;
+async function cacheFavicon(cacheKey, dataUrl) {
+  try {
+    await chrome.storage.local.set({ [cacheKey]: dataUrl });
+    // console.log('Cached favicon:', cacheKey);
+  } catch (error) {
+    console.error('Error caching favicon:', error);
   }
+}
+
+/**
+ * Generate a cache key for a favicon rule
+ * @param {string} subdomain - The subdomain
+ * @param {Object} rule - The favicon rule
+ * @returns {string} Cache key
+ */
+function generateCacheKey(subdomain, rule) {
+  return `favicon_${subdomain}_${rule.effect}_${rule.color || 'none'}`;
+}
+
+/**
+ * Generate a cache key for instance logo
+ * @param {string} subdomain - The subdomain
+ * @returns {string} Cache key for instance logo data
+ */
+function generateInstanceLogoCacheKey(subdomain) {
+  return `favicon_instance_logo_${subdomain}`;
+}
+
+/**
+ * Generate a cache key for instance logo ID
+ * @param {string} subdomain - The subdomain
+ * @returns {string} Cache key for instance logo ID
+ */
+function generateInstanceLogoIdCacheKey(subdomain) {
+  return `favicon_instance_logo_id_${subdomain}`;
+}
+
+/**
+ * Get cached favicon if it exists
+ * @param {string} cacheKey - The cache key
+ * @returns {Promise<string|null>} Cached favicon data URL or null
+ */
+async function getCachedFavicon(cacheKey) {
+  try {
+    const result = await chrome.storage.local.get([cacheKey]);
+    return result[cacheKey] || null;
+  } catch (error) {
+    console.error('Error getting cached favicon:', error);
+    return null;
+  }
+}
+
+/**
+ * Get the favicon link element from the page
+ * @returns {HTMLLinkElement|null}
+ */
+function getFavicon() {
+  // Look for existing favicon
+  let favicon = document.querySelector('link[rel*="icon"]');
+
+  if (!favicon) {
+    // Create a new favicon link if none exists
+    favicon = document.createElement('link');
+    favicon.rel = 'icon';
+    document.head.appendChild(favicon);
+  }
+
+  return favicon;
+}
+
+/**
+ * Convert hex color (with optional alpha) to rgba format
+ * @param {string} hex - Hex color code (e.g., '#FF0000' or '#FF0000FF')
+ * @returns {string} RGBA color string (e.g., 'rgba(255, 0, 0, 1)')
+ */
+function hexToRgba(hex) {
+  // Remove the # if present
+  hex = hex.replace('#', '');
+
+  // Parse RGB values
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+
+  // Parse alpha if present (8-character hex)
+  let a = 1;
+  if (hex.length === 8) {
+    a = parseInt(hex.substring(6, 8), 16) / 255;
+  }
+
+  return `rgba(${r}, ${g}, ${b}, ${a})`;
 }

@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import {
   AlertDialog,
   Button,
@@ -6,20 +5,22 @@ import {
   useOverlayState
 } from '@heroui/react';
 import { IconTrash, IconX } from '@tabler/icons-react';
-import { deletePageAndAllCards, deleteObject } from '@/services';
+import { useState } from 'react';
+
 import { useStatusBar } from '@/hooks';
+import { deleteObject, deletePageAndAllCards } from '@/services';
 import {
-  waitForChildPages,
   isSidepanel,
+  openSidepanel,
   showStatus,
   storeSidepanelData,
-  openSidepanel
+  waitForChildPages
 } from '@/utils';
 
 export function DeleteCurrentObject({
   currentContext,
-  onStatusUpdate,
-  isDisabled
+  isDisabled,
+  onStatusUpdate
 }) {
   const [isDeleting, setIsDeleting] = useState(false);
   const dialogState = useOverlayState({});
@@ -42,8 +43,7 @@ export function DeleteCurrentObject({
       return;
     }
 
-    const { typeId, id } = currentContext.domoObject;
-    const typeName = currentContext.domoObject.typeName;
+    const { id, typeId } = currentContext.domoObject;
     const objectName =
       currentContext.domoObject.metadata?.name || id;
 
@@ -69,21 +69,21 @@ export function DeleteCurrentObject({
           if (!inSidepanel) openSidepanel();
 
           await storeSidepanelData({
-            type: 'childPagesWarning',
-            currentContext,
             childPages: result.childPages,
-            statusShown: inSidepanel
+            currentContext,
+            statusShown: inSidepanel,
+            type: 'childPagesWarning'
           });
 
           await showStatus({
-            onStatusUpdate,
-            title: 'Cannot Delete Page',
             description: inSidepanel
               ? `This page has **${result.childPages.length} child page${result.childPages.length !== 1 ? 's' : ''}**. Please delete or reassign the child pages first.`
               : `This page has **${result.childPages.length} child page${result.childPages.length !== 1 ? 's' : ''}**. View them in the sidepanel.`,
+            inSidepanel,
+            onStatusUpdate,
             status: 'warning',
             timeout: 0,
-            inSidepanel
+            title: 'Cannot Delete Page'
           });
 
           dialogState.close();
@@ -94,21 +94,21 @@ export function DeleteCurrentObject({
       setIsDeleting(true);
 
       const promise = deletePageAndAllCards({
+        appId,
+        currentContext,
         pageId,
         pageType,
-        appId,
-        tabId: currentContext.tabId,
-        currentContext,
-        skipChildPageCheck: true
+        skipChildPageCheck: true,
+        tabId: currentContext.tabId
       }).then((result) => {
         dialogState.close();
         return result;
       });
 
       showPromiseStatus(promise, {
+        error: (err) => err.message || 'Failed to delete object',
         loading: `Deleting **${objectName}** and its cards…`,
-        success: (result) => result.statusDescription || `**${objectName}** deleted`,
-        error: (err) => err.message || 'Failed to delete object'
+        success: (result) => result.statusDescription || `**${objectName}** deleted`
       });
 
       promise.finally(() => setIsDeleting(false));
@@ -134,9 +134,9 @@ export function DeleteCurrentObject({
       });
 
       showPromiseStatus(promise, {
+        error: (err) => err.message || 'Failed to delete object',
         loading: `Deleting **${objectName}**…`,
-        success: (result) => result.statusDescription || `**${objectName}** deleted`,
-        error: (err) => err.message || 'Failed to delete object'
+        success: (result) => result.statusDescription || `**${objectName}** deleted`
       });
 
       promise.finally(() => setIsDeleting(false));
@@ -154,8 +154,8 @@ export function DeleteCurrentObject({
   return (
     <AlertDialog isOpen={dialogState.isOpen} onOpenChange={dialogState.setOpen}>
       <Tooltip
-        delay={400}
         closeDelay={0}
+        delay={400}
         isDisabled={
           isDisabled ||
           !currentContext?.domoObject ||
@@ -163,9 +163,9 @@ export function DeleteCurrentObject({
         }
       >
         <Button
-          variant='tertiary'
           fullWidth
           isIconOnly
+          variant='tertiary'
           isDisabled={
             isDisabled ||
             !currentContext?.domoObject ||
@@ -174,8 +174,8 @@ export function DeleteCurrentObject({
         >
           {({ isDisabled }) => (
             <IconTrash
-              stroke={1.5}
               className={isDisabled ? '' : 'text-danger'}
+              stroke={1.5}
             />
           )}
         </Button>
@@ -189,14 +189,14 @@ export function DeleteCurrentObject({
           </span>{' '}
           {currentContext?.domoObject?.typeId === 'PAGE' ||
           currentContext?.domoObject?.typeId === 'DATA_APP_VIEW'
-            ? `and all its cards`
+            ? 'and all its cards'
             : ''}
         </Tooltip.Content>
       </Tooltip>
       <AlertDialog.Backdrop>
-        <AlertDialog.Container placement='top' className='p-1'>
+        <AlertDialog.Container className='p-1' placement='top'>
           <AlertDialog.Dialog className='p-2 pt-3'>
-            <div className={`absolute top-0 left-0 h-1.25 w-full bg-danger`} />
+            <div className={'absolute top-0 left-0 h-1.25 w-full bg-danger'} />
             <AlertDialog.CloseTrigger
               className='absolute top-3 right-2'
               variant='ghost'
@@ -225,18 +225,18 @@ export function DeleteCurrentObject({
             </AlertDialog.Body>
             <AlertDialog.Footer>
               <Button
+                isDisabled={isDeleting}
+                size='sm'
                 slot='close'
                 variant='tertiary'
-                size='sm'
-                isDisabled={isDeleting}
               >
                 Cancel
               </Button>
               <Button
-                variant='danger'
-                size='sm'
-                onPress={handleDelete}
                 isDisabled={isDeleting}
+                size='sm'
+                variant='danger'
+                onPress={handleDelete}
               >
                 Delete {currentContext?.domoObject?.typeName}
               </Button>

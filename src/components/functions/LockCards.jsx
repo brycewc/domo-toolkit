@@ -1,7 +1,8 @@
 import { Button } from '@heroui/react';
 import { IconLock } from '@tabler/icons-react';
-import { getCardsForObject, lockCards } from '@/services';
+
 import { useStatusBar } from '@/hooks';
+import { getCardsForObject, lockCards } from '@/services';
 import { waitForCards } from '@/utils';
 
 const VALID_TYPES = [
@@ -20,7 +21,7 @@ const PRE_FETCHED_TYPES = [
 ];
 
 export function LockCards({ currentContext, isDisabled }) {
-  const { showStatus, showPromiseStatus } = useStatusBar();
+  const { showPromiseStatus, showStatus } = useStatusBar();
 
   const handleLockCards = async () => {
     if (!currentContext?.domoObject) {
@@ -68,22 +69,23 @@ export function LockCards({ currentContext, isDisabled }) {
     })();
 
     showPromiseStatus(promise, {
+      error: (err) => err.message || 'Failed to lock cards',
       loading: 'Locking cards…',
       success: (data) =>
-        `Locked **${data.count}** card${data.count === 1 ? '' : 's'}`,
-      error: (err) => err.message || 'Failed to lock cards'
+        `Locked **${data.count}** card${data.count === 1 ? '' : 's'}`
     });
   };
 
   return (
     <Button
-      variant='tertiary'
       fullWidth
-      onPress={handleLockCards}
-      isDisabled={isDisabled}
       className='min-w-36 flex-1 whitespace-normal'
+      isDisabled={isDisabled}
+      variant='tertiary'
+      onPress={handleLockCards}
     >
-      <IconLock stroke={1.5} /> Lock Cards
+      <IconLock stroke={1.5} />
+      Lock Cards
     </Button>
   );
 }

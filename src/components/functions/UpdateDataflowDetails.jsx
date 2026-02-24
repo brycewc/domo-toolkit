@@ -1,17 +1,18 @@
-import { useState, useEffect } from 'react';
 import {
-  Modal,
   Button,
   Form,
   Input,
   Label,
-  TextField,
+  Modal,
   TextArea,
+  TextField,
   Tooltip
 } from '@heroui/react';
 import { IconArrowFork, IconX } from '@tabler/icons-react';
-import { updateDataflowDetails } from '@/services';
+import { useEffect, useState } from 'react';
+
 import { useStatusBar } from '@/hooks';
+import { updateDataflowDetails } from '@/services';
 
 export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -20,8 +21,8 @@ export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
   const [description, setDescription] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [originalValues, setOriginalValues] = useState({
-    name: '',
-    description: ''
+    description: '',
+    name: ''
   });
 
   // Initialize form values when modal opens
@@ -34,8 +35,8 @@ export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
       setName(originalName);
       setDescription(originalDescription);
       setOriginalValues({
-        name: originalName,
-        description: originalDescription
+        description: originalDescription,
+        name: originalName
       });
     }
   }, [isOpen, currentContext?.domoObject]);
@@ -78,9 +79,9 @@ export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
       });
       if (tab?.id) {
         await chrome.runtime.sendMessage({
-          type: 'UPDATE_CONTEXT_METADATA',
+          metadataUpdates: updates,
           tabId: tab.id,
-          metadataUpdates: updates
+          type: 'UPDATE_CONTEXT_METADATA'
         });
         chrome.tabs.reload(tab.id);
       }
@@ -89,9 +90,9 @@ export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
     })();
 
     showPromiseStatus(promise, {
+      error: (err) => err.message || 'An error occurred',
       loading: `Updating DataFlow **${fields}**…`,
-      success: (f) => `Updated ${f}`,
-      error: (err) => err.message || 'An error occurred'
+      success: (f) => `Updated ${f}`
     });
 
     promise.finally(() => setIsSubmitting(false));
@@ -99,20 +100,20 @@ export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
 
   return (
     <Modal onOpenChange={setIsOpen}>
-      <Tooltip delay={400} closeDelay={0}>
+      <Tooltip closeDelay={0} delay={400}>
         <Button
-          variant='tertiary'
           fullWidth
-          isDisabled={currentContext?.domoObject.typeId !== 'DATAFLOW_TYPE'}
           className='min-w-36 flex-1 whitespace-normal'
+          isDisabled={currentContext?.domoObject.typeId !== 'DATAFLOW_TYPE'}
+          variant='tertiary'
         >
-          <IconArrowFork stroke={1.5} className='rotate-180' />
+          <IconArrowFork className='rotate-180' stroke={1.5} />
           Update DataFlow Details
         </Button>
         <Tooltip.Content>Update dataflow name and description</Tooltip.Content>
       </Tooltip>
       <Modal.Backdrop>
-        <Modal.Container scroll='outside' placement='top' className='p-1'>
+        <Modal.Container className='p-1' placement='top' scroll='outside'>
           <Modal.Dialog className='p-2'>
             <Modal.CloseTrigger
               className='absolute top-2 right-2'
@@ -125,7 +126,7 @@ export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
                 <Modal.Heading>Update DataFlow Details</Modal.Heading>
               </Modal.Header>
               <Modal.Body className='flex flex-col gap-2'>
-                <TextField variant='secondary' name='name' id='dataflow-name'>
+                <TextField id='dataflow-name' name='name' variant='secondary'>
                   <Label>DataFlow Name</Label>
                   <Input
                     className='h-8'
@@ -136,31 +137,31 @@ export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
                 <div className='flex flex-col gap-2'>
                   <Label>DataFlow Description</Label>
                   <TextArea
-                    variant='secondary'
-                    name='description'
                     id='dataflow-description'
-                    rows={2}
+                    name='description'
                     resize='vertical'
+                    rows={2}
                     value={description}
+                    variant='secondary'
                     onChange={(e) => setDescription(e.target.value)}
                   />
                 </div>
               </Modal.Body>
               <Modal.Footer>
                 <Button
+                  isDisabled={isSubmitting}
+                  size='sm'
                   slot='close'
                   variant='tertiary'
-                  size='sm'
-                  isDisabled={isSubmitting}
                 >
                   Cancel
                 </Button>
                 <Button
-                  slot='close'
-                  variant='primary'
-                  size='sm'
-                  type='submit'
                   isDisabled={isSubmitting}
+                  size='sm'
+                  slot='close'
+                  type='submit'
+                  variant='primary'
                 >
                   Save
                 </Button>

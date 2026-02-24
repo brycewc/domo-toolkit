@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
 import { Toast } from '@heroui/react';
+import { useEffect, useState } from 'react';
+
 import { ActionButtons, ContextFooter } from '@/components';
 import { useStatusBar, useTheme } from '@/hooks';
 import { DomoContext } from '@/models';
@@ -65,9 +66,9 @@ export default function App() {
   return (
     <div className='flex h-full max-h-[600px] max-w-[800px] min-w-90 flex-col items-start justify-start space-y-1 overflow-hidden overscroll-contain p-1'>
       <ActionButtons
+        collapsable={false}
         currentContext={currentContext}
         isLoadingCurrentContext={isLoadingCurrentContext}
-        collapsable={false}
         onStatusUpdate={showStatus}
       />
       <ContextFooter
@@ -75,7 +76,7 @@ export default function App() {
         isLoading={isLoadingCurrentContext}
         onStatusUpdate={showStatus}
       />
-      <Toast.Provider placement='bottom' className='right-2 bottom-2' />
+      <Toast.Provider className='right-2 bottom-2' placement='bottom' />
     </div>
   );
 }

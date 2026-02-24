@@ -11,29 +11,29 @@ import { motion } from 'motion/react';
  * @param {string} [props.className] - Additional CSS classes
  */
 export function AnimatedCheck({
-  stroke = 1.5,
   className = 'text-success',
+  stroke = 1.5,
   ...props
 }) {
   return (
     <motion.svg
-      xmlns='http://www.w3.org/2000/svg'
-      width='24'
-      height='24'
-      viewBox='0 0 24 24'
+      className={className}
       fill='none'
+      height='24'
       stroke='currentColor'
-      strokeWidth={stroke}
       strokeLinecap='round'
       strokeLinejoin='round'
-      className={className}
+      strokeWidth={stroke}
+      viewBox='0 0 24 24'
+      width='24'
+      xmlns='http://www.w3.org/2000/svg'
       {...props}
     >
       <motion.polyline
-        points='5 12 10 17 20 7'
-        initial={{ pathLength: 0 }}
         animate={{ pathLength: 1 }}
         exit={{ pathLength: 0 }}
+        initial={{ pathLength: 0 }}
+        points='5 12 10 17 20 7'
         transition={{
           duration: 0.3,
           ease: 'easeOut'

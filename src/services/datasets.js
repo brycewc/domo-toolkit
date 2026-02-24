@@ -1,6 +1,26 @@
 import { executeInPage } from '@/utils';
 
 /**
+ * Get datasets from a dataflow's inputs and outputs
+ * @param {Object} params - Parameters
+ * @param {Object} params.details - The dataflow metadata.details object
+ * @returns {{inputs: Array<{id: string, name: string}>, outputs: Array<{id: string, name: string}>}}
+ */
+export function getDatasetsForDataflow({ details }) {
+  const inputs = (details?.inputs || []).map((input) => ({
+    id: input.dataSourceId,
+    name: input.dataSourceName || `Dataset ${input.dataSourceId}`
+  }));
+
+  const outputs = (details?.outputs || []).map((output) => ({
+    id: output.dataSourceId,
+    name: output.dataSourceName || `Dataset ${output.dataSourceId}`
+  }));
+
+  return { inputs, outputs };
+}
+
+/**
  * Get datasets used by a page or app studio view
  * @param {Object} params - Parameters
  * @param {string|number} params.pageId - The page ID
@@ -13,8 +33,8 @@ export async function getDatasetsForPage({ pageId, tabId }) {
     const response = await fetch(
       `/api/content/v1/datasources/pages/${pageId}`,
       {
-        method: 'GET',
-        credentials: 'include'
+        credentials: 'include',
+        method: 'GET'
       }
     );
 
@@ -42,41 +62,6 @@ export async function getDatasetsForPage({ pageId, tabId }) {
 }
 
 /**
- * Get datasets from a dataflow's inputs and outputs
- * @param {Object} params - Parameters
- * @param {Object} params.details - The dataflow metadata.details object
- * @returns {{inputs: Array<{id: string, name: string}>, outputs: Array<{id: string, name: string}>}}
- */
-export function getDatasetsForDataflow({ details }) {
-  const inputs = (details?.inputs || []).map((input) => ({
-    id: input.dataSourceId,
-    name: input.dataSourceName || `Dataset ${input.dataSourceId}`
-  }));
-
-  const outputs = (details?.outputs || []).map((output) => ({
-    id: output.dataSourceId,
-    name: output.dataSourceName || `Dataset ${output.dataSourceId}`
-  }));
-
-  return { inputs, outputs };
-}
-
-/**
- * Check if a DATA_SOURCE is a view type (dataset-view or datafusion)
- * @param {Object} details - The metadata.details object
- * @returns {boolean}
- */
-export function isViewType(details) {
-  if (!details) return false;
-  const viewTypes = ['dataset-view', 'datafusion'];
-  return (
-    viewTypes.includes(details.dataProviderType) ||
-    viewTypes.includes(details.displayType) ||
-    viewTypes.includes(details.type)
-  );
-}
-
-/**
  * Get datasets used by a dataset view (dataset-view or datafusion)
  * @param {Object} params - Parameters
  * @param {string|number} params.datasetId - The datasource ID
@@ -89,8 +74,8 @@ export async function getDatasetsForView({ datasetId, tabId }) {
     const schemaResponse = await fetch(
       `/api/query/v1/datasources/${datasetId}/schema/indexed?includeHidden=true`,
       {
-        method: 'GET',
-        credentials: 'include'
+        credentials: 'include',
+        method: 'GET'
       }
     );
 
@@ -122,9 +107,8 @@ export async function getDatasetsForView({ datasetId, tabId }) {
           }
         }
       }
-    }
-    // Handle SQL schema structure (has 'select' object)
-    else if (schema.select && schema.select.selectBody) {
+    } else if (schema.select && schema.select.selectBody) {
+      // Handle SQL schema structure (has 'select' object)
       const sel = schema.select.selectBody;
       if (sel.fromItem && sel.fromItem.name) {
         idsSet.add(stripTicks(sel.fromItem.name));
@@ -148,14 +132,14 @@ export async function getDatasetsForView({ datasetId, tabId }) {
 
     // 3) Get names for all datasets using bulk endpoint
     const bulkResponse = await fetch(
-      `/api/data/v3/datasources/bulk?includePrivate=true&includeAllDetails=true`,
+      '/api/data/v3/datasources/bulk?includePrivate=true&includeAllDetails=true',
       {
-        method: 'POST',
+        body: JSON.stringify(datasetIds),
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json'
         },
-        credentials: 'include',
-        body: JSON.stringify(datasetIds)
+        method: 'POST'
       }
     );
 
@@ -191,7 +175,7 @@ export async function getDatasetsForView({ datasetId, tabId }) {
  * @param {number} [params.tabId] - Optional Chrome tab ID
  * @returns {Promise<Object>} Execution object with detailed error data
  */
-export async function getStreamExecution({ streamId, executionId, tabId }) {
+export async function getStreamExecution({ executionId, streamId, tabId }) {
   return executeInPage(
     async (streamId, executionId) => {
       const response = await fetch(
@@ -210,7 +194,7 @@ export async function getStreamExecution({ streamId, executionId, tabId }) {
   );
 }
 
-export async function getStreamExecutions({ streamId, limit = 100, tabId }) {
+export async function getStreamExecutions({ limit = 100, streamId, tabId }) {
   const result = await executeInPage(
     async (streamId, limit) => {
       const stateResponse = await fetch(
@@ -246,4 +230,19 @@ export async function getStreamExecutions({ streamId, limit = 100, tabId }) {
     tabId
   );
   return result;
+}
+
+/**
+ * Check if a DATA_SOURCE is a view type (dataset-view or datafusion)
+ * @param {Object} details - The metadata.details object
+ * @returns {boolean}
+ */
+export function isViewType(details) {
+  if (!details) return false;
+  const viewTypes = ['dataset-view', 'datafusion'];
+  return (
+    viewTypes.includes(details.dataProviderType) ||
+    viewTypes.includes(details.displayType) ||
+    viewTypes.includes(details.type)
+  );
 }

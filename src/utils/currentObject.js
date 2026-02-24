@@ -1,38 +1,4 @@
 /**
- * Get a valid tab ID for making API calls to the specified Domo instance.
- * Prefers the current active tab if it's on the correct instance.
- * @param {string} instance - The Domo instance subdomain (e.g., 'mycompany')
- * @returns {Promise<number>} The tab ID to use for API calls
- * @throws {Error} If no valid tab is found on the correct instance
- */
-export async function getValidTabForInstance(instance) {
-  const expectedOrigin = `https://${instance}.domo.com`;
-
-  // First, try the current active tab
-  const [activeTab] = await chrome.tabs.query({
-    active: true,
-    currentWindow: true
-  });
-
-  if (activeTab?.url?.startsWith(expectedOrigin)) {
-    return activeTab.id;
-  }
-
-  // If active tab isn't on the right instance, search for any tab on that instance
-  const matchingTabs = await chrome.tabs.query({
-    url: `${expectedOrigin}/*`
-  });
-
-  if (matchingTabs.length > 0) {
-    return matchingTabs[0].id;
-  }
-
-  throw new Error(
-    `No open tab found for ${instance}.domo.com. Please open a tab on that Domo instance and try again.`
-  );
-}
-
-/**
  * Main detection function that runs in page context
  * This is a self-contained function that can be stringified and injected via chrome.scripting.executeScript
  * It must have no external dependencies and returns serializable data
@@ -102,7 +68,7 @@ export async function detectCurrentObject() {
 
     // App Studio: Prefer Card ID from modal when open; otherwise use Page ID from URL
     case url.includes('page/'):
-    case url.includes('pages/'):
+    case url.includes('pages/'): {
       const kpiId = detectCardModal();
       if (kpiId) {
         objectType = 'CARD';
@@ -136,6 +102,7 @@ export async function detectCurrentObject() {
         }
       }
       break;
+    }
 
     case url.includes('beastmode?'):
       objectType = 'BEAST_MODE_FORMULA';
@@ -203,11 +170,11 @@ export async function detectCurrentObject() {
           .split('?')[0];
         // Return early with extra context for async ID resolution
         return {
-          typeId: objectType,
-          id: null,
-          url,
           baseUrl: `${location.protocol}//${location.hostname}`,
-          resolveContext: { filesetId, filePath }
+          id: null,
+          resolveContext: { filePath, filesetId },
+          typeId: objectType,
+          url
         };
       }
       objectType = 'FILESET';
@@ -297,9 +264,43 @@ export async function detectCurrentObject() {
   // Return plain serializable object
   // Service worker will construct DomoObject from this data
   return {
-    typeId: objectType,
+    baseUrl: `${location.protocol}//${location.hostname}`,
     id: id, // May be null, will be extracted by service worker if needed
-    url: url,
-    baseUrl: `${location.protocol}//${location.hostname}`
+    typeId: objectType,
+    url: url
   };
+}
+
+/**
+ * Get a valid tab ID for making API calls to the specified Domo instance.
+ * Prefers the current active tab if it's on the correct instance.
+ * @param {string} instance - The Domo instance subdomain (e.g., 'mycompany')
+ * @returns {Promise<number>} The tab ID to use for API calls
+ * @throws {Error} If no valid tab is found on the correct instance
+ */
+export async function getValidTabForInstance(instance) {
+  const expectedOrigin = `https://${instance}.domo.com`;
+
+  // First, try the current active tab
+  const [activeTab] = await chrome.tabs.query({
+    active: true,
+    currentWindow: true
+  });
+
+  if (activeTab?.url?.startsWith(expectedOrigin)) {
+    return activeTab.id;
+  }
+
+  // If active tab isn't on the right instance, search for any tab on that instance
+  const matchingTabs = await chrome.tabs.query({
+    url: `${expectedOrigin}/*`
+  });
+
+  if (matchingTabs.length > 0) {
+    return matchingTabs[0].id;
+  }
+
+  throw new Error(
+    `No open tab found for ${instance}.domo.com. Please open a tab on that Domo instance and try again.`
+  );
 }

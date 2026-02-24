@@ -1,14 +1,15 @@
-import { useState, useEffect } from 'react';
 import { Button, Link, Tabs, Toast } from '@heroui/react';
-import { useTheme } from '@/hooks';
+import { IconInbox } from '@tabler/icons-react';
+import { useEffect, useState } from 'react';
+
 import {
   ActivityLogTable,
-  Settings,
   FaviconSettings,
+  Settings,
   shouldShowWelcomePage,
   WelcomePage
 } from '@/components';
-import { IconHelp, IconInbox } from '@tabler/icons-react';
+import { useTheme } from '@/hooks';
 
 export default function App() {
   // Apply theme
@@ -50,9 +51,9 @@ export default function App() {
   // Update document title based on selected tab
   useEffect(() => {
     const tabTitles = {
-      welcome: 'Welcome',
       favicon: 'Favicon Preferences',
-      settings: 'Settings'
+      settings: 'Settings',
+      welcome: 'Welcome'
     };
 
     if (selectedTab === 'activity-log') {
@@ -86,9 +87,9 @@ export default function App() {
   return (
     <div className='flex h-screen w-full justify-center'>
       <Link
+        className='fixed right-1 bottom-4 z-10 no-underline'
         href='https://github.com/brycewc/domo-toolkit/issues'
         target='_blank'
-        className='fixed right-1 bottom-4 z-10 no-underline'
       >
         <Button>
           <IconInbox stroke={1.5} />
@@ -98,8 +99,8 @@ export default function App() {
       <Tabs
         className='h-full w-full items-center rounded-sm'
         selectedKey={selectedTab}
-        onSelectionChange={handleTabChange}
         variant='secondary'
+        onSelectionChange={handleTabChange}
       >
         <Tabs.ListContainer className='fixed top-0 z-10 flex h-fit w-full max-w-3xl flex-row items-end justify-center bg-background pt-4'>
           <Tabs.List>
@@ -163,7 +164,7 @@ export default function App() {
           {selectedTab === 'activity-log' && <ActivityLogTable />}
         </Tabs.Panel>
       </Tabs>
-      <Toast.Provider placement='bottom' className='right-2 bottom-2' />
+      <Toast.Provider className='right-2 bottom-2' placement='bottom' />
     </div>
   );
 }

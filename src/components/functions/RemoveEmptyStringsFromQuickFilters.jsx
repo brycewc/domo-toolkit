@@ -1,18 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
 import { Button } from '@heroui/react';
 import { IconXboxX } from '@tabler/icons-react';
-import { getCardDefinition, updateCardDefinition } from '@/services';
-import { useStatusBar } from '@/hooks';
+import { useEffect, useRef, useState } from 'react';
 
-function countEmptyStringFilters(definition) {
-  if (!Array.isArray(definition?.definition?.controls)) return 0;
-  return definition.definition.controls.filter(
-    (control) =>
-      Array.isArray(control.values) &&
-      control.values.length === 1 &&
-      control.values[0] === ''
-  ).length;
-}
+import { useStatusBar } from '@/hooks';
+import { getCardDefinition, updateCardDefinition } from '@/services';
 
 export function RemoveEmptyStringsFromQuickFilters({
   currentContext,
@@ -81,24 +72,34 @@ export function RemoveEmptyStringsFromQuickFilters({
     );
 
     showPromiseStatus(promise, {
+      error: () =>
+        `Failed to remove empty strings from card **${cardId}** quick filters`,
       loading: `Removing empty strings from card **${cardId}**…`,
       success: (count) =>
-        `Removed ${count} empty string quick filter${count === 1 ? '' : 's'} from card **${cardId}**`,
-      error: () =>
-        `Failed to remove empty strings from card **${cardId}** quick filters`
+        `Removed ${count} empty string quick filter${count === 1 ? '' : 's'} from card **${cardId}**`
     });
   };
 
   return (
     <Button
-      variant='tertiary'
-      onPress={handleClick}
-      isDisabled={emptyCount === null}
       fullWidth
       className='min-w-36 flex-1 whitespace-normal'
+      isDisabled={emptyCount === null}
+      variant='tertiary'
+      onPress={handleClick}
     >
       <IconXboxX stroke={1.5} />
       Remove Empty Strings from Quick Filters
     </Button>
   );
+}
+
+function countEmptyStringFilters(definition) {
+  if (!Array.isArray(definition?.definition?.controls)) return 0;
+  return definition.definition.controls.filter(
+    (control) =>
+      Array.isArray(control.values) &&
+      control.values.length === 1 &&
+      control.values[0] === ''
+  ).length;
 }

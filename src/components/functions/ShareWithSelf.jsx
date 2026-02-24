@@ -1,8 +1,9 @@
-import { useState } from 'react';
 import { Button, Tooltip } from '@heroui/react';
 import { IconUserPlus } from '@tabler/icons-react';
-import { shareWithSelf } from '@/services';
+import { useState } from 'react';
+
 import { useStatusBar } from '@/hooks';
+import { shareWithSelf } from '@/services';
 import { isSidepanel } from '@/utils';
 
 const SUPPORTED_TYPES = [
@@ -13,7 +14,7 @@ const SUPPORTED_TYPES = [
   'APP'
 ];
 
-export function ShareWithSelf({ currentContext, onStatusUpdate, isDisabled }) {
+export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
   const [isSharing, setIsSharing] = useState(false);
   const { showPromiseStatus } = useStatusBar();
 
@@ -59,8 +60,8 @@ export function ShareWithSelf({ currentContext, onStatusUpdate, isDisabled }) {
 
     const promise = shareWithSelf({
       object: currentContext.domoObject,
-      userId: currentContext.user?.id,
-      tabId: currentContext.tabId
+      tabId: currentContext.tabId,
+      userId: currentContext.user?.id
     }).then((result) => {
       const tabId = currentContext?.tabId;
       chrome.tabs.reload(tabId);
@@ -69,7 +70,7 @@ export function ShareWithSelf({ currentContext, onStatusUpdate, isDisabled }) {
         const listener = (updatedTabId, changeInfo) => {
           if (updatedTabId === tabId && changeInfo.status === 'complete') {
             chrome.tabs.onUpdated.removeListener(listener);
-            chrome.runtime.sendMessage({ type: 'DETECT_CONTEXT', tabId });
+            chrome.runtime.sendMessage({ tabId, type: 'DETECT_CONTEXT' });
           }
         };
         chrome.tabs.onUpdated.addListener(listener);
@@ -82,9 +83,9 @@ export function ShareWithSelf({ currentContext, onStatusUpdate, isDisabled }) {
     });
 
     showPromiseStatus(promise, {
+      error: (err) => err.message,
       loading: `Sharing **${objectName}** with yourself…`,
-      success: () => `**${objectName}** shared successfully`,
-      error: (err) => err.message
+      success: () => `**${objectName}** shared successfully`
     });
 
     promise.finally(() => setIsSharing(false));
@@ -97,32 +98,32 @@ export function ShareWithSelf({ currentContext, onStatusUpdate, isDisabled }) {
     isDisabled || isSharing || !currentContext?.domoObject || !isSupportedType;
 
   return (
-    <Tooltip delay={400} closeDelay={0} disabled={!buttonDisabled}>
+    <Tooltip closeDelay={0} delay={400} disabled={!buttonDisabled}>
       <Button
-        variant='tertiary'
         fullWidth
         isIconOnly
-        onPress={handleShare}
         isDisabled={buttonDisabled}
+        variant='tertiary'
+        onPress={handleShare}
       >
         <IconUserPlus stroke={1.5} />
       </Button>
       <Tooltip.Content>
         {currentContext?.domoObject?.typeId === 'DATA_SOURCE' &&
         currentContext?.domoObject?.metadata?.details?.accountId ? (
-          <>
-            Share <span className='font-semibold'>dataset account</span> with
-            yourself
-          </>
-        ) : (
-          <>
-            Share{' '}
-            <span className='font-semibold lowercase'>
-              {currentContext?.domoObject?.name}
-            </span>{' '}
-            with yourself
-          </>
-        )}
+              <>
+                Share <span className='font-semibold'>dataset account</span> with
+                yourself
+              </>
+            ) : (
+              <>
+                Share{' '}
+                <span className='font-semibold lowercase'>
+                  {currentContext?.domoObject?.name}
+                </span>{' '}
+                with yourself
+              </>
+            )}
       </Tooltip.Content>
     </Tooltip>
   );

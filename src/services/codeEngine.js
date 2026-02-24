@@ -14,12 +14,12 @@ export async function getCodeEngineCode({ packageId, tabId }) {
   return executeInPage(
     async (packageId) => {
       try {
-      const container = document.querySelector(
-        'div[class*="module_packageControls"]'
-      );
-      const input = container?.querySelector(
-        'input[class*="SelectListInputComponent"]'
-      );
+        const container = document.querySelector(
+          'div[class*="module_packageControls"]'
+        );
+        const input = container?.querySelector(
+          'input[class*="SelectListInputComponent"]'
+        );
         if (!input) {
           throw new Error('Could not find version selector on the page');
         }

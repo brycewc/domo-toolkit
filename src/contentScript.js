@@ -1,6 +1,4 @@
-import { DomoContext } from '@/models';
 import {
-  EXCLUDED_HOSTNAMES,
   applyFaviconRules,
   applyInstanceLogoAuto
 } from '@/utils';
@@ -21,9 +19,6 @@ async function applyFavicon() {
   }
 }
 
-// Store current tab context
-let currentTabContext = null;
-
 // Listen for messages from service worker
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'PING') {
@@ -38,12 +33,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === 'TAB_CONTEXT_UPDATED') {
-    // console.log(
-    //   '[ContentScript] Received tab context update:',
-    //   message.context
-    // );
-    currentTabContext = DomoContext.fromJSON(message.context);
-    // Update title when context is received
     sendResponse({ success: true });
     return true;
   }
@@ -85,8 +74,8 @@ async function checkAndCacheClipboard() {
         lastKnownClipboard = '';
         chrome.runtime
           .sendMessage({
-            type: 'CLIPBOARD_COPIED',
-            clipboardData: ''
+            clipboardData: '',
+            type: 'CLIPBOARD_COPIED'
           })
           .catch(() => {});
       }
@@ -100,8 +89,8 @@ async function checkAndCacheClipboard() {
       // Send to background script to cache
       chrome.runtime
         .sendMessage({
-          type: 'CLIPBOARD_COPIED',
-          clipboardData: trimmedText
+          clipboardData: trimmedText,
+          type: 'CLIPBOARD_COPIED'
         })
         .catch((err) => {
           console.log('[ContentScript] Error sending clipboard data:', err);
@@ -135,32 +124,6 @@ window.addEventListener('focus', async () => {
 
 // Track last detected card modal ID to avoid redundant detections
 let lastDetectedCardId = null;
-
-// Extract card ID from modal element ID (format: card-details-modal-{cardId})
-function extractCardIdFromModal() {
-  const modalElement = document.querySelector('[id^="card-details-modal-"]');
-  if (modalElement && modalElement.id) {
-    const match = modalElement.id.match(/card-details-modal-(\d+)/);
-    if (match && match[1]) {
-      return match[1];
-    }
-  }
-  return null;
-}
-
-// Send message to service worker to trigger context re-detection
-function triggerContextRedetection() {
-  chrome.runtime
-    .sendMessage({
-      type: 'DETECT_CONTEXT'
-    })
-    .catch((error) => {
-      console.error(
-        '[ContentScript] Error triggering context re-detection:',
-        error
-      );
-    });
-}
 
 // Watch for card modal element being added or removed
 function checkForCardModalElement(mutations) {
@@ -231,6 +194,32 @@ function checkForCardModalElement(mutations) {
   }
 }
 
+// Extract card ID from modal element ID (format: card-details-modal-{cardId})
+function extractCardIdFromModal() {
+  const modalElement = document.querySelector('[id^="card-details-modal-"]');
+  if (modalElement && modalElement.id) {
+    const match = modalElement.id.match(/card-details-modal-(\d+)/);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+  return null;
+}
+
+// Send message to service worker to trigger context re-detection
+function triggerContextRedetection() {
+  chrome.runtime
+    .sendMessage({
+      type: 'DETECT_CONTEXT'
+    })
+    .catch((error) => {
+      console.error(
+        '[ContentScript] Error triggering context re-detection:',
+        error
+      );
+    });
+}
+
 // Set up MutationObserver to watch for modal changes
 const modalObserver = new MutationObserver((mutations) => {
   checkForCardModalElement(mutations);
@@ -259,4 +248,3 @@ modalObserver.observe(document.body, {
   script.src = chrome.runtime.getURL('public/cardErrors.js');
   document.documentElement.appendChild(script);
 })();
-

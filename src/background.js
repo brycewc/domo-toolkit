@@ -1,11 +1,11 @@
-import { DomoObject, DomoContext, getObjectType } from '@/models';
+import { DomoContext, DomoObject, getObjectType } from '@/models';
 import {
   fetchObjectDetailsInPage,
-  getChildPages,
   getCardsForObject,
+  getChildPages,
+  getCurrentUser,
   getDataflowForOutputDataset,
-  getPagesForCards,
-  getCurrentUser
+  getPagesForCards
 } from '@/services';
 import {
   clearCookies,
@@ -26,7 +26,7 @@ import {
 async function resolveObjectId(typeId, context, tabId) {
   switch (typeId) {
     case 'FILESET_FILE': {
-      const { filesetId, filePath } = context;
+      const { filePath, filesetId } = context;
       return executeInPage(
         async (filesetId, filePath) => {
           const res = await fetch(
@@ -51,6 +51,22 @@ chrome.storage.session.setAccessLevel({
 });
 
 /**
+ * Ping the content script on a tab and re-inject it if it doesn't respond.
+ * Keeps clipboard monitoring, modal detection, and favicon logic alive
+ * on long-lived tabs where the content script may have been disconnected.
+ */
+async function ensureContentScript(tabId) {
+  try {
+    await chrome.tabs.sendMessage(tabId, { type: 'PING' });
+  } catch {
+    await chrome.scripting.executeScript({
+      files: ['src/contentScript.js'],
+      target: { tabId }
+    });
+  }
+}
+
+/**
  * Send a message to a tab with retry logic
  * @param {number} tabId - The tab ID
  * @param {Object} message - The message to send
@@ -69,22 +85,6 @@ async function sendMessageWithRetry(tabId, message, maxRetries = 3) {
       // Wait with exponential backoff: 100ms, 200ms, 400ms
       await new Promise((resolve) => setTimeout(resolve, 100 * Math.pow(2, i)));
     }
-  }
-}
-
-/**
- * Ping the content script on a tab and re-inject it if it doesn't respond.
- * Keeps clipboard monitoring, modal detection, and favicon logic alive
- * on long-lived tabs where the content script may have been disconnected.
- */
-async function ensureContentScript(tabId) {
-  try {
-    await chrome.tabs.sendMessage(tabId, { type: 'PING' });
-  } catch {
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      files: ['src/contentScript.js']
-    });
   }
 }
 
@@ -120,82 +120,11 @@ function evictLRUIfNeeded() {
 }
 
 /**
- * Update LRU timestamp for a tab
- */
-function touchTab(tabId) {
-  tabAccessTimes.set(tabId, Date.now());
-}
-
-/**
- * Store context for a specific tab and push to content script
- */
-function setTabContext(tabId, context) {
-  evictLRUIfNeeded();
-  tabContexts.set(tabId, context);
-  touchTab(tabId);
-
-  // Persist to session storage (async, non-blocking)
-  persistToSession();
-
-  if (context?.domoObject?.metadata?.name) {
-    setTabTitle(tabId, context.domoObject.metadata.name);
-  }
-
-  const contextData = context?.toJSON();
-
-  // Send to content script in the specific tab
-  chrome.tabs
-    .sendMessage(tabId, {
-      type: 'TAB_CONTEXT_UPDATED',
-      context: contextData
-    })
-    .catch((error) => {
-      console.warn(
-        `[Background] Could not send context to tab ${tabId}:`,
-        error.message
-      );
-    });
-
-  // Broadcast to extension pages (popup, sidepanel)
-  chrome.runtime
-    .sendMessage({
-      type: 'TAB_CONTEXT_UPDATED',
-      tabId: tabId,
-      context: contextData
-    })
-    .catch((error) => {
-      // No listeners, that's fine (popup/sidepanel might not be open)
-      // console.log(
-      //   `[Background] No listeners for TAB_CONTEXT_UPDATED:`,
-      //   error.message
-      // );
-    });
-}
-
-/**
  * Get context for a specific tab
  */
 function getTabContext(tabId) {
   touchTab(tabId);
   return tabContexts.get(tabId) || null;
-}
-
-function setTabTitle(tabId, objectName) {
-  try {
-    chrome.scripting.executeScript({
-      target: { tabId },
-      func: (objectName) => {
-        if (document.title.trim() !== 'Domo') {
-          return;
-        }
-        document.title = `${objectName} - Domo`;
-      },
-      args: [objectName],
-      world: 'MAIN'
-    });
-  } catch (error) {
-    console.error(`[Background] Error updating title for tab ${tabId}:`, error);
-  }
 }
 
 /**
@@ -239,6 +168,71 @@ async function restoreFromSession() {
   }
 }
 
+/**
+ * Store context for a specific tab and push to content script
+ */
+function setTabContext(tabId, context) {
+  evictLRUIfNeeded();
+  tabContexts.set(tabId, context);
+  touchTab(tabId);
+
+  // Persist to session storage (async, non-blocking)
+  persistToSession();
+
+  if (context?.domoObject?.metadata?.name) {
+    setTabTitle(tabId, context.domoObject.metadata.name);
+  }
+
+  const contextData = context?.toJSON();
+
+  // Send to content script in the specific tab
+  chrome.tabs
+    .sendMessage(tabId, {
+      context: contextData,
+      type: 'TAB_CONTEXT_UPDATED'
+    })
+    .catch((error) => {
+      console.warn(
+        `[Background] Could not send context to tab ${tabId}:`,
+        error.message
+      );
+    });
+
+  // Broadcast to extension pages (popup, sidepanel)
+  chrome.runtime
+    .sendMessage({
+      context: contextData,
+      tabId: tabId,
+      type: 'TAB_CONTEXT_UPDATED'
+    })
+    .catch(() => {});
+}
+
+function setTabTitle(tabId, objectName) {
+  try {
+    chrome.scripting.executeScript({
+      args: [objectName],
+      func: (objectName) => {
+        if (document.title.trim() !== 'Domo') {
+          return;
+        }
+        document.title = `${objectName} - Domo`;
+      },
+      target: { tabId },
+      world: 'MAIN'
+    });
+  } catch (error) {
+    console.error(`[Background] Error updating title for tab ${tabId}:`, error);
+  }
+}
+
+/**
+ * Update LRU timestamp for a tab
+ */
+function touchTab(tabId) {
+  tabAccessTimes.set(tabId, Date.now());
+}
+
 // Handle extension installation
 chrome.runtime.onInstalled.addListener((details) => {
   // Open welcome page on fresh install
@@ -255,10 +249,10 @@ chrome.runtime.onInstalled.addListener((details) => {
     if (!result.faviconRules || result.faviconRules.length === 0) {
       const defaultFaviconRule = [
         {
-          id: Date.now(),
-          pattern: '.*',
+          color: '#000000',
           effect: 'instance-logo',
-          color: '#000000'
+          id: Date.now(),
+          pattern: '.*'
         }
       ];
       chrome.storage.sync.set({ faviconRules: defaultFaviconRule });
@@ -276,18 +270,18 @@ restoreFromSession();
 function updateExtensionIcon(isDark) {
   const iconPath = isDark
     ? {
+        128: 'public/toolkit-dark-128.png',
         16: 'public/toolkit-dark-16.png',
         24: 'public/toolkit-dark-24.png',
         32: 'public/toolkit-dark-32.png',
-        48: 'public/toolkit-dark-48.png',
-        128: 'public/toolkit-dark-128.png'
+        48: 'public/toolkit-dark-48.png'
       }
     : {
+        128: 'public/toolkit-128.png',
         16: 'public/toolkit-16.png',
         24: 'public/toolkit-24.png',
         32: 'public/toolkit-32.png',
-        48: 'public/toolkit-48.png',
-        128: 'public/toolkit-128.png'
+        48: 'public/toolkit-48.png'
       };
 
   chrome.action.setIcon({ path: iconPath }).catch((error) => {
@@ -337,7 +331,7 @@ async function handle431Response(details) {
         const domain = new URL(tab.url).hostname;
         if (!seenDomains.has(domain)) {
           seenDomains.add(domain);
-          recentDomoTabs.push({ tab, domain });
+          recentDomoTabs.push({ domain, tab });
           if (recentDomoTabs.length >= 2) break;
         }
       }
@@ -372,10 +366,10 @@ async function handle431Response(details) {
         domainsToPreserve = [currentDomain];
       }
 
-      const result = await clearCookies({
+      await clearCookies({
+        daSidsToPreserve,
         domains: domainsToPreserve,
-        excludeDomains: true,
-        daSidsToPreserve
+        excludeDomains: true
       });
       chrome.tabs.reload(details.tabId);
     } catch (error) {
@@ -385,12 +379,19 @@ async function handle431Response(details) {
 }
 
 const webRequestFilter = {
-  urls: ['*://*.domo.com/*'],
-  types: ['main_frame']
+  types: ['main_frame'],
+  urls: ['*://*.domo.com/*']
 };
 
 // Track if 431 listener is currently active
 let is431ListenerActive = false;
+
+function disable431Listener() {
+  if (is431ListenerActive) {
+    chrome.webRequest.onResponseStarted.removeListener(handle431Response);
+    is431ListenerActive = false;
+  }
+}
 
 function enable431Listener() {
   if (!is431ListenerActive) {
@@ -399,13 +400,6 @@ function enable431Listener() {
       webRequestFilter
     );
     is431ListenerActive = true;
-  }
-}
-
-function disable431Listener() {
-  if (is431ListenerActive) {
-    chrome.webRequest.onResponseStarted.removeListener(handle431Response);
-    is431ListenerActive = false;
   }
 }
 
@@ -427,7 +421,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 });
 
 // Detect context when tab becomes active (eager detection)
-chrome.tabs.onActivated.addListener(async ({ tabId, windowId }) => {
+chrome.tabs.onActivated.addListener(async ({ tabId }) => {
   // Always update icon based on current preference
   updateIconFromPreference();
 
@@ -457,11 +451,11 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
       if (context?.domoObject?.metadata?.name) {
         try {
           await chrome.scripting.executeScript({
-            target: { tabId },
+            args: [context.domoObject.metadata.name],
             func: (name) => {
               document.title = `${name} - Domo`;
             },
-            args: [context.domoObject.metadata.name],
+            target: { tabId },
             world: 'MAIN'
           });
         } catch (error) {
@@ -546,7 +540,7 @@ chrome.commands.onCommand.addListener((command) => {
             );
           } catch (error) {
             console.error(
-              `[Background] Failed to copy ID to clipboard:`,
+              '[Background] Failed to copy ID to clipboard:',
               error
             );
           }
@@ -576,13 +570,13 @@ async function detectAndStoreContext(tabId) {
       if (hadContext) {
         chrome.runtime
           .sendMessage({
-            type: 'TAB_CONTEXT_UPDATED',
+            context: null,
             tabId: tabId,
-            context: null
+            type: 'TAB_CONTEXT_UPDATED'
           })
           .catch((error) => {
             console.warn(
-              `[Background] No listeners for TAB_CONTEXT_UPDATED (null):`,
+              '[Background] No listeners for TAB_CONTEXT_UPDATED (null):',
               error.message
             );
           });
@@ -658,13 +652,13 @@ async function detectAndStoreContext(tabId) {
 
     // Prepare parameters for page-safe enrichment function
     const params = {
-      typeId: typeModel.id,
-      objectId,
-      baseUrl: detected.baseUrl,
       apiConfig: typeModel.api,
-      requiresParent: typeModel.requiresParentForApi(),
+      baseUrl: detected.baseUrl,
+      objectId,
       parentId: parentId || null,
-      throwOnError: true
+      requiresParent: typeModel.requiresParentForApi(),
+      throwOnError: true,
+      typeId: typeModel.id
     };
 
     // Enrich with details - throw on error for current object detection
@@ -728,10 +722,10 @@ async function detectAndStoreContext(tabId) {
 
       // Fetch child pages in background without blocking
       getChildPages({
-        pageId: parseInt(objectId),
-        pageType: typeModel.id,
         appId,
         includeGrandchildren: true,
+        pageId: parseInt(objectId),
+        pageType: typeModel.id,
         tabId
       })
         .then((childPages) => {
@@ -900,8 +894,50 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
     try {
       switch (message.type) {
+        case 'CLIPBOARD_COPIED': {
+          // Content script or Copy component detected a copy event
+          const { clipboardData, domoObject } = message;
+
+          // Cache in session storage (include object info if available)
+          await chrome.storage.session.set({
+            lastClipboardObject: clipboardData ? domoObject || null : null,
+            lastClipboardValue: clipboardData || ''
+          });
+
+          // Update in-memory value and notify if changed
+          if ((clipboardData || '') !== lastClipboardValue) {
+            lastClipboardValue = clipboardData || '';
+
+            // Notify all extension contexts about clipboard change
+            chrome.runtime
+              .sendMessage({
+                clipboardData: clipboardData || '',
+                domoObject: clipboardData ? domoObject || null : null,
+                type: 'CLIPBOARD_UPDATED'
+              })
+              .catch(() => {
+                // No listeners, that's fine
+              });
+          }
+
+          sendResponse({ success: true });
+          break;
+        }
+
+        case 'DETECT_CONTEXT': {
+          // Use tabId from message if provided, otherwise from sender
+          const targetTabId = message.tabId || sender.tab?.id;
+          if (!targetTabId) {
+            sendResponse({ error: 'No tab ID available', success: false });
+            return;
+          }
+          const context = await detectAndStoreContext(targetTabId);
+          sendResponse({ context: context?.toJSON(), success: true });
+          break;
+        }
+
         case 'GET_TAB_CONTEXT': {
-          const { windowId, tabId } = message;
+          const { tabId, windowId } = message;
 
           // If specific tabId provided, use it (sidepanel with locked tab)
           if (tabId) {
@@ -909,9 +945,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             if (!context) {
               // Trigger detection if not cached
               const detected = await detectAndStoreContext(tabId);
-              sendResponse({ success: true, context: detected?.toJSON() });
+              sendResponse({ context: detected?.toJSON(), success: true });
             } else {
-              sendResponse({ success: true, context: context?.toJSON() });
+              sendResponse({ context: context?.toJSON(), success: true });
             }
             return;
           }
@@ -923,7 +959,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           });
 
           if (!tabs || tabs.length === 0) {
-            sendResponse({ success: false, error: 'No active tab found' });
+            sendResponse({ error: 'No active tab found', success: false });
             return;
           }
 
@@ -936,62 +972,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           }
 
           sendResponse({
-            success: true,
             context: context?.toJSON(),
+            success: true,
             tabId: activeTabId
           });
           break;
         }
 
-        case 'DETECT_CONTEXT': {
-          // Use tabId from message if provided, otherwise from sender
-          const targetTabId = message.tabId || sender.tab?.id;
-          if (!targetTabId) {
-            sendResponse({ success: false, error: 'No tab ID available' });
-            return;
-          }
-          const context = await detectAndStoreContext(targetTabId);
-          sendResponse({ success: true, context: context?.toJSON() });
-          break;
-        }
-
-        case 'CLIPBOARD_COPIED': {
-          // Content script or Copy component detected a copy event
-          const { clipboardData, domoObject } = message;
-
-          // Cache in session storage (include object info if available)
-          await chrome.storage.session.set({
-            lastClipboardValue: clipboardData || '',
-            lastClipboardObject: clipboardData ? domoObject || null : null
-          });
-
-          // Update in-memory value and notify if changed
-          if ((clipboardData || '') !== lastClipboardValue) {
-            lastClipboardValue = clipboardData || '';
-
-            // Notify all extension contexts about clipboard change
-            chrome.runtime
-              .sendMessage({
-                type: 'CLIPBOARD_UPDATED',
-                clipboardData: clipboardData || '',
-                domoObject: clipboardData ? domoObject || null : null
-              })
-              .catch(() => {
-                // No listeners, that's fine
-              });
-          }
-
-          sendResponse({ success: true });
-          break;
-        }
-
         case 'UPDATE_CONTEXT_METADATA': {
           // Update cached context metadata without re-fetching from API
-          const { tabId, metadataUpdates } = message;
+          const { metadataUpdates, tabId } = message;
           const context = getTabContext(tabId);
 
           if (!context) {
-            sendResponse({ success: false, error: 'No context found for tab' });
+            sendResponse({ error: 'No context found for tab', success: false });
             return;
           }
 
@@ -1009,16 +1003,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
           // Re-store to persist and broadcast update
           setTabContext(tabId, context);
-          sendResponse({ success: true, context: context.toJSON() });
+          sendResponse({ context: context.toJSON(), success: true });
           break;
         }
 
         default:
-          sendResponse({ success: false, error: 'Unknown message type' });
+          sendResponse({ error: 'Unknown message type', success: false });
       }
     } catch (error) {
       console.error('[Background] Error handling message:', error);
-      sendResponse({ success: false, error: error.message });
+      sendResponse({ error: error.message, success: false });
     }
   })();
 

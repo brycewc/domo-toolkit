@@ -1,68 +1,16 @@
-import { useEffect, useRef, useState } from 'react';
 import { Alert, Button, Card, CloseButton, Spinner } from '@heroui/react';
+import { IconRefresh } from '@tabler/icons-react';
+import { useEffect, useRef, useState } from 'react';
+
 import { DataList } from '@/components';
+import { DataListItem, DomoContext, DomoObject } from '@/models';
 import {
   getCardDatasets,
-  getDatasetsForPage,
   getDatasetsForDataflow,
+  getDatasetsForPage,
   getDatasetsForView
 } from '@/services';
-import { DataListItem, DomoContext, DomoObject } from '@/models';
 import { getValidTabForInstance } from '@/utils';
-import { IconRefresh } from '@tabler/icons-react';
-
-/**
- * Transform datasets into DataListItem format
- * @param {Array<{id: string, name: string}>} datasets - Array of dataset objects
- * @param {string} origin - The base URL origin
- * @returns {DataListItem[]}
- */
-function transformDatasetsToItems(datasets, origin) {
-  return datasets.map((ds) => {
-    const id = ds.id || ds.datasetId || ds.dataSourceId;
-    const name = ds.name || ds.datasetName || ds.dataSourceName;
-    const domoObject = new DomoObject('DATA_SOURCE', id, origin, { name });
-    return DataListItem.fromDomoObject(domoObject);
-  });
-}
-
-/**
- * Transform dataflow inputs/outputs into grouped DataListItems
- * @param {Object} params
- * @param {Array} params.inputs - Input datasets
- * @param {Array} params.outputs - Output datasets
- * @param {string} params.origin - The base URL origin
- * @returns {DataListItem[]}
- */
-function transformDataflowDatasetsToItems({ inputs, outputs, origin }) {
-  const items = [];
-
-  if (inputs && inputs.length > 0) {
-    const inputChildren = transformDatasetsToItems(inputs, origin);
-    items.push(
-      DataListItem.createGroup({
-        id: 'inputs_group',
-        label: 'Input DataSets',
-        children: inputChildren,
-        metadata: `${inputs.length} dataset${inputs.length !== 1 ? 's' : ''}`
-      })
-    );
-  }
-
-  if (outputs && outputs.length > 0) {
-    const outputChildren = transformDatasetsToItems(outputs, origin);
-    items.push(
-      DataListItem.createGroup({
-        id: 'outputs_group',
-        label: 'Output DataSets',
-        children: outputChildren,
-        metadata: `${outputs.length} dataset${outputs.length !== 1 ? 's' : ''}`
-      })
-    );
-  }
-
-  return items;
-}
 
 export function GetDatasetsView({
   onBackToDefault = null,
@@ -129,11 +77,11 @@ export function GetDatasetsView({
 
       // Store view metadata
       setViewData({
-        objectId,
-        objectType,
-        objectName,
-        origin,
         instance,
+        objectId,
+        objectName,
+        objectType,
+        origin,
         typeLabel
       });
 
@@ -144,10 +92,10 @@ export function GetDatasetsView({
 
       if ((!datasets && !dataflowInputs && !dataflowOutputs) || forceRefresh) {
         const refreshResult = await fetchFreshDatasets({
-          objectId,
-          objectType,
+          details: domoObject.metadata?.details,
           instance,
-          details: domoObject.metadata?.details
+          objectId,
+          objectType
         });
 
         if (objectType === 'DATAFLOW_TYPE') {
@@ -163,8 +111,8 @@ export function GetDatasetsView({
       if (objectType === 'DATAFLOW_TYPE') {
         const transformedItems = transformDataflowDatasetsToItems({
           inputs: dataflowInputs,
-          outputs: dataflowOutputs,
-          origin
+          origin,
+          outputs: dataflowOutputs
         });
         setItems(transformedItems);
       } else {
@@ -197,10 +145,10 @@ export function GetDatasetsView({
    * Fetch fresh datasets from API
    */
   const fetchFreshDatasets = async ({
-    objectId,
-    objectType,
+    details,
     instance,
-    details
+    objectId,
+    objectType
   }) => {
     const tabId = await getValidTabForInstance(instance);
     if (objectType === 'CARD') {
@@ -296,9 +244,9 @@ export function GetDatasetsView({
           <Alert.Title>Error</Alert.Title>
           <div className='flex flex-col items-start justify-center gap-2'>
             <Alert.Description>{error}</Alert.Description>
-            <Button size='sm' onPress={handleRetry} isPending={isRetrying}>
+            <Button isPending={isRetrying} size='sm' onPress={handleRetry}>
               {isRetrying ? (
-                <Spinner size='sm' color='currentColor' />
+                <Spinner color='currentColor' size='sm' />
               ) : (
                 <IconRefresh stroke={1.5} />
               )}
@@ -307,8 +255,8 @@ export function GetDatasetsView({
           </div>
         </Alert.Content>
         <CloseButton
-          variant='ghost'
           className='rounded-full'
+          variant='ghost'
           onPress={() => onBackToDefault?.()}
         />
       </Alert>
@@ -317,20 +265,73 @@ export function GetDatasetsView({
 
   return (
     <DataList
-      items={items}
-      objectType={viewData?.objectType}
-      objectId={viewData?.objectId}
-      onStatusUpdate={onStatusUpdate}
-      title={renderTitle()}
-      headerActions={['openAll', 'copy', 'refresh']}
-      onRefresh={handleRefresh}
-      onClose={onBackToDefault}
       closeLabel={`Close ${viewData?.typeLabel} View`}
+      headerActions={['openAll', 'copy', 'refresh']}
       isRefreshing={isRefreshing}
       itemActions={['copy', 'openAll']}
+      itemLabel='dataset'
+      items={items}
+      objectId={viewData?.objectId}
+      objectType={viewData?.objectType}
       showActions={true}
       showCounts={true}
-      itemLabel='dataset'
+      title={renderTitle()}
+      onClose={onBackToDefault}
+      onRefresh={handleRefresh}
+      onStatusUpdate={onStatusUpdate}
     />
   );
+}
+
+/**
+ * Transform dataflow inputs/outputs into grouped DataListItems
+ * @param {Object} params
+ * @param {Array} params.inputs - Input datasets
+ * @param {Array} params.outputs - Output datasets
+ * @param {string} params.origin - The base URL origin
+ * @returns {DataListItem[]}
+ */
+function transformDataflowDatasetsToItems({ inputs, origin, outputs }) {
+  const items = [];
+
+  if (inputs && inputs.length > 0) {
+    const inputChildren = transformDatasetsToItems(inputs, origin);
+    items.push(
+      DataListItem.createGroup({
+        children: inputChildren,
+        id: 'inputs_group',
+        label: 'Input DataSets',
+        metadata: `${inputs.length} dataset${inputs.length !== 1 ? 's' : ''}`
+      })
+    );
+  }
+
+  if (outputs && outputs.length > 0) {
+    const outputChildren = transformDatasetsToItems(outputs, origin);
+    items.push(
+      DataListItem.createGroup({
+        children: outputChildren,
+        id: 'outputs_group',
+        label: 'Output DataSets',
+        metadata: `${outputs.length} dataset${outputs.length !== 1 ? 's' : ''}`
+      })
+    );
+  }
+
+  return items;
+}
+
+/**
+ * Transform datasets into DataListItem format
+ * @param {Array<{id: string, name: string}>} datasets - Array of dataset objects
+ * @param {string} origin - The base URL origin
+ * @returns {DataListItem[]}
+ */
+function transformDatasetsToItems(datasets, origin) {
+  return datasets.map((ds) => {
+    const id = ds.id || ds.datasetId || ds.dataSourceId;
+    const name = ds.name || ds.datasetName || ds.dataSourceName;
+    const domoObject = new DomoObject('DATA_SOURCE', id, origin, { name });
+    return DataListItem.fromDomoObject(domoObject);
+  });
 }

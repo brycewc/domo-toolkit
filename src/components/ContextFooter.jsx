@@ -1,4 +1,3 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Alert,
   Chip,
@@ -10,85 +9,17 @@ import {
   Tooltip
 } from '@heroui/react';
 import { IconClipboard } from '@tabler/icons-react';
-import { AnimatedCheck } from './AnimatedCheck';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import JsonView from 'react18-json-view';
+
 import { getObjectType } from '@/models';
 import { fetchObjectDetailsInPage } from '@/services';
 import { executeInPage } from '@/utils';
-import JsonView from 'react18-json-view';
+
+import { AnimatedCheck } from './AnimatedCheck';
 import '@/assets/json-view-theme.css';
 
-/**
- * Shared JsonView configuration used across all tabs
- */
-function MetadataJsonView({ src, collapsed = 1 }) {
-  return (
-    <JsonView
-      className='text-sm'
-      src={src}
-      collapsed={collapsed}
-      matchesURL={false}
-      displaySize
-      collapseStringMode='word'
-      collapseStringsAfterLength={50}
-      CopyComponent={({ onClick, className, style }) => (
-        <IconClipboard
-          onClick={onClick}
-          className={className}
-          style={style}
-          size={16}
-          stroke={1.5}
-        />
-      )}
-      CopiedComponent={({ className, style }) => (
-        <AnimatedCheck
-          className={className + ' text-success'}
-          style={style}
-          size={16}
-          stroke={1.5}
-        />
-      )}
-      customizeNode={(params) => {
-        if (params.node === null || params.node === undefined) {
-          return { enableClipboard: false };
-        }
-        if (
-          typeof params.node === 'string' &&
-          params.node.startsWith('https://')
-        ) {
-          return (
-            <Link
-              href={params.node}
-              target='_blank'
-              className='text-sm text-accent no-underline decoration-accent hover:underline'
-            >
-              {params.node}
-            </Link>
-          );
-        }
-        if (params.indexOrName?.toLowerCase().includes('id')) {
-          return { enableClipboard: true };
-        } else if (
-          (typeof params.node === 'number' ||
-            typeof params.node === 'string') &&
-          params.node?.toString().length >= 7
-        ) {
-          return { enableClipboard: true };
-        } else if (
-          typeof params.node === 'object' &&
-          Object.keys(params.node).length > 0
-        ) {
-          return { enableClipboard: true };
-        } else if (Array.isArray(params.node) && params.node.length > 0) {
-          return { enableClipboard: true };
-        } else {
-          return { enableClipboard: false };
-        }
-      }}
-    />
-  );
-}
-
-export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
+export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onStatusUpdate }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [relatedCache, setRelatedCache] = useState({});
   const [loadingTabs, setLoadingTabs] = useState({});
@@ -106,11 +37,11 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
     // First tab: current object
     const result = [
       {
-        id: domoObject.typeId,
-        label: typeModel.name,
         details: domoObject.metadata?.details || domoObject.metadata,
-        objectId: domoObject.id,
-        isCurrentObject: true
+        id: domoObject.typeId,
+        isCurrentObject: true,
+        label: typeModel.name,
+        objectId: domoObject.id
       }
     ];
 
@@ -121,11 +52,11 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
           const arrayData = domoObject.metadata?.details?.[related.field];
           if (arrayData?.length > 0) {
             result.push({
-              id: related.field,
-              label: `${related.label} (${arrayData.length})`,
               data: arrayData,
+              id: related.field,
               isArray: true,
-              isCurrentObject: false
+              isCurrentObject: false,
+              label: `${related.label} (${arrayData.length})`
             });
           }
           continue;
@@ -141,10 +72,10 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
         if (relatedId) {
           result.push({
             id: related.typeId,
+            isCurrentObject: false,
             label: related.label,
             objectId: relatedId,
-            typeId: related.typeId,
-            isCurrentObject: false
+            typeId: related.typeId
           });
         }
       }
@@ -154,9 +85,9 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
     if (process.env.NODE_ENV === 'development') {
       result.push({
         id: '_full_context',
-        label: 'Full Context',
+        isCurrentObject: false,
         isFullContext: true,
-        isCurrentObject: false
+        label: 'Full Context'
       });
     }
 
@@ -198,13 +129,13 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
 
     try {
       const params = {
-        typeId: relatedType.id,
-        objectId: tab.objectId,
-        baseUrl: currentContext?.domoObject?.baseUrl,
         apiConfig: relatedType.api,
-        requiresParent: relatedType.requiresParentForApi(),
+        baseUrl: currentContext?.domoObject?.baseUrl,
+        objectId: tab.objectId,
         parentId: null,
-        throwOnError: false
+        requiresParent: relatedType.requiresParentForApi(),
+        throwOnError: false,
+        typeId: relatedType.id
       };
 
       const metadata = await executeInPage(
@@ -249,7 +180,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
     }
 
     if (activeTab.isArray) {
-      return <MetadataJsonView src={activeTab.data} collapsed={2} />;
+      return <MetadataJsonView collapsed={2} src={activeTab.data} />;
     }
 
     if (activeTab.isFullContext) {
@@ -277,14 +208,14 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
 
   const alertContent = (
     <Alert
-      status={currentContext?.isDomoPage || isLoading ? 'accent' : 'warning'}
       className='min-h-20 w-full p-2'
+      status={currentContext?.isDomoPage || isLoading ? 'accent' : 'warning'}
     >
       <Alert.Content
         className={`flex flex-col gap-2 ${isLoading ? 'items-center justify-center' : 'items-start'}`}
       >
         {isLoading ? (
-          <Spinner size='sm' color='accent' />
+          <Spinner color='accent' size='sm' />
         ) : (
           <>
             <div
@@ -296,13 +227,13 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
                   <span className='flex flex-wrap items-center justify-start gap-x-1'>
                     Current Context
                   </span>
-                  <Tooltip delay={400} closeDelay={0}>
+                  <Tooltip closeDelay={0} delay={400}>
                     <Tooltip.Trigger className='flex items-center'>
                       <Chip
-                        color='accent'
-                        variant='soft'
                         className='w-fit lowercase'
+                        color='accent'
                         size='sm'
+                        variant='soft'
                       >
                         {currentContext?.instance}
                       </Chip>
@@ -311,23 +242,23 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
                       Instance: {currentContext?.instance}.domo.com
                     </Tooltip.Content>
                   </Tooltip>
-                  <Tooltip delay={400} closeDelay={0}>
+                  <Tooltip closeDelay={0} delay={400}>
                     <Tooltip.Trigger className='flex items-center'>
                       <Chip
-                        color='accent'
-                        variant='soft'
                         className='w-fit lowercase'
+                        color='accent'
                         size='sm'
+                        variant='soft'
                       >
                         {currentContext?.domoObject?.typeName}
                       </Chip>
                     </Tooltip.Trigger>
                     <Tooltip.Content className='flex items-center rounded p-0'>
                       <Chip
-                        color='accent'
-                        variant='soft'
                         className='w-fit rounded-xl'
+                        color='accent'
                         size='sm'
+                        variant='soft'
                       >
                         {currentContext?.domoObject?.typeId}
                       </Chip>
@@ -338,8 +269,8 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
                 'Not a Domo Instance'
               )}
               <Tooltip
-                delay={400}
                 closeDelay={0}
+                delay={400}
                 isDisabled={
                   !currentContext?.domoObject?.id || !currentContext?.isDomoPage
                 }
@@ -355,18 +286,18 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
             <Alert.Description className='flex h-full flex-col flex-wrap items-start justify-center gap-1'>
               {currentContext?.isDomoPage ? (
                 isLoading ? (
-                  <Spinner size='sm' color='accent' />
+                  <Spinner color='accent' size='sm' />
                 ) : !currentContext?.instance ||
                   !currentContext?.domoObject?.id ? (
-                  'No object detected on this page'
-                ) : (
-                  <div className='flex flex-wrap items-center justify-start gap-x-1'>
-                    <span className='text-left font-medium'>
-                      {currentContext?.domoObject?.metadata?.name}
-                    </span>
-                    <span>ID: {currentContext?.domoObject?.id}</span>
-                  </div>
-                )
+                      'No object detected on this page'
+                    ) : (
+                      <div className='flex flex-wrap items-center justify-start gap-x-1'>
+                        <span className='text-left font-medium'>
+                          {currentContext?.domoObject?.metadata?.name}
+                        </span>
+                        <span>ID: {currentContext?.domoObject?.id}</span>
+                      </div>
+                    )
               ) : (
                 'Navigate to an instance to enable most features'
               )}
@@ -388,10 +319,10 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
 
   return (
     <Disclosure
-      ref={disclosureRef}
-      isExpanded={isExpanded}
-      onExpandedChange={setIsExpanded}
       className={`w-full ${isExpanded ? 'flex min-h-0 flex-1 flex-col gap-1' : ''}`}
+      isExpanded={isExpanded}
+      ref={disclosureRef}
+      onExpandedChange={setIsExpanded}
     >
       <Disclosure.Heading>
         <Disclosure.Trigger className='w-full cursor-pointer'>
@@ -404,14 +335,14 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
         <div className='card__content flex min-h-0 flex-1 flex-col gap-2 p-2'>
           {tabs.length > 1 && (
             <Tabs
-              variant='secondary'
               selectedKey={activeTabId}
+              variant='secondary'
               onSelectionChange={handleTabChange}
             >
               <Tabs.ListContainer>
                 <Tabs.List aria-label='Object details'>
                   {tabs.map((tab) => (
-                    <Tabs.Tab key={tab.id} id={tab.id} className='capitalize'>
+                    <Tabs.Tab className='capitalize' id={tab.id} key={tab.id}>
                       {tab.label}
                       <Tabs.Indicator />
                     </Tabs.Tab>
@@ -422,8 +353,8 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
           )}
           <ScrollShadow
             hideScrollBar
-            offset={2}
             className='min-h-0 flex-1 overflow-y-auto overscroll-y-contain'
+            offset={2}
             orientation='vertical'
           >
             {renderJsonContent()}
@@ -431,5 +362,76 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
         </div>
       </Disclosure.Content>
     </Disclosure>
+  );
+}
+
+/**
+ * Shared JsonView configuration used across all tabs
+ */
+function MetadataJsonView({ collapsed = 1, src }) {
+  return (
+    <JsonView
+      displaySize
+      className='text-sm'
+      collapsed={collapsed}
+      collapseStringMode='word'
+      collapseStringsAfterLength={50}
+      matchesURL={false}
+      src={src}
+      CopiedComponent={({ className, style }) => (
+        <AnimatedCheck
+          className={className + ' text-success'}
+          size={16}
+          stroke={1.5}
+          style={style}
+        />
+      )}
+      CopyComponent={({ className, onClick, style }) => (
+        <IconClipboard
+          className={className}
+          size={16}
+          stroke={1.5}
+          style={style}
+          onClick={onClick}
+        />
+      )}
+      customizeNode={(params) => {
+        if (params.node === null || params.node === undefined) {
+          return { enableClipboard: false };
+        }
+        if (
+          typeof params.node === 'string' &&
+          params.node.startsWith('https://')
+        ) {
+          return (
+            <Link
+              className='text-sm text-accent no-underline decoration-accent hover:underline'
+              href={params.node}
+              target='_blank'
+            >
+              {params.node}
+            </Link>
+          );
+        }
+        if (params.indexOrName?.toLowerCase().includes('id')) {
+          return { enableClipboard: true };
+        } else if (
+          (typeof params.node === 'number' ||
+            typeof params.node === 'string') &&
+          params.node?.toString().length >= 7
+        ) {
+          return { enableClipboard: true };
+        } else if (
+          typeof params.node === 'object' &&
+          Object.keys(params.node).length > 0
+        ) {
+          return { enableClipboard: true };
+        } else if (Array.isArray(params.node) && params.node.length > 0) {
+          return { enableClipboard: true };
+        } else {
+          return { enableClipboard: false };
+        }
+      }}
+    />
   );
 }

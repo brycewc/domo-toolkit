@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import {
   Button,
   Card,
@@ -26,27 +25,43 @@ import {
   IconUserPlus
 } from '@tabler/icons-react';
 import { motion } from 'motion/react';
+import { useEffect, useState } from 'react';
+
 import toolkitLogo from '@/assets/toolkit-128.png';
 
 const STORAGE_KEY = 'welcomePageDismissed';
 
 const cookieOptions = [
   {
+    description: 'Clear cookies on 431 errors, preserve last 2 instances',
     id: 'auto',
-    label: 'Auto (Default)',
-    description: 'Clear cookies on 431 errors, preserve last 2 instances'
+    label: 'Auto (Default)'
   },
   {
+    description: 'Preserve last 2 instances (only manual, no auto-clearing)',
     id: 'preserve',
-    label: 'Preserve',
-    description: 'Preserve last 2 instances (only manual, no auto-clearing)'
+    label: 'Preserve'
   },
   {
+    description: 'Clear all Domo cookies (only manual, no auto-clearing)',
     id: 'all',
-    label: 'All',
-    description: 'Clear all Domo cookies (only manual, no auto-clearing)'
+    label: 'All'
   }
 ];
+
+// Helper to reset welcome page (for testing/settings)
+export function resetWelcomePage() {
+  chrome.storage.local.remove([STORAGE_KEY]);
+}
+
+// Helper to check if welcome page should be shown
+export async function shouldShowWelcomePage() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get([STORAGE_KEY], (result) => {
+      resolve(!result[STORAGE_KEY]);
+    });
+  });
+}
 
 export function WelcomePage() {
   const [dontShowAgain, setDontShowAgain] = useState(false);
@@ -114,9 +129,9 @@ export function WelcomePage() {
     <span>
       Click the extension icon to use the popup (then click{' '}
       <IconLayoutSidebarRightExpand
-        stroke={1.5}
-        size={18}
         className='inline-block shrink-0 align-middle'
+        size={18}
+        stroke={1.5}
       />{' '}
       to use the side panel instead if preferred)
     </span>,
@@ -126,19 +141,19 @@ export function WelcomePage() {
 
   const links = [
     {
+      icon: IconExternalLink,
       label: 'Documentation',
-      url: 'https://github.com/brycewc/domo-toolkit#readme',
-      icon: IconExternalLink
+      url: 'https://github.com/brycewc/domo-toolkit#readme'
     },
     {
+      icon: IconBrandGithub,
       label: 'Report an Issue',
-      url: 'https://github.com/brycewc/domo-toolkit/issues',
-      icon: IconBrandGithub
+      url: 'https://github.com/brycewc/domo-toolkit/issues'
     },
     {
+      icon: IconApi,
       label: 'Postman Collection',
-      url: 'https://www.postman.com/brycewc/workspace/domo-product-apis',
-      icon: IconApi
+      url: 'https://www.postman.com/brycewc/workspace/domo-product-apis'
     }
   ];
 
@@ -150,12 +165,12 @@ export function WelcomePage() {
     <div className='flex h-full min-h-[calc(100vh-20)] w-full flex-col justify-between space-y-4'>
       {/* Header */}
       <motion.div
-        initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
         className='flex flex-col items-center justify-center gap-4 text-center'
+        initial={{ opacity: 0, y: -20 }}
+        transition={{ duration: 0.3 }}
       >
-        <img src={toolkitLogo} alt='Domo Toolkit Logo' className='h-16 w-16' />
+        <img alt='Domo Toolkit Logo' className='h-16 w-16' src={toolkitLogo} />
         <h1 className='text-xl font-semibold text-foreground'>
           Welcome to Domo Toolkit
         </h1>
@@ -166,10 +181,10 @@ export function WelcomePage() {
 
       {/* Action Features */}
       <motion.div
-        initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ duration: 0.3, delay: 0.1 }}
         className='space-y-2'
+        initial={{ opacity: 0 }}
+        transition={{ delay: 0.1, duration: 0.3 }}
       >
         <p className='text-sm font-medium tracking-wide uppercase'>
           What you can do
@@ -177,18 +192,18 @@ export function WelcomePage() {
         <div className='grid grid-cols-2 gap-2'>
           {actionFeatures.map((feature, index) => (
             <motion.div
-              key={feature.label}
-              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2, delay: 0.15 + index * 0.05 }}
+              initial={{ opacity: 0, y: 10 }}
+              key={feature.label}
+              transition={{ delay: 0.15 + index * 0.05, duration: 0.2 }}
             >
               <Card>
                 <Card.Header>
                   <Card.Description className='flex flex-row items-center justify-start gap-2 text-foreground'>
                     <feature.icon
-                      stroke={1.5}
-                      size={18}
                       className='shrink-0 text-accent'
+                      size={18}
+                      stroke={1.5}
                     />
                     {feature.label}
                   </Card.Description>
@@ -201,10 +216,10 @@ export function WelcomePage() {
 
       {/* Automatic Features */}
       <motion.div
-        initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ duration: 0.3, delay: 0.1 }}
         className='space-y-2'
+        initial={{ opacity: 0 }}
+        transition={{ delay: 0.1, duration: 0.3 }}
       >
         <p className='text-sm font-medium tracking-wide uppercase'>
           What happens automatically
@@ -212,18 +227,18 @@ export function WelcomePage() {
         <div className='grid grid-cols-2 gap-2'>
           {automaticFeatures.map((feature, index) => (
             <motion.div
-              key={feature.label}
-              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2, delay: 0.15 + index * 0.05 }}
+              initial={{ opacity: 0, y: 10 }}
+              key={feature.label}
+              transition={{ delay: 0.15 + index * 0.05, duration: 0.2 }}
             >
               <Card>
                 <Card.Header>
                   <Card.Description className='flex flex-row items-center justify-start gap-2 text-foreground'>
                     <feature.icon
-                      stroke={1.5}
-                      size={18}
                       className='shrink-0 text-accent'
+                      size={18}
+                      stroke={1.5}
                     />
                     {feature.label}
                   </Card.Description>
@@ -235,7 +250,7 @@ export function WelcomePage() {
         <Card>
           <Card.Header>
             <Card.Title className='flex items-center gap-2'>
-              <IconCookie stroke={1.5} size={18} className='text-warning' />
+              <IconCookie className='text-warning' size={18} stroke={1.5} />
               Cookie Management
             </Card.Title>
             <Card.Description>
@@ -245,11 +260,11 @@ export function WelcomePage() {
           </Card.Header>
           <Card.Content>
             <Select
-              value={cookieSetting}
-              onChange={handleCookieSettingChange}
-              aria-label='Cookie clearing behavior'
-              variant='secondary'
               fullWidth
+              aria-label='Cookie clearing behavior'
+              value={cookieSetting}
+              variant='secondary'
+              onChange={handleCookieSettingChange}
             >
               <Select.Trigger>
                 <Select.Value>
@@ -261,10 +276,10 @@ export function WelcomePage() {
               </Select.Trigger>
               <Select.Popover>
                 <ListBox>
-                  {cookieOptions.map((option, index) => (
+                  {cookieOptions.map((option, _index) => (
                     <ListBox.Item
-                      key={option.id}
                       id={option.id}
+                      key={option.id}
                       textValue={option.label}
                     >
                       <div className='flex flex-col'>
@@ -283,10 +298,10 @@ export function WelcomePage() {
 
       {/* Getting Started */}
       <motion.div
-        initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ duration: 0.3, delay: 0.2 }}
         className='space-y-2'
+        initial={{ opacity: 0 }}
+        transition={{ delay: 0.2, duration: 0.3 }}
       >
         <p className='text-sm font-medium tracking-wide uppercase'>
           Quick Start Guide
@@ -297,9 +312,9 @@ export function WelcomePage() {
               {quickStartGuide.map((step, index) => (
                 <li className='flex items-center gap-2'>
                   <Chip
-                    variant='soft'
-                    color='accent'
                     className='size-6 items-center justify-center rounded-full'
+                    color='accent'
+                    variant='soft'
                   >
                     {index + 1}
                   </Chip>
@@ -313,10 +328,10 @@ export function WelcomePage() {
 
       {/* Links */}
       <motion.div
-        initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ duration: 0.3, delay: 0.25 }}
         className='flex flex-col gap-2'
+        initial={{ opacity: 0 }}
+        transition={{ delay: 0.25, duration: 0.3 }}
       >
         <p className='text-sm font-medium tracking-wide uppercase'>
           Helpful Links
@@ -324,10 +339,10 @@ export function WelcomePage() {
         <div className='flex flex-row flex-wrap gap-2'>
           {links.map((link) => (
             <Link
-              href={link.url}
-              target='_blank'
-              key={link.label}
               className='no-underline'
+              href={link.url}
+              key={link.label}
+              target='_blank'
             >
               <Button variant='tertiary'>
                 <link.icon stroke={1.5} />
@@ -340,10 +355,10 @@ export function WelcomePage() {
 
       {/* Footer */}
       <motion.div
-        initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ duration: 0.3, delay: 0.3 }}
         className='mt-auto space-y-3 pb-4'
+        initial={{ opacity: 0 }}
+        transition={{ delay: 0.3, duration: 0.3 }}
       >
         <label className='flex cursor-pointer items-center justify-start gap-2'>
           <Checkbox isSelected={dontShowAgain} onChange={setDontShowAgain}>
@@ -363,18 +378,4 @@ export function WelcomePage() {
       </motion.div>
     </div>
   );
-}
-
-// Helper to check if welcome page should be shown
-export async function shouldShowWelcomePage() {
-  return new Promise((resolve) => {
-    chrome.storage.local.get([STORAGE_KEY], (result) => {
-      resolve(!result[STORAGE_KEY]);
-    });
-  });
-}
-
-// Helper to reset welcome page (for testing/settings)
-export function resetWelcomePage() {
-  chrome.storage.local.remove([STORAGE_KEY]);
 }

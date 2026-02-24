@@ -1,5 +1,125 @@
-import { DomoObject } from '@/models';
 import { executeInPage } from '@/utils';
+
+export async function deleteObject({ object, tabId = null }) {
+  // console.log('deleteObject called with:', object, tabId);
+  try {
+    if (!object || !object.typeId || !object.id) {
+      return {
+        statusDescription: 'Invalid object provided for deletion',
+        statusTitle: 'Delete Failed',
+        statusType: 'danger',
+        success: false
+      };
+    }
+
+    const result = await executeInPage(
+      async (object) => {
+        // console.log('Executing delete for object:', object);
+        const fetchOptions = {
+          method: 'DELETE'
+        };
+        let fetchUrl = null;
+        switch (object.typeId) {
+          case 'ACCESS_TOKEN':
+            fetchUrl = `/api/data/v1/accesstokens/${object.id}`;
+            break;
+          case 'APP':
+            fetchUrl = `/api/apps/v1/designs/${object.id}`;
+            break;
+          case 'BEAST_MODE_FORMULA':
+          case 'FUNCTION_TEMPLATE':
+          case 'VARIABLE':
+            fetchUrl = `/api/query/v1/functions/template/${object.id}`;
+            break;
+          case 'MAGNUM_COLLECTION':
+            fetchUrl = `/api/datastores/v1/collections/${object.id}`;
+            break;
+          case 'TEMPLATE':
+            fetchOptions.method = 'POST';
+            fetchUrl = '/api/synapse/approval/graphql';
+            fetchOptions.body = JSON.stringify({
+              operationName: 'archiveTemplate',
+              query:
+                'mutation archiveTemplate($id: ID!) {\n  success: deleteTemplate(id: $id)\n}',
+              variables: {
+                id: object.id
+              }
+            });
+            fetchOptions.headers = {
+              'Content-Type': 'application/json'
+            };
+            break;
+          case 'WORKFLOW_MODEL':
+            fetchUrl = `/api/workflow/v1/models/${object.id}`;
+            break;
+          default:
+            break;
+        }
+
+        if (!fetchUrl) {
+          return {
+            error: `Deletion not supported for object type: ${object.typeId}`,
+            success: false
+          };
+        }
+
+        const response = await fetch(fetchUrl, fetchOptions);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          return {
+            error: errorText,
+            statusCode: response.status,
+            success: false
+          };
+        }
+        const data = await response.json();
+        if (!data.data?.success) {
+          return {
+            error: data.data?.error,
+            statusCode: response.status,
+            success: false
+          };
+        }
+
+        return {
+          objectId: object.id,
+          success: true,
+          typeName: object.typeName
+        };
+      },
+      [object.toJSON()],
+      tabId
+    );
+
+    if (result.success) {
+      return {
+        statusDescription: `Deleted ${result.typeName?.toLowerCase() || 'object'} ${result.objectId}`,
+        statusTitle: 'Deleted Successfully',
+        statusType: 'success',
+        success: true
+      };
+    } else {
+      return {
+        statusDescription:
+          result.error ||
+          `Failed to delete object. Status: ${result.statusCode || 'unknown'}`,
+        statusTitle: 'Delete Failed',
+        statusType: 'danger',
+        success: false
+      };
+    }
+  } catch (error) {
+    console.error('Error in deleteObject:', error);
+    return {
+      error: error.message,
+      statusDescription: error.message,
+      statusTitle: 'Delete Failed',
+      statusType: 'danger',
+      success: false
+    };
+  }
+}
 
 /**
  * Fetch object details from the Domo API and enrich metadata (page-safe version)
@@ -7,7 +127,6 @@ import { executeInPage } from '@/utils';
  * @param {Object} params - Parameters object
  * @param {string} params.typeId - The object type ID
  * @param {string} params.objectId - The object ID
- * @param {string} params.baseUrl - The base URL
  * @param {Object} params.apiConfig - The API configuration {method, endpoint, pathToName, bodyTemplate}
  * @param {boolean} params.requiresParent - Whether parent ID is required for API
  * @param {string} [params.parentId] - Optional parent ID if already known
@@ -16,23 +135,22 @@ import { executeInPage } from '@/utils';
  */
 export async function fetchObjectDetailsInPage(params) {
   const {
-    typeId,
-    objectId,
-    baseUrl,
     apiConfig,
-    requiresParent,
+    objectId,
     parentId: providedParentId,
-    throwOnError = true
+    requiresParent,
+    throwOnError = true,
+    typeId
   } = params;
 
   const {
-    method,
+    bodyTemplate = null,
     endpoint,
-    pathToName,
+    method,
     nameTemplate = null,
     pathToDetails = null,
-    pathToParentId = null,
-    bodyTemplate = null
+    pathToName,
+    pathToParentId = null
   } = apiConfig;
   let url;
   let parentId = providedParentId;
@@ -57,8 +175,8 @@ export async function fetchObjectDetailsInPage(params) {
 
     // Prepare fetch options
     const options = {
-      method,
-      credentials: 'include'
+      credentials: 'include',
+      method
     };
 
     // Add body for POST requests
@@ -118,9 +236,9 @@ export async function fetchObjectDetailsInPage(params) {
  */
 export async function shareWithSelf({
   object,
-  userId,
   setStatus,
-  tabId = null
+  tabId = null,
+  userId
 }) {
   try {
     if (!object || !object.typeId || !object.id) {
@@ -130,9 +248,59 @@ export async function shareWithSelf({
     // Execute share based on object type
     const result = await executeInPage(
       async (objectTypeId, objectId, userId, metadata) => {
-        let url, options, successMessage;
+        let options, successMessage, url;
 
         switch (objectTypeId) {
+          case 'APP': {
+            // Custom App Design (assetlibrary)
+            url = `/api/apps/v1/designs/${objectId}/permissions/ADMIN`;
+            options = {
+              body: JSON.stringify([userId]),
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              method: 'POST'
+            };
+            successMessage = `Custom App Design ${objectId} shared successfully`;
+            break;
+          }
+
+          case 'DATA_APP': {
+            // Studio App (shared like pages)
+            url = '/api/content/v1/share?sendEmail=false';
+            options = {
+              body: JSON.stringify({
+                recipients: [
+                  { id: userId, permission: 'HAS_ACCESS', type: 'user' }
+                ],
+                resources: [{ id: objectId, type: 'page' }]
+              }),
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              method: 'POST'
+            };
+            successMessage = `Studio App ${objectId} shared successfully`;
+            break;
+          }
+
+          case 'DATA_APP_VIEW':
+          case 'PAGE': {
+            // Page or App Studio Page
+            url = '/api/content/v1/share?sendEmail=false';
+            options = {
+              body: JSON.stringify({
+                recipients: [
+                  { id: userId, permission: 'HAS_ACCESS', type: 'user' }
+                ],
+                resources: [{ id: objectId, type: 'page' }]
+              }),
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              method: 'POST'
+            };
+            successMessage = `Page ${objectId} shared successfully`;
+            break;
+          }
+
           case 'DATA_SOURCE': {
             // For DataSets, we need to share the account
             if (!metadata?.details?.accountId) {
@@ -150,66 +318,16 @@ export async function shareWithSelf({
 
             url = `/api/data/v2/accounts/share/${accountId}`;
             options = {
-              method: 'PUT',
+              body: JSON.stringify({
+                accessLevel: 'CAN_VIEW',
+                id: userId,
+                type: 'USER'
+              }),
               credentials: 'include',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                type: 'USER',
-                id: userId,
-                accessLevel: 'CAN_VIEW'
-              })
+              method: 'PUT'
             };
             successMessage = `Account ${accountId} shared successfully`;
-            break;
-          }
-
-          case 'APP': {
-            // Custom App Design (assetlibrary)
-            url = `/api/apps/v1/designs/${objectId}/permissions/ADMIN`;
-            options = {
-              method: 'POST',
-              credentials: 'include',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify([userId])
-            };
-            successMessage = `Custom App Design ${objectId} shared successfully`;
-            break;
-          }
-
-          case 'PAGE':
-          case 'DATA_APP_VIEW': {
-            // Page or App Studio Page
-            url = `/api/content/v1/share?sendEmail=false`;
-            options = {
-              method: 'POST',
-              credentials: 'include',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                resources: [{ type: 'page', id: objectId }],
-                recipients: [
-                  { type: 'user', id: userId, permission: 'HAS_ACCESS' }
-                ]
-              })
-            };
-            successMessage = `Page ${objectId} shared successfully`;
-            break;
-          }
-
-          case 'DATA_APP': {
-            // Studio App (shared like pages)
-            url = `/api/content/v1/share?sendEmail=false`;
-            options = {
-              method: 'POST',
-              credentials: 'include',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                resources: [{ type: 'page', id: objectId }],
-                recipients: [
-                  { type: 'user', id: userId, permission: 'HAS_ACCESS' }
-                ]
-              })
-            };
-            successMessage = `Studio App ${objectId} shared successfully`;
             break;
           }
 
@@ -243,135 +361,14 @@ export async function shareWithSelf({
   }
 }
 
-export async function deleteObject({ object, tabId = null }) {
-  // console.log('deleteObject called with:', object, tabId);
-  try {
-    if (!object || !object.typeId || !object.id) {
-      return {
-        success: false,
-        statusTitle: 'Delete Failed',
-        statusDescription: 'Invalid object provided for deletion',
-        statusType: 'danger'
-      };
-    }
-
-    const result = await executeInPage(
-      async (object) => {
-        // console.log('Executing delete for object:', object);
-        const fetchOptions = {
-          method: 'DELETE'
-        };
-        let fetchUrl = null;
-        switch (object.typeId) {
-          case 'MAGNUM_COLLECTION':
-            fetchUrl = `/api/datastores/v1/collections/${object.id}`;
-            break;
-          case 'ACCESS_TOKEN':
-            fetchUrl = `/api/data/v1/accesstokens/${object.id}`;
-            break;
-          case 'APP':
-            fetchUrl = `/api/apps/v1/designs/${object.id}`;
-            break;
-          case 'BEAST_MODE_FORMULA':
-          case 'FUNCTION_TEMPLATE':
-          case 'VARIABLE':
-            fetchUrl = `/api/query/v1/functions/template/${object.id}`;
-            break;
-          case 'TEMPLATE':
-            fetchOptions.method = 'POST';
-            fetchUrl = `/api/synapse/approval/graphql`;
-            fetchOptions.body = JSON.stringify({
-              operationName: 'archiveTemplate',
-              variables: {
-                id: object.id
-              },
-              query:
-                'mutation archiveTemplate($id: ID!) {\n  success: deleteTemplate(id: $id)\n}'
-            });
-            fetchOptions.headers = {
-              'Content-Type': 'application/json'
-            };
-            break;
-          case 'WORKFLOW_MODEL':
-            fetchUrl = `/api/workflow/v1/models/${object.id}`;
-            break;
-          default:
-            break;
-        }
-
-        if (!fetchUrl) {
-          return {
-            success: false,
-            error: `Deletion not supported for object type: ${object.typeId}`
-          };
-        }
-
-        const response = await fetch(fetchUrl, fetchOptions);
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          return {
-            success: false,
-            statusCode: response.status,
-            error: errorText
-          };
-        }
-        const data = await response.json();
-        if (!data.data?.success) {
-          return {
-            success: false,
-            statusCode: response.status,
-            error: data.data?.error
-          };
-        }
-
-        return {
-          success: true,
-          objectId: object.id,
-          typeName: object.typeName
-        };
-      },
-      [object.toJSON()],
-      tabId
-    );
-
-    if (result.success) {
-      return {
-        success: true,
-        statusTitle: 'Deleted Successfully',
-        statusDescription: `Deleted ${result.typeName?.toLowerCase() || 'object'} ${result.objectId}`,
-        statusType: 'success'
-      };
-    } else {
-      return {
-        success: false,
-        statusTitle: 'Delete Failed',
-        statusDescription:
-          result.error ||
-          `Failed to delete object. Status: ${result.statusCode || 'unknown'}`,
-        statusType: 'danger'
-      };
-    }
-  } catch (error) {
-    console.error('Error in deleteObject:', error);
-    return {
-      success: false,
-      error: error.message,
-      statusTitle: 'Delete Failed',
-      statusDescription: error.message,
-      statusType: 'danger'
-    };
-  }
-}
-
 export async function updateOwner({ object, owner, tabId = null }) {
   try {
     if (!object || !object.typeId || !object.id) {
       return {
-        success: false,
-        statusTitle: 'Update Failed',
         statusDescription: 'Invalid object provided for owner update',
-        statusType: 'danger'
+        statusTitle: 'Update Failed',
+        statusType: 'danger',
+        success: false
       };
     }
 
@@ -379,9 +376,9 @@ export async function updateOwner({ object, owner, tabId = null }) {
       async (object, newOwnerId) => {
         // console.log('Executing updateOwner:', object, newOwnerId);
         const fetchRequest = {
+          body: { id: object.id, owner: parseInt(newOwnerId) },
           method: 'PUT',
-          url: null,
-          body: { id: object.id, owner: parseInt(newOwnerId) }
+          url: null
         };
         switch (object.typeId) {
           case 'ALERT':
@@ -402,31 +399,31 @@ export async function updateOwner({ object, owner, tabId = null }) {
 
         if (!fetchRequest.url) {
           return {
-            success: false,
-            error: `Update not supported for object type: ${object.typeId}`
+            error: `Update not supported for object type: ${object.typeId}`,
+            success: false
           };
         }
 
         // console.log('Update fetch request:', fetchRequest);
         const response = await fetch(fetchRequest.url, {
-          method: fetchRequest.method,
           body: JSON.stringify(fetchRequest.body),
           headers: {
             'Content-Type': 'application/json'
-          }
+          },
+          method: fetchRequest.method
         });
         // console.log('Update response:', response);
         if (!response.ok) {
           const errorText = await response.text();
           return {
-            success: false,
+            error: errorText,
             statusCode: response.status,
-            error: errorText
+            success: false
           };
         } else {
           return {
-            success: true,
             objectId: object.id,
+            success: true,
             typeName: object.typeName
           };
         }
@@ -437,29 +434,29 @@ export async function updateOwner({ object, owner, tabId = null }) {
 
     if (result.success) {
       return {
-        success: true,
-        statusTitle: 'Updated Successfully',
         statusDescription: `Updated ${result.typeName?.toLowerCase() || 'object'} ${result.objectId}`,
-        statusType: 'success'
+        statusTitle: 'Updated Successfully',
+        statusType: 'success',
+        success: true
       };
     } else {
       return {
-        success: false,
-        statusTitle: 'Update Failed',
         statusDescription:
           result.error ||
           `Failed to update object. Status: ${result.statusCode || 'unknown'}`,
-        statusType: 'danger'
+        statusTitle: 'Update Failed',
+        statusType: 'danger',
+        success: false
       };
     }
   } catch (error) {
     console.error('Error in updateOwner:', error);
     return {
-      success: false,
       error: error.message,
-      statusTitle: 'Update Failed',
       statusDescription: error.message,
-      statusType: 'danger'
+      statusTitle: 'Update Failed',
+      statusType: 'danger',
+      success: false
     };
   }
 }

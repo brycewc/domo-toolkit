@@ -1,16 +1,6 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
-import {
-  flexRender,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getSortedRowModel,
-  useReactTable
-} from '@tanstack/react-table';
-import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   Button,
   Card,
-  Checkbox,
   Chip,
   Dropdown,
   Label,
@@ -27,8 +17,19 @@ import {
   IconPlus,
   IconRefresh
 } from '@tabler/icons-react';
+import {
+  flexRender,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getSortedRowModel,
+  useReactTable
+} from '@tanstack/react-table';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { AnimatePresence } from 'motion/react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+
 import { exportToCSV, exportToExcel, generateExportFilename } from '@/utils';
+
 import { AnimatedCheck } from './../AnimatedCheck';
 
 /**
@@ -64,20 +65,20 @@ import { AnimatedCheck } from './../AnimatedCheck';
  */
 export function DataTable({
   columns = [],
-  data = [],
-  onAdd,
-  onRowAction,
-  searchPlaceholder = 'Search...',
-  entityName = 'items',
-  initialSorting = [],
-  initialColumnVisibility = {},
-  enableSelection = true,
-  enableSearch = true,
-  onLoadMore,
   customFilters = null,
+  data = [],
+  enableSearch = true,
+  enableSelection = true,
+  entityName = 'items',
   exportConfig = null,
+  initialColumnVisibility = {},
+  initialSorting = [],
+  isRefreshing = false,
+  onAdd,
+  onLoadMore,
   onRefresh = null,
-  isRefreshing = false
+  onRowAction,
+  searchPlaceholder = 'Search...'
 }) {
   const [sorting, setSorting] = useState(initialSorting);
   const [columnFilters, setColumnFilters] = useState([]);
@@ -92,34 +93,34 @@ export function DataTable({
   const tableContainerRef = useRef(null);
 
   const table = useReactTable({
-    data,
     columns,
-    state: {
-      sorting,
-      columnFilters,
-      columnVisibility,
-      rowSelection,
-      globalFilter
-    },
+    data,
     enableRowSelection: enableSelection,
-    onRowSelectionChange: setRowSelection,
-    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     onGlobalFilterChange: setGlobalFilter,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel()
+    onRowSelectionChange: setRowSelection,
+    onSortingChange: setSorting,
+    state: {
+      columnFilters,
+      columnVisibility,
+      globalFilter,
+      rowSelection,
+      sorting
+    }
   });
 
   const { rows } = table.getRowModel();
 
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
-    getScrollElement: () => tableContainerRef?.current,
     estimateSize: () => 53, // Estimated row height in pixels
-    overscan: 10, // Number of rows to render outside of the visible area
-    measureElement: (element) => element?.getBoundingClientRect().height
+    getScrollElement: () => tableContainerRef?.current,
+    measureElement: (element) => element?.getBoundingClientRect().height,
+    overscan: 10 // Number of rows to render outside of the visible area
   });
 
   // Trigger onLoadMore when scrolling near the end
@@ -129,7 +130,7 @@ export function DataTable({
     if (!scrollElement || !onLoadMore) return;
 
     const handleScroll = () => {
-      const { scrollTop, scrollHeight, clientHeight } = scrollElement;
+      const { clientHeight, scrollHeight, scrollTop } = scrollElement;
       const scrollPercentage = (scrollTop + clientHeight) / scrollHeight;
 
       if (isLoadingMore) {
@@ -146,9 +147,6 @@ export function DataTable({
     };
 
     scrollElement.addEventListener('scroll', handleScroll);
-
-    // Log initial scroll state
-    const { scrollTop, scrollHeight, clientHeight } = scrollElement;
 
     return () => {
       scrollElement.removeEventListener('scroll', handleScroll);
@@ -225,11 +223,11 @@ export function DataTable({
             {/* Search Input */}
             {enableSearch && (
               <SearchField
+                fullWidth
                 name='search'
                 value={globalFilter ?? ''}
-                onChange={setGlobalFilter}
-                fullWidth
                 variant='secondary'
+                onChange={setGlobalFilter}
               >
                 <SearchField.Group className='rounded-4xl'>
                   <SearchField.SearchIcon />
@@ -250,7 +248,7 @@ export function DataTable({
                 <Button variant='tertiary'>
                   <IconColumns stroke={1.5} />
                   Columns
-                  <Chip variant='soft' size='sm' color='accent'>
+                  <Chip color='accent' size='sm' variant='soft'>
                     {
                       toggleableColumns.filter((col) => col.getIsVisible())
                         .length
@@ -261,6 +259,11 @@ export function DataTable({
                 <Dropdown.Popover>
                   <Dropdown.Menu
                     selectionMode='multiple'
+                    onSelectionChange={(keys) => {
+                      toggleableColumns.forEach((column) => {
+                        column.toggleVisibility(keys.has(column.id));
+                      });
+                    }}
                     selectedKeys={
                       new Set(
                         toggleableColumns
@@ -268,11 +271,6 @@ export function DataTable({
                           .map((col) => col.id)
                       )
                     }
-                    onSelectionChange={(keys) => {
-                      toggleableColumns.forEach((column) => {
-                        column.toggleVisibility(keys.has(column.id));
-                      });
-                    }}
                   >
                     {toggleableColumns.map((column) => (
                       <Dropdown.Item
@@ -284,8 +282,8 @@ export function DataTable({
                             <AnimatePresence>
                               {isSelected && (
                                 <AnimatedCheck
-                                  stroke={1.5}
                                   className='text-muted'
+                                  stroke={1.5}
                                 />
                               )}
                             </AnimatePresence>
@@ -300,21 +298,20 @@ export function DataTable({
 
               {/* Export Dropdown */}
               {exportConfig?.enabled && (
-                <Tooltip delay={400} closeDelay={0}>
+                <Tooltip closeDelay={0} delay={400}>
                   <Dropdown>
                     <Button
-                      variant='tertiary'
+                      isIconOnly
                       isDisabled={isExporting || data.length === 0}
                       isPending={isExporting}
-                      isIconOnly
+                      variant='tertiary'
                     >
                       {({ isPending }) =>
                         isPending ? (
-                          <Spinner size='sm' color='currentColor' />
+                          <Spinner color='currentColor' size='sm' />
                         ) : (
                           <IconDownload stroke={1.5} />
-                        )
-                      }
+                        )}
                     </Button>
                     <Dropdown.Popover>
                       <Dropdown.Menu onAction={(key) => handleExport(key)}>
@@ -335,21 +332,20 @@ export function DataTable({
 
               {/* Refresh Button */}
               {onRefresh && (
-                <Tooltip delay={400} closeDelay={0}>
+                <Tooltip closeDelay={0} delay={400}>
                   <Button
-                    variant='tertiary'
-                    onPress={onRefresh}
+                    isIconOnly
                     isDisabled={isRefreshing}
                     isPending={isRefreshing}
-                    isIconOnly
+                    variant='tertiary'
+                    onPress={onRefresh}
                   >
                     {({ isPending }) =>
                       isPending ? (
-                        <Spinner size='sm' color='currentColor' />
+                        <Spinner color='currentColor' size='sm' />
                       ) : (
                         <IconRefresh stroke={1.5} />
-                      )
-                    }
+                      )}
                   </Button>
                   <Tooltip.Content>Refresh</Tooltip.Content>
                 </Tooltip>
@@ -362,11 +358,11 @@ export function DataTable({
             {/* Bulk Actions Button - Only show if selection is enabled */}
             {enableSelection && hasSelectColumn && (
               <Dropdown>
-                <Button variant='secondary' isDisabled={selectedCount === 0}>
+                <Button isDisabled={selectedCount === 0} variant='secondary'>
                   Actions ({selectedCount})
                   <IconChevronDown
-                    stroke={1.5}
                     className='size-4 text-foreground'
+                    stroke={1.5}
                   />
                 </Button>
                 <Dropdown.Popover>
@@ -417,8 +413,8 @@ export function DataTable({
       {/* Table */}
       <Card.Content className='overflow-hidden rounded-lg border border-default'>
         <div
-          ref={tableContainerRef}
           className='max-h-[calc(100vh-15rem)] overflow-auto overscroll-y-contain'
+          ref={tableContainerRef}
         >
           <table className='w-full'>
             <thead className='sticky top-0 z-10 bg-background'>
@@ -426,22 +422,22 @@ export function DataTable({
                 <tr key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
                     <th
-                      key={header.id}
                       className='p-3 text-left text-xs font-medium tracking-wider uppercase'
+                      key={header.id}
                       style={{
-                        width: header.column.columnDef.size,
+                        maxWidth: header.column.columnDef.maxSize,
                         minWidth: header.column.columnDef.minSize,
-                        maxWidth: header.column.columnDef.maxSize
+                        width: header.column.columnDef.size
                       }}
                     >
                       {header.isPlaceholder ? null : (
                         <div
+                          onClick={header.column.getToggleSortingHandler()}
                           className={`flex items-center gap-2 ${
                             header.column.getCanSort()
                               ? 'cursor-pointer select-none'
                               : ''
                           }`}
-                          onClick={header.column.getToggleSortingHandler()}
                         >
                           {flexRender(
                             header.column.columnDef.header,
@@ -451,13 +447,13 @@ export function DataTable({
                             <span className='text-muted'>
                               {header.column.getIsSorted() === 'asc' ? (
                                 <IconChevronDown
-                                  stroke={1.5}
                                   className='size-4 rotate-180 text-foreground'
+                                  stroke={1.5}
                                 />
                               ) : header.column.getIsSorted() === 'desc' ? (
                                 <IconChevronDown
-                                  stroke={1.5}
                                   className='size-4 text-foreground'
+                                  stroke={1.5}
                                 />
                               ) : (
                                 <div className='size-4' />
@@ -475,8 +471,8 @@ export function DataTable({
               {table.getRowModel().rows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={columns.length}
                     className='p-3 text-center text-muted'
+                    colSpan={columns.length}
                   >
                     No results found
                   </td>
@@ -496,23 +492,23 @@ export function DataTable({
                     const row = rows[virtualRow.index];
                     return (
                       <tr
+                        data-index={virtualRow.index}
                         key={row.id}
+                        ref={(node) => rowVirtualizer.measureElement(node)}
                         className={`divide-x divide-default transition-colors hover:bg-surface/30 ${
                           virtualRow.index % 2 === 0
                             ? 'bg-transparent'
                             : 'bg-surface/10'
                         }`}
-                        data-index={virtualRow.index}
-                        ref={(node) => rowVirtualizer.measureElement(node)}
                       >
                         {row.getVisibleCells().map((cell) => (
                           <td
-                            key={cell.id}
                             className='px-3 py-2'
+                            key={cell.id}
                             style={{
-                              width: cell.column.columnDef.size,
+                              maxWidth: cell.column.columnDef.maxSize,
                               minWidth: cell.column.columnDef.minSize,
-                              maxWidth: cell.column.columnDef.maxSize
+                              width: cell.column.columnDef.size
                             }}
                           >
                             {flexRender(
@@ -546,38 +542,4 @@ export function DataTable({
       </Card.Content>
     </Card>
   );
-}
-
-/**
- * Helper function to create a checkbox column for row selection
- * Use this as the first column in your columns array
- */
-function createCheckboxColumn() {
-  return {
-    id: 'select',
-    header: ({ table }) => (
-      <Checkbox
-        isSelected={table.getIsAllRowsSelected()}
-        isIndeterminate={table.getIsSomeRowsSelected()}
-        onChange={(value) => table.toggleAllRowsSelected(value)}
-      >
-        <Checkbox.Control>
-          <Checkbox.Indicator />
-        </Checkbox.Control>
-      </Checkbox>
-    ),
-    cell: ({ row }) => (
-      <Checkbox
-        isSelected={row.getIsSelected()}
-        isDisabled={!row.getCanSelect()}
-        onChange={(value) => row.toggleSelected(value)}
-      >
-        <Checkbox.Control>
-          <Checkbox.Indicator />
-        </Checkbox.Control>
-      </Checkbox>
-    ),
-    enableSorting: false,
-    enableHiding: false
-  };
 }

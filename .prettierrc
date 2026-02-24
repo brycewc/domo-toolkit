@@ -1,12 +1,14 @@
 {
-  "plugins": [
-    "prettier-plugin-tailwindcss"
-  ],
+  "plugins": ["prettier-plugin-tailwindcss"],
   "tailwindStylesheet": "./src/assets/global.css",
   "trailingComma": "none",
   "tabWidth": 2,
   "semi": true,
   "singleQuote": true,
   "quoteProps": "consistent",
-  "jsxSingleQuote": true
+  "jsxSingleQuote": true,
+  "arrowParens": "always",
+  "bracketSpacing": true,
+  "bracketSameLine": false,
+  "endOfLine": "lf"
 }

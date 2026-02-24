@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import {
   Button,
   ButtonGroup,
@@ -6,22 +5,24 @@ import {
   Disclosure,
   DisclosureGroup,
   Link,
+  Popover,
   ScrollShadow,
-  Tooltip,
-  Popover
+  Tooltip
 } from '@heroui/react';
 import {
+  IconChartBar,
   IconChevronDown,
   IconClipboard,
   IconCopyX,
   IconDots,
   IconFolders,
-  IconChartBar,
   IconRefresh,
   IconUserPlus,
   IconUsersPlus,
   IconX
 } from '@tabler/icons-react';
+import { useState } from 'react';
+
 import { AnimatedCheck } from './AnimatedCheck';
 
 /**
@@ -33,34 +34,6 @@ import { AnimatedCheck } from './AnimatedCheck';
  * Available item action types for DataList items
  * @typedef {'remove' | 'openAll' | 'copy' | 'share' | 'shareAll'} ItemActionType
  */
-
-/**
- * Recursively collect all URLs from items and their children
- * Skips virtual parent nodes (grouping headers) that don't have real URLs
- * @param {Array} itemList - Array of items to collect URLs from
- * @param {Function} [filter] - Optional filter function (item) => boolean
- * @returns {string[]} Array of URLs
- */
-function collectAllUrls(itemList, filter = null) {
-  const urls = [];
-  const traverse = (list) => {
-    for (const item of list) {
-      // Add URL if it exists and item is not a virtual parent
-      // Also apply optional filter (e.g., skip DATA_APP items)
-      if (item.url && !item.isVirtualParent) {
-        if (!filter || filter(item)) {
-          urls.push(item.url);
-        }
-      }
-      // Recursively process children
-      if (item.children && item.children.length > 0) {
-        traverse(item.children);
-      }
-    }
-  };
-  traverse(itemList);
-  return urls;
-}
 
 /**
  * DataList Component
@@ -99,24 +72,24 @@ function collectAllUrls(itemList, filter = null) {
  * @param {String} props.itemLabel - Label for items in status messages (default: 'item')
  */
 export function DataList({
-  items = [],
-  title,
-  headerActions = [],
-  onClose,
   closeLabel = 'Close',
+  headerActions = [],
   isRefreshing = false,
-  objectId,
-  onRefresh,
-  onShareAll,
   itemActions,
+  itemLabel = 'item',
+  items = [],
+  objectId,
+  objectType,
+  onClose,
   onItemRemove,
   onItemShare,
   onItemShareAll,
+  onRefresh,
+  onShareAll,
   onStatusUpdate,
   showActions = true,
   showCounts = true,
-  objectType,
-  itemLabel = 'item'
+  title
 }) {
   const [isCopied, setIsCopied] = useState(false);
   const [isHeaderShared, setIsHeaderShared] = useState(false);
@@ -192,8 +165,14 @@ export function DataList({
   const handleItemAction = async (actionType, item) => {
     try {
       switch (actionType) {
-        case 'remove':
-          onItemRemove?.(item);
+        case 'copy':
+          await navigator.clipboard.writeText(item.id?.toString() || '');
+          onStatusUpdate?.(
+            'Copied',
+            `ID **${item.id}** copied to clipboard`,
+            'success',
+            2000
+          );
           break;
         case 'openAll':
           if (item.children) {
@@ -211,14 +190,8 @@ export function DataList({
             );
           }
           break;
-        case 'copy':
-          await navigator.clipboard.writeText(item.id?.toString() || '');
-          onStatusUpdate?.(
-            'Copied',
-            `ID **${item.id}** copied to clipboard`,
-            'success',
-            2000
-          );
+        case 'remove':
+          onItemRemove?.(item);
           break;
 
         case 'share':
@@ -255,20 +228,20 @@ export function DataList({
               <ButtonGroup hideSeparator className='flex shrink-0'>
                 {headerActions.length > 0 && (
                   <Popover>
-                    <Button variant='ghost' size='sm' isIconOnly>
+                    <Button isIconOnly size='sm' variant='ghost'>
                       <IconDots stroke={1.5} />
                     </Button>
-                    <Popover.Content placement='left' offset={2}>
+                    <Popover.Content offset={2} placement='left'>
                       <Popover.Dialog className='p-0'>
-                        <ButtonGroup size='sm' fullWidth variant='ghost'>
+                        <ButtonGroup fullWidth size='sm' variant='ghost'>
                           {headerActions.includes('openAll') && (
-                            <Tooltip delay={400} closeDelay={0}>
+                            <Tooltip closeDelay={0} delay={400}>
                               <Button
-                                variant='ghost'
-                                size='sm'
                                 isIconOnly
-                                onPress={() => handleHeaderAction('openAll')}
                                 aria-label='Open All'
+                                size='sm'
+                                variant='ghost'
+                                onPress={() => handleHeaderAction('openAll')}
                               >
                                 <IconFolders stroke={1.5} />
                               </Button>
@@ -278,13 +251,13 @@ export function DataList({
                             </Tooltip>
                           )}
                           {headerActions.includes('shareAll') && (
-                            <Tooltip delay={400} closeDelay={0}>
+                            <Tooltip closeDelay={0} delay={400}>
                               <Button
-                                variant='ghost'
-                                size='sm'
                                 isIconOnly
-                                onPress={() => handleHeaderAction('shareAll')}
                                 aria-label='Share All'
+                                size='sm'
+                                variant='ghost'
+                                onPress={() => handleHeaderAction('shareAll')}
                               >
                                 {isHeaderShared ? (
                                   <AnimatedCheck stroke={1.5} />
@@ -300,13 +273,13 @@ export function DataList({
                             </Tooltip>
                           )}
                           {headerActions.includes('copy') && (
-                            <Tooltip delay={400} closeDelay={0}>
+                            <Tooltip closeDelay={0} delay={400}>
                               <Button
-                                variant='ghost'
-                                size='sm'
                                 isIconOnly
-                                onPress={() => handleHeaderAction('copy')}
                                 aria-label='Copy'
+                                size='sm'
+                                variant='ghost'
+                                onPress={() => handleHeaderAction('copy')}
                               >
                                 {isCopied ? (
                                   <AnimatedCheck stroke={1.5} />
@@ -321,18 +294,18 @@ export function DataList({
                           )}
 
                           {headerActions.includes('refresh') && (
-                            <Tooltip delay={400} closeDelay={0}>
+                            <Tooltip closeDelay={0} delay={400}>
                               <Button
-                                variant='ghost'
-                                size='sm'
                                 isIconOnly
                                 isDisabled={isRefreshing}
+                                size='sm'
+                                variant='ghost'
                                 onPress={() => handleHeaderAction('refresh')}
                               >
                                 <IconRefresh
-                                  stroke={1.5}
-                                  size={16}
                                   className={isRefreshing ? 'animate-spin' : ''}
+                                  size={16}
+                                  stroke={1.5}
                                 />
                               </Button>
                               <Tooltip.Content className='text-xs'>
@@ -346,11 +319,11 @@ export function DataList({
                   </Popover>
                 )}
                 {onClose && (
-                  <Tooltip delay={400} closeDelay={0}>
+                  <Tooltip closeDelay={0} delay={400}>
                     <Button
-                      variant='ghost'
-                      size='sm'
                       isIconOnly
+                      size='sm'
+                      variant='ghost'
                       onPress={onClose}
                     >
                       <IconX stroke={1.5} />
@@ -367,25 +340,25 @@ export function DataList({
       )}
 
       <ScrollShadow
-        orientation='vertical'
         hideScrollBar
-        offset={2}
         className='min-h-0 flex-1 overflow-y-auto overscroll-x-none overscroll-y-contain'
+        offset={2}
+        orientation='vertical'
       >
         <Card.Content>
           <DisclosureGroup
-            className='flex w-full flex-col'
             allowsMultipleExpanded
+            className='flex w-full flex-col'
           >
             {items.map((item, index) => (
               <DataListItem
-                key={item.id || index}
                 item={item}
                 itemActions={itemActions}
-                onItemAction={handleItemAction}
+                key={item.id || index}
+                objectType={objectType}
                 showActions={showActions}
                 showCounts={showCounts}
-                objectType={objectType}
+                onItemAction={handleItemAction}
               />
             ))}
           </DisclosureGroup>
@@ -393,6 +366,34 @@ export function DataList({
       </ScrollShadow>
     </Card>
   );
+}
+
+/**
+ * Recursively collect all URLs from items and their children
+ * Skips virtual parent nodes (grouping headers) that don't have real URLs
+ * @param {Array} itemList - Array of items to collect URLs from
+ * @param {Function} [filter] - Optional filter function (item) => boolean
+ * @returns {string[]} Array of URLs
+ */
+function collectAllUrls(itemList, filter = null) {
+  const urls = [];
+  const traverse = (list) => {
+    for (const item of list) {
+      // Add URL if it exists and item is not a virtual parent
+      // Also apply optional filter (e.g., skip DATA_APP items)
+      if (item.url && !item.isVirtualParent) {
+        if (!filter || filter(item)) {
+          urls.push(item.url);
+        }
+      }
+      // Recursively process children
+      if (item.children && item.children.length > 0) {
+        traverse(item.children);
+      }
+    }
+  };
+  traverse(itemList);
+  return urls;
 }
 
 /**
@@ -414,13 +415,13 @@ export function DataList({
  * @param {String} props.objectType - The type of object being displayed
  */
 function DataListItem({
+  depth = 0,
   item,
   itemActions,
+  objectType,
   onItemAction,
   showActions = true,
-  showCounts = true,
-  depth = 0,
-  objectType
+  showCounts = true
 }) {
   const hasChildren = item.children && item.children.length > 0;
   const [isOpen, setIsOpen] = useState(false);
@@ -448,16 +449,16 @@ function DataListItem({
 
   // Action button builders
   const removeButton = (
-    <Tooltip key='remove' delay={400} closeDelay={0}>
+    <Tooltip closeDelay={0} delay={400} key='remove'>
       <Button
-        variant='ghost'
-        size='sm'
         fullWidth
         isIconOnly
-        onPress={() => handleAction('remove')}
         aria-label='Remove'
+        size='sm'
+        variant='ghost'
+        onPress={() => handleAction('remove')}
       >
-        <IconCopyX stroke={1.5} className='text-danger' />
+        <IconCopyX className='text-danger' stroke={1.5} />
       </Button>
       <Tooltip.Content className='text-xs'>
         Remove{' '}
@@ -469,14 +470,14 @@ function DataListItem({
   );
 
   const openAllButton = (
-    <Tooltip key='openAll' delay={400} closeDelay={0}>
+    <Tooltip closeDelay={0} delay={400} key='openAll'>
       <Button
-        variant='ghost'
-        size='sm'
         fullWidth
         isIconOnly
-        onPress={() => handleAction('openAll')}
         aria-label='Open All'
+        size='sm'
+        variant='ghost'
+        onPress={() => handleAction('openAll')}
       >
         <IconFolders stroke={1.5} />
       </Button>
@@ -487,14 +488,14 @@ function DataListItem({
   );
 
   const copyButton = (
-    <Tooltip key='copy' delay={400} closeDelay={0}>
+    <Tooltip closeDelay={0} delay={400} key='copy'>
       <Button
-        variant='ghost'
-        size='sm'
         fullWidth
         isIconOnly
-        onPress={() => handleAction('copy')}
         aria-label='Copy'
+        size='sm'
+        variant='ghost'
+        onPress={() => handleAction('copy')}
       >
         {isCopied ? (
           <AnimatedCheck stroke={1.5} />
@@ -509,14 +510,14 @@ function DataListItem({
   );
 
   const shareAllButton = (
-    <Tooltip key='shareAll' delay={400} closeDelay={0}>
+    <Tooltip closeDelay={0} delay={400} key='shareAll'>
       <Button
-        variant='ghost'
-        size='sm'
         fullWidth
         isIconOnly
-        onPress={() => handleAction('shareAll')}
         aria-label='Share All'
+        size='sm'
+        variant='ghost'
+        onPress={() => handleAction('shareAll')}
       >
         {isShared ? (
           <AnimatedCheck stroke={1.5} />
@@ -531,14 +532,14 @@ function DataListItem({
   );
 
   const shareButton = (
-    <Tooltip key='share' delay={400} closeDelay={0}>
+    <Tooltip closeDelay={0} delay={400} key='share'>
       <Button
-        variant='ghost'
-        size='sm'
         fullWidth
         isIconOnly
-        onPress={() => handleAction('share')}
         aria-label='Share'
+        size='sm'
+        variant='ghost'
+        onPress={() => handleAction('share')}
       >
         {isShared ? (
           <AnimatedCheck stroke={1.5} />
@@ -618,18 +619,18 @@ function DataListItem({
   const applicableActions = showActions ? getApplicableActions() : [];
 
   const labelTooltip = (
-    <Tooltip delay={200} closeDelay={0} className='flex-1'>
+    <Tooltip className='flex-1' closeDelay={0} delay={200}>
       <Tooltip.Trigger className='flex items-center truncate'>
         {item.typeId === 'CARD' && (
           <IconChartBar
-            stroke={1.5}
-            size={14}
             className='mr-1 inline shrink-0 align-text-bottom'
+            size={14}
+            stroke={1.5}
           />
         )}
         {item.label}
       </Tooltip.Trigger>
-      <Tooltip.Content placement='top left' offset={4}>
+      <Tooltip.Content offset={4} placement='top left'>
         ID: {item.id}
       </Tooltip.Content>
     </Tooltip>
@@ -639,10 +640,10 @@ function DataListItem({
     !item?.isVirtualParent &&
     (item.url ? (
       <Link
-        href={item.url}
-        target='_blank'
         className='truncate text-sm font-normal no-underline decoration-accent hover:text-accent hover:underline'
+        href={item.url}
         isDisabled={!item.url}
+        target='_blank'
       >
         {labelTooltip}
       </Link>
@@ -654,24 +655,24 @@ function DataListItem({
     applicableActions.length === 1
       ? applicableActions[0]
       : applicableActions.length > 1 && (
-          <Popover>
-            <Button variant='ghost' size='sm' isIconOnly>
-              <IconDots stroke={1.5} />
-            </Button>
-            <Popover.Content placement='left' offset={4}>
-              <Popover.Dialog className='p-0'>
-                <ButtonGroup
-                  variant='ghost'
-                  size='sm'
-                  className='flex max-w-xs justify-end'
-                  fullWidth
-                >
-                  {applicableActions}
-                </ButtonGroup>
-              </Popover.Dialog>
-            </Popover.Content>
-          </Popover>
-        );
+        <Popover>
+          <Button isIconOnly size='sm' variant='ghost'>
+            <IconDots stroke={1.5} />
+          </Button>
+          <Popover.Content offset={4} placement='left'>
+            <Popover.Dialog className='p-0'>
+              <ButtonGroup
+                fullWidth
+                className='flex max-w-xs justify-end'
+                size='sm'
+                variant='ghost'
+              >
+                {applicableActions}
+              </ButtonGroup>
+            </Popover.Dialog>
+          </Popover.Content>
+        </Popover>
+      );
 
   if (!hasChildren) {
     return (
@@ -686,17 +687,17 @@ function DataListItem({
 
   return (
     <Disclosure
+      className='space-0 w-full border-t border-border'
       isOpen={isOpen}
       onOpenChange={setIsOpen}
-      className='space-0 w-full border-t border-border'
     >
       <Disclosure.Heading className='my-1 flex min-h-9 w-full flex-row justify-between gap-1'>
         <div className='flex w-full min-w-0 flex-1 basis-4/5 items-center gap-2'>
           {itemLabel}
           <Disclosure.Trigger
-            variant='tertiary'
             aria-label='Toggle'
             className='flex shrink-0 flex-row items-center gap-1'
+            variant='tertiary'
           >
             {item.isVirtualParent && (
               <p className='truncate text-sm font-medium'>{item.label}</p>
@@ -719,15 +720,15 @@ function DataListItem({
         <Disclosure.Body>
           {item.children.map((child, index) => (
             <DataListItem
-              key={child.id || index}
-              item={child}
+              depth={depth + 1}
               index={index}
+              item={child}
               itemActions={itemActions}
-              onItemAction={onItemAction}
+              key={child.id || index}
+              objectType={objectType}
               showActions={showActions}
               showCounts={showCounts}
-              depth={depth + 1}
-              objectType={objectType}
+              onItemAction={onItemAction}
             />
           ))}
         </Disclosure.Body>

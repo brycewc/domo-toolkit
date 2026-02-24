@@ -1,8 +1,8 @@
 export { ActivityLogCurrentObject } from './ActivityLogCurrentObject';
 export { ClearCookies } from './ClearCookies';
 export { Copy } from './Copy';
-export { DataRepair } from './DataRepair';
 export { CopyFilteredUrl } from './CopyFilteredUrl';
+export { DataRepair } from './DataRepair';
 export { DeleteCurrentObject } from './DeleteCurrentObject';
 export { Export } from './Export';
 export { GetCards } from './GetCards';

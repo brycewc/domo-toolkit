@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
 import { Card, Spinner, Toast } from '@heroui/react';
+import { useEffect, useState } from 'react';
+
 import {
   ActionButtons,
   ContextFooter,
@@ -155,8 +156,8 @@ export default function App() {
     const handleTabActivated = async (activeInfo) => {
       try {
         const response = await chrome.runtime.sendMessage({
-          type: 'GET_TAB_CONTEXT',
-          tabId: activeInfo.tabId
+          tabId: activeInfo.tabId,
+          type: 'GET_TAB_CONTEXT'
         });
 
         if (response.success && response.context) {
@@ -190,9 +191,9 @@ export default function App() {
     <>
       <div className='flex h-full max-h-screen min-h-0 w-full flex-col items-start justify-start space-y-1 overscroll-contain p-1'>
         <ActionButtons
+          collapsable={true}
           currentContext={currentContext}
           isLoadingCurrentContext={isLoadingCurrentContext}
-          collapsable={true}
           onStatusUpdate={showStatus}
         />
 

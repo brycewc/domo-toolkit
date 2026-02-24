@@ -1,19 +1,20 @@
-import { useState } from 'react';
 import { Button, Spinner } from '@heroui/react';
-import { isSidepanel, storeSidepanelData, openSidepanel } from '@/utils';
+import { IconDatabase } from '@tabler/icons-react';
+import { useState } from 'react';
+
 import {
-  getDatasetsForPage,
   getDatasetsForDataflow,
+  getDatasetsForPage,
   getDatasetsForView,
   isViewType
 } from '@/services';
-import { IconDatabase } from '@tabler/icons-react';
+import { isSidepanel, openSidepanel, storeSidepanelData } from '@/utils';
 
 export function GetDatasets({
   currentContext,
-  onStatusUpdate,
   isDisabled,
-  onCollapseActions
+  onCollapseActions,
+  onStatusUpdate
 }) {
   const [isLoading, setIsLoading] = useState(false);
 
@@ -70,8 +71,8 @@ export function GetDatasets({
       // Popup: hand off intent to sidepanel immediately, no API calls
       if (!isSidepanel()) {
         await storeSidepanelData({
-          type: 'getDatasets',
-          currentContext
+          currentContext,
+          type: 'getDatasets'
         });
         openSidepanel();
         return;
@@ -120,9 +121,9 @@ export function GetDatasets({
 
       if (onCollapseActions) {
         await storeSidepanelData({
-          type: 'loading',
           message: 'Loading datasets...',
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          type: 'loading'
         });
 
         onCollapseActions();
@@ -130,12 +131,12 @@ export function GetDatasets({
       }
 
       await storeSidepanelData({
-        type: 'getDatasets',
         currentContext,
-        datasets: objectType === 'DATAFLOW_TYPE' ? null : datasets,
         dataflowInputs,
         dataflowOutputs,
-        statusShown: true
+        datasets: objectType === 'DATAFLOW_TYPE' ? null : datasets,
+        statusShown: true,
+        type: 'getDatasets'
       });
     } catch (error) {
       console.error('[GetDatasets] Error:', error);
@@ -160,11 +161,11 @@ export function GetDatasets({
 
   let buttonText;
   switch (objectType) {
-    case 'DATA_SOURCE':
-      buttonText = 'Get DataSets Used in View';
-      break;
     case 'CARD':
       buttonText = 'Get Card DataSets';
+      break;
+    case 'DATA_SOURCE':
+      buttonText = 'Get DataSets Used in View';
       break;
     case 'DATAFLOW_TYPE':
       buttonText = 'Get DataFlow DataSets';
@@ -175,13 +176,13 @@ export function GetDatasets({
 
   return (
     <Button
-      variant='tertiary'
       fullWidth
-      onPress={handleGetDatasets}
-      isDisabled={isDisabled}
-      isPending={isLoading}
-      isIconOnly={isLoading}
       className='min-w-36 flex-1 whitespace-normal'
+      isDisabled={isDisabled}
+      isIconOnly={isLoading}
+      isPending={isLoading}
+      variant='tertiary'
+      onPress={handleGetDatasets}
     >
       {({ isPending }) => {
         if (isPending) {

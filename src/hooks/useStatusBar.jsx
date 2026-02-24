@@ -1,5 +1,37 @@
-import { useCallback } from 'react';
 import { toast } from '@heroui/react';
+import { useCallback } from 'react';
+
+export function useStatusBar() {
+  const showStatus = useCallback(
+    (title, description, status = 'accent', timeout = 3000) => {
+      toast(title, {
+        description: parseDescription(description),
+        timeout: timeout || 0,
+        variant: status
+      });
+    },
+    []
+  );
+
+  const showPromiseStatus = useCallback(
+    (promise, { error, loading, success }) => {
+      return toast.promise(promise, {
+        error: (err) => {
+          const msg = typeof error === 'function' ? error(err) : error;
+          return parseDescription(msg);
+        },
+        loading,
+        success: (data) => {
+          const msg = typeof success === 'function' ? success(data) : success;
+          return parseDescription(msg);
+        }
+      });
+    },
+    []
+  );
+
+  return { showPromiseStatus, showStatus };
+}
 
 function parseDescription(text) {
   if (!text) return text;
@@ -22,36 +54,4 @@ function parseDescription(text) {
   }
 
   return parts.length > 0 ? parts : text;
-}
-
-export function useStatusBar() {
-  const showStatus = useCallback(
-    (title, description, status = 'accent', timeout = 3000) => {
-      toast(title, {
-        description: parseDescription(description),
-        variant: status,
-        timeout: timeout || 0
-      });
-    },
-    []
-  );
-
-  const showPromiseStatus = useCallback(
-    (promise, { loading, success, error }) => {
-      return toast.promise(promise, {
-        loading,
-        success: (data) => {
-          const msg = typeof success === 'function' ? success(data) : success;
-          return parseDescription(msg);
-        },
-        error: (err) => {
-          const msg = typeof error === 'function' ? error(err) : error;
-          return parseDescription(msg);
-        }
-      });
-    },
-    []
-  );
-
-  return { showStatus, showPromiseStatus };
 }
