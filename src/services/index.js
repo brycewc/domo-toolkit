@@ -25,7 +25,8 @@ export {
   getCardsForObject,
   removeCardFromPage,
   getCardDefinition,
-  updateCardDefinition
+  updateCardDefinition,
+  lockCards
 } from './cards';
 export { exportCard } from './exportCard';
 export {

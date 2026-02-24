@@ -308,3 +308,30 @@ export async function getCardDatasets({ cardId, tabId = null }) {
     throw error;
   }
 }
+
+export async function lockCards({ cardIds, tabId = null }) {
+  const LOCK_BATCH_SIZE = 50;
+  const batches = [];
+  for (let i = 0; i < cardIds.length; i += LOCK_BATCH_SIZE) {
+    batches.push(cardIds.slice(i, i + LOCK_BATCH_SIZE));
+  }
+
+  for (const batch of batches) {
+    await executeInPage(
+      async (cardIds) => {
+        const response = await fetch('/api/content/v1/cards/bulk/lock', {
+          method: 'PUT',
+          body: JSON.stringify(cardIds),
+          headers: { 'Content-Type': 'application/json' }
+        });
+        if (!response.ok) {
+          throw new Error(
+            `Failed to lock cards. HTTP status: ${response.status}`
+          );
+        }
+      },
+      [batch],
+      tabId
+    );
+  }
+}

@@ -18,6 +18,7 @@ import {
   GetDatasets,
   GetOtherPages,
   GetPages,
+  LockCards,
   NavigateToCopiedObject,
   RemoveEmptyStringsFromQuickFilters,
   ShareWithSelf,
@@ -197,6 +198,17 @@ export function ActionButtons({
               {currentContext?.domoObject?.typeId === 'DATA_SOURCE' && (
                 <DataRepair
                   currentContext={currentContext}
+                  isDisabled={!isDomoPage}
+                />
+              )}
+              {(currentContext?.domoObject?.typeId === 'PAGE' ||
+                currentContext?.domoObject?.typeId === 'DATA_APP_VIEW' ||
+                currentContext?.domoObject?.typeId === 'REPORT_BUILDER_VIEW' ||
+                currentContext?.domoObject?.typeId === 'WORKSHEET_VIEW' ||
+                currentContext?.domoObject?.typeId === 'DATA_SOURCE') && (
+                <LockCards
+                  currentContext={currentContext}
+                  onStatusUpdate={onStatusUpdate}
                   isDisabled={!isDomoPage}
                 />
               )}

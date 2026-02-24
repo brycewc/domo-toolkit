@@ -9,6 +9,7 @@ export { GetCards } from './GetCards';
 export { GetDatasets } from './GetDatasets';
 export { GetOtherPages } from './GetOtherPages';
 export { GetPages } from './GetPages';
+export { LockCards } from './LockCards';
 export { NavigateToCopiedObject } from './NavigateToCopiedObject';
 export { RemoveEmptyStringsFromQuickFilters } from './RemoveEmptyStringsFromQuickFilters';
 export { ShareWithSelf } from './ShareWithSelf';
