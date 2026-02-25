@@ -6,6 +6,9 @@ import globals from 'globals';
 
 export default defineConfig([
   {
+    ignores: ['!src/**']
+  },
+  {
     extends: [
       js.configs.recommended,
       perfectionist.configs['recommended-alphabetical']

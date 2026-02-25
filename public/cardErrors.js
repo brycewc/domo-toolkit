@@ -1,4 +1,4 @@
-(function() {
+(() => {
   var originalFetch = window.fetch;
   var originalXHROpen = XMLHttpRequest.prototype.open;
   var originalXHRSend = XMLHttpRequest.prototype.send;
@@ -14,9 +14,7 @@
       /\/api\/.*\/visualization/,
       /\/api\/.*\/cardviews/
     ];
-    return patterns.some(function(p) {
-      return p.test(url);
-    });
+    return patterns.some((p) => p.test(url));
   }
 
   var KPI_RENDER_PATTERN = /\/api\/content\/v3\/cards\/kpi\/render\/preview/;
@@ -82,7 +80,7 @@
     closeBtn.textContent = '\u2715';
     closeBtn.style.cssText =
       'background:none;border:none;cursor:pointer;font-size:14px;color:#888;padding:0 0 0 8px;line-height:1;';
-    closeBtn.addEventListener('click', function() {
+    closeBtn.addEventListener('click', () => {
       card.remove();
       if (wrapper.children.length === 0) wrapper.remove();
     });
@@ -131,7 +129,7 @@
     wrapper.appendChild(card);
 
     // Auto-dismiss
-    setTimeout(function() {
+    setTimeout(() => {
       if (card.parentNode) {
         card.remove();
         if (wrapper.children.length === 0) wrapper.remove();
@@ -141,30 +139,29 @@
 
   // ---- Fetch interception ----
 
-  window.fetch = function() {
+  window.fetch = (...args) => {
     // Bypass interception for extension-initiated requests
     if (window.__domoToolkitExtDepth > 0) {
-      return originalFetch.apply(this, arguments);
+      return originalFetch.apply(window, args);
     }
 
-    var args = arguments;
     var url = typeof args[0] === 'string' ? args[0] : args[0] && args[0].url;
 
     // Only intercept card endpoints
     if (!isCardEndpoint(url) && !KPI_RENDER_PATTERN.test(url)) {
-      return originalFetch.apply(this, args);
+      return originalFetch.apply(window, args);
     }
 
     var method = (args[1] && args[1].method) || 'GET';
 
     return originalFetch
-      .apply(this, args)
-      .then(function(response) {
+      .apply(window, args)
+      .then((response) => {
         if (!response.ok && isCardEndpoint(url)) {
           var cloned = response.clone();
           cloned
             .text()
-            .then(function(text) {
+            .then((text) => {
               showErrorNotification({
                 method: method,
                 response: text,
@@ -174,12 +171,12 @@
                 url: url
               });
             })
-            .catch(function() {});
+            .catch(() => {});
         } else if (response.ok && KPI_RENDER_PATTERN.test(url)) {
           var cloned = response.clone();
           cloned
             .json()
-            .then(function(data) {
+            .then((data) => {
               if (data && data.exceptions) {
                 var details =
                   data.exceptions.main && data.exceptions.main.details;
@@ -194,11 +191,11 @@
                 });
               }
             })
-            .catch(function() {});
+            .catch(() => {});
         }
         return response;
       })
-      .catch(function(error) {
+      .catch((error) => {
         if (isCardEndpoint(url)) {
           showErrorNotification({
             method: method,
@@ -238,7 +235,7 @@
 
     var xhr = this;
 
-    xhr.addEventListener('load', function() {
+    xhr.addEventListener('load', () => {
       var monitor = xhr._domoToolkitMonitor;
       if (!monitor) return;
 
@@ -274,7 +271,7 @@
       }
     });
 
-    xhr.addEventListener('error', function() {
+    xhr.addEventListener('error', () => {
       var monitor = xhr._domoToolkitMonitor;
       if (monitor && isCardEndpoint(monitor.url)) {
         showErrorNotification({
