@@ -6,14 +6,6 @@ import { useStatusBar } from '@/hooks';
 import { shareWithSelf } from '@/services';
 import { isSidepanel } from '@/utils';
 
-const SUPPORTED_TYPES = [
-  'DATA_SOURCE',
-  'PAGE',
-  'DATA_APP',
-  'DATA_APP_VIEW',
-  'APP'
-];
-
 export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
   const [isSharing, setIsSharing] = useState(false);
   const { showPromiseStatus } = useStatusBar();
@@ -32,10 +24,10 @@ export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
       return;
     }
 
-    if (!SUPPORTED_TYPES.includes(currentContext.domoObject.typeId)) {
+    if (!isSupportedForShare(currentContext.domoObject)) {
       onStatusUpdate?.(
         'Unsupported Object Type',
-        `Share with Self is not supported for ${currentContext.domoObject.typeName}. Supported types: DataSet, Page, Studio App, App Studio Page, Custom App Design.`,
+        `Share with Self is not supported for ${currentContext.domoObject.typeName}. Supported types: DataSet, Page, Studio App, App Studio Page, Custom App Design, DomoApp Card.`,
         'danger'
       );
       return;
@@ -91,9 +83,7 @@ export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
     promise.finally(() => setIsSharing(false));
   };
 
-  const isSupportedType =
-    currentContext?.domoObject?.typeId &&
-    SUPPORTED_TYPES.includes(currentContext.domoObject.typeId);
+  const isSupportedType = isSupportedForShare(currentContext?.domoObject);
   const buttonDisabled =
     isDisabled || isSharing || !currentContext?.domoObject || !isSupportedType;
 
@@ -111,20 +101,37 @@ export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
       <Tooltip.Content>
         {currentContext?.domoObject?.typeId === 'DATA_SOURCE' &&
         currentContext?.domoObject?.metadata?.details?.accountId ? (
-              <>
-                Share <span className='font-semibold'>dataset account</span> with
-                yourself
-              </>
-            ) : (
-              <>
-                Share{' '}
-                <span className='font-semibold lowercase'>
-                  {currentContext?.domoObject?.name}
-                </span>{' '}
-                with yourself
-              </>
-            )}
+          <>
+            Share <span className='font-semibold'>dataset account</span> with
+            yourself
+          </>
+        ) : (
+          <>
+            Share{' '}
+            <span className='font-semibold lowercase'>
+              {currentContext?.domoObject?.name}
+            </span>{' '}
+            with yourself
+          </>
+        )}
       </Tooltip.Content>
     </Tooltip>
   );
+}
+
+function isSupportedForShare(domoObject) {
+  const SUPPORTED_TYPES = [
+    'APP',
+    'CARD',
+    'DATA_APP',
+    'DATA_APP_VIEW',
+    'DATA_SOURCE',
+    'PAGE'
+  ];
+  if (!domoObject?.typeId) return false;
+  if (!SUPPORTED_TYPES.includes(domoObject.typeId)) return false;
+  if (domoObject.typeId === 'CARD') {
+    return domoObject.metadata?.details?.type === 'domoapp';
+  }
+  return true;
 }

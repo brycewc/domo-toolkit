@@ -252,7 +252,6 @@ export async function shareWithSelf({
 
         switch (objectTypeId) {
           case 'APP': {
-            // Custom App Design (assetlibrary)
             url = `/api/apps/v1/designs/${objectId}/permissions/ADMIN`;
             options = {
               body: JSON.stringify([userId]),
@@ -261,6 +260,41 @@ export async function shareWithSelf({
               method: 'POST'
             };
             successMessage = `Custom App Design ${objectId} shared successfully`;
+            break;
+          }
+
+          case 'CARD': {
+            if (metadata?.details?.type !== 'domoapp') {
+              throw new Error('Sharing is only supported for DomoApp cards');
+            }
+
+            const appId = metadata.details.domoapp?.id;
+            if (!appId) {
+              throw new Error('DomoApp ID not found in card metadata');
+            }
+
+            const appResponse = await fetch(`/domoapps/apps/v2/${appId}`, {
+              credentials: 'include'
+            });
+            if (!appResponse.ok) {
+              throw new Error(
+                `Failed to fetch DomoApp details. Status: ${appResponse.status}`
+              );
+            }
+            const appData = await appResponse.json();
+            const designId = appData.designId;
+            if (!designId) {
+              throw new Error('Design ID not found in DomoApp response');
+            }
+
+            url = `/api/apps/v1/designs/${designId}/permissions/ADMIN`;
+            options = {
+              body: JSON.stringify([userId]),
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              method: 'POST'
+            };
+            successMessage = `Custom App Design ${designId} shared successfully`;
             break;
           }
 

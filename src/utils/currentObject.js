@@ -103,6 +103,10 @@ export async function detectCurrentObject() {
       }
       break;
     }
+    case url.includes('domoapp/card/edit/'):
+      objectType = 'CARD';
+      id = parts[parts.indexOf('edit') + 1];
+      break;
 
     case url.includes('beastmode?'):
       objectType = 'BEAST_MODE_FORMULA';
