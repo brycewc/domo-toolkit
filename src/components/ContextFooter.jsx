@@ -338,14 +338,15 @@ export function ContextFooter({
       <Disclosure.Content
         className={`card flex min-h-0 flex-1 flex-col bg-surface p-0 ${isExpanded ? '' : 'collapse'}`}
       >
-        <div className='card__content flex min-h-0 flex-1 flex-col gap-2 p-2'>
+        <div className='card__content flex min-h-0 w-full flex-1 flex-col gap-2 p-2'>
           {tabs.length > 1 && (
             <Tabs
+              className='w-full shrink-0'
               selectedKey={activeTabId}
-              variant='secondary'
+              // variant='secondary'
               onSelectionChange={handleTabChange}
             >
-              <Tabs.ListContainer className='w-full'>
+              <Tabs.ListContainer>
                 <ScrollShadow
                   hideScrollBar
                   className='w-full flex-1'
@@ -355,7 +356,7 @@ export function ContextFooter({
                 >
                   <Tabs.List
                     aria-label='Object details'
-                    className='w-full flex-nowrap'
+                    className='w-fit min-w-full flex-nowrap'
                   >
                     {tabs.map((tab) => (
                       <Tabs.Tab

@@ -1,4 +1,4 @@
-import { Button, Dropdown, Label, Tooltip } from '@heroui/react';
+import { Button, Dropdown, Kbd, Label, Tooltip } from '@heroui/react';
 import { IconClipboard } from '@tabler/icons-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useRef, useState } from 'react';
@@ -245,8 +245,13 @@ export function Copy({
             )}
           </AnimatePresence>
         </Button>
-        <Tooltip.Content className='flex flex-col items-center text-center'>
+        <Tooltip.Content className='flex items-center gap-2 text-center'>
           <span>Copy ID</span>
+          <Kbd className='text-xs'>
+            <Kbd.Abbr keyValue='ctrl' />
+            <Kbd.Abbr keyValue='shift' />
+            <Kbd.Content>1</Kbd.Content>
+          </Kbd>
           {!longPressDisabled && (
             <span className='italic'>Hold for more options</span>
           )}

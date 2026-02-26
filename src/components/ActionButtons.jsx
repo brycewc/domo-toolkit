@@ -36,6 +36,10 @@ export function ActionButtons({
   const [isExpanded, setIsExpanded] = useState(!collapsable);
 
   const isDomoPage = currentContext?.isDomoPage ?? false;
+  const typeId = currentContext?.domoObject?.typeId;
+  const details = currentContext?.domoObject?.metadata?.details;
+  const availableActions = getAvailableActions(typeId, details);
+  const hasExpandableActions = availableActions.size > 0;
 
   return (
     <Card className='w-full shrink-0 p-0'>
@@ -114,6 +118,7 @@ export function ActionButtons({
                   <Button
                     fullWidth
                     isIconOnly
+                    isDisabled={!hasExpandableActions}
                     slot='trigger'
                     variant='tertiary'
                   >
@@ -141,11 +146,7 @@ export function ActionButtons({
           </Disclosure.Heading>
           <Disclosure.Content className='flex h-full w-full flex-col items-center justify-center gap-1'>
             <div className='flex w-full flex-wrap place-items-center items-center justify-center gap-1 not-empty:mt-1 empty:hidden'>
-              {(currentContext?.domoObject?.typeId === 'PAGE' ||
-                currentContext?.domoObject?.typeId === 'DATA_APP_VIEW' ||
-                currentContext?.domoObject?.typeId === 'REPORT_BUILDER_VIEW' ||
-                currentContext?.domoObject?.typeId === 'WORKSHEET_VIEW' ||
-                currentContext?.domoObject?.typeId === 'DATA_SOURCE') && (
+              {availableActions.has('getCards') && (
                 <GetCards
                   currentContext={currentContext}
                   isDisabled={!isDomoPage}
@@ -155,11 +156,7 @@ export function ActionButtons({
                   onStatusUpdate={onStatusUpdate}
                 />
               )}
-              {(currentContext?.domoObject?.typeId === 'PAGE' ||
-                currentContext?.domoObject?.typeId === 'DATA_APP_VIEW' ||
-                currentContext?.domoObject?.typeId === 'CARD' ||
-                currentContext?.domoObject?.typeId === 'DATAFLOW_TYPE' ||
-                currentContext?.domoObject?.typeId === 'DATA_SOURCE') && (
+              {availableActions.has('getDatasets') && (
                 <GetDatasets
                   currentContext={currentContext}
                   isDisabled={!isDomoPage}
@@ -169,10 +166,7 @@ export function ActionButtons({
                   onStatusUpdate={onStatusUpdate}
                 />
               )}
-              {(currentContext?.domoObject?.typeId === 'PAGE' ||
-                currentContext?.domoObject?.typeId === 'DATA_APP_VIEW' ||
-                currentContext?.domoObject?.typeId === 'CARD' ||
-                currentContext?.domoObject?.typeId === 'DATA_SOURCE') && (
+              {availableActions.has('getPages') && (
                 <GetPages
                   currentContext={currentContext}
                   isDisabled={!isDomoPage}
@@ -182,9 +176,7 @@ export function ActionButtons({
                   onStatusUpdate={onStatusUpdate}
                 />
               )}
-              {(currentContext?.domoObject?.typeId === 'PAGE' ||
-                currentContext?.domoObject?.typeId === 'DATA_APP_VIEW' ||
-                currentContext?.domoObject?.typeId === 'WORKSHEET_VIEW') && (
+              {availableActions.has('getOtherPages') && (
                 <GetOtherPages
                   currentContext={currentContext}
                   isDisabled={!isDomoPage}
@@ -194,57 +186,46 @@ export function ActionButtons({
                   onStatusUpdate={onStatusUpdate}
                 />
               )}
-              {currentContext?.domoObject?.typeId === 'DATA_SOURCE' && (
+              {availableActions.has('dataRepair') && (
                 <DataRepair
                   currentContext={currentContext}
                   isDisabled={!isDomoPage}
                 />
               )}
-              {(currentContext?.domoObject?.typeId === 'PAGE' ||
-                currentContext?.domoObject?.typeId === 'DATA_APP_VIEW' ||
-                currentContext?.domoObject?.typeId === 'REPORT_BUILDER_VIEW' ||
-                currentContext?.domoObject?.typeId === 'WORKSHEET_VIEW' ||
-                currentContext?.domoObject?.typeId === 'DATA_SOURCE') && (
+              {availableActions.has('lockCards') && (
                 <LockCards
                   currentContext={currentContext}
                   isDisabled={!isDomoPage}
                   onStatusUpdate={onStatusUpdate}
                 />
               )}
-              {(currentContext?.domoObject?.typeId === 'PAGE' ||
-                currentContext?.domoObject?.typeId === 'DATA_APP_VIEW' ||
-                currentContext?.domoObject?.typeId === 'CARD') && (
+              {availableActions.has('copyFilteredUrl') && (
                 <CopyFilteredUrl
                   currentContext={currentContext}
                   isDisabled={!isDomoPage}
                   onStatusUpdate={onStatusUpdate}
                 />
               )}
-              {currentContext?.domoObject?.typeId === 'DATAFLOW_TYPE' && (
+              {availableActions.has('updateDataflowDetails') && (
                 <UpdateDataflowDetails
                   currentContext={currentContext}
                   onStatusUpdate={onStatusUpdate}
                 />
               )}
-              {(currentContext?.domoObject?.typeId === 'ALERT' ||
-                currentContext?.domoObject?.typeId === 'WORKFLOW_MODEL') && (
+              {availableActions.has('updateOwner') && (
                 <UpdateOwner
                   currentContext={currentContext}
                   onStatusUpdate={onStatusUpdate}
                 />
               )}
-              {(currentContext?.domoObject?.typeId === 'CARD' ||
-                currentContext?.domoObject?.typeId ===
-                  'CODEENGINE_PACKAGE') && (
+              {availableActions.has('export') && (
                 <Export
                   currentContext={currentContext}
                   isDisabled={!isDomoPage}
                   onStatusUpdate={onStatusUpdate}
                 />
               )}
-              {currentContext?.domoObject?.typeId === 'CARD' &&
-                currentContext?.domoObject?.metadata?.details?.type !==
-                  'domoapp' && (
+              {availableActions.has('removeEmptyStrings') && (
                 <RemoveEmptyStringsFromQuickFilters
                   currentContext={currentContext}
                   onStatusUpdate={onStatusUpdate}
@@ -256,4 +237,67 @@ export function ActionButtons({
       </Card.Content>
     </Card>
   );
+}
+
+/**
+ * Determine which expandable action buttons are available for the current context.
+ * Returns a Set of action keys. Used for both rendering and disabling the expand trigger.
+ */
+function getAvailableActions(typeId, details) {
+  const actions = new Set();
+
+  if (
+    [
+      'DATA_APP_VIEW',
+      'DATA_SOURCE',
+      'PAGE',
+      'REPORT_BUILDER_VIEW',
+      'WORKSHEET_VIEW'
+    ].includes(typeId)
+  ) {
+    actions.add('getCards');
+    actions.add('lockCards');
+  }
+
+  if (
+    ['CARD', 'DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE'].includes(
+      typeId
+    )
+  ) {
+    actions.add('getDatasets');
+  }
+
+  if (['CARD', 'DATA_APP_VIEW', 'DATA_SOURCE', 'PAGE'].includes(typeId)) {
+    actions.add('getPages');
+  }
+
+  if (['DATA_APP_VIEW', 'PAGE', 'WORKSHEET_VIEW'].includes(typeId)) {
+    actions.add('getOtherPages');
+  }
+
+  if (typeId === 'DATA_SOURCE') {
+    actions.add('dataRepair');
+  }
+
+  if (['CARD', 'DATA_APP_VIEW', 'PAGE'].includes(typeId)) {
+    actions.add('copyFilteredUrl');
+  }
+
+  if (typeId === 'DATAFLOW_TYPE') {
+    actions.add('updateDataflowDetails');
+  }
+
+  if (['ALERT', 'WORKFLOW_MODEL'].includes(typeId)) {
+    actions.add('updateOwner');
+  }
+
+  if (['CARD', 'CODEENGINE_PACKAGE'].includes(typeId)) {
+    actions.add('export');
+  }
+
+  if (typeId === 'CARD' && details?.type !== 'domoapp') {
+    actions.add('removeEmptyStrings');
+  }
+
+  return actions;
 }
