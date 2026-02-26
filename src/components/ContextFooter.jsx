@@ -70,7 +70,9 @@ export function ContextFooter({
         if (related.source === 'parentId') {
           relatedId = domoObject.parentId;
         } else {
-          relatedId = domoObject.metadata?.details?.[related.field];
+          relatedId = related.field
+            .split('.')
+            .reduce((obj, key) => obj?.[key], domoObject.metadata?.details);
         }
 
         if (relatedId) {

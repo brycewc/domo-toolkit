@@ -640,6 +640,11 @@ async function detectAndStoreContext(tabId) {
       parentId = detected.resolveContext.filesetId;
     }
 
+    // Use parentId from detection result (e.g., EXECUTOR_JOB React fiber extraction)
+    if (!parentId && detected.parentId) {
+      parentId = detected.parentId;
+    }
+
     // Create DomoObject with original URL and parent ID for immediate URL building
     const domoObject = new DomoObject(
       detected.typeId,

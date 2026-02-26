@@ -779,7 +779,11 @@ export const ObjectTypeRegistry = {
     null,
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     null,
-    null
+    {
+      endpoint: '/executor/v1/applications/{id}',
+      method: 'GET',
+      pathToName: 'name'
+    }
   ),
   EXECUTOR_JOB: new DomoObjectType(
     'EXECUTOR_JOB',
@@ -793,7 +797,11 @@ export const ObjectTypeRegistry = {
       pathToName: 'jobName'
     },
     ['EXECUTOR_APPLICATION'],
-    [{source: 'parentId', label: 'Application', typeId: 'EXECUTOR_APPLICATION'}]
+    [
+      { source: 'parentId', label: 'Application', typeId: 'EXECUTOR_APPLICATION' },
+      { field: 'executionPayload.configDatasetId', label: 'Config', typeId: 'DATA_SOURCE' },
+      { field: 'executionPayload.metricsDatasetId', label: 'Log', typeId: 'DATA_SOURCE' }
+    ]
   ),
   FILE: new DomoObjectType('FILE', 'File', null, /^\d+$/, null, {
     endpoint: '/data/v1/data-files/{id}/details',

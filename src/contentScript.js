@@ -125,6 +125,9 @@ window.addEventListener('focus', async () => {
 // Track last detected card modal ID to avoid redundant detections
 let lastDetectedCardId = null;
 
+// Track whether a job overview element is currently visible
+let lastDetectedJobView = false;
+
 // Watch for card modal element being added or removed
 function checkForCardModalElement(mutations) {
   for (const mutation of mutations) {
@@ -220,9 +223,43 @@ function triggerContextRedetection() {
     });
 }
 
-// Set up MutationObserver to watch for modal changes
+// Watch for job overview element being added or removed (Governance Toolkit)
+function checkForJobOverviewElement(mutations) {
+  if (!location.pathname.includes('governance-toolkit')) return;
+
+  for (const mutation of mutations) {
+    if (mutation.type !== 'childList') continue;
+
+    for (const node of mutation.addedNodes) {
+      if (node.nodeType !== Node.ELEMENT_NODE) continue;
+      const isJobOverview =
+        node.classList?.value?.includes('job-overview-top') ||
+        node.querySelector?.('[class*="job-overview-top"]');
+      if (isJobOverview && !lastDetectedJobView) {
+        lastDetectedJobView = true;
+        triggerContextRedetection();
+        return;
+      }
+    }
+
+    for (const node of mutation.removedNodes) {
+      if (node.nodeType !== Node.ELEMENT_NODE) continue;
+      const wasJobOverview =
+        node.classList?.value?.includes('job-overview-top') ||
+        node.querySelector?.('[class*="job-overview-top"]');
+      if (wasJobOverview && lastDetectedJobView) {
+        lastDetectedJobView = false;
+        triggerContextRedetection();
+        return;
+      }
+    }
+  }
+}
+
+// Set up MutationObserver to watch for modal and job overview changes
 const modalObserver = new MutationObserver((mutations) => {
   checkForCardModalElement(mutations);
+  checkForJobOverviewElement(mutations);
 });
 
 // Start observing the document for modal changes

@@ -261,6 +261,52 @@ export async function detectCurrentObject() {
     case url.includes('workspaces/'):
       objectType = 'WORKSPACE';
       break;
+
+    case url.includes('governance-toolkit'): {
+      const jobElement = document.querySelector(
+        '[class*="job-overview-top"]'
+      );
+      if (!jobElement) return null;
+
+      const fiberKey = Object.keys(jobElement).find((k) =>
+        k.startsWith('__reactFiber$')
+      );
+      if (!fiberKey) return null;
+
+      let fiber = jobElement[fiberKey];
+      let jobData = null;
+
+      // Walk up the fiber tree, checking each component's hooks chain
+      while (fiber && !jobData) {
+        let hook = fiber.memoizedState;
+        while (hook) {
+          const val = hook.memoizedState;
+          if (
+            val &&
+            typeof val === 'object' &&
+            !Array.isArray(val) &&
+            typeof val.jobId === 'string' &&
+            typeof val.applicationId === 'string'
+          ) {
+            jobData = val;
+            break;
+          }
+          hook = hook.next;
+        }
+        fiber = fiber.return;
+      }
+
+      if (!jobData) return null;
+
+      return {
+        baseUrl: `${location.protocol}//${location.hostname}`,
+        id: jobData.jobId,
+        parentId: jobData.applicationId,
+        typeId: 'EXECUTOR_JOB',
+        url
+      };
+    }
+
     default:
       return null;
   }
