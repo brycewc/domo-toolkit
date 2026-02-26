@@ -168,7 +168,7 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
 
             message = `Navigating to activity log for ${childPageObjects.length} child pages`;
           }
-          return;
+          break;
         default:
           activityLogObjects = [
             {
