@@ -77,7 +77,7 @@ export function ContextFooter({
 
         if (relatedId) {
           result.push({
-            id: related.typeId,
+            id: related.field || related.source || related.typeId,
             isCurrentObject: false,
             label: related.label,
             objectId: relatedId,
@@ -345,19 +345,30 @@ export function ContextFooter({
               variant='secondary'
               onSelectionChange={handleTabChange}
             >
-              <Tabs.ListContainer>
-                <Tabs.List aria-label='Object details'>
-                  {tabs.map((tab) => (
-                    <Tabs.Tab
-                      className='truncate capitalize'
-                      id={tab.id}
-                      key={tab.id}
-                    >
-                      {tab.label}
-                      <Tabs.Indicator />
-                    </Tabs.Tab>
-                  ))}
-                </Tabs.List>
+              <Tabs.ListContainer className='w-full'>
+                <ScrollShadow
+                  hideScrollBar
+                  className='w-full flex-1'
+                  offset={2}
+                  orientation='horizontal'
+                  size={40}
+                >
+                  <Tabs.List
+                    aria-label='Object details'
+                    className='w-full flex-nowrap'
+                  >
+                    {tabs.map((tab) => (
+                      <Tabs.Tab
+                        className='min-w-32 capitalize'
+                        id={tab.id}
+                        key={tab.id}
+                      >
+                        {tab.label}
+                        <Tabs.Indicator />
+                      </Tabs.Tab>
+                    ))}
+                  </Tabs.List>
+                </ScrollShadow>
               </Tabs.ListContainer>
             </Tabs>
           )}
