@@ -28,8 +28,8 @@ export async function waitForCards(currentContext, maxAttempts = 50) {
 
       // Re-fetch the current context to get updated cards
       const response = await chrome.runtime.sendMessage({
-        type: 'GET_TAB_CONTEXT',
-        tabId: currentContext.tabId
+        tabId: currentContext.tabId,
+        type: 'GET_TAB_CONTEXT'
       });
 
       if (
@@ -45,16 +45,16 @@ export async function waitForCards(currentContext, maxAttempts = 50) {
     if (cards === undefined || cards === null) {
       console.log('[cardHelpers] Timeout waiting for cards');
       return {
-        success: false,
         cards: null,
-        error: 'Timeout while checking for cards. Please try again.'
+        error: 'Timeout while checking for cards. Please try again.',
+        success: false
       };
     }
   }
 
   return {
-    success: true,
     cards: cards || [],
-    error: null
+    error: null,
+    success: true
   };
 }

@@ -1,7 +1,5 @@
-import { useState, useEffect } from 'react';
 import {
   Button,
-  ComboBox,
   Description,
   Form,
   Input,
@@ -11,12 +9,14 @@ import {
   Switch,
   TextField
 } from '@heroui/react';
+import { toast } from '@heroui/react';
 import {
   IconCheck,
   IconChevronDown,
   IconDeviceFloppy
 } from '@tabler/icons-react';
-import { StatusBar } from '../StatusBar';
+import { useEffect, useState } from 'react';
+
 import toolkitLogo from '@/assets/toolkit-128.png';
 import toolkitLogoDark from '@/assets/toolkit-dark-128.png';
 
@@ -25,28 +25,20 @@ export function Settings({ theme = 'system' }) {
 
   // Store all settings in a single state object for extensibility
   const [settings, setSettings] = useState({
-    themePreference: theme,
-    iconStyle: 'light',
-    defaultDomoInstance: '',
+    cardErrorDetection: false,
     defaultClearCookiesHandling: 'auto',
-    cardErrorDetection: false
+    defaultDomoInstance: '',
+    iconStyle: 'light',
+    themePreference: theme
   });
 
   // Track original settings to detect changes
   const [originalSettings, setOriginalSettings] = useState({
-    themePreference: theme,
-    iconStyle: 'light',
-    defaultDomoInstance: '',
+    cardErrorDetection: false,
     defaultClearCookiesHandling: 'auto',
-    cardErrorDetection: false
-  });
-
-  const [statusBar, setStatusBar] = useState({
-    title: '',
-    description: '',
-    status: 'accent',
-    timeout: 3000,
-    visible: false
+    defaultDomoInstance: '',
+    iconStyle: 'light',
+    themePreference: theme
   });
 
   useEffect(() => {
@@ -61,12 +53,12 @@ export function Settings({ theme = 'system' }) {
       ],
       (result) => {
         const loadedSettings = {
-          themePreference: result.themePreference || theme || 'system',
-          iconStyle: result.iconStyle || 'light',
-          defaultDomoInstance: result.defaultDomoInstance || '',
+          cardErrorDetection: result.cardErrorDetection ?? false,
           defaultClearCookiesHandling:
             result.defaultClearCookiesHandling || 'auto',
-          cardErrorDetection: result.cardErrorDetection ?? false
+          defaultDomoInstance: result.defaultDomoInstance || '',
+          iconStyle: result.iconStyle || 'light',
+          themePreference: result.themePreference || theme || 'system'
         };
         setSettings(loadedSettings);
         setOriginalSettings(loadedSettings);
@@ -212,11 +204,7 @@ export function Settings({ theme = 'system' }) {
     status = 'accent',
     timeout = 3000
   ) => {
-    setStatusBar({ title, description, status, timeout, visible: true });
-  };
-
-  const hideStatus = () => {
-    setStatusBar((prev) => ({ ...prev, visible: false }));
+    toast(title, { description, timeout: timeout || 0, variant: status });
   };
 
   if (isLoading) {
@@ -225,12 +213,12 @@ export function Settings({ theme = 'system' }) {
 
   return (
     <div className='flex h-full min-h-[calc(100vh-20)] w-md flex-col gap-2 pt-4'>
-      <Form onSubmit={handleSubmit} className='flex flex-col gap-2'>
+      <Form className='flex flex-col gap-2' onSubmit={handleSubmit}>
         <Select
-          value={settings.themePreference}
-          onChange={handleThemeChange}
           className='w-40'
           placeholder={theme}
+          value={settings.themePreference}
+          onChange={handleThemeChange}
         >
           <Label>Theme</Label>
           <Select.Trigger>
@@ -245,24 +233,21 @@ export function Settings({ theme = 'system' }) {
                 System
                 <ListBox.ItemIndicator>
                   {({ isSelected }) =>
-                    isSelected ? <IconCheck stroke={1.5} /> : null
-                  }
+                    isSelected ? <IconCheck stroke={1.5} /> : null}
                 </ListBox.ItemIndicator>
               </ListBox.Item>
               <ListBox.Item id='light' textValue='Light'>
                 Light
                 <ListBox.ItemIndicator>
                   {({ isSelected }) =>
-                    isSelected ? <IconCheck stroke={1.5} /> : null
-                  }
+                    isSelected ? <IconCheck stroke={1.5} /> : null}
                 </ListBox.ItemIndicator>
               </ListBox.Item>
               <ListBox.Item id='dark' textValue='Dark'>
                 Dark
                 <ListBox.ItemIndicator>
                   {({ isSelected }) =>
-                    isSelected ? <IconCheck stroke={1.5} /> : null
-                  }
+                    isSelected ? <IconCheck stroke={1.5} /> : null}
                 </ListBox.ItemIndicator>
               </ListBox.Item>
             </ListBox>
@@ -273,9 +258,9 @@ export function Settings({ theme = 'system' }) {
           </Description>
         </Select>
         <Select
+          className='w-40'
           value={settings.iconStyle}
           onChange={handleIconStyleChange}
-          className='w-40'
         >
           <Label>Extension Icon</Label>
           <Select.Trigger>
@@ -287,21 +272,19 @@ export function Settings({ theme = 'system' }) {
           <Select.Popover>
             <ListBox>
               <ListBox.Item id='light' textValue='Light'>
-                <img src={toolkitLogo} alt='Light' className='h-4 w-4' />
+                <img alt='Light' className='h-4 w-4' src={toolkitLogo} />
                 Light
                 <ListBox.ItemIndicator>
                   {({ isSelected }) =>
-                    isSelected ? <IconCheck stroke={1.5} /> : null
-                  }
+                    isSelected ? <IconCheck stroke={1.5} /> : null}
                 </ListBox.ItemIndicator>
               </ListBox.Item>
               <ListBox.Item id='dark' textValue='Dark'>
-                <img src={toolkitLogoDark} alt='Dark' className='h-4 w-4' />
+                <img alt='Dark' className='h-4 w-4' src={toolkitLogoDark} />
                 Dark
                 <ListBox.ItemIndicator>
                   {({ isSelected }) =>
-                    isSelected ? <IconCheck stroke={1.5} /> : null
-                  }
+                    isSelected ? <IconCheck stroke={1.5} /> : null}
                 </ListBox.ItemIndicator>
               </ListBox.Item>
             </ListBox>
@@ -310,7 +293,7 @@ export function Settings({ theme = 'system' }) {
             Light or dark extension icon, independent of theme preference
           </Description>
         </Select>
-        <TextField onChange={handleDefaultInstanceChange} className='w-40'>
+        <TextField className='w-40' onChange={handleDefaultInstanceChange}>
           <Label>Default Domo Instance</Label>
           <Input
             placeholder='Enter an instance'
@@ -323,9 +306,9 @@ export function Settings({ theme = 'system' }) {
           </Description>
         </TextField>
         <Select
+          className='w-40'
           value={settings.defaultClearCookiesHandling}
           onChange={handleClearCookiesHandlingChange}
-          className='w-40'
         >
           <Label>Cookie Clearing Behavior</Label>
           <Select.Trigger>
@@ -340,24 +323,21 @@ export function Settings({ theme = 'system' }) {
                 Auto
                 <ListBox.ItemIndicator>
                   {({ isSelected }) =>
-                    isSelected ? <IconCheck stroke={1.5} /> : null
-                  }
+                    isSelected ? <IconCheck stroke={1.5} /> : null}
                 </ListBox.ItemIndicator>
               </ListBox.Item>
               <ListBox.Item id='preserve' textValue='Preserve'>
                 Preserve
                 <ListBox.ItemIndicator>
                   {({ isSelected }) =>
-                    isSelected ? <IconCheck stroke={1.5} /> : null
-                  }
+                    isSelected ? <IconCheck stroke={1.5} /> : null}
                 </ListBox.ItemIndicator>
               </ListBox.Item>
               <ListBox.Item id='all' textValue='All'>
                 All
                 <ListBox.ItemIndicator>
                   {({ isSelected }) =>
-                    isSelected ? <IconCheck stroke={1.5} /> : null
-                  }
+                    isSelected ? <IconCheck stroke={1.5} /> : null}
                 </ListBox.ItemIndicator>
               </ListBox.Item>
             </ListBox>
@@ -375,9 +355,9 @@ export function Settings({ theme = 'system' }) {
           </Description>
         </Select>
         <Switch
+          className='flex flex-col items-start justify-start gap-2'
           isSelected={settings.cardErrorDetection}
           onChange={handleCardErrorDetectionChange}
-          className='flex flex-col items-start justify-start gap-2'
         >
           <Label>Card Error Detection</Label>
           <Switch.Control>
@@ -388,21 +368,12 @@ export function Settings({ theme = 'system' }) {
           </Description>
         </Switch>
         <div className='pt-1'>
-          <Button type='submit' variant='primary' isDisabled={!hasChanges}>
+          <Button isDisabled={!hasChanges} type='submit' variant='primary'>
             <IconDeviceFloppy />
             Save Settings
           </Button>
         </div>
       </Form>
-      {statusBar.visible && (
-        <StatusBar
-          title={statusBar.title}
-          description={statusBar.description}
-          status={statusBar.status}
-          timeout={statusBar.timeout}
-          onClose={hideStatus}
-        />
-      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
+import { Card, Spinner, Toast } from '@heroui/react';
 import { useEffect, useState } from 'react';
-import { Card, Spinner } from '@heroui/react';
-import { AnimatePresence, motion } from 'motion/react';
+
 import {
   ActionButtons,
   ContextFooter,
@@ -8,8 +8,7 @@ import {
   GetDatasetsView,
   GetPagesView,
   LinkPreview,
-  ObjectDetailsView,
-  StatusBar
+  ObjectDetailsView
 } from '@/components';
 import { useStatusBar, useTheme } from '@/hooks';
 import { DomoContext } from '@/models';
@@ -19,11 +18,12 @@ export default function App() {
   useTheme();
 
   const [activeView, setActiveView] = useState('default');
+  const [viewKey, setViewKey] = useState(0);
   const [loadingMessage, setLoadingMessage] = useState('Loading...');
   const [currentContext, setCurrentContext] = useState(null);
   const [currentTabId, setCurrentTabId] = useState(null);
   const [isLoadingCurrentContext, setIsLoadingCurrentContext] = useState(true);
-  const { statusBar, showStatus, hideStatus } = useStatusBar();
+  const { showStatus } = useStatusBar();
 
   // Listen for storage changes for sidepanel data
   useEffect(() => {
@@ -38,41 +38,42 @@ export default function App() {
           setLoadingMessage(data.message || 'Loading...');
         } else if (data?.type === 'getPages') {
           setActiveView('getPages');
+          setViewKey(data.timestamp || Date.now());
         } else if (data?.type === 'getOtherPages') {
           setActiveView('getOtherPages');
+          setViewKey(data.timestamp || Date.now());
         } else if (data?.type === 'childPagesWarning') {
           setActiveView('childPagesWarning');
+          setViewKey(data.timestamp || Date.now());
         } else if (data?.type === 'getCards') {
           setActiveView('getCards');
+          setViewKey(data.timestamp || Date.now());
         } else if (data?.type === 'getDatasets') {
           setActiveView('getDatasets');
+          setViewKey(data.timestamp || Date.now());
         } else if (data?.type === 'viewObjectDetails') {
           setActiveView('viewObjectDetails');
+          setViewKey(data.timestamp || Date.now());
         }
       }
     };
 
     chrome.storage.onChanged.addListener(handleStorageChange);
 
-    // Check if there's already sidepanel data on mount
+    // Check if there's already sidepanel data on mount.
+    // Uses a generous threshold because the popup writes data before opening the
+    // sidepanel, and the cold-start can take several seconds (missing the
+    // storage.onChanged event that fires before the listener is registered).
     chrome.storage.session.get(['sidepanelDataList'], (result) => {
       if (result.sidepanelDataList) {
-        // Only use it if it's recent (within last 10 seconds)
         const age = Date.now() - (result.sidepanelDataList.timestamp || 0);
-        if (age < 1000) {
-          if (result.sidepanelDataList.type === 'getPages') {
-            setActiveView('getPages');
-          } else if (result.sidepanelDataList.type === 'getOtherPages') {
-            setActiveView('getOtherPages');
-          } else if (result.sidepanelDataList.type === 'childPagesWarning') {
-            setActiveView('childPagesWarning');
-          } else if (result.sidepanelDataList.type === 'getCards') {
-            setActiveView('getCards');
-          } else if (result.sidepanelDataList.type === 'getDatasets') {
-            setActiveView('getDatasets');
-          } else if (result.sidepanelDataList.type === 'viewObjectDetails') {
-            setActiveView('viewObjectDetails');
-          }
+        if (age < 10000) {
+          handleStorageChange(
+            {
+              sidepanelDataList: { newValue: result.sidepanelDataList }
+            },
+            'session'
+          );
         }
       }
     });
@@ -155,8 +156,8 @@ export default function App() {
     const handleTabActivated = async (activeInfo) => {
       try {
         const response = await chrome.runtime.sendMessage({
-          type: 'GET_TAB_CONTEXT',
-          tabId: activeInfo.tabId
+          tabId: activeInfo.tabId,
+          type: 'GET_TAB_CONTEXT'
         });
 
         if (response.success && response.context) {
@@ -190,41 +191,17 @@ export default function App() {
     <>
       <div className='flex h-full max-h-screen min-h-0 w-full flex-col items-start justify-start space-y-1 overscroll-contain p-1'>
         <ActionButtons
+          collapsable={true}
           currentContext={currentContext}
           isLoadingCurrentContext={isLoadingCurrentContext}
-          collapsable={true}
           onStatusUpdate={showStatus}
         />
 
-        <div
-          className={`relative flex max-h-fit min-h-0 w-full flex-1 flex-col`}
-        >
-          <ContextFooter
-            currentContext={currentContext}
-            isLoading={isLoadingCurrentContext}
-            onStatusUpdate={showStatus}
-          />
-          <AnimatePresence>
-            {statusBar.visible && (
-              <motion.div
-                key={statusBar.key}
-                className='absolute inset-0 z-10'
-                initial={{ opacity: 0, y: -8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.15 }}
-              >
-                <StatusBar
-                  title={statusBar.title}
-                  description={statusBar.description}
-                  status={statusBar.status}
-                  timeout={statusBar.timeout}
-                  onClose={hideStatus}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+        <ContextFooter
+          currentContext={currentContext}
+          isLoading={isLoadingCurrentContext}
+          onStatusUpdate={showStatus}
+        />
 
         {activeView === 'loading' && (
           <Card className='h-full w-full'>
@@ -241,6 +218,7 @@ export default function App() {
               activeView === 'getOtherPages' ||
               activeView === 'childPagesWarning') && (
               <GetPagesView
+                key={viewKey}
                 onBackToDefault={handleBackToDefault}
                 onStatusUpdate={showStatus}
               />
@@ -248,6 +226,7 @@ export default function App() {
 
             {activeView === 'getCards' && (
               <GetCardsView
+                key={viewKey}
                 onBackToDefault={handleBackToDefault}
                 onStatusUpdate={showStatus}
               />
@@ -255,6 +234,7 @@ export default function App() {
 
             {activeView === 'getDatasets' && (
               <GetDatasetsView
+                key={viewKey}
                 onBackToDefault={handleBackToDefault}
                 onStatusUpdate={showStatus}
               />
@@ -262,6 +242,7 @@ export default function App() {
 
             {activeView === 'viewObjectDetails' && (
               <ObjectDetailsView
+                key={viewKey}
                 onBackToDefault={handleBackToDefault}
                 onStatusUpdate={showStatus}
               />
@@ -270,6 +251,7 @@ export default function App() {
         )}
       </div>
       <LinkPreview />
+      <Toast.Provider />
     </>
   );
 }

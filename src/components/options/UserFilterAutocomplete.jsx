@@ -1,4 +1,3 @@
-import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   Autocomplete,
   Avatar,
@@ -14,6 +13,8 @@ import {
   Tag,
   TagGroup
 } from '@heroui/react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+
 import { searchUsers } from '@/services';
 
 /**
@@ -21,11 +22,11 @@ import { searchUsers } from '@/services';
  * With async user fetching
  */
 export function UserFilterAutocomplete({
-  value = [],
-  onChange,
-  tabId,
   domoInstance,
-  placeholder = 'Filter by user...'
+  onChange,
+  placeholder = 'Filter by user...',
+  tabId,
+  value = []
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchText, setSearchText] = useState('');
@@ -46,7 +47,7 @@ export function UserFilterAutocomplete({
     async function fetchInitialUsers() {
       setIsLoading(true);
       try {
-        const { users: fetchedUsers, totalCount } = await searchUsers(
+        const { totalCount, users: fetchedUsers } = await searchUsers(
           '',
           tabId,
           0
@@ -88,7 +89,7 @@ export function UserFilterAutocomplete({
       setIsLoading(true);
       setSearchOffset(0);
       try {
-        const { users: fetchedUsers, totalCount } = await searchUsers(
+        const { totalCount, users: fetchedUsers } = await searchUsers(
           searchText,
           tabId,
           0
@@ -122,7 +123,7 @@ export function UserFilterAutocomplete({
 
     setIsLoadingMore(true);
     try {
-      const { users: fetchedUsers, totalCount } = await searchUsers(
+      const { totalCount, users: fetchedUsers } = await searchUsers(
         searchText,
         tabId,
         searchOffset
@@ -159,15 +160,15 @@ export function UserFilterAutocomplete({
 
   return (
     <Autocomplete
+      aria-label='User'
+      className='w-full'
+      isOpen={isOpen}
       placeholder={placeholder}
       selectionMode='multiple'
-      isOpen={isOpen}
-      onOpenChange={setIsOpen}
       value={value}
-      onChange={(keys) => onChange?.(keys || [])}
-      aria-label='User'
       variant='secondary'
-      className='w-full'
+      onChange={(keys) => onChange?.(keys || [])}
+      onOpenChange={setIsOpen}
     >
       <Autocomplete.Trigger aria-label='User autocomplete trigger'>
         <Autocomplete.Value aria-label='Selected users'>
@@ -180,10 +181,10 @@ export function UserFilterAutocomplete({
             );
             return (
               <TagGroup
-                size='sm'
-                onRemove={onRemoveTags}
                 aria-label='Selected users tags'
+                size='sm'
                 variant='surface'
+                onRemove={onRemoveTags}
               >
                 <TagGroup.List>
                   {selectedItemsKeys.map((selectedItemKey) => {
@@ -191,9 +192,9 @@ export function UserFilterAutocomplete({
                     if (!user) return null;
                     return (
                       <Tag
-                        key={user.id}
-                        id={user.id}
                         aria-label={`Selected user ${user.displayName}`}
+                        id={user.id}
+                        key={user.id}
                         variant=''
                       >
                         {user.displayName}
@@ -210,8 +211,8 @@ export function UserFilterAutocomplete({
       </Autocomplete.Trigger>
       <Autocomplete.Popover
         aria-label='User autocomplete popover'
-        placement='bottom left'
         className='h-fit max-h-160'
+        placement='bottom left'
       >
         <Autocomplete.Filter
           inputValue={searchText}
@@ -233,13 +234,12 @@ export function UserFilterAutocomplete({
                 </div>
               ) : (
                 <EmptyState>No users found</EmptyState>
-              )
-            }
+              )}
           >
             {users?.map((user) => (
               <ListBox.Item
-                key={user.id}
                 id={user.id}
+                key={user.id}
                 textValue={user.displayName}
               >
                 <Avatar size='sm'>
@@ -257,8 +257,8 @@ export function UserFilterAutocomplete({
             ))}
             {hasMore && (
               <ListBoxLoadMoreItem
-                onLoadMore={loadMoreUsers}
                 isLoading={isLoadingMore}
+                onLoadMore={loadMoreUsers}
               >
                 Load more users...
               </ListBoxLoadMoreItem>

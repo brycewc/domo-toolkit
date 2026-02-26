@@ -1,7 +1,8 @@
-import { useState, useRef } from 'react';
-import { Button, Dropdown, Label, Tooltip } from '@heroui/react';
-import { IconClipboard, IconJson } from '@tabler/icons-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { Button, Dropdown, Kbd, Label, Tooltip } from '@heroui/react';
+import { IconClipboard } from '@tabler/icons-react';
+import { AnimatePresence, motion } from 'motion/react';
+import { useRef, useState } from 'react';
+
 import { AnimatedCheck } from '@/components';
 import { DomoObject, getObjectType } from '@/models';
 import { fetchObjectDetailsInPage } from '@/services';
@@ -20,54 +21,20 @@ const notifyClipboardUpdate = (value, domoObject = null) => {
 
   chrome.runtime
     .sendMessage({
-      type: 'CLIPBOARD_COPIED',
       clipboardData: String(value),
-      domoObject: domoObject?.toJSON?.() ?? domoObject
+      domoObject: domoObject?.toJSON?.() ?? domoObject,
+      type: 'CLIPBOARD_COPIED'
     })
     .catch(() => {
       // Ignore errors (e.g., no listeners)
     });
 };
 
-/**
- * Enrich a DomoObject with metadata from the API
- * @param {DomoObject} domoObject - The object to enrich
- * @param {number} tabId - The Chrome tab ID for page context execution
- * @returns {Promise<DomoObject>} The enriched object (mutated in place)
- */
-async function enrichDomoObject(domoObject, tabId) {
-  const typeModel = getObjectType(domoObject.typeId);
-  if (!typeModel?.api) return domoObject;
-
-  try {
-    const params = {
-      typeId: typeModel.id,
-      objectId: domoObject.id,
-      baseUrl: domoObject.baseUrl,
-      apiConfig: typeModel.api,
-      requiresParent: typeModel.requiresParentForApi(),
-      parentId: domoObject.parentId || null,
-      throwOnError: false
-    };
-    const metadata = await executeInPage(
-      fetchObjectDetailsInPage,
-      [params],
-      tabId
-    );
-    if (metadata) {
-      domoObject.metadata = metadata;
-    }
-  } catch (error) {
-    console.warn('[Copy] Failed to enrich object:', error);
-  }
-  return domoObject;
-}
-
 export function Copy({
   currentContext,
-  onStatusUpdate,
   isDisabled,
-  navigateToCopiedRef
+  navigateToCopiedRef,
+  onStatusUpdate
 }) {
   const [isCopied, setIsCopied] = useState(false);
   const [isHolding, setIsHolding] = useState(false);
@@ -76,26 +43,27 @@ export function Copy({
   const typeId = currentContext?.domoObject?.typeId;
   const details = currentContext?.domoObject?.metadata?.details;
 
-  const dropdownItems = [
-    typeId === 'DATA_SOURCE' &&
-      details?.streamId && {
-        id: 'stream',
-        label: 'Copy Stream ID'
-      },
-    typeId === 'DATA_SOURCE' &&
-      details?.accountId && {
-        id: 'account',
-        label: 'Copy Account ID'
-      },
-    typeId === 'DATA_APP_VIEW' && {
-      id: 'data-app',
-      label: 'Copy App ID'
-    },
-    typeId === 'WORKSHEET_VIEW' && {
-      id: 'worksheet',
-      label: 'Copy Worksheet ID'
-    }
-  ].filter(Boolean);
+  let dropdownItems;
+  switch (typeId) {
+    case 'DATA_APP_VIEW':
+      dropdownItems = [{ id: 'data-app', label: 'Copy App ID' }];
+      break;
+    case 'DATA_SOURCE':
+      dropdownItems = [
+        details?.streamId && { id: 'stream', label: 'Copy Stream ID' },
+        details?.accountId && { id: 'account', label: 'Copy Account ID' },
+        details?.type?.toLowerCase() === 'dataflow' && {
+          id: 'dataflow',
+          label: 'Copy Dataflow ID'
+        }
+      ].filter(Boolean);
+      break;
+    case 'WORKSHEET_VIEW':
+      dropdownItems = [{ id: 'worksheet', label: 'Copy Worksheet ID' }];
+      break;
+    default:
+      dropdownItems = [];
+  }
 
   const longPressDisabled =
     isDisabled || !currentContext?.domoObject?.id || dropdownItems.length === 0;
@@ -145,22 +113,6 @@ export function Copy({
     const tabId = currentContext?.tabId;
 
     switch (key) {
-      case 'stream': {
-        const streamId =
-          currentContext?.domoObject?.metadata?.details?.streamId;
-        const streamObject = new DomoObject('STREAM', streamId, baseUrl);
-        navigator.clipboard.writeText(streamId);
-        onStatusUpdate?.(
-          'Success',
-          `Copied Stream ID **${streamId}** to clipboard`,
-          'success',
-          2000
-        );
-        await enrichDomoObject(streamObject, tabId);
-        notifyClipboardUpdate(streamId, streamObject);
-        navigateToCopiedRef.current?.triggerDetection(streamId, streamObject);
-        break;
-      }
       case 'account': {
         const accountId =
           currentContext?.domoObject?.metadata?.details?.accountId;
@@ -192,6 +144,44 @@ export function Copy({
         navigateToCopiedRef.current?.triggerDetection(appId, appObject);
         break;
       }
+      case 'dataflow': {
+        const dataflowId = currentContext?.domoObject?.parentId;
+        const dataflowObject = new DomoObject(
+          'DATAFLOW_TYPE',
+          dataflowId,
+          baseUrl
+        );
+        navigator.clipboard.writeText(dataflowId);
+        onStatusUpdate?.(
+          'Success',
+          `Copied Dataflow ID **${dataflowId}** to clipboard`,
+          'success',
+          2000
+        );
+        await enrichDomoObject(dataflowObject, tabId);
+        notifyClipboardUpdate(dataflowId, dataflowObject);
+        navigateToCopiedRef.current?.triggerDetection(
+          dataflowId,
+          dataflowObject
+        );
+        break;
+      }
+      case 'stream': {
+        const streamId =
+          currentContext?.domoObject?.metadata?.details?.streamId;
+        const streamObject = new DomoObject('STREAM', streamId, baseUrl);
+        navigator.clipboard.writeText(streamId);
+        onStatusUpdate?.(
+          'Success',
+          `Copied Stream ID **${streamId}** to clipboard`,
+          'success',
+          2000
+        );
+        await enrichDomoObject(streamObject, tabId);
+        notifyClipboardUpdate(streamId, streamObject);
+        navigateToCopiedRef.current?.triggerDetection(streamId, streamObject);
+        break;
+      }
       case 'worksheet': {
         const worksheetId = currentContext?.domoObject?.parentId;
         const worksheetObject = new DomoObject(
@@ -220,17 +210,17 @@ export function Copy({
   };
 
   return (
-    <Tooltip delay={400} closeDelay={0}>
-      <Dropdown trigger='longPress' isDisabled={longPressDisabled}>
+    <Dropdown isDisabled={longPressDisabled} trigger='longPress'>
+      <Tooltip closeDelay={0} delay={400}>
         <Button
-          variant='tertiary'
           fullWidth
           isIconOnly
-          onPress={handlePress}
-          onPressStart={longPressDisabled ? undefined : handlePressStart}
-          onPressEnd={longPressDisabled ? undefined : handlePressEnd}
-          isDisabled={isDisabled || !currentContext?.domoObject?.id}
           className='relative overflow-visible'
+          isDisabled={isDisabled || !currentContext?.domoObject?.id}
+          variant='tertiary'
+          onPress={handlePress}
+          onPressEnd={longPressDisabled ? undefined : handlePressEnd}
+          onPressStart={longPressDisabled ? undefined : handlePressStart}
         >
           {isCopied ? (
             <AnimatedCheck stroke={1.5} />
@@ -240,39 +230,77 @@ export function Copy({
           <AnimatePresence>
             {isHolding && (
               <motion.div
-                className='pointer-events-none absolute inset-0 overflow-hidden rounded-md'
-                initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
+                className='pointer-events-none absolute inset-0 overflow-hidden rounded-md'
                 exit={{ opacity: 0, transition: { duration: 0.1 } }}
+                initial={{ opacity: 0 }}
               >
                 <motion.div
+                  animate={{ scale: 1 }}
                   className='absolute top-1/2 left-1/2 aspect-square w-[200%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent-soft-hover'
                   initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
                   transition={{ duration: LONG_PRESS_SECONDS, ease: 'linear' }}
                 />
               </motion.div>
             )}
           </AnimatePresence>
         </Button>
-        <Dropdown.Popover className='w-fit min-w-48' placement='bottom left'>
-          <Dropdown.Menu onAction={handleAction}>
-            {dropdownItems.map((item) => (
-              <Dropdown.Item key={item.id} id={item.id} textValue={item.label}>
-                <IconClipboard className='size-4 shrink-0' />
-                <Label>{item.label}</Label>
-              </Dropdown.Item>
-            ))}
-          </Dropdown.Menu>
-        </Dropdown.Popover>
-      </Dropdown>
-
-      <Tooltip.Content className='flex flex-col items-center text-center'>
-        <span>Copy ID</span>
-        {!longPressDisabled && (
-          <span className='italic'>Hold for more options</span>
-        )}
-      </Tooltip.Content>
-    </Tooltip>
+        <Tooltip.Content className='flex items-center gap-2 text-center'>
+          <span>Copy ID</span>
+          <Kbd className='text-xs'>
+            <Kbd.Abbr keyValue={(navigator.userAgentData?.platform ?? navigator.platform).includes('Mac') ? 'command' : 'ctrl'} />
+            <Kbd.Abbr keyValue='shift' />
+            <Kbd.Content>1</Kbd.Content>
+          </Kbd>
+          {!longPressDisabled && (
+            <span className='italic'>Hold for more options</span>
+          )}
+        </Tooltip.Content>
+      </Tooltip>
+      <Dropdown.Popover className='w-fit min-w-48' placement='bottom left'>
+        <Dropdown.Menu onAction={handleAction}>
+          {dropdownItems.map((item) => (
+            <Dropdown.Item id={item.id} key={item.id} textValue={item.label}>
+              <IconClipboard className='size-4 shrink-0' />
+              <Label>{item.label}</Label>
+            </Dropdown.Item>
+          ))}
+        </Dropdown.Menu>
+      </Dropdown.Popover>
+    </Dropdown>
   );
+}
+
+/**
+ * Enrich a DomoObject with metadata from the API
+ * @param {DomoObject} domoObject - The object to enrich
+ * @param {number} tabId - The Chrome tab ID for page context execution
+ * @returns {Promise<DomoObject>} The enriched object (mutated in place)
+ */
+async function enrichDomoObject(domoObject, tabId) {
+  const typeModel = getObjectType(domoObject.typeId);
+  if (!typeModel?.api) return domoObject;
+
+  try {
+    const params = {
+      apiConfig: typeModel.api,
+      baseUrl: domoObject.baseUrl,
+      objectId: domoObject.id,
+      parentId: domoObject.parentId || null,
+      requiresParent: typeModel.requiresParentForApi(),
+      throwOnError: false,
+      typeId: typeModel.id
+    };
+    const metadata = await executeInPage(
+      fetchObjectDetailsInPage,
+      [params],
+      tabId
+    );
+    if (metadata) {
+      domoObject.metadata = metadata;
+    }
+  } catch (error) {
+    console.warn('[Copy] Failed to enrich object:', error);
+  }
+  return domoObject;
 }

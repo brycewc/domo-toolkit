@@ -1,48 +1,41 @@
-import { useState, useEffect, useRef } from 'react';
 import {
   Accordion,
   Button,
   Card,
-  Input,
-  Label,
-  Select,
-  ListBox,
-  TextField,
-  Form,
-  Skeleton,
   ColorArea,
-  ColorInputGroup,
   ColorField,
+  ColorPicker,
   ColorSlider,
   ColorSwatch,
-  ColorPicker,
   ColorSwatchPicker,
-  parseColor
+  Form,
+  Input,
+  Label,
+  ListBox,
+  parseColor,
+  Select,
+  Skeleton,
+  TextField
 } from '@heroui/react';
+import { toast } from '@heroui/react';
 import {
-  IconTrash,
+  IconArrowsShuffle,
+  IconCheck,
+  IconChevronDown,
+  IconDeviceFloppy,
   IconGripVertical,
   IconPlus,
-  IconDeviceFloppy,
-  IconChevronDown,
-  IconCheck,
-  IconArrowsShuffle
+  IconTrash
 } from '@tabler/icons-react';
+import { useEffect, useRef, useState } from 'react';
+
 import { clearFaviconCache } from '@/utils';
-import { StatusBar } from './../StatusBar';
 
 export function FaviconSettings() {
   const [rules, setRules] = useState([]);
   const [originalRules, setOriginalRules] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [draggedIndex, setDraggedIndex] = useState(null);
-  const [statusBar, setStatusBar] = useState({
-    title: '',
-    description: '',
-    status: 'accent',
-    timeout: 3000,
-    visible: false
-  });
   const colorPresets = [
     '#F43F5EFF',
     '#D946EFFF',
@@ -72,12 +65,10 @@ export function FaviconSettings() {
         // Migrate old format if necessary
         const migratedRules = result.faviconRules.map((rule) => {
           if (rule.useInstanceLogo) {
-            // Convert old format: useInstanceLogo: true -> effect: 'instance-logo'
-            const { useInstanceLogo, ...rest } = rule;
+            const { useInstanceLogo: _, ...rest } = rule;
             return { ...rest, effect: 'instance-logo' };
           }
-          // Remove useInstanceLogo property if it exists
-          const { useInstanceLogo, ...rest } = rule;
+          const { useInstanceLogo: _, ...rest } = rule;
           return rest;
         });
         setRules(migratedRules);
@@ -86,10 +77,10 @@ export function FaviconSettings() {
         // Set default rules if none exist (matches background.js default)
         const defaultRules = [
           {
-            id: Date.now(),
-            pattern: '.*',
+            color: '#00000000',
             effect: 'instance-logo',
-            color: '#00000000'
+            id: Date.now(),
+            pattern: '.*'
           }
         ];
         setRules(defaultRules);
@@ -108,11 +99,7 @@ export function FaviconSettings() {
     status = 'accent',
     timeout = 3000
   ) => {
-    setStatusBar({ title, description, status, timeout, visible: true });
-  };
-
-  const hideStatus = () => {
-    setStatusBar((prev) => ({ ...prev, visible: false }));
+    toast(title, { description, timeout: timeout || 0, variant: status });
   };
 
   const onSave = async (e) => {
@@ -138,10 +125,10 @@ export function FaviconSettings() {
     nextPresetIndex.current++;
     setRules([
       {
-        id: Date.now(),
-        pattern: '.*',
+        color,
         effect: 'domo-logo-colored',
-        color
+        id: Date.now(),
+        pattern: '.*'
       },
       ...rules
     ]);
@@ -161,7 +148,7 @@ export function FaviconSettings() {
     setDraggedIndex(index);
   };
 
-  const handleDragOver = (e, index) => {
+  const handleDragOver = (e, _index) => {
     e.preventDefault();
   };
 
@@ -189,7 +176,7 @@ export function FaviconSettings() {
       <div className='flex w-full flex-col gap-2'>
         <Form className='flex w-full flex-col gap-2' onSubmit={onSave}>
           <div className='flex flex-row gap-2'>
-            <Button type='submit' isDisabled={!hasChanges}>
+            <Button isDisabled={!hasChanges} type='submit'>
               <IconDeviceFloppy />
               Save Settings
             </Button>
@@ -208,12 +195,12 @@ export function FaviconSettings() {
           ) : (
             rules.map((rule, index) => (
               <Card
-                key={rule.id}
                 draggable
-                onDragStart={() => handleDragStart(index)}
-                onDragOver={(e) => handleDragOver(e, index)}
-                onDrop={(e) => handleDrop(e, index)}
+                key={rule.id}
                 onDragEnd={handleDragEnd}
+                onDragOver={(e) => handleDragOver(e, index)}
+                onDragStart={() => handleDragStart(index)}
+                onDrop={(e) => handleDrop(e, index)}
                 className={`cursor-move transition-opacity ${
                   draggedIndex === index ? 'opacity-50' : ''
                 }`}
@@ -224,21 +211,20 @@ export function FaviconSettings() {
                       {index + 1}
                     </span>
                     <IconGripVertical
-                      stroke={1.5}
                       className='size-8 text-muted'
+                      stroke={1.5}
                     />
                   </div>
 
                   <div className='min-w-0 flex-1'>
                     <TextField
+                      isRequired
                       className='w-full'
                       name='pattern'
-                      onChange={(value) =>
-                        updateRule(rule.id, 'pattern', value)
-                      }
                       value={rule.pattern}
-                      isRequired
                       variant='secondary'
+                      onChange={(value) =>
+                        updateRule(rule.id, 'pattern', value)}
                     >
                       <Label>Subdomain Pattern</Label>
                       <Input />
@@ -248,11 +234,11 @@ export function FaviconSettings() {
                   <div className='flex w-50 flex-col gap-1'>
                     <Label>Effect</Label>
                     <Select
-                      value={rule.effect}
-                      onChange={(value) => updateRule(rule.id, 'effect', value)}
-                      className='w-full'
                       isRequired
+                      className='w-full'
+                      value={rule.effect}
                       variant='secondary'
+                      onChange={(value) => updateRule(rule.id, 'effect', value)}
                     >
                       <Label className='sr-only'>Effect</Label>
                       <Select.Trigger>
@@ -267,48 +253,42 @@ export function FaviconSettings() {
                             instance-logo
                             <ListBox.ItemIndicator>
                               {({ isSelected }) =>
-                                isSelected ? <IconCheck stroke={1.5} /> : null
-                              }
+                                isSelected ? <IconCheck stroke={1.5} /> : null}
                             </ListBox.ItemIndicator>
                           </ListBox.Item>
                           <ListBox.Item id='domo-logo-colored'>
                             domo-logo-colored
                             <ListBox.ItemIndicator>
                               {({ isSelected }) =>
-                                isSelected ? <IconCheck stroke={1.5} /> : null
-                              }
+                                isSelected ? <IconCheck stroke={1.5} /> : null}
                             </ListBox.ItemIndicator>
                           </ListBox.Item>
                           <ListBox.Item id='top'>
                             top
                             <ListBox.ItemIndicator>
                               {({ isSelected }) =>
-                                isSelected ? <IconCheck stroke={1.5} /> : null
-                              }
+                                isSelected ? <IconCheck stroke={1.5} /> : null}
                             </ListBox.ItemIndicator>
                           </ListBox.Item>
                           <ListBox.Item id='right'>
                             right
                             <ListBox.ItemIndicator>
                               {({ isSelected }) =>
-                                isSelected ? <IconCheck stroke={1.5} /> : null
-                              }
+                                isSelected ? <IconCheck stroke={1.5} /> : null}
                             </ListBox.ItemIndicator>
                           </ListBox.Item>
                           <ListBox.Item id='bottom'>
                             bottom
                             <ListBox.ItemIndicator>
                               {({ isSelected }) =>
-                                isSelected ? <IconCheck stroke={1.5} /> : null
-                              }
+                                isSelected ? <IconCheck stroke={1.5} /> : null}
                             </ListBox.ItemIndicator>
                           </ListBox.Item>
                           <ListBox.Item id='left'>
                             left
                             <ListBox.ItemIndicator>
                               {({ isSelected }) =>
-                                isSelected ? <IconCheck stroke={1.5} /> : null
-                              }
+                                isSelected ? <IconCheck stroke={1.5} /> : null}
                             </ListBox.ItemIndicator>
                           </ListBox.Item>
                         </ListBox>
@@ -318,19 +298,18 @@ export function FaviconSettings() {
 
                   <div className='flex w-25 flex-col gap-1'>
                     <ColorPicker
+                      className='flex flex-col items-start justify-start gap-1'
+                      onChange={(newColor) =>
+                        updateRule(rule.id, 'color', newColor.toString('hexa'))}
                       value={
                         rule.effect === 'instance-logo'
                           ? '#00000000'
                           : parseColor(rule.color)
                       }
-                      onChange={(newColor) =>
-                        updateRule(rule.id, 'color', newColor.toString('hexa'))
-                      }
-                      className='flex flex-col items-start justify-start gap-1'
                     >
                       <Label
-                        htmlFor='color-picker-trigger'
                         aria-label='Color picker label'
+                        htmlFor='color-picker-trigger'
                       >
                         Color
                       </Label>
@@ -340,9 +319,9 @@ export function FaviconSettings() {
                         isDisabled={rule.effect === 'instance-logo'}
                       >
                         <ColorSwatch
-                          size='lg'
-                          shape='square'
                           className='w-25 rounded-3xl'
+                          shape='square'
+                          size='lg'
                         />
                       </ColorPicker.Trigger>
                       <ColorPicker.Popover
@@ -355,12 +334,11 @@ export function FaviconSettings() {
                           variant='square'
                         >
                           {colorPresets.map((preset) => (
-                            <ColorSwatchPicker.Item key={preset} color={preset}>
+                            <ColorSwatchPicker.Item color={preset} key={preset}>
                               <ColorSwatchPicker.Swatch />
                               <ColorSwatchPicker.Indicator>
                                 {({ isSelected }) =>
-                                  isSelected ? <IconCheck /> : null
-                                }
+                                  isSelected ? <IconCheck /> : null}
                               </ColorSwatchPicker.Indicator>
                             </ColorSwatchPicker.Item>
                           ))}
@@ -401,18 +379,18 @@ export function FaviconSettings() {
                         </div>
                         <div className='flex w-full flex-row items-center justify-start gap-1'>
                           <ColorField
-                            colorSpace='hsl'
                             aria-label='Color field'
                             className=''
+                            colorSpace='hsl'
                           >
-                            <ColorInputGroup
-                              variant='secondary'
+                            <ColorField.Group
                               aria-label='Color input group'
+                              variant='secondary'
                             >
-                              <ColorInputGroup.Prefix>
-                                <ColorSwatch size='xs' shape='square' />
-                              </ColorInputGroup.Prefix>
-                              <ColorInputGroup.Input
+                              <ColorField.Prefix>
+                                <ColorSwatch shape='square' size='xs' />
+                              </ColorField.Prefix>
+                              <ColorField.Input
                                 aria-label='Color input'
                                 onPaste={(e) => {
                                   let text = e.clipboardData
@@ -433,14 +411,14 @@ export function FaviconSettings() {
                                   }
                                 }}
                               />
-                            </ColorInputGroup>
+                            </ColorField.Group>
                           </ColorField>
                           <Button
                             isIconOnly
                             aria-label='Shuffle color'
+                            className='shrink-0'
                             variant='tertiary'
                             onPress={() => shuffleColor(rule.id)}
-                            className='shrink-0'
                           >
                             <IconArrowsShuffle stroke={1.5} />
                           </Button>
@@ -452,11 +430,11 @@ export function FaviconSettings() {
                   {rules.length > 1 && (
                     <div className='flex items-center'>
                       <Button
+                        isIconOnly
                         variant='tertiary'
                         onPress={() => removeRow(rule.id)}
-                        isIconOnly
                       >
-                        <IconTrash stroke={1.5} className='text-danger' />
+                        <IconTrash className='text-danger' stroke={1.5} />
                       </Button>
                     </div>
                   )}
@@ -465,18 +443,6 @@ export function FaviconSettings() {
             ))
           )}
         </Form>
-
-        <div>
-          {statusBar.visible && (
-            <StatusBar
-              title={statusBar.title}
-              description={statusBar.description}
-              status={statusBar.status}
-              timeout={statusBar.timeout}
-              onClose={hideStatus}
-            />
-          )}
-        </div>
       </div>
 
       <Accordion className='cursor-pointer'>

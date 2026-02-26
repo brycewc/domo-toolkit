@@ -1,13 +1,15 @@
-import { useState, useEffect } from 'react';
-import { Tabs } from '@heroui/react';
-import { useTheme } from '@/hooks';
+import { Button, Link, Tabs, Toast } from '@heroui/react';
+import { IconInbox } from '@tabler/icons-react';
+import { useEffect, useState } from 'react';
+
 import {
   ActivityLogTable,
-  Settings,
   FaviconSettings,
+  Settings,
   shouldShowWelcomePage,
   WelcomePage
 } from '@/components';
+import { useTheme } from '@/hooks';
 
 export default function App() {
   // Apply theme
@@ -46,13 +48,59 @@ export default function App() {
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
+  // Update document title based on selected tab
+  useEffect(() => {
+    const tabTitles = {
+      favicon: 'Favicon Preferences',
+      settings: 'Settings',
+      welcome: 'Welcome'
+    };
+
+    if (selectedTab === 'activity-log') {
+      chrome.storage.session
+        .get(['activityLogObjects', 'activityLogType'])
+        .then((result) => {
+          const objects = result.activityLogObjects || [];
+          const logType = result.activityLogType;
+          let label;
+
+          if (logType === 'single-object' && objects[0]) {
+            label = objects[0].name || `${objects[0].type} ${objects[0].id}`;
+          } else if (logType === 'child-cards') {
+            label = `${objects.length} ${objects.length === 1 ? 'Card' : 'Cards'}`;
+          } else if (logType === 'child-pages') {
+            label = `${objects.length} ${objects.length === 1 ? 'Page' : 'Pages'}`;
+          } else {
+            label = `${objects.length} ${objects.length === 1 ? 'Object' : 'Objects'}`;
+          }
+
+          document.title = `Activity Log: ${label} - Domo Toolkit`;
+        })
+        .catch(() => {
+          document.title = 'Activity Log - Domo Toolkit';
+        });
+    } else {
+      document.title = `${tabTitles[selectedTab] || 'Options'} - Domo Toolkit`;
+    }
+  }, [selectedTab]);
+
   return (
     <div className='flex h-screen w-full justify-center'>
+      <Link
+        className='fixed right-1 bottom-4 z-10 no-underline'
+        href='https://github.com/brycewc/domo-toolkit/issues'
+        target='_blank'
+      >
+        <Button>
+          <IconInbox stroke={1.5} />
+          Submit Feedback
+        </Button>
+      </Link>
       <Tabs
         className='h-full w-full items-center rounded-sm'
         selectedKey={selectedTab}
-        onSelectionChange={handleTabChange}
         variant='secondary'
+        onSelectionChange={handleTabChange}
       >
         <Tabs.ListContainer className='fixed top-0 z-10 flex h-fit w-full max-w-3xl flex-row items-end justify-center bg-background pt-4'>
           <Tabs.List>
@@ -116,6 +164,7 @@ export default function App() {
           {selectedTab === 'activity-log' && <ActivityLogTable />}
         </Tabs.Panel>
       </Tabs>
+      <Toast.Provider className='right-2 bottom-2' placement='bottom' />
     </div>
   );
 }

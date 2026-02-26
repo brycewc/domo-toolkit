@@ -1,6 +1,7 @@
-import { createWriteStream, mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
 import archiver from 'archiver';
+import { createWriteStream, mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { join, relative } from 'node:path';
+
 import pkg from '../package.json' with { type: 'json' };
 
 const { name, version } = pkg;

@@ -1,6 +1,4 @@
-import { DomoContext } from '@/models';
 import {
-  EXCLUDED_HOSTNAMES,
   applyFaviconRules,
   applyInstanceLogoAuto
 } from '@/utils';
@@ -21,11 +19,13 @@ async function applyFavicon() {
   }
 }
 
-// Store current tab context
-let currentTabContext = null;
-
 // Listen for messages from service worker
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === 'PING') {
+    sendResponse({ alive: true });
+    return;
+  }
+
   if (message.type === 'APPLY_FAVICON') {
     applyFavicon();
     sendResponse({ success: true });
@@ -33,12 +33,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === 'TAB_CONTEXT_UPDATED') {
-    // console.log(
-    //   '[ContentScript] Received tab context update:',
-    //   message.context
-    // );
-    currentTabContext = DomoContext.fromJSON(message.context);
-    // Update title when context is received
     sendResponse({ success: true });
     return true;
   }
@@ -80,8 +74,8 @@ async function checkAndCacheClipboard() {
         lastKnownClipboard = '';
         chrome.runtime
           .sendMessage({
-            type: 'CLIPBOARD_COPIED',
-            clipboardData: ''
+            clipboardData: '',
+            type: 'CLIPBOARD_COPIED'
           })
           .catch(() => {});
       }
@@ -95,8 +89,8 @@ async function checkAndCacheClipboard() {
       // Send to background script to cache
       chrome.runtime
         .sendMessage({
-          type: 'CLIPBOARD_COPIED',
-          clipboardData: trimmedText
+          clipboardData: trimmedText,
+          type: 'CLIPBOARD_COPIED'
         })
         .catch((err) => {
           console.log('[ContentScript] Error sending clipboard data:', err);
@@ -131,31 +125,8 @@ window.addEventListener('focus', async () => {
 // Track last detected card modal ID to avoid redundant detections
 let lastDetectedCardId = null;
 
-// Extract card ID from modal element ID (format: card-details-modal-{cardId})
-function extractCardIdFromModal() {
-  const modalElement = document.querySelector('[id^="card-details-modal-"]');
-  if (modalElement && modalElement.id) {
-    const match = modalElement.id.match(/card-details-modal-(\d+)/);
-    if (match && match[1]) {
-      return match[1];
-    }
-  }
-  return null;
-}
-
-// Send message to service worker to trigger context re-detection
-function triggerContextRedetection() {
-  chrome.runtime
-    .sendMessage({
-      type: 'DETECT_CONTEXT'
-    })
-    .catch((error) => {
-      console.error(
-        '[ContentScript] Error triggering context re-detection:',
-        error
-      );
-    });
-}
+// Track whether a job overview element is currently visible
+let lastDetectedJobView = false;
 
 // Watch for card modal element being added or removed
 function checkForCardModalElement(mutations) {
@@ -226,9 +197,69 @@ function checkForCardModalElement(mutations) {
   }
 }
 
-// Set up MutationObserver to watch for modal changes
+// Extract card ID from modal element ID (format: card-details-modal-{cardId})
+function extractCardIdFromModal() {
+  const modalElement = document.querySelector('[id^="card-details-modal-"]');
+  if (modalElement && modalElement.id) {
+    const match = modalElement.id.match(/card-details-modal-(\d+)/);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+  return null;
+}
+
+// Send message to service worker to trigger context re-detection
+function triggerContextRedetection() {
+  chrome.runtime
+    .sendMessage({
+      type: 'DETECT_CONTEXT'
+    })
+    .catch((error) => {
+      console.error(
+        '[ContentScript] Error triggering context re-detection:',
+        error
+      );
+    });
+}
+
+// Watch for job overview element being added or removed (Governance Toolkit)
+function checkForJobOverviewElement(mutations) {
+  if (!location.pathname.includes('governance-toolkit')) return;
+
+  for (const mutation of mutations) {
+    if (mutation.type !== 'childList') continue;
+
+    for (const node of mutation.addedNodes) {
+      if (node.nodeType !== Node.ELEMENT_NODE) continue;
+      const isJobOverview =
+        node.classList?.value?.includes('job-overview-top') ||
+        node.querySelector?.('[class*="job-overview-top"]');
+      if (isJobOverview && !lastDetectedJobView) {
+        lastDetectedJobView = true;
+        triggerContextRedetection();
+        return;
+      }
+    }
+
+    for (const node of mutation.removedNodes) {
+      if (node.nodeType !== Node.ELEMENT_NODE) continue;
+      const wasJobOverview =
+        node.classList?.value?.includes('job-overview-top') ||
+        node.querySelector?.('[class*="job-overview-top"]');
+      if (wasJobOverview && lastDetectedJobView) {
+        lastDetectedJobView = false;
+        triggerContextRedetection();
+        return;
+      }
+    }
+  }
+}
+
+// Set up MutationObserver to watch for modal and job overview changes
 const modalObserver = new MutationObserver((mutations) => {
   checkForCardModalElement(mutations);
+  checkForJobOverviewElement(mutations);
 });
 
 // Start observing the document for modal changes
@@ -254,35 +285,3 @@ modalObserver.observe(document.body, {
   script.src = chrome.runtime.getURL('public/cardErrors.js');
   document.documentElement.appendChild(script);
 })();
-
-// ============================================================
-// Stream execution detailed errors
-// ============================================================
-
-// Inject MAIN world script that enriches expanded error rows with detailed API data.
-// Loaded as an external file to comply with the page's Content Security Policy.
-function injectStreamErrorEnricher() {
-  if (document.getElementById('domo-toolkit-stream-errors-script')) return;
-
-  const script = document.createElement('script');
-  script.id = 'domo-toolkit-stream-errors-script';
-  script.src = chrome.runtime.getURL('public/streamErrors.js');
-  document.documentElement.appendChild(script);
-}
-
-// Watch for .dc-repair-table to appear, then inject the MAIN world script
-if (document.querySelector('.dc-repair-table')) {
-  injectStreamErrorEnricher();
-} else {
-  const streamErrorTableObserver = new MutationObserver(() => {
-    if (document.querySelector('.dc-repair-table')) {
-      injectStreamErrorEnricher();
-      streamErrorTableObserver.disconnect();
-    }
-  });
-
-  streamErrorTableObserver.observe(document.body, {
-    childList: true,
-    subtree: true
-  });
-}

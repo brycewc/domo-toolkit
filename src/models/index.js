@@ -1,11 +1,11 @@
 export { DataListItem } from './DataListItem';
-export { DomoObject } from './DomoObject';
 export { DomoContext } from './DomoContext';
+export { DomoObject } from './DomoObject';
 export {
   DomoObjectType,
-  getObjectType,
+  getAllNavigableObjectTypes,
   getAllObjectTypes,
-  getAllObjectTypesWithUrl,
   getAllObjectTypesWithApiConfig,
-  getAllNavigableObjectTypes
+  getAllObjectTypesWithUrl,
+  getObjectType
 } from './DomoObjectType';

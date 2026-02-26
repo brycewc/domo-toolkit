@@ -20,16 +20,16 @@ export class DataListItem {
    * @param {DomoObject} [config.domoObject] - Optional DomoObject instance for richer functionality
    */
   constructor({
-    id,
-    label,
-    url = null,
-    typeId = null,
-    metadata = null,
+    children = undefined,
     count = undefined,
     countLabel = null,
-    children = undefined,
+    domoObject = null,
+    id,
     isVirtualParent = false,
-    domoObject = null
+    label,
+    metadata = null,
+    typeId = null,
+    url = null
   }) {
     this.id = id;
     this.label = label;
@@ -44,19 +44,26 @@ export class DataListItem {
   }
 
   /**
-   * Check if this item has children
-   * @returns {boolean}
+   * Create a virtual parent item (grouping header)
+   * @param {Object} config - Configuration object
+   * @param {string} config.id - Unique identifier for the group
+   * @param {string} config.label - Display label for the group
+   * @param {DataListItem[]} config.children - Child items in this group
+   * @param {string} [config.metadata] - Optional metadata (defaults to child count description)
+   * @returns {DataListItem}
    */
-  hasChildren() {
-    return this.children && this.children.length > 0;
-  }
-
-  /**
-   * Get the child count
-   * @returns {number}
-   */
-  getChildCount() {
-    return this.children?.length || 0;
+  static createGroup({ children, id, label, metadata }) {
+    return new DataListItem({
+      children,
+      count: children.length,
+      domoObject: null,
+      id,
+      isVirtualParent: true,
+      label,
+      metadata: metadata || `${children.length} item${children.length !== 1 ? 's' : ''}`,
+      typeId: null,
+      url: null
+    });
   }
 
   /**
@@ -70,64 +77,20 @@ export class DataListItem {
    * @returns {DataListItem}
    */
   static fromDomoObject(domoObject, options = {}) {
-    const { label, children, count, countLabel } = options;
+    const { children, count, countLabel, label } = options;
 
     return new DataListItem({
-      id: domoObject.id,
-      label: label || domoObject.metadata?.name || `${domoObject.typeName} ${domoObject.id}`,
-      url: domoObject.url,
-      typeId: domoObject.typeId,
-      metadata: `ID: ${domoObject.id}`,
+      children,
       count: count !== undefined ? count : children?.length,
       countLabel,
-      children,
+      domoObject,
+      id: domoObject.id,
       isVirtualParent: false,
-      domoObject
+      label: label || domoObject.metadata?.name || `${domoObject.typeName} ${domoObject.id}`,
+      metadata: `ID: ${domoObject.id}`,
+      typeId: domoObject.typeId,
+      url: domoObject.url
     });
-  }
-
-  /**
-   * Create a virtual parent item (grouping header)
-   * @param {Object} config - Configuration object
-   * @param {string} config.id - Unique identifier for the group
-   * @param {string} config.label - Display label for the group
-   * @param {DataListItem[]} config.children - Child items in this group
-   * @param {string} [config.metadata] - Optional metadata (defaults to child count description)
-   * @returns {DataListItem}
-   */
-  static createGroup({ id, label, children, metadata }) {
-    return new DataListItem({
-      id,
-      label,
-      url: null,
-      typeId: null,
-      metadata: metadata || `${children.length} item${children.length !== 1 ? 's' : ''}`,
-      count: children.length,
-      children,
-      isVirtualParent: true,
-      domoObject: null
-    });
-  }
-
-  /**
-   * Serialize to plain object for message passing or storage
-   * @returns {Object}
-   */
-  toJSON() {
-    return {
-      id: this.id,
-      label: this.label,
-      url: this.url,
-      typeId: this.typeId,
-      metadata: this.metadata,
-      count: this.count,
-      countLabel: this.countLabel,
-      children: this.children?.map((child) =>
-        child instanceof DataListItem ? child.toJSON() : child
-      ),
-      isVirtualParent: this.isVirtualParent,
-      domoObject: this.domoObject?.toJSON() || null
-    };
   }
 
   /**
@@ -139,16 +102,53 @@ export class DataListItem {
     if (!data) return null;
 
     return new DataListItem({
-      id: data.id,
-      label: data.label,
-      url: data.url,
-      typeId: data.typeId,
-      metadata: data.metadata,
+      children: data.children?.map((child) => DataListItem.fromJSON(child)),
       count: data.count,
       countLabel: data.countLabel || null,
-      children: data.children?.map((child) => DataListItem.fromJSON(child)),
+      domoObject: data.domoObject ? DomoObject.fromJSON(data.domoObject) : null,
+      id: data.id,
       isVirtualParent: data.isVirtualParent || false,
-      domoObject: data.domoObject ? DomoObject.fromJSON(data.domoObject) : null
+      label: data.label,
+      metadata: data.metadata,
+      typeId: data.typeId,
+      url: data.url
     });
+  }
+
+  /**
+   * Get the child count
+   * @returns {number}
+   */
+  getChildCount() {
+    return this.children?.length || 0;
+  }
+
+  /**
+   * Check if this item has children
+   * @returns {boolean}
+   */
+  hasChildren() {
+    return this.children && this.children.length > 0;
+  }
+
+  /**
+   * Serialize to plain object for message passing or storage
+   * @returns {Object}
+   */
+  toJSON() {
+    return {
+      children: this.children?.map((child) =>
+        child instanceof DataListItem ? child.toJSON() : child
+      ),
+      count: this.count,
+      countLabel: this.countLabel,
+      domoObject: this.domoObject?.toJSON() || null,
+      id: this.id,
+      isVirtualParent: this.isVirtualParent,
+      label: this.label,
+      metadata: this.metadata,
+      typeId: this.typeId,
+      url: this.url
+    };
   }
 }

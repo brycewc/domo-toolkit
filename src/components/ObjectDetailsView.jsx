@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import {
   Alert,
   Button,
@@ -7,6 +6,7 @@ import {
   Chip,
   CloseButton,
   Disclosure,
+  Link,
   ScrollShadow,
   Spinner,
   Tooltip
@@ -17,7 +17,9 @@ import {
   IconRefresh,
   IconX
 } from '@tabler/icons-react';
+import { useEffect, useState } from 'react';
 import JsonView from 'react18-json-view';
+
 import '@/assets/json-view-theme.css';
 import { AnimatedCheck } from '@/components';
 import { DomoObject } from '@/models';
@@ -31,76 +33,21 @@ const KNOWN_FIELDS = [
   { key: 'displayType', label: 'Display Type' },
   { key: 'dataProviderType', label: 'Provider Type' },
   { key: 'type', label: 'Type' },
-  { key: 'owner', label: 'Owner', format: 'owner' },
+  { format: 'owner', key: 'owner', label: 'Owner' },
   { key: 'createdBy', label: 'Created By' },
   { key: 'description', label: 'Description' },
   { key: 'status', label: 'Status' },
-  { key: 'valid', label: 'Valid', format: 'boolean' },
-  { key: 'createdAt', label: 'Created', format: 'date' },
-  { key: 'modifiedAt', label: 'Modified', format: 'date' },
-  { key: 'updatedAt', label: 'Updated', format: 'date' },
-  { key: 'lastUpdated', label: 'Last Updated', format: 'date' },
-  { key: 'dataModified', label: 'Data Modified', format: 'date' },
-  { key: 'createdDate', label: 'Created', format: 'date' },
-  { key: 'modifiedDate', label: 'Modified', format: 'date' },
-  { key: 'rowCount', label: 'Row Count', format: 'number' },
-  { key: 'columnCount', label: 'Column Count', format: 'number' }
+  { format: 'boolean', key: 'valid', label: 'Valid' },
+  { format: 'date', key: 'createdAt', label: 'Created' },
+  { format: 'date', key: 'modifiedAt', label: 'Modified' },
+  { format: 'date', key: 'updatedAt', label: 'Updated' },
+  { format: 'date', key: 'lastUpdated', label: 'Last Updated' },
+  { format: 'date', key: 'dataModified', label: 'Data Modified' },
+  { format: 'date', key: 'createdDate', label: 'Created' },
+  { format: 'date', key: 'modifiedDate', label: 'Modified' },
+  { format: 'number', key: 'rowCount', label: 'Row Count' },
+  { format: 'number', key: 'columnCount', label: 'Column Count' }
 ];
-
-/**
- * Format a value based on its format type
- */
-function formatValue(value, format) {
-  if (value === null || value === undefined) return null;
-
-  switch (format) {
-    case 'date': {
-      // Detect epoch timestamps in seconds (10 digits) vs milliseconds (13 digits)
-      const timestamp =
-        typeof value === 'number' && value > 0 && value < 1e11
-          ? value * 1000
-          : value;
-      const date = new Date(timestamp);
-      if (isNaN(date.getTime())) return String(value);
-      return date.toLocaleString();
-    }
-    case 'boolean':
-      return value ? 'Yes' : 'No';
-    case 'number':
-      return typeof value === 'number' ? value.toLocaleString() : String(value);
-    case 'owner':
-      // Owner can be an object with name/displayName or a simple string
-      if (typeof value === 'object' && value !== null) {
-        return value.displayName || value.name || JSON.stringify(value);
-      }
-      return String(value);
-    default:
-      if (typeof value === 'object') return null; // Skip complex objects
-      return String(value);
-  }
-}
-
-/**
- * Extract key fields from the details object
- * @param {Object} details - The API response details
- * @returns {Array<{label: string, value: string}>}
- */
-function extractKeyFields(details) {
-  if (!details || typeof details !== 'object') return [];
-
-  const fields = [];
-
-  for (const { key, label, format } of KNOWN_FIELDS) {
-    if (key in details) {
-      const formatted = formatValue(details[key], format);
-      if (formatted !== null) {
-        fields.push({ label, value: formatted });
-      }
-    }
-  }
-
-  return fields;
-}
 
 export function ObjectDetailsView({
   onBackToDefault = null,
@@ -198,9 +145,9 @@ export function ObjectDetailsView({
           <Alert.Title>Error</Alert.Title>
           <div className='flex flex-col items-start justify-center gap-2'>
             <Alert.Description>{error}</Alert.Description>
-            <Button size='sm' onPress={handleRetry} isPending={isRetrying}>
+            <Button isPending={isRetrying} size='sm' onPress={handleRetry}>
               {isRetrying ? (
-                <Spinner size='sm' color='currentColor' />
+                <Spinner color='currentColor' size='sm' />
               ) : (
                 <IconRefresh stroke={1.5} />
               )}
@@ -209,8 +156,8 @@ export function ObjectDetailsView({
           </div>
         </Alert.Content>
         <CloseButton
-          variant='ghost'
           className='rounded-full'
+          variant='ghost'
           onPress={() => onBackToDefault?.()}
         />
       </Alert>
@@ -226,7 +173,7 @@ export function ObjectDetailsView({
           <div className='flex min-w-0 flex-1 flex-col gap-1'>
             <div className='flex flex-wrap items-center gap-x-2'>
               <span>{domoObject.metadata?.name || `ID: ${domoObject.id}`}</span>
-              <Chip size='sm' variant='soft' color='accent'>
+              <Chip color='accent' size='sm' variant='soft'>
                 {domoObject.typeName}
               </Chip>
             </div>
@@ -234,16 +181,16 @@ export function ObjectDetailsView({
               !(
                 domoObject.metadata?.name || domoObject.typeId === 'STREAM'
               ) && (
-                <span className='text-sm text-muted'>ID: {domoObject.id}</span>
-              )}
+              <span className='text-sm text-muted'>ID: {domoObject.id}</span>
+            )}
           </div>
-          <ButtonGroup className='shrink-0' hideSeparator>
-            <Tooltip delay={400} closeDelay={0}>
+          <ButtonGroup hideSeparator className='shrink-0'>
+            <Tooltip closeDelay={0} delay={400}>
               <Button
-                variant='ghost'
-                size='sm'
-                isIconOnly
                 fullWidth
+                isIconOnly
+                size='sm'
+                variant='ghost'
                 onPress={handleCopyId}
               >
                 <IconClipboard stroke={1.5} />
@@ -251,12 +198,12 @@ export function ObjectDetailsView({
               <Tooltip.Content className='text-xs'>Copy ID</Tooltip.Content>
             </Tooltip>
             {onBackToDefault && (
-              <Tooltip delay={400} closeDelay={0}>
+              <Tooltip closeDelay={0} delay={400}>
                 <Button
-                  variant='ghost'
-                  size='sm'
-                  isIconOnly
                   fullWidth
+                  isIconOnly
+                  size='sm'
+                  variant='ghost'
                   onPress={onBackToDefault}
                 >
                   <IconX stroke={1.5} />
@@ -279,8 +226,8 @@ export function ObjectDetailsView({
             <div className='flex flex-col gap-1'>
               {keyFields.map(({ label, value }) => (
                 <div
-                  key={label}
                   className='flex flex-row items-start justify-between gap-2 border-b border-border py-1.5 last:border-b-0'
+                  key={label}
                 >
                   <span className='shrink-0 text-xs font-medium text-muted'>
                     {label}
@@ -294,93 +241,148 @@ export function ObjectDetailsView({
           {/* Full JSON */}
           {domoObject.metadata?.details &&
             domoObject.metadata?.details !== '{}' && (
-              <Disclosure className='w-full'>
-                <Disclosure.Heading>
-                  <Button
-                    slot='trigger'
-                    variant='ghost'
-                    className='flex w-full items-center justify-between'
-                  >
-                    Full JSON
-                    <Disclosure.Indicator>
-                      <IconChevronDown stroke={1.5} />
-                    </Disclosure.Indicator>
-                  </Button>
-                </Disclosure.Heading>
-                <Disclosure.Content>
-                  <Disclosure.Body>
-                    <JsonView
-                      className='min-h-0 flex-1 text-sm'
-                      src={domoObject.metadata?.details}
-                      collapsed={1}
-                      matchesURL={false}
-                      displaySize
-                      collapseStringMode='word'
-                      collapseStringsAfterLength={50}
-                      CopyComponent={({ onClick, className, style }) => (
-                        <IconClipboard
-                          onClick={onClick}
-                          className={className}
-                          style={style}
-                          size={16}
-                          stroke={1.5}
-                        />
-                      )}
-                      CopiedComponent={({ className, style }) => (
-                        <AnimatedCheck
-                          className={className}
-                          style={style}
-                          size={16}
-                          stroke={1.5}
-                        />
-                      )}
-                      customizeNode={(params) => {
-                        if (params.node === null || params.node === undefined) {
-                          return { enableClipboard: false };
-                        }
-                        if (
-                          typeof params.node === 'string' &&
+            <Disclosure className='w-full'>
+              <Disclosure.Heading>
+                <Button
+                  className='flex w-full items-center justify-between'
+                  slot='trigger'
+                  variant='ghost'
+                >
+                  Full JSON
+                  <Disclosure.Indicator>
+                    <IconChevronDown stroke={1.5} />
+                  </Disclosure.Indicator>
+                </Button>
+              </Disclosure.Heading>
+              <Disclosure.Content>
+                <Disclosure.Body>
+                  <JsonView
+                    displaySize
+                    className='min-h-0 flex-1 text-sm'
+                    collapsed={1}
+                    collapseStringMode='word'
+                    collapseStringsAfterLength={50}
+                    matchesURL={false}
+                    src={domoObject.metadata?.details}
+                    CopiedComponent={({ className, style }) => (
+                      <AnimatedCheck
+                        className={className}
+                        size={16}
+                        stroke={1.5}
+                        style={style}
+                      />
+                    )}
+                    CopyComponent={({ className, onClick, style }) => (
+                      <IconClipboard
+                        className={className}
+                        size={16}
+                        stroke={1.5}
+                        style={style}
+                        onClick={onClick}
+                      />
+                    )}
+                    customizeNode={(params) => {
+                      if (params.node === null || params.node === undefined) {
+                        return { enableClipboard: false };
+                      }
+                      if (
+                        typeof params.node === 'string' &&
                           params.node.startsWith('https://')
-                        ) {
-                          return (
-                            <Link
-                              href={params.node}
-                              target='_blank'
-                              className='text-sm text-accent no-underline decoration-accent hover:underline'
-                            >
-                              {params.node}
-                            </Link>
-                          );
-                        }
-                        if (params.indexOrName?.toLowerCase().includes('id')) {
-                          return { enableClipboard: true };
-                        } else if (
-                          (typeof params.node === 'number' ||
+                      ) {
+                        return (
+                          <Link
+                            className='text-sm text-accent no-underline decoration-accent hover:underline'
+                            href={params.node}
+                            target='_blank'
+                          >
+                            {params.node}
+                          </Link>
+                        );
+                      }
+                      if (params.indexOrName?.toLowerCase().includes('id')) {
+                        return { enableClipboard: true };
+                      } else if (
+                        (typeof params.node === 'number' ||
                             typeof params.node === 'string') &&
                           params.node?.toString().length >= 7
-                        ) {
-                          return { enableClipboard: true };
-                        } else if (
-                          typeof params.node === 'object' &&
+                      ) {
+                        return { enableClipboard: true };
+                      } else if (
+                        typeof params.node === 'object' &&
                           Object.keys(params.node).length > 0
-                        ) {
-                          return { enableClipboard: true };
-                        } else if (
-                          Array.isArray(params.node) &&
+                      ) {
+                        return { enableClipboard: true };
+                      } else if (
+                        Array.isArray(params.node) &&
                           params.node.length > 0
-                        ) {
-                          return { enableClipboard: true };
-                        } else {
-                          return { enableClipboard: false };
-                        }
-                      }}
-                    />
-                  </Disclosure.Body>
-                </Disclosure.Content>
-              </Disclosure>
-            )}
+                      ) {
+                        return { enableClipboard: true };
+                      } else {
+                        return { enableClipboard: false };
+                      }
+                    }}
+                  />
+                </Disclosure.Body>
+              </Disclosure.Content>
+            </Disclosure>
+          )}
         </Card.Content>
       </ScrollShadow>
     </Card>
   );
+}
+
+/**
+ * Extract key fields from the details object
+ * @param {Object} details - The API response details
+ * @returns {Array<{label: string, value: string}>}
+ */
+function extractKeyFields(details) {
+  if (!details || typeof details !== 'object') return [];
+
+  const fields = [];
+
+  for (const { format, key, label } of KNOWN_FIELDS) {
+    if (key in details) {
+      const formatted = formatValue(details[key], format);
+      if (formatted !== null) {
+        fields.push({ label, value: formatted });
+      }
+    }
+  }
+
+  return fields;
+}
+
+/**
+ * Format a value based on its format type
+ */
+function formatValue(value, format) {
+  if (value === null || value === undefined) return null;
+
+  switch (format) {
+    case 'boolean':
+      return value ? 'Yes' : 'No';
+    case 'date': {
+      // Detect epoch timestamps in seconds (10 digits) vs milliseconds (13 digits)
+      const timestamp =
+        typeof value === 'number' && value > 0 && value < 1e11
+          ? value * 1000
+          : value;
+      const date = new Date(timestamp);
+      if (isNaN(date.getTime())) return String(value);
+      return date.toLocaleString();
+    }
+    case 'number':
+      return typeof value === 'number' ? value.toLocaleString() : String(value);
+    case 'owner':
+      // Owner can be an object with name/displayName or a simple string
+      if (typeof value === 'object' && value !== null) {
+        return value.displayName || value.name || JSON.stringify(value);
+      }
+      return String(value);
+    default:
+      if (typeof value === 'object') return null; // Skip complex objects
+      return String(value);
+  }
 }

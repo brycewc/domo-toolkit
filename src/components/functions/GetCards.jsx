@@ -1,13 +1,14 @@
-import { useState } from 'react';
 import { Button, Spinner } from '@heroui/react';
-import {
-  waitForCards,
-  isSidepanel,
-  storeSidepanelData,
-  openSidepanel
-} from '@/utils';
-import { getCardsForObject } from '@/services';
 import { IconChartBar } from '@tabler/icons-react';
+import { useState } from 'react';
+
+import { getCardsForObject } from '@/services';
+import {
+  isSidepanel,
+  openSidepanel,
+  storeSidepanelData,
+  waitForCards
+} from '@/utils';
 
 const VALID_TYPES = [
   'PAGE',
@@ -27,9 +28,9 @@ const PRE_FETCHED_TYPES = [
 
 export function GetCards({
   currentContext,
-  onStatusUpdate,
   isDisabled,
-  onCollapseActions
+  onCollapseActions,
+  onStatusUpdate
 }) {
   const [isLoading, setIsLoading] = useState(false);
 
@@ -62,8 +63,8 @@ export function GetCards({
       // Popup: hand off intent to sidepanel immediately, no API calls
       if (!isSidepanel()) {
         await storeSidepanelData({
-          type: 'getCards',
-          currentContext
+          currentContext,
+          type: 'getCards'
         });
         openSidepanel();
         return;
@@ -101,9 +102,9 @@ export function GetCards({
 
       if (onCollapseActions) {
         await storeSidepanelData({
-          type: 'loading',
           message: 'Loading cards...',
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          type: 'loading'
         });
 
         onCollapseActions();
@@ -111,10 +112,10 @@ export function GetCards({
       }
 
       await storeSidepanelData({
-        type: 'getCards',
-        currentContext,
         cards,
-        statusShown: true
+        currentContext,
+        statusShown: true,
+        type: 'getCards'
       });
     } catch (error) {
       console.error('[GetCards] Error:', error);
@@ -130,13 +131,12 @@ export function GetCards({
 
   return (
     <Button
-      variant='tertiary'
       fullWidth
-      onPress={handleGetCards}
+      className='min-w-36 flex-1 whitespace-normal'
       isDisabled={isDisabled}
       isPending={isLoading}
-      isIconOnly={isLoading}
-      className='relative min-w-fit flex-1 basis-[48%] overflow-visible'
+      variant='tertiary'
+      onPress={handleGetCards}
     >
       {({ isPending }) => {
         if (isPending) {

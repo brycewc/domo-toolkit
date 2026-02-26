@@ -1,11 +1,28 @@
-import { getObjectType } from './DomoObjectType';
 import { getAppStudioPageParent, getDrillParentCardId } from '@/services';
 import { executeInPage } from '@/utils';
+
+import { getObjectType } from './DomoObjectType';
 
 /**
  * DomoObject class represents an instance of a Domo object
  */
 export class DomoObject {
+  /**
+   * Get the human-readable type name
+   * @returns {string} The type name
+   */
+  get typeId() {
+    return this.objectType.id;
+  }
+
+  /**
+   * Get the human-readable type name
+   * @returns {string} The type name
+   */
+  get typeName() {
+    return this.objectType.name;
+  }
+
   /**
    * @param {string} type - The object type identifier
    * @param {string} id - The object ID
@@ -52,51 +69,46 @@ export class DomoObject {
   }
 
   /**
-   * Get the human-readable type name
-   * @returns {string} The type name
+   * Deserialize from plain object to DomoObject instance
+   * @param {Object} data - Plain object representation
+   * @returns {DomoObject}
    */
-  get typeName() {
-    return this.objectType.name;
+  static fromJSON(data) {
+    if (!data) return null;
+
+    // Create instance using the objectType.id, including originalUrl and parentId
+    const instance = new DomoObject(
+      data.objectType.id,
+      data.id,
+      data.baseUrl,
+      data.metadata || {},
+      data.originalUrl || null,
+      data.parentId || null
+    );
+
+    // Restore the URL if it was already built
+    if (data.url !== undefined) {
+      instance.url = data.url;
+    }
+
+    return instance;
   }
 
   /**
-   * Get the human-readable type name
-   * @returns {string} The type name
+   * Build the full URL for this object
+   * @param {string} baseUrl - The base URL (e.g., https://instance.domo.com)
+   * @param {number} [tabId] - Optional Chrome tab ID for parent lookups
+   * @returns {Promise<string>} The full URL
    */
-  get typeId() {
-    return this.objectType.id;
-  }
-
-  /**
-   * Check if this object's ID is valid for its type
-   * @returns {boolean} Whether the ID is valid
-   */
-  isValidObjectId() {
-    return this.objectType.isValidObjectId(this.id);
-  }
-
-  /**
-   * Check if this object type requires a parent ID for URL construction
-   * @returns {boolean} Whether a parent ID is required for URL construction
-   */
-  requiresParentForUrl() {
-    return this.objectType.requiresParentForUrl();
-  }
-
-  /**
-   * Check if this object type requires a parent ID for API calls
-   * @returns {boolean} Whether a parent ID is required for API calls
-   */
-  requiresParentForApi() {
-    return this.objectType.requiresParentForApi();
-  }
-
-  /**
-   * Check if this object type has a navigable URL
-   * @returns {boolean} Whether the object type has a URL
-   */
-  hasUrl() {
-    return this.objectType.hasUrl();
+  async buildUrl(baseUrl, tabId = null) {
+    if (this.requiresParentForUrl()) {
+      const parentId = await this.getParent(false, null, tabId);
+      console.log(
+        `Building URL for ${this.typeName} ${this.id} with parent ${parentId}`
+      );
+      return this.objectType.buildObjectUrl(baseUrl, this.id, parentId);
+    }
+    return this.objectType.buildObjectUrl(baseUrl, this.id);
   }
 
   /**
@@ -154,12 +166,12 @@ export class DomoObject {
         try {
           // Fetch parent details using its API configuration
           const {
-            method,
+            bodyTemplate = null,
             endpoint,
-            pathToName,
+            method,
             nameTemplate = null,
             pathToDetails = null,
-            bodyTemplate = null
+            pathToName
           } = parentType.api;
 
           console.log(
@@ -179,8 +191,8 @@ export class DomoObject {
           ) => {
             const url = `/api${endpoint}`.replace('{id}', parentId);
             const options = {
-              method,
-              credentials: 'include'
+              credentials: 'include',
+              method
             };
 
             if (method !== 'GET' && bodyTemplate) {
@@ -204,7 +216,7 @@ export class DomoObject {
             }
 
             const data = await response.json();
-            console.log(`[getParent:fetchParentDetails] Response data keys:`, Object.keys(data));
+            console.log('[getParent:fetchParentDetails] Response data keys:', Object.keys(data));
 
             const details = pathToDetails
               ? pathToDetails
@@ -222,13 +234,13 @@ export class DomoObject {
             console.log(`[getParent:fetchParentDetails] Extracted name=${name}, hasDetails=${!!details}`);
 
             return {
+              details: details,
               id: parentId,
+              name: name,
               objectType: {
                 id: parentTypeId,
                 name: parentTypeName
-              },
-              name: name,
-              details: details
+              }
             };
           };
 
@@ -275,20 +287,19 @@ export class DomoObject {
   }
 
   /**
-   * Build the full URL for this object
-   * @param {string} baseUrl - The base URL (e.g., https://instance.domo.com)
-   * @param {number} [tabId] - Optional Chrome tab ID for parent lookups
-   * @returns {Promise<string>} The full URL
+   * Check if this object type has a navigable URL
+   * @returns {boolean} Whether the object type has a URL
    */
-  async buildUrl(baseUrl, tabId = null) {
-    if (this.requiresParentForUrl()) {
-      const parentId = await this.getParent(false, null, tabId);
-      console.log(
-        `Building URL for ${this.typeName} ${this.id} with parent ${parentId}`
-      );
-      return this.objectType.buildObjectUrl(baseUrl, this.id, parentId);
-    }
-    return this.objectType.buildObjectUrl(baseUrl, this.id);
+  hasUrl() {
+    return this.objectType.hasUrl();
+  }
+
+  /**
+   * Check if this object's ID is valid for its type
+   * @returns {boolean} Whether the ID is valid
+   */
+  isValidObjectId() {
+    return this.objectType.isValidObjectId(this.id);
   }
 
   /**
@@ -306,51 +317,41 @@ export class DomoObject {
   }
 
   /**
+   * Check if this object type requires a parent ID for API calls
+   * @returns {boolean} Whether a parent ID is required for API calls
+   */
+  requiresParentForApi() {
+    return this.objectType.requiresParentForApi();
+  }
+
+  /**
+   * Check if this object type requires a parent ID for URL construction
+   * @returns {boolean} Whether a parent ID is required for URL construction
+   */
+  requiresParentForUrl() {
+    return this.objectType.requiresParentForUrl();
+  }
+
+  /**
    * Serialize to plain object for message passing
    * @returns {Object}
    */
   toJSON() {
     return {
-      id: this.id,
       baseUrl: this.baseUrl,
+      id: this.id,
       metadata: this.metadata,
-      url: this.url,
+      objectType: {
+        id: this.objectType.id,
+        name: this.objectType.name,
+        parents: this.objectType.parents,
+        urlPath: this.objectType.urlPath
+      },
       originalUrl: this.originalUrl,
       parentId: this.parentId,
       typeId: this.objectType.id,
       typeName: this.objectType.name,
-      objectType: {
-        id: this.objectType.id,
-        name: this.objectType.name,
-        urlPath: this.objectType.urlPath,
-        parents: this.objectType.parents
-      }
+      url: this.url
     };
-  }
-
-  /**
-   * Deserialize from plain object to DomoObject instance
-   * @param {Object} data - Plain object representation
-   * @returns {DomoObject}
-   */
-  static fromJSON(data) {
-    if (!data) return null;
-
-    // Create instance using the objectType.id, including originalUrl and parentId
-    const instance = new DomoObject(
-      data.objectType.id,
-      data.id,
-      data.baseUrl,
-      data.metadata || {},
-      data.originalUrl || null,
-      data.parentId || null
-    );
-
-    // Restore the URL if it was already built
-    if (data.url !== undefined) {
-      instance.url = data.url;
-    }
-
-    return instance;
   }
 }

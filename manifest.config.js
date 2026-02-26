@@ -25,6 +25,10 @@ export default defineManifest({
     'webRequest'
   ],
   host_permissions: ['*://*.domo.com/*'],
+  content_security_policy: {
+    extension_pages:
+      "script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none';"
+  },
   action: {
     default_icon: {
       16: 'public/toolkit-16.png',
@@ -69,10 +73,9 @@ export default defineManifest({
         'public/toolkit-dark-32.png',
         'public/toolkit-dark-48.png',
         'public/toolkit-dark-128.png',
-        'public/streamErrors.js',
         'public/cardErrors.js'
       ],
-      matches: ['<all_urls>']
+      matches: ['https://*.domo.com/*']
     }
   ]
 });

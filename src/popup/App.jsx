@@ -1,6 +1,7 @@
+import { Toast } from '@heroui/react';
 import { useEffect, useState } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
-import { ActionButtons, ContextFooter, StatusBar } from '@/components';
+
+import { ActionButtons, ContextFooter } from '@/components';
 import { useStatusBar, useTheme } from '@/hooks';
 import { DomoContext } from '@/models';
 
@@ -11,7 +12,7 @@ export default function App() {
   const [currentContext, setCurrentContext] = useState(null);
   const [isLoadingCurrentContext, setIsLoadingCurrentContext] = useState(true);
   const [currentTabId, setCurrentTabId] = useState(null);
-  const { statusBar, showStatus, hideStatus } = useStatusBar();
+  const { showStatus } = useStatusBar();
 
   // Get context from service worker
   useEffect(() => {
@@ -63,40 +64,19 @@ export default function App() {
   }, [currentTabId]);
 
   return (
-    <div className='flex h-full max-h-[600px] max-w-[800px] min-w-90 flex-col items-start justify-start space-y-1 overflow-hidden overscroll-contain p-1'>
+    <div className='flex h-full max-h-[600px] max-w-[800px] min-w-100 flex-col items-start justify-start space-y-1 overflow-hidden overscroll-contain p-1'>
       <ActionButtons
+        collapsable={false}
         currentContext={currentContext}
         isLoadingCurrentContext={isLoadingCurrentContext}
-        collapsable={false}
         onStatusUpdate={showStatus}
       />
-      <div className='relative flex min-h-0 w-full flex-1 flex-col'>
-        <ContextFooter
-          currentContext={currentContext}
-          isLoading={isLoadingCurrentContext}
-          onStatusUpdate={showStatus}
-        />
-        <AnimatePresence>
-          {statusBar.visible && (
-            <motion.div
-              key={statusBar.key}
-              className='absolute inset-0 z-10'
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.15 }}
-            >
-              <StatusBar
-                title={statusBar.title}
-                description={statusBar.description}
-                status={statusBar.status}
-                timeout={statusBar.timeout}
-                onClose={hideStatus}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+      <ContextFooter
+        currentContext={currentContext}
+        isLoading={isLoadingCurrentContext}
+        onStatusUpdate={showStatus}
+      />
+      <Toast.Provider className='right-2 bottom-2' placement='bottom' />
     </div>
   );
 }

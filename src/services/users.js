@@ -75,25 +75,25 @@ export async function searchUsers(text, tabId = null, offset = 0) {
     async (text, offset, limit) => {
       const url = '/api/identity/v1/users/search?explain=false';
       const body = {
+        attributes: ['department', 'title', 'avatarKey', 'created'],
         cacheBuster: Date.now(),
         filters: [{ filterType: 'text', text }],
-        showCount: true,
         includeDeleted: false,
-        onlyDeleted: false,
         includeSupport: false,
         limit,
         offset,
-        sort: { field: 'displayName', order: 'ASC' },
+        onlyDeleted: false,
         parts: ['MINIMAL'],
-        attributes: ['department', 'title', 'avatarKey', 'created']
+        showCount: true,
+        sort: { field: 'displayName', order: 'ASC' }
       };
       const response = await fetch(url, {
-        method: 'POST',
+        body: JSON.stringify(body),
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(body),
-        credentials: 'include'
+        method: 'POST'
       });
 
       if (!response.ok) {
@@ -102,8 +102,8 @@ export async function searchUsers(text, tabId = null, offset = 0) {
 
       const data = await response.json();
       return {
-        users: data.users || [],
-        totalCount: data.count ?? null
+        totalCount: data.count ?? null,
+        users: data.users || []
       };
     },
     [text, offset, USERS_PAGE_SIZE],

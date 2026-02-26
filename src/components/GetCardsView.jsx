@@ -1,40 +1,11 @@
-import { useEffect, useState } from 'react';
 import { Alert, Button, Card, CloseButton, Spinner } from '@heroui/react';
-import { DataList } from '@/components';
-import { getCardsForObject } from '@/services';
-import { DataListItem, DomoContext, DomoObject } from '@/models';
-import { getValidTabForInstance, waitForCards } from '@/utils';
 import { IconRefresh } from '@tabler/icons-react';
+import { useEffect, useRef, useState } from 'react';
 
-/**
- * Transform cards into DataListItem format
- * @param {Array} cards - Array of card objects
- * @param {string} origin - The base URL origin
- * @param {string} [objectType] - The parent object type (e.g., 'PAGE', 'DATA_APP_VIEW')
- * @param {string|number} [objectId] - The parent object ID (page or view ID)
- * @param {string|number} [parentId] - The grandparent ID (e.g., appId for DATA_APP_VIEW)
- * @returns {DataListItem[]}
- */
-function transformCardsToItems(cards, origin, objectType, objectId, parentId) {
-  return cards
-    .sort((a, b) => {
-      const nameA = a.title || a.name || '';
-      const nameB = b.title || b.name || '';
-      return nameA.localeCompare(nameB);
-    })
-    .map((card) => {
-      const domoObject = new DomoObject('CARD', card.id, origin, {
-        name: card.title || card.name
-      });
-      // Override generic card URL with page-specific URL when on a page or app
-      if (objectType === 'DATA_APP_VIEW' || objectType === 'WORKSHEET_VIEW') {
-        domoObject.url = `${origin}/app-studio/${parentId}/pages/${objectId}/kpis/details/${card.id}`;
-      } else if (objectType === 'PAGE') {
-        domoObject.url = `${origin}/page/${objectId}/kpis/details/${card.id}`;
-      }
-      return DataListItem.fromDomoObject(domoObject);
-    });
-}
+import { DataList } from '@/components';
+import { DataListItem, DomoContext, DomoObject } from '@/models';
+import { getCardsForObject } from '@/services';
+import { getValidTabForInstance, waitForCards } from '@/utils';
 
 export function GetCardsView({
   onBackToDefault = null,
@@ -48,9 +19,13 @@ export function GetCardsView({
   const [items, setItems] = useState([]);
   const [viewData, setViewData] = useState(null);
 
-  // Load data on mount
+  const mountedRef = useRef(true);
   useEffect(() => {
+    mountedRef.current = true;
     loadCardsData();
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   const loadCardsData = async (forceRefresh = false) => {
@@ -87,11 +62,11 @@ export function GetCardsView({
       const parentId = domoObject.parentId || null;
 
       setViewData({
-        objectId,
-        objectType,
-        objectName,
-        origin,
         instance,
+        objectId,
+        objectName,
+        objectType,
+        origin,
         parentId
       });
 
@@ -205,9 +180,9 @@ export function GetCardsView({
           <Alert.Title>Error</Alert.Title>
           <div className='flex flex-col items-start justify-center gap-2'>
             <Alert.Description>{error}</Alert.Description>
-            <Button size='sm' onPress={handleRetry} isPending={isRetrying}>
+            <Button isPending={isRetrying} size='sm' onPress={handleRetry}>
               {isRetrying ? (
-                <Spinner size='sm' color='currentColor' />
+                <Spinner color='currentColor' size='sm' />
               ) : (
                 <IconRefresh stroke={1.5} />
               )}
@@ -216,8 +191,8 @@ export function GetCardsView({
           </div>
         </Alert.Content>
         <CloseButton
-          variant='ghost'
           className='rounded-full'
+          variant='ghost'
           onPress={() => onBackToDefault?.()}
         />
       </Alert>
@@ -226,20 +201,50 @@ export function GetCardsView({
 
   return (
     <DataList
-      items={items}
-      objectType={viewData?.objectType}
-      objectId={viewData?.objectId}
-      onStatusUpdate={onStatusUpdate}
-      title={renderTitle()}
-      headerActions={['openAll', 'copy', 'refresh']}
-      onRefresh={handleRefresh}
-      onClose={onBackToDefault}
       closeLabel='Close Cards View'
+      headerActions={['openAll', 'copy', 'refresh']}
       isRefreshing={isRefreshing}
       itemActions={['copy', 'openAll']}
+      itemLabel='card'
+      items={items}
+      objectId={viewData?.objectId}
+      objectType={viewData?.objectType}
       showActions={true}
       showCounts={true}
-      itemLabel='card'
+      title={renderTitle()}
+      onClose={onBackToDefault}
+      onRefresh={handleRefresh}
+      onStatusUpdate={onStatusUpdate}
     />
   );
+}
+
+/**
+ * Transform cards into DataListItem format
+ * @param {Array} cards - Array of card objects
+ * @param {string} origin - The base URL origin
+ * @param {string} [objectType] - The parent object type (e.g., 'PAGE', 'DATA_APP_VIEW')
+ * @param {string|number} [objectId] - The parent object ID (page or view ID)
+ * @param {string|number} [parentId] - The grandparent ID (e.g., appId for DATA_APP_VIEW)
+ * @returns {DataListItem[]}
+ */
+function transformCardsToItems(cards, origin, objectType, objectId, parentId) {
+  return cards
+    .sort((a, b) => {
+      const nameA = a.title || a.name || '';
+      const nameB = b.title || b.name || '';
+      return nameA.localeCompare(nameB);
+    })
+    .map((card) => {
+      const domoObject = new DomoObject('CARD', card.id, origin, {
+        name: card.title || card.name
+      });
+      // Override generic card URL with page-specific URL when on a page or app
+      if (objectType === 'DATA_APP_VIEW' || objectType === 'WORKSHEET_VIEW') {
+        domoObject.url = `${origin}/app-studio/${parentId}/pages/${objectId}/kpis/details/${card.id}`;
+      } else if (objectType === 'PAGE') {
+        domoObject.url = `${origin}/page/${objectId}/kpis/details/${card.id}`;
+      }
+      return DataListItem.fromDomoObject(domoObject);
+    });
 }

@@ -1,19 +1,20 @@
-import { useState } from 'react';
 import { Button, Spinner } from '@heroui/react';
+import { IconCopy } from '@tabler/icons-react';
+import { useState } from 'react';
+
+import { getPagesForCards } from '@/services';
 import {
   isSidepanel,
-  waitForCards,
+  openSidepanel,
   storeSidepanelData,
-  openSidepanel
+  waitForCards
 } from '@/utils';
-import { getPagesForCards } from '@/services';
-import { IconCopy } from '@tabler/icons-react';
 
 export function GetOtherPages({
   currentContext,
-  onStatusUpdate,
   isDisabled,
-  onCollapseActions
+  onCollapseActions,
+  onStatusUpdate
 }) {
   const [isLoading, setIsLoading] = useState(false);
 
@@ -34,8 +35,8 @@ export function GetOtherPages({
       // Popup: hand off intent to sidepanel immediately, no API calls
       if (!isSidepanel()) {
         await storeSidepanelData({
-          type: 'getOtherPages',
-          currentContext
+          currentContext,
+          type: 'getOtherPages'
         });
         openSidepanel();
         return;
@@ -62,7 +63,7 @@ export function GetOtherPages({
         return;
       }
 
-      const { pages, cardsByPage } = await getPagesForCards(
+      const { cardsByPage, pages } = await getPagesForCards(
         result.cards.map((card) => card.id),
         currentContext?.tabId
       );
@@ -80,18 +81,18 @@ export function GetOtherPages({
       }
 
       const childPages = otherPages.map((page) => ({
+        appId: page.appId || null,
+        appName: page.appName || null,
         pageId: page.id,
         pageTitle: page.name,
-        pageType: page.type,
-        appId: page.appId || null,
-        appName: page.appName || null
+        pageType: page.type
       }));
 
       if (onCollapseActions) {
         await storeSidepanelData({
-          type: 'loading',
           message: 'Loading other pages...',
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          type: 'loading'
         });
 
         onCollapseActions();
@@ -99,11 +100,11 @@ export function GetOtherPages({
       }
 
       await storeSidepanelData({
-        type: 'getOtherPages',
-        currentContext,
-        childPages,
         cardsByPage,
-        statusShown: true
+        childPages,
+        currentContext,
+        statusShown: true,
+        type: 'getOtherPages'
       });
     } catch (error) {
       console.error('[GetOtherPages] Error:', error);
@@ -119,13 +120,12 @@ export function GetOtherPages({
 
   return (
     <Button
-      variant='tertiary'
       fullWidth
-      onPress={handleGetOtherPages}
+      className='min-w-36 flex-1 whitespace-normal'
       isDisabled={isDisabled}
       isPending={isLoading}
-      isIconOnly={isLoading}
-      className='relative min-w-fit flex-1 basis-[48%] overflow-visible'
+      variant='tertiary'
+      onPress={handleGetOtherPages}
     >
       {({ isPending }) => {
         if (isPending) {

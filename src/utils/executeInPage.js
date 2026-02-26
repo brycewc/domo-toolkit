@@ -30,25 +30,25 @@ export async function executeInAllFrames(func, args = [], tabId = null) {
       throw new Error('Not on a Domo page');
     }
 
-    const target = { tabId: targetTabId, allFrames: true };
+    const target = { allFrames: true, tabId: targetTabId };
 
     // Mark extension-initiated requests so cardErrors.js bypasses interception
     await chrome.scripting.executeScript({
-      target,
-      world: 'MAIN',
       func: () => {
         window.__domoToolkitExtDepth =
           (window.__domoToolkitExtDepth || 0) + 1;
-      }
+      },
+      target,
+      world: 'MAIN'
     });
 
     try {
       // Execute function in ALL frames in the page context
       const results = await chrome.scripting.executeScript({
-        target,
-        world: 'MAIN',
+        args,
         func,
-        args
+        target,
+        world: 'MAIN'
       });
 
       // Collect all valid results from frames
@@ -75,14 +75,14 @@ export async function executeInAllFrames(func, args = [], tabId = null) {
       return validResults;
     } finally {
       await chrome.scripting.executeScript({
-        target,
-        world: 'MAIN',
         func: () => {
           window.__domoToolkitExtDepth = Math.max(
             0,
             (window.__domoToolkitExtDepth || 0) - 1
           );
-        }
+        },
+        target,
+        world: 'MAIN'
       });
     }
   } catch (error) {
@@ -127,21 +127,21 @@ export async function executeInPage(func, args = [], tabId = null) {
 
     // Mark extension-initiated requests so cardErrors.js bypasses interception
     await chrome.scripting.executeScript({
-      target,
-      world: 'MAIN',
       func: () => {
         window.__domoToolkitExtDepth =
           (window.__domoToolkitExtDepth || 0) + 1;
-      }
+      },
+      target,
+      world: 'MAIN'
     });
 
     try {
       // Execute function in the page context
       const result = await chrome.scripting.executeScript({
-        target,
-        world: 'MAIN',
+        args,
         func,
-        args
+        target,
+        world: 'MAIN'
       });
 
       if (result && result[0] && result[0].result !== undefined) {
@@ -151,14 +151,14 @@ export async function executeInPage(func, args = [], tabId = null) {
       throw new Error('No result from script execution');
     } finally {
       await chrome.scripting.executeScript({
-        target,
-        world: 'MAIN',
         func: () => {
           window.__domoToolkitExtDepth = Math.max(
             0,
             (window.__domoToolkitExtDepth || 0) - 1
           );
-        }
+        },
+        target,
+        world: 'MAIN'
       });
     }
   } catch (error) {

@@ -1,12 +1,18 @@
 export { waitForCards } from './cardHelpers';
 export { clearCookies } from './clearCookies';
 export {
+  ACTION_COLOR_PATTERNS,
   EXCLUDED_HOSTNAMES,
   EXCLUDED_INSTANCES,
-  ACTION_COLOR_PATTERNS
+  EXPORT_FORMATS
 } from './constants';
-export { getValidTabForInstance, detectCurrentObject } from './currentObject';
-export { executeInPage, executeInAllFrames } from './executeInPage';
+export { detectCurrentObject, getValidTabForInstance } from './currentObject';
+export { executeInAllFrames, executeInPage } from './executeInPage';
+export {
+  exportToCSV,
+  exportToExcel,
+  generateExportFilename
+} from './exportData';
 export {
   applyFaviconRules,
   applyInstanceLogoAuto,
@@ -17,11 +23,6 @@ export { waitForChildPages } from './pageHelpers';
 export {
   isSidepanel,
   openSidepanel,
-  storeSidepanelData,
-  showStatus
+  showStatus,
+  storeSidepanelData
 } from './sidepanel';
-export {
-  exportToCSV,
-  exportToExcel,
-  generateExportFilename
-} from './exportData';
