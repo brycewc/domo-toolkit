@@ -248,7 +248,7 @@ export function Copy({
         <Tooltip.Content className='flex items-center gap-2 text-center'>
           <span>Copy ID</span>
           <Kbd className='text-xs'>
-            <Kbd.Abbr keyValue='ctrl' />
+            <Kbd.Abbr keyValue={(navigator.userAgentData?.platform ?? navigator.platform).includes('Mac') ? 'command' : 'ctrl'} />
             <Kbd.Abbr keyValue='shift' />
             <Kbd.Content>1</Kbd.Content>
           </Kbd>

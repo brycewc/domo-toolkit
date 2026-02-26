@@ -4,6 +4,10 @@ Power tools for Domo administrators. Stop wasting time navigating menus, managin
 
 Domo Toolkit is a Chrome extension built for the people who live inside Domo every day -- administrators managing hundreds of objects, consultants jumping between client instances, and power users building on the platform. Every feature is built to save clicks, reduce context-switching, and surface information that Domo's native UI buries behind multiple navigations.
 
+## Disclaimer
+
+This extension is an independent, community-developed project. Domo, Inc. has no responsibility for its functionality or performance or for any consequences arising from its use.
+
 ## Installation
 
 ### Chrome Web Store
@@ -67,6 +71,7 @@ All discovery lists support open all, copy ID, share all, and refresh. Items are
 ### Object-Specific Actions
 
 - **Copy Filtered URL** -- Copy URL with all applied filters on a Card, Page, or App Studio Page (Pfilters).
+- **Export Data** -- Export Card data in CSV or Excel format, including applied filters. Export Code Engine Package as JavaScript/Python file.
 - **Data Repair** -- Open the hidden data repair tab for any DataSet.
 - **Update Owner** -- Change ownership of Alerts and Workflows with a searchable user picker and a "Set to Self" shortcut.
 - **Update DataFlow Details** -- Edit DataFlow names and descriptions without creating a new version.
@@ -98,7 +103,7 @@ Both show the current context (instance, object type, object ID) and update as y
 
 ## Supported Object Types
 
-Pages, Cards, DataSets, DataFlows, App Studio Apps/Pages, Worksheets, Report Builder, Users, Groups, Alerts, Workflows, Code Engine Packages, Pro-code Apps, Beast Modes, Variables, Access Tokens, AppDB Collections, Approvals, Approval Templates, Drill Paths, Jupyter Workspaces, FileSets, Files, Forms, and dozens more. Each type supports URL pattern detection, ID validation, and API-based metadata enrichment.
+Pages, Cards, DataSets, DataFlows, App Studio Apps/Pages, Worksheets, Workspaces, Report Builder, Users, Groups, Alerts, Workflows, Code Engine Packages, Pro-code Apps, Beast Modes, Variables, Access Tokens, AppDB Collections, Approvals, Approval Templates, Drill Paths, Jupyter Workspaces, FileSets, Files, Forms, Governance Toolkit Jobs and dozens more. Each type supports URL pattern detection, ID validation, and API-based metadata enrichment.
 
 ## Privacy
 
