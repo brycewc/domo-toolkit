@@ -6,7 +6,6 @@ import {
   Label,
   ListBox,
   Select,
-  Switch,
   TextField
 } from '@heroui/react';
 import { toast } from '@heroui/react';
@@ -25,7 +24,6 @@ export function Settings({ theme = 'system' }) {
 
   // Store all settings in a single state object for extensibility
   const [settings, setSettings] = useState({
-    cardErrorDetection: false,
     defaultClearCookiesHandling: 'auto',
     defaultDomoInstance: '',
     iconStyle: 'light',
@@ -34,7 +32,6 @@ export function Settings({ theme = 'system' }) {
 
   // Track original settings to detect changes
   const [originalSettings, setOriginalSettings] = useState({
-    cardErrorDetection: false,
     defaultClearCookiesHandling: 'auto',
     defaultDomoInstance: '',
     iconStyle: 'light',
@@ -48,12 +45,10 @@ export function Settings({ theme = 'system' }) {
         'themePreference',
         'iconStyle',
         'defaultDomoInstance',
-        'defaultClearCookiesHandling',
-        'cardErrorDetection'
+        'defaultClearCookiesHandling'
       ],
       (result) => {
         const loadedSettings = {
-          cardErrorDetection: result.cardErrorDetection ?? false,
           defaultClearCookiesHandling:
             result.defaultClearCookiesHandling || 'auto',
           defaultDomoInstance: result.defaultDomoInstance || '',
@@ -96,12 +91,6 @@ export function Settings({ theme = 'system' }) {
             hasChanges = true;
           }
 
-          if (changes.cardErrorDetection !== undefined) {
-            updatedSettings.cardErrorDetection =
-              changes.cardErrorDetection.newValue;
-            hasChanges = true;
-          }
-
           return hasChanges ? updatedSettings : prevSettings;
         });
 
@@ -128,12 +117,6 @@ export function Settings({ theme = 'system' }) {
           if (changes.defaultClearCookiesHandling !== undefined) {
             updatedOriginal.defaultClearCookiesHandling =
               changes.defaultClearCookiesHandling.newValue;
-            hasChanges = true;
-          }
-
-          if (changes.cardErrorDetection !== undefined) {
-            updatedOriginal.cardErrorDetection =
-              changes.cardErrorDetection.newValue;
             hasChanges = true;
           }
 
@@ -187,13 +170,6 @@ export function Settings({ theme = 'system' }) {
     }));
   };
 
-  const handleCardErrorDetectionChange = (value) => {
-    setSettings((prev) => ({
-      ...prev,
-      cardErrorDetection: value
-    }));
-  };
-
   // Check if settings have changed
   const hasChanges =
     JSON.stringify(settings) !== JSON.stringify(originalSettings);
@@ -233,21 +209,24 @@ export function Settings({ theme = 'system' }) {
                 System
                 <ListBox.ItemIndicator>
                   {({ isSelected }) =>
-                    isSelected ? <IconCheck stroke={1.5} /> : null}
+                    isSelected ? <IconCheck stroke={1.5} /> : null
+                  }
                 </ListBox.ItemIndicator>
               </ListBox.Item>
               <ListBox.Item id='light' textValue='Light'>
                 Light
                 <ListBox.ItemIndicator>
                   {({ isSelected }) =>
-                    isSelected ? <IconCheck stroke={1.5} /> : null}
+                    isSelected ? <IconCheck stroke={1.5} /> : null
+                  }
                 </ListBox.ItemIndicator>
               </ListBox.Item>
               <ListBox.Item id='dark' textValue='Dark'>
                 Dark
                 <ListBox.ItemIndicator>
                   {({ isSelected }) =>
-                    isSelected ? <IconCheck stroke={1.5} /> : null}
+                    isSelected ? <IconCheck stroke={1.5} /> : null
+                  }
                 </ListBox.ItemIndicator>
               </ListBox.Item>
             </ListBox>
@@ -276,7 +255,8 @@ export function Settings({ theme = 'system' }) {
                 Light
                 <ListBox.ItemIndicator>
                   {({ isSelected }) =>
-                    isSelected ? <IconCheck stroke={1.5} /> : null}
+                    isSelected ? <IconCheck stroke={1.5} /> : null
+                  }
                 </ListBox.ItemIndicator>
               </ListBox.Item>
               <ListBox.Item id='dark' textValue='Dark'>
@@ -284,7 +264,8 @@ export function Settings({ theme = 'system' }) {
                 Dark
                 <ListBox.ItemIndicator>
                   {({ isSelected }) =>
-                    isSelected ? <IconCheck stroke={1.5} /> : null}
+                    isSelected ? <IconCheck stroke={1.5} /> : null
+                  }
                 </ListBox.ItemIndicator>
               </ListBox.Item>
             </ListBox>
@@ -323,21 +304,24 @@ export function Settings({ theme = 'system' }) {
                 Auto
                 <ListBox.ItemIndicator>
                   {({ isSelected }) =>
-                    isSelected ? <IconCheck stroke={1.5} /> : null}
+                    isSelected ? <IconCheck stroke={1.5} /> : null
+                  }
                 </ListBox.ItemIndicator>
               </ListBox.Item>
               <ListBox.Item id='preserve' textValue='Preserve'>
                 Preserve
                 <ListBox.ItemIndicator>
                   {({ isSelected }) =>
-                    isSelected ? <IconCheck stroke={1.5} /> : null}
+                    isSelected ? <IconCheck stroke={1.5} /> : null
+                  }
                 </ListBox.ItemIndicator>
               </ListBox.Item>
               <ListBox.Item id='all' textValue='All'>
                 All
                 <ListBox.ItemIndicator>
                   {({ isSelected }) =>
-                    isSelected ? <IconCheck stroke={1.5} /> : null}
+                    isSelected ? <IconCheck stroke={1.5} /> : null
+                  }
                 </ListBox.ItemIndicator>
               </ListBox.Item>
             </ListBox>
@@ -354,19 +338,6 @@ export function Settings({ theme = 'system' }) {
             <p>All: Clear all Domo cookies (only manual, no auto-clearing)</p>
           </Description>
         </Select>
-        <Switch
-          className='flex flex-col items-start justify-start gap-2'
-          isSelected={settings.cardErrorDetection}
-          onChange={handleCardErrorDetectionChange}
-        >
-          <Label>Card Error Detection</Label>
-          <Switch.Control>
-            <Switch.Thumb />
-          </Switch.Control>
-          <Description className='ml-1 w-lg'>
-            Show inline error notifications when card API requests fail
-          </Description>
-        </Switch>
         <div className='pt-1'>
           <Button isDisabled={!hasChanges} type='submit' variant='primary'>
             <IconDeviceFloppy />

@@ -59,10 +59,17 @@ async function ensureContentScript(tabId) {
   try {
     await chrome.tabs.sendMessage(tabId, { type: 'PING' });
   } catch {
-    await chrome.scripting.executeScript({
-      files: ['src/contentScript.js'],
-      target: { tabId }
-    });
+    // Use the manifest-registered content script path. CRXJS transforms
+    // the source file into a loader at build time, so we read the actual
+    // path from the manifest to stay in sync.
+    const manifest = chrome.runtime.getManifest();
+    const file = manifest.content_scripts?.[0]?.js?.[0];
+    if (file) {
+      await chrome.scripting.executeScript({
+        files: [file],
+        target: { tabId }
+      });
+    }
   }
 }
 
@@ -96,6 +103,49 @@ const MAX_CACHED_TABS = 10;
 
 // Session storage keys
 const SESSION_STORAGE_KEY = 'tabContextsBackup';
+
+// Per-tab card error storage
+const tabCardErrors = new Map();
+const tabLastCardId = new Map();
+const MAX_ERRORS_PER_TAB = 50;
+
+function addCardError(tabId, error) {
+  if (!tabCardErrors.has(tabId)) {
+    tabCardErrors.set(tabId, []);
+  }
+  const errors = tabCardErrors.get(tabId);
+
+  error.id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  errors.push(error);
+
+  // Enforce max limit (remove oldest)
+  if (errors.length > MAX_ERRORS_PER_TAB) {
+    errors.splice(0, errors.length - MAX_ERRORS_PER_TAB);
+  }
+
+  broadcastCardErrors(tabId);
+}
+
+function clearCardErrors(tabId) {
+  tabCardErrors.delete(tabId);
+  broadcastCardErrors(tabId);
+}
+
+function getCardErrors(tabId) {
+  return tabCardErrors.get(tabId) || [];
+}
+
+function broadcastCardErrors(tabId) {
+  const errors = getCardErrors(tabId);
+  chrome.runtime
+    .sendMessage({
+      errorCount: errors.length,
+      errors,
+      tabId,
+      type: 'CARD_ERRORS_UPDATED'
+    })
+    .catch(() => {});
+}
 
 /**
  * LRU eviction - remove least recently used tab if cache is full
@@ -417,6 +467,8 @@ chrome.storage.sync.get(['defaultClearCookiesHandling'], (result) => {
 chrome.tabs.onRemoved.addListener((tabId) => {
   tabContexts.delete(tabId);
   tabAccessTimes.delete(tabId);
+  tabCardErrors.delete(tabId);
+  tabLastCardId.delete(tabId);
   persistToSession();
 });
 
@@ -708,6 +760,15 @@ async function detectAndStoreContext(tabId) {
       }
     }
 
+    // Clear card errors when navigating to a different card on this tab
+    if (typeModel.id === 'CARD') {
+      const lastCardId = tabLastCardId.get(tabId);
+      if (lastCardId && lastCardId !== objectId) {
+        clearCardErrors(tabId);
+      }
+      tabLastCardId.set(tabId, objectId);
+    }
+
     // Update DomoContext with DomoObject
     context.domoObject = domoObject;
     setTabContext(tabId, context);
@@ -899,6 +960,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
     try {
       switch (message.type) {
+        case 'CARD_ERROR_DETECTED': {
+          const sourceTabId = sender.tab?.id;
+          if (sourceTabId) {
+            addCardError(sourceTabId, message.error);
+          }
+          sendResponse({ success: true });
+          break;
+        }
+
+        case 'GET_CARD_ERRORS': {
+          const errors = getCardErrors(message.tabId);
+          sendResponse({ errors, success: true });
+          break;
+        }
+
+        case 'CLEAR_CARD_ERRORS': {
+          clearCardErrors(message.tabId);
+          sendResponse({ success: true });
+          break;
+        }
+
         case 'CLIPBOARD_COPIED': {
           // Content script or Copy component detected a copy event
           const { clipboardData, domoObject } = message;

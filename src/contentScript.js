@@ -272,12 +272,8 @@ modalObserver.observe(document.body, {
 // Card error capture
 // ============================================================
 
-// Inject MAIN world script that intercepts card API errors and displays them inline.
-// Only injected when the cardErrorDetection setting is enabled (default: on).
-(async function injectCardErrorCapture() {
-  const result = await chrome.storage.sync.get(['cardErrorDetection']);
-  if (result.cardErrorDetection === false) return;
-
+// Inject MAIN world script that intercepts card API errors.
+(function injectCardErrorCapture() {
   if (document.getElementById('domo-toolkit-card-errors-script')) return;
 
   const script = document.createElement('script');
@@ -285,3 +281,16 @@ modalObserver.observe(document.body, {
   script.src = chrome.runtime.getURL('public/cardErrors.js');
   document.documentElement.appendChild(script);
 })();
+
+// Relay card errors from MAIN world script to background service worker
+window.addEventListener('message', (event) => {
+  if (event.source !== window) return;
+  if (event.data?.source !== 'domo-toolkit-card-error') return;
+
+  chrome.runtime
+    .sendMessage({
+      error: event.data.error,
+      type: 'CARD_ERROR_DETECTED'
+    })
+    .catch(() => {});
+});

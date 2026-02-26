@@ -1,5 +1,6 @@
 export { ActionButtons } from './ActionButtons';
 export { AnimatedCheck } from './AnimatedCheck';
+export { CardErrorsView } from './CardErrorsView';
 export { ContextFooter } from './ContextFooter';
 export { DataList } from './DataList';
 export * from './functions';

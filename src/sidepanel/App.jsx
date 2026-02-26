@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 
 import {
   ActionButtons,
+  CardErrorsView,
   ContextFooter,
   GetCardsView,
   GetDatasetsView,
@@ -53,6 +54,9 @@ export default function App() {
           setViewKey(data.timestamp || Date.now());
         } else if (data?.type === 'viewObjectDetails') {
           setActiveView('viewObjectDetails');
+          setViewKey(data.timestamp || Date.now());
+        } else if (data?.type === 'cardErrors') {
+          setActiveView('cardErrors');
           setViewKey(data.timestamp || Date.now());
         }
       }
@@ -242,6 +246,14 @@ export default function App() {
 
             {activeView === 'viewObjectDetails' && (
               <ObjectDetailsView
+                key={viewKey}
+                onBackToDefault={handleBackToDefault}
+                onStatusUpdate={showStatus}
+              />
+            )}
+
+            {activeView === 'cardErrors' && (
+              <CardErrorsView
                 key={viewKey}
                 onBackToDefault={handleBackToDefault}
                 onStatusUpdate={showStatus}
