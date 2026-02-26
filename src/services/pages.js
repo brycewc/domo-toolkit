@@ -62,6 +62,7 @@ export async function deletePageAndAllCards({
     // Execute deletion logic in page context to inherit authentication
     const result = await executeInPage(
       async (pageId, pageType, appId, cardIds) => {
+        try{
         // Delete all cards if there are any
         if (cardIds.length > 0) {
           const cardIdsString = cardIds.join(',');
@@ -101,6 +102,14 @@ export async function deletePageAndAllCards({
           cardsDeleted: cardIds.length,
           success: true
         };
+      } catch (error) {
+        console.error('Error in deletePageAndAllCards:', error);
+        return {
+          cardsDeleted: 0,
+          statusCode: 500,
+          success: false
+        }
+      }
       },
       [pageId, pageType, appId, cardIds],
       tabId
@@ -229,7 +238,7 @@ export async function getAppStudioPageParent(
  * @throws {Error} If the fetch fails
  */
 export async function getChildPages({
-  appId,
+  appId = null,
   includeGrandchildren = false,
   pageId,
   pageType,

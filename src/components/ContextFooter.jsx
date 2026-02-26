@@ -19,7 +19,11 @@ import { executeInPage } from '@/utils';
 import { AnimatedCheck } from './AnimatedCheck';
 import '@/assets/json-view-theme.css';
 
-export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onStatusUpdate }) {
+export function ContextFooter({
+  currentContext,
+  isLoading,
+  onStatusUpdate: _onStatusUpdate
+}) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [relatedCache, setRelatedCache] = useState({});
   const [loadingTabs, setLoadingTabs] = useState({});
@@ -289,15 +293,15 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
                   <Spinner color='accent' size='sm' />
                 ) : !currentContext?.instance ||
                   !currentContext?.domoObject?.id ? (
-                      'No object detected on this page'
-                    ) : (
-                      <div className='flex flex-wrap items-center justify-start gap-x-1'>
-                        <span className='text-left font-medium'>
-                          {currentContext?.domoObject?.metadata?.name}
-                        </span>
-                        <span>ID: {currentContext?.domoObject?.id}</span>
-                      </div>
-                    )
+                  'No object detected on this page'
+                ) : (
+                  <div className='flex flex-wrap items-center justify-start gap-x-1'>
+                    <span className='text-left font-medium'>
+                      {currentContext?.domoObject?.metadata?.name}
+                    </span>
+                    <span>ID: {currentContext?.domoObject?.id}</span>
+                  </div>
+                )
               ) : (
                 'Navigate to an instance to enable most features'
               )}
@@ -342,7 +346,11 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
               <Tabs.ListContainer>
                 <Tabs.List aria-label='Object details'>
                   {tabs.map((tab) => (
-                    <Tabs.Tab className='capitalize' id={tab.id} key={tab.id}>
+                    <Tabs.Tab
+                      className='truncate capitalize'
+                      id={tab.id}
+                      key={tab.id}
+                    >
                       {tab.label}
                       <Tabs.Indicator />
                     </Tabs.Tab>

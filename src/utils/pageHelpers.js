@@ -9,6 +9,7 @@
  * @returns {Promise<{success: boolean, childPages: Array|null, error: string|null}>}
  */
 export async function waitForChildPages(currentContext, maxAttempts = 50) {
+  try{
   const objectType = currentContext.domoObject?.typeId;
   const propertyName =
     objectType === 'DATA_APP_VIEW' ? 'appPages' : 'childPages';
@@ -65,4 +66,12 @@ export async function waitForChildPages(currentContext, maxAttempts = 50) {
     error: null,
     success: true
   };
+  } catch (error) {
+    console.error('Error in waitForChildPages:', error);
+    return {
+      childPages: null,
+      error: error.message || 'Unknown error occurred',
+      success: false
+    };
+  }
 }

@@ -179,7 +179,6 @@ export function GetDatasets({
       fullWidth
       className='min-w-36 flex-1 whitespace-normal'
       isDisabled={isDisabled}
-      isIconOnly={isLoading}
       isPending={isLoading}
       variant='tertiary'
       onPress={handleGetDatasets}

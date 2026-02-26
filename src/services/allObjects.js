@@ -14,6 +14,7 @@ export async function deleteObject({ object, tabId = null }) {
 
     const result = await executeInPage(
       async (object) => {
+        try{
         // console.log('Executing delete for object:', object);
         const fetchOptions = {
           method: 'DELETE'
@@ -87,6 +88,14 @@ export async function deleteObject({ object, tabId = null }) {
           success: true,
           typeName: object.typeName
         };
+      } catch (error) {
+        console.error('Error in deleteObject:', error);
+        return {
+          error: error.message,
+          statusCode: 500,
+          success: false
+        };
+      }
       },
       [object.toJSON()],
       tabId

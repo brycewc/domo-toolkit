@@ -657,8 +657,8 @@ export const ObjectTypeRegistry = {
     },
     null,
     [
-      { field: 'inputs', isArray: true, label: 'Input DataSets' },
-      { field: 'outputs', isArray: true, label: 'Output DataSets' }
+      { field: 'inputs', isArray: true, label: 'Inputs' },
+      { field: 'outputs', isArray: true, label: 'Outputs' }
     ]
   ),
   DATASET_QUERY: new DomoObjectType(
@@ -792,7 +792,8 @@ export const ObjectTypeRegistry = {
       method: 'GET',
       pathToName: 'jobName'
     },
-    ['EXECUTOR_APPLICATION']
+    ['EXECUTOR_APPLICATION'],
+    [{source: 'parentId', label: 'Application', typeId: 'EXECUTOR_APPLICATION'}]
   ),
   FILE: new DomoObjectType('FILE', 'File', null, /^\d+$/, null, {
     endpoint: '/data/v1/data-files/{id}/details',
