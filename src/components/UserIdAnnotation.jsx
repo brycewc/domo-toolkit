@@ -3,8 +3,9 @@ import { useState } from 'react';
 
 import { AnimatedCheck } from '@/components';
 
-export function TimestampAnnotation({ formatted, value }) {
+export function UserIdAnnotation({ displayName, value }) {
   const [copied, setCopied] = useState(false);
+  const isString = typeof value === 'string';
 
   const handleCopy = (event) => {
     event.stopPropagation();
@@ -15,7 +16,9 @@ export function TimestampAnnotation({ formatted, value }) {
 
   return (
     <>
-      <span className='json-view--number'>{String(value)}</span>
+      <span className={isString ? 'json-view--string' : 'json-view--number'}>
+        {isString ? `"${value}"` : String(value)}
+      </span>
       {copied ? (
         <AnimatedCheck
           className='json-view--copy text-success'
@@ -31,7 +34,7 @@ export function TimestampAnnotation({ formatted, value }) {
           onClick={handleCopy}
         />
       )}
-      <span className='json-view--annotation'>{formatted}</span>
+      <span className='json-view--annotation'>{displayName}</span>
     </>
   );
 }

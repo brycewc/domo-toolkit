@@ -12,12 +12,19 @@ import { IconClipboard } from '@tabler/icons-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import JsonView from 'react18-json-view';
 
+import { useUserLookup } from '@/hooks';
 import { getObjectType } from '@/models';
 import { fetchObjectDetailsInPage } from '@/services';
-import { executeInPage, formatEpochTimestamp, isDateFieldName } from '@/utils';
+import {
+  executeInPage,
+  formatEpochTimestamp,
+  isDateFieldName,
+  isUserFieldName
+} from '@/utils';
 
 import { AnimatedCheck } from './AnimatedCheck';
 import { TimestampAnnotation } from './TimestampAnnotation';
+import { UserIdAnnotation } from './UserIdAnnotation';
 import '@/assets/json-view-theme.css';
 
 export function ContextFooter({
@@ -30,6 +37,11 @@ export function ContextFooter({
   const [loadingTabs, setLoadingTabs] = useState({});
   const [activeTabId, setActiveTabId] = useState(null);
   const disclosureRef = useRef(null);
+
+  const activeSrc =
+    currentContext?.domoObject?.metadata?.details ||
+    currentContext?.domoObject?.metadata;
+  const userMap = useUserLookup(activeSrc, currentContext?.tabId);
 
   // Compute available tabs: current object + related objects
   const tabs = useMemo(() => {
@@ -182,16 +194,19 @@ export function ContextFooter({
             currentContext?.domoObject?.metadata?.details ||
             currentContext?.domoObject?.metadata
           }
+          userMap={userMap}
         />
       );
     }
 
     if (activeTab.isArray) {
-      return <MetadataJsonView collapsed={2} src={activeTab.data} />;
+      return (
+        <MetadataJsonView collapsed={2} src={activeTab.data} userMap={userMap} />
+      );
     }
 
     if (activeTab.isFullContext) {
-      return <MetadataJsonView src={currentContext} />;
+      return <MetadataJsonView src={currentContext} userMap={userMap} />;
     }
 
     if (loadingTabs[activeTabId]) {
@@ -203,7 +218,9 @@ export function ContextFooter({
     }
 
     if (relatedCache[activeTabId]) {
-      return <MetadataJsonView src={relatedCache[activeTabId]} />;
+      return (
+        <MetadataJsonView src={relatedCache[activeTabId]} userMap={userMap} />
+      );
     }
 
     return (
@@ -391,7 +408,7 @@ export function ContextFooter({
 /**
  * Shared JsonView configuration used across all tabs
  */
-function MetadataJsonView({ collapsed = 1, src }) {
+function MetadataJsonView({ collapsed = 1, src, userMap = {} }) {
   return (
     <JsonView
       displaySize
@@ -445,6 +462,25 @@ function MetadataJsonView({ collapsed = 1, src }) {
             return (
               <TimestampAnnotation
                 formatted={formatted}
+                value={params.node}
+              />
+            );
+          }
+        }
+        if (
+          (typeof params.node === 'number' ||
+            typeof params.node === 'string') &&
+          Object.keys(userMap).length > 0
+        ) {
+          const numericValue = Number(params.node);
+          if (
+            userMap[numericValue] &&
+            (isUserFieldName(params.indexOrName) ||
+              params.indexOrName === 'id')
+          ) {
+            return (
+              <UserIdAnnotation
+                displayName={userMap[numericValue]}
                 value={params.node}
               />
             );

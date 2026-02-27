@@ -21,9 +21,18 @@ import { useEffect, useState } from 'react';
 import JsonView from 'react18-json-view';
 
 import '@/assets/json-view-theme.css';
-import { AnimatedCheck, TimestampAnnotation } from '@/components';
+import {
+  AnimatedCheck,
+  TimestampAnnotation,
+  UserIdAnnotation
+} from '@/components';
+import { useUserLookup } from '@/hooks';
 import { DomoObject } from '@/models';
-import { formatEpochTimestamp, isDateFieldName } from '@/utils';
+import {
+  formatEpochTimestamp,
+  isDateFieldName,
+  isUserFieldName
+} from '@/utils';
 
 /**
  * Known fields to display prominently with human-readable labels.
@@ -60,6 +69,8 @@ export function ObjectDetailsView({
   const [error, setError] = useState(null);
   const [domoObject, setDomoObject] = useState(null);
   const [keyFields, setKeyFields] = useState([]);
+
+  const userMap = useUserLookup(domoObject?.metadata?.details);
 
   // Load data on mount
   useEffect(() => {
@@ -309,6 +320,25 @@ export function ObjectDetailsView({
                           return (
                             <TimestampAnnotation
                               formatted={formatted}
+                              value={params.node}
+                            />
+                          );
+                        }
+                      }
+                      if (
+                        (typeof params.node === 'number' ||
+                            typeof params.node === 'string') &&
+                          Object.keys(userMap).length > 0
+                      ) {
+                        const numericValue = Number(params.node);
+                        if (
+                          userMap[numericValue] &&
+                            (isUserFieldName(params.indexOrName) ||
+                              params.indexOrName === 'id')
+                        ) {
+                          return (
+                            <UserIdAnnotation
+                              displayName={userMap[numericValue]}
                               value={params.node}
                             />
                           );

@@ -70,6 +70,28 @@ export async function getCurrentUserId(tabId = null) {
 
 const USERS_PAGE_SIZE = 50;
 
+export async function fetchUserDisplayNames(userIds, tabId = null) {
+  return executeInPage(
+    async (ids) => {
+      const response = await fetch(
+        `/api/content/v3/users?id=${ids.join(',')}`,
+        { credentials: 'include' }
+      );
+      if (!response.ok) return {};
+      const users = await response.json();
+      const map = {};
+      for (const user of users) {
+        if (user.id != null && user.displayName) {
+          map[user.id] = user.displayName;
+        }
+      }
+      return map;
+    },
+    [userIds],
+    tabId
+  );
+}
+
 export async function searchUsers(text, tabId = null, offset = 0) {
   const result = await executeInPage(
     async (text, offset, limit) => {

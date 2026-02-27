@@ -177,8 +177,8 @@
   background-color: #f8514922;
 }
 
-/* Epoch timestamp annotation */
-.json-view .json-view--epoch-annotation {
+/* Inline annotation (timestamps, user display names, etc.) */
+.json-view .json-view--annotation {
   font-size: 0.8em;
   font-style: italic;
   margin-left: 0.5em;

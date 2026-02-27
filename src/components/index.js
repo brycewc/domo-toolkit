@@ -10,4 +10,5 @@ export { GetPagesView } from './GetPagesView';
 export { LinkPreview } from './LinkPreview';
 export { ObjectDetailsView } from './ObjectDetailsView';
 export { TimestampAnnotation } from './TimestampAnnotation';
+export { UserIdAnnotation } from './UserIdAnnotation';
 export * from './options';

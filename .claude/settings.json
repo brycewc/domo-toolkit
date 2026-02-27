@@ -1,9 +1,5 @@
 {
   "permissions": {
-    "allow": [
-      "Bash(ls dist/assets/contentScript*)",
-      "Bash(ls dist/src/contentScript*)",
-      "Bash(ls dist/contentScript*)"
-    ]
+    "allow": []
   }
 }

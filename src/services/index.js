@@ -49,4 +49,9 @@ export {
   getPagesForCards,
   sharePagesWithSelf
 } from './pages';
-export { getCurrentUser, getCurrentUserId, searchUsers } from './users';
+export {
+  fetchUserDisplayNames,
+  getCurrentUser,
+  getCurrentUserId,
+  searchUsers
+} from './users';

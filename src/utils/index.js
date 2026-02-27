@@ -19,8 +19,10 @@ export {
   clearFaviconCache
 } from './faviconModifier';
 export {
+  extractUserIds,
   formatEpochTimestamp,
   isDateFieldName,
+  isUserFieldName,
   JsonStringifyOrder
 } from './general';
 export { waitForChildPages } from './pageHelpers';
