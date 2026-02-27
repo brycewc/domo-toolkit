@@ -6,7 +6,7 @@ import globals from 'globals';
 
 export default defineConfig([
   {
-    ignores: ['!src/**']
+    ignores: ['**', '!src/**']
   },
   {
     extends: [
@@ -43,9 +43,9 @@ export default defineConfig([
         'error',
         2,
         {
-          SwitchCase: 1,
           ignoredNodes: ['JSXElement *', 'JSXElement'],
-          offsetTernaryExpressions: true
+          offsetTernaryExpressions: true,
+          SwitchCase: 1
         }
       ],
       '@stylistic/jsx-closing-bracket-location': ['error', 'line-aligned'],
