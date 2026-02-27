@@ -14,9 +14,10 @@ import JsonView from 'react18-json-view';
 
 import { getObjectType } from '@/models';
 import { fetchObjectDetailsInPage } from '@/services';
-import { executeInPage } from '@/utils';
+import { executeInPage, formatEpochTimestamp, isDateFieldName } from '@/utils';
 
 import { AnimatedCheck } from './AnimatedCheck';
+import { TimestampAnnotation } from './TimestampAnnotation';
 import '@/assets/json-view-theme.css';
 
 export function ContextFooter({
@@ -434,6 +435,20 @@ function MetadataJsonView({ collapsed = 1, src }) {
               {params.node}
             </Link>
           );
+        }
+        if (
+          typeof params.node === 'number' &&
+          isDateFieldName(params.indexOrName)
+        ) {
+          const formatted = formatEpochTimestamp(params.node);
+          if (formatted) {
+            return (
+              <TimestampAnnotation
+                formatted={formatted}
+                value={params.node}
+              />
+            );
+          }
         }
         if (params.indexOrName?.toLowerCase().includes('id')) {
           return { enableClipboard: true };

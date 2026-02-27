@@ -9,4 +9,5 @@ export { GetDatasetsView } from './GetDatasetsView';
 export { GetPagesView } from './GetPagesView';
 export { LinkPreview } from './LinkPreview';
 export { ObjectDetailsView } from './ObjectDetailsView';
+export { TimestampAnnotation } from './TimestampAnnotation';
 export * from './options';

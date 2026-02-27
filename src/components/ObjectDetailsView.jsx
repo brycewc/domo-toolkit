@@ -21,8 +21,9 @@ import { useEffect, useState } from 'react';
 import JsonView from 'react18-json-view';
 
 import '@/assets/json-view-theme.css';
-import { AnimatedCheck } from '@/components';
+import { AnimatedCheck, TimestampAnnotation } from '@/components';
 import { DomoObject } from '@/models';
+import { formatEpochTimestamp, isDateFieldName } from '@/utils';
 
 /**
  * Known fields to display prominently with human-readable labels.
@@ -298,6 +299,20 @@ export function ObjectDetailsView({
                             {params.node}
                           </Link>
                         );
+                      }
+                      if (
+                        typeof params.node === 'number' &&
+                          isDateFieldName(params.indexOrName)
+                      ) {
+                        const formatted = formatEpochTimestamp(params.node);
+                        if (formatted) {
+                          return (
+                            <TimestampAnnotation
+                              formatted={formatted}
+                              value={params.node}
+                            />
+                          );
+                        }
                       }
                       if (params.indexOrName?.toLowerCase().includes('id')) {
                         return { enableClipboard: true };
