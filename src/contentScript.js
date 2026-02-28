@@ -33,6 +33,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === 'TAB_CONTEXT_UPDATED') {
+    // Reset workflow action tracking so next click triggers fresh detection
+    lastSelectedActionNodeId = null;
     sendResponse({ success: true });
     return true;
   }
@@ -255,6 +257,36 @@ function checkForJobOverviewElement(mutations) {
     }
   }
 }
+
+// ============================================================
+// Workflow action selection detection
+// ============================================================
+
+// Track last selected workflow action node to avoid redundant detections
+let lastSelectedActionNodeId = null;
+
+// Listen for clicks to detect workflow action selection changes.
+// Use capture phase so the event fires even if React Flow stops propagation.
+document.addEventListener(
+  'click',
+  () => {
+    if (!location.pathname.includes('workflows/models/')) return;
+
+    // Wait for React to update selection state after the click
+    requestAnimationFrame(() => {
+      const selectedNode = document.querySelector(
+        '.react-flow__node.selected'
+      );
+      const selectedNodeId = selectedNode?.getAttribute('data-id') || null;
+
+      if (selectedNodeId !== lastSelectedActionNodeId) {
+        lastSelectedActionNodeId = selectedNodeId;
+        triggerContextRedetection();
+      }
+    });
+  },
+  true
+);
 
 // Set up MutationObserver to watch for modal and job overview changes
 const modalObserver = new MutationObserver((mutations) => {
