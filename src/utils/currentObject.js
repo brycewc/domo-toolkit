@@ -138,8 +138,12 @@ export async function detectCurrentObject() {
       objectType = 'ROLE';
       break;
 
-    case url.includes('instances/') && parts[parts.indexOf('instances') + 3]:
+    case url.includes('workflows/instances/') && !!parts[parts.indexOf('instances') + 3]:
       objectType = 'WORKFLOW_INSTANCE';
+      break;
+
+    case url.includes('workflows/') && !!parts[parts.indexOf('workflows') + 3]:
+      objectType = 'WORKFLOW_MODEL_VERSION';
       break;
 
     case url.includes('workflows/'):

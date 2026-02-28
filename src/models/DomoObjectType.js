@@ -133,6 +133,34 @@ export class DomoObjectType {
   }
 
   /**
+   * Extract additional URL parameters beyond id and parent
+   * @param {string} url - The URL to extract from
+   * @returns {Object} Map of parameter name to extracted value
+   */
+  extractUrlParams(url) {
+    if (!this.extractConfig?.urlParamExtracts) return {};
+
+    const parts = url.split(/[/?=&]/);
+    const params = {};
+
+    for (const [name, config] of Object.entries(
+      this.extractConfig.urlParamExtracts
+    )) {
+      const { fromEnd = false, keyword, offset = 1 } = config;
+      if (fromEnd) {
+        params[name] = parts[parts.length - offset] || null;
+      } else {
+        const index = parts.indexOf(keyword);
+        if (index !== -1) {
+          params[name] = parts[index + offset] || null;
+        }
+      }
+    }
+
+    return params;
+  }
+
+  /**
    * Check if this object type has an API configuration
    * @returns {boolean} Whether the object type has an API configuration
    */
@@ -1560,7 +1588,12 @@ export const ObjectTypeRegistry = {
     'Workflow Execution',
     '/workflows/instances/{parent}/{version}/{id}',
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    { keyword: 'instances', offset: 3 },
+    {
+      keyword: 'instances',
+      offset: 3,
+      parentExtract: { keyword: 'instances', offset: 1 },
+      urlParamExtracts: { version: { keyword: 'instances', offset: 2 } }
+    },
     {
       endpoint: '/workflow/v2/executions/{id}',
       method: 'GET',
