@@ -175,6 +175,15 @@ export async function detectCurrentObject() {
                   url
                 };
               }
+
+              if (element?.data?.isFormStart && element.data.formId) {
+                return {
+                  baseUrl: `${location.protocol}//${location.hostname}`,
+                  id: element.data.formId,
+                  typeId: 'ENIGMA_FORM',
+                  url
+                };
+              }
             }
           } catch (e) {
             // Fall through to normal workflow version detection
