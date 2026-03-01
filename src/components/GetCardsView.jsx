@@ -4,7 +4,12 @@ import { useEffect, useRef, useState } from 'react';
 
 import { DataList } from '@/components';
 import { DataListItem, DomoContext, DomoObject } from '@/models';
-import { getCardsForObject } from '@/services';
+import {
+  extractPageContentIds,
+  getCardsForObject,
+  getFormsForPage,
+  getQueuesForPage
+} from '@/services';
 import { getValidTabForInstance, waitForCards } from '@/utils';
 
 export function GetCardsView({
@@ -17,6 +22,11 @@ export function GetCardsView({
   const [showSpinner, setShowSpinner] = useState(false);
   const [error, setError] = useState(null);
   const [items, setItems] = useState([]);
+  const [itemCounts, setItemCounts] = useState({
+    cards: 0,
+    forms: 0,
+    queues: 0
+  });
   const [viewData, setViewData] = useState(null);
 
   const mountedRef = useRef(true);
@@ -61,22 +71,33 @@ export function GetCardsView({
 
       const parentId = domoObject.parentId || null;
 
+      // Extract widget IDs from metadata for refresh support
+      const { formWidgetIds, queueWidgetIds } = extractPageContentIds(
+        domoObject.metadata?.details
+      );
+
       setViewData({
+        formWidgetIds,
         instance,
         objectId,
         objectName,
         objectType,
         origin,
-        parentId
+        parentId,
+        queueWidgetIds
       });
 
       let cards = data.cards;
+      let forms = data.forms || [];
+      let queues = data.queues || [];
 
       if (!cards && !forceRefresh) {
         // No pre-fetched cards (popup handoff) -- try background-cached context
         const waitResult = await waitForCards(context);
         if (waitResult.success && waitResult.cards?.length) {
           cards = waitResult.cards;
+          forms = waitResult.forms;
+          queues = waitResult.queues;
         } else {
           const tabId = await getValidTabForInstance(instance);
           cards = await getCardsForObject({ objectId, objectType, tabId });
@@ -85,16 +106,35 @@ export function GetCardsView({
 
       if (forceRefresh) {
         const tabId = await getValidTabForInstance(instance);
-        cards = await getCardsForObject({ objectId, objectType, tabId });
+        const [refreshedCards, refreshedForms, refreshedQueues] =
+          await Promise.all([
+            getCardsForObject({ objectId, objectType, tabId }),
+            formWidgetIds.length > 0
+              ? getFormsForPage({ formWidgetIds, tabId })
+              : Promise.resolve([]),
+            queueWidgetIds.length > 0
+              ? getQueuesForPage({ queueWidgetIds, tabId })
+              : Promise.resolve([])
+          ]);
+        cards = refreshedCards;
+        forms = refreshedForms;
+        queues = refreshedQueues;
       }
 
       if (!cards || !Array.isArray(cards)) {
-        setError('Invalid card data received. Please try again.');
-        return;
+        cards = [];
       }
 
-      const transformedItems = transformCardsToItems(
+      setItemCounts({
+        cards: cards.length,
+        forms: forms.length,
+        queues: queues.length
+      });
+
+      const transformedItems = transformPageItems(
         cards,
+        forms,
+        queues,
         origin,
         objectType,
         objectId,
@@ -120,7 +160,7 @@ export function GetCardsView({
       await loadCardsData(true);
       onStatusUpdate?.(
         'Refreshed',
-        'Card data updated successfully',
+        'Data updated successfully',
         'success',
         2000
       );
@@ -136,17 +176,27 @@ export function GetCardsView({
     }
   };
 
+  const hasMultipleTypes =
+    [itemCounts.cards > 0, itemCounts.forms > 0, itemCounts.queues > 0].filter(
+      Boolean
+    ).length > 1;
+
+  const totalItems = itemCounts.cards + itemCounts.forms + itemCounts.queues;
+
   const renderTitle = () => {
+    const titlePrefix = hasMultipleTypes ? 'Items for' : 'Cards for';
     return (
       <div className='flex flex-col gap-1'>
         <div className='line-clamp-2 min-w-0'>
-          <span>Cards for</span>{' '}
+          <span>{titlePrefix}</span>{' '}
           <span className='font-bold'>{viewData?.objectName}</span>
         </div>
-        {items.length > 0 && (
+        {totalItems > 0 && (
           <div className='flex flex-row items-center gap-1'>
             <span className='text-sm text-muted'>
-              {items.length} card{items.length === 1 ? '' : 's'}
+              {hasMultipleTypes
+                ? `${totalItems} item${totalItems === 1 ? '' : 's'}`
+                : `${itemCounts.cards} card${itemCounts.cards === 1 ? '' : 's'}`}
             </span>
           </div>
         )}
@@ -205,7 +255,7 @@ export function GetCardsView({
       headerActions={['openAll', 'copy', 'refresh']}
       isRefreshing={isRefreshing}
       itemActions={['copy', 'openAll']}
-      itemLabel='card'
+      itemLabel={hasMultipleTypes ? 'item' : 'card'}
       items={items}
       objectId={viewData?.objectId}
       objectType={viewData?.objectType}
@@ -247,4 +297,92 @@ function transformCardsToItems(cards, origin, objectType, objectId, parentId) {
       }
       return DataListItem.fromDomoObject(domoObject);
     });
+}
+
+/**
+ * Transform cards, forms, and queues into DataListItems.
+ * When only cards exist, returns a flat list. When forms or queues
+ * are also present, groups items under disclosure headers.
+ */
+function transformPageItems(
+  cards,
+  forms,
+  queues,
+  origin,
+  objectType,
+  objectId,
+  parentId
+) {
+  const hasMultipleTypes =
+    [cards.length > 0, forms.length > 0, queues.length > 0].filter(Boolean)
+      .length > 1;
+
+  // Only cards: preserve flat list behavior
+  if (!hasMultipleTypes && cards.length > 0) {
+    return transformCardsToItems(cards, origin, objectType, objectId, parentId);
+  }
+
+  const items = [];
+
+  if (cards.length > 0) {
+    const cardItems = transformCardsToItems(
+      cards,
+      origin,
+      objectType,
+      objectId,
+      parentId
+    );
+    items.push(
+      DataListItem.createGroup({
+        children: cardItems,
+        id: 'cards_group',
+        label: 'Cards',
+        metadata: `${cards.length} card${cards.length !== 1 ? 's' : ''}`
+      })
+    );
+  }
+
+  if (forms.length > 0) {
+    const formItems = forms
+      .sort((a, b) => (a.title || '').localeCompare(b.title || ''))
+      .map((form) => {
+        const domoObject = new DomoObject('ENIGMA_FORM', form.id, origin, {
+          name: form.title
+        });
+        // Link to the workflow version that triggers this form
+        if (form.workflowModelId && form.modelVersion) {
+          domoObject.url = `${origin}/workflows/models/${form.workflowModelId}/${form.modelVersion}?_wfv=view`;
+        }
+        return DataListItem.fromDomoObject(domoObject);
+      });
+    items.push(
+      DataListItem.createGroup({
+        children: formItems,
+        id: 'forms_group',
+        label: 'Forms',
+        metadata: `${forms.length} form${forms.length !== 1 ? 's' : ''}`
+      })
+    );
+  }
+
+  if (queues.length > 0) {
+    const queueItems = queues
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+      .map((queue) => {
+        const domoObject = new DomoObject('HOPPER_QUEUE', queue.id, origin, {
+          name: queue.name
+        });
+        return DataListItem.fromDomoObject(domoObject);
+      });
+    items.push(
+      DataListItem.createGroup({
+        children: queueItems,
+        id: 'queues_group',
+        label: 'Queues',
+        metadata: `${queues.length} queue${queues.length !== 1 ? 's' : ''}`
+      })
+    );
+  }
+
+  return items;
 }

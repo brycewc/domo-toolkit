@@ -612,7 +612,10 @@ export const ObjectTypeRegistry = {
       pathToName: 'title'
     },
     ['DATA_APP'],
-    [{ label: 'Studio App', source: 'parentId', typeId: 'DATA_APP' }]
+    [
+      { label: 'Studio App', source: 'parentId', typeId: 'DATA_APP' },
+      { field: 'content', isArray: true, label: 'Content' }
+    ]
   ),
   DATA_DICTIONARY: new DomoObjectType(
     'DATA_DICTIONARY',
@@ -774,26 +777,22 @@ export const ObjectTypeRegistry = {
   ENIGMA_FORM: new DomoObjectType(
     'ENIGMA_FORM',
     'Form',
-    '/advancedForms/{id}/revisions',
+    null,
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    null,
     {
-      keyword: 'advancedForms'
-    },
-    {
-      endpoint: '/forms/v1/advanced-forms/{id}',
+      endpoint: '/forms/v2/{id}',
       method: 'GET',
-      pathToName: 'title'
-    }
+      pathToName: 'name'
+    },
+    ['WORKFLOW_MODEL']
   ),
   ENIGMA_FORM_INSTANCE: new DomoObjectType(
     'ENIGMA_FORM_INSTANCE',
     'Form Instance',
-    '/advancedForms/{parent}/revisions/{id}/design',
+    null,
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    {
-      keyword: 'revisions',
-      parentExtract: { keyword: 'advancedForms', offset: 1 }
-    },
+    null,
     {
       endpoint: '/forms/v1/advanced-forms/{parent}/revisions/{id}',
       method: 'GET',
@@ -951,7 +950,7 @@ export const ObjectTypeRegistry = {
   HOPPER_QUEUE: new DomoObjectType(
     'HOPPER_QUEUE',
     'Task Center Queue',
-    '/admin/task-center/queues?queueId={id}',
+    '/queues/tasks?queueId={id}&status=OPEN',
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     { keyword: 'queueId' },
     {
@@ -963,7 +962,7 @@ export const ObjectTypeRegistry = {
   HOPPER_TASK: new DomoObjectType(
     'HOPPER_TASK',
     'Task Center Task',
-    '/admin/task-center/queues?id={id}',
+    '/queues/tasks?queueId={parent}&id={id}&openTaskDrawer=true',
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     { keyword: 'id' },
     {
@@ -1083,7 +1082,8 @@ export const ObjectTypeRegistry = {
       method: 'GET',
       pathToName: 'title'
     },
-    ['PAGE']
+    ['PAGE'],
+    [{ field: 'content', isArray: true, label: 'Content' }]
   ),
   PAGE_ANALYZER: new DomoObjectType(
     'PAGE_ANALYZER',

@@ -1,11 +1,14 @@
 import { DomoContext, DomoObject, getObjectType } from '@/models';
 import {
+  extractPageContentIds,
   fetchObjectDetailsInPage,
   getCardsForObject,
   getChildPages,
   getCurrentUser,
   getDataflowForOutputDataset,
-  getPagesForCards
+  getFormsForPage,
+  getPagesForCards,
+  getQueuesForPage
 } from '@/services';
 import {
   clearCookies,
@@ -892,6 +895,30 @@ async function detectAndStoreContext(tabId) {
         });
     }
 
+    // Helper: build combined content array for PAGE and DATA_APP_VIEW context footer.
+    // Called after each async enrichment callback; only produces output once all three
+    // (cards, forms, queues) have resolved.
+    function updatePageContent() {
+      const ctx = getTabContext(tabId);
+      const details = ctx?.domoObject?.metadata?.details;
+      if (!details) return;
+      if (details.cards == null || details.forms == null || details.queues == null)
+        return;
+
+      const content = [];
+      for (const card of details.cards) {
+        content.push({ ...card, type: 'CARD' });
+      }
+      for (const form of details.forms) {
+        content.push({ ...form, type: 'ENIGMA_FORM' });
+      }
+      for (const queue of details.queues) {
+        content.push({ ...queue, type: 'HOPPER_QUEUE' });
+      }
+      details.content = content;
+      setTabContext(tabId, ctx);
+    }
+
     // For PAGE, DATA_APP_VIEW, and DATA_SOURCE types, fetch cards asynchronously (non-blocking)
     if (
       typeModel.id === 'PAGE' ||
@@ -921,6 +948,7 @@ async function detectAndStoreContext(tabId) {
 
             // Update the stored context
             setTabContext(tabId, currentContext);
+            updatePageContent();
           }
         })
         .catch((error) => {
@@ -939,8 +967,134 @@ async function detectAndStoreContext(tabId) {
             }
             currentContext.domoObject.metadata.details.cards = [];
             setTabContext(tabId, currentContext);
+            updatePageContent();
           }
         });
+    }
+
+    // For PAGE and DATA_APP_VIEW types, extract and enrich forms and queues from page layout
+    if (typeModel.id === 'PAGE' || typeModel.id === 'DATA_APP_VIEW') {
+      const { formWidgetIds, queueWidgetIds } = extractPageContentIds(
+        enrichedMetadata.details
+      );
+
+      if (formWidgetIds.length > 0) {
+        getFormsForPage({ formWidgetIds, tabId })
+          .then((forms) => {
+            const currentContext = getTabContext(tabId);
+            if (currentContext?.domoObject) {
+              if (!currentContext.domoObject?.metadata) {
+                currentContext.domoObject.metadata = {};
+              }
+              if (!currentContext.domoObject.metadata?.details) {
+                currentContext.domoObject.metadata.details = {};
+              }
+              currentContext.domoObject.metadata.details.forms = forms;
+              setTabContext(tabId, currentContext);
+              updatePageContent();
+            }
+          })
+          .catch((error) => {
+            console.error(
+              `[Background] Error fetching forms for ${typeModel.id} ${objectId}:`,
+              error
+            );
+            const currentContext = getTabContext(tabId);
+            if (currentContext?.domoObject) {
+              if (!currentContext.domoObject?.metadata) {
+                currentContext.domoObject.metadata = {};
+              }
+              if (!currentContext.domoObject.metadata?.details) {
+                currentContext.domoObject.metadata.details = {};
+              }
+              currentContext.domoObject.metadata.details.forms = [];
+              setTabContext(tabId, currentContext);
+              updatePageContent();
+            }
+          });
+      } else {
+        const currentContext = getTabContext(tabId);
+        if (currentContext?.domoObject) {
+          if (!currentContext.domoObject?.metadata) {
+            currentContext.domoObject.metadata = {};
+          }
+          if (!currentContext.domoObject.metadata?.details) {
+            currentContext.domoObject.metadata.details = {};
+          }
+          currentContext.domoObject.metadata.details.forms = [];
+          setTabContext(tabId, currentContext);
+          updatePageContent();
+        }
+      }
+
+      if (queueWidgetIds.length > 0) {
+        getQueuesForPage({ queueWidgetIds, tabId })
+          .then((queues) => {
+            const currentContext = getTabContext(tabId);
+            if (currentContext?.domoObject) {
+              if (!currentContext.domoObject?.metadata) {
+                currentContext.domoObject.metadata = {};
+              }
+              if (!currentContext.domoObject.metadata?.details) {
+                currentContext.domoObject.metadata.details = {};
+              }
+              currentContext.domoObject.metadata.details.queues = queues;
+              setTabContext(tabId, currentContext);
+              updatePageContent();
+            }
+          })
+          .catch((error) => {
+            console.error(
+              `[Background] Error fetching queues for ${typeModel.id} ${objectId}:`,
+              error
+            );
+            const currentContext = getTabContext(tabId);
+            if (currentContext?.domoObject) {
+              if (!currentContext.domoObject?.metadata) {
+                currentContext.domoObject.metadata = {};
+              }
+              if (!currentContext.domoObject.metadata?.details) {
+                currentContext.domoObject.metadata.details = {};
+              }
+              currentContext.domoObject.metadata.details.queues = [];
+              setTabContext(tabId, currentContext);
+              updatePageContent();
+            }
+          });
+      } else {
+        const currentContext = getTabContext(tabId);
+        if (currentContext?.domoObject) {
+          if (!currentContext.domoObject?.metadata) {
+            currentContext.domoObject.metadata = {};
+          }
+          if (!currentContext.domoObject.metadata?.details) {
+            currentContext.domoObject.metadata.details = {};
+          }
+          currentContext.domoObject.metadata.details.queues = [];
+          setTabContext(tabId, currentContext);
+          updatePageContent();
+        }
+      }
+    }
+
+    // For other card-supporting types that don't have forms/queues, set empty arrays
+    if (
+      typeModel.id === 'DATA_SOURCE' ||
+      typeModel.id === 'WORKSHEET_VIEW' ||
+      typeModel.id === 'REPORT_BUILDER_VIEW'
+    ) {
+      const currentContext = getTabContext(tabId);
+      if (currentContext?.domoObject) {
+        if (!currentContext.domoObject?.metadata) {
+          currentContext.domoObject.metadata = {};
+        }
+        if (!currentContext.domoObject.metadata?.details) {
+          currentContext.domoObject.metadata.details = {};
+        }
+        currentContext.domoObject.metadata.details.forms = [];
+        currentContext.domoObject.metadata.details.queues = [];
+        setTabContext(tabId, currentContext);
+      }
     }
 
     return context;

@@ -1,5 +1,10 @@
 export { getActivityLogEvents, getActivityLogForObject } from './activityLog';
 export {
+  extractPageContentIds,
+  getFormsForPage,
+  getQueuesForPage
+} from './appStudio';
+export {
   deleteObject,
   fetchObjectDetailsInPage,
   shareWithSelf,
