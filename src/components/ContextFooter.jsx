@@ -190,18 +190,22 @@ export function ContextFooter({
     if (activeTab.isCurrentObject) {
       return (
         <MetadataJsonView
+          userMap={userMap}
           src={
             currentContext?.domoObject?.metadata?.details ||
             currentContext?.domoObject?.metadata
           }
-          userMap={userMap}
         />
       );
     }
 
     if (activeTab.isArray) {
       return (
-        <MetadataJsonView collapsed={2} src={activeTab.data} userMap={userMap} />
+        <MetadataJsonView
+          collapsed={2}
+          src={activeTab.data}
+          userMap={userMap}
+        />
       );
     }
 
@@ -435,6 +439,27 @@ function MetadataJsonView({ collapsed = 1, src, userMap = {} }) {
           onClick={onClick}
         />
       )}
+      customizeCopy={(node) => {
+        const stringValue =
+          typeof node === 'object'
+            ? JSON.stringify(node, null, 2)
+            : String(node);
+        const trimmed = stringValue.trim();
+        const isDomoId =
+          /^-?\d+$/.test(trimmed) ||
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+            trimmed
+          );
+        if (isDomoId) {
+          chrome.runtime
+            .sendMessage({
+              clipboardData: trimmed,
+              type: 'CLIPBOARD_COPIED'
+            })
+            .catch(() => {});
+        }
+        return stringValue;
+      }}
       customizeNode={(params) => {
         if (params.node === null || params.node === undefined) {
           return { enableClipboard: false };
@@ -460,10 +485,7 @@ function MetadataJsonView({ collapsed = 1, src, userMap = {} }) {
           const formatted = formatEpochTimestamp(params.node);
           if (formatted) {
             return (
-              <TimestampAnnotation
-                formatted={formatted}
-                value={params.node}
-              />
+              <TimestampAnnotation formatted={formatted} value={params.node} />
             );
           }
         }
@@ -475,8 +497,7 @@ function MetadataJsonView({ collapsed = 1, src, userMap = {} }) {
           const numericValue = Number(params.node);
           if (
             userMap[numericValue] &&
-            (isUserFieldName(params.indexOrName) ||
-              params.indexOrName === 'id')
+            (isUserFieldName(params.indexOrName) || params.indexOrName === 'id')
           ) {
             return (
               <UserIdAnnotation
