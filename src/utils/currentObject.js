@@ -206,6 +206,11 @@ export async function detectCurrentObject() {
       objectType = 'MAGNUM_COLLECTION';
       break;
 
+    case url.includes('assetlibrary?designId='):
+      objectType = 'APP';
+      id = parts[parts.indexOf('designId') + 1];
+      break;
+
     case url.includes('assetlibrary/'):
       objectType = 'APP';
       break;

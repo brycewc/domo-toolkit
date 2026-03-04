@@ -38,11 +38,6 @@ export function ContextFooter({
   const [activeTabId, setActiveTabId] = useState(null);
   const disclosureRef = useRef(null);
 
-  const activeSrc =
-    currentContext?.domoObject?.metadata?.details ||
-    currentContext?.domoObject?.metadata;
-  const userMap = useUserLookup(activeSrc, currentContext?.tabId);
-
   // Compute available tabs: current object + related objects
   const tabs = useMemo(() => {
     const domoObject = currentContext?.domoObject;
@@ -125,6 +120,26 @@ export function ContextFooter({
     }
   }, [tabs, activeTabId]);
 
+  const activeTab = tabs.find((t) => t.id === activeTabId);
+  const activeSrc = useMemo(() => {
+    if (!activeTab) {
+      return (
+        currentContext?.domoObject?.metadata?.details ||
+        currentContext?.domoObject?.metadata
+      );
+    }
+    if (activeTab.isCurrentObject) {
+      return (
+        currentContext?.domoObject?.metadata?.details ||
+        currentContext?.domoObject?.metadata
+      );
+    }
+    if (activeTab.isArray) return activeTab.data;
+    if (activeTab.isFullContext) return currentContext;
+    return relatedCache[activeTabId] || null;
+  }, [activeTab, activeTabId, currentContext, relatedCache]);
+  const userMap = useUserLookup(activeSrc, currentContext?.tabId);
+
   // Lazy-load related object details when a tab is selected
   const handleTabChange = async (key) => {
     setActiveTabId(key);
@@ -182,8 +197,6 @@ export function ContextFooter({
     }
   };
 
-  // Derive the JSON source for the active tab
-  const activeTab = tabs.find((t) => t.id === activeTabId);
   const renderJsonContent = () => {
     if (!activeTab) return null;
 
@@ -419,7 +432,7 @@ function MetadataJsonView({ collapsed = 1, src, userMap = {} }) {
       className='text-sm'
       collapsed={collapsed}
       collapseStringMode='word'
-      collapseStringsAfterLength={50}
+      collapseStringsAfterLength={150}
       matchesURL={false}
       src={src}
       CopiedComponent={({ className, style }) => (
