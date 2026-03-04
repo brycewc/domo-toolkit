@@ -16,18 +16,17 @@ export async function waitForCards(currentContext, maxAttempts = 50) {
   let forms = details?.forms;
   let queues = details?.queues;
 
+  const objectType = currentContext.domoObject?.typeId;
+  const hasFormsAndQueues = ['DATA_APP_VIEW', 'PAGE', 'REPORT_BUILDER_VIEW', 'WORKSHEET_VIEW'].includes(objectType);
+
   // Three states per field:
   // 1. undefined/null: Not yet checked - need to wait
   // 2. []: Checked and found none
   // 3. [...]: Has items
 
+  const isSet = (v) => v !== undefined && v !== null;
   const allResolved = () =>
-    cards !== undefined &&
-    cards !== null &&
-    forms !== undefined &&
-    forms !== null &&
-    queues !== undefined &&
-    queues !== null;
+    isSet(cards) && (!hasFormsAndQueues || (isSet(forms) && isSet(queues)));
 
   if (!allResolved()) {
     console.log('[cardHelpers] Page items not yet loaded, waiting...');

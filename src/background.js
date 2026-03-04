@@ -129,15 +129,6 @@ function addCardError(tabId, error) {
   broadcastCardErrors(tabId);
 }
 
-function clearCardErrors(tabId) {
-  tabCardErrors.delete(tabId);
-  broadcastCardErrors(tabId);
-}
-
-function getCardErrors(tabId) {
-  return tabCardErrors.get(tabId) || [];
-}
-
 function broadcastCardErrors(tabId) {
   const errors = getCardErrors(tabId);
   chrome.runtime
@@ -148,6 +139,11 @@ function broadcastCardErrors(tabId) {
       type: 'CARD_ERRORS_UPDATED'
     })
     .catch(() => {});
+}
+
+function clearCardErrors(tabId) {
+  tabCardErrors.delete(tabId);
+  broadcastCardErrors(tabId);
 }
 
 /**
@@ -170,6 +166,10 @@ function evictLRUIfNeeded() {
       tabAccessTimes.delete(oldestTabId);
     }
   }
+}
+
+function getCardErrors(tabId) {
+  return tabCardErrors.get(tabId) || [];
 }
 
 /**
@@ -900,6 +900,9 @@ async function detectAndStoreContext(tabId) {
     // (cards, forms, queues) have resolved.
     function updatePageContent() {
       const ctx = getTabContext(tabId);
+      const objType = ctx?.domoObject?.typeId;
+      const contentTypes = ['PAGE', 'DATA_APP_VIEW', 'WORKSHEET_VIEW', 'REPORT_BUILDER_VIEW'];
+      if (!contentTypes.includes(objType)) return;
       const details = ctx?.domoObject?.metadata?.details;
       if (!details) return;
       if (details.cards == null || details.forms == null || details.queues == null)
@@ -972,8 +975,8 @@ async function detectAndStoreContext(tabId) {
         });
     }
 
-    // For PAGE and DATA_APP_VIEW types, extract and enrich forms and queues from page layout
-    if (typeModel.id === 'PAGE' || typeModel.id === 'DATA_APP_VIEW') {
+    // For page-like types, extract and enrich forms and queues from page layout
+    if (['DATA_APP_VIEW', 'PAGE', 'REPORT_BUILDER_VIEW', 'WORKSHEET_VIEW'].includes(typeModel.id)) {
       const { formWidgetIds, queueWidgetIds } = extractPageContentIds(
         enrichedMetadata.details
       );
@@ -1077,26 +1080,6 @@ async function detectAndStoreContext(tabId) {
       }
     }
 
-    // For other card-supporting types that don't have forms/queues, set empty arrays
-    if (
-      typeModel.id === 'DATA_SOURCE' ||
-      typeModel.id === 'WORKSHEET_VIEW' ||
-      typeModel.id === 'REPORT_BUILDER_VIEW'
-    ) {
-      const currentContext = getTabContext(tabId);
-      if (currentContext?.domoObject) {
-        if (!currentContext.domoObject?.metadata) {
-          currentContext.domoObject.metadata = {};
-        }
-        if (!currentContext.domoObject.metadata?.details) {
-          currentContext.domoObject.metadata.details = {};
-        }
-        currentContext.domoObject.metadata.details.forms = [];
-        currentContext.domoObject.metadata.details.queues = [];
-        setTabContext(tabId, currentContext);
-      }
-    }
-
     return context;
   } catch (error) {
     console.error(
@@ -1120,12 +1103,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             addCardError(sourceTabId, message.error);
           }
           sendResponse({ success: true });
-          break;
-        }
-
-        case 'GET_CARD_ERRORS': {
-          const errors = getCardErrors(message.tabId);
-          sendResponse({ errors, success: true });
           break;
         }
 
@@ -1174,6 +1151,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           }
           const context = await detectAndStoreContext(targetTabId);
           sendResponse({ context: context?.toJSON(), success: true });
+          break;
+        }
+
+        case 'GET_CARD_ERRORS': {
+          const errors = getCardErrors(message.tabId);
+          sendResponse({ errors, success: true });
           break;
         }
 
