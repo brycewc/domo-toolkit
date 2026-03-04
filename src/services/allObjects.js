@@ -14,88 +14,92 @@ export async function deleteObject({ object, tabId = null }) {
 
     const result = await executeInPage(
       async (object) => {
-        try{
+        try {
         // console.log('Executing delete for object:', object);
-        const fetchOptions = {
-          method: 'DELETE'
-        };
-        let fetchUrl = null;
-        switch (object.typeId) {
-          case 'ACCESS_TOKEN':
-            fetchUrl = `/api/data/v1/accesstokens/${object.id}`;
-            break;
-          case 'APP':
-            fetchUrl = `/api/apps/v1/designs/${object.id}`;
-            break;
-          case 'BEAST_MODE_FORMULA':
-          case 'FUNCTION_TEMPLATE':
-          case 'VARIABLE':
-            fetchUrl = `/api/query/v1/functions/template/${object.id}`;
-            break;
-          case 'MAGNUM_COLLECTION':
-            fetchUrl = `/api/datastores/v1/collections/${object.id}`;
-            break;
-          case 'TEMPLATE':
-            fetchOptions.method = 'POST';
-            fetchUrl = '/api/synapse/approval/graphql';
-            fetchOptions.body = JSON.stringify({
-              operationName: 'archiveTemplate',
-              query:
+          const fetchOptions = {
+            method: 'DELETE'
+          };
+          let fetchUrl = null;
+          switch (object.typeId) {
+            case 'ACCESS_TOKEN':
+              fetchUrl = `/api/data/v1/accesstokens/${object.id}`;
+              break;
+            case 'APP':
+              fetchUrl = `/api/apps/v1/designs/${object.id}`;
+              break;
+            case 'BEAST_MODE_FORMULA':
+            case 'FUNCTION_TEMPLATE':
+            case 'VARIABLE':
+              fetchUrl = `/api/query/v1/functions/template/${object.id}`;
+              break;
+            case 'MAGNUM_COLLECTION':
+              fetchUrl = `/api/datastores/v1/collections/${object.id}`;
+              break;
+            case 'TEMPLATE':
+              fetchOptions.method = 'POST';
+              fetchUrl = '/api/synapse/approval/graphql';
+              fetchOptions.body = JSON.stringify({
+                operationName: 'archiveTemplate',
+                query:
                 'mutation archiveTemplate($id: ID!) {\n  success: deleteTemplate(id: $id)\n}',
-              variables: {
-                id: object.id
-              }
-            });
-            fetchOptions.headers = {
-              'Content-Type': 'application/json'
+                variables: {
+                  id: object.id
+                }
+              });
+              fetchOptions.headers = {
+                'Content-Type': 'application/json'
+              };
+              break;
+            case 'WORKFLOW_MODEL':
+              fetchUrl = `/api/workflow/v1/models/${object.id}`;
+              break;
+            default:
+              break;
+          }
+
+          if (!fetchUrl) {
+            return {
+              error: `Deletion not supported for object type: ${object.typeId}`,
+              success: false
             };
-            break;
-          case 'WORKFLOW_MODEL':
-            fetchUrl = `/api/workflow/v1/models/${object.id}`;
-            break;
-          default:
-            break;
-        }
+          }
 
-        if (!fetchUrl) {
+          const response = await fetch(fetchUrl, fetchOptions);
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            return {
+              error: errorText,
+              statusCode: response.status,
+              success: false
+            };
+          }
+
+          // TEMPLATE uses GraphQL and returns a JSON body with success/error
+          if (object.typeId === 'TEMPLATE') {
+            const data = await response.json();
+            if (!data.data?.success) {
+              return {
+                error: data.data?.error,
+                statusCode: response.status,
+                success: false
+              };
+            }
+          }
+
           return {
-            error: `Deletion not supported for object type: ${object.typeId}`,
+            objectId: object.id,
+            success: true,
+            typeName: object.typeName
+          };
+        } catch (error) {
+          console.error('Error in deleteObject:', error);
+          return {
+            error: error.message,
+            statusCode: 500,
             success: false
           };
         }
-
-        const response = await fetch(fetchUrl, fetchOptions);
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          return {
-            error: errorText,
-            statusCode: response.status,
-            success: false
-          };
-        }
-        const data = await response.json();
-        if (!data.data?.success) {
-          return {
-            error: data.data?.error,
-            statusCode: response.status,
-            success: false
-          };
-        }
-
-        return {
-          objectId: object.id,
-          success: true,
-          typeName: object.typeName
-        };
-      } catch (error) {
-        console.error('Error in deleteObject:', error);
-        return {
-          error: error.message,
-          statusCode: 500,
-          success: false
-        };
-      }
       },
       [object.toJSON()],
       tabId
