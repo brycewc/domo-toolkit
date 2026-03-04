@@ -8,6 +8,7 @@ export { DeleteCurrentObject } from './DeleteCurrentObject';
 export { Export } from './Export';
 export { GetCards } from './GetCards';
 export { GetDatasets } from './GetDatasets';
+export { GetViewInputs } from './GetViewInputs';
 export { GetOtherPages } from './GetOtherPages';
 export { GetPages } from './GetPages';
 export { LockCards } from './LockCards';

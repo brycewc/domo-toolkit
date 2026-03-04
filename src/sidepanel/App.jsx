@@ -6,6 +6,7 @@ import {
   CardErrorsView,
   ContextFooter,
   GetCardsView,
+  GetViewInputsView,
   GetDatasetsView,
   GetPagesView,
   LinkPreview,
@@ -51,6 +52,9 @@ export default function App() {
           setViewKey(data.timestamp || Date.now());
         } else if (data?.type === 'getDatasets') {
           setActiveView('getDatasets');
+          setViewKey(data.timestamp || Date.now());
+        } else if (data?.type === 'getViewInputs') {
+          setActiveView('getViewInputs');
           setViewKey(data.timestamp || Date.now());
         } else if (data?.type === 'viewObjectDetails') {
           setActiveView('viewObjectDetails');
@@ -238,6 +242,14 @@ export default function App() {
 
             {activeView === 'getDatasets' && (
               <GetDatasetsView
+                key={viewKey}
+                onBackToDefault={handleBackToDefault}
+                onStatusUpdate={showStatus}
+              />
+            )}
+
+            {activeView === 'getViewInputs' && (
+              <GetViewInputsView
                 key={viewKey}
                 onBackToDefault={handleBackToDefault}
                 onStatusUpdate={showStatus}

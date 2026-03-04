@@ -17,6 +17,7 @@ import {
   Export,
   GetCards,
   GetDatasets,
+  GetViewInputs,
   GetOtherPages,
   GetPages,
   LockCards,
@@ -175,6 +176,16 @@ export function ActionButtons({
                   onStatusUpdate={onStatusUpdate}
                 />
               )}
+              {availableActions.has('getViewInputs') && (
+                <GetViewInputs
+                  currentContext={currentContext}
+                  isDisabled={!isDomoPage}
+                  onCollapseActions={
+                    collapsable ? () => setIsExpanded(false) : undefined
+                  }
+                  onStatusUpdate={onStatusUpdate}
+                />
+              )}
               {availableActions.has('getPages') && (
                 <GetPages
                   currentContext={currentContext}
@@ -285,6 +296,7 @@ function getAvailableActions(typeId, details) {
   }
 
   if (typeId === 'DATA_SOURCE') {
+    actions.add('getViewInputs');
     actions.add('dataRepair');
   }
 

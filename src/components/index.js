@@ -6,6 +6,7 @@ export { DataList } from './DataList';
 export * from './functions';
 export { GetCardsView } from './GetCardsView';
 export { GetDatasetsView } from './GetDatasetsView';
+export { GetViewInputsView } from './GetViewInputsView';
 export { GetPagesView } from './GetPagesView';
 export { LinkPreview } from './LinkPreview';
 export { ObjectDetailsView } from './ObjectDetailsView';

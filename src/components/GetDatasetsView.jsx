@@ -8,7 +8,7 @@ import {
   getCardDatasets,
   getDatasetsForDataflow,
   getDatasetsForPage,
-  getDatasetsForView
+  getDependentDatasets
 } from '@/services';
 import { getValidTabForInstance } from '@/utils';
 
@@ -72,7 +72,7 @@ export function GetDatasetsView({
       if (objectType === 'DATAFLOW_TYPE') {
         typeLabel = 'DataFlow DataSets';
       } else if (objectType === 'DATA_SOURCE') {
-        typeLabel = 'DataSets Used in View';
+        typeLabel = 'Dependent DataSets';
       }
 
       // Store view metadata
@@ -158,7 +158,7 @@ export function GetDatasetsView({
     } else if (objectType === 'DATAFLOW_TYPE') {
       return getDatasetsForDataflow({ details });
     } else if (objectType === 'DATA_SOURCE') {
-      return getDatasetsForView({ datasetId: objectId, tabId });
+      return getDependentDatasets({ datasetId: objectId, tabId });
     }
 
     return [];

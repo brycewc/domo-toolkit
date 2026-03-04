@@ -30,6 +30,7 @@ export {
   getDatasetsForDataflow,
   getDatasetsForPage,
   getDatasetsForView,
+  getDependentDatasets,
   getStreamExecution,
   getStreamExecutions,
   isViewType
