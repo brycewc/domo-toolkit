@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import {
   Button,
   ButtonGroup,
@@ -6,10 +5,12 @@ import {
   Disclosure,
   DisclosureGroup,
   Link,
-  Tooltip,
-  Popover
+  Popover,
+  ScrollShadow,
+  Tooltip
 } from '@heroui/react';
 import {
+  IconChartBar,
   IconChevronDown,
   IconClipboard,
   IconCopyX,
@@ -20,6 +21,8 @@ import {
   IconUsersPlus,
   IconX
 } from '@tabler/icons-react';
+import { useState } from 'react';
+
 import { AnimatedCheck } from './AnimatedCheck';
 
 /**
@@ -31,34 +34,6 @@ import { AnimatedCheck } from './AnimatedCheck';
  * Available item action types for DataList items
  * @typedef {'remove' | 'openAll' | 'copy' | 'share' | 'shareAll'} ItemActionType
  */
-
-/**
- * Recursively collect all URLs from items and their children
- * Skips virtual parent nodes (grouping headers) that don't have real URLs
- * @param {Array} itemList - Array of items to collect URLs from
- * @param {Function} [filter] - Optional filter function (item) => boolean
- * @returns {string[]} Array of URLs
- */
-function collectAllUrls(itemList, filter = null) {
-  const urls = [];
-  const traverse = (list) => {
-    for (const item of list) {
-      // Add URL if it exists and item is not a virtual parent
-      // Also apply optional filter (e.g., skip DATA_APP items)
-      if (item.url && !item.isVirtualParent) {
-        if (!filter || filter(item)) {
-          urls.push(item.url);
-        }
-      }
-      // Recursively process children
-      if (item.children && item.children.length > 0) {
-        traverse(item.children);
-      }
-    }
-  };
-  traverse(itemList);
-  return urls;
-}
 
 /**
  * DataList Component
@@ -97,26 +72,27 @@ function collectAllUrls(itemList, filter = null) {
  * @param {String} props.itemLabel - Label for items in status messages (default: 'item')
  */
 export function DataList({
-  items = [],
-  title,
-  headerActions = [],
-  onClose,
   closeLabel = 'Close',
+  headerActions = [],
   isRefreshing = false,
-  objectId,
-  onRefresh,
-  onShareAll,
   itemActions,
+  itemLabel = 'item',
+  items = [],
+  objectId,
+  objectType,
+  onClose,
   onItemRemove,
   onItemShare,
   onItemShareAll,
+  onRefresh,
+  onShareAll,
   onStatusUpdate,
   showActions = true,
   showCounts = true,
-  objectType,
-  itemLabel = 'item'
+  title
 }) {
   const [isCopied, setIsCopied] = useState(false);
+  const [isHeaderShared, setIsHeaderShared] = useState(false);
 
   /**
    * Handle header action button clicks
@@ -162,7 +138,9 @@ export function DataList({
           break;
 
         case 'shareAll':
-          onShareAll?.();
+          await onShareAll?.();
+          setIsHeaderShared(true);
+          setTimeout(() => setIsHeaderShared(false), 1500);
           break;
 
         default:
@@ -187,8 +165,14 @@ export function DataList({
   const handleItemAction = async (actionType, item) => {
     try {
       switch (actionType) {
-        case 'remove':
-          onItemRemove?.(item);
+        case 'copy':
+          await navigator.clipboard.writeText(item.id?.toString() || '');
+          onStatusUpdate?.(
+            'Copied',
+            `ID **${item.id}** copied to clipboard`,
+            'success',
+            2000
+          );
           break;
         case 'openAll':
           if (item.children) {
@@ -206,22 +190,16 @@ export function DataList({
             );
           }
           break;
-        case 'copy':
-          await navigator.clipboard.writeText(item.id?.toString() || '');
-          onStatusUpdate?.(
-            'Copied',
-            `ID **${item.id}** copied to clipboard`,
-            'success',
-            2000
-          );
+        case 'remove':
+          onItemRemove?.(item);
           break;
 
         case 'share':
-          onItemShare?.(actionType, item);
+          await onItemShare?.(actionType, item);
           break;
 
         case 'shareAll':
-          onItemShareAll?.(actionType, item);
+          await onItemShareAll?.(actionType, item);
           break;
 
         default:
@@ -241,143 +219,181 @@ export function DataList({
   const hasHeaderActions = headerActions.length > 0 || onClose;
 
   return (
-    <Card className='min-h-0 w-full flex-1 overflow-y-scroll overscroll-x-none overscroll-y-contain p-2'>
+    <Card className='flex max-h-fit min-h-0 w-full flex-1 flex-col p-2'>
       {(title || hasHeaderActions) && (
         <Card.Header>
-          <div className='flex flex-col gap-1'>
-            <Card.Title className='flex items-start justify-between'>
-              <div className='min-w-0 flex-1'>{title}</div>
-              {hasHeaderActions && (
-                <ButtonGroup hideSeparator className='shrink-0'>
-                  {headerActions.length > 0 && (
-                    <Popover>
-                      <Button variant='ghost' size='sm' isIconOnly>
-                        <IconDots stroke={1.5} />
-                      </Button>
-                      <Popover.Content placement='left' offset={2}>
-                        <Popover.Dialog className='p-0'>
-                          <ButtonGroup size='sm' fullWidth variant='ghost'>
-                            {headerActions.includes('openAll') && (
-                              <Tooltip delay={400} closeDelay={0}>
-                                <Button
-                                  variant='ghost'
-                                  size='sm'
-                                  isIconOnly
-                                  onPress={() => handleHeaderAction('openAll')}
-                                  aria-label='Open All'
-                                >
-                                  <IconFolders stroke={1.5} />
-                                </Button>
-                                <Tooltip.Content className='text-xs'>
-                                  Open all in new tabs
-                                </Tooltip.Content>
-                              </Tooltip>
-                            )}
-                            {headerActions.includes('copy') && (
-                              <Tooltip delay={400} closeDelay={0}>
-                                <Button
-                                  variant='ghost'
-                                  size='sm'
-                                  isIconOnly
-                                  onPress={() => handleHeaderAction('copy')}
-                                  aria-label='Copy'
-                                >
-                                  {isCopied ? (
-                                    <AnimatedCheck stroke={1.5} />
-                                  ) : (
-                                    <IconClipboard stroke={1.5} />
-                                  )}
-                                </Button>
-                                <Tooltip.Content className='text-xs'>
-                                  {isCopied ? 'Copied!' : 'Copy ID'}
-                                </Tooltip.Content>
-                              </Tooltip>
-                            )}
-                            {headerActions.includes('shareAll') && (
-                              <Tooltip delay={400} closeDelay={0}>
-                                <Button
-                                  variant='ghost'
-                                  size='sm'
-                                  isIconOnly
-                                  onPress={() => handleHeaderAction('shareAll')}
-                                  aria-label='Share All'
-                                >
+          <Card.Title className='flex items-start justify-between gap-2'>
+            <div className='min-w-0 flex-1 pt-1'>{title}</div>
+            {hasHeaderActions && (
+              <ButtonGroup hideSeparator className='flex shrink-0'>
+                {headerActions.length > 0 && (
+                  <Popover>
+                    <Button isIconOnly size='sm' variant='ghost'>
+                      <IconDots stroke={1.5} />
+                    </Button>
+                    <Popover.Content offset={2} placement='left'>
+                      <Popover.Dialog className='p-0'>
+                        <ButtonGroup fullWidth size='sm' variant='ghost'>
+                          {headerActions.includes('openAll') && (
+                            <Tooltip closeDelay={0} delay={400}>
+                              <Button
+                                isIconOnly
+                                aria-label='Open All'
+                                size='sm'
+                                variant='ghost'
+                                onPress={() => handleHeaderAction('openAll')}
+                              >
+                                <IconFolders stroke={1.5} />
+                              </Button>
+                              <Tooltip.Content className='text-xs'>
+                                Open all in new tabs
+                              </Tooltip.Content>
+                            </Tooltip>
+                          )}
+                          {headerActions.includes('shareAll') && (
+                            <Tooltip closeDelay={0} delay={400}>
+                              <Button
+                                isIconOnly
+                                aria-label='Share All'
+                                size='sm'
+                                variant='ghost'
+                                onPress={() => handleHeaderAction('shareAll')}
+                              >
+                                {isHeaderShared ? (
+                                  <AnimatedCheck stroke={1.5} />
+                                ) : (
                                   <IconUsersPlus stroke={1.5} />
-                                </Button>
-                                <Tooltip.Content className='text-xs'>
-                                  Share all with yourself
-                                </Tooltip.Content>
-                              </Tooltip>
-                            )}
-                            {headerActions.includes('refresh') && (
-                              <Tooltip delay={400} closeDelay={0}>
-                                <Button
-                                  variant='ghost'
-                                  size='sm'
-                                  isIconOnly
-                                  isDisabled={isRefreshing}
-                                  onPress={() => handleHeaderAction('refresh')}
-                                >
-                                  <IconRefresh
-                                    stroke={1.5}
-                                    size={16}
-                                    className={
-                                      isRefreshing ? 'animate-spin' : ''
-                                    }
-                                  />
-                                </Button>
-                                <Tooltip.Content className='text-xs'>
-                                  Refresh
-                                </Tooltip.Content>
-                              </Tooltip>
-                            )}
-                          </ButtonGroup>
-                        </Popover.Dialog>
-                      </Popover.Content>
-                    </Popover>
-                  )}
-                  {onClose && (
-                    <Tooltip delay={400} closeDelay={0}>
-                      <Button
-                        variant='ghost'
-                        size='sm'
-                        isIconOnly
-                        onPress={onClose}
-                      >
-                        <IconX stroke={1.5} />
-                      </Button>
-                      <Tooltip.Content className='text-xs'>
-                        {closeLabel}
-                      </Tooltip.Content>
-                    </Tooltip>
-                  )}
-                </ButtonGroup>
-              )}
-            </Card.Title>
-          </div>
+                                )}
+                              </Button>
+                              <Tooltip.Content className='text-xs'>
+                                {isHeaderShared
+                                  ? 'Shared!'
+                                  : 'Share all with yourself'}
+                              </Tooltip.Content>
+                            </Tooltip>
+                          )}
+                          {headerActions.includes('copy') && (
+                            <Tooltip closeDelay={0} delay={400}>
+                              <Button
+                                isIconOnly
+                                aria-label='Copy'
+                                size='sm'
+                                variant='ghost'
+                                onPress={() => handleHeaderAction('copy')}
+                              >
+                                {isCopied ? (
+                                  <AnimatedCheck stroke={1.5} />
+                                ) : (
+                                  <IconClipboard stroke={1.5} />
+                                )}
+                              </Button>
+                              <Tooltip.Content className='text-xs'>
+                                {isCopied ? 'Copied!' : 'Copy ID'}
+                              </Tooltip.Content>
+                            </Tooltip>
+                          )}
+
+                          {headerActions.includes('refresh') && (
+                            <Tooltip closeDelay={0} delay={400}>
+                              <Button
+                                isIconOnly
+                                isDisabled={isRefreshing}
+                                size='sm'
+                                variant='ghost'
+                                onPress={() => handleHeaderAction('refresh')}
+                              >
+                                <IconRefresh
+                                  className={isRefreshing ? 'animate-spin' : ''}
+                                  size={16}
+                                  stroke={1.5}
+                                />
+                              </Button>
+                              <Tooltip.Content className='text-xs'>
+                                Refresh
+                              </Tooltip.Content>
+                            </Tooltip>
+                          )}
+                        </ButtonGroup>
+                      </Popover.Dialog>
+                    </Popover.Content>
+                  </Popover>
+                )}
+                {onClose && (
+                  <Tooltip closeDelay={0} delay={400}>
+                    <Button
+                      isIconOnly
+                      size='sm'
+                      variant='ghost'
+                      onPress={onClose}
+                    >
+                      <IconX stroke={1.5} />
+                    </Button>
+                    <Tooltip.Content className='text-xs'>
+                      {closeLabel}
+                    </Tooltip.Content>
+                  </Tooltip>
+                )}
+              </ButtonGroup>
+            )}
+          </Card.Title>
         </Card.Header>
       )}
 
-      <Card.Content>
-        <DisclosureGroup
-          className='flex w-full flex-col'
-          allowsMultipleExpanded
-        >
-          {items.map((item, index) => (
-            <DataListItem
-              key={item.id || index}
-              item={item}
-              itemActions={itemActions}
-              onItemAction={handleItemAction}
-              showActions={showActions}
-              showCounts={showCounts}
-              objectType={objectType}
-            />
-          ))}
-        </DisclosureGroup>
-      </Card.Content>
+      <ScrollShadow
+        hideScrollBar
+        className='min-h-0 flex-1 overflow-y-auto overscroll-x-none overscroll-y-contain'
+        offset={2}
+        orientation='vertical'
+      >
+        <Card.Content>
+          <DisclosureGroup
+            allowsMultipleExpanded
+            className='flex w-full flex-col'
+          >
+            {items.map((item, index) => (
+              <DataListItem
+                item={item}
+                itemActions={itemActions}
+                key={item.id || index}
+                objectType={objectType}
+                showActions={showActions}
+                showCounts={showCounts}
+                onItemAction={handleItemAction}
+              />
+            ))}
+          </DisclosureGroup>
+        </Card.Content>
+      </ScrollShadow>
     </Card>
   );
+}
+
+/**
+ * Recursively collect all URLs from items and their children
+ * Skips virtual parent nodes (grouping headers) that don't have real URLs
+ * @param {Array} itemList - Array of items to collect URLs from
+ * @param {Function} [filter] - Optional filter function (item) => boolean
+ * @returns {string[]} Array of URLs
+ */
+function collectAllUrls(itemList, filter = null) {
+  const urls = [];
+  const traverse = (list) => {
+    for (const item of list) {
+      // Add URL if it exists and item is not a virtual parent
+      // Also apply optional filter (e.g., skip DATA_APP items)
+      if (item.url && !item.isVirtualParent) {
+        if (!filter || filter(item)) {
+          urls.push(item.url);
+        }
+      }
+      // Recursively process children
+      if (item.children && item.children.length > 0) {
+        traverse(item.children);
+      }
+    }
+  };
+  traverse(itemList);
+  return urls;
 }
 
 /**
@@ -399,50 +415,50 @@ export function DataList({
  * @param {String} props.objectType - The type of object being displayed
  */
 function DataListItem({
+  depth = 0,
   item,
   itemActions,
+  objectType,
   onItemAction,
   showActions = true,
-  showCounts = true,
-  depth = 0,
-  objectType
+  showCounts = true
 }) {
   const hasChildren = item.children && item.children.length > 0;
   const [isOpen, setIsOpen] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const [isShared, setIsShared] = useState(false);
 
-  const handleAction = (actionType) => {
+  const handleAction = async (actionType) => {
     if (actionType === 'copy') {
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 1000);
     }
 
     if (onItemAction) {
-      onItemAction(actionType, item);
+      try {
+        await onItemAction(actionType, item);
+        if (actionType === 'share' || actionType === 'shareAll') {
+          setIsShared(true);
+          setTimeout(() => setIsShared(false), 1500);
+        }
+      } catch {
+        // Error handled by parent via onStatusUpdate
+      }
     }
   };
 
-  const labelTooltip = (
-    <Tooltip delay={200} closeDelay={0} className='flex-1'>
-      <Tooltip.Trigger className='truncate'>{item.label}</Tooltip.Trigger>
-      <Tooltip.Content placement='top left' offset={8}>
-        ID: {item.id}
-      </Tooltip.Content>
-    </Tooltip>
-  );
-
   // Action button builders
   const removeButton = (
-    <Tooltip key='remove' delay={400} closeDelay={0}>
+    <Tooltip closeDelay={0} delay={400} key='remove'>
       <Button
-        variant='ghost'
-        size='sm'
         fullWidth
         isIconOnly
-        onPress={() => handleAction('remove')}
         aria-label='Remove'
+        size='sm'
+        variant='ghost'
+        onPress={() => handleAction('remove')}
       >
-        <IconCopyX stroke={1.5} className='text-danger' />
+        <IconCopyX className='text-danger' stroke={1.5} />
       </Button>
       <Tooltip.Content className='text-xs'>
         Remove{' '}
@@ -454,14 +470,14 @@ function DataListItem({
   );
 
   const openAllButton = (
-    <Tooltip key='openAll' delay={400} closeDelay={0}>
+    <Tooltip closeDelay={0} delay={400} key='openAll'>
       <Button
-        variant='ghost'
-        size='sm'
         fullWidth
         isIconOnly
-        onPress={() => handleAction('openAll')}
         aria-label='Open All'
+        size='sm'
+        variant='ghost'
+        onPress={() => handleAction('openAll')}
       >
         <IconFolders stroke={1.5} />
       </Button>
@@ -472,14 +488,14 @@ function DataListItem({
   );
 
   const copyButton = (
-    <Tooltip key='copy' delay={400} closeDelay={0}>
+    <Tooltip closeDelay={0} delay={400} key='copy'>
       <Button
-        variant='ghost'
-        size='sm'
         fullWidth
         isIconOnly
-        onPress={() => handleAction('copy')}
         aria-label='Copy'
+        size='sm'
+        variant='ghost'
+        onPress={() => handleAction('copy')}
       >
         {isCopied ? (
           <AnimatedCheck stroke={1.5} />
@@ -494,48 +510,70 @@ function DataListItem({
   );
 
   const shareAllButton = (
-    <Tooltip key='shareAll' delay={400} closeDelay={0}>
+    <Tooltip closeDelay={0} delay={400} key='shareAll'>
       <Button
-        variant='ghost'
-        size='sm'
         fullWidth
         isIconOnly
-        onPress={() => handleAction('shareAll')}
         aria-label='Share All'
+        size='sm'
+        variant='ghost'
+        onPress={() => handleAction('shareAll')}
       >
-        <IconUsersPlus stroke={1.5} />
+        {isShared ? (
+          <AnimatedCheck stroke={1.5} />
+        ) : (
+          <IconUsersPlus stroke={1.5} />
+        )}
       </Button>
       <Tooltip.Content className='text-xs'>
-        Share all with yourself
+        {isShared ? 'Shared!' : 'Share all with yourself'}
       </Tooltip.Content>
     </Tooltip>
   );
 
   const shareButton = (
-    <Tooltip key='share' delay={400} closeDelay={0}>
+    <Tooltip closeDelay={0} delay={400} key='share'>
       <Button
-        variant='ghost'
-        size='sm'
         fullWidth
         isIconOnly
-        onPress={() => handleAction('share')}
         aria-label='Share'
+        size='sm'
+        variant='ghost'
+        onPress={() => handleAction('share')}
       >
-        <IconUserPlus stroke={1.5} />
+        {isShared ? (
+          <AnimatedCheck stroke={1.5} />
+        ) : (
+          <IconUserPlus stroke={1.5} />
+        )}
       </Button>
-      <Tooltip.Content className='text-xs'>Share with yourself</Tooltip.Content>
+      <Tooltip.Content className='text-xs'>
+        {isShared ? 'Shared!' : 'Share with yourself'}
+      </Tooltip.Content>
     </Tooltip>
   );
 
   // Compute which actions apply to this item
   const getApplicableActions = () => {
+    const isUnshareable =
+      item.typeId === 'DATA_APP_VIEW' ||
+      item.typeId === 'REPORT_BUILDER_VIEW' ||
+      item.typeId === 'CARD' ||
+      objectType === 'DATA_APP_VIEW' ||
+      Number(item.id) < 0;
+
+    // items that shouldn't have shareAll button
+    const isUnshareableParent = item.typeId === 'DATA_APP';
+
     if (item.isVirtualParent) {
       if (!hasChildren) return [];
       const actions = [];
-      if (itemActions ? itemActions.includes('openAll') : true)
+      if (item.id !== 'REPORT_BUILDER_group') {
+        // if (itemActions && itemActions?.includes('openAll'))
         actions.push(openAllButton);
-      if (itemActions ? itemActions.includes('shareAll') : true)
+        // if (itemActions && itemActions?.includes('shareAll'))
         actions.push(shareAllButton);
+      }
       return actions;
     }
 
@@ -543,18 +581,21 @@ function DataListItem({
       const actions = [];
       if (itemActions.includes('openAll') && hasChildren)
         actions.push(openAllButton);
-      if (itemActions.includes('copy')) actions.push(copyButton);
-      if (itemActions.includes('shareAll') && hasChildren)
+      if (
+        itemActions.includes('shareAll') &&
+        hasChildren &&
+        !isUnshareable &&
+        !isUnshareableParent &&
+        item.countLabel !== 'cards'
+      )
         actions.push(shareAllButton);
-      if (itemActions.includes('share')) actions.push(shareButton);
+      if (itemActions.includes('share') && !isUnshareable)
+        actions.push(shareButton);
+      if (itemActions.includes('copy')) actions.push(copyButton);
       return actions;
     }
 
     // Default logic
-    const isViewType =
-      item.typeId === 'DATA_APP_VIEW' ||
-      item.typeId === 'REPORT_BUILDER_VIEW' ||
-      objectType === 'DATA_APP_VIEW';
 
     const actions = [];
     if (hasChildren && item.typeId !== 'DATA_APP') {
@@ -570,95 +611,128 @@ function DataListItem({
       actions.push(removeButton);
     }
 
+    if (!isUnshareable) actions.push(shareButton);
     actions.push(copyButton);
-    if (!isViewType) actions.push(shareButton);
     return actions;
   };
 
   const applicableActions = showActions ? getApplicableActions() : [];
 
+  const labelTooltip = (
+    <Tooltip className='flex-1' closeDelay={0} delay={200}>
+      <Tooltip.Trigger className='flex items-center truncate'>
+        {item.typeId === 'CARD' && (
+          <IconChartBar
+            className='mr-1 inline shrink-0 align-text-bottom'
+            size={14}
+            stroke={1.5}
+          />
+        )}
+        {item.label}
+      </Tooltip.Trigger>
+      <Tooltip.Content offset={4} placement='top left'>
+        ID: {item.id}
+      </Tooltip.Content>
+    </Tooltip>
+  );
+
+  const itemLabel =
+    !item?.isVirtualParent &&
+    (item.url ? (
+      <Link
+        className='truncate text-sm font-normal no-underline decoration-accent hover:text-accent hover:underline'
+        href={item.url}
+        isDisabled={!item.url}
+        target='_blank'
+      >
+        {labelTooltip}
+      </Link>
+    ) : (
+      <span className='text-sm'>{labelTooltip}</span>
+    ));
+
+  const actions =
+    applicableActions.length === 1
+      ? applicableActions[0]
+      : applicableActions.length > 1 && (
+        <Popover>
+          <Button isIconOnly size='sm' variant='ghost'>
+            <IconDots stroke={1.5} />
+          </Button>
+          <Popover.Content offset={4} placement='left'>
+            <Popover.Dialog className='p-0'>
+              <ButtonGroup
+                fullWidth
+                className='flex max-w-xs justify-end'
+                size='sm'
+                variant='ghost'
+              >
+                {applicableActions}
+              </ButtonGroup>
+            </Popover.Dialog>
+          </Popover.Content>
+        </Popover>
+      );
+
+  if (!hasChildren) {
+    return (
+      <div className='flex min-h-9 w-full flex-row items-center justify-between gap-1 border-t border-border py-1'>
+        <div className='flex w-full min-w-0 flex-1 basis-4/5 items-center gap-2'>
+          {itemLabel}
+        </div>
+        {actions}
+      </div>
+    );
+  }
+
   return (
     <Disclosure
+      className='space-0 w-full border-t border-border'
       isOpen={isOpen}
       onOpenChange={setIsOpen}
-      className='space-0 w-full border-t border-border'
     >
       <Disclosure.Heading className='my-1 flex min-h-9 w-full flex-row justify-between gap-1'>
         <div className='flex w-full min-w-0 flex-1 basis-4/5 items-center gap-2'>
-          {!item?.isVirtualParent &&
-            (item.url ? (
-              <Link
-                href={item.url}
-                target='_blank'
-                className='truncate text-sm font-normal no-underline decoration-accent hover:text-accent hover:underline'
-                isDisabled={!item.url}
-              >
-                {labelTooltip}
-              </Link>
-            ) : (
-              <span className='text-sm'>{labelTooltip}</span>
-            ))}
-          {hasChildren && (
-            <>
-              <Disclosure.Trigger
-                variant='tertiary'
-                aria-label='Toggle'
-                className='flex shrink-0 flex-row items-center gap-1'
-              >
-                {item.isVirtualParent && (
-                  <p className='truncate text-sm font-medium'>{item.label}</p>
-                )}
-                {showCounts && item.count !== undefined && (
-                  <p className='text-sm text-muted'> ({item.count})</p>
-                )}
-                <Disclosure.Indicator>
-                  <IconChevronDown stroke={1.5} />
-                </Disclosure.Indicator>
-              </Disclosure.Trigger>
-            </>
-          )}
-        </div>
-        {applicableActions.length === 1
-          ? applicableActions[0]
-          : applicableActions.length > 1 && (
-              <Popover>
-                <Button variant='ghost' size='sm' isIconOnly>
-                  <IconDots stroke={1.5} />
-                </Button>
-                <Popover.Content placement='left' offset={4}>
-                  <Popover.Dialog className='p-0'>
-                    <ButtonGroup
-                      variant='ghost'
-                      size='sm'
-                      className='flex max-w-xs justify-end'
-                      fullWidth
-                    >
-                      {applicableActions}
-                    </ButtonGroup>
-                  </Popover.Dialog>
-                </Popover.Content>
-              </Popover>
+          {itemLabel}
+          <Disclosure.Trigger
+            aria-label='Toggle'
+            className='flex shrink-0 flex-row items-center gap-1'
+            variant='tertiary'
+          >
+            {item.isVirtualParent && (
+              <p className='truncate text-sm font-medium'>{item.label}</p>
             )}
+            {showCounts && item.count !== undefined && (
+              <p className='text-sm text-muted'>
+                {' '}
+                ({item.count}
+                {item.countLabel ? ` ${item.countLabel}` : ''})
+              </p>
+            )}
+            <Disclosure.Indicator>
+              <IconChevronDown stroke={1.5} />
+            </Disclosure.Indicator>
+          </Disclosure.Trigger>
+        </div>
+        {actions}
       </Disclosure.Heading>
-      {hasChildren && (
-        <Disclosure.Content>
-          <Disclosure.Body>
-            {item.children.map((child, index) => (
-              <DataListItem
-                key={child.id || index}
-                item={child}
-                index={index}
-                itemActions={itemActions}
-                onItemAction={onItemAction}
-                showActions={showActions}
-                showCounts={showCounts}
-                depth={depth + 1}
-                objectType={objectType}
-              />
-            ))}
-          </Disclosure.Body>
-        </Disclosure.Content>
-      )}
+      <Disclosure.Content>
+        <Disclosure.Body>
+          {item.children.map((child, index) => (
+            <DataListItem
+              depth={depth + 1}
+              index={index}
+              item={child}
+              itemActions={itemActions}
+              key={child.id || index}
+              objectType={objectType}
+              showActions={showActions}
+              showCounts={showCounts}
+              onItemAction={onItemAction}
+            />
+          ))}
+        </Disclosure.Body>
+      </Disclosure.Content>
     </Disclosure>
   );
 }

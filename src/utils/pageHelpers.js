@@ -9,6 +9,7 @@
  * @returns {Promise<{success: boolean, childPages: Array|null, error: string|null}>}
  */
 export async function waitForChildPages(currentContext, maxAttempts = 50) {
+  try{
   const objectType = currentContext.domoObject?.typeId;
   const propertyName =
     objectType === 'DATA_APP_VIEW' ? 'appPages' : 'childPages';
@@ -32,8 +33,8 @@ export async function waitForChildPages(currentContext, maxAttempts = 50) {
 
       // Re-fetch the current context to get updated pages
       const response = await chrome.runtime.sendMessage({
-        type: 'GET_TAB_CONTEXT',
-        tabId: currentContext.tabId
+        tabId: currentContext.tabId,
+        type: 'GET_TAB_CONTEXT'
       });
 
       if (
@@ -53,16 +54,24 @@ export async function waitForChildPages(currentContext, maxAttempts = 50) {
     if (childPages === undefined || childPages === null) {
       console.log(`[pageHelpers] Timeout waiting for ${propertyName}`);
       return {
-        success: false,
         childPages: null,
-        error: `Timeout while checking for ${objectType === 'DATA_APP_VIEW' ? 'app pages' : 'child pages'}. Please try again.`
+        error: `Timeout while checking for ${objectType === 'DATA_APP_VIEW' ? 'app pages' : 'child pages'}. Please try again.`,
+        success: false
       };
     }
   }
 
   return {
-    success: true,
     childPages: childPages || [],
-    error: null
+    error: null,
+    success: true
   };
+  } catch (error) {
+    console.error('Error in waitForChildPages:', error);
+    return {
+      childPages: null,
+      error: error.message || 'Unknown error occurred',
+      success: false
+    };
+  }
 }

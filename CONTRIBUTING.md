@@ -1,5 +1,86 @@
 # Contributing to Domo Toolkit
 
+Thanks for your interest in contributing! Whether it's reporting a bug, suggesting a feature, or submitting code, this guide covers everything you need to know.
+
+## Reporting Issues
+
+Found a bug or have a feature request? [Open an issue](https://github.com/brycewc/domo-toolkit/issues) on GitHub. An issue is just a post describing what bug you ran into or what you'd like to see -- no coding or technical knowledge required. You'll need a free [GitHub account](https://github.com/signup) to create one. Include as much detail as you can (what you were doing, what happened, what you expected) and I'll take it from there.
+
+### Bug Reports
+
+Include as much of the following as you can:
+
+- What you were doing when the bug occurred
+- What you expected to happen vs. what actually happened
+- Your browser and version (e.g., Chrome 130, Edge 131)
+- Screenshots or screen recordings (where applicable)
+- The Domo object type you were working with (Page, Card, DataSet, etc.)
+- Any errors in the browser console (`F12` > Console tab)
+
+### Feature Requests
+
+Describe the problem you're trying to solve, not just the solution you have in mind. Context about your workflow helps prioritize and design the right approach.
+
+## Submitting Pull Requests
+
+### Getting Started
+
+1. Fork the repository
+2. Clone your fork and create a branch from `main`:
+
+   ```bash
+   git clone https://github.com/<your-username>/domo-toolkit.git
+   cd domo-toolkit
+   git checkout -b your-branch-name
+   ```
+
+3. Install dependencies and start the dev server:
+
+   ```bash
+   yarn
+   yarn dev
+   ```
+
+4. Load the extension from the `dist` directory (see [Development Setup](#development-setup))
+
+### Branch Naming
+
+Use a short, descriptive branch name that reflects the change. For example:
+
+- `fix-431-cookie-clearing`
+- `add-workflow-delete`
+- `update-favicon-settings-ui`
+
+### Commit Messages
+
+Write clear, descriptive commit messages. Start with what the change does, not what file was edited. A single commit covering a cohesive set of changes is preferred over many small ones, but split unrelated changes into separate commits.
+
+Good:
+
+- `Added retry functionality for loading object details`
+- `Fixed scrolling height bug when switching between tabs on context footer`
+
+Avoid:
+
+- `Fixed bug`
+- `Updated files`
+- `WIP`
+
+### PR Guidelines
+
+- Keep PRs focused on a single change or feature
+- Include a description of what the PR does and why
+- Test your changes against a live Domo instance (domo-community.domo.com is a great testing environment if you don't feel comfortable testing in your usual instance)
+- Make sure the extension builds without errors (`yarn build`)
+- Run Prettier before submitting (`npx prettier --write .`)
+- If your change affects the UI, include a screenshot or screen recording
+
+### Code Review
+
+All PRs are reviewed before merging. You may be asked to make changes -- this is normal and part of the process. Keep an eye on your PR for comments and requested changes.
+
+# Helpful Developer Information
+
 ## Tech Stack
 
 | Category             | Technology              | Version      |
@@ -22,13 +103,13 @@ src/
 ├── sidepanel/          # Side panel UI (contextual panel alongside pages)
 ├── options/            # Settings/options page
 ├── components/         # Shared React components
-│   └── functions/      # Action button implementations
+│   ├── functions/      # Action button implementations
+│   └── options/        # Settings page components
 ├── services/           # Domo API service functions
 ├── models/             # Data classes (DomoObject, DomoContext, DomoObjectType)
 ├── hooks/              # Custom React hooks
 ├── utils/              # Utility functions
 ├── assets/             # Static assets and global CSS
-├── dev-scripts/        # Development-only scripts
 ├── background.js       # Service worker (background script)
 └── contentScript.js    # Content script (injected into Domo pages)
 ```
@@ -134,48 +215,72 @@ const result = await executeInPage(
 
 ### Message Passing
 
-Popup/Sidepanel listen for context updates from background:
+Popup and sidepanel listen for context updates from the background service worker. Messages are filtered by `currentTabId` so each view only responds to updates for the tab it's displaying:
 
 ```javascript
 useEffect(() => {
-  const handleMessage = (message) => {
+  const handleMessage = (message, sender, sendResponse) => {
     if (message.type === 'TAB_CONTEXT_UPDATED') {
-      setCurrentContext(DomoContext.fromJSON(message.context));
+      if (message.tabId === currentTabId) {
+        const context = DomoContext.fromJSON(message.context);
+        setCurrentContext(context);
+      }
+      sendResponse({ received: true });
+      return true;
     }
+    return false;
   };
+
   chrome.runtime.onMessage.addListener(handleMessage);
   return () => chrome.runtime.onMessage.removeListener(handleMessage);
-}, []);
+}, [currentTabId]);
 ```
 
 ### Status Bar Pattern
 
-Actions use StatusBar (already in ActionButtons) to show transient messages:
+Status messages are managed by the `useStatusBar` hook in the parent App component (popup or sidepanel). Child components receive an `onStatusUpdate` callback prop and call it to display transient alerts:
 
 ```javascript
-const [statusData, setStatusData] = useState(null);
+// In the parent App component (popup/App.jsx or sidepanel/App.jsx)
+const { statusBar, showStatus, hideStatus } = useStatusBar();
 
-const showStatus = (message, level = 'primary', timeout = 3000) => {
-  setStatusData({ message, level, timeout });
-};
+// Pass showStatus down as a prop
+<ActionButtons onStatusUpdate={showStatus} />
+<ContextFooter onStatusUpdate={showStatus} />
 
-<StatusBar data={statusData} onDismiss={() => setStatusData(null)} />;
+// Render StatusBar alongside content (animated overlay)
+{statusBar.visible && (
+  <StatusBar
+    title={statusBar.title}
+    description={statusBar.description}
+    status={statusBar.status}
+    timeout={statusBar.timeout}
+    onClose={hideStatus}
+  />
+)}
+```
+
+Inside action components, call the callback to show a status message:
+
+```javascript
+// In any action component
+onStatusUpdate('Copied', 'Object ID copied to clipboard', 'success', 3000);
 ```
 
 ## Extension Permissions
 
-| Permission            | Purpose                                   |
-| --------------------- | ----------------------------------------- |
-| `sidePanel`           | Open side panel UI                        |
-| `storage`             | Persist settings (sync) and cache (local) |
-| `scripting`           | Inject and execute scripts in pages       |
-| `activeTab`           | Access current tab info                   |
-| `clipboardRead/Write` | Copy object IDs                           |
-| `cookies`             | Clear Domo cookies                        |
-| `webNavigation`       | Listen for navigation events              |
-| `webRequest`          | Detect 431 errors for auto cookie clearing|
+| Permission            | Purpose                                    |
+| --------------------- | ------------------------------------------ |
+| `sidePanel`           | Open side panel UI                         |
+| `storage`             | Persist settings (sync) and cache (local)  |
+| `scripting`           | Inject and execute scripts in pages        |
+| `activeTab`           | Access current tab info                    |
+| `clipboardRead/Write` | Copy object IDs                            |
+| `cookies`             | Clear Domo cookies                         |
+| `webNavigation`       | Listen for navigation events               |
+| `webRequest`          | Detect 431 errors for auto cookie clearing |
 
-Host permission: `https://*.domo.com/*`
+Host permission: `*://*.domo.com/*`
 
 ## Configuration Files
 

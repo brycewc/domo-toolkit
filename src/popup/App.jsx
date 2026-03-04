@@ -1,6 +1,8 @@
+import { Toast } from '@heroui/react';
 import { useEffect, useState } from 'react';
-import { ActionButtons } from '@/components';
-import { useTheme } from '@/hooks';
+
+import { ActionButtons, ContextFooter } from '@/components';
+import { useStatusBar, useTheme } from '@/hooks';
 import { DomoContext } from '@/models';
 
 export default function App() {
@@ -10,6 +12,7 @@ export default function App() {
   const [currentContext, setCurrentContext] = useState(null);
   const [isLoadingCurrentContext, setIsLoadingCurrentContext] = useState(true);
   const [currentTabId, setCurrentTabId] = useState(null);
+  const { showStatus } = useStatusBar();
 
   // Get context from service worker
   useEffect(() => {
@@ -61,11 +64,19 @@ export default function App() {
   }, [currentTabId]);
 
   return (
-    <div className='flex max-h-[600px] max-w-[800px] min-w-90 flex-col p-1'>
+    <div className='flex h-full max-h-[600px] max-w-[800px] min-w-100 flex-col items-start justify-start space-y-1 overflow-hidden overscroll-contain p-1'>
       <ActionButtons
+        collapsable={false}
         currentContext={currentContext}
         isLoadingCurrentContext={isLoadingCurrentContext}
+        onStatusUpdate={showStatus}
       />
+      <ContextFooter
+        currentContext={currentContext}
+        isLoading={isLoadingCurrentContext}
+        onStatusUpdate={showStatus}
+      />
+      <Toast.Provider className='right-2 bottom-2' placement='bottom' />
     </div>
   );
 }

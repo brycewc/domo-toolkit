@@ -9,10 +9,10 @@ import { executeInPage } from './executeInPage.js';
  */
 
 export async function clearCookies({
+  daSidsToPreserve = [],
   domains = null,
   excludeDomains = false,
-  tabId = null,
-  daSidsToPreserve = []
+  tabId = null
 }) {
   try {
     // Get all cookies for domo.com and subdomains (doesn't get other domains because of host permissions)
@@ -83,9 +83,9 @@ export async function clearCookies({
         removePromises.push(
           chrome.cookies
             .remove({
-              url,
               name: cookie.name,
-              storeId: cookie.storeId
+              storeId: cookie.storeId,
+              url
             })
             .then((result) => {
               if (result) {
@@ -121,23 +121,23 @@ export async function clearCookies({
         chrome.tabs.reload(tabId);
       }
       return {
-        title: 'Cookies Cleared',
         description,
-        status: 'success'
+        status: 'success',
+        title: 'Cookies Cleared'
       };
     } else {
       console.error('Errors while clearing cookies:', errors);
       return {
-        title: 'Partial Success',
         description: `Cleared ${removedCount} Domo cookie${
           removedCount !== 1 ? 's' : ''
         }, but ${errors.length} error${
           errors.length !== 1 ? 's' : ''
         } occurred`,
-        status: 'warning'
+        status: 'warning',
+        title: 'Partial Success'
       };
     }
   } catch (error) {
-    return { title: 'Error', description: error.message, status: 'danger' };
+    return { description: error.message, status: 'danger', title: 'Error' };
   }
 }

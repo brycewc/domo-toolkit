@@ -1,25 +1,28 @@
-import { useState, useEffect } from 'react';
 import {
-  Modal,
   Button,
   Form,
   Input,
   Label,
-  TextField,
+  Modal,
   TextArea,
+  TextField,
   Tooltip
 } from '@heroui/react';
 import { IconArrowFork, IconX } from '@tabler/icons-react';
+import { useEffect, useState } from 'react';
+
+import { useStatusBar } from '@/hooks';
 import { updateDataflowDetails } from '@/services';
 
 export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { showPromiseStatus } = useStatusBar();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [originalValues, setOriginalValues] = useState({
-    name: '',
-    description: ''
+    description: '',
+    name: ''
   });
 
   // Initialize form values when modal opens
@@ -32,8 +35,8 @@ export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
       setName(originalName);
       setDescription(originalDescription);
       setOriginalValues({
-        name: originalName,
-        description: originalDescription
+        description: originalDescription,
+        name: originalName
       });
     }
   }, [isOpen, currentContext?.domoObject]);
@@ -65,61 +68,52 @@ export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
 
     setIsSubmitting(true);
 
-    try {
+    const fields = Object.keys(updates).join(' and ');
+
+    const promise = (async () => {
       await updateDataflowDetails(currentContext?.domoObject?.id, updates);
 
-      // Update the cached context in background so popup shows new values
       const [tab] = await chrome.tabs.query({
         active: true,
         currentWindow: true
       });
       if (tab?.id) {
         await chrome.runtime.sendMessage({
-          type: 'UPDATE_CONTEXT_METADATA',
+          metadataUpdates: updates,
           tabId: tab.id,
-          metadataUpdates: updates
+          type: 'UPDATE_CONTEXT_METADATA'
         });
-
-        // Refresh the page to show the changes
         chrome.tabs.reload(tab.id);
       }
 
-      // Show success message in popup (popup stays open)
-      onStatusUpdate?.(
-        `DataFlow Details Updated Successfully`,
-        `Updated ${Object.keys(updates).join(' and ')}`,
-        'success',
-        3000
-      );
-    } catch (error) {
-      console.error('Error updating DataFlow:', error);
-      onStatusUpdate?.(
-        'Failed to Update DataFlow',
-        error.message || 'An error occurred',
-        'danger',
-        5000
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
+      return fields;
+    })();
+
+    showPromiseStatus(promise, {
+      error: (err) => err.message || 'An error occurred',
+      loading: `Updating DataFlow **${fields}**…`,
+      success: (f) => `Updated ${f}`
+    });
+
+    promise.finally(() => setIsSubmitting(false));
   };
 
   return (
     <Modal onOpenChange={setIsOpen}>
-      <Tooltip delay={400} closeDelay={0}>
+      <Tooltip closeDelay={0} delay={400}>
         <Button
-          variant='tertiary'
           fullWidth
+          className='min-w-36 flex-1 whitespace-normal'
           isDisabled={currentContext?.domoObject.typeId !== 'DATAFLOW_TYPE'}
-          className='relative min-w-fit flex-1 basis-[48%] overflow-visible'
+          variant='tertiary'
         >
-          <IconArrowFork stroke={1.5} className='rotate-180' />
+          <IconArrowFork className='rotate-180' stroke={1.5} />
           Update DataFlow Details
         </Button>
         <Tooltip.Content>Update dataflow name and description</Tooltip.Content>
       </Tooltip>
       <Modal.Backdrop>
-        <Modal.Container scroll='outside' placement='top' className='p-1'>
+        <Modal.Container className='p-1' placement='top' scroll='outside'>
           <Modal.Dialog className='p-2'>
             <Modal.CloseTrigger
               className='absolute top-2 right-2'
@@ -132,7 +126,7 @@ export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
                 <Modal.Heading>Update DataFlow Details</Modal.Heading>
               </Modal.Header>
               <Modal.Body className='flex flex-col gap-2'>
-                <TextField variant='secondary' name='name' id='dataflow-name'>
+                <TextField id='dataflow-name' name='name' variant='secondary'>
                   <Label>DataFlow Name</Label>
                   <Input
                     className='h-8'
@@ -143,33 +137,33 @@ export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
                 <div className='flex flex-col gap-2'>
                   <Label>DataFlow Description</Label>
                   <TextArea
-                    variant='secondary'
-                    name='description'
                     id='dataflow-description'
-                    rows={2}
+                    name='description'
                     resize='vertical'
+                    rows={2}
                     value={description}
+                    variant='secondary'
                     onChange={(e) => setDescription(e.target.value)}
                   />
                 </div>
               </Modal.Body>
               <Modal.Footer>
                 <Button
+                  isDisabled={isSubmitting}
+                  size='sm'
                   slot='close'
                   variant='tertiary'
-                  size='sm'
-                  isDisabled={isSubmitting}
                 >
                   Cancel
                 </Button>
                 <Button
-                  slot='close'
-                  variant='primary'
-                  size='sm'
-                  type='submit'
                   isDisabled={isSubmitting}
+                  size='sm'
+                  slot='close'
+                  type='submit'
+                  variant='primary'
                 >
-                  {isSubmitting ? 'Updating...' : 'Save'}
+                  Save
                 </Button>
               </Modal.Footer>
             </Form>

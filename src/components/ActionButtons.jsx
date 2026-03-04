@@ -1,296 +1,303 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  Button,
-  ButtonGroup,
-  Card,
-  Disclosure,
-  Skeleton,
-  Tooltip
-} from '@heroui/react';
+import { Button, ButtonGroup, Card, Disclosure, Tooltip } from '@heroui/react';
 import {
   IconChevronDown,
-  IconHelp,
   IconLayoutSidebarRightExpand,
   IconSettings
 } from '@tabler/icons-react';
+import { useRef, useState } from 'react';
+
 import {
   ActivityLogCurrentObject,
   ClearCookies,
   Copy,
   CopyFilteredUrl,
-  ContextFooter,
   DataRepair,
   DeleteCurrentObject,
-  FilterActivityLog,
+  Export,
   GetCards,
   GetDatasets,
+  GetOtherPages,
   GetPages,
+  LockCards,
   NavigateToCopiedObject,
   RemoveEmptyStringsFromQuickFilters,
-  StatusBar,
   ShareWithSelf,
   UpdateDataflowDetails,
   UpdateOwner
 } from '@/components';
-import { openSidepanel, isSidepanel } from '@/utils';
+import { isSidepanel, openSidepanel } from '@/utils';
 
 export function ActionButtons({
-  currentContext,
-  isLoadingCurrentContext,
   collapsable = false,
-  onStatusCallbackReady = null
+  currentContext,
+  onStatusUpdate
 }) {
   const navigateToCopiedRef = useRef();
   const [isExpanded, setIsExpanded] = useState(!collapsable);
-  const [statusBar, setStatusBar] = useState({
-    title: '',
-    description: '',
-    status: 'accent',
-    timeout: null,
-    visible: false,
-    key: Date.now()
-  });
-
-  const showStatus = useCallback(
-    (title, description, status = 'accent', timeout = 3000) => {
-      // console.log('[ActionButtons] showStatus called:', {
-      //   title,
-      //   description,
-      //   status,
-      //   timeout,
-      //   key: Date.now()
-      // });
-      setStatusBar({
-        title,
-        description,
-        status,
-        timeout,
-        visible: true,
-        key: Date.now()
-      });
-    },
-    []
-  );
-
-  const hideStatus = useCallback(() => {
-    setStatusBar((prev) => ({ ...prev, visible: false }));
-  }, []);
-
-  // Provide the showStatus callback to parent component when it mounts/changes
-  useEffect(() => {
-    if (onStatusCallbackReady) {
-      onStatusCallbackReady(showStatus);
-    }
-  }, [onStatusCallbackReady, showStatus]);
 
   const isDomoPage = currentContext?.isDomoPage ?? false;
+  const typeId = currentContext?.domoObject?.typeId;
+  const details = currentContext?.domoObject?.metadata?.details;
+  const availableActions = getAvailableActions(typeId, details);
+  const hasExpandableActions = availableActions.size > 0;
 
   return (
-    <div className='flex w-full shrink-0 flex-col items-center justify-center space-y-1'>
-      <Card className='min-h-fit w-full p-0'>
-        <Card.Content className='p-2'>
-          <Disclosure
-            isExpanded={isExpanded}
-            onExpandedChange={setIsExpanded}
-            className='flex w-full flex-col'
-          >
-            <Disclosure.Heading className='w-full'>
-              <ButtonGroup fullWidth>
-                <Copy
-                  currentContext={currentContext}
-                  onStatusUpdate={showStatus}
-                  isDisabled={!isDomoPage}
-                  navigateToCopiedRef={navigateToCopiedRef}
-                />
-                <ShareWithSelf
-                  currentContext={currentContext}
-                  onStatusUpdate={showStatus}
-                  isDisabled={!isDomoPage}
-                />
-                <ClearCookies
-                  currentContext={currentContext}
-                  onStatusUpdate={showStatus}
-                  isDisabled={!isDomoPage}
-                />
-                <DeleteCurrentObject
-                  currentContext={currentContext}
-                  onStatusUpdate={showStatus}
-                  isDisabled={!isDomoPage}
-                />
-                <Tooltip delay={400} closeDelay={0}>
-                  <Button
-                    variant='tertiary'
-                    fullWidth
-                    isIconOnly
-                    onPress={() => {
-                      window.open('https://domotoolkit.com/feedback', '_blank');
-                    }}
-                  >
-                    <IconHelp stroke={1.5} />
-                  </Button>
-                  <Tooltip.Content>Feedback/help</Tooltip.Content>
-                </Tooltip>
-                <Tooltip delay={400} closeDelay={0}>
-                  <Button
-                    variant='tertiary'
-                    fullWidth
-                    isIconOnly
-                    onPress={() => {
-                      chrome.runtime.openOptionsPage();
-                      if (!isSidepanel()) window.close();
-                    }}
-                  >
-                    <IconSettings stroke={1.5} />
-                  </Button>
-                  <Tooltip.Content>Extension settings</Tooltip.Content>
-                </Tooltip>
-                {collapsable ? (
-                  <Tooltip delay={400} closeDelay={0}>
-                    <Button
-                      variant='tertiary'
-                      slot='trigger'
-                      fullWidth
-                      isIconOnly
-                    >
-                      <Disclosure.Indicator>
-                        <IconChevronDown stroke={1.5} />
-                      </Disclosure.Indicator>
-                    </Button>
-
-                    <Tooltip.Content>Expand</Tooltip.Content>
-                  </Tooltip>
-                ) : (
-                  <Tooltip delay={400} closeDelay={0}>
-                    <Button
-                      variant='tertiary'
-                      fullWidth
-                      isIconOnly
-                      onPress={openSidepanel}
-                    >
-                      <IconLayoutSidebarRightExpand stroke={1.5} />
-                    </Button>
-                    <Tooltip.Content>Open side panel</Tooltip.Content>
-                  </Tooltip>
-                )}
-              </ButtonGroup>
-            </Disclosure.Heading>
-            <Disclosure.Content className='flex h-full w-full flex-col items-center justify-center gap-1'>
-              <div className='mt-1 flex w-full flex-wrap place-items-center items-center justify-center gap-1'>
-                <ActivityLogCurrentObject
-                  currentContext={currentContext}
-                  onStatusUpdate={showStatus}
-                />
-                {/* <FilterActivityLog
+    <Card className='w-full shrink-0 p-0'>
+      <Card.Content className='p-2'>
+        <Disclosure
+          className='flex w-full flex-col'
+          isExpanded={isExpanded}
+          onExpandedChange={setIsExpanded}
+        >
+          <Disclosure.Heading className='w-full'>
+            <ButtonGroup fullWidth>
+              <Copy
                 currentContext={currentContext}
-                // isDisabled={!isDomoPage}
-                /> */}
-                <NavigateToCopiedObject
-                  ref={navigateToCopiedRef}
+                isDisabled={!isDomoPage}
+                navigateToCopiedRef={navigateToCopiedRef}
+                onStatusUpdate={onStatusUpdate}
+              />
+              <ShareWithSelf
+                currentContext={currentContext}
+                isDisabled={!isDomoPage}
+                onStatusUpdate={onStatusUpdate}
+              />
+              <ActivityLogCurrentObject
+                currentContext={currentContext}
+                onStatusUpdate={onStatusUpdate}
+              />
+              <NavigateToCopiedObject
+                currentContext={currentContext}
+                ref={navigateToCopiedRef}
+                onStatusUpdate={onStatusUpdate}
+              />
+              <ClearCookies
+                currentContext={currentContext}
+                isDisabled={!isDomoPage}
+                onStatusUpdate={onStatusUpdate}
+              />
+              <DeleteCurrentObject
+                currentContext={currentContext}
+                isDisabled={!isDomoPage}
+                onStatusUpdate={onStatusUpdate}
+              />
+              {/* <Tooltip delay={400} closeDelay={0}>
+                <Button
+                  variant='tertiary'
+                  fullWidth
+                  isIconOnly
+                  onPress={() => {
+                    window.open(
+                      'https://github.com/brycewc/domo-toolkit/issues',
+                      '_blank'
+                    );
+                  }}
+                >
+                  <IconHelp stroke={1.5} />
+                </Button>
+                <Tooltip.Content>
+                  Report an issue or request a feature
+                </Tooltip.Content>
+              </Tooltip> */}
+              <Tooltip closeDelay={0} delay={400}>
+                <Button
+                  fullWidth
+                  isIconOnly
+                  variant='tertiary'
+                  onPress={() => {
+                    chrome.runtime.openOptionsPage();
+                    if (!isSidepanel()) window.close();
+                  }}
+                >
+                  <IconSettings stroke={1.5} />
+                </Button>
+                <Tooltip.Content>Extension settings</Tooltip.Content>
+              </Tooltip>
+              {collapsable ? (
+                <Tooltip closeDelay={0} delay={400}>
+                  <Button
+                    fullWidth
+                    isIconOnly
+                    isDisabled={!hasExpandableActions}
+                    slot='trigger'
+                    variant='tertiary'
+                  >
+                    <Disclosure.Indicator>
+                      <IconChevronDown stroke={1.5} />
+                    </Disclosure.Indicator>
+                  </Button>
+
+                  <Tooltip.Content>Expand</Tooltip.Content>
+                </Tooltip>
+              ) : (
+                <Tooltip closeDelay={0} delay={400}>
+                  <Button
+                    fullWidth
+                    isIconOnly
+                    variant='tertiary'
+                    onPress={openSidepanel}
+                  >
+                    <IconLayoutSidebarRightExpand stroke={1.5} />
+                  </Button>
+                  <Tooltip.Content>Open side panel</Tooltip.Content>
+                </Tooltip>
+              )}
+            </ButtonGroup>
+          </Disclosure.Heading>
+          <Disclosure.Content className='flex h-full w-full flex-col items-center justify-center gap-1'>
+            <div className='flex w-full flex-wrap place-items-center items-center justify-center gap-1 not-empty:mt-1 empty:hidden'>
+              {availableActions.has('getCards') && (
+                <GetCards
                   currentContext={currentContext}
-                  onStatusUpdate={showStatus}
+                  isDisabled={!isDomoPage}
+                  onCollapseActions={
+                    collapsable ? () => setIsExpanded(false) : undefined
+                  }
+                  onStatusUpdate={onStatusUpdate}
                 />
-              </div>
-              <div className='flex w-full flex-wrap place-items-center items-center justify-center gap-1 empty:hidden'>
-                {(currentContext?.domoObject?.typeId === 'PAGE' ||
-                  currentContext?.domoObject?.typeId === 'DATA_APP_VIEW' ||
-                  currentContext?.domoObject?.typeId ===
-                    'REPORT_BUILDER_VIEW' ||
-                  currentContext?.domoObject?.typeId === 'WORKSHEET_VIEW' ||
-                  currentContext?.domoObject?.typeId === 'DATA_SOURCE') && (
-                  <GetCards
-                    currentContext={currentContext}
-                    onStatusUpdate={showStatus}
-                    isDisabled={!isDomoPage}
-                    onCollapseActions={
-                      collapsable ? () => setIsExpanded(false) : undefined
-                    }
-                  />
-                )}
-                {(currentContext?.domoObject?.typeId === 'PAGE' ||
-                  currentContext?.domoObject?.typeId === 'DATA_APP_VIEW' ||
-                  currentContext?.domoObject?.typeId === 'DATAFLOW_TYPE' ||
-                  currentContext?.domoObject?.typeId === 'DATA_SOURCE') && (
-                  <GetDatasets
-                    currentContext={currentContext}
-                    onStatusUpdate={showStatus}
-                    isDisabled={!isDomoPage}
-                    onCollapseActions={
-                      collapsable ? () => setIsExpanded(false) : undefined
-                    }
-                  />
-                )}
-                {(currentContext?.domoObject?.typeId === 'PAGE' ||
-                  currentContext?.domoObject?.typeId === 'DATA_APP_VIEW' ||
-                  currentContext?.domoObject?.typeId === 'CARD' ||
-                  currentContext?.domoObject?.typeId === 'DATA_SOURCE') && (
-                  <GetPages
-                    currentContext={currentContext}
-                    onStatusUpdate={showStatus}
-                    isDisabled={!isDomoPage}
-                    onCollapseActions={
-                      collapsable ? () => setIsExpanded(false) : undefined
-                    }
-                  />
-                )}
-                {currentContext?.domoObject?.typeId === 'DATA_SOURCE' && (
-                  <DataRepair
-                    currentContext={currentContext}
-                    isDisabled={!isDomoPage}
-                  />
-                )}
-                {(currentContext?.domoObject?.typeId === 'PAGE' ||
-                  currentContext?.domoObject?.typeId === 'DATA_APP_VIEW' ||
-                  currentContext?.domoObject?.typeId === 'CARD') && (
-                  <CopyFilteredUrl
-                    currentContext={currentContext}
-                    onStatusUpdate={showStatus}
-                    isDisabled={!isDomoPage}
-                  />
-                )}
-                {currentContext?.domoObject?.typeId === 'DATAFLOW_TYPE' && (
-                  <UpdateDataflowDetails
-                    currentContext={currentContext}
-                    onStatusUpdate={showStatus}
-                  />
-                )}
-                {(currentContext?.domoObject?.typeId === 'ALERT' ||
-                  currentContext?.domoObject?.typeId === 'WORKFLOW_MODEL') && (
-                  <UpdateOwner
-                    currentContext={currentContext}
-                    onStatusUpdate={showStatus}
-                  />
-                )}
-                {currentContext?.domoObject?.typeId === 'CARD' &&
-                  currentContext?.domoObject?.metadata?.details?.type !==
-                    'domoapp' && (
-                    <RemoveEmptyStringsFromQuickFilters
-                      currentContext={currentContext}
-                      onStatusUpdate={showStatus}
-                    />
-                  )}
-              </div>
-            </Disclosure.Content>
-          </Disclosure>
-        </Card.Content>
-      </Card>
-      <div className='flex min-h-0 w-full flex-1 flex-col items-start justify-start'>
-        {statusBar.visible ? (
-          <StatusBar
-            key={statusBar.key}
-            title={statusBar.title}
-            description={statusBar.description}
-            status={statusBar.status}
-            timeout={statusBar.timeout}
-            onClose={hideStatus}
-          />
-        ) : (
-          <ContextFooter
-            currentContext={currentContext}
-            isLoading={isLoadingCurrentContext}
-            onStatusUpdate={showStatus}
-          />
-        )}
-      </div>
-    </div>
+              )}
+              {availableActions.has('getDatasets') && (
+                <GetDatasets
+                  currentContext={currentContext}
+                  isDisabled={!isDomoPage}
+                  onCollapseActions={
+                    collapsable ? () => setIsExpanded(false) : undefined
+                  }
+                  onStatusUpdate={onStatusUpdate}
+                />
+              )}
+              {availableActions.has('getPages') && (
+                <GetPages
+                  currentContext={currentContext}
+                  isDisabled={!isDomoPage}
+                  onCollapseActions={
+                    collapsable ? () => setIsExpanded(false) : undefined
+                  }
+                  onStatusUpdate={onStatusUpdate}
+                />
+              )}
+              {availableActions.has('getOtherPages') && (
+                <GetOtherPages
+                  currentContext={currentContext}
+                  isDisabled={!isDomoPage}
+                  onCollapseActions={
+                    collapsable ? () => setIsExpanded(false) : undefined
+                  }
+                  onStatusUpdate={onStatusUpdate}
+                />
+              )}
+              {availableActions.has('dataRepair') && (
+                <DataRepair
+                  currentContext={currentContext}
+                  isDisabled={!isDomoPage}
+                />
+              )}
+              {availableActions.has('lockCards') && (
+                <LockCards
+                  currentContext={currentContext}
+                  isDisabled={!isDomoPage}
+                  onStatusUpdate={onStatusUpdate}
+                />
+              )}
+              {availableActions.has('copyFilteredUrl') && (
+                <CopyFilteredUrl
+                  currentContext={currentContext}
+                  isDisabled={!isDomoPage}
+                  onStatusUpdate={onStatusUpdate}
+                />
+              )}
+              {availableActions.has('updateDataflowDetails') && (
+                <UpdateDataflowDetails
+                  currentContext={currentContext}
+                  onStatusUpdate={onStatusUpdate}
+                />
+              )}
+              {availableActions.has('updateOwner') && (
+                <UpdateOwner
+                  currentContext={currentContext}
+                  onStatusUpdate={onStatusUpdate}
+                />
+              )}
+              {availableActions.has('export') && (
+                <Export
+                  currentContext={currentContext}
+                  isDisabled={!isDomoPage}
+                  onStatusUpdate={onStatusUpdate}
+                />
+              )}
+              {availableActions.has('removeEmptyStrings') && (
+                <RemoveEmptyStringsFromQuickFilters
+                  currentContext={currentContext}
+                  onStatusUpdate={onStatusUpdate}
+                />
+              )}
+            </div>
+          </Disclosure.Content>
+        </Disclosure>
+      </Card.Content>
+    </Card>
   );
+}
+
+/**
+ * Determine which expandable action buttons are available for the current context.
+ * Returns a Set of action keys. Used for both rendering and disabling the expand trigger.
+ */
+function getAvailableActions(typeId, details) {
+  const actions = new Set();
+
+  if (
+    [
+      'DATA_APP_VIEW',
+      'DATA_SOURCE',
+      'PAGE',
+      'REPORT_BUILDER_VIEW',
+      'WORKSHEET_VIEW'
+    ].includes(typeId)
+  ) {
+    actions.add('getCards');
+    actions.add('lockCards');
+  }
+
+  if (
+    ['CARD', 'DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE'].includes(
+      typeId
+    )
+  ) {
+    actions.add('getDatasets');
+  }
+
+  if (['CARD', 'DATA_APP_VIEW', 'DATA_SOURCE', 'PAGE'].includes(typeId)) {
+    actions.add('getPages');
+  }
+
+  if (['DATA_APP_VIEW', 'PAGE', 'WORKSHEET_VIEW'].includes(typeId)) {
+    actions.add('getOtherPages');
+  }
+
+  if (typeId === 'DATA_SOURCE') {
+    actions.add('dataRepair');
+  }
+
+  if (['CARD', 'DATA_APP_VIEW', 'PAGE'].includes(typeId)) {
+    actions.add('copyFilteredUrl');
+  }
+
+  if (typeId === 'DATAFLOW_TYPE') {
+    actions.add('updateDataflowDetails');
+  }
+
+  if (['ALERT', 'WORKFLOW_MODEL'].includes(typeId)) {
+    actions.add('updateOwner');
+  }
+
+  if (['CARD', 'CODEENGINE_PACKAGE'].includes(typeId)) {
+    actions.add('export');
+  }
+
+  if (typeId === 'CARD' && details?.type !== 'domoapp') {
+    actions.add('removeEmptyStrings');
+  }
+
+  return actions;
 }

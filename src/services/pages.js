@@ -1,5 +1,168 @@
 import { executeInPage, waitForCards } from '@/utils';
 
+export async function deletePageAndAllCards({
+  appId = null,
+  currentContext = null,
+  pageId,
+  pageType,
+  skipChildPageCheck = false,
+  tabId = null
+}) {
+  try {
+    // Check for child pages if this is a regular PAGE (not DATA_APP_VIEW) and we haven't already checked
+    if (pageType === 'PAGE' && !skipChildPageCheck) {
+      const childPages = await getChildPages({
+        appId,
+        includeGrandchildren: true,
+        pageId,
+        pageType
+      });
+
+      if (childPages.length > 0) {
+        // Store child pages data for sidepanel to read
+        // Only store type, currentContext, and feature-specific data (childPages)
+        // pageId, appId, pageType are derived from currentContext.domoObject
+        await chrome.storage.session.set({
+          sidepanelDataList: {
+            childPages,
+            currentContext: currentContext?.toJSON?.() || currentContext,
+            timestamp: Date.now(),
+            type: 'childPagesWarning'
+          }
+        });
+
+        // Return status information indicating child pages were found
+        return {
+          childPagesCount: childPages.length,
+          hasChildPages: true,
+          statusDescription: `This page has ${childPages.length} child page${childPages.length !== 1 ? 's' : ''}. Please delete or reassign the child pages first.`,
+          statusTitle: 'Cannot Delete Page',
+          statusType: 'warning',
+          success: false,
+          windowId: currentContext?.tab?.windowId
+        };
+      }
+    }
+
+    // Wait for cards to be loaded from background process
+    const cardsResult = await waitForCards(currentContext);
+
+    if (!cardsResult.success) {
+      return {
+        statusDescription: cardsResult.error,
+        statusTitle: 'Error',
+        statusType: 'danger',
+        success: false
+      };
+    }
+
+    const cards = cardsResult.cards;
+    const cardIds = cards.map((card) => card.id);
+
+    // Execute deletion logic in page context to inherit authentication
+    const result = await executeInPage(
+      async (pageId, pageType, appId, cardIds) => {
+        try{
+        // Delete all cards if there are any
+        if (cardIds.length > 0) {
+          const cardIdsString = cardIds.join(',');
+          const deleteCardsResponse = await fetch(
+            `/api/content/v1/cards/bulk?cardIds=${cardIdsString}`,
+            {
+              method: 'DELETE'
+            }
+          );
+
+          if (!deleteCardsResponse.ok) {
+            throw new Error(
+              `Failed to delete cards for page ${pageId}. HTTP status: ${deleteCardsResponse.status}`
+            );
+          }
+        }
+
+        // Delete the page
+        const pageDeleteUrl =
+          pageType === 'PAGE'
+            ? `/api/content/v1/pages/${pageId}`
+            : `/api/content/v1/dataapps/${appId}/views/${pageId}`;
+
+        const deletePageResponse = await fetch(pageDeleteUrl, {
+          method: 'DELETE'
+        });
+
+        if (!deletePageResponse.ok) {
+          return {
+            cardsDeleted: cardIds.length,
+            statusCode: deletePageResponse.status,
+            success: false
+          };
+        }
+
+        return {
+          cardsDeleted: cardIds.length,
+          success: true
+        };
+      } catch (error) {
+        console.error('Error in deletePageAndAllCards:', error);
+        return {
+          cardsDeleted: 0,
+          statusCode: 500,
+          success: false
+        }
+      }
+      },
+      [pageId, pageType, appId, cardIds],
+      tabId
+    );
+
+    if (result.success) {
+      return {
+        cardsDeleted: result.cardsDeleted,
+        statusDescription: `Page ${pageId} and all ${result.cardsDeleted} card${result.cardsDeleted !== 1 ? 's' : ''} were deleted successfully`,
+        statusTitle: 'Delete Successful',
+        statusType: 'success',
+        success: true
+      };
+    } else {
+      return {
+        cardsDeleted: result.cardsDeleted,
+        statusCode: result.statusCode,
+        statusDescription: `All ${result.cardsDeleted} card${result.cardsDeleted !== 1 ? 's were' : ' was'} deleted successfully, but page deletion failed.\nHTTP status: ${result.statusCode}`,
+        statusTitle: 'Failed to Delete Page',
+        statusType: 'danger',
+        success: false
+      };
+    }
+  } catch (error) {
+    const errorMessage = error.message || 'Unknown error occurred';
+    let statusDescription, statusTitle;
+
+    if (error.message?.includes('check for child pages')) {
+      statusTitle = 'Failed to Check for Child Pages';
+      statusDescription = `Error: ${errorMessage}\nDeletion cancelled for safety.`;
+    } else if (error.message?.includes('fetch cards')) {
+      statusTitle = 'Failed to Fetch Cards';
+      statusDescription = `${errorMessage}\nPage and cards will not be deleted.`;
+    } else if (error.message?.includes('delete cards')) {
+      statusTitle = 'Failed to Delete Cards';
+      statusDescription = `${errorMessage}\nPage will not be deleted.`;
+    } else {
+      statusTitle = 'Delete Failed';
+      statusDescription = errorMessage;
+    }
+
+    console.error('Error in deletePageAndAllCards:', error);
+
+    return {
+      error: errorMessage,
+      statusDescription,
+      statusTitle,
+      statusType: 'danger',
+      success: false
+    };
+  }
+}
+
 /**
  * Get the App ID (parent) for an App Studio Page
  * @param {string} appPageId - The App Studio Page ID
@@ -17,16 +180,16 @@ export async function getAppStudioPageParent(
   const fetchLogic = async (appPageId) => {
     // Use the page summary endpoint to get the parent App ID
     const response = await fetch(
-      `/api/content/v1/pages/summary?limit=1&skip=0`,
+      '/api/content/v1/pages/summary?limit=1&skip=0',
       {
-        method: 'POST',
+        body: JSON.stringify({
+          pageId: appPageId
+        }),
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json'
         },
-        credentials: 'include',
-        body: JSON.stringify({
-          pageId: appPageId
-        })
+        method: 'POST'
       }
     );
 
@@ -75,10 +238,10 @@ export async function getAppStudioPageParent(
  * @throws {Error} If the fetch fails
  */
 export async function getChildPages({
+  appId = null,
+  includeGrandchildren = false,
   pageId,
   pageType,
-  appId,
-  includeGrandchildren = false,
   tabId = null
 }) {
   try {
@@ -89,8 +252,8 @@ export async function getChildPages({
         if (pageType === 'PAGE') {
           // Build request body
           const body = {
-            orderBy: 'lastModified',
-            ascending: true
+            ascending: true,
+            orderBy: 'lastModified'
           };
 
           body.includeParentPageIdsClause = true;
@@ -98,15 +261,15 @@ export async function getChildPages({
 
           // Make API call to fetch pages with relative URL
           const response = await fetch(
-            `/api/content/v1/pages/adminsummary?limit=100&skip=0`,
+            '/api/content/v1/pages/adminsummary?limit=100&skip=0',
             {
-              method: 'POST',
               body: JSON.stringify(body),
+              credentials: 'include',
               headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
               },
-              credentials: 'include'
+              method: 'POST'
             }
           );
 
@@ -122,22 +285,22 @@ export async function getChildPages({
             const grandchildPageIds = childPages.map((page) => page.pageId);
 
             const grandchildrenBody = {
-              orderBy: 'lastModified',
               ascending: true,
               includeParentPageIdsClause: true,
+              orderBy: 'lastModified',
               parentPageIds: grandchildPageIds
             };
 
             const grandchildrenResponse = await fetch(
-              `/api/content/v1/pages/adminsummary?limit=100&skip=0`,
+              '/api/content/v1/pages/adminsummary?limit=100&skip=0',
               {
-                method: 'POST',
                 body: JSON.stringify(grandchildrenBody),
+                credentials: 'include',
                 headers: {
-                  'Content-Type': 'application/json',
-                  'Accept': 'application/json'
+                  'Accept': 'application/json',
+                  'Content-Type': 'application/json'
                 },
-                credentials: 'include'
+                method: 'POST'
               }
             );
 
@@ -187,53 +350,6 @@ export async function getChildPages({
 }
 
 /**
- * Share pages with self
- * @param {Array} pageIds - IDs of the pages to share
- * @param {number} userId - The current user's ID
- * @param {number} tabId - The tab ID to execute in
- * @returns {Promise<void>} Resolves when sharing is complete
- * @throws {Error} If the fetch fails
- */
-export async function sharePagesWithSelf({ pageIds, userId, tabId }) {
-  try {
-    // Execute fetch in page context to use authenticated session
-    executeInPage(
-      async (pageIds, userId) => {
-        // Build request body
-        const body = {
-          resources: pageIds.map((id) => ({ type: 'page', id })),
-          recipients: [
-            {
-              type: 'user',
-              id: userId
-            }
-          ]
-        };
-
-        // Make API call to fetch pages with relative URL
-        const response = await fetch(`/api/content/v1/share?sendEmail=false`, {
-          method: 'POST',
-          body: JSON.stringify(body),
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          credentials: 'include'
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to share pages (HTTP ${response.status})`);
-        }
-      },
-      [pageIds, userId]
-    );
-  } catch (error) {
-    console.error('Error sharing pages:', error);
-    throw error;
-  }
-}
-
-/**
  * Get all pages that cards appear on (including regular pages, app studio pages, and report builder pages)
  * @param {Array<number>} cardIds - Array of card IDs
  * @returns {Promise<Object>} Array of page objects with type, id, and name
@@ -244,41 +360,46 @@ export async function getPagesForCards(cardIds, tabId = null) {
     // Execute fetch in page context to use authenticated session
     const result = await executeInPage(
       async (cardIds) => {
-        const BATCH_SIZE = 100;
+        // Fetch all cards in parallel (one request per card for speed)
+        const results = await Promise.all(
+          cardIds.map((cardId) =>
+            fetch(`/api/content/v1/cards?urns=${cardId}&parts=adminAllPages`, {
+              method: 'GET'
+            }).then((response) => {
+              if (!response.ok) return null;
+              return response.json();
+            })
+          )
+        );
 
-        // Split cardIds into batches of 100
-        const batches = [];
-        for (let i = 0; i < cardIds.length; i += BATCH_SIZE) {
-          batches.push(cardIds.slice(i, i + BATCH_SIZE));
-        }
-
-        // Fetch all batches and collect all card details
-        const allDetailCards = [];
-        for (const batch of batches) {
-          const response = await fetch(
-            `/api/content/v1/cards?urns=${batch.join(',')}&parts=adminAllPages`,
-            { method: 'GET' }
-          );
-
-          if (!response.ok) {
-            throw new Error(
-              `Failed to fetch cards. HTTP status: ${response.status}`
-            );
-          }
-
-          const detailCards = await response.json();
-          allDetailCards.push(...detailCards);
-        }
+        const allDetailCards = results.filter(Boolean).flat();
 
         if (!allDetailCards.length) {
           throw new Error('No cards found.');
         }
-        // console.log(allDetailCards);
+
         // Build flat lists of all pages, app pages, and report pages from all cards
+        // Also build reverse mapping: pageId -> [{ id, name }] for cards on each page
         const allPages = [];
         const allAppPages = [];
         const allWorksheetViews = [];
         const allReportPages = [];
+        const cardsByPage = {};
+
+        const addCardToPage = (pageId, card) => {
+          const key = String(pageId);
+          if (!cardsByPage[key]) {
+            cardsByPage[key] = [];
+          }
+          const cardId = card.id || card.urn;
+          // Avoid duplicate cards on the same page
+          if (!cardsByPage[key].some((c) => c.id === cardId)) {
+            cardsByPage[key].push({
+              id: cardId,
+              name: card.title || card.name || `Card ${cardId}`
+            });
+          }
+        };
 
         allDetailCards.forEach((card) => {
           // Regular pages
@@ -289,6 +410,7 @@ export async function getPagesForCards(cardIds, tabId = null) {
                   id: page.pageId,
                   name: page.title || `Page ${page.pageId}`
                 });
+                addCardToPage(page.pageId, card);
               }
             });
           }
@@ -298,20 +420,21 @@ export async function getPagesForCards(cardIds, tabId = null) {
               if (page && page.appPageId) {
                 if (page.dataAppType === 'worksheet') {
                   allWorksheetViews.push({
+                    appId: page.appId,
+                    appName: page.appTitle || `App ${page.appId}`,
                     id: page.appPageId,
                     name:
-                      page.appPageTitle || `Worksheet View ${page.appPageId}`,
-                    appId: page.appId,
-                    appName: page.appTitle || `App ${page.appId}`
+                      page.appPageTitle || `Worksheet View ${page.appPageId}`
                   });
                 } else {
                   allAppPages.push({
-                    id: page.appPageId,
-                    name: page.appPageTitle || `App Page ${page.appPageId}`,
                     appId: page.appId,
-                    appName: page.appTitle || `App ${page.appId}`
+                    appName: page.appTitle || `App ${page.appId}`,
+                    id: page.appPageId,
+                    name: page.appPageTitle || `App Page ${page.appPageId}`
                   });
                 }
+                addCardToPage(page.appPageId, card);
               }
             });
           }
@@ -324,6 +447,7 @@ export async function getPagesForCards(cardIds, tabId = null) {
                   name:
                     page.reportPageTitle || `Report Page ${page.reportPageId}`
                 });
+                addCardToPage(page.reportPageId, card);
               }
             });
           }
@@ -348,32 +472,32 @@ export async function getPagesForCards(cardIds, tabId = null) {
         // Combine all page types into array of objects
         const pageObjects = [
           ...pages.map(({ id, name }) => ({
-            type: 'PAGE',
-            id: String(id),
-            name
-          })),
-          ...appPages.map(({ id, name, appId, appName }) => ({
-            type: 'DATA_APP_VIEW',
             id: String(id),
             name,
-            appId,
-            appName
+            type: 'PAGE'
           })),
-          ...worksheetViews.map(({ id, name, appId, appName }) => ({
-            type: 'WORKSHEET_VIEW',
+          ...appPages.map(({ appId, appName, id, name }) => ({
+            appId,
+            appName,
             id: String(id),
             name,
+            type: 'DATA_APP_VIEW'
+          })),
+          ...worksheetViews.map(({ appId, appName, id, name }) => ({
             appId,
-            appName
+            appName,
+            id: String(id),
+            name,
+            type: 'WORKSHEET_VIEW'
           })),
           ...reportPages.map(({ id, name }) => ({
-            type: 'REPORT_BUILDER_VIEW',
             id: String(id),
-            name
+            name,
+            type: 'REPORT_BUILDER_VIEW'
           }))
         ];
 
-        return pageObjects;
+        return { cardsByPage, pages: pageObjects };
       },
       [cardIds],
       tabId
@@ -386,156 +510,55 @@ export async function getPagesForCards(cardIds, tabId = null) {
   }
 }
 
-export async function deletePageAndAllCards({
-  pageId,
-  pageType,
-  appId = null,
-  currentContext = null,
-  skipChildPageCheck = false,
-  tabId = null
-}) {
+/**
+ * Share pages with self
+ * @param {Array} pageIds - IDs of the pages to share
+ * @param {number} userId - The current user's ID
+ * @param {number} tabId - The tab ID to execute in
+ * @returns {Promise<void>} Resolves when sharing is complete
+ * @throws {Error} If the fetch fails
+ */
+export async function sharePagesWithSelf({ pageIds, tabId, userId }) {
+  const validPageIds = pageIds.filter((id) => id >= 0);
+  if (validPageIds.length === 0) {
+    throw new Error('No valid pages to share (all page IDs are negative)');
+  }
+
   try {
-    // Check for child pages if this is a regular PAGE (not DATA_APP_VIEW) and we haven't already checked
-    if (pageType === 'PAGE' && !skipChildPageCheck) {
-      const childPages = await getChildPages({
-        pageId,
-        pageType,
-        appId,
-        includeGrandchildren: true
-      });
-
-      if (childPages.length > 0) {
-        // Store child pages data for sidepanel to read
-        // Only store type, currentContext, and feature-specific data (childPages)
-        // pageId, appId, pageType are derived from currentContext.domoObject
-        await chrome.storage.session.set({
-          sidepanelDataList: {
-            type: 'childPagesWarning',
-            currentContext: currentContext?.toJSON?.() || currentContext,
-            childPages,
-            timestamp: Date.now()
-          }
-        });
-
-        // Return status information indicating child pages were found
-        return {
-          success: false,
-          hasChildPages: true,
-          childPagesCount: childPages.length,
-          windowId: currentContext?.tab?.windowId,
-          statusTitle: 'Cannot Delete Page',
-          statusDescription: `This page has ${childPages.length} child page${childPages.length !== 1 ? 's' : ''}. Please delete or reassign the child pages first.`,
-          statusType: 'warning'
-        };
-      }
-    }
-
-    // Wait for cards to be loaded from background process
-    const cardsResult = await waitForCards(currentContext);
-
-    if (!cardsResult.success) {
-      return {
-        success: false,
-        statusTitle: 'Error',
-        statusDescription: cardsResult.error,
-        statusType: 'danger'
-      };
-    }
-
-    const cards = cardsResult.cards;
-    const cardIds = cards.map((card) => card.id);
-
-    // Execute deletion logic in page context to inherit authentication
-    const result = await executeInPage(
-      async (pageId, pageType, appId, cardIds) => {
-        // Delete all cards if there are any
-        if (cardIds.length > 0) {
-          const cardIdsString = cardIds.join(',');
-          const deleteCardsResponse = await fetch(
-            `/api/content/v1/cards/bulk?cardIds=${cardIdsString}`,
+    // Execute fetch in page context to use authenticated session
+    executeInPage(
+      async (pageIds, userId) => {
+        // Build request body
+        const body = {
+          recipients: [
             {
-              method: 'DELETE'
+              id: userId,
+              type: 'user'
             }
-          );
+          ],
+          resources: pageIds.map((id) => ({ id, type: 'page' }))
+        };
 
-          if (!deleteCardsResponse.ok) {
-            throw new Error(
-              `Failed to delete cards for page ${pageId}. HTTP status: ${deleteCardsResponse.status}`
-            );
-          }
-        }
-
-        // Delete the page
-        const pageDeleteUrl =
-          pageType === 'PAGE'
-            ? `/api/content/v1/pages/${pageId}`
-            : `/api/content/v1/dataapps/${appId}/views/${pageId}`;
-
-        const deletePageResponse = await fetch(pageDeleteUrl, {
-          method: 'DELETE'
+        // Make API call to fetch pages with relative URL
+        const response = await fetch('/api/content/v1/share?sendEmail=false', {
+          body: JSON.stringify(body),
+          credentials: 'include',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          },
+          method: 'POST'
         });
 
-        if (!deletePageResponse.ok) {
-          return {
-            success: false,
-            cardsDeleted: cardIds.length,
-            statusCode: deletePageResponse.status
-          };
+        if (!response.ok) {
+          throw new Error(`Failed to share pages (HTTP ${response.status})`);
         }
-
-        return {
-          success: true,
-          cardsDeleted: cardIds.length
-        };
       },
-      [pageId, pageType, appId, cardIds],
+      [validPageIds, userId],
       tabId
     );
-
-    if (result.success) {
-      return {
-        success: true,
-        cardsDeleted: result.cardsDeleted,
-        statusTitle: 'Delete Successful',
-        statusDescription: `Page ${pageId} and all ${result.cardsDeleted} card${result.cardsDeleted !== 1 ? 's' : ''} were deleted successfully`,
-        statusType: 'success'
-      };
-    } else {
-      return {
-        success: false,
-        cardsDeleted: result.cardsDeleted,
-        statusCode: result.statusCode,
-        statusTitle: `Failed to Delete Page`,
-        statusDescription: `All ${result.cardsDeleted} card${result.cardsDeleted !== 1 ? 's were' : ' was'} deleted successfully, but page deletion failed.\nHTTP status: ${result.statusCode}`,
-        statusType: 'danger'
-      };
-    }
   } catch (error) {
-    const errorMessage = error.message || 'Unknown error occurred';
-    let statusTitle, statusDescription;
-
-    if (error.message?.includes('check for child pages')) {
-      statusTitle = 'Failed to Check for Child Pages';
-      statusDescription = `Error: ${errorMessage}\nDeletion cancelled for safety.`;
-    } else if (error.message?.includes('fetch cards')) {
-      statusTitle = 'Failed to Fetch Cards';
-      statusDescription = `${errorMessage}\nPage and cards will not be deleted.`;
-    } else if (error.message?.includes('delete cards')) {
-      statusTitle = 'Failed to Delete Cards';
-      statusDescription = `${errorMessage}\nPage will not be deleted.`;
-    } else {
-      statusTitle = 'Delete Failed';
-      statusDescription = errorMessage;
-    }
-
-    console.error('Error in deletePageAndAllCards:', error);
-
-    return {
-      success: false,
-      error: errorMessage,
-      statusTitle,
-      statusDescription,
-      statusType: 'danger'
-    };
+    console.error('Error sharing pages:', error);
+    throw error;
   }
 }

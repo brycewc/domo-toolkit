@@ -1,58 +1,646 @@
-import { executeInPage, executeInAllFrames } from '@/utils';
+import { executeInAllFrames, executeInPage } from '@/utils';
 
 /**
- * Extract pfilters from URL query string
- * @param {string} url - Full URL to parse
- * @returns {Array} Array of pfilter objects, empty if none found
+ * Build a pfilter URL from base URL and filters
+ * Works for pages, cards, and any Domo URL that supports pfilters
+ * @param {string} baseUrl - Base URL (instance + path)
+ * @param {string} objectId - Object ID (page or card ID) - unused but kept for compatibility
+ * @param {Array} filters - Array of filter objects
+ * @returns {string} Complete URL with pfilters parameter
  */
-export function getUrlPfilters(url) {
+export function buildPfilterUrl(baseUrl, objectId, filters) {
   try {
-    const urlObj = new URL(url);
-    const pfiltersParam = urlObj.searchParams.get('pfilters');
+    const urlObj = new URL(baseUrl);
 
-    if (!pfiltersParam) {
-      return [];
+    // Remove existing pfilters if present
+    urlObj.searchParams.delete('pfilters');
+
+    // Add new pfilters if we have filters
+    if (Array.isArray(filters) && filters.length > 0) {
+      const encoded = encodeFilters(filters);
+      urlObj.searchParams.set('pfilters', decodeURIComponent(encoded));
     }
 
-    const decoded = decodeURIComponent(pfiltersParam);
-    const filters = JSON.parse(decoded);
-
-    return Array.isArray(filters) ? filters : [];
+    return urlObj.toString();
   } catch (error) {
-    console.warn('Failed to parse pfilters from URL:', error);
+    console.error('Failed to build pfilter URL:', error);
+    return baseUrl;
+  }
+}
+
+/**
+ * Encode filters array for URL query string
+ * @param {Array} filters - Array of filter objects
+ * @returns {string} URL-encoded JSON string
+ */
+export function encodeFilters(filters) {
+  if (!Array.isArray(filters) || filters.length === 0) {
+    return '';
+  }
+
+  const json = JSON.stringify(filters);
+  return encodeURIComponent(json);
+}
+
+/**
+ * Get all filters for a page from multiple detection sources
+ * @param {Object} params - Parameters
+ * @param {string} params.url - Current page URL
+ * @param {string} params.pageId - Page ID
+ * @param {number} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<Object>} Object with urlFilters, pageFilters, and merged filters
+ */
+export async function getAllFilters({ pageId, tabId = null, url }) {
+  // Get URL pfilters (synchronous)
+  const urlFilters = getUrlPfilters(url);
+
+  // Get page filter card filters (async) - tries client-side state first
+  const pageFilters = await getPageFilters(pageId, tabId);
+
+  // Detect if we're on an App Studio page
+  const isAppStudio = await isAppStudioPage(tabId);
+
+  // Try App Studio specific filter detection EARLY for App Studio pages
+  let appStudioFilters = [];
+  if (pageFilters.length === 0 && isAppStudio) {
+    appStudioFilters = await getAppStudioFilters(tabId);
+  }
+
+  // Try variable controls API for non-App Studio pages (causes 404 spam on App Studio)
+  let variableControlFilters = [];
+  if (!isAppStudio && pageId) {
+    variableControlFilters = await getVariableControlFilters(pageId, tabId);
+  }
+
+  // Try AngularJS scope filters (for pages using Angular filter components)
+  let angularFilters = [];
+  if (
+    pageFilters.length === 0 &&
+    appStudioFilters.length === 0 &&
+    variableControlFilters.length === 0
+  ) {
+    angularFilters = await getAngularScopeFilters(tabId);
+  }
+
+  // If still no filters on non-App Studio pages, try App Studio detection as fallback
+  if (
+    !isAppStudio &&
+    pageFilters.length === 0 &&
+    variableControlFilters.length === 0 &&
+    angularFilters.length === 0
+  ) {
+    appStudioFilters = await getAppStudioFilters(tabId);
+  }
+
+  // If we still don't have filters, try other approaches
+  let iframeFilters = [];
+  let frameFilters = [];
+
+  if (
+    pageFilters.length === 0 &&
+    appStudioFilters.length === 0 &&
+    variableControlFilters.length === 0 &&
+    angularFilters.length === 0 &&
+    urlFilters.length === 0
+  ) {
+    // Try getting filters from domoFilterService in any frame (embedded apps)
+    frameFilters = await getFiltersFromAllFrames(tabId);
+
+    // If still no filters, check iframe src attributes (with delay)
+    if (frameFilters.length === 0) {
+      iframeFilters = await getIframePfilters(tabId, 100);
+    }
+  }
+
+  // Merge all sources (URL > frame > iframe > appStudio > angular > variableControl > page)
+  const allFilters = mergeFilters(
+    pageFilters,
+    variableControlFilters,
+    angularFilters,
+    appStudioFilters,
+    iframeFilters,
+    frameFilters,
+    urlFilters
+  );
+
+  if (allFilters.length > 0) {
+    console.log(
+      `[Domo] Captured ${allFilters.length} filter(s):`,
+      allFilters.map((f) => f.column).join(', ')
+    );
+  }
+
+  return {
+    allFilters,
+    angularFilters,
+    appStudioFilters,
+    frameFilters,
+    hasFilters: allFilters.length > 0,
+    iframeFilters,
+    pageFilters,
+    urlFilters,
+    variableControlFilters
+  };
+}
+
+/**
+ * Get filters from AngularJS scope (for pages using Angular filter components)
+ * @param {number} tabId - Optional Chrome tab ID
+ * @returns {Promise<Array>} Array of filter objects in pfilter format
+ */
+export async function getAngularScopeFilters(tabId = null) {
+  try {
+    const result = await executeInPage(
+      () => {
+        const filters = [];
+
+        // Look for Angular filter components
+        const filterSelectors = [
+          '[filters]',
+          '[page-filter-count]',
+          'fb-policy-selector',
+          '[ng-controller*="filter"]',
+          '[ng-controller*="Filter"]',
+          '.page-filters',
+          '[data-filter]'
+        ];
+
+        for (const selector of filterSelectors) {
+          const elements = document.querySelectorAll(selector);
+          for (const el of elements) {
+            try {
+              // Try to get Angular scope
+              const angularEl = window.angular?.element?.(el);
+              if (angularEl) {
+                const scope = angularEl.scope?.() || angularEl.isolateScope?.();
+                if (scope) {
+                  // Look for filter data in scope
+                  const filterSources = [
+                    scope.filters,
+                    scope.$ctrl?.filters,
+                    scope.vm?.filters,
+                    scope.pageFilters,
+                    scope.$ctrl?.pageFilters,
+                    scope.currentFilters,
+                    scope.$ctrl?.currentFilters
+                  ];
+
+                  for (const source of filterSources) {
+                    if (Array.isArray(source) && source.length > 0) {
+                      source.forEach((f) => {
+                        if (f.column && f.values && f.values.length > 0) {
+                          filters.push({
+                            column: f.column,
+                            dataSetId: f.dataSourceId || f.dataSetId,
+                            operand: (
+                              f.operand ||
+                              f.operator ||
+                              'IN'
+                            ).toUpperCase(),
+                            values: f.values
+                          });
+                        }
+                      });
+                      if (filters.length > 0) return filters;
+                    }
+                  }
+                }
+              }
+            } catch (e) {
+              // Scope access failed
+            }
+          }
+        }
+
+        // Try to access filters from global Angular services/factories
+        if (window.angular) {
+          try {
+            const injector = window.angular.element(document.body).injector?.();
+            if (injector) {
+              // Try to get filter-related services
+              const serviceNames = [
+                'FilterService',
+                'filterService',
+                'PageFilterService',
+                'pageFilterService',
+                'variableControlService'
+              ];
+
+              for (const name of serviceNames) {
+                try {
+                  const service = injector.get(name);
+                  if (service) {
+                    const filterMethods = [
+                      service.getFilters,
+                      service.getCurrentFilters,
+                      service.getActiveFilters,
+                      service.filters
+                    ];
+
+                    for (const method of filterMethods) {
+                      let filterData;
+                      if (typeof method === 'function') {
+                        filterData = method.call(service);
+                      } else if (Array.isArray(method)) {
+                        filterData = method;
+                      }
+
+                      if (Array.isArray(filterData) && filterData.length > 0) {
+                        filterData.forEach((f) => {
+                          if (f.column && f.values && f.values.length > 0) {
+                            filters.push({
+                              column: f.column,
+                              dataSetId: f.dataSourceId || f.dataSetId,
+                              operand: (
+                                f.operand ||
+                                f.operator ||
+                                'IN'
+                              ).toUpperCase(),
+                              values: f.values
+                            });
+                          }
+                        });
+                        if (filters.length > 0) return filters;
+                      }
+                    }
+                  }
+                } catch (e) {
+                  // Service not found
+                }
+              }
+            }
+          } catch (e) {
+            // Injector access failed
+          }
+        }
+
+        return filters;
+      },
+      [],
+      tabId
+    );
+
+    return result || [];
+  } catch (error) {
+    console.warn('Failed to get Angular scope filters:', error);
     return [];
   }
 }
 
 /**
- * Transform a raw filter object from API to pfilter format
- * @param {Object} filter - Raw filter object from API
- * @returns {Object|null} Pfilter object or null if invalid
+ * Get filters from App Studio pages
+ * App Studio uses an EventBus pattern and stores filters differently than regular pages
+ * @param {number} tabId - Optional Chrome tab ID
+ * @returns {Promise<Array>} Array of filter objects in pfilter format
  */
-function transformFilterToPfilter(filter) {
-  if (!filter.column || !filter.values || filter.values.length === 0) {
-    return null;
+export async function getAppStudioFilters(tabId = null) {
+  try {
+    const result = await executeInPage(
+      () => {
+        const filters = [];
+
+        // Method 1: Check Apollo Client cache for filter-related data
+        if (window.__APOLLO_CLIENT__) {
+          try {
+            const cache = window.__APOLLO_CLIENT__.cache;
+            const cacheData = cache?.extract?.();
+            if (cacheData) {
+              // Look for variable control or filter entries in cache
+              for (const [key, value] of Object.entries(cacheData)) {
+                if (!value || typeof value !== 'object') continue;
+
+                // Check for variableControls or filters in the cached data
+                const checkObj = (obj = '') => {
+                  if (!obj || typeof obj !== 'object') return;
+
+                  // Look for variableControls array
+                  if (Array.isArray(obj.variableControls)) {
+                    obj.variableControls.forEach((vc) => {
+                      if (vc.column && vc.values && vc.values.length > 0) {
+                        filters.push({
+                          column: vc.column,
+                          dataSetId: vc.dataSourceId || vc.dataSetId,
+                          operand: (vc.operand || 'IN').toUpperCase(),
+                          values: vc.values
+                        });
+                      }
+                    });
+                  }
+
+                  // Look for activeFilters or filters array
+                  if (Array.isArray(obj.activeFilters)) {
+                    obj.activeFilters.forEach((f) => {
+                      if (f.column && f.values && f.values.length > 0) {
+                        filters.push({
+                          column: f.column,
+                          dataSetId: f.dataSourceId || f.dataSetId,
+                          operand: (f.operand || 'IN').toUpperCase(),
+                          values: f.values
+                        });
+                      }
+                    });
+                  }
+
+                  if (Array.isArray(obj.filters)) {
+                    obj.filters.forEach((f) => {
+                      if (f.column && f.values && f.values.length > 0) {
+                        filters.push({
+                          column: f.column,
+                          dataSetId: f.dataSourceId || f.dataSetId,
+                          operand: (f.operand || 'IN').toUpperCase(),
+                          values: f.values
+                        });
+                      }
+                    });
+                  }
+
+                  // Look for selected values in variable controls
+                  if (
+                    obj.selectedValues &&
+                    Array.isArray(obj.selectedValues) &&
+                    obj.column
+                  ) {
+                    filters.push({
+                      column: obj.column,
+                      operand: 'IN',
+                      values: obj.selectedValues
+                    });
+                  }
+                };
+
+                checkObj(value, key);
+              }
+            }
+          } catch (e) {
+            // Apollo cache access failed
+          }
+        }
+
+        // Method 2: Check Angular $rootScope for EventBus-stored filters
+        if (window.angular) {
+          try {
+            const injector = window.angular.element(document.body).injector?.();
+            if (injector) {
+              const $rootScope = injector.get('$rootScope');
+              if ($rootScope) {
+                // Check for filter-related properties on $rootScope
+                const filterProps = [
+                  'activeFilters',
+                  'cardFilters',
+                  'pageFilters',
+                  'filterState',
+                  'variableControlState'
+                ];
+
+                for (const prop of filterProps) {
+                  if ($rootScope[prop] && Array.isArray($rootScope[prop])) {
+                    $rootScope[prop].forEach((f) => {
+                      if (f.column && f.values && f.values.length > 0) {
+                        filters.push({
+                          column: f.column,
+                          operand: (f.operand || 'IN').toUpperCase(),
+                          values: f.values
+                        });
+                      }
+                    });
+                  }
+                }
+
+                // Check $$listeners for filter event handlers that might have state
+              }
+            }
+          } catch (e) {
+            // Angular access failed
+          }
+        }
+
+        // Method 3: Check for App Studio specific global state
+        const appStudioStateKeys = [
+          '__APP_STUDIO_STATE__',
+          '__APP_STATE__',
+          'appStudioState',
+          'appState',
+          '__CARD_STATE__'
+        ];
+
+        for (const key of appStudioStateKeys) {
+          if (window[key]) {
+            const state = window[key];
+            const filterPaths = [
+              state.filters,
+              state.activeFilters,
+              state.cardFilters,
+              state.variableControls,
+              state.page?.filters,
+              state.cards?.filters
+            ];
+
+            for (const f of filterPaths) {
+              if (Array.isArray(f) && f.length > 0) {
+                f.forEach((filter) => {
+                  if (
+                    filter.column &&
+                    filter.values &&
+                    filter.values.length > 0
+                  ) {
+                    filters.push({
+                      column: filter.column,
+                      operand: (filter.operand || 'IN').toUpperCase(),
+                      values: filter.values
+                    });
+                  }
+                });
+              }
+            }
+          }
+        }
+
+        // Method 4: Check for filter selections in dropdown/select elements
+        const filterDropdowns = document.querySelectorAll(
+          '.variable-control select, .filter-control select, [class*="filter"] select'
+        );
+        filterDropdowns.forEach((dropdown) => {
+          try {
+            const scope = window.angular?.element?.(dropdown).scope?.();
+            if (scope) {
+              // Look for selected value and column info in scope
+              const columnName =
+                scope.column || scope.columnName || scope.$ctrl?.column;
+              const selectedValue =
+                scope.selectedValue ||
+                scope.value ||
+                scope.$ctrl?.selectedValue;
+
+              if (columnName && selectedValue) {
+                filters.push({
+                  column: columnName,
+                  operand: 'EQUALS',
+                  values: [selectedValue]
+                });
+              }
+            }
+          } catch (e) {
+            // Scope access failed
+          }
+        });
+
+        // Method 5: Extract from $ctrl.cardFilters (App Studio pattern)
+        // App Studio cards use ng-click="$ctrl.clearCardFilters" with filter state on $ctrl
+        const filterControlElements = document.querySelectorAll(
+          '[ng-click*="filter" i], [ng-click*="Filter"], [ng-if*="filter" i], [ng-if*="Filter"], [ng-if*="hasCardFilters"]'
+        );
+        filterControlElements.forEach((el) => {
+          try {
+            const scope = window.angular?.element?.(el).scope?.();
+            if (scope?.$ctrl) {
+              // Check for cardFilters array
+              if (Array.isArray(scope.$ctrl.cardFilters)) {
+                scope.$ctrl.cardFilters.forEach((f) => {
+                  if (f.column && f.values && f.values.length > 0) {
+                    filters.push({
+                      column: f.column,
+                      dataSetId: f.dataSourceId || f.dataSetId,
+                      operand: (f.operand || f.operator || 'IN').toUpperCase(),
+                      values: f.values
+                    });
+                  }
+                });
+              }
+              // Check for filters array
+              if (Array.isArray(scope.$ctrl.filters)) {
+                scope.$ctrl.filters.forEach((f) => {
+                  if (f.column && f.values && f.values.length > 0) {
+                    filters.push({
+                      column: f.column,
+                      dataSetId: f.dataSourceId || f.dataSetId,
+                      operand: (f.operand || f.operator || 'IN').toUpperCase(),
+                      values: f.values
+                    });
+                  }
+                });
+              }
+              // Check card.filters if available
+              if (
+                scope.$ctrl.card?.filters &&
+                Array.isArray(scope.$ctrl.card.filters)
+              ) {
+                scope.$ctrl.card.filters.forEach((f) => {
+                  if (f.column && f.values && f.values.length > 0) {
+                    filters.push({
+                      column: f.column,
+                      dataSetId: f.dataSourceId || f.dataSetId,
+                      operand: (f.operand || f.operator || 'IN').toUpperCase(),
+                      values: f.values
+                    });
+                  }
+                });
+              }
+            }
+          } catch (e) {
+            // Scope access failed
+          }
+        });
+
+        // Method 6: Scan cd-control-menu and other potential filter-holding elements
+        const menuSelectors = [
+          '[class*="cd-control-menu"]',
+          '[class*="control-menu"]',
+          '[class*="Card.module"]',
+          '.card-container',
+          '[data-card-id]',
+          '.domo-card',
+          '.app-studio-page',
+          '.app-studio-container',
+          '[class*="PageCanvas"]',
+          '[class*="AppStudio"]'
+        ];
+
+        menuSelectors.forEach((selector) => {
+          document.querySelectorAll(selector).forEach((el) => {
+            try {
+              const scope = window.angular?.element?.(el).scope?.();
+              if (scope) {
+                // Check direct scope and $ctrl
+                const targets = [scope, scope.$ctrl].filter(Boolean);
+                targets.forEach((t) => {
+                  const fSources = [
+                    t.cardFilters,
+                    t.filters,
+                    t.pageFilters,
+                    t.pfilters
+                  ];
+                  fSources.forEach((source) => {
+                    if (Array.isArray(source) && source.length > 0) {
+                      source.forEach((f) => {
+                        if (f.column && f.values && f.values.length > 0) {
+                          filters.push({
+                            column: f.column,
+                            dataSetId: f.dataSourceId || f.dataSetId,
+                            operand: (
+                              f.operand ||
+                              f.operator ||
+                              'IN'
+                            ).toUpperCase(),
+                            values: f.values
+                          });
+                        }
+                      });
+                    }
+                  });
+                });
+              }
+            } catch (e) {
+              console.log('Error in menuSelectors forEach:', e.message);
+            }
+          });
+        });
+
+        // Method 7: Deep search scopes if we still have nothing (last resort)
+        if (filters.length === 0 && window.angular) {
+          try {
+            const allWithScope = document.querySelectorAll(
+              '.ng-scope, .ng-isolated-scope'
+            );
+            allWithScope.forEach((el) => {
+              const scope = window.angular.element(el).scope?.();
+              if (
+                scope?.$ctrl?.cardFilters &&
+                Array.isArray(scope.$ctrl.cardFilters)
+              ) {
+                scope.$ctrl.cardFilters.forEach((f) => {
+                  if (f.column && f.values) {
+                    filters.push({
+                      column: f.column,
+                      operand: (f.operand || 'IN').toUpperCase(),
+                      values: f.values
+                    });
+                  }
+                });
+              }
+            });
+          } catch (e) {
+            console.log('Error in allWithScope forEach:', e.message);
+          }
+        }
+
+        // Deduplicate filters
+        const seen = new Set();
+        return filters.filter((f) => {
+          const key = `${f.column}:${JSON.stringify(f.values)}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+      },
+      [],
+      tabId
+    );
+
+    return result || [];
+  } catch (error) {
+    console.warn('Failed to get App Studio filters:', error);
+    return [];
   }
-
-  const pfilter = {
-    column: filter.column
-  };
-
-  if (filter.operand) {
-    pfilter.operand = filter.operand.toUpperCase();
-  } else if (filter.values.length === 1) {
-    pfilter.operand = 'EQUALS';
-  } else {
-    pfilter.operand = 'IN';
-  }
-
-  pfilter.values = filter.values;
-
-  if (filter.dataSetId || filter.dataSourceId) {
-    pfilter.dataSetId = filter.dataSetId || filter.dataSourceId;
-  }
-
-  return pfilter;
 }
 
 /**
@@ -342,135 +930,6 @@ export async function getClientSideFilters(tabId = null) {
 }
 
 /**
- * Fetch page filter card states from Domo API
- * Must be executed in page context for authentication
- * @param {string} pageId - The page ID
- * @param {number} tabId - Optional Chrome tab ID
- * @returns {Promise<Array>} Array of filter objects in pfilter format
- */
-export async function getPageFilters(pageId, tabId = null) {
-  try {
-    // First try to get filters from client-side state (most accurate for current selections)
-    const clientFilters = await getClientSideFilters(tabId);
-    if (clientFilters.length > 0) {
-      const filters = [];
-      clientFilters.forEach((filter) => {
-        const pfilter = transformFilterToPfilter(filter);
-        if (pfilter) {
-          filters.push(pfilter);
-        }
-      });
-      // Deduplicate: bare (no dataSetId) filters take precedence
-      const bareColumns = new Set();
-      filters.forEach((f) => {
-        if (!f.dataSetId) bareColumns.add(f.column);
-      });
-      const uniqueFilters = [];
-      const seen = new Set();
-      filters.forEach((f) => {
-        if (f.dataSetId && bareColumns.has(f.column)) return;
-        const key = f.dataSetId ? `${f.column}:${f.dataSetId}` : f.column;
-        if (!seen.has(key)) {
-          seen.add(key);
-          uniqueFilters.push(f);
-        }
-      });
-      return uniqueFilters;
-    }
-
-    // No working API fallback - client-side detection is the primary method
-    // The old endpoints (/analyzer/load/filter-groups is for PDP, /v2/pages/{id}/filters doesn't exist)
-    return [];
-  } catch (error) {
-    console.warn('Failed to fetch page filters:', error);
-    return [];
-  }
-}
-
-/**
- * Merge filters from multiple sources, deduplicating by column name
- * Later filters take precedence
- * @param  {...Array} filterArrays - Arrays of filter objects to merge
- * @returns {Array} Merged and deduplicated filter array
- */
-export function mergeFilters(...filterArrays) {
-  const filterMap = new Map();
-  // Track columns that have a filter without a dataSetId
-  const bareColumns = new Set();
-
-  // First pass: collect all filters, tracking bare (no dataSetId) entries
-  const allFilters = [];
-  filterArrays.forEach((filters) => {
-    if (Array.isArray(filters)) {
-      filters.forEach((filter) => {
-        if (filter.column) {
-          allFilters.push(filter);
-          if (!filter.dataSetId) {
-            bareColumns.add(filter.column);
-          }
-        }
-      });
-    }
-  });
-
-  // Second pass: add filters, skipping dataSetId variants when a bare version exists
-  allFilters.forEach((filter) => {
-    if (filter.dataSetId && bareColumns.has(filter.column)) {
-      // A bare version exists for this column — skip the dataSetId variant
-      return;
-    }
-    const key = filter.dataSetId
-      ? `${filter.column}:${filter.dataSetId}`
-      : filter.column;
-    filterMap.set(key, filter);
-  });
-
-  return Array.from(filterMap.values());
-}
-
-/**
- * Encode filters array for URL query string
- * @param {Array} filters - Array of filter objects
- * @returns {string} URL-encoded JSON string
- */
-export function encodeFilters(filters) {
-  if (!Array.isArray(filters) || filters.length === 0) {
-    return '';
-  }
-
-  const json = JSON.stringify(filters);
-  return encodeURIComponent(json);
-}
-
-/**
- * Build a pfilter URL from base URL and filters
- * Works for pages, cards, and any Domo URL that supports pfilters
- * @param {string} baseUrl - Base URL (instance + path)
- * @param {string} objectId - Object ID (page or card ID) - unused but kept for compatibility
- * @param {Array} filters - Array of filter objects
- * @returns {string} Complete URL with pfilters parameter
- */
-export function buildPfilterUrl(baseUrl, objectId, filters) {
-  try {
-    const urlObj = new URL(baseUrl);
-
-    // Remove existing pfilters if present
-    urlObj.searchParams.delete('pfilters');
-
-    // Add new pfilters if we have filters
-    if (Array.isArray(filters) && filters.length > 0) {
-      const encoded = encodeFilters(filters);
-      urlObj.searchParams.set('pfilters', decodeURIComponent(encoded));
-    }
-
-    return urlObj.toString();
-  } catch (error) {
-    console.error('Failed to build pfilter URL:', error);
-    return baseUrl;
-  }
-}
-
-/**
  * Get filters from domoFilterService in any frame (including nested iframes)
  * This accesses the embedded app's filter state via domo.onFiltersUpdate()
  * @param {number} tabId - Optional Chrome tab ID
@@ -481,10 +940,10 @@ export async function getFiltersFromAllFrames(tabId = null) {
     const results = await executeInAllFrames(
       () => {
         const frameInfo = {
-          url: window.location.href,
-          hasDomoFilterService: !!window.domoFilterService,
+          filters: [],
           hasDomo: !!window.domo,
-          filters: []
+          hasDomoFilterService: !!window.domoFilterService,
+          url: window.location.href
         };
 
         // Check for domoFilterService (Domo SDK filter callback storage)
@@ -622,145 +1081,71 @@ export async function getIframePfilters(tabId = null, delayMs = 500) {
 }
 
 /**
- * Get filters from AngularJS scope (for pages using Angular filter components)
+ * Fetch page filter card states from Domo API
+ * Must be executed in page context for authentication
+ * @param {string} pageId - The page ID
  * @param {number} tabId - Optional Chrome tab ID
  * @returns {Promise<Array>} Array of filter objects in pfilter format
  */
-export async function getAngularScopeFilters(tabId = null) {
+export async function getPageFilters(pageId, tabId = null) {
   try {
-    const result = await executeInPage(
-      () => {
-        const filters = [];
-
-        // Look for Angular filter components
-        const filterSelectors = [
-          '[filters]',
-          '[page-filter-count]',
-          'fb-policy-selector',
-          '[ng-controller*="filter"]',
-          '[ng-controller*="Filter"]',
-          '.page-filters',
-          '[data-filter]'
-        ];
-
-        for (const selector of filterSelectors) {
-          const elements = document.querySelectorAll(selector);
-          for (const el of elements) {
-            try {
-              // Try to get Angular scope
-              const angularEl = window.angular?.element?.(el);
-              if (angularEl) {
-                const scope = angularEl.scope?.() || angularEl.isolateScope?.();
-                if (scope) {
-                  // Look for filter data in scope
-                  const filterSources = [
-                    scope.filters,
-                    scope.$ctrl?.filters,
-                    scope.vm?.filters,
-                    scope.pageFilters,
-                    scope.$ctrl?.pageFilters,
-                    scope.currentFilters,
-                    scope.$ctrl?.currentFilters
-                  ];
-
-                  for (const source of filterSources) {
-                    if (Array.isArray(source) && source.length > 0) {
-                      source.forEach((f) => {
-                        if (f.column && f.values && f.values.length > 0) {
-                          filters.push({
-                            column: f.column,
-                            operand: (
-                              f.operand ||
-                              f.operator ||
-                              'IN'
-                            ).toUpperCase(),
-                            values: f.values,
-                            dataSetId: f.dataSourceId || f.dataSetId
-                          });
-                        }
-                      });
-                      if (filters.length > 0) return filters;
-                    }
-                  }
-                }
-              }
-            } catch (e) {
-              // Scope access failed
-            }
-          }
+    // First try to get filters from client-side state (most accurate for current selections)
+    const clientFilters = await getClientSideFilters(tabId);
+    if (clientFilters.length > 0) {
+      const filters = [];
+      clientFilters.forEach((filter) => {
+        const pfilter = transformFilterToPfilter(filter);
+        if (pfilter) {
+          filters.push(pfilter);
         }
-
-        // Try to access filters from global Angular services/factories
-        if (window.angular) {
-          try {
-            const injector = window.angular.element(document.body).injector?.();
-            if (injector) {
-              // Try to get filter-related services
-              const serviceNames = [
-                'FilterService',
-                'filterService',
-                'PageFilterService',
-                'pageFilterService',
-                'variableControlService'
-              ];
-
-              for (const name of serviceNames) {
-                try {
-                  const service = injector.get(name);
-                  if (service) {
-                    const filterMethods = [
-                      service.getFilters,
-                      service.getCurrentFilters,
-                      service.getActiveFilters,
-                      service.filters
-                    ];
-
-                    for (const method of filterMethods) {
-                      let filterData;
-                      if (typeof method === 'function') {
-                        filterData = method.call(service);
-                      } else if (Array.isArray(method)) {
-                        filterData = method;
-                      }
-
-                      if (Array.isArray(filterData) && filterData.length > 0) {
-                        filterData.forEach((f) => {
-                          if (f.column && f.values && f.values.length > 0) {
-                            filters.push({
-                              column: f.column,
-                              operand: (
-                                f.operand ||
-                                f.operator ||
-                                'IN'
-                              ).toUpperCase(),
-                              values: f.values,
-                              dataSetId: f.dataSourceId || f.dataSetId
-                            });
-                          }
-                        });
-                        if (filters.length > 0) return filters;
-                      }
-                    }
-                  }
-                } catch (e) {
-                  // Service not found
-                }
-              }
-            }
-          } catch (e) {
-            // Injector access failed
-          }
+      });
+      // Deduplicate: bare (no dataSetId) filters take precedence
+      const bareColumns = new Set();
+      filters.forEach((f) => {
+        if (!f.dataSetId) bareColumns.add(f.column);
+      });
+      const uniqueFilters = [];
+      const seen = new Set();
+      filters.forEach((f) => {
+        if (f.dataSetId && bareColumns.has(f.column)) return;
+        const key = f.dataSetId ? `${f.column}:${f.dataSetId}` : f.column;
+        if (!seen.has(key)) {
+          seen.add(key);
+          uniqueFilters.push(f);
         }
+      });
+      return uniqueFilters;
+    }
 
-        return filters;
-      },
-      [],
-      tabId
-    );
-
-    return result || [];
+    // No working API fallback - client-side detection is the primary method
+    // The old endpoints (/analyzer/load/filter-groups is for PDP, /v2/pages/{id}/filters doesn't exist)
+    return [];
   } catch (error) {
-    console.warn('Failed to get Angular scope filters:', error);
+    console.warn('Failed to fetch page filters:', error);
+    return [];
+  }
+}
+
+/**
+ * Extract pfilters from URL query string
+ * @param {string} url - Full URL to parse
+ * @returns {Array} Array of pfilter objects, empty if none found
+ */
+export function getUrlPfilters(url) {
+  try {
+    const urlObj = new URL(url);
+    const pfiltersParam = urlObj.searchParams.get('pfilters');
+
+    if (!pfiltersParam) {
+      return [];
+    }
+
+    const decoded = decodeURIComponent(pfiltersParam);
+    const filters = JSON.parse(decoded);
+
+    return Array.isArray(filters) ? filters : [];
+  } catch (error) {
+    console.warn('Failed to parse pfilters from URL:', error);
     return [];
   }
 }
@@ -839,9 +1224,9 @@ export async function getVariableControlFilters(pageId, tabId = null) {
             if (control.column && control.values && control.values.length > 0) {
               filters.push({
                 column: control.column,
+                dataSetId: control.dataSourceId || control.dataSetId,
                 operand: (control.operand || 'IN').toUpperCase(),
-                values: control.values,
-                dataSetId: control.dataSourceId || control.dataSetId
+                values: control.values
               });
             }
           });
@@ -861,369 +1246,44 @@ export async function getVariableControlFilters(pageId, tabId = null) {
 }
 
 /**
- * Get filters from App Studio pages
- * App Studio uses an EventBus pattern and stores filters differently than regular pages
- * @param {number} tabId - Optional Chrome tab ID
- * @returns {Promise<Array>} Array of filter objects in pfilter format
+ * Merge filters from multiple sources, deduplicating by column name
+ * Later filters take precedence
+ * @param  {...Array} filterArrays - Arrays of filter objects to merge
+ * @returns {Array} Merged and deduplicated filter array
  */
-export async function getAppStudioFilters(tabId = null) {
-  try {
-    const result = await executeInPage(
-      () => {
-        const filters = [];
+export function mergeFilters(...filterArrays) {
+  const filterMap = new Map();
+  // Track columns that have a filter without a dataSetId
+  const bareColumns = new Set();
 
-        // Method 1: Check Apollo Client cache for filter-related data
-        if (window.__APOLLO_CLIENT__) {
-          try {
-            const cache = window.__APOLLO_CLIENT__.cache;
-            const cacheData = cache?.extract?.();
-            if (cacheData) {
-              // Look for variable control or filter entries in cache
-              for (const [key, value] of Object.entries(cacheData)) {
-                if (!value || typeof value !== 'object') continue;
-
-                // Check for variableControls or filters in the cached data
-                const checkObj = (obj, path = '') => {
-                  if (!obj || typeof obj !== 'object') return;
-
-                  // Look for variableControls array
-                  if (Array.isArray(obj.variableControls)) {
-                    obj.variableControls.forEach((vc) => {
-                      if (vc.column && vc.values && vc.values.length > 0) {
-                        filters.push({
-                          column: vc.column,
-                          operand: (vc.operand || 'IN').toUpperCase(),
-                          values: vc.values,
-                          dataSetId: vc.dataSourceId || vc.dataSetId
-                        });
-                      }
-                    });
-                  }
-
-                  // Look for activeFilters or filters array
-                  if (Array.isArray(obj.activeFilters)) {
-                    obj.activeFilters.forEach((f) => {
-                      if (f.column && f.values && f.values.length > 0) {
-                        filters.push({
-                          column: f.column,
-                          operand: (f.operand || 'IN').toUpperCase(),
-                          values: f.values,
-                          dataSetId: f.dataSourceId || f.dataSetId
-                        });
-                      }
-                    });
-                  }
-
-                  if (Array.isArray(obj.filters)) {
-                    obj.filters.forEach((f) => {
-                      if (f.column && f.values && f.values.length > 0) {
-                        filters.push({
-                          column: f.column,
-                          operand: (f.operand || 'IN').toUpperCase(),
-                          values: f.values,
-                          dataSetId: f.dataSourceId || f.dataSetId
-                        });
-                      }
-                    });
-                  }
-
-                  // Look for selected values in variable controls
-                  if (
-                    obj.selectedValues &&
-                    Array.isArray(obj.selectedValues) &&
-                    obj.column
-                  ) {
-                    filters.push({
-                      column: obj.column,
-                      operand: 'IN',
-                      values: obj.selectedValues
-                    });
-                  }
-                };
-
-                checkObj(value, key);
-              }
-            }
-          } catch (e) {
-            // Apollo cache access failed
+  // First pass: collect all filters, tracking bare (no dataSetId) entries
+  const allFilters = [];
+  filterArrays.forEach((filters) => {
+    if (Array.isArray(filters)) {
+      filters.forEach((filter) => {
+        if (filter.column) {
+          allFilters.push(filter);
+          if (!filter.dataSetId) {
+            bareColumns.add(filter.column);
           }
         }
+      });
+    }
+  });
 
-        // Method 2: Check Angular $rootScope for EventBus-stored filters
-        if (window.angular) {
-          try {
-            const injector = window.angular.element(document.body).injector?.();
-            if (injector) {
-              const $rootScope = injector.get('$rootScope');
-              if ($rootScope) {
-                // Check for filter-related properties on $rootScope
-                const filterProps = [
-                  'activeFilters',
-                  'cardFilters',
-                  'pageFilters',
-                  'filterState',
-                  'variableControlState'
-                ];
+  // Second pass: add filters, skipping dataSetId variants when a bare version exists
+  allFilters.forEach((filter) => {
+    if (filter.dataSetId && bareColumns.has(filter.column)) {
+      // A bare version exists for this column — skip the dataSetId variant
+      return;
+    }
+    const key = filter.dataSetId
+      ? `${filter.column}:${filter.dataSetId}`
+      : filter.column;
+    filterMap.set(key, filter);
+  });
 
-                for (const prop of filterProps) {
-                  if ($rootScope[prop] && Array.isArray($rootScope[prop])) {
-                    $rootScope[prop].forEach((f) => {
-                      if (f.column && f.values && f.values.length > 0) {
-                        filters.push({
-                          column: f.column,
-                          operand: (f.operand || 'IN').toUpperCase(),
-                          values: f.values
-                        });
-                      }
-                    });
-                  }
-                }
-
-                // Check $$listeners for filter event handlers that might have state
-                if ($rootScope.$$listeners) {
-                  const filterEvents = Object.keys(
-                    $rootScope.$$listeners
-                  ).filter(
-                    (k) =>
-                      k.includes('filter') ||
-                      k.includes('Filter') ||
-                      k.includes('variable') ||
-                      k.includes('card:')
-                  );
-                  if (filterEvents.length > 0) {
-                    foundFilters = true;
-                  }
-                }
-              }
-            }
-          } catch (e) {
-            // Angular access failed
-          }
-        }
-
-        // Method 3: Check for App Studio specific global state
-        const appStudioStateKeys = [
-          '__APP_STUDIO_STATE__',
-          '__APP_STATE__',
-          'appStudioState',
-          'appState',
-          '__CARD_STATE__'
-        ];
-
-        for (const key of appStudioStateKeys) {
-          if (window[key]) {
-            const state = window[key];
-            const filterPaths = [
-              state.filters,
-              state.activeFilters,
-              state.cardFilters,
-              state.variableControls,
-              state.page?.filters,
-              state.cards?.filters
-            ];
-
-            for (const f of filterPaths) {
-              if (Array.isArray(f) && f.length > 0) {
-                f.forEach((filter) => {
-                  if (
-                    filter.column &&
-                    filter.values &&
-                    filter.values.length > 0
-                  ) {
-                    filters.push({
-                      column: filter.column,
-                      operand: (filter.operand || 'IN').toUpperCase(),
-                      values: filter.values
-                    });
-                  }
-                });
-              }
-            }
-          }
-        }
-
-        // Method 4: Check for filter selections in dropdown/select elements
-        const filterDropdowns = document.querySelectorAll(
-          '.variable-control select, .filter-control select, [class*="filter"] select'
-        );
-        filterDropdowns.forEach((dropdown) => {
-          try {
-            const scope = window.angular?.element?.(dropdown).scope?.();
-            if (scope) {
-              // Look for selected value and column info in scope
-              const columnName =
-                scope.column || scope.columnName || scope.$ctrl?.column;
-              const selectedValue =
-                scope.selectedValue ||
-                scope.value ||
-                scope.$ctrl?.selectedValue;
-
-              if (columnName && selectedValue) {
-                filters.push({
-                  column: columnName,
-                  operand: 'EQUALS',
-                  values: [selectedValue]
-                });
-              }
-            }
-          } catch (e) {
-            // Scope access failed
-          }
-        });
-
-        // Method 5: Extract from $ctrl.cardFilters (App Studio pattern)
-        // App Studio cards use ng-click="$ctrl.clearCardFilters" with filter state on $ctrl
-        const filterControlElements = document.querySelectorAll(
-          '[ng-click*="filter" i], [ng-click*="Filter"], [ng-if*="filter" i], [ng-if*="Filter"], [ng-if*="hasCardFilters"]'
-        );
-        filterControlElements.forEach((el) => {
-          try {
-            const scope = window.angular?.element?.(el).scope?.();
-            if (scope?.$ctrl) {
-              // Check for cardFilters array
-              if (Array.isArray(scope.$ctrl.cardFilters)) {
-                scope.$ctrl.cardFilters.forEach((f) => {
-                  if (f.column && f.values && f.values.length > 0) {
-                    filters.push({
-                      column: f.column,
-                      operand: (f.operand || f.operator || 'IN').toUpperCase(),
-                      values: f.values,
-                      dataSetId: f.dataSourceId || f.dataSetId
-                    });
-                  }
-                });
-              }
-              // Check for filters array
-              if (Array.isArray(scope.$ctrl.filters)) {
-                scope.$ctrl.filters.forEach((f) => {
-                  if (f.column && f.values && f.values.length > 0) {
-                    filters.push({
-                      column: f.column,
-                      operand: (f.operand || f.operator || 'IN').toUpperCase(),
-                      values: f.values,
-                      dataSetId: f.dataSourceId || f.dataSetId
-                    });
-                  }
-                });
-              }
-              // Check card.filters if available
-              if (
-                scope.$ctrl.card?.filters &&
-                Array.isArray(scope.$ctrl.card.filters)
-              ) {
-                scope.$ctrl.card.filters.forEach((f) => {
-                  if (f.column && f.values && f.values.length > 0) {
-                    filters.push({
-                      column: f.column,
-                      operand: (f.operand || f.operator || 'IN').toUpperCase(),
-                      values: f.values,
-                      dataSetId: f.dataSourceId || f.dataSetId
-                    });
-                  }
-                });
-              }
-            }
-          } catch (e) {
-            // Scope access failed
-          }
-        });
-
-        // Method 6: Scan cd-control-menu and other potential filter-holding elements
-        const menuSelectors = [
-          '[class*="cd-control-menu"]',
-          '[class*="control-menu"]',
-          '[class*="Card.module"]',
-          '.card-container',
-          '[data-card-id]',
-          '.domo-card',
-          '.app-studio-page',
-          '.app-studio-container',
-          '[class*="PageCanvas"]',
-          '[class*="AppStudio"]'
-        ];
-
-        menuSelectors.forEach((selector) => {
-          document.querySelectorAll(selector).forEach((el) => {
-            try {
-              const scope = window.angular?.element?.(el).scope?.();
-              if (scope) {
-                // Check direct scope and $ctrl
-                const targets = [scope, scope.$ctrl].filter(Boolean);
-                targets.forEach((t) => {
-                  const fSources = [
-                    t.cardFilters,
-                    t.filters,
-                    t.pageFilters,
-                    t.pfilters
-                  ];
-                  fSources.forEach((source) => {
-                    if (Array.isArray(source) && source.length > 0) {
-                      source.forEach((f) => {
-                        if (f.column && f.values && f.values.length > 0) {
-                          filters.push({
-                            column: f.column,
-                            operand: (
-                              f.operand ||
-                              f.operator ||
-                              'IN'
-                            ).toUpperCase(),
-                            values: f.values,
-                            dataSetId: f.dataSourceId || f.dataSetId
-                          });
-                        }
-                      });
-                    }
-                  });
-                });
-              }
-            } catch (e) {}
-          });
-        });
-
-        // Method 7: Deep search scopes if we still have nothing (last resort)
-        if (filters.length === 0 && window.angular) {
-          try {
-            const allWithScope = document.querySelectorAll(
-              '.ng-scope, .ng-isolated-scope'
-            );
-            allWithScope.forEach((el) => {
-              const scope = window.angular.element(el).scope?.();
-              if (
-                scope?.$ctrl?.cardFilters &&
-                Array.isArray(scope.$ctrl.cardFilters)
-              ) {
-                scope.$ctrl.cardFilters.forEach((f) => {
-                  if (f.column && f.values) {
-                    filters.push({
-                      column: f.column,
-                      operand: (f.operand || 'IN').toUpperCase(),
-                      values: f.values
-                    });
-                  }
-                });
-              }
-            });
-          } catch (e) {}
-        }
-
-        // Deduplicate filters
-        const seen = new Set();
-        return filters.filter((f) => {
-          const key = `${f.column}:${JSON.stringify(f.values)}`;
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        });
-      },
-      [],
-      tabId
-    );
-
-    return result || [];
-  } catch (error) {
-    console.warn('Failed to get App Studio filters:', error);
-    return [];
-  }
+  return Array.from(filterMap.values());
 }
 
 /**
@@ -1253,7 +1313,9 @@ async function isAppStudioPage(tabId = null) {
           currentWindow: true
         });
         currentUrl = tab?.url || '';
-      } catch (e) {}
+      } catch (e) {
+        console.log('Error in isAppStudioPage:', e.message);
+      }
     }
 
     if (
@@ -1266,9 +1328,9 @@ async function isAppStudioPage(tabId = null) {
     const result = await executeInPage(
       () => {
         const detection = {
+          checks: {},
           isAppStudio: false,
-          reason: '',
-          checks: {}
+          reason: ''
         };
 
         // Check 1: URL patterns (inside page just in case)
@@ -1304,7 +1366,7 @@ async function isAppStudioPage(tabId = null) {
             }
           }
         } catch (e) {
-          // Fallback
+          console.log('Error in appStudioElementCount forEach:', e.message);
         }
 
         detection.checks.appStudioElementCount = appStudioElementCount;
@@ -1365,102 +1427,32 @@ async function isAppStudioPage(tabId = null) {
 }
 
 /**
- * Get all filters for a page from multiple detection sources
- * @param {Object} params - Parameters
- * @param {string} params.url - Current page URL
- * @param {string} params.pageId - Page ID
- * @param {number} [params.tabId] - Optional Chrome tab ID
- * @returns {Promise<Object>} Object with urlFilters, pageFilters, and merged filters
+ * Transform a raw filter object from API to pfilter format
+ * @param {Object} filter - Raw filter object from API
+ * @returns {Object|null} Pfilter object or null if invalid
  */
-export async function getAllFilters({ url, pageId, tabId = null }) {
-  // Get URL pfilters (synchronous)
-  const urlFilters = getUrlPfilters(url);
-
-  // Get page filter card filters (async) - tries client-side state first
-  const pageFilters = await getPageFilters(pageId, tabId);
-
-  // Detect if we're on an App Studio page
-  const isAppStudio = await isAppStudioPage(tabId);
-
-  // Try App Studio specific filter detection EARLY for App Studio pages
-  let appStudioFilters = [];
-  if (pageFilters.length === 0 && isAppStudio) {
-    appStudioFilters = await getAppStudioFilters(tabId);
+function transformFilterToPfilter(filter) {
+  if (!filter.column || !filter.values || filter.values.length === 0) {
+    return null;
   }
 
-  // Try variable controls API for non-App Studio pages (causes 404 spam on App Studio)
-  let variableControlFilters = [];
-  if (!isAppStudio && pageId) {
-    variableControlFilters = await getVariableControlFilters(pageId, tabId);
-  }
-
-  // Try AngularJS scope filters (for pages using Angular filter components)
-  let angularFilters = [];
-  if (
-    pageFilters.length === 0 &&
-    appStudioFilters.length === 0 &&
-    variableControlFilters.length === 0
-  ) {
-    angularFilters = await getAngularScopeFilters(tabId);
-  }
-
-  // If still no filters on non-App Studio pages, try App Studio detection as fallback
-  if (
-    !isAppStudio &&
-    pageFilters.length === 0 &&
-    variableControlFilters.length === 0 &&
-    angularFilters.length === 0
-  ) {
-    appStudioFilters = await getAppStudioFilters(tabId);
-  }
-
-  // If we still don't have filters, try other approaches
-  let iframeFilters = [];
-  let frameFilters = [];
-
-  if (
-    pageFilters.length === 0 &&
-    appStudioFilters.length === 0 &&
-    variableControlFilters.length === 0 &&
-    angularFilters.length === 0 &&
-    urlFilters.length === 0
-  ) {
-    // Try getting filters from domoFilterService in any frame (embedded apps)
-    frameFilters = await getFiltersFromAllFrames(tabId);
-
-    // If still no filters, check iframe src attributes (with delay)
-    if (frameFilters.length === 0) {
-      iframeFilters = await getIframePfilters(tabId, 100);
-    }
-  }
-
-  // Merge all sources (URL > frame > iframe > appStudio > angular > variableControl > page)
-  const allFilters = mergeFilters(
-    pageFilters,
-    variableControlFilters,
-    angularFilters,
-    appStudioFilters,
-    iframeFilters,
-    frameFilters,
-    urlFilters
-  );
-
-  if (allFilters.length > 0) {
-    console.log(
-      `[Domo] Captured ${allFilters.length} filter(s):`,
-      allFilters.map((f) => f.column).join(', ')
-    );
-  }
-
-  return {
-    urlFilters,
-    pageFilters,
-    variableControlFilters,
-    angularFilters,
-    appStudioFilters,
-    frameFilters,
-    iframeFilters,
-    allFilters,
-    hasFilters: allFilters.length > 0
+  const pfilter = {
+    column: filter.column
   };
+
+  if (filter.operand) {
+    pfilter.operand = filter.operand.toUpperCase();
+  } else if (filter.values.length === 1) {
+    pfilter.operand = 'EQUALS';
+  } else {
+    pfilter.operand = 'IN';
+  }
+
+  pfilter.values = filter.values;
+
+  if (filter.dataSetId || filter.dataSourceId) {
+    pfilter.dataSetId = filter.dataSetId || filter.dataSourceId;
+  }
+
+  return pfilter;
 }

@@ -14,20 +14,22 @@ export class DataListItem {
    * @param {string} [config.typeId] - Object type identifier (e.g., 'PAGE', 'DATA_APP_VIEW')
    * @param {string} [config.metadata] - Optional metadata string for display (e.g., "ID: 123")
    * @param {number} [config.count] - Optional count for children or related items
+   * @param {string} [config.countLabel] - Optional label for count display (e.g., 'cards', 'pages')
    * @param {DataListItem[]} [config.children] - Optional nested child items
    * @param {boolean} [config.isVirtualParent] - Whether this is a grouping/virtual parent node
    * @param {DomoObject} [config.domoObject] - Optional DomoObject instance for richer functionality
    */
   constructor({
-    id,
-    label,
-    url = null,
-    typeId = null,
-    metadata = null,
-    count = undefined,
     children = undefined,
+    count = undefined,
+    countLabel = null,
+    domoObject = null,
+    id,
     isVirtualParent = false,
-    domoObject = null
+    label,
+    metadata = null,
+    typeId = null,
+    url = null
   }) {
     this.id = id;
     this.label = label;
@@ -35,50 +37,10 @@ export class DataListItem {
     this.typeId = typeId;
     this.metadata = metadata;
     this.count = count;
+    this.countLabel = countLabel;
     this.children = children;
     this.isVirtualParent = isVirtualParent;
     this.domoObject = domoObject;
-  }
-
-  /**
-   * Check if this item has children
-   * @returns {boolean}
-   */
-  hasChildren() {
-    return this.children && this.children.length > 0;
-  }
-
-  /**
-   * Get the child count
-   * @returns {number}
-   */
-  getChildCount() {
-    return this.children?.length || 0;
-  }
-
-  /**
-   * Create a DataListItem from a DomoObject
-   * @param {DomoObject} domoObject - The DomoObject to create an item from
-   * @param {Object} [options] - Additional options
-   * @param {string} [options.label] - Override the label (defaults to domoObject.metadata.name)
-   * @param {DataListItem[]} [options.children] - Optional children
-   * @param {number} [options.count] - Optional count override
-   * @returns {DataListItem}
-   */
-  static fromDomoObject(domoObject, options = {}) {
-    const { label, children, count } = options;
-
-    return new DataListItem({
-      id: domoObject.id,
-      label: label || domoObject.metadata?.name || `${domoObject.typeName} ${domoObject.id}`,
-      url: domoObject.url,
-      typeId: domoObject.typeId,
-      metadata: `ID: ${domoObject.id}`,
-      count: count !== undefined ? count : children?.length,
-      children,
-      isVirtualParent: false,
-      domoObject
-    });
   }
 
   /**
@@ -90,38 +52,45 @@ export class DataListItem {
    * @param {string} [config.metadata] - Optional metadata (defaults to child count description)
    * @returns {DataListItem}
    */
-  static createGroup({ id, label, children, metadata }) {
+  static createGroup({ children, id, label, metadata }) {
     return new DataListItem({
-      id,
-      label,
-      url: null,
-      typeId: null,
-      metadata: metadata || `${children.length} item${children.length !== 1 ? 's' : ''}`,
-      count: children.length,
       children,
+      count: children.length,
+      domoObject: null,
+      id,
       isVirtualParent: true,
-      domoObject: null
+      label,
+      metadata: metadata || `${children.length} item${children.length !== 1 ? 's' : ''}`,
+      typeId: null,
+      url: null
     });
   }
 
   /**
-   * Serialize to plain object for message passing or storage
-   * @returns {Object}
+   * Create a DataListItem from a DomoObject
+   * @param {DomoObject} domoObject - The DomoObject to create an item from
+   * @param {Object} [options] - Additional options
+   * @param {string} [options.label] - Override the label (defaults to domoObject.metadata.name)
+   * @param {DataListItem[]} [options.children] - Optional children
+   * @param {number} [options.count] - Optional count override
+   * @param {string} [options.countLabel] - Optional label for count display (e.g., 'cards')
+   * @returns {DataListItem}
    */
-  toJSON() {
-    return {
-      id: this.id,
-      label: this.label,
-      url: this.url,
-      typeId: this.typeId,
-      metadata: this.metadata,
-      count: this.count,
-      children: this.children?.map((child) =>
-        child instanceof DataListItem ? child.toJSON() : child
-      ),
-      isVirtualParent: this.isVirtualParent,
-      domoObject: this.domoObject?.toJSON() || null
-    };
+  static fromDomoObject(domoObject, options = {}) {
+    const { children, count, countLabel, label } = options;
+
+    return new DataListItem({
+      children,
+      count: count !== undefined ? count : children?.length,
+      countLabel,
+      domoObject,
+      id: domoObject.id,
+      isVirtualParent: false,
+      label: label || domoObject.metadata?.name || `${domoObject.typeName} ${domoObject.id}`,
+      metadata: `ID: ${domoObject.id}`,
+      typeId: domoObject.typeId,
+      url: domoObject.url
+    });
   }
 
   /**
@@ -133,15 +102,53 @@ export class DataListItem {
     if (!data) return null;
 
     return new DataListItem({
-      id: data.id,
-      label: data.label,
-      url: data.url,
-      typeId: data.typeId,
-      metadata: data.metadata,
-      count: data.count,
       children: data.children?.map((child) => DataListItem.fromJSON(child)),
+      count: data.count,
+      countLabel: data.countLabel || null,
+      domoObject: data.domoObject ? DomoObject.fromJSON(data.domoObject) : null,
+      id: data.id,
       isVirtualParent: data.isVirtualParent || false,
-      domoObject: data.domoObject ? DomoObject.fromJSON(data.domoObject) : null
+      label: data.label,
+      metadata: data.metadata,
+      typeId: data.typeId,
+      url: data.url
     });
+  }
+
+  /**
+   * Get the child count
+   * @returns {number}
+   */
+  getChildCount() {
+    return this.children?.length || 0;
+  }
+
+  /**
+   * Check if this item has children
+   * @returns {boolean}
+   */
+  hasChildren() {
+    return this.children && this.children.length > 0;
+  }
+
+  /**
+   * Serialize to plain object for message passing or storage
+   * @returns {Object}
+   */
+  toJSON() {
+    return {
+      children: this.children?.map((child) =>
+        child instanceof DataListItem ? child.toJSON() : child
+      ),
+      count: this.count,
+      countLabel: this.countLabel,
+      domoObject: this.domoObject?.toJSON() || null,
+      id: this.id,
+      isVirtualParent: this.isVirtualParent,
+      label: this.label,
+      metadata: this.metadata,
+      typeId: this.typeId,
+      url: this.url
+    };
   }
 }

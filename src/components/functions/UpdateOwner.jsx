@@ -1,12 +1,11 @@
-import { useState, useEffect } from 'react';
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
+  Button,
   Collection,
   ComboBox,
   Description,
-  Button,
   EmptyState,
   Form,
   Input,
@@ -23,18 +22,22 @@ import {
   IconUserEdit,
   IconX
 } from '@tabler/icons-react';
-import { updateOwner, searchUsers } from '@/services';
+import { useEffect, useState } from 'react';
+
+import { useStatusBar } from '@/hooks';
+import { searchUsers, updateOwner } from '@/services';
 import { isSidepanel } from '@/utils';
 
 export function UpdateOwner({ currentContext, onStatusUpdate }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { showPromiseStatus } = useStatusBar();
   const [currentUserId, setCurrentUserId] = useState(null);
   const [isOpen, setIsOpen] = useState(false);
 
   // Async user search state (replaces useAsyncList)
   const [filterText, setFilterText] = useState('');
   const [users, setUsers] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [, setIsLoading] = useState(false);
 
   // Pagination state
   const [offset, setOffset] = useState(0);
@@ -52,7 +55,7 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
       setIsLoading(true);
       setOffset(0);
       try {
-        const { users: fetchedUsers, totalCount } = await searchUsers(
+        const { totalCount, users: fetchedUsers } = await searchUsers(
           filterText,
           currentContext?.tabId,
           0
@@ -90,7 +93,7 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
 
     setIsLoadingMore(true);
     try {
-      const { users: fetchedUsers, totalCount } = await searchUsers(
+      const { totalCount, users: fetchedUsers } = await searchUsers(
         filterText,
         currentContext?.tabId,
         offset
@@ -113,8 +116,7 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
     }
   }, [isOpen, currentContext?.user?.id]);
 
-  // Core submit logic - accepts ownerId directly to avoid async state issues
-  const submitOwnerUpdate = async (ownerId) => {
+  const submitOwnerUpdate = (ownerId) => {
     if (!ownerId) {
       onStatusUpdate?.('Blank owner', 'Please enter an owner', 'warning', 2000);
       return;
@@ -122,36 +124,25 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
 
     setIsSubmitting(true);
 
-    try {
-      await updateOwner({
-        object: currentContext?.domoObject,
-        owner: ownerId,
-        tabId: currentContext?.tabId
-      });
+    const typeName = currentContext?.domoObject?.typeName;
 
-      // Show success message in popup (popup stays open)
-      onStatusUpdate?.(
-        `${currentContext.domoObject.typeName} Owner Updated Successfully`,
-        `Updated ${currentContext.domoObject.typeName.toLowerCase()} owner to ${ownerId}`,
-        'success',
-        3000
-      );
+    const promise = updateOwner({
+      object: currentContext?.domoObject,
+      owner: ownerId,
+      tabId: currentContext?.tabId
+    }).then(() => {
       setIsOpen(false);
       chrome.tabs.reload(currentContext?.tabId);
-    } catch (error) {
-      console.error(
-        `Error updating ${currentContext.domoObject.typeName}:`,
-        error
-      );
-      onStatusUpdate?.(
-        `Failed to Update ${currentContext.domoObject.typeName} Owner`,
-        error.message || 'An error occurred',
-        'danger',
-        5000
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
+      return ownerId;
+    });
+
+    showPromiseStatus(promise, {
+      error: (err) => err.message || 'An error occurred',
+      loading: `Updating **${typeName}** owner…`,
+      success: (id) => `Updated ${typeName?.toLowerCase()} owner to **${id}**`
+    });
+
+    promise.finally(() => setIsSubmitting(false));
   };
 
   const handleSubmit = async (e) => {
@@ -167,15 +158,15 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
 
   return (
     <Modal isOpen={isOpen} onOpenChange={setIsOpen}>
-      <Tooltip delay={400} closeDelay={0}>
+      <Tooltip closeDelay={0} delay={400}>
         <Button
-          variant='tertiary'
           fullWidth
+          className='min-w-36 flex-1 whitespace-normal'
+          variant='tertiary'
           isDisabled={
             currentContext?.domoObject.typeId !== 'ALERT' &&
             currentContext?.domoObject.typeId !== 'WORKFLOW_MODEL'
           }
-          className='relative min-w-fit flex-1 basis-[48%] overflow-visible'
         >
           <IconUserEdit stroke={1.5} />
           Update Owner
@@ -185,7 +176,7 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
         </Tooltip.Content>
       </Tooltip>
       <Modal.Backdrop>
-        <Modal.Container scroll='outside' placement='top' className='p-1'>
+        <Modal.Container className='p-1' placement='top' scroll='outside'>
           <Modal.Dialog className='p-2'>
             <Modal.CloseTrigger
               className='absolute top-2 right-2'
@@ -193,7 +184,7 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
             >
               <IconX stroke={1.5} />
             </Modal.CloseTrigger>
-            <Form onSubmit={handleSubmit} id='update-owner-form'>
+            <Form id='update-owner-form' onSubmit={handleSubmit}>
               <Modal.Header>
                 <Modal.Heading>
                   Update {currentContext?.domoObject.typeName} Owner
@@ -204,15 +195,15 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
                   allowsEmptyCollection
                   autoFocus
                   isRequired
-                  menuTrigger='input'
-                  inputValue={filterText}
-                  onInputChange={setFilterText}
-                  defaultInputValue={null}
                   aria-label='Owner'
-                  name='owner'
+                  className='w-[95%]'
+                  defaultInputValue={null}
                   form='update-owner-form'
                   formValue='key'
-                  className='w-[95%]'
+                  inputValue={filterText}
+                  menuTrigger='input'
+                  name='owner'
+                  onInputChange={setFilterText}
                 >
                   <ComboBox.InputGroup variant='secondary'>
                     <Input placeholder='Search users...' />
@@ -268,13 +259,13 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
                 </ComboBox>
               </Modal.Body>
               <Modal.Footer className='flex items-center justify-between'>
-                <Tooltip delay={200} closeDelay={0}>
+                <Tooltip closeDelay={0} delay={200}>
                   <Button
-                    variant='tertiary'
-                    size='sm'
-                    onPress={handleSetToSelf}
-                    isDisabled={isSubmitting || !currentUserId}
                     isIconOnly
+                    isDisabled={isSubmitting || !currentUserId}
+                    size='sm'
+                    variant='tertiary'
+                    onPress={handleSetToSelf}
                   >
                     <IconUser stroke={1.5} />
                   </Button>
@@ -282,28 +273,20 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
                 </Tooltip>
                 <div className='flex gap-2'>
                   <Button
+                    isDisabled={isSubmitting}
+                    size='sm'
                     slot='close'
                     variant='tertiary'
-                    size='sm'
-                    isDisabled={isSubmitting}
                   >
                     Cancel
                   </Button>
                   <Button
-                    variant='primary'
-                    type='submit'
-                    size='sm'
                     isDisabled={isSubmitting}
-                    isPending={isSubmitting}
-                    isIconOnly={isSubmitting}
+                    size='sm'
+                    type='submit'
+                    variant='primary'
                   >
-                    {({ isPending }) =>
-                      isPending ? (
-                        <Spinner color='currentColor' size='sm' />
-                      ) : (
-                        'Save'
-                      )
-                    }
+                    Save
                   </Button>
                 </div>
               </Modal.Footer>

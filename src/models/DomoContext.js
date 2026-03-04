@@ -1,5 +1,6 @@
-import { DomoObject } from './DomoObject';
 import { EXCLUDED_HOSTNAMES } from '@/utils/constants';
+
+import { DomoObject } from './DomoObject';
 
 /**
  * DomoContext - Represents the complete context of a Domo tab
@@ -57,39 +58,6 @@ export class DomoContext {
   }
 
   /**
-   * Serialize to plain object for storage or message passing
-   * @returns {Object}
-   */
-  toJSON() {
-    return {
-      tabId: this.tabId,
-      url: this.url,
-      instance: this.instance,
-      isDomoPage: this.isDomoPage,
-      tab: this.tab || null,
-      domoObject: this.domoObject
-        ? {
-            id: this.domoObject.id,
-            baseUrl: this.domoObject.baseUrl,
-            metadata: this.domoObject.metadata,
-            url: this.domoObject.url,
-            originalUrl: this.domoObject.originalUrl,
-            parentId: this.domoObject.parentId,
-            typeId: this.domoObject.typeId,
-            typeName: this.domoObject.typeName,
-            objectType: {
-              id: this.domoObject.objectType.id,
-              name: this.domoObject.objectType.name,
-              urlPath: this.domoObject.objectType.urlPath,
-              parents: this.domoObject.objectType.parents
-            }
-          }
-        : null,
-      user: this.user || null
-    };
-  }
-
-  /**
    * Deserialize from plain object
    * @param {Object} data - Plain object representation
    * @returns {DomoContext}
@@ -109,10 +77,43 @@ export class DomoContext {
     );
 
     // Override isDomoPage if it was explicitly set in the serialized data
-    if (data.hasOwnProperty('isDomoPage')) {
+    if (Object.prototype.hasOwnProperty.call(data, 'isDomoPage')) {
       context.isDomoPage = data.isDomoPage;
     }
 
     return context;
+  }
+
+  /**
+   * Serialize to plain object for storage or message passing
+   * @returns {Object}
+   */
+  toJSON() {
+    return {
+      domoObject: this.domoObject
+        ? {
+            baseUrl: this.domoObject.baseUrl,
+            id: this.domoObject.id,
+            metadata: this.domoObject.metadata,
+            objectType: {
+              id: this.domoObject.objectType.id,
+              name: this.domoObject.objectType.name,
+              parents: this.domoObject.objectType.parents,
+              urlPath: this.domoObject.objectType.urlPath
+            },
+            originalUrl: this.domoObject.originalUrl,
+            parentId: this.domoObject.parentId,
+            typeId: this.domoObject.typeId,
+            typeName: this.domoObject.typeName,
+            url: this.domoObject.url
+          }
+        : null,
+      instance: this.instance,
+      isDomoPage: this.isDomoPage,
+      tab: this.tab || null,
+      tabId: this.tabId,
+      url: this.url,
+      user: this.user || null
+    };
   }
 }

@@ -1,146 +1,29 @@
-import { useEffect, useState } from 'react';
-import { Button, Separator, Spinner } from '@heroui/react';
-import { DataList } from '@/components';
+import {
+  Alert,
+  Button,
+  Card,
+  CloseButton,
+  Separator,
+  Spinner
+} from '@heroui/react';
+import { IconRefresh } from '@tabler/icons-react';
+import { useEffect, useRef, useState } from 'react';
+
+import { DataListItem, DomoContext, DomoObject } from '@/models';
 import {
   getCardsForObject,
   getChildPages,
   getPagesForCards,
-  sharePagesWithSelf,
-  removeCardFromPage
+  removeCardFromPage,
+  sharePagesWithSelf
 } from '@/services';
-import { DataListItem, DomoContext, DomoObject } from '@/models';
-import { getValidTabForInstance } from '@/utils';
+import {
+  getValidTabForInstance,
+  waitForCards,
+  waitForChildPages
+} from '@/utils';
 
-/**
- * Transform grouped pages data into hierarchical structure
- * For CARD and DATA_SOURCE types, childPages is a flat array with pageType property
- * We group by pageType and create virtual parent items
- * For App Studio pages, we create a nested hierarchy: App Studio Apps > App > Pages
- */
-function transformGroupedPagesData(childPages, origin) {
-  if (!childPages || !childPages.length) return [];
-
-  // Group pages by pageType
-  const pagesByType = {
-    PAGE: [],
-    DATA_APP_VIEW: [],
-    REPORT_BUILDER_VIEW: []
-  };
-
-  childPages.forEach((page) => {
-    const type = page.pageType;
-    if (pagesByType[type]) {
-      pagesByType[type].push(page);
-    }
-  });
-
-  const items = [];
-
-  // Handle regular Pages/Dashboards
-  if (pagesByType.PAGE.length > 0) {
-    const sortedPages = pagesByType.PAGE.sort((a, b) =>
-      a.pageTitle.localeCompare(b.pageTitle)
-    );
-
-    const children = sortedPages.map((page) => {
-      const domoObject = new DomoObject('PAGE', page.pageId, origin, {
-        name: page.pageTitle
-      });
-      return DataListItem.fromDomoObject(domoObject);
-    });
-
-    items.push(
-      DataListItem.createGroup({
-        id: 'PAGE_group',
-        label: 'Pages/Dashboards',
-        children,
-        metadata: `${children.length} page${children.length !== 1 ? 's' : ''}`
-      })
-    );
-  }
-
-  // Handle App Studio pages - group by app first
-  if (pagesByType.DATA_APP_VIEW.length > 0) {
-    // Group pages by appId
-    const pagesByApp = new Map();
-    pagesByType.DATA_APP_VIEW.forEach((page) => {
-      const appId = page.appId;
-      if (!pagesByApp.has(appId)) {
-        pagesByApp.set(appId, {
-          appName: page.appName || `App ${appId}`,
-          pages: []
-        });
-      }
-      pagesByApp.get(appId).pages.push(page);
-    });
-
-    // Create app children with their pages nested inside
-    const appChildren = Array.from(pagesByApp.entries())
-      .sort(([, a], [, b]) => a.appName.localeCompare(b.appName))
-      .map(([appId, { appName, pages }]) => {
-        const sortedPages = pages.sort((a, b) =>
-          a.pageTitle.localeCompare(b.pageTitle)
-        );
-
-        const pageChildren = sortedPages.map((page) => {
-          const domoObject = new DomoObject(
-            'DATA_APP_VIEW',
-            page.pageId,
-            origin,
-            { name: page.pageTitle },
-            null,
-            appId
-          );
-          return DataListItem.fromDomoObject(domoObject);
-        });
-
-        const appDomoObject = new DomoObject('DATA_APP', appId, origin, {
-          name: appName
-        });
-        return DataListItem.fromDomoObject(appDomoObject, {
-          children: pageChildren,
-          count: pageChildren.length
-        });
-      });
-
-    items.push(
-      DataListItem.createGroup({
-        id: 'DATA_APP_VIEW_group',
-        label: 'App Studio Apps',
-        children: appChildren,
-        metadata: `${pagesByApp.size} app${pagesByApp.size !== 1 ? 's' : ''}, ${pagesByType.DATA_APP_VIEW.length} page${pagesByType.DATA_APP_VIEW.length !== 1 ? 's' : ''}`
-      })
-    );
-  }
-
-  // Handle Report Builder pages
-  if (pagesByType.REPORT_BUILDER_VIEW.length > 0) {
-    const sortedPages = pagesByType.REPORT_BUILDER_VIEW.sort((a, b) =>
-      a.pageTitle.localeCompare(b.pageTitle)
-    );
-
-    const children = sortedPages.map((page) => {
-      const domoObject = new DomoObject(
-        'REPORT_BUILDER_VIEW',
-        page.pageId,
-        origin,
-        { name: page.pageTitle }
-      );
-      return DataListItem.fromDomoObject(domoObject);
-    });
-
-    items.push(
-      DataListItem.createGroup({
-        id: 'REPORT_BUILDER_VIEW_group',
-        label: 'Report Builder Pages',
-        children,
-        metadata: `${children.length} page${children.length !== 1 ? 's' : ''}`
-      })
-    );
-  }
-
-  return items;
-}
+import { DataList } from './DataList';
 
 export function GetPagesView({
   onBackToDefault = null,
@@ -148,22 +31,27 @@ export function GetPagesView({
 }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
   const [showSpinner, setShowSpinner] = useState(false);
   const [error, setError] = useState(null);
   const [items, setItems] = useState([]);
   const [pageData, setPageData] = useState(null); // Store metadata for rebuilding
+  const [pageTypeLabel, setPageTypeLabel] = useState('pages');
 
-  // Load data on mount
+  const mountedRef = useRef(true);
   useEffect(() => {
+    mountedRef.current = true;
     loadPagesData();
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   const loadPagesData = async (forceRefresh = false) => {
-    if (!forceRefresh) {
+    if (!forceRefresh && !isRetrying) {
       setIsLoading(true);
       setShowSpinner(false);
     }
-    setError(null);
 
     // Delay showing spinner to avoid flash on quick loads
     const spinnerTimer = !forceRefresh
@@ -179,7 +67,9 @@ export function GetPagesView({
       console.log('Loaded sidepanel data:', data);
       if (
         !data ||
-        (data.type !== 'getPages' && data.type !== 'childPagesWarning')
+        (data.type !== 'getPages' &&
+          data.type !== 'getOtherPages' &&
+          data.type !== 'childPagesWarning')
       ) {
         setError('No page data found. Please try again from a page URL.');
         setIsLoading(false);
@@ -190,7 +80,7 @@ export function GetPagesView({
       const context = DomoContext.fromJSON(data.currentContext);
       const domoObject = context.domoObject;
       const objectType = domoObject.typeId;
-      const objectId = parseInt(domoObject.parentId || domoObject.id);
+      const objectId = domoObject.parentId || domoObject.id;
       const objectName =
         domoObject.metadata?.parent?.name ||
         domoObject.metadata?.name ||
@@ -206,69 +96,153 @@ export function GetPagesView({
             domoObject.id
           : null;
 
+      const sidepanelType = data.type;
+
+      // Set label early so the loading spinner shows the right text
+      setPageTypeLabel(
+        sidepanelType === 'getOtherPages'
+          ? 'Other Pages for Cards on'
+          : objectType === 'CARD' || objectType === 'DATA_SOURCE'
+            ? 'Pages'
+            : objectType === 'DATA_APP_VIEW'
+              ? 'App Pages'
+              : 'Child Pages'
+      );
+
       // Either use cached childPages or fetch fresh data
       let childPages = data.childPages;
+      let cardsByPage = data.cardsByPage;
+
+      if (!childPages && !forceRefresh) {
+        // No pre-fetched data (popup handoff)
+        if (sidepanelType === 'getOtherPages') {
+          // Get cards from background cache, then find pages for those cards
+          const waitResult = await waitForCards(context);
+          if (waitResult.success && waitResult.cards?.length) {
+            const tabId = await getValidTabForInstance(instance);
+            const result = await getPagesForCards(
+              waitResult.cards.map((card) => card.id),
+              tabId
+            );
+            const stringId = String(objectId);
+            childPages = result.pages
+              .filter((page) => String(page.id) !== stringId)
+              .map((page) => ({
+                appId: page.appId || null,
+                appName: page.appName || null,
+                pageId: page.id,
+                pageTitle: page.name,
+                pageType: page.type
+              }));
+            cardsByPage = result.cardsByPage;
+          }
+        } else if (
+          objectType === 'PAGE' ||
+          objectType === 'DATA_APP_VIEW' ||
+          objectType === 'CARD'
+        ) {
+          // These types have background-cached child pages -- try that first
+          const waitResult = await waitForChildPages(context);
+          if (waitResult.success) {
+            childPages = waitResult.childPages;
+            if (objectType === 'CARD') {
+              // Transform to match grouped pages format
+              childPages = childPages.map((page) => ({
+                appId: page.appId || null,
+                appName: page.appName || null,
+                pageId: page.id,
+                pageTitle: page.name,
+                pageType: page.type
+              }));
+            }
+          }
+        }
+        // If still no data (or type doesn't use cache), fetch fresh
+        if (!childPages) {
+          const freshData = await fetchFreshChildPages({
+            appId,
+            instance,
+            objectId,
+            objectType,
+            sidepanelType
+          });
+          childPages = freshData.childPages;
+          cardsByPage = freshData.cardsByPage;
+        }
+      }
 
       if (forceRefresh) {
-        console.log('[GetPagesView] Refreshing data for', objectType, objectId);
-        childPages = await fetchFreshChildPages({
+        const freshData = await fetchFreshChildPages({
+          appId,
+          instance,
           objectId,
           objectType,
-          appId,
-          instance
+          sidepanelType
         });
+        childPages = freshData.childPages;
+        cardsByPage = freshData.cardsByPage;
       }
 
       if (!childPages || !childPages.length) {
-        setError(
-          objectType === 'DATA_APP_VIEW'
-            ? `No views (pages) found for app studio app ${objectId}`
-            : objectType === 'CARD'
-              ? `No pages found for card ${objectId}`
-              : `No child pages found for page ${objectId}`
-        );
+        if (!mountedRef.current) return;
+        const message =
+          sidepanelType === 'getOtherPages'
+            ? 'Cards on this page are not used on any other pages'
+            : objectType === 'DATA_APP_VIEW'
+              ? `No views (pages) found for app studio app ${objectId}`
+              : objectType === 'CARD'
+                ? `No pages found for card ${objectId}`
+                : objectType === 'DATA_SOURCE'
+                  ? `No pages found for cards using dataset **${objectName}**`
+                  : `No child pages found for page ${objectId}`;
+        onStatusUpdate?.('No Pages Found', message, 'warning');
+        onBackToDefault?.();
         setIsLoading(false);
         return;
       }
 
-      const pageTypeLabel =
-        objectType === 'CARD' || objectType === 'DATA_SOURCE'
-          ? 'Pages'
-          : objectType === 'DATA_APP_VIEW'
-            ? 'App Pages'
-            : 'Child Pages';
-
       // Store metadata for rebuilding items later (including instance for refresh)
       setPageData({
-        objectId,
-        objectType,
-        objectName,
-        origin,
         appId,
         instance,
-        pageTypeLabel,
+        objectId,
+        objectName,
+        objectType,
+        origin,
+        sidepanelType,
         userId: context.user?.id
       });
 
-      if (objectType === 'CARD' || objectType === 'DATA_SOURCE') {
-        const transformedItems = transformGroupedPagesData(childPages, origin);
-        // This is CARD or DATA_SOURCE data - use the transformed structure
+      setError(null);
+
+      if (
+        objectType === 'CARD' ||
+        objectType === 'DATA_SOURCE' ||
+        sidepanelType === 'getOtherPages'
+      ) {
+        const transformedItems = transformGroupedPagesData(
+          childPages,
+          origin,
+          cardsByPage
+        );
         setItems(transformedItems);
       } else {
         // Normal PAGE or DATA_APP_VIEW data - use existing logic
         // Separate children and grandchildren based on parentPageId
         const children = childPages.filter((page) =>
-          objectType === 'DATA_APP_VIEW' ? true : page.parentPageId === objectId
+          objectType === 'DATA_APP_VIEW'
+            ? true
+            : String(page.parentPageId) === String(objectId)
         );
 
         // Build items structure with all pages at once
         buildItemsFromPages({
-          pages: children,
           childPages,
           objectId,
           objectName,
           objectType,
-          origin
+          origin,
+          pages: children
         });
       }
 
@@ -302,34 +276,65 @@ export function GetPagesView({
    * Dynamically finds a valid tab on the same Domo instance for API calls.
    */
   const fetchFreshChildPages = async ({
+    appId,
+    instance,
     objectId,
     objectType,
-    appId,
-    instance
+    sidepanelType
   }) => {
     // Find a valid tab on the same Domo instance for API calls
     const tabId = await getValidTabForInstance(instance);
 
+    // Get Other Pages: get cards on the page, then find all other pages for those cards
+    if (sidepanelType === 'getOtherPages') {
+      const cards = await getCardsForObject({
+        objectId,
+        objectType,
+        tabId
+      });
+
+      if (!cards || !cards.length) return { cardsByPage: {}, childPages: [] };
+
+      const { cardsByPage, pages } = await getPagesForCards(
+        cards.map((card) => card.id),
+        tabId
+      );
+
+      // Filter out the current page
+      const stringId = String(objectId);
+      const childPages = pages
+        .filter((page) => String(page.id) !== stringId)
+        .map((page) => ({
+          appId: page.appId || null,
+          appName: page.appName || null,
+          pageId: page.id,
+          pageTitle: page.name,
+          pageType: page.type
+        }));
+
+      return { cardsByPage, childPages };
+    }
+
     if (objectType === 'PAGE') {
       // Fetch child pages for regular PAGE
-      const pages = await getChildPages({
+      const childPages = await getChildPages({
+        includeGrandchildren: true,
         pageId: objectId,
         pageType: 'PAGE',
-        includeGrandchildren: true,
         tabId
       });
-      return pages;
+      return { childPages };
     } else if (objectType === 'DATA_APP_VIEW') {
       // Fetch all views for the app studio app
-      const pages = await getChildPages({
+      const childPages = await getChildPages({
+        appId,
         pageId: objectId,
         pageType: 'DATA_APP_VIEW',
-        appId,
         tabId
       });
-      return pages;
+      return { childPages };
     } else if (objectType === 'DATA_SOURCE') {
-      // For CARD/DATA_SOURCE: get cards then get pages for those cards
+      // For DATA_SOURCE: get cards then get pages for those cards
       const cards = await getCardsForObject({
         objectId,
         objectType,
@@ -337,36 +342,38 @@ export function GetPagesView({
       });
 
       if (!cards || !cards.length) {
-        return [];
+        return { childPages: [] };
       }
 
-      const pages = await getPagesForCards(
+      const { cardsByPage, pages } = await getPagesForCards(
         cards.map((card) => card.id),
         tabId
       );
 
       // Transform to match expected format with pageType
-      return pages.map((page) => ({
+      const childPages = pages.map((page) => ({
+        appId: page.appId || null,
+        appName: page.appName || null,
         pageId: page.id,
         pageTitle: page.name,
-        pageType: page.type,
-        appId: page.appId || null,
-        appName: page.appName || null
+        pageType: page.type
       }));
+      return { cardsByPage, childPages };
     } else if (objectType === 'CARD') {
-      const pages = await getPagesForCards([objectId], tabId);
+      const { pages } = await getPagesForCards([objectId], tabId);
 
       // Transform to match expected format with pageType
-      return pages.map((page) => ({
+      const childPages = pages.map((page) => ({
+        appId: page.appId || null,
+        appName: page.appName || null,
         pageId: page.id,
         pageTitle: page.name,
-        pageType: page.type,
-        appId: page.appId || null,
-        appName: page.appName || null
+        pageType: page.type
       }));
+      return { childPages };
     }
 
-    return [];
+    return { childPages: [] };
   };
 
   const handleRefresh = async () => {
@@ -392,12 +399,12 @@ export function GetPagesView({
   };
 
   const buildItemsFromPages = ({
-    pages,
     childPages,
     objectId,
-    objectName,
+    objectName: _objectName,
     objectType,
-    origin
+    origin,
+    pages
   }) => {
     // Sort pages by title
     const sortedPages = (pages || []).sort((a, b) =>
@@ -453,8 +460,8 @@ export function GetPagesView({
   const handleItemRemove = async (item) => {
     try {
       await removeCardFromPage({
-        pageId: item.id,
         cardId: pageData?.objectId,
+        pageId: item.id,
         tabId: await getValidTabForInstance(pageData.instance)
       });
       onStatusUpdate?.(
@@ -484,8 +491,8 @@ export function GetPagesView({
         const tabId = await getValidTabForInstance(pageData.instance);
         await sharePagesWithSelf({
           pageIds: [item.id],
-          userId: pageData.userId,
-          tabId
+          tabId,
+          userId: pageData.userId
         });
         onStatusUpdate?.(
           'Shared',
@@ -515,8 +522,8 @@ export function GetPagesView({
         const count = item.children.length;
         await sharePagesWithSelf({
           pageIds: item.children.map((child) => child.id),
-          userId: pageData.userId,
-          tabId
+          tabId,
+          userId: pageData.userId
         });
         onStatusUpdate?.(
           'Shared',
@@ -543,11 +550,32 @@ export function GetPagesView({
     try {
       if (pageData?.instance) {
         const tabId = await getValidTabForInstance(pageData.instance);
-        const count = items.length;
+
+        // Collect all shareable page IDs, excluding cards, virtual parents, and negative IDs
+        const collectPageIds = (itemList) => {
+          const ids = [];
+          for (const item of itemList) {
+            if (
+              !item.isVirtualParent &&
+              item.typeId !== 'CARD' &&
+              Number(item.id) >= 0
+            ) {
+              ids.push(item.id);
+            }
+            if (item.children) {
+              ids.push(...collectPageIds(item.children));
+            }
+          }
+          return ids;
+        };
+
+        const pageIds = collectPageIds(items);
+        const count = pageIds.length;
+
         await sharePagesWithSelf({
-          pageIds: items.map((item) => item.id),
-          userId: pageData.userId,
-          tabId
+          pageIds,
+          tabId,
+          userId: pageData.userId
         });
         onStatusUpdate?.(
           'Shared',
@@ -568,28 +596,6 @@ export function GetPagesView({
     }
   };
 
-  if (isLoading && showSpinner) {
-    return (
-      <div className='flex items-center justify-center'>
-        <div className='flex flex-col items-center gap-2'>
-          <Spinner size='lg' />
-          <p className='text-muted'>Loading child pages...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className='flex items-center justify-center p-4'>
-        <div className='flex flex-col items-center gap-2 text-center'>
-          <p className='text-danger'>{error}</p>
-          <Button onPress={loadPagesData}>Retry</Button>
-        </div>
-      </div>
-    );
-  }
-
   // Build the title section with name, label, and stats
   const renderTitle = () => {
     const grandchildCount = items.reduce(
@@ -599,61 +605,372 @@ export function GetPagesView({
 
     return (
       <div className='flex w-full flex-col gap-1'>
-        <div className='flex w-full min-w-0 items-center justify-start gap-x-1'>
-          <span className='truncate font-bold'>{pageData?.objectName}</span>
-          <span className='shrink-0'>{pageData?.pageTypeLabel}</span>
+        <div className='line-clamp-2 min-w-0'>
+          <span>
+            {pageTypeLabel}
+            {pageTypeLabel.endsWith('on') ? '' : ' for'}
+          </span>{' '}
+          <span className='font-bold'>{pageData?.objectName}</span>
         </div>
         {items.length !== undefined &&
           pageData?.objectType !== 'CARD' &&
-          pageData?.objectType !== 'DATA_SOURCE' && (
-            <div className='flex flex-row items-center gap-1'>
-              <span className='text-sm text-muted'>
-                {items.length}{' '}
-                {pageData?.objectType === 'PAGE' ? 'child page' : 'page'}
-                {items.length === 1 ? '' : 's'}
-              </span>
-              {grandchildCount > 0 && (
-                <div className='flex flex-row items-end gap-1'>
-                  <Separator
-                    orientation='vertical'
-                    className='mx-1 h-4'
-                    size='sm'
-                  />
-                  <span className='text-sm text-muted'>
-                    {grandchildCount} grandchild{' '}
-                    {grandchildCount === 1 ? 'page' : 'pages'}
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
+          pageData?.objectType !== 'DATA_SOURCE' &&
+          pageData?.sidepanelType !== 'getOtherPages' && (
+          <div className='flex flex-row items-center gap-1'>
+            <span className='text-sm text-muted'>
+              {items.length}{' '}
+              {pageData?.objectType === 'PAGE' ? 'child page' : 'page'}
+              {items.length === 1 ? '' : 's'}
+            </span>
+            {grandchildCount > 0 && (
+              <div className='flex flex-row items-end gap-1'>
+                <Separator
+                  className='mx-1 h-4'
+                  orientation='vertical'
+                  size='sm'
+                />
+                <span className='text-sm text-muted'>
+                  {grandchildCount} grandchild{' '}
+                  {grandchildCount === 1 ? 'page' : 'pages'}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   };
+  if (isLoading) {
+    if (!showSpinner) return null;
+    return (
+      <Card className='flex w-full items-center justify-center p-0'>
+        <Card.Content className='flex flex-col items-center justify-center gap-2 p-2'>
+          <Spinner size='lg' />
+          <p className='text-muted'>Loading {pageTypeLabel}...</p>
+        </Card.Content>
+      </Card>
+    );
+  }
+
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    await loadPagesData();
+    setIsRetrying(false);
+  };
+
+  if (error) {
+    return (
+      <Alert className='w-full' status='warning'>
+        <Alert.Indicator />
+        <Alert.Content>
+          <Alert.Title>Error</Alert.Title>
+          <div className='flex flex-col items-start justify-center gap-2'>
+            <Alert.Description>{error}</Alert.Description>
+            <Button isPending={isRetrying} size='sm' onPress={handleRetry}>
+              {isRetrying ? (
+                <Spinner color='currentColor' size='sm' />
+              ) : (
+                <IconRefresh stroke={1.5} />
+              )}
+              Retry
+            </Button>
+          </div>
+        </Alert.Content>
+        <CloseButton
+          className='rounded-full'
+          variant='ghost'
+          onPress={() => onBackToDefault?.()}
+        />
+      </Alert>
+    );
+  }
 
   return (
     <DataList
+      closeLabel={`Close ${pageTypeLabel} View`}
+      isRefreshing={isRefreshing}
+      itemLabel='page'
       items={items}
+      objectId={pageData?.objectId}
       objectType={pageData?.objectType}
-      onStatusUpdate={onStatusUpdate}
+      showActions={true}
+      showCounts={true}
       title={renderTitle()}
+      onClose={onBackToDefault}
+      onItemRemove={handleItemRemove}
+      onItemShare={handleItemShare}
+      onItemShareAll={handleItemShareAll}
+      onRefresh={handleRefresh}
+      onShareAll={handleShareAll}
+      onStatusUpdate={onStatusUpdate}
       headerActions={
         pageData?.objectType === 'DATA_APP_VIEW'
           ? ['openAll', 'copy', 'refresh']
           : ['openAll', 'copy', 'shareAll', 'refresh']
       }
-      objectId={pageData?.objectId}
-      onRefresh={handleRefresh}
-      onShareAll={handleShareAll}
-      onClose={onBackToDefault}
-      closeLabel={`Close ${pageData?.pageTypeLabel} View`}
-      isRefreshing={isRefreshing}
-      onItemRemove={handleItemRemove}
-      onItemShare={handleItemShare}
-      onItemShareAll={handleItemShareAll}
-      showActions={true}
-      showCounts={true}
-      itemLabel='page'
+      itemActions={
+        pageData?.sidepanelType === 'getOtherPages'
+          ? ['openAll', 'copy', 'share', 'shareAll']
+          : undefined
+      }
     />
   );
+}
+
+/**
+ * Build card DataListItem children for a page from the cardsByPage mapping
+ * @param {string|number} pageId - The page ID to look up
+ * @param {Object} cardsByPage - Mapping of pageId -> [{ id, name }]
+ * @param {string} origin - The base URL origin
+ * @param {string} [pageType] - The page type (e.g., 'PAGE', 'DATA_APP_VIEW')
+ * @param {string|number} [parentId] - The parent ID (e.g., appId for DATA_APP_VIEW)
+ * @returns {DataListItem[]|undefined} Array of card items, or undefined if none
+ */
+function buildCardChildren(pageId, cardsByPage, origin, pageType, parentId) {
+  const cards = cardsByPage?.[String(pageId)];
+  if (!cards || !cards.length) return undefined;
+
+  return cards
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+    .map((card) => {
+      const domoObject = new DomoObject('CARD', card.id, origin, {
+        name: card.name
+      });
+      // Override generic card URL with page-specific URL
+      if (pageType === 'DATA_APP_VIEW' || pageType === 'WORKSHEET_VIEW') {
+        domoObject.url = `${origin}/app-studio/${parentId}/pages/${pageId}/kpis/details/${card.id}`;
+      } else if (pageType === 'PAGE') {
+        domoObject.url = `${origin}/page/${pageId}/kpis/details/${card.id}`;
+      }
+      return DataListItem.fromDomoObject(domoObject);
+    });
+}
+
+/**
+ * Transform grouped pages data into hierarchical structure
+ * For CARD and DATA_SOURCE types, childPages is a flat array with pageType property
+ * We group by pageType and create virtual parent items
+ * For App Studio pages, we create a nested hierarchy: App Studio Apps > App > Pages
+ * @param {Array} childPages - Array of page objects
+ * @param {string} origin - The base URL origin
+ * @param {Object} [cardsByPage] - Optional mapping of pageId -> [{ id, name }] for card children
+ */
+function transformGroupedPagesData(childPages, origin, cardsByPage) {
+  if (!childPages || !childPages.length) return [];
+
+  // Group pages by pageType
+  const pagesByType = {
+    DATA_APP_VIEW: [],
+    PAGE: [],
+    REPORT_BUILDER_VIEW: [],
+    WORKSHEET_VIEW: []
+  };
+
+  childPages.forEach((page) => {
+    const type = page.pageType;
+    if (pagesByType[type]) {
+      pagesByType[type].push(page);
+    }
+  });
+
+  const items = [];
+
+  // Handle App Studio pages - group by app first
+  if (pagesByType.DATA_APP_VIEW.length > 0) {
+    // Group pages by appId
+    const pagesByApp = new Map();
+    pagesByType.DATA_APP_VIEW.forEach((page) => {
+      const appId = page.appId;
+      if (!pagesByApp.has(appId)) {
+        pagesByApp.set(appId, {
+          appName: page.appName || `App ${appId}`,
+          pages: []
+        });
+      }
+      pagesByApp.get(appId).pages.push(page);
+    });
+
+    // Create app children with their pages nested inside
+    const appChildren = Array.from(pagesByApp.entries())
+      .sort(([, a], [, b]) => a.appName.localeCompare(b.appName))
+      .map(([appId, { appName, pages }]) => {
+        const sortedPages = pages.sort((a, b) =>
+          a.pageTitle.localeCompare(b.pageTitle)
+        );
+
+        const pageChildren = sortedPages.map((page) => {
+          const cardChildren = buildCardChildren(
+            page.pageId,
+            cardsByPage,
+            origin,
+            'DATA_APP_VIEW',
+            appId
+          );
+          const domoObject = new DomoObject(
+            'DATA_APP_VIEW',
+            page.pageId,
+            origin,
+            { name: page.pageTitle },
+            null,
+            appId
+          );
+          return DataListItem.fromDomoObject(domoObject, {
+            children: cardChildren,
+            count: cardChildren?.length,
+            countLabel: cardChildren ? 'cards' : null
+          });
+        });
+
+        const appDomoObject = new DomoObject('DATA_APP', appId, origin, {
+          name: appName
+        });
+        return DataListItem.fromDomoObject(appDomoObject, {
+          children: pageChildren,
+          count: pageChildren.length
+        });
+      });
+
+    items.push(
+      DataListItem.createGroup({
+        children: appChildren,
+        id: 'DATA_APP_group',
+        label: 'App Studio Apps',
+        metadata: `${pagesByApp.size} app${pagesByApp.size !== 1 ? 's' : ''}, ${pagesByType.DATA_APP_VIEW.length} page${pagesByType.DATA_APP_VIEW.length !== 1 ? 's' : ''}`
+      })
+    );
+  }
+
+  // Handle regular Pages/Dashboards
+  if (pagesByType.PAGE.length > 0) {
+    const sortedPages = pagesByType.PAGE.sort((a, b) =>
+      a.pageTitle.localeCompare(b.pageTitle)
+    );
+
+    const children = sortedPages.map((page) => {
+      const cardChildren = buildCardChildren(
+        page.pageId,
+        cardsByPage,
+        origin,
+        'PAGE'
+      );
+      const domoObject = new DomoObject('PAGE', page.pageId, origin, {
+        name: page.pageTitle
+      });
+      return DataListItem.fromDomoObject(domoObject, {
+        children: cardChildren,
+        count: cardChildren?.length,
+        countLabel: cardChildren ? 'cards' : null
+      });
+    });
+
+    items.push(
+      DataListItem.createGroup({
+        children,
+        id: 'PAGE_group',
+        label: 'Pages/Dashboards',
+        metadata: `${children.length} page${children.length !== 1 ? 's' : ''}`
+      })
+    );
+  }
+
+  // Handle Report Builder pages
+  if (pagesByType.REPORT_BUILDER_VIEW.length > 0) {
+    const sortedPages = pagesByType.REPORT_BUILDER_VIEW.sort((a, b) =>
+      a.pageTitle.localeCompare(b.pageTitle)
+    );
+
+    const children = sortedPages.map((page) => {
+      const cardChildren = buildCardChildren(
+        page.pageId,
+        cardsByPage,
+        origin,
+        'REPORT_BUILDER_VIEW'
+      );
+      const domoObject = new DomoObject(
+        'REPORT_BUILDER_VIEW',
+        page.pageId,
+        origin,
+        { name: page.pageTitle }
+      );
+      return DataListItem.fromDomoObject(domoObject, {
+        children: cardChildren,
+        count: cardChildren?.length,
+        countLabel: cardChildren ? 'cards' : null
+      });
+    });
+
+    items.push(
+      DataListItem.createGroup({
+        children,
+        id: 'REPORT_BUILDER_group',
+        label: 'Report Builder Pages',
+        metadata: `${children.length} page${children.length !== 1 ? 's' : ''}`
+      })
+    );
+  }
+
+  // Handle Worksheet views - group by app first (same structure as App Studio)
+  if (pagesByType.WORKSHEET_VIEW.length > 0) {
+    const pagesByApp = new Map();
+    pagesByType.WORKSHEET_VIEW.forEach((page) => {
+      const appId = page.appId;
+      if (!pagesByApp.has(appId)) {
+        pagesByApp.set(appId, {
+          appName: page.appName || `App ${appId}`,
+          pages: []
+        });
+      }
+      pagesByApp.get(appId).pages.push(page);
+    });
+
+    const appChildren = Array.from(pagesByApp.entries())
+      .sort(([, a], [, b]) => a.appName.localeCompare(b.appName))
+      .map(([appId, { appName, pages }]) => {
+        const sortedPages = pages.sort((a, b) =>
+          a.pageTitle.localeCompare(b.pageTitle)
+        );
+
+        const pageChildren = sortedPages.map((page) => {
+          const cardChildren = buildCardChildren(
+            page.pageId,
+            cardsByPage,
+            origin,
+            'WORKSHEET_VIEW',
+            appId
+          );
+          const domoObject = new DomoObject(
+            'WORKSHEET_VIEW',
+            page.pageId,
+            origin,
+            { name: page.pageTitle },
+            null,
+            appId
+          );
+          return DataListItem.fromDomoObject(domoObject, {
+            children: cardChildren,
+            count: cardChildren?.length,
+            countLabel: cardChildren ? 'cards' : null
+          });
+        });
+
+        const worksheetDomoObject = new DomoObject('WORKSHEET', appId, origin, {
+          name: appName
+        });
+        return DataListItem.fromDomoObject(worksheetDomoObject, {
+          children: pageChildren,
+          count: pageChildren.length
+        });
+      });
+
+    items.push(
+      DataListItem.createGroup({
+        children: appChildren,
+        id: 'WORKSHEET_group',
+        label: 'Worksheet Views',
+        metadata: `${pagesByApp.size} app${pagesByApp.size !== 1 ? 's' : ''}, ${pagesByType.WORKSHEET_VIEW.length} view${pagesByType.WORKSHEET_VIEW.length !== 1 ? 's' : ''}`
+      })
+    );
+  }
+
+  return items;
 }

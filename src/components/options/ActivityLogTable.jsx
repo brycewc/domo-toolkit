@@ -1,219 +1,28 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
-  Chip,
   Alert,
   Button,
+  ButtonGroup,
+  Chip,
+  DateField,
+  DateRangePicker,
   Dropdown,
   Label,
-  Skeleton,
   Link,
-  DateField,
-  DateInputGroup,
-  Popover,
-  ButtonGroup
+  RangeCalendar,
+  Skeleton
 } from '@heroui/react';
-import { IconCalendarTime, IconFilter } from '@tabler/icons-react';
-import { DataTable } from './DataTable';
-import { UserFilterAutocomplete } from './UserFilterAutocomplete';
-import { getActivityLogForObject } from '@/services';
+import { getLocalTimeZone, parseDate, today } from '@internationalized/date';
+import { IconCalendarWeek, IconFilter } from '@tabler/icons-react';
+import { AnimatePresence } from 'motion/react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+
 import { DomoObject } from '@/models';
+import { getActivityLogForObject } from '@/services';
 import { ACTION_COLOR_PATTERNS } from '@/utils';
 
-/**
- * Get color for an action based on exact match or partial match
- * @param {string} action - The action string
- * @returns {string} The color name
- */
-function getActionColor(action) {
-  if (!action) return 'default';
-
-  const actionLower = action.toLowerCase();
-
-  // Try partial matches
-  for (const [pattern, color] of Object.entries(ACTION_COLOR_PATTERNS)) {
-    if (actionLower.includes(pattern)) {
-      return color;
-    }
-  }
-
-  return 'default';
-}
-
-/**
- * Helper function to create a timestamp column with formatted date/time
- */
-function createTimestampColumn({ accessorKey = 'time' } = {}) {
-  return {
-    accessorKey,
-    header: 'Timestamp',
-    size: 160,
-    minSize: 160,
-    maxSize: 160,
-    cell: ({ row }) => {
-      const timestamp = row.getValue(accessorKey);
-      if (!timestamp) return '-';
-
-      const date = new Date(timestamp);
-      const dateStr = date.toLocaleDateString();
-      const timeStr = date.toLocaleTimeString();
-
-      return (
-        <div className='flex flex-col'>
-          <span className='text-sm font-medium'>{dateStr}</span>
-          <span className='text-xs text-muted'>{timeStr}</span>
-        </div>
-      );
-    }
-  };
-}
-
-/**
- * Helper function to create a user column with name and email
- */
-function createUserColumn({ nameKey = 'userName', idKey = 'userId' } = {}) {
-  return {
-    accessorKey: nameKey,
-    header: 'User',
-    size: 180,
-    minSize: 180,
-    maxSize: 180,
-    cell: ({ row }) => {
-      const name = row.getValue(nameKey);
-      const id = row.original[idKey];
-
-      return (
-        <div className='flex flex-col'>
-          <span className='truncate text-sm font-medium' title={name}>
-            {name || '-'}
-          </span>
-          {id && (
-            <span className='truncate text-xs text-muted' title={id}>
-              {id}
-            </span>
-          )}
-        </div>
-      );
-    }
-  };
-}
-
-/**
- * Helper function to create an action column with colored chips
- */
-function createActionColumn({ accessorKey = 'actionType' } = {}) {
-  return {
-    accessorKey,
-    header: 'Action',
-    size: 150,
-    minSize: 150,
-    maxSize: 150,
-    cell: ({ row }) => {
-      const action = row.getValue(accessorKey);
-      const color = getActionColor(action);
-
-      return (
-        <Chip color={color} variant='soft' size='lg'>
-          {action || '-'}
-        </Chip>
-      );
-    }
-  };
-}
-
-/**
- * Helper function to create an object column with type and name
- */
-function createObjectColumn({
-  typeKey = 'objectType',
-  nameKey = 'objectName',
-  idKey = 'objectId',
-  baseUrl = null,
-  tabId = null
-} = {}) {
-  return {
-    accessorKey: nameKey,
-    header: 'Object',
-    cell: ({ row }) => {
-      const name = row.getValue(nameKey);
-      const type = row.original[typeKey];
-      const id = row.original[idKey];
-      const [url, setUrl] = useState(null);
-
-      // Build URL asynchronously when component mounts or data changes
-      useEffect(() => {
-        const buildUrlAsync = async () => {
-          if (!type || !id || !baseUrl) {
-            setUrl(null);
-            return;
-          }
-
-          try {
-            // Create a DomoObject instance and use its buildUrl method
-            const domoObject = new DomoObject(type, id, baseUrl);
-
-            // Only build URL if the object type has a navigable URL
-            if (domoObject.hasUrl()) {
-              const builtUrl = await domoObject.buildUrl(baseUrl, tabId);
-              setUrl(builtUrl);
-            } else {
-              setUrl(null);
-            }
-          } catch (error) {
-            console.warn('Failed to build URL for object:', error);
-            setUrl(null);
-          }
-        };
-
-        buildUrlAsync();
-      }, [type, id, baseUrl, tabId]);
-
-      return (
-        <div className='flex flex-col gap-1'>
-          {url ? (
-            <Link
-              href={url}
-              target='_blank'
-              className='text-sm font-medium no-underline decoration-accent/80 hover:text-accent/80 hover:underline'
-            >
-              {name || '-'}
-            </Link>
-          ) : (
-            <span className='text-sm font-medium'>{name || '-'}</span>
-          )}
-          {type && (
-            <Chip size='sm' className='w-fit'>
-              {type}
-            </Chip>
-          )}
-        </div>
-      );
-    }
-  };
-}
-
-/**
- * Helper function to create an additional comment column with text wrapping
- */
-function createAdditionalCommentColumn({
-  accessorKey = 'additionalComment'
-} = {}) {
-  return {
-    accessorKey,
-    header: 'Comment',
-    cell: ({ row }) => {
-      const comment = row.getValue(accessorKey);
-      if (!comment) return '-';
-
-      return (
-        <div className='max-w-sm text-wrap'>
-          <span className='text-sm' title={comment}>
-            {comment}
-          </span>
-        </div>
-      );
-    }
-  };
-}
+import { AnimatedCheck } from './../AnimatedCheck';
+import { DataTable } from './DataTable';
+import { UserFilterAutocomplete } from './UserFilterAutocomplete';
 
 /**
  * ActivityLogTable Component
@@ -232,8 +41,7 @@ export function ActivityLogTable() {
   const [error, setError] = useState(null);
   const [total, setTotal] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [startDate, setStartDate] = useState(null);
-  const [endDate, setEndDate] = useState(null);
+  const [dateRange, setDateRange] = useState(null);
   const [userFilter, setUserFilter] = useState([]); // Array of user IDs for Autocomplete
   const [actionFilter, setActionFilter] = useState(new Set());
   const [objectTypeFilter, setObjectTypeFilter] = useState(new Set());
@@ -265,7 +73,7 @@ export function ActivityLogTable() {
         const initialStates = {};
         loadedObjects.forEach((obj) => {
           const key = `${obj.type}:${obj.id}`;
-          initialStates[key] = { offset: 0, total: 0, hasMore: true };
+          initialStates[key] = { hasMore: true, offset: 0, total: 0 };
         });
         setObjectStates(initialStates);
       } catch (err) {
@@ -304,27 +112,15 @@ export function ActivityLogTable() {
     let filtered = events;
 
     // Filter by date range
-    if (startDate || endDate) {
+    if (dateRange) {
       filtered = filtered.filter((event) => {
         const eventDate = new Date(event.time);
         eventDate.setHours(0, 0, 0, 0); // Reset time to start of day for comparison
-
-        if (startDate && endDate) {
-          const start = new Date(startDate);
-          const end = new Date(endDate);
-          start.setHours(0, 0, 0, 0);
-          end.setHours(23, 59, 59, 999); // End of day
-          return eventDate >= start && eventDate <= end;
-        } else if (startDate) {
-          const start = new Date(startDate);
-          start.setHours(0, 0, 0, 0);
-          return eventDate >= start;
-        } else if (endDate) {
-          const end = new Date(endDate);
-          end.setHours(23, 59, 59, 999);
-          return eventDate <= end;
-        }
-        return true;
+        const start = dateRange.start.toDate(getLocalTimeZone());
+        const end = dateRange.end.toDate(getLocalTimeZone());
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999); // End of day
+        return eventDate >= start && eventDate <= end;
       });
     }
 
@@ -353,7 +149,7 @@ export function ActivityLogTable() {
     }
 
     return filtered;
-  }, [events, startDate, endDate, userFilter, actionFilter, objectTypeFilter]);
+  }, [events, dateRange, userFilter, actionFilter, objectTypeFilter]);
 
   // Define columns
   const columns = useMemo(() => {
@@ -370,10 +166,10 @@ export function ActivityLogTable() {
   // Set initial column visibility based on number of objects
   const initialColumnVisibility = useMemo(
     () => ({
-      // Show object column only when multiple objects
-      objectName: activityLogType !== 'single-object',
       // Show comment column only when single object
-      additionalComment: activityLogType === 'single-object'
+      additionalComment: activityLogType === 'single-object',
+      // Show object column only when multiple objects
+      objectName: activityLogType !== 'single-object'
     }),
     [activityLogType]
   );
@@ -400,28 +196,28 @@ export function ActivityLogTable() {
 
       try {
         // Fetch from all objects in parallel
-        const fetchPromises = objects.map(({ type, id }) =>
+        const fetchPromises = objects.map(({ id, type }) =>
           getActivityLogForObject({
-            objectType: type,
-            objectId: id,
             limit: pageSize,
+            objectId: id,
+            objectType: type,
             offset: 0,
             tabId
           })
             .then((result) => ({
-              objectType: type,
-              objectId: id,
               events: result?.events ?? [],
+              objectId: id,
+              objectType: type,
               total: result?.total ?? 0
             }))
             .catch((err) => {
               console.error(`Error fetching for ${type}:${id}:`, err);
               return {
-                objectType: type,
-                objectId: id,
+                error: err.message,
                 events: [],
-                total: 0,
-                error: err.message
+                objectId: id,
+                objectType: type,
+                total: 0
               };
             })
         );
@@ -431,12 +227,12 @@ export function ActivityLogTable() {
         // Update object states with totals and hasMore
         const newStates = {};
         let combinedTotal = 0;
-        results.forEach(({ objectType, objectId, events, total }) => {
+        results.forEach(({ events, objectId, objectType, total }) => {
           const key = `${objectType}:${objectId}`;
           newStates[key] = {
+            hasMore: events.length < total,
             offset: events.length,
-            total,
-            hasMore: events.length < total
+            total
           };
           combinedTotal += total;
         });
@@ -462,158 +258,76 @@ export function ActivityLogTable() {
 
   // Check if any objects still have more events to fetch
   const hasMore = useMemo(() => {
-    const result = Object.values(objectStates).some((state) => state.hasMore);
-    console.log('[ActivityLogTable] hasMore calculated:', {
-      result,
-      objectStates
-    });
-    return result;
+    return Object.values(objectStates).some((state) => state.hasMore);
   }, [objectStates]);
 
   // Fetch more events when scrolling - only from objects that still have more
   const fetchMoreEvents = useCallback(async () => {
-    console.log('[ActivityLogTable] fetchMoreEvents called', {
-      isFetchingMore,
-      hasMore,
-      isInitialLoad,
-      isSearching,
-      objectsCount: objects.length
-    });
-
     if (isFetchingMore || !hasMore || isInitialLoad || isSearching) {
-      console.log('[ActivityLogTable] Skipping fetch:', {
-        reason: isFetchingMore
-          ? 'already fetching'
-          : !hasMore
-            ? 'no more data'
-            : isInitialLoad
-              ? 'initial load'
-              : 'searching'
-      });
       return;
     }
 
-    console.log('[ActivityLogTable] Starting to fetch more events...');
     setIsFetchingMore(true);
 
     try {
-      // Log the objects array and objectStates before filtering
-      console.log('[ActivityLogTable] Current objects array:', objects);
-      console.log('[ActivityLogTable] Current objectStates:', objectStates);
-
       // Filter to only objects that still have more events
-      const objectsWithMore = objects.filter(({ type, id }) => {
+      const objectsWithMore = objects.filter(({ id, type }) => {
         const key = `${type}:${id}`;
         const hasMoreData = objectStates[key]?.hasMore;
-        console.log('[ActivityLogTable] Checking object:', {
-          type,
-          id,
-          key,
-          hasMoreData,
-          stateExists: !!objectStates[key],
-          state: objectStates[key]
-        });
         return hasMoreData;
       });
 
-      console.log('[ActivityLogTable] Objects with more data:', {
-        count: objectsWithMore.length,
-        objects: objectsWithMore.map(({ type, id }) => ({
-          type,
-          id,
-          state: objectStates[`${type}:${id}`]
-        }))
-      });
-
       if (objectsWithMore.length === 0) {
-        console.log('[ActivityLogTable] No objects with more data, stopping');
         setIsFetchingMore(false);
         return;
       }
 
       // Fetch next page from all objects that have more
-      const fetchPromises = objectsWithMore.map(({ type, id }) => {
+      const fetchPromises = objectsWithMore.map(({ id, type }) => {
         const key = `${type}:${id}`;
         const state = objectStates[key];
 
-        console.log('[ActivityLogTable] Fetching events for object:', {
-          type,
-          id,
-          key,
-          offset: state.offset,
-          pageSize,
-          tabId
-        });
-
         return getActivityLogForObject({
-          objectType: type,
-          objectId: id,
           limit: pageSize,
+          objectId: id,
+          objectType: type,
           offset: state.offset,
           tabId
         })
           .then((result) => {
-            console.log('[ActivityLogTable] Received events for object:', {
-              type,
-              id,
-              eventsCount: result?.events?.length ?? 0,
-              total: result?.total ?? 0
-            });
-
             return {
-              objectType: type,
-              objectId: id,
               events: result?.events ?? [],
+              objectId: id,
+              objectType: type,
               total: result?.total ?? 0
             };
           })
           .catch((err) => {
             console.error(`Error fetching more for ${type}:${id}:`, err);
             return {
-              objectType: type,
-              objectId: id,
+              error: err.message,
               events: [],
-              total: state.total,
-              error: err.message
+              objectId: id,
+              objectType: type,
+              total: state.total
             };
           });
       });
 
-      console.log('[ActivityLogTable] Waiting for all fetch promises...', {
-        promisesCount: fetchPromises.length
-      });
-
       const results = await Promise.all(fetchPromises);
-
-      console.log('[ActivityLogTable] All fetches complete:', {
-        resultsCount: results.length,
-        totalEventsReceived: results.reduce(
-          (sum, r) => sum + r.events.length,
-          0
-        )
-      });
 
       // Update object states
       const newStates = { ...objectStates };
-      results.forEach(({ objectType, objectId, events, total }) => {
+      results.forEach(({ events, objectId, objectType, total }) => {
         const key = `${objectType}:${objectId}`;
         const currentState = newStates[key];
         const newOffset = currentState.offset + events.length;
         const newHasMore = newOffset < total;
 
-        console.log('[ActivityLogTable] Updating state for object:', {
-          key,
-          oldOffset: currentState.offset,
-          newOffset,
-          eventsLength: events.length,
-          total,
-          newHasMore
-        });
-
         newStates[key] = {
+          hasMore: newHasMore,
           offset: newOffset,
-          total,
-          hasMore: newHasMore
+          total
         };
       });
       setObjectStates(newStates);
@@ -623,17 +337,10 @@ export function ActivityLogTable() {
       const allEvents = [...events, ...newEvents];
       allEvents.sort((a, b) => new Date(b.time) - new Date(a.time));
 
-      console.log('[ActivityLogTable] Updated events:', {
-        previousCount: events.length,
-        newEventsCount: newEvents.length,
-        totalCount: allEvents.length
-      });
-
       setEvents(allEvents);
     } catch (err) {
       console.error('Error fetching more events:', err);
     } finally {
-      console.log('[ActivityLogTable] Finished fetching more events');
       setIsFetchingMore(false);
     }
   }, [
@@ -663,16 +370,16 @@ export function ActivityLogTable() {
     const exportPageSize = 1000; // Use max page size for export
 
     // Fetch all events from each object
-    for (const { type, id } of objects) {
+    for (const { id, type } of objects) {
       let offset = 0;
       let hasMore = true;
 
       while (hasMore) {
         try {
           const result = await getActivityLogForObject({
-            objectType: type,
-            objectId: id,
             limit: exportPageSize,
+            objectId: id,
+            objectType: type,
             offset,
             tabId
           });
@@ -698,27 +405,16 @@ export function ActivityLogTable() {
     let filtered = allEvents;
 
     // Filter by date range
-    if (startDate || endDate) {
+    if (dateRange) {
       filtered = filtered.filter((event) => {
         const eventDate = new Date(event.time);
         eventDate.setHours(0, 0, 0, 0);
 
-        if (startDate && endDate) {
-          const start = new Date(startDate);
-          const end = new Date(endDate);
-          start.setHours(0, 0, 0, 0);
-          end.setHours(23, 59, 59, 999);
-          return eventDate >= start && eventDate <= end;
-        } else if (startDate) {
-          const start = new Date(startDate);
-          start.setHours(0, 0, 0, 0);
-          return eventDate >= start;
-        } else if (endDate) {
-          const end = new Date(endDate);
-          end.setHours(23, 59, 59, 999);
-          return eventDate <= end;
-        }
-        return true;
+        const start = dateRange.start.toDate(getLocalTimeZone());
+        const end = dateRange.end.toDate(getLocalTimeZone());
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
+        return eventDate >= start && eventDate <= end;
       });
     }
 
@@ -746,8 +442,7 @@ export function ActivityLogTable() {
     tabId,
     objects,
     filteredEvents,
-    startDate,
-    endDate,
+    dateRange,
     userFilter,
     actionFilter,
     objectTypeFilter
@@ -797,7 +492,7 @@ export function ActivityLogTable() {
             {activityLogType === 'single-object' ? (
               <>
                 <span className='text-accent'>{objects[0]?.name} </span>
-                <Chip color='accent' variant='soft' size='md'>
+                <Chip color='accent' size='md' variant='soft'>
                   {objects[0].type}
                 </Chip>{' '}
                 (ID: {objects[0].id})
@@ -841,87 +536,97 @@ export function ActivityLogTable() {
       <DataTable
         columns={columns}
         data={filteredEvents}
-        onRowAction={handleRowAction}
-        entityName='events'
-        initialSorting={[{ id: 'time', desc: true }]}
-        initialColumnVisibility={initialColumnVisibility}
-        enableSelection={false}
         enableSearch={false}
-        onLoadMore={fetchMoreEvents}
-        exportConfig={{
-          enabled: true,
-          filename: `activity-log_${activityLogType || 'export'}`,
-          onFetchAllData: fetchAllDataForExport
-        }}
-        onRefresh={handleRefresh}
+        enableSelection={false}
+        entityName='events'
+        initialColumnVisibility={initialColumnVisibility}
+        initialSorting={[{ desc: true, id: 'time' }]}
         isRefreshing={isInitialLoad || isSearching}
-        customFilters={
+        onLoadMore={fetchMoreEvents}
+        onRefresh={handleRefresh}
+        onRowAction={handleRowAction}
+        customFilters={(
           <div className='flex w-full flex-row items-center justify-start gap-1'>
-            <ButtonGroup variant='tertiary' fullWidth className='flex-1/2'>
-              {/* Date Range Filter */}
-              <Popover>
-                <Button variant='tertiary' fullWidth>
-                  <IconCalendarTime stroke={1.5} />
-                  Date Range
-                </Button>
-                <Popover.Content className='w-72'>
-                  <Popover.Dialog className='flex flex-col gap-3'>
-                    <DateField
-                      name='Start Date'
-                      value={startDate}
-                      onChange={setStartDate}
-                      granularity='day'
-                    >
-                      <Label>Start Date</Label>
-                      <DateInputGroup>
-                        <DateInputGroup.Input>
-                          {(segment) => (
-                            <DateInputGroup.Segment segment={segment} />
-                          )}
-                        </DateInputGroup.Input>
-                      </DateInputGroup>
-                    </DateField>
-                    <DateField
-                      name='End Date'
-                      value={endDate}
-                      onChange={setEndDate}
-                      granularity='day'
-                    >
-                      <Label>End Date</Label>
-                      <DateInputGroup>
-                        <DateInputGroup.Input>
-                          {(segment) => (
-                            <DateInputGroup.Segment segment={segment} />
-                          )}
-                        </DateInputGroup.Input>
-                      </DateInputGroup>
-                    </DateField>
-                    <Button
-                      variant='tertiary'
-                      size='sm'
-                      onPress={() => {
-                        setStartDate(null);
-                        setEndDate(null);
-                      }}
-                      isDisabled={!startDate && !endDate}
-                    >
-                      Clear
-                    </Button>
-                  </Popover.Dialog>
-                </Popover.Content>
-              </Popover>
-
+            {/* Date Range Filter */}
+            <DateRangePicker
+              shouldForceLeadingZeros
+              aria-label='Date Range Picker'
+              className='w-72'
+              endName='endDate'
+              granularity='day'
+              maxValue={today(getLocalTimeZone())}
+              minValue={parseDate('2008-01-01')}
+              startName='startDate'
+              value={dateRange}
+              onChange={setDateRange}
+            >
+              <DateField.Group variant='secondary'>
+                <DateField.Input slot='start'>
+                  {(segment) => <DateField.Segment segment={segment} />}
+                </DateField.Input>
+                <DateRangePicker.RangeSeparator />
+                <DateField.Input slot='end'>
+                  {(segment) => <DateField.Segment segment={segment} />}
+                </DateField.Input>
+                <DateField.Suffix>
+                  <DateRangePicker.Trigger>
+                    <DateRangePicker.TriggerIndicator>
+                      <IconCalendarWeek
+                        className='text-foreground'
+                        stroke={1.5}
+                      />
+                    </DateRangePicker.TriggerIndicator>
+                  </DateRangePicker.Trigger>
+                </DateField.Suffix>
+              </DateField.Group>
+              <DateRangePicker.Popover>
+                <RangeCalendar
+                  aria-label='Date Range Calendar'
+                  maxValue={today(getLocalTimeZone())}
+                  minValue={parseDate('2008-01-01')}
+                >
+                  <RangeCalendar.Header>
+                    <RangeCalendar.YearPickerTrigger>
+                      <RangeCalendar.YearPickerTriggerHeading />
+                      <RangeCalendar.YearPickerTriggerIndicator />
+                    </RangeCalendar.YearPickerTrigger>
+                    <RangeCalendar.NavButton slot='previous' />
+                    <RangeCalendar.NavButton slot='next' />
+                  </RangeCalendar.Header>
+                  <RangeCalendar.Grid>
+                    <RangeCalendar.GridHeader>
+                      {(day) => (
+                        <RangeCalendar.HeaderCell>
+                          {day}
+                        </RangeCalendar.HeaderCell>
+                      )}
+                    </RangeCalendar.GridHeader>
+                    <RangeCalendar.GridBody>
+                      {(date) => <RangeCalendar.Cell date={date} />}
+                    </RangeCalendar.GridBody>
+                  </RangeCalendar.Grid>
+                  <RangeCalendar.YearPickerGrid>
+                    <RangeCalendar.YearPickerGridBody>
+                      {({ year }) => (
+                        <RangeCalendar.YearPickerCell year={year} />
+                      )}
+                    </RangeCalendar.YearPickerGridBody>
+                  </RangeCalendar.YearPickerGrid>
+                </RangeCalendar>
+              </DateRangePicker.Popover>
+            </DateRangePicker>
+            <ButtonGroup fullWidth className='flex-1/2' variant='tertiary'>
               {/* Action Filter */}
               {actionOptions.length > 0 && (
                 <Dropdown>
-                  <Button variant='tertiary' fullWidth>
+                  <Button fullWidth variant='tertiary'>
                     <IconFilter stroke={1.5} />
                     Action
                   </Button>
                   <Dropdown.Popover className='max-h-64 overflow-y-auto'>
                     <Dropdown.Menu
-                      selectionMode='multiple'
                       selectedKeys={actionFilter}
+                      selectionMode='multiple'
                       onSelectionChange={setActionFilter}
                     >
                       {actionOptions.map((action) => {
@@ -932,12 +637,23 @@ export function ActivityLogTable() {
                             key={action}
                             textValue={action}
                           >
-                            <Dropdown.ItemIndicator />
+                            <Dropdown.ItemIndicator>
+                              {({ isSelected }) => (
+                                <AnimatePresence>
+                                  {isSelected && (
+                                    <AnimatedCheck
+                                      className='text-muted'
+                                      stroke={1.5}
+                                    />
+                                  )}
+                                </AnimatePresence>
+                              )}
+                            </Dropdown.ItemIndicator>
                             <Label>
                               <Chip
+                                className='uppercase'
                                 color={color}
                                 variant='soft'
-                                className='uppercase'
                               >
                                 {action}
                               </Chip>
@@ -953,19 +669,30 @@ export function ActivityLogTable() {
               {/* Object Type Filter */}
               {objectTypeOptions.length > 0 && (
                 <Dropdown>
-                  <Button variant='tertiary' fullWidth>
+                  <Button fullWidth variant='tertiary'>
                     <IconFilter stroke={1.5} />
                     Object Type
                   </Button>
                   <Dropdown.Popover className='max-h-64 overflow-y-auto'>
                     <Dropdown.Menu
-                      selectionMode='multiple'
                       selectedKeys={objectTypeFilter}
+                      selectionMode='multiple'
                       onSelectionChange={setObjectTypeFilter}
                     >
                       {objectTypeOptions.map((type) => (
                         <Dropdown.Item id={type} key={type} textValue={type}>
-                          <Dropdown.ItemIndicator />
+                          <Dropdown.ItemIndicator>
+                            {({ isSelected }) => (
+                              <AnimatePresence>
+                                {isSelected && (
+                                  <AnimatedCheck
+                                    className='text-muted'
+                                    stroke={1.5}
+                                  />
+                                )}
+                              </AnimatePresence>
+                            )}
+                          </Dropdown.ItemIndicator>
                           <Label>{type}</Label>
                         </Dropdown.Item>
                       ))}
@@ -975,14 +702,218 @@ export function ActivityLogTable() {
               )}
             </ButtonGroup>
             <UserFilterAutocomplete
+              domoInstance={domoInstance}
+              tabId={tabId}
               value={userFilter}
               onChange={setUserFilter}
-              tabId={tabId}
-              domoInstance={domoInstance}
             />
           </div>
-        }
+        )}
+        exportConfig={{
+          enabled: true,
+          filename: `activity-log_${activityLogType || 'export'}`,
+          onFetchAllData: fetchAllDataForExport
+        }}
       />
     </div>
   );
+}
+
+/**
+ * Helper function to create an action column with colored chips
+ */
+function createActionColumn({ accessorKey = 'actionType' } = {}) {
+  return {
+    accessorKey,
+    cell: ({ row }) => {
+      const action = row.getValue(accessorKey);
+      const color = getActionColor(action);
+
+      return (
+        <Chip color={color} size='lg' variant='soft'>
+          {action || '-'}
+        </Chip>
+      );
+    },
+    header: 'Action',
+    maxSize: 150,
+    minSize: 60,
+    size: 75
+  };
+}
+
+/**
+ * Helper function to create an additional comment column with text wrapping
+ */
+function createAdditionalCommentColumn({
+  accessorKey = 'additionalComment'
+} = {}) {
+  return {
+    accessorKey,
+    cell: ({ row }) => {
+      const comment = row.getValue(accessorKey);
+      if (!comment) return '-';
+
+      return (
+        <div className='max-w-sm text-wrap'>
+          <span className='text-sm' title={comment}>
+            {comment}
+          </span>
+        </div>
+      );
+    },
+    header: 'Comment',
+    maxSize: 300,
+    minSize: 40,
+    size: 75
+  };
+}
+
+/**
+ * Helper function to create an object column with type and name
+ */
+function createObjectColumn({
+  baseUrl = null,
+  idKey = 'objectId',
+  nameKey = 'objectName',
+  tabId = null,
+  typeKey = 'objectType'
+} = {}) {
+  return {
+    accessorKey: nameKey,
+    cell: ({ row }) => {
+      const name = row.getValue(nameKey);
+      const type = row.original[typeKey];
+      const id = row.original[idKey];
+      const [url, setUrl] = useState(null);
+
+      // Build URL asynchronously when component mounts or data changes
+      useEffect(() => {
+        const buildUrlAsync = async () => {
+          if (!type || !id || !baseUrl) {
+            setUrl(null);
+            return;
+          }
+
+          try {
+            // Create a DomoObject instance and use its buildUrl method
+            const domoObject = new DomoObject(type, id, baseUrl);
+
+            // Only build URL if the object type has a navigable URL
+            if (domoObject.hasUrl()) {
+              const builtUrl = await domoObject.buildUrl(baseUrl, tabId);
+              setUrl(builtUrl);
+            } else {
+              setUrl(null);
+            }
+          } catch (error) {
+            console.warn('Failed to build URL for object:', error);
+            setUrl(null);
+          }
+        };
+
+        buildUrlAsync();
+      }, [type, id, baseUrl, tabId]);
+
+      return (
+        <div className='flex flex-col gap-1'>
+          {url ? (
+            <Link
+              className='text-sm font-medium no-underline decoration-accent/80 hover:text-accent/80 hover:underline'
+              href={url}
+              target='_blank'
+            >
+              {name || '-'}
+            </Link>
+          ) : (
+            <span className='text-sm font-medium'>{name || '-'}</span>
+          )}
+          {type && (
+            <Chip className='w-fit' size='sm'>
+              {type}
+            </Chip>
+          )}
+        </div>
+      );
+    },
+    header: 'Object'
+  };
+}
+
+/**
+ * Helper function to create a timestamp column with formatted date/time
+ */
+function createTimestampColumn({ accessorKey = 'time' } = {}) {
+  return {
+    accessorKey,
+    cell: ({ row }) => {
+      const timestamp = row.getValue(accessorKey);
+      if (!timestamp) return '-';
+
+      const date = new Date(timestamp);
+      const dateStr = date.toLocaleDateString();
+      const timeStr = date.toLocaleTimeString();
+
+      return (
+        <div className='flex flex-col'>
+          <span className='text-sm font-medium'>{dateStr}</span>
+          <span className='text-xs text-muted'>{timeStr}</span>
+        </div>
+      );
+    },
+    header: 'Timestamp',
+    maxSize: 75,
+    minSize: 75,
+    size: 75
+  };
+}
+
+/**
+ * Helper function to create a user column with name and email
+ */
+function createUserColumn({ idKey = 'userId', nameKey = 'userName' } = {}) {
+  return {
+    accessorKey: nameKey,
+    cell: ({ row }) => {
+      const name = row.getValue(nameKey);
+      const id = row.original[idKey];
+
+      return (
+        <div className='flex flex-col'>
+          <span className='truncate text-sm font-medium' title={name}>
+            {name || '-'}
+          </span>
+          {id && (
+            <span className='truncate text-xs text-muted' title={id}>
+              {id}
+            </span>
+          )}
+        </div>
+      );
+    },
+    header: 'User',
+    maxSize: 180,
+    minSize: 60,
+    size: 75
+  };
+}
+
+/**
+ * Get color for an action based on exact match or partial match
+ * @param {string} action - The action string
+ * @returns {string} The color name
+ */
+function getActionColor(action) {
+  if (!action) return 'default';
+
+  const actionLower = action.toLowerCase();
+
+  // Try partial matches
+  for (const [pattern, color] of Object.entries(ACTION_COLOR_PATTERNS)) {
+    if (actionLower.includes(pattern)) {
+      return color;
+    }
+  }
+
+  return 'default';
 }

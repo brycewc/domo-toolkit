@@ -1,6 +1,47 @@
 import { executeInPage } from '@/utils';
 
 /**
+ * Get the DataFlow ID for a given output DataSet (reverse lookup).
+ * Only applicable when the DataSet is an output of a DataFlow.
+ * @param {string} datasetId - The DataSet UUID
+ * @param {number} [tabId] - Optional Chrome tab ID
+ * @returns {Promise<string>} The DataFlow ID
+ * @throws {Error} If the dataflow cannot be fetched
+ */
+export async function getDataflowForOutputDataset(datasetId, tabId = null) {
+  const fetchLogic = async (datasetId) => {
+    const response = await fetch(
+      `/api/dataprocessing/v2/dataflows/${datasetId}?populateActions=false&excludeFields=executionCount`,
+      {
+        credentials: 'include',
+        method: 'GET'
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch DataFlow for DataSet ${datasetId}. HTTP status: ${response.status}`
+      );
+    }
+
+    const data = await response.json();
+
+    if (!data.id) {
+      throw new Error(`No DataFlow ID returned for DataSet ${datasetId}`);
+    }
+
+    return data.id.toString();
+  };
+
+  try {
+    return await executeInPage(fetchLogic, [datasetId], tabId);
+  } catch (error) {
+    console.error('Error fetching DataFlow for DataSet:', error);
+    throw error;
+  }
+}
+
+/**
  * Update a DataFlow's details (name and description)
  * @param {string} dataflowId - The DataFlow ID
  * @param {Object} updates - Object containing name and/or description
@@ -23,12 +64,12 @@ export async function updateDataflowDetails(dataflowId, updates) {
         const updateResponse = await fetch(
           `/api/dataprocessing/v1/dataflows/${dataflowId}/patch`,
           {
-            method: 'PUT',
+            body: JSON.stringify(payload),
             credentials: 'include',
             headers: {
               'Content-Type': 'application/json'
             },
-            body: JSON.stringify(payload)
+            method: 'PUT'
           }
         );
 

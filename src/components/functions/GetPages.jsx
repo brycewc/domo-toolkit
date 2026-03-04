@@ -1,20 +1,20 @@
-import { useState } from 'react';
 import { Button, Spinner } from '@heroui/react';
-import {
-  waitForChildPages,
-  isSidepanel,
-  showStatus,
-  storeSidepanelData,
-  openSidepanel
-} from '@/utils';
-import { getCardsForObject, getPagesForCards } from '@/services';
 import { IconCopy } from '@tabler/icons-react';
+import { useState } from 'react';
+
+import { getCardsForObject, getPagesForCards } from '@/services';
+import {
+  isSidepanel,
+  openSidepanel,
+  storeSidepanelData,
+  waitForChildPages
+} from '@/utils';
 
 export function GetPages({
   currentContext,
-  onStatusUpdate,
   isDisabled,
-  onCollapseActions
+  onCollapseActions,
+  onStatusUpdate
 }) {
   const [isLoading, setIsLoading] = useState(false);
 
@@ -50,15 +50,25 @@ export function GetPages({
         return;
       }
 
-      // Derive objectName for status messages (not stored, just for local use)
+      // Popup: hand off intent to sidepanel immediately, no API calls
+      if (!isSidepanel()) {
+        await storeSidepanelData({
+          currentContext,
+          type: 'getPages'
+        });
+        openSidepanel();
+        return;
+      }
+
+      // Sidepanel: fetch data, then display
       const objectName =
         currentContext.domoObject.metadata?.parent?.name ||
         currentContext.domoObject.metadata?.name ||
         `Unknown ${objectType}`;
 
       let childPages = [];
+      let cardsByPage;
 
-      // Handle DATA_SOURCE differently - get cards then pages for those cards
       if (objectType === 'DATA_SOURCE') {
         const cards = await getCardsForObject({
           objectId: currentContext.domoObject.id,
@@ -76,11 +86,12 @@ export function GetPages({
           return;
         }
 
-        // Get all pages that those cards appear on
-        const pages = await getPagesForCards(
+        const pagesResult = await getPagesForCards(
           cards.map((card) => card.id),
           currentContext?.tabId
         );
+        const pages = pagesResult.pages;
+        cardsByPage = pagesResult.cardsByPage;
 
         if (!pages || pages.length === 0) {
           onStatusUpdate?.(
@@ -92,16 +103,14 @@ export function GetPages({
           return;
         }
 
-        // Transform to match CARD format (grouped by page type)
         childPages = pages.map((page) => ({
+          appId: page.appId || null,
+          appName: page.appName || null,
           pageId: page.id,
           pageTitle: page.name,
-          pageType: page.type,
-          appId: page.appId || null, // Include appId for DATA_APP_VIEW URLs
-          appName: page.appName || null
+          pageType: page.type
         }));
       } else {
-        // For PAGE, DATA_APP_VIEW, and CARD - use existing logic
         const result = await waitForChildPages(currentContext);
 
         if (!result.success) {
@@ -111,104 +120,83 @@ export function GetPages({
         }
 
         childPages = result.childPages;
+
+        if (!childPages || childPages.length === 0) {
+          switch (currentContext.domoObject.typeId) {
+            case 'CARD':
+              onStatusUpdate?.(
+                'No Pages',
+                'This card is not used in any pages, app studio pages, or report builder pages.',
+                'warning',
+                3000
+              );
+              break;
+            case 'DATA_APP_VIEW':
+              onStatusUpdate?.(
+                'No Pages',
+                'This app studio app has no pages.',
+                'warning',
+                3000
+              );
+              break;
+            case 'DATA_SOURCE':
+              onStatusUpdate?.(
+                'No Cards Found',
+                'No cards found using this dataset.',
+                'warning',
+                3000
+              );
+              break;
+            case 'PAGE':
+              onStatusUpdate?.(
+                'No Child Pages',
+                'This page has no child pages.',
+                'warning',
+                3000
+              );
+              break;
+            default:
+              onStatusUpdate?.(
+                'No Pages',
+                'No pages found for this object.',
+                'warning',
+                3000
+              );
+          }
+
+          setIsLoading(false);
+          return;
+        }
+
         if (objectType === 'CARD') {
-          // Transform to match CARD format (grouped by page type)
           childPages = childPages.map((page) => ({
+            appId: page.appId || null,
+            appName: page.appName || null,
             pageId: page.id,
             pageTitle: page.name,
-            pageType: page.type,
-            appId: page.appId || null, // Include appId for DATA_APP_VIEW URLs
-            appName: page.appName || null
+            pageType: page.type
           }));
         }
       }
 
-      // If no child pages, show message
-      if (childPages.length > 0) {
-        const inSidepanel = isSidepanel();
-
-        // Collapse action buttons if in sidepanel (only when we have pages to show)
-        if (onCollapseActions) {
-          // Store loading state so sidepanel shows loading indicator
-          await storeSidepanelData({
-            type: 'loading',
-            message: 'Loading pages...',
-            timestamp: Date.now()
-          });
-
-          onCollapseActions();
-          // Wait for collapse animation to complete before triggering view change
-          await new Promise((resolve) => setTimeout(resolve, 175));
-        }
-
-        if (!inSidepanel) {
-          openSidepanel();
-          // Show status message
-          await showStatus({
-            onStatusUpdate,
-            title: 'Opening Sidepanel',
-            description: 'Loading pages...',
-            status: 'success',
-            timeout: 2000,
-            inSidepanel
-          });
-        }
-
-        // Store the page information for the sidepanel to use
-        // Only store type, currentContext, and feature-specific data (childPages)
-        // objectId, objectName, objectType are derived from currentContext.domoObject
+      if (onCollapseActions) {
         await storeSidepanelData({
-          type: 'getPages',
-          currentContext,
-          childPages,
-          statusShown: true
+          message: 'Loading pages...',
+          timestamp: Date.now(),
+          type: 'loading'
         });
-      } else {
-        switch (currentContext.domoObject.typeId) {
-          case 'PAGE':
-            onStatusUpdate?.(
-              'No Child Pages',
-              `This page has no child pages.`,
-              'warning',
-              3000
-            );
-            break;
-          case 'DATA_APP_VIEW':
-            onStatusUpdate?.(
-              'No Pages',
-              `This app studio app has no pages.`,
-              'warning',
-              3000
-            );
-            break;
-          case 'CARD':
-            onStatusUpdate?.(
-              'No Pages',
-              `This card is not used in any pages, app studio pages, or report builder pages.`,
-              'warning',
-              3000
-            );
-            break;
-          case 'DATA_SOURCE':
-            onStatusUpdate?.(
-              'No Cards Found',
-              `No cards found using this dataset.`,
-              'warning',
-              3000
-            );
-            break;
-          default:
-            onStatusUpdate?.(
-              'No Pages',
-              `No pages found for this object.`,
-              'warning',
-              3000
-            );
-        }
 
-        setIsLoading(false);
-        return;
+        onCollapseActions();
+        await new Promise((resolve) => setTimeout(resolve, 175));
       }
+
+      await storeSidepanelData({
+        cardsByPage,
+        childPages,
+        currentContext,
+        statusShown: true,
+        type: 'getPages'
+      });
     } catch (error) {
       console.error('[GetPages] Error opening sidepanel:', error);
       onStatusUpdate?.(
@@ -223,13 +211,12 @@ export function GetPages({
 
   return (
     <Button
-      variant='tertiary'
       fullWidth
-      onPress={handleGetPages}
+      className='min-w-36 flex-1 whitespace-normal'
       isDisabled={isDisabled}
       isPending={isLoading}
-      isIconOnly={isLoading}
-      className='relative min-w-fit flex-1 basis-[48%] overflow-visible'
+      variant='tertiary'
+      onPress={handleGetPages}
     >
       {({ isPending }) => {
         if (isPending) {
@@ -239,14 +226,14 @@ export function GetPages({
         const typeId = currentContext?.domoObject?.typeId;
         let message = 'Get Pages';
         switch (typeId) {
-          case 'DATA_SOURCE':
-            message = 'Get Pages for DataSet Cards';
-            break;
           case 'CARD':
             message = 'Get Pages for Card';
             break;
           case 'DATA_APP_VIEW':
             message = 'Get App Pages';
+            break;
+          case 'DATA_SOURCE':
+            message = 'Get Pages for DataSet Cards';
             break;
           case 'PAGE':
             message = 'Get Child Pages';
@@ -257,7 +244,8 @@ export function GetPages({
 
         return (
           <>
-            <IconCopy stroke={1.5} /> {message}
+            <IconCopy stroke={1.5} />
+            {message}
           </>
         );
       }}

@@ -1,135 +1,34 @@
-import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import {
   Alert,
   Chip,
   Disclosure,
   Link,
+  ScrollShadow,
   Spinner,
   Tabs,
   Tooltip
 } from '@heroui/react';
 import { IconClipboard } from '@tabler/icons-react';
-import { AnimatedCheck } from './AnimatedCheck';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import JsonView from 'react18-json-view';
+
 import { getObjectType } from '@/models';
 import { fetchObjectDetailsInPage } from '@/services';
 import { executeInPage } from '@/utils';
-import JsonView from 'react18-json-view';
+
+import { AnimatedCheck } from './AnimatedCheck';
 import '@/assets/json-view-theme.css';
 
-/**
- * Shared JsonView configuration used across all tabs
- */
-function MetadataJsonView({ src }) {
-  return (
-    <JsonView
-      className='min-h-0 flex-1'
-      src={src}
-      collapsed={1}
-      matchesURL={false}
-      displaySize
-      collapseStringMode='word'
-      collapseStringsAfterLength={50}
-      CopyComponent={({ onClick, className, style }) => (
-        <IconClipboard
-          onClick={onClick}
-          className={className}
-          style={style}
-          size={16}
-          stroke={1.5}
-        />
-      )}
-      CopiedComponent={({ className, style }) => (
-        <AnimatedCheck
-          className={className}
-          style={style}
-          size={16}
-          stroke={1.5}
-        />
-      )}
-      customizeNode={(params) => {
-        if (params.node === null || params.node === undefined) {
-          return { enableClipboard: false };
-        }
-        if (
-          typeof params.node === 'string' &&
-          params.node.startsWith('https://')
-        ) {
-          return (
-            <Link
-              href={params.node}
-              target='_blank'
-              className='text-(--json-boolean) no-underline decoration-(--json-boolean) hover:underline'
-            >
-              {params.node}
-            </Link>
-          );
-        }
-        if (params.indexOrName?.toLowerCase().includes('id')) {
-          return { enableClipboard: true };
-        } else if (
-          (typeof params.node === 'number' ||
-            typeof params.node === 'string') &&
-          params.node?.toString().length >= 7
-        ) {
-          return { enableClipboard: true };
-        } else if (
-          typeof params.node === 'object' &&
-          Object.keys(params.node).length > 0
-        ) {
-          return { enableClipboard: true };
-        } else if (Array.isArray(params.node) && params.node.length > 0) {
-          return { enableClipboard: true };
-        } else {
-          return { enableClipboard: false };
-        }
-      }}
-    />
-  );
-}
-
-export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
+export function ContextFooter({
+  currentContext,
+  isLoading,
+  onStatusUpdate: _onStatusUpdate
+}) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [relatedCache, setRelatedCache] = useState({});
   const [loadingTabs, setLoadingTabs] = useState({});
+  const [activeTabId, setActiveTabId] = useState(null);
   const disclosureRef = useRef(null);
-
-  // Directly set max-height on tab panels via DOM to bypass HeroUI internals
-  const updatePanelMaxHeight = useCallback(() => {
-    if (!disclosureRef.current) return;
-    const viewportHeight = window.innerHeight;
-    const alertEl = disclosureRef.current.querySelector('.disclosure__heading');
-    const tabList = disclosureRef.current.querySelector(
-      '.tabs__list-container'
-    );
-    const alertRect = alertEl?.getBoundingClientRect();
-    const alertTop = Math.max(0, alertRect?.top || 0);
-    const alertHeight = alertRect?.height || 0;
-    const tabListHeight = tabList?.offsetHeight || 0;
-    const buffer = 65;
-    const available =
-      viewportHeight - alertTop - alertHeight - tabListHeight - buffer;
-    const maxH = `${Math.max(available, 100)}px`;
-
-    // Apply directly to all tab panels and the single-view fallback
-    disclosureRef.current
-      .querySelectorAll('.tabs__panel, [data-json-scroll]')
-      .forEach((el) => {
-        el.style.maxHeight = maxH;
-      });
-  }, []);
-
-  useEffect(() => {
-    if (!isExpanded) return;
-
-    // Measure after expansion animation settles
-    const timer = setTimeout(updatePanelMaxHeight, 100);
-    window.addEventListener('resize', updatePanelMaxHeight);
-
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener('resize', updatePanelMaxHeight);
-    };
-  }, [isExpanded, updatePanelMaxHeight]);
 
   // Compute available tabs: current object + related objects
   const tabs = useMemo(() => {
@@ -142,31 +41,47 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
     // First tab: current object
     const result = [
       {
-        id: domoObject.typeId,
-        label: typeModel.name,
         details: domoObject.metadata?.details || domoObject.metadata,
-        objectId: domoObject.id,
-        isCurrentObject: true
+        id: domoObject.typeId,
+        isCurrentObject: true,
+        label: typeModel.name,
+        objectId: domoObject.id
       }
     ];
 
     // Additional tabs from relatedObjects config
     if (typeModel.relatedObjects) {
       for (const related of typeModel.relatedObjects) {
+        if (related.isArray) {
+          const arrayData = domoObject.metadata?.details?.[related.field];
+          if (arrayData?.length > 0) {
+            result.push({
+              data: arrayData,
+              id: related.field,
+              isArray: true,
+              isCurrentObject: false,
+              label: `${related.label} (${arrayData.length})`
+            });
+          }
+          continue;
+        }
+
         let relatedId;
         if (related.source === 'parentId') {
           relatedId = domoObject.parentId;
         } else {
-          relatedId = domoObject.metadata?.details?.[related.field];
+          relatedId = related.field
+            .split('.')
+            .reduce((obj, key) => obj?.[key], domoObject.metadata?.details);
         }
 
         if (relatedId) {
           result.push({
-            id: related.typeId,
+            id: related.field || related.source || related.typeId,
+            isCurrentObject: false,
             label: related.label,
             objectId: relatedId,
-            typeId: related.typeId,
-            isCurrentObject: false
+            typeId: related.typeId
           });
         }
       }
@@ -176,9 +91,9 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
     if (process.env.NODE_ENV === 'development') {
       result.push({
         id: '_full_context',
-        label: 'Full Context',
+        isCurrentObject: false,
         isFullContext: true,
-        isCurrentObject: false
+        label: 'Full Context'
       });
     }
 
@@ -190,11 +105,26 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
     currentContext?.domoObject?.metadata
   ]);
 
+  // Default activeTabId to first tab when tabs change
+  useEffect(() => {
+    if (tabs.length > 0 && !tabs.find((t) => t.id === activeTabId)) {
+      setActiveTabId(tabs[0].id);
+    }
+  }, [tabs, activeTabId]);
+
   // Lazy-load related object details when a tab is selected
   const handleTabChange = async (key) => {
-    // Skip if it's the current object tab or already cached/loading
+    setActiveTabId(key);
+
+    // Skip if it's the current object tab, an array tab, or already cached/loading
     const tab = tabs.find((t) => t.id === key);
-    if (!tab || tab.isCurrentObject || relatedCache[key] || loadingTabs[key]) {
+    if (
+      !tab ||
+      tab.isCurrentObject ||
+      tab.isArray ||
+      relatedCache[key] ||
+      loadingTabs[key]
+    ) {
       return;
     }
 
@@ -205,13 +135,13 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
 
     try {
       const params = {
-        typeId: relatedType.id,
-        objectId: tab.objectId,
-        baseUrl: currentContext?.domoObject?.baseUrl,
         apiConfig: relatedType.api,
-        requiresParent: relatedType.requiresParentForApi(),
+        baseUrl: currentContext?.domoObject?.baseUrl,
+        objectId: tab.objectId,
         parentId: null,
-        throwOnError: false
+        requiresParent: relatedType.requiresParentForApi(),
+        throwOnError: false,
+        typeId: relatedType.id
       };
 
       const metadata = await executeInPage(
@@ -239,31 +169,77 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
     }
   };
 
+  // Derive the JSON source for the active tab
+  const activeTab = tabs.find((t) => t.id === activeTabId);
+  const renderJsonContent = () => {
+    if (!activeTab) return null;
+
+    if (activeTab.isCurrentObject) {
+      return (
+        <MetadataJsonView
+          src={
+            currentContext?.domoObject?.metadata?.details ||
+            currentContext?.domoObject?.metadata
+          }
+        />
+      );
+    }
+
+    if (activeTab.isArray) {
+      return <MetadataJsonView collapsed={2} src={activeTab.data} />;
+    }
+
+    if (activeTab.isFullContext) {
+      return <MetadataJsonView src={currentContext} />;
+    }
+
+    if (loadingTabs[activeTabId]) {
+      return (
+        <div className='flex items-center justify-center py-4'>
+          <Spinner size='sm' />
+        </div>
+      );
+    }
+
+    if (relatedCache[activeTabId]) {
+      return <MetadataJsonView src={relatedCache[activeTabId]} />;
+    }
+
+    return (
+      <p className='py-2 text-center text-sm text-muted'>
+        Select this tab to load details
+      </p>
+    );
+  };
+
   const alertContent = (
     <Alert
-      status={currentContext?.isDomoPage || isLoading ? 'accent' : 'warning'}
       className='min-h-20 w-full p-2'
+      status={currentContext?.isDomoPage || isLoading ? 'accent' : 'warning'}
     >
       <Alert.Content
         className={`flex flex-col gap-2 ${isLoading ? 'items-center justify-center' : 'items-start'}`}
       >
         {isLoading ? (
-          <Spinner size='sm' color='accent' />
+          <Spinner color='accent' size='sm' />
         ) : (
           <>
-            <Alert.Title className='flex w-full items-start justify-between'>
+            <div
+              className='alert__title flex w-full items-start justify-between'
+              data-slot='alert-title'
+            >
               {currentContext?.isDomoPage ? (
                 <div className='flex flex-wrap items-center gap-x-1'>
                   <span className='flex flex-wrap items-center justify-start gap-x-1'>
                     Current Context
                   </span>
-                  <Tooltip delay={400} closeDelay={0}>
+                  <Tooltip closeDelay={0} delay={400}>
                     <Tooltip.Trigger className='flex items-center'>
                       <Chip
-                        color='accent'
-                        variant='soft'
                         className='w-fit lowercase'
+                        color='accent'
                         size='sm'
+                        variant='soft'
                       >
                         {currentContext?.instance}
                       </Chip>
@@ -272,23 +248,23 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
                       Instance: {currentContext?.instance}.domo.com
                     </Tooltip.Content>
                   </Tooltip>
-                  <Tooltip delay={400} closeDelay={0}>
+                  <Tooltip closeDelay={0} delay={400}>
                     <Tooltip.Trigger className='flex items-center'>
                       <Chip
-                        color='accent'
-                        variant='soft'
                         className='w-fit lowercase'
+                        color='accent'
                         size='sm'
+                        variant='soft'
                       >
                         {currentContext?.domoObject?.typeName}
                       </Chip>
                     </Tooltip.Trigger>
                     <Tooltip.Content className='flex items-center rounded p-0'>
                       <Chip
+                        className='w-fit rounded-xl'
                         color='accent'
-                        variant='soft'
-                        className='w-fit rounded'
                         size='sm'
+                        variant='soft'
                       >
                         {currentContext?.domoObject?.typeId}
                       </Chip>
@@ -299,8 +275,8 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
                 'Not a Domo Instance'
               )}
               <Tooltip
-                delay={400}
                 closeDelay={0}
+                delay={400}
                 isDisabled={
                   !currentContext?.domoObject?.id || !currentContext?.isDomoPage
                 }
@@ -312,11 +288,11 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
                   Click to toggle context JSON view
                 </Tooltip.Content>
               </Tooltip>
-            </Alert.Title>
+            </div>
             <Alert.Description className='flex h-full flex-col flex-wrap items-start justify-center gap-1'>
               {currentContext?.isDomoPage ? (
                 isLoading ? (
-                  <Spinner size='sm' color='accent' />
+                  <Spinner color='accent' size='sm' />
                 ) : !currentContext?.instance ||
                   !currentContext?.domoObject?.id ? (
                   'No object detected on this page'
@@ -329,7 +305,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
                   </div>
                 )
               ) : (
-                'Navigate to an instance to enable most extension features'
+                'Navigate to an instance to enable most features'
               )}
             </Alert.Description>
           </>
@@ -349,10 +325,10 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
 
   return (
     <Disclosure
-      ref={disclosureRef}
+      className={`w-full ${isExpanded ? 'flex min-h-0 flex-1 flex-col gap-1' : ''}`}
       isExpanded={isExpanded}
+      ref={disclosureRef}
       onExpandedChange={setIsExpanded}
-      className='w-full'
     >
       <Disclosure.Heading>
         <Disclosure.Trigger className='w-full cursor-pointer'>
@@ -360,65 +336,124 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate }) {
         </Disclosure.Trigger>
       </Disclosure.Heading>
       <Disclosure.Content
-        className={`card bg-surface p-0 ${isExpanded ? 'mt-1' : ''}`}
+        className={`card flex min-h-0 flex-1 flex-col bg-surface p-0 ${isExpanded ? '' : 'collapse'}`}
       >
-        <Disclosure.Body className='card__content gap-1 p-0'>
-          {tabs.length > 1 ? (
-            <Tabs variant='secondary' onSelectionChange={handleTabChange}>
-              <Tabs.ListContainer>
-                <Tabs.List aria-label='Object details'>
-                  {tabs.map((tab) => (
-                    <Tabs.Tab key={tab.id} id={tab.id} className='capitalize'>
-                      {tab.label}
-                      <Tabs.Indicator />
-                    </Tabs.Tab>
-                  ))}
-                </Tabs.List>
-              </Tabs.ListContainer>
-              {tabs.map((tab) => (
-                <Tabs.Panel
-                  key={tab.id}
-                  id={tab.id}
-                  className='overflow-y-auto overscroll-y-contain'
-                >
-                  {tab.isCurrentObject ? (
-                    <MetadataJsonView
-                      src={
-                        currentContext?.domoObject?.metadata?.details ||
-                        currentContext?.domoObject?.metadata
-                      }
-                    />
-                  ) : tab.isFullContext ? (
-                    <MetadataJsonView src={currentContext} />
-                  ) : loadingTabs[tab.id] ? (
-                    <div className='flex items-center justify-center py-4'>
-                      <Spinner size='sm' />
-                    </div>
-                  ) : relatedCache[tab.id] ? (
-                    <MetadataJsonView src={relatedCache[tab.id]} />
-                  ) : (
-                    <p className='py-2 text-center text-sm text-muted'>
-                      Select this tab to load details
-                    </p>
-                  )}
-                </Tabs.Panel>
-              ))}
-            </Tabs>
-          ) : (
-            <div
-              data-json-scroll
-              className='overflow-y-auto overscroll-y-contain'
+        <div className='card__content flex min-h-0 w-full flex-1 flex-col gap-2 p-2'>
+          {tabs.length > 1 && (
+            <Tabs
+              className='w-full shrink-0'
+              selectedKey={activeTabId}
+              // variant='secondary'
+              onSelectionChange={handleTabChange}
             >
-              <MetadataJsonView
-                src={
-                  currentContext?.domoObject?.metadata?.details ||
-                  currentContext?.domoObject?.metadata
-                }
-              />
-            </div>
+              <Tabs.ListContainer>
+                <ScrollShadow
+                  hideScrollBar
+                  className='w-full flex-1'
+                  offset={2}
+                  orientation='horizontal'
+                  size={40}
+                >
+                  <Tabs.List
+                    aria-label='Object details'
+                    className='w-fit min-w-full flex-nowrap'
+                  >
+                    {tabs.map((tab) => (
+                      <Tabs.Tab
+                        className='min-w-32 capitalize'
+                        id={tab.id}
+                        key={tab.id}
+                      >
+                        {tab.label}
+                        <Tabs.Indicator />
+                      </Tabs.Tab>
+                    ))}
+                  </Tabs.List>
+                </ScrollShadow>
+              </Tabs.ListContainer>
+            </Tabs>
           )}
-        </Disclosure.Body>
+          <ScrollShadow
+            hideScrollBar
+            className='min-h-0 flex-1 overflow-y-auto overscroll-y-contain'
+            offset={2}
+            orientation='vertical'
+          >
+            {renderJsonContent()}
+          </ScrollShadow>
+        </div>
       </Disclosure.Content>
     </Disclosure>
+  );
+}
+
+/**
+ * Shared JsonView configuration used across all tabs
+ */
+function MetadataJsonView({ collapsed = 1, src }) {
+  return (
+    <JsonView
+      displaySize
+      className='text-sm'
+      collapsed={collapsed}
+      collapseStringMode='word'
+      collapseStringsAfterLength={50}
+      matchesURL={false}
+      src={src}
+      CopiedComponent={({ className, style }) => (
+        <AnimatedCheck
+          className={className + ' text-success'}
+          size={16}
+          stroke={1.5}
+          style={style}
+        />
+      )}
+      CopyComponent={({ className, onClick, style }) => (
+        <IconClipboard
+          className={className}
+          size={16}
+          stroke={1.5}
+          style={style}
+          onClick={onClick}
+        />
+      )}
+      customizeNode={(params) => {
+        if (params.node === null || params.node === undefined) {
+          return { enableClipboard: false };
+        }
+        if (
+          typeof params.node === 'string' &&
+          params.node.startsWith('https://')
+        ) {
+          return (
+            <Link
+              className='text-sm text-accent no-underline decoration-accent hover:underline'
+              href={params.node}
+              target='_blank'
+            >
+              {params.node}
+            </Link>
+          );
+        }
+        if (params.indexOrName?.toLowerCase().includes('id')) {
+          return { enableClipboard: true };
+        } else if (
+          (typeof params.node === 'number' ||
+            typeof params.node === 'string') &&
+          params.node?.toString().length >= 7
+        ) {
+          return { enableClipboard: true };
+        } else if (
+          typeof params.node === 'object' &&
+          Object.keys(params.node).length > 0
+        ) {
+          return { enableClipboard: true };
+        } else if (Array.isArray(params.node) && params.node.length > 0) {
+          return { enableClipboard: true };
+        } else {
+          return { enableClipboard: false };
+        }
+      }}
+    />
   );
 }

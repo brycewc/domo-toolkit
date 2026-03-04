@@ -1,7 +1,5 @@
-import { useState, useEffect } from 'react';
 import {
   Button,
-  ComboBox,
   Description,
   Form,
   Input,
@@ -11,38 +9,36 @@ import {
   Switch,
   TextField
 } from '@heroui/react';
-import { StatusBar } from '../StatusBar';
+import { toast } from '@heroui/react';
 import {
   IconCheck,
   IconChevronDown,
   IconDeviceFloppy
 } from '@tabler/icons-react';
+import { useEffect, useState } from 'react';
+
+import toolkitLogo from '@/assets/toolkit-128.png';
+import toolkitLogoDark from '@/assets/toolkit-dark-128.png';
 
 export function Settings({ theme = 'system' }) {
   const [isLoading, setIsLoading] = useState(true);
 
   // Store all settings in a single state object for extensibility
   const [settings, setSettings] = useState({
-    themePreference: theme,
-    defaultDomoInstance: '',
+    cardErrorDetection: false,
     defaultClearCookiesHandling: 'auto',
-    cardErrorDetection: true
+    defaultDomoInstance: '',
+    iconStyle: 'light',
+    themePreference: theme
   });
 
   // Track original settings to detect changes
   const [originalSettings, setOriginalSettings] = useState({
-    themePreference: theme,
-    defaultDomoInstance: '',
+    cardErrorDetection: false,
     defaultClearCookiesHandling: 'auto',
-    cardErrorDetection: true
-  });
-
-  const [statusBar, setStatusBar] = useState({
-    title: '',
-    description: '',
-    status: 'accent',
-    timeout: 3000,
-    visible: false
+    defaultDomoInstance: '',
+    iconStyle: 'light',
+    themePreference: theme
   });
 
   useEffect(() => {
@@ -50,17 +46,19 @@ export function Settings({ theme = 'system' }) {
     chrome.storage.sync.get(
       [
         'themePreference',
+        'iconStyle',
         'defaultDomoInstance',
         'defaultClearCookiesHandling',
         'cardErrorDetection'
       ],
       (result) => {
         const loadedSettings = {
-          themePreference: result.themePreference || theme || 'system',
-          defaultDomoInstance: result.defaultDomoInstance || '',
+          cardErrorDetection: result.cardErrorDetection ?? false,
           defaultClearCookiesHandling:
             result.defaultClearCookiesHandling || 'auto',
-          cardErrorDetection: result.cardErrorDetection ?? true
+          defaultDomoInstance: result.defaultDomoInstance || '',
+          iconStyle: result.iconStyle || 'light',
+          themePreference: result.themePreference || theme || 'system'
         };
         setSettings(loadedSettings);
         setOriginalSettings(loadedSettings);
@@ -78,6 +76,11 @@ export function Settings({ theme = 'system' }) {
 
           if (changes.themePreference) {
             updatedSettings.themePreference = changes.themePreference.newValue;
+            hasChanges = true;
+          }
+
+          if (changes.iconStyle) {
+            updatedSettings.iconStyle = changes.iconStyle.newValue;
             hasChanges = true;
           }
 
@@ -108,6 +111,11 @@ export function Settings({ theme = 'system' }) {
 
           if (changes.themePreference) {
             updatedOriginal.themePreference = changes.themePreference.newValue;
+            hasChanges = true;
+          }
+
+          if (changes.iconStyle) {
+            updatedOriginal.iconStyle = changes.iconStyle.newValue;
             hasChanges = true;
           }
 
@@ -158,6 +166,13 @@ export function Settings({ theme = 'system' }) {
     }));
   };
 
+  const handleIconStyleChange = (value) => {
+    setSettings((prev) => ({
+      ...prev,
+      iconStyle: value
+    }));
+  };
+
   const handleDefaultInstanceChange = (value) => {
     setSettings((prev) => ({
       ...prev,
@@ -189,11 +204,7 @@ export function Settings({ theme = 'system' }) {
     status = 'accent',
     timeout = 3000
   ) => {
-    setStatusBar({ title, description, status, timeout, visible: true });
-  };
-
-  const hideStatus = () => {
-    setStatusBar((prev) => ({ ...prev, visible: false }));
+    toast(title, { description, timeout: timeout || 0, variant: status });
   };
 
   if (isLoading) {
@@ -202,12 +213,12 @@ export function Settings({ theme = 'system' }) {
 
   return (
     <div className='flex h-full min-h-[calc(100vh-20)] w-md flex-col gap-2 pt-4'>
-      <Form onSubmit={handleSubmit} className='flex flex-col gap-2'>
+      <Form className='flex flex-col gap-2' onSubmit={handleSubmit}>
         <Select
-          value={settings.themePreference}
-          onChange={handleThemeChange}
           className='w-40'
           placeholder={theme}
+          value={settings.themePreference}
+          onChange={handleThemeChange}
         >
           <Label>Theme</Label>
           <Select.Trigger>
@@ -222,30 +233,67 @@ export function Settings({ theme = 'system' }) {
                 System
                 <ListBox.ItemIndicator>
                   {({ isSelected }) =>
-                    isSelected ? <IconCheck stroke={1.5} /> : null
-                  }
+                    isSelected ? <IconCheck stroke={1.5} /> : null}
                 </ListBox.ItemIndicator>
               </ListBox.Item>
               <ListBox.Item id='light' textValue='Light'>
                 Light
                 <ListBox.ItemIndicator>
                   {({ isSelected }) =>
-                    isSelected ? <IconCheck stroke={1.5} /> : null
-                  }
+                    isSelected ? <IconCheck stroke={1.5} /> : null}
                 </ListBox.ItemIndicator>
               </ListBox.Item>
               <ListBox.Item id='dark' textValue='Dark'>
                 Dark
                 <ListBox.ItemIndicator>
                   {({ isSelected }) =>
-                    isSelected ? <IconCheck stroke={1.5} /> : null
-                  }
+                    isSelected ? <IconCheck stroke={1.5} /> : null}
                 </ListBox.ItemIndicator>
               </ListBox.Item>
             </ListBox>
           </Select.Popover>
+          <Description className='w-lg'>
+            System, light, or dark theme (applies to popup, side panel, and
+            options pages)
+          </Description>
         </Select>
-        <TextField onChange={handleDefaultInstanceChange} className='w-40'>
+        <Select
+          className='w-40'
+          value={settings.iconStyle}
+          onChange={handleIconStyleChange}
+        >
+          <Label>Extension Icon</Label>
+          <Select.Trigger>
+            <Select.Value className='flex items-center gap-2' />
+            <Select.Indicator>
+              <IconChevronDown stroke={1} />
+            </Select.Indicator>
+          </Select.Trigger>
+          <Select.Popover>
+            <ListBox>
+              <ListBox.Item id='light' textValue='Light'>
+                <img alt='Light' className='h-4 w-4' src={toolkitLogo} />
+                Light
+                <ListBox.ItemIndicator>
+                  {({ isSelected }) =>
+                    isSelected ? <IconCheck stroke={1.5} /> : null}
+                </ListBox.ItemIndicator>
+              </ListBox.Item>
+              <ListBox.Item id='dark' textValue='Dark'>
+                <img alt='Dark' className='h-4 w-4' src={toolkitLogoDark} />
+                Dark
+                <ListBox.ItemIndicator>
+                  {({ isSelected }) =>
+                    isSelected ? <IconCheck stroke={1.5} /> : null}
+                </ListBox.ItemIndicator>
+              </ListBox.Item>
+            </ListBox>
+          </Select.Popover>
+          <Description className='w-md'>
+            Light or dark extension icon, independent of theme preference
+          </Description>
+        </Select>
+        <TextField className='w-40' onChange={handleDefaultInstanceChange}>
           <Label>Default Domo Instance</Label>
           <Input
             placeholder='Enter an instance'
@@ -254,13 +302,13 @@ export function Settings({ theme = 'system' }) {
           <Description className='w-md'>
             This is used when navigating to copied objects from non-Domo
             websites. Enter without .domo.com (e.g., company for
-            company.domo.com).
+            company.domo.com)
           </Description>
         </TextField>
         <Select
+          className='w-40'
           value={settings.defaultClearCookiesHandling}
           onChange={handleClearCookiesHandlingChange}
-          className='w-40'
         >
           <Label>Cookie Clearing Behavior</Label>
           <Select.Trigger>
@@ -275,30 +323,30 @@ export function Settings({ theme = 'system' }) {
                 Auto
                 <ListBox.ItemIndicator>
                   {({ isSelected }) =>
-                    isSelected ? <IconCheck stroke={1.5} /> : null
-                  }
+                    isSelected ? <IconCheck stroke={1.5} /> : null}
                 </ListBox.ItemIndicator>
               </ListBox.Item>
               <ListBox.Item id='preserve' textValue='Preserve'>
                 Preserve
                 <ListBox.ItemIndicator>
                   {({ isSelected }) =>
-                    isSelected ? <IconCheck stroke={1.5} /> : null
-                  }
+                    isSelected ? <IconCheck stroke={1.5} /> : null}
                 </ListBox.ItemIndicator>
               </ListBox.Item>
               <ListBox.Item id='all' textValue='All'>
                 All
                 <ListBox.ItemIndicator>
                   {({ isSelected }) =>
-                    isSelected ? <IconCheck stroke={1.5} /> : null
-                  }
+                    isSelected ? <IconCheck stroke={1.5} /> : null}
                 </ListBox.ItemIndicator>
               </ListBox.Item>
             </ListBox>
           </Select.Popover>
           <Description className='w-lg'>
-            <p>Auto: Clear cookies on 431 errors, preserve last 2 instances</p>
+            <p>
+              Auto: Clear cookies on 431 errors, preserve last 2 instances
+              (removes manual button)
+            </p>
             <p>
               Preserve: Preserve last 2 instances (only manual, no
               auto-clearing)
@@ -307,34 +355,25 @@ export function Settings({ theme = 'system' }) {
           </Description>
         </Select>
         <Switch
+          className='flex flex-col items-start justify-start gap-2'
           isSelected={settings.cardErrorDetection}
           onChange={handleCardErrorDetectionChange}
-          className='flex flex-col items-start justify-start gap-2'
         >
           <Label>Card Error Detection</Label>
           <Switch.Control>
             <Switch.Thumb />
           </Switch.Control>
-          <Description className='w-lg'>
-            Show inline error notifications when card API requests fail.
+          <Description className='ml-1 w-lg'>
+            Show inline error notifications when card API requests fail
           </Description>
         </Switch>
         <div className='pt-1'>
-          <Button type='submit' variant='primary' isDisabled={!hasChanges}>
+          <Button isDisabled={!hasChanges} type='submit' variant='primary'>
             <IconDeviceFloppy />
             Save Settings
           </Button>
         </div>
       </Form>
-      {statusBar.visible && (
-        <StatusBar
-          title={statusBar.title}
-          description={statusBar.description}
-          status={statusBar.status}
-          timeout={statusBar.timeout}
-          onClose={hideStatus}
-        />
-      )}
     </div>
   );
 }

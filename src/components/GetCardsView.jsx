@@ -1,30 +1,11 @@
-import { useEffect, useState } from 'react';
-import { Button, Spinner } from '@heroui/react';
-import { DataList } from '@/components';
-import { getCardsForObject } from '@/services';
-import { DataListItem, DomoContext, DomoObject } from '@/models';
-import { getValidTabForInstance } from '@/utils';
+import { Alert, Button, Card, CloseButton, Spinner } from '@heroui/react';
+import { IconRefresh } from '@tabler/icons-react';
+import { useEffect, useRef, useState } from 'react';
 
-/**
- * Transform cards into DataListItem format
- * @param {Array} cards - Array of card objects
- * @param {string} origin - The base URL origin
- * @returns {DataListItem[]}
- */
-function transformCardsToItems(cards, origin) {
-  return cards
-    .sort((a, b) => {
-      const nameA = a.title || a.name || '';
-      const nameB = b.title || b.name || '';
-      return nameA.localeCompare(nameB);
-    })
-    .map((card) => {
-      const domoObject = new DomoObject('CARD', card.id, origin, {
-        name: card.title || card.name
-      });
-      return DataListItem.fromDomoObject(domoObject);
-    });
-}
+import { DataList } from '@/components';
+import { DataListItem, DomoContext, DomoObject } from '@/models';
+import { getCardsForObject } from '@/services';
+import { getValidTabForInstance, waitForCards } from '@/utils';
 
 export function GetCardsView({
   onBackToDefault = null,
@@ -32,22 +13,26 @@ export function GetCardsView({
 }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
   const [showSpinner, setShowSpinner] = useState(false);
   const [error, setError] = useState(null);
   const [items, setItems] = useState([]);
   const [viewData, setViewData] = useState(null);
 
-  // Load data on mount
+  const mountedRef = useRef(true);
   useEffect(() => {
+    mountedRef.current = true;
     loadCardsData();
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   const loadCardsData = async (forceRefresh = false) => {
-    if (!forceRefresh) {
+    if (!forceRefresh && !isRetrying) {
       setIsLoading(true);
       setShowSpinner(false);
     }
-    setError(null);
 
     const spinnerTimer = !forceRefresh
       ? setTimeout(() => {
@@ -74,24 +59,33 @@ export function GetCardsView({
       const instance = context.instance;
       const origin = `https://${instance}.domo.com`;
 
+      const parentId = domoObject.parentId || null;
+
       setViewData({
+        instance,
         objectId,
-        objectType,
         objectName,
+        objectType,
         origin,
-        instance
+        parentId
       });
 
       let cards = data.cards;
 
+      if (!cards && !forceRefresh) {
+        // No pre-fetched cards (popup handoff) -- try background-cached context
+        const waitResult = await waitForCards(context);
+        if (waitResult.success && waitResult.cards?.length) {
+          cards = waitResult.cards;
+        } else {
+          const tabId = await getValidTabForInstance(instance);
+          cards = await getCardsForObject({ objectId, objectType, tabId });
+        }
+      }
+
       if (forceRefresh) {
-        console.log('[GetCardsView] Forcing refresh...', objectType, objectId);
         const tabId = await getValidTabForInstance(instance);
-        cards = await getCardsForObject({
-          objectId,
-          objectType,
-          tabId
-        });
+        cards = await getCardsForObject({ objectId, objectType, tabId });
       }
 
       if (!cards || !Array.isArray(cards)) {
@@ -99,7 +93,14 @@ export function GetCardsView({
         return;
       }
 
-      const transformedItems = transformCardsToItems(cards, origin);
+      const transformedItems = transformCardsToItems(
+        cards,
+        origin,
+        objectType,
+        objectId,
+        parentId
+      );
+      setError(null);
       setItems(transformedItems);
     } catch (err) {
       console.error('Error loading cards:', err);
@@ -138,9 +139,9 @@ export function GetCardsView({
   const renderTitle = () => {
     return (
       <div className='flex flex-col gap-1'>
-        <div className='flex min-w-0 items-center justify-start gap-x-1'>
-          <span className='truncate font-bold'>{viewData?.objectName}</span>
-          <span className='shrink-0'>Cards</span>
+        <div className='line-clamp-2 min-w-0'>
+          <span>Cards for</span>{' '}
+          <span className='font-bold'>{viewData?.objectName}</span>
         </div>
         {items.length > 0 && (
           <div className='flex flex-row items-center gap-1'>
@@ -153,44 +154,97 @@ export function GetCardsView({
     );
   };
 
-  if (isLoading && showSpinner) {
+  if (isLoading) {
+    if (!showSpinner) return null;
     return (
-      <div className='flex items-center justify-center'>
-        <div className='flex flex-col items-center gap-2'>
+      <Card className='flex w-full items-center justify-center p-0'>
+        <Card.Content className='flex flex-col items-center justify-center gap-2 p-2'>
           <Spinner size='lg' />
           <p className='text-muted'>Loading cards...</p>
-        </div>
-      </div>
+        </Card.Content>
+      </Card>
     );
   }
 
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    await loadCardsData();
+    setIsRetrying(false);
+  };
+
   if (error) {
     return (
-      <div className='flex items-center justify-center p-4'>
-        <div className='flex flex-col items-center gap-2 text-center'>
-          <p className='text-danger'>{error}</p>
-          <Button onPress={loadCardsData}>Retry</Button>
-        </div>
-      </div>
+      <Alert className='w-full' status='warning'>
+        <Alert.Indicator />
+        <Alert.Content>
+          <Alert.Title>Error</Alert.Title>
+          <div className='flex flex-col items-start justify-center gap-2'>
+            <Alert.Description>{error}</Alert.Description>
+            <Button isPending={isRetrying} size='sm' onPress={handleRetry}>
+              {isRetrying ? (
+                <Spinner color='currentColor' size='sm' />
+              ) : (
+                <IconRefresh stroke={1.5} />
+              )}
+              Retry
+            </Button>
+          </div>
+        </Alert.Content>
+        <CloseButton
+          className='rounded-full'
+          variant='ghost'
+          onPress={() => onBackToDefault?.()}
+        />
+      </Alert>
     );
   }
 
   return (
     <DataList
-      items={items}
-      objectType={viewData?.objectType}
-      objectId={viewData?.objectId}
-      onStatusUpdate={onStatusUpdate}
-      title={renderTitle()}
-      headerActions={['openAll', 'copy', 'refresh']}
-      onRefresh={handleRefresh}
-      onClose={onBackToDefault}
       closeLabel='Close Cards View'
+      headerActions={['openAll', 'copy', 'refresh']}
       isRefreshing={isRefreshing}
       itemActions={['copy', 'openAll']}
+      itemLabel='card'
+      items={items}
+      objectId={viewData?.objectId}
+      objectType={viewData?.objectType}
       showActions={true}
       showCounts={true}
-      itemLabel='card'
+      title={renderTitle()}
+      onClose={onBackToDefault}
+      onRefresh={handleRefresh}
+      onStatusUpdate={onStatusUpdate}
     />
   );
+}
+
+/**
+ * Transform cards into DataListItem format
+ * @param {Array} cards - Array of card objects
+ * @param {string} origin - The base URL origin
+ * @param {string} [objectType] - The parent object type (e.g., 'PAGE', 'DATA_APP_VIEW')
+ * @param {string|number} [objectId] - The parent object ID (page or view ID)
+ * @param {string|number} [parentId] - The grandparent ID (e.g., appId for DATA_APP_VIEW)
+ * @returns {DataListItem[]}
+ */
+function transformCardsToItems(cards, origin, objectType, objectId, parentId) {
+  return cards
+    .sort((a, b) => {
+      const nameA = a.title || a.name || '';
+      const nameB = b.title || b.name || '';
+      return nameA.localeCompare(nameB);
+    })
+    .map((card) => {
+      const domoObject = new DomoObject('CARD', card.id, origin, {
+        name: card.title || card.name
+      });
+      // Override generic card URL with page-specific URL when on a page or app
+      if (objectType === 'DATA_APP_VIEW' || objectType === 'WORKSHEET_VIEW') {
+        domoObject.url = `${origin}/app-studio/${parentId}/pages/${objectId}/kpis/details/${card.id}`;
+      } else if (objectType === 'PAGE') {
+        domoObject.url = `${origin}/page/${objectId}/kpis/details/${card.id}`;
+      }
+      return DataListItem.fromDomoObject(domoObject);
+    });
 }

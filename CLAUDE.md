@@ -23,18 +23,18 @@ Domo Toolkit is a Chrome Extension (Manifest V3) that enhances the Domo platform
 
 ```bash
 # Start development server with HMR
-npm run dev
+yarn dev
 
 # Build for production (outputs to dist/)
-npm run build
+yarn build
 
 # Preview production build
-npm run preview
+yarn preview
 ```
 
 **Loading the extension:**
 
-1. Run `npm run dev`
+1. Run `yarn dev`
 2. Navigate to `chrome://extensions/`
 3. Enable "Developer mode"
 4. Click "Load unpacked" and select the `dist` directory
@@ -225,7 +225,7 @@ Content script detects objects via:
 
 ## Testing in Development
 
-When running `npm run dev`:
+When running `yarn dev`:
 
 - Vite dev server runs on port 5173 with HMR
 - WebSocket HMR endpoint: `ws://localhost:5173`

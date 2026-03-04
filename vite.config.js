@@ -1,28 +1,12 @@
-import { defineConfig } from 'vite';
-import manifest from './manifest.config.js';
-import { name, version } from './package.json';
-import path from 'node:path';
 import { crx } from '@crxjs/vite-plugin';
-import react from '@vitejs/plugin-react';
-import zip from 'vite-plugin-zip-pack';
 import tailwindcss from '@tailwindcss/vite';
+import react from '@vitejs/plugin-react';
+import path from 'node:path';
+import { defineConfig } from 'vite';
+
+import manifest from './manifest.config.js';
 
 export default defineConfig({
-  resolve: {
-    alias: {
-      '@': `${path.resolve(__dirname, 'src')}`
-    }
-  },
-  plugins: [
-    react(),
-    crx({ manifest }),
-    tailwindcss(),
-    zip({
-      outDir: 'release',
-      outFileName: `crx-${name}-${version}.zip`,
-      filter: (fileName, filePath) => !filePath.includes('.vite')
-    })
-  ],
   build: {
     // Extensions load from disk, not network - large chunks are fine
     chunkSizeWarningLimit: 1000,
@@ -48,17 +32,27 @@ export default defineConfig({
           }
         }
       }
+    },
+    sourcemap: false
+  },
+  esbuild: {
+    pure: ['console.log', 'console.warn']
+  },
+  plugins: [react(), crx({ manifest }), tailwindcss()],
+  resolve: {
+    alias: {
+      '@': `${path.resolve(__dirname, 'src')}`
     }
   },
   server: {
-    port: 5173,
     cors: {
       origin: [/chrome-extension:\/\//]
     },
     hmr: {
       host: 'localhost',
-      protocol: 'ws',
-      port: 5173
-    }
+      port: 5173,
+      protocol: 'ws'
+    },
+    port: 5173
   }
 });

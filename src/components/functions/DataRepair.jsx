@@ -10,19 +10,18 @@ export function DataRepair({ currentContext, isDisabled }) {
   };
 
   return (
-    <Tooltip delay={400} closeDelay={0}>
+    <Tooltip closeDelay={0} delay={400}>
       <Button
-        variant='tertiary'
         fullWidth
-        onPress={handleDataRepair}
+        className='min-w-36 flex-1 whitespace-normal'
         isDisabled={isDisabled}
-        isIconOnly
-        className='relative min-w-fit flex-1 basis-[48%] overflow-visible'
+        variant='tertiary'
+        onPress={handleDataRepair}
       >
         <IconBandage stroke={1.5} />
         Data Repair
       </Button>
-      <Tooltip.Content>Enable data repair page</Tooltip.Content>
+      <Tooltip.Content>Enable and navigate to data repair page</Tooltip.Content>
     </Tooltip>
   );
 }

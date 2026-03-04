@@ -10,20 +10,6 @@ function getReactProps(element) {
   return element[key];
 }
 
-// Example: inspect what onClick does
-const button = document.querySelector('.MenuItem-module_button__1-Tcl_v890');
-const fiberKey = Object.keys(button).find((k) => k.startsWith('__reactFiber$'));
-let fiber = button[fiberKey];
-
-// Walk UP the fiber tree to find where onClick originates
-while (fiber) {
-  if (fiber.memoizedProps?.onClick) {
-    console.log('Component:', fiber.type?.name || fiber.type);
-    console.log('onClick:', fiber.memoizedProps.onClick.toString());
-  }
-  fiber = fiber.return;
-}
-
 // Find the account row element
 const row = document.querySelector('[data-menu-item-button]');
 const fiberKey = Object.keys(row).find((k) => k.startsWith('__reactFiber$'));

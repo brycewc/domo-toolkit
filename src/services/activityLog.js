@@ -1,35 +1,6 @@
 import { executeInPage } from '@/utils';
 
 /**
- * Get all activity log object types for a given object type
- * Some object types map to multiple activity log types
- * @param {string} objectType - The object type ID
- * @returns {string[]} Array of activity log type strings
- */
-function getActivityLogTypes(objectType) {
-  switch (objectType) {
-    case 'BEAST_MODE_FORMULA':
-      return ['BEAST_MODE_FORMULA', 'VARIABLE'];
-    case 'DATA_SOURCE':
-      return [
-        'DATA_SOURCE',
-        'DATASET',
-        'VIEW',
-        'VIEW_ADVANCED_EDITOR',
-        'DUPLICATED_DATA_SOURCE'
-      ];
-    case 'APP':
-      return ['APP', 'RYUU_APP'];
-    case 'CODEENGINE_PACKAGE':
-      return ['CODEENGINE_PACKAGE', 'FUNCTION'];
-    case 'GOAL':
-      return ['GOAL', 'OBJECTIVE'];
-    default:
-      return [objectType];
-  }
-}
-
-/**
  * Get activity log events from the Domo Audit API
  * @param {Object} params - Parameters for fetching activity log events
  * @param {number} [params.limit=50] - Number of events to fetch (max 1000)
@@ -67,15 +38,15 @@ function getActivityLogTypes(objectType) {
  * }
  */
 export async function getActivityLogEvents({
-  limit = 50,
-  offset = 0,
-  objectType,
-  objectId,
-  eventType,
-  userId,
-  start,
   end,
-  tabId
+  eventType,
+  limit = 50,
+  objectId,
+  objectType,
+  offset = 0,
+  start,
+  tabId,
+  userId
 } = {}) {
   try {
     // Default start to 1 year ago, end to now (in epoch milliseconds)
@@ -124,8 +95,8 @@ export async function getActivityLogEvents({
         const countResponse = await fetch(
           `/api/audit/v1/user-audits/count?${queryParams.toString()}`,
           {
-            method: 'GET',
-            credentials: 'include'
+            credentials: 'include',
+            method: 'GET'
           }
         );
 
@@ -142,8 +113,8 @@ export async function getActivityLogEvents({
         const response = await fetch(
           `/api/audit/v1/user-audits?${queryParams.toString()}`,
           {
-            method: 'GET',
-            credentials: 'include'
+            credentials: 'include',
+            method: 'GET'
           }
         );
 
@@ -160,9 +131,9 @@ export async function getActivityLogEvents({
 
         return {
           events: events,
-          total: total || 0,
           limit: limit,
-          offset: offset
+          offset: offset,
+          total: total || 0
         };
       },
       serializableArgs,
@@ -187,9 +158,9 @@ export async function getActivityLogEvents({
  * @returns {Promise<Object>} Object containing events array and pagination info
  */
 export async function getActivityLogForObject({
-  objectType,
-  objectId,
   limit = 50,
+  objectId,
+  objectType,
   offset = 0,
   tabId
 }) {
@@ -205,12 +176,12 @@ export async function getActivityLogForObject({
   // const primaryType = activityLogTypes[0];
 
   return await getActivityLogEvents({
-    objectType,
-    objectId,
+    end,
     limit,
+    objectId,
+    objectType,
     offset,
     start,
-    end,
     tabId
   });
 }
