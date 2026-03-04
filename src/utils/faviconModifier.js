@@ -80,7 +80,7 @@ async function getCachedFavicon(cacheKey) {
 async function cacheFavicon(cacheKey, dataUrl) {
   try {
     await chrome.storage.local.set({ [cacheKey]: dataUrl });
-    console.log('Cached favicon:', cacheKey);
+    // console.log('Cached favicon:', cacheKey);
   } catch (error) {
     console.error('Error caching favicon:', error);
   }
@@ -98,11 +98,11 @@ export async function clearFaviconCache() {
 
     if (faviconKeys.length > 0) {
       await chrome.storage.local.remove(faviconKeys);
-      console.log(
-        'Cleared favicon cache (including instance logos):',
-        faviconKeys.length,
-        'items'
-      );
+      // console.log(
+      //   'Cleared favicon cache (including instance logos):',
+      //   faviconKeys.length,
+      //   'items'
+      // );
     }
   } catch (error) {
     console.error('Error clearing favicon cache:', error);
@@ -157,10 +157,10 @@ export async function applyFaviconRules(rules) {
   // Check if current hostname is in the excluded list
   const hostname = location.hostname;
   if (EXCLUDED_HOSTNAMES.includes(hostname)) {
-    console.log(
-      'Favicon modification skipped for excluded hostname:',
-      hostname
-    );
+    // console.log(
+    //   'Favicon modification skipped for excluded hostname:',
+    //   hostname
+    // );
     return;
   }
 
@@ -173,12 +173,12 @@ export async function applyFaviconRules(rules) {
   const subdomainMatch = hostname.match(/^(.+?)\.domo\.com$/);
 
   if (!subdomainMatch) {
-    console.log('Not a Domo instance URL');
+    // console.log('Not a Domo instance URL');
     return;
   }
 
   const subdomain = subdomainMatch[1];
-  console.log('Current subdomain:', subdomain);
+  // console.log('Current subdomain:', subdomain);
 
   // Find the first matching rule
   // IMPORTANT: Rules are checked in array order (top to bottom in the UI).
@@ -201,11 +201,11 @@ export async function applyFaviconRules(rules) {
   });
 
   if (!matchingRule) {
-    console.log('No matching favicon rule found');
+    // console.log('No matching favicon rule found');
     return;
   }
 
-  console.log('Applying favicon rule:', matchingRule);
+  // console.log('Applying favicon rule:', matchingRule);
 
   // Get the current favicon
   const favicon = getFavicon();
@@ -220,7 +220,7 @@ export async function applyFaviconRules(rules) {
     const cachedFavicon = await getCachedFavicon(cacheKey);
 
     if (cachedFavicon) {
-      console.log('Using cached favicon');
+      // console.log('Using cached favicon');
       favicon.href = cachedFavicon;
       return;
     }
@@ -288,14 +288,14 @@ async function applyInstanceLogo(favicon, subdomain) {
     const avatars = await checkResponse.json();
 
     if (!Array.isArray(avatars) || avatars.length === 0) {
-      console.log('No instance logo available');
+      // console.log('No instance logo available');
       return;
     }
 
     // Find the primary logo
     const primaryLogo = avatars.find((avatar) => avatar.primary === true);
     if (!primaryLogo || !primaryLogo.id) {
-      console.log('No primary instance logo found');
+      // console.log('No primary instance logo found');
       return;
     }
 
@@ -311,7 +311,7 @@ async function applyInstanceLogo(favicon, subdomain) {
       // Logo hasn't changed, use cached version
       const cachedLogo = await getCachedFavicon(logoCacheKey);
       if (cachedLogo) {
-        console.log('Using cached instance logo (ID matches):', currentLogoId);
+        // console.log('Using cached instance logo (ID matches):', currentLogoId);
         favicon.href = cachedLogo;
         return;
       }
@@ -344,7 +344,7 @@ async function applyInstanceLogo(favicon, subdomain) {
     await cacheFavicon(logoCacheKey, logoDataUrl);
     await cacheFavicon(logoIdCacheKey, currentLogoId);
 
-    console.log('Applied and cached instance logo with ID:', currentLogoId);
+    // console.log('Applied and cached instance logo with ID:', currentLogoId);
   } catch (error) {
     console.error('Error fetching instance logo:', error);
   }
@@ -379,7 +379,7 @@ async function applyDomoLogoColored(favicon, color) {
       const newFaviconUrl = canvas.toDataURL('image/png');
       favicon.href = newFaviconUrl;
 
-      console.log('Applied Domo logo with colored background:', color);
+      // console.log('Applied Domo logo with colored background:', color);
       resolve(newFaviconUrl);
     };
 
@@ -427,7 +427,7 @@ async function applyColorEffect(favicon, effect, color) {
       const newFaviconUrl = canvas.toDataURL('image/png');
       favicon.href = newFaviconUrl;
 
-      console.log('Applied favicon effect:', effect, color);
+      // console.log('Applied favicon effect:', effect, color);
       resolve(newFaviconUrl);
     };
 
@@ -530,9 +530,9 @@ function hexToRgb(hex) {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   return result
     ? {
-      r: parseInt(result[1], 16),
-      g: parseInt(result[2], 16),
-      b: parseInt(result[3], 16)
-    }
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16)
+      }
     : { r: 0, g: 0, b: 0 };
 }

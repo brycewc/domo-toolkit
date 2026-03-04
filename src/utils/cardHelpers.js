@@ -24,7 +24,7 @@ export async function waitForCards(currentContext, maxAttempts = 50) {
 
     while (attempts < maxAttempts) {
       attempts++;
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
       // Re-fetch the current context to get updated cards
       const response = await chrome.runtime.sendMessage({

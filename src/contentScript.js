@@ -78,10 +78,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === 'TAB_CONTEXT_UPDATED') {
-    console.log(
-      '[ContentScript] Received tab context update:',
-      message.context
-    );
+    // console.log(
+    //   '[ContentScript] Received tab context update:',
+    //   message.context
+    // );
     currentTabContext = DomoContext.fromJSON(message.context);
     sendResponse({ success: true });
     return true;
@@ -97,7 +97,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 // Apply favicon on initial load
 (async () => {
-  console.log('[ContentScript] Initialized, applying favicon');
+  // console.log('[ContentScript] Initialized, applying favicon');
   await applyFavicon();
 
   // Title will be updated when we receive tab context from background
@@ -110,7 +110,7 @@ let lastKnownClipboard = '';
 async function checkAndCacheClipboard() {
   try {
     const clipboardText = await navigator.clipboard.readText();
-    console.log('[ContentScript] Read clipboard text:', clipboardText);
+    // console.log('[ContentScript] Read clipboard text:', clipboardText);
     const trimmedText = clipboardText.trim();
 
     // Validate that clipboard contains a valid Domo object ID
@@ -122,11 +122,20 @@ async function checkAndCacheClipboard() {
       );
 
     if (!isNumeric && !isUuid) {
-      console.log(
-        '[Background] Clipboard does not contain a valid Domo object ID:',
-        trimmedText
-      );
-      // Don't store or notify about invalid IDs
+      // console.log(
+      //   '[ContentScript] Clipboard does not contain a valid Domo object ID:',
+      //   trimmedText
+      // );
+      // If the previous clipboard was a Domo ID, clear it
+      if (lastKnownClipboard) {
+        lastKnownClipboard = '';
+        chrome.runtime
+          .sendMessage({
+            type: 'CLIPBOARD_COPIED',
+            clipboardData: ''
+          })
+          .catch(() => {});
+      }
       return null;
     }
 
@@ -161,9 +170,9 @@ document.addEventListener('copy', async () => {
 // Listen for window focus to detect when user returns to tab
 // This handles the case where user copied from another application
 window.addEventListener('focus', async () => {
-  console.log(
-    '[ContentScript] Window gained focus, checking clipboard and tab title'
-  );
+  // console.log(
+  //   '[ContentScript] Window gained focus, checking clipboard and tab title'
+  // );
   await checkAndCacheClipboard();
 });
 
@@ -221,10 +230,10 @@ function checkForCardModalElement(mutations) {
             if (modalElement) {
               const cardId = extractCardIdFromModal();
               if (cardId && cardId !== lastDetectedCardId) {
-                console.log(
-                  '[ContentScript] Card modal detected with ID:',
-                  cardId
-                );
+                // console.log(
+                //   '[ContentScript] Card modal detected with ID:',
+                //   cardId
+                // );
                 lastDetectedCardId = cardId;
                 triggerContextRedetection();
               }
@@ -252,9 +261,9 @@ function checkForCardModalElement(mutations) {
             }
 
             if (wasModal) {
-              console.log(
-                '[ContentScript] Card modal element removed from DOM'
-              );
+              // console.log(
+              //   '[ContentScript] Card modal element removed from DOM'
+              // );
               if (lastDetectedCardId) {
                 lastDetectedCardId = null;
                 triggerContextRedetection();
@@ -291,7 +300,7 @@ async function checkForActivityLogFilter() {
   );
 
   try {
-    const result = await chrome.storage.local.get(['activityLogFilter']);
+    const result = await chrome.storage.session.get(['activityLogFilter']);
 
     if (!result.activityLogFilter) {
       console.log('[ContentScript] No pending filter found');
@@ -305,7 +314,7 @@ async function checkForActivityLogFilter() {
     const age = Date.now() - timestamp;
     if (age > 10000) {
       console.log('[ContentScript] Filter is too old, ignoring');
-      await chrome.storage.local.remove(['activityLogFilter']);
+      await chrome.storage.session.remove(['activityLogFilter']);
       return;
     }
 
@@ -320,14 +329,14 @@ async function checkForActivityLogFilter() {
       .then(() => {
         applyActivityLogFilter(typeName, objectId, objectName);
         // Clear the filter after applying
-        chrome.storage.local.remove(['activityLogFilter']);
+        chrome.storage.session.remove(['activityLogFilter']);
       })
       .catch((error) => {
         console.error(
           '[ContentScript] Timeout waiting for input element:',
           error
         );
-        chrome.storage.local.remove(['activityLogFilter']);
+        chrome.storage.session.remove(['activityLogFilter']);
       });
   } catch (error) {
     console.error(
@@ -843,3 +852,52 @@ function removeDateFilter() {
 
 // Run on page load
 checkForActivityLogFilter();
+
+// ============================================================
+// Card error capture
+// ============================================================
+
+// Inject MAIN world script that intercepts card API errors and displays them inline.
+// Only injected when the cardErrorDetection setting is enabled (default: on).
+(async function injectCardErrorCapture() {
+  const result = await chrome.storage.sync.get(['cardErrorDetection']);
+  if (result.cardErrorDetection === false) return;
+
+  if (document.getElementById('domo-toolkit-card-errors-script')) return;
+
+  const script = document.createElement('script');
+  script.id = 'domo-toolkit-card-errors-script';
+  script.src = chrome.runtime.getURL('public/cardErrors.js');
+  document.documentElement.appendChild(script);
+})();
+
+// ============================================================
+// Stream execution detailed errors
+// ============================================================
+
+// Inject MAIN world script that enriches expanded error rows with detailed API data.
+// Loaded as an external file to comply with the page's Content Security Policy.
+function injectStreamErrorEnricher() {
+  if (document.getElementById('domo-toolkit-stream-errors-script')) return;
+
+  const script = document.createElement('script');
+  script.id = 'domo-toolkit-stream-errors-script';
+  script.src = chrome.runtime.getURL('public/streamErrors.js');
+  document.documentElement.appendChild(script);
+}
+
+// Watch for .dc-repair-table to appear, then inject the MAIN world script
+const streamErrorTableObserver = new MutationObserver(() => {
+  if (document.querySelector('.dc-repair-table')) {
+    injectStreamErrorEnricher();
+  }
+});
+
+if (document.querySelector('.dc-repair-table')) {
+  injectStreamErrorEnricher();
+}
+
+streamErrorTableObserver.observe(document.body, {
+  childList: true,
+  subtree: true
+});

@@ -111,16 +111,16 @@ export async function detectCurrentObject() {
         if (!url.includes('app-studio')) {
           objectType = 'PAGE';
         } else {
-          console.log('Fetching App Studio object type...');
+          // console.log('Fetching App Studio object type...');
           // Need to fetch to determine if Worksheet or Data App
           try {
             const response = await fetch(
               `/api/content/v1/dataapps/${parts[parts.indexOf('app-studio') + 1]}`
             );
-            console.log('Fetch response received:', response);
+            // console.log('Fetch response received:', response);
             if (response.ok) {
               const data = await response.json();
-              console.log('Fetch data:', data);
+              // console.log('Fetch data:', data);
               if (data && data.type === 'worksheet') {
                 objectType = 'WORKSHEET_VIEW';
               } else {
@@ -192,9 +192,27 @@ export async function detectCurrentObject() {
       id = parts[parts.indexOf('pro-code-editor') + 1];
       break;
 
-    case url.includes('filesets/'):
+    case url.includes('filesets/'): {
+      const filesetId = parts[parts.indexOf('filesets') + 1];
+      if (url.includes('/preview/')) {
+        objectType = 'FILESET_FILE';
+        // Extract file path: everything after /preview/
+        const previewIndex = url.indexOf('/preview/');
+        const filePath = url
+          .substring(previewIndex + '/preview/'.length)
+          .split('?')[0];
+        // Return early with extra context for async ID resolution
+        return {
+          typeId: objectType,
+          id: null,
+          url,
+          baseUrl: `${location.protocol}//${location.hostname}`,
+          resolveContext: { filesetId, filePath }
+        };
+      }
       objectType = 'FILESET';
       break;
+    }
 
     case url.includes('ai-services/projects/'):
       objectType = 'AI_PROJECT';

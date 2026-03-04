@@ -246,7 +246,7 @@ export function ActivityLogTable() {
   useEffect(() => {
     const loadObjects = async () => {
       try {
-        const result = await chrome.storage.local.get([
+        const result = await chrome.storage.session.get([
           'activityLogTabId',
           'activityLogObjects',
           'activityLogType',

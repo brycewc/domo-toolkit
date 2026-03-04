@@ -61,7 +61,7 @@ export default function App() {
   }, [currentTabId]);
 
   return (
-    <div className='h-fit min-w-xs p-1'>
+    <div className='flex max-h-[600px] max-w-[800px] min-w-90 flex-col p-1'>
       <ActionButtons
         currentContext={currentContext}
         isLoadingCurrentContext={isLoadingCurrentContext}

@@ -23,7 +23,7 @@ import {
   IconUserEdit,
   IconX
 } from '@tabler/icons-react';
-import { updateOwner, getCurrentUserId, searchUsers } from '@/services';
+import { updateOwner, searchUsers } from '@/services';
 import { isSidepanel } from '@/utils';
 
 export function UpdateOwner({ currentContext, onStatusUpdate }) {
@@ -106,21 +106,12 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
     }
   };
 
-  // Initialize form values when modal opens
+  // Set current user ID from context when modal opens
   useEffect(() => {
-    async function fetchCurrentUserId() {
-      try {
-        const userId = await getCurrentUserId(currentContext?.tabId);
-        setCurrentUserId(userId);
-      } catch (error) {
-        console.error('Error fetching current user ID:', error);
-      }
+    if (isOpen && currentContext?.user?.id) {
+      setCurrentUserId(currentContext.user.id);
     }
-
-    if (isOpen) {
-      fetchCurrentUserId();
-    }
-  }, [isOpen, currentContext?.tabId]);
+  }, [isOpen, currentContext?.user?.id]);
 
   // Core submit logic - accepts ownerId directly to avoid async state issues
   const submitOwnerUpdate = async (ownerId) => {
@@ -176,17 +167,23 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
 
   return (
     <Modal isOpen={isOpen} onOpenChange={setIsOpen}>
-      <Button
-        variant='tertiary'
-        fullWidth
-        isDisabled={
-          currentContext?.domoObject.typeId !== 'ALERT' &&
-          currentContext?.domoObject.typeId !== 'WORKFLOW_MODEL'
-        }
-      >
-        <IconUserEdit stroke={1.5} />
-        Update {currentContext?.domoObject.typeName} Owner
-      </Button>
+      <Tooltip delay={400} closeDelay={0}>
+        <Button
+          variant='tertiary'
+          fullWidth
+          isDisabled={
+            currentContext?.domoObject.typeId !== 'ALERT' &&
+            currentContext?.domoObject.typeId !== 'WORKFLOW_MODEL'
+          }
+          className='relative min-w-fit flex-1 basis-[48%] overflow-visible'
+        >
+          <IconUserEdit stroke={1.5} />
+          Update Owner
+        </Button>
+        <Tooltip.Content>
+          Update {currentContext?.domoObject.typeName} owner
+        </Tooltip.Content>
+      </Tooltip>
       <Modal.Backdrop>
         <Modal.Container scroll='outside' placement='top' className='p-1'>
           <Modal.Dialog className='p-2'>

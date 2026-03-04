@@ -1,4 +1,3 @@
-import { getCurrentUserId } from './users';
 import { executeInPage, waitForCards } from '@/utils';
 
 /**
@@ -190,14 +189,13 @@ export async function getChildPages({
 /**
  * Share pages with self
  * @param {Array} pageIds - IDs of the pages to share
+ * @param {number} userId - The current user's ID
+ * @param {number} tabId - The tab ID to execute in
  * @returns {Promise<void>} Resolves when sharing is complete
  * @throws {Error} If the fetch fails
  */
-export async function sharePagesWithSelf({ pageIds, tabId }) {
+export async function sharePagesWithSelf({ pageIds, userId, tabId }) {
   try {
-    // Get current user ID
-    const userId = await getCurrentUserId(tabId);
-
     // Execute fetch in page context to use authenticated session
     executeInPage(
       async (pageIds, userId) => {
@@ -275,7 +273,7 @@ export async function getPagesForCards(cardIds, tabId = null) {
         if (!allDetailCards.length) {
           throw new Error('No cards found.');
         }
-        console.log(allDetailCards);
+        // console.log(allDetailCards);
         // Build flat lists of all pages, app pages, and report pages from all cards
         const allPages = [];
         const allAppPages = [];
@@ -408,15 +406,13 @@ export async function deletePageAndAllCards({
 
       if (childPages.length > 0) {
         // Store child pages data for sidepanel to read
-        await chrome.storage.local.set({
+        // Only store type, currentContext, and feature-specific data (childPages)
+        // pageId, appId, pageType are derived from currentContext.domoObject
+        await chrome.storage.session.set({
           sidepanelDataList: {
             type: 'childPagesWarning',
-            pageId,
-            appId,
-            pageType,
-            childPages,
             currentContext: currentContext?.toJSON?.() || currentContext,
-            tabId: currentContext?.tabId || null,
+            childPages,
             timestamp: Date.now()
           }
         });

@@ -6,7 +6,22 @@ export {
   updateOwner
 } from './allObjects';
 export { updateDataflowDetails } from './dataflows';
-export { getDrillParentCardId, getPageCards, getCardsForObject } from './cards';
+export {
+  getDatasetsForPage,
+  getDatasetsForDataflow,
+  isViewType,
+  getDatasetsForView,
+  getStreamExecution,
+  getStreamExecutions
+} from './datasets';
+export {
+  getDrillParentCardId,
+  getPageCards,
+  getCardsForObject,
+  removeCardFromPage,
+  getCardDefinition,
+  updateCardDefinition
+} from './cards';
 export {
   getAppStudioPageParent,
   getChildPages,
@@ -14,7 +29,7 @@ export {
   getPagesForCards,
   deletePageAndAllCards
 } from './pages';
-export { getCurrentUserId, searchUsers } from './users';
+export { getCurrentUser, getCurrentUserId, searchUsers } from './users';
 export {
   getUrlPfilters,
   getPageFilters,

@@ -17,7 +17,11 @@ export default defineConfig({
     react(),
     crx({ manifest }),
     tailwindcss(),
-    zip({ outDir: 'release', outFileName: `crx-${name}-${version}.zip` })
+    zip({
+      outDir: 'release',
+      outFileName: `crx-${name}-${version}.zip`,
+      filter: (fileName, filePath) => !filePath.includes('.vite')
+    })
   ],
   build: {
     // Extensions load from disk, not network - large chunks are fine

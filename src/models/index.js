@@ -1,3 +1,4 @@
+export { DataListItem } from './DataListItem';
 export { DomoObject } from './DomoObject';
 export { DomoContext } from './DomoContext';
 export {
@@ -5,5 +6,6 @@ export {
   getObjectType,
   getAllObjectTypes,
   getAllObjectTypesWithUrl,
-  getAllObjectTypesWithApiConfig
+  getAllObjectTypesWithApiConfig,
+  getAllNavigableObjectTypes
 } from './DomoObjectType';

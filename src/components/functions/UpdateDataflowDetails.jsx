@@ -6,10 +6,11 @@ import {
   Input,
   Label,
   TextField,
-  TextArea
+  TextArea,
+  Tooltip
 } from '@heroui/react';
-import { updateDataflowDetails } from '@/services';
 import { IconArrowFork, IconX } from '@tabler/icons-react';
+import { updateDataflowDetails } from '@/services';
 
 export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -105,14 +106,18 @@ export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
 
   return (
     <Modal onOpenChange={setIsOpen}>
-      <Button
-        variant='tertiary'
-        fullWidth
-        isDisabled={currentContext?.domoObject.typeId !== 'DATAFLOW_TYPE'}
-      >
-        <IconArrowFork stroke={1.5} className='rotate-180' />
-        Update DataFlow Details
-      </Button>
+      <Tooltip delay={400} closeDelay={0}>
+        <Button
+          variant='tertiary'
+          fullWidth
+          isDisabled={currentContext?.domoObject.typeId !== 'DATAFLOW_TYPE'}
+          className='relative min-w-fit flex-1 basis-[48%] overflow-visible'
+        >
+          <IconArrowFork stroke={1.5} className='rotate-180' />
+          Update DataFlow Details
+        </Button>
+        <Tooltip.Content>Update dataflow name and description</Tooltip.Content>
+      </Tooltip>
       <Modal.Backdrop>
         <Modal.Container scroll='outside' placement='top' className='p-1'>
           <Modal.Dialog className='p-2'>

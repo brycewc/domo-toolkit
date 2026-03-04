@@ -1,6 +1,5 @@
 import { DomoObject } from '@/models';
 import { executeInPage } from '@/utils';
-import { getCurrentUserId } from './users';
 
 /**
  * Fetch object details from the Domo API and enrich metadata (page-safe version)
@@ -26,7 +25,15 @@ export async function fetchObjectDetailsInPage(params) {
     throwOnError = true
   } = params;
 
-  const { method, endpoint, pathToName, bodyTemplate } = apiConfig;
+  const {
+    method,
+    endpoint,
+    pathToName,
+    nameTemplate = null,
+    pathToDetails = null,
+    pathToParentId = null,
+    bodyTemplate = null
+  } = apiConfig;
   let url;
   let parentId = providedParentId;
 
@@ -77,11 +84,22 @@ export async function fetchObjectDetailsInPage(params) {
     }
 
     const data = await response.json();
-    const name = pathToName
-      .split('.')
-      .reduce((current, prop) => current?.[prop], data);
+    const resolvePath = (path) =>
+      (path.match(/[^.[\]]+/g) || []).reduce(
+        (current, prop) => current?.[prop],
+        data
+      );
+    const details = pathToDetails ? resolvePath(pathToDetails) : data;
+    const name = nameTemplate
+      ? nameTemplate.replace(/{([^}]+)}/g, (_, path) =>
+          path === 'id' ? objectId : (resolvePath(path) ?? '')
+        )
+      : resolvePath(pathToName);
+    const extractedParentId = pathToParentId
+      ? resolvePath(pathToParentId)
+      : undefined;
 
-    return { details: data, name };
+    return { details, name, parentId: extractedParentId };
   } catch (error) {
     console.error(`Error fetching details for ${typeId}:`, error);
     if (throwOnError) throw error;
@@ -93,18 +111,21 @@ export async function fetchObjectDetailsInPage(params) {
  * Share a Domo object with the current user
  * @param {Object} params
  * @param {DomoObject} params.object - The Domo object to share
+ * @param {number} params.userId - The current user's ID
  * @param {Function} params.setStatus - Callback to update status (title, description, status)
  * @param {number} [params.tabId] - Optional Chrome tab ID for context
  * @returns {Promise<void>}
  */
-export async function shareWithSelf({ object, setStatus, tabId = null }) {
+export async function shareWithSelf({
+  object,
+  userId,
+  setStatus,
+  tabId = null
+}) {
   try {
     if (!object || !object.typeId || !object.id) {
       throw new Error('Invalid object provided');
     }
-
-    // Get current user ID
-    const userId = await getCurrentUserId(tabId);
 
     // Execute share based on object type
     const result = await executeInPage(
@@ -223,7 +244,7 @@ export async function shareWithSelf({ object, setStatus, tabId = null }) {
 }
 
 export async function deleteObject({ object, tabId = null }) {
-  console.log('deleteObject called with:', object, tabId);
+  // console.log('deleteObject called with:', object, tabId);
   try {
     if (!object || !object.typeId || !object.id) {
       return {
@@ -236,7 +257,7 @@ export async function deleteObject({ object, tabId = null }) {
 
     const result = await executeInPage(
       async (object) => {
-        console.log('Executing delete for object:', object);
+        // console.log('Executing delete for object:', object);
         const fetchRequest = {
           method: 'DELETE',
           url: null
@@ -270,11 +291,11 @@ export async function deleteObject({ object, tabId = null }) {
           };
         }
 
-        console.log('Delete fetch request:', fetchRequest);
+        // console.log('Delete fetch request:', fetchRequest);
         const response = await fetch(fetchRequest.url, {
           method: fetchRequest.method
         });
-        console.log('Delete response:', response);
+        // console.log('Delete response:', response);
 
         if (!response.ok) {
           const errorText = await response.text();
@@ -337,7 +358,7 @@ export async function updateOwner({ object, owner, tabId = null }) {
 
     const result = await executeInPage(
       async (object, newOwnerId) => {
-        console.log('Executing updateOwner:', object, newOwnerId);
+        // console.log('Executing updateOwner:', object, newOwnerId);
         const fetchRequest = {
           method: 'PUT',
           url: null,
@@ -367,7 +388,7 @@ export async function updateOwner({ object, owner, tabId = null }) {
           };
         }
 
-        console.log('Update fetch request:', fetchRequest);
+        // console.log('Update fetch request:', fetchRequest);
         const response = await fetch(fetchRequest.url, {
           method: fetchRequest.method,
           body: JSON.stringify(fetchRequest.body),
@@ -375,7 +396,7 @@ export async function updateOwner({ object, owner, tabId = null }) {
             'Content-Type': 'application/json'
           }
         });
-        console.log('Update response:', response);
+        // console.log('Update response:', response);
         if (!response.ok) {
           const errorText = await response.text();
           return {
