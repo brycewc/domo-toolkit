@@ -450,7 +450,7 @@ export const ObjectTypeRegistry = {
       pathToName: '[0].title'
     },
     ['DATA_SOURCE', 'APP'],
-    [{ field: 'datasources', isArray: true, label: 'DataSets' }]
+    [{ field: 'datasources', isArray: true, itemTypeId: 'DATA_SOURCE', label: 'DataSets' }]
   ),
   CERTIFICATION: new DomoObjectType(
     'CERTIFICATION',
@@ -614,7 +614,7 @@ export const ObjectTypeRegistry = {
     ['DATA_APP'],
     [
       { label: 'Studio App', source: 'parentId', typeId: 'DATA_APP' },
-      { field: 'content', isArray: true, label: 'Content' }
+      { field: 'content', isArray: true, itemTypeField: 'type', label: 'Content' }
     ]
   ),
   DATA_DICTIONARY: new DomoObjectType(
@@ -688,8 +688,8 @@ export const ObjectTypeRegistry = {
     },
     null,
     [
-      { field: 'inputs', isArray: true, label: 'Inputs' },
-      { field: 'outputs', isArray: true, label: 'Outputs' }
+      { field: 'inputs', isArray: true, itemTypeId: 'DATA_SOURCE', label: 'Inputs' },
+      { field: 'outputs', isArray: true, itemTypeId: 'DATA_SOURCE', label: 'Outputs' }
     ]
   ),
   DATASET_QUERY: new DomoObjectType(
@@ -1083,7 +1083,7 @@ export const ObjectTypeRegistry = {
       pathToName: 'title'
     },
     ['PAGE'],
-    [{ field: 'content', isArray: true, label: 'Content' }]
+    [{ field: 'content', isArray: true, itemTypeField: 'type', label: 'Content' }]
   ),
   PAGE_ANALYZER: new DomoObjectType(
     'PAGE_ANALYZER',

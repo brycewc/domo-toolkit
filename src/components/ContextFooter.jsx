@@ -68,6 +68,8 @@ export function ContextFooter({
               id: related.field,
               isArray: true,
               isCurrentObject: false,
+              itemTypeField: related.itemTypeField,
+              itemTypeId: related.itemTypeId,
               label: `${related.label} (${arrayData.length})`
             });
           }
@@ -197,6 +199,8 @@ export function ContextFooter({
     }
   };
 
+  const baseUrl = currentContext?.domoObject?.baseUrl;
+
   const renderJsonContent = () => {
     if (!activeTab) return null;
 
@@ -213,13 +217,13 @@ export function ContextFooter({
     }
 
     if (activeTab.isArray) {
-      return (
-        <MetadataJsonView
-          collapsed={2}
-          src={activeTab.data}
-          userMap={userMap}
-        />
-      );
+      const src = injectUrls(activeTab.data, {
+        baseUrl,
+        isArray: true,
+        itemTypeField: activeTab.itemTypeField,
+        itemTypeId: activeTab.itemTypeId
+      });
+      return <MetadataJsonView collapsed={2} src={src} userMap={userMap} />;
     }
 
     if (activeTab.isFullContext) {
@@ -235,9 +239,12 @@ export function ContextFooter({
     }
 
     if (relatedCache[activeTabId]) {
-      return (
-        <MetadataJsonView src={relatedCache[activeTabId]} userMap={userMap} />
-      );
+      const src = injectUrls(relatedCache[activeTabId], {
+        baseUrl,
+        objectId: activeTab.objectId,
+        typeId: activeTab.typeId
+      });
+      return <MetadataJsonView src={src} userMap={userMap} />;
     }
 
     return (
@@ -422,9 +429,36 @@ export function ContextFooter({
   );
 }
 
-/**
- * Shared JsonView configuration used across all tabs
- */
+function buildSimpleUrl(baseUrl, typeId, objectId) {
+  const type = getObjectType(typeId);
+  if (!type?.hasUrl()) return null;
+  const path = type.urlPath.replace('{id}', objectId);
+  if (path.includes('{')) return null;
+  return `${baseUrl}${path}`;
+}
+
+function injectUrls(src, { baseUrl, isArray, itemTypeField, itemTypeId, objectId, typeId }) {
+  if (!src || !baseUrl) return src;
+
+  if (isArray && Array.isArray(src)) {
+    return src.map((item) => {
+      if (!item || typeof item !== 'object') return item;
+      const resolvedType = itemTypeId || item[itemTypeField];
+      const itemId = item.id;
+      if (!resolvedType || !itemId) return item;
+      const url = buildSimpleUrl(baseUrl, resolvedType, itemId);
+      return url ? { url, ...item } : item;
+    });
+  }
+
+  if (typeof src === 'object' && !Array.isArray(src) && typeId && objectId) {
+    const url = buildSimpleUrl(baseUrl, typeId, objectId);
+    return url ? { url, ...src } : src;
+  }
+
+  return src;
+}
+
 function MetadataJsonView({ collapsed = 1, src, userMap = {} }) {
   return (
     <JsonView
