@@ -377,8 +377,8 @@ export function ContextFooter({
           {tabs.length > 1 && (
             <Tabs
               className='w-full shrink-0'
+              key={tabs.map((t) => t.id).join(',')}
               selectedKey={activeTabId}
-              // variant='secondary'
               onSelectionChange={handleTabChange}
             >
               <Tabs.ListContainer>
