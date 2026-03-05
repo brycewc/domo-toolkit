@@ -448,14 +448,6 @@ export function ActivityLogTable() {
     objectTypeFilter
   ]);
 
-  // Handle row action
-  const handleRowAction = (action, selectedRows) => {
-    console.log(
-      `Action "${action}" on ${selectedRows.length} event(s):`,
-      selectedRows
-    );
-  };
-
   if (error) {
     return (
       <div className='p-4'>
@@ -536,15 +528,13 @@ export function ActivityLogTable() {
       <DataTable
         columns={columns}
         data={filteredEvents}
-        enableSearch={false}
-        enableSelection={false}
         entityName='events'
+        hasMore={hasMore}
         initialColumnVisibility={initialColumnVisibility}
-        initialSorting={[{ desc: true, id: 'time' }]}
+        initialSorting={{ column: 'time', direction: 'descending' }}
         isRefreshing={isInitialLoad || isSearching}
         onLoadMore={fetchMoreEvents}
         onRefresh={handleRefresh}
-        onRowAction={handleRowAction}
         customFilters={(
           <div className='flex w-full flex-row items-center justify-start gap-1'>
             {/* Date Range Filter */}
@@ -722,11 +712,11 @@ export function ActivityLogTable() {
 /**
  * Helper function to create an action column with colored chips
  */
-function createActionColumn({ accessorKey = 'actionType' } = {}) {
+function createActionColumn({ key = 'actionType' } = {}) {
   return {
-    accessorKey,
-    cell: ({ row }) => {
-      const action = row.getValue(accessorKey);
+    allowsSorting: true,
+    cell: (row) => {
+      const action = row[key];
       const color = getActionColor(action);
 
       return (
@@ -736,22 +726,20 @@ function createActionColumn({ accessorKey = 'actionType' } = {}) {
       );
     },
     header: 'Action',
-    maxSize: 150,
-    minSize: 60,
-    size: 75
+    id: key,
+    maxWidth: 150,
+    minWidth: 60,
+    width: 75
   };
 }
 
 /**
  * Helper function to create an additional comment column with text wrapping
  */
-function createAdditionalCommentColumn({
-  accessorKey = 'additionalComment'
-} = {}) {
+function createAdditionalCommentColumn({ key = 'additionalComment' } = {}) {
   return {
-    accessorKey,
-    cell: ({ row }) => {
-      const comment = row.getValue(accessorKey);
+    cell: (row) => {
+      const comment = row[key];
       if (!comment) return '-';
 
       return (
@@ -763,9 +751,10 @@ function createAdditionalCommentColumn({
       );
     },
     header: 'Comment',
-    maxSize: 300,
-    minSize: 40,
-    size: 75
+    id: key,
+    maxWidth: 300,
+    minWidth: 40,
+    width: 75
   };
 }
 
@@ -780,74 +769,74 @@ function createObjectColumn({
   typeKey = 'objectType'
 } = {}) {
   return {
-    accessorKey: nameKey,
-    cell: ({ row }) => {
-      const name = row.getValue(nameKey);
-      const type = row.original[typeKey];
-      const id = row.original[idKey];
-      const [url, setUrl] = useState(null);
-
-      // Build URL asynchronously when component mounts or data changes
-      useEffect(() => {
-        const buildUrlAsync = async () => {
-          if (!type || !id || !baseUrl) {
-            setUrl(null);
-            return;
-          }
-
-          try {
-            // Create a DomoObject instance and use its buildUrl method
-            const domoObject = new DomoObject(type, id, baseUrl);
-
-            // Only build URL if the object type has a navigable URL
-            if (domoObject.hasUrl()) {
-              const builtUrl = await domoObject.buildUrl(baseUrl, tabId);
-              setUrl(builtUrl);
-            } else {
-              setUrl(null);
-            }
-          } catch (error) {
-            console.warn('Failed to build URL for object:', error);
-            setUrl(null);
-          }
-        };
-
-        buildUrlAsync();
-      }, [type, id, baseUrl, tabId]);
-
-      return (
-        <div className='flex flex-col gap-1'>
-          {url ? (
-            <Link
-              className='text-sm font-medium no-underline decoration-accent/80 hover:text-accent/80 hover:underline'
-              href={url}
-              target='_blank'
-            >
-              {name || '-'}
-            </Link>
-          ) : (
-            <span className='text-sm font-medium'>{name || '-'}</span>
-          )}
-          {type && (
-            <Chip className='w-fit' size='sm'>
-              {type}
-            </Chip>
-          )}
-        </div>
-      );
-    },
-    header: 'Object'
+    accessor: (row) => row[nameKey],
+    allowsSorting: true,
+    cell: (row) => (
+      <ObjectCell
+        baseUrl={baseUrl}
+        id={row[idKey]}
+        name={row[nameKey]}
+        tabId={tabId}
+        type={row[typeKey]}
+      />
+    ),
+    header: 'Object',
+    id: nameKey
   };
+}
+
+function ObjectCell({ baseUrl, id, name, tabId, type }) {
+  const [url, setUrl] = useState(null);
+
+  useEffect(() => {
+    if (!type || !id || !baseUrl) {
+      setUrl(null);
+      return;
+    }
+
+    const domoObject = new DomoObject(type, id, baseUrl);
+    if (!domoObject.hasUrl()) {
+      setUrl(null);
+      return;
+    }
+
+    domoObject
+      .buildUrl(baseUrl, tabId)
+      .then(setUrl)
+      .catch(() => setUrl(null));
+  }, [type, id, baseUrl, tabId]);
+
+  return (
+    <div className='flex flex-col gap-1'>
+      {url ? (
+        <Link
+          className='text-sm font-medium no-underline decoration-accent/80 hover:text-accent/80 hover:underline'
+          href={url}
+          target='_blank'
+        >
+          {name || '-'}
+        </Link>
+      ) : (
+        <span className='text-sm font-medium'>{name || '-'}</span>
+      )}
+      {type && (
+        <Chip className='w-fit' size='sm'>
+          {type}
+        </Chip>
+      )}
+    </div>
+  );
 }
 
 /**
  * Helper function to create a timestamp column with formatted date/time
  */
-function createTimestampColumn({ accessorKey = 'time' } = {}) {
+function createTimestampColumn({ key = 'time' } = {}) {
   return {
-    accessorKey,
-    cell: ({ row }) => {
-      const timestamp = row.getValue(accessorKey);
+    accessor: (row) => new Date(row[key]).getTime(),
+    allowsSorting: true,
+    cell: (row) => {
+      const timestamp = row[key];
       if (!timestamp) return '-';
 
       const date = new Date(timestamp);
@@ -862,9 +851,10 @@ function createTimestampColumn({ accessorKey = 'time' } = {}) {
       );
     },
     header: 'Timestamp',
-    maxSize: 75,
-    minSize: 75,
-    size: 75
+    id: key,
+    maxWidth: 75,
+    minWidth: 75,
+    width: 75
   };
 }
 
@@ -873,10 +863,11 @@ function createTimestampColumn({ accessorKey = 'time' } = {}) {
  */
 function createUserColumn({ idKey = 'userId', nameKey = 'userName' } = {}) {
   return {
-    accessorKey: nameKey,
-    cell: ({ row }) => {
-      const name = row.getValue(nameKey);
-      const id = row.original[idKey];
+    accessor: (row) => row[nameKey],
+    allowsSorting: true,
+    cell: (row) => {
+      const name = row[nameKey];
+      const id = row[idKey];
 
       return (
         <div className='flex flex-col'>
@@ -884,7 +875,7 @@ function createUserColumn({ idKey = 'userId', nameKey = 'userName' } = {}) {
             {name || '-'}
           </span>
           {id && (
-            <span className='truncate text-xs text-muted' title={id}>
+            <span className='truncate text-xs text-muted' title={String(id)}>
               {id}
             </span>
           )}
@@ -892,9 +883,10 @@ function createUserColumn({ idKey = 'userId', nameKey = 'userName' } = {}) {
       );
     },
     header: 'User',
-    maxSize: 180,
-    minSize: 60,
-    size: 75
+    id: nameKey,
+    maxWidth: 180,
+    minWidth: 60,
+    width: 75
   };
 }
 

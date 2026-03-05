@@ -428,12 +428,12 @@
   dependencies:
     tslib "^2.8.0"
 
-"@heroui/react@3.0.0-beta.7":
-  version "3.0.0-beta.7"
-  resolved "https://registry.yarnpkg.com/@heroui/react/-/react-3.0.0-beta.7.tgz#87cad45f1c32770f977bb99567d621cf571a7843"
-  integrity sha512-HIITfTuFW+rzf6hAm1UUZc9ZZ9mbIHo/LuYl0jfUKAi0fEKwRl775RQ2qL9YX3G1osMooS0UIQ6HHs9gKH8HTQ==
+"@heroui/react@3.0.0-beta.8":
+  version "3.0.0-beta.8"
+  resolved "https://registry.yarnpkg.com/@heroui/react/-/react-3.0.0-beta.8.tgz#9ede2914f828737b75c179ed5b3773836226a525"
+  integrity sha512-1wh7N689LKLgXf/FbGg2Y7fMtiwdHcANHdRKDKFly4UWsraxEXdpfJaeL788TE3rpsMmzuKl3FZBOewjBGKKLQ==
   dependencies:
-    "@heroui/styles" "3.0.0-beta.7"
+    "@heroui/styles" "3.0.0-beta.8"
     "@radix-ui/react-avatar" "1.1.11"
     "@react-aria/i18n" "3.12.15"
     "@react-aria/ssr" "3.9.10"
@@ -446,10 +446,10 @@
     tailwind-merge "3.4.0"
     tailwind-variants "3.2.2"
 
-"@heroui/styles@3.0.0-beta.7":
-  version "3.0.0-beta.7"
-  resolved "https://registry.yarnpkg.com/@heroui/styles/-/styles-3.0.0-beta.7.tgz#6cd41e9f9c4368763bfd45f4e4fafe595d2fb08c"
-  integrity sha512-uFV3Q5RPANo67FZwtl1938QrdRGYxEEJV3Wso6OI08U4BXhe1KNvoAqIUOi/XdkB0cDAd9nFJwyK13jMfCqKWw==
+"@heroui/styles@3.0.0-beta.8":
+  version "3.0.0-beta.8"
+  resolved "https://registry.yarnpkg.com/@heroui/styles/-/styles-3.0.0-beta.8.tgz#fefc7c5ba9345881482cff179dedf5f696035d59"
+  integrity sha512-QKSMuHiT5VIySweFjw5/ombl58Oqp6vZ9fbRniIlh3k4Jh2lMmSUEPZ53+2vTw2VoGwDgLdvfOyJLxedYQpvIw==
   dependencies:
     tailwind-variants "3.2.2"
     tw-animate-css "1.4.0"
@@ -2115,24 +2115,12 @@
     "@tailwindcss/oxide" "4.1.18"
     tailwindcss "4.1.18"
 
-"@tanstack/react-table@^8.21.3":
-  version "8.21.3"
-  resolved "https://registry.npmjs.org/@tanstack/react-table/-/react-table-8.21.3.tgz"
-  integrity sha512-5nNMTSETP4ykGegmVkhjcS8tTLW6Vl4axfEGQN3v0zdHYbK4UfoqfPChclTrJ4EoK9QynqAu9oUf8VEmrpZ5Ww==
-  dependencies:
-    "@tanstack/table-core" "8.21.3"
-
 "@tanstack/react-virtual@^3.13.18":
   version "3.13.18"
   resolved "https://registry.npmjs.org/@tanstack/react-virtual/-/react-virtual-3.13.18.tgz"
   integrity sha512-dZkhyfahpvlaV0rIKnvQiVoWPyURppl6w4m9IwMDpuIjcJ1sD9YGWrt0wISvgU7ewACXx2Ct46WPgI6qAD4v6A==
   dependencies:
     "@tanstack/virtual-core" "3.13.18"
-
-"@tanstack/table-core@8.21.3":
-  version "8.21.3"
-  resolved "https://registry.npmjs.org/@tanstack/table-core/-/table-core-8.21.3.tgz"
-  integrity sha512-ldZXEhOBb8Is7xLs01fR3YEc3DERiz5silj8tnGkFZytt1abEvl/GhUmCE0PMLaMPTa3Jk4HbKmRlHmu+gCftg==
 
 "@tanstack/virtual-core@3.13.18":
   version "3.13.18"
