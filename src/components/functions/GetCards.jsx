@@ -72,6 +72,8 @@ export function GetCards({
 
       // Sidepanel: fetch data, then display
       let cards;
+      let forms = [];
+      let queues = [];
 
       if (PRE_FETCHED_TYPES.includes(objectType)) {
         const result = await waitForCards(currentContext);
@@ -81,6 +83,8 @@ export function GetCards({
           return;
         }
         cards = result.cards;
+        forms = result.forms;
+        queues = result.queues;
       } else {
         cards = await getCardsForObject({
           objectId: currentContext.domoObject.id,
@@ -89,10 +93,14 @@ export function GetCards({
         });
       }
 
-      if (!cards || cards.length === 0) {
+      if (
+        (!cards || cards.length === 0) &&
+        (!forms || forms.length === 0) &&
+        (!queues || queues.length === 0)
+      ) {
         onStatusUpdate?.(
-          'No Cards Found',
-          'No cards found for this object.',
+          'No Items Found',
+          'No cards, forms, or queues found for this page.',
           'warning',
           3000
         );
@@ -114,6 +122,8 @@ export function GetCards({
       await storeSidepanelData({
         cards,
         currentContext,
+        forms,
+        queues,
         statusShown: true,
         type: 'getCards'
       });

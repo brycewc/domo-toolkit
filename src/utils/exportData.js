@@ -1,5 +1,3 @@
-import * as XLSX from 'xlsx';
-
 /**
  * Export data to CSV format and trigger download
  * @param {Array} data - Array of row data objects
@@ -49,7 +47,7 @@ export function exportToCSV(data, columns, filename = 'export') {
  * @param {string} filename - Filename without extension
  * @param {string} sheetName - Name of the Excel sheet
  */
-export function exportToExcel(
+export async function exportToExcel(
   data,
   columns,
   filename = 'export',
@@ -71,6 +69,8 @@ export function exportToExcel(
     const rowValues = headers.map((header) => row[header] ?? '');
     wsData.push(rowValues);
   });
+
+  const XLSX = await import('xlsx');
 
   // Create workbook and worksheet
   const wb = XLSX.utils.book_new();

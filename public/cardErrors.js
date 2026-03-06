@@ -21,120 +21,25 @@
 
   function isOnCardPage() {
     var href = location.href.toLowerCase();
-    return href.includes('/kpis/') || href.includes('cardid');
+    return href.includes('kpis/') || href.includes('cardid');
   }
 
-  // ---- Notification UI ----
+  // ---- Error emission ----
 
-  function showErrorNotification(errorData) {
+  function emitCardError(errorData) {
     if (!isOnCardPage()) return;
 
     // Ignore "Bad Request" errors
-    if (JSON.parse(errorData.response)?.message == 'Bad Request') {
-      return;
-    }
-
-    var wrapper = document.getElementById('domo-toolkit-card-errors');
-    if (!wrapper) {
-      wrapper = document.createElement('div');
-      wrapper.id = 'domo-toolkit-card-errors';
-      wrapper.style.cssText =
-        'position:fixed;top:8px;right:8px;z-index:999999;display:flex;flex-direction:column;gap:6px;max-width:420px;max-height:80vh;overflow-y:auto;';
-      document.body.appendChild(wrapper);
-    }
-
-    var DISMISS_MS = 30000;
-
-    var card = document.createElement('div');
-    card.style.cssText =
-      'background:#fff;border:1px solid rgba(211,47,47,0.4);border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,0.15);padding:10px 12px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:12px;color:#333;position:relative;overflow:hidden;';
-
-    // Progress bar for auto-dismiss
-    var progressBar = document.createElement('div');
-    progressBar.style.cssText =
-      'position:absolute;bottom:0;left:0;height:2px;background:#d32f2f;width:100%;transform-origin:left;animation:domo-toolkit-dismiss ' +
-      DISMISS_MS +
-      'ms linear forwards;';
-    card.appendChild(progressBar);
-
-    // Inject keyframes if not already present
-    if (!document.getElementById('domo-toolkit-card-error-styles')) {
-      var style = document.createElement('style');
-      style.id = 'domo-toolkit-card-error-styles';
-      style.textContent =
-        '@keyframes domo-toolkit-dismiss{from{transform:scaleX(1)}to{transform:scaleX(0)}}';
-      document.head.appendChild(style);
-    }
-
-    // Header row
-    var header = document.createElement('div');
-    header.style.cssText =
-      'display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;';
-
-    var title = document.createElement('div');
-    title.style.cssText = 'font-weight:600;font-size:12px;color:#d32f2f;';
-    title.textContent = 'Card Error ' + errorData.status;
-    header.appendChild(title);
-
-    var closeBtn = document.createElement('button');
-    closeBtn.textContent = '\u2715';
-    closeBtn.style.cssText =
-      'background:none;border:none;cursor:pointer;font-size:14px;color:#888;padding:0 0 0 8px;line-height:1;';
-    closeBtn.addEventListener('click', () => {
-      card.remove();
-      if (wrapper.children.length === 0) wrapper.remove();
-    });
-    header.appendChild(closeBtn);
-    card.appendChild(header);
-
-    // Request info
-    var reqDiv = document.createElement('div');
-    reqDiv.style.cssText =
-      'opacity:0.7;margin-bottom:4px;word-break:break-all;';
-    reqDiv.textContent = errorData.method + ' ' + errorData.url;
-    card.appendChild(reqDiv);
-
-    // Response body
-    var responseText = errorData.response || '';
-    var formattedResponse;
     try {
-      formattedResponse = JSON.stringify(JSON.parse(responseText), null, 2);
+      if (JSON.parse(errorData.response)?.message === 'Bad Request') return;
     } catch (e) {
-      formattedResponse = responseText;
+      // Not JSON, continue
     }
 
-    if (formattedResponse) {
-      var pre = document.createElement('pre');
-      pre.textContent = formattedResponse;
-      pre.style.cssText =
-        'margin:0;white-space:pre-wrap;word-break:break-all;background:rgba(0,0,0,0.03);padding:6px;border-radius:4px;font-size:11px;max-height:200px;overflow-y:auto;';
-      card.appendChild(pre);
-    }
-
-    // Footer: label left, timestamp right
-    var footer = document.createElement('div');
-    footer.style.cssText =
-      'display:flex;justify-content:space-between;align-items:center;margin-top:4px;font-size:10px;opacity:0.5;';
-
-    var label = document.createElement('div');
-    label.textContent = 'Domo Toolkit';
-    footer.appendChild(label);
-
-    var timeDiv = document.createElement('div');
-    timeDiv.textContent = errorData.timestamp;
-    footer.appendChild(timeDiv);
-
-    card.appendChild(footer);
-
-    wrapper.appendChild(card);
-
-    // Auto-dismiss
-    setTimeout(() => {
-      if (card.parentNode) {
-        card.remove();
-        if (wrapper.children.length === 0) wrapper.remove();
-      }
-    }, DISMISS_MS);
+    window.postMessage(
+      { source: 'domo-toolkit-card-error', error: errorData },
+      '*'
+    );
   }
 
   // ---- Fetch interception ----
@@ -162,7 +67,7 @@
           cloned
             .text()
             .then((text) => {
-              showErrorNotification({
+              emitCardError({
                 method: method,
                 response: text,
                 status: response.status,
@@ -181,7 +86,7 @@
                 var details =
                   data.exceptions.main && data.exceptions.main.details;
                 var innerStatus = details && details.status;
-                showErrorNotification({
+                emitCardError({
                   method: method,
                   response: JSON.stringify(data.exceptions, null, 2),
                   status: innerStatus || 'Exception',
@@ -197,7 +102,7 @@
       })
       .catch((error) => {
         if (isCardEndpoint(url)) {
-          showErrorNotification({
+          emitCardError({
             method: method,
             response: error.message,
             status: 0,
@@ -240,7 +145,7 @@
       if (!monitor) return;
 
       if (xhr.status >= 400 && isCardEndpoint(monitor.url)) {
-        showErrorNotification({
+        emitCardError({
           method: monitor.method,
           response: xhr.responseText,
           status: xhr.status,
@@ -258,7 +163,7 @@
           if (data && data.exceptions) {
             var details = data.exceptions.main && data.exceptions.main.details;
             var innerStatus = details && details.status;
-            showErrorNotification({
+            emitCardError({
               method: monitor.method,
               response: JSON.stringify(data.exceptions, null, 2),
               status: innerStatus || 'Exception',
@@ -274,7 +179,7 @@
     xhr.addEventListener('error', () => {
       var monitor = xhr._domoToolkitMonitor;
       if (monitor && isCardEndpoint(monitor.url)) {
-        showErrorNotification({
+        emitCardError({
           method: monitor.method,
           response: 'Network request failed',
           status: 0,

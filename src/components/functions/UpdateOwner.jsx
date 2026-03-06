@@ -1,7 +1,5 @@
 import {
   Avatar,
-  AvatarFallback,
-  AvatarImage,
   Button,
   Collection,
   ComboBox,
@@ -26,7 +24,7 @@ import { useEffect, useState } from 'react';
 
 import { useStatusBar } from '@/hooks';
 import { searchUsers, updateOwner } from '@/services';
-import { isSidepanel } from '@/utils';
+import { getInitials, isSidepanel } from '@/utils';
 
 export function UpdateOwner({ currentContext, onStatusUpdate }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -226,12 +224,12 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
                             textValue={user.displayName}
                           >
                             <Avatar size='sm'>
-                              <AvatarImage
+                              <Avatar.Image
                                 src={`${currentContext?.domoObject?.baseUrl}/api/content/v1/avatar/USER/${user.id}?size=100`}
                               />
-                              <AvatarFallback>
-                                {user.displayName.charAt(0).toUpperCase()}
-                              </AvatarFallback>
+                              <Avatar.Fallback>
+                                {getInitials(user.displayName)}
+                              </Avatar.Fallback>
                             </Avatar>
                             <div className='flex flex-col'>
                               <Label>{user.displayName}</Label>

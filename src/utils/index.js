@@ -18,7 +18,14 @@ export {
   applyInstanceLogoAuto,
   clearFaviconCache
 } from './faviconModifier';
-export { JsonStringifyOrder } from './general';
+export {
+  extractUserIds,
+  formatEpochTimestamp,
+  getInitials,
+  isDateFieldName,
+  isUserFieldName,
+  JsonStringifyOrder
+} from './general';
 export { waitForChildPages } from './pageHelpers';
 export {
   isSidepanel,

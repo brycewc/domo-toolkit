@@ -4,8 +4,8 @@ import {
   Chip,
   Dropdown,
   Label,
-  SearchField,
   Spinner,
+  Table,
   Tooltip
 } from '@heroui/react';
 import {
@@ -17,16 +17,9 @@ import {
   IconPlus,
   IconRefresh
 } from '@tabler/icons-react';
-import {
-  flexRender,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getSortedRowModel,
-  useReactTable
-} from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { AnimatePresence } from 'motion/react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
 import { exportToCSV, exportToExcel, generateExportFilename } from '@/utils';
 
@@ -34,172 +27,127 @@ import { AnimatedCheck } from './../AnimatedCheck';
 
 /**
  * DataTable Component
- * A feature-rich table component using TanStack Table with HeroUI v3 styling
+ * A feature-rich table using HeroUI v3 Table with @tanstack/react-virtual
  *
- * Features:
- * - Column sorting
- * - Global search/filtering
- * - Column visibility toggle
- * - Multi-row selection
- * - Pagination with customizable page size
- * - Action filtering
- * - Responsive design with Tailwind CSS
+ * Column definition format:
+ *   {
+ *     id: string,                      // unique key, also used as default data accessor
+ *     header: string,                  // column header label
+ *     cell: (row) => ReactNode,        // render function receiving the row data object
+ *     accessor: (row) => any,          // optional: custom value accessor for sorting
+ *     allowsSorting: boolean,          // optional: whether sortable (default false)
+ *     canHide: boolean,               // optional: appears in visibility toggle (default true)
+ *     width: number|string,           // optional: CSS width
+ *     minWidth: number|string,        // optional: CSS min-width
+ *     maxWidth: number|string,        // optional: CSS max-width
+ *   }
  *
  * @param {Object} props
- * @param {Array} props.columns - Table column definitions (TanStack Table format)
- * @param {Array} props.data - Table data array
- * @param {Function} props.onAdd - Callback when "Add New" button is clicked
- * @param {Function} props.onRowAction - Callback when row action is selected
- * @param {String} props.searchPlaceholder - Placeholder text for search input
- * @param {String} props.entityName - Name of entity (e.g., "users", "items")
- * @param {Boolean} props.enableSelection - Enable row selection checkboxes (default: true)
- * @param {Object} props.initialColumnVisibility - Initial column visibility state
- * @param {Boolean} props.enableSearch - Enable search field (default: true)
- * @param {React.ReactNode} props.customFilters - Custom filter components to render
+ * @param {Array} props.columns - Column definitions
+ * @param {Array} props.data - Row data array
+ * @param {String} props.entityName - Name of entity (e.g., "events")
+ * @param {Object} props.initialColumnVisibility - { columnId: boolean } map
+ * @param {Object} props.initialSorting - { column: string, direction: 'ascending'|'descending' }
+ * @param {React.ReactNode} props.customFilters - Custom filter components
  * @param {Object} props.exportConfig - Export configuration
- * @param {Boolean} props.exportConfig.enabled - Enable export functionality
- * @param {String} props.exportConfig.filename - Base filename for exports
- * @param {Function} props.exportConfig.onFetchAllData - Async function to fetch all data for export (returns Promise<Array>)
- * @param {Function} props.onRefresh - Callback when refresh button is clicked
- * @param {Boolean} props.isRefreshing - Whether the table is currently refreshing
+ * @param {Function} props.onRefresh - Refresh callback
+ * @param {Boolean} props.isRefreshing - Whether refreshing
+ * @param {Function} props.onLoadMore - Infinite scroll callback
+ * @param {Boolean} props.hasMore - Whether more data is available
+ * @param {Function} props.onAdd - Add new callback
  */
 export function DataTable({
   columns = [],
   customFilters = null,
   data = [],
-  enableSearch = true,
-  enableSelection = true,
   entityName = 'items',
   exportConfig = null,
+  hasMore = false,
   initialColumnVisibility = {},
-  initialSorting = [],
+  initialSorting = null,
   isRefreshing = false,
   onAdd,
   onLoadMore,
-  onRefresh = null,
-  onRowAction,
-  searchPlaceholder = 'Search...'
+  onRefresh = null
 }) {
-  const [sorting, setSorting] = useState(initialSorting);
-  const [columnFilters, setColumnFilters] = useState([]);
-  const [columnVisibility, setColumnVisibility] = useState(
-    initialColumnVisibility
+  const [sortDescriptor, setSortDescriptor] = useState(initialSorting);
+  const [hiddenColumns, setHiddenColumns] = useState(
+    () =>
+      new Set(
+        Object.entries(initialColumnVisibility)
+          .filter(([, visible]) => !visible)
+          .map(([id]) => id)
+      )
   );
-  const [rowSelection, setRowSelection] = useState({});
-  const [globalFilter, setGlobalFilter] = useState('');
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const isLoadingMoreRef = useRef(false);
 
   const tableContainerRef = useRef(null);
 
-  const table = useReactTable({
-    columns,
-    data,
-    enableRowSelection: enableSelection,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    onColumnFiltersChange: setColumnFilters,
-    onColumnVisibilityChange: setColumnVisibility,
-    onGlobalFilterChange: setGlobalFilter,
-    onRowSelectionChange: setRowSelection,
-    onSortingChange: setSorting,
-    state: {
-      columnFilters,
-      columnVisibility,
-      globalFilter,
-      rowSelection,
-      sorting
-    }
-  });
+  const visibleColumns = useMemo(
+    () => columns.filter((c) => !hiddenColumns.has(c.id)),
+    [columns, hiddenColumns]
+  );
 
-  const { rows } = table.getRowModel();
+  const toggleableColumns = useMemo(
+    () => columns.filter((c) => c.canHide !== false),
+    [columns]
+  );
+
+  const sortedData = useMemo(() => {
+    if (!sortDescriptor?.column) return data;
+    const col = columns.find((c) => c.id === sortDescriptor.column);
+    if (!col) return data;
+    const accessor = col.accessor || ((row) => row[col.id]);
+    return [...data].sort((a, b) => {
+      const aVal = accessor(a);
+      const bVal = accessor(b);
+      let cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+      return sortDescriptor.direction === 'descending' ? -cmp : cmp;
+    });
+  }, [data, sortDescriptor, columns]);
 
   const rowVirtualizer = useVirtualizer({
-    count: rows.length,
-    estimateSize: () => 53, // Estimated row height in pixels
+    count: sortedData.length,
+    estimateSize: () => 53,
     getScrollElement: () => tableContainerRef?.current,
     measureElement: (element) => element?.getBoundingClientRect().height,
-    overscan: 10 // Number of rows to render outside of the visible area
+    overscan: 10
   });
 
-  // Trigger onLoadMore when scrolling near the end
-  useEffect(() => {
-    const scrollElement = tableContainerRef.current;
+  const virtualItems = rowVirtualizer.getVirtualItems();
+  const totalSize = rowVirtualizer.getTotalSize();
 
-    if (!scrollElement || !onLoadMore) return;
-
-    const handleScroll = () => {
-      const { clientHeight, scrollHeight, scrollTop } = scrollElement;
-      const scrollPercentage = (scrollTop + clientHeight) / scrollHeight;
-
-      if (isLoadingMore) {
-        return;
-      }
-
-      // Load more when scrolled 80% down
-      if (scrollPercentage > 0.8) {
-        setIsLoadingMore(true);
-        Promise.resolve(onLoadMore()).finally(() => {
-          setIsLoadingMore(false);
-        });
-      }
-    };
-
-    scrollElement.addEventListener('scroll', handleScroll);
-
-    return () => {
-      scrollElement.removeEventListener('scroll', handleScroll);
-    };
-  }, [onLoadMore, isLoadingMore]);
-
-  const selectedCount = Object.keys(rowSelection).length;
-  const totalCount = data.length;
-
-  // Check if there's a select column (checkbox column)
-  const hasSelectColumn = useMemo(() => {
-    return table.getAllColumns().some((column) => column.id === 'select');
-  }, [table]);
-
-  // Get all column IDs that can be toggled
-  const toggleableColumns = table
-    .getAllColumns()
-    .filter((column) => column.getCanHide() && column.id !== 'select');
-
-  // Get visible columns for export (excluding select column)
-  const getVisibleColumnsForExport = () => {
-    return table
-      .getAllColumns()
-      .filter((col) => col.getIsVisible() && col.id !== 'select')
-      .map((col) => col.columnDef);
+  const handleLoadMore = () => {
+    if (isLoadingMoreRef.current || !onLoadMore) return;
+    isLoadingMoreRef.current = true;
+    setIsLoadingMore(true);
+    Promise.resolve(onLoadMore()).finally(() => {
+      isLoadingMoreRef.current = false;
+      setIsLoadingMore(false);
+    });
   };
 
-  // Handle export
   const handleExport = async (format) => {
     if (!exportConfig?.enabled) return;
 
     setIsExporting(true);
     try {
-      // Get data to export - either fetch all or use current filtered data
       let exportData;
       if (exportConfig.onFetchAllData) {
-        // Fetch all data (paginate through API)
         exportData = await exportConfig.onFetchAllData();
       } else {
-        // Use currently filtered/visible data
-        exportData = table
-          .getFilteredRowModel()
-          .rows.map((row) => row.original);
+        exportData = sortedData;
       }
 
-      const visibleColumns = getVisibleColumnsForExport();
       const filename =
         exportConfig.filename || generateExportFilename(entityName);
 
       if (format === 'csv') {
         exportToCSV(exportData, visibleColumns, filename);
       } else if (format === 'xlsx') {
-        exportToExcel(exportData, visibleColumns, filename);
+        await exportToExcel(exportData, visibleColumns, filename);
       }
     } catch (error) {
       console.error('Export failed:', error);
@@ -211,335 +159,263 @@ export function DataTable({
   return (
     <Card className='h-fit w-full'>
       <Card.Header>
-        {/* Top Controls Bar */}
         <div className='items-between flex w-full flex-col justify-center gap-1 sm:flex-row sm:items-center sm:justify-between'>
-          <div
-            className={`flex items-center gap-1 ${
-              enableSelection && hasSelectColumn
-                ? 'flex-1'
-                : 'sm:w-full sm:justify-between'
-            }`}
-          >
-            {/* Search Input */}
-            {enableSearch && (
-              <SearchField
-                fullWidth
-                name='search'
-                value={globalFilter ?? ''}
-                variant='secondary'
-                onChange={setGlobalFilter}
-              >
-                <SearchField.Group className='rounded-4xl'>
-                  <SearchField.SearchIcon />
-                  <SearchField.Input placeholder={searchPlaceholder} />
-                  <SearchField.ClearButton />
-                </SearchField.Group>
-              </SearchField>
-            )}
-
-            {/* Custom Filters */}
-            <div className='flex flex-1 flex-row justify-start gap-1'>
+          <div className='flex w-full items-center gap-1 sm:justify-between'>
+            <div className='flex flex-1 flex-row flex-wrap justify-start gap-1'>
               {customFilters}
             </div>
-
-            <div className='flex flex-row items-center justify-end gap-1'>
-              {/* Column Visibility Dropdown */}
-              <Dropdown>
-                <Button variant='tertiary'>
-                  <IconColumns stroke={1.5} />
-                  Columns
-                  <Chip color='accent' size='sm' variant='soft'>
-                    {
-                      toggleableColumns.filter((col) => col.getIsVisible())
-                        .length
-                    }
-                    /{toggleableColumns.length}
-                  </Chip>
-                </Button>
-                <Dropdown.Popover>
-                  <Dropdown.Menu
-                    selectionMode='multiple'
-                    onSelectionChange={(keys) => {
-                      toggleableColumns.forEach((column) => {
-                        column.toggleVisibility(keys.has(column.id));
-                      });
-                    }}
-                    selectedKeys={
+          </div>
+          <div className='flex flex-row items-center justify-end gap-1'>
+            {/* Column Visibility Dropdown */}
+            <Dropdown>
+              <Button variant='tertiary'>
+                <IconColumns stroke={1.5} />
+                Columns
+                <Chip color='accent' size='sm' variant='soft'>
+                  {
+                    toggleableColumns.filter((c) => !hiddenColumns.has(c.id))
+                      .length
+                  }
+                  /{toggleableColumns.length}
+                </Chip>
+              </Button>
+              <Dropdown.Popover>
+                <Dropdown.Menu
+                  selectionMode='multiple'
+                  onSelectionChange={(keys) => {
+                    setHiddenColumns(
                       new Set(
                         toggleableColumns
-                          .filter((col) => col.getIsVisible())
-                          .map((col) => col.id)
+                          .filter((c) => !keys.has(c.id))
+                          .map((c) => c.id)
                       )
-                    }
-                  >
-                    {toggleableColumns.map((column) => (
-                      <Dropdown.Item
-                        id={column.id}
-                        textValue={column.columnDef.header}
-                      >
-                        <Dropdown.ItemIndicator>
-                          {({ isSelected }) => (
-                            <AnimatePresence>
-                              {isSelected && (
-                                <AnimatedCheck
-                                  className='text-muted'
-                                  stroke={1.5}
-                                />
-                              )}
-                            </AnimatePresence>
-                          )}
-                        </Dropdown.ItemIndicator>
-                        <Label>{column.columnDef.header}</Label>
-                      </Dropdown.Item>
-                    ))}
-                  </Dropdown.Menu>
-                </Dropdown.Popover>
-              </Dropdown>
-
-              {/* Export Dropdown */}
-              {exportConfig?.enabled && (
-                <Tooltip closeDelay={0} delay={400}>
-                  <Dropdown>
-                    <Button
-                      isIconOnly
-                      isDisabled={isExporting || data.length === 0}
-                      isPending={isExporting}
-                      variant='tertiary'
+                    );
+                  }}
+                  selectedKeys={
+                    new Set(
+                      toggleableColumns
+                        .filter((c) => !hiddenColumns.has(c.id))
+                        .map((c) => c.id)
+                    )
+                  }
+                >
+                  {toggleableColumns.map((col) => (
+                    <Dropdown.Item
+                      id={col.id}
+                      key={col.id}
+                      textValue={col.header}
                     >
-                      {({ isPending }) =>
-                        isPending ? (
-                          <Spinner color='currentColor' size='sm' />
-                        ) : (
-                          <IconDownload stroke={1.5} />
+                      <Dropdown.ItemIndicator>
+                        {({ isSelected }) => (
+                          <AnimatePresence>
+                            {isSelected && (
+                              <AnimatedCheck
+                                className='text-muted'
+                                stroke={1.5}
+                              />
+                            )}
+                          </AnimatePresence>
                         )}
-                    </Button>
-                    <Dropdown.Popover>
-                      <Dropdown.Menu onAction={(key) => handleExport(key)}>
-                        <Dropdown.Item id='csv' textValue='Export as CSV'>
-                          <IconFileTypeCsv stroke={1.5} />
-                          <Label>Export as CSV</Label>
-                        </Dropdown.Item>
-                        <Dropdown.Item id='xlsx' textValue='Export as Excel'>
-                          <IconFileTypeXls stroke={1.5} />
-                          <Label>Export as Excel</Label>
-                        </Dropdown.Item>
-                      </Dropdown.Menu>
-                    </Dropdown.Popover>
-                  </Dropdown>
-                  <Tooltip.Content>Export</Tooltip.Content>
-                </Tooltip>
-              )}
+                      </Dropdown.ItemIndicator>
+                      <Label>{col.header}</Label>
+                    </Dropdown.Item>
+                  ))}
+                </Dropdown.Menu>
+              </Dropdown.Popover>
+            </Dropdown>
 
-              {/* Refresh Button */}
-              {onRefresh && (
-                <Tooltip closeDelay={0} delay={400}>
+            {/* Export Dropdown */}
+            {exportConfig?.enabled && (
+              <Tooltip closeDelay={0} delay={400}>
+                <Dropdown>
                   <Button
                     isIconOnly
-                    isDisabled={isRefreshing}
-                    isPending={isRefreshing}
+                    isDisabled={isExporting || data.length === 0}
+                    isPending={isExporting}
                     variant='tertiary'
-                    onPress={onRefresh}
                   >
                     {({ isPending }) =>
                       isPending ? (
                         <Spinner color='currentColor' size='sm' />
                       ) : (
-                        <IconRefresh stroke={1.5} />
-                      )}
+                        <IconDownload stroke={1.5} />
+                      )
+                    }
                   </Button>
-                  <Tooltip.Content>Refresh</Tooltip.Content>
-                </Tooltip>
-              )}
-            </div>
-          </div>
-
-          {/* Bulk Actions & Add New Buttons */}
-          <div className='flex items-center gap-1'>
-            {/* Bulk Actions Button - Only show if selection is enabled */}
-            {enableSelection && hasSelectColumn && (
-              <Dropdown>
-                <Button isDisabled={selectedCount === 0} variant='secondary'>
-                  Actions ({selectedCount})
-                  <IconChevronDown
-                    className='size-4 text-foreground'
-                    stroke={1.5}
-                  />
-                </Button>
-                <Dropdown.Popover>
-                  <Dropdown.Menu
-                    onAction={(key) => {
-                      if (onRowAction) {
-                        const selectedRows = table
-                          .getFilteredSelectedRowModel()
-                          .rows.map((row) => row.original);
-                        onRowAction(key, selectedRows);
-                      }
-                    }}
-                  >
-                    <Dropdown.Item id='edit' textValue='Edit'>
-                      <Label>Edit</Label>
-                    </Dropdown.Item>
-                    <Dropdown.Item id='duplicate' textValue='Duplicate'>
-                      <Label>Duplicate</Label>
-                    </Dropdown.Item>
-                    <Dropdown.Item
-                      id='delete'
-                      textValue='Delete'
-                      variant='danger'
-                    >
-                      <Label>Delete</Label>
-                    </Dropdown.Item>
-                  </Dropdown.Menu>
-                </Dropdown.Popover>
-              </Dropdown>
+                  <Dropdown.Popover>
+                    <Dropdown.Menu onAction={(key) => handleExport(key)}>
+                      <Dropdown.Item id='csv' textValue='Export as CSV'>
+                        <IconFileTypeCsv stroke={1.5} />
+                        <Label>Export as CSV</Label>
+                      </Dropdown.Item>
+                      <Dropdown.Item id='xlsx' textValue='Export as Excel'>
+                        <IconFileTypeXls stroke={1.5} />
+                        <Label>Export as Excel</Label>
+                      </Dropdown.Item>
+                    </Dropdown.Menu>
+                  </Dropdown.Popover>
+                </Dropdown>
+                <Tooltip.Content>Export</Tooltip.Content>
+              </Tooltip>
             )}
 
-            {/* Add New Button */}
-            {onAdd && (
+            {/* Refresh Button */}
+            {onRefresh && (
+              <Tooltip closeDelay={0} delay={400}>
+                <Button
+                  isIconOnly
+                  isDisabled={isRefreshing}
+                  isPending={isRefreshing}
+                  variant='tertiary'
+                  onPress={onRefresh}
+                >
+                  {({ isPending }) =>
+                    isPending ? (
+                      <Spinner color='currentColor' size='sm' />
+                    ) : (
+                      <IconRefresh stroke={1.5} />
+                    )
+                  }
+                </Button>
+                <Tooltip.Content>Refresh</Tooltip.Content>
+              </Tooltip>
+            )}
+          </div>
+
+          {onAdd && (
+            <div className='flex items-center gap-1'>
               <Button onPress={onAdd}>
                 <IconPlus stroke={1.5} />
                 Add New
               </Button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
-        {/* Selection Count - Only show if selection is enabled */}
-        {enableSelection && hasSelectColumn && (
-          <div className='text-sm text-muted'>
-            {selectedCount} of {totalCount} selected
-          </div>
-        )}
       </Card.Header>
-      {/* Table */}
+
       <Card.Content className='overflow-hidden rounded-lg border border-default'>
-        <div
-          className='max-h-[calc(100vh-15rem)] overflow-auto overscroll-y-contain'
-          ref={tableContainerRef}
-        >
-          <table className='w-full'>
-            <thead className='sticky top-0 z-10 bg-background'>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <tr key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => (
-                    <th
-                      className='p-3 text-left text-xs font-medium tracking-wider uppercase'
-                      key={header.id}
-                      style={{
-                        maxWidth: header.column.columnDef.maxSize,
-                        minWidth: header.column.columnDef.minSize,
-                        width: header.column.columnDef.size
-                      }}
-                    >
-                      {header.isPlaceholder ? null : (
-                        <div
-                          onClick={header.column.getToggleSortingHandler()}
-                          className={`flex items-center gap-2 ${
-                            header.column.getCanSort()
-                              ? 'cursor-pointer select-none'
-                              : ''
-                          }`}
-                        >
-                          {flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
-                          {header.column.getCanSort() && (
-                            <span className='text-muted'>
-                              {header.column.getIsSorted() === 'asc' ? (
-                                <IconChevronDown
-                                  className='size-4 rotate-180 text-foreground'
-                                  stroke={1.5}
-                                />
-                              ) : header.column.getIsSorted() === 'desc' ? (
-                                <IconChevronDown
-                                  className='size-4 text-foreground'
-                                  stroke={1.5}
-                                />
-                              ) : (
-                                <div className='size-4' />
-                              )}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </th>
-                  ))}
-                </tr>
-              ))}
-            </thead>
-            <tbody className='divide-y divide-default'>
-              {table.getRowModel().rows.length === 0 ? (
-                <tr>
-                  <td
-                    className='p-3 text-center text-muted'
-                    colSpan={columns.length}
+        <Table variant='secondary'>
+          <Table.ScrollContainer
+            className='max-h-[calc(100vh-12rem)] overflow-auto overscroll-y-contain'
+            ref={tableContainerRef}
+          >
+            <Table.Content
+              aria-label={entityName}
+              sortDescriptor={sortDescriptor}
+              onSortChange={setSortDescriptor}
+            >
+              <Table.Header className='sticky top-0 z-10'>
+                {visibleColumns.map((col, index) => (
+                  <Table.Column
+                    allowsSorting={!!col.allowsSorting}
+                    id={col.id}
+                    isRowHeader={index === 0}
+                    key={col.id}
+                    style={{
+                      maxWidth: col.maxWidth,
+                      minWidth: col.minWidth,
+                      width: col.width
+                    }}
                   >
+                    {col.allowsSorting
+                      ? ({ sortDirection }) => (
+                          <SortableHeader sortDirection={sortDirection}>
+                            {col.header}
+                          </SortableHeader>
+                        )
+                      : col.header}
+                  </Table.Column>
+                ))}
+              </Table.Header>
+              <Table.Body
+                renderEmptyState={() => (
+                  <p className='py-8 text-center text-sm text-muted'>
                     No results found
-                  </td>
-                </tr>
-              ) : (
-                <>
-                  {rowVirtualizer.getVirtualItems().length > 0 && (
-                    <tr
-                      style={{
-                        height: `${rowVirtualizer.getVirtualItems()[0].start}px`
-                      }}
+                  </p>
+                )}
+              >
+                {virtualItems.length > 0 && (
+                  <Table.Row
+                    id='spacer-top'
+                    key='spacer-top'
+                    style={{ height: virtualItems[0].start }}
+                  >
+                    <Table.Cell
+                      className='p-0'
+                      colSpan={visibleColumns.length}
+                    />
+                  </Table.Row>
+                )}
+                {virtualItems.map((virtualRow) => {
+                  const row = sortedData[virtualRow.index];
+                  return (
+                    <Table.Row
+                      data-index={virtualRow.index}
+                      id={virtualRow.index}
+                      key={virtualRow.index}
+                      ref={(node) => rowVirtualizer.measureElement(node)}
                     >
-                      <td colSpan={columns.length} />
-                    </tr>
-                  )}
-                  {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                    const row = rows[virtualRow.index];
-                    return (
-                      <tr
-                        data-index={virtualRow.index}
-                        key={row.id}
-                        ref={(node) => rowVirtualizer.measureElement(node)}
-                        className={`divide-x divide-default transition-colors hover:bg-surface/30 ${
-                          virtualRow.index % 2 === 0
-                            ? 'bg-transparent'
-                            : 'bg-surface/10'
-                        }`}
-                      >
-                        {row.getVisibleCells().map((cell) => (
-                          <td
-                            className='px-3 py-2'
-                            key={cell.id}
-                            style={{
-                              maxWidth: cell.column.columnDef.maxSize,
-                              minWidth: cell.column.columnDef.minSize,
-                              width: cell.column.columnDef.size
-                            }}
-                          >
-                            {flexRender(
-                              cell.column.columnDef.cell,
-                              cell.getContext()
-                            )}
-                          </td>
-                        ))}
-                      </tr>
-                    );
-                  })}
-                  {rowVirtualizer.getVirtualItems().length > 0 && (
-                    <tr
-                      style={{
-                        height: `${
-                          rowVirtualizer.getTotalSize() -
-                          rowVirtualizer.getVirtualItems()[
-                            rowVirtualizer.getVirtualItems().length - 1
-                          ].end
-                        }px`
-                      }}
-                    >
-                      <td colSpan={columns.length} />
-                    </tr>
-                  )}
-                </>
-              )}
-            </tbody>
-          </table>
-        </div>
+                      {visibleColumns.map((col) => (
+                        <Table.Cell
+                          key={col.id}
+                          style={{
+                            maxWidth: col.maxWidth,
+                            minWidth: col.minWidth,
+                            width: col.width
+                          }}
+                        >
+                          {col.cell(row)}
+                        </Table.Cell>
+                      ))}
+                    </Table.Row>
+                  );
+                })}
+                {virtualItems.length > 0 && (
+                  <Table.Row
+                    id='spacer-bottom'
+                    key='spacer-bottom'
+                    style={{
+                      height:
+                        totalSize - virtualItems[virtualItems.length - 1].end
+                    }}
+                  >
+                    <Table.Cell
+                      className='p-0'
+                      colSpan={visibleColumns.length}
+                    />
+                  </Table.Row>
+                )}
+                {onLoadMore && hasMore && (
+                  <Table.LoadMore
+                    isLoading={isLoadingMore}
+                    onLoadMore={handleLoadMore}
+                  >
+                    <Table.LoadMoreContent>
+                      <Spinner size='sm' />
+                    </Table.LoadMoreContent>
+                  </Table.LoadMore>
+                )}
+              </Table.Body>
+            </Table.Content>
+          </Table.ScrollContainer>
+        </Table>
       </Card.Content>
     </Card>
+  );
+}
+
+function SortableHeader({ children, sortDirection }) {
+  return (
+    <span className='flex items-center justify-between'>
+      {children}
+      {sortDirection && (
+        <IconChevronDown
+          stroke={1.5}
+          className={`size-3 transition-transform duration-100 ${
+            sortDirection === 'ascending' ? 'rotate-180' : ''
+          }`}
+        />
+      )}
+    </span>
   );
 }

@@ -12,11 +12,19 @@ import { IconClipboard } from '@tabler/icons-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import JsonView from 'react18-json-view';
 
+import { useUserLookup } from '@/hooks';
 import { getObjectType } from '@/models';
 import { fetchObjectDetailsInPage } from '@/services';
-import { executeInPage } from '@/utils';
+import {
+  executeInPage,
+  formatEpochTimestamp,
+  isDateFieldName,
+  isUserFieldName
+} from '@/utils';
 
 import { AnimatedCheck } from './AnimatedCheck';
+import { TimestampAnnotation } from './TimestampAnnotation';
+import { UserIdAnnotation } from './UserIdAnnotation';
 import '@/assets/json-view-theme.css';
 
 export function ContextFooter({
@@ -60,6 +68,8 @@ export function ContextFooter({
               id: related.field,
               isArray: true,
               isCurrentObject: false,
+              itemTypeField: related.itemTypeField,
+              itemTypeId: related.itemTypeId,
               label: `${related.label} (${arrayData.length})`
             });
           }
@@ -111,6 +121,26 @@ export function ContextFooter({
       setActiveTabId(tabs[0].id);
     }
   }, [tabs, activeTabId]);
+
+  const activeTab = tabs.find((t) => t.id === activeTabId);
+  const activeSrc = useMemo(() => {
+    if (!activeTab) {
+      return (
+        currentContext?.domoObject?.metadata?.details ||
+        currentContext?.domoObject?.metadata
+      );
+    }
+    if (activeTab.isCurrentObject) {
+      return (
+        currentContext?.domoObject?.metadata?.details ||
+        currentContext?.domoObject?.metadata
+      );
+    }
+    if (activeTab.isArray) return activeTab.data;
+    if (activeTab.isFullContext) return currentContext;
+    return relatedCache[activeTabId] || null;
+  }, [activeTab, activeTabId, currentContext, relatedCache]);
+  const userMap = useUserLookup(activeSrc, currentContext?.tabId);
 
   // Lazy-load related object details when a tab is selected
   const handleTabChange = async (key) => {
@@ -169,14 +199,15 @@ export function ContextFooter({
     }
   };
 
-  // Derive the JSON source for the active tab
-  const activeTab = tabs.find((t) => t.id === activeTabId);
+  const baseUrl = currentContext?.domoObject?.baseUrl;
+
   const renderJsonContent = () => {
     if (!activeTab) return null;
 
     if (activeTab.isCurrentObject) {
       return (
         <MetadataJsonView
+          userMap={userMap}
           src={
             currentContext?.domoObject?.metadata?.details ||
             currentContext?.domoObject?.metadata
@@ -186,11 +217,17 @@ export function ContextFooter({
     }
 
     if (activeTab.isArray) {
-      return <MetadataJsonView collapsed={2} src={activeTab.data} />;
+      const src = injectUrls(activeTab.data, {
+        baseUrl,
+        isArray: true,
+        itemTypeField: activeTab.itemTypeField,
+        itemTypeId: activeTab.itemTypeId
+      });
+      return <MetadataJsonView collapsed={2} src={src} userMap={userMap} />;
     }
 
     if (activeTab.isFullContext) {
-      return <MetadataJsonView src={currentContext} />;
+      return <MetadataJsonView src={currentContext} userMap={userMap} />;
     }
 
     if (loadingTabs[activeTabId]) {
@@ -202,7 +239,12 @@ export function ContextFooter({
     }
 
     if (relatedCache[activeTabId]) {
-      return <MetadataJsonView src={relatedCache[activeTabId]} />;
+      const src = injectUrls(relatedCache[activeTabId], {
+        baseUrl,
+        objectId: activeTab.objectId,
+        typeId: activeTab.typeId
+      });
+      return <MetadataJsonView src={src} userMap={userMap} />;
     }
 
     return (
@@ -342,8 +384,8 @@ export function ContextFooter({
           {tabs.length > 1 && (
             <Tabs
               className='w-full shrink-0'
+              key={tabs.map((t) => t.id).join(',')}
               selectedKey={activeTabId}
-              // variant='secondary'
               onSelectionChange={handleTabChange}
             >
               <Tabs.ListContainer>
@@ -387,17 +429,44 @@ export function ContextFooter({
   );
 }
 
-/**
- * Shared JsonView configuration used across all tabs
- */
-function MetadataJsonView({ collapsed = 1, src }) {
+function buildSimpleUrl(baseUrl, typeId, objectId) {
+  const type = getObjectType(typeId);
+  if (!type?.hasUrl()) return null;
+  const path = type.urlPath.replace('{id}', objectId);
+  if (path.includes('{')) return null;
+  return `${baseUrl}${path}`;
+}
+
+function injectUrls(src, { baseUrl, isArray, itemTypeField, itemTypeId, objectId, typeId }) {
+  if (!src || !baseUrl) return src;
+
+  if (isArray && Array.isArray(src)) {
+    return src.map((item) => {
+      if (!item || typeof item !== 'object') return item;
+      const resolvedType = itemTypeId || item[itemTypeField];
+      const itemId = item.id;
+      if (!resolvedType || !itemId) return item;
+      const url = buildSimpleUrl(baseUrl, resolvedType, itemId);
+      return url ? { url, ...item } : item;
+    });
+  }
+
+  if (typeof src === 'object' && !Array.isArray(src) && typeId && objectId) {
+    const url = buildSimpleUrl(baseUrl, typeId, objectId);
+    return url ? { url, ...src } : src;
+  }
+
+  return src;
+}
+
+function MetadataJsonView({ collapsed = 1, src, userMap = {} }) {
   return (
     <JsonView
       displaySize
       className='text-sm'
       collapsed={collapsed}
       collapseStringMode='word'
-      collapseStringsAfterLength={50}
+      collapseStringsAfterLength={150}
       matchesURL={false}
       src={src}
       CopiedComponent={({ className, style }) => (
@@ -417,6 +486,27 @@ function MetadataJsonView({ collapsed = 1, src }) {
           onClick={onClick}
         />
       )}
+      customizeCopy={(node) => {
+        const stringValue =
+          typeof node === 'object'
+            ? JSON.stringify(node, null, 2)
+            : String(node);
+        const trimmed = stringValue.trim();
+        const isDomoId =
+          /^-?\d+$/.test(trimmed) ||
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+            trimmed
+          );
+        if (isDomoId) {
+          chrome.runtime
+            .sendMessage({
+              clipboardData: trimmed,
+              type: 'CLIPBOARD_COPIED'
+            })
+            .catch(() => {});
+        }
+        return stringValue;
+      }}
       customizeNode={(params) => {
         if (params.node === null || params.node === undefined) {
           return { enableClipboard: false };
@@ -434,6 +524,35 @@ function MetadataJsonView({ collapsed = 1, src }) {
               {params.node}
             </Link>
           );
+        }
+        if (
+          typeof params.node === 'number' &&
+          isDateFieldName(params.indexOrName)
+        ) {
+          const formatted = formatEpochTimestamp(params.node);
+          if (formatted) {
+            return (
+              <TimestampAnnotation formatted={formatted} value={params.node} />
+            );
+          }
+        }
+        if (
+          (typeof params.node === 'number' ||
+            typeof params.node === 'string') &&
+          Object.keys(userMap).length > 0
+        ) {
+          const numericValue = Number(params.node);
+          if (
+            userMap[numericValue] &&
+            (isUserFieldName(params.indexOrName) || params.indexOrName === 'id')
+          ) {
+            return (
+              <UserIdAnnotation
+                displayName={userMap[numericValue]}
+                value={params.node}
+              />
+            );
+          }
         }
         if (params.indexOrName?.toLowerCase().includes('id')) {
           return { enableClipboard: true };

@@ -57,7 +57,15 @@ export class DomoObject {
     } else if (this.requiresParentForUrl()) {
       // For types requiring a parent, build URL if we have the parent ID
       if (parentId) {
-        this.url = `${baseUrl}${this.objectType.urlPath.replace('{parent}', parentId).replace('{id}', id)}`;
+        let builtUrl = `${baseUrl}${this.objectType.urlPath.replace('{parent}', parentId).replace('{id}', id)}`;
+        // Resolve extra URL placeholders (e.g. {version}) from the original URL
+        if (builtUrl.includes('{') && originalUrl) {
+          const extraParams = this.objectType.extractUrlParams(originalUrl);
+          for (const [key, value] of Object.entries(extraParams)) {
+            if (value) builtUrl = builtUrl.replace(`{${key}}`, value);
+          }
+        }
+        this.url = builtUrl.includes('{') && originalUrl ? originalUrl : builtUrl;
       } else {
         // Don't build URL yet (it's async)
         this.url = null;

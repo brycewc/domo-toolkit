@@ -5,8 +5,7 @@ import { useState } from 'react';
 import {
   getDatasetsForDataflow,
   getDatasetsForPage,
-  getDatasetsForView,
-  isViewType
+  getDependentDatasets
 } from '@/services';
 import { isSidepanel, openSidepanel, storeSidepanelData } from '@/utils';
 
@@ -54,20 +53,6 @@ export function GetDatasets({
         return;
       }
 
-      // For DATA_SOURCE, check if it's a view type
-      if (objectType === 'DATA_SOURCE') {
-        const details = currentContext.domoObject.metadata?.details;
-        if (!isViewType(details)) {
-          onStatusUpdate?.(
-            'Not a View',
-            'This dataset is not a DataSet View or DataFusion. Only views have underlying datasets.',
-            'warning'
-          );
-          setIsLoading(false);
-          return;
-        }
-      }
-
       // Popup: hand off intent to sidepanel immediately, no API calls
       if (!isSidepanel()) {
         await storeSidepanelData({
@@ -98,7 +83,7 @@ export function GetDatasets({
         dataflowOutputs = result.outputs;
         datasets = [...result.inputs, ...result.outputs];
       } else if (objectType === 'DATA_SOURCE') {
-        datasets = await getDatasetsForView({
+        datasets = await getDependentDatasets({
           datasetId: objectId,
           tabId: currentContext?.tabId
         });
@@ -109,7 +94,7 @@ export function GetDatasets({
           objectType === 'DATAFLOW_TYPE'
             ? 'This dataflow has no input or output datasets.'
             : objectType === 'DATA_SOURCE'
-              ? 'No underlying datasets found in this view.'
+              ? 'No dependent datasets found for this dataset.'
               : objectType === 'CARD'
                 ? 'No datasets found for this card.'
                 : 'No datasets found for this page.';
@@ -150,14 +135,7 @@ export function GetDatasets({
     }
   };
 
-  // Determine button text and visibility
   const objectType = currentContext?.domoObject?.typeId;
-  const details = currentContext?.domoObject?.metadata?.details;
-
-  // For DATA_SOURCE, only show if it's a view type
-  if (objectType === 'DATA_SOURCE' && !isViewType(details)) {
-    return null;
-  }
 
   let buttonText;
   switch (objectType) {
@@ -165,7 +143,7 @@ export function GetDatasets({
       buttonText = 'Get Card DataSets';
       break;
     case 'DATA_SOURCE':
-      buttonText = 'Get DataSets Used in View';
+      buttonText = 'Get Views';
       break;
     case 'DATAFLOW_TYPE':
       buttonText = 'Get DataFlow DataSets';

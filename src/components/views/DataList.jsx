@@ -23,7 +23,7 @@ import {
 } from '@tabler/icons-react';
 import { useState } from 'react';
 
-import { AnimatedCheck } from './AnimatedCheck';
+import { AnimatedCheck } from '@/components';
 
 /**
  * Available header action types for DataList

@@ -4,10 +4,11 @@ import {
   IconLayoutSidebarRightExpand,
   IconSettings
 } from '@tabler/icons-react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import {
   ActivityLogCurrentObject,
+  CardErrors,
   ClearCookies,
   Copy,
   CopyFilteredUrl,
@@ -16,6 +17,7 @@ import {
   Export,
   GetCards,
   GetDatasets,
+  GetViewInputs,
   GetOtherPages,
   GetPages,
   LockCards,
@@ -30,10 +32,19 @@ import { isSidepanel, openSidepanel } from '@/utils';
 export function ActionButtons({
   collapsable = false,
   currentContext,
+  defaultExpanded,
   onStatusUpdate
 }) {
   const navigateToCopiedRef = useRef();
-  const [isExpanded, setIsExpanded] = useState(!collapsable);
+  const [isExpanded, setIsExpanded] = useState(
+    defaultExpanded ?? !collapsable
+  );
+
+  useEffect(() => {
+    if (defaultExpanded === false) {
+      setIsExpanded(false);
+    }
+  }, [defaultExpanded]);
 
   const isDomoPage = currentContext?.isDomoPage ?? false;
   const typeId = currentContext?.domoObject?.typeId;
@@ -146,6 +157,14 @@ export function ActionButtons({
           </Disclosure.Heading>
           <Disclosure.Content className='flex h-full w-full flex-col items-center justify-center gap-1'>
             <div className='flex w-full flex-wrap place-items-center items-center justify-center gap-1 not-empty:mt-1 empty:hidden'>
+              <CardErrors
+                currentContext={currentContext}
+                isDisabled={!isDomoPage}
+                onCollapseActions={
+                  collapsable ? () => setIsExpanded(false) : undefined
+                }
+                onStatusUpdate={onStatusUpdate}
+              />
               {availableActions.has('getCards') && (
                 <GetCards
                   currentContext={currentContext}
@@ -158,6 +177,16 @@ export function ActionButtons({
               )}
               {availableActions.has('getDatasets') && (
                 <GetDatasets
+                  currentContext={currentContext}
+                  isDisabled={!isDomoPage}
+                  onCollapseActions={
+                    collapsable ? () => setIsExpanded(false) : undefined
+                  }
+                  onStatusUpdate={onStatusUpdate}
+                />
+              )}
+              {availableActions.has('getViewInputs') && (
+                <GetViewInputs
                   currentContext={currentContext}
                   isDisabled={!isDomoPage}
                   onCollapseActions={
@@ -276,6 +305,7 @@ function getAvailableActions(typeId, details) {
   }
 
   if (typeId === 'DATA_SOURCE') {
+    actions.add('getViewInputs');
     actions.add('dataRepair');
   }
 

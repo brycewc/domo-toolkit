@@ -1,11 +1,14 @@
 import { DomoContext, DomoObject, getObjectType } from '@/models';
 import {
+  extractPageContentIds,
   fetchObjectDetailsInPage,
   getCardsForObject,
   getChildPages,
   getCurrentUser,
   getDataflowForOutputDataset,
-  getPagesForCards
+  getFormsForPage,
+  getPagesForCards,
+  getQueuesForPage
 } from '@/services';
 import {
   clearCookies,
@@ -59,10 +62,17 @@ async function ensureContentScript(tabId) {
   try {
     await chrome.tabs.sendMessage(tabId, { type: 'PING' });
   } catch {
-    await chrome.scripting.executeScript({
-      files: ['src/contentScript.js'],
-      target: { tabId }
-    });
+    // Use the manifest-registered content script path. CRXJS transforms
+    // the source file into a loader at build time, so we read the actual
+    // path from the manifest to stay in sync.
+    const manifest = chrome.runtime.getManifest();
+    const file = manifest.content_scripts?.[0]?.js?.[0];
+    if (file) {
+      await chrome.scripting.executeScript({
+        files: [file],
+        target: { tabId }
+      });
+    }
   }
 }
 
@@ -97,6 +107,45 @@ const MAX_CACHED_TABS = 10;
 // Session storage keys
 const SESSION_STORAGE_KEY = 'tabContextsBackup';
 
+// Per-tab card error storage
+const tabCardErrors = new Map();
+const tabLastCardId = new Map();
+const MAX_ERRORS_PER_TAB = 50;
+
+function addCardError(tabId, error) {
+  if (!tabCardErrors.has(tabId)) {
+    tabCardErrors.set(tabId, []);
+  }
+  const errors = tabCardErrors.get(tabId);
+
+  error.id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  errors.push(error);
+
+  // Enforce max limit (remove oldest)
+  if (errors.length > MAX_ERRORS_PER_TAB) {
+    errors.splice(0, errors.length - MAX_ERRORS_PER_TAB);
+  }
+
+  broadcastCardErrors(tabId);
+}
+
+function broadcastCardErrors(tabId) {
+  const errors = getCardErrors(tabId);
+  chrome.runtime
+    .sendMessage({
+      errorCount: errors.length,
+      errors,
+      tabId,
+      type: 'CARD_ERRORS_UPDATED'
+    })
+    .catch(() => {});
+}
+
+function clearCardErrors(tabId) {
+  tabCardErrors.delete(tabId);
+  broadcastCardErrors(tabId);
+}
+
 /**
  * LRU eviction - remove least recently used tab if cache is full
  */
@@ -117,6 +166,10 @@ function evictLRUIfNeeded() {
       tabAccessTimes.delete(oldestTabId);
     }
   }
+}
+
+function getCardErrors(tabId) {
+  return tabCardErrors.get(tabId) || [];
 }
 
 /**
@@ -417,6 +470,8 @@ chrome.storage.sync.get(['defaultClearCookiesHandling'], (result) => {
 chrome.tabs.onRemoved.addListener((tabId) => {
   tabContexts.delete(tabId);
   tabAccessTimes.delete(tabId);
+  tabCardErrors.delete(tabId);
+  tabLastCardId.delete(tabId);
   persistToSession();
 });
 
@@ -708,6 +763,15 @@ async function detectAndStoreContext(tabId) {
       }
     }
 
+    // Clear card errors when navigating to a different card on this tab
+    if (typeModel.id === 'CARD') {
+      const lastCardId = tabLastCardId.get(tabId);
+      if (lastCardId && lastCardId !== objectId) {
+        clearCardErrors(tabId);
+      }
+      tabLastCardId.set(tabId, objectId);
+    }
+
     // Update DomoContext with DomoObject
     context.domoObject = domoObject;
     setTabContext(tabId, context);
@@ -831,6 +895,33 @@ async function detectAndStoreContext(tabId) {
         });
     }
 
+    // Helper: build combined content array for PAGE and DATA_APP_VIEW context footer.
+    // Called after each async enrichment callback; only produces output once all three
+    // (cards, forms, queues) have resolved.
+    function updatePageContent() {
+      const ctx = getTabContext(tabId);
+      const objType = ctx?.domoObject?.typeId;
+      const contentTypes = ['PAGE', 'DATA_APP_VIEW', 'WORKSHEET_VIEW', 'REPORT_BUILDER_VIEW'];
+      if (!contentTypes.includes(objType)) return;
+      const details = ctx?.domoObject?.metadata?.details;
+      if (!details) return;
+      if (details.cards == null || details.forms == null || details.queues == null)
+        return;
+
+      const content = [];
+      for (const card of details.cards) {
+        content.push({ ...card, type: 'CARD' });
+      }
+      for (const form of details.forms) {
+        content.push({ ...form, type: 'ENIGMA_FORM' });
+      }
+      for (const queue of details.queues) {
+        content.push({ ...queue, type: 'HOPPER_QUEUE' });
+      }
+      details.content = content;
+      setTabContext(tabId, ctx);
+    }
+
     // For PAGE, DATA_APP_VIEW, and DATA_SOURCE types, fetch cards asynchronously (non-blocking)
     if (
       typeModel.id === 'PAGE' ||
@@ -860,6 +951,7 @@ async function detectAndStoreContext(tabId) {
 
             // Update the stored context
             setTabContext(tabId, currentContext);
+            updatePageContent();
           }
         })
         .catch((error) => {
@@ -878,8 +970,114 @@ async function detectAndStoreContext(tabId) {
             }
             currentContext.domoObject.metadata.details.cards = [];
             setTabContext(tabId, currentContext);
+            updatePageContent();
           }
         });
+    }
+
+    // For page-like types, extract and enrich forms and queues from page layout
+    if (['DATA_APP_VIEW', 'PAGE', 'REPORT_BUILDER_VIEW', 'WORKSHEET_VIEW'].includes(typeModel.id)) {
+      const { formWidgetIds, queueWidgetIds } = extractPageContentIds(
+        enrichedMetadata.details
+      );
+
+      if (formWidgetIds.length > 0) {
+        getFormsForPage({ formWidgetIds, tabId })
+          .then((forms) => {
+            const currentContext = getTabContext(tabId);
+            if (currentContext?.domoObject) {
+              if (!currentContext.domoObject?.metadata) {
+                currentContext.domoObject.metadata = {};
+              }
+              if (!currentContext.domoObject.metadata?.details) {
+                currentContext.domoObject.metadata.details = {};
+              }
+              currentContext.domoObject.metadata.details.forms = forms;
+              setTabContext(tabId, currentContext);
+              updatePageContent();
+            }
+          })
+          .catch((error) => {
+            console.error(
+              `[Background] Error fetching forms for ${typeModel.id} ${objectId}:`,
+              error
+            );
+            const currentContext = getTabContext(tabId);
+            if (currentContext?.domoObject) {
+              if (!currentContext.domoObject?.metadata) {
+                currentContext.domoObject.metadata = {};
+              }
+              if (!currentContext.domoObject.metadata?.details) {
+                currentContext.domoObject.metadata.details = {};
+              }
+              currentContext.domoObject.metadata.details.forms = [];
+              setTabContext(tabId, currentContext);
+              updatePageContent();
+            }
+          });
+      } else {
+        const currentContext = getTabContext(tabId);
+        if (currentContext?.domoObject) {
+          if (!currentContext.domoObject?.metadata) {
+            currentContext.domoObject.metadata = {};
+          }
+          if (!currentContext.domoObject.metadata?.details) {
+            currentContext.domoObject.metadata.details = {};
+          }
+          currentContext.domoObject.metadata.details.forms = [];
+          setTabContext(tabId, currentContext);
+          updatePageContent();
+        }
+      }
+
+      if (queueWidgetIds.length > 0) {
+        getQueuesForPage({ queueWidgetIds, tabId })
+          .then((queues) => {
+            const currentContext = getTabContext(tabId);
+            if (currentContext?.domoObject) {
+              if (!currentContext.domoObject?.metadata) {
+                currentContext.domoObject.metadata = {};
+              }
+              if (!currentContext.domoObject.metadata?.details) {
+                currentContext.domoObject.metadata.details = {};
+              }
+              currentContext.domoObject.metadata.details.queues = queues;
+              setTabContext(tabId, currentContext);
+              updatePageContent();
+            }
+          })
+          .catch((error) => {
+            console.error(
+              `[Background] Error fetching queues for ${typeModel.id} ${objectId}:`,
+              error
+            );
+            const currentContext = getTabContext(tabId);
+            if (currentContext?.domoObject) {
+              if (!currentContext.domoObject?.metadata) {
+                currentContext.domoObject.metadata = {};
+              }
+              if (!currentContext.domoObject.metadata?.details) {
+                currentContext.domoObject.metadata.details = {};
+              }
+              currentContext.domoObject.metadata.details.queues = [];
+              setTabContext(tabId, currentContext);
+              updatePageContent();
+            }
+          });
+      } else {
+        const currentContext = getTabContext(tabId);
+        if (currentContext?.domoObject) {
+          if (!currentContext.domoObject?.metadata) {
+            currentContext.domoObject.metadata = {};
+          }
+          if (!currentContext.domoObject.metadata?.details) {
+            currentContext.domoObject.metadata.details = {};
+          }
+          currentContext.domoObject.metadata.details.queues = [];
+          setTabContext(tabId, currentContext);
+          updatePageContent();
+        }
+      }
     }
 
     return context;
@@ -899,6 +1097,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
     try {
       switch (message.type) {
+        case 'CARD_ERROR_DETECTED': {
+          const sourceTabId = sender.tab?.id;
+          if (sourceTabId) {
+            addCardError(sourceTabId, message.error);
+          }
+          sendResponse({ success: true });
+          break;
+        }
+
+        case 'CLEAR_CARD_ERRORS': {
+          clearCardErrors(message.tabId);
+          sendResponse({ success: true });
+          break;
+        }
+
         case 'CLIPBOARD_COPIED': {
           // Content script or Copy component detected a copy event
           const { clipboardData, domoObject } = message;
@@ -938,6 +1151,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           }
           const context = await detectAndStoreContext(targetTabId);
           sendResponse({ context: context?.toJSON(), success: true });
+          break;
+        }
+
+        case 'GET_CARD_ERRORS': {
+          const errors = getCardErrors(message.tabId);
+          sendResponse({ errors, success: true });
           break;
         }
 

@@ -21,8 +21,18 @@ import { useEffect, useState } from 'react';
 import JsonView from 'react18-json-view';
 
 import '@/assets/json-view-theme.css';
-import { AnimatedCheck } from '@/components';
+import {
+  AnimatedCheck,
+  TimestampAnnotation,
+  UserIdAnnotation
+} from '@/components';
+import { useUserLookup } from '@/hooks';
 import { DomoObject } from '@/models';
+import {
+  formatEpochTimestamp,
+  isDateFieldName,
+  isUserFieldName
+} from '@/utils';
 
 /**
  * Known fields to display prominently with human-readable labels.
@@ -59,6 +69,8 @@ export function ObjectDetailsView({
   const [error, setError] = useState(null);
   const [domoObject, setDomoObject] = useState(null);
   const [keyFields, setKeyFields] = useState([]);
+
+  const userMap = useUserLookup(domoObject?.metadata?.details);
 
   // Load data on mount
   useEffect(() => {
@@ -298,6 +310,39 @@ export function ObjectDetailsView({
                             {params.node}
                           </Link>
                         );
+                      }
+                      if (
+                        typeof params.node === 'number' &&
+                          isDateFieldName(params.indexOrName)
+                      ) {
+                        const formatted = formatEpochTimestamp(params.node);
+                        if (formatted) {
+                          return (
+                            <TimestampAnnotation
+                              formatted={formatted}
+                              value={params.node}
+                            />
+                          );
+                        }
+                      }
+                      if (
+                        (typeof params.node === 'number' ||
+                            typeof params.node === 'string') &&
+                          Object.keys(userMap).length > 0
+                      ) {
+                        const numericValue = Number(params.node);
+                        if (
+                          userMap[numericValue] &&
+                            (isUserFieldName(params.indexOrName) ||
+                              params.indexOrName === 'id')
+                        ) {
+                          return (
+                            <UserIdAnnotation
+                              displayName={userMap[numericValue]}
+                              value={params.node}
+                            />
+                          );
+                        }
                       }
                       if (params.indexOrName?.toLowerCase().includes('id')) {
                         return { enableClipboard: true };
