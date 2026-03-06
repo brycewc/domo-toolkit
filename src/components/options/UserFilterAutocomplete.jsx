@@ -1,32 +1,29 @@
 import {
   Autocomplete,
   Avatar,
-  AvatarFallback,
-  AvatarImage,
   Description,
   EmptyState,
   Label,
   ListBox,
   ListBoxLoadMoreItem,
   SearchField,
-  Spinner,
-  Tag,
-  TagGroup
+  Spinner
 } from '@heroui/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { searchUsers } from '@/services';
+import { getCustomAvatarUserIds, searchUsers } from '@/services';
+import { getInitials } from '@/utils';
 
 /**
- * UserFilterAutocomplete Component - FULL VERSION
- * With async user fetching
+ * UserFilterAutocomplete Component
+ * Single-select autocomplete with async user fetching
  */
 export function UserFilterAutocomplete({
   domoInstance,
   onChange,
   placeholder = 'Filter by user...',
   tabId,
-  value = []
+  value = null
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchText, setSearchText] = useState('');
@@ -36,7 +33,25 @@ export function UserFilterAutocomplete({
   const [hasMore, setHasMore] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasFetchedInitial, setHasFetchedInitial] = useState(false);
+  const [customAvatarIds, setCustomAvatarIds] = useState(new Set());
   const lastFetchedSearch = useRef(null);
+
+  const checkAvatars = useCallback(
+    (fetchedUsers) => {
+      if (!tabId || fetchedUsers.length === 0) return;
+      const ids = fetchedUsers.map((u) => u.id);
+      getCustomAvatarUserIds(ids, tabId)
+        .then((customIds) =>
+          setCustomAvatarIds((prev) => {
+            const next = new Set(prev);
+            customIds.forEach((id) => next.add(id));
+            return next;
+          })
+        )
+        .catch(() => {});
+    },
+    [tabId]
+  );
 
   // Fetch initial users on mount
   useEffect(() => {
@@ -58,6 +73,7 @@ export function UserFilterAutocomplete({
           setSearchOffset(fetchedUsers.length);
           lastFetchedSearch.current = '';
           setHasFetchedInitial(true);
+          checkAvatars(fetchedUsers);
         }
       } catch (error) {
         if (error.name !== 'AbortError') {
@@ -99,6 +115,7 @@ export function UserFilterAutocomplete({
           setHasMore(totalCount !== null && fetchedUsers.length < totalCount);
           setSearchOffset(fetchedUsers.length);
           lastFetchedSearch.current = searchText;
+          checkAvatars(fetchedUsers);
         }
       } catch (error) {
         if (error.name !== 'AbortError') {
@@ -132,6 +149,7 @@ export function UserFilterAutocomplete({
       setUsers(newUsers);
       setHasMore(totalCount !== null && newUsers.length < totalCount);
       setSearchOffset(newUsers.length);
+      checkAvatars(fetchedUsers);
     } catch (error) {
       console.error('Error loading more users:', error);
     } finally {
@@ -141,68 +159,37 @@ export function UserFilterAutocomplete({
 
   // Build avatar URL
   const getAvatarUrl = useCallback(
-    (userId) => {
+    (user) => {
       if (!domoInstance) return null;
-      return `https://${domoInstance}.domo.com/api/content/v1/avatar/USER/${userId}?size=100`;
+      return `https://${domoInstance}.domo.com/api/content/v1/avatar/USER/${user}?size=100`;
     },
     [domoInstance]
-  );
-
-  // Handle removing tags from selection
-  const onRemoveTags = useCallback(
-    (keys) => {
-      const keysArray = Array.from(keys);
-      const newValue = value.filter((key) => !keysArray.includes(key));
-      onChange?.(newValue);
-    },
-    [value, onChange]
   );
 
   return (
     <Autocomplete
       aria-label='User'
-      className='w-full'
+      className='w-full sm:w-72'
       isOpen={isOpen}
       placeholder={placeholder}
-      selectionMode='multiple'
       value={value}
       variant='secondary'
-      onChange={(keys) => onChange?.(keys || [])}
+      onChange={(key) => onChange?.(key || null)}
       onOpenChange={setIsOpen}
     >
       <Autocomplete.Trigger aria-label='User autocomplete trigger'>
-        <Autocomplete.Value aria-label='Selected users'>
+        <Autocomplete.Value aria-label='Selected user'>
           {({ defaultChildren, isPlaceholder, state }) => {
             if (isPlaceholder || state.selectedItems.length === 0) {
               return defaultChildren;
             }
-            const selectedItemsKeys = state.selectedItems.map(
-              (item) => item.key
-            );
+            const selectedItem = state.selectedItems[0];
+            const user = users.find((u) => u.id === selectedItem?.key);
+            if (!user) return defaultChildren;
             return (
-              <TagGroup
-                aria-label='Selected users tags'
-                size='sm'
-                variant='surface'
-                onRemove={onRemoveTags}
-              >
-                <TagGroup.List>
-                  {selectedItemsKeys.map((selectedItemKey) => {
-                    const user = users.find((u) => u.id === selectedItemKey);
-                    if (!user) return null;
-                    return (
-                      <Tag
-                        aria-label={`Selected user ${user.displayName}`}
-                        id={user.id}
-                        key={user.id}
-                        variant=''
-                      >
-                        {user.displayName}
-                      </Tag>
-                    );
-                  })}
-                </TagGroup.List>
-              </TagGroup>
+              <div className='flex items-center gap-2'>
+                <span className='truncate text-sm'>{user.displayName}</span>
+              </div>
             );
           }}
         </Autocomplete.Value>
@@ -218,10 +205,18 @@ export function UserFilterAutocomplete({
           inputValue={searchText}
           onInputChange={setSearchText}
         >
-          <SearchField autoFocus name='user-search' variant='secondary'>
+          <SearchField
+            autoFocus
+            aria-label='Search user filter field'
+            name='user-search'
+            variant='secondary'
+          >
             <SearchField.Group>
               <SearchField.SearchIcon />
-              <SearchField.Input placeholder='Search users...' />
+              <SearchField.Input
+                aria-label='Search users'
+                placeholder='Search users...'
+              />
               <SearchField.ClearButton />
             </SearchField.Group>
           </SearchField>
@@ -234,7 +229,8 @@ export function UserFilterAutocomplete({
                 </div>
               ) : (
                 <EmptyState>No users found</EmptyState>
-              )}
+              )
+            }
           >
             {users?.map((user) => (
               <ListBox.Item
@@ -243,10 +239,12 @@ export function UserFilterAutocomplete({
                 textValue={user.displayName}
               >
                 <Avatar size='sm'>
-                  <AvatarImage src={getAvatarUrl(user.id)} />
-                  <AvatarFallback>
-                    {user.displayName?.charAt(0).toUpperCase()}
-                  </AvatarFallback>
+                  {customAvatarIds.has(user.id) && (
+                    <Avatar.Image src={getAvatarUrl(user.id)} />
+                  )}
+                  <Avatar.Fallback>
+                    {getInitials(user.displayName)}
+                  </Avatar.Fallback>
                 </Avatar>
                 <div className='flex flex-col'>
                   <Label>{user.displayName}</Label>

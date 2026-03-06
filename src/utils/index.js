@@ -21,6 +21,7 @@ export {
 export {
   extractUserIds,
   formatEpochTimestamp,
+  getInitials,
   isDateFieldName,
   isUserFieldName,
   JsonStringifyOrder

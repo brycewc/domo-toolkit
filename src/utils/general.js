@@ -15,15 +15,6 @@ const DATE_KEYWORDS_LOWER = [
 ];
 const DATE_KEYWORDS_CASE_SENSITIVE = ['At'];
 
-export function isDateFieldName(fieldName) {
-  if (typeof fieldName !== 'string') return false;
-  const lower = fieldName.toLowerCase();
-  return (
-    DATE_KEYWORDS_LOWER.some((kw) => lower.includes(kw)) ||
-    DATE_KEYWORDS_CASE_SENSITIVE.some((kw) => fieldName.includes(kw))
-  );
-}
-
 export function formatEpochTimestamp(value) {
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
     return null;
@@ -43,6 +34,15 @@ export function formatEpochTimestamp(value) {
   return date.toLocaleString();
 }
 
+export function isDateFieldName(fieldName) {
+  if (typeof fieldName !== 'string') return false;
+  const lower = fieldName.toLowerCase();
+  return (
+    DATE_KEYWORDS_LOWER.some((kw) => lower.includes(kw)) ||
+    DATE_KEYWORDS_CASE_SENSITIVE.some((kw) => fieldName.includes(kw))
+  );
+}
+
 const USER_KEYWORDS_LOWER = [
   'approver',
   'creator',
@@ -55,20 +55,6 @@ const USER_KEYWORDS_LOWER = [
   'user'
 ];
 const USER_KEYWORDS_CASE_SENSITIVE = ['By'];
-
-export function isUserFieldName(fieldName) {
-  if (typeof fieldName !== 'string') return false;
-  const lower = fieldName.toLowerCase();
-  return (
-    USER_KEYWORDS_LOWER.some((kw) => lower.includes(kw)) ||
-    USER_KEYWORDS_CASE_SENSITIVE.some((kw) => fieldName.includes(kw))
-  );
-}
-
-function isValidUserId(value) {
-  const num = Number(value);
-  return Number.isInteger(num) && num >= 1 && num <= 999999999;
-}
 
 export function extractUserIds(obj) {
   const userIds = new Set();
@@ -122,4 +108,26 @@ export function extractUserIds(obj) {
 
   walk(obj);
   return userIds;
+}
+
+export function getInitials(displayName) {
+  if (!displayName) return '';
+  const parts = displayName.trim().split(/\s+/);
+  const first = parts[0]?.charAt(0) ?? '';
+  const last = parts.length > 1 ? parts[parts.length - 1].charAt(0) : '';
+  return (first + last).toUpperCase();
+}
+
+export function isUserFieldName(fieldName) {
+  if (typeof fieldName !== 'string') return false;
+  const lower = fieldName.toLowerCase();
+  return (
+    USER_KEYWORDS_LOWER.some((kw) => lower.includes(kw)) ||
+    USER_KEYWORDS_CASE_SENSITIVE.some((kw) => fieldName.includes(kw))
+  );
+}
+
+function isValidUserId(value) {
+  const num = Number(value);
+  return Number.isInteger(num) && num >= 1 && num <= 999999999;
 }

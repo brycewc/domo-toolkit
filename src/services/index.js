@@ -1,15 +1,18 @@
-export { getActivityLogEvents, getActivityLogForObject } from './activityLog';
 export {
-  extractPageContentIds,
-  getFormsForPage,
-  getQueuesForPage
-} from './appStudio';
+  getActivityLogForObject,
+  getEventTypesForObjectType
+} from './activityLog';
 export {
   deleteObject,
   fetchObjectDetailsInPage,
   shareWithSelf,
   updateOwner
 } from './allObjects';
+export {
+  extractPageContentIds,
+  getFormsForPage,
+  getQueuesForPage
+} from './appStudio';
 export {
   exportCard,
   getCardDatasets,
@@ -57,6 +60,7 @@ export {
 } from './pages';
 export {
   fetchUserDisplayNames,
+  getCustomAvatarUserIds,
   getCurrentUser,
   getCurrentUserId,
   searchUsers

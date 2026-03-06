@@ -81,6 +81,7 @@ export function DataTable({
   );
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const isLoadingMoreRef = useRef(false);
 
   const tableContainerRef = useRef(null);
 
@@ -119,9 +120,11 @@ export function DataTable({
   const totalSize = rowVirtualizer.getTotalSize();
 
   const handleLoadMore = () => {
-    if (isLoadingMore || !onLoadMore) return;
+    if (isLoadingMoreRef.current || !onLoadMore) return;
+    isLoadingMoreRef.current = true;
     setIsLoadingMore(true);
     Promise.resolve(onLoadMore()).finally(() => {
+      isLoadingMoreRef.current = false;
       setIsLoadingMore(false);
     });
   };
@@ -158,121 +161,125 @@ export function DataTable({
       <Card.Header>
         <div className='items-between flex w-full flex-col justify-center gap-1 sm:flex-row sm:items-center sm:justify-between'>
           <div className='flex w-full items-center gap-1 sm:justify-between'>
-            <div className='flex flex-1 flex-row justify-start gap-1'>
+            <div className='flex flex-1 flex-row flex-wrap justify-start gap-1'>
               {customFilters}
             </div>
-
-            <div className='flex flex-row items-center justify-end gap-1'>
-              {/* Column Visibility Dropdown */}
-              <Dropdown>
-                <Button variant='tertiary'>
-                  <IconColumns stroke={1.5} />
-                  Columns
-                  <Chip color='accent' size='sm' variant='soft'>
-                    {toggleableColumns.filter((c) => !hiddenColumns.has(c.id)).length}
-                    /{toggleableColumns.length}
-                  </Chip>
-                </Button>
-                <Dropdown.Popover>
-                  <Dropdown.Menu
-                    selectedKeys={
+          </div>
+          <div className='flex flex-row items-center justify-end gap-1'>
+            {/* Column Visibility Dropdown */}
+            <Dropdown>
+              <Button variant='tertiary'>
+                <IconColumns stroke={1.5} />
+                Columns
+                <Chip color='accent' size='sm' variant='soft'>
+                  {
+                    toggleableColumns.filter((c) => !hiddenColumns.has(c.id))
+                      .length
+                  }
+                  /{toggleableColumns.length}
+                </Chip>
+              </Button>
+              <Dropdown.Popover>
+                <Dropdown.Menu
+                  selectionMode='multiple'
+                  onSelectionChange={(keys) => {
+                    setHiddenColumns(
                       new Set(
                         toggleableColumns
-                          .filter((c) => !hiddenColumns.has(c.id))
+                          .filter((c) => !keys.has(c.id))
                           .map((c) => c.id)
                       )
-                    }
-                    selectionMode='multiple'
-                    onSelectionChange={(keys) => {
-                      setHiddenColumns(
-                        new Set(
-                          toggleableColumns
-                            .filter((c) => !keys.has(c.id))
-                            .map((c) => c.id)
-                        )
-                      );
-                    }}
-                  >
-                    {toggleableColumns.map((col) => (
-                      <Dropdown.Item
-                        id={col.id}
-                        key={col.id}
-                        textValue={col.header}
-                      >
-                        <Dropdown.ItemIndicator>
-                          {({ isSelected }) => (
-                            <AnimatePresence>
-                              {isSelected && (
-                                <AnimatedCheck
-                                  className='text-muted'
-                                  stroke={1.5}
-                                />
-                              )}
-                            </AnimatePresence>
-                          )}
-                        </Dropdown.ItemIndicator>
-                        <Label>{col.header}</Label>
-                      </Dropdown.Item>
-                    ))}
-                  </Dropdown.Menu>
-                </Dropdown.Popover>
-              </Dropdown>
-
-              {/* Export Dropdown */}
-              {exportConfig?.enabled && (
-                <Tooltip closeDelay={0} delay={400}>
-                  <Dropdown>
-                    <Button
-                      isIconOnly
-                      isDisabled={isExporting || data.length === 0}
-                      isPending={isExporting}
-                      variant='tertiary'
+                    );
+                  }}
+                  selectedKeys={
+                    new Set(
+                      toggleableColumns
+                        .filter((c) => !hiddenColumns.has(c.id))
+                        .map((c) => c.id)
+                    )
+                  }
+                >
+                  {toggleableColumns.map((col) => (
+                    <Dropdown.Item
+                      id={col.id}
+                      key={col.id}
+                      textValue={col.header}
                     >
-                      {({ isPending }) =>
-                        isPending ? (
-                          <Spinner color='currentColor' size='sm' />
-                        ) : (
-                          <IconDownload stroke={1.5} />
+                      <Dropdown.ItemIndicator>
+                        {({ isSelected }) => (
+                          <AnimatePresence>
+                            {isSelected && (
+                              <AnimatedCheck
+                                className='text-muted'
+                                stroke={1.5}
+                              />
+                            )}
+                          </AnimatePresence>
                         )}
-                    </Button>
-                    <Dropdown.Popover>
-                      <Dropdown.Menu onAction={(key) => handleExport(key)}>
-                        <Dropdown.Item id='csv' textValue='Export as CSV'>
-                          <IconFileTypeCsv stroke={1.5} />
-                          <Label>Export as CSV</Label>
-                        </Dropdown.Item>
-                        <Dropdown.Item id='xlsx' textValue='Export as Excel'>
-                          <IconFileTypeXls stroke={1.5} />
-                          <Label>Export as Excel</Label>
-                        </Dropdown.Item>
-                      </Dropdown.Menu>
-                    </Dropdown.Popover>
-                  </Dropdown>
-                  <Tooltip.Content>Export</Tooltip.Content>
-                </Tooltip>
-              )}
+                      </Dropdown.ItemIndicator>
+                      <Label>{col.header}</Label>
+                    </Dropdown.Item>
+                  ))}
+                </Dropdown.Menu>
+              </Dropdown.Popover>
+            </Dropdown>
 
-              {/* Refresh Button */}
-              {onRefresh && (
-                <Tooltip closeDelay={0} delay={400}>
+            {/* Export Dropdown */}
+            {exportConfig?.enabled && (
+              <Tooltip closeDelay={0} delay={400}>
+                <Dropdown>
                   <Button
                     isIconOnly
-                    isDisabled={isRefreshing}
-                    isPending={isRefreshing}
+                    isDisabled={isExporting || data.length === 0}
+                    isPending={isExporting}
                     variant='tertiary'
-                    onPress={onRefresh}
                   >
                     {({ isPending }) =>
                       isPending ? (
                         <Spinner color='currentColor' size='sm' />
                       ) : (
-                        <IconRefresh stroke={1.5} />
-                      )}
+                        <IconDownload stroke={1.5} />
+                      )
+                    }
                   </Button>
-                  <Tooltip.Content>Refresh</Tooltip.Content>
-                </Tooltip>
-              )}
-            </div>
+                  <Dropdown.Popover>
+                    <Dropdown.Menu onAction={(key) => handleExport(key)}>
+                      <Dropdown.Item id='csv' textValue='Export as CSV'>
+                        <IconFileTypeCsv stroke={1.5} />
+                        <Label>Export as CSV</Label>
+                      </Dropdown.Item>
+                      <Dropdown.Item id='xlsx' textValue='Export as Excel'>
+                        <IconFileTypeXls stroke={1.5} />
+                        <Label>Export as Excel</Label>
+                      </Dropdown.Item>
+                    </Dropdown.Menu>
+                  </Dropdown.Popover>
+                </Dropdown>
+                <Tooltip.Content>Export</Tooltip.Content>
+              </Tooltip>
+            )}
+
+            {/* Refresh Button */}
+            {onRefresh && (
+              <Tooltip closeDelay={0} delay={400}>
+                <Button
+                  isIconOnly
+                  isDisabled={isRefreshing}
+                  isPending={isRefreshing}
+                  variant='tertiary'
+                  onPress={onRefresh}
+                >
+                  {({ isPending }) =>
+                    isPending ? (
+                      <Spinner color='currentColor' size='sm' />
+                    ) : (
+                      <IconRefresh stroke={1.5} />
+                    )
+                  }
+                </Button>
+                <Tooltip.Content>Refresh</Tooltip.Content>
+              </Tooltip>
+            )}
           </div>
 
           {onAdd && (
@@ -289,7 +296,7 @@ export function DataTable({
       <Card.Content className='overflow-hidden rounded-lg border border-default'>
         <Table variant='secondary'>
           <Table.ScrollContainer
-            className='max-h-[calc(100vh-15rem)] overflow-auto overscroll-y-contain'
+            className='max-h-[calc(100vh-12rem)] overflow-auto overscroll-y-contain'
             ref={tableContainerRef}
           >
             <Table.Content
@@ -298,11 +305,12 @@ export function DataTable({
               onSortChange={setSortDescriptor}
             >
               <Table.Header className='sticky top-0 z-10'>
-                {visibleColumns.map((col) => (
+                {visibleColumns.map((col, index) => (
                   <Table.Column
-                    key={col.id}
                     allowsSorting={!!col.allowsSorting}
                     id={col.id}
+                    isRowHeader={index === 0}
+                    key={col.id}
                     style={{
                       maxWidth: col.maxWidth,
                       minWidth: col.minWidth,
@@ -328,8 +336,8 @@ export function DataTable({
               >
                 {virtualItems.length > 0 && (
                   <Table.Row
-                    key='spacer-top'
                     id='spacer-top'
+                    key='spacer-top'
                     style={{ height: virtualItems[0].start }}
                   >
                     <Table.Cell
@@ -342,10 +350,10 @@ export function DataTable({
                   const row = sortedData[virtualRow.index];
                   return (
                     <Table.Row
-                      key={virtualRow.index}
-                      ref={(node) => rowVirtualizer.measureElement(node)}
                       data-index={virtualRow.index}
                       id={virtualRow.index}
+                      key={virtualRow.index}
+                      ref={(node) => rowVirtualizer.measureElement(node)}
                     >
                       {visibleColumns.map((col) => (
                         <Table.Cell
@@ -364,8 +372,8 @@ export function DataTable({
                 })}
                 {virtualItems.length > 0 && (
                   <Table.Row
-                    key='spacer-bottom'
                     id='spacer-bottom'
+                    key='spacer-bottom'
                     style={{
                       height:
                         totalSize - virtualItems[virtualItems.length - 1].end
@@ -402,10 +410,10 @@ function SortableHeader({ children, sortDirection }) {
       {children}
       {sortDirection && (
         <IconChevronDown
+          stroke={1.5}
           className={`size-3 transition-transform duration-100 ${
             sortDirection === 'ascending' ? 'rotate-180' : ''
           }`}
-          stroke={1.5}
         />
       )}
     </span>
