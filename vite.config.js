@@ -14,7 +14,9 @@ export default defineConfig({
       output: {
         // Group related modules into the same chunk to avoid cross-chunk circular dependencies
         manualChunks: (id) => {
-          // All components in one chunk (options components share StatusBar with others)
+          if (id.includes('/src/components/options/')) {
+            return 'options-components';
+          }
           if (id.includes('/src/components/')) {
             return 'components';
           }
