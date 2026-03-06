@@ -138,7 +138,6 @@ function checkForCardModalElement(mutations) {
       if (mutation.addedNodes.length > 0) {
         for (const node of mutation.addedNodes) {
           if (node.nodeType === Node.ELEMENT_NODE) {
-            // Check if this is the modal element or contains it
             let modalElement = null;
             if (
               node.classList &&
@@ -150,15 +149,7 @@ function checkForCardModalElement(mutations) {
             }
 
             if (modalElement) {
-              const cardId = extractCardIdFromModal();
-              if (cardId && cardId !== lastDetectedCardId) {
-                // console.log(
-                //   '[ContentScript] Card modal detected with ID:',
-                //   cardId
-                // );
-                lastDetectedCardId = cardId;
-                triggerContextRedetection();
-              }
+              handleCardModalDetected();
               return;
             }
           }
@@ -183,13 +174,8 @@ function checkForCardModalElement(mutations) {
             }
 
             if (wasModal) {
-              // console.log(
-              //   '[ContentScript] Card modal element removed from DOM'
-              // );
-              if (lastDetectedCardId) {
-                lastDetectedCardId = null;
-                triggerContextRedetection();
-              }
+              lastDetectedCardId = null;
+              triggerContextRedetection();
               return;
             }
           }
@@ -199,30 +185,11 @@ function checkForCardModalElement(mutations) {
   }
 }
 
-// Extract card ID from modal element ID (format: card-details-modal-{cardId})
-function extractCardIdFromModal() {
-  const modalElement = document.querySelector('[id^="card-details-modal-"]');
-  if (modalElement && modalElement.id) {
-    const match = modalElement.id.match(/card-details-modal-(\d+)/);
-    if (match && match[1]) {
-      return match[1];
-    }
+// Check for a card modal already present in the DOM (e.g., after extension reload)
+function checkForExistingCardModal() {
+  if (document.querySelector('.card-details-modal')) {
+    handleCardModalDetected();
   }
-  return null;
-}
-
-// Send message to service worker to trigger context re-detection
-function triggerContextRedetection() {
-  chrome.runtime
-    .sendMessage({
-      type: 'DETECT_CONTEXT'
-    })
-    .catch((error) => {
-      console.error(
-        '[ContentScript] Error triggering context re-detection:',
-        error
-      );
-    });
 }
 
 // Watch for job overview element being added or removed (Governance Toolkit)
@@ -256,6 +223,53 @@ function checkForJobOverviewElement(mutations) {
       }
     }
   }
+}
+
+// Extract card ID from modal element ID (format: card-details-modal-{cardId})
+function extractCardIdFromModal() {
+  const modalElement = document.querySelector('[id^="card-details-modal-"]');
+  if (modalElement && modalElement.id) {
+    const match = modalElement.id.match(/card-details-modal-(\d+)/);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+  return null;
+}
+
+// Handle a detected card modal: extract ID and trigger redetection
+function handleCardModalDetected() {
+  const cardId = extractCardIdFromModal();
+  if (cardId) {
+    if (cardId !== lastDetectedCardId) {
+      lastDetectedCardId = cardId;
+      triggerContextRedetection();
+    }
+  } else {
+    // Modal class found but ID not set yet (React may set it asynchronously).
+    // Retry after a short delay to give the framework time to render the ID.
+    setTimeout(() => {
+      const retryId = extractCardIdFromModal();
+      if (retryId && retryId !== lastDetectedCardId) {
+        lastDetectedCardId = retryId;
+        triggerContextRedetection();
+      }
+    }, 200);
+  }
+}
+
+// Send message to service worker to trigger context re-detection
+function triggerContextRedetection() {
+  chrome.runtime
+    .sendMessage({
+      type: 'DETECT_CONTEXT'
+    })
+    .catch((error) => {
+      console.error(
+        '[ContentScript] Error triggering context re-detection:',
+        error
+      );
+    });
 }
 
 // ============================================================
@@ -299,6 +313,9 @@ modalObserver.observe(document.body, {
   childList: true,
   subtree: true
 });
+
+// Detect modals already present in the DOM (handles extension reload with modal open)
+checkForExistingCardModal();
 
 // ============================================================
 // Card error capture
