@@ -31,3 +31,6 @@ dist.pem
 .gitignore
 # heroui-agents-md
 .heroui-docs/
+
+# bundle analysis
+bundle-analysis.html
