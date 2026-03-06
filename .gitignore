@@ -29,5 +29,8 @@ dist.crx
 dist.pem
 .hidden/meeting-prep-bryce.md
 .gitignore
+# Bundle analysis
+bundle-analysis.html
+
 # heroui-agents-md
 .heroui-docs/

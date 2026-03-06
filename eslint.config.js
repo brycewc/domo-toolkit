@@ -6,7 +6,7 @@ import globals from 'globals';
 
 export default defineConfig([
   {
-    ignores: ['!src/**']
+    ignores: ['**', '!src/**']
   },
   {
     extends: [
@@ -43,14 +43,13 @@ export default defineConfig([
         'error',
         2,
         {
-          SwitchCase: 1,
           ignoredNodes: ['JSXElement *', 'JSXElement'],
-          offsetTernaryExpressions: true
+          offsetTernaryExpressions: true,
+          SwitchCase: 1
         }
       ],
       '@stylistic/jsx-closing-bracket-location': ['error', 'line-aligned'],
       '@stylistic/jsx-closing-tag-location': 'error',
-      '@stylistic/jsx-curly-newline': ['error', 'consistent'],
       '@stylistic/jsx-curly-spacing': ['error', 'never'],
       '@stylistic/jsx-equals-spacing': ['error', 'never'],
       '@stylistic/jsx-first-prop-new-line': ['error', 'multiline'],
@@ -69,18 +68,7 @@ export default defineConfig([
           closingSlash: 'never'
         }
       ],
-      '@stylistic/jsx-wrap-multilines': [
-        'error',
-        {
-          arrow: 'parens-new-line',
-          assignment: 'parens-new-line',
-          condition: 'parens-new-line',
-          declaration: 'parens-new-line',
-          logical: 'parens-new-line',
-          prop: 'parens-new-line',
-          return: 'parens-new-line'
-        }
-      ],
+      '@stylistic/jsx-wrap-multilines': 'off',
       '@stylistic/key-spacing': [
         'error',
         { afterColon: true, beforeColon: false }

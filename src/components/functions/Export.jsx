@@ -6,7 +6,6 @@ import {
   IconFileTypeJs,
   IconFileTypeXls
 } from '@tabler/icons-react';
-import { js_beautify } from 'js-beautify';
 
 import { useStatusBar } from '@/hooks';
 import { exportCard, getCodeEngineCode } from '@/services';
@@ -50,10 +49,12 @@ export function Export({ currentContext, isDisabled }) {
       const exportPromise = getCodeEngineCode({
         packageId,
         tabId: currentContext.tabId
-      }).then(({ code, version }) => {
-        const formatted = isPython
-          ? code
-          : js_beautify(code, { indent_size: 2 });
+      }).then(async ({ code, version }) => {
+        let formatted = code;
+        if (!isPython) {
+          const { js_beautify } = await import('js-beautify');
+          formatted = js_beautify(code, { indent_size: 2 });
+        }
         const ext = isPython ? 'py' : 'js';
         const mimeType = isPython ? 'text/x-python' : 'application/javascript';
         const blob = new Blob([formatted], { type: mimeType });
@@ -115,7 +116,8 @@ export function Export({ currentContext, isDisabled }) {
         tabId: currentContext.tabId
       }),
       {
-        error: (err) => `Could not export card **${objectId}** – ${err.message}`,
+        error: (err) =>
+          `Could not export card **${objectId}** – ${err.message}`,
         loading: `Exporting **${title}**…`,
         success: (data) => `Downloading **${data.fileName}**`
       }

@@ -1,9 +1,4 @@
-import {
-  AlertDialog,
-  Button,
-  Tooltip,
-  useOverlayState
-} from '@heroui/react';
+import { AlertDialog, Button, Tooltip, useOverlayState } from '@heroui/react';
 import { IconTrash, IconX } from '@tabler/icons-react';
 import { useState } from 'react';
 
@@ -44,8 +39,7 @@ export function DeleteCurrentObject({
     }
 
     const { id, typeId } = currentContext.domoObject;
-    const objectName =
-      currentContext.domoObject.metadata?.name || id;
+    const objectName = currentContext.domoObject.metadata?.name || id;
 
     // PAGE/DATA_APP_VIEW: check for child pages before deleting
     if (typeId === 'PAGE' || typeId === 'DATA_APP_VIEW') {
@@ -60,7 +54,7 @@ export function DeleteCurrentObject({
         const result = await waitForChildPages(currentContext);
 
         if (!result.success) {
-          onStatusUpdate?.('Error', result.error, 'danger', 3000);
+          onStatusUpdate?.('Error', result.error, 'danger', 5000);
           return;
         }
 
@@ -108,7 +102,8 @@ export function DeleteCurrentObject({
       showPromiseStatus(promise, {
         error: (err) => err.message || 'Failed to delete object',
         loading: `Deleting **${objectName}** and its cards…`,
-        success: (result) => result.statusDescription || `**${objectName}** deleted`
+        success: (result) =>
+          result.statusDescription || `**${objectName}** deleted`
       });
 
       promise.finally(() => setIsDeleting(false));
@@ -136,7 +131,8 @@ export function DeleteCurrentObject({
       showPromiseStatus(promise, {
         error: (err) => err.message || 'Failed to delete object',
         loading: `Deleting **${objectName}**…`,
-        success: (result) => result.statusDescription || `**${objectName}** deleted`
+        success: (result) =>
+          result.statusDescription || `**${objectName}** deleted`
       });
 
       promise.finally(() => setIsDeleting(false));
@@ -218,9 +214,15 @@ export function DeleteCurrentObject({
                 {currentContext?.domoObject?.id})
               </span>{' '}
               {currentContext?.domoObject?.typeId === 'PAGE' ||
-              currentContext?.domoObject?.typeId === 'DATA_APP_VIEW'
-                ? `and ${currentContext?.domoObject?.metadata?.cardCount || 'all its'} cards `
-                : ''}
+              currentContext?.domoObject?.typeId === 'DATA_APP_VIEW' ? (
+                <span className='italic'>
+                  and{' '}
+                  {currentContext?.domoObject?.metadata?.cardCount || 'all its'}{' '}
+                  cards{' '}
+                </span>
+              ) : (
+                ''
+              )}
               permanently?
             </AlertDialog.Body>
             <AlertDialog.Footer>
@@ -239,6 +241,10 @@ export function DeleteCurrentObject({
                 onPress={handleDelete}
               >
                 Delete {currentContext?.domoObject?.typeName}
+                {currentContext?.domoObject?.typeId === 'PAGE' ||
+                currentContext?.domoObject?.typeId === 'DATA_APP_VIEW'
+                  ? ' and All Cards'
+                  : ''}
               </Button>
             </AlertDialog.Footer>
           </AlertDialog.Dialog>

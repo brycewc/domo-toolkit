@@ -1,4 +1,4 @@
-import { Button } from '@heroui/react';
+import { Button, Tooltip } from '@heroui/react';
 import { IconXboxX } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 
@@ -66,6 +66,8 @@ export function RemoveEmptyStringsFromQuickFilters({
 
     const promise = updateCardDefinition({ cardId, definition, tabId }).then(
       () => {
+        setEmptyCount(0);
+        definitionRef.current = null;
         chrome.tabs.reload(tabId);
         return removed;
       }
@@ -81,16 +83,24 @@ export function RemoveEmptyStringsFromQuickFilters({
   };
 
   return (
-    <Button
-      fullWidth
-      className='min-w-36 flex-1 whitespace-normal'
-      isDisabled={emptyCount === null}
-      variant='tertiary'
-      onPress={handleClick}
-    >
-      <IconXboxX stroke={1.5} />
-      Remove Empty Strings from Quick Filters
-    </Button>
+    <Tooltip closeDelay={0} delay={400}>
+      <Button
+        fullWidth
+        className='min-w-36 flex-1 whitespace-normal'
+        isDisabled={emptyCount === null}
+        variant='tertiary'
+        onPress={handleClick}
+      >
+        <IconXboxX stroke={1.5} />
+        Fix Empty String Filters
+      </Button>
+      <Tooltip.Content className='break-normal'>
+        Sets the default of contains quick filters to nothing instead of an
+        empty string, so that null values will show instead of being filtered
+        out. Currently affects {emptyCount} filter{emptyCount === 1 ? '' : 's'}{' '}
+        on this card.
+      </Tooltip.Content>
+    </Tooltip>
   );
 }
 

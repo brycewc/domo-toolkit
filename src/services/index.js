@@ -1,10 +1,18 @@
-export { getActivityLogEvents, getActivityLogForObject } from './activityLog';
+export {
+  getActivityLogForObject,
+  getEventTypesForObjectType
+} from './activityLog';
 export {
   deleteObject,
   fetchObjectDetailsInPage,
   shareWithSelf,
   updateOwner
 } from './allObjects';
+export {
+  extractPageContentIds,
+  getFormsForPage,
+  getQueuesForPage
+} from './appStudio';
 export {
   exportCard,
   getCardDatasets,
@@ -25,6 +33,7 @@ export {
   getDatasetsForDataflow,
   getDatasetsForPage,
   getDatasetsForView,
+  getDependentDatasets,
   getStreamExecution,
   getStreamExecutions,
   isViewType
@@ -49,4 +58,10 @@ export {
   getPagesForCards,
   sharePagesWithSelf
 } from './pages';
-export { getCurrentUser, getCurrentUserId, searchUsers } from './users';
+export {
+  fetchUserDisplayNames,
+  getCustomAvatarUserIds,
+  getCurrentUser,
+  getCurrentUserId,
+  searchUsers
+} from './users';

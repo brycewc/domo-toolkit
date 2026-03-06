@@ -3,8 +3,10 @@ import { useEffect, useState } from 'react';
 
 import {
   ActionButtons,
+  CardErrorsView,
   ContextFooter,
   GetCardsView,
+  GetViewInputsView,
   GetDatasetsView,
   GetPagesView,
   LinkPreview,
@@ -51,8 +53,14 @@ export default function App() {
         } else if (data?.type === 'getDatasets') {
           setActiveView('getDatasets');
           setViewKey(data.timestamp || Date.now());
+        } else if (data?.type === 'getViewInputs') {
+          setActiveView('getViewInputs');
+          setViewKey(data.timestamp || Date.now());
         } else if (data?.type === 'viewObjectDetails') {
           setActiveView('viewObjectDetails');
+          setViewKey(data.timestamp || Date.now());
+        } else if (data?.type === 'cardErrors') {
+          setActiveView('cardErrors');
           setViewKey(data.timestamp || Date.now());
         }
       }
@@ -193,6 +201,7 @@ export default function App() {
         <ActionButtons
           collapsable={true}
           currentContext={currentContext}
+          defaultExpanded={activeView === 'default'}
           isLoadingCurrentContext={isLoadingCurrentContext}
           onStatusUpdate={showStatus}
         />
@@ -240,8 +249,24 @@ export default function App() {
               />
             )}
 
+            {activeView === 'getViewInputs' && (
+              <GetViewInputsView
+                key={viewKey}
+                onBackToDefault={handleBackToDefault}
+                onStatusUpdate={showStatus}
+              />
+            )}
+
             {activeView === 'viewObjectDetails' && (
               <ObjectDetailsView
+                key={viewKey}
+                onBackToDefault={handleBackToDefault}
+                onStatusUpdate={showStatus}
+              />
+            )}
+
+            {activeView === 'cardErrors' && (
+              <CardErrorsView
                 key={viewKey}
                 onBackToDefault={handleBackToDefault}
                 onStatusUpdate={showStatus}

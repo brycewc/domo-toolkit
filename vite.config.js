@@ -2,6 +2,7 @@ import { crx } from '@crxjs/vite-plugin';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
+import { visualizer } from 'rollup-plugin-visualizer';
 import { defineConfig } from 'vite';
 
 import manifest from './manifest.config.js';
@@ -14,7 +15,12 @@ export default defineConfig({
       output: {
         // Group related modules into the same chunk to avoid cross-chunk circular dependencies
         manualChunks: (id) => {
-          // All components in one chunk (options components share StatusBar with others)
+          if (id.includes('/src/components/options/')) {
+            return 'options-components';
+          }
+          if (id.includes('/src/components/views/')) {
+            return 'sidepanel-views';
+          }
           if (id.includes('/src/components/')) {
             return 'components';
           }
@@ -38,7 +44,12 @@ export default defineConfig({
   esbuild: {
     pure: ['console.log', 'console.warn']
   },
-  plugins: [react(), crx({ manifest }), tailwindcss()],
+  plugins: [
+    react(),
+    crx({ manifest }),
+    tailwindcss(),
+    visualizer({ filename: 'bundle-analysis.html', gzipSize: true })
+  ],
   resolve: {
     alias: {
       '@': `${path.resolve(__dirname, 'src')}`

@@ -1,11 +1,8 @@
 export { ActionButtons } from './ActionButtons';
 export { AnimatedCheck } from './AnimatedCheck';
 export { ContextFooter } from './ContextFooter';
-export { DataList } from './DataList';
 export * from './functions';
-export { GetCardsView } from './GetCardsView';
-export { GetDatasetsView } from './GetDatasetsView';
-export { GetPagesView } from './GetPagesView';
-export { LinkPreview } from './LinkPreview';
-export { ObjectDetailsView } from './ObjectDetailsView';
 export * from './options';
+export { TimestampAnnotation } from './TimestampAnnotation';
+export { UserIdAnnotation } from './UserIdAnnotation';
+export * from './views';

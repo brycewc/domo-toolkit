@@ -133,6 +133,34 @@ export class DomoObjectType {
   }
 
   /**
+   * Extract additional URL parameters beyond id and parent
+   * @param {string} url - The URL to extract from
+   * @returns {Object} Map of parameter name to extracted value
+   */
+  extractUrlParams(url) {
+    if (!this.extractConfig?.urlParamExtracts) return {};
+
+    const parts = url.split(/[/?=&]/);
+    const params = {};
+
+    for (const [name, config] of Object.entries(
+      this.extractConfig.urlParamExtracts
+    )) {
+      const { fromEnd = false, keyword, offset = 1 } = config;
+      if (fromEnd) {
+        params[name] = parts[parts.length - offset] || null;
+      } else {
+        const index = parts.indexOf(keyword);
+        if (index !== -1) {
+          params[name] = parts[index + offset] || null;
+        }
+      }
+    }
+
+    return params;
+  }
+
+  /**
    * Check if this object type has an API configuration
    * @returns {boolean} Whether the object type has an API configuration
    */
@@ -422,7 +450,7 @@ export const ObjectTypeRegistry = {
       pathToName: '[0].title'
     },
     ['DATA_SOURCE', 'APP'],
-    [{ field: 'datasources', isArray: true, label: 'DataSets' }]
+    [{ field: 'datasources', isArray: true, itemTypeId: 'DATA_SOURCE', label: 'DataSets' }]
   ),
   CERTIFICATION: new DomoObjectType(
     'CERTIFICATION',
@@ -584,7 +612,10 @@ export const ObjectTypeRegistry = {
       pathToName: 'title'
     },
     ['DATA_APP'],
-    [{ label: 'Studio App', source: 'parentId', typeId: 'DATA_APP' }]
+    [
+      { label: 'Studio App', source: 'parentId', typeId: 'DATA_APP' },
+      { field: 'content', isArray: true, itemTypeField: 'type', label: 'Content' }
+    ]
   ),
   DATA_DICTIONARY: new DomoObjectType(
     'DATA_DICTIONARY',
@@ -657,8 +688,8 @@ export const ObjectTypeRegistry = {
     },
     null,
     [
-      { field: 'inputs', isArray: true, label: 'Inputs' },
-      { field: 'outputs', isArray: true, label: 'Outputs' }
+      { field: 'inputs', isArray: true, itemTypeId: 'DATA_SOURCE', label: 'Inputs' },
+      { field: 'outputs', isArray: true, itemTypeId: 'DATA_SOURCE', label: 'Outputs' }
     ]
   ),
   DATASET_QUERY: new DomoObjectType(
@@ -746,26 +777,22 @@ export const ObjectTypeRegistry = {
   ENIGMA_FORM: new DomoObjectType(
     'ENIGMA_FORM',
     'Form',
-    '/advancedForms/{id}/revisions',
+    null,
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    null,
     {
-      keyword: 'advancedForms'
-    },
-    {
-      endpoint: '/forms/v1/advanced-forms/{id}',
+      endpoint: '/forms/v2/{id}',
       method: 'GET',
-      pathToName: 'title'
-    }
+      pathToName: 'name'
+    },
+    ['WORKFLOW_MODEL']
   ),
   ENIGMA_FORM_INSTANCE: new DomoObjectType(
     'ENIGMA_FORM_INSTANCE',
     'Form Instance',
-    '/advancedForms/{parent}/revisions/{id}/design',
+    null,
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    {
-      keyword: 'revisions',
-      parentExtract: { keyword: 'advancedForms', offset: 1 }
-    },
+    null,
     {
       endpoint: '/forms/v1/advanced-forms/{parent}/revisions/{id}',
       method: 'GET',
@@ -923,7 +950,7 @@ export const ObjectTypeRegistry = {
   HOPPER_QUEUE: new DomoObjectType(
     'HOPPER_QUEUE',
     'Task Center Queue',
-    '/admin/task-center/queues?queueId={id}',
+    '/queues/tasks?queueId={id}&status=OPEN',
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     { keyword: 'queueId' },
     {
@@ -935,7 +962,7 @@ export const ObjectTypeRegistry = {
   HOPPER_TASK: new DomoObjectType(
     'HOPPER_TASK',
     'Task Center Task',
-    '/admin/task-center/queues?id={id}',
+    '/queues/tasks?queueId={parent}&id={id}&openTaskDrawer=true',
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     { keyword: 'id' },
     {
@@ -1055,7 +1082,8 @@ export const ObjectTypeRegistry = {
       method: 'GET',
       pathToName: 'title'
     },
-    ['PAGE']
+    ['PAGE'],
+    [{ field: 'content', isArray: true, itemTypeField: 'type', label: 'Content' }]
   ),
   PAGE_ANALYZER: new DomoObjectType(
     'PAGE_ANALYZER',
@@ -1560,7 +1588,12 @@ export const ObjectTypeRegistry = {
     'Workflow Execution',
     '/workflows/instances/{parent}/{version}/{id}',
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    { keyword: 'instances', offset: 3 },
+    {
+      keyword: 'instances',
+      offset: 3,
+      parentExtract: { keyword: 'instances', offset: 1 },
+      urlParamExtracts: { version: { keyword: 'instances', offset: 2 } }
+    },
     {
       endpoint: '/workflow/v2/executions/{id}',
       method: 'GET',

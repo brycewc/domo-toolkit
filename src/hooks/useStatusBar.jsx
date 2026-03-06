@@ -15,17 +15,25 @@ export function useStatusBar() {
 
   const showPromiseStatus = useCallback(
     (promise, { error, loading, success }) => {
-      return toast.promise(promise, {
-        error: (err) => {
-          const msg = typeof error === 'function' ? error(err) : error;
-          return parseDescription(msg);
-        },
-        loading,
-        success: (data) => {
-          const msg = typeof success === 'function' ? success(data) : success;
-          return parseDescription(msg);
-        }
+      const loadingId = toast(parseDescription(loading), {
+        isLoading: true,
+        timeout: 0
       });
+
+      promise.then(
+        (data) => {
+          toast.close(loadingId);
+          const msg = typeof success === 'function' ? success(data) : success;
+          toast.success(parseDescription(msg));
+        },
+        (err) => {
+          toast.close(loadingId);
+          const msg = typeof error === 'function' ? error(err) : error;
+          toast.danger(parseDescription(msg));
+        }
+      );
+
+      return loadingId;
     },
     []
   );

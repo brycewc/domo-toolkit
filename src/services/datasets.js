@@ -233,6 +233,63 @@ export async function getStreamExecutions({ limit = 100, streamId, tabId }) {
 }
 
 /**
+ * Get dependent datasets for a dataset via the lineage API
+ * @param {Object} params - Parameters
+ * @param {string} params.datasetId - The datasource ID
+ * @param {number} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<Array<Object>>} Array of dataset objects with details
+ */
+export async function getDependentDatasets({ datasetId, tabId }) {
+  const fetchLogic = async (datasetId) => {
+    const lineageResponse = await fetch(
+      `/api/data/v1/lineage/DATA_SOURCE/${datasetId}?traverseUp=false&requestEntities=DATA_SOURCE`,
+      { credentials: 'include', method: 'GET' }
+    );
+
+    if (!lineageResponse.ok) {
+      throw new Error(
+        `Failed to fetch lineage for dataset ${datasetId}. HTTP status: ${lineageResponse.status}`
+      );
+    }
+
+    const lineageData = await lineageResponse.json();
+
+    const datasetIds = Object.values(lineageData)
+      .filter((entry) => entry.type === 'DATA_SOURCE' && entry.id !== datasetId)
+      .map((entry) => entry.id);
+
+    if (datasetIds.length === 0) return [];
+
+    const bulkResponse = await fetch(
+      '/api/data/v3/datasources/bulk?includePrivate=true&part=core,impactcounts&includeFormulas=false',
+      {
+        body: JSON.stringify(datasetIds),
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST'
+      }
+    );
+
+    if (!bulkResponse.ok) {
+      console.warn('Bulk datasource fetch failed, returning IDs only');
+      return datasetIds.map((id) => ({ id, name: `Dataset ${id}` }));
+    }
+
+    const bulkData = await bulkResponse.json();
+    const datasources = bulkData.dataSources || [];
+    const byId = Object.fromEntries(datasources.map((d) => [d.id, d]));
+    return datasetIds.map((id) => byId[id]).filter(Boolean);
+  };
+
+  try {
+    return await executeInPage(fetchLogic, [datasetId], tabId);
+  } catch (error) {
+    console.error('Error fetching dependent datasets:', error);
+    throw error;
+  }
+}
+
+/**
  * Check if a DATA_SOURCE is a view type (dataset-view or datafusion)
  * @param {Object} details - The metadata.details object
  * @returns {boolean}

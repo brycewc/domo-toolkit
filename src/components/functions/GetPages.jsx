@@ -227,13 +227,13 @@ export function GetPages({
         let message = 'Get Pages';
         switch (typeId) {
           case 'CARD':
-            message = 'Get Pages for Card';
+            message = 'Get Apps and Pages';
             break;
           case 'DATA_APP_VIEW':
             message = 'Get App Pages';
             break;
           case 'DATA_SOURCE':
-            message = 'Get Pages for DataSet Cards';
+            message = 'Get Pages for Cards';
             break;
           case 'PAGE':
             message = 'Get Child Pages';

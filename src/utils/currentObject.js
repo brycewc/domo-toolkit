@@ -138,9 +138,61 @@ export async function detectCurrentObject() {
       objectType = 'ROLE';
       break;
 
-    case url.includes('instances/') && parts[parts.indexOf('instances') + 3]:
+    case url.includes('workflows/instances/') && !!parts[parts.indexOf('instances') + 3]:
       objectType = 'WORKFLOW_INSTANCE';
       break;
+
+    case url.includes('workflows/') && !!parts[parts.indexOf('workflows') + 3]: {
+      // Check for a selected nebulaFunction action in the workflow editor
+      const selectedNode = document.querySelector(
+        '.react-flow__node.selected'
+      );
+      if (selectedNode) {
+        const nodeId = selectedNode.getAttribute('data-id');
+        if (nodeId) {
+          try {
+            const workflowsIdx = parts.indexOf('workflows');
+            const modelId = parts[workflowsIdx + 2];
+            const version = parts[workflowsIdx + 3];
+
+            const defResponse = await fetch(
+              `/api/workflow/v2/models/${modelId}/versions/${version}/definition`
+            );
+            if (defResponse.ok) {
+              const definition = await defResponse.json();
+              const element = (definition.designElements || []).find(
+                (el) => el.id === nodeId
+              );
+
+              if (
+                element?.data?.taskType === 'nebulaFunction' &&
+                element.data.metadata?.packageId
+              ) {
+                return {
+                  baseUrl: `${location.protocol}//${location.hostname}`,
+                  id: element.data.metadata.packageId,
+                  typeId: 'CODEENGINE_PACKAGE',
+                  url
+                };
+              }
+
+              if (element?.data?.isFormStart && element.data.formId) {
+                return {
+                  baseUrl: `${location.protocol}//${location.hostname}`,
+                  id: element.data.formId,
+                  typeId: 'ENIGMA_FORM',
+                  url
+                };
+              }
+            }
+          } catch (e) {
+            // Fall through to normal workflow version detection
+          }
+        }
+      }
+      objectType = 'WORKFLOW_MODEL_VERSION';
+      break;
+    }
 
     case url.includes('workflows/'):
       objectType = 'WORKFLOW_MODEL';
@@ -152,6 +204,11 @@ export async function detectCurrentObject() {
 
     case url.includes('appDb/'):
       objectType = 'MAGNUM_COLLECTION';
+      break;
+
+    case url.includes('assetlibrary?designId='):
+      objectType = 'APP';
+      id = parts[parts.indexOf('designId') + 1];
       break;
 
     case url.includes('assetlibrary/'):

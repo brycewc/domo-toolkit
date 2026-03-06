@@ -1,5 +1,8 @@
 import {
   Alert,
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
   Button,
   ButtonGroup,
   Chip,
@@ -7,18 +10,21 @@ import {
   DateRangePicker,
   Dropdown,
   Label,
-  Link,
   RangeCalendar,
   Skeleton
 } from '@heroui/react';
 import { getLocalTimeZone, parseDate, today } from '@internationalized/date';
 import { IconCalendarWeek, IconFilter } from '@tabler/icons-react';
 import { AnimatePresence } from 'motion/react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { DomoObject } from '@/models';
-import { getActivityLogForObject } from '@/services';
-import { ACTION_COLOR_PATTERNS } from '@/utils';
+import {
+  getActivityLogForObject,
+  getCustomAvatarUserIds,
+  getEventTypesForObjectType
+} from '@/services';
+import { ACTION_COLOR_PATTERNS, getInitials } from '@/utils';
 
 import { AnimatedCheck } from './../AnimatedCheck';
 import { DataTable } from './DataTable';
@@ -39,14 +45,20 @@ export function ActivityLogTable() {
   const [isSearching, setIsSearching] = useState(false);
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [error, setError] = useState(null);
-  const [total, setTotal] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0);
   const [dateRange, setDateRange] = useState(null);
-  const [userFilter, setUserFilter] = useState([]); // Array of user IDs for Autocomplete
+  const [userFilter, setUserFilter] = useState(null);
   const [actionFilter, setActionFilter] = useState(new Set());
   const [objectTypeFilter, setObjectTypeFilter] = useState(new Set());
   // Track pagination state per object: { "type:id": { offset, total, hasMore } }
   const [objectStates, setObjectStates] = useState({});
+
+  const isFetchingMoreRef = useRef(false);
+  const objectStatesRef = useRef(objectStates);
+  objectStatesRef.current = objectStates;
+
+  const [customAvatarIds, setCustomAvatarIds] = useState(new Set());
+  const checkedAvatarIdsRef = useRef(new Set());
 
   const pageSize = 100; // Fetch in chunks per object
 
@@ -85,16 +97,56 @@ export function ActivityLogTable() {
     loadObjects();
   }, []);
 
-  // Get unique action types for filter
-  const actionOptions = useMemo(() => {
-    const actions = new Set();
-    events.forEach((event) => {
-      if (event.actionType) {
-        actions.add(event.actionType.toLowerCase());
-      }
+  // Fetch all possible event types from the API for each unique object type
+  const [actionOptions, setActionOptions] = useState([]);
+
+  useEffect(() => {
+    if (!tabId || objects.length === 0) return;
+
+    const uniqueTypes = [...new Set(objects.map((obj) => obj.type))];
+
+    Promise.all(
+      uniqueTypes.map((type) =>
+        getEventTypesForObjectType(type, tabId).catch(() => [])
+      )
+    ).then((results) => {
+      const seen = new Set();
+      const options = results
+        .flat()
+        .filter((item) => {
+          const key = item.type.toLowerCase();
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        })
+        .sort((a, b) => a.translation.localeCompare(b.translation));
+      setActionOptions(options);
     });
-    return Array.from(actions).sort();
-  }, [events]);
+  }, [tabId, objects]);
+
+  // Check which users have custom avatars (non-blocking, incremental)
+  useEffect(() => {
+    if (!tabId || events.length === 0) return;
+
+    const uniqueIds = [...new Set(events.map((e) => e.userId).filter(Boolean))];
+    const uncheckedIds = uniqueIds.filter(
+      (id) => !checkedAvatarIdsRef.current.has(id)
+    );
+
+    if (uncheckedIds.length === 0) return;
+
+    uncheckedIds.forEach((id) => checkedAvatarIdsRef.current.add(id));
+
+    getCustomAvatarUserIds(uncheckedIds, tabId)
+      .then((customIds) =>
+        setCustomAvatarIds((prev) => {
+          const next = new Set(prev);
+          customIds.forEach((id) => next.add(id));
+          return next;
+        })
+      )
+      .catch(() => {});
+  }, [events, tabId]);
 
   // Get unique object types for filter
   const objectTypeOptions = useMemo(() => {
@@ -107,61 +159,86 @@ export function ActivityLogTable() {
     return Array.from(types).sort();
   }, [events]);
 
-  // Filter events by date, user, and action
+  // Filter events locally (user and action filtering is handled server-side)
   const filteredEvents = useMemo(() => {
     let filtered = events;
 
-    // Filter by date range
     if (dateRange) {
       filtered = filtered.filter((event) => {
         const eventDate = new Date(event.time);
-        eventDate.setHours(0, 0, 0, 0); // Reset time to start of day for comparison
+        eventDate.setHours(0, 0, 0, 0);
         const start = dateRange.start.toDate(getLocalTimeZone());
         const end = dateRange.end.toDate(getLocalTimeZone());
         start.setHours(0, 0, 0, 0);
-        end.setHours(23, 59, 59, 999); // End of day
+        end.setHours(23, 59, 59, 999);
         return eventDate >= start && eventDate <= end;
       });
     }
 
-    if (userFilter.length > 0) {
-      filtered = filtered.filter((event) => {
-        // Filter by userId - handle both numeric and string ID types
-        const eventUserId = event.userId;
-        return userFilter.some(
-          (filterId) =>
-            filterId === eventUserId || String(filterId) === String(eventUserId)
-        );
-      });
-    }
-
-    if (actionFilter.size > 0) {
-      filtered = filtered.filter((event) => {
-        const action = event.actionType?.toLowerCase();
-        return action && actionFilter.has(action);
-      });
-    }
-
     if (objectTypeFilter.size > 0) {
-      filtered = filtered.filter((event) => {
-        return event.objectType && objectTypeFilter.has(event.objectType);
-      });
+      filtered = filtered.filter(
+        (event) => event.objectType && objectTypeFilter.has(event.objectType)
+      );
     }
 
     return filtered;
-  }, [events, dateRange, userFilter, actionFilter, objectTypeFilter]);
+  }, [events, dateRange, objectTypeFilter]);
+
+  // Pre-compute object URLs so the cell renderer is synchronous
+  const [objectUrlMap, setObjectUrlMap] = useState({});
+  const resolvedUrlKeysRef = useRef(new Set());
+
+  useEffect(() => {
+    if (!domoInstance || !tabId || events.length === 0) return;
+
+    const baseUrl = `https://${domoInstance}.domo.com`;
+    const pending = [];
+
+    for (const event of events) {
+      const { objectId, objectType } = event;
+      if (!objectType || !objectId) continue;
+      const key = `${objectType}:${objectId}`;
+      if (resolvedUrlKeysRef.current.has(key)) continue;
+      resolvedUrlKeysRef.current.add(key);
+
+      const obj = new DomoObject(objectType, objectId, baseUrl);
+      if (!obj.hasUrl()) continue;
+
+      pending.push(
+        obj
+          .buildUrl(baseUrl, tabId)
+          .then((url) => ({ key, url }))
+          .catch(() => null)
+      );
+    }
+
+    if (pending.length === 0) return;
+
+    Promise.all(pending).then((results) => {
+      setObjectUrlMap((prev) => {
+        const next = { ...prev };
+        for (const result of results) {
+          if (result) next[result.key] = result.url;
+        }
+        return next;
+      });
+    });
+  }, [events, domoInstance, tabId]);
 
   // Define columns
   const columns = useMemo(() => {
     const baseUrl = domoInstance ? `https://${domoInstance}.domo.com` : null;
+    const actionTranslations = Object.fromEntries(
+      actionOptions.map((a) => [a.type, a.translation])
+    );
     return [
       createTimestampColumn(),
-      createUserColumn(),
-      createActionColumn(),
-      createObjectColumn({ baseUrl, tabId }),
+      createUserColumn({ customAvatarIds, domoInstance }),
+      createActionColumn({ actionTranslations }),
+      createObjectColumn({ baseUrl, objectUrlMap }),
       createAdditionalCommentColumn()
     ];
-  }, [domoInstance, tabId]);
+  }, [domoInstance, tabId, actionOptions, customAvatarIds, objectUrlMap]);
 
   // Set initial column visibility based on number of objects
   const initialColumnVisibility = useMemo(
@@ -174,7 +251,7 @@ export function ActivityLogTable() {
     [activityLogType]
   );
 
-  // Fetch activity log events from all objects
+  // Fetch activity log events from all objects (re-runs when userFilter changes)
   useEffect(() => {
     const fetchEvents = async () => {
       if (!tabId || objects.length === 0) {
@@ -182,7 +259,6 @@ export function ActivityLogTable() {
         return;
       }
 
-      // Determine if this is a search or initial load
       const isSearch = events.length > 0;
 
       if (isSearch) {
@@ -195,51 +271,59 @@ export function ActivityLogTable() {
       setError(null);
 
       try {
-        // Fetch from all objects in parallel
-        const fetchPromises = objects.map(({ id, type }) =>
+        const tasks = buildFetchTasks(objects, userFilter, actionFilter);
+
+        const fetchPromises = tasks.map((task) =>
           getActivityLogForObject({
+            eventType: task.eventType,
             limit: pageSize,
-            objectId: id,
-            objectType: type,
+            objectId: task.objectId,
+            objectType: task.objectType,
             offset: 0,
-            tabId
+            tabId,
+            user: task.user
           })
             .then((result) => ({
               events: result?.events ?? [],
-              objectId: id,
-              objectType: type,
-              total: result?.total ?? 0
+              eventType: task.eventType,
+              key: task.key,
+              objectId: task.objectId,
+              objectType: task.objectType,
+              total: result?.total ?? 0,
+              user: task.user
             }))
             .catch((err) => {
-              console.error(`Error fetching for ${type}:${id}:`, err);
+              console.error(`Error fetching for ${task.key}:`, err);
               return {
-                error: err.message,
                 events: [],
-                objectId: id,
-                objectType: type,
-                total: 0
+                eventType: task.eventType,
+                key: task.key,
+                objectId: task.objectId,
+                objectType: task.objectType,
+                total: 0,
+                user: task.user
               };
             })
         );
 
         const results = await Promise.all(fetchPromises);
 
-        // Update object states with totals and hasMore
         const newStates = {};
-        let combinedTotal = 0;
-        results.forEach(({ events, objectId, objectType, total }) => {
-          const key = `${objectType}:${objectId}`;
-          newStates[key] = {
-            hasMore: events.length < total,
-            offset: events.length,
-            total
-          };
-          combinedTotal += total;
-        });
+        results.forEach(
+          ({ events, eventType, key, objectId, objectType, total, user }) => {
+            newStates[key] = {
+              eventType,
+              hasMore: events.length < total,
+              objectId,
+              objectType,
+              offset: events.length,
+              total,
+              user
+            };
+          }
+        );
         setObjectStates(newStates);
-        setTotal(combinedTotal);
 
-        // Combine and sort all events by timestamp
         const allEvents = results.flatMap((r) => r.events);
         allEvents.sort((a, b) => new Date(b.time) - new Date(a.time));
 
@@ -254,134 +338,121 @@ export function ActivityLogTable() {
     };
 
     fetchEvents();
-  }, [objects, tabId, refreshKey]);
+  }, [objects, tabId, refreshKey, userFilter, actionFilter]);
+
+  const total = useMemo(
+    () =>
+      Object.values(objectStates).reduce((sum, state) => sum + state.total, 0),
+    [objectStates]
+  );
 
   // Check if any objects still have more events to fetch
   const hasMore = useMemo(() => {
     return Object.values(objectStates).some((state) => state.hasMore);
   }, [objectStates]);
 
-  // Fetch more events when scrolling - only from objects that still have more
+  // Fetch more events when scrolling — reads task info from objectStates
   const fetchMoreEvents = useCallback(async () => {
-    if (isFetchingMore || !hasMore || isInitialLoad || isSearching) {
+    if (isFetchingMoreRef.current || isInitialLoad || isSearching) {
       return;
     }
 
+    const currentStates = objectStatesRef.current;
+    const tasksWithMore = Object.entries(currentStates)
+      .filter(([, state]) => state.hasMore)
+      .map(([key, state]) => ({ key, ...state }));
+
+    if (tasksWithMore.length === 0) return;
+
+    isFetchingMoreRef.current = true;
     setIsFetchingMore(true);
 
     try {
-      // Filter to only objects that still have more events
-      const objectsWithMore = objects.filter(({ id, type }) => {
-        const key = `${type}:${id}`;
-        const hasMoreData = objectStates[key]?.hasMore;
-        return hasMoreData;
-      });
-
-      if (objectsWithMore.length === 0) {
-        setIsFetchingMore(false);
-        return;
-      }
-
-      // Fetch next page from all objects that have more
-      const fetchPromises = objectsWithMore.map(({ id, type }) => {
-        const key = `${type}:${id}`;
-        const state = objectStates[key];
-
-        return getActivityLogForObject({
+      const fetchPromises = tasksWithMore.map((task) =>
+        getActivityLogForObject({
+          eventType: task.eventType,
           limit: pageSize,
-          objectId: id,
-          objectType: type,
-          offset: state.offset,
-          tabId
+          objectId: task.objectId,
+          objectType: task.objectType,
+          offset: task.offset,
+          tabId,
+          user: task.user
         })
-          .then((result) => {
+          .then((result) => ({
+            events: result?.events ?? [],
+            key: task.key,
+            total: result?.total ?? 0
+          }))
+          .catch((err) => {
+            console.error(`Error fetching more for ${task.key}:`, err);
             return {
-              events: result?.events ?? [],
-              objectId: id,
-              objectType: type,
-              total: result?.total ?? 0
+              events: [],
+              key: task.key,
+              total: task.total
             };
           })
-          .catch((err) => {
-            console.error(`Error fetching more for ${type}:${id}:`, err);
-            return {
-              error: err.message,
-              events: [],
-              objectId: id,
-              objectType: type,
-              total: state.total
-            };
-          });
-      });
+      );
 
       const results = await Promise.all(fetchPromises);
 
-      // Update object states
-      const newStates = { ...objectStates };
-      results.forEach(({ events, objectId, objectType, total }) => {
-        const key = `${objectType}:${objectId}`;
-        const currentState = newStates[key];
-        const newOffset = currentState.offset + events.length;
-        const newHasMore = newOffset < total;
-
-        newStates[key] = {
-          hasMore: newHasMore,
-          offset: newOffset,
-          total
-        };
+      setObjectStates((prev) => {
+        const newStates = { ...prev };
+        results.forEach(({ events, key, total }) => {
+          const currentState = newStates[key];
+          const newOffset = currentState.offset + events.length;
+          newStates[key] = {
+            ...currentState,
+            hasMore: newOffset < total,
+            offset: newOffset,
+            total
+          };
+        });
+        return newStates;
       });
-      setObjectStates(newStates);
 
-      // Merge new events with existing, then sort by timestamp
       const newEvents = results.flatMap((r) => r.events);
-      const allEvents = [...events, ...newEvents];
-      allEvents.sort((a, b) => new Date(b.time) - new Date(a.time));
-
-      setEvents(allEvents);
+      setEvents((prev) => {
+        const allEvents = [...prev, ...newEvents];
+        allEvents.sort((a, b) => new Date(b.time) - new Date(a.time));
+        return allEvents;
+      });
     } catch (err) {
       console.error('Error fetching more events:', err);
     } finally {
+      isFetchingMoreRef.current = false;
       setIsFetchingMore(false);
     }
-  }, [
-    events,
-    objects,
-    objectStates,
-    tabId,
-    hasMore,
-    isFetchingMore,
-    isInitialLoad,
-    isSearching,
-    pageSize
-  ]);
+  }, [tabId, isInitialLoad, isSearching]);
 
   // Handle refresh
   const handleRefresh = useCallback(() => {
     setRefreshKey((prev) => prev + 1);
   }, []);
 
-  // Fetch all data for export - paginates through all objects
+  // Fetch all data for export — paginates through all (object × user) tasks
   const fetchAllDataForExport = useCallback(async () => {
     if (!tabId || objects.length === 0) {
-      return filteredEvents; // Return currently filtered events if no tab/objects
+      return filteredEvents;
     }
 
     const allEvents = [];
-    const exportPageSize = 1000; // Use max page size for export
+    const exportPageSize = 1000;
+    const tasks = buildFetchTasks(objects, userFilter, actionFilter);
 
-    // Fetch all events from each object
-    for (const { id, type } of objects) {
+    for (const task of tasks) {
       let offset = 0;
-      let hasMore = true;
+      let taskHasMore = true;
 
-      while (hasMore) {
+      while (taskHasMore) {
         try {
           const result = await getActivityLogForObject({
+            eventType: task.eventType,
             limit: exportPageSize,
-            objectId: id,
-            objectType: type,
+            objectId: task.objectId,
+            objectType: task.objectType,
             offset,
-            tabId
+            tabId,
+            user: task.user
           });
 
           const events = result?.events ?? [];
@@ -390,44 +461,27 @@ export function ActivityLogTable() {
           allEvents.push(...events);
 
           offset += events.length;
-          hasMore = offset < total && events.length > 0;
+          taskHasMore = offset < total && events.length > 0;
         } catch (err) {
-          console.error(`Error fetching all events for ${type}:${id}:`, err);
-          hasMore = false; // Stop on error for this object
+          console.error(`Error fetching all events for ${task.key}:`, err);
+          taskHasMore = false;
         }
       }
     }
 
-    // Sort all events by timestamp descending
     allEvents.sort((a, b) => new Date(b.time) - new Date(a.time));
 
-    // Apply filters to match current view
     let filtered = allEvents;
 
-    // Filter by date range
     if (dateRange) {
       filtered = filtered.filter((event) => {
         const eventDate = new Date(event.time);
         eventDate.setHours(0, 0, 0, 0);
-
         const start = dateRange.start.toDate(getLocalTimeZone());
         const end = dateRange.end.toDate(getLocalTimeZone());
         start.setHours(0, 0, 0, 0);
         end.setHours(23, 59, 59, 999);
         return eventDate >= start && eventDate <= end;
-      });
-    }
-
-    if (userFilter.length > 0) {
-      filtered = filtered.filter((event) =>
-        userFilter.includes(String(event.userId))
-      );
-    }
-
-    if (actionFilter.size > 0) {
-      filtered = filtered.filter((event) => {
-        const action = event.actionType?.toLowerCase();
-        return action && actionFilter.has(action);
       });
     }
 
@@ -442,19 +496,11 @@ export function ActivityLogTable() {
     tabId,
     objects,
     filteredEvents,
-    dateRange,
     userFilter,
+    dateRange,
     actionFilter,
     objectTypeFilter
   ]);
-
-  // Handle row action
-  const handleRowAction = (action, selectedRows) => {
-    console.log(
-      `Action "${action}" on ${selectedRows.length} event(s):`,
-      selectedRows
-    );
-  };
 
   if (error) {
     return (
@@ -477,7 +523,7 @@ export function ActivityLogTable() {
         <Skeleton animationType='none' className='mb-2 h-8 w-full rounded-lg' />
         <Skeleton
           animationType='none'
-          className='mb-4 h-[calc(100vh-12rem)] w-full rounded-lg'
+          className='mb-4 h-[calc(100vh-14rem)] w-full rounded-lg'
         />
       </div>
     );
@@ -485,73 +531,69 @@ export function ActivityLogTable() {
 
   return (
     <div className='h-full w-full'>
-      <div className='mb-4 flex items-start justify-between'>
-        <div>
-          <h3 className='text-lg font-semibold'>
-            Activity Log for{' '}
-            {activityLogType === 'single-object' ? (
+      <div className='mb-2 flex flex-wrap items-center justify-between'>
+        <h3 className='flex items-center gap-1 text-lg font-semibold'>
+          Activity Log for{' '}
+          {activityLogType === 'single-object' ? (
+            <>
+              <span className='text-accent'>{objects[0]?.name} </span>
+              <Chip color='accent' size='md' variant='soft'>
+                {objects[0].type}
+              </Chip>{' '}
+              (ID: {objects[0].id})
+            </>
+          ) : (
+            ` ${objects.length} ${
+              activityLogType === 'child-cards'
+                ? objects.length === 1
+                  ? 'card'
+                  : 'cards'
+                : activityLogType === 'child-pages'
+                  ? objects.length === 1
+                    ? 'page'
+                    : 'pages'
+                  : objects.length === 1
+                    ? 'object'
+                    : 'objects'
+            }`
+          )}
+        </h3>
+        {total > 0 && (
+          <p className='text-base text-muted'>
+            {filteredEvents.length !== events.length ? (
               <>
-                <span className='text-accent'>{objects[0]?.name} </span>
-                <Chip color='accent' size='md' variant='soft'>
-                  {objects[0].type}
-                </Chip>{' '}
-                (ID: {objects[0].id})
+                Showing {filteredEvents.length.toLocaleString()} filtered of{' '}
+                {events.length.toLocaleString()} fetched (
+                {total.toLocaleString()} total)
               </>
             ) : (
-              ` ${objects.length} ${
-                activityLogType === 'child-cards'
-                  ? objects.length === 1
-                    ? 'card'
-                    : 'cards'
-                  : activityLogType === 'child-pages'
-                    ? objects.length === 1
-                      ? 'page'
-                      : 'pages'
-                    : objects.length === 1
-                      ? 'object'
-                      : 'objects'
-              }`
+              <>
+                Showing {events.length.toLocaleString()} of{' '}
+                {total.toLocaleString()} events
+              </>
             )}
-          </h3>
-          {total > 0 && (
-            <p className='text-base text-muted'>
-              {filteredEvents.length !== events.length ? (
-                <>
-                  Showing {filteredEvents.length.toLocaleString()} filtered of{' '}
-                  {events.length.toLocaleString()} fetched (
-                  {total.toLocaleString()} total)
-                </>
-              ) : (
-                <>
-                  Showing {events.length.toLocaleString()} of{' '}
-                  {total.toLocaleString()} events
-                </>
-              )}
-              {isFetchingMore && ' (loading more...)'}
-              {isSearching && ' (searching...)'}
-            </p>
-          )}
-        </div>
+            {isFetchingMore && ' (loading more...)'}
+            {isSearching && ' (searching...)'}
+          </p>
+        )}
       </div>
       <DataTable
         columns={columns}
         data={filteredEvents}
-        enableSearch={false}
-        enableSelection={false}
         entityName='events'
+        hasMore={hasMore}
         initialColumnVisibility={initialColumnVisibility}
-        initialSorting={[{ desc: true, id: 'time' }]}
+        initialSorting={{ column: 'time', direction: 'descending' }}
         isRefreshing={isInitialLoad || isSearching}
         onLoadMore={fetchMoreEvents}
         onRefresh={handleRefresh}
-        onRowAction={handleRowAction}
-        customFilters={(
-          <div className='flex w-full flex-row items-center justify-start gap-1'>
+        customFilters={
+          <div className='flex w-full flex-row flex-wrap items-center justify-start gap-1 sm:flex-nowrap'>
             {/* Date Range Filter */}
             <DateRangePicker
               shouldForceLeadingZeros
               aria-label='Date Range Picker'
-              className='w-72'
+              className='w-full sm:w-72'
               endName='endDate'
               granularity='day'
               maxValue={today(getLocalTimeZone())}
@@ -615,72 +657,32 @@ export function ActivityLogTable() {
                 </RangeCalendar>
               </DateRangePicker.Popover>
             </DateRangePicker>
-            <ButtonGroup fullWidth className='flex-1/2' variant='tertiary'>
+            <ButtonGroup className='w-72' variant='tertiary'>
               {/* Action Filter */}
-              {actionOptions.length > 0 && (
-                <Dropdown>
-                  <Button fullWidth variant='tertiary'>
-                    <IconFilter stroke={1.5} />
-                    Action
-                  </Button>
-                  <Dropdown.Popover className='max-h-64 overflow-y-auto'>
-                    <Dropdown.Menu
-                      selectedKeys={actionFilter}
-                      selectionMode='multiple'
-                      onSelectionChange={setActionFilter}
-                    >
-                      {actionOptions.map((action) => {
-                        const color = getActionColor(action);
-                        return (
-                          <Dropdown.Item
-                            id={action}
-                            key={action}
-                            textValue={action}
-                          >
-                            <Dropdown.ItemIndicator>
-                              {({ isSelected }) => (
-                                <AnimatePresence>
-                                  {isSelected && (
-                                    <AnimatedCheck
-                                      className='text-muted'
-                                      stroke={1.5}
-                                    />
-                                  )}
-                                </AnimatePresence>
-                              )}
-                            </Dropdown.ItemIndicator>
-                            <Label>
-                              <Chip
-                                className='uppercase'
-                                color={color}
-                                variant='soft'
-                              >
-                                {action}
-                              </Chip>
-                            </Label>
-                          </Dropdown.Item>
-                        );
-                      })}
-                    </Dropdown.Menu>
-                  </Dropdown.Popover>
-                </Dropdown>
-              )}
-
-              {/* Object Type Filter */}
-              {objectTypeOptions.length > 0 && (
-                <Dropdown>
-                  <Button fullWidth variant='tertiary'>
-                    <IconFilter stroke={1.5} />
-                    Object Type
-                  </Button>
-                  <Dropdown.Popover className='max-h-64 overflow-y-auto'>
-                    <Dropdown.Menu
-                      selectedKeys={objectTypeFilter}
-                      selectionMode='multiple'
-                      onSelectionChange={setObjectTypeFilter}
-                    >
-                      {objectTypeOptions.map((type) => (
-                        <Dropdown.Item id={type} key={type} textValue={type}>
+              <Dropdown>
+                <Button
+                  fullWidth
+                  className='min-w-0 flex-1'
+                  isDisabled={actionOptions.length === 0}
+                  variant='tertiary'
+                >
+                  <IconFilter stroke={1.5} />
+                  Action
+                </Button>
+                <Dropdown.Popover className='max-h-64 overflow-y-auto'>
+                  <Dropdown.Menu
+                    selectedKeys={actionFilter}
+                    selectionMode='multiple'
+                    onSelectionChange={setActionFilter}
+                  >
+                    {actionOptions.map((action) => {
+                      const color = getActionColor(action.type);
+                      return (
+                        <Dropdown.Item
+                          id={action.type}
+                          key={action.type}
+                          textValue={action.translation}
+                        >
                           <Dropdown.ItemIndicator>
                             {({ isSelected }) => (
                               <AnimatePresence>
@@ -693,13 +695,55 @@ export function ActivityLogTable() {
                               </AnimatePresence>
                             )}
                           </Dropdown.ItemIndicator>
-                          <Label>{type}</Label>
+                          <Label>
+                            <Chip color={color} variant='soft'>
+                              {action.translation}
+                            </Chip>
+                          </Label>
                         </Dropdown.Item>
-                      ))}
-                    </Dropdown.Menu>
-                  </Dropdown.Popover>
-                </Dropdown>
-              )}
+                      );
+                    })}
+                  </Dropdown.Menu>
+                </Dropdown.Popover>
+              </Dropdown>
+
+              {/* Object Type Filter */}
+              <Dropdown>
+                <Button
+                  fullWidth
+                  className='min-w-0 flex-1'
+                  isDisabled={objectTypeOptions.length === 0}
+                  variant='tertiary'
+                >
+                  <IconFilter stroke={1.5} />
+                  Object Type
+                </Button>
+                <Dropdown.Popover className='max-h-64 overflow-y-auto'>
+                  <Dropdown.Menu
+                    selectedKeys={objectTypeFilter}
+                    selectionMode='multiple'
+                    onSelectionChange={setObjectTypeFilter}
+                  >
+                    {objectTypeOptions.map((type) => (
+                      <Dropdown.Item id={type} key={type} textValue={type}>
+                        <Dropdown.ItemIndicator>
+                          {({ isSelected }) => (
+                            <AnimatePresence>
+                              {isSelected && (
+                                <AnimatedCheck
+                                  className='text-muted'
+                                  stroke={1.5}
+                                />
+                              )}
+                            </AnimatePresence>
+                          )}
+                        </Dropdown.ItemIndicator>
+                        <Label>{type}</Label>
+                      </Dropdown.Item>
+                    ))}
+                  </Dropdown.Menu>
+                </Dropdown.Popover>
+              </Dropdown>
             </ButtonGroup>
             <UserFilterAutocomplete
               domoInstance={domoInstance}
@@ -708,7 +752,7 @@ export function ActivityLogTable() {
               onChange={setUserFilter}
             />
           </div>
-        )}
+        }
         exportConfig={{
           enabled: true,
           filename: `activity-log_${activityLogType || 'export'}`,
@@ -720,38 +764,61 @@ export function ActivityLogTable() {
 }
 
 /**
+ * Build a list of fetch tasks from objects and an optional user filter.
+ * Each task maps to a single API call and a unique pagination key.
+ */
+function buildFetchTasks(objects, userFilter, actionFilter) {
+  const actions = actionFilter.size > 0 ? [...actionFilter] : [undefined];
+  return objects.flatMap((obj) =>
+    actions.map((eventType) => {
+      const parts = [obj.type, obj.id];
+      if (userFilter) parts.push(userFilter);
+      if (eventType) parts.push(eventType);
+      return {
+        eventType,
+        key: parts.join(':'),
+        objectId: obj.id,
+        objectType: obj.type,
+        user: userFilter || undefined
+      };
+    })
+  );
+}
+
+/**
  * Helper function to create an action column with colored chips
  */
-function createActionColumn({ accessorKey = 'actionType' } = {}) {
+function createActionColumn({
+  actionTranslations = {},
+  key = 'actionType'
+} = {}) {
   return {
-    accessorKey,
-    cell: ({ row }) => {
-      const action = row.getValue(accessorKey);
+    allowsSorting: true,
+    cell: (row) => {
+      const action = row[key];
       const color = getActionColor(action);
 
       return (
-        <Chip color={color} size='lg' variant='soft'>
-          {action || '-'}
-        </Chip>
+        <span className={`chip chip--${color} chip--soft chip--lg w-fit`}>
+          {actionTranslations[action] || action || '-'}
+        </span>
       );
     },
     header: 'Action',
-    maxSize: 150,
-    minSize: 60,
-    size: 75
+    id: key,
+    maxWidth: 150,
+    minWidth: 60,
+    width: 75
   };
 }
 
 /**
  * Helper function to create an additional comment column with text wrapping
  */
-function createAdditionalCommentColumn({
-  accessorKey = 'additionalComment'
-} = {}) {
+function createAdditionalCommentColumn({ key = 'additionalComment' } = {}) {
   return {
-    accessorKey,
-    cell: ({ row }) => {
-      const comment = row.getValue(accessorKey);
+    cell: (row) => {
+      const comment = row[key];
       if (!comment) return '-';
 
       return (
@@ -762,10 +829,11 @@ function createAdditionalCommentColumn({
         </div>
       );
     },
-    header: 'Comment',
-    maxSize: 300,
-    minSize: 40,
-    size: 75
+    header: 'Description',
+    id: key,
+    maxWidth: 300,
+    minWidth: 40,
+    width: 100
   };
 }
 
@@ -773,81 +841,59 @@ function createAdditionalCommentColumn({
  * Helper function to create an object column with type and name
  */
 function createObjectColumn({
-  baseUrl = null,
   idKey = 'objectId',
   nameKey = 'objectName',
-  tabId = null,
+  objectUrlMap = {},
   typeKey = 'objectType'
 } = {}) {
   return {
-    accessorKey: nameKey,
-    cell: ({ row }) => {
-      const name = row.getValue(nameKey);
-      const type = row.original[typeKey];
-      const id = row.original[idKey];
-      const [url, setUrl] = useState(null);
-
-      // Build URL asynchronously when component mounts or data changes
-      useEffect(() => {
-        const buildUrlAsync = async () => {
-          if (!type || !id || !baseUrl) {
-            setUrl(null);
-            return;
-          }
-
-          try {
-            // Create a DomoObject instance and use its buildUrl method
-            const domoObject = new DomoObject(type, id, baseUrl);
-
-            // Only build URL if the object type has a navigable URL
-            if (domoObject.hasUrl()) {
-              const builtUrl = await domoObject.buildUrl(baseUrl, tabId);
-              setUrl(builtUrl);
-            } else {
-              setUrl(null);
-            }
-          } catch (error) {
-            console.warn('Failed to build URL for object:', error);
-            setUrl(null);
-          }
-        };
-
-        buildUrlAsync();
-      }, [type, id, baseUrl, tabId]);
+    accessor: (row) => row[nameKey],
+    allowsSorting: true,
+    cell: (row) => {
+      const name = row[nameKey];
+      const type = row[typeKey];
+      const id = row[idKey];
+      const url = objectUrlMap[`${type}:${id}`];
 
       return (
         <div className='flex flex-col gap-1'>
           {url ? (
-            <Link
-              className='text-sm font-medium no-underline decoration-accent/80 hover:text-accent/80 hover:underline'
+            <a
+              className='truncate text-sm font-medium text-foreground no-underline decoration-accent/80 hover:text-accent/80 hover:underline'
               href={url}
+              rel='noopener noreferrer'
               target='_blank'
             >
               {name || '-'}
-            </Link>
+            </a>
           ) : (
-            <span className='text-sm font-medium'>{name || '-'}</span>
+            <span className='truncate text-sm font-medium'>{name || '-'}</span>
           )}
           {type && (
-            <Chip className='w-fit' size='sm'>
+            <span className='chip chip--accent chip--soft chip--sm w-fit'>
               {type}
-            </Chip>
+            </span>
           )}
         </div>
       );
     },
-    header: 'Object'
+    header: 'Object',
+    id: nameKey,
+    maxWidth: 200,
+    minWidth: 50,
+    width: 75
   };
 }
 
 /**
  * Helper function to create a timestamp column with formatted date/time
  */
-function createTimestampColumn({ accessorKey = 'time' } = {}) {
+function createTimestampColumn({ key = 'time' } = {}) {
   return {
-    accessorKey,
-    cell: ({ row }) => {
-      const timestamp = row.getValue(accessorKey);
+    accessor: (row) => new Date(row[key]).getTime(),
+    allowsSorting: true,
+    cell: (row) => {
+      const timestamp = row[key];
       if (!timestamp) return '-';
 
       const date = new Date(timestamp);
@@ -861,40 +907,71 @@ function createTimestampColumn({ accessorKey = 'time' } = {}) {
         </div>
       );
     },
-    header: 'Timestamp',
-    maxSize: 75,
-    minSize: 75,
-    size: 75
+    header: `Timestamp (${Intl.DateTimeFormat().resolvedOptions().timeZone})`,
+    id: key,
+    maxWidth: 75,
+    minWidth: 75,
+    width: 75
   };
 }
 
 /**
  * Helper function to create a user column with name and email
  */
-function createUserColumn({ idKey = 'userId', nameKey = 'userName' } = {}) {
+function createUserColumn({
+  customAvatarIds = new Set(),
+  domoInstance = null,
+  idKey = 'userId',
+  nameKey = 'userName'
+} = {}) {
+  const getAvatarUrl = (userId) =>
+    domoInstance
+      ? `https://${domoInstance}.domo.com/api/content/v1/avatar/USER/${userId}?size=100`
+      : null;
+
   return {
-    accessorKey: nameKey,
-    cell: ({ row }) => {
-      const name = row.getValue(nameKey);
-      const id = row.original[idKey];
+    accessor: (row) => row[nameKey],
+    allowsSorting: true,
+    cell: (row) => {
+      const name = row[nameKey];
+      const id = row[idKey];
 
       return (
-        <div className='flex flex-col'>
-          <span className='truncate text-sm font-medium' title={name}>
-            {name || '-'}
-          </span>
-          {id && (
-            <span className='truncate text-xs text-muted' title={id}>
-              {id}
-            </span>
-          )}
+        <div className='flex items-center gap-3'>
+          <Avatar size='xs'>
+            {customAvatarIds.has(id) && <AvatarImage src={getAvatarUrl(id)} />}
+            <AvatarFallback>{getInitials(name)}</AvatarFallback>
+          </Avatar>
+          <div className='flex flex-col'>
+            {id && domoInstance ? (
+              <a
+                className='truncate text-sm font-medium text-foreground no-underline decoration-accent/80 hover:text-accent/80 hover:underline'
+                href={`https://${domoInstance}.domo.com/admin/people/${id}?tab=profile`}
+                rel='noopener noreferrer'
+                target='_blank'
+                title={name}
+              >
+                {name || '-'}
+              </a>
+            ) : (
+              <span className='truncate text-sm font-medium' title={name}>
+                {name || '-'}
+              </span>
+            )}
+            {id && (
+              <span className='truncate text-xs text-muted' title={String(id)}>
+                {id}
+              </span>
+            )}
+          </div>
         </div>
       );
     },
     header: 'User',
-    maxSize: 180,
-    minSize: 60,
-    size: 75
+    id: nameKey,
+    maxWidth: 200,
+    minWidth: 40,
+    width: 50
   };
 }
 
@@ -904,16 +981,21 @@ function createUserColumn({ idKey = 'userId', nameKey = 'userName' } = {}) {
  * @returns {string} The color name
  */
 function getActionColor(action) {
-  if (!action) return 'default';
+  if (!action) return 'accent';
 
   const actionLower = action.toLowerCase();
 
-  // Try partial matches
   for (const [pattern, color] of Object.entries(ACTION_COLOR_PATTERNS)) {
-    if (actionLower.includes(pattern)) {
+    if (!pattern.startsWith('^') && actionLower.includes(pattern)) {
       return color;
     }
   }
 
-  return 'default';
+  for (const [pattern, color] of Object.entries(ACTION_COLOR_PATTERNS)) {
+    if (pattern.startsWith('^') && actionLower.startsWith(pattern.slice(1))) {
+      return color;
+    }
+  }
+
+  return 'accent';
 }
