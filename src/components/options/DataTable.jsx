@@ -147,7 +147,7 @@ export function DataTable({
       if (format === 'csv') {
         exportToCSV(exportData, visibleColumns, filename);
       } else if (format === 'xlsx') {
-        exportToExcel(exportData, visibleColumns, filename);
+        await exportToExcel(exportData, visibleColumns, filename);
       }
     } catch (error) {
       console.error('Export failed:', error);

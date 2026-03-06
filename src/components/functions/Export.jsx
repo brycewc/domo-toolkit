@@ -6,6 +6,7 @@ import {
   IconFileTypeJs,
   IconFileTypeXls
 } from '@tabler/icons-react';
+
 import { useStatusBar } from '@/hooks';
 import { exportCard, getCodeEngineCode } from '@/services';
 
@@ -115,7 +116,8 @@ export function Export({ currentContext, isDisabled }) {
         tabId: currentContext.tabId
       }),
       {
-        error: (err) => `Could not export card **${objectId}** – ${err.message}`,
+        error: (err) =>
+          `Could not export card **${objectId}** – ${err.message}`,
         loading: `Exporting **${title}**…`,
         success: (data) => `Downloading **${data.fileName}**`
       }
