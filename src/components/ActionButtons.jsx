@@ -4,7 +4,7 @@ import {
   IconLayoutSidebarRightExpand,
   IconSettings
 } from '@tabler/icons-react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import {
   ActivityLogCurrentObject,
@@ -32,10 +32,19 @@ import { isSidepanel, openSidepanel } from '@/utils';
 export function ActionButtons({
   collapsable = false,
   currentContext,
+  defaultExpanded,
   onStatusUpdate
 }) {
   const navigateToCopiedRef = useRef();
-  const [isExpanded, setIsExpanded] = useState(!collapsable);
+  const [isExpanded, setIsExpanded] = useState(
+    defaultExpanded ?? !collapsable
+  );
+
+  useEffect(() => {
+    if (defaultExpanded === false) {
+      setIsExpanded(false);
+    }
+  }, [defaultExpanded]);
 
   const isDomoPage = currentContext?.isDomoPage ?? false;
   const typeId = currentContext?.domoObject?.typeId;

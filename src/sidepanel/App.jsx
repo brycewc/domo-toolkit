@@ -201,6 +201,7 @@ export default function App() {
         <ActionButtons
           collapsable={true}
           currentContext={currentContext}
+          defaultExpanded={activeView === 'default'}
           isLoadingCurrentContext={isLoadingCurrentContext}
           onStatusUpdate={showStatus}
         />
