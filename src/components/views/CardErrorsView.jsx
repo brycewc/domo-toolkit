@@ -2,7 +2,6 @@ import {
   Button,
   ButtonGroup,
   Card,
-  CloseButton,
   Disclosure,
   DisclosureGroup,
   Tooltip
@@ -14,15 +13,6 @@ import JsonView from 'react18-json-view';
 import { AnimatedCheck } from '@/components';
 import '@/assets/json-view-theme.css';
 import { DomoContext } from '@/models';
-
-function parseResponse(response) {
-  if (!response) return null;
-  try {
-    return JSON.parse(response);
-  } catch {
-    return null;
-  }
-}
 
 export function CardErrorsView({
   onBackToDefault = null,
@@ -199,4 +189,13 @@ export function CardErrorsView({
       </Card.Content>
     </Card>
   );
+}
+
+function parseResponse(response) {
+  if (!response) return null;
+  try {
+    return JSON.parse(response);
+  } catch {
+    return null;
+  }
 }

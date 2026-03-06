@@ -2,10 +2,11 @@ import { Alert, Button, Card, CloseButton, Spinner } from '@heroui/react';
 import { IconRefresh } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 
-import { DataList } from '@/components';
 import { DataListItem, DomoContext, DomoObject } from '@/models';
 import { getDatasetsForView } from '@/services';
 import { getValidTabForInstance } from '@/utils';
+
+import { DataList } from './DataList';
 
 export function GetViewInputsView({
   onBackToDefault = null,
@@ -53,8 +54,7 @@ export function GetViewInputsView({
       const context = DomoContext.fromJSON(data.currentContext);
       const domoObject = context.domoObject;
       const objectId = domoObject.id;
-      const objectName =
-        domoObject.metadata?.name || `DataSet ${objectId}`;
+      const objectName = domoObject.metadata?.name || `DataSet ${objectId}`;
       const instance = context.instance;
       const origin = `https://${instance}.domo.com`;
 

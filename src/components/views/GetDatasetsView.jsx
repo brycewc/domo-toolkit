@@ -2,7 +2,6 @@ import { Alert, Button, Card, CloseButton, Spinner } from '@heroui/react';
 import { IconRefresh } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 
-import { DataList } from '@/components';
 import { DataListItem, DomoContext, DomoObject } from '@/models';
 import {
   getCardDatasets,
@@ -11,6 +10,8 @@ import {
   getDependentDatasets
 } from '@/services';
 import { getValidTabForInstance } from '@/utils';
+
+import { DataList } from './DataList';
 
 export function GetDatasetsView({
   onBackToDefault = null,

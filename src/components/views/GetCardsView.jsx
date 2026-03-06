@@ -2,7 +2,6 @@ import { Alert, Button, Card, CloseButton, Spinner } from '@heroui/react';
 import { IconRefresh } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 
-import { DataList } from '@/components';
 import { DataListItem, DomoContext, DomoObject } from '@/models';
 import {
   extractPageContentIds,
@@ -11,6 +10,8 @@ import {
   getQueuesForPage
 } from '@/services';
 import { getValidTabForInstance, waitForCards } from '@/utils';
+
+import { DataList } from './DataList';
 
 export function GetCardsView({
   onBackToDefault = null,

@@ -72,6 +72,7 @@
     "globals": "^17.3.0",
     "prettier": "^3.7.4",
     "prettier-plugin-tailwindcss": "^0.7.2",
+    "rollup-plugin-visualizer": "^7.0.1",
     "vite": "^7.3.0",
     "vite-plugin-zip-pack": "^1.2.4"
   }
