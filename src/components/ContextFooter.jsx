@@ -68,6 +68,7 @@ export function ContextFooter({
               id: related.field,
               isArray: true,
               isCurrentObject: false,
+              itemIdField: related.itemIdField,
               itemTypeField: related.itemTypeField,
               itemTypeId: related.itemTypeId,
               label: `${related.label} (${arrayData.length})`
@@ -205,21 +206,23 @@ export function ContextFooter({
     if (!activeTab) return null;
 
     if (activeTab.isCurrentObject) {
-      return (
-        <MetadataJsonView
-          userMap={userMap}
-          src={
-            currentContext?.domoObject?.metadata?.details ||
-            currentContext?.domoObject?.metadata
-          }
-        />
+      const src = injectUrls(
+        currentContext?.domoObject?.metadata?.details ||
+          currentContext?.domoObject?.metadata,
+        {
+          baseUrl,
+          objectId: currentContext?.domoObject?.id,
+          typeId: currentContext?.domoObject?.typeId
+        }
       );
+      return <MetadataJsonView src={src} userMap={userMap} />;
     }
 
     if (activeTab.isArray) {
       const src = injectUrls(activeTab.data, {
         baseUrl,
         isArray: true,
+        itemIdField: activeTab.itemIdField,
         itemTypeField: activeTab.itemTypeField,
         itemTypeId: activeTab.itemTypeId
       });
@@ -437,14 +440,17 @@ function buildSimpleUrl(baseUrl, typeId, objectId) {
   return `${baseUrl}${path}`;
 }
 
-function injectUrls(src, { baseUrl, isArray, itemTypeField, itemTypeId, objectId, typeId }) {
+function injectUrls(
+  src,
+  { baseUrl, isArray, itemIdField, itemTypeField, itemTypeId, objectId, typeId }
+) {
   if (!src || !baseUrl) return src;
 
   if (isArray && Array.isArray(src)) {
     return src.map((item) => {
       if (!item || typeof item !== 'object') return item;
       const resolvedType = itemTypeId || item[itemTypeField];
-      const itemId = item.id;
+      const itemId = item[itemIdField] || item.id;
       if (!resolvedType || !itemId) return item;
       const url = buildSimpleUrl(baseUrl, resolvedType, itemId);
       return url ? { url, ...item } : item;

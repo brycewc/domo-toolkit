@@ -450,7 +450,7 @@ export const ObjectTypeRegistry = {
       pathToName: '[0].title'
     },
     ['DATA_SOURCE', 'APP'],
-    [{ field: 'datasources', isArray: true, itemTypeId: 'DATA_SOURCE', label: 'DataSets' }]
+    [{ field: 'datasources', isArray: true, itemIdField: 'dataSourceId', itemTypeId: 'DATA_SOURCE', label: 'DataSets' }]
   ),
   CERTIFICATION: new DomoObjectType(
     'CERTIFICATION',

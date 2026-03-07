@@ -1,4 +1,3 @@
-import { DomoContext } from '@/models';
 import {
   applyFaviconRules,
   applyInstanceLogoAuto
@@ -19,9 +18,6 @@ async function applyFavicon() {
     console.error('Error applying favicon rules:', error);
   }
 }
-
-// Store current tab context
-let currentTabContext = null;
 
 let tracerOverlayRoot = null;
 
@@ -55,10 +51,10 @@ async function mountTracerOverlay(entityType, entityId, tabId) {
 
     tracerOverlayRoot.render(
       React.createElement(TracerOverlay, {
-        entityType,
         entityId,
-        tabId,
-        onClose: handleClose
+        entityType,
+        onClose: handleClose,
+        tabId
       })
     );
 
@@ -90,7 +86,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === 'MOUNT_TRACER_OVERLAY') {
-    const { entityType, entityId, tabId } = message;
+    const { entityId, entityType, tabId } = message;
     mountTracerOverlay(entityType, entityId, tabId);
     sendResponse({ success: true });
     return true;
