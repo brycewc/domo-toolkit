@@ -1,7 +1,6 @@
 import dagre from '@dagrejs/dagre';
 import {
   IconArrowsSplit,
-  IconChartBar,
   IconDatabase,
   IconLoader2
 } from '@tabler/icons-react';
@@ -24,7 +23,6 @@ import { LevelBar } from './LevelBar';
 import { PipelineNodeToolbar } from './PipelineNodeToolbar';
 
 const NODE_COLORS = {
-  CARD: { bg: '#f0fdf4', border: '#22c55e', icon: '#22c55e', text: '#166534' },
   DATA_SOURCE: {
     bg: '#f8fafc',
     border: '#3b82f6',
@@ -40,7 +38,6 @@ const NODE_COLORS = {
 };
 
 const NODE_ICONS = {
-  CARD: IconChartBar,
   DATA_SOURCE: IconDatabase,
   DATAFLOW: IconArrowsSplit
 };

@@ -1,4 +1,22 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
+
+function computeInitialExpanded(graph, rootNodeId) {
+  const initial = new Map();
+
+  for (const node of graph.nodes) {
+    if (node.id === rootNodeId) {
+      initial.set(node.id, { down: true, up: true });
+    } else if (Math.abs(node.depth) <= 2) {
+      const dir = node.direction;
+      initial.set(node.id, {
+        down: dir === 'root' || dir === 'downstream',
+        up: dir === 'root' || dir === 'upstream'
+      });
+    }
+  }
+
+  return initial;
+}
 
 export function useGraphVisibility({
   expandFetch,
@@ -8,35 +26,29 @@ export function useGraphVisibility({
 }) {
   const [expandedNodes, setExpandedNodes] = useState(new Map());
   const [highlightedDepth, setHighlightedDepth] = useState(null);
-  const prevRootRef = useRef(null);
+  const initializedForRef = useRef(null);
 
-  useEffect(() => {
-    if (!graph || !rootNodeId || rootNodeId === prevRootRef.current) return;
-    prevRootRef.current = rootNodeId;
+  const effectiveExpanded = useMemo(() => {
+    if (!graph || !rootNodeId) return expandedNodes;
 
-    const initial = new Map();
-    const depthTwo = new Set();
+    const graphId = `${rootNodeId}:${graph.nodes.length}:${graph.edges.length}`;
+    if (initializedForRef.current !== graphId && expandedNodes.size === 0) {
+      return computeInitialExpanded(graph, rootNodeId);
+    }
 
-    for (const node of graph.nodes) {
-      if (node.id === rootNodeId) {
-        initial.set(node.id, { down: true, up: true });
-      } else if (Math.abs(node.depth) <= 2) {
-        depthTwo.add(node.id);
+    return expandedNodes;
+  }, [expandedNodes, graph, rootNodeId]);
+
+  if (graph && rootNodeId) {
+    const graphId = `${rootNodeId}:${graph.nodes.length}:${graph.edges.length}`;
+    if (initializedForRef.current !== graphId) {
+      initializedForRef.current = graphId;
+      const initial = computeInitialExpanded(graph, rootNodeId);
+      if (expandedNodes.size === 0 || expandedNodes !== initial) {
+        queueMicrotask(() => setExpandedNodes(initial));
       }
     }
-
-    for (const nodeId of depthTwo) {
-      const node = graph.nodes.find((n) => n.id === nodeId);
-      if (!node) continue;
-      const dir = node.direction;
-      initial.set(nodeId, {
-        down: dir === 'root' || dir === 'downstream',
-        up: dir === 'root' || dir === 'upstream'
-      });
-    }
-
-    setExpandedNodes(initial);
-  }, [graph, rootNodeId]);
+  }
 
   const adjacency = useMemo(() => {
     if (!graph) return { downstream: new Map(), upstream: new Map() };
@@ -68,7 +80,7 @@ export function useGraphVisibility({
 
     while (queue.length > 0) {
       const current = queue.shift();
-      const expansion = expandedNodes.get(current);
+      const expansion = effectiveExpanded.get(current);
       if (!expansion) continue;
 
       if (expansion.down) {
@@ -94,7 +106,7 @@ export function useGraphVisibility({
       .filter((n) => visible.has(n.id))
       .map((n) => ({
         ...n,
-        expanded: expandedNodes.get(n.id),
+        expanded: effectiveExpanded.get(n.id),
         highlighted: highlightedDepth !== null && n.depth === highlightedDepth
       }));
 
@@ -103,7 +115,7 @@ export function useGraphVisibility({
     );
 
     return { edges: visibleEdges, nodes: visibleNodes };
-  }, [graph, rootNodeId, expandedNodes, adjacency, highlightedDepth]);
+  }, [graph, rootNodeId, effectiveExpanded, adjacency, highlightedDepth]);
 
   const levelSummary = useMemo(() => {
     if (!visibleTrace) return { downstream: [], upstream: [] };
@@ -126,7 +138,7 @@ export function useGraphVisibility({
       for (const depth of depths) {
         const nodesAtDepth = depthBuckets.get(depth) || [];
         const allExpanded = nodesAtDepth.every((n) => {
-          const exp = expandedNodes.get(n.id);
+          const exp = effectiveExpanded.get(n.id);
           return sign > 0 ? exp?.down : exp?.up;
         });
         levels.push({
@@ -143,7 +155,7 @@ export function useGraphVisibility({
       downstream: buildLevels(1),
       upstream: buildLevels(-1)
     };
-  }, [visibleTrace, expandedNodes]);
+  }, [visibleTrace, effectiveExpanded]);
 
   const frontierCounts = useMemo(() => {
     if (!visibleTrace || !graph) return { downstream: 0, upstream: 0 };
@@ -152,7 +164,7 @@ export function useGraphVisibility({
     let downCount = 0;
 
     for (const node of visibleTrace.nodes) {
-      const exp = expandedNodes.get(node.id);
+      const exp = effectiveExpanded.get(node.id);
       if (node.upstreamCount > 0 && !exp?.up && node.direction !== 'downstream') {
         upCount++;
       }
@@ -162,7 +174,7 @@ export function useGraphVisibility({
     }
 
     return { downstream: downCount, upstream: upCount };
-  }, [visibleTrace, expandedNodes, graph]);
+  }, [visibleTrace, effectiveExpanded, graph]);
 
   const expandNode = useCallback(
     async (nodeId, direction) => {

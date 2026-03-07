@@ -56,13 +56,9 @@ export function useLineageCache() {
       ? (entity.parents || [])
       : (entity.children || []);
 
-    const relevant = neighbors.filter(
-      (n) => n.type !== 'ALERT' && n.type !== 'CARD'
-    );
+    if (neighbors.length === 0) return true;
 
-    if (relevant.length === 0) return true;
-
-    return relevant.every((n) => {
+    return neighbors.every((n) => {
       const neighborKey = toMapKey(n.type, n.id);
       return neighborKey in rawCacheRef.current;
     });

@@ -23,7 +23,7 @@ export function convertToGraph(lineageResponse, startEntityType, startEntityId) 
     const currentDepth = depths.get(key) ?? 0;
 
     for (const parent of entity.parents || []) {
-      if (!parent || parent.type === 'ALERT') continue;
+      if (!parent) continue;
       const parentKey = toMapKey(parent.type, parent.id);
       if (!upVisited.has(parentKey)) {
         upVisited.add(parentKey);
@@ -42,7 +42,7 @@ export function convertToGraph(lineageResponse, startEntityType, startEntityId) 
     const currentDepth = depths.get(key) ?? 0;
 
     for (const child of entity.children || []) {
-      if (!child || child.type === 'ALERT') continue;
+      if (!child) continue;
       const childKey = toMapKey(child.type, child.id);
       if (!downVisited.has(childKey)) {
         downVisited.add(childKey);
@@ -55,7 +55,7 @@ export function convertToGraph(lineageResponse, startEntityType, startEntityId) 
   }
 
   for (const [key, entity] of Object.entries(lineageResponse)) {
-    if (!entity || entity.type === 'ALERT' || entity.type === 'CARD') continue;
+    if (!entity) continue;
 
     const depth = depths.get(key);
     if (depth === undefined) continue;
@@ -65,26 +65,22 @@ export function convertToGraph(lineageResponse, startEntityType, startEntityId) 
     addedNodes.add(nodeId);
 
     const name = entity.name || entity.id;
-    const filteredParents = (entity.parents || []).filter(
-      (p) => p.type !== 'ALERT' && p.type !== 'CARD'
-    );
-    const filteredChildren = (entity.children || []).filter(
-      (c) => c.type !== 'ALERT' && c.type !== 'CARD'
-    );
+    const parents = entity.parents || [];
+    const children = entity.children || [];
 
     nodes.push({
       depth,
       direction: depth === 0 ? 'root' : depth < 0 ? 'upstream' : 'downstream',
-      downstreamCount: filteredChildren.length,
+      downstreamCount: children.length,
       entityId: entity.id,
       entityType: entity.type,
       id: nodeId,
       metadata: entity.metadata,
       name,
-      upstreamCount: filteredParents.length
+      upstreamCount: parents.length
     });
 
-    for (const parent of filteredParents) {
+    for (const parent of parents) {
       const parentNodeId = toNodeId(parent.type, parent.id);
       const edgeKey = `${parentNodeId}->${nodeId}`;
       if (!edgeSet.has(edgeKey)) {
@@ -93,7 +89,7 @@ export function convertToGraph(lineageResponse, startEntityType, startEntityId) 
       }
     }
 
-    for (const child of filteredChildren) {
+    for (const child of children) {
       const childNodeId = toNodeId(child.type, child.id);
       const edgeKey = `${nodeId}->${childNodeId}`;
       if (!edgeSet.has(edgeKey)) {
@@ -222,7 +218,7 @@ export async function enrichMetadata(lineageResponse, tabId = null, existingKeys
 export async function getLineage(entityType, entityId, maxDepth = 4, tabId = null) {
   return await executeInPage(
     async (entityType, entityId, maxDepth) => {
-      const url = `/api/data/v1/lineage/${entityType}/${entityId}?traverseUp=true&traverseDown=true&maxDepth=${maxDepth}&requestEntities=DATA_SOURCE,DATAFLOW,CARD,ALERT`;
+      const url = `/api/data/v1/lineage/${entityType}/${entityId}?traverseUp=true&traverseDown=true&maxDepth=${maxDepth}&requestEntities=DATA_SOURCE,DATAFLOW`;
 
       const response = await fetch(url, {
         credentials: 'include',
