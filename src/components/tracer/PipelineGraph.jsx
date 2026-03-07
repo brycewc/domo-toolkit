@@ -17,10 +17,21 @@ import {
   useNodesState
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { useCallback, useEffect, useMemo } from 'react';
+import {
+  createContext,
+  memo,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react';
 
 import { LevelBar } from './LevelBar';
 import { PipelineNodeToolbar } from './PipelineNodeToolbar';
+
+const PipelineGraphContext = createContext(null);
 
 const NODE_COLORS = {
   DATA_SOURCE: {
@@ -49,11 +60,13 @@ function formatNumber(n) {
   return n.toLocaleString();
 }
 
-function PipelineNode({ data, id }) {
+const PipelineNode = memo(function PipelineNode({ data, id }) {
+  const ctx = useContext(PipelineGraphContext);
   const colors = NODE_COLORS[data.entityType] || NODE_COLORS.DATA_SOURCE;
   const Icon = NODE_ICONS[data.entityType] || IconDatabase;
   const meta = data.metadata;
   const hasName = data.label && data.label !== data.entityId;
+  const isSelected = ctx?.selectedNodeId === id;
 
   let badge = '';
   if (data.entityType === 'DATA_SOURCE' && meta?.rowCount != null) {
@@ -66,7 +79,7 @@ function PipelineNode({ data, id }) {
     <div
       style={{ borderColor: colors.border }}
       className={`w-[280px] rounded-lg border-2 bg-white px-3 py-2 shadow-sm ${
-        data.selected ? 'ring-2 ring-blue-400' : ''
+        isSelected ? 'ring-2 ring-blue-400' : ''
       } ${data.highlighted ? 'ring-2 ring-yellow-400' : ''}`}
     >
       {data.hasIncoming && (
@@ -99,18 +112,18 @@ function PipelineNode({ data, id }) {
         <Handle className='h-2 w-2' position={Position.Right} type='source' />
       )}
 
-      {data.selected && (
+      {isSelected && (
         <PipelineNodeToolbar
           data={data}
-          expandLoading={data.expandLoading}
+          expandLoading={ctx.expandLoading}
           nodeId={id}
-          onCollapseNode={data.onCollapseNode}
-          onExpandNode={data.onExpandNode}
+          onCollapseNode={ctx.onCollapseNode}
+          onExpandNode={ctx.onExpandNode}
         />
       )}
     </div>
   );
-}
+});
 
 const NODE_WIDTH = 280;
 const CHARS_PER_LINE = 25;
@@ -131,6 +144,9 @@ function estimateNodeHeight(node) {
 
 const nodeTypes = { pipeline: PipelineNode };
 
+const WORKER_THRESHOLD = 30;
+const DAGRE_OPTIONS = { marginx: 40, marginy: 40, rankdir: 'LR', ranksep: 80 };
+
 const defaultEdgeOptions = {
   animated: false,
   markerEnd: { color: '#94a3b8', type: MarkerType.ArrowClosed },
@@ -138,10 +154,109 @@ const defaultEdgeOptions = {
   type: 'default'
 };
 
+function computeLayoutSync(traceNodes, validEdges) {
+  const g = new dagre.graphlib.Graph();
+  g.setGraph(DAGRE_OPTIONS);
+  g.setDefaultEdgeLabel(() => ({}));
+
+  for (const pNode of traceNodes) {
+    if (!pNode) continue;
+    g.setNode(pNode.id, {
+      height: estimateNodeHeight(pNode),
+      width: NODE_WIDTH
+    });
+  }
+
+  for (const edge of validEdges) {
+    g.setEdge(edge.sourceId, edge.targetId);
+  }
+
+  dagre.layout(g);
+
+  const positions = new Map();
+  for (const pNode of traceNodes) {
+    if (!pNode) continue;
+    const info = g.node(pNode.id);
+    if (info) {
+      positions.set(pNode.id, {
+        height: info.height,
+        x: info.x - NODE_WIDTH / 2,
+        y: info.y - info.height / 2
+      });
+    }
+  }
+
+  return positions;
+}
+
+function useLayout(trace) {
+  const [layout, setLayout] = useState(null);
+  const workerRef = useRef(null);
+
+  useEffect(() => {
+    if (!trace || !Array.isArray(trace.nodes)) {
+      setLayout(null);
+      return;
+    }
+
+    const nodeSet = new Set(trace.nodes.map((n) => n.id));
+    const validEdges = (trace.edges || []).filter(
+      (e) => nodeSet.has(e.sourceId) && nodeSet.has(e.targetId)
+    );
+    const nodesWithIncoming = new Set(validEdges.map((e) => e.targetId));
+    const nodesWithOutgoing = new Set(validEdges.map((e) => e.sourceId));
+
+    if (trace.nodes.length < WORKER_THRESHOLD) {
+      const positions = computeLayoutSync(trace.nodes, validEdges);
+      setLayout({ nodesWithIncoming, nodesWithOutgoing, positions, validEdges });
+      return;
+    }
+
+    const workerNodes = trace.nodes
+      .filter(Boolean)
+      .map((n) => ({
+        height: estimateNodeHeight(n),
+        id: n.id,
+        width: NODE_WIDTH
+      }));
+
+    const workerEdges = validEdges.map((e) => ({
+      source: e.sourceId,
+      target: e.targetId
+    }));
+
+    const worker = new Worker(
+      new URL('@/utils/layoutWorker.js', import.meta.url),
+      { type: 'module' }
+    );
+
+    worker.onmessage = ({ data: { positions: rawPositions } }) => {
+      const positions = new Map(Object.entries(rawPositions));
+      setLayout({ nodesWithIncoming, nodesWithOutgoing, positions, validEdges });
+      worker.terminate();
+    };
+
+    worker.postMessage({
+      edges: workerEdges,
+      nodes: workerNodes,
+      options: DAGRE_OPTIONS
+    });
+
+    workerRef.current = worker;
+
+    return () => {
+      worker.terminate();
+      workerRef.current = null;
+    };
+  }, [trace]);
+
+  return layout;
+}
+
 export function PipelineGraph({
-  downstreamFrontierCount,
   error,
   expandLoading,
+  frontierCounts,
   levelSummary,
   loading,
   onClearHighlight,
@@ -154,72 +269,37 @@ export function PipelineGraph({
   onNodeClick,
   onRootClick,
   selectedNodeId,
-  trace,
-  upstreamFrontierCount
+  trace
 }) {
+  const layout = useLayout(trace);
+
   const { initialEdges, initialNodes } = useMemo(() => {
-    if (!trace || !Array.isArray(trace.nodes)) {
+    if (!layout || !trace) {
       return { initialEdges: [], initialNodes: [] };
     }
 
-    const g = new dagre.graphlib.Graph();
-    g.setGraph({ marginx: 40, marginy: 40, rankdir: 'LR', ranksep: 80 });
-    g.setDefaultEdgeLabel(() => ({}));
-
-    const nodeSet = new Set(trace.nodes.map((n) => n.id));
-
-    for (const pNode of trace.nodes) {
-      if (!pNode) continue;
-      g.setNode(pNode.id, {
-        height: estimateNodeHeight(pNode),
-        width: NODE_WIDTH
-      });
-    }
-
-    const validEdges = (trace.edges || []).filter(
-      (e) => nodeSet.has(e.sourceId) && nodeSet.has(e.targetId)
-    );
-    for (const edge of validEdges) {
-      g.setEdge(edge.sourceId, edge.targetId);
-    }
-
-    dagre.layout(g);
-
-    const nodesWithIncoming = new Set(validEdges.map((e) => e.targetId));
-    const nodesWithOutgoing = new Set(validEdges.map((e) => e.sourceId));
-
     const nodes = trace.nodes
-      .filter((pNode) => pNode && g.node(pNode.id))
-      .map((pNode) => {
-        const nodeInfo = g.node(pNode.id);
-        return {
-          data: {
-            direction: pNode.direction,
-            downstreamCount: pNode.downstreamCount,
-            entityId: pNode.entityId,
-            entityType: pNode.entityType,
-            expanded: pNode.expanded,
-            expandLoading,
-            hasIncoming: nodesWithIncoming.has(pNode.id),
-            hasOutgoing: nodesWithOutgoing.has(pNode.id),
-            highlighted: pNode.highlighted,
-            label: pNode.name,
-            metadata: pNode.metadata,
-            onCollapseNode,
-            onExpandNode,
-            selected: selectedNodeId === pNode.id,
-            upstreamCount: pNode.upstreamCount
-          },
-          id: pNode.id,
-          position: {
-            x: nodeInfo.x - NODE_WIDTH / 2,
-            y: nodeInfo.y - nodeInfo.height / 2
-          },
-          type: 'pipeline'
-        };
-      });
+      .filter((pNode) => pNode && layout.positions.has(pNode.id))
+      .map((pNode) => ({
+        data: {
+          direction: pNode.direction,
+          downstreamCount: pNode.downstreamCount,
+          entityId: pNode.entityId,
+          entityType: pNode.entityType,
+          expanded: pNode.expanded,
+          hasIncoming: layout.nodesWithIncoming.has(pNode.id),
+          hasOutgoing: layout.nodesWithOutgoing.has(pNode.id),
+          highlighted: pNode.highlighted,
+          label: pNode.name,
+          metadata: pNode.metadata,
+          upstreamCount: pNode.upstreamCount
+        },
+        id: pNode.id,
+        position: layout.positions.get(pNode.id),
+        type: 'pipeline'
+      }));
 
-    const edges = validEdges.map((e) => ({
+    const edges = layout.validEdges.map((e) => ({
       id: `${e.sourceId}->${e.targetId}`,
       source: e.sourceId,
       target: e.targetId,
@@ -227,7 +307,7 @@ export function PipelineGraph({
     }));
 
     return { initialEdges: edges, initialNodes: nodes };
-  }, [trace, selectedNodeId, expandLoading, onExpandNode, onCollapseNode]);
+  }, [layout, trace]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -252,6 +332,11 @@ export function PipelineGraph({
     const data = node.data;
     return NODE_COLORS[data.entityType]?.border || '#94a3b8';
   }, []);
+
+  const graphContext = useMemo(
+    () => ({ expandLoading, onCollapseNode, onExpandNode, selectedNodeId }),
+    [expandLoading, onCollapseNode, onExpandNode, selectedNodeId]
+  );
 
   if (loading) {
     return (
@@ -279,40 +364,39 @@ export function PipelineGraph({
   }
 
   return (
-    <div className='h-full w-full bg-slate-50'>
-      <ReactFlow
-        fitView
-        edges={edges}
-        maxZoom={2}
-        minZoom={0.1}
-        nodes={nodes}
-        nodeTypes={nodeTypes}
-        onEdgesChange={onEdgesChange}
-        onNodeClick={handleNodeClick}
-        onNodesChange={onNodesChange}
-      >
-        <Background color='#cbd5e1' gap={16} />
-        <Controls />
-        <MiniMap pannable zoomable nodeColor={miniMapNodeColor} />
-        {levelSummary && (
-          <Panel position='top-center'>
-            <LevelBar
-              downstreamLevels={levelSummary.downstream}
-              upstreamLevels={levelSummary.upstream}
-              onClearHighlight={onClearHighlight}
-              onCollapseLevel={onCollapseLevel}
-              onExpandFrontier={onExpandFrontier}
-              onExpandLevel={onExpandLevel}
-              onHighlightLevel={onHighlightLevel}
-              onRootClick={onRootClick}
-              frontierCounts={{
-                downstream: downstreamFrontierCount || 0,
-                upstream: upstreamFrontierCount || 0
-              }}
-            />
-          </Panel>
-        )}
-      </ReactFlow>
-    </div>
+    <PipelineGraphContext.Provider value={graphContext}>
+      <div className='h-full w-full bg-slate-50'>
+        <ReactFlow
+          fitView
+          edges={edges}
+          maxZoom={2}
+          minZoom={0.1}
+          nodes={nodes}
+          nodeTypes={nodeTypes}
+          onEdgesChange={onEdgesChange}
+          onNodeClick={handleNodeClick}
+          onNodesChange={onNodesChange}
+        >
+          <Background color='#cbd5e1' gap={16} />
+          <Controls />
+          <MiniMap pannable zoomable nodeColor={miniMapNodeColor} />
+          {levelSummary && (
+            <Panel position='top-center'>
+              <LevelBar
+                downstreamLevels={levelSummary.downstream}
+                frontierCounts={frontierCounts}
+                upstreamLevels={levelSummary.upstream}
+                onClearHighlight={onClearHighlight}
+                onCollapseLevel={onCollapseLevel}
+                onExpandFrontier={onExpandFrontier}
+                onExpandLevel={onExpandLevel}
+                onHighlightLevel={onHighlightLevel}
+                onRootClick={onRootClick}
+              />
+            </Panel>
+          )}
+        </ReactFlow>
+      </div>
+    </PipelineGraphContext.Provider>
   );
 }

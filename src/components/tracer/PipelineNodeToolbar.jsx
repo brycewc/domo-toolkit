@@ -7,8 +7,9 @@ import {
   IconMinus
 } from '@tabler/icons-react';
 import { NodeToolbar, Position } from '@xyflow/react';
+import { memo } from 'react';
 
-export function PipelineNodeToolbar({
+export const PipelineNodeToolbar = memo(function PipelineNodeToolbar({
   data,
   expandLoading,
   nodeId,
@@ -71,9 +72,9 @@ export function PipelineNodeToolbar({
       </div>
     </NodeToolbar>
   );
-}
+});
 
-function CollapseButton({ direction, onClick }) {
+const CollapseButton = memo(function CollapseButton({ direction, onClick }) {
   const isUpstream = direction === 'upstream';
   const Icon = isUpstream ? IconArrowBarToRight : IconArrowBarToLeft;
 
@@ -88,9 +89,9 @@ function CollapseButton({ direction, onClick }) {
       <IconMinus className='size-3' stroke={2} />
     </Button>
   );
-}
+});
 
-function ExpandButton({ count, direction, isLoading, onClick }) {
+const ExpandButton = memo(function ExpandButton({ count, direction, isLoading, onClick }) {
   const isUpstream = direction === 'upstream';
   const Icon = isUpstream ? IconArrowLeft : IconArrowRight;
 
@@ -110,4 +111,4 @@ function ExpandButton({ count, direction, isLoading, onClick }) {
       <span>{count}</span>
     </Button>
   );
-}
+});

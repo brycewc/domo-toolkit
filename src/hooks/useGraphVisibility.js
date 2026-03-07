@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 function computeInitialExpanded(graph, rootNodeId) {
   const initial = new Map();
@@ -18,6 +18,11 @@ function computeInitialExpanded(graph, rootNodeId) {
   return initial;
 }
 
+function getGraphFingerprint(graph, rootNodeId) {
+  if (!graph || !rootNodeId) return null;
+  return `${rootNodeId}:${graph.nodes.length}:${graph.edges.length}`;
+}
+
 export function useGraphVisibility({
   expandFetch,
   graph,
@@ -27,28 +32,27 @@ export function useGraphVisibility({
   const [expandedNodes, setExpandedNodes] = useState(new Map());
   const [highlightedDepth, setHighlightedDepth] = useState(null);
   const initializedForRef = useRef(null);
+  const initialExpandedRef = useRef(null);
+
+  useEffect(() => {
+    const fingerprint = getGraphFingerprint(graph, rootNodeId);
+    if (!fingerprint || initializedForRef.current === fingerprint) return;
+
+    initializedForRef.current = fingerprint;
+    const initial = computeInitialExpanded(graph, rootNodeId);
+    initialExpandedRef.current = initial;
+    setExpandedNodes(initial);
+  }, [graph, rootNodeId]);
 
   const effectiveExpanded = useMemo(() => {
     if (!graph || !rootNodeId) return expandedNodes;
 
-    const graphId = `${rootNodeId}:${graph.nodes.length}:${graph.edges.length}`;
-    if (initializedForRef.current !== graphId && expandedNodes.size === 0) {
-      return computeInitialExpanded(graph, rootNodeId);
+    if (expandedNodes.size === 0 && initialExpandedRef.current) {
+      return initialExpandedRef.current;
     }
 
     return expandedNodes;
   }, [expandedNodes, graph, rootNodeId]);
-
-  if (graph && rootNodeId) {
-    const graphId = `${rootNodeId}:${graph.nodes.length}:${graph.edges.length}`;
-    if (initializedForRef.current !== graphId) {
-      initializedForRef.current = graphId;
-      const initial = computeInitialExpanded(graph, rootNodeId);
-      if (expandedNodes.size === 0 || expandedNodes !== initial) {
-        queueMicrotask(() => setExpandedNodes(initial));
-      }
-    }
-  }
 
   const adjacency = useMemo(() => {
     if (!graph) return { downstream: new Map(), upstream: new Map() };

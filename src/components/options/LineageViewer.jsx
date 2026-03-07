@@ -132,7 +132,7 @@ export function LineageViewer() {
     setSelectedNodeId(null);
   }, []);
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     setSelectedNodeId(null);
     setInspectedDataflow(null);
     setPreviewDataset(null);
@@ -142,7 +142,7 @@ export function LineageViewer() {
         setError(err.message || 'Failed to reload pipeline trace');
       });
     }
-  };
+  }, [params, init]);
 
   const handleRootClick = useCallback(() => {
     if (rootNodeId) {
@@ -157,6 +157,25 @@ export function LineageViewer() {
     [rootNodeId, expandNode]
   );
 
+  const entityIcon = useMemo(
+    () =>
+      params?.entityType === 'DATAFLOW' ? (
+        <IconArrowsSplit className='size-5 shrink-0' stroke={1.5} />
+      ) : (
+        <IconDatabase className='size-5 shrink-0' stroke={1.5} />
+      ),
+    [params?.entityType]
+  );
+
+  const domoUrl = useMemo(() => {
+    if (!params?.instance || !params?.entityId) return null;
+    const path =
+      params.entityType === 'DATAFLOW'
+        ? `/datacenter/dataflows/${params.entityId}/details`
+        : `/datasources/${params.entityId}/details`;
+    return `https://${params.instance}.domo.com${path}`;
+  }, [params?.instance, params?.entityId, params?.entityType]);
+
   if (!params && !loading && error) {
     return (
       <div className='flex h-full items-center justify-center text-muted'>
@@ -164,18 +183,6 @@ export function LineageViewer() {
       </div>
     );
   }
-
-  const entityIcon =
-    params?.entityType === 'DATAFLOW' ? (
-      <IconArrowsSplit className='size-5 shrink-0' stroke={1.5} />
-    ) : (
-      <IconDatabase className='size-5 shrink-0' stroke={1.5} />
-    );
-
-  const domoUrl =
-    params?.instance && params?.entityId
-      ? `https://${params.instance}.domo.com${params.entityType === 'DATAFLOW' ? `/datacenter/dataflows/${params.entityId}/details` : `/datasources/${params.entityId}/details`}`
-      : null;
 
   return (
     <div className='flex h-full w-full flex-col'>
@@ -225,14 +232,13 @@ export function LineageViewer() {
             </div>
           ) : (
             <PipelineGraph
-              downstreamFrontierCount={frontierCounts.downstream}
               error={null}
               expandLoading={expandLoading}
+              frontierCounts={frontierCounts}
               levelSummary={levelSummary}
               loading={false}
               selectedNodeId={selectedNodeId}
               trace={visibleTrace}
-              upstreamFrontierCount={frontierCounts.upstream}
               onClearHighlight={clearHighlight}
               onCollapseLevel={collapseLevel}
               onCollapseNode={collapseNode}

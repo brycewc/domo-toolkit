@@ -12,7 +12,8 @@ import {
   IconSearch,
   IconX
 } from '@tabler/icons-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { parseDataflow, searchTiles } from '@/services';
 import { executeInPage } from '@/utils';
@@ -109,15 +110,35 @@ export function ETLInspector({ dataflowId, onClose, tabId }) {
     return dataflow.tiles.filter((t) => matchedIds.has(t.id));
   }, [dataflow, tileSearch]);
 
-  const groupedTiles = useMemo(() => {
+  const flatRows = useMemo(() => {
     const groups = new Map();
     for (const tile of filteredTiles) {
       const group = groups.get(tile.category) || [];
       group.push(tile);
       groups.set(tile.category, group);
     }
-    return groups;
+
+    const rows = [];
+    for (const [category, tiles] of groups) {
+      rows.push({ category, count: tiles.length, type: 'header' });
+      for (const tile of tiles) {
+        rows.push({ tile, type: 'tile' });
+      }
+    }
+    return rows;
   }, [filteredTiles]);
+
+  const scrollRef = useRef(null);
+
+  const virtualizer = useVirtualizer({
+    count: flatRows.length,
+    estimateSize: useCallback(
+      (index) => (flatRows[index].type === 'header' ? 32 : 44),
+      [flatRows]
+    ),
+    getScrollElement: () => scrollRef.current,
+    overscan: 8
+  });
 
   if (loading) {
     return (
@@ -212,28 +233,42 @@ export function ETLInspector({ dataflowId, onClose, tabId }) {
         )}
       </div>
 
-      <div className='flex-1 space-y-4 overflow-y-auto px-4 py-3'>
-        {Array.from(groupedTiles.entries()).map(([category, tiles]) => (
-          <div key={category}>
-            <h3 className='mb-2 text-xs font-semibold tracking-wider text-slate-500 uppercase'>
-              {category} ({tiles.length})
-            </h3>
-            <div className='space-y-1.5'>
-              {tiles.map((tile) => (
-                <TileDetail
-                  defaultOpen={!!tileSearch}
-                  key={tile.id}
-                  searchQuery={tileSearch || undefined}
-                  tile={tile}
-                />
-              ))}
-            </div>
-          </div>
-        ))}
-
-        {filteredTiles.length === 0 && (
+      <div ref={scrollRef} className='flex-1 overflow-y-auto px-4 py-3'>
+        {flatRows.length === 0 ? (
           <div className='py-8 text-center text-slate-400'>
-            <p>No tiles match "{tileSearch}"</p>
+            <p>No tiles match &ldquo;{tileSearch}&rdquo;</p>
+          </div>
+        ) : (
+          <div
+            className='relative w-full'
+            style={{ height: virtualizer.getTotalSize() }}
+          >
+            {virtualizer.getVirtualItems().map((vItem) => {
+              const row = flatRows[vItem.index];
+              return (
+                <div
+                  key={vItem.key}
+                  ref={virtualizer.measureElement}
+                  data-index={vItem.index}
+                  className='absolute left-0 w-full'
+                  style={{ top: vItem.start }}
+                >
+                  {row.type === 'header' ? (
+                    <h3 className='mb-2 mt-4 text-xs font-semibold tracking-wider text-slate-500 uppercase first:mt-0'>
+                      {row.category} ({row.count})
+                    </h3>
+                  ) : (
+                    <div className='mb-1.5'>
+                      <TileDetail
+                        defaultOpen={!!tileSearch}
+                        searchQuery={tileSearch || undefined}
+                        tile={row.tile}
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -258,7 +293,7 @@ function highlightMatch(text, query) {
   );
 }
 
-function TileDetail({ defaultOpen = false, searchQuery, tile }) {
+const TileDetail = memo(function TileDetail({ defaultOpen = false, searchQuery, tile }) {
   const [open, setOpen] = useState(defaultOpen);
   const categoryColor = CATEGORY_COLORS[tile.category] || '#6b7280';
   const Icon = TILE_ICONS[tile.category] || IconColumns3;
@@ -391,4 +426,4 @@ function TileDetail({ defaultOpen = false, searchQuery, tile }) {
       )}
     </div>
   );
-}
+});

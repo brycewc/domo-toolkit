@@ -5,8 +5,9 @@ import {
   IconMinus,
   IconPlus
 } from '@tabler/icons-react';
+import { memo, useCallback, useMemo } from 'react';
 
-function LevelPill({
+const LevelPill = memo(function LevelPill({
   direction,
   isRoot,
   level,
@@ -52,9 +53,9 @@ function LevelPill({
       </button>
     </Tooltip>
   );
-}
+});
 
-function FrontierPill({ count, direction, onExpand }) {
+const FrontierPill = memo(function FrontierPill({ count, direction, onExpand }) {
   if (count === 0) return null;
 
   const isUpstream = direction === 'upstream';
@@ -75,13 +76,13 @@ function FrontierPill({ count, direction, onExpand }) {
       </Button>
     </Tooltip>
   );
-}
+});
 
-function Connector() {
+const Connector = memo(function Connector() {
   return <div className='h-px w-3 bg-slate-300' />;
-}
+});
 
-export function LevelBar({
+export const LevelBar = memo(function LevelBar({
   downstreamLevels,
   frontierCounts,
   onClearHighlight,
@@ -92,21 +93,35 @@ export function LevelBar({
   onRootClick,
   upstreamLevels
 }) {
-  const reversedUpstream = [...(upstreamLevels || [])].reverse();
+  const reversedUpstream = useMemo(
+    () => [...(upstreamLevels || [])].reverse(),
+    [upstreamLevels]
+  );
+
+  const handleUpstreamExpand = useCallback(() => {
+    const deepest = upstreamLevels?.[upstreamLevels.length - 1];
+    if (deepest) {
+      onExpandLevel('upstream', deepest.depth);
+    } else {
+      onExpandFrontier?.('upstream');
+    }
+  }, [upstreamLevels, onExpandLevel, onExpandFrontier]);
+
+  const handleDownstreamExpand = useCallback(() => {
+    const deepest = downstreamLevels?.[downstreamLevels.length - 1];
+    if (deepest) {
+      onExpandLevel('downstream', deepest.depth);
+    } else {
+      onExpandFrontier?.('downstream');
+    }
+  }, [downstreamLevels, onExpandLevel, onExpandFrontier]);
 
   return (
     <div className='flex items-center gap-1 rounded-xl bg-white/90 px-3 py-2 shadow-md backdrop-blur-sm'>
       <FrontierPill
         count={frontierCounts?.upstream || 0}
         direction='upstream'
-        onExpand={() => {
-          const deepest = reversedUpstream[0];
-          if (deepest) {
-            onExpandLevel('upstream', deepest.depth);
-          } else {
-            onExpandFrontier?.('upstream');
-          }
-        }}
+        onExpand={handleUpstreamExpand}
       />
 
       {reversedUpstream.map((level, i) => (
@@ -154,15 +169,8 @@ export function LevelBar({
       <FrontierPill
         count={frontierCounts?.downstream || 0}
         direction='downstream'
-        onExpand={() => {
-          const deepest = downstreamLevels?.[downstreamLevels.length - 1];
-          if (deepest) {
-            onExpandLevel('downstream', deepest.depth);
-          } else {
-            onExpandFrontier?.('downstream');
-          }
-        }}
+        onExpand={handleDownstreamExpand}
       />
     </div>
   );
-}
+});
