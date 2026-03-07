@@ -1,4 +1,5 @@
 ---
+permalink: /index.html
 ---
 
 # Domo Toolkit
