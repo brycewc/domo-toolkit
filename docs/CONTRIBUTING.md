@@ -1,3 +1,6 @@
+---
+---
+
 # Contributing to Domo Toolkit
 
 Thanks for your interest in contributing! Whether it's reporting a bug, suggesting a feature, or submitting code, this guide covers everything you need to know.
