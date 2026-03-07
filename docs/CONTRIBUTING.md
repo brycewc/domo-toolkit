@@ -94,7 +94,6 @@ All PRs are reviewed before merging. You may be asked to make changes -- this is
 | **UI Library**       | @heroui/react           | 3.0.0-beta.6 |
 | **CSS**              | Tailwind CSS            | 4.1.18       |
 | **Icons**            | @tabler/icons-react     | 3.36.1       |
-| **Tables**           | @tanstack/react-table   | 8.21.3       |
 | **Virtualization**   | @tanstack/react-virtual | 3.13.18      |
 | **Formatter**        | Prettier                | 3.7.4        |
 

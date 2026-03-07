@@ -5,7 +5,7 @@ import {
   IconExternalLink,
   IconReload
 } from '@tabler/icons-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useGraphVisibility, useLineageCache } from '@/hooks';
 import { toNodeId } from '@/services';
@@ -18,6 +18,7 @@ export function LineageViewer() {
   const [selectedNodeId, setSelectedNodeId] = useState(null);
   const [inspectedDataflow, setInspectedDataflow] = useState(null);
   const [previewDataset, setPreviewDataset] = useState(null);
+  const previewHeightRef = useRef(300);
 
   const {
     expandFetch,
@@ -81,6 +82,7 @@ export function LineageViewer() {
   useEffect(() => {
     if (!params) return;
 
+    previewHeightRef.current = 300;
     init(params.entityType, params.entityId, params.tabId).catch((err) => {
       console.error('[LineageViewer] Failed to fetch trace:', err);
       setError(err.message || 'Failed to load pipeline trace');
@@ -254,6 +256,7 @@ export function LineageViewer() {
             <DataPreviewPanel
               datasetId={previewDataset.id}
               datasetName={previewDataset.name}
+              heightRef={previewHeightRef}
               tabId={params?.tabId}
               onClose={handleClosePreview}
             />

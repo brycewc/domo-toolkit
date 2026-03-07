@@ -1,32 +1,39 @@
-import {
-  IconAlertCircle,
-  IconLoader2,
-  IconTable,
-  IconX
-} from '@tabler/icons-react';
-import {
-  flexRender,
-  getCoreRowModel,
-  useReactTable
-} from '@tanstack/react-table';
-import { useEffect, useMemo, useState } from 'react';
+import { CloseButton, Spinner, Table } from '@heroui/react';
+import { IconAlertCircle, IconTable } from '@tabler/icons-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { executeInPage } from '@/utils';
 
 const MAX_VISIBLE_ROWS = 100;
+const DEFAULT_HEIGHT = 300;
+const MIN_HEIGHT = 120;
+const MAX_HEIGHT_RATIO = 0.7;
 
 /**
- * Bottom panel showing dataset preview with TanStack Table
+ * Bottom panel showing dataset preview with HeroUI Table.
+ * Supports vertical resizing via a drag handle at the top edge.
+ * Height is managed locally to avoid re-rendering the parent tree.
+ *
  * @param {Object} props
  * @param {string} props.datasetId - Dataset ID to preview
  * @param {string} props.datasetName - Dataset display name
+ * @param {React.RefObject<number>} [props.heightRef] - Ref for persisting height across previews
  * @param {number} [props.tabId] - Chrome tab ID
  * @param {Function} props.onClose - Close handler
  */
-export function DataPreviewPanel({ datasetId, datasetName, onClose, tabId }) {
+export function DataPreviewPanel({
+  datasetId,
+  datasetName,
+  heightRef,
+  onClose,
+  tabId
+}) {
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const panelRef = useRef(null);
+  const dragRef = useRef(null);
+  const heightValue = useRef(heightRef?.current ?? DEFAULT_HEIGHT);
 
   useEffect(() => {
     let cancelled = false;
@@ -56,33 +63,66 @@ export function DataPreviewPanel({ datasetId, datasetName, onClose, tabId }) {
     };
   }, [datasetId, tabId]);
 
-  const displayHeaders = useMemo(() => {
-    if (!preview) return [];
-    return preview.headers;
-  }, [preview]);
+  useEffect(() => {
+    return () => {
+      if (dragRef.current?.cleanup) dragRef.current.cleanup();
+    };
+  }, []);
 
-  const columns = useMemo(() => {
-    return displayHeaders.map((header, idx) => ({
-      accessorFn: (row) => row[idx],
-      header: header,
-      id: `col_${idx}`
-    }));
-  }, [displayHeaders]);
+  const handlePointerDown = useCallback(
+    (e) => {
+      e.preventDefault();
+      const startY = e.clientY;
+      const startHeight = panelRef.current.getBoundingClientRect().height;
+      const maxH = window.innerHeight * MAX_HEIGHT_RATIO;
 
-  const table = useReactTable({
-    columns,
-    data: preview?.rows ?? [],
-    getCoreRowModel: getCoreRowModel()
-  });
+      const onMove = (ev) => {
+        const delta = startY - ev.clientY;
+        const next = Math.round(
+          Math.max(MIN_HEIGHT, Math.min(maxH, startHeight + delta))
+        );
+        if (panelRef.current) {
+          panelRef.current.style.height = `${next}px`;
+        }
+      };
 
-  const totalRows = preview?.rows.length ?? 0;
-  const columnCount = displayHeaders.length;
+      const onUp = () => {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        document.body.style.cursor = '';
+        dragRef.current = null;
+        if (panelRef.current) {
+          const h = parseInt(panelRef.current.style.height, 10) || DEFAULT_HEIGHT;
+          heightValue.current = h;
+          if (heightRef) heightRef.current = h;
+        }
+      };
+
+      document.body.style.cursor = 'ns-resize';
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+      dragRef.current = { cleanup: onUp };
+    },
+    [heightRef]
+  );
+
+  const headers = useMemo(() => preview?.headers ?? [], [preview]);
+  const rows = useMemo(() => preview?.rows ?? [], [preview]);
 
   return (
     <div
-      className='flex h-[300px] flex-col border-t bg-white'
-      style={{ contain: 'strict' }}
+      ref={panelRef}
+      className='flex shrink-0 flex-col border-t bg-white'
+      style={{ height: heightValue.current }}
     >
+      {/* Resize handle */}
+      <div
+        className='flex h-1.5 shrink-0 cursor-ns-resize items-center justify-center hover:bg-slate-200'
+        onPointerDown={handlePointerDown}
+      >
+        <div className='h-0.5 w-8 rounded-full bg-slate-300' />
+      </div>
+
       <div className='flex shrink-0 items-center gap-2 border-b bg-slate-50 px-4 py-2'>
         <IconTable className='h-4 w-4 text-blue-500' />
         <span className='truncate text-sm font-semibold text-slate-700'>
@@ -90,21 +130,15 @@ export function DataPreviewPanel({ datasetId, datasetName, onClose, tabId }) {
         </span>
         {preview && (
           <span className='ml-2 text-xs text-slate-400'>
-            {columnCount} columns &middot; {totalRows} rows (preview)
+            {headers.length} columns &middot; {rows.length} rows (preview)
           </span>
         )}
-        <button
-          aria-label='Close preview'
-          className='ml-auto rounded p-1 transition-colors hover:bg-slate-200'
-          onClick={onClose}
-        >
-          <IconX className='h-4 w-4 text-slate-400' />
-        </button>
+        <CloseButton className='ml-auto' size='sm' onPress={onClose} />
       </div>
 
       {loading && (
-        <div className='flex flex-1 items-center justify-center text-slate-400'>
-          <IconLoader2 className='mr-2 h-6 w-6 animate-spin' />
+        <div className='flex flex-1 items-center justify-center gap-2 text-slate-400'>
+          <Spinner size='sm' />
           <span>Loading preview...</span>
         </div>
       )}
@@ -116,48 +150,36 @@ export function DataPreviewPanel({ datasetId, datasetName, onClose, tabId }) {
         </div>
       )}
 
-      {!loading && !error && preview && (
-        <div className='flex-1 overflow-auto'>
-          <table className='w-full border-collapse text-sm'>
-            <thead className='sticky top-0 z-10 bg-slate-100'>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <tr key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => (
-                    <th
-                      className='border-r border-b px-3 py-2 text-left font-semibold text-slate-700 last:border-r-0'
-                      key={header.id}
-                    >
-                      {flexRender(
-                        header.column.columnDef.header,
-                        header.getContext()
-                      )}
-                    </th>
+      {!loading && !error && rows.length > 0 && (
+        <div className='min-h-0 flex-1 overflow-auto'>
+          <Table variant='secondary'>
+            <Table.ScrollContainer>
+              <Table.Content aria-label={`Preview of ${datasetName}`}>
+                <Table.Header className='sticky top-0 z-10'>
+                  {headers.map((header, idx) => (
+                    <Table.Column id={`col_${idx}`} isRowHeader={idx === 0} key={idx}>
+                      {header}
+                    </Table.Column>
                   ))}
-                </tr>
-              ))}
-            </thead>
-            <tbody>
-              {table.getRowModel().rows.map((row) => (
-                <tr className='hover:bg-slate-50' key={row.id}>
-                  {row.getVisibleCells().map((cell) => (
-                    <td
-                      className='border-r border-b px-3 py-1.5 text-slate-600 last:border-r-0'
-                      key={cell.id}
-                    >
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
-                    </td>
+                </Table.Header>
+                <Table.Body>
+                  {rows.map((row, rowIdx) => (
+                    <Table.Row id={rowIdx} key={rowIdx}>
+                      {headers.map((_, colIdx) => (
+                        <Table.Cell key={colIdx}>
+                          {row[colIdx] != null ? String(row[colIdx]) : ''}
+                        </Table.Cell>
+                      ))}
+                    </Table.Row>
                   ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                </Table.Body>
+              </Table.Content>
+            </Table.ScrollContainer>
+          </Table>
         </div>
       )}
 
-      {!loading && !error && (!preview || totalRows === 0) && (
+      {!loading && !error && rows.length === 0 && (
         <div className='flex flex-1 items-center justify-center text-slate-400'>
           <p>No data available</p>
         </div>
