@@ -86,6 +86,7 @@ export function LevelBar({
   frontierCounts,
   onClearHighlight,
   onCollapseLevel,
+  onExpandFrontier,
   onExpandLevel,
   onHighlightLevel,
   onRootClick,
@@ -100,7 +101,11 @@ export function LevelBar({
         direction='upstream'
         onExpand={() => {
           const deepest = reversedUpstream[0];
-          if (deepest) onExpandLevel('upstream', deepest.depth);
+          if (deepest) {
+            onExpandLevel('upstream', deepest.depth);
+          } else {
+            onExpandFrontier?.('upstream');
+          }
         }}
       />
 
@@ -151,7 +156,11 @@ export function LevelBar({
         direction='downstream'
         onExpand={() => {
           const deepest = downstreamLevels?.[downstreamLevels.length - 1];
-          if (deepest) onExpandLevel('downstream', deepest.depth);
+          if (deepest) {
+            onExpandLevel('downstream', deepest.depth);
+          } else {
+            onExpandFrontier?.('downstream');
+          }
         }}
       />
     </div>

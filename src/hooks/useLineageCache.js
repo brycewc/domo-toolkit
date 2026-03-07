@@ -14,6 +14,7 @@ export function useLineageCache() {
   const rawCacheRef = useRef({});
   const rootRef = useRef(null);
   const tabIdRef = useRef(null);
+  const inflightRef = useRef(new Map());
 
   const [graph, setGraph] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -31,6 +32,7 @@ export function useLineageCache() {
     rootRef.current = { entityId, entityType };
     tabIdRef.current = tabId;
     rawCacheRef.current = {};
+    inflightRef.current.clear();
     setLoading(true);
 
     try {
@@ -65,15 +67,30 @@ export function useLineageCache() {
   }, []);
 
   const fetchAndMerge = useCallback(async (entityType, entityId) => {
-    const tabId = tabIdRef.current;
-    const existingKeys = new Set(Object.keys(rawCacheRef.current));
+    const key = toMapKey(entityType, entityId);
 
-    const response = await getLineage(entityType, entityId, EXPAND_DEPTH, tabId);
-    if (!response) return;
+    if (inflightRef.current.has(key)) {
+      return inflightRef.current.get(key);
+    }
 
-    Object.assign(rawCacheRef.current, response);
-    await enrichMetadata(rawCacheRef.current, tabId, existingKeys);
-    rebuildGraph();
+    const promise = (async () => {
+      const tabId = tabIdRef.current;
+      const existingKeys = new Set(Object.keys(rawCacheRef.current));
+
+      const response = await getLineage(entityType, entityId, EXPAND_DEPTH, tabId);
+      if (!response) return;
+
+      Object.assign(rawCacheRef.current, response);
+      await enrichMetadata(rawCacheRef.current, tabId, existingKeys);
+      rebuildGraph();
+    })();
+
+    inflightRef.current.set(key, promise);
+    try {
+      await promise;
+    } finally {
+      inflightRef.current.delete(key);
+    }
   }, [rebuildGraph]);
 
   const expandFetch = useCallback(async (nodeId, entityType, entityId) => {
@@ -94,12 +111,21 @@ export function useLineageCache() {
     }
   }, [fetchAndMerge]);
 
+  const prefetch = useCallback(async (entityType, entityId) => {
+    try {
+      await fetchAndMerge(entityType, entityId);
+    } catch {
+      // Prefetch failures are non-critical
+    }
+  }, [fetchAndMerge]);
+
   return {
     expandFetch,
     expandLoading,
     graph,
     init,
     isNeighborCached,
-    loading
+    loading,
+    prefetch
   };
 }

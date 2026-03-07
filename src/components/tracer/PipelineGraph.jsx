@@ -65,7 +65,7 @@ function PipelineNode({ data, id }) {
   return (
     <div
       style={{ borderColor: colors.border }}
-      className={`min-w-[200px] rounded-lg border-2 bg-white px-3 py-2 shadow-sm ${
+      className={`w-[280px] rounded-lg border-2 bg-white px-3 py-2 shadow-sm ${
         data.selected ? 'ring-2 ring-blue-400' : ''
       } ${data.highlighted ? 'ring-2 ring-yellow-400' : ''}`}
     >
@@ -73,11 +73,14 @@ function PipelineNode({ data, id }) {
         <Handle className='h-2 w-2' position={Position.Left} type='target' />
       )}
 
-      <div className='flex items-center gap-2'>
-        <Icon className='h-4 w-4 shrink-0' style={{ color: colors.border }} />
+      <div className='flex items-start gap-2'>
+        <Icon
+          className='mt-0.5 h-4 w-4 shrink-0'
+          style={{ color: colors.border }}
+        />
         <div className='min-w-0 flex-1'>
           <div
-            className='truncate text-sm font-medium'
+            className='line-clamp-3 text-sm font-medium wrap-break-word'
             style={{ color: colors.text }}
             title={hasName ? `${data.label} (${data.entityId})` : data.entityId}
           >
@@ -110,7 +113,21 @@ function PipelineNode({ data, id }) {
 }
 
 const NODE_WIDTH = 280;
-const NODE_HEIGHT = 70;
+const CHARS_PER_LINE = 25;
+
+function estimateNodeHeight(node) {
+  const name = node.name || node.entityId || '';
+  const hasBadge =
+    (node.entityType === 'DATA_SOURCE' && node.metadata?.rowCount != null) ||
+    (node.entityType === 'DATAFLOW' && node.metadata?.tileCount != null);
+
+  const nameLines = Math.min(
+    3,
+    Math.max(1, Math.ceil(name.length / CHARS_PER_LINE))
+  );
+
+  return 16 + nameLines * 20 + 16 + (hasBadge ? 18 : 0);
+}
 
 const nodeTypes = { pipeline: PipelineNode };
 
@@ -130,6 +147,7 @@ export function PipelineGraph({
   onClearHighlight,
   onCollapseLevel,
   onCollapseNode,
+  onExpandFrontier,
   onExpandLevel,
   onExpandNode,
   onHighlightLevel,
@@ -152,7 +170,10 @@ export function PipelineGraph({
 
     for (const pNode of trace.nodes) {
       if (!pNode) continue;
-      g.setNode(pNode.id, { height: NODE_HEIGHT, width: NODE_WIDTH });
+      g.setNode(pNode.id, {
+        height: estimateNodeHeight(pNode),
+        width: NODE_WIDTH
+      });
     }
 
     const validEdges = (trace.edges || []).filter(
@@ -170,15 +191,15 @@ export function PipelineGraph({
     const nodes = trace.nodes
       .filter((pNode) => pNode && g.node(pNode.id))
       .map((pNode) => {
-        const { x, y } = g.node(pNode.id);
+        const nodeInfo = g.node(pNode.id);
         return {
           data: {
             direction: pNode.direction,
             downstreamCount: pNode.downstreamCount,
             entityId: pNode.entityId,
             entityType: pNode.entityType,
-            expandLoading,
             expanded: pNode.expanded,
+            expandLoading,
             hasIncoming: nodesWithIncoming.has(pNode.id),
             hasOutgoing: nodesWithOutgoing.has(pNode.id),
             highlighted: pNode.highlighted,
@@ -190,7 +211,10 @@ export function PipelineGraph({
             upstreamCount: pNode.upstreamCount
           },
           id: pNode.id,
-          position: { x: x - NODE_WIDTH / 2, y: y - NODE_HEIGHT / 2 },
+          position: {
+            x: nodeInfo.x - NODE_WIDTH / 2,
+            y: nodeInfo.y - nodeInfo.height / 2
+          },
           type: 'pipeline'
         };
       });
@@ -274,16 +298,17 @@ export function PipelineGraph({
           <Panel position='top-center'>
             <LevelBar
               downstreamLevels={levelSummary.downstream}
+              upstreamLevels={levelSummary.upstream}
+              onClearHighlight={onClearHighlight}
+              onCollapseLevel={onCollapseLevel}
+              onExpandFrontier={onExpandFrontier}
+              onExpandLevel={onExpandLevel}
+              onHighlightLevel={onHighlightLevel}
+              onRootClick={onRootClick}
               frontierCounts={{
                 downstream: downstreamFrontierCount || 0,
                 upstream: upstreamFrontierCount || 0
               }}
-              upstreamLevels={levelSummary.upstream}
-              onClearHighlight={onClearHighlight}
-              onCollapseLevel={onCollapseLevel}
-              onExpandLevel={onExpandLevel}
-              onHighlightLevel={onHighlightLevel}
-              onRootClick={onRootClick}
             />
           </Panel>
         )}

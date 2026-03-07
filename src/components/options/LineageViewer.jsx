@@ -25,7 +25,8 @@ export function LineageViewer() {
     graph,
     init,
     isNeighborCached,
-    loading
+    loading,
+    prefetch
   } = useLineageCache();
 
   const rootNodeId = useMemo(
@@ -97,6 +98,12 @@ export function LineageViewer() {
     (clickedEntityType, clickedEntityId, nodeId) => {
       setSelectedNodeId(nodeId);
 
+      const needsUpstream = !isNeighborCached(nodeId, 'upstream');
+      const needsDownstream = !isNeighborCached(nodeId, 'downstream');
+      if (needsUpstream || needsDownstream) {
+        prefetch(clickedEntityType, clickedEntityId);
+      }
+
       if (clickedEntityType === 'DATAFLOW') {
         setInspectedDataflow({ id: clickedEntityId, nodeId });
         setPreviewDataset(null);
@@ -112,7 +119,7 @@ export function LineageViewer() {
         setPreviewDataset(null);
       }
     },
-    [visibleTrace]
+    [visibleTrace, isNeighborCached, prefetch]
   );
 
   const handleCloseInspector = useCallback(() => {
@@ -142,6 +149,13 @@ export function LineageViewer() {
       setSelectedNodeId(rootNodeId);
     }
   }, [rootNodeId]);
+
+  const handleExpandFrontier = useCallback(
+    (direction) => {
+      if (rootNodeId) expandNode(rootNodeId, direction);
+    },
+    [rootNodeId, expandNode]
+  );
 
   if (!params && !loading && error) {
     return (
@@ -222,6 +236,7 @@ export function LineageViewer() {
               onClearHighlight={clearHighlight}
               onCollapseLevel={collapseLevel}
               onCollapseNode={collapseNode}
+              onExpandFrontier={handleExpandFrontier}
               onExpandLevel={expandLevel}
               onExpandNode={expandNode}
               onHighlightLevel={highlightLevel}

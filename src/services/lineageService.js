@@ -186,54 +186,64 @@ export async function enrichMetadata(lineageResponse, tabId = null, existingKeys
     );
   };
 
+  const applyResults = (results, entityMap) => {
+    for (const { id, ...metadata } of results || []) {
+      const entity = entityMap.get(String(id));
+      if (entity) {
+        entity.name = metadata.name || entity.name;
+        entity.metadata = { ...entity.metadata, ...metadata };
+      }
+    }
+  };
+
+  const datasetChunks = [];
   for (let i = 0; i < datasetIds.length; i += chunkSize) {
-    const chunk = datasetIds.slice(i, i + chunkSize);
-    const results = await fetchDatasetBatch(chunk);
-
-    for (const { id, ...metadata } of results || []) {
-      const entity = datasetEntities.get(String(id));
-      if (entity) {
-        entity.name = metadata.name || entity.name;
-        entity.metadata = { ...entity.metadata, ...metadata };
-      }
-    }
+    datasetChunks.push(datasetIds.slice(i, i + chunkSize));
   }
 
+  const dataflowChunks = [];
   for (let i = 0; i < dataflowIds.length; i += chunkSize) {
-    const chunk = dataflowIds.slice(i, i + chunkSize);
-    const results = await fetchDataflowBatch(chunk);
-
-    for (const { id, ...metadata } of results || []) {
-      const entity = dataflowEntities.get(String(id));
-      if (entity) {
-        entity.name = metadata.name || entity.name;
-        entity.metadata = { ...entity.metadata, ...metadata };
-      }
-    }
+    dataflowChunks.push(dataflowIds.slice(i, i + chunkSize));
   }
+
+  await Promise.all([
+    ...datasetChunks.map(async (chunk) => {
+      const results = await fetchDatasetBatch(chunk);
+      applyResults(results, datasetEntities);
+    }),
+    ...dataflowChunks.map(async (chunk) => {
+      const results = await fetchDataflowBatch(chunk);
+      applyResults(results, dataflowEntities);
+    })
+  ]);
 
   return lineageResponse;
 }
 
 export async function getLineage(entityType, entityId, maxDepth = 4, tabId = null) {
-  return await executeInPage(
-    async (entityType, entityId, maxDepth) => {
-      const url = `/api/data/v1/lineage/${entityType}/${entityId}?traverseUp=true&traverseDown=true&maxDepth=${maxDepth}&requestEntities=DATA_SOURCE,DATAFLOW`;
+  const fetchDirection = (traverseParam) =>
+    executeInPage(
+      async (entityType, entityId, maxDepth, traverseParam) => {
+        const url = `/api/data/v1/lineage/${entityType}/${entityId}?${traverseParam}&maxDepth=${maxDepth}&requestEntities=DATA_SOURCE,DATAFLOW`;
+        const response = await fetch(url, {
+          credentials: 'include',
+          method: 'GET'
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to fetch lineage: HTTP ${response.status}`);
+        }
+        return response.json();
+      },
+      [entityType, entityId, maxDepth, traverseParam],
+      tabId
+    );
 
-      const response = await fetch(url, {
-        credentials: 'include',
-        method: 'GET'
-      });
+  const [upResponse, downResponse] = await Promise.all([
+    fetchDirection('traverseDown=false'),
+    fetchDirection('traverseUp=false')
+  ]);
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch lineage: HTTP ${response.status}`);
-      }
-
-      return response.json();
-    },
-    [entityType, entityId, maxDepth],
-    tabId
-  );
+  return mergeLineageResponses(upResponse, downResponse);
 }
 
 export function toMapKey(type, id) {
@@ -242,4 +252,48 @@ export function toMapKey(type, id) {
 
 export function toNodeId(type, id) {
   return `${type}:${id}`;
+}
+
+function mergeLineageResponses(upResponse, downResponse) {
+  const merged = { ...upResponse };
+
+  for (const [key, entity] of Object.entries(downResponse || {})) {
+    if (!entity) continue;
+
+    if (!merged[key]) {
+      merged[key] = entity;
+      continue;
+    }
+
+    const existing = merged[key];
+
+    if (entity.parents?.length) {
+      const seen = new Set(
+        (existing.parents || []).map((p) => `${p.type}${p.id}`)
+      );
+      for (const parent of entity.parents) {
+        if (!seen.has(`${parent.type}${parent.id}`)) {
+          (existing.parents ??= []).push(parent);
+        }
+      }
+    }
+
+    if (entity.children?.length) {
+      const seen = new Set(
+        (existing.children || []).map((c) => `${c.type}${c.id}`)
+      );
+      for (const child of entity.children) {
+        if (!seen.has(`${child.type}${child.id}`)) {
+          (existing.children ??= []).push(child);
+        }
+      }
+    }
+
+    if (!existing.name && entity.name) existing.name = entity.name;
+    if (entity.metadata) {
+      existing.metadata = { ...existing.metadata, ...entity.metadata };
+    }
+  }
+
+  return merged;
 }

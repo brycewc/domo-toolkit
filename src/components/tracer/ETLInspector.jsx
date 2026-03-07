@@ -242,16 +242,18 @@ export function ETLInspector({ dataflowId, onClose, tabId }) {
 }
 
 function highlightMatch(text, query) {
-  if (!query || !text) return text;
-  const idx = text.toLowerCase().indexOf(query.toLowerCase());
-  if (idx === -1) return text;
+  const str =
+    text == null ? '' : typeof text === 'string' ? text : text.name || String(text);
+  if (!query || !str) return str;
+  const idx = str.toLowerCase().indexOf(query.toLowerCase());
+  if (idx === -1) return str;
   return (
     <>
-      {text.slice(0, idx)}
+      {str.slice(0, idx)}
       <mark className='rounded bg-yellow-200 px-0.5'>
-        {text.slice(idx, idx + query.length)}
+        {str.slice(idx, idx + query.length)}
       </mark>
-      {text.slice(idx + query.length)}
+      {str.slice(idx + query.length)}
     </>
   );
 }
@@ -361,7 +363,10 @@ function TileDetail({ defaultOpen = false, searchQuery, tile }) {
                   className='mb-1 overflow-x-auto rounded border bg-white px-2 py-1 font-mono text-xs'
                   key={i}
                 >
-                  {highlightMatch(s.query, searchQuery)}
+                  {highlightMatch(
+                    typeof s === 'string' ? s : s.query,
+                    searchQuery
+                  )}
                 </pre>
               ))}
             </div>

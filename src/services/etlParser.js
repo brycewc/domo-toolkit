@@ -91,10 +91,14 @@ const TILE_CATEGORY_MAP = {
  * @param {Object} action - The ETL action object
  * @returns {Object} ParsedTile object with structured data
  */
+function toFieldName(f) {
+  return typeof f === 'string' ? f : f?.name || '';
+}
+
 function parseTile(action) {
   const tile = {
     id: action.id,
-    name: action.name,
+    name: typeof action.name === 'string' ? action.name : action.name?.name || String(action.name ?? ''),
     type: action.type,
     displayType: TILE_DISPLAY_NAMES[action.type] || action.type,
     category: TILE_CATEGORY_MAP[action.type] || 'Other',
@@ -111,9 +115,9 @@ function parseTile(action) {
   switch (action.type) {
     case 'Filter':
       tile.filters = (action.filterList || []).map(f => ({
-        field: f.field || f.column || '?',
+        field: toFieldName(f.field || f.column) || '?',
         operator: f.operator || '=',
-        value: f.value || (f.values || []).join(', ') || '?',
+        value: typeof f.value === 'string' ? f.value : (f.values || []).join(', ') || '?',
       }));
       tile.columns = tile.filters.map(f => f.field);
       break;
@@ -123,12 +127,15 @@ function parseTile(action) {
         const len = Math.max(action.keys1.length, action.keys2.length);
         for (let i = 0; i < len; i++) {
           tile.joins.push({
-            leftKey: action.keys1[i] || '?',
-            rightKey: action.keys2[i] || '?',
+            leftKey: toFieldName(action.keys1[i]) || '?',
+            rightKey: toFieldName(action.keys2[i]) || '?',
             joinType: action.joinType || 'INNER',
           });
         }
-        tile.columns = [...(action.keys1 || []), ...(action.keys2 || [])];
+        tile.columns = [
+          ...(action.keys1 || []).map(toFieldName),
+          ...(action.keys2 || []).map(toFieldName)
+        ];
       }
       break;
 
@@ -141,11 +148,11 @@ function parseTile(action) {
       break;
 
     case 'GroupBy':
-      if (action.groups) tile.columns.push(...action.groups);
+      if (action.groups) tile.columns.push(...action.groups.map(toFieldName));
       if (action.aggregates) {
         tile.rawDetails.aggregates = action.aggregates;
         tile.columns.push(
-          ...action.aggregates.map(a => a.field || '').filter(Boolean)
+          ...action.aggregates.map(a => toFieldName(a.field)).filter(Boolean)
         );
       }
       break;
@@ -218,7 +225,7 @@ function parseTile(action) {
       break;
 
     case 'WindowAction':
-      if (action.groups) tile.columns.push(...action.groups);
+      if (action.groups) tile.columns.push(...action.groups.map(toFieldName));
       break;
 
     case 'Metadata':
