@@ -1,3 +1,6 @@
+---
+---
+
 # Privacy Policy for Domo Toolkit
 
 **Last Updated:** February 4, 2026

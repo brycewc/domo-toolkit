@@ -119,11 +119,11 @@ Pages, cards, datasets, dataflows, app studio apps/pages, worksheets, workspaces
 - Settings sync via Chrome's built-in storage
 - Domo data is never read, stored, or sent off-device
 
-See the full [Privacy Policy](docs/PRIVACY_POLICY.md) for details.
+See the full [Privacy Policy](./PRIVACY_POLICY.md) for details.
 
 ## Contributing
 
-Interested in contributing? See [CONTRIBUTING.md](CONTRIBUTING.md) for the tech stack, architecture, development setup, code conventions, and key patterns.
+Interested in contributing? See [CONTRIBUTING.md](./CONTRIBUTING.md) for the tech stack, architecture, development setup, code conventions, and key patterns.
 
 ## Issues & Feedback
 
