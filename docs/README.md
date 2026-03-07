@@ -1,7 +1,3 @@
----
-permalink: /index.html
----
-
 # Domo Toolkit
 
 Power tools for Domo administrators. Stop wasting time navigating menus, managing hundreds of identical browser tabs, copying dataset IDs from the URL, and constantly clearing your cookies.
