@@ -19,6 +19,7 @@ export function LineageViewer() {
   const [inspectedDataflow, setInspectedDataflow] = useState(null);
   const [previewDataset, setPreviewDataset] = useState(null);
   const previewHeightRef = useRef(300);
+  const previewCacheRef = useRef(new Map());
 
   const {
     expandFetch,
@@ -83,6 +84,7 @@ export function LineageViewer() {
     if (!params) return;
 
     previewHeightRef.current = 300;
+    previewCacheRef.current.clear();
     init(params.entityType, params.entityId, params.tabId).catch((err) => {
       console.error('[LineageViewer] Failed to fetch trace:', err);
       setError(err.message || 'Failed to load pipeline trace');
@@ -138,6 +140,7 @@ export function LineageViewer() {
     setSelectedNodeId(null);
     setInspectedDataflow(null);
     setPreviewDataset(null);
+    previewCacheRef.current.clear();
     if (params) {
       init(params.entityType, params.entityId, params.tabId).catch((err) => {
         console.error('[LineageViewer] Failed to refresh:', err);
@@ -254,9 +257,11 @@ export function LineageViewer() {
           )}
           {previewDataset && (
             <DataPreviewPanel
+              cacheRef={previewCacheRef}
               datasetId={previewDataset.id}
               datasetName={previewDataset.name}
               heightRef={previewHeightRef}
+              key={previewDataset.id}
               tabId={params?.tabId}
               onClose={handleClosePreview}
             />

@@ -15,6 +15,7 @@ const MAX_HEIGHT_RATIO = 0.7;
  * Height is managed locally to avoid re-rendering the parent tree.
  *
  * @param {Object} props
+ * @param {React.RefObject<Map>} [props.cacheRef] - Shared cache for preview data across sessions
  * @param {string} props.datasetId - Dataset ID to preview
  * @param {string} props.datasetName - Dataset display name
  * @param {React.RefObject<number>} [props.heightRef] - Ref for persisting height across previews
@@ -22,28 +23,31 @@ const MAX_HEIGHT_RATIO = 0.7;
  * @param {Function} props.onClose - Close handler
  */
 export function DataPreviewPanel({
+  cacheRef,
   datasetId,
   datasetName,
   heightRef,
   onClose,
   tabId
 }) {
-  const [preview, setPreview] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const cached = cacheRef?.current?.get(datasetId);
+  const [preview, setPreview] = useState(cached ?? null);
+  const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState(null);
   const panelRef = useRef(null);
   const dragRef = useRef(null);
   const heightValue = useRef(heightRef?.current ?? DEFAULT_HEIGHT);
 
   useEffect(() => {
+    if (cached) return;
+
     let cancelled = false;
 
     async function fetchData() {
-      setLoading(true);
-      setError(null);
       try {
         const data = await getDataPreview(datasetId, tabId);
         if (!cancelled) {
+          cacheRef?.current?.set(datasetId, data);
           setPreview(data);
           setLoading(false);
         }
@@ -61,7 +65,7 @@ export function DataPreviewPanel({
     return () => {
       cancelled = true;
     };
-  }, [datasetId, tabId]);
+  }, [cacheRef, datasetId, tabId]);
 
   useEffect(() => {
     return () => {
@@ -151,11 +155,12 @@ export function DataPreviewPanel({
       )}
 
       {!loading && !error && rows.length > 0 && (
-        <div className='min-h-0 flex-1 overflow-auto'>
+        <div className='min-h-0 flex-1 overflow-auto [&_.table__cell]:px-2 [&_.table__cell]:py-1 [&_.table__column]:px-2 [&_.table__column]:py-1.5'>
           <Table variant='secondary'>
             <Table.ScrollContainer>
               <Table.Content aria-label={`Preview of ${datasetName}`}>
                 <Table.Header className='sticky top-0 z-10'>
+                  <Table.Column className='bg-slate-50' id='row_num' style={{ width: 48 }}>#</Table.Column>
                   {headers.map((header, idx) => (
                     <Table.Column id={`col_${idx}`} isRowHeader={idx === 0} key={idx}>
                       {header}
@@ -165,9 +170,16 @@ export function DataPreviewPanel({
                 <Table.Body>
                   {rows.map((row, rowIdx) => (
                     <Table.Row id={rowIdx} key={rowIdx}>
+                      <Table.Cell className='bg-slate-50 text-xs text-slate-400'>
+                        {rowIdx + 1}
+                      </Table.Cell>
                       {headers.map((_, colIdx) => (
                         <Table.Cell key={colIdx}>
-                          {row[colIdx] != null ? String(row[colIdx]) : ''}
+                          {row[colIdx] == null || row[colIdx] === '' || row[colIdx] === 'null' ? (
+                            <span className='text-slate-400 italic'>null</span>
+                          ) : (
+                            String(row[colIdx])
+                          )}
                         </Table.Cell>
                       ))}
                     </Table.Row>
