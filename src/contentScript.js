@@ -19,52 +19,6 @@ async function applyFavicon() {
   }
 }
 
-let tracerOverlayRoot = null;
-
-async function mountTracerOverlay(entityType, entityId, tabId) {
-  if (tracerOverlayRoot) {
-    console.log('[ContentScript] Tracer overlay already mounted');
-    return;
-  }
-
-  try {
-    const React = await import('react');
-    const ReactDOM = await import('react-dom/client');
-    const { TracerOverlay } = await import('@/components/tracer');
-
-    const overlayContainer = document.createElement('div');
-    overlayContainer.id = 'majordomo-tracer-overlay';
-    overlayContainer.style.cssText = 'all: initial; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 999999;';
-    document.body.appendChild(overlayContainer);
-
-    tracerOverlayRoot = ReactDOM.createRoot(overlayContainer);
-
-    const handleClose = () => {
-      if (tracerOverlayRoot) {
-        tracerOverlayRoot.unmount();
-        tracerOverlayRoot = null;
-      }
-      if (overlayContainer && overlayContainer.parentNode) {
-        overlayContainer.parentNode.removeChild(overlayContainer);
-      }
-    };
-
-    tracerOverlayRoot.render(
-      React.createElement(TracerOverlay, {
-        entityId,
-        entityType,
-        onClose: handleClose,
-        tabId
-      })
-    );
-
-    console.log('[ContentScript] Tracer overlay mounted');
-  } catch (error) {
-    console.error('[ContentScript] Error mounting tracer overlay:', error);
-    tracerOverlayRoot = null;
-  }
-}
-
 // Listen for messages from service worker
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'PING') {
@@ -81,13 +35,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'TAB_CONTEXT_UPDATED') {
     // Reset workflow action tracking so next click triggers fresh detection
     lastSelectedActionNodeId = null;
-    sendResponse({ success: true });
-    return true;
-  }
-
-  if (message.type === 'MOUNT_TRACER_OVERLAY') {
-    const { entityId, entityType, tabId } = message;
-    mountTracerOverlay(entityType, entityId, tabId);
     sendResponse({ success: true });
     return true;
   }

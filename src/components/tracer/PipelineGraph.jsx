@@ -1,33 +1,48 @@
-import { useMemo, useCallback, useEffect } from 'react';
+import dagre from '@dagrejs/dagre';
 import {
-  ReactFlow,
-  Background,
-  Controls,
-  MiniMap,
-  useNodesState,
-  useEdgesState,
-  MarkerType,
-  Handle,
-  Position
-} from '@xyflow/react';
-import '@xyflow/react/dist/style.css';
-import {
-  IconDatabase,
   IconArrowsSplit,
   IconChartBar,
+  IconDatabase,
   IconLoader2
 } from '@tabler/icons-react';
+import {
+  Background,
+  Controls,
+  Handle,
+  MarkerType,
+  MiniMap,
+  Panel,
+  Position,
+  ReactFlow,
+  useEdgesState,
+  useNodesState
+} from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
+import { useCallback, useEffect, useMemo } from 'react';
+
+import { LevelBar } from './LevelBar';
+import { PipelineNodeToolbar } from './PipelineNodeToolbar';
 
 const NODE_COLORS = {
-  DATA_SOURCE: { bg: '#f8fafc', border: '#3b82f6', text: '#1e40af', icon: '#3b82f6' },
-  DATAFLOW: { bg: '#fefce8', border: '#eab308', text: '#854d0e', icon: '#eab308' },
-  CARD: { bg: '#f0fdf4', border: '#22c55e', text: '#166534', icon: '#22c55e' }
+  CARD: { bg: '#f0fdf4', border: '#22c55e', icon: '#22c55e', text: '#166534' },
+  DATA_SOURCE: {
+    bg: '#f8fafc',
+    border: '#3b82f6',
+    icon: '#3b82f6',
+    text: '#1e40af'
+  },
+  DATAFLOW: {
+    bg: '#fefce8',
+    border: '#eab308',
+    icon: '#eab308',
+    text: '#854d0e'
+  }
 };
 
 const NODE_ICONS = {
+  CARD: IconChartBar,
   DATA_SOURCE: IconDatabase,
-  DATAFLOW: IconArrowsSplit,
-  CARD: IconChartBar
+  DATAFLOW: IconArrowsSplit
 };
 
 function formatNumber(n) {
@@ -37,10 +52,11 @@ function formatNumber(n) {
   return n.toLocaleString();
 }
 
-function PipelineNode({ data }) {
+function PipelineNode({ data, id }) {
   const colors = NODE_COLORS[data.entityType] || NODE_COLORS.DATA_SOURCE;
   const Icon = NODE_ICONS[data.entityType] || IconDatabase;
   const meta = data.metadata;
+  const hasName = data.label && data.label !== data.entityId;
 
   let badge = '';
   if (data.entityType === 'DATA_SOURCE' && meta?.rowCount != null) {
@@ -51,118 +67,146 @@ function PipelineNode({ data }) {
 
   return (
     <div
-      className={`px-3 py-2 rounded-lg border-2 bg-white shadow-sm min-w-[200px] ${data.selected ? 'ring-2 ring-blue-400' : ''
-        } ${data.highlighted ? 'ring-2 ring-yellow-400' : ''}`}
       style={{ borderColor: colors.border }}
+      className={`min-w-[200px] rounded-lg border-2 bg-white px-3 py-2 shadow-sm ${
+        data.selected ? 'ring-2 ring-blue-400' : ''
+      } ${data.highlighted ? 'ring-2 ring-yellow-400' : ''}`}
     >
       {data.hasIncoming && (
-        <Handle type="target" position={Position.Left} className="w-2 h-2" />
+        <Handle className='h-2 w-2' position={Position.Left} type='target' />
       )}
 
-      <div className="flex items-center gap-2">
-        <Icon className="w-4 h-4 shrink-0" style={{ color: colors.border }} />
-        <div className="flex-1 min-w-0">
+      <div className='flex items-center gap-2'>
+        <Icon className='h-4 w-4 shrink-0' style={{ color: colors.border }} />
+        <div className='min-w-0 flex-1'>
           <div
-            className="font-medium text-sm truncate"
+            className='truncate text-sm font-medium'
             style={{ color: colors.text }}
-            title={data.label}
+            title={hasName ? `${data.label} (${data.entityId})` : data.entityId}
           >
-            {data.label}
+            {hasName ? data.label : data.entityId}
+          </div>
+          <div className='truncate text-xs text-slate-400'>
+            {hasName ? data.entityId : data.entityType}
           </div>
           {badge && (
-            <div className="text-xs text-slate-500 mt-0.5">{badge}</div>
+            <div className='mt-0.5 text-xs text-slate-500'>{badge}</div>
           )}
         </div>
       </div>
 
       {data.hasOutgoing && (
-        <Handle type="source" position={Position.Right} className="w-2 h-2" />
+        <Handle className='h-2 w-2' position={Position.Right} type='source' />
+      )}
+
+      {data.selected && (
+        <PipelineNodeToolbar
+          data={data}
+          expandLoading={data.expandLoading}
+          nodeId={id}
+          onCollapseNode={data.onCollapseNode}
+          onExpandNode={data.onExpandNode}
+        />
       )}
     </div>
   );
 }
 
+const NODE_WIDTH = 280;
+const NODE_HEIGHT = 70;
+
 const nodeTypes = { pipeline: PipelineNode };
 
 const defaultEdgeOptions = {
-  type: 'default',
   animated: false,
+  markerEnd: { color: '#94a3b8', type: MarkerType.ArrowClosed },
   style: { stroke: '#94a3b8', strokeWidth: 2 },
-  markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8' }
+  type: 'default'
 };
 
-/**
- * React Flow graph visualization for pipeline lineage
- * @param {Object} props
- * @param {Object} props.trace - Pipeline trace with nodes and edges
- * @param {boolean} props.loading - Loading state
- * @param {string} props.error - Error message
- * @param {string} props.selectedNodeId - Currently selected node ID
- * @param {Function} props.onNodeClick - Node click handler (entityType, entityId, nodeId)
- */
 export function PipelineGraph({
-  trace,
-  loading,
+  downstreamFrontierCount,
   error,
+  expandLoading,
+  levelSummary,
+  loading,
+  onClearHighlight,
+  onCollapseLevel,
+  onCollapseNode,
+  onExpandLevel,
+  onExpandNode,
+  onHighlightLevel,
+  onNodeClick,
+  onRootClick,
   selectedNodeId,
-  onNodeClick
+  trace,
+  upstreamFrontierCount
 }) {
-  const { initialNodes, initialEdges } = useMemo(() => {
+  const { initialEdges, initialNodes } = useMemo(() => {
     if (!trace || !Array.isArray(trace.nodes)) {
-      return { initialNodes: [], initialEdges: [] };
+      return { initialEdges: [], initialNodes: [] };
     }
 
-    const depthGroups = new Map();
-    for (const node of trace.nodes) {
-      if (!node) continue;
-      const group = depthGroups.get(node.depth) || [];
-      group.push(node);
-      depthGroups.set(node.depth, group);
+    const g = new dagre.graphlib.Graph();
+    g.setGraph({ marginx: 40, marginy: 40, rankdir: 'LR', ranksep: 80 });
+    g.setDefaultEdgeLabel(() => ({}));
+
+    const nodeSet = new Set(trace.nodes.map((n) => n.id));
+
+    for (const pNode of trace.nodes) {
+      if (!pNode) continue;
+      g.setNode(pNode.id, { height: NODE_HEIGHT, width: NODE_WIDTH });
     }
 
-    const sortedDepths = Array.from(depthGroups.keys()).sort((a, b) => a - b);
-    const nodes = [];
+    const validEdges = (trace.edges || []).filter(
+      (e) => nodeSet.has(e.sourceId) && nodeSet.has(e.targetId)
+    );
+    for (const edge of validEdges) {
+      g.setEdge(edge.sourceId, edge.targetId);
+    }
 
-    for (const depth of sortedDepths) {
-      const group = depthGroups.get(depth);
-      const depthIndex = sortedDepths.indexOf(depth);
-      const x = depthIndex * 300;
+    dagre.layout(g);
 
-      group.forEach((pNode, i) => {
-        const y = i * 100;
-        const isSelected = selectedNodeId === pNode.id;
+    const nodesWithIncoming = new Set(validEdges.map((e) => e.targetId));
+    const nodesWithOutgoing = new Set(validEdges.map((e) => e.sourceId));
 
-        nodes.push({
-          id: pNode.id,
-          type: 'pipeline',
-          position: { x, y },
+    const nodes = trace.nodes
+      .filter((pNode) => pNode && g.node(pNode.id))
+      .map((pNode) => {
+        const { x, y } = g.node(pNode.id);
+        return {
           data: {
-            label: pNode.name,
-            entityType: pNode.entityType,
+            direction: pNode.direction,
+            downstreamCount: pNode.downstreamCount,
             entityId: pNode.entityId,
-            selected: isSelected,
-            metadata: pNode.metadata
-          }
-        });
+            entityType: pNode.entityType,
+            expandLoading,
+            expanded: pNode.expanded,
+            hasIncoming: nodesWithIncoming.has(pNode.id),
+            hasOutgoing: nodesWithOutgoing.has(pNode.id),
+            highlighted: pNode.highlighted,
+            label: pNode.name,
+            metadata: pNode.metadata,
+            onCollapseNode,
+            onExpandNode,
+            selected: selectedNodeId === pNode.id,
+            upstreamCount: pNode.upstreamCount
+          },
+          id: pNode.id,
+          position: { x: x - NODE_WIDTH / 2, y: y - NODE_HEIGHT / 2 },
+          type: 'pipeline'
+        };
       });
-    }
 
-    const edges = Array.isArray(trace.edges) ? trace.edges.map((e) => ({
+    const edges = validEdges.map((e) => ({
       id: `${e.sourceId}->${e.targetId}`,
       source: e.sourceId,
       target: e.targetId,
       ...defaultEdgeOptions
-    })) : [];
+    }));
 
-    const nodesWithIncoming = new Set(edges.map((e) => e.target));
-    const nodesWithOutgoing = new Set(edges.map((e) => e.source));
-    for (const node of nodes) {
-      node.data.hasIncoming = nodesWithIncoming.has(node.id);
-      node.data.hasOutgoing = nodesWithOutgoing.has(node.id);
-    }
-
-    return { initialNodes: nodes, initialEdges: edges };
-  }, [trace, selectedNodeId]);
+    return { initialEdges: edges, initialNodes: nodes };
+  }, [trace, selectedNodeId, expandLoading, onExpandNode, onCollapseNode]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -190,8 +234,8 @@ export function PipelineGraph({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full text-slate-400">
-        <IconLoader2 className="w-6 h-6 animate-spin mr-2" />
+      <div className='flex h-full items-center justify-center text-slate-400'>
+        <IconLoader2 className='mr-2 h-6 w-6 animate-spin' />
         <span>Loading pipeline trace...</span>
       </div>
     );
@@ -199,7 +243,7 @@ export function PipelineGraph({
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-full text-red-500">
+      <div className='flex h-full items-center justify-center text-red-500'>
         <p>Error: {error}</p>
       </div>
     );
@@ -207,28 +251,45 @@ export function PipelineGraph({
 
   if (!trace || trace.nodes.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full text-slate-400">
+      <div className='flex h-full items-center justify-center text-slate-400'>
         <p>No lineage data available</p>
       </div>
     );
   }
 
   return (
-    <div className="h-full w-full bg-slate-50">
+    <div className='h-full w-full bg-slate-50'>
       <ReactFlow
-        nodes={nodes}
+        fitView
         edges={edges}
-        onNodesChange={onNodesChange}
+        maxZoom={2}
+        minZoom={0.1}
+        nodes={nodes}
+        nodeTypes={nodeTypes}
         onEdgesChange={onEdgesChange}
         onNodeClick={handleNodeClick}
-        nodeTypes={nodeTypes}
-        fitView
-        minZoom={0.1}
-        maxZoom={2}
+        onNodesChange={onNodesChange}
       >
-        <Background color="#cbd5e1" gap={16} />
+        <Background color='#cbd5e1' gap={16} />
         <Controls />
-        <MiniMap nodeColor={miniMapNodeColor} zoomable pannable />
+        <MiniMap pannable zoomable nodeColor={miniMapNodeColor} />
+        {levelSummary && (
+          <Panel position='top-center'>
+            <LevelBar
+              downstreamLevels={levelSummary.downstream}
+              frontierCounts={{
+                downstream: downstreamFrontierCount || 0,
+                upstream: upstreamFrontierCount || 0
+              }}
+              upstreamLevels={levelSummary.upstream}
+              onClearHighlight={onClearHighlight}
+              onCollapseLevel={onCollapseLevel}
+              onExpandLevel={onExpandLevel}
+              onHighlightLevel={onHighlightLevel}
+              onRootClick={onRootClick}
+            />
+          </Panel>
+        )}
       </ReactFlow>
     </div>
   );

@@ -1,0 +1,60 @@
+---
+description: ESLint and Prettier code style rules for JS/JSX files
+globs: "**/*.{js,jsx}"
+alwaysApply: false
+---
+
+# Code Style (ESLint + Prettier)
+
+## Formatting (Prettier)
+
+- Single quotes for strings and JSX attributes
+- No trailing commas
+- 2-space indentation
+- Semicolons required
+- Arrow parens always: `(x) => x`
+- Bracket spacing: `{ key: value }`
+- LF line endings
+
+## Sorting (eslint-plugin-perfectionist, alphabetical)
+
+All of these MUST be sorted alphabetically (case-insensitive):
+
+- **Import statements**: sorted alphabetically by source path
+- **Named imports**: sorted alphabetically within `{ }`
+- **Named exports**: sorted alphabetically within `{ }`
+- **Object keys**: sorted alphabetically in object literals
+- **JSX props**: ordered by group then alphabetically within each group:
+  1. Shorthand boolean props (e.g. `fullWidth`, `isIconOnly`)
+  2. Regular props alphabetically (e.g. `className`, `size`, `variant`)
+  3. Callback props (`on*`) alphabetically (e.g. `onClick`, `onPress`)
+  4. Multiline props last
+
+```jsx
+// ✅ CORRECT prop order
+<Button
+  fullWidth        // shorthand first
+  isIconOnly
+  className='...'  // regular props alphabetically
+  size='sm'
+  variant='tertiary'
+  onPress={handler} // callbacks last
+/>
+
+// ❌ WRONG
+<Button
+  onPress={handler}
+  variant='tertiary'
+  fullWidth
+  size='sm'
+/>
+```
+
+## Stylistic
+
+- 1tbs brace style
+- No extra semicolons
+- `consistent` quote-props (if one key needs quotes, quote all)
+- Space before blocks: `if (x) {`
+- No space before function call parens: `fn()`
+- Space before async arrow parens: `async (x) =>`

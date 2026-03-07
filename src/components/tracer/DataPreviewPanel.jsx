@@ -1,45 +1,19 @@
-import { useState, useEffect, useMemo } from 'react';
 import {
-  IconTable,
-  IconX,
+  IconAlertCircle,
   IconLoader2,
-  IconAlertCircle
+  IconTable,
+  IconX
 } from '@tabler/icons-react';
-import { executeInPage } from '@/utils';
 import {
-  useReactTable,
+  flexRender,
   getCoreRowModel,
-  flexRender
+  useReactTable
 } from '@tanstack/react-table';
+import { useEffect, useMemo, useState } from 'react';
+
+import { executeInPage } from '@/utils';
 
 const MAX_VISIBLE_ROWS = 100;
-
-async function getDataPreview(datasetId, tabId = null) {
-  return await executeInPage(
-    async (datasetId) => {
-      const response = await fetch(
-        `/api/data/v3/datasources/${datasetId}/data?limit=100`,
-        {
-          method: 'GET',
-          credentials: 'include'
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch preview: HTTP ${response.status}`);
-      }
-
-      const data = await response.json();
-      
-      const headers = data.columns?.map((col) => col.name) || [];
-      const rows = data.rows || [];
-
-      return { headers, rows };
-    },
-    [datasetId],
-    tabId
-  );
-}
 
 /**
  * Bottom panel showing dataset preview with TanStack Table
@@ -49,12 +23,7 @@ async function getDataPreview(datasetId, tabId = null) {
  * @param {number} [props.tabId] - Chrome tab ID
  * @param {Function} props.onClose - Close handler
  */
-export function DataPreviewPanel({
-  datasetId,
-  datasetName,
-  tabId,
-  onClose
-}) {
+export function DataPreviewPanel({ datasetId, datasetName, onClose, tabId }) {
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -87,29 +56,22 @@ export function DataPreviewPanel({
     };
   }, [datasetId, tabId]);
 
-  const visibleRows = useMemo(() => {
-    if (!preview) return [];
-    return preview.rows.slice(0, MAX_VISIBLE_ROWS);
-  }, [preview]);
-
   const displayHeaders = useMemo(() => {
     if (!preview) return [];
-    if (preview.headers.length > 0) return preview.headers;
-    const colCount = preview.rows[0]?.length ?? 0;
-    return Array.from({ length: colCount }, (_, i) => `Column ${i + 1}`);
+    return preview.headers;
   }, [preview]);
 
   const columns = useMemo(() => {
     return displayHeaders.map((header, idx) => ({
-      id: `col_${idx}`,
+      accessorFn: (row) => row[idx],
       header: header,
-      accessorFn: (row) => row[idx]
+      id: `col_${idx}`
     }));
   }, [displayHeaders]);
 
   const table = useReactTable({
-    data: visibleRows,
     columns,
+    data: preview?.rows ?? [],
     getCoreRowModel: getCoreRowModel()
   });
 
@@ -118,52 +80,52 @@ export function DataPreviewPanel({
 
   return (
     <div
-      className="h-[300px] border-t bg-white flex flex-col"
+      className='flex h-[300px] flex-col border-t bg-white'
       style={{ contain: 'strict' }}
     >
-      <div className="flex items-center gap-2 px-4 py-2 border-b bg-slate-50 shrink-0">
-        <IconTable className="w-4 h-4 text-blue-500" />
-        <span className="font-semibold text-sm text-slate-700 truncate">
+      <div className='flex shrink-0 items-center gap-2 border-b bg-slate-50 px-4 py-2'>
+        <IconTable className='h-4 w-4 text-blue-500' />
+        <span className='truncate text-sm font-semibold text-slate-700'>
           {datasetName}
         </span>
         {preview && (
-          <span className="text-xs text-slate-400 ml-2">
+          <span className='ml-2 text-xs text-slate-400'>
             {columnCount} columns &middot; {totalRows} rows (preview)
           </span>
         )}
         <button
+          aria-label='Close preview'
+          className='ml-auto rounded p-1 transition-colors hover:bg-slate-200'
           onClick={onClose}
-          className="ml-auto p-1 rounded hover:bg-slate-200 transition-colors"
-          aria-label="Close preview"
         >
-          <IconX className="w-4 h-4 text-slate-400" />
+          <IconX className='h-4 w-4 text-slate-400' />
         </button>
       </div>
 
       {loading && (
-        <div className="flex-1 flex items-center justify-center text-slate-400">
-          <IconLoader2 className="w-6 h-6 animate-spin mr-2" />
+        <div className='flex flex-1 items-center justify-center text-slate-400'>
+          <IconLoader2 className='mr-2 h-6 w-6 animate-spin' />
           <span>Loading preview...</span>
         </div>
       )}
 
       {error && (
-        <div className="flex-1 flex items-center justify-center text-red-500">
-          <IconAlertCircle className="w-5 h-5 mr-2" />
+        <div className='flex flex-1 items-center justify-center text-red-500'>
+          <IconAlertCircle className='mr-2 h-5 w-5' />
           <span>{error}</span>
         </div>
       )}
 
       {!loading && !error && preview && (
-        <div className="flex-1 overflow-auto">
-          <table className="w-full text-sm border-collapse">
-            <thead className="bg-slate-100 sticky top-0 z-10">
+        <div className='flex-1 overflow-auto'>
+          <table className='w-full border-collapse text-sm'>
+            <thead className='sticky top-0 z-10 bg-slate-100'>
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
                     <th
+                      className='border-r border-b px-3 py-2 text-left font-semibold text-slate-700 last:border-r-0'
                       key={header.id}
-                      className="px-3 py-2 text-left font-semibold text-slate-700 border-b border-r last:border-r-0"
                     >
                       {flexRender(
                         header.column.columnDef.header,
@@ -176,11 +138,11 @@ export function DataPreviewPanel({
             </thead>
             <tbody>
               {table.getRowModel().rows.map((row) => (
-                <tr key={row.id} className="hover:bg-slate-50">
+                <tr className='hover:bg-slate-50' key={row.id}>
                   {row.getVisibleCells().map((cell) => (
                     <td
+                      className='border-r border-b px-3 py-1.5 text-slate-600 last:border-r-0'
                       key={cell.id}
-                      className="px-3 py-1.5 border-b border-r last:border-r-0 text-slate-600"
                     >
                       {flexRender(
                         cell.column.columnDef.cell,
@@ -196,10 +158,35 @@ export function DataPreviewPanel({
       )}
 
       {!loading && !error && (!preview || totalRows === 0) && (
-        <div className="flex-1 flex items-center justify-center text-slate-400">
+        <div className='flex flex-1 items-center justify-center text-slate-400'>
           <p>No data available</p>
         </div>
       )}
     </div>
+  );
+}
+
+async function getDataPreview(datasetId, tabId = null) {
+  return await executeInPage(
+    async (datasetId, limit) => {
+      const response = await fetch(`/api/query/v1/execute/${datasetId}`, {
+        body: JSON.stringify({ sql: `SELECT * FROM table LIMIT ${limit}` }),
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST'
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch preview: HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      const headers = data.columns || [];
+      const rows = data.rows || [];
+
+      return { headers, rows };
+    },
+    [datasetId, MAX_VISIBLE_ROWS],
+    tabId
   );
 }

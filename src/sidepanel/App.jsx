@@ -6,10 +6,9 @@ import {
   CardErrorsView,
   ContextFooter,
   GetCardsView,
-  GetViewInputsView,
   GetDatasetsView,
   GetPagesView,
-  LineageView,
+  GetViewInputsView,
   LinkPreview,
   ObjectDetailsView
 } from '@/components';
@@ -210,11 +209,6 @@ export default function App() {
         <ContextFooter
           currentContext={currentContext}
           isLoading={isLoadingCurrentContext}
-          onStatusUpdate={showStatus}
-        />
-
-        <LineageView
-          currentContext={currentContext}
           onStatusUpdate={showStatus}
         />
 

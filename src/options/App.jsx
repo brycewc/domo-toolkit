@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import {
   ActivityLogTable,
   FaviconSettings,
+  LineageViewer,
   Settings,
   shouldShowWelcomePage,
   WelcomePage
@@ -79,6 +80,8 @@ export default function App() {
         .catch(() => {
           document.title = 'Activity Log - Domo Toolkit';
         });
+    } else if (selectedTab === 'lineage') {
+      // Title is set by LineageViewer component itself
     } else {
       document.title = `${tabTitles[selectedTab] || 'Options'} - Domo Toolkit`;
     }
@@ -124,6 +127,12 @@ export default function App() {
                 <Tabs.Indicator />
               </Tabs.Tab>
             )}
+            {selectedTab === 'lineage' && (
+              <Tabs.Tab id='lineage'>
+                Lineage
+                <Tabs.Indicator />
+              </Tabs.Tab>
+            )}
           </Tabs.List>
         </Tabs.ListContainer>
         <Tabs.Panel
@@ -162,6 +171,12 @@ export default function App() {
           id='activity-log'
         >
           {selectedTab === 'activity-log' && <ActivityLogTable />}
+        </Tabs.Panel>
+        <Tabs.Panel
+          className='flex h-[calc(100vh-4rem)] flex-col pt-16'
+          id='lineage'
+        >
+          {selectedTab === 'lineage' && <LineageViewer />}
         </Tabs.Panel>
       </Tabs>
       <Toast.Provider className='right-2 bottom-2' placement='bottom' />

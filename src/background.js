@@ -1371,29 +1371,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
         }
 
-        case 'OPEN_TRACER_OVERLAY': {
-          const { entityId, entityType, tabId } = message;
-
-          if (!tabId) {
-            sendResponse({ error: 'No tab ID provided', success: false });
-            break;
-          }
-
-          try {
-            await chrome.tabs.sendMessage(tabId, {
-              entityId,
-              entityType,
-              tabId,
-              type: 'MOUNT_TRACER_OVERLAY'
-            });
-            sendResponse({ success: true });
-          } catch (error) {
-            console.error('[Background] Error opening tracer overlay:', error);
-            sendResponse({ error: error.message, success: false });
-          }
-          break;
-        }
-
         case 'UPDATE_CONTEXT_METADATA': {
           // Update cached context metadata without re-fetching from API
           const { metadataUpdates, tabId } = message;

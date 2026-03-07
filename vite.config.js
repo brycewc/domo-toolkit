@@ -7,7 +7,7 @@ import { defineConfig } from 'vite';
 
 import manifest from './manifest.config.js';
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   build: {
     // Extensions load from disk, not network - large chunks are fine
     chunkSizeWarningLimit: 1000,
@@ -42,7 +42,7 @@ export default defineConfig({
     sourcemap: false
   },
   esbuild: {
-    pure: ['console.log', 'console.warn']
+    pure: mode === 'production' ? ['console.log', 'console.warn'] : []
   },
   plugins: [
     react(),
@@ -66,4 +66,4 @@ export default defineConfig({
     },
     port: 5173
   }
-});
+}));

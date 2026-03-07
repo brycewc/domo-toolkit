@@ -17,13 +17,14 @@ import {
   Export,
   GetCards,
   GetDatasets,
-  GetViewInputs,
   GetOtherPages,
   GetPages,
+  GetViewInputs,
   LockCards,
   NavigateToCopiedObject,
   RemoveEmptyStringsFromQuickFilters,
   ShareWithSelf,
+  TraceLineage,
   UpdateDataflowDetails,
   UpdateOwner
 } from '@/components';
@@ -36,9 +37,7 @@ export function ActionButtons({
   onStatusUpdate
 }) {
   const navigateToCopiedRef = useRef();
-  const [isExpanded, setIsExpanded] = useState(
-    defaultExpanded ?? !collapsable
-  );
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded ?? !collapsable);
 
   useEffect(() => {
     if (defaultExpanded === false) {
@@ -215,6 +214,12 @@ export function ActionButtons({
                   onStatusUpdate={onStatusUpdate}
                 />
               )}
+              {availableActions.has('traceLineage') && (
+                <TraceLineage
+                  currentContext={currentContext}
+                  onStatusUpdate={onStatusUpdate}
+                />
+              )}
               {availableActions.has('dataRepair') && (
                 <DataRepair
                   currentContext={currentContext}
@@ -307,6 +312,7 @@ function getAvailableActions(typeId, details) {
   if (typeId === 'DATA_SOURCE') {
     actions.add('getViewInputs');
     actions.add('dataRepair');
+    actions.add('traceLineage');
   }
 
   if (['CARD', 'DATA_APP_VIEW', 'PAGE'].includes(typeId)) {
@@ -314,6 +320,7 @@ function getAvailableActions(typeId, details) {
   }
 
   if (typeId === 'DATAFLOW_TYPE') {
+    actions.add('traceLineage');
     actions.add('updateDataflowDetails');
   }
 

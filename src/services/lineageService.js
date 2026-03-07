@@ -1,178 +1,10 @@
 import { executeInPage } from '@/utils';
 
-function toMapKey(type, id) {
-  return `${type}${id}`;
-}
-
-function toNodeId(type, id) {
-  return `${type}:${id}`;
-}
-
-async function getLineage(entityType, entityId, tabId = null) {
-  return await executeInPage(
-    async (entityType, entityId) => {
-      // Modern lineage API endpoint as discovered in research
-      // We include everything (up/down) with a decent depth to ensure full connectivity
-      const url = `/api/data/v1/lineage/${entityType}/${entityId}?traverseUp=true&traverseDown=true&maxDepth=10&requestEntities=DATA_SOURCE,DATAFLOW,CARD,ALERT`;
-
-      const response = await fetch(url, {
-        method: 'GET',
-        credentials: 'include'
-      });
-
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch lineage: HTTP ${response.status}`
-        );
-      }
-
-      return response.json();
-    },
-    [entityType, entityId],
-    tabId
-  );
-}
-
-async function enrichMetadata(lineageResponse, tabId = null) {
-  console.log('[LineageService] enrichMetadata starting with:', typeof lineageResponse, !!lineageResponse);
+export function convertToGraph(lineageResponse, startEntityType, startEntityId) {
   if (!lineageResponse || typeof lineageResponse !== 'object') {
-    console.warn('[LineageService] enrichMetadata: lineageResponse is not an object');
-    return {};
-  }
-  const datasetIds = [];
-  const dataflowIds = [];
-
-  try {
-    for (const [key, entity] of Object.entries(lineageResponse || {})) {
-      if (!entity) continue;
-      if (entity.type === 'DATA_SOURCE') {
-        datasetIds.push(entity.id);
-      } else if (entity.type === 'DATAFLOW') {
-        dataflowIds.push(entity.id);
-      }
-    }
-  } catch (err) {
-    console.error('[LineageService] Error in enrichMetadata entries loop:', err);
-    return lineageResponse;
+    return { edges: [], nodes: [] };
   }
 
-  const chunkSize = 10;
-  const enrichedData = { ...lineageResponse };
-
-  const fetchDatasetBatch = async (ids) => {
-    return await executeInPage(
-      async (ids) => {
-        const results = {};
-        await Promise.all(
-          ids.map(async (id) => {
-            try {
-              const response = await fetch(
-                `/api/data/v3/datasources/${id}`,
-                {
-                  method: 'GET',
-                  credentials: 'include'
-                }
-              );
-              if (response.ok) {
-                const data = await response.json();
-                results[id] = {
-                  name: data.name,
-                  rowCount: data.rowCount,
-                  columnCount: data.columns?.length
-                };
-              }
-            } catch (e) {
-              console.warn(`Failed to fetch dataset ${id}:`, e);
-            }
-          })
-        );
-        return results;
-      },
-      [ids],
-      tabId
-    );
-  };
-
-  const fetchDataflowBatch = async (ids) => {
-    return await executeInPage(
-      async (ids) => {
-        const results = {};
-        await Promise.all(
-          ids.map(async (id) => {
-            try {
-              const response = await fetch(
-                `/api/dataprocessing/v1/dataflows/${id}`,
-                {
-                  method: 'GET',
-                  credentials: 'include'
-                }
-              );
-              if (response.ok) {
-                const data = await response.json();
-                results[id] = {
-                  name: data.name,
-                  state: data.state,
-                  inputCount: data.inputs?.length,
-                  outputCount: data.outputs?.length
-                };
-              }
-            } catch (e) {
-              console.warn(`Failed to fetch dataflow ${id}:`, e);
-            }
-          })
-        );
-        return results;
-      },
-      [ids],
-      tabId
-    );
-  };
-
-  for (let i = 0; i < datasetIds.length; i += chunkSize) {
-    const chunk = datasetIds.slice(i, i + chunkSize);
-    const results = await fetchDatasetBatch(chunk);
-
-    if (results) {
-      for (const [id, metadata] of Object.entries(results || {})) {
-        const key = toMapKey('DATA_SOURCE', id);
-        if (enrichedData[key]) {
-          enrichedData[key].name = metadata.name || enrichedData[key].name;
-          enrichedData[key].metadata = {
-            ...enrichedData[key].metadata,
-            ...metadata
-          };
-        }
-      }
-    }
-  }
-
-  for (let i = 0; i < dataflowIds.length; i += chunkSize) {
-    const chunk = dataflowIds.slice(i, i + chunkSize);
-    const results = await fetchDataflowBatch(chunk);
-
-    if (results) {
-      for (const [id, metadata] of Object.entries(results || {})) {
-        const key = toMapKey('DATAFLOW', id);
-        if (enrichedData[key]) {
-          enrichedData[key].name = metadata.name || enrichedData[key].name;
-          enrichedData[key].metadata = {
-            ...enrichedData[key].metadata,
-            ...metadata
-          };
-        }
-      }
-    }
-  }
-
-  return enrichedData;
-}
-
-function convertToGraph(lineageResponse, startEntityType, startEntityId, maxDepth = 10) {
-  console.log('[LineageService] convertToGraph starting with:', typeof lineageResponse, !!lineageResponse);
-  if (!lineageResponse || typeof lineageResponse !== 'object' || lineageResponse === null) {
-    console.warn('[LineageService] convertToGraph: lineageResponse is not a valid object');
-    return { nodes: [], edges: [], dataflowIds: [] };
-  }
   const startKey = toMapKey(startEntityType, startEntityId);
   const nodes = [];
   const edges = [];
@@ -189,8 +21,6 @@ function convertToGraph(lineageResponse, startEntityType, startEntityId, maxDept
     const entity = lineageResponse[key];
     if (!entity) continue;
     const currentDepth = depths.get(key) ?? 0;
-
-    if (Math.abs(currentDepth - 1) > maxDepth) continue;
 
     for (const parent of entity.parents || []) {
       if (!parent || parent.type === 'ALERT') continue;
@@ -211,8 +41,6 @@ function convertToGraph(lineageResponse, startEntityType, startEntityId, maxDept
     if (!entity) continue;
     const currentDepth = depths.get(key) ?? 0;
 
-    if (Math.abs(currentDepth + 1) > maxDepth) continue;
-
     for (const child of entity.children || []) {
       if (!child || child.type === 'ALERT') continue;
       const childKey = toMapKey(child.type, child.id);
@@ -226,30 +54,37 @@ function convertToGraph(lineageResponse, startEntityType, startEntityId, maxDept
     }
   }
 
-  for (const [key, entity] of Object.entries(lineageResponse || {})) {
-    if (!entity || entity.type === 'ALERT') continue;
-    if (entity.type === 'CARD') continue;
+  for (const [key, entity] of Object.entries(lineageResponse)) {
+    if (!entity || entity.type === 'ALERT' || entity.type === 'CARD') continue;
 
     const depth = depths.get(key);
-    if (depth === undefined || Math.abs(depth) > maxDepth) continue;
+    if (depth === undefined) continue;
 
     const nodeId = toNodeId(entity.type, entity.id);
     if (addedNodes.has(nodeId)) continue;
     addedNodes.add(nodeId);
 
     const name = entity.name || entity.id;
+    const filteredParents = (entity.parents || []).filter(
+      (p) => p.type !== 'ALERT' && p.type !== 'CARD'
+    );
+    const filteredChildren = (entity.children || []).filter(
+      (c) => c.type !== 'ALERT' && c.type !== 'CARD'
+    );
 
     nodes.push({
-      id: nodeId,
+      depth,
+      direction: depth === 0 ? 'root' : depth < 0 ? 'upstream' : 'downstream',
+      downstreamCount: filteredChildren.length,
       entityId: entity.id,
       entityType: entity.type,
+      id: nodeId,
+      metadata: entity.metadata,
       name,
-      depth,
-      metadata: entity.metadata
+      upstreamCount: filteredParents.length
     });
 
-    for (const parent of entity.parents || []) {
-      if (parent.type === 'ALERT' || parent.type === 'CARD') continue;
+    for (const parent of filteredParents) {
       const parentNodeId = toNodeId(parent.type, parent.id);
       const edgeKey = `${parentNodeId}->${nodeId}`;
       if (!edgeSet.has(edgeKey)) {
@@ -258,8 +93,7 @@ function convertToGraph(lineageResponse, startEntityType, startEntityId, maxDept
       }
     }
 
-    for (const child of entity.children || []) {
-      if (child.type === 'ALERT' || child.type === 'CARD') continue;
+    for (const child of filteredChildren) {
       const childNodeId = toNodeId(child.type, child.id);
       const edgeKey = `${nodeId}->${childNodeId}`;
       if (!edgeSet.has(edgeKey)) {
@@ -269,45 +103,147 @@ function convertToGraph(lineageResponse, startEntityType, startEntityId, maxDept
     }
   }
 
-  for (const edge of edges) {
-    for (const id of [edge.sourceId, edge.targetId]) {
-      if (!addedNodes.has(id)) {
-        addedNodes.add(id);
-        const [type, ...rest] = id.split(':');
-        const eid = rest.join(':');
-        nodes.push({
-          id,
-          entityId: eid,
-          entityType: type,
-          name: eid,
-          depth: 0
-        });
+  return { edges, nodes };
+}
+
+export async function enrichMetadata(lineageResponse, tabId = null, existingKeys = null) {
+  if (!lineageResponse || typeof lineageResponse !== 'object') {
+    return {};
+  }
+
+  const datasetIds = [];
+  const dataflowIds = [];
+  const datasetEntities = new Map();
+  const dataflowEntities = new Map();
+
+  for (const [key, entity] of Object.entries(lineageResponse)) {
+    if (!entity) continue;
+    if (existingKeys && existingKeys.has(key)) continue;
+    if (entity.type === 'DATA_SOURCE') {
+      datasetIds.push(entity.id);
+      datasetEntities.set(String(entity.id), entity);
+    } else if (entity.type === 'DATAFLOW') {
+      dataflowIds.push(entity.id);
+      dataflowEntities.set(String(entity.id), entity);
+    }
+  }
+
+  const chunkSize = 50;
+
+  const fetchDatasetBatch = async (ids) => {
+    return await executeInPage(
+      async (ids) => {
+        try {
+          const response = await fetch(
+            '/api/data/v3/datasources/bulk?part=core,rowcolcount',
+            {
+              body: JSON.stringify(ids),
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              method: 'POST'
+            }
+          );
+          if (response.ok) {
+            const data = await response.json();
+            return (data.dataSources || []).map((ds) => ({
+              columnCount: ds.columnCount,
+              id: ds.id,
+              name: ds.name,
+              rowCount: ds.rowCount
+            }));
+          }
+        } catch {
+          // Bulk dataset fetch failure is non-critical
+        }
+        return [];
+      },
+      [ids],
+      tabId
+    );
+  };
+
+  const fetchDataflowBatch = async (ids) => {
+    return await executeInPage(
+      async (ids) => {
+        try {
+          const response = await fetch(
+            `/api/dataprocessing/v2/dataflows?dataFlowId=${ids.join(',')}`,
+            { credentials: 'include', method: 'GET' }
+          );
+          if (response.ok) {
+            const data = await response.json();
+            return (data.onboardFlows || []).map((df) => ({
+              id: df.id,
+              inputCount: df.inputs?.length,
+              name: df.name,
+              outputCount: df.outputs?.length,
+              state: df.runState
+            }));
+          }
+        } catch {
+          // Bulk dataflow fetch failure is non-critical
+        }
+        return [];
+      },
+      [ids],
+      tabId
+    );
+  };
+
+  for (let i = 0; i < datasetIds.length; i += chunkSize) {
+    const chunk = datasetIds.slice(i, i + chunkSize);
+    const results = await fetchDatasetBatch(chunk);
+
+    for (const { id, ...metadata } of results || []) {
+      const entity = datasetEntities.get(String(id));
+      if (entity) {
+        entity.name = metadata.name || entity.name;
+        entity.metadata = { ...entity.metadata, ...metadata };
       }
     }
   }
 
-  const dataflowIds = nodes
-    .filter(n => n.entityType === 'DATAFLOW')
-    .map(n => n.entityId);
+  for (let i = 0; i < dataflowIds.length; i += chunkSize) {
+    const chunk = dataflowIds.slice(i, i + chunkSize);
+    const results = await fetchDataflowBatch(chunk);
 
-  return { nodes, edges, dataflowIds };
+    for (const { id, ...metadata } of results || []) {
+      const entity = dataflowEntities.get(String(id));
+      if (entity) {
+        entity.name = metadata.name || entity.name;
+        entity.metadata = { ...entity.metadata, ...metadata };
+      }
+    }
+  }
+
+  return lineageResponse;
 }
 
-export async function tracePipeline(entityType, entityId, depth = 10, tabId = null) {
-  console.log('[LineageService] tracePipeline starting for:', entityType, entityId);
-  try {
-    const lineageResponse = await getLineage(entityType, entityId, tabId);
-    console.log('[LineageService] getLineage response received:', !!lineageResponse);
+export async function getLineage(entityType, entityId, maxDepth = 4, tabId = null) {
+  return await executeInPage(
+    async (entityType, entityId, maxDepth) => {
+      const url = `/api/data/v1/lineage/${entityType}/${entityId}?traverseUp=true&traverseDown=true&maxDepth=${maxDepth}&requestEntities=DATA_SOURCE,DATAFLOW,CARD,ALERT`;
 
-    const enrichedResponse = await enrichMetadata(lineageResponse, tabId);
-    console.log('[LineageService] enrichMetadata completed');
+      const response = await fetch(url, {
+        credentials: 'include',
+        method: 'GET'
+      });
 
-    const graph = convertToGraph(enrichedResponse, entityType, entityId, depth);
-    console.log('[LineageService] convertToGraph completed, nodes:', graph?.nodes?.length);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch lineage: HTTP ${response.status}`);
+      }
 
-    return graph;
-  } catch (err) {
-    console.error('[LineageService] Error in tracePipeline:', err);
-    throw err;
-  }
+      return response.json();
+    },
+    [entityType, entityId, maxDepth],
+    tabId
+  );
+}
+
+export function toMapKey(type, id) {
+  return `${type}${id}`;
+}
+
+export function toNodeId(type, id) {
+  return `${type}:${id}`;
 }

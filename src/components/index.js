@@ -2,7 +2,6 @@ export { ActionButtons } from './ActionButtons';
 export { AnimatedCheck } from './AnimatedCheck';
 export { ContextFooter } from './ContextFooter';
 export * from './functions';
-export { LineageView } from './LineageView';
 export * from './options';
 export { TimestampAnnotation } from './TimestampAnnotation';
 export * from './tracer';
