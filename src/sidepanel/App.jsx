@@ -9,6 +9,7 @@ import {
   GetViewInputsView,
   GetDatasetsView,
   GetPagesView,
+  LineageView,
   LinkPreview,
   ObjectDetailsView
 } from '@/components';
@@ -209,6 +210,11 @@ export default function App() {
         <ContextFooter
           currentContext={currentContext}
           isLoading={isLoadingCurrentContext}
+          onStatusUpdate={showStatus}
+        />
+
+        <LineageView
+          currentContext={currentContext}
           onStatusUpdate={showStatus}
         />
 

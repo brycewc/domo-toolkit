@@ -51,6 +51,8 @@ export {
   getVariableControlFilters,
   mergeFilters
 } from './filters';
+export { tracePipeline } from './lineageService';
+export { parseDataflow, searchTiles } from './etlParser';
 export {
   deletePageAndAllCards,
   getAppStudioPageParent,

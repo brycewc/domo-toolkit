@@ -22,7 +22,8 @@ export default defineManifest({
     'clipboardWrite',
     'cookies',
     'webNavigation',
-    'webRequest'
+    'webRequest',
+    'tabs'
   ],
   host_permissions: ['*://*.domo.com/*'],
   content_security_policy: {
