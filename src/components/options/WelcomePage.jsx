@@ -1,7 +1,6 @@
 import {
   Button,
   Card,
-  Checkbox,
   Chip,
   Description,
   Label,
@@ -14,22 +13,22 @@ import {
   IconArrowRight,
   IconBolt,
   IconBrandGithub,
+  IconBrowser,
   IconChevronDown,
   IconClipboard,
   IconCookie,
   IconCookieOff,
-  IconExternalLink,
+  IconEye,
+  IconFavicon,
   IconFileDescription,
+  IconFileTypeDoc,
   IconLayoutSidebarRightExpand,
-  IconSearch,
   IconUserPlus
 } from '@tabler/icons-react';
 import { motion } from 'motion/react';
 import { useEffect, useState } from 'react';
 
 import toolkitLogo from '@/assets/toolkit-128.png';
-
-const STORAGE_KEY = 'welcomePageDismissed';
 
 const cookieOptions = [
   {
@@ -49,22 +48,7 @@ const cookieOptions = [
   }
 ];
 
-// Helper to reset welcome page (for testing/settings)
-export function resetWelcomePage() {
-  chrome.storage.local.remove([STORAGE_KEY]);
-}
-
-// Helper to check if welcome page should be shown
-export async function shouldShowWelcomePage() {
-  return new Promise((resolve) => {
-    chrome.storage.local.get([STORAGE_KEY], (result) => {
-      resolve(!result[STORAGE_KEY]);
-    });
-  });
-}
-
 export function WelcomePage() {
-  const [dontShowAgain, setDontShowAgain] = useState(false);
   const [cookieSetting, setCookieSetting] = useState('auto');
 
   // Load cookie setting on mount
@@ -82,20 +66,13 @@ export function WelcomePage() {
   };
 
   const handleGetStarted = () => {
-    if (dontShowAgain) {
-      chrome.storage.local.set({ [STORAGE_KEY]: true });
-    }
-    window.open(
-      '/src/options/index.html#favicon',
-      '_self',
-      'noopener,noreferrer'
-    );
+    window.location.hash = 'favicon';
   };
 
   const actionFeatures = [
     { icon: IconClipboard, label: 'Copy IDs instantly' },
     { icon: IconUserPlus, label: 'Share objects with yourself' },
-    { icon: IconSearch, label: 'Analyze dependencies and relationships' },
+    { icon: IconEye, label: 'Analyze dependencies and relationships' },
     {
       icon: IconFileDescription,
       label: 'Instantly view the activity log for any object'
@@ -104,12 +81,12 @@ export function WelcomePage() {
 
   const automaticFeatures = [
     {
-      icon: IconClipboard,
+      icon: IconBrowser,
       label:
         'Tab titles are set automatically (gone are the days of hundreds of tabs named "Domo")'
     },
     {
-      icon: IconUserPlus,
+      icon: IconFavicon,
       label: 'Favicons automatically set to the instance logo (customizable)'
     },
     {
@@ -141,7 +118,7 @@ export function WelcomePage() {
 
   const links = [
     {
-      icon: IconExternalLink,
+      icon: IconFileTypeDoc,
       label: 'Documentation',
       url: 'https://github.com/brycewc/domo-toolkit#readme'
     },
@@ -356,21 +333,10 @@ export function WelcomePage() {
       {/* Footer */}
       <motion.div
         animate={{ opacity: 1 }}
-        className='mt-auto space-y-3 pb-4'
+        className='mt-auto pb-4'
         initial={{ opacity: 0 }}
         transition={{ delay: 0.3, duration: 0.3 }}
       >
-        <label className='flex cursor-pointer items-center justify-start gap-2'>
-          <Checkbox isSelected={dontShowAgain} onChange={setDontShowAgain}>
-            <Checkbox.Control>
-              <Checkbox.Indicator />
-            </Checkbox.Control>
-            <Checkbox.Content>
-              <Label className='text-xs'>Don't show this again</Label>
-            </Checkbox.Content>
-          </Checkbox>
-        </label>
-
         <Button fullWidth variant='primary' onPress={handleGetStarted}>
           Get Started
           <IconArrowRight />
