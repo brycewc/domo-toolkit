@@ -6,18 +6,18 @@ import {
   CardErrorsView,
   ContextFooter,
   GetCardsView,
-  GetViewInputsView,
   GetDatasetsView,
   GetPagesView,
+  GetViewInputsView,
   LinkPreview,
   ObjectDetailsView
 } from '@/components';
-import { useStatusBar, useTheme } from '@/hooks';
+import { useReleaseNotification, useStatusBar, useTheme } from '@/hooks';
 import { DomoContext } from '@/models';
 
 export default function App() {
-  // Apply theme
   useTheme();
+  useReleaseNotification();
 
   const [activeView, setActiveView] = useState('default');
   const [viewKey, setViewKey] = useState(0);

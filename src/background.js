@@ -1,3 +1,4 @@
+import { releases } from '@/data';
 import { DomoContext, DomoObject, getObjectType } from '@/models';
 import {
   extractPageContentIds,
@@ -288,12 +289,33 @@ function touchTab(tabId) {
 
 // Handle extension installation
 chrome.runtime.onInstalled.addListener((details) => {
-  // Open welcome page on fresh install
+  const currentVersion = chrome.runtime.getManifest().version;
+
   if (details.reason === 'install') {
-    // Create a new tab with the activity hash directly
     chrome.tabs.create({
       url: chrome.runtime.getURL('src/options/index.html#welcome')
     });
+    chrome.storage.local.set({ lastSeenVersion: currentVersion });
+  }
+
+  if (details.reason === 'update' && details.previousVersion) {
+    const newReleases = releases.filter(
+      (r) => compareVersions(r.version, details.previousVersion) > 0
+    );
+
+    if (newReleases.length > 0) {
+      const hasFullPage = newReleases.some((r) => r.fullPage);
+
+      if (hasFullPage) {
+        chrome.tabs.create({
+          url: chrome.runtime.getURL('src/options/index.html#release-notes')
+        });
+        chrome.storage.local.set({ lastSeenVersion: currentVersion });
+      } else {
+        chrome.action.setBadgeText({ text: 'NEW' });
+        chrome.action.setBadgeBackgroundColor({ color: '#6366f1' });
+      }
+    }
   }
 
   // Set default configurations
@@ -593,11 +615,17 @@ chrome.commands.onCommand.addListener((command) => {
               [context.domoObject.id],
               tab.id
             );
+            chrome.action.setBadgeText({ text: '\u2713' });
+            chrome.action.setBadgeBackgroundColor({ color: '#22c55e' });
+            restoreBadgeAfterDelay();
           } catch (error) {
             console.error(
               '[Background] Failed to copy ID to clipboard:',
               error
             );
+            chrome.action.setBadgeText({ text: '!' });
+            chrome.action.setBadgeBackgroundColor({ color: '#ef4444' });
+            restoreBadgeAfterDelay();
           }
         }
       }
@@ -1203,6 +1231,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
         }
 
+        case 'RELEASE_NOTES_SEEN': {
+          const currentVersion = chrome.runtime.getManifest().version;
+          await chrome.storage.local.set({ lastSeenVersion: currentVersion });
+          chrome.action.setBadgeText({ text: '' });
+          sendResponse({ success: true });
+          break;
+        }
+
         case 'UPDATE_CONTEXT_METADATA': {
           // Update cached context metadata without re-fetching from API
           const { metadataUpdates, tabId } = message;
@@ -1242,3 +1278,33 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   return true; // Keep message channel open for async response
 });
+
+/**
+ * Compare two semver strings. Returns positive if a > b, negative if a < b, 0 if equal.
+ */
+function compareVersions(a, b) {
+  const partsA = a.split('.').map(Number);
+  const partsB = b.split('.').map(Number);
+  const len = Math.max(partsA.length, partsB.length);
+
+  for (let i = 0; i < len; i++) {
+    const diff = (partsA[i] || 0) - (partsB[i] || 0);
+    if (diff !== 0) return diff;
+  }
+
+  return 0;
+}
+
+function restoreBadgeAfterDelay(ms = 2000) {
+  setTimeout(() => {
+    chrome.storage.local.get(['lastSeenVersion'], (result) => {
+      const currentVersion = chrome.runtime.getManifest().version;
+      if (result.lastSeenVersion !== currentVersion) {
+        chrome.action.setBadgeText({ text: 'NEW' });
+        chrome.action.setBadgeBackgroundColor({ color: '#6366f1' });
+      } else {
+        chrome.action.setBadgeText({ text: '' });
+      }
+    });
+  }, ms);
+}

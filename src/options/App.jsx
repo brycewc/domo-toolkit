@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import {
   ActivityLogTable,
   FaviconSettings,
+  ReleaseNotesPage,
   Settings,
   WelcomePage
 } from '@/components';
@@ -15,6 +16,7 @@ const FULL_SCREEN_PAGES = new Map([
     'activity-log',
     { component: ActivityLogTable, fullWidth: true, title: getActivityLogTitle }
   ],
+  ['release-notes', { component: ReleaseNotesPage, title: 'Release Notes' }],
   ['welcome', { component: WelcomePage, title: 'Welcome' }]
 ]);
 

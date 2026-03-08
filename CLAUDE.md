@@ -62,11 +62,12 @@ Content Script (detects page context via URL/DOM)
 
 **Key message types:**
 
-- `TAB_CONTEXT_UPDATED` - Background broadcasts context changes to all listeners
-- `GET_TAB_CONTEXT` - Popup/sidepanel requests current tab's context
-- `DETECT_CONTEXT` - Force re-detection of current page
-- `CLIPBOARD_UPDATED` - Notify about valid Domo object ID in clipboard
 - `CLIPBOARD_COPIED` - Content script detected copy event
+- `CLIPBOARD_UPDATED` - Notify about valid Domo object ID in clipboard
+- `DETECT_CONTEXT` - Force re-detection of current page
+- `GET_TAB_CONTEXT` - Popup/sidepanel requests current tab's context
+- `RELEASE_NOTES_SEEN` - Release notes page viewed, clear badge and update lastSeenVersion
+- `TAB_CONTEXT_UPDATED` - Background broadcasts context changes to all listeners
 
 ### Core Models
 
@@ -222,6 +223,54 @@ Content script detects objects via:
 - Caches to `chrome.storage.session` for background access
 - Background broadcasts `CLIPBOARD_UPDATED` when value changes
 - Keyboard shortcut: Ctrl+Shift+V (Cmd+Shift+V on Mac) triggers clipboard check
+
+## Releasing a New Version
+
+When the user asks to prepare a release, cut a version, or ship changes, follow these steps:
+
+### 1. Bump the version in `package.json`
+
+The `version` field in `package.json` is the single source of truth — `manifest.config.js` reads `pkg.version` from it. Use semver:
+
+- **Patch** (1.0.0 → 1.0.1): Bug fixes, minor tweaks, no new features
+- **Minor** (1.0.0 → 1.1.0): New features, non-breaking enhancements
+- **Major** (1.0.0 → 2.0.0): Breaking changes, major redesigns
+
+### 2. Add a release entry to `src/data/releases.js`
+
+Add a new object to the **beginning** of the `releases` array (newest-first). The entry must have these fields sorted alphabetically:
+
+```javascript
+{
+  date: 'YYYY-MM-DD',         // release date
+  fullPage: true,              // true = auto-open release notes page; false = badge only
+  githubUrl: 'https://github.com/brycewc/domo-toolkit/releases/tag/vX.Y.Z',
+  highlights: [                // short bullet points shown on the release notes page
+    'Added feature X',
+    'Fixed bug Y',
+    'Improved Z performance'
+  ],
+  summary: 'One-sentence description of this release.',
+  version: 'X.Y.Z'            // must match the version in package.json
+}
+```
+
+**When to set `fullPage: true`:** Use for minor and major releases that introduce features or changes users should know about. The background script will automatically open the release notes page in a new tab on update.
+
+**When to set `fullPage: false`:** Use for patch releases with small bug fixes. The background script will show a "NEW" badge on the extension icon instead. The badge clears when the user visits `#release-notes`.
+
+### 3. How the notification system works
+
+- `src/background.js` listens for `chrome.runtime.onInstalled` with `reason === 'update'`
+- It compares `details.previousVersion` against each entry's `version` using `compareVersions()`
+- If any new release has `fullPage: true`, it opens `src/options/index.html#release-notes`
+- Otherwise, it sets a "NEW" badge via `chrome.action.setBadgeText`
+- The `ReleaseNotesPage` component (`src/components/options/ReleaseNotesPage.jsx`) displays the latest release and sends a `RELEASE_NOTES_SEEN` message on mount to clear the badge
+- `lastSeenVersion` is stored in `chrome.storage.local` to track what the user has seen
+
+### 4. Build the release
+
+Run `yarn release` to build and package for distribution.
 
 ## Testing in Development
 

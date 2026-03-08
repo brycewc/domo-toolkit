@@ -2,12 +2,12 @@ import { Toast } from '@heroui/react';
 import { useEffect, useState } from 'react';
 
 import { ActionButtons, ContextFooter } from '@/components';
-import { useStatusBar, useTheme } from '@/hooks';
+import { useReleaseNotification, useStatusBar, useTheme } from '@/hooks';
 import { DomoContext } from '@/models';
 
 export default function App() {
-  // Apply theme
   useTheme();
+  useReleaseNotification();
 
   const [currentContext, setCurrentContext] = useState(null);
   const [isLoadingCurrentContext, setIsLoadingCurrentContext] = useState(true);

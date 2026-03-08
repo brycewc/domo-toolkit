@@ -41,6 +41,7 @@ export const NavigateToCopiedObject = forwardRef(
     const [defaultDomoInstance, setDefaultDomoInstance] = useState('');
     const lastCheckedClipboard = useRef('');
     const [allTypes, setAllTypes] = useState([]);
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isHolding, setIsHolding] = useState(false);
     const holdTimeoutRef = useRef(null);
 
@@ -399,6 +400,16 @@ export const NavigateToCopiedObject = forwardRef(
         return;
       }
 
+      if (
+        objectIdToUse &&
+        !objectDetails &&
+        !manuallySelectedType &&
+        !selectedType
+      ) {
+        setIsDropdownOpen(true);
+        return;
+      }
+
       handleNavigate(objectIdToUse, manuallySelectedType);
     };
 
@@ -507,7 +518,9 @@ export const NavigateToCopiedObject = forwardRef(
     return (
       <Dropdown
         isDisabled={longPressDisabled}
+        isOpen={isDropdownOpen}
         trigger={longPressDisabled ? 'click' : 'longPress'}
+        onOpenChange={setIsDropdownOpen}
       >
         <Tooltip closeDelay={0} delay={400}>
           <Button
@@ -551,7 +564,8 @@ export const NavigateToCopiedObject = forwardRef(
                     )}
                   </AnimatePresence>
                 </>
-              )}
+              )
+            }
           </Button>
           <Tooltip.Content
             className='flex flex-col items-center'
@@ -577,8 +591,10 @@ export const NavigateToCopiedObject = forwardRef(
                       )}
                     </span>
                   </>
-                ) : (
+                ) : isLoading ? (
                   'Loading object details...'
+                ) : (
+                  'Click to choose object type'
                 )
               ) : (
                 'No valid Domo object ID in clipboard'
@@ -592,9 +608,10 @@ export const NavigateToCopiedObject = forwardRef(
                   {objectDetails?.typeName?.toLowerCase()}
                 </span>
               )}
-              {!longPressDisabled && (
-                <span className='italic'> - Hold for more options</span>
-              )}
+              {!longPressDisabled &&
+                (objectDetails || isLoading || !copiedObjectId) && (
+                  <span className='italic'> - Hold for more options</span>
+                )}
             </div>
           </Tooltip.Content>
         </Tooltip>

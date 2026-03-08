@@ -1,5 +1,6 @@
 export { ActionButtons } from './ActionButtons';
 export { AnimatedCheck } from './AnimatedCheck';
+export { AnimatedX } from './AnimatedX';
 export { ContextFooter } from './ContextFooter';
 export * from './functions';
 export * from './options';
