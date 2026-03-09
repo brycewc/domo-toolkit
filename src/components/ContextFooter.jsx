@@ -69,6 +69,7 @@ export function ContextFooter({
               id: related.field,
               isArray: true,
               isCurrentObject: false,
+              itemIdField: related.itemIdField,
               itemTypeField: related.itemTypeField,
               itemTypeId: related.itemTypeId,
               label: `${related.label} (${arrayData.length})`
@@ -221,6 +222,7 @@ export function ContextFooter({
       const src = injectUrls(activeTab.data, {
         baseUrl,
         isArray: true,
+        itemIdField: activeTab.itemIdField,
         itemTypeField: activeTab.itemTypeField,
         itemTypeId: activeTab.itemTypeId
       });
@@ -456,7 +458,7 @@ function buildSimpleUrl(baseUrl, typeId, objectId) {
 
 function injectUrls(
   src,
-  { baseUrl, isArray, itemTypeField, itemTypeId, objectId, typeId }
+  { baseUrl, isArray, itemIdField, itemTypeField, itemTypeId, objectId, typeId }
 ) {
   if (!src || !baseUrl) return src;
 
@@ -464,7 +466,7 @@ function injectUrls(
     return src.map((item) => {
       if (!item || typeof item !== 'object') return item;
       const resolvedType = itemTypeId || item[itemTypeField];
-      const itemId = item.id;
+      const itemId = itemIdField ? item[itemIdField] : item.id;
       if (!resolvedType || !itemId) return item;
       const url = buildSimpleUrl(baseUrl, resolvedType, itemId);
       return url ? { url, ...item } : item;

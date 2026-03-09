@@ -12,7 +12,7 @@ export class DomoObjectType {
    * @param {Object} [extractConfig] - Configuration for extracting ID from URL
    * @param {Object} [api] - API configuration for fetching object details
    * @param {Array<string>} [parents] - Array of parent object type IDs this object can have
-   * @param {Array<Object>} [relatedObjects] - Array of related object configs [{field, typeId, label, source?}]
+   * @param {Array<Object>} [relatedObjects] - Array of related object configs [{field, typeId, label, source?, itemIdField?}]
    * @param {boolean} [deprecated] - Whether this object type is deprecated
    */
   constructor(
@@ -442,7 +442,7 @@ export const ObjectTypeRegistry = {
       pathToName: '[0].title'
     },
     ['DATA_SOURCE', 'APP'],
-    [{ field: 'datasources', isArray: true, itemTypeId: 'DATA_SOURCE', label: 'DataSets' }]
+    [{ field: 'datasources', isArray: true, itemIdField: 'dataSourceId', itemTypeId: 'DATA_SOURCE', label: 'DataSets' }]
   ),
   CERTIFICATION: new DomoObjectType(
     'CERTIFICATION',
