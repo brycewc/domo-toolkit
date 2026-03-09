@@ -781,7 +781,7 @@ export const ObjectTypeRegistry = {
   ),
   EXECUTOR_APPLICATION: new DomoObjectType(
     'EXECUTOR_APPLICATION',
-    'Toolkit Application',
+    'Governance Toolkit Application',
     null,
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     null,
@@ -792,7 +792,7 @@ export const ObjectTypeRegistry = {
   ),
   EXECUTOR_JOB: new DomoObjectType(
     'EXECUTOR_JOB',
-    'Toolkit Job',
+    'Governance Toolkit Job',
     null,
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     null,
