@@ -17,6 +17,7 @@ import {
   IconDots,
   IconFolders,
   IconRefresh,
+  IconTable,
   IconUserPlus,
   IconUsersPlus,
   IconX
@@ -32,7 +33,7 @@ import { AnimatedCheck } from '@/components';
 
 /**
  * Available item action types for DataList items
- * @typedef {'remove' | 'openAll' | 'copy' | 'share' | 'shareAll'} ItemActionType
+ * @typedef {'remove' | 'openAll' | 'copy' | 'share' | 'shareAll' | 'viewsExplorer'} ItemActionType
  */
 
 /**
@@ -201,6 +202,18 @@ export function DataList({
         case 'shareAll':
           await onItemShareAll?.(actionType, item);
           break;
+
+        case 'viewsExplorer': {
+          const baseUrl = item.domoObject?.baseUrl;
+          if (baseUrl && item.id) {
+            window.open(
+              `${baseUrl}/datasources/${item.id}/view/create`,
+              '_blank',
+              'noopener,noreferrer'
+            );
+          }
+          break;
+        }
 
         default:
           break;
@@ -553,6 +566,24 @@ function DataListItem({
     </Tooltip>
   );
 
+  const viewsExplorerButton = (
+    <Tooltip closeDelay={0} delay={400} key='viewsExplorer'>
+      <Button
+        fullWidth
+        isIconOnly
+        aria-label='Open in Views Explorer'
+        size='sm'
+        variant='ghost'
+        onPress={() => handleAction('viewsExplorer')}
+      >
+        <IconTable stroke={1.5} />
+      </Button>
+      <Tooltip.Content className='text-xs'>
+        Open in Views Explorer
+      </Tooltip.Content>
+    </Tooltip>
+  );
+
   // Compute which actions apply to this item
   const getApplicableActions = () => {
     const isUnshareable =
@@ -591,6 +622,11 @@ function DataListItem({
         actions.push(shareAllButton);
       if (itemActions.includes('share') && !isUnshareable)
         actions.push(shareButton);
+      if (
+        itemActions.includes('viewsExplorer') &&
+        item.typeId === 'DATA_SOURCE'
+      )
+        actions.push(viewsExplorerButton);
       if (itemActions.includes('copy')) actions.push(copyButton);
       return actions;
     }
@@ -655,24 +691,24 @@ function DataListItem({
     applicableActions.length === 1
       ? applicableActions[0]
       : applicableActions.length > 1 && (
-        <Popover>
-          <Button isIconOnly size='sm' variant='ghost'>
-            <IconDots stroke={1.5} />
-          </Button>
-          <Popover.Content offset={4} placement='left'>
-            <Popover.Dialog className='p-0'>
-              <ButtonGroup
-                fullWidth
-                className='flex max-w-xs justify-end'
-                size='sm'
-                variant='ghost'
-              >
-                {applicableActions}
-              </ButtonGroup>
-            </Popover.Dialog>
-          </Popover.Content>
-        </Popover>
-      );
+          <Popover>
+            <Button isIconOnly size='sm' variant='ghost'>
+              <IconDots stroke={1.5} />
+            </Button>
+            <Popover.Content offset={4} placement='left'>
+              <Popover.Dialog className='p-0'>
+                <ButtonGroup
+                  fullWidth
+                  className='flex max-w-xs justify-end'
+                  size='sm'
+                  variant='ghost'
+                >
+                  {applicableActions}
+                </ButtonGroup>
+              </Popover.Dialog>
+            </Popover.Content>
+          </Popover>
+        );
 
   if (!hasChildren) {
     return (

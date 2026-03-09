@@ -3,9 +3,6 @@
  * Applies visual effects to page favicons based on configured rules
  */
 
-import domoLogoTransparent from '@/assets/domo-logo-no-background.png';
-import domoLogo from '@/assets/domo-logo.png';
-
 import { EXCLUDED_HOSTNAMES } from './constants';
 
 /**
@@ -209,7 +206,7 @@ async function applyColorEffect(favicon, effect, color) {
     };
 
     // Always use the fresh Domo logo to prevent effect stacking
-    img.src = chrome.runtime.getURL(domoLogo);
+    img.src = 'public/domo-logo.png';
   });
 }
 
@@ -252,7 +249,7 @@ async function applyDomoLogoColored(favicon, color) {
     };
 
     // Load the transparent Domo logo
-    img.src = chrome.runtime.getURL(domoLogoTransparent);
+    img.src = 'public/domo-logo-no-background.png';
   });
 }
 

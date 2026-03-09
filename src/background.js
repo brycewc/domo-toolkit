@@ -296,9 +296,7 @@ chrome.runtime.onInstalled.addListener((details) => {
       url: chrome.runtime.getURL('src/options/index.html#welcome')
     });
     chrome.storage.local.set({ lastSeenVersion: currentVersion });
-  }
-
-  if (details.reason === 'update' && details.previousVersion) {
+  } else if (details.reason === 'update' && details.previousVersion) {
     const newReleases = releases.filter(
       (r) => compareVersions(r.version, details.previousVersion) > 0
     );
@@ -880,10 +878,8 @@ async function detectAndStoreContext(tabId) {
             setTabContext(tabId, currentContext);
           }
         });
-    }
-
-    // For CARD types, fetch child pages asynchronously (non-blocking)
-    if (typeModel.id === 'CARD') {
+    } else if (typeModel.id === 'CARD') {
+      // Fetch pages for card in background without blocking
       // Fetch pages for card in background without blocking
       getPagesForCards([parseInt(objectId)], tabId)
         .then(({ pages: childPages }) => {

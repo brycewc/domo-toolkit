@@ -16,9 +16,6 @@ import {
 } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 
-import toolkitLogo from '@/assets/toolkit-128.png';
-import toolkitLogoDark from '@/assets/toolkit-dark-128.png';
-
 export function Settings({ theme = 'system' }) {
   const [isLoading, setIsLoading] = useState(true);
 
@@ -251,7 +248,11 @@ export function Settings({ theme = 'system' }) {
           <Select.Popover>
             <ListBox>
               <ListBox.Item id='light' textValue='Light'>
-                <img alt='Light' className='h-4 w-4' src={toolkitLogo} />
+                <img
+                  alt='Light'
+                  className='h-4 w-4'
+                  src='/public/toolkit-128.png'
+                />
                 Light
                 <ListBox.ItemIndicator>
                   {({ isSelected }) =>
@@ -260,7 +261,11 @@ export function Settings({ theme = 'system' }) {
                 </ListBox.ItemIndicator>
               </ListBox.Item>
               <ListBox.Item id='dark' textValue='Dark'>
-                <img alt='Dark' className='h-4 w-4' src={toolkitLogoDark} />
+                <img
+                  alt='Dark'
+                  className='h-4 w-4'
+                  src='/public/toolkit-dark-128.png'
+                />
                 Dark
                 <ListBox.ItemIndicator>
                   {({ isSelected }) =>

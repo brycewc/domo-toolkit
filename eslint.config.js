@@ -39,15 +39,7 @@ export default defineConfig([
       '@stylistic/computed-property-spacing': ['error', 'never'],
       '@stylistic/eol-last': ['error', 'always'],
       '@stylistic/function-call-spacing': ['error', 'never'],
-      '@stylistic/indent': [
-        'error',
-        2,
-        {
-          ignoredNodes: ['JSXElement *', 'JSXElement'],
-          offsetTernaryExpressions: true,
-          SwitchCase: 1
-        }
-      ],
+      '@stylistic/indent': 'off',
       '@stylistic/jsx-closing-bracket-location': ['error', 'line-aligned'],
       '@stylistic/jsx-closing-tag-location': 'error',
       '@stylistic/jsx-curly-spacing': ['error', 'never'],

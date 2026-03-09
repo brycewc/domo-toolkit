@@ -1,13 +1,8 @@
-import { Button, Card, Chip, Link } from '@heroui/react';
-import {
-  IconArrowRight,
-  IconBrandGithub,
-  IconSparkles
-} from '@tabler/icons-react';
+import { Button, Card, Chip } from '@heroui/react';
+import { IconExternalLink, IconSparkles, IconX } from '@tabler/icons-react';
 import { motion } from 'motion/react';
 import { useEffect } from 'react';
 
-import toolkitLogo from '@/assets/toolkit-128.png';
 import { releases } from '@/data';
 
 export function ReleaseNotesPage() {
@@ -15,11 +10,16 @@ export function ReleaseNotesPage() {
     chrome.runtime.sendMessage({ type: 'RELEASE_NOTES_SEEN' }).catch(() => {});
   }, []);
 
-  const handleContinue = () => {
-    window.location.hash = 'favicon';
+  const latest = releases[0];
+
+  const handleNavigate = () => {
+    window.open(latest.githubUrl);
+    handleClose();
   };
 
-  const latest = releases[0];
+  const handleClose = () => {
+    window.close();
+  };
 
   if (!latest) {
     return (
@@ -37,7 +37,11 @@ export function ReleaseNotesPage() {
         initial={{ opacity: 0, y: -20 }}
         transition={{ duration: 0.3 }}
       >
-        <img alt='Domo Toolkit Logo' className='h-16 w-16' src={toolkitLogo} />
+        <img
+          alt='Domo Toolkit Logo'
+          className='h-16 w-16'
+          src='/public/toolkit-128.png'
+        />
         <h1 className='text-xl font-semibold text-foreground'>
           What's New in v{latest.version}
         </h1>
@@ -80,23 +84,6 @@ export function ReleaseNotesPage() {
         </div>
       </motion.div>
 
-      <motion.div
-        animate={{ opacity: 1 }}
-        className='flex flex-col gap-2'
-        initial={{ opacity: 0 }}
-        transition={{ delay: 0.25, duration: 0.3 }}
-      >
-        <p className='text-sm font-medium tracking-wide uppercase'>
-          Full Details
-        </p>
-        <Link className='no-underline' href={latest.githubUrl} target='_blank'>
-          <Button variant='tertiary'>
-            <IconBrandGithub stroke={1.5} />
-            View Full Release Notes on GitHub
-          </Button>
-        </Link>
-      </motion.div>
-
       {releases.length > 1 && (
         <motion.div
           animate={{ opacity: 1 }}
@@ -136,10 +123,16 @@ export function ReleaseNotesPage() {
         initial={{ opacity: 0 }}
         transition={{ delay: 0.3, duration: 0.3 }}
       >
-        <Button fullWidth variant='primary' onPress={handleContinue}>
-          Continue
-          <IconArrowRight />
-        </Button>
+        <div className='flex gap-2'>
+          <Button fullWidth variant='secondary' onPress={handleNavigate}>
+            <IconExternalLink stroke={1.5} />
+            View Full Release Notes
+          </Button>
+          <Button fullWidth variant='primary' onPress={handleClose}>
+            <IconX stroke={1.5} />
+            Close
+          </Button>
+        </div>
       </motion.div>
     </div>
   );

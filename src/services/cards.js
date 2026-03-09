@@ -182,8 +182,8 @@ export async function getCardDatasets({ cardId, tabId = null }) {
             `Failed to fetch card datasets for ${cardId}. HTTP status: ${response.status}`
           );
         }
-        const card = await response.json();
-        return card.datasources || [];
+        const cards = await response.json();
+        return [].concat(cards).flatMap((c) => c.datasources || []);
       },
       [cardId],
       tabId

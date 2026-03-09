@@ -28,8 +28,6 @@ import {
 import { motion } from 'motion/react';
 import { useEffect, useState } from 'react';
 
-import toolkitLogo from '@/assets/toolkit-128.png';
-
 const cookieOptions = [
   {
     description: 'Clear cookies on 431 errors, preserve last 2 instances',
@@ -147,7 +145,11 @@ export function WelcomePage() {
         initial={{ opacity: 0, y: -20 }}
         transition={{ duration: 0.3 }}
       >
-        <img alt='Domo Toolkit Logo' className='h-16 w-16' src={toolkitLogo} />
+        <img
+          alt='Domo Toolkit Logo'
+          className='h-16 w-16'
+          src='/public/toolkit-128.png'
+        />
         <h1 className='text-xl font-semibold text-foreground'>
           Welcome to Domo Toolkit
         </h1>
