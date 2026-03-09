@@ -1,5 +1,5 @@
-import { Button, Link, Tabs, Toast } from '@heroui/react';
-import { IconInbox } from '@tabler/icons-react';
+import { Button, ButtonGroup, Tabs, Toast, Tooltip } from '@heroui/react';
+import { IconBug, IconSparkles } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 
 import {
@@ -54,21 +54,12 @@ export default function App() {
 
   const fullScreenPage = FULL_SCREEN_PAGES.get(currentRoute);
 
-  useEffect(() => {
-    if (fullScreenPage?.fullWidth) {
-      document.documentElement.style.scrollbarGutter = 'auto';
-      return () => {
-        document.documentElement.style.scrollbarGutter = 'stable';
-      };
-    }
-  }, [fullScreenPage?.fullWidth]);
-
   if (fullScreenPage) {
     const PageComponent = fullScreenPage.component;
     return (
       <div className='flex h-screen w-full justify-center'>
         <div
-          className={`flex h-full w-full flex-col px-4 pb-4 pt-8 ${fullScreenPage.fullWidth ? '' : 'max-w-3xl'}`}
+          className={`flex h-full w-full flex-col px-4 pt-8 pb-4 ${fullScreenPage.fullWidth ? '' : 'max-w-3xl'}`}
         >
           <PageComponent />
         </div>
@@ -83,16 +74,44 @@ export default function App() {
 
   return (
     <div className='flex h-screen w-full justify-center'>
-      <Link
-        className='fixed right-1 bottom-4 z-10 no-underline'
-        href='https://github.com/brycewc/domo-toolkit/issues'
-        target='_blank'
-      >
-        <Button>
-          <IconInbox stroke={1.5} />
-          Submit Feedback
-        </Button>
-      </Link>
+      <div className='fixed top-4 right-4 z-10'>
+        <ButtonGroup>
+          <Tooltip closeDelay={0} delay={400}>
+            <Button
+              isIconOnly
+              variant='secondary'
+              onPress={() => {
+                window.open(
+                  'https://github.com/brycewc/domo-toolkit/issues/new?template=bug-report.md',
+                  '_blank'
+                );
+              }}
+            >
+              <IconBug stroke={1.5} />
+            </Button>
+            <Tooltip.Content className='w-fit text-center'>
+              Report Bug
+            </Tooltip.Content>
+          </Tooltip>
+          <Tooltip closeDelay={0} delay={400}>
+            <Button
+              isIconOnly
+              variant='secondary'
+              onPress={() => {
+                window.open(
+                  'https://github.com/brycewc/domo-toolkit/issues/new?template=feature-request.md',
+                  '_blank'
+                );
+              }}
+            >
+              <IconSparkles stroke={1.5} />
+            </Button>
+            <Tooltip.Content className='w-fit text-center'>
+              Request Feature
+            </Tooltip.Content>
+          </Tooltip>
+        </ButtonGroup>
+      </div>
       <Tabs
         className='h-full w-full items-center rounded-sm'
         selectedKey={currentRoute}
@@ -112,10 +131,10 @@ export default function App() {
           </Tabs.List>
         </Tabs.ListContainer>
         <Tabs.Panel
-          className='flex h-full max-w-3xl flex-col px-4 pt-16'
+          className='flex h-full max-w-3xl flex-col overflow-hidden px-4 pt-16'
           id='favicon'
         >
-          <div className='w-full justify-start'>
+          <div className='w-full shrink-0 justify-start'>
             <h3 className='mb-2 text-lg font-semibold'>Favicon Preferences</h3>
             <p className='text-sm text-muted'>
               Manage your favicon preferences. Patterns will automatically match
