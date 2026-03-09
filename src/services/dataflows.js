@@ -11,11 +11,7 @@ import { executeInPage } from '@/utils';
 export async function getDataflowForOutputDataset(datasetId, tabId = null) {
   const fetchLogic = async (datasetId) => {
     const response = await fetch(
-      `/api/dataprocessing/v2/dataflows/${datasetId}?populateActions=false&excludeFields=executionCount`,
-      {
-        credentials: 'include',
-        method: 'GET'
-      }
+      `/api/dataprocessing/v2/dataflows/${datasetId}?populateActions=false&excludeFields=executionCount`
     );
 
     if (!response.ok) {
@@ -65,7 +61,6 @@ export async function updateDataflowDetails(dataflowId, updates) {
           `/api/dataprocessing/v1/dataflows/${dataflowId}/patch`,
           {
             body: JSON.stringify(payload),
-            credentials: 'include',
             headers: {
               'Content-Type': 'application/json'
             },

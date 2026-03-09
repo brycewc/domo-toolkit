@@ -75,6 +75,7 @@ Avoid:
 - Include a description of what the PR does and why
 - Test your changes against a live Domo instance (domo-community.domo.com is a great testing environment if you don't feel comfortable testing in your usual instance)
 - Make sure the extension builds without errors (`yarn build`)
+- Run ESLint before submitting (`npx eslint --no-warn-ignored src/`)
 - Run Prettier before submitting (`npx prettier --write .`)
 - If your change affects the UI, include a screenshot or screen recording
 
@@ -91,28 +92,30 @@ All PRs are reviewed before merging. You may be asked to make changes -- this is
 | **Framework**        | React                   | 19.2.4       |
 | **Bundler**          | Vite                    | 7.3.0        |
 | **Extension Plugin** | @crxjs/vite-plugin      | 2.0.3        |
-| **UI Library**       | @heroui/react           | 3.0.0-beta.6 |
+| **UI Library**       | @heroui/react           | 3.0.0-beta.8 |
 | **CSS**              | Tailwind CSS            | 4.1.18       |
 | **Icons**            | @tabler/icons-react     | 3.36.1       |
-| **Tables**           | @tanstack/react-table   | 8.21.3       |
 | **Virtualization**   | @tanstack/react-virtual | 3.13.18      |
+| **Linter**           | ESLint                  | 10.0.2       |
 | **Formatter**        | Prettier                | 3.7.4        |
 
 ## Project Structure
 
 ```
 src/
-├── popup/              # Popup UI (click on extension icon)
-├── sidepanel/          # Side panel UI (contextual panel alongside pages)
-├── options/            # Settings/options page
+├── assets/             # Static assets and CSS
 ├── components/         # Shared React components
 │   ├── functions/      # Action button implementations
-│   └── options/        # Settings page components
-├── services/           # Domo API service functions
-├── models/             # Data classes (DomoObject, DomoContext, DomoObjectType)
+│   ├── options/        # Settings page components
+│   └── views/          # View components used in side panel for data discovery features
+├── data/               # Release information used for new release badge and page
 ├── hooks/              # Custom React hooks
+├── models/             # Data classes (DomoObject, DomoContext, DomoObjectType)
+├── options/            # Settings/options page
+├── popup/              # Popup UI (click on extension icon)
+├── services/           # Domo API service functions
+├── sidepanel/          # Side panel UI (contextual panel alongside pages)
 ├── utils/              # Utility functions
-├── assets/             # Static assets and global CSS
 ├── background.js       # Service worker (background script)
 └── contentScript.js    # Content script (injected into Domo pages)
 ```
@@ -165,13 +168,37 @@ Load the extension in Chrome:
 
 ## Code Conventions
 
+### Linting (via ESLint)
+
+The project uses ESLint with three plugin layers configured in `eslint.config.js`:
+
+- **`@eslint/js` recommended** — standard JavaScript code-quality rules (no unused vars, no undef, etc.)
+- **`eslint-plugin-perfectionist`** — enforces alphabetical sorting of imports, exports, object keys, JSX props, switch cases, and class members
+- **`@stylistic/eslint-plugin`** — enforces consistent formatting (brace style, spacing, indentation, quotes, semicolons, etc.)
+
+Key sorting rules enforced by perfectionist:
+
+- **Imports** — sorted alphabetically by module path, with named specifiers sorted inside braces
+- **Exports** — sorted alphabetically by export path
+- **Object keys** — sorted alphabetically in literals, destructuring, and config objects
+- **JSX props** — sorted with shorthand props first, then regular props, then callbacks (`on*`), then multiline props
+- **Switch cases** — sorted alphabetically, with `default` last
+
+Unused variables must be prefixed with `_` (e.g., `_event`, `_unused`). Caught errors are exempt.
+
+Run ESLint to check files:
+
+```bash
+npx eslint --no-warn-ignored <file-paths>
+```
+
 ### Formatting (via Prettier)
 
 - Single quotes for strings and JSX attributes
 - No trailing commas
 - 2-space indentation
 - Semicolons required
-- Tailwind classes auto-sorted
+- Tailwind classes auto-sorted via `prettier-plugin-tailwindcss`
 
 ### File Organization
 
@@ -291,7 +318,8 @@ Host permission: `*://*.domo.com/*`
 | -------------------- | ----------------------------------------------------------------- |
 | `vite.config.js`     | Vite config with CRXJS, Tailwind, and path aliases                |
 | `manifest.config.js` | Chrome extension manifest v3 (permissions, content scripts, etc.) |
-| `.prettierrc`        | Code formatting rules                                             |
+| `eslint.config.js`   | ESLint config with perfectionist sorting and stylistic rules      |
+| `.prettierrc`        | Prettier formatting rules                                         |
 
 ## Documentation
 
@@ -301,6 +329,7 @@ Host permission: `*://*.domo.com/*`
 - [Tailwind CSS Documentation](https://tailwindcss.com/docs)
 - [HeroUI Documentation](https://v3.heroui.com/docs/react/getting-started)
 - [Tabler Icons Documentation](https://tabler.io/icons)
-- [TanStack Table Documentation](https://tanstack.com/table/latest/docs/introduction)
 - [TanStack Virtual Documentation](https://tanstack.com/virtual/latest/docs/introduction)
+- [ESLint Documentation](https://eslint.org/docs/latest/)
+- [eslint-plugin-perfectionist Documentation](https://perfectionist.dev/)
 - [Prettier Documentation](https://prettier.io/docs)

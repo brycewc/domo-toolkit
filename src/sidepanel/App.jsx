@@ -202,7 +202,7 @@ export default function App() {
           collapsable={true}
           currentContext={currentContext}
           defaultExpanded={activeView === 'default'}
-          isLoadingCurrentContext={isLoadingCurrentContext}
+          isLoading={isLoadingCurrentContext}
           onStatusUpdate={showStatus}
         />
 

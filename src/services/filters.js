@@ -1165,10 +1165,7 @@ export async function getVariableControlFilters(pageId, tabId = null) {
 
         // First, get all cards on the page
         const cardsResponse = await fetch(
-          `/api/content/v1/pages/${pageId}/cards`,
-          {
-            credentials: 'include'
-          }
+          `/api/content/v1/pages/${pageId}/cards`
         );
 
         if (!cardsResponse.ok) {
@@ -1199,8 +1196,7 @@ export async function getVariableControlFilters(pageId, tabId = null) {
         const controlPromises = cardsToCheck.map(async (card) => {
           try {
             const controlsResponse = await fetch(
-              `/api/content/v1/cards/${card.id}/variable/controls`,
-              { credentials: 'include' }
+              `/api/content/v1/cards/${card.id}/variable/controls`
             );
 
             if (controlsResponse.ok) {

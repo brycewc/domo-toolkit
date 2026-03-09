@@ -157,7 +157,7 @@ export function DataTable({
   };
 
   return (
-    <Card className='h-fit w-full'>
+    <Card className='flex min-h-0 w-full flex-1 flex-col'>
       <Card.Header>
         <div className='items-between flex w-full flex-col justify-center gap-1 sm:flex-row sm:items-center sm:justify-between'>
           <div className='flex w-full items-center gap-1 sm:justify-between'>
@@ -293,10 +293,10 @@ export function DataTable({
         </div>
       </Card.Header>
 
-      <Card.Content className='overflow-hidden rounded-lg border border-default'>
-        <Table variant='secondary'>
+      <Card.Content className='h-0 min-h-0 flex-1 overflow-hidden rounded-lg'>
+        <Table className='h-full' variant='secondary'>
           <Table.ScrollContainer
-            className='max-h-[calc(100vh-12rem)] overflow-auto overscroll-y-contain'
+            className='h-full overflow-auto overscroll-y-contain'
             ref={tableContainerRef}
           >
             <Table.Content

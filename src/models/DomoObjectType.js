@@ -228,7 +228,6 @@ export const ObjectTypeRegistry = {
     null,
     {
       endpoint: '/data/v1/accounts/{id}',
-      method: 'GET',
       pathToName: 'name'
     }
   ),
@@ -248,7 +247,6 @@ export const ObjectTypeRegistry = {
     null,
     {
       endpoint: '/content/v1/achievements/{id}',
-      method: 'GET',
       pathToName: 'name'
     }
   ),
@@ -334,7 +332,6 @@ export const ObjectTypeRegistry = {
     { keyword: 'model' },
     {
       endpoint: '/datascience/ml/v1/models/{id}',
-      method: 'GET',
       pathToName: 'name'
     }
   ),
@@ -346,7 +343,6 @@ export const ObjectTypeRegistry = {
     { keyword: 'projects' },
     {
       endpoint: '/datascience/ml/v1/projects/{id}',
-      method: 'GET',
       pathToName: 'name'
     }
   ),
@@ -358,7 +354,6 @@ export const ObjectTypeRegistry = {
     { keyword: 'alerts' },
     {
       endpoint: '/social/v4/alerts/{id}',
-      method: 'GET',
       pathToName: 'name'
     }
   ),
@@ -386,7 +381,6 @@ export const ObjectTypeRegistry = {
     { keyword: 'assetlibrary' },
     {
       endpoint: '/apps/v1/designs/{id}?parts=versions',
-      method: 'GET',
       pathToName: 'name'
     }
   ),
@@ -429,7 +423,6 @@ export const ObjectTypeRegistry = {
     { keyword: 'id' },
     {
       endpoint: '/query/v1/functions/template/{id}?hidden=true',
-      method: 'GET',
       pathToName: 'name'
     },
     ['DATA_SOURCE', 'CARD']
@@ -445,7 +438,6 @@ export const ObjectTypeRegistry = {
     {
       endpoint:
         '/content/v1/cards?urns={id}&includeFiltered=true&parts=metadata,datasources,domoapp',
-      method: 'GET',
       pathToDetails: '[0]',
       pathToName: '[0].title'
     },
@@ -492,7 +484,6 @@ export const ObjectTypeRegistry = {
     { keyword: 'codeengine' },
     {
       endpoint: '/codeengine/v2/packages/{id}?parts=functions',
-      method: 'GET',
       pathToName: 'name'
     }
   ),
@@ -503,8 +494,7 @@ export const ObjectTypeRegistry = {
     /^[0-9]+\.[0-9]+\.[0-9]+$/,
     null,
     {
-      endpoint: '/codeengine/v2/packages/{parent}/versions/{id}',
-      method: 'GET'
+      endpoint: '/codeengine/v2/packages/{parent}/versions/{id}'
     },
     ['CODEENGINE_PACKAGE']
   ),
@@ -581,7 +571,6 @@ export const ObjectTypeRegistry = {
     null,
     {
       endpoint: '/content/v1/customer-states/{id}',
-      method: 'GET',
       pathToName: 'name'
     }
   ),
@@ -593,7 +582,6 @@ export const ObjectTypeRegistry = {
     { keyword: 'app-studio' },
     {
       endpoint: '/content/v1/dataapps/{id}',
-      method: 'GET',
       pathToName: 'title'
     }
   ),
@@ -608,7 +596,6 @@ export const ObjectTypeRegistry = {
     },
     {
       endpoint: '/content/v3/stacks/{id}',
-      method: 'GET',
       pathToName: 'title'
     },
     ['DATA_APP'],
@@ -641,7 +628,6 @@ export const ObjectTypeRegistry = {
     { keyword: 'jupyter-workspaces' },
     {
       endpoint: '/datascience/v1/workspaces/{id}',
-      method: 'GET',
       pathToName: 'name'
     }
   ),
@@ -653,7 +639,6 @@ export const ObjectTypeRegistry = {
     { keyword: 'datasources' },
     {
       endpoint: '/data/v3/datasources/{id}?includeAllDetails=true',
-      method: 'GET',
       pathToName: 'name'
     },
     ['DATAFLOW_TYPE', 'DATA_SOURCE'],
@@ -671,7 +656,6 @@ export const ObjectTypeRegistry = {
     null,
     {
       endpoint: '/dataprocessing/v2/dataflows/{id}',
-      method: 'GET',
       pathToName: 'name'
     }
   ),
@@ -683,7 +667,6 @@ export const ObjectTypeRegistry = {
     { keyword: 'dataflows' },
     {
       endpoint: '/dataprocessing/v2/dataflows/{id}',
-      method: 'GET',
       pathToName: 'name'
     },
     null,
@@ -708,7 +691,6 @@ export const ObjectTypeRegistry = {
     null,
     {
       endpoint: '/data/v3/datasources/{id}?includeAllDetails=true',
-      method: 'GET',
       pathToName: 'name'
     }
   ),
@@ -744,7 +726,6 @@ export const ObjectTypeRegistry = {
     { keyword: 'drillviewid', parentExtract: { keyword: 'cardid', offset: 1 } },
     {
       endpoint: '/content/v1/cards?urns={id}:{parent}',
-      method: 'GET',
       pathToName: 'title'
     },
     ['CARD']
@@ -782,7 +763,6 @@ export const ObjectTypeRegistry = {
     null,
     {
       endpoint: '/forms/v2/{id}',
-      method: 'GET',
       pathToName: 'name'
     },
     ['WORKFLOW_MODEL']
@@ -795,7 +775,6 @@ export const ObjectTypeRegistry = {
     null,
     {
       endpoint: '/forms/v1/advanced-forms/{parent}/revisions/{id}',
-      method: 'GET',
       pathToName: 'revision'
     },
     ['ENIGMA_FORM']
@@ -808,7 +787,6 @@ export const ObjectTypeRegistry = {
     null,
     {
       endpoint: '/executor/v1/applications/{id}',
-      method: 'GET',
       pathToName: 'name'
     }
   ),
@@ -820,7 +798,6 @@ export const ObjectTypeRegistry = {
     null,
     {
       endpoint: '/executor/v1/applications/{parent}/jobs/{id}',
-      method: 'GET',
       pathToName: 'jobName'
     },
     ['EXECUTOR_APPLICATION'],
@@ -832,7 +809,6 @@ export const ObjectTypeRegistry = {
   ),
   FILE: new DomoObjectType('FILE', 'File', null, /^\d+$/, null, {
     endpoint: '/data/v1/data-files/{id}/details',
-    method: 'GET',
     pathToName: 'name'
   }),
   FILE_REVISION: new DomoObjectType(
@@ -843,7 +819,6 @@ export const ObjectTypeRegistry = {
     null,
     {
       endpoint: '/data/v1/data-files/{parent}/revisions/{id}',
-      method: 'GET',
       pathToName: 'name'
     },
     ['FILE']
@@ -856,7 +831,6 @@ export const ObjectTypeRegistry = {
     { keyword: 'filesets' },
     {
       endpoint: '/files/v1/filesets/{id}',
-      method: 'GET',
       pathToName: 'name'
     }
   ),
@@ -876,7 +850,6 @@ export const ObjectTypeRegistry = {
     null,
     {
       endpoint: '/files/v1/filesets/{parent}/files/{id}',
-      method: 'GET',
       pathToName: 'name'
     },
     ['FILESET']
@@ -894,7 +867,6 @@ export const ObjectTypeRegistry = {
   ),
   GOAL: new DomoObjectType('GOAL', 'Goal', null, /^\d+$/, null, {
     endpoint: '/social/v1/objectives/{id}',
-    method: 'GET',
     pathToName: 'name'
   }),
   GOAL_DELEGATE: new DomoObjectType(
@@ -913,7 +885,6 @@ export const ObjectTypeRegistry = {
     null,
     {
       endpoint: '/social/v1/objectives/periods/{id}',
-      method: 'GET',
       pathToName: 'name'
     }
   ),
@@ -934,7 +905,6 @@ export const ObjectTypeRegistry = {
     { keyword: 'groups' },
     {
       endpoint: '/content/v2/groups/{id}',
-      method: 'GET',
       pathToName: 'name'
     }
   ),
@@ -955,7 +925,6 @@ export const ObjectTypeRegistry = {
     { keyword: 'queueId' },
     {
       endpoint: '/queues/v1/{id}',
-      method: 'GET',
       pathToName: 'name'
     }
   ),
@@ -967,7 +936,6 @@ export const ObjectTypeRegistry = {
     { keyword: 'id' },
     {
       endpoint: '/queues/v1/{parent}/tasks/{id}',
-      method: 'GET',
       pathToName: 'displayEntity.name'
     },
     ['HOPPER_QUEUE']
@@ -990,7 +958,6 @@ export const ObjectTypeRegistry = {
     { keyword: 'key-results' },
     {
       endpoint: '/social/v1/objectives/key-results/{id}',
-      method: 'GET',
       pathToName: 'name'
     },
     ['GOAL']
@@ -1019,7 +986,6 @@ export const ObjectTypeRegistry = {
     { keyword: 'appDb' },
     {
       endpoint: '/datastores/v1/collections/{id}',
-      method: 'GET',
       pathToName: 'name'
     },
     ['MAGNUM_DATASTORE']
@@ -1032,7 +998,6 @@ export const ObjectTypeRegistry = {
     null,
     {
       endpoint: '/datastores/v1/{id}',
-      method: 'GET',
       pathToName: 'name'
     }
   ),
@@ -1064,7 +1029,6 @@ export const ObjectTypeRegistry = {
     },
     {
       endpoint: '/social/v1/objectives/{id}',
-      method: 'GET',
       pathToName: 'name'
     }
   ),
@@ -1079,7 +1043,6 @@ export const ObjectTypeRegistry = {
     },
     {
       endpoint: '/content/v3/stacks/{id}',
-      method: 'GET',
       pathToName: 'title'
     },
     ['PAGE'],
@@ -1128,7 +1091,6 @@ export const ObjectTypeRegistry = {
     },
     {
       endpoint: '/content/v1/projects/{id}',
-      method: 'GET',
       pathToName: 'projectName'
     }
   ),
@@ -1140,7 +1102,6 @@ export const ObjectTypeRegistry = {
     null,
     {
       endpoint: '/content/v1/projects/{parent}/lists/{id}',
-      method: 'GET',
       pathToName: 'name'
     },
     ['PROJECT']
@@ -1153,7 +1114,6 @@ export const ObjectTypeRegistry = {
     { keyword: 'taskId' },
     {
       endpoint: '/content/v1/tasks/{id}',
-      method: 'GET',
       pathToName: 'taskName'
     },
     ['PROJECT', 'PROJECT_LIST']
@@ -1208,7 +1168,6 @@ export const ObjectTypeRegistry = {
     { keyword: 'id' },
     {
       endpoint: '/publish/v2/publications/{id}',
-      method: 'GET',
       pathToName: 'name'
     }
   ),
@@ -1229,7 +1188,6 @@ export const ObjectTypeRegistry = {
     null,
     {
       endpoint: '/content/v1/reportbuilder/{id}',
-      method: 'GET',
       pathToName: 'title'
     }
   ),
@@ -1249,7 +1207,6 @@ export const ObjectTypeRegistry = {
     null,
     {
       endpoint: '/content/v1/reportbuilder/views/{id}',
-      method: 'GET',
       pathToName: 'subject'
     },
     ['REPORT_BUILDER']
@@ -1262,7 +1219,6 @@ export const ObjectTypeRegistry = {
     null,
     {
       endpoint: '/content/v1/reportschedules/{id}',
-      method: 'GET',
       pathToName: 'title'
     }
   ),
@@ -1274,7 +1230,6 @@ export const ObjectTypeRegistry = {
     { keyword: 'repositories' },
     {
       endpoint: '/versions/v1/repositories/{id}',
-      method: 'GET',
       pathToName: 'name'
     }
   ),
@@ -1296,7 +1251,6 @@ export const ObjectTypeRegistry = {
     },
     {
       endpoint: '/authorization/v1/roles/{id}',
-      method: 'GET',
       pathToName: 'name'
     }
   ),
@@ -1308,7 +1262,6 @@ export const ObjectTypeRegistry = {
     { keyword: 'assetlibrary' },
     {
       endpoint: '/apps/v1/designs/{id}',
-      method: 'GET',
       pathToName: 'name'
     }
   ),
@@ -1363,7 +1316,6 @@ export const ObjectTypeRegistry = {
     null,
     {
       endpoint: '/data/v1/streams/{id}?fields=all',
-      method: 'GET',
       nameTemplate: '{dataProvider.name} Stream {id}',
       pathToName: 'dataProvider.name'
     },
@@ -1440,7 +1392,6 @@ export const ObjectTypeRegistry = {
     { keyword: 'people' },
     {
       endpoint: '/content/v2/users/{id}',
-      method: 'GET',
       pathToName: 'displayName'
     }
   ),
@@ -1481,7 +1432,6 @@ export const ObjectTypeRegistry = {
   ),
   VARIABLE: new DomoObjectType('VARIABLE', 'Variable', null, /^\d+$/, null, {
     endpoint: '/query/v1/functions/template/{id}?hidden=true',
-    method: 'GET',
     pathToName: 'name'
   }),
   VARIABLE_CONTROL: new DomoObjectType(
@@ -1544,7 +1494,6 @@ export const ObjectTypeRegistry = {
     { keyword: 'cloud-integrations' },
     {
       endpoint: '/query/v1/byos/accounts/{id}',
-      method: 'GET',
       pathToName: 'friendlyName',
       pathToParentId: 'serviceAccountId'
     },
@@ -1596,7 +1545,6 @@ export const ObjectTypeRegistry = {
     },
     {
       endpoint: '/workflow/v2/executions/{id}',
-      method: 'GET',
       pathToName: 'modelName'
     },
     ['WORKFLOW_MODEL']
@@ -1609,7 +1557,6 @@ export const ObjectTypeRegistry = {
     { keyword: 'workflows', offset: 2 },
     {
       endpoint: '/workflow/v1/models/{id}',
-      method: 'GET',
       pathToName: 'name'
     }
   ),
@@ -1625,7 +1572,6 @@ export const ObjectTypeRegistry = {
     },
     {
       endpoint: '/workflow/v2/models/{parent}/versions/{id}',
-      method: 'GET',
       pathToName: 'version'
     },
     ['WORKFLOW_MODEL']
@@ -1647,7 +1593,6 @@ export const ObjectTypeRegistry = {
     { keyword: 'app-studio' },
     {
       endpoint: '/content/v1/dataapps/{id}',
-      method: 'GET',
       pathToName: 'title'
     }
   ),
@@ -1662,7 +1607,6 @@ export const ObjectTypeRegistry = {
     },
     {
       endpoint: '/content/v3/stacks/{id}',
-      method: 'GET',
       pathToName: 'title'
     },
     ['WORKSHEET'],
@@ -1676,7 +1620,6 @@ export const ObjectTypeRegistry = {
     { keyword: 'workspaces' },
     {
       endpoint: '/nav/v1/workspaces/{id}',
-      method: 'GET',
       pathToName: 'name'
     }
   )

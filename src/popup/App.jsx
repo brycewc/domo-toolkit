@@ -68,7 +68,7 @@ export default function App() {
       <ActionButtons
         collapsable={false}
         currentContext={currentContext}
-        isLoadingCurrentContext={isLoadingCurrentContext}
+        isLoading={isLoadingCurrentContext}
         onStatusUpdate={showStatus}
       />
       <ContextFooter

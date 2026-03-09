@@ -245,13 +245,23 @@ export function Copy({
             )}
           </AnimatePresence>
         </Button>
-        <Tooltip.Content className='flex items-center gap-2 text-center'>
-          <span>Copy ID</span>
-          <Kbd className='text-xs'>
-            <Kbd.Abbr keyValue={(navigator.userAgentData?.platform ?? navigator.platform).includes('Mac') ? 'command' : 'ctrl'} />
-            <Kbd.Abbr keyValue='shift' />
-            <Kbd.Content>1</Kbd.Content>
-          </Kbd>
+        <Tooltip.Content className='flex flex-col items-center'>
+          <div className='flex items-center gap-2'>
+            <span>Copy ID</span>
+            <Kbd className='text-xs'>
+              <Kbd.Abbr
+                keyValue={
+                  (
+                    navigator.userAgentData?.platform ?? navigator.platform
+                  ).includes('Mac')
+                    ? 'command'
+                    : 'ctrl'
+                }
+              />
+              <Kbd.Abbr keyValue='shift' />
+              <Kbd.Content>1</Kbd.Content>
+            </Kbd>
+          </div>
           {!longPressDisabled && (
             <span className='italic'>Hold for more options</span>
           )}

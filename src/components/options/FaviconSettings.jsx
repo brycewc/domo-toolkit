@@ -224,7 +224,8 @@ export function FaviconSettings() {
                       value={rule.pattern}
                       variant='secondary'
                       onChange={(value) =>
-                        updateRule(rule.id, 'pattern', value)}
+                        updateRule(rule.id, 'pattern', value)
+                      }
                     >
                       <Label>Subdomain Pattern</Label>
                       <Input />
@@ -253,42 +254,48 @@ export function FaviconSettings() {
                             instance-logo
                             <ListBox.ItemIndicator>
                               {({ isSelected }) =>
-                                isSelected ? <IconCheck stroke={1.5} /> : null}
+                                isSelected ? <IconCheck stroke={1.5} /> : null
+                              }
                             </ListBox.ItemIndicator>
                           </ListBox.Item>
                           <ListBox.Item id='domo-logo-colored'>
                             domo-logo-colored
                             <ListBox.ItemIndicator>
                               {({ isSelected }) =>
-                                isSelected ? <IconCheck stroke={1.5} /> : null}
+                                isSelected ? <IconCheck stroke={1.5} /> : null
+                              }
                             </ListBox.ItemIndicator>
                           </ListBox.Item>
                           <ListBox.Item id='top'>
                             top
                             <ListBox.ItemIndicator>
                               {({ isSelected }) =>
-                                isSelected ? <IconCheck stroke={1.5} /> : null}
+                                isSelected ? <IconCheck stroke={1.5} /> : null
+                              }
                             </ListBox.ItemIndicator>
                           </ListBox.Item>
                           <ListBox.Item id='right'>
                             right
                             <ListBox.ItemIndicator>
                               {({ isSelected }) =>
-                                isSelected ? <IconCheck stroke={1.5} /> : null}
+                                isSelected ? <IconCheck stroke={1.5} /> : null
+                              }
                             </ListBox.ItemIndicator>
                           </ListBox.Item>
                           <ListBox.Item id='bottom'>
                             bottom
                             <ListBox.ItemIndicator>
                               {({ isSelected }) =>
-                                isSelected ? <IconCheck stroke={1.5} /> : null}
+                                isSelected ? <IconCheck stroke={1.5} /> : null
+                              }
                             </ListBox.ItemIndicator>
                           </ListBox.Item>
                           <ListBox.Item id='left'>
                             left
                             <ListBox.ItemIndicator>
                               {({ isSelected }) =>
-                                isSelected ? <IconCheck stroke={1.5} /> : null}
+                                isSelected ? <IconCheck stroke={1.5} /> : null
+                              }
                             </ListBox.ItemIndicator>
                           </ListBox.Item>
                         </ListBox>
@@ -300,7 +307,8 @@ export function FaviconSettings() {
                     <ColorPicker
                       className='flex flex-col items-start justify-start gap-1'
                       onChange={(newColor) =>
-                        updateRule(rule.id, 'color', newColor.toString('hexa'))}
+                        updateRule(rule.id, 'color', newColor.toString('hexa'))
+                      }
                       value={
                         rule.effect === 'instance-logo'
                           ? '#00000000'
@@ -338,7 +346,8 @@ export function FaviconSettings() {
                               <ColorSwatchPicker.Swatch />
                               <ColorSwatchPicker.Indicator>
                                 {({ isSelected }) =>
-                                  isSelected ? <IconCheck /> : null}
+                                  isSelected ? <IconCheck /> : null
+                                }
                               </ColorSwatchPicker.Indicator>
                             </ColorSwatchPicker.Item>
                           ))}

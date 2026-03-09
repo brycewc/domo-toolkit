@@ -294,9 +294,7 @@ async function applyInstanceLogo(favicon, subdomain) {
   try {
     // Check if instance logo exists and get its ID
     const checkUrl = '/api/content/v1/avatar/CUSTOMER/CUSTOMER/all';
-    const checkResponse = await fetch(checkUrl, {
-      method: 'GET'
-    });
+    const checkResponse = await fetch(checkUrl);
 
     if (!checkResponse.ok) {
       console.warn('Could not check for instance logo');
@@ -339,9 +337,7 @@ async function applyInstanceLogo(favicon, subdomain) {
     const logoUrl = '/api/content/v1/avatar/CUSTOMER/CUSTOMER';
 
     // Fetch the logo and convert to data URL for caching
-    const logoResponse = await fetch(logoUrl, {
-      method: 'GET'
-    });
+    const logoResponse = await fetch(logoUrl);
 
     if (!logoResponse.ok) {
       console.warn('Could not fetch instance logo');

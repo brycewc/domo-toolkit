@@ -54,12 +54,21 @@ export default function App() {
 
   const fullScreenPage = FULL_SCREEN_PAGES.get(currentRoute);
 
+  useEffect(() => {
+    if (fullScreenPage?.fullWidth) {
+      document.documentElement.style.scrollbarGutter = 'auto';
+      return () => {
+        document.documentElement.style.scrollbarGutter = 'stable';
+      };
+    }
+  }, [fullScreenPage?.fullWidth]);
+
   if (fullScreenPage) {
     const PageComponent = fullScreenPage.component;
     return (
       <div className='flex h-screen w-full justify-center'>
         <div
-          className={`flex h-full w-full flex-col px-4 py-8 ${fullScreenPage.fullWidth ? '' : 'max-w-3xl'}`}
+          className={`flex h-full w-full flex-col px-4 pb-4 pt-8 ${fullScreenPage.fullWidth ? '' : 'max-w-3xl'}`}
         >
           <PageComponent />
         </div>

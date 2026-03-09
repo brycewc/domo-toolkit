@@ -4,6 +4,7 @@ import {
   Disclosure,
   Link,
   ScrollShadow,
+  Skeleton,
   Spinner,
   Tabs,
   Tooltip
@@ -259,11 +260,30 @@ export function ContextFooter({
       className='min-h-20 w-full p-2'
       status={currentContext?.isDomoPage || isLoading ? 'accent' : 'warning'}
     >
-      <Alert.Content
-        className={`flex flex-col gap-2 ${isLoading ? 'items-center justify-center' : 'items-start'}`}
-      >
+      <Alert.Content className='flex flex-col items-start gap-2'>
         {isLoading ? (
-          <Spinner color='accent' size='sm' />
+          <div className='skeleton--shimmer relative flex w-full flex-col gap-2 overflow-hidden'>
+            <div className='flex w-full items-center justify-between'>
+              <div className='flex items-center gap-x-1'>
+                <Skeleton
+                  animationType='none'
+                  className='h-4 w-24 rounded-md'
+                />
+                <Skeleton
+                  animationType='none'
+                  className='h-5 w-12 rounded-2xl'
+                />
+                <Skeleton
+                  animationType='none'
+                  className='h-5 w-12 rounded-2xl'
+                />
+              </div>
+              <Skeleton animationType='none' className='h-5 w-5 rounded-full' />
+            </div>
+            <div className='flex items-center gap-x-1'>
+              <Skeleton animationType='none' className='h-4 w-48 rounded-md' />
+            </div>
+          </div>
         ) : (
           <>
             <div
@@ -333,10 +353,7 @@ export function ContextFooter({
             </div>
             <Alert.Description className='flex h-full flex-col flex-wrap items-start justify-center gap-1'>
               {currentContext?.isDomoPage ? (
-                isLoading ? (
-                  <Spinner color='accent' size='sm' />
-                ) : !currentContext?.instance ||
-                  !currentContext?.domoObject?.id ? (
+                !currentContext?.instance || !currentContext?.domoObject?.id ? (
                   'No object detected on this page'
                 ) : (
                   <div className='flex flex-wrap items-center justify-start gap-x-1'>
@@ -437,7 +454,10 @@ function buildSimpleUrl(baseUrl, typeId, objectId) {
   return `${baseUrl}${path}`;
 }
 
-function injectUrls(src, { baseUrl, isArray, itemTypeField, itemTypeId, objectId, typeId }) {
+function injectUrls(
+  src,
+  { baseUrl, isArray, itemTypeField, itemTypeId, objectId, typeId }
+) {
   if (!src || !baseUrl) return src;
 
   if (isArray && Array.isArray(src)) {
