@@ -343,18 +343,18 @@ restoreFromSession();
 function updateExtensionIcon(isDark) {
   const iconPath = isDark
     ? {
-        128: 'public/toolkit-dark-128.png',
-        16: 'public/toolkit-dark-16.png',
-        24: 'public/toolkit-dark-24.png',
-        32: 'public/toolkit-dark-32.png',
-        48: 'public/toolkit-dark-48.png'
+        128: 'toolkit-dark-128.png',
+        16: 'toolkit-dark-16.png',
+        24: 'toolkit-dark-24.png',
+        32: 'toolkit-dark-32.png',
+        48: 'toolkit-dark-48.png'
       }
     : {
-        128: 'public/toolkit-128.png',
-        16: 'public/toolkit-16.png',
-        24: 'public/toolkit-24.png',
-        32: 'public/toolkit-32.png',
-        48: 'public/toolkit-48.png'
+        128: 'toolkit-128.png',
+        16: 'toolkit-16.png',
+        24: 'toolkit-24.png',
+        32: 'toolkit-32.png',
+        48: 'toolkit-48.png'
       };
 
   chrome.action.setIcon({ path: iconPath }).catch((error) => {

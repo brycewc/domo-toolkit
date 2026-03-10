@@ -21,6 +21,7 @@ import {
   CopyFilteredUrl,
   DataRepair,
   DeleteCurrentObject,
+  DevMenu,
   Export,
   GetCards,
   GetDatasets,
@@ -281,6 +282,7 @@ export function ActionButtons({
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
+                <DevMenu />
               </div>
             </Disclosure.Content>
           </Disclosure>

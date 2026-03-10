@@ -14,7 +14,7 @@ export const releases = [
       'Copy ID keyboard shortcut (Ctrl+Shift+1) now shows badge feedback on extension icon for success or failure'
     ],
     summary:
-      'Public 1.0.0 release',
+      'Initial public release',
     version: '1.0.0'
   }
 ];

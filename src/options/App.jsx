@@ -1,4 +1,4 @@
-import { Button, ButtonGroup, Tabs, Toast, Tooltip } from '@heroui/react';
+import { Button, ButtonGroup, Tabs, Tooltip } from '@heroui/react';
 import { IconBug, IconSparkles } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 
@@ -7,6 +7,7 @@ import {
   FaviconSettings,
   ReleaseNotesPage,
   Settings,
+  ToastProvider,
   WelcomePage
 } from '@/components';
 import { useTheme } from '@/hooks';
@@ -63,7 +64,7 @@ export default function App() {
         >
           <PageComponent />
         </div>
-        <Toast.Provider className='right-2 bottom-2' placement='bottom' />
+        <ToastProvider className='right-2 bottom-2' placement='bottom' />
       </div>
     );
   }
@@ -156,7 +157,7 @@ export default function App() {
           <Settings theme={theme} />
         </Tabs.Panel>
       </Tabs>
-      <Toast.Provider className='right-2 bottom-2' placement='bottom' />
+      <ToastProvider className='right-2 bottom-2' placement='bottom' />
     </div>
   );
 }

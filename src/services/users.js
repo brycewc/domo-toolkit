@@ -16,6 +16,9 @@ export async function getCurrentUser(tabId = null) {
       // Try to get from bootstrap
       if (window.bootstrap?.currentUser?.USER_ID) {
         const { USER_ID, ...metadata } = window.bootstrap.currentUser;
+        if (!metadata?.USER_RIGHTS) {
+          metadata.USER_RIGHTS = window.bootstrap?.data?.authorities || [];
+        }
         return { id: USER_ID, metadata };
       }
 

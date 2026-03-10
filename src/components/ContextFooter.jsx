@@ -33,11 +33,29 @@ export function ContextFooter({
   isLoading,
   onStatusUpdate: _onStatusUpdate
 }) {
+  const [developerMode, setDeveloperMode] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [relatedCache, setRelatedCache] = useState({});
   const [loadingTabs, setLoadingTabs] = useState({});
   const [activeTabId, setActiveTabId] = useState(null);
   const disclosureRef = useRef(null);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+
+    chrome.storage.local.get(['developerMode'], (result) => {
+      setDeveloperMode(result.developerMode ?? false);
+    });
+
+    const handleStorageChange = (changes, areaName) => {
+      if (areaName === 'local' && changes.developerMode !== undefined) {
+        setDeveloperMode(changes.developerMode.newValue ?? false);
+      }
+    };
+
+    chrome.storage.onChanged.addListener(handleStorageChange);
+    return () => chrome.storage.onChanged.removeListener(handleStorageChange);
+  }, []);
 
   // Compute available tabs: current object + related objects
   const tabs = useMemo(() => {
@@ -99,8 +117,7 @@ export function ContextFooter({
       }
     }
 
-    // Dev-only tab: full context
-    if (process.env.NODE_ENV === 'development') {
+    if (import.meta.env.DEV && developerMode) {
       result.push({
         id: '_full_context',
         isCurrentObject: false,
@@ -114,7 +131,8 @@ export function ContextFooter({
     currentContext?.domoObject?.id,
     currentContext?.domoObject?.typeId,
     currentContext?.domoObject?.parentId,
-    currentContext?.domoObject?.metadata
+    currentContext?.domoObject?.metadata,
+    developerMode
   ]);
 
   // Default activeTabId to first tab when tabs change

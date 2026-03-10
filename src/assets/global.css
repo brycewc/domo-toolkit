@@ -98,8 +98,14 @@
 }
 
 @layer components {
-  /* Override HeroUI toast close button to always use hover-only behavior
-   (default shows it permanently on viewports < sm breakpoint) */
+  /* HeroUI uses sm: breakpoints for toast desktop layout. Extension
+   popups/sidepanels never reach the sm (640px) threshold. A custom
+   ToastProvider component handles the JS media query (action button
+   placement). These overrides handle the remaining CSS breakpoints. */
+  .toast__action {
+    @apply mt-0 self-center;
+  }
+
   .toast__close-button {
     @apply pointer-events-none -top-1 -right-1 rounded-full border bg-overlay opacity-0;
   }

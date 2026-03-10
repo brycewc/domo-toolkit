@@ -1,7 +1,6 @@
-import { Toast } from '@heroui/react';
 import { useEffect, useState } from 'react';
 
-import { ActionButtons, ContextFooter } from '@/components';
+import { ActionButtons, ContextFooter, ToastProvider } from '@/components';
 import { useReleaseNotification, useStatusBar, useTheme } from '@/hooks';
 import { DomoContext } from '@/models';
 
@@ -76,7 +75,7 @@ export default function App() {
         isLoading={isLoadingCurrentContext}
         onStatusUpdate={showStatus}
       />
-      <Toast.Provider className='right-2 bottom-2' placement='bottom' />
+      <ToastProvider className='right-2 bottom-2' placement='bottom' />
     </div>
   );
 }

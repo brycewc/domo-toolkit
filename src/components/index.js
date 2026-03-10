@@ -5,5 +5,6 @@ export { ContextFooter } from './ContextFooter';
 export * from './functions';
 export * from './options';
 export { TimestampAnnotation } from './TimestampAnnotation';
+export { ToastProvider } from './ToastProvider';
 export { UserIdAnnotation } from './UserIdAnnotation';
 export * from './views';

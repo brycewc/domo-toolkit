@@ -1,4 +1,4 @@
-import { Card, Spinner, Toast } from '@heroui/react';
+import { Card, Spinner } from '@heroui/react';
 import { useEffect, useState } from 'react';
 
 import {
@@ -10,7 +10,8 @@ import {
   GetPagesView,
   GetViewInputsView,
   LinkPreview,
-  ObjectDetailsView
+  ObjectDetailsView,
+  ToastProvider
 } from '@/components';
 import { useReleaseNotification, useStatusBar, useTheme } from '@/hooks';
 import { DomoContext } from '@/models';
@@ -276,7 +277,7 @@ export default function App() {
         )}
       </div>
       <LinkPreview />
-      <Toast.Provider />
+      <ToastProvider />
     </>
   );
 }
