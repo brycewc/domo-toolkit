@@ -24,7 +24,7 @@ export function useReleaseNotification() {
           .catch(() => {});
       };
 
-      toastKey = toast(`Updated to v${currentVersion}`, {
+      toastKey = toast.info(`Updated to v${currentVersion}`, {
         actionProps: {
           children: 'View',
           onPress: () => {
@@ -40,8 +40,7 @@ export function useReleaseNotification() {
         },
         description: summary,
         onClose: clearBadge,
-        timeout: 0,
-        variant: 'accent'
+        timeout: 0
       });
     });
   }, []);
