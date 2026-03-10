@@ -50,9 +50,37 @@ export async function deleteObject({ object, tabId = null }) {
                 'Content-Type': 'application/json'
               };
               break;
-            case 'WORKFLOW_MODEL':
+            case 'WORKFLOW_MODEL': {
+              const versionsRes = await fetch(
+                `/api/workflow/v2/models/${object.id}/versions`
+              );
+              if (!versionsRes.ok) {
+                return {
+                  error: `Failed to list workflow versions: HTTP ${versionsRes.status}`,
+                  success: false
+                };
+              }
+              const versions = await versionsRes.json();
+              const activeVersions = versions.filter((v) => v.active);
+              for (const ver of activeVersions) {
+                const deactivateRes = await fetch(
+                  `/api/workflow/v2/models/${object.id}/versions/${ver.version}`,
+                  {
+                    body: JSON.stringify({ active: false, description: ver.description }),
+                    headers: { 'Content-Type': 'application/json' },
+                    method: 'PUT'
+                  }
+                );
+                if (!deactivateRes.ok) {
+                  return {
+                    error: `Failed to deactivate version ${ver.version}: HTTP ${deactivateRes.status}`,
+                    success: false
+                  };
+                }
+              }
               fetchUrl = `/api/workflow/v1/models/${object.id}`;
               break;
+            }
             default:
               break;
           }
