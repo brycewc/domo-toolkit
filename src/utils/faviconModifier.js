@@ -206,7 +206,7 @@ async function applyColorEffect(favicon, effect, color) {
     };
 
     // Always use the fresh Domo logo to prevent effect stacking
-    img.src = 'public/domo-logo.png';
+    img.src = chrome.runtime.getURL('public/domo-logo.png');
   });
 }
 
@@ -249,7 +249,7 @@ async function applyDomoLogoColored(favicon, color) {
     };
 
     // Load the transparent Domo logo
-    img.src = 'public/domo-logo-no-background.png';
+    img.src = chrome.runtime.getURL('public/domo-logo-no-background.png');
   });
 }
 

@@ -248,11 +248,7 @@ export function Settings({ theme = 'system' }) {
           <Select.Popover>
             <ListBox>
               <ListBox.Item id='light' textValue='Light'>
-                <img
-                  alt='Light'
-                  className='h-4 w-4'
-                  src='/public/toolkit-128.png'
-                />
+                <img alt='Light' className='h-4 w-4' src='/toolkit-128.png' />
                 Light
                 <ListBox.ItemIndicator>
                   {({ isSelected }) =>
@@ -264,7 +260,7 @@ export function Settings({ theme = 'system' }) {
                 <img
                   alt='Dark'
                   className='h-4 w-4'
-                  src='/public/toolkit-dark-128.png'
+                  src='/toolkit-dark-128.png'
                 />
                 Dark
                 <ListBox.ItemIndicator>

@@ -59,7 +59,7 @@ export default function App() {
     return (
       <div className='flex h-screen w-full justify-center'>
         <div
-          className={`flex h-full w-full flex-col px-4 pt-8 pb-4 ${fullScreenPage.fullWidth ? '' : 'max-w-3xl'}`}
+          className={`flex h-full w-full flex-col px-4 pt-8 pb-4 ${fullScreenPage.fullWidth ? '' : 'max-w-4xl'}`}
         >
           <PageComponent />
         </div>

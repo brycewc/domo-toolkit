@@ -590,7 +590,6 @@ function DataListItem({
       item.typeId === 'DATA_APP_VIEW' ||
       item.typeId === 'REPORT_BUILDER_VIEW' ||
       item.typeId === 'CARD' ||
-      objectType === 'DATA_APP_VIEW' ||
       Number(item.id) < 0;
 
     // items that shouldn't have shareAll button

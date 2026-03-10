@@ -1,68 +1,27 @@
-import {
-  Button,
-  Card,
-  Chip,
-  Description,
-  Label,
-  Link,
-  ListBox,
-  Select
-} from '@heroui/react';
+import { Button, Card, Chip, Link } from '@heroui/react';
 import {
   IconApi,
   IconArrowRight,
+  IconArrowUpRight,
   IconBolt,
-  IconBrandGithub,
   IconBrowser,
-  IconChevronDown,
+  IconBug,
   IconClipboard,
-  IconCookie,
   IconCookieOff,
   IconEye,
   IconFavicon,
   IconFileDescription,
   IconFileTypeDoc,
   IconLayoutSidebarRightExpand,
+  IconPinned,
+  IconPuzzle,
+  IconSettings,
+  IconSparkles,
   IconUserPlus
 } from '@tabler/icons-react';
 import { motion } from 'motion/react';
-import { useEffect, useState } from 'react';
-
-const cookieOptions = [
-  {
-    description: 'Clear cookies on 431 errors, preserve last 2 instances',
-    id: 'auto',
-    label: 'Auto (Default)'
-  },
-  {
-    description: 'Preserve last 2 instances (only manual, no auto-clearing)',
-    id: 'preserve',
-    label: 'Preserve'
-  },
-  {
-    description: 'Clear all Domo cookies (only manual, no auto-clearing)',
-    id: 'all',
-    label: 'All'
-  }
-];
 
 export function WelcomePage() {
-  const [cookieSetting, setCookieSetting] = useState('auto');
-
-  // Load cookie setting on mount
-  useEffect(() => {
-    chrome.storage.sync.get(['defaultClearCookiesHandling'], (result) => {
-      if (result.defaultClearCookiesHandling) {
-        setCookieSetting(result.defaultClearCookiesHandling);
-      }
-    });
-  }, []);
-
-  const handleCookieSettingChange = (value) => {
-    setCookieSetting(value);
-    chrome.storage.sync.set({ defaultClearCookiesHandling: value });
-  };
-
   const handleGetStarted = () => {
     window.location.hash = 'favicon';
   };
@@ -80,28 +39,75 @@ export function WelcomePage() {
   const automaticFeatures = [
     {
       icon: IconBrowser,
+      id: 'tab-titles',
       label:
         'Tab titles are set automatically (gone are the days of hundreds of tabs named "Domo")'
     },
     {
       icon: IconFavicon,
-      label: 'Favicons automatically set to the instance logo (customizable)'
+      id: 'favicons',
+      label: (
+        <span>
+          Favicons automatically set to the instance logo{' '}
+          <Link
+            className='text-sm font-normal no-underline decoration-accent hover:text-accent hover:underline'
+            href='#favicon'
+          >
+            (customizable
+            <Link.Icon className='size-3'>
+              <IconArrowUpRight />
+            </Link.Icon>
+            )
+          </Link>
+        </span>
+      )
     },
     {
       icon: IconBolt,
+      id: 'context',
       label:
         'Context is dynamic, so you only see what you need when you need it'
     },
     {
       icon: IconCookieOff,
-      label:
-        'Cookies clear automatically on 431 errors, preserving the last 2 instances'
+      id: 'cookies',
+      label: (
+        <span>
+          Cookies clear automatically on 431 errors, preserving the last 2
+          instances{' '}
+          <Link
+            className='text-sm font-normal no-underline decoration-accent hover:text-accent hover:underline'
+            href='#settings'
+          >
+            (adjustable
+            <Link.Icon className='size-3'>
+              <IconArrowUpRight />
+            </Link.Icon>
+            )
+          </Link>
+        </span>
+      )
     }
   ];
 
   const quickStartGuide = [
-    'Navigate to any page in Domo',
-    <span>
+    <span className='flex flex-row items-end justify-start gap-1'>
+      Pin the extension (click{' '}
+      <IconPuzzle
+        className='inline-block shrink-0 align-middle'
+        size={18}
+        stroke={1.5}
+      />{' '}
+      in your browser toolbar, then click{' '}
+      <IconPinned
+        className='inline-block shrink-0 align-middle'
+        size={18}
+        stroke={1.5}
+      />{' '}
+      next to the extension icon)
+    </span>,
+    'Navigate to an object in Domo',
+    <span className='flex flex-row items-end justify-start gap-1'>
       Click the extension icon to use the popup (then click{' '}
       <IconLayoutSidebarRightExpand
         className='inline-block shrink-0 align-middle'
@@ -110,20 +116,40 @@ export function WelcomePage() {
       />{' '}
       to use the side panel instead if preferred)
     </span>,
-    'Use the buttons to copy, share, audit, delete, and more',
-    'Try viewing different objects and observe the various available action buttons'
+    'Use the icon-only action buttons to copy, share, audit, delete, and more (tooltip text available on hover)',
+    'Try navigating to different objects and observe the various available action buttons',
+    <span className='flex flex-row items-end justify-start gap-1'>
+      Adjust your settings and set your favicon preferences (click{' '}
+      <IconSettings
+        className='inline-block shrink-0 align-middle'
+        size={18}
+        stroke={1.5}
+      />
+      )
+    </span>,
+    'Advanced: Click the Current Context card to access the JSON definition for the current object'
   ];
 
   const links = [
     {
       icon: IconFileTypeDoc,
       label: 'Documentation',
-      url: 'https://github.com/brycewc/domo-toolkit#readme'
+      url: 'https://domotoolkit.com'
     },
     {
-      icon: IconBrandGithub,
-      label: 'Report an Issue',
-      url: 'https://github.com/brycewc/domo-toolkit/issues'
+      icon: IconEye,
+      label: 'Privacy Policy',
+      url: 'https://domotoolkit.com/PRIVACY_POLICY'
+    },
+    {
+      icon: IconBug,
+      label: 'Report a Bug',
+      url: 'https://github.com/brycewc/domo-toolkit/issues/new?template=bug-report.md'
+    },
+    {
+      icon: IconSparkles,
+      label: 'Request a Feature',
+      url: 'https://github.com/brycewc/domo-toolkit/issues/new?template=feature-request.md'
     },
     {
       icon: IconApi,
@@ -132,12 +158,8 @@ export function WelcomePage() {
     }
   ];
 
-  const selectedCookieOption = cookieOptions.find(
-    (opt) => opt.id === cookieSetting
-  );
-
   return (
-    <div className='flex h-full min-h-[calc(100vh-20)] w-full flex-col justify-between space-y-4'>
+    <div className='flex h-screen w-full flex-col justify-between gap-4'>
       {/* Header */}
       <motion.div
         animate={{ opacity: 1, y: 0 }}
@@ -148,7 +170,7 @@ export function WelcomePage() {
         <img
           alt='Domo Toolkit Logo'
           className='h-16 w-16'
-          src='/public/toolkit-128.png'
+          src='/toolkit-128.png'
         />
         <h1 className='text-xl font-semibold text-foreground'>
           Welcome to Domo Toolkit
@@ -172,11 +194,12 @@ export function WelcomePage() {
           {actionFeatures.map((feature, index) => (
             <motion.div
               animate={{ opacity: 1, y: 0 }}
+              className='h-full'
               initial={{ opacity: 0, y: 10 }}
               key={feature.label}
               transition={{ delay: 0.15 + index * 0.05, duration: 0.2 }}
             >
-              <Card>
+              <Card className='h-full'>
                 <Card.Header>
                   <Card.Description className='flex flex-row items-center justify-start gap-2 text-foreground'>
                     <feature.icon
@@ -207,11 +230,12 @@ export function WelcomePage() {
           {automaticFeatures.map((feature, index) => (
             <motion.div
               animate={{ opacity: 1, y: 0 }}
+              className='h-full'
               initial={{ opacity: 0, y: 10 }}
-              key={feature.label}
+              key={feature.id}
               transition={{ delay: 0.15 + index * 0.05, duration: 0.2 }}
             >
-              <Card>
+              <Card className='h-full'>
                 <Card.Header>
                   <Card.Description className='flex flex-row items-center justify-start gap-2 text-foreground'>
                     <feature.icon
@@ -226,53 +250,6 @@ export function WelcomePage() {
             </motion.div>
           ))}
         </div>
-        <Card>
-          <Card.Header>
-            <Card.Title className='flex items-center gap-2'>
-              <IconCookie className='text-warning' size={18} stroke={1.5} />
-              Cookie Management
-            </Card.Title>
-            <Card.Description>
-              If you'd prefer to manage cookies manually, you can select
-              'Preserve' or 'All' here
-            </Card.Description>
-          </Card.Header>
-          <Card.Content>
-            <Select
-              fullWidth
-              aria-label='Cookie clearing behavior'
-              value={cookieSetting}
-              variant='secondary'
-              onChange={handleCookieSettingChange}
-            >
-              <Select.Trigger>
-                <Select.Value>
-                  {selectedCookieOption?.label || 'Select...'}
-                </Select.Value>
-                <Select.Indicator>
-                  <IconChevronDown stroke={1} />
-                </Select.Indicator>
-              </Select.Trigger>
-              <Select.Popover>
-                <ListBox>
-                  {cookieOptions.map((option, _index) => (
-                    <ListBox.Item
-                      id={option.id}
-                      key={option.id}
-                      textValue={option.label}
-                    >
-                      <div className='flex flex-col'>
-                        <Label>{option.label}</Label>
-                        <Description>{option.description}</Description>
-                      </div>
-                      <ListBox.ItemIndicator />
-                    </ListBox.Item>
-                  ))}
-                </ListBox>
-              </Select.Popover>
-            </Select>
-          </Card.Content>
-        </Card>
       </motion.div>
 
       {/* Getting Started */}
@@ -315,7 +292,7 @@ export function WelcomePage() {
         <p className='text-sm font-medium tracking-wide uppercase'>
           Helpful Links
         </p>
-        <div className='flex flex-row flex-wrap gap-2'>
+        <div className='flex flex-row flex-wrap items-center justify-evenly'>
           {links.map((link) => (
             <Link
               className='no-underline'
