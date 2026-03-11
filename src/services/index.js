@@ -50,6 +50,7 @@ export {
   getVariableControlFilters,
   mergeFilters
 } from './filters';
+export { fetchGroupDisplayNames } from './groups';
 export {
   deletePageAndAllCards,
   getAppStudioPageParent,

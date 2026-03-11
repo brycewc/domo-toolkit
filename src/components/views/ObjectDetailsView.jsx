@@ -23,14 +23,16 @@ import JsonView from 'react18-json-view';
 import '@/assets/json-view-theme.css';
 import {
   AnimatedCheck,
+  GroupIdAnnotation,
   TimestampAnnotation,
   UserIdAnnotation
 } from '@/components';
-import { useUserLookup } from '@/hooks';
+import { useGroupLookup, useUserLookup } from '@/hooks';
 import { DomoObject } from '@/models';
 import {
   formatEpochTimestamp,
   isDateFieldName,
+  isGroupFieldName,
   isUserFieldName
 } from '@/utils';
 
@@ -70,6 +72,7 @@ export function ObjectDetailsView({
   const [domoObject, setDomoObject] = useState(null);
   const [keyFields, setKeyFields] = useState([]);
 
+  const groupMap = useGroupLookup(domoObject?.metadata?.details);
   const userMap = useUserLookup(domoObject?.metadata?.details);
 
   // Load data on mount
@@ -193,8 +196,8 @@ export function ObjectDetailsView({
               !(
                 domoObject.metadata?.name || domoObject.typeId === 'STREAM'
               ) && (
-              <span className='text-sm text-muted'>ID: {domoObject.id}</span>
-            )}
+                <span className='text-sm text-muted'>ID: {domoObject.id}</span>
+              )}
           </div>
           <ButtonGroup hideSeparator className='shrink-0'>
             <Tooltip closeDelay={0} delay={400}>
@@ -253,124 +256,144 @@ export function ObjectDetailsView({
           {/* Full JSON */}
           {domoObject.metadata?.details &&
             domoObject.metadata?.details !== '{}' && (
-            <Disclosure className='w-full'>
-              <Disclosure.Heading>
-                <Button
-                  className='flex w-full items-center justify-between'
-                  slot='trigger'
-                  variant='ghost'
-                >
-                  Full JSON
-                  <Disclosure.Indicator>
-                    <IconChevronDown stroke={1.5} />
-                  </Disclosure.Indicator>
-                </Button>
-              </Disclosure.Heading>
-              <Disclosure.Content>
-                <Disclosure.Body>
-                  <JsonView
-                    displaySize
-                    className='min-h-0 flex-1 text-sm'
-                    collapsed={1}
-                    collapseStringMode='word'
-                    collapseStringsAfterLength={50}
-                    matchesURL={false}
-                    src={domoObject.metadata?.details}
-                    CopiedComponent={({ className, style }) => (
-                      <AnimatedCheck
-                        className={className}
-                        size={16}
-                        stroke={1.5}
-                        style={style}
-                      />
-                    )}
-                    CopyComponent={({ className, onClick, style }) => (
-                      <IconClipboard
-                        className={className}
-                        size={16}
-                        stroke={1.5}
-                        style={style}
-                        onClick={onClick}
-                      />
-                    )}
-                    customizeNode={(params) => {
-                      if (params.node === null || params.node === undefined) {
-                        return { enableClipboard: false };
-                      }
-                      if (
-                        typeof params.node === 'string' &&
-                          params.node.startsWith('https://')
-                      ) {
-                        return (
-                          <Link
-                            className='text-sm text-accent no-underline decoration-accent hover:underline'
-                            href={params.node}
-                            target='_blank'
-                          >
-                            {params.node}
-                          </Link>
-                        );
-                      }
-                      if (
-                        typeof params.node === 'number' &&
-                          isDateFieldName(params.indexOrName)
-                      ) {
-                        const formatted = formatEpochTimestamp(params.node);
-                        if (formatted) {
-                          return (
-                            <TimestampAnnotation
-                              formatted={formatted}
-                              value={params.node}
-                            />
-                          );
+              <Disclosure className='w-full'>
+                <Disclosure.Heading>
+                  <Button
+                    className='flex w-full items-center justify-between'
+                    slot='trigger'
+                    variant='ghost'
+                  >
+                    Full JSON
+                    <Disclosure.Indicator>
+                      <IconChevronDown stroke={1.5} />
+                    </Disclosure.Indicator>
+                  </Button>
+                </Disclosure.Heading>
+                <Disclosure.Content>
+                  <Disclosure.Body>
+                    <JsonView
+                      displaySize
+                      className='min-h-0 flex-1 text-sm'
+                      collapsed={1}
+                      collapseStringMode='word'
+                      collapseStringsAfterLength={50}
+                      matchesURL={false}
+                      src={domoObject.metadata?.details}
+                      CopiedComponent={({ className, style }) => (
+                        <AnimatedCheck
+                          className={className}
+                          size={16}
+                          stroke={1.5}
+                          style={style}
+                        />
+                      )}
+                      CopyComponent={({ className, onClick, style }) => (
+                        <IconClipboard
+                          className={className}
+                          size={16}
+                          stroke={1.5}
+                          style={style}
+                          onClick={onClick}
+                        />
+                      )}
+                      customizeNode={(params) => {
+                        if (params.node === null || params.node === undefined) {
+                          return { enableClipboard: false };
                         }
-                      }
-                      if (
-                        (typeof params.node === 'number' ||
-                            typeof params.node === 'string') &&
-                          Object.keys(userMap).length > 0
-                      ) {
-                        const numericValue = Number(params.node);
                         if (
-                          userMap[numericValue] &&
-                            (isUserFieldName(params.indexOrName) ||
-                              params.indexOrName === 'id')
+                          typeof params.node === 'string' &&
+                          params.node.startsWith('https://')
                         ) {
                           return (
-                            <UserIdAnnotation
-                              displayName={userMap[numericValue]}
-                              value={params.node}
-                            />
+                            <Link
+                              className='text-sm text-accent no-underline decoration-accent hover:underline'
+                              href={params.node}
+                              target='_blank'
+                            >
+                              {params.node}
+                            </Link>
                           );
                         }
-                      }
-                      if (params.indexOrName?.toLowerCase().includes('id')) {
-                        return { enableClipboard: true };
-                      } else if (
-                        (typeof params.node === 'number' ||
+                        if (
+                          typeof params.node === 'number' &&
+                          isDateFieldName(params.indexOrName)
+                        ) {
+                          const formatted = formatEpochTimestamp(params.node);
+                          if (formatted) {
+                            return (
+                              <TimestampAnnotation
+                                formatted={formatted}
+                                value={params.node}
+                              />
+                            );
+                          }
+                        }
+                        if (
+                          (typeof params.node === 'number' ||
+                            typeof params.node === 'string') &&
+                          Object.keys(userMap).length > 0
+                        ) {
+                          const numericValue = Number(params.node);
+                          if (
+                            userMap[numericValue] &&
+                            (isUserFieldName(params.indexOrName) ||
+                              params.indexOrName === 'id')
+                          ) {
+                            return (
+                              <UserIdAnnotation
+                                displayName={userMap[numericValue]}
+                                value={params.node}
+                              />
+                            );
+                          }
+                        }
+                        if (
+                          (typeof params.node === 'number' ||
+                            typeof params.node === 'string') &&
+                          Object.keys(groupMap).length > 0
+                        ) {
+                          const numericValue = Number(params.node);
+                          if (
+                            groupMap[numericValue] &&
+                            (isGroupFieldName(params.indexOrName) ||
+                              isUserFieldName(params.indexOrName) ||
+                              params.indexOrName === 'id')
+                          ) {
+                            return (
+                              <GroupIdAnnotation
+                                displayName={groupMap[numericValue]}
+                                value={params.node}
+                              />
+                            );
+                          }
+                        }
+                        if (params.indexOrName?.toLowerCase().includes('id')) {
+                          return { enableClipboard: true };
+                        } else if (
+                          (typeof params.node === 'number' ||
                             typeof params.node === 'string') &&
                           params.node?.toString().length >= 7
-                      ) {
-                        return { enableClipboard: true };
-                      } else if (
-                        typeof params.node === 'object' &&
+                        ) {
+                          return { enableClipboard: true };
+                        } else if (
+                          typeof params.node === 'object' &&
                           Object.keys(params.node).length > 0
-                      ) {
-                        return { enableClipboard: true };
-                      } else if (
-                        Array.isArray(params.node) &&
+                        ) {
+                          return { enableClipboard: true };
+                        } else if (
+                          Array.isArray(params.node) &&
                           params.node.length > 0
-                      ) {
-                        return { enableClipboard: true };
-                      } else {
-                        return { enableClipboard: false };
-                      }
-                    }}
-                  />
-                </Disclosure.Body>
-              </Disclosure.Content>
-            </Disclosure>
-          )}
+                        ) {
+                          return { enableClipboard: true };
+                        } else {
+                          return { enableClipboard: false };
+                        }
+                      }}
+                    />
+                  </Disclosure.Body>
+                </Disclosure.Content>
+              </Disclosure>
+            )}
         </Card.Content>
       </ScrollShadow>
     </Card>

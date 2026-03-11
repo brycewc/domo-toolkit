@@ -13,17 +13,19 @@ import { IconClipboard } from '@tabler/icons-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import JsonView from 'react18-json-view';
 
-import { useUserLookup } from '@/hooks';
+import { useGroupLookup, useUserLookup } from '@/hooks';
 import { getObjectType } from '@/models';
 import { fetchObjectDetailsInPage } from '@/services';
 import {
   executeInPage,
   formatEpochTimestamp,
   isDateFieldName,
+  isGroupFieldName,
   isUserFieldName
 } from '@/utils';
 
 import { AnimatedCheck } from './AnimatedCheck';
+import { GroupIdAnnotation } from './GroupIdAnnotation';
 import { TimestampAnnotation } from './TimestampAnnotation';
 import { UserIdAnnotation } from './UserIdAnnotation';
 import '@/assets/json-view-theme.css';
@@ -160,6 +162,7 @@ export function ContextFooter({
     if (activeTab.isFullContext) return currentContext;
     return relatedCache[activeTabId] || null;
   }, [activeTab, activeTabId, currentContext, relatedCache]);
+  const groupMap = useGroupLookup(activeSrc, currentContext?.tabId);
   const userMap = useUserLookup(activeSrc, currentContext?.tabId);
 
   // Lazy-load related object details when a tab is selected
@@ -227,6 +230,7 @@ export function ContextFooter({
     if (activeTab.isCurrentObject) {
       return (
         <MetadataJsonView
+          groupMap={groupMap}
           userMap={userMap}
           src={
             currentContext?.domoObject?.metadata?.details ||
@@ -244,11 +248,24 @@ export function ContextFooter({
         itemTypeField: activeTab.itemTypeField,
         itemTypeId: activeTab.itemTypeId
       });
-      return <MetadataJsonView collapsed={2} src={src} userMap={userMap} />;
+      return (
+        <MetadataJsonView
+          collapsed={2}
+          groupMap={groupMap}
+          src={src}
+          userMap={userMap}
+        />
+      );
     }
 
     if (activeTab.isFullContext) {
-      return <MetadataJsonView src={currentContext} userMap={userMap} />;
+      return (
+        <MetadataJsonView
+          groupMap={groupMap}
+          src={currentContext}
+          userMap={userMap}
+        />
+      );
     }
 
     if (loadingTabs[activeTabId]) {
@@ -265,7 +282,9 @@ export function ContextFooter({
         objectId: activeTab.objectId,
         typeId: activeTab.typeId
       });
-      return <MetadataJsonView src={src} userMap={userMap} />;
+      return (
+        <MetadataJsonView groupMap={groupMap} src={src} userMap={userMap} />
+      );
     }
 
     return (
@@ -499,7 +518,7 @@ function injectUrls(
   return src;
 }
 
-function MetadataJsonView({ collapsed = 1, src, userMap = {} }) {
+function MetadataJsonView({ collapsed = 1, groupMap = {}, src, userMap = {} }) {
   return (
     <JsonView
       displaySize
@@ -589,6 +608,26 @@ function MetadataJsonView({ collapsed = 1, src, userMap = {} }) {
             return (
               <UserIdAnnotation
                 displayName={userMap[numericValue]}
+                value={params.node}
+              />
+            );
+          }
+        }
+        if (
+          (typeof params.node === 'number' ||
+            typeof params.node === 'string') &&
+          Object.keys(groupMap).length > 0
+        ) {
+          const numericValue = Number(params.node);
+          if (
+            groupMap[numericValue] &&
+            (isGroupFieldName(params.indexOrName) ||
+              isUserFieldName(params.indexOrName) ||
+              params.indexOrName === 'id')
+          ) {
+            return (
+              <GroupIdAnnotation
+                displayName={groupMap[numericValue]}
                 value={params.node}
               />
             );
