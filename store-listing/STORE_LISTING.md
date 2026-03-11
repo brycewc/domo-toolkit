@@ -2,7 +2,7 @@ Domo Toolkit — Power Tools for Domo Administrators
 Stop wasting time navigating menus, managing hundreds of identical browser tabs, copying dataset IDs from the URL, and constantly clearing your cookies. Domo Toolkit is designed for the people who live inside Domo every day — administrators managing hundreds of objects, consultants jumping between client instances, and power users building on the platform. Every feature is built to save clicks, reduce context-switching, and surface information that Domo's native UI buries behind multiple navigations. Whether you're creating, updating, troubleshooting, auditing, or cleaning, Domo Toolkit puts the tools you need one click away.
 DISCLAIMER: This extension is an independent, community-developed project. Domo, Inc. has no responsibility for its functionality or performance or for any consequences arising from its use.
 INSTANT CONTEXT DETECTION
-Domo Toolkit automatically detects what you're looking at. Navigate to any page, card, dataset, dataflow, app studio page, workflow, alert, or any of 100+ supported Domo object types — the extension immediately identifies it, enriches it with metadata from the Domo API, and makes relevant actions available. No manual input required. The extension even detects card modals, resolves parent objects for nested types like app studio pages, detects selected code engine and form actions inside workflow editors, and updates your tab title with (or back to) the object's name for easier tab management. And with a click, you can explore the object's full JSON definition — with epoch timestamps annotated as human-readable dates and user IDs annotated with display names.
+Domo Toolkit automatically detects what you're looking at. Navigate to any page, card, dataset, dataflow, app studio page, workflow, alert, or any of 100+ supported Domo object types — the extension immediately identifies it, enriches it with metadata from the Domo API, and makes relevant actions available. No manual input required. The extension even detects card modals, resolves parent objects for nested types like app studio pages, detects selected code engine and form actions inside workflow editors, and updates your tab title with (or back to) the object's name for easier tab management. And with a click, you can explore the object's full JSON definition — with epoch timestamps annotated as human-readable dates, user IDs annotated with display names, and group IDs annotated with group names.
 AUTOMATIC 431 ERROR RESOLVING
 Domo's 431 "Request Header Fields Too Large" errors are a constant headache when working across multiple instances. Domo Toolkit offers three cookie clearing modes:
 Auto (default): Automatically detects 431 errors, clears cookies (preserving your last 2 active instances), and refreshes your page instantaneously–it's like it never happened.
@@ -23,6 +23,7 @@ For pages: View all child and grandchild pages in a hierarchical tree.
 For app studio pages: See all pages within the app, grouped by parent.
 For cards: Find every page, app studio page, and report builder page where a card appears.
 For datasets: Trace all the way from dataset → cards → pages to see the full downstream impact.
+Get Other Pages — For any page, discover other pages where its cards live.
 Get DataSets — Trace data lineage:
 For pages and app studio pages: See every dataset powering cards on the page.
 For dataflows: View input and output datasets, grouped separately.
@@ -33,6 +34,7 @@ CARD ERROR TRACKING
 Card API errors are automatically captured as you browse and displayed in a dedicated side panel view with full response details. Errors are tracked per tab and cleared when you navigate away from a card. View error count at a glance, expand individual errors to see the full JSON response, and clear all errors with one click.
 OBJECT-SPECIFIC ACTIONS
 Copy Filtered URL — Copy URL with all applied filters on a card, page, or app studio page (Pfilters).
+Lock Cards — Lock all cards on a page, app studio page, worksheet, report builder view, or dataset with one click.
 Export Data — Export card data in CSV or Excel format, including applied filters. Export code engine packages as JavaScript/Python files.
 Data Repair — Open the hidden data repair tab for any dataset with a single click.
 Update Owner — Change the owner of alerts and workflows with a searchable user picker and a quick "Set to Self" button.
