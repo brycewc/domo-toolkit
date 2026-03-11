@@ -50,9 +50,37 @@ export async function deleteObject({ object, tabId = null }) {
                 'Content-Type': 'application/json'
               };
               break;
-            case 'WORKFLOW_MODEL':
+            case 'WORKFLOW_MODEL': {
+              const versionsRes = await fetch(
+                `/api/workflow/v2/models/${object.id}/versions`
+              );
+              if (!versionsRes.ok) {
+                return {
+                  error: `Failed to list workflow versions: HTTP ${versionsRes.status}`,
+                  success: false
+                };
+              }
+              const versions = await versionsRes.json();
+              const activeVersions = versions.filter((v) => v.active);
+              for (const ver of activeVersions) {
+                const deactivateRes = await fetch(
+                  `/api/workflow/v2/models/${object.id}/versions/${ver.version}`,
+                  {
+                    body: JSON.stringify({ active: false, description: ver.description }),
+                    headers: { 'Content-Type': 'application/json' },
+                    method: 'PUT'
+                  }
+                );
+                if (!deactivateRes.ok) {
+                  return {
+                    error: `Failed to deactivate version ${ver.version}: HTTP ${deactivateRes.status}`,
+                    success: false
+                  };
+                }
+              }
               fetchUrl = `/api/workflow/v1/models/${object.id}`;
               break;
+            }
             default:
               break;
           }
@@ -159,7 +187,7 @@ export async function fetchObjectDetailsInPage(params) {
   const {
     bodyTemplate = null,
     endpoint,
-    method,
+    method = 'GET',
     nameTemplate = null,
     pathToDetails = null,
     pathToName,
@@ -188,7 +216,6 @@ export async function fetchObjectDetailsInPage(params) {
 
     // Prepare fetch options
     const options = {
-      credentials: 'include',
       method
     };
 
@@ -268,7 +295,6 @@ export async function shareWithSelf({
             url = `/api/apps/v1/designs/${objectId}/permissions/ADMIN`;
             options = {
               body: JSON.stringify([userId]),
-              credentials: 'include',
               headers: { 'Content-Type': 'application/json' },
               method: 'POST'
             };
@@ -281,34 +307,57 @@ export async function shareWithSelf({
               throw new Error('Sharing is only supported for DomoApp cards');
             }
 
-            const appId = metadata.details.domoapp?.id;
-            if (!appId) {
-              throw new Error('DomoApp ID not found in card metadata');
+            const appInstanceId = metadata.details.domoapp?.id;
+            if (!appInstanceId) {
+              throw new Error('App Instance ID not found in card metadata');
             }
 
-            const appResponse = await fetch(`/domoapps/apps/v2/${appId}`, {
-              credentials: 'include'
-            });
-            if (!appResponse.ok) {
+            const appInstanceResponse = await fetch(`/api/apps/v1/instances/${appInstanceId}`);
+            if (!appInstanceResponse.ok) {
               throw new Error(
-                `Failed to fetch DomoApp details. Status: ${appResponse.status}`
+                `Failed to fetch App Instance details. Status: ${appInstanceResponse.status}`
               );
             }
-            const appData = await appResponse.json();
-            const designId = appData.designId;
+            const appInstanceData = await appInstanceResponse.json();
+            const designId = appInstanceData.designId;
             if (!designId) {
-              throw new Error('Design ID not found in DomoApp response');
+              throw new Error('Design ID not found in App Instance response');
             }
 
-            url = `/api/apps/v1/designs/${designId}/permissions/ADMIN`;
-            options = {
-              body: JSON.stringify([userId]),
-              credentials: 'include',
-              headers: { 'Content-Type': 'application/json' },
-              method: 'POST'
-            };
-            successMessage = `Custom App Design ${designId} shared successfully`;
-            break;
+            const designResponse = await fetch(
+              `/api/apps/v1/designs/${designId}/permissions/ADMIN`,
+              {
+                body: JSON.stringify([userId]),
+                headers: { 'Content-Type': 'application/json' },
+                method: 'POST'
+              }
+            );
+            if (!designResponse.ok) {
+              const errorText = await designResponse.text();
+              throw new Error(
+                `Failed to share app design. Status: ${designResponse.status}. ${errorText}`
+              );
+            }
+
+            const collectionsResponse = await fetch(
+              `/api/datastores/v1/${appInstanceId}/collections`
+            );
+            if (collectionsResponse.ok) {
+              const collections = await collectionsResponse.json();
+              if (Array.isArray(collections) && collections.length > 0) {
+                const permissions = 'ADMIN,SHARE,DELETE,WRITE,READ,READ_CONTENT,CREATE_CONTENT,UPDATE_CONTENT,DELETE_CONTENT';
+                await Promise.all(
+                  collections.map((col) =>
+                    fetch(
+                      `/api/datastores/v1/collections/${col.id}/permission/USER/${userId}?overwrite=true&permissions=${permissions}`,
+                      { method: 'PUT' }
+                    )
+                  )
+                );
+              }
+            }
+
+            return `Custom App Design ${designId} shared successfully (including ${appInstanceId} AppDB collections)`;
           }
 
           case 'DATA_APP': {
@@ -321,7 +370,6 @@ export async function shareWithSelf({
                 ],
                 resources: [{ id: objectId, type: 'page' }]
               }),
-              credentials: 'include',
               headers: { 'Content-Type': 'application/json' },
               method: 'POST'
             };
@@ -340,7 +388,6 @@ export async function shareWithSelf({
                 ],
                 resources: [{ id: objectId, type: 'page' }]
               }),
-              credentials: 'include',
               headers: { 'Content-Type': 'application/json' },
               method: 'POST'
             };
@@ -370,7 +417,6 @@ export async function shareWithSelf({
                 id: userId,
                 type: 'USER'
               }),
-              credentials: 'include',
               headers: { 'Content-Type': 'application/json' },
               method: 'PUT'
             };

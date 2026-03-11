@@ -151,10 +151,15 @@ export function GetDatasetsView({
     objectId,
     objectType
   }) => {
-    const tabId = await getValidTabForInstance(instance);
     if (objectType === 'CARD') {
+      if (details?.datasources?.length > 0) {
+        return details.datasources;
+      }
+      const tabId = await getValidTabForInstance(instance);
       return getCardDatasets({ cardId: objectId, tabId });
-    } else if (objectType === 'PAGE' || objectType === 'DATA_APP_VIEW') {
+    }
+    const tabId = await getValidTabForInstance(instance);
+    if (objectType === 'PAGE' || objectType === 'DATA_APP_VIEW') {
       return getDatasetsForPage({ pageId: objectId, tabId });
     } else if (objectType === 'DATAFLOW_TYPE') {
       return getDatasetsForDataflow({ details });
@@ -269,7 +274,7 @@ export function GetDatasetsView({
       closeLabel={`Close ${viewData?.typeLabel} View`}
       headerActions={['openAll', 'copy', 'refresh']}
       isRefreshing={isRefreshing}
-      itemActions={['copy', 'openAll']}
+      itemActions={['copy', 'openAll', 'viewsExplorer']}
       itemLabel='dataset'
       items={items}
       objectId={viewData?.objectId}

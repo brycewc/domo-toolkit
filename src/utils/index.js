@@ -19,10 +19,12 @@ export {
   clearFaviconCache
 } from './faviconModifier';
 export {
+  extractGroupIds,
   extractUserIds,
   formatEpochTimestamp,
   getInitials,
   isDateFieldName,
+  isGroupFieldName,
   isUserFieldName,
   JsonStringifyOrder
 } from './general';

@@ -68,12 +68,9 @@ export default defineManifest({
   web_accessible_resources: [
     {
       resources: [
-        'public/toolkit-dark-16.png',
-        'public/toolkit-dark-24.png',
-        'public/toolkit-dark-32.png',
-        'public/toolkit-dark-48.png',
-        'public/toolkit-dark-128.png',
-        'public/cardErrors.js'
+        'public/cardErrors.js',
+        'public/domo-logo-no-background.png',
+        'public/domo-logo.png'
       ],
       matches: ['https://*.domo.com/*']
     }

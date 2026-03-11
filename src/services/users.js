@@ -16,6 +16,9 @@ export async function getCurrentUser(tabId = null) {
       // Try to get from bootstrap
       if (window.bootstrap?.currentUser?.USER_ID) {
         const { USER_ID, ...metadata } = window.bootstrap.currentUser;
+        if (!metadata?.USER_RIGHTS) {
+          metadata.USER_RIGHTS = window.bootstrap?.data?.authorities || [];
+        }
         return { id: USER_ID, metadata };
       }
 
@@ -74,8 +77,7 @@ export async function fetchUserDisplayNames(userIds, tabId = null) {
   return executeInPage(
     async (ids) => {
       const response = await fetch(
-        `/api/content/v3/users?id=${ids.join(',')}`,
-        { credentials: 'include' }
+        `/api/content/v3/users?id=${ids.join(',')}`
       );
       if (!response.ok) return {};
       const users = await response.json();
@@ -104,8 +106,7 @@ export async function getCustomAvatarUserIds(userIds, tabId = null) {
       if (!window.__domoDefaultAvatarSize) {
         try {
           const res = await fetch(
-            '/api/content/v1/avatar/USER/0?size=100',
-            { credentials: 'include' }
+            '/api/content/v1/avatar/USER/0?size=100'
           );
           const blob = await res.blob();
           window.__domoDefaultAvatarSize = blob.size;
@@ -117,9 +118,7 @@ export async function getCustomAvatarUserIds(userIds, tabId = null) {
       const defaultSize = window.__domoDefaultAvatarSize;
       const results = await Promise.all(
         userIds.map((id) =>
-          fetch(`/api/content/v1/avatar/USER/${id}?size=100`, {
-            credentials: 'include'
-          })
+          fetch(`/api/content/v1/avatar/USER/${id}?size=100`)
             .then((res) => res.blob())
             .then((blob) => (blob.size !== defaultSize ? id : null))
             .catch(() => id)
@@ -152,7 +151,6 @@ export async function searchUsers(text, tabId = null, offset = 0) {
       };
       const response = await fetch(url, {
         body: JSON.stringify(body),
-        credentials: 'include',
         headers: {
           'Content-Type': 'application/json'
         },

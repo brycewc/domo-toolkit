@@ -1,8 +1,11 @@
 export { ActionButtons } from './ActionButtons';
 export { AnimatedCheck } from './AnimatedCheck';
+export { AnimatedX } from './AnimatedX';
 export { ContextFooter } from './ContextFooter';
 export * from './functions';
+export { GroupIdAnnotation } from './GroupIdAnnotation';
 export * from './options';
 export { TimestampAnnotation } from './TimestampAnnotation';
+export { ToastProvider } from './ToastProvider';
 export { UserIdAnnotation } from './UserIdAnnotation';
 export * from './views';

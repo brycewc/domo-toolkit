@@ -3,7 +3,7 @@
 
 # Privacy Policy for Domo Toolkit
 
-**Last Updated:** February 4, 2026
+**Last Updated:** March 8, 2026
 
 ## Overview
 
@@ -11,7 +11,7 @@ Domo Toolkit is a browser extension that enhances the Domo platform experience f
 
 **Key Points:**
 
-- We do not operate servers or collect data. The only data that leaves your device is what we sync to your Google Account: theme preference, favicon settings, and your default Domo instance (all of which are optional). All other data is local to your device.
+- We do not operate servers or collect data. The only data that leaves your device is what we sync to your Google Account: theme preference, icon preference, cookie clearing behavior preference, favicon settings, and your default Domo instance (all of which are optional). All other data is local to your device.
 - No data is transmitted to external services or third parties.
 - No data is used for advertising, analytics, or any purpose other than providing extension features.
 - No human (including the developers) can read your data.
@@ -49,9 +49,9 @@ Domo Toolkit is a browser extension that enhances the Domo platform experience f
 
 - Favicon customization rules (instance match regex patterns and colors)
 - Theme preference (light/dark/system)
+- Icon preference (light/dark)
+- Default Domo instance (string)
 - Cookie clearing behavior preference (default/all/auto)
-- Display card errors (true/false)
-- Welcome page dismissal status (true/false)
 
 **Why:** To remember your preferences across browser sessions.
 
@@ -75,11 +75,11 @@ Domo Toolkit is a browser extension that enhances the Domo platform experience f
 
 ### 7. HTTP Response Status Codes (Optional, Domo Only)
 
-**What:** When the auto cookie clearing is enabled (disabled by default), the extension monitors HTTP response status codes for requests to \*.domo.com.
+**What:** When the auto cookie clearing is enabled, the extension monitors HTTP response status codes for requests to \*.domo.com.
 
-**Why:** To automatically detect and resolve HTTP 431 "Request Header Fields Too Large" errors by clearing excess cookies, and HTTP errors on card URLs to display them to the user. If these options are disabled, these listeners are disabled entirely.
+**Why:** To automatically detect and resolve HTTP 431 "Request Header Fields Too Large" errors by clearing excess cookies, and HTTP errors on card URLs to display them to the user.
 
-**Storage:** For cookies, only the status code (431) is read and triggers any action, never stored. For cards, only HTTP errors are read on card URLs and the response is displayed to the user directly from the content script, never stored.
+**Storage:** For cookies, only the status code (431) is read and triggers any action, never stored. For cards, only HTTP errors are read on card URLs and the response is displayed to the user directly, never stored.
 
 ## Information We Do NOT Collect
 
@@ -87,7 +87,7 @@ Domo Toolkit is a browser extension that enhances the Domo platform experience f
 - **Domo Credentials:** We never read, access, store, or transmit your Domo username and password, SSO data, API access tokens, or API OAuth client IDs & secrets.
 - **Domo Content:** We do not read or store data stored in the Domo instances you access.
 - **Cookie Values:** We only read cookie names for identification purposes; cookie values are never accessed.
-- **Browsing History:** We do not track your browsing activity outside of \*.domo.com domains. Any tracking only informs current context and event listeners and is never stored or used to track your behavior.
+- **Browsing History:** We do not track your browsing activity outside of \*.domo.com domains. Any tracking only informs current context and event listeners and is never stored or used for any other purpose.
 - **Analytics:** We do not collect usage analytics or telemetry of any kind ever.
 
 ## How We Use Information
@@ -102,7 +102,7 @@ All information accessed by the extension is used exclusively to provide the fea
 | Preferences       | Remember your extension settings                              |
 | Favicon cache     | Display custom favicons efficiently                           |
 | Navigation events | Keep extension context updated during SPA navigation          |
-| Response codes    | Detect and resolve 431 errors (when enabled)                  |
+| Response codes    | Detect and resolve 431 errors and display card errors         |
 
 ## Data Sharing
 
@@ -122,29 +122,28 @@ All information accessed by the extension is used exclusively to provide the fea
 
 ## Data Retention
 
-| Data Type        | Retention                                                                         |
-| ---------------- | --------------------------------------------------------------------------------- |
-| Page context     | Session only - cleared when browser closes                                        |
-| Clipboard data   | Session only - cleared when browser closes                                        |
-| User preferences | Until you change them or uninstall the extension                                  |
-| Favicon cache    | Until you change favicon preferences, clear the cache, or uninstall the extension |
+| Data Type        | Retention                                                                             |
+| ---------------- | ------------------------------------------------------------------------------------- |
+| Page context     | Session only - cleared when browser closes, and constantly being cleared as it's used |
+| Clipboard data   | Session only - cleared when browser closes, and constantly being cleared as it's used |
+| User preferences | Uninstall the extension                                                               |
+| Favicon cache    | Until you change favicon preferences or uninstall the extension                       |
 
 ## Your Rights and Controls
 
 ### Viewing Your Data
 
-- Extension preferences are visible in the extension's options page.
-- Favicon rules can be viewed and edited in settings.
+- Extension preferences are visible in the extension's options page on the settings tab.
+- Favicon rules can be viewed and edited in the extension's options page on the favicon preferences tab.
 
 ### Deleting Your Data
 
-- **Session data:** Close your browser to clear all session storage.
-- **Preferences:** Uninstall the extension to remove all stored data.
-- **Favicon cache:** Use the "Clear Favicon Cache" option in settings or uninstall the extension.
+- **Session data:** Close your browser to clear any and all session storage.
+- **Preferences and persistant caches:** Uninstall the extension to remove all stored data, including local and synced data.
 
 ### Disabling Features
 
-- Automatic 431 handling can be disabled in settings (disabled by default)
+- Automatic 431 handling can be disabled in settings by adjusting your cookie clearing behavior
 - The extension can be disabled or uninstalled at any time via your browser's extension management
 
 ## Children's Privacy
@@ -157,13 +156,13 @@ If we make material changes to this privacy policy, we will update the "Last Upd
 
 ## Open Source
 
-You don't just have to take our word for it. Domo Toolkit is entirely open source. You can review the complete source code to verify our privacy practices at: [https://github.com/brycewc/domo-toolkit](https://github.com/brycewc/domo-toolkit)
+You don't just have to take our word for it. Domo Toolkit is entirely open source under MIT license. You can review the complete source code to verify our privacy practices here: [https://github.com/brycewc/domo-toolkit](https://github.com/brycewc/domo-toolkit)
 
 ## Contact
 
 If you have questions about this privacy policy or the extension's data practices, please contact us:
 
-- **Email:** bryce.cindrich@domo.com
+- **Email:** toolkit@domo.com
 - **GitHub Issues:** [https://github.com/brycewc/domo-toolkit/issues](https://github.com/brycewc/domo-toolkit/issues)
 
 ## Limited Use Disclosure

@@ -6,6 +6,7 @@ import {
   Button,
   ButtonGroup,
   Chip,
+  CloseButton,
   DateField,
   DateRangePicker,
   Dropdown,
@@ -53,9 +54,20 @@ export function ActivityLogTable() {
   // Track pagination state per object: { "type:id": { offset, total, hasMore } }
   const [objectStates, setObjectStates] = useState({});
 
+  const dateRangeEpoch = useMemo(() => {
+    if (!dateRange) return {};
+    const start = dateRange.start.toDate(getLocalTimeZone());
+    start.setHours(0, 0, 0, 0);
+    const end = dateRange.end.toDate(getLocalTimeZone());
+    end.setHours(23, 59, 59, 999);
+    return { end: end.getTime(), start: start.getTime() };
+  }, [dateRange]);
+
   const isFetchingMoreRef = useRef(false);
   const objectStatesRef = useRef(objectStates);
   objectStatesRef.current = objectStates;
+  const dateRangeEpochRef = useRef(dateRangeEpoch);
+  dateRangeEpochRef.current = dateRangeEpoch;
 
   const [customAvatarIds, setCustomAvatarIds] = useState(new Set());
   const checkedAvatarIdsRef = useRef(new Set());
@@ -138,13 +150,20 @@ export function ActivityLogTable() {
     uncheckedIds.forEach((id) => checkedAvatarIdsRef.current.add(id));
 
     getCustomAvatarUserIds(uncheckedIds, tabId)
-      .then((customIds) =>
+      .then((customIds) => {
+        if (customIds.length === 0) return;
         setCustomAvatarIds((prev) => {
           const next = new Set(prev);
-          customIds.forEach((id) => next.add(id));
-          return next;
-        })
-      )
+          let changed = false;
+          for (const id of customIds) {
+            if (!prev.has(id)) {
+              next.add(id);
+              changed = true;
+            }
+          }
+          return changed ? next : prev;
+        });
+      })
       .catch(() => {});
   }, [events, tabId]);
 
@@ -159,30 +178,14 @@ export function ActivityLogTable() {
     return Array.from(types).sort();
   }, [events]);
 
-  // Filter events locally (user and action filtering is handled server-side)
+  // Filter events locally (date range, user, and action filtering is handled server-side)
   const filteredEvents = useMemo(() => {
-    let filtered = events;
+    if (objectTypeFilter.size === 0) return events;
 
-    if (dateRange) {
-      filtered = filtered.filter((event) => {
-        const eventDate = new Date(event.time);
-        eventDate.setHours(0, 0, 0, 0);
-        const start = dateRange.start.toDate(getLocalTimeZone());
-        const end = dateRange.end.toDate(getLocalTimeZone());
-        start.setHours(0, 0, 0, 0);
-        end.setHours(23, 59, 59, 999);
-        return eventDate >= start && eventDate <= end;
-      });
-    }
-
-    if (objectTypeFilter.size > 0) {
-      filtered = filtered.filter(
-        (event) => event.objectType && objectTypeFilter.has(event.objectType)
-      );
-    }
-
-    return filtered;
-  }, [events, dateRange, objectTypeFilter]);
+    return events.filter(
+      (event) => event.objectType && objectTypeFilter.has(event.objectType)
+    );
+  }, [events, objectTypeFilter]);
 
   // Pre-compute object URLs so the cell renderer is synchronous
   const [objectUrlMap, setObjectUrlMap] = useState({});
@@ -215,10 +218,20 @@ export function ActivityLogTable() {
     if (pending.length === 0) return;
 
     Promise.all(pending).then((results) => {
+      const resolved = results.filter(Boolean);
+      if (resolved.length === 0) return;
       setObjectUrlMap((prev) => {
+        let changed = false;
+        for (const { key, url } of resolved) {
+          if (prev[key] !== url) {
+            changed = true;
+            break;
+          }
+        }
+        if (!changed) return prev;
         const next = { ...prev };
-        for (const result of results) {
-          if (result) next[result.key] = result.url;
+        for (const { key, url } of resolved) {
+          next[key] = url;
         }
         return next;
       });
@@ -275,11 +288,13 @@ export function ActivityLogTable() {
 
         const fetchPromises = tasks.map((task) =>
           getActivityLogForObject({
+            end: dateRangeEpoch.end,
             eventType: task.eventType,
             limit: pageSize,
             objectId: task.objectId,
             objectType: task.objectType,
             offset: 0,
+            start: dateRangeEpoch.start,
             tabId,
             user: task.user
           })
@@ -324,7 +339,7 @@ export function ActivityLogTable() {
         );
         setObjectStates(newStates);
 
-        const allEvents = results.flatMap((r) => r.events);
+        const allEvents = deduplicateEvents(results.flatMap((r) => r.events));
         allEvents.sort((a, b) => new Date(b.time) - new Date(a.time));
 
         setEvents(allEvents);
@@ -338,7 +353,7 @@ export function ActivityLogTable() {
     };
 
     fetchEvents();
-  }, [objects, tabId, refreshKey, userFilter, actionFilter]);
+  }, [objects, tabId, refreshKey, userFilter, actionFilter, dateRangeEpoch]);
 
   const total = useMemo(
     () =>
@@ -370,11 +385,13 @@ export function ActivityLogTable() {
     try {
       const fetchPromises = tasksWithMore.map((task) =>
         getActivityLogForObject({
+          end: dateRangeEpochRef.current.end,
           eventType: task.eventType,
           limit: pageSize,
           objectId: task.objectId,
           objectType: task.objectType,
           offset: task.offset,
+          start: dateRangeEpochRef.current.start,
           tabId,
           user: task.user
         })
@@ -412,7 +429,7 @@ export function ActivityLogTable() {
 
       const newEvents = results.flatMap((r) => r.events);
       setEvents((prev) => {
-        const allEvents = [...prev, ...newEvents];
+        const allEvents = deduplicateEvents([...prev, ...newEvents]);
         allEvents.sort((a, b) => new Date(b.time) - new Date(a.time));
         return allEvents;
       });
@@ -446,11 +463,13 @@ export function ActivityLogTable() {
       while (taskHasMore) {
         try {
           const result = await getActivityLogForObject({
+            end: dateRangeEpoch.end,
             eventType: task.eventType,
             limit: exportPageSize,
             objectId: task.objectId,
             objectType: task.objectType,
             offset,
+            start: dateRangeEpoch.start,
             tabId,
             user: task.user
           });
@@ -471,33 +490,19 @@ export function ActivityLogTable() {
 
     allEvents.sort((a, b) => new Date(b.time) - new Date(a.time));
 
-    let filtered = allEvents;
-
-    if (dateRange) {
-      filtered = filtered.filter((event) => {
-        const eventDate = new Date(event.time);
-        eventDate.setHours(0, 0, 0, 0);
-        const start = dateRange.start.toDate(getLocalTimeZone());
-        const end = dateRange.end.toDate(getLocalTimeZone());
-        start.setHours(0, 0, 0, 0);
-        end.setHours(23, 59, 59, 999);
-        return eventDate >= start && eventDate <= end;
-      });
-    }
-
     if (objectTypeFilter.size > 0) {
-      filtered = filtered.filter(
+      return allEvents.filter(
         (event) => event.objectType && objectTypeFilter.has(event.objectType)
       );
     }
 
-    return filtered;
+    return allEvents;
   }, [
     tabId,
     objects,
     filteredEvents,
     userFilter,
-    dateRange,
+    dateRangeEpoch,
     actionFilter,
     objectTypeFilter
   ]);
@@ -518,7 +523,7 @@ export function ActivityLogTable() {
 
   if (isInitialLoad && events.length === 0) {
     return (
-      <div className='skeleton--shimmer h-full w-full'>
+      <div className='skeleton--shimmer relative h-full w-full overflow-hidden'>
         <Skeleton animationType='none' className='mb-4 h-4 w-1/3 rounded-lg' />
         <Skeleton animationType='none' className='mb-2 h-8 w-full rounded-lg' />
         <Skeleton
@@ -530,7 +535,7 @@ export function ActivityLogTable() {
   }
 
   return (
-    <div className='h-full w-full'>
+    <div className='flex min-h-0 w-full flex-1 flex-col'>
       <div className='mb-2 flex flex-wrap items-center justify-between'>
         <h3 className='flex items-center gap-1 text-lg font-semibold'>
           Activity Log for{' '}
@@ -611,6 +616,13 @@ export function ActivityLogTable() {
                   {(segment) => <DateField.Segment segment={segment} />}
                 </DateField.Input>
                 <DateField.Suffix>
+                  {dateRange && (
+                    <CloseButton
+                      size='sm'
+                      variant='ghost'
+                      onPress={() => setDateRange(null)}
+                    />
+                  )}
                   <DateRangePicker.Trigger>
                     <DateRangePicker.TriggerIndicator>
                       <IconCalendarWeek
@@ -973,6 +985,22 @@ function createUserColumn({
     minWidth: 40,
     width: 50
   };
+}
+
+function deduplicateEvents(events) {
+  const seen = new Set();
+  return events.filter((event) => {
+    const normalized = { ...event };
+    if (normalized.time) {
+      const d = new Date(normalized.time);
+      d.setMilliseconds(0);
+      normalized.time = d.toISOString();
+    }
+    const key = JSON.stringify(normalized);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 /**

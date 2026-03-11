@@ -175,18 +175,15 @@ export async function getCardDatasets({ cardId, tabId = null }) {
     return await executeInPage(
       async (cardId) => {
         const response = await fetch(
-          `/api/content/v1/cards?urns=${cardId}&includeFiltered=true&parts=datasources`,
-          {
-            method: 'GET'
-          }
+          `/api/content/v1/cards?urns=${cardId}&includeFiltered=true&parts=datasources`
         );
         if (!response.ok) {
           throw new Error(
             `Failed to fetch card datasets for ${cardId}. HTTP status: ${response.status}`
           );
         }
-        const card = await response.json();
-        return card.datasources || [];
+        const cards = await response.json();
+        return [].concat(cards).flatMap((c) => c.datasources || []);
       },
       [cardId],
       tabId
@@ -252,10 +249,7 @@ export async function getCardsForObject({
           case 'REPORT_BUILDER_VIEW':
           case 'WORKSHEET_VIEW': {
             const response = await fetch(
-              `/api/content/v3/stacks/${objectId}/cards`,
-              {
-                method: 'GET'
-              }
+              `/api/content/v3/stacks/${objectId}/cards`
             );
             if (!response.ok) {
               throw new Error(
@@ -269,10 +263,7 @@ export async function getCardsForObject({
 
           case 'DATA_SOURCE': {
             const response = await fetch(
-              `/api/content/v1/datasources/${objectId}/cards`,
-              {
-                method: 'GET'
-              }
+              `/api/content/v1/datasources/${objectId}/cards`
             );
             if (!response.ok) {
               throw new Error(
@@ -314,9 +305,7 @@ export async function getDrillParentCardId(
   tabId = null
 ) {
   const fetchLogic = async (drillViewId) => {
-    const response = await fetch(`/api/content/v1/cards/${drillViewId}/urn`, {
-      method: 'GET'
-    });
+    const response = await fetch(`/api/content/v1/cards/${drillViewId}/urn`);
     if (!response.ok) {
       throw new Error(
         `Failed to fetch Drill Path ${drillViewId}. HTTP status: ${response.status}`
@@ -354,8 +343,7 @@ export async function getPageCards(pageId) {
           {
             headers: {
               Accept: 'application/json'
-            },
-            method: 'GET'
+            }
           }
         );
 

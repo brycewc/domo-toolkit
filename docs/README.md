@@ -123,7 +123,7 @@ See the full [Privacy Policy](./PRIVACY_POLICY.md) for details.
 
 ## Contributing
 
-Interested in contributing? See [CONTRIBUTING.md](./CONTRIBUTING.md) for the tech stack, architecture, development setup, code conventions, and key patterns.
+Interested in contributing? See [CONTRIBUTING](./CONTRIBUTING.md) for the tech stack, architecture, development setup, code conventions, and key patterns.
 
 ## Issues & Feedback
 

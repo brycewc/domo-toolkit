@@ -1,4 +1,4 @@
-import { Card, Spinner, Toast } from '@heroui/react';
+import { Card, Spinner } from '@heroui/react';
 import { useEffect, useState } from 'react';
 
 import {
@@ -6,18 +6,19 @@ import {
   CardErrorsView,
   ContextFooter,
   GetCardsView,
-  GetViewInputsView,
   GetDatasetsView,
   GetPagesView,
+  GetViewInputsView,
   LinkPreview,
-  ObjectDetailsView
+  ObjectDetailsView,
+  ToastProvider
 } from '@/components';
-import { useStatusBar, useTheme } from '@/hooks';
+import { useReleaseNotification, useStatusBar, useTheme } from '@/hooks';
 import { DomoContext } from '@/models';
 
 export default function App() {
-  // Apply theme
   useTheme();
+  useReleaseNotification();
 
   const [activeView, setActiveView] = useState('default');
   const [viewKey, setViewKey] = useState(0);
@@ -202,7 +203,7 @@ export default function App() {
           collapsable={true}
           currentContext={currentContext}
           defaultExpanded={activeView === 'default'}
-          isLoadingCurrentContext={isLoadingCurrentContext}
+          isLoading={isLoadingCurrentContext}
           onStatusUpdate={showStatus}
         />
 
@@ -276,7 +277,7 @@ export default function App() {
         )}
       </div>
       <LinkPreview />
-      <Toast.Provider />
+      <ToastProvider />
     </>
   );
 }

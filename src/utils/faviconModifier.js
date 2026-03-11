@@ -3,9 +3,6 @@
  * Applies visual effects to page favicons based on configured rules
  */
 
-import domoLogoTransparent from '@/assets/domo-logo-no-background.png';
-import domoLogo from '@/assets/domo-logo.png';
-
 import { EXCLUDED_HOSTNAMES } from './constants';
 
 /**
@@ -209,7 +206,7 @@ async function applyColorEffect(favicon, effect, color) {
     };
 
     // Always use the fresh Domo logo to prevent effect stacking
-    img.src = chrome.runtime.getURL(domoLogo);
+    img.src = chrome.runtime.getURL('public/domo-logo.png');
   });
 }
 
@@ -252,7 +249,7 @@ async function applyDomoLogoColored(favicon, color) {
     };
 
     // Load the transparent Domo logo
-    img.src = chrome.runtime.getURL(domoLogoTransparent);
+    img.src = chrome.runtime.getURL('public/domo-logo-no-background.png');
   });
 }
 
@@ -294,9 +291,7 @@ async function applyInstanceLogo(favicon, subdomain) {
   try {
     // Check if instance logo exists and get its ID
     const checkUrl = '/api/content/v1/avatar/CUSTOMER/CUSTOMER/all';
-    const checkResponse = await fetch(checkUrl, {
-      method: 'GET'
-    });
+    const checkResponse = await fetch(checkUrl);
 
     if (!checkResponse.ok) {
       console.warn('Could not check for instance logo');
@@ -339,9 +334,7 @@ async function applyInstanceLogo(favicon, subdomain) {
     const logoUrl = '/api/content/v1/avatar/CUSTOMER/CUSTOMER';
 
     // Fetch the logo and convert to data URL for caching
-    const logoResponse = await fetch(logoUrl, {
-      method: 'GET'
-    });
+    const logoResponse = await fetch(logoUrl);
 
     if (!logoResponse.ok) {
       console.warn('Could not fetch instance logo');

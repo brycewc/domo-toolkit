@@ -13,6 +13,7 @@ import {
   Label,
   ListBox,
   parseColor,
+  ScrollShadow,
   Select,
   Skeleton,
   TextField
@@ -172,28 +173,29 @@ export function FaviconSettings() {
   };
 
   return (
-    <div className='flex h-full min-h-[calc(100vh-20)] w-full flex-col justify-between pt-4'>
-      <div className='flex w-full flex-col gap-2'>
-        <Form className='flex w-full flex-col gap-2' onSubmit={onSave}>
-          <div className='flex flex-row gap-2'>
-            <Button isDisabled={!hasChanges} type='submit'>
-              <IconDeviceFloppy />
-              Save Settings
-            </Button>
-            <Button type='button' variant='secondary' onPress={addRow}>
-              <IconPlus />
-              Add Rule
-            </Button>
-          </div>
+    <div className='flex min-h-0 w-full flex-1 flex-col pt-4'>
+      <Form className='flex min-h-0 w-full flex-1 flex-col gap-2' onSubmit={onSave}>
+        <div className='flex shrink-0 flex-row gap-2'>
+          <Button isDisabled={!hasChanges} type='submit'>
+            <IconDeviceFloppy />
+            Save Settings
+          </Button>
+          <Button type='button' variant='secondary' onPress={addRow}>
+            <IconPlus />
+            Add Rule
+          </Button>
+        </div>
 
-          {isLoading ? (
-            <div className='skeleton--shimmer relative flex w-full flex-col gap-2 overflow-hidden'>
-              <Skeleton animationType='none' className='h-24 rounded-xl' />
-              <Skeleton animationType='none' className='h-24 rounded-xl' />
-              <Skeleton animationType='none' className='h-24 rounded-xl' />
-            </div>
-          ) : (
-            rules.map((rule, index) => (
+        <ScrollShadow className='min-h-0 flex-1'>
+          <div className='flex flex-col gap-2'>
+            {isLoading ? (
+              <div className='skeleton--shimmer relative flex w-full flex-col gap-2 overflow-hidden'>
+                <Skeleton animationType='none' className='h-24 rounded-xl' />
+                <Skeleton animationType='none' className='h-24 rounded-xl' />
+                <Skeleton animationType='none' className='h-24 rounded-xl' />
+              </div>
+            ) : (
+              rules.map((rule, index) => (
               <Card
                 draggable
                 key={rule.id}
@@ -224,7 +226,8 @@ export function FaviconSettings() {
                       value={rule.pattern}
                       variant='secondary'
                       onChange={(value) =>
-                        updateRule(rule.id, 'pattern', value)}
+                        updateRule(rule.id, 'pattern', value)
+                      }
                     >
                       <Label>Subdomain Pattern</Label>
                       <Input />
@@ -253,42 +256,48 @@ export function FaviconSettings() {
                             instance-logo
                             <ListBox.ItemIndicator>
                               {({ isSelected }) =>
-                                isSelected ? <IconCheck stroke={1.5} /> : null}
+                                isSelected ? <IconCheck stroke={1.5} /> : null
+                              }
                             </ListBox.ItemIndicator>
                           </ListBox.Item>
                           <ListBox.Item id='domo-logo-colored'>
                             domo-logo-colored
                             <ListBox.ItemIndicator>
                               {({ isSelected }) =>
-                                isSelected ? <IconCheck stroke={1.5} /> : null}
+                                isSelected ? <IconCheck stroke={1.5} /> : null
+                              }
                             </ListBox.ItemIndicator>
                           </ListBox.Item>
                           <ListBox.Item id='top'>
                             top
                             <ListBox.ItemIndicator>
                               {({ isSelected }) =>
-                                isSelected ? <IconCheck stroke={1.5} /> : null}
+                                isSelected ? <IconCheck stroke={1.5} /> : null
+                              }
                             </ListBox.ItemIndicator>
                           </ListBox.Item>
                           <ListBox.Item id='right'>
                             right
                             <ListBox.ItemIndicator>
                               {({ isSelected }) =>
-                                isSelected ? <IconCheck stroke={1.5} /> : null}
+                                isSelected ? <IconCheck stroke={1.5} /> : null
+                              }
                             </ListBox.ItemIndicator>
                           </ListBox.Item>
                           <ListBox.Item id='bottom'>
                             bottom
                             <ListBox.ItemIndicator>
                               {({ isSelected }) =>
-                                isSelected ? <IconCheck stroke={1.5} /> : null}
+                                isSelected ? <IconCheck stroke={1.5} /> : null
+                              }
                             </ListBox.ItemIndicator>
                           </ListBox.Item>
                           <ListBox.Item id='left'>
                             left
                             <ListBox.ItemIndicator>
                               {({ isSelected }) =>
-                                isSelected ? <IconCheck stroke={1.5} /> : null}
+                                isSelected ? <IconCheck stroke={1.5} /> : null
+                              }
                             </ListBox.ItemIndicator>
                           </ListBox.Item>
                         </ListBox>
@@ -300,7 +309,8 @@ export function FaviconSettings() {
                     <ColorPicker
                       className='flex flex-col items-start justify-start gap-1'
                       onChange={(newColor) =>
-                        updateRule(rule.id, 'color', newColor.toString('hexa'))}
+                        updateRule(rule.id, 'color', newColor.toString('hexa'))
+                      }
                       value={
                         rule.effect === 'instance-logo'
                           ? '#00000000'
@@ -338,7 +348,8 @@ export function FaviconSettings() {
                               <ColorSwatchPicker.Swatch />
                               <ColorSwatchPicker.Indicator>
                                 {({ isSelected }) =>
-                                  isSelected ? <IconCheck /> : null}
+                                  isSelected ? <IconCheck /> : null
+                                }
                               </ColorSwatchPicker.Indicator>
                             </ColorSwatchPicker.Item>
                           ))}
@@ -440,12 +451,13 @@ export function FaviconSettings() {
                   )}
                 </Card.Content>
               </Card>
-            ))
-          )}
-        </Form>
-      </div>
+              ))
+            )}
+          </div>
+        </ScrollShadow>
+      </Form>
 
-      <Accordion className='cursor-pointer'>
+      <Accordion className='shrink-0 cursor-pointer'>
         <Accordion.Item key='rule-ordering'>
           <Accordion.Heading>
             <Accordion.Trigger>

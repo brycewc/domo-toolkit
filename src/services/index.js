@@ -47,10 +47,10 @@ export {
   getFiltersFromAllFrames,
   getIframePfilters,
   getPageFilters,
-  getUrlPfilters,
   getVariableControlFilters,
   mergeFilters
 } from './filters';
+export { fetchGroupDisplayNames } from './groups';
 export {
   deletePageAndAllCards,
   getAppStudioPageParent,
@@ -60,8 +60,8 @@ export {
 } from './pages';
 export {
   fetchUserDisplayNames,
-  getCustomAvatarUserIds,
   getCurrentUser,
   getCurrentUserId,
+  getCustomAvatarUserIds,
   searchUsers
 } from './users';

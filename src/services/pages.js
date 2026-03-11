@@ -62,54 +62,54 @@ export async function deletePageAndAllCards({
     // Execute deletion logic in page context to inherit authentication
     const result = await executeInPage(
       async (pageId, pageType, appId, cardIds) => {
-        try{
+        try {
         // Delete all cards if there are any
-        if (cardIds.length > 0) {
-          const cardIdsString = cardIds.join(',');
-          const deleteCardsResponse = await fetch(
-            `/api/content/v1/cards/bulk?cardIds=${cardIdsString}`,
-            {
-              method: 'DELETE'
-            }
-          );
-
-          if (!deleteCardsResponse.ok) {
-            throw new Error(
-              `Failed to delete cards for page ${pageId}. HTTP status: ${deleteCardsResponse.status}`
+          if (cardIds.length > 0) {
+            const cardIdsString = cardIds.join(',');
+            const deleteCardsResponse = await fetch(
+              `/api/content/v1/cards/bulk?cardIds=${cardIdsString}`,
+              {
+                method: 'DELETE'
+              }
             );
+
+            if (!deleteCardsResponse.ok) {
+              throw new Error(
+                `Failed to delete cards for page ${pageId}. HTTP status: ${deleteCardsResponse.status}`
+              );
+            }
           }
-        }
 
-        // Delete the page
-        const pageDeleteUrl =
-          pageType === 'PAGE'
-            ? `/api/content/v1/pages/${pageId}`
-            : `/api/content/v1/dataapps/${appId}/views/${pageId}`;
+          // Delete the page
+          const pageDeleteUrl =
+            pageType === 'PAGE'
+              ? `/api/content/v1/pages/${pageId}`
+              : `/api/content/v1/dataapps/${appId}/views/${pageId}`;
 
-        const deletePageResponse = await fetch(pageDeleteUrl, {
-          method: 'DELETE'
-        });
+          const deletePageResponse = await fetch(pageDeleteUrl, {
+            method: 'DELETE'
+          });
 
-        if (!deletePageResponse.ok) {
+          if (!deletePageResponse.ok) {
+            return {
+              cardsDeleted: cardIds.length,
+              statusCode: deletePageResponse.status,
+              success: false
+            };
+          }
+
           return {
             cardsDeleted: cardIds.length,
-            statusCode: deletePageResponse.status,
+            success: true
+          };
+        } catch (error) {
+          console.error('Error in deletePageAndAllCards:', error);
+          return {
+            cardsDeleted: 0,
+            statusCode: 500,
             success: false
           };
         }
-
-        return {
-          cardsDeleted: cardIds.length,
-          success: true
-        };
-      } catch (error) {
-        console.error('Error in deletePageAndAllCards:', error);
-        return {
-          cardsDeleted: 0,
-          statusCode: 500,
-          success: false
-        }
-      }
       },
       [pageId, pageType, appId, cardIds],
       tabId
@@ -185,7 +185,6 @@ export async function getAppStudioPageParent(
         body: JSON.stringify({
           pageId: appPageId
         }),
-        credentials: 'include',
         headers: {
           'Content-Type': 'application/json'
         },
@@ -264,7 +263,6 @@ export async function getChildPages({
             '/api/content/v1/pages/adminsummary?limit=100&skip=0',
             {
               body: JSON.stringify(body),
-              credentials: 'include',
               headers: {
                 'Accept': 'application/json',
                 'Content-Type': 'application/json'
@@ -295,7 +293,6 @@ export async function getChildPages({
               '/api/content/v1/pages/adminsummary?limit=100&skip=0',
               {
                 body: JSON.stringify(grandchildrenBody),
-                credentials: 'include',
                 headers: {
                   'Accept': 'application/json',
                   'Content-Type': 'application/json'
@@ -318,9 +315,7 @@ export async function getChildPages({
             childPages = [...childPages, ...grandchildPages];
           }
         } else if (pageType === 'DATA_APP_VIEW') {
-          const appResponse = await fetch(`/api/content/v1/dataapps/${appId}`, {
-            method: 'GET'
-          });
+          const appResponse = await fetch(`/api/content/v1/dataapps/${appId}`);
 
           if (!appResponse.ok) {
             throw new Error(
@@ -363,9 +358,7 @@ export async function getPagesForCards(cardIds, tabId = null) {
         // Fetch all cards in parallel (one request per card for speed)
         const results = await Promise.all(
           cardIds.map((cardId) =>
-            fetch(`/api/content/v1/cards?urns=${cardId}&parts=adminAllPages`, {
-              method: 'GET'
-            }).then((response) => {
+            fetch(`/api/content/v1/cards?urns=${cardId}&parts=adminAllPages`).then((response) => {
               if (!response.ok) return null;
               return response.json();
             })
@@ -542,7 +535,6 @@ export async function sharePagesWithSelf({ pageIds, tabId, userId }) {
         // Make API call to fetch pages with relative URL
         const response = await fetch('/api/content/v1/share?sendEmail=false', {
           body: JSON.stringify(body),
-          credentials: 'include',
           headers: {
             'Accept': 'application/json',
             'Content-Type': 'application/json'

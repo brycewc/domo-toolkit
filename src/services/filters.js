@@ -45,15 +45,11 @@ export function encodeFilters(filters) {
 /**
  * Get all filters for a page from multiple detection sources
  * @param {Object} params - Parameters
- * @param {string} params.url - Current page URL
  * @param {string} params.pageId - Page ID
  * @param {number} [params.tabId] - Optional Chrome tab ID
- * @returns {Promise<Object>} Object with urlFilters, pageFilters, and merged filters
+ * @returns {Promise<Object>} Object with pageFilters and merged filters
  */
-export async function getAllFilters({ pageId, tabId = null, url }) {
-  // Get URL pfilters (synchronous)
-  const urlFilters = getUrlPfilters(url);
-
+export async function getAllFilters({ pageId, tabId = null }) {
   // Get page filter card filters (async) - tries client-side state first
   const pageFilters = await getPageFilters(pageId, tabId);
 
@@ -100,8 +96,7 @@ export async function getAllFilters({ pageId, tabId = null, url }) {
     pageFilters.length === 0 &&
     appStudioFilters.length === 0 &&
     variableControlFilters.length === 0 &&
-    angularFilters.length === 0 &&
-    urlFilters.length === 0
+    angularFilters.length === 0
   ) {
     // Try getting filters from domoFilterService in any frame (embedded apps)
     frameFilters = await getFiltersFromAllFrames(tabId);
@@ -112,15 +107,13 @@ export async function getAllFilters({ pageId, tabId = null, url }) {
     }
   }
 
-  // Merge all sources (URL > frame > iframe > appStudio > angular > variableControl > page)
   const allFilters = mergeFilters(
     pageFilters,
     variableControlFilters,
     angularFilters,
     appStudioFilters,
     iframeFilters,
-    frameFilters,
-    urlFilters
+    frameFilters
   );
 
   if (allFilters.length > 0) {
@@ -138,7 +131,6 @@ export async function getAllFilters({ pageId, tabId = null, url }) {
     hasFilters: allFilters.length > 0,
     iframeFilters,
     pageFilters,
-    urlFilters,
     variableControlFilters
   };
 }
@@ -1127,30 +1119,6 @@ export async function getPageFilters(pageId, tabId = null) {
 }
 
 /**
- * Extract pfilters from URL query string
- * @param {string} url - Full URL to parse
- * @returns {Array} Array of pfilter objects, empty if none found
- */
-export function getUrlPfilters(url) {
-  try {
-    const urlObj = new URL(url);
-    const pfiltersParam = urlObj.searchParams.get('pfilters');
-
-    if (!pfiltersParam) {
-      return [];
-    }
-
-    const decoded = decodeURIComponent(pfiltersParam);
-    const filters = JSON.parse(decoded);
-
-    return Array.isArray(filters) ? filters : [];
-  } catch (error) {
-    console.warn('Failed to parse pfilters from URL:', error);
-    return [];
-  }
-}
-
-/**
  * Get variable controls (filter cards) from page cards via API
  * This fetches the current filter selections from Domo's variable controls system
  * @param {string} pageId - The page ID
@@ -1165,10 +1133,7 @@ export async function getVariableControlFilters(pageId, tabId = null) {
 
         // First, get all cards on the page
         const cardsResponse = await fetch(
-          `/api/content/v1/pages/${pageId}/cards`,
-          {
-            credentials: 'include'
-          }
+          `/api/content/v1/pages/${pageId}/cards`
         );
 
         if (!cardsResponse.ok) {
@@ -1199,8 +1164,7 @@ export async function getVariableControlFilters(pageId, tabId = null) {
         const controlPromises = cardsToCheck.map(async (card) => {
           try {
             const controlsResponse = await fetch(
-              `/api/content/v1/cards/${card.id}/variable/controls`,
-              { credentials: 'include' }
+              `/api/content/v1/cards/${card.id}/variable/controls`
             );
 
             if (controlsResponse.ok) {
