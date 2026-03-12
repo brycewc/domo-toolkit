@@ -121,19 +121,31 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
               currentContext?.tabId
             );
 
-            if (pages.length === 0) {
-              onStatusUpdate?.(
-                `No Pages Found on ${currentContext?.domoObject?.typeName}`,
-                `Cards on ${objectName} are not used on any pages`,
-                'warning'
-              );
-              setIsLoading(false);
-              return;
+            const validPages = pages.filter((p) => Number(p.id) >= 0);
+
+            if (validPages.length === 0) {
+              if (pages.length === 0) {
+                onStatusUpdate?.(
+                  `No Pages Found on ${currentContext?.domoObject?.typeName}`,
+                  `Cards on ${objectName} are not used on any pages`,
+                  'warning'
+                );
+                setIsLoading(false);
+                return;
+              } else {
+                onStatusUpdate?.(
+                  `No Valid Pages Found on ${currentContext?.domoObject?.typeName}`,
+                  `Cards on ${objectName} are only used on Overview, Favorites, or Shared pages`,
+                  'warning'
+                );
+                setIsLoading(false);
+                return;
+              }
             }
 
-            activityLogObjects = pages;
+            activityLogObjects = validPages;
 
-            message = `Navigating to activity log for ${pages.length} pages containing cards from ${objectName}`;
+            message = `Navigating to activity log for ${validPages.length} pages containing cards from ${objectName}`;
           } else if (
             currentContext?.domoObject.typeId === 'PAGE' ||
             currentContext?.domoObject.typeId === 'DATA_APP_VIEW'
@@ -147,9 +159,11 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
               return;
             }
 
-            const childPages = result.childPages;
+            const childPages = (result.childPages || []).filter(
+              (p) => Number(p.pageId) >= 0
+            );
 
-            if (!childPages || childPages.length === 0) {
+            if (childPages.length === 0) {
               onStatusUpdate?.(
                 'No Child Pages Found',
                 `No child pages found for ${currentContext?.domoObject.typeName} ${currentContext?.domoObject.id}`,

@@ -210,16 +210,6 @@ export function ActionButtons({
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
-                {availableActions.has('getViewInputs') && (
-                  <GetViewInputs
-                    currentContext={currentContext}
-                    isDisabled={!isDomoPage}
-                    onCollapseActions={
-                      collapsable ? () => setIsExpanded(false) : undefined
-                    }
-                    onStatusUpdate={onStatusUpdate}
-                  />
-                )}
                 {availableActions.has('getPages') && (
                   <GetPages
                     currentContext={currentContext}
@@ -252,17 +242,13 @@ export function ActionButtons({
                     isDisabled={!isDomoPage}
                   />
                 )}
-                {availableActions.has('lockCards') && (
-                  <LockCards
+                {availableActions.has('getViewInputs') && (
+                  <GetViewInputs
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
-                    onStatusUpdate={onStatusUpdate}
-                  />
-                )}
-                {availableActions.has('copyFilteredUrl') && (
-                  <CopyFilteredUrl
-                    currentContext={currentContext}
-                    isDisabled={!isDomoPage}
+                    onCollapseActions={
+                      collapsable ? () => setIsExpanded(false) : undefined
+                    }
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
@@ -275,6 +261,20 @@ export function ActionButtons({
                 {availableActions.has('updateOwner') && (
                   <UpdateOwner
                     currentContext={currentContext}
+                    onStatusUpdate={onStatusUpdate}
+                  />
+                )}
+                {availableActions.has('lockCards') && (
+                  <LockCards
+                    currentContext={currentContext}
+                    isDisabled={!isDomoPage}
+                    onStatusUpdate={onStatusUpdate}
+                  />
+                )}
+                {availableActions.has('copyFilteredUrl') && (
+                  <CopyFilteredUrl
+                    currentContext={currentContext}
+                    isDisabled={!isDomoPage}
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
