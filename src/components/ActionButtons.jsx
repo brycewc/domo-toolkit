@@ -31,6 +31,7 @@ import {
   LockCards,
   NavigateToCopiedObject,
   RemoveEmptyStringsFromQuickFilters,
+  SetStreamToManual,
   ShareWithSelf,
   TraceLineage,
   UpdateDataflowDetails,
@@ -278,6 +279,13 @@ export function ActionButtons({
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
+                {availableActions.has('setStreamToManual') && (
+                  <SetStreamToManual
+                    currentContext={currentContext}
+                    isDisabled={!isDomoPage}
+                    onStatusUpdate={onStatusUpdate}
+                  />
+                )}
                 {availableActions.has('export') && (
                   <Export
                     currentContext={currentContext}
@@ -341,6 +349,9 @@ function getAvailableActions(typeId, details) {
     actions.add('getViewInputs');
     actions.add('dataRepair');
     actions.add('traceLineage');
+    if (details?.streamId) {
+      actions.add('setStreamToManual');
+    }
   }
 
   if (['CARD', 'DATA_APP_VIEW', 'PAGE'].includes(typeId)) {

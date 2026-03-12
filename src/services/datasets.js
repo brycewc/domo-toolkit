@@ -272,6 +272,50 @@ export async function getStreamExecutions({ limit = 100, streamId, tabId }) {
 }
 
 /**
+ * Set a stream's schedule to MANUAL
+ * @param {Object} params - Parameters
+ * @param {string|number} params.streamId - The stream ID
+ * @param {number} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<Object>} The updated stream definition
+ */
+export async function setStreamScheduleToManual({ streamId, tabId }) {
+  return executeInPage(
+    async (streamId) => {
+      const getResponse = await fetch(
+        `/api/data/v1/streams/${streamId}?fields=all`
+      );
+      if (!getResponse.ok) {
+        throw new Error(
+          `Failed to fetch stream ${streamId}. HTTP status: ${getResponse.status}`
+        );
+      }
+
+      const definition = await getResponse.json();
+      definition.scheduleState = 'MANUAL';
+      definition.advancedScheduleJson = JSON.stringify({
+        type: 'MANUAL',
+        timezone: 'UTC'
+      });
+
+      const putResponse = await fetch(`/api/data/v1/streams/${streamId}`, {
+        body: JSON.stringify(definition),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'PUT'
+      });
+      if (!putResponse.ok) {
+        throw new Error(
+          `Failed to update stream ${streamId}. HTTP status: ${putResponse.status}`
+        );
+      }
+
+      return putResponse.json();
+    },
+    [streamId],
+    tabId
+  );
+}
+
+/**
  * Check if a DATA_SOURCE is a view type (dataset-view or datafusion)
  * @param {Object} details - The metadata.details object
  * @returns {boolean}

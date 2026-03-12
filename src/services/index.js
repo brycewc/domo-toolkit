@@ -36,7 +36,8 @@ export {
   getDependentDatasets,
   getStreamExecution,
   getStreamExecutions,
-  isViewType
+  isViewType,
+  setStreamScheduleToManual
 } from './datasets';
 export { parseDataflow, searchTiles } from './etlParser';
 export {

@@ -1035,26 +1035,25 @@ async function detectAndStoreContext(tabId) {
         });
     } else if (typeModel.id === 'CARD') {
       // Fetch pages for card in background without blocking
-      // Fetch pages for card in background without blocking
       getPagesForCards([parseInt(objectId)], tabId)
-        .then((childPages) => {
-          // Get the current context (it might have been updated)
+        .then((result) => {
           const currentContext = getTabContext(tabId);
           if (currentContext?.domoObject?.id === objectId) {
-            // Store child pages in metadata.details.childPages
             if (!currentContext.domoObject?.metadata) {
               currentContext.domoObject.metadata = {};
             }
             if (!currentContext.domoObject.metadata?.details) {
               currentContext.domoObject.metadata.details = {};
             }
-            currentContext.domoObject.metadata.details.childPages = childPages;
+            currentContext.domoObject.metadata.details.childPages =
+              result.pages || [];
+            currentContext.domoObject.metadata.details.cardsByPage =
+              result.cardsByPage || {};
 
-            // Update the stored context
             setTabContext(tabId, currentContext);
 
             console.log(
-              `[Background] Fetched ${childPages?.length || 0} child pages for ${typeModel.id} ${objectId}`
+              `[Background] Fetched ${result.pages?.length || 0} child pages for ${typeModel.id} ${objectId}`
             );
           }
         })

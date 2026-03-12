@@ -137,6 +137,14 @@ export function ContextFooter({
     developerMode
   ]);
 
+  // Reset related cache and active tab when the detected object changes
+  const objectId = currentContext?.domoObject?.id;
+  useEffect(() => {
+    setRelatedCache({});
+    setLoadingTabs({});
+    setActiveTabId(tabs[0]?.id ?? null);
+  }, [objectId]);
+
   // Default activeTabId to first tab when tabs change
   useEffect(() => {
     if (tabs.length > 0 && !tabs.find((t) => t.id === activeTabId)) {

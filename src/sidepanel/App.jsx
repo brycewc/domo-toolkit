@@ -198,7 +198,7 @@ export default function App() {
 
   return (
     <>
-      <div className='flex h-full max-h-screen min-h-0 w-full flex-col items-start justify-start space-y-1 overscroll-contain p-1'>
+      <div className='flex h-full max-h-screen min-h-0 w-full flex-col items-start justify-start space-y-1 overflow-hidden overscroll-contain p-1'>
         <ActionButtons
           collapsable={true}
           currentContext={currentContext}
