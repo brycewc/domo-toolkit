@@ -5,6 +5,7 @@ export { Copy } from './Copy';
 export { CopyFilteredUrl } from './CopyFilteredUrl';
 export { DataRepair } from './DataRepair';
 export { DeleteCurrentObject } from './DeleteCurrentObject';
+export { DevMenu } from './DevMenu';
 export { Export } from './Export';
 export { GetCards } from './GetCards';
 export { GetDatasets } from './GetDatasets';

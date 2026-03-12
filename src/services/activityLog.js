@@ -13,11 +13,13 @@ import { executeInPage } from '@/utils';
  * @returns {Promise<{events: Array, total: number, limit: number, offset: number}>}
  */
 export async function getActivityLogForObject({
+  end,
   eventType,
   limit = 50,
   objectId,
   objectType,
   offset = 0,
+  start,
   tabId,
   user
 } = {}) {
@@ -28,8 +30,8 @@ export async function getActivityLogForObject({
     objectId ?? null,
     eventType ?? null,
     user ?? null,
-    new Date('2008-01-01').getTime(),
-    Date.now()
+    start ?? new Date('2008-01-01').getTime(),
+    end ?? Date.now()
   ];
 
   return executeInPage(
@@ -46,14 +48,8 @@ export async function getActivityLogForObject({
       if (end) queryParams.append('end', end);
 
       const [countResponse, eventsResponse] = await Promise.all([
-        fetch(`/api/audit/v1/user-audits/count?${queryParams.toString()}`, {
-          credentials: 'include',
-          method: 'GET'
-        }),
-        fetch(`/api/audit/v1/user-audits?${queryParams.toString()}`, {
-          credentials: 'include',
-          method: 'GET'
-        })
+        fetch(`/api/audit/v1/user-audits/count?${queryParams.toString()}`),
+        fetch(`/api/audit/v1/user-audits?${queryParams.toString()}`)
       ]);
 
       if (!countResponse.ok) {
@@ -92,8 +88,7 @@ export async function getEventTypesForObjectType(objectType, tabId) {
   return executeInPage(
     async (objectType) => {
       const response = await fetch(
-        `/api/audit/v1/user-audits/objectTypes/${encodeURIComponent(objectType)}/eventTypes`,
-        { credentials: 'include', method: 'GET' }
+        `/api/audit/v1/user-audits/objectTypes/${encodeURIComponent(objectType)}/eventTypes`
       );
       if (!response.ok) {
         throw new Error(

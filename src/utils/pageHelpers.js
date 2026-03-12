@@ -9,7 +9,7 @@
  * @returns {Promise<{success: boolean, childPages: Array|null, error: string|null}>}
  */
 export async function waitForChildPages(currentContext, maxAttempts = 50) {
-  try{
+  try {
   const objectType = currentContext.domoObject?.typeId;
   const propertyName =
     objectType === 'DATA_APP_VIEW' ? 'appPages' : 'childPages';

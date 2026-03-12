@@ -6,7 +6,9 @@ import { isSidepanel } from '@/utils';
 export function TraceLineage({ currentContext, onStatusUpdate }) {
   const isDisabled =
     !currentContext?.domoObject?.id ||
-    !['DATA_SOURCE', 'DATAFLOW'].includes(currentContext?.domoObject?.typeId);
+    !['DATA_SOURCE', 'DATAFLOW_TYPE'].includes(
+      currentContext?.domoObject?.typeId
+    );
 
   const handlePress = async () => {
     if (!currentContext?.domoObject) return;

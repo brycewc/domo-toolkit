@@ -8,7 +8,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useGraphVisibility, useLineageCache } from '@/hooks';
-import { toNodeId } from '@/services';
+import { toLineageType, toNodeId } from '@/services';
 
 import { DataPreviewPanel, ETLInspector, PipelineGraph } from '../tracer';
 
@@ -33,7 +33,9 @@ export function LineageViewer() {
 
   const rootNodeId = useMemo(
     () =>
-      params ? toNodeId(params.entityType, params.entityId) : null,
+      params
+        ? toNodeId(toLineageType(params.entityType), params.entityId)
+        : null,
     [params]
   );
 
@@ -162,24 +164,26 @@ export function LineageViewer() {
     [rootNodeId, expandNode]
   );
 
+  const mappedEntityType = params ? toLineageType(params.entityType) : null;
+
   const entityIcon = useMemo(
     () =>
-      params?.entityType === 'DATAFLOW' ? (
+      mappedEntityType === 'DATAFLOW' ? (
         <IconArrowsSplit className='size-5 shrink-0' stroke={1.5} />
       ) : (
         <IconDatabase className='size-5 shrink-0' stroke={1.5} />
       ),
-    [params?.entityType]
+    [mappedEntityType]
   );
 
   const domoUrl = useMemo(() => {
     if (!params?.instance || !params?.entityId) return null;
     const path =
-      params.entityType === 'DATAFLOW'
+      mappedEntityType === 'DATAFLOW'
         ? `/datacenter/dataflows/${params.entityId}/details`
         : `/datasources/${params.entityId}/details`;
     return `https://${params.instance}.domo.com${path}`;
-  }, [params?.instance, params?.entityId, params?.entityType]);
+  }, [params?.instance, params?.entityId, mappedEntityType]);
 
   if (!params && !loading && error) {
     return (

@@ -48,8 +48,7 @@ export async function getFormsForPage({ formWidgetIds, tabId = null }) {
           try {
             // Step 1: Resolve widget to workflow model and form ID
             const widgetResponse = await fetch(
-              `/api/workflow/v1/models/widget/${widgetId}`,
-              { method: 'GET' }
+              `/api/workflow/v1/models/widget/${widgetId}`
             );
             if (!widgetResponse.ok) return null;
             const widget = await widgetResponse.json();
@@ -60,9 +59,7 @@ export async function getFormsForPage({ formWidgetIds, tabId = null }) {
             if (!formId) return null;
 
             // Step 2: Fetch form details for the title
-            const formResponse = await fetch(`/api/forms/v2/${formId}`, {
-              method: 'GET'
-            });
+            const formResponse = await fetch(`/api/forms/v2/${formId}`);
             if (!formResponse.ok) return null;
             const form = await formResponse.json();
 
@@ -101,10 +98,7 @@ export async function getQueuesForPage({ queueWidgetIds, tabId = null }) {
         queueWidgetIds.map(async (widgetId) => {
           try {
             // Step 1: Resolve widget to actual queue ID
-            const widgetResponse = await fetch(
-              `/api/queues/v1/widget/${widgetId}`,
-              { method: 'GET' }
-            );
+            const widgetResponse = await fetch(`/api/queues/v1/widget/${widgetId}`);
             if (!widgetResponse.ok) return null;
             const widget = await widgetResponse.json();
 
@@ -112,9 +106,7 @@ export async function getQueuesForPage({ queueWidgetIds, tabId = null }) {
             if (!queueId) return null;
 
             // Step 2: Fetch queue details for the name
-            const queueResponse = await fetch(`/api/queues/v1/${queueId}`, {
-              method: 'GET'
-            });
+            const queueResponse = await fetch(`/api/queues/v1/${queueId}`);
             if (!queueResponse.ok) return null;
             const queue = await queueResponse.json();
 

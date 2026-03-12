@@ -1,28 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-function computeInitialExpanded(graph, rootNodeId) {
-  const initial = new Map();
-
-  for (const node of graph.nodes) {
-    if (node.id === rootNodeId) {
-      initial.set(node.id, { down: true, up: true });
-    } else if (Math.abs(node.depth) <= 2) {
-      const dir = node.direction;
-      initial.set(node.id, {
-        down: dir === 'root' || dir === 'downstream',
-        up: dir === 'root' || dir === 'upstream'
-      });
-    }
-  }
-
-  return initial;
-}
-
-function getGraphFingerprint(graph, rootNodeId) {
-  if (!graph || !rootNodeId) return null;
-  return `${rootNodeId}:${graph.nodes.length}:${graph.edges.length}`;
-}
-
 export function useGraphVisibility({
   expandFetch,
   graph,
@@ -295,4 +272,27 @@ export function useGraphVisibility({
     levelSummary,
     visibleTrace
   };
+}
+
+function computeInitialExpanded(graph, rootNodeId) {
+  const initial = new Map();
+
+  for (const node of graph.nodes) {
+    if (node.id === rootNodeId) {
+      initial.set(node.id, { down: true, up: true });
+    } else if (Math.abs(node.depth) <= 2) {
+      const dir = node.direction;
+      initial.set(node.id, {
+        down: dir === 'root' || dir === 'downstream',
+        up: dir === 'root' || dir === 'upstream'
+      });
+    }
+  }
+
+  return initial;
+}
+
+function getGraphFingerprint(graph, rootNodeId) {
+  if (!graph || !rootNodeId) return null;
+  return `${rootNodeId}:${graph.nodes.length}:${graph.edges.length}`;
 }

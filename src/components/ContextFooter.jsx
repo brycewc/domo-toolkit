@@ -4,6 +4,7 @@ import {
   Disclosure,
   Link,
   ScrollShadow,
+  Skeleton,
   Spinner,
   Tabs,
   Tooltip
@@ -12,17 +13,19 @@ import { IconClipboard } from '@tabler/icons-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import JsonView from 'react18-json-view';
 
-import { useUserLookup } from '@/hooks';
+import { useGroupLookup, useUserLookup } from '@/hooks';
 import { getObjectType } from '@/models';
 import { fetchObjectDetailsInPage } from '@/services';
 import {
   executeInPage,
   formatEpochTimestamp,
   isDateFieldName,
+  isGroupFieldName,
   isUserFieldName
 } from '@/utils';
 
 import { AnimatedCheck } from './AnimatedCheck';
+import { GroupIdAnnotation } from './GroupIdAnnotation';
 import { TimestampAnnotation } from './TimestampAnnotation';
 import { UserIdAnnotation } from './UserIdAnnotation';
 import '@/assets/json-view-theme.css';
@@ -32,11 +35,29 @@ export function ContextFooter({
   isLoading,
   onStatusUpdate: _onStatusUpdate
 }) {
+  const [developerMode, setDeveloperMode] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [relatedCache, setRelatedCache] = useState({});
   const [loadingTabs, setLoadingTabs] = useState({});
   const [activeTabId, setActiveTabId] = useState(null);
   const disclosureRef = useRef(null);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+
+    chrome.storage.local.get(['developerMode'], (result) => {
+      setDeveloperMode(result.developerMode ?? false);
+    });
+
+    const handleStorageChange = (changes, areaName) => {
+      if (areaName === 'local' && changes.developerMode !== undefined) {
+        setDeveloperMode(changes.developerMode.newValue ?? false);
+      }
+    };
+
+    chrome.storage.onChanged.addListener(handleStorageChange);
+    return () => chrome.storage.onChanged.removeListener(handleStorageChange);
+  }, []);
 
   // Compute available tabs: current object + related objects
   const tabs = useMemo(() => {
@@ -98,8 +119,7 @@ export function ContextFooter({
       }
     }
 
-    // Dev-only tab: full context
-    if (process.env.NODE_ENV === 'development') {
+    if (import.meta.env.DEV && developerMode) {
       result.push({
         id: '_full_context',
         isCurrentObject: false,
@@ -113,7 +133,8 @@ export function ContextFooter({
     currentContext?.domoObject?.id,
     currentContext?.domoObject?.typeId,
     currentContext?.domoObject?.parentId,
-    currentContext?.domoObject?.metadata
+    currentContext?.domoObject?.metadata,
+    developerMode
   ]);
 
   // Default activeTabId to first tab when tabs change
@@ -141,6 +162,7 @@ export function ContextFooter({
     if (activeTab.isFullContext) return currentContext;
     return relatedCache[activeTabId] || null;
   }, [activeTab, activeTabId, currentContext, relatedCache]);
+  const groupMap = useGroupLookup(activeSrc, currentContext?.tabId);
   const userMap = useUserLookup(activeSrc, currentContext?.tabId);
 
   // Lazy-load related object details when a tab is selected
@@ -206,16 +228,16 @@ export function ContextFooter({
     if (!activeTab) return null;
 
     if (activeTab.isCurrentObject) {
-      const src = injectUrls(
-        currentContext?.domoObject?.metadata?.details ||
-          currentContext?.domoObject?.metadata,
-        {
-          baseUrl,
-          objectId: currentContext?.domoObject?.id,
-          typeId: currentContext?.domoObject?.typeId
-        }
+      return (
+        <MetadataJsonView
+          groupMap={groupMap}
+          userMap={userMap}
+          src={
+            currentContext?.domoObject?.metadata?.details ||
+            currentContext?.domoObject?.metadata
+          }
+        />
       );
-      return <MetadataJsonView src={src} userMap={userMap} />;
     }
 
     if (activeTab.isArray) {
@@ -226,11 +248,24 @@ export function ContextFooter({
         itemTypeField: activeTab.itemTypeField,
         itemTypeId: activeTab.itemTypeId
       });
-      return <MetadataJsonView collapsed={2} src={src} userMap={userMap} />;
+      return (
+        <MetadataJsonView
+          collapsed={2}
+          groupMap={groupMap}
+          src={src}
+          userMap={userMap}
+        />
+      );
     }
 
     if (activeTab.isFullContext) {
-      return <MetadataJsonView src={currentContext} userMap={userMap} />;
+      return (
+        <MetadataJsonView
+          groupMap={groupMap}
+          src={currentContext}
+          userMap={userMap}
+        />
+      );
     }
 
     if (loadingTabs[activeTabId]) {
@@ -247,7 +282,9 @@ export function ContextFooter({
         objectId: activeTab.objectId,
         typeId: activeTab.typeId
       });
-      return <MetadataJsonView src={src} userMap={userMap} />;
+      return (
+        <MetadataJsonView groupMap={groupMap} src={src} userMap={userMap} />
+      );
     }
 
     return (
@@ -262,11 +299,30 @@ export function ContextFooter({
       className='min-h-20 w-full p-2'
       status={currentContext?.isDomoPage || isLoading ? 'accent' : 'warning'}
     >
-      <Alert.Content
-        className={`flex flex-col gap-2 ${isLoading ? 'items-center justify-center' : 'items-start'}`}
-      >
+      <Alert.Content className='flex flex-col items-start gap-2'>
         {isLoading ? (
-          <Spinner color='accent' size='sm' />
+          <div className='skeleton--shimmer relative flex w-full flex-col gap-2 overflow-hidden'>
+            <div className='flex w-full items-center justify-between'>
+              <div className='flex items-center gap-x-1'>
+                <Skeleton
+                  animationType='none'
+                  className='h-4 w-24 rounded-md'
+                />
+                <Skeleton
+                  animationType='none'
+                  className='h-5 w-12 rounded-2xl'
+                />
+                <Skeleton
+                  animationType='none'
+                  className='h-5 w-12 rounded-2xl'
+                />
+              </div>
+              <Skeleton animationType='none' className='h-5 w-5 rounded-full' />
+            </div>
+            <div className='flex items-center gap-x-1'>
+              <Skeleton animationType='none' className='h-4 w-48 rounded-md' />
+            </div>
+          </div>
         ) : (
           <>
             <div
@@ -336,10 +392,7 @@ export function ContextFooter({
             </div>
             <Alert.Description className='flex h-full flex-col flex-wrap items-start justify-center gap-1'>
               {currentContext?.isDomoPage ? (
-                isLoading ? (
-                  <Spinner color='accent' size='sm' />
-                ) : !currentContext?.instance ||
-                  !currentContext?.domoObject?.id ? (
+                !currentContext?.instance || !currentContext?.domoObject?.id ? (
                   'No object detected on this page'
                 ) : (
                   <div className='flex flex-wrap items-center justify-start gap-x-1'>
@@ -450,7 +503,7 @@ function injectUrls(
     return src.map((item) => {
       if (!item || typeof item !== 'object') return item;
       const resolvedType = itemTypeId || item[itemTypeField];
-      const itemId = item[itemIdField] || item.id;
+      const itemId = itemIdField ? item[itemIdField] : item.id;
       if (!resolvedType || !itemId) return item;
       const url = buildSimpleUrl(baseUrl, resolvedType, itemId);
       return url ? { url, ...item } : item;
@@ -465,7 +518,7 @@ function injectUrls(
   return src;
 }
 
-function MetadataJsonView({ collapsed = 1, src, userMap = {} }) {
+function MetadataJsonView({ collapsed = 1, groupMap = {}, src, userMap = {} }) {
   return (
     <JsonView
       displaySize
@@ -555,6 +608,26 @@ function MetadataJsonView({ collapsed = 1, src, userMap = {} }) {
             return (
               <UserIdAnnotation
                 displayName={userMap[numericValue]}
+                value={params.node}
+              />
+            );
+          }
+        }
+        if (
+          (typeof params.node === 'number' ||
+            typeof params.node === 'string') &&
+          Object.keys(groupMap).length > 0
+        ) {
+          const numericValue = Number(params.node);
+          if (
+            groupMap[numericValue] &&
+            (isGroupFieldName(params.indexOrName) ||
+              isUserFieldName(params.indexOrName) ||
+              params.indexOrName === 'id')
+          ) {
+            return (
+              <GroupIdAnnotation
+                displayName={groupMap[numericValue]}
                 value={params.node}
               />
             );

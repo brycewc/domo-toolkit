@@ -519,9 +519,10 @@ export function GetPagesView({
     try {
       if (pageData?.instance && item.children) {
         const tabId = await getValidTabForInstance(pageData.instance);
-        const count = item.children.length;
+        const pageIds = [item.id, ...item.children.map((child) => child.id)];
+        const count = pageIds.length;
         await sharePagesWithSelf({
-          pageIds: item.children.map((child) => child.id),
+          pageIds,
           tabId,
           userId: pageData.userId
         });
@@ -570,6 +571,11 @@ export function GetPagesView({
         };
 
         const pageIds = collectPageIds(items);
+
+        if (pageData.objectType === 'PAGE') {
+          pageIds.unshift(pageData.objectId);
+        }
+
         const count = pageIds.length;
 
         await sharePagesWithSelf({
@@ -704,7 +710,8 @@ export function GetPagesView({
       onShareAll={handleShareAll}
       onStatusUpdate={onStatusUpdate}
       headerActions={
-        pageData?.objectType === 'DATA_APP_VIEW'
+        pageData?.objectType === 'DATA_APP_VIEW' &&
+        pageData?.sidepanelType !== 'getOtherPages'
           ? ['openAll', 'copy', 'refresh']
           : ['openAll', 'copy', 'shareAll', 'refresh']
       }

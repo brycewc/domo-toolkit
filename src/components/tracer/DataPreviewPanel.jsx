@@ -96,7 +96,8 @@ export function DataPreviewPanel({
         document.body.style.cursor = '';
         dragRef.current = null;
         if (panelRef.current) {
-          const h = parseInt(panelRef.current.style.height, 10) || DEFAULT_HEIGHT;
+          const h =
+            parseInt(panelRef.current.style.height, 10) || DEFAULT_HEIGHT;
           heightValue.current = h;
           if (heightRef) heightRef.current = h;
         }
@@ -115,8 +116,8 @@ export function DataPreviewPanel({
 
   return (
     <div
-      ref={panelRef}
       className='flex shrink-0 flex-col border-t bg-white'
+      ref={panelRef}
       style={{ height: heightValue.current }}
     >
       {/* Resize handle */}
@@ -160,9 +161,19 @@ export function DataPreviewPanel({
             <Table.ScrollContainer>
               <Table.Content aria-label={`Preview of ${datasetName}`}>
                 <Table.Header className='sticky top-0 z-10'>
-                  <Table.Column className='bg-slate-50' id='row_num' style={{ width: 48 }}>#</Table.Column>
+                  <Table.Column
+                    className='bg-slate-50'
+                    id='row_num'
+                    style={{ width: 48 }}
+                  >
+                    #
+                  </Table.Column>
                   {headers.map((header, idx) => (
-                    <Table.Column id={`col_${idx}`} isRowHeader={idx === 0} key={idx}>
+                    <Table.Column
+                      id={`col_${idx}`}
+                      isRowHeader={idx === 0}
+                      key={idx}
+                    >
                       {header}
                     </Table.Column>
                   ))}
@@ -175,7 +186,9 @@ export function DataPreviewPanel({
                       </Table.Cell>
                       {headers.map((_, colIdx) => (
                         <Table.Cell key={colIdx}>
-                          {row[colIdx] == null || row[colIdx] === '' || row[colIdx] === 'null' ? (
+                          {row[colIdx] == null ||
+                          row[colIdx] === '' ||
+                          row[colIdx] === 'null' ? (
                             <span className='text-slate-400 italic'>null</span>
                           ) : (
                             String(row[colIdx])

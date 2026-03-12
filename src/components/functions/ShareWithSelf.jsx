@@ -133,5 +133,8 @@ function isSupportedForShare(domoObject) {
   if (domoObject.typeId === 'CARD') {
     return domoObject.metadata?.details?.type === 'domoapp';
   }
+  if (domoObject.typeId === 'DATA_SOURCE') {
+    return !!domoObject.metadata?.details?.accountId;
+  }
   return true;
 }

@@ -154,105 +154,6 @@ const defaultEdgeOptions = {
   type: 'default'
 };
 
-function computeLayoutSync(traceNodes, validEdges) {
-  const g = new dagre.graphlib.Graph();
-  g.setGraph(DAGRE_OPTIONS);
-  g.setDefaultEdgeLabel(() => ({}));
-
-  for (const pNode of traceNodes) {
-    if (!pNode) continue;
-    g.setNode(pNode.id, {
-      height: estimateNodeHeight(pNode),
-      width: NODE_WIDTH
-    });
-  }
-
-  for (const edge of validEdges) {
-    g.setEdge(edge.sourceId, edge.targetId);
-  }
-
-  dagre.layout(g);
-
-  const positions = new Map();
-  for (const pNode of traceNodes) {
-    if (!pNode) continue;
-    const info = g.node(pNode.id);
-    if (info) {
-      positions.set(pNode.id, {
-        height: info.height,
-        x: info.x - NODE_WIDTH / 2,
-        y: info.y - info.height / 2
-      });
-    }
-  }
-
-  return positions;
-}
-
-function useLayout(trace) {
-  const [layout, setLayout] = useState(null);
-  const workerRef = useRef(null);
-
-  useEffect(() => {
-    if (!trace || !Array.isArray(trace.nodes)) {
-      setLayout(null);
-      return;
-    }
-
-    const nodeSet = new Set(trace.nodes.map((n) => n.id));
-    const validEdges = (trace.edges || []).filter(
-      (e) => nodeSet.has(e.sourceId) && nodeSet.has(e.targetId)
-    );
-    const nodesWithIncoming = new Set(validEdges.map((e) => e.targetId));
-    const nodesWithOutgoing = new Set(validEdges.map((e) => e.sourceId));
-
-    if (trace.nodes.length < WORKER_THRESHOLD) {
-      const positions = computeLayoutSync(trace.nodes, validEdges);
-      setLayout({ nodesWithIncoming, nodesWithOutgoing, positions, validEdges });
-      return;
-    }
-
-    const workerNodes = trace.nodes
-      .filter(Boolean)
-      .map((n) => ({
-        height: estimateNodeHeight(n),
-        id: n.id,
-        width: NODE_WIDTH
-      }));
-
-    const workerEdges = validEdges.map((e) => ({
-      source: e.sourceId,
-      target: e.targetId
-    }));
-
-    const worker = new Worker(
-      new URL('@/utils/layoutWorker.js', import.meta.url),
-      { type: 'module' }
-    );
-
-    worker.onmessage = ({ data: { positions: rawPositions } }) => {
-      const positions = new Map(Object.entries(rawPositions));
-      setLayout({ nodesWithIncoming, nodesWithOutgoing, positions, validEdges });
-      worker.terminate();
-    };
-
-    worker.postMessage({
-      edges: workerEdges,
-      nodes: workerNodes,
-      options: DAGRE_OPTIONS
-    });
-
-    workerRef.current = worker;
-
-    return () => {
-      worker.terminate();
-      workerRef.current = null;
-    };
-  }, [trace]);
-
-  return layout;
-}
-
 export function PipelineGraph({
   error,
   expandLoading,
@@ -399,4 +300,111 @@ export function PipelineGraph({
       </div>
     </PipelineGraphContext.Provider>
   );
+}
+
+function computeLayoutSync(traceNodes, validEdges) {
+  const g = new dagre.graphlib.Graph();
+  g.setGraph(DAGRE_OPTIONS);
+  g.setDefaultEdgeLabel(() => ({}));
+
+  for (const pNode of traceNodes) {
+    if (!pNode) continue;
+    g.setNode(pNode.id, {
+      height: estimateNodeHeight(pNode),
+      width: NODE_WIDTH
+    });
+  }
+
+  for (const edge of validEdges) {
+    g.setEdge(edge.sourceId, edge.targetId);
+  }
+
+  dagre.layout(g);
+
+  const positions = new Map();
+  for (const pNode of traceNodes) {
+    if (!pNode) continue;
+    const info = g.node(pNode.id);
+    if (info) {
+      positions.set(pNode.id, {
+        height: info.height,
+        x: info.x - NODE_WIDTH / 2,
+        y: info.y - info.height / 2
+      });
+    }
+  }
+
+  return positions;
+}
+
+function useLayout(trace) {
+  const [layout, setLayout] = useState(null);
+  const workerRef = useRef(null);
+
+  useEffect(() => {
+    if (!trace || !Array.isArray(trace.nodes)) {
+      setLayout(null);
+      return;
+    }
+
+    const nodeSet = new Set(trace.nodes.map((n) => n.id));
+    const validEdges = (trace.edges || []).filter(
+      (e) => nodeSet.has(e.sourceId) && nodeSet.has(e.targetId)
+    );
+    const nodesWithIncoming = new Set(validEdges.map((e) => e.targetId));
+    const nodesWithOutgoing = new Set(validEdges.map((e) => e.sourceId));
+
+    if (trace.nodes.length < WORKER_THRESHOLD) {
+      const positions = computeLayoutSync(trace.nodes, validEdges);
+      setLayout({
+        nodesWithIncoming,
+        nodesWithOutgoing,
+        positions,
+        validEdges
+      });
+      return;
+    }
+
+    const workerNodes = trace.nodes.filter(Boolean).map((n) => ({
+      height: estimateNodeHeight(n),
+      id: n.id,
+      width: NODE_WIDTH
+    }));
+
+    const workerEdges = validEdges.map((e) => ({
+      source: e.sourceId,
+      target: e.targetId
+    }));
+
+    const worker = new Worker(
+      new URL('@/utils/layoutWorker.js', import.meta.url),
+      { type: 'module' }
+    );
+
+    worker.onmessage = ({ data: { positions: rawPositions } }) => {
+      const positions = new Map(Object.entries(rawPositions));
+      setLayout({
+        nodesWithIncoming,
+        nodesWithOutgoing,
+        positions,
+        validEdges
+      });
+      worker.terminate();
+    };
+
+    worker.postMessage({
+      edges: workerEdges,
+      nodes: workerNodes,
+      options: DAGRE_OPTIONS
+    });
+
+    workerRef.current = worker;
+
+    return () => {
+      worker.terminate();
+      workerRef.current = null;
+    };
+  }, [trace]);
+
+  return layout;
 }

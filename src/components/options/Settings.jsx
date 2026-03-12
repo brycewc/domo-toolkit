@@ -6,6 +6,8 @@ import {
   Label,
   ListBox,
   Select,
+  Separator,
+  Switch,
   TextField
 } from '@heroui/react';
 import { toast } from '@heroui/react';
@@ -16,10 +18,8 @@ import {
 } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 
-import toolkitLogo from '@/assets/toolkit-128.png';
-import toolkitLogoDark from '@/assets/toolkit-dark-128.png';
-
 export function Settings({ theme = 'system' }) {
+  const [developerMode, setDeveloperMode] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   // Store all settings in a single state object for extensibility
@@ -60,6 +60,12 @@ export function Settings({ theme = 'system' }) {
         setIsLoading(false);
       }
     );
+
+    if (import.meta.env.DEV) {
+      chrome.storage.local.get(['developerMode'], (result) => {
+        setDeveloperMode(result.developerMode ?? false);
+      });
+    }
 
     // Listen for storage changes (e.g., from other tabs or extension pages)
     const handleStorageChange = (changes, areaName) => {
@@ -170,6 +176,11 @@ export function Settings({ theme = 'system' }) {
     }));
   };
 
+  const handleDeveloperModeChange = (isSelected) => {
+    setDeveloperMode(isSelected);
+    chrome.storage.local.set({ developerMode: isSelected });
+  };
+
   // Check if settings have changed
   const hasChanges =
     JSON.stringify(settings) !== JSON.stringify(originalSettings);
@@ -251,7 +262,7 @@ export function Settings({ theme = 'system' }) {
           <Select.Popover>
             <ListBox>
               <ListBox.Item id='light' textValue='Light'>
-                <img alt='Light' className='h-4 w-4' src={toolkitLogo} />
+                <img alt='Light' className='h-4 w-4' src='/toolkit-128.png' />
                 Light
                 <ListBox.ItemIndicator>
                   {({ isSelected }) =>
@@ -260,7 +271,11 @@ export function Settings({ theme = 'system' }) {
                 </ListBox.ItemIndicator>
               </ListBox.Item>
               <ListBox.Item id='dark' textValue='Dark'>
-                <img alt='Dark' className='h-4 w-4' src={toolkitLogoDark} />
+                <img
+                  alt='Dark'
+                  className='h-4 w-4'
+                  src='/toolkit-dark-128.png'
+                />
                 Dark
                 <ListBox.ItemIndicator>
                   {({ isSelected }) =>
@@ -345,6 +360,26 @@ export function Settings({ theme = 'system' }) {
           </Button>
         </div>
       </Form>
+      {import.meta.env.DEV && (
+        <>
+          <Separator className='my-2' />
+          <Switch
+            isSelected={developerMode}
+            onChange={handleDeveloperModeChange}
+          >
+            <Switch.Control>
+              <Switch.Thumb />
+            </Switch.Control>
+            <Switch.Content>
+              <Label>Developer Mode</Label>
+              <Description className='w-md'>
+                Enables dev-only tools like Full Context tab and the Dev Menu in
+                the action bar
+              </Description>
+            </Switch.Content>
+          </Switch>
+        </>
+      )}
     </div>
   );
 }

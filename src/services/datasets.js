@@ -31,11 +31,7 @@ export async function getDatasetsForPage({ pageId, tabId }) {
   const fetchLogic = async (pageId) => {
     console.log('[getDatasetsForPage] Fetching datasets for page:', pageId);
     const response = await fetch(
-      `/api/content/v1/datasources/pages/${pageId}`,
-      {
-        credentials: 'include',
-        method: 'GET'
-      }
+      `/api/content/v1/datasources/pages/${pageId}`
     );
 
     if (!response.ok) {
@@ -72,11 +68,7 @@ export async function getDatasetsForView({ datasetId, tabId }) {
   const fetchLogic = async (datasetId) => {
     // 1) Get the schema to extract dataset IDs
     const schemaResponse = await fetch(
-      `/api/query/v1/datasources/${datasetId}/schema/indexed?includeHidden=true`,
-      {
-        credentials: 'include',
-        method: 'GET'
-      }
+      `/api/query/v1/datasources/${datasetId}/schema/indexed?includeHidden=true`
     );
 
     if (!schemaResponse.ok) {
@@ -135,7 +127,6 @@ export async function getDatasetsForView({ datasetId, tabId }) {
       '/api/data/v3/datasources/bulk?includePrivate=true&includeAllDetails=true',
       {
         body: JSON.stringify(datasetIds),
-        credentials: 'include',
         headers: {
           'Content-Type': 'application/json'
         },
@@ -168,71 +159,6 @@ export async function getDatasetsForView({ datasetId, tabId }) {
 }
 
 /**
- * Get a single stream execution's detailed data
- * @param {Object} params - Parameters
- * @param {string|number} params.streamId - The stream ID
- * @param {string|number} params.executionId - The execution ID
- * @param {number} [params.tabId] - Optional Chrome tab ID
- * @returns {Promise<Object>} Execution object with detailed error data
- */
-export async function getStreamExecution({ executionId, streamId, tabId }) {
-  return executeInPage(
-    async (streamId, executionId) => {
-      const response = await fetch(
-        `/api/data/v1/streams/${streamId}/executions/${executionId}`,
-        { method: 'GET' }
-      );
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch execution ${executionId} for stream ${streamId}. HTTP status: ${response.status}`
-        );
-      }
-      return response.json();
-    },
-    [streamId, executionId],
-    tabId
-  );
-}
-
-export async function getStreamExecutions({ limit = 100, streamId, tabId }) {
-  const result = await executeInPage(
-    async (streamId, limit) => {
-      const stateResponse = await fetch(
-        `/api/data/v1/streams/state/${streamId}`,
-        {
-          method: 'GET'
-        }
-      );
-      if (!stateResponse.ok) {
-        throw new Error(
-          `Failed to fetch stream state for stream ${streamId}. HTTP status: ${stateResponse.status}`
-        );
-      }
-      const stateData = await stateResponse.json();
-      const offset =
-        stateData[0].executionId < limit ? 0 : stateData[0].executionId - limit;
-
-      const response = await fetch(
-        `/api/data/v1/streams/${streamId}/executions?limit=${limit}&offset=${offset}`,
-        {
-          method: 'GET'
-        }
-      );
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch stream executions for stream ${streamId}. HTTP status: ${response.status}`
-        );
-      }
-      const data = await response.json();
-      return data;
-    },
-    [streamId, limit],
-    tabId
-  );
-  return result;
-}
-
-/**
  * Get dependent datasets for a dataset via the lineage API
  * @param {Object} params - Parameters
  * @param {string} params.datasetId - The datasource ID
@@ -242,8 +168,7 @@ export async function getStreamExecutions({ limit = 100, streamId, tabId }) {
 export async function getDependentDatasets({ datasetId, tabId }) {
   const fetchLogic = async (datasetId) => {
     const lineageResponse = await fetch(
-      `/api/data/v1/lineage/DATA_SOURCE/${datasetId}?traverseUp=false&requestEntities=DATA_SOURCE`,
-      { credentials: 'include', method: 'GET' }
+      `/api/data/v1/lineage/DATA_SOURCE/${datasetId}?traverseUp=false&requestEntities=DATA_SOURCE`
     );
 
     if (!lineageResponse.ok) {
@@ -264,7 +189,6 @@ export async function getDependentDatasets({ datasetId, tabId }) {
       '/api/data/v3/datasources/bulk?includePrivate=true&part=core,impactcounts&includeFormulas=false',
       {
         body: JSON.stringify(datasetIds),
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         method: 'POST'
       }
@@ -287,6 +211,64 @@ export async function getDependentDatasets({ datasetId, tabId }) {
     console.error('Error fetching dependent datasets:', error);
     throw error;
   }
+}
+
+/**
+ * Get a single stream execution's detailed data
+ * @param {Object} params - Parameters
+ * @param {string|number} params.streamId - The stream ID
+ * @param {string|number} params.executionId - The execution ID
+ * @param {number} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<Object>} Execution object with detailed error data
+ */
+export async function getStreamExecution({ executionId, streamId, tabId }) {
+  return executeInPage(
+    async (streamId, executionId) => {
+      const response = await fetch(
+        `/api/data/v1/streams/${streamId}/executions/${executionId}`
+      );
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch execution ${executionId} for stream ${streamId}. HTTP status: ${response.status}`
+        );
+      }
+      return response.json();
+    },
+    [streamId, executionId],
+    tabId
+  );
+}
+
+export async function getStreamExecutions({ limit = 100, streamId, tabId }) {
+  const result = await executeInPage(
+    async (streamId, limit) => {
+      const stateResponse = await fetch(
+        `/api/data/v1/streams/state/${streamId}`
+      );
+      if (!stateResponse.ok) {
+        throw new Error(
+          `Failed to fetch stream state for stream ${streamId}. HTTP status: ${stateResponse.status}`
+        );
+      }
+      const stateData = await stateResponse.json();
+      const offset =
+        stateData[0].executionId < limit ? 0 : stateData[0].executionId - limit;
+
+      const response = await fetch(
+        `/api/data/v1/streams/${streamId}/executions?limit=${limit}&offset=${offset}`
+      );
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch stream executions for stream ${streamId}. HTTP status: ${response.status}`
+        );
+      }
+      const data = await response.json();
+      return data;
+    },
+    [streamId, limit],
+    tabId
+  );
+  return result;
 }
 
 /**

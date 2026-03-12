@@ -1,11 +1,14 @@
 import { executeInPage } from '@/utils';
 
+const LINEAGE_TYPE_MAP = { DATAFLOW_TYPE: 'DATAFLOW' };
+
 export function convertToGraph(lineageResponse, startEntityType, startEntityId) {
   if (!lineageResponse || typeof lineageResponse !== 'object') {
     return { edges: [], nodes: [] };
   }
 
-  const startKey = toMapKey(startEntityType, startEntityId);
+  const mappedType = LINEAGE_TYPE_MAP[startEntityType] ?? startEntityType;
+  const startKey = toMapKey(mappedType, startEntityId);
   const nodes = [];
   const edges = [];
   const edgeSet = new Set();
@@ -221,6 +224,8 @@ export async function enrichMetadata(lineageResponse, tabId = null, existingKeys
 }
 
 export async function getLineage(entityType, entityId, maxDepth = 4, tabId = null) {
+  const apiType = LINEAGE_TYPE_MAP[entityType] ?? entityType;
+
   const fetchDirection = (traverseParam) =>
     executeInPage(
       async (entityType, entityId, maxDepth, traverseParam) => {
@@ -234,7 +239,7 @@ export async function getLineage(entityType, entityId, maxDepth = 4, tabId = nul
         }
         return response.json();
       },
-      [entityType, entityId, maxDepth, traverseParam],
+      [apiType, entityId, maxDepth, traverseParam],
       tabId
     );
 
@@ -244,6 +249,10 @@ export async function getLineage(entityType, entityId, maxDepth = 4, tabId = nul
   ]);
 
   return mergeLineageResponses(upResponse, downResponse);
+}
+
+export function toLineageType(type) {
+  return LINEAGE_TYPE_MAP[type] ?? type;
 }
 
 export function toMapKey(type, id) {

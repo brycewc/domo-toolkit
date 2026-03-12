@@ -168,7 +168,7 @@ export class DomoObject {
       const parentTypeName = parentType ? parentType.name : parentTypeId;
 
       console.log(
-        `[getParent] parentType=${parentTypeId}, hasApi=${!!parentType?.api}, method=${parentType?.api?.method}, hasBodyTemplate=${!!parentType?.api?.bodyTemplate}`
+        `[getParent] parentType=${parentTypeId}, hasApi=${!!parentType?.api}, method=${parentType?.api?.method ?? 'GET'}, hasBodyTemplate=${!!parentType?.api?.bodyTemplate}`
       );
       if (parentType && parentType.api) {
         try {
@@ -176,7 +176,7 @@ export class DomoObject {
           const {
             bodyTemplate = null,
             endpoint,
-            method,
+            method = 'GET',
             nameTemplate = null,
             pathToDetails = null,
             pathToName
@@ -188,7 +188,7 @@ export class DomoObject {
 
           const fetchParentDetails = async (
             endpoint,
-            method,
+            method = 'GET',
             pathToName,
             nameTemplate,
             pathToDetails,
@@ -199,7 +199,6 @@ export class DomoObject {
           ) => {
             const url = `/api${endpoint}`.replace('{id}', parentId);
             const options = {
-              credentials: 'include',
               method
             };
 

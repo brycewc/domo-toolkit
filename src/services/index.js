@@ -38,6 +38,7 @@ export {
   getStreamExecutions,
   isViewType
 } from './datasets';
+export { parseDataflow, searchTiles } from './etlParser';
 export {
   buildPfilterUrl,
   encodeFilters,
@@ -47,15 +48,15 @@ export {
   getFiltersFromAllFrames,
   getIframePfilters,
   getPageFilters,
-  getUrlPfilters,
   getVariableControlFilters,
   mergeFilters
 } from './filters';
-export { parseDataflow, searchTiles } from './etlParser';
+export { fetchGroupDisplayNames } from './groups';
 export {
   convertToGraph,
   enrichMetadata,
   getLineage,
+  toLineageType,
   toMapKey,
   toNodeId
 } from './lineageService';
@@ -68,8 +69,8 @@ export {
 } from './pages';
 export {
   fetchUserDisplayNames,
-  getCustomAvatarUserIds,
   getCurrentUser,
   getCurrentUserId,
+  getCustomAvatarUserIds,
   searchUsers
 } from './users';

@@ -233,7 +233,7 @@ export function ETLInspector({ dataflowId, onClose, tabId }) {
         )}
       </div>
 
-      <div ref={scrollRef} className='flex-1 overflow-y-auto px-4 py-3'>
+      <div className='flex-1 overflow-y-auto px-4 py-3' ref={scrollRef}>
         {flatRows.length === 0 ? (
           <div className='py-8 text-center text-slate-400'>
             <p>No tiles match &ldquo;{tileSearch}&rdquo;</p>
@@ -247,14 +247,14 @@ export function ETLInspector({ dataflowId, onClose, tabId }) {
               const row = flatRows[vItem.index];
               return (
                 <div
+                  className='absolute left-0 w-full'
+                  data-index={vItem.index}
                   key={vItem.key}
                   ref={virtualizer.measureElement}
-                  data-index={vItem.index}
-                  className='absolute left-0 w-full'
                   style={{ top: vItem.start }}
                 >
                   {row.type === 'header' ? (
-                    <h3 className='mb-2 mt-4 text-xs font-semibold tracking-wider text-slate-500 uppercase first:mt-0'>
+                    <h3 className='mt-4 mb-2 text-xs font-semibold tracking-wider text-slate-500 uppercase first:mt-0'>
                       {row.category} ({row.count})
                     </h3>
                   ) : (
@@ -278,7 +278,11 @@ export function ETLInspector({ dataflowId, onClose, tabId }) {
 
 function highlightMatch(text, query) {
   const str =
-    text == null ? '' : typeof text === 'string' ? text : text.name || String(text);
+    text == null
+      ? ''
+      : typeof text === 'string'
+        ? text
+        : text.name || String(text);
   if (!query || !str) return str;
   const idx = str.toLowerCase().indexOf(query.toLowerCase());
   if (idx === -1) return str;
@@ -293,7 +297,11 @@ function highlightMatch(text, query) {
   );
 }
 
-const TileDetail = memo(function TileDetail({ defaultOpen = false, searchQuery, tile }) {
+const TileDetail = memo(function TileDetail({
+  defaultOpen = false,
+  searchQuery,
+  tile
+}) {
   const [open, setOpen] = useState(defaultOpen);
   const categoryColor = CATEGORY_COLORS[tile.category] || '#6b7280';
   const Icon = TILE_ICONS[tile.category] || IconColumns3;

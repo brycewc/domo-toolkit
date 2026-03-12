@@ -44,9 +44,15 @@ const LevelPill = memo(function LevelPill({
         onMouseLeave={onHoverEnd}
       >
         {level.allExpanded ? (
-          <IconMinus className='size-3 text-slate-400 group-hover:text-blue-500' stroke={2} />
+          <IconMinus
+            className='size-3 text-slate-400 group-hover:text-blue-500'
+            stroke={2}
+          />
         ) : (
-          <IconPlus className='size-3 text-slate-400 group-hover:text-blue-500' stroke={2} />
+          <IconPlus
+            className='size-3 text-slate-400 group-hover:text-blue-500'
+            stroke={2}
+          />
         )}
         <span>{label}</span>
         <span className='text-slate-400'>{level.nodeCount}</span>
@@ -55,7 +61,11 @@ const LevelPill = memo(function LevelPill({
   );
 });
 
-const FrontierPill = memo(function FrontierPill({ count, direction, onExpand }) {
+const FrontierPill = memo(function FrontierPill({
+  count,
+  direction,
+  onExpand
+}) {
   if (count === 0) return null;
 
   const isUpstream = direction === 'upstream';
@@ -125,7 +135,7 @@ export const LevelBar = memo(function LevelBar({
       />
 
       {reversedUpstream.map((level, i) => (
-        <div key={level.depth} className='flex items-center gap-1'>
+        <div className='flex items-center gap-1' key={level.depth}>
           {(i > 0 || frontierCounts?.upstream > 0) && <Connector />}
           <LevelPill
             direction='upstream'
@@ -149,7 +159,7 @@ export const LevelBar = memo(function LevelBar({
       )}
 
       {(downstreamLevels || []).map((level, i) => (
-        <div key={level.depth} className='flex items-center gap-1'>
+        <div className='flex items-center gap-1' key={level.depth}>
           {i > 0 && <Connector />}
           <LevelPill
             direction='downstream'
@@ -162,7 +172,7 @@ export const LevelBar = memo(function LevelBar({
         </div>
       ))}
 
-      {(downstreamLevels?.length > 0 && frontierCounts?.downstream > 0) && (
+      {downstreamLevels?.length > 0 && frontierCounts?.downstream > 0 && (
         <Connector />
       )}
 

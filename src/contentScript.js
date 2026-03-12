@@ -24,15 +24,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'PING') {
     sendResponse({ alive: true });
     return;
-  }
-
-  if (message.type === 'APPLY_FAVICON') {
+  } else if (message.type === 'APPLY_FAVICON') {
     applyFavicon();
     sendResponse({ success: true });
     return true;
-  }
-
-  if (message.type === 'TAB_CONTEXT_UPDATED') {
+  } else if (message.type === 'TAB_CONTEXT_UPDATED') {
     // Reset workflow action tracking so next click triggers fresh detection
     lastSelectedActionNodeId = null;
     sendResponse({ success: true });
