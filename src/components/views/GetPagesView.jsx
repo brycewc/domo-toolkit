@@ -156,6 +156,24 @@ export function GetPagesView({
               }));
             }
           }
+        } else if (objectType === 'DATA_SOURCE') {
+          // Background caches cards for DATA_SOURCE; use those to fetch pages
+          const waitResult = await waitForCards(context);
+          if (waitResult.success && waitResult.cards?.length) {
+            const tabId = await getValidTabForInstance(instance);
+            const result = await getPagesForCards(
+              waitResult.cards.map((card) => card.id),
+              tabId
+            );
+            childPages = result.pages.map((page) => ({
+              appId: page.appId || null,
+              appName: page.appName || null,
+              pageId: page.id,
+              pageTitle: page.name,
+              pageType: page.type
+            }));
+            cardsByPage = result.cardsByPage;
+          }
         }
         // If still no data (or type doesn't use cache), fetch fresh
         if (!childPages) {
