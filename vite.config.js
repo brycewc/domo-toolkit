@@ -15,6 +15,13 @@ export default defineConfig(({ mode }) => ({
       output: {
         // Group related modules into the same chunk to avoid cross-chunk circular dependencies
         manualChunks: (id) => {
+          if (
+            id.includes('/src/components/tracer/') ||
+            id.includes('@xyflow/react') ||
+            id.includes('@dagrejs/dagre')
+          ) {
+            return 'lineage';
+          }
           if (id.includes('/src/components/options/')) {
             return 'options-components';
           }

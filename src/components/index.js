@@ -7,6 +7,5 @@ export { GroupIdAnnotation } from './GroupIdAnnotation';
 export * from './options';
 export { TimestampAnnotation } from './TimestampAnnotation';
 export { ToastProvider } from './ToastProvider';
-export * from './tracer';
 export { UserIdAnnotation } from './UserIdAnnotation';
 export * from './views';
