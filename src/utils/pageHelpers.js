@@ -3,6 +3,72 @@
  */
 
 /**
+ * Wait for card pages (from getPagesForCards) to be loaded in the context.
+ * Used for CARD objects where the background proactively fetches card pages.
+ * @param {Object} currentContext - The current DomoContext
+ * @param {number} maxAttempts - Maximum number of polling attempts (default: 50 = 10 seconds)
+ * @returns {Promise<{success: boolean, cardPages: Array|null, cardsByPage: Object|null, error: string|null}>}
+ */
+export async function waitForCardPages(currentContext, maxAttempts = 50) {
+  try {
+    let details = currentContext.domoObject.metadata?.details;
+    let cardPages = details?.cardPages;
+    let cardsByPage = details?.cardsByPage;
+
+    if (cardPages === undefined || cardPages === null) {
+      let attempts = 0;
+
+      while (attempts < maxAttempts) {
+        attempts++;
+        await new Promise((resolve) => setTimeout(resolve, 200));
+
+        const response = await chrome.runtime.sendMessage({
+          tabId: currentContext.tabId,
+          type: 'GET_TAB_CONTEXT'
+        });
+
+        if (
+          response?.success &&
+          response?.context?.domoObject?.metadata?.details?.cardPages !==
+            undefined
+        ) {
+          cardPages =
+            response.context.domoObject.metadata.details.cardPages;
+          cardsByPage =
+            response.context.domoObject.metadata.details.cardsByPage;
+          break;
+        }
+      }
+
+      if (cardPages === undefined || cardPages === null) {
+        return {
+          cardPages: null,
+          cardsByPage: null,
+          error:
+            'Timeout while checking for card pages. Please try again.',
+          success: false
+        };
+      }
+    }
+
+    return {
+      cardPages: cardPages || [],
+      cardsByPage: cardsByPage || {},
+      error: null,
+      success: true
+    };
+  } catch (error) {
+    console.error('Error in waitForCardPages:', error);
+    return {
+      cardPages: null,
+      cardsByPage: null,
+      error: error.message || 'Unknown error occurred',
+      success: false
+    };
+  }
+}
+
+/**
  * Wait for child pages to be loaded in the context
  * @param {Object} currentContext - The current DomoContext
  * @param {number} maxAttempts - Maximum number of polling attempts (default: 50 = 5 seconds)

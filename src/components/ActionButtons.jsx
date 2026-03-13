@@ -23,10 +23,10 @@ import {
   DeleteCurrentObject,
   DevMenu,
   Export,
+  GetCardPages,
   GetCards,
+  GetChildPages,
   GetDatasets,
-  GetOtherPages,
-  GetPages,
   GetViewInputs,
   LockCards,
   NavigateToCopiedObject,
@@ -211,8 +211,8 @@ export function ActionButtons({
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
-                {availableActions.has('getPages') && (
-                  <GetPages
+                {availableActions.has('getChildPages') && (
+                  <GetChildPages
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
                     onCollapseActions={
@@ -221,8 +221,8 @@ export function ActionButtons({
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
-                {availableActions.has('getOtherPages') && (
-                  <GetOtherPages
+                {availableActions.has('getCardPages') && (
+                  <GetCardPages
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
                     onCollapseActions={
@@ -337,12 +337,12 @@ function getAvailableActions(typeId, details) {
     actions.add('getDatasets');
   }
 
-  if (['CARD', 'DATA_APP_VIEW', 'DATA_SOURCE', 'PAGE'].includes(typeId)) {
-    actions.add('getPages');
+  if (['DATA_APP_VIEW', 'PAGE', 'WORKSHEET_VIEW'].includes(typeId)) {
+    actions.add('getChildPages');
   }
 
-  if (['DATA_APP_VIEW', 'PAGE', 'WORKSHEET_VIEW'].includes(typeId)) {
-    actions.add('getOtherPages');
+  if (['CARD', 'DATA_APP_VIEW', 'DATA_SOURCE', 'PAGE', 'WORKSHEET_VIEW'].includes(typeId)) {
+    actions.add('getCardPages');
   }
 
   if (typeId === 'DATA_SOURCE') {

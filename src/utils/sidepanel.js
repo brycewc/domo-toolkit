@@ -81,7 +81,7 @@ export async function showStatus({
  * Special handling for currentContext to call toJSON() if available.
  *
  * @param {Object} options - Data to store
- * @param {string} options.type - Type of data (e.g., 'getPages', 'getDatasets', 'childPagesWarning')
+ * @param {string} options.type - Type of data (e.g., 'getChildPages', 'getCardPages', 'getDatasets', 'childPagesWarning')
  * @param {Object} [options.currentContext] - Current DomoContext (will be serialized via toJSON)
  * @param {boolean} [options.statusShown] - Whether status was already shown
  * @param {...any} options - Any additional properties to store

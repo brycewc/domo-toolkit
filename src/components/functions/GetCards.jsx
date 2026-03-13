@@ -98,9 +98,19 @@ export function GetCards({
         (!forms || forms.length === 0) &&
         (!queues || queues.length === 0)
       ) {
+        const typeName =
+          currentContext.domoObject.typeName?.toLowerCase() || 'object';
+        const hasFormsAndQueues = [
+          'DATA_APP_VIEW',
+          'PAGE',
+          'REPORT_BUILDER_VIEW',
+          'WORKSHEET_VIEW'
+        ].includes(objectType);
         onStatusUpdate?.(
-          'No Items Found',
-          'No cards, forms, or queues found for this page.',
+          hasFormsAndQueues ? 'No Items Found' : 'No Cards Found',
+          hasFormsAndQueues
+            ? `No cards, forms, or queues found on this ${typeName}.`
+            : `No cards found on this ${typeName}.`,
           'warning',
           3000
         );

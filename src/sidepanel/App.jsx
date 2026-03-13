@@ -39,11 +39,11 @@ export default function App() {
         } else if (data?.type === 'loading') {
           setActiveView('loading');
           setLoadingMessage(data.message || 'Loading...');
-        } else if (data?.type === 'getPages') {
-          setActiveView('getPages');
+        } else if (data?.type === 'getChildPages') {
+          setActiveView('getChildPages');
           setViewKey(data.timestamp || Date.now());
-        } else if (data?.type === 'getOtherPages') {
-          setActiveView('getOtherPages');
+        } else if (data?.type === 'getCardPages') {
+          setActiveView('getCardPages');
           setViewKey(data.timestamp || Date.now());
         } else if (data?.type === 'childPagesWarning') {
           setActiveView('childPagesWarning');
@@ -224,8 +224,8 @@ export default function App() {
 
         {activeView !== 'default' && activeView !== 'loading' && (
           <div className='flex min-h-0 w-full flex-1 flex-col'>
-            {(activeView === 'getPages' ||
-              activeView === 'getOtherPages' ||
+            {(activeView === 'getChildPages' ||
+              activeView === 'getCardPages' ||
               activeView === 'childPagesWarning') && (
               <GetPagesView
                 key={viewKey}

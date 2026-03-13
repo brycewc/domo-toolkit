@@ -1045,7 +1045,7 @@ async function detectAndStoreContext(tabId) {
             if (!currentContext.domoObject.metadata?.details) {
               currentContext.domoObject.metadata.details = {};
             }
-            currentContext.domoObject.metadata.details.childPages =
+            currentContext.domoObject.metadata.details.cardPages =
               result.pages || [];
             currentContext.domoObject.metadata.details.cardsByPage =
               result.cardsByPage || {};
@@ -1053,16 +1053,15 @@ async function detectAndStoreContext(tabId) {
             setTabContext(tabId, currentContext);
 
             console.log(
-              `[Background] Fetched ${result.pages?.length || 0} child pages for ${typeModel.id} ${objectId}`
+              `[Background] Fetched ${result.pages?.length || 0} card pages for ${typeModel.id} ${objectId}`
             );
           }
         })
         .catch((error) => {
           console.error(
-            `[Background] Error fetching child pages for ${typeModel.id} ${objectId}:`,
+            `[Background] Error fetching card pages for ${typeModel.id} ${objectId}:`,
             error
           );
-          // Store empty array on error
           const currentContext = getTabContext(tabId);
           if (currentContext?.domoObject) {
             if (!currentContext.domoObject?.metadata) {
@@ -1071,7 +1070,7 @@ async function detectAndStoreContext(tabId) {
             if (!currentContext.domoObject.metadata?.details) {
               currentContext.domoObject.metadata.details = {};
             }
-            currentContext.domoObject.metadata.details.childPages = [];
+            currentContext.domoObject.metadata.details.cardPages = [];
             setTabContext(tabId, currentContext);
           }
         });
