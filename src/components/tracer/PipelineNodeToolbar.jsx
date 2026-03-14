@@ -29,7 +29,7 @@ export const PipelineNodeToolbar = memo(function PipelineNodeToolbar({
 
   return (
     <NodeToolbar isVisible nodeId={nodeId} position={Position.Top}>
-      <div className='flex items-center gap-1 rounded-lg bg-white px-1.5 py-1 shadow-md'>
+      <div className='flex items-center gap-1 rounded-lg bg-background px-1.5 py-1 shadow-md'>
         {showUpstream && (
           <>
             {expanded?.up ? (
@@ -49,7 +49,7 @@ export const PipelineNodeToolbar = memo(function PipelineNodeToolbar({
         )}
 
         {showUpstream && showDownstream && (
-          <div className='mx-0.5 h-4 w-px bg-slate-200' />
+          <div className='mx-0.5 h-4 w-px bg-divider' />
         )}
 
         {showDownstream && (

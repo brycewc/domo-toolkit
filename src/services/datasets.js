@@ -316,6 +316,38 @@ export async function setStreamScheduleToManual({ streamId, tabId }) {
 }
 
 /**
+ * Get a preview of a dataset's data (first N rows)
+ * @param {string} datasetId - The dataset UUID
+ * @param {number} [tabId] - Optional Chrome tab ID
+ * @param {number} [limit=100] - Max rows to return
+ * @returns {Promise<{headers: string[], rows: Array[]}>}
+ */
+export async function getDatasetPreview(datasetId, tabId = null, limit = 100) {
+  return executeInPage(
+    async (datasetId, limit) => {
+      const response = await fetch(`/api/query/v1/execute/${datasetId}`, {
+        body: JSON.stringify({ sql: `SELECT * FROM table LIMIT ${limit}` }),
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST'
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch preview: HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      const headers = data.columns || [];
+      const rows = data.rows || [];
+
+      return { headers, rows };
+    },
+    [datasetId, limit],
+    tabId
+  );
+}
+
+/**
  * Check if a DATA_SOURCE is a view type (dataset-view or datafusion)
  * @param {Object} details - The metadata.details object
  * @returns {boolean}

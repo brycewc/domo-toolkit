@@ -38,6 +38,34 @@ export async function getDataflowForOutputDataset(datasetId, tabId = null) {
 }
 
 /**
+ * Get the full detail of a DataFlow (including actions/tiles)
+ * @param {string} dataflowId - The DataFlow ID
+ * @param {number} [tabId] - Optional Chrome tab ID
+ * @returns {Promise<Object>} The full dataflow JSON
+ */
+export async function getDataflowDetail(dataflowId, tabId = null) {
+  return executeInPage(
+    async (dataflowId) => {
+      const response = await fetch(
+        `/api/dataprocessing/v1/dataflows/${dataflowId}`,
+        {
+          credentials: 'include',
+          method: 'GET'
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch dataflow: HTTP ${response.status}`);
+      }
+
+      return response.json();
+    },
+    [dataflowId],
+    tabId
+  );
+}
+
+/**
  * Update a DataFlow's details (name and description)
  * @param {string} dataflowId - The DataFlow ID
  * @param {Object} updates - Object containing name and/or description

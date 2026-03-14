@@ -1,5 +1,6 @@
+import { Button, CloseButton, Spinner } from '@heroui/react';
 import {
-  IconArrowsSplit,
+  IconArrowFork,
   IconCalculator,
   IconChevronDown,
   IconChevronRight,
@@ -8,37 +9,13 @@ import {
   IconExternalLink,
   IconFilter,
   IconGitMerge,
-  IconLoader2,
-  IconSearch,
-  IconX
+  IconSearch
 } from '@tabler/icons-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { parseDataflow, searchTiles } from '@/services';
-import { executeInPage } from '@/utils';
-
-async function getDataflow(dataflowId, tabId = null) {
-  return await executeInPage(
-    async (dataflowId) => {
-      const response = await fetch(
-        `/api/dataprocessing/v1/dataflows/${dataflowId}`,
-        {
-          credentials: 'include',
-          method: 'GET'
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch dataflow: HTTP ${response.status}`);
-      }
-
-      return response.json();
-    },
-    [dataflowId],
-    tabId
-  );
-}
+import { getObjectType } from '@/models';
+import { getDataflowDetail, parseDataflow, searchTiles } from '@/services';
 
 const TILE_ICONS = {
   Code: IconCode,
@@ -63,11 +40,13 @@ const CATEGORY_COLORS = {
  * Right panel for inspecting ETL dataflow tiles
  * @param {Object} props
  * @param {string} props.dataflowId - Dataflow ID to inspect
+ * @param {string} [props.instance] - Domo instance subdomain for building URLs
  * @param {number} [props.tabId] - Chrome tab ID
  * @param {Function} props.onClose - Close handler
  */
-export function ETLInspector({ dataflowId, onClose, tabId }) {
+export function ETLInspector({ dataflowId, instance, onClose, tabId }) {
   const [dataflow, setDataflow] = useState(null);
+  const [domoUrl, setDomoUrl] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [tileSearch, setTileSearch] = useState('');
@@ -79,7 +58,7 @@ export function ETLInspector({ dataflowId, onClose, tabId }) {
       setLoading(true);
       setError(null);
       try {
-        const dataflowJSON = await getDataflow(dataflowId, tabId);
+        const dataflowJSON = await getDataflowDetail(dataflowId, tabId);
         const parsed = parseDataflow(dataflowJSON);
         if (!cancelled) {
           setDataflow(parsed);
@@ -100,6 +79,18 @@ export function ETLInspector({ dataflowId, onClose, tabId }) {
       cancelled = true;
     };
   }, [dataflowId, tabId]);
+
+  useEffect(() => {
+    if (!instance || !dataflow) {
+      setDomoUrl(null);
+      return;
+    }
+    const baseUrl = `https://${instance}.domo.com`;
+    getObjectType('DATAFLOW')
+      .buildObjectUrl(baseUrl, dataflow.id)
+      .then(setDomoUrl)
+      .catch(() => setDomoUrl(null));
+  }, [instance, dataflow]);
 
   const filteredTiles = useMemo(() => {
     if (!dataflow) return [];
@@ -142,15 +133,13 @@ export function ETLInspector({ dataflowId, onClose, tabId }) {
 
   if (loading) {
     return (
-      <div className='flex h-full flex-col border-l bg-white'>
-        <div className='flex items-center justify-between border-b px-4 py-3'>
-          <span className='font-semibold text-slate-700'>Loading ETL...</span>
-          <button className='rounded p-1 hover:bg-slate-100' onClick={onClose}>
-            <IconX className='h-4 w-4' />
-          </button>
+      <div className='flex h-full flex-col border-l border-divider bg-background'>
+        <div className='flex items-center justify-between border-b border-divider px-4 py-3'>
+          <span className='font-semibold'>Loading ETL...</span>
+          <CloseButton size='sm' onPress={onClose} />
         </div>
         <div className='flex flex-1 items-center justify-center'>
-          <IconLoader2 className='h-6 w-6 animate-spin text-slate-400' />
+          <Spinner size='md' />
         </div>
       </div>
     );
@@ -158,68 +147,53 @@ export function ETLInspector({ dataflowId, onClose, tabId }) {
 
   if (error || !dataflow) {
     return (
-      <div className='flex h-full flex-col border-l bg-white'>
-        <div className='flex items-center justify-between border-b px-4 py-3'>
-          <span className='font-semibold text-slate-700'>ETL Inspector</span>
-          <button className='rounded p-1 hover:bg-slate-100' onClick={onClose}>
-            <IconX className='h-4 w-4' />
-          </button>
+      <div className='flex h-full flex-col border-l border-divider bg-background'>
+        <div className='flex items-center justify-between border-b border-divider px-4 py-3'>
+          <span className='font-semibold'>ETL Inspector</span>
+          <CloseButton size='sm' onPress={onClose} />
         </div>
-        <div className='flex flex-1 items-center justify-center text-red-500'>
+        <div className='flex flex-1 items-center justify-center text-danger'>
           <p>{error || 'No data available'}</p>
         </div>
       </div>
     );
   }
 
-  const instanceDomain =
-    typeof window !== 'undefined'
-      ? window.location.hostname.replace('.domo.com', '')
-      : null;
-  const domoUrl = instanceDomain
-    ? `https://${instanceDomain}.domo.com/datacenter/dataflows/${dataflow.id}`
-    : null;
-
   return (
-    <div className='flex h-full flex-col border-l bg-white'>
-      <div className='shrink-0 border-b px-4 py-3'>
+    <div className='flex h-full flex-col border-l border-divider bg-background'>
+      <div className='shrink-0 border-b border-divider px-4 py-3'>
         <div className='flex items-center justify-between'>
           <div className='flex min-w-0 items-center gap-2'>
-            <IconArrowsSplit className='h-4 w-4 shrink-0 text-amber-500' />
-            <span className='truncate font-semibold text-slate-700'>
+            <IconArrowFork className='size-4 shrink-0 rotate-180 text-amber-500' />
+            <span className='truncate font-semibold'>
               {dataflow.name}
             </span>
           </div>
           <div className='flex shrink-0 items-center gap-1'>
             {domoUrl && (
               <a
-                className='rounded p-1 text-blue-500 hover:bg-slate-100'
+                className='rounded p-1 text-accent hover:bg-content2'
                 href={domoUrl}
                 rel='noopener noreferrer'
                 target='_blank'
                 title='Open in Domo'
               >
-                <IconExternalLink className='h-4 w-4' />
+                <IconExternalLink className='size-4' />
               </a>
             )}
-            <button
-              className='rounded p-1 hover:bg-slate-100'
-              onClick={onClose}
-            >
-              <IconX className='h-4 w-4 text-slate-400' />
-            </button>
+            <CloseButton size='sm' onPress={onClose} />
           </div>
         </div>
-        <div className='mt-1 text-xs text-slate-400'>
+        <div className='mt-1 text-xs text-muted'>
           {dataflow.tiles.length} tiles &middot; ID: {dataflow.id}
         </div>
       </div>
 
-      <div className='shrink-0 border-b px-4 py-2'>
+      <div className='shrink-0 border-b border-divider px-4 py-2'>
         <div className='relative'>
-          <IconSearch className='absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-slate-400' />
+          <IconSearch className='absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted' />
           <input
-            className='w-full rounded-md border py-1.5 pr-3 pl-8 text-sm focus:ring-2 focus:ring-blue-300 focus:outline-none'
+            className='w-full rounded-md border border-divider bg-background py-1.5 pr-3 pl-8 text-sm focus:ring-2 focus:ring-accent focus:outline-none'
             placeholder='Search tiles (column, expression, value...)'
             type='text'
             value={tileSearch}
@@ -227,7 +201,7 @@ export function ETLInspector({ dataflowId, onClose, tabId }) {
           />
         </div>
         {tileSearch && (
-          <div className='mt-1 text-xs text-slate-400'>
+          <div className='mt-1 text-xs text-muted'>
             {filteredTiles.length} of {dataflow.tiles.length} tiles match
           </div>
         )}
@@ -235,7 +209,7 @@ export function ETLInspector({ dataflowId, onClose, tabId }) {
 
       <div className='flex-1 overflow-y-auto px-4 py-3' ref={scrollRef}>
         {flatRows.length === 0 ? (
-          <div className='py-8 text-center text-slate-400'>
+          <div className='py-8 text-center text-muted'>
             <p>No tiles match &ldquo;{tileSearch}&rdquo;</p>
           </div>
         ) : (
@@ -254,7 +228,7 @@ export function ETLInspector({ dataflowId, onClose, tabId }) {
                   style={{ top: vItem.start }}
                 >
                   {row.type === 'header' ? (
-                    <h3 className='mt-4 mb-2 text-xs font-semibold tracking-wider text-slate-500 uppercase first:mt-0'>
+                    <h3 className='mt-4 mb-2 text-xs font-semibold tracking-wider text-muted uppercase first:mt-0'>
                       {row.category} ({row.count})
                     </h3>
                   ) : (
@@ -314,18 +288,19 @@ const TileDetail = memo(function TileDetail({
     tile.columns.length > 0;
 
   return (
-    <div className='overflow-hidden rounded-lg border bg-white'>
-      <button
-        className='flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-slate-50'
-        onClick={() => setOpen(!open)}
+    <div className='overflow-hidden rounded-lg border border-divider bg-background'>
+      <Button
+        className='h-auto w-full justify-start gap-2 px-3 py-2'
+        variant='light'
+        onPress={() => setOpen(!open)}
       >
         {open ? (
-          <IconChevronDown className='h-4 w-4 shrink-0 text-slate-400' />
+          <IconChevronDown className='size-4 shrink-0 text-muted' />
         ) : (
-          <IconChevronRight className='h-4 w-4 shrink-0 text-slate-400' />
+          <IconChevronRight className='size-4 shrink-0 text-muted' />
         )}
-        <Icon className='h-4 w-4 shrink-0' style={{ color: categoryColor }} />
-        <span className='truncate text-sm font-medium text-slate-700'>
+        <Icon className='size-4 shrink-0' style={{ color: categoryColor }} />
+        <span className='truncate text-sm font-medium'>
           {highlightMatch(tile.name, searchQuery)}
         </span>
         <span
@@ -334,18 +309,18 @@ const TileDetail = memo(function TileDetail({
         >
           {tile.displayType}
         </span>
-      </button>
+      </Button>
 
       {open && hasContent && (
-        <div className='space-y-2 border-t bg-slate-50 px-3 pb-3'>
+        <div className='space-y-2 border-t border-divider bg-content2 px-3 pb-3'>
           {tile.filters.length > 0 && (
             <div className='mt-2'>
-              <div className='mb-1 text-xs font-semibold text-slate-500'>
+              <div className='mb-1 text-xs font-semibold text-muted'>
                 Filters
               </div>
               {tile.filters.map((f, i) => (
                 <div
-                  className='mb-1 rounded border bg-white px-2 py-1 font-mono text-xs'
+                  className='mb-1 rounded border border-divider bg-background px-2 py-1 font-mono text-xs'
                   key={i}
                 >
                   {highlightMatch(
@@ -359,17 +334,17 @@ const TileDetail = memo(function TileDetail({
 
           {tile.joins.length > 0 && (
             <div className='mt-2'>
-              <div className='mb-1 text-xs font-semibold text-slate-500'>
+              <div className='mb-1 text-xs font-semibold text-muted'>
                 Join Keys
               </div>
               {tile.joins.map((j, i) => (
                 <div
-                  className='mb-1 rounded border bg-white px-2 py-1 font-mono text-xs'
+                  className='mb-1 rounded border border-divider bg-background px-2 py-1 font-mono text-xs'
                   key={i}
                 >
                   {highlightMatch(j.leftKey, searchQuery)} ={' '}
                   {highlightMatch(j.rightKey, searchQuery)}
-                  <span className='ml-2 text-slate-400'>({j.joinType})</span>
+                  <span className='ml-2 text-muted'>({j.joinType})</span>
                 </div>
               ))}
             </div>
@@ -377,18 +352,18 @@ const TileDetail = memo(function TileDetail({
 
           {tile.expressions.length > 0 && (
             <div className='mt-2'>
-              <div className='mb-1 text-xs font-semibold text-slate-500'>
+              <div className='mb-1 text-xs font-semibold text-muted'>
                 Expressions
               </div>
               {tile.expressions.map((e, i) => (
                 <div
-                  className='mb-1 rounded border bg-white px-2 py-1 text-xs'
+                  className='mb-1 rounded border border-divider bg-background px-2 py-1 text-xs'
                   key={i}
                 >
-                  <div className='font-semibold text-slate-600'>
+                  <div className='font-semibold'>
                     {highlightMatch(e.resultField, searchQuery)}
                   </div>
-                  <div className='mt-0.5 font-mono break-all text-slate-500'>
+                  <div className='mt-0.5 font-mono break-all text-muted'>
                     {highlightMatch(e.expression, searchQuery)}
                   </div>
                 </div>
@@ -398,12 +373,12 @@ const TileDetail = memo(function TileDetail({
 
           {tile.sql.length > 0 && (
             <div className='mt-2'>
-              <div className='mb-1 text-xs font-semibold text-slate-500'>
+              <div className='mb-1 text-xs font-semibold text-muted'>
                 SQL
               </div>
               {tile.sql.map((s, i) => (
                 <pre
-                  className='mb-1 overflow-x-auto rounded border bg-white px-2 py-1 font-mono text-xs'
+                  className='mb-1 overflow-x-auto rounded border border-divider bg-background px-2 py-1 font-mono text-xs'
                   key={i}
                 >
                   {highlightMatch(
@@ -417,10 +392,10 @@ const TileDetail = memo(function TileDetail({
 
           {tile.columns.length > 0 && (
             <div className='mt-2'>
-              <div className='mb-1 text-xs font-semibold text-slate-500'>
+              <div className='mb-1 text-xs font-semibold text-muted'>
                 Columns ({tile.columns.length})
               </div>
-              <div className='rounded border bg-white px-2 py-1 text-xs text-slate-600'>
+              <div className='rounded border border-divider bg-background px-2 py-1 text-xs'>
                 {tile.columns
                   .map((c) => highlightMatch(c, searchQuery))
                   .reduce((acc, col, i) => {

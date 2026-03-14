@@ -26,10 +26,12 @@ export {
 } from './cards';
 export { getCodeEngineCode } from './codeEngine';
 export {
+  getDataflowDetail,
   getDataflowForOutputDataset,
   updateDataflowDetails
 } from './dataflows';
 export {
+  getDatasetPreview,
   getDatasetsForDataflow,
   getDatasetsForPage,
   getDatasetsForView,

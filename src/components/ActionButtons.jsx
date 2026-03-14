@@ -320,6 +320,7 @@ function getAvailableActions(typeId, details) {
     [
       'DATA_APP_VIEW',
       'DATA_SOURCE',
+      'DATAFLOW_TYPE',
       'PAGE',
       'REPORT_BUILDER_VIEW',
       'WORKSHEET_VIEW'
@@ -341,7 +342,11 @@ function getAvailableActions(typeId, details) {
     actions.add('getChildPages');
   }
 
-  if (['CARD', 'DATA_APP_VIEW', 'DATA_SOURCE', 'PAGE', 'WORKSHEET_VIEW'].includes(typeId)) {
+  if (
+    ['CARD', 'DATA_APP_VIEW', 'DATA_SOURCE', 'PAGE', 'WORKSHEET_VIEW'].includes(
+      typeId
+    )
+  ) {
     actions.add('getCardPages');
   }
 

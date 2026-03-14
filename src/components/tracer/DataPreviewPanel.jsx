@@ -2,9 +2,8 @@ import { CloseButton, Spinner, Table } from '@heroui/react';
 import { IconAlertCircle, IconTable } from '@tabler/icons-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { executeInPage } from '@/utils';
+import { getDatasetPreview } from '@/services';
 
-const MAX_VISIBLE_ROWS = 100;
 const DEFAULT_HEIGHT = 300;
 const MIN_HEIGHT = 120;
 const MAX_HEIGHT_RATIO = 0.7;
@@ -45,7 +44,7 @@ export function DataPreviewPanel({
 
     async function fetchData() {
       try {
-        const data = await getDataPreview(datasetId, tabId);
+        const data = await getDatasetPreview(datasetId, tabId);
         if (!cancelled) {
           cacheRef?.current?.set(datasetId, data);
           setPreview(data);
@@ -116,25 +115,25 @@ export function DataPreviewPanel({
 
   return (
     <div
-      className='flex shrink-0 flex-col border-t bg-white'
+      className='flex shrink-0 flex-col border-t border-divider bg-background'
       ref={panelRef}
       style={{ height: heightValue.current }}
     >
       {/* Resize handle */}
       <div
-        className='flex h-1.5 shrink-0 cursor-ns-resize items-center justify-center hover:bg-slate-200'
+        className='flex h-1.5 shrink-0 cursor-ns-resize items-center justify-center hover:bg-content2'
         onPointerDown={handlePointerDown}
       >
-        <div className='h-0.5 w-8 rounded-full bg-slate-300' />
+        <div className='h-0.5 w-8 rounded-full bg-divider' />
       </div>
 
-      <div className='flex shrink-0 items-center gap-2 border-b bg-slate-50 px-4 py-2'>
-        <IconTable className='h-4 w-4 text-blue-500' />
-        <span className='truncate text-sm font-semibold text-slate-700'>
+      <div className='flex shrink-0 items-center gap-2 border-b border-divider bg-content2 px-4 py-2'>
+        <IconTable className='size-4 text-accent' />
+        <span className='truncate text-sm font-semibold'>
           {datasetName}
         </span>
         {preview && (
-          <span className='ml-2 text-xs text-slate-400'>
+          <span className='ml-2 text-xs text-muted'>
             {headers.length} columns &middot; {rows.length} rows (preview)
           </span>
         )}
@@ -142,15 +141,15 @@ export function DataPreviewPanel({
       </div>
 
       {loading && (
-        <div className='flex flex-1 items-center justify-center gap-2 text-slate-400'>
+        <div className='flex flex-1 items-center justify-center gap-2 text-muted'>
           <Spinner size='sm' />
           <span>Loading preview...</span>
         </div>
       )}
 
       {error && (
-        <div className='flex flex-1 items-center justify-center text-red-500'>
-          <IconAlertCircle className='mr-2 h-5 w-5' />
+        <div className='flex flex-1 items-center justify-center text-danger'>
+          <IconAlertCircle className='mr-2 size-5' />
           <span>{error}</span>
         </div>
       )}
@@ -162,9 +161,8 @@ export function DataPreviewPanel({
               <Table.Content aria-label={`Preview of ${datasetName}`}>
                 <Table.Header className='sticky top-0 z-10'>
                   <Table.Column
-                    className='bg-slate-50'
+                    className='w-12 bg-content2'
                     id='row_num'
-                    style={{ width: 48 }}
                   >
                     #
                   </Table.Column>
@@ -181,7 +179,7 @@ export function DataPreviewPanel({
                 <Table.Body>
                   {rows.map((row, rowIdx) => (
                     <Table.Row id={rowIdx} key={rowIdx}>
-                      <Table.Cell className='bg-slate-50 text-xs text-slate-400'>
+                      <Table.Cell className='bg-content2 text-xs text-muted'>
                         {rowIdx + 1}
                       </Table.Cell>
                       {headers.map((_, colIdx) => (
@@ -189,7 +187,7 @@ export function DataPreviewPanel({
                           {row[colIdx] == null ||
                           row[colIdx] === '' ||
                           row[colIdx] === 'null' ? (
-                            <span className='text-slate-400 italic'>null</span>
+                            <span className='text-muted italic'>null</span>
                           ) : (
                             String(row[colIdx])
                           )}
@@ -205,35 +203,10 @@ export function DataPreviewPanel({
       )}
 
       {!loading && !error && rows.length === 0 && (
-        <div className='flex flex-1 items-center justify-center text-slate-400'>
+        <div className='flex flex-1 items-center justify-center text-muted'>
           <p>No data available</p>
         </div>
       )}
     </div>
-  );
-}
-
-async function getDataPreview(datasetId, tabId = null) {
-  return await executeInPage(
-    async (datasetId, limit) => {
-      const response = await fetch(`/api/query/v1/execute/${datasetId}`, {
-        body: JSON.stringify({ sql: `SELECT * FROM table LIMIT ${limit}` }),
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        method: 'POST'
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch preview: HTTP ${response.status}`);
-      }
-
-      const data = await response.json();
-      const headers = data.columns || [];
-      const rows = data.rows || [];
-
-      return { headers, rows };
-    },
-    [datasetId, MAX_VISIBLE_ROWS],
-    tabId
   );
 }

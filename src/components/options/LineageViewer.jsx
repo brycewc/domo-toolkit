@@ -1,10 +1,5 @@
 import { Button, Spinner } from '@heroui/react';
-import {
-  IconArrowsSplit,
-  IconDatabase,
-  IconExternalLink,
-  IconReload
-} from '@tabler/icons-react';
+import { IconArrowFork, IconDatabase, IconReload } from '@tabler/icons-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useGraphVisibility, useLineageCache } from '@/hooks';
@@ -169,21 +164,12 @@ export function LineageViewer() {
   const entityIcon = useMemo(
     () =>
       mappedEntityType === 'DATAFLOW' ? (
-        <IconArrowsSplit className='size-5 shrink-0' stroke={1.5} />
+        <IconArrowFork className='size-5 shrink-0 rotate-180' stroke={1.5} />
       ) : (
         <IconDatabase className='size-5 shrink-0' stroke={1.5} />
       ),
     [mappedEntityType]
   );
-
-  const domoUrl = useMemo(() => {
-    if (!params?.instance || !params?.entityId) return null;
-    const path =
-      mappedEntityType === 'DATAFLOW'
-        ? `/datacenter/dataflows/${params.entityId}/details`
-        : `/datasources/${params.entityId}/details`;
-    return `https://${params.instance}.domo.com${path}`;
-  }, [params?.instance, params?.entityId, mappedEntityType]);
 
   if (!params && !loading && error) {
     return (
@@ -208,13 +194,6 @@ export function LineageViewer() {
               </span>
             )}
           </div>
-          {domoUrl && (
-            <a href={domoUrl} rel='noopener noreferrer' target='_blank'>
-              <Button isIconOnly size='sm' variant='tertiary'>
-                <IconExternalLink className='size-4' stroke={1.5} />
-              </Button>
-            </a>
-          )}
         </div>
         <div className='flex items-center gap-2'>
           <Button
@@ -244,8 +223,10 @@ export function LineageViewer() {
               error={null}
               expandLoading={expandLoading}
               frontierCounts={frontierCounts}
+              instance={params?.instance}
               levelSummary={levelSummary}
               loading={false}
+              rootNodeId={rootNodeId}
               selectedNodeId={selectedNodeId}
               trace={visibleTrace}
               onClearHighlight={clearHighlight}
@@ -276,6 +257,7 @@ export function LineageViewer() {
           <div className='w-[400px] shrink-0'>
             <ETLInspector
               dataflowId={inspectedDataflow.id}
+              instance={params?.instance}
               tabId={params?.tabId}
               onClose={handleCloseInspector}
             />

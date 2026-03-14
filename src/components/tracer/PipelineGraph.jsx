@@ -1,9 +1,6 @@
 import dagre from '@dagrejs/dagre';
-import {
-  IconArrowsSplit,
-  IconDatabase,
-  IconLoader2
-} from '@tabler/icons-react';
+import { Spinner } from '@heroui/react';
+import { IconArrowFork, IconDatabase } from '@tabler/icons-react';
 import {
   Background,
   Controls,
@@ -28,6 +25,8 @@ import {
   useState
 } from 'react';
 
+import { getObjectType } from '@/models';
+
 import { LevelBar } from './LevelBar';
 import { PipelineNodeToolbar } from './PipelineNodeToolbar';
 
@@ -45,12 +44,18 @@ const NODE_COLORS = {
     border: '#eab308',
     icon: '#eab308',
     text: '#854d0e'
+  },
+  ROOT: {
+    bg: '#f0fdf4',
+    border: '#22c55e',
+    icon: '#22c55e',
+    text: '#166534'
   }
 };
 
 const NODE_ICONS = {
   DATA_SOURCE: IconDatabase,
-  DATAFLOW: IconArrowsSplit
+  DATAFLOW: IconArrowFork
 };
 
 function formatNumber(n) {
@@ -62,54 +67,79 @@ function formatNumber(n) {
 
 const PipelineNode = memo(function PipelineNode({ data, id }) {
   const ctx = useContext(PipelineGraphContext);
-  const colors = NODE_COLORS[data.entityType] || NODE_COLORS.DATA_SOURCE;
+  const colors = data.isRoot
+    ? NODE_COLORS.ROOT
+    : NODE_COLORS[data.entityType] || NODE_COLORS.DATA_SOURCE;
   const Icon = NODE_ICONS[data.entityType] || IconDatabase;
   const meta = data.metadata;
   const hasName = data.label && data.label !== data.entityId;
   const isSelected = ctx?.selectedNodeId === id;
 
+  const nodeUrl = useMemo(() => {
+    if (!ctx?.instance) return null;
+    const objectType = getObjectType(data.entityType);
+    if (!objectType?.hasUrl()) return null;
+    const baseUrl = `https://${ctx.instance}.domo.com`;
+    return `${baseUrl}${objectType.urlPath.replace('{id}', data.entityId)}`;
+  }, [ctx?.instance, data.entityType, data.entityId]);
+
   let badge = '';
   if (data.entityType === 'DATA_SOURCE' && meta?.rowCount != null) {
     badge = `${formatNumber(meta.rowCount)} rows`;
-  } else if (data.entityType === 'DATAFLOW' && meta?.tileCount != null) {
-    badge = `${meta.tileCount} tiles`;
   }
+
+  const nameContent = hasName ? data.label : data.entityId;
+  const nameTitle = hasName
+    ? `${data.label} (${data.entityId})`
+    : data.entityId;
 
   return (
     <div
       style={{ borderColor: colors.border }}
-      className={`w-[280px] rounded-lg border-2 bg-white px-3 py-2 shadow-sm ${
-        isSelected ? 'ring-2 ring-blue-400' : ''
+      className={`w-[280px] rounded-lg border-2 bg-background px-3 py-2 shadow-sm ${
+        isSelected ? 'ring-2 ring-accent' : ''
       } ${data.highlighted ? 'ring-2 ring-yellow-400' : ''}`}
     >
       {data.hasIncoming && (
-        <Handle className='h-2 w-2' position={Position.Left} type='target' />
+        <Handle className='size-2' position={Position.Left} type='target' />
       )}
 
       <div className='flex items-start gap-2'>
         <Icon
-          className='mt-0.5 h-4 w-4 shrink-0'
+          className={`mt-0.5 size-4 shrink-0 ${data.entityType === 'DATAFLOW' ? 'rotate-180' : ''}`}
           style={{ color: colors.border }}
         />
         <div className='min-w-0 flex-1'>
-          <div
-            className='line-clamp-3 text-sm font-medium wrap-break-word'
-            style={{ color: colors.text }}
-            title={hasName ? `${data.label} (${data.entityId})` : data.entityId}
-          >
-            {hasName ? data.label : data.entityId}
-          </div>
-          <div className='truncate text-xs text-slate-400'>
+          {nodeUrl ? (
+            <a
+              className='line-clamp-3 text-sm font-medium wrap-break-word hover:underline'
+              href={nodeUrl}
+              rel='noopener noreferrer'
+              style={{ color: colors.text }}
+              target='_blank'
+              title={nameTitle}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {nameContent}
+            </a>
+          ) : (
+            <div
+              className='line-clamp-3 text-sm font-medium wrap-break-word'
+              style={{ color: colors.text }}
+              title={nameTitle}
+            >
+              {nameContent}
+            </div>
+          )}
+          <div className='truncate text-xs text-muted'>
             {hasName ? data.entityId : data.entityType}
           </div>
-          {badge && (
-            <div className='mt-0.5 text-xs text-slate-500'>{badge}</div>
-          )}
+          {badge && <div className='mt-0.5 text-xs text-muted'>{badge}</div>}
         </div>
       </div>
 
       {data.hasOutgoing && (
-        <Handle className='h-2 w-2' position={Position.Right} type='source' />
+        <Handle className='size-2' position={Position.Right} type='source' />
       )}
 
       {isSelected && (
@@ -131,8 +161,7 @@ const CHARS_PER_LINE = 25;
 function estimateNodeHeight(node) {
   const name = node.name || node.entityId || '';
   const hasBadge =
-    (node.entityType === 'DATA_SOURCE' && node.metadata?.rowCount != null) ||
-    (node.entityType === 'DATAFLOW' && node.metadata?.tileCount != null);
+    node.entityType === 'DATA_SOURCE' && node.metadata?.rowCount != null;
 
   const nameLines = Math.min(
     3,
@@ -158,6 +187,7 @@ export function PipelineGraph({
   error,
   expandLoading,
   frontierCounts,
+  instance,
   levelSummary,
   loading,
   onClearHighlight,
@@ -169,6 +199,7 @@ export function PipelineGraph({
   onHighlightLevel,
   onNodeClick,
   onRootClick,
+  rootNodeId,
   selectedNodeId,
   trace
 }) {
@@ -191,6 +222,7 @@ export function PipelineGraph({
           hasIncoming: layout.nodesWithIncoming.has(pNode.id),
           hasOutgoing: layout.nodesWithOutgoing.has(pNode.id),
           highlighted: pNode.highlighted,
+          isRoot: pNode.id === rootNodeId,
           label: pNode.name,
           metadata: pNode.metadata,
           upstreamCount: pNode.upstreamCount
@@ -208,7 +240,7 @@ export function PipelineGraph({
     }));
 
     return { initialEdges: edges, initialNodes: nodes };
-  }, [layout, trace]);
+  }, [layout, trace, rootNodeId]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -230,19 +262,54 @@ export function PipelineGraph({
   );
 
   const miniMapNodeColor = useCallback((node) => {
-    const data = node.data;
-    return NODE_COLORS[data.entityType]?.border || '#94a3b8';
+    if (node.data.isRoot) return NODE_COLORS.ROOT.border;
+    return NODE_COLORS[node.data.entityType]?.border || '#94a3b8';
   }, []);
 
+  const reactFlowRef = useRef(null);
+  const hasFittedRef = useRef(false);
+
+  const fitViewOptions = useMemo(
+    () => ({
+      maxZoom: 1,
+      nodes: rootNodeId ? [{ id: rootNodeId }] : undefined,
+      padding: 0.3
+    }),
+    [rootNodeId]
+  );
+
+  const handleInit = useCallback((instance) => {
+    reactFlowRef.current = instance;
+  }, []);
+
+  useEffect(() => {
+    hasFittedRef.current = false;
+  }, [rootNodeId]);
+
+  useEffect(() => {
+    if (nodes.length > 0 && reactFlowRef.current && !hasFittedRef.current) {
+      hasFittedRef.current = true;
+      requestAnimationFrame(() => {
+        reactFlowRef.current.fitView(fitViewOptions);
+      });
+    }
+  }, [nodes, fitViewOptions]);
+
   const graphContext = useMemo(
-    () => ({ expandLoading, onCollapseNode, onExpandNode, selectedNodeId }),
-    [expandLoading, onCollapseNode, onExpandNode, selectedNodeId]
+    () => ({
+      expandLoading,
+      instance,
+      onCollapseNode,
+      onExpandNode,
+      selectedNodeId
+    }),
+    [expandLoading, instance, onCollapseNode, onExpandNode, selectedNodeId]
   );
 
   if (loading) {
     return (
-      <div className='flex h-full items-center justify-center text-slate-400'>
-        <IconLoader2 className='mr-2 h-6 w-6 animate-spin' />
+      <div className='flex h-full items-center justify-center gap-2 text-muted'>
+        <Spinner size='md' />
         <span>Loading pipeline trace...</span>
       </div>
     );
@@ -250,7 +317,7 @@ export function PipelineGraph({
 
   if (error) {
     return (
-      <div className='flex h-full items-center justify-center text-red-500'>
+      <div className='flex h-full items-center justify-center text-danger'>
         <p>Error: {error}</p>
       </div>
     );
@@ -258,7 +325,7 @@ export function PipelineGraph({
 
   if (!trace || trace.nodes.length === 0) {
     return (
-      <div className='flex h-full items-center justify-center text-slate-400'>
+      <div className='flex h-full items-center justify-center text-muted'>
         <p>No lineage data available</p>
       </div>
     );
@@ -266,15 +333,17 @@ export function PipelineGraph({
 
   return (
     <PipelineGraphContext.Provider value={graphContext}>
-      <div className='h-full w-full bg-slate-50'>
+      <div className='bg-content2 h-full w-full'>
         <ReactFlow
-          fitView
           edges={edges}
           maxZoom={2}
           minZoom={0.1}
           nodes={nodes}
+          nodesConnectable={false}
+          nodesDraggable={false}
           nodeTypes={nodeTypes}
           onEdgesChange={onEdgesChange}
+          onInit={handleInit}
           onNodeClick={handleNodeClick}
           onNodesChange={onNodesChange}
         >

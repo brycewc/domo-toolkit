@@ -15,7 +15,8 @@ const VALID_TYPES = [
   'DATA_APP_VIEW',
   'REPORT_BUILDER_VIEW',
   'WORKSHEET_VIEW',
-  'DATA_SOURCE'
+  'DATA_SOURCE',
+  'DATAFLOW_TYPE'
 ];
 
 // Types that have cards pre-fetched in background
@@ -73,6 +74,7 @@ export function GetCards({
       // Sidepanel: fetch data, then display
       let cards;
       let forms = [];
+      let outputDatasets;
       let queues = [];
 
       if (PRE_FETCHED_TYPES.includes(objectType)) {
@@ -85,6 +87,42 @@ export function GetCards({
         cards = result.cards;
         forms = result.forms;
         queues = result.queues;
+      } else if (objectType === 'DATAFLOW_TYPE') {
+        const outputs =
+          currentContext.domoObject.metadata?.details?.outputs || [];
+        if (outputs.length === 0) {
+          onStatusUpdate?.(
+            'No Output Datasets',
+            'This dataflow has no output datasets.',
+            'warning',
+            3000
+          );
+          setIsLoading(false);
+          return;
+        }
+
+        outputDatasets = [];
+        const allCards = [];
+        const seen = new Set();
+        for (const output of outputs) {
+          const dsCards = await getCardsForObject({
+            objectId: output.dataSourceId,
+            objectType: 'DATA_SOURCE',
+            tabId: currentContext?.tabId
+          });
+          outputDatasets.push({
+            cards: dsCards,
+            id: output.dataSourceId,
+            name: output.dataSourceName || `Dataset ${output.dataSourceId}`
+          });
+          for (const card of dsCards) {
+            if (!seen.has(card.id)) {
+              seen.add(card.id);
+              allCards.push(card);
+            }
+          }
+        }
+        cards = allCards;
       } else {
         cards = await getCardsForObject({
           objectId: currentContext.domoObject.id,
@@ -133,6 +171,7 @@ export function GetCards({
         cards,
         currentContext,
         forms,
+        ...(outputDatasets && { outputDatasets }),
         queues,
         statusShown: true,
         type: 'getCards'
