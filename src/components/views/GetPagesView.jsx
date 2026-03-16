@@ -102,9 +102,11 @@ export function GetPagesView({
       // Set label early so the loading spinner shows the right text
       setPageTypeLabel(
         sidepanelType === 'getCardPages'
-          ? objectType === 'CARD' || objectType === 'DATA_SOURCE'
+          ? objectType === 'CARD' ||
+            objectType === 'DATA_SOURCE' ||
+            objectType === 'DATAFLOW_TYPE'
             ? 'Pages'
-            : 'Card Pages for'
+            : 'Card Pages'
           : objectType === 'DATA_APP_VIEW'
             ? 'App Pages'
             : 'Child Pages'
@@ -734,10 +736,10 @@ function buildCardChildren(pageId, cardsByPage, origin, pageType, parentId) {
   if (!cards || !cards.length) return undefined;
 
   return cards
-    .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+    .sort((a, b) => (a.name || '').trim().localeCompare((b.name || '').trim()))
     .map((card) => {
       const domoObject = new DomoObject('CARD', card.id, origin, {
-        name: card.name
+        name: (card.name || '').trim()
       });
       // Override generic card URL with page-specific URL
       if (pageType === 'DATA_APP_VIEW' || pageType === 'WORKSHEET_VIEW') {

@@ -343,7 +343,7 @@ function getAvailableActions(typeId, details) {
   }
 
   if (
-    ['CARD', 'DATA_APP_VIEW', 'DATA_SOURCE', 'PAGE', 'WORKSHEET_VIEW'].includes(
+    ['CARD', 'DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE', 'WORKSHEET_VIEW'].includes(
       typeId
     )
   ) {

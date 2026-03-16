@@ -338,13 +338,13 @@ async function fetchCardsForOutputDatasets(outputs, tabId) {
 function transformCardsToItems(cards, origin, objectType, objectId, parentId) {
   return cards
     .sort((a, b) => {
-      const nameA = a.title || a.name || '';
-      const nameB = b.title || b.name || '';
+      const nameA = (a.title || a.name || '').trim();
+      const nameB = (b.title || b.name || '').trim();
       return nameA.localeCompare(nameB);
     })
     .map((card) => {
       const domoObject = new DomoObject('CARD', card.id, origin, {
-        name: card.title || card.name
+        name: (card.title || card.name || '').trim()
       });
       // Override generic card URL with page-specific URL when on a page or app
       if (objectType === 'DATA_APP_VIEW' || objectType === 'WORKSHEET_VIEW') {
@@ -458,13 +458,13 @@ function transformDataflowItems(outputDatasets, origin) {
     .map((ds) => {
       const cardChildren = ds.cards
         .sort((a, b) => {
-          const nameA = a.title || a.name || '';
-          const nameB = b.title || b.name || '';
+          const nameA = (a.title || a.name || '').trim();
+          const nameB = (b.title || b.name || '').trim();
           return nameA.localeCompare(nameB);
         })
         .map((card) => {
           const domoObject = new DomoObject('CARD', card.id, origin, {
-            name: card.title || card.name
+            name: (card.title || card.name || '').trim()
           });
           return DataListItem.fromDomoObject(domoObject);
         });

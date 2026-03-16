@@ -244,6 +244,7 @@ export function PipelineGraph({
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  const [interactive, setInteractive] = useState(false);
 
   useEffect(() => {
     setNodes(initialNodes);
@@ -339,8 +340,9 @@ export function PipelineGraph({
           maxZoom={2}
           minZoom={0.1}
           nodes={nodes}
+          elementsSelectable={interactive}
           nodesConnectable={false}
-          nodesDraggable={false}
+          nodesDraggable={interactive}
           nodeTypes={nodeTypes}
           onEdgesChange={onEdgesChange}
           onInit={handleInit}
@@ -348,7 +350,7 @@ export function PipelineGraph({
           onNodesChange={onNodesChange}
         >
           <Background color='#cbd5e1' gap={16} />
-          <Controls />
+          <Controls onInteractiveChange={setInteractive} />
           <MiniMap pannable zoomable nodeColor={miniMapNodeColor} />
           {levelSummary && (
             <Panel position='top-center'>

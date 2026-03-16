@@ -81,6 +81,58 @@ export function GetCardPages({
           pageType: page.type
         }));
         cardsByPage = result.cardsByPage;
+      } else if (objectType === 'DATAFLOW_TYPE') {
+        const outputs =
+          currentContext.domoObject.metadata?.details?.outputs || [];
+
+        if (outputs.length === 0) {
+          onStatusUpdate?.(
+            'No Output Datasets',
+            'This dataflow has no output datasets.',
+            'warning'
+          );
+          setIsLoading(false);
+          return;
+        }
+
+        const allCards = [];
+        const seen = new Set();
+        for (const output of outputs) {
+          const dsCards = await getCardsForObject({
+            objectId: output.dataSourceId,
+            objectType: 'DATA_SOURCE',
+            tabId: currentContext?.tabId
+          });
+          for (const card of dsCards) {
+            if (!seen.has(card.id)) {
+              seen.add(card.id);
+              allCards.push(card);
+            }
+          }
+        }
+
+        if (allCards.length === 0) {
+          onStatusUpdate?.(
+            'No Cards Found',
+            `No cards found using output datasets of ${objectName}`,
+            'warning'
+          );
+          setIsLoading(false);
+          return;
+        }
+
+        const result = await getPagesForCards(
+          allCards.map((card) => card.id),
+          currentContext?.tabId
+        );
+        cardPages = result.pages.map((page) => ({
+          appId: page.appId || null,
+          appName: page.appName || null,
+          pageId: page.id,
+          pageTitle: page.name,
+          pageType: page.type
+        }));
+        cardsByPage = result.cardsByPage;
       } else if (objectType === 'CARD') {
         const result = await waitForCardPages(currentContext);
 
@@ -135,7 +187,7 @@ export function GetCardPages({
         const message =
           objectType === 'CARD'
             ? 'This card is not used on any pages.'
-            : objectType === 'DATA_SOURCE'
+            : objectType === 'DATA_SOURCE' || objectType === 'DATAFLOW_TYPE'
               ? `Cards using ${objectName} are not used on any pages`
               : `Cards on ${objectName} are not used on any other pages`;
         onStatusUpdate?.('No Pages Found', message, 'warning');
