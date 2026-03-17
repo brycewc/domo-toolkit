@@ -639,9 +639,10 @@ function DataListItem({
     }
 
     if (
-      (objectType === 'CARD' &&
+      ((objectType === 'CARD' &&
         (item.typeId === 'PAGE' || item.typeId === 'DATA_APP_VIEW')) ||
-      (itemActions && itemActions?.includes('remove'))
+        (itemActions && itemActions?.includes('remove'))) &&
+      Number(item.id) >= 0
     ) {
       actions.push(removeButton);
     }

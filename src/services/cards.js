@@ -227,18 +227,43 @@ export async function getCardDefinition({ cardId, tabId = null }) {
 }
 
 /**
- * Get all cards for a given object (page or dataset)
+ * Get all cards for a given object (page, dataset, or dataflow)
  * @param {Object} params - Parameters for fetching cards
- * @param {string} params.objectId - The object ID (page or dataset ID)
- * @param {string} params.objectType - The object type ('PAGE', 'DATA_APP_VIEW', 'DATA_SOURCE')
+ * @param {string} params.objectId - The object ID (page, dataset, or dataflow ID)
+ * @param {string} params.objectType - The object type ('PAGE', 'DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE')
+ * @param {Object} [params.metadata] - Object metadata (required for DATAFLOW_TYPE to access outputs)
+ * @param {number|null} [params.tabId=null] - Target tab
  * @returns {Promise<Array>} Array of card objects with details
  * @throws {Error} If the fetch fails
  */
 export async function getCardsForObject({
+  metadata,
   objectId,
   objectType,
   tabId = null
 }) {
+  if (objectType === 'DATAFLOW_TYPE') {
+    const outputs = metadata?.details?.outputs || [];
+    if (outputs.length === 0) return [];
+
+    const allCards = [];
+    const seen = new Set();
+    for (const output of outputs) {
+      const dsCards = await getCardsForObject({
+        objectId: output.dataSourceId,
+        objectType: 'DATA_SOURCE',
+        tabId
+      });
+      for (const card of dsCards) {
+        if (!seen.has(card.id)) {
+          seen.add(card.id);
+          allCards.push(card);
+        }
+      }
+    }
+    return allCards;
+  }
+
   try {
     // Execute fetch in page context to use authenticated session
     const result = await executeInPage(

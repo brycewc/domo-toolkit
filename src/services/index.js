@@ -26,6 +26,7 @@ export {
 } from './cards';
 export { getCodeEngineCode } from './codeEngine';
 export {
+  deleteDataflowAndOutputs,
   getDataflowDetail,
   getDataflowForOutputDataset,
   updateDataflowDetails

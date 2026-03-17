@@ -1,8 +1,16 @@
-import { Button, Dropdown, Label, Spinner, Tooltip } from '@heroui/react';
+import {
+  Button,
+  Dropdown,
+  Label,
+  Separator,
+  Spinner,
+  Tooltip
+} from '@heroui/react';
 import {
   IconExternalLink,
   IconEye,
-  IconLayoutSidebarRightExpand
+  IconLayoutSidebarRightExpand,
+  IconRefresh
 } from '@tabler/icons-react';
 import { AnimatePresence, motion } from 'motion/react';
 import {
@@ -57,6 +65,27 @@ export const NavigateToCopiedObject = forwardRef(
       if (holdTimeoutRef.current) {
         clearTimeout(holdTimeoutRef.current);
         holdTimeoutRef.current = null;
+      }
+    };
+
+    const handleRefreshClipboard = async () => {
+      try {
+        const text = await navigator.clipboard.readText();
+        lastCheckedClipboard.current = '';
+        handleClipboardData(text);
+        chrome.runtime
+          .sendMessage({
+            clipboardData: text.trim(),
+            type: 'CLIPBOARD_COPIED'
+          })
+          .catch(() => {});
+      } catch (err) {
+        onStatusUpdate?.(
+          'Clipboard Error',
+          'Could not read clipboard.',
+          'danger',
+          3000
+        );
       }
     };
 
@@ -615,31 +644,47 @@ export const NavigateToCopiedObject = forwardRef(
             </div>
           </Tooltip.Content>
         </Tooltip>
-        <Dropdown.Popover className='min-w-[18rem]' placement='bottom end'>
+        <Dropdown.Popover className='min-w-[18rem]' placement='bottom'>
           <Dropdown.Menu
             onAction={(key) => {
+              if (key === 'refresh-clipboard') {
+                handleRefreshClipboard();
+                return;
+              }
               handleClick(key);
             }}
           >
-            {filteredTypes.map((type) => (
-              <Dropdown.Item id={type.id} key={type.id} textValue={type.name}>
-                <Tooltip closeDelay={0} delay={400} key={type.id}>
-                  <Tooltip.Trigger>
-                    {type.hasUrl() ? (
-                      <IconExternalLink stroke={1.5} />
-                    ) : (
-                      <IconLayoutSidebarRightExpand stroke={1.5} />
-                    )}
-                  </Tooltip.Trigger>
-                  <Tooltip.Content>
-                    {type.hasUrl()
-                      ? 'Open in new tab'
-                      : 'View details in side panel'}
-                  </Tooltip.Content>
-                </Tooltip>
-                <Label>{type.name}</Label>
+            <Dropdown.Section>
+              <Dropdown.Item
+                id='refresh-clipboard'
+                textValue='Refresh Clipboard'
+              >
+                <IconRefresh stroke={1.5} />
+                <Label>Refresh Clipboard</Label>
               </Dropdown.Item>
-            ))}
+            </Dropdown.Section>
+            <Separator />
+            <Dropdown.Section>
+              {filteredTypes.map((type) => (
+                <Dropdown.Item id={type.id} key={type.id} textValue={type.name}>
+                  <Tooltip closeDelay={0} delay={400} key={type.id}>
+                    <Tooltip.Trigger>
+                      {type.hasUrl() ? (
+                        <IconExternalLink stroke={1.5} />
+                      ) : (
+                        <IconLayoutSidebarRightExpand stroke={1.5} />
+                      )}
+                    </Tooltip.Trigger>
+                    <Tooltip.Content>
+                      {type.hasUrl()
+                        ? 'Open in new tab'
+                        : 'View details in side panel'}
+                    </Tooltip.Content>
+                  </Tooltip>
+                  <Label>{type.name}</Label>
+                </Dropdown.Item>
+              ))}
+            </Dropdown.Section>
           </Dropdown.Menu>
         </Dropdown.Popover>
       </Dropdown>

@@ -23,7 +23,7 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
   const typeId = currentContext?.domoObject?.typeId;
   const longPressEnabled =
     !isDisabled &&
-    ['DATA_APP_VIEW', 'DATA_SOURCE', 'PAGE'].includes(typeId);
+    ['DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE'].includes(typeId);
   const hasChildPages = ['DATA_APP_VIEW', 'PAGE'].includes(typeId);
 
   const handlePressStart = () => {
@@ -77,6 +77,7 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
 
           if (!pages) {
             const cards = await getCardsForObject({
+              metadata: currentContext?.domoObject.metadata,
               objectId: currentContext?.domoObject.id,
               objectType: currentContext?.domoObject.typeId,
               tabId: currentContext?.tabId
@@ -125,8 +126,10 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
         }
         case 'child-cards': {
           const cards = await getCardsForObject({
+            metadata: currentContext?.domoObject.metadata,
             objectId: currentContext?.domoObject.id,
-            objectType: currentContext?.domoObject.typeId
+            objectType: currentContext?.domoObject.typeId,
+            tabId: currentContext?.tabId
           });
 
           if (!cards || cards.length === 0) {
@@ -200,12 +203,12 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
 
       onStatusUpdate?.('Opening Activity Log', message, 'success');
 
-      // Open the options page with the activity log tab
-      const optionsUrl = chrome.runtime.getURL(
-        'src/options/index.html#activity-log'
-      );
-
-      window.open(optionsUrl, '_blank', 'noopener,noreferrer');
+      // Open the options page in the same window (preserves incognito context)
+      const tab = await chrome.tabs.get(currentContext.tabId);
+      chrome.tabs.create({
+        url: chrome.runtime.getURL('src/options/index.html#activity-log'),
+        windowId: tab.windowId
+      });
     } catch (err) {
       console.error('Error opening activity log:', err);
       onStatusUpdate?.(

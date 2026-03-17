@@ -3,7 +3,11 @@ import { IconTrash, IconX } from '@tabler/icons-react';
 import { useState } from 'react';
 
 import { useStatusBar } from '@/hooks';
-import { deleteObject, deletePageAndAllCards } from '@/services';
+import {
+  deleteDataflowAndOutputs,
+  deleteObject,
+  deletePageAndAllCards
+} from '@/services';
 import {
   isSidepanel,
   openSidepanel,
@@ -26,6 +30,7 @@ export function DeleteCurrentObject({
     'APP',
     'BEAST_MODE_FORMULA',
     'DATA_APP_VIEW',
+    'DATAFLOW_TYPE',
     'PAGE',
     'MAGNUM_COLLECTION',
     'TEMPLATE',
@@ -110,6 +115,43 @@ export function DeleteCurrentObject({
       return;
     }
 
+    // DATAFLOW_TYPE: delete output datasets first, then the dataflow
+    if (typeId === 'DATAFLOW_TYPE') {
+      const outputs =
+        currentContext.domoObject.metadata?.details?.outputs || [];
+
+      setIsDeleting(true);
+
+      const promise = deleteDataflowAndOutputs({
+        dataflowId: id,
+        outputs,
+        tabId: currentContext.tabId
+      }).then((result) => {
+        dialogState.close();
+        if (!result.success) {
+          if (result.datasetsFailed > 0) {
+            throw new Error(
+              `Failed to delete ${result.datasetsFailed} of ${result.datasetsFailed + result.datasetsDeleted} output dataset${result.datasetsFailed + result.datasetsDeleted !== 1 ? 's' : ''}. Dataflow was not deleted.`
+            );
+          }
+          throw new Error(
+            `Output datasets deleted, but dataflow deletion failed (HTTP ${result.statusCode}).`
+          );
+        }
+        return result;
+      });
+
+      showPromiseStatus(promise, {
+        error: (err) => err.message || 'Failed to delete dataflow',
+        loading: `Deleting **${objectName}** and ${outputs.length} output dataset${outputs.length !== 1 ? 's' : ''}…`,
+        success: () =>
+          `**${objectName}** and ${outputs.length} output dataset${outputs.length !== 1 ? 's' : ''} deleted`
+      });
+
+      promise.finally(() => setIsDeleting(false));
+      return;
+    }
+
     // Generic object delete
     if (supportedTypes.includes(typeId)) {
       setIsDeleting(true);
@@ -147,26 +189,21 @@ export function DeleteCurrentObject({
     dialogState.close();
   };
 
+  const isDeleteDisabled =
+    isDisabled ||
+    !currentContext?.domoObject ||
+    !supportedTypes.includes(currentContext?.domoObject?.typeId) ||
+    (currentContext?.domoObject?.typeId === 'DATAFLOW_TYPE' &&
+      currentContext?.domoObject?.metadata?.details?.deleted === true);
+
   return (
     <AlertDialog isOpen={dialogState.isOpen} onOpenChange={dialogState.setOpen}>
-      <Tooltip
-        closeDelay={0}
-        delay={400}
-        isDisabled={
-          isDisabled ||
-          !currentContext?.domoObject ||
-          !supportedTypes.includes(currentContext?.domoObject?.typeId)
-        }
-      >
+      <Tooltip closeDelay={0} delay={400} isDisabled={isDeleteDisabled}>
         <Button
           fullWidth
           isIconOnly
+          isDisabled={isDeleteDisabled}
           variant='tertiary'
-          isDisabled={
-            isDisabled ||
-            !currentContext?.domoObject ||
-            !supportedTypes.includes(currentContext?.domoObject?.typeId)
-          }
         >
           {({ isDisabled }) => (
             <IconTrash
@@ -186,7 +223,9 @@ export function DeleteCurrentObject({
           {currentContext?.domoObject?.typeId === 'PAGE' ||
           currentContext?.domoObject?.typeId === 'DATA_APP_VIEW'
             ? 'and all its cards'
-            : ''}
+            : currentContext?.domoObject?.typeId === 'DATAFLOW_TYPE'
+              ? 'and all its output datasets'
+              : ''}
         </Tooltip.Content>
       </Tooltip>
       <AlertDialog.Backdrop>
@@ -220,6 +259,17 @@ export function DeleteCurrentObject({
                   {currentContext?.domoObject?.metadata?.cardCount || 'all its'}{' '}
                   cards{' '}
                 </span>
+              ) : currentContext?.domoObject?.typeId === 'DATAFLOW_TYPE' ? (
+                <span className='italic'>
+                  and{' '}
+                  {currentContext?.domoObject?.metadata?.details?.outputs
+                    ?.length || 'all its'}{' '}
+                  output dataset
+                  {currentContext?.domoObject?.metadata?.details?.outputs
+                    ?.length !== 1
+                    ? 's'
+                    : ''}{' '}
+                </span>
               ) : (
                 ''
               )}
@@ -244,7 +294,9 @@ export function DeleteCurrentObject({
                 {currentContext?.domoObject?.typeId === 'PAGE' ||
                 currentContext?.domoObject?.typeId === 'DATA_APP_VIEW'
                   ? ' and All Cards'
-                  : ''}
+                  : currentContext?.domoObject?.typeId === 'DATAFLOW_TYPE'
+                    ? ' and All Outputs'
+                    : ''}
               </Button>
             </AlertDialog.Footer>
           </AlertDialog.Dialog>

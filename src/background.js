@@ -108,6 +108,9 @@ const MAX_CACHED_TABS = 10;
 // Session storage keys
 const SESSION_STORAGE_KEY = 'tabContextsBackup';
 
+// Per-tab detection generation counter to prevent stale async callbacks
+const tabDetectionGen = new Map();
+
 // Per-tab card error storage
 const tabCardErrors = new Map();
 const tabLastCardId = new Map();
@@ -562,6 +565,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   console.log(`[Background] Tab ${tabId} removed, cleaning up context`);
   tabContexts.delete(tabId);
   tabAccessTimes.delete(tabId);
+  tabDetectionGen.delete(tabId);
   tabCardErrors.delete(tabId);
   tabLastCardId.delete(tabId);
   persistToSession();
@@ -764,6 +768,10 @@ chrome.commands.onCommand.addListener((command) => {
  * @returns {DomoContext|null} DomoContext instance or null
  */
 async function detectAndStoreContext(tabId) {
+  const generation = (tabDetectionGen.get(tabId) || 0) + 1;
+  tabDetectionGen.set(tabId, generation);
+  const isStale = () => tabDetectionGen.get(tabId) !== generation;
+
   try {
     // Get tab info for URL
     const tab = await chrome.tabs.get(tabId);
@@ -801,8 +809,12 @@ async function detectAndStoreContext(tabId) {
     // Fetch current user (non-blocking, updates context when complete)
     getCurrentUser(tabId)
       .then((user) => {
-        context.user = user;
-        setTabContext(tabId, context);
+        if (isStale()) return;
+        const currentContext = getTabContext(tabId);
+        if (currentContext) {
+          currentContext.user = user;
+          setTabContext(tabId, currentContext);
+        }
         console.log(
           `[Background] Fetched current user for tab ${tabId}:`,
           user?.id
@@ -817,6 +829,7 @@ async function detectAndStoreContext(tabId) {
 
     // Execute detection script in page context
     const detected = await executeInPage(detectCurrentObject, [], tabId);
+    if (isStale()) return null;
     if (!detected) {
       console.log(`[Background] No Domo object detected on tab ${tabId}`);
       return null;
@@ -841,6 +854,7 @@ async function detectAndStoreContext(tabId) {
         detected.resolveContext,
         tabId
       );
+      if (isStale()) return null;
     }
 
     if (!objectId) {
@@ -880,6 +894,7 @@ async function detectAndStoreContext(tabId) {
     // Enrich with details - throw on error for current object detection
     const enrichedMetadata =
       (await executeInPage(fetchObjectDetailsInPage, [params], tabId)) || {};
+    if (isStale()) return null;
 
     // Set parentId from API response if not already extracted from URL
     console.log(
@@ -903,9 +918,11 @@ async function detectAndStoreContext(tabId) {
     ) {
       try {
         const dataflowId = await getDataflowForOutputDataset(objectId, tabId);
+        if (isStale()) return null;
         parentId = dataflowId;
         domoObject.parentId = dataflowId;
       } catch (error) {
+        if (isStale()) return null;
         console.warn(
           `[Background] Could not resolve DataFlow parent for DATA_SOURCE ${objectId}:`,
           error.message
@@ -923,11 +940,13 @@ async function detectAndStoreContext(tabId) {
           `[Background] Calling getParent for ${typeModel.id} ${objectId} with tabId=${tabId}`
         );
         await domoObject.getParent(false, detected.url, tabId);
+        if (isStale()) return null;
         console.log(
           `[Background] Enriched parent metadata for ${typeModel.id} ${objectId}:`,
           domoObject.metadata?.parent
         );
       } catch (error) {
+        if (isStale()) return null;
         console.warn(
           `[Background] Could not enrich parent metadata for ${typeModel.id} ${objectId}:`,
           error
@@ -943,6 +962,9 @@ async function detectAndStoreContext(tabId) {
       }
       tabLastCardId.set(tabId, objectId);
     }
+
+    // Final stale check before committing context
+    if (isStale()) return null;
 
     // Update DomoContext with DomoObject
     context.domoObject = domoObject;
@@ -975,7 +997,7 @@ async function detectAndStoreContext(tabId) {
         tabId
       })
         .then((childPages) => {
-          // Get the current context (it might have been updated)
+          if (isStale()) return;
           const currentContext = getTabContext(tabId);
           if (currentContext?.domoObject?.id === objectId) {
             // Store pages in metadata.details.childPages or appPages
@@ -1008,6 +1030,7 @@ async function detectAndStoreContext(tabId) {
           }
         })
         .catch((error) => {
+          if (isStale()) return;
           console.error(
             `[Background] Error fetching child pages for ${typeModel.id} ${objectId}:`,
             error
@@ -1037,6 +1060,7 @@ async function detectAndStoreContext(tabId) {
       // Fetch pages for card in background without blocking
       getPagesForCards([parseInt(objectId)], tabId)
         .then((result) => {
+          if (isStale()) return;
           const currentContext = getTabContext(tabId);
           if (currentContext?.domoObject?.id === objectId) {
             if (!currentContext.domoObject?.metadata) {
@@ -1058,6 +1082,7 @@ async function detectAndStoreContext(tabId) {
           }
         })
         .catch((error) => {
+          if (isStale()) return;
           console.error(
             `[Background] Error fetching card pages for ${typeModel.id} ${objectId}:`,
             error
@@ -1080,6 +1105,7 @@ async function detectAndStoreContext(tabId) {
     // Called after each async enrichment callback; only produces output once all three
     // (cards, forms, queues) have resolved.
     function updatePageContent() {
+      if (isStale()) return;
       const ctx = getTabContext(tabId);
       const objType = ctx?.domoObject?.typeId;
       const contentTypes = ['PAGE', 'DATA_APP_VIEW', 'WORKSHEET_VIEW', 'REPORT_BUILDER_VIEW'];
@@ -1118,10 +1144,9 @@ async function detectAndStoreContext(tabId) {
         tabId
       })
         .then((cards) => {
-          // Get the current context (it might have been updated)
+          if (isStale()) return;
           const currentContext = getTabContext(tabId);
-          if (currentContext?.domoObject) {
-            // Store cards in metadata.details.cards
+          if (currentContext?.domoObject?.id === objectId) {
             if (!currentContext.domoObject?.metadata) {
               currentContext.domoObject.metadata = {};
             }
@@ -1130,19 +1155,18 @@ async function detectAndStoreContext(tabId) {
             }
             currentContext.domoObject.metadata.details.cards = cards;
 
-            // Update the stored context
             setTabContext(tabId, currentContext);
             updatePageContent();
           }
         })
         .catch((error) => {
+          if (isStale()) return;
           console.error(
             `[Background] Error fetching cards for ${typeModel.id} ${objectId}:`,
             error
           );
-          // Store empty array on error
           const currentContext = getTabContext(tabId);
-          if (currentContext?.domoObject) {
+          if (currentContext?.domoObject?.id === objectId) {
             if (!currentContext.domoObject?.metadata) {
               currentContext.domoObject.metadata = {};
             }
@@ -1165,8 +1189,9 @@ async function detectAndStoreContext(tabId) {
       if (formWidgetIds.length > 0) {
         getFormsForPage({ formWidgetIds, tabId })
           .then((forms) => {
+            if (isStale()) return;
             const currentContext = getTabContext(tabId);
-            if (currentContext?.domoObject) {
+            if (currentContext?.domoObject?.id === objectId) {
               if (!currentContext.domoObject?.metadata) {
                 currentContext.domoObject.metadata = {};
               }
@@ -1179,12 +1204,13 @@ async function detectAndStoreContext(tabId) {
             }
           })
           .catch((error) => {
+            if (isStale()) return;
             console.error(
               `[Background] Error fetching forms for ${typeModel.id} ${objectId}:`,
               error
             );
             const currentContext = getTabContext(tabId);
-            if (currentContext?.domoObject) {
+            if (currentContext?.domoObject?.id === objectId) {
               if (!currentContext.domoObject?.metadata) {
                 currentContext.domoObject.metadata = {};
               }
@@ -1198,7 +1224,7 @@ async function detectAndStoreContext(tabId) {
           });
       } else {
         const currentContext = getTabContext(tabId);
-        if (currentContext?.domoObject) {
+        if (currentContext?.domoObject?.id === objectId) {
           if (!currentContext.domoObject?.metadata) {
             currentContext.domoObject.metadata = {};
           }
@@ -1214,8 +1240,9 @@ async function detectAndStoreContext(tabId) {
       if (queueWidgetIds.length > 0) {
         getQueuesForPage({ queueWidgetIds, tabId })
           .then((queues) => {
+            if (isStale()) return;
             const currentContext = getTabContext(tabId);
-            if (currentContext?.domoObject) {
+            if (currentContext?.domoObject?.id === objectId) {
               if (!currentContext.domoObject?.metadata) {
                 currentContext.domoObject.metadata = {};
               }
@@ -1228,12 +1255,13 @@ async function detectAndStoreContext(tabId) {
             }
           })
           .catch((error) => {
+            if (isStale()) return;
             console.error(
               `[Background] Error fetching queues for ${typeModel.id} ${objectId}:`,
               error
             );
             const currentContext = getTabContext(tabId);
-            if (currentContext?.domoObject) {
+            if (currentContext?.domoObject?.id === objectId) {
               if (!currentContext.domoObject?.metadata) {
                 currentContext.domoObject.metadata = {};
               }
@@ -1247,7 +1275,7 @@ async function detectAndStoreContext(tabId) {
           });
       } else {
         const currentContext = getTabContext(tabId);
-        if (currentContext?.domoObject) {
+        if (currentContext?.domoObject?.id === objectId) {
           if (!currentContext.domoObject?.metadata) {
             currentContext.domoObject.metadata = {};
           }

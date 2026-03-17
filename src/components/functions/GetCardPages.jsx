@@ -82,39 +82,21 @@ export function GetCardPages({
         }));
         cardsByPage = result.cardsByPage;
       } else if (objectType === 'DATAFLOW_TYPE') {
-        const outputs =
-          currentContext.domoObject.metadata?.details?.outputs || [];
+        const cards = await getCardsForObject({
+          metadata: currentContext.domoObject.metadata,
+          objectId: currentContext.domoObject.id,
+          objectType,
+          tabId: currentContext?.tabId
+        });
 
-        if (outputs.length === 0) {
+        if (!cards || cards.length === 0) {
+          const hasOutputs =
+            currentContext.domoObject.metadata?.details?.outputs?.length > 0;
           onStatusUpdate?.(
-            'No Output Datasets',
-            'This dataflow has no output datasets.',
-            'warning'
-          );
-          setIsLoading(false);
-          return;
-        }
-
-        const allCards = [];
-        const seen = new Set();
-        for (const output of outputs) {
-          const dsCards = await getCardsForObject({
-            objectId: output.dataSourceId,
-            objectType: 'DATA_SOURCE',
-            tabId: currentContext?.tabId
-          });
-          for (const card of dsCards) {
-            if (!seen.has(card.id)) {
-              seen.add(card.id);
-              allCards.push(card);
-            }
-          }
-        }
-
-        if (allCards.length === 0) {
-          onStatusUpdate?.(
-            'No Cards Found',
-            `No cards found using output datasets of ${objectName}`,
+            hasOutputs ? 'No Cards Found' : 'No Output Datasets',
+            hasOutputs
+              ? `No cards found using output datasets of ${objectName}`
+              : 'This dataflow has no output datasets.',
             'warning'
           );
           setIsLoading(false);
@@ -122,7 +104,7 @@ export function GetCardPages({
         }
 
         const result = await getPagesForCards(
-          allCards.map((card) => card.id),
+          cards.map((card) => card.id),
           currentContext?.tabId
         );
         cardPages = result.pages.map((page) => ({
@@ -259,7 +241,10 @@ export function GetCardPages({
         return (
           <>
             <IconCopy stroke={1.5} />
-            Get Card Pages
+            {currentContext.domoObject.typeId === 'PAGE' ||
+            currentContext.domoObject.typeId === 'DATA_APP_VIEW'
+              ? 'Get Other Card Pages'
+              : 'Get Card Pages'}
           </>
         );
       }}

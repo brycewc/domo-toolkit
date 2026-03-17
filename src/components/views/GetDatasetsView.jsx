@@ -107,6 +107,28 @@ export function GetDatasetsView({
         }
       }
 
+      // Check for empty results
+      const hasData =
+        objectType === 'DATAFLOW_TYPE'
+          ? (dataflowInputs?.length || 0) + (dataflowOutputs?.length || 0) > 0
+          : datasets?.length > 0;
+
+      if (!hasData) {
+        if (!mountedRef.current) return;
+        const message =
+          objectType === 'DATAFLOW_TYPE'
+            ? 'This dataflow has no input or output datasets.'
+            : objectType === 'DATA_SOURCE'
+              ? 'No dependent datasets found for this dataset.'
+              : objectType === 'CARD'
+                ? 'No datasets found for this card.'
+                : 'No datasets found for this page.';
+        onStatusUpdate?.('No Datasets Found', message, 'warning');
+        onBackToDefault?.();
+        setIsLoading(false);
+        return;
+      }
+
       // Transform to items based on object type
       setError(null);
       if (objectType === 'DATAFLOW_TYPE') {
@@ -117,16 +139,6 @@ export function GetDatasetsView({
         });
         setItems(transformedItems);
       } else {
-        console.log('[GetDatasetsView] Transforming datasets:', datasets);
-        // Defensive check - ensure datasets is an array
-        if (!datasets || !Array.isArray(datasets)) {
-          console.error(
-            '[GetDatasetsView] datasets is not an array:',
-            datasets
-          );
-          setError('Invalid dataset data received. Please try again.');
-          return;
-        }
         const transformedItems = transformDatasetsToItems(datasets, origin);
         setItems(transformedItems);
       }

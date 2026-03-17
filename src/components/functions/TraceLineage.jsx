@@ -30,10 +30,12 @@ export function TraceLineage({ currentContext, onStatusUpdate }) {
         'success'
       );
 
-      const optionsUrl = chrome.runtime.getURL(
-        'src/options/index.html#lineage'
-      );
-      window.open(optionsUrl, '_blank', 'noopener,noreferrer');
+      // Open in the same window (preserves incognito context)
+      const tab = await chrome.tabs.get(currentContext.tabId);
+      chrome.tabs.create({
+        url: chrome.runtime.getURL('src/options/index.html#lineage'),
+        windowId: tab.windowId
+      });
 
       if (!isSidepanel()) window.close();
     } catch (err) {

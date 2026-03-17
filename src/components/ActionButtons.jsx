@@ -121,8 +121,11 @@ export function ActionButtons({
                       const optionsUrl = chrome.runtime.getURL(
                         'src/options/index.html'
                       );
+                      const currentWindow =
+                        await chrome.windows.getCurrent();
                       const tabs = await chrome.tabs.query({
-                        url: `${optionsUrl}*`
+                        url: `${optionsUrl}*`,
+                        windowId: currentWindow.id
                       });
                       const settingsTab = tabs.find((t) => {
                         const hash = new URL(t.url).hash.slice(1);
@@ -135,12 +138,10 @@ export function ActionButtons({
                           active: true,
                           url: `${optionsUrl}#settings`
                         });
-                        await chrome.windows.update(settingsTab.windowId, {
-                          focused: true
-                        });
                       } else {
                         chrome.tabs.create({
-                          url: `${optionsUrl}#settings`
+                          url: `${optionsUrl}#settings`,
+                          windowId: currentWindow.id
                         });
                       }
                       if (!isSidepanel()) window.close();

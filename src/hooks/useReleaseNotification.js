@@ -19,9 +19,11 @@ export function showReleaseToast() {
   toastKey = toast.info(`New Version ${currentVersion}`, {
     actionProps: {
       children: 'View Details',
-      onPress: () => {
+      onPress: async () => {
+        const currentWindow = await chrome.windows.getCurrent();
         chrome.tabs.create({
-          url: chrome.runtime.getURL('src/options/index.html#release-notes')
+          url: chrome.runtime.getURL('src/options/index.html#release-notes'),
+          windowId: currentWindow.id
         });
         toast.close(toastKey);
       },

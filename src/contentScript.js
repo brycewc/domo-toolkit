@@ -47,11 +47,34 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // Track last known clipboard value to detect changes
 let lastKnownClipboard = '';
 
+// Read clipboard text, trying the modern API first then falling back to execCommand.
+// navigator.clipboard.readText() requires user activation (click/key) which focus and
+// visibility events don't provide. execCommand('paste') uses the manifest clipboardRead
+// permission instead, so it works without a user gesture.
+async function readClipboardText() {
+  try {
+    return await navigator.clipboard.readText();
+  } catch {
+    // Modern API blocked (no user gesture) — fall back to execCommand
+  }
+  try {
+    const textarea = document.createElement('textarea');
+    textarea.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0';
+    document.body.appendChild(textarea);
+    textarea.focus();
+    document.execCommand('paste');
+    const text = textarea.value;
+    textarea.remove();
+    return text;
+  } catch {
+    return '';
+  }
+}
+
 // Helper function to check and cache clipboard
 async function checkAndCacheClipboard() {
   try {
-    const clipboardText = await navigator.clipboard.readText();
-    // console.log('[ContentScript] Read clipboard text:', clipboardText);
+    const clipboardText = await readClipboardText();
     const trimmedText = clipboardText.trim();
 
     // Validate that clipboard contains a valid Domo object ID
@@ -63,10 +86,6 @@ async function checkAndCacheClipboard() {
       );
 
     if (!isNumeric && !isUuid) {
-      // console.log(
-      //   '[ContentScript] Clipboard does not contain a valid Domo object ID:',
-      //   trimmedText
-      // );
       // If the previous clipboard was a Domo ID, clear it
       if (lastKnownClipboard) {
         lastKnownClipboard = '';
@@ -95,7 +114,6 @@ async function checkAndCacheClipboard() {
         });
     }
   } catch (error) {
-    // Clipboard read might fail, that's okay
     console.log('[ContentScript] Could not read clipboard:', error);
   }
 }
@@ -110,11 +128,16 @@ document.addEventListener('copy', async () => {
 
 // Listen for window focus to detect when user returns to tab
 // This handles the case where user copied from another application
-window.addEventListener('focus', async () => {
-  // console.log(
-  //   '[ContentScript] Window gained focus, checking clipboard and tab title'
-  // );
-  await checkAndCacheClipboard();
+// Small delay ensures the document is fully active before reading clipboard
+window.addEventListener('focus', () => {
+  setTimeout(checkAndCacheClipboard, 100);
+});
+
+// Also listen for visibility changes — more reliable for cross-application switching
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    setTimeout(checkAndCacheClipboard, 100);
+  }
 });
 
 // NOTE: URL change detection and instance tracking are handled by service worker
