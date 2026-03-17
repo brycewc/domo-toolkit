@@ -147,6 +147,10 @@ Content Script (detects page context)
 ## Development Setup
 
 ```bash
+# Clone the repository (or your fork)
+git clone https://github.com/brycewc/domo-toolkit.git
+cd domo-toolkit
+
 # Install dependencies
 yarn          # or: npm install
 
@@ -160,9 +164,9 @@ yarn build    # or: npm run build
 yarn preview  # or: npm run preview
 ```
 
-Load the extension in Chrome:
+Load the extension in Chrome or Edge:
 
-1. Navigate to `chrome://extensions/`
+1. Navigate to `chrome://extensions/` or `edge://extensions`
 2. Enable "Developer mode"
 3. Click "Load unpacked" and select the `dist` directory
 
