@@ -10,22 +10,10 @@ This extension is an independent, community-developed project. Domo, Inc. has no
 
 ## Installation
 
-[![Available in the Chrome Web Store](Chrome_Store_Badge.png)](https://chromewebstore.google.com/detail/domo-toolkit/gagcendhhghphglhcgjakkkocbliekaj?authuser=0&hl=en)
-
-[![Get it from Microsoft Edge](Microsoft_Edge_Add_Ons_Badge.png)](https://microsoftedge.microsoft.com/addons/detail/domo-toolkit/bkhnonmfkljenhejgboholmhginiiipk)
-
-### Manual Install (from source)
-
-```bash
-git clone https://github.com/brycewc/domo-toolkit.git
-cd domo-toolkit
-yarn          # or: npm install
-yarn build    # or: npm run build
-```
-
-1. Navigate to `chrome://extensions/` or `edge://extensions`
-2. Enable "Developer mode"
-3. Click "Load unpacked" and select the `dist` directory
+<p float="left">
+<a href="https://chromewebstore.google.com/detail/domo-toolkit/gagcendhhghphglhcgjakkkocbliekaj?authuser=0&hl=en" target="_blank"><img src="Chrome_Store_Badge.png" alt="https://chromewebstore.google.com/detail/domo-toolkit/gagcendhhghphglhcgjakkkocbliekaj?authuser=0&hl=en" height="50"/></a>
+<a href="https://microsoftedge.microsoft.com/addons/detail/domo-toolkit/bkhnonmfkljenhejgboholmhginiiipk" target="_blank"><img src="Microsoft_Edge_Add_Ons_Badge.png" alt="https://microsoftedge.microsoft.com/addons/detail/domo-toolkit/bkhnonmfkljenhejgboholmhginiiipk" height="50"/></a>
+</p>
 
 ## Features
 
