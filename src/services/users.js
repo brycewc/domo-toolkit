@@ -132,6 +132,27 @@ export async function getCustomAvatarUserIds(userIds, tabId = null) {
   );
 }
 
+/**
+ * Get the group IDs the given user belongs to.
+ * @param {number|string} userId - The user ID
+ * @param {number|null} tabId - The tab ID to execute in (optional)
+ * @returns {Promise<string[]>} Array of group ID strings
+ */
+export async function getUserGroups(userId, tabId = null) {
+  return executeInPage(
+    async (userId) => {
+      const response = await fetch(
+        `/api/content/v2/groups/grouplist?ascending=true&limit=10000&members=${userId}&offset=0&sort=name`
+      );
+      if (!response.ok) return [];
+      const data = await response.json();
+      return (data || []).map((g) => String(g.groupId));
+    },
+    [userId],
+    tabId
+  );
+}
+
 export async function searchUsers(text, tabId = null, offset = 0) {
   const result = await executeInPage(
     async (text, offset, limit) => {

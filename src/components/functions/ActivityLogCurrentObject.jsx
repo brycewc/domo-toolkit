@@ -19,7 +19,8 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
   const [isHolding, setIsHolding] = useState(false);
   const holdTimeoutRef = useRef(null);
 
-  const isDisabled = !currentContext?.domoObject?.id || isLoading;
+  const userRights = currentContext?.user?.metadata?.USER_RIGHTS || [];
+  const isDisabled = !currentContext?.domoObject?.id || isLoading || !userRights.includes('audit');
   const typeId = currentContext?.domoObject?.typeId;
   const longPressEnabled =
     !isDisabled &&

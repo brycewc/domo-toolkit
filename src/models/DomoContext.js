@@ -38,6 +38,7 @@ export class DomoContext {
 
     this.domoObject = domoObject;
     this.user = user;
+    this.userGroups = null;
 
     // Fetch tab object if not provided but tabId is available
     if (
@@ -76,6 +77,8 @@ export class DomoContext {
       data.user || null
     );
 
+    context.userGroups = data.userGroups || null;
+
     // Override isDomoPage if it was explicitly set in the serialized data
     if (Object.prototype.hasOwnProperty.call(data, 'isDomoPage')) {
       context.isDomoPage = data.isDomoPage;
@@ -113,7 +116,8 @@ export class DomoContext {
       tab: this.tab || null,
       tabId: this.tabId,
       url: this.url,
-      user: this.user || null
+      user: this.user || null,
+      userGroups: this.userGroups || null
     };
   }
 }

@@ -360,15 +360,14 @@ export async function shareWithSelf({
             return `Custom App Design ${designId} shared successfully (including ${appInstanceId} AppDB collections)`;
           }
 
-          case 'DATA_APP': {
-            // Studio App (shared like pages)
-            url = '/api/content/v1/share?sendEmail=false';
+          case 'DATA_APP':
+          case 'WORKSHEET': {
+            url = '/api/content/v1/dataapps/share?sendEmail=false';
             options = {
               body: JSON.stringify({
-                recipients: [
-                  { id: userId, permission: 'HAS_ACCESS', type: 'user' }
-                ],
-                resources: [{ id: objectId, type: 'page' }]
+                dataAppIds: [objectId],
+                message: 'I thought you might find this interesting.',
+                recipients: [{ id: userId, type: 'user' }]
               }),
               headers: { 'Content-Type': 'application/json' },
               method: 'POST'
@@ -378,8 +377,26 @@ export async function shareWithSelf({
           }
 
           case 'DATA_APP_VIEW':
+          case 'WORKSHEET_VIEW': {
+            const parentId = metadata?.parent?.id;
+            if (!parentId) {
+              throw new Error('Parent app ID not found — cannot share app page');
+            }
+            url = '/api/content/v1/dataapps/share?sendEmail=false';
+            options = {
+              body: JSON.stringify({
+                dataAppIds: [parentId],
+                message: 'I thought you might find this interesting.',
+                recipients: [{ id: userId, type: 'user' }]
+              }),
+              headers: { 'Content-Type': 'application/json' },
+              method: 'POST'
+            };
+            successMessage = `App ${parentId} shared successfully`;
+            break;
+          }
+
           case 'PAGE': {
-            // Page or App Studio Page
             url = '/api/content/v1/share?sendEmail=false';
             options = {
               body: JSON.stringify({

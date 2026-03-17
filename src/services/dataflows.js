@@ -98,6 +98,32 @@ export async function getDataflowForOutputDataset(datasetId, tabId = null) {
 }
 
 /**
+ * Get the current user's permission for a DataFlow.
+ * @param {string} dataflowId - The DataFlow ID
+ * @param {number} [tabId] - Optional Chrome tab ID
+ * @returns {Promise<Object|null>} Permission object (e.g. { mask: 515 }) or null
+ */
+export async function getDataflowPermission(dataflowId, tabId = null) {
+  return executeInPage(
+    async (dataflowId) => {
+      const response = await fetch(
+        '/api/dataprocessing/v1/dataflows/bulk/flowPermissions',
+        {
+          body: JSON.stringify({ dataFlowIds: [dataflowId] }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        }
+      );
+      if (!response.ok) return null;
+      const data = await response.json();
+      return data?.permissions?.[0]?.permission || null;
+    },
+    [dataflowId],
+    tabId
+  );
+}
+
+/**
  * Get the full detail of a DataFlow (including actions/tiles)
  * @param {string} dataflowId - The DataFlow ID
  * @param {number} [tabId] - Optional Chrome tab ID

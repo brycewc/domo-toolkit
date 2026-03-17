@@ -34,6 +34,7 @@ export function DeleteCurrentObject({
     'PAGE',
     'MAGNUM_COLLECTION',
     'TEMPLATE',
+    'VARIABLE',
     'WORKFLOW_MODEL'
   ];
 
@@ -189,12 +190,35 @@ export function DeleteCurrentObject({
     dialogState.close();
   };
 
+  const isDeleteForbidden = (() => {
+    const typeId = currentContext?.domoObject?.typeId;
+    const userRights = currentContext?.user?.metadata?.USER_RIGHTS || [];
+    const isOwner = currentContext?.domoObject?.metadata?.isOwner;
+
+    if (typeId === 'DATAFLOW_TYPE') {
+      return !isOwner && !userRights.includes('dataflow.admin');
+    }
+    if (typeId === 'WORKFLOW_MODEL') {
+      const permValues = currentContext?.domoObject?.metadata?.permission?.values || [];
+      const hasDeletePerm = permValues.includes('ADMIN') || permValues.includes('DELETE');
+      return !isOwner && !hasDeletePerm && !userRights.includes('workflow.admin');
+    }
+    if (typeId === 'BEAST_MODE_FORMULA' || typeId === 'VARIABLE') {
+      return !isOwner && !userRights.includes('content.admin');
+    }
+    if (typeId === 'DATA_APP_VIEW' || typeId === 'PAGE') {
+      return !isOwner && !userRights.includes('content.admin');
+    }
+    return false;
+  })();
+
   const isDeleteDisabled =
     isDisabled ||
     !currentContext?.domoObject ||
     !supportedTypes.includes(currentContext?.domoObject?.typeId) ||
     (currentContext?.domoObject?.typeId === 'DATAFLOW_TYPE' &&
-      currentContext?.domoObject?.metadata?.details?.deleted === true);
+      currentContext?.domoObject?.metadata?.details?.deleted === true) ||
+    isDeleteForbidden;
 
   return (
     <AlertDialog isOpen={dialogState.isOpen} onOpenChange={dialogState.setOpen}>

@@ -84,8 +84,19 @@ export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
   };
 
   const isSupportedType = isSupportedForShare(currentContext?.domoObject);
+  const contentAdminTypes = ['CARD', 'DATA_APP', 'DATA_APP_VIEW', 'PAGE', 'WORKSHEET_VIEW'];
+  const userRights = currentContext?.user?.metadata?.USER_RIGHTS || [];
+  const needsContentAdmin =
+    contentAdminTypes.includes(currentContext?.domoObject?.typeId) &&
+    !userRights.includes('content.admin');
+  const needsAccountAdmin =
+    currentContext?.domoObject?.typeId === 'DATA_SOURCE' &&
+    !userRights.includes('account.admin');
+  const needsAppAdmin =
+    currentContext?.domoObject?.typeId === 'APP' &&
+    !userRights.includes('app.admin');
   const buttonDisabled =
-    isDisabled || isSharing || !currentContext?.domoObject || !isSupportedType;
+    isDisabled || isSharing || !currentContext?.domoObject || !isSupportedType || needsContentAdmin || needsAccountAdmin || needsAppAdmin;
 
   return (
     <Tooltip closeDelay={0} delay={400} disabled={!buttonDisabled}>
@@ -126,7 +137,8 @@ function isSupportedForShare(domoObject) {
     'DATA_APP',
     'DATA_APP_VIEW',
     'DATA_SOURCE',
-    'PAGE'
+    'PAGE',
+    'WORKSHEET_VIEW'
   ];
   if (!domoObject?.typeId) return false;
   if (!SUPPORTED_TYPES.includes(domoObject.typeId)) return false;

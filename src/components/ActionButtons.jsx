@@ -57,8 +57,9 @@ export function ActionButtons({
 
   const isDomoPage = currentContext?.isDomoPage ?? false;
   const typeId = currentContext?.domoObject?.typeId;
-  const details = currentContext?.domoObject?.metadata?.details;
-  const availableActions = getAvailableActions(typeId, details);
+  const metadata = currentContext?.domoObject?.metadata;
+  const details = metadata?.details;
+  const availableActions = getAvailableActions(typeId, details, metadata);
   const hasExpandableActions = availableActions.size > 0;
 
   return (
@@ -314,7 +315,7 @@ export function ActionButtons({
  * Determine which expandable action buttons are available for the current context.
  * Returns a Set of action keys. Used for both rendering and disabling the expand trigger.
  */
-function getAvailableActions(typeId, details) {
+function getAvailableActions(typeId, details, metadata) {
   const actions = new Set();
 
   if (
@@ -366,7 +367,9 @@ function getAvailableActions(typeId, details) {
 
   if (typeId === 'DATAFLOW_TYPE') {
     actions.add('traceLineage');
-    actions.add('updateDataflowDetails');
+    if (metadata?.permission?.mask & 2) {
+      actions.add('updateDataflowDetails');
+    }
   }
 
   if (['ALERT', 'WORKFLOW_MODEL'].includes(typeId)) {

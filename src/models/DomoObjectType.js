@@ -437,7 +437,7 @@ export const ObjectTypeRegistry = {
     },
     {
       endpoint:
-        '/content/v1/cards?urns={id}&includeFiltered=true&parts=metadata,datasources,domoapp',
+        '/content/v1/cards?urns={id}&includeFiltered=true&parts=metadata,datasources,domoapp,owners',
       pathToDetails: '[0]',
       pathToName: '[0].title'
     },

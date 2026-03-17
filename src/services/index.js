@@ -29,6 +29,7 @@ export {
   deleteDataflowAndOutputs,
   getDataflowDetail,
   getDataflowForOutputDataset,
+  getDataflowPermission,
   updateDataflowDetails
 } from './dataflows';
 export {
@@ -76,5 +77,7 @@ export {
   getCurrentUser,
   getCurrentUserId,
   getCustomAvatarUserIds,
+  getUserGroups,
   searchUsers
 } from './users';
+export { getWorkflowPermission } from './workflows';

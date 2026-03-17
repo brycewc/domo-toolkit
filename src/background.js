@@ -7,9 +7,12 @@ import {
   getChildPages,
   getCurrentUser,
   getDataflowForOutputDataset,
+  getDataflowPermission,
   getFormsForPage,
   getPagesForCards,
-  getQueuesForPage
+  getQueuesForPage,
+  getUserGroups,
+  getWorkflowPermission
 } from '@/services';
 import {
   clearCookies,
@@ -17,6 +20,72 @@ import {
   EXCLUDED_HOSTNAMES,
   executeInPage
 } from '@/utils';
+
+/**
+ * Compute whether the current user is an owner of the detected object.
+ * Handles pre-computed booleans, plain IDs, typed objects, and arrays.
+ * @param {string} typeId - The object type ID
+ * @param {Object} details - The enriched metadata details
+ * @param {number|string} userId - The current user's ID
+ * @param {string[]} userGroups - Group IDs the user belongs to
+ * @returns {boolean|null} true/false if determinable, null if unknown
+ */
+function computeIsOwner(typeId, details, userId, userGroups) {
+  if (!userId) return null;
+
+  // Types where the API pre-computes isOwner
+  if (typeId === 'PAGE' || typeId === 'DATA_APP_VIEW') {
+    return details?.page?.isOwner ?? null;
+  }
+
+  // Types where owner is a plain ID (always a user)
+  if (typeId === 'BEAST_MODE_FORMULA' || typeId === 'VARIABLE') {
+    const ownerId = details?.owner;
+    if (ownerId == null) return null;
+    return String(userId) === String(ownerId);
+  }
+
+  // Helper: check a single typed owner {id, type}
+  function checkTypedOwner(owner) {
+    if (!owner?.id) return null;
+    if (!owner.type || owner.type === 'USER') {
+      return String(userId) === String(owner.id);
+    }
+    if (owner.type === 'GROUP') {
+      return (userGroups || []).includes(String(owner.id));
+    }
+    return false;
+  }
+
+  // Remaining types: owner can be typed object, array, or plain ID
+  const owner = details?.owner;
+  if (owner == null) return null;
+
+  // Multiple owners (array)
+  if (Array.isArray(owner)) {
+    // Check USER entries first (cheap)
+    for (const o of owner) {
+      if ((!o.type || o.type === 'USER') && String(userId) === String(o.id)) {
+        return true;
+      }
+    }
+    // Then check GROUP entries
+    for (const o of owner) {
+      if (o.type === 'GROUP' && (userGroups || []).includes(String(o.id))) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Single owner — typed object
+  if (typeof owner === 'object') {
+    return checkTypedOwner(owner);
+  }
+
+  // Fallback: plain ID comparison
+  return String(userId) === String(owner);
+}
 
 /**
  * Resolve an object ID via API when it cannot be extracted from the URL.
@@ -110,6 +179,51 @@ const SESSION_STORAGE_KEY = 'tabContextsBackup';
 
 // Per-tab detection generation counter to prevent stale async callbacks
 const tabDetectionGen = new Map();
+
+// Per-instance cache for user + groups (instance -> { user, userGroups, promise })
+const instanceUserCache = new Map();
+
+/**
+ * Get or fetch the current user and their groups for an instance.
+ * Returns cached data if available, otherwise fetches and caches.
+ * @param {string} instance - The Domo instance subdomain
+ * @param {number} tabId - The tab ID to execute API calls in
+ * @returns {Promise<{ user: Object, userGroups: string[] }>}
+ */
+function getInstanceUser(instance, tabId) {
+  const cached = instanceUserCache.get(instance);
+  if (cached?.promise) return cached.promise;
+
+  const promise = (async () => {
+    const user = await getCurrentUser(tabId);
+    let userGroups = [];
+    if (user?.id) {
+      userGroups = await getUserGroups(user.id, tabId).catch((error) => {
+        console.warn(
+          `[Background] Could not fetch user groups for ${instance}:`,
+          error.message
+        );
+        return [];
+      });
+    }
+    const entry = { promise: null, user, userGroups };
+    // Replace the in-flight promise with resolved data
+    instanceUserCache.set(instance, entry);
+    return { user, userGroups };
+  })();
+
+  instanceUserCache.set(instance, { promise, user: null, userGroups: null });
+  return promise;
+}
+
+/**
+ * Invalidate the user cache for an instance (e.g., on logout).
+ * @param {string} instance - The Domo instance subdomain
+ */
+function invalidateInstanceUser(instance) {
+  instanceUserCache.delete(instance);
+  console.log(`[Background] Invalidated user cache for instance: ${instance}`);
+}
 
 // Per-tab card error storage
 const tabCardErrors = new Map();
@@ -594,6 +708,15 @@ chrome.tabs.onActivated.addListener(async ({ tabId, windowId }) => {
 
 // Detect context when URL changes (lazy detection for background tabs)
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  // Invalidate user cache when navigating to auth pages (logout)
+  if (changeInfo.url && changeInfo.url.includes('domo.com/auth/')) {
+    try {
+      const hostname = new URL(changeInfo.url).hostname;
+      const instance = hostname.replace('.domo.com', '');
+      invalidateInstanceUser(instance);
+    } catch {}
+  }
+
   // React to URL changes on Domo domains
   if (changeInfo.url && changeInfo.url.includes('domo.com')) {
     console.log(
@@ -806,23 +929,33 @@ async function detectAndStoreContext(tabId) {
     const context = new DomoContext(tabId, tab.url, null);
     setTabContext(tabId, context);
 
-    // Fetch current user (non-blocking, updates context when complete)
-    getCurrentUser(tabId)
-      .then((user) => {
+    // Fetch current user + groups (cached per instance, non-blocking)
+    getInstanceUser(context.instance, tabId)
+      .then(({ user, userGroups }) => {
         if (isStale()) return;
         const currentContext = getTabContext(tabId);
         if (currentContext) {
           currentContext.user = user;
+          currentContext.userGroups = userGroups;
+          // Recompute isOwner if metadata is already available
+          if (currentContext.domoObject?.metadata?.details) {
+            currentContext.domoObject.metadata.isOwner = computeIsOwner(
+              currentContext.domoObject.typeId,
+              currentContext.domoObject.metadata.details,
+              user?.id,
+              userGroups
+            );
+          }
           setTabContext(tabId, currentContext);
         }
         console.log(
-          `[Background] Fetched current user for tab ${tabId}:`,
+          `[Background] User for tab ${tabId} (${context.instance}):`,
           user?.id
         );
       })
       .catch((error) => {
         console.warn(
-          `[Background] Could not fetch current user for tab ${tabId}:`,
+          `[Background] Could not fetch user for tab ${tabId}:`,
           error.message
         );
       });
@@ -909,6 +1042,16 @@ async function detectAndStoreContext(tabId) {
     }
 
     domoObject.metadata = enrichedMetadata;
+
+    // Compute isOwner if user and groups are already available
+    const currentUser = context.user;
+    const currentUserGroups = context.userGroups;
+    domoObject.metadata.isOwner = computeIsOwner(
+      typeModel.id,
+      enrichedMetadata.details,
+      currentUser?.id,
+      currentUserGroups
+    );
 
     // DATA_SOURCE: resolve DATAFLOW_TYPE parent via reverse-lookup API
     if (
@@ -1287,6 +1430,57 @@ async function detectAndStoreContext(tabId) {
           updatePageContent();
         }
       }
+    }
+
+    // For WORKFLOW_MODEL, fetch permission asynchronously (non-blocking)
+    if (typeModel.id === 'WORKFLOW_MODEL') {
+      const userId = context.user?.id;
+      const fetchPermission = userId
+        ? getWorkflowPermission(objectId, userId, tabId)
+        : Promise.resolve([]);
+
+      fetchPermission
+        .then((values) => {
+          if (isStale()) return;
+          const currentContext = getTabContext(tabId);
+          if (currentContext?.domoObject?.id === objectId) {
+            if (!currentContext.domoObject.metadata) {
+              currentContext.domoObject.metadata = {};
+            }
+            currentContext.domoObject.metadata.permission = { values };
+            setTabContext(tabId, currentContext);
+          }
+        })
+        .catch((error) => {
+          if (isStale()) return;
+          console.warn(
+            `[Background] Could not fetch permission for WORKFLOW_MODEL ${objectId}:`,
+            error.message
+          );
+        });
+    }
+
+    // For DATAFLOW_TYPE, fetch permission asynchronously (non-blocking)
+    if (typeModel.id === 'DATAFLOW_TYPE') {
+      getDataflowPermission(objectId, tabId)
+        .then((permission) => {
+          if (isStale()) return;
+          const currentContext = getTabContext(tabId);
+          if (currentContext?.domoObject?.id === objectId) {
+            if (!currentContext.domoObject.metadata) {
+              currentContext.domoObject.metadata = {};
+            }
+            currentContext.domoObject.metadata.permission = permission;
+            setTabContext(tabId, currentContext);
+          }
+        })
+        .catch((error) => {
+          if (isStale()) return;
+          console.warn(
+            `[Background] Could not fetch permission for DATAFLOW_TYPE ${objectId}:`,
+            error.message
+          );
+        });
     }
 
     return context;
