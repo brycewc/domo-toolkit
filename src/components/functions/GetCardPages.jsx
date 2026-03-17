@@ -242,7 +242,8 @@ export function GetCardPages({
           <>
             <IconCopy stroke={1.5} />
             {currentContext.domoObject.typeId === 'PAGE' ||
-            currentContext.domoObject.typeId === 'DATA_APP_VIEW'
+            currentContext.domoObject.typeId === 'DATA_APP_VIEW' ||
+            currentContext.domoObject.typeId === 'WORKSHEET_VIEW'
               ? 'Get Other Card Pages'
               : 'Get Card Pages'}
           </>

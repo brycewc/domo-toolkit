@@ -192,6 +192,9 @@ const instanceUserCache = new Map();
  */
 function getInstanceUser(instance, tabId) {
   const cached = instanceUserCache.get(instance);
+  if (cached?.user) {
+    return Promise.resolve({ user: cached.user, userGroups: cached.userGroups });
+  }
   if (cached?.promise) return cached.promise;
 
   const promise = (async () => {
@@ -207,10 +210,14 @@ function getInstanceUser(instance, tabId) {
       });
     }
     const entry = { promise: null, user, userGroups };
-    // Replace the in-flight promise with resolved data
     instanceUserCache.set(instance, entry);
     return { user, userGroups };
   })();
+
+  // Clear cache on failure so next detection retries
+  promise.catch(() => {
+    instanceUserCache.delete(instance);
+  });
 
   instanceUserCache.set(instance, { promise, user: null, userGroups: null });
   return promise;

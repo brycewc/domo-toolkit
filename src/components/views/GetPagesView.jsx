@@ -19,7 +19,6 @@ import {
 } from '@/services';
 import {
   getValidTabForInstance,
-  waitForCardPages,
   waitForCards,
   waitForChildPages
 } from '@/utils';
@@ -120,39 +119,12 @@ export function GetPagesView({
       if (!childPages && !forceRefresh) {
         // No pre-fetched data (popup handoff)
         if (sidepanelType === 'getCardPages') {
-          if (objectType === 'CARD') {
-            // Background proactively fetches card pages for CARD
-            const waitResult = await waitForCardPages(context);
-            if (waitResult.success) {
-              childPages = (waitResult.cardPages || []).map((page) => ({
-                appId: page.appId || null,
-                appName: page.appName || null,
-                pageId: page.id,
-                pageTitle: page.name,
-                pageType: page.type
-              }));
-              cardsByPage = waitResult.cardsByPage;
-            }
-          } else if (objectType === 'DATA_SOURCE') {
-            // Background caches cards for DATA_SOURCE; use those to fetch pages
-            const waitResult = await waitForCards(context);
-            if (waitResult.success && waitResult.cards?.length) {
-              const tabId = await getValidTabForInstance(instance);
-              const result = await getPagesForCards(
-                waitResult.cards.map((card) => card.id),
-                tabId
-              );
-              childPages = result.pages.map((page) => ({
-                appId: page.appId || null,
-                appName: page.appName || null,
-                pageId: page.id,
-                pageTitle: page.name,
-                pageType: page.type
-              }));
-              cardsByPage = result.cardsByPage;
-            }
-          } else {
-            // PAGE, DATA_APP_VIEW, WORKSHEET_VIEW — get cards then find pages
+          if (
+            objectType === 'PAGE' ||
+            objectType === 'DATA_APP_VIEW' ||
+            objectType === 'WORKSHEET_VIEW'
+          ) {
+            // Page-like types — get cards then find other pages they appear on
             const waitResult = await waitForCards(context);
             if (waitResult.success && waitResult.cards?.length) {
               const tabId = await getValidTabForInstance(instance);
@@ -173,6 +145,7 @@ export function GetPagesView({
               cardsByPage = result.cardsByPage;
             }
           }
+          // CARD, DATA_SOURCE, DATAFLOW_TYPE — fall through to fetchFreshPages
         } else {
           // getChildPages or childPagesWarning — background-cached hierarchical children
           const waitResult = await waitForChildPages(context);
@@ -185,6 +158,7 @@ export function GetPagesView({
           const freshData = await fetchFreshPages({
             appId,
             instance,
+            metadata: domoObject.metadata,
             objectId,
             objectType,
             sidepanelType
@@ -198,6 +172,7 @@ export function GetPagesView({
         const freshData = await fetchFreshPages({
           appId,
           instance,
+          metadata: domoObject.metadata,
           objectId,
           objectType,
           sidepanelType
@@ -316,6 +291,7 @@ export function GetPagesView({
   const fetchFreshPages = async ({
     appId,
     instance,
+    metadata,
     objectId,
     objectType,
     sidepanelType
@@ -324,6 +300,7 @@ export function GetPagesView({
 
     if (sidepanelType === 'getCardPages') {
       const cards = await getCardsForObject({
+        metadata,
         objectId,
         objectType,
         tabId
@@ -337,7 +314,7 @@ export function GetPagesView({
       );
 
       // For page-like types, filter out the current page
-      const excludeSelf = ['PAGE', 'DATA_APP_VIEW', 'WORKSHEET_VIEW'].includes(
+      const excludeSelf = ['DATA_APP_VIEW', 'PAGE', 'WORKSHEET_VIEW'].includes(
         objectType
       );
       const stringId = String(objectId);
@@ -620,27 +597,27 @@ export function GetPagesView({
         </div>
         {items.length !== undefined &&
           pageData?.sidepanelType !== 'getCardPages' && (
-          <div className='flex flex-row items-center gap-1'>
-            <span className='text-sm text-muted'>
-              {items.length}{' '}
-              {pageData?.objectType === 'PAGE' ? 'child page' : 'page'}
-              {items.length === 1 ? '' : 's'}
-            </span>
-            {grandchildCount > 0 && (
-              <div className='flex flex-row items-end gap-1'>
-                <Separator
-                  className='mx-1 h-4'
-                  orientation='vertical'
-                  size='sm'
-                />
-                <span className='text-sm text-muted'>
-                  {grandchildCount} grandchild{' '}
-                  {grandchildCount === 1 ? 'page' : 'pages'}
-                </span>
-              </div>
-            )}
-          </div>
-        )}
+            <div className='flex flex-row items-center gap-1'>
+              <span className='text-sm text-muted'>
+                {items.length}{' '}
+                {pageData?.objectType === 'PAGE' ? 'child page' : 'page'}
+                {items.length === 1 ? '' : 's'}
+              </span>
+              {grandchildCount > 0 && (
+                <div className='flex flex-row items-end gap-1'>
+                  <Separator
+                    className='mx-1 h-4'
+                    orientation='vertical'
+                    size='sm'
+                  />
+                  <span className='text-sm text-muted'>
+                    {grandchildCount} grandchild{' '}
+                    {grandchildCount === 1 ? 'page' : 'pages'}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
       </div>
     );
   };

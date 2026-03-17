@@ -10,13 +10,9 @@ This extension is an independent, community-developed project. Domo, Inc. has no
 
 ## Installation
 
-### Chrome Web Store
+[![Available in the Chrome Web Store](Chrome_Store_Badge.png)](https://chromewebstore.google.com/detail/domo-toolkit/gagcendhhghphglhcgjakkkocbliekaj?authuser=0&hl=en)
 
-[https://chromewebstore.google.com/detail/domo-toolkit/gagcendhhghphglhcgjakkkocbliekaj?authuser=0&hl=en](https://chromewebstore.google.com/detail/domo-toolkit/gagcendhhghphglhcgjakkkocbliekaj?authuser=0&hl=en)
-
-### Edge Add-ons
-
-[https://microsoftedge.microsoft.com/addons/detail/domo-toolkit/bkhnonmfkljenhejgboholmhginiiipk](https://microsoftedge.microsoft.com/addons/detail/domo-toolkit/bkhnonmfkljenhejgboholmhginiiipk)
+[![Get it from Microsoft Edge](Microsoft_Edge_Add_Ons_Badge.png)](https://microsoftedge.microsoft.com/addons/detail/domo-toolkit/bkhnonmfkljenhejgboholmhginiiipk)
 
 ### Manual Install (from source)
 
