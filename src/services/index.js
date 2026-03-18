@@ -34,6 +34,7 @@ export {
 } from './dataflows';
 export {
   getDatasetPreview,
+  getDatasetsForApp,
   getDatasetsForDataflow,
   getDatasetsForPage,
   getDatasetsForView,

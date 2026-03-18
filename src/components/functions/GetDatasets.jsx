@@ -1,13 +1,18 @@
-import { Button, Spinner } from '@heroui/react';
+import { Button, Dropdown, Label, Spinner, Tooltip } from '@heroui/react';
 import { IconDatabase } from '@tabler/icons-react';
-import { useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
+import { useRef, useState } from 'react';
 
 import {
+  getDatasetsForApp,
   getDatasetsForDataflow,
   getDatasetsForPage,
   getDependentDatasets
 } from '@/services';
 import { isSidepanel, openSidepanel, storeSidepanelData } from '@/utils';
+
+const LONG_PRESS_DURATION = 1000;
+const LONG_PRESS_SECONDS = LONG_PRESS_DURATION / 1000;
 
 export function GetDatasets({
   currentContext,
@@ -16,6 +21,35 @@ export function GetDatasets({
   onStatusUpdate
 }) {
   const [isLoading, setIsLoading] = useState(false);
+  const [isHolding, setIsHolding] = useState(false);
+  const holdTimeoutRef = useRef(null);
+
+  const objectType = currentContext?.domoObject?.typeId;
+
+  let dropdownItems = [];
+  if (objectType === 'DATA_APP_VIEW') {
+    dropdownItems = [{ id: 'getAppDatasets', label: 'Get App DataSets' }];
+  } else if (objectType === 'WORKSHEET_VIEW') {
+    dropdownItems = [{ id: 'getAppDatasets', label: 'Get Worksheet DataSets' }];
+  }
+
+  const longPressDisabled =
+    isDisabled || !currentContext?.domoObject?.id || dropdownItems.length === 0;
+
+  const handlePressStart = () => {
+    setIsHolding(true);
+    holdTimeoutRef.current = setTimeout(() => {
+      setIsHolding(false);
+    }, LONG_PRESS_DURATION);
+  };
+
+  const handlePressEnd = () => {
+    setIsHolding(false);
+    if (holdTimeoutRef.current) {
+      clearTimeout(holdTimeoutRef.current);
+      holdTimeoutRef.current = null;
+    }
+  };
 
   const handleGetDatasets = async () => {
     setIsLoading(true);
@@ -41,7 +75,8 @@ export function GetDatasets({
         'DATA_APP_VIEW',
         'CARD',
         'DATAFLOW_TYPE',
-        'DATA_SOURCE'
+        'DATA_SOURCE',
+        'WORKSHEET_VIEW'
       ];
       if (!validTypes.includes(objectType)) {
         onStatusUpdate?.(
@@ -68,7 +103,11 @@ export function GetDatasets({
       let dataflowInputs = null;
       let dataflowOutputs = null;
 
-      if (objectType === 'PAGE' || objectType === 'DATA_APP_VIEW') {
+      if (
+        objectType === 'PAGE' ||
+        objectType === 'DATA_APP_VIEW' ||
+        objectType === 'WORKSHEET_VIEW'
+      ) {
         datasets = await getDatasetsForPage({
           pageId: objectId,
           tabId: currentContext?.tabId
@@ -135,7 +174,75 @@ export function GetDatasets({
     }
   };
 
-  const objectType = currentContext?.domoObject?.typeId;
+  const handleAction = async (key) => {
+    if (key !== 'getAppDatasets') return;
+
+    const parentId = currentContext?.domoObject?.parentId;
+    if (!parentId) {
+      onStatusUpdate?.('Error', 'Could not determine parent app ID', 'danger');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      // Popup: hand off to sidepanel
+      if (!isSidepanel()) {
+        await storeSidepanelData({
+          appId: parentId,
+          currentContext,
+          type: 'getDatasets'
+        });
+        openSidepanel();
+        return;
+      }
+
+      // Sidepanel: fetch and display
+      const datasets = await getDatasetsForApp({
+        appId: parentId,
+        tabId: currentContext?.tabId
+      });
+
+      if (!datasets || datasets.length === 0) {
+        const label = objectType === 'WORKSHEET_VIEW' ? 'worksheet' : 'app';
+        onStatusUpdate?.(
+          'No Datasets Found',
+          `No datasets found for this ${label}.`,
+          'warning',
+          3000
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      if (onCollapseActions) {
+        await storeSidepanelData({
+          message: 'Loading datasets...',
+          timestamp: Date.now(),
+          type: 'loading'
+        });
+
+        onCollapseActions();
+        await new Promise((resolve) => setTimeout(resolve, 175));
+      }
+
+      await storeSidepanelData({
+        appId: parentId,
+        currentContext,
+        datasets,
+        statusShown: true,
+        type: 'getDatasets'
+      });
+    } catch (error) {
+      console.error('[GetDatasets] Error:', error);
+      onStatusUpdate?.(
+        'Error',
+        error.message || 'Failed to get app datasets',
+        'danger'
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   let buttonText;
   switch (objectType) {
@@ -153,25 +260,66 @@ export function GetDatasets({
   }
 
   return (
-    <Button
-      fullWidth
-      className='min-w-36 flex-1 whitespace-normal'
-      isDisabled={isDisabled}
-      isPending={isLoading}
-      variant='tertiary'
-      onPress={handleGetDatasets}
-    >
-      {({ isPending }) => {
-        if (isPending) {
-          return <Spinner color='currentColor' size='sm' />;
-        }
+    <Dropdown isDisabled={longPressDisabled} trigger='longPress'>
+      <Tooltip closeDelay={0} delay={400}>
+        <Button
+          fullWidth
+          className='relative min-w-36 flex-1 overflow-visible whitespace-normal'
+          isDisabled={isDisabled}
+          isPending={isLoading}
+          variant='tertiary'
+          onPress={handleGetDatasets}
+          onPressEnd={longPressDisabled ? undefined : handlePressEnd}
+          onPressStart={longPressDisabled ? undefined : handlePressStart}
+        >
+          {({ isPending }) => {
+            if (isPending) {
+              return <Spinner color='currentColor' size='sm' />;
+            }
 
-        return (
-          <>
-            <IconDatabase stroke={1.5} /> {buttonText}
-          </>
-        );
-      }}
-    </Button>
+            return (
+              <>
+                <IconDatabase stroke={1.5} /> {buttonText}
+                <AnimatePresence>
+                  {isHolding && (
+                    <motion.div
+                      animate={{ opacity: 1 }}
+                      className='pointer-events-none absolute inset-0 overflow-hidden rounded-md'
+                      exit={{ opacity: 0, transition: { duration: 0.1 } }}
+                      initial={{ opacity: 0 }}
+                    >
+                      <motion.div
+                        animate={{ scale: 1 }}
+                        className='absolute top-1/2 left-1/2 aspect-square w-[200%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent-soft-hover'
+                        initial={{ scale: 0 }}
+                        transition={{
+                          duration: LONG_PRESS_SECONDS,
+                          ease: 'linear'
+                        }}
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </>
+            );
+          }}
+        </Button>
+        {!longPressDisabled && (
+          <Tooltip.Content placement='bottom'>
+            <span className='italic'>Hold for more options</span>
+          </Tooltip.Content>
+        )}
+      </Tooltip>
+      <Dropdown.Popover className='w-fit min-w-48' placement='bottom left'>
+        <Dropdown.Menu onAction={handleAction}>
+          {dropdownItems.map((item) => (
+            <Dropdown.Item id={item.id} key={item.id} textValue={item.label}>
+              <IconDatabase className='size-4 shrink-0' />
+              <Label>{item.label}</Label>
+            </Dropdown.Item>
+          ))}
+        </Dropdown.Menu>
+      </Dropdown.Popover>
+    </Dropdown>
   );
 }

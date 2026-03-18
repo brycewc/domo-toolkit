@@ -51,6 +51,7 @@ export function ActivityLogTable() {
   const [dateRange, setDateRange] = useState(null);
   const [userFilter, setUserFilter] = useState(null);
   const [actionFilter, setActionFilter] = useState(new Set());
+  const actionFilterRef = useRef(new Set());
   const [objectTypeFilter, setObjectTypeFilter] = useState(new Set());
   // Track pagination state per object: { "type:id": { offset, total, hasMore } }
   const [objectStates, setObjectStates] = useState({});
@@ -64,6 +65,7 @@ export function ActivityLogTable() {
     return { end: end.getTime(), start: start.getTime() };
   }, [dateRange]);
 
+  const hasLoadedRef = useRef(false);
   const isFetchingMoreRef = useRef(false);
   const objectStatesRef = useRef(objectStates);
   objectStatesRef.current = objectStates;
@@ -176,18 +178,27 @@ export function ActivityLogTable() {
       .catch(() => {});
   }, [events, tabId]);
 
-  // Get unique object types for filter
+  // Get unique object types for filter — only relevant for multi-object logs.
+  // Stabilized to avoid new reference when events change but types stay the same.
+  const prevObjectTypeOptionsRef = useRef([]);
   const objectTypeOptions = useMemo(() => {
+    if (activityLogType === 'single-object') return prevObjectTypeOptionsRef.current;
     const types = new Set();
     events.forEach((event) => {
       if (event.objectType) {
         types.add(event.objectType);
       }
     });
-    return Array.from(types).sort();
-  }, [events]);
+    const next = Array.from(types).sort();
+    const prev = prevObjectTypeOptionsRef.current;
+    if (prev.length === next.length && prev.every((t, i) => t === next[i])) {
+      return prev;
+    }
+    prevObjectTypeOptionsRef.current = next;
+    return next;
+  }, [events, activityLogType]);
 
-  // Filter events locally (date range, user, and action filtering is handled server-side)
+  // Filter events locally (object type is client-side only)
   const filteredEvents = useMemo(() => {
     if (objectTypeFilter.size === 0) return events;
 
@@ -286,9 +297,7 @@ export function ActivityLogTable() {
         return;
       }
 
-      const isSearch = events.length > 0;
-
-      if (isSearch) {
+      if (hasLoadedRef.current) {
         setIsSearching(true);
       } else {
         setIsInitialLoad(true);
@@ -301,7 +310,7 @@ export function ActivityLogTable() {
         const resolvedTabId = await resolveTabId();
         if (!resolvedTabId) return;
 
-        const tasks = buildFetchTasks(objects, userFilter, actionFilter);
+        const tasks = buildFetchTasks(objects, userFilter, actionFilterRef.current);
 
         const fetchPromises = tasks.map((task) =>
           getActivityLogForObject({
@@ -364,13 +373,14 @@ export function ActivityLogTable() {
         console.error('Error fetching activity log:', err);
         setError(err.message || 'Failed to fetch activity log');
       } finally {
+        hasLoadedRef.current = true;
         setIsInitialLoad(false);
         setIsSearching(false);
       }
     };
 
     fetchEvents();
-  }, [objects, tabId, refreshKey, userFilter, actionFilter, dateRangeEpoch]);
+  }, [objects, tabId, refreshKey, userFilter, dateRangeEpoch]);
 
   const total = useMemo(
     () =>
@@ -464,6 +474,13 @@ export function ActivityLogTable() {
     setRefreshKey((prev) => prev + 1);
   }, []);
 
+  // Handle action filter changes — updates dropdown state and triggers re-fetch via ref
+  const handleActionFilterChange = useCallback((newFilter) => {
+    setActionFilter(newFilter);
+    actionFilterRef.current = newFilter;
+    setRefreshKey((prev) => prev + 1);
+  }, []);
+
   // Fetch all data for export — paginates through all (object × user) tasks
   const fetchAllDataForExport = useCallback(async () => {
     if (objects.length === 0) {
@@ -475,7 +492,7 @@ export function ActivityLogTable() {
 
     const allEvents = [];
     const exportPageSize = 1000;
-    const tasks = buildFetchTasks(objects, userFilter, actionFilter);
+    const tasks = buildFetchTasks(objects, userFilter, actionFilterRef.current);
 
     for (const task of tasks) {
       let offset = 0;
@@ -524,9 +541,208 @@ export function ActivityLogTable() {
     filteredEvents,
     userFilter,
     dateRangeEpoch,
-    actionFilter,
     objectTypeFilter
   ]);
+
+  // Memoize filter toolbar so it doesn't re-render during event fetches
+  const customFilters = useMemo(
+    () => (
+      <div className='flex w-full flex-row flex-wrap items-center justify-start gap-1 sm:flex-nowrap'>
+        {/* Date Range Filter */}
+        <DateRangePicker
+          shouldForceLeadingZeros
+          aria-label='Date Range Picker'
+          className='w-full sm:w-72'
+          endName='endDate'
+          granularity='day'
+          maxValue={today(getLocalTimeZone())}
+          minValue={parseDate('2008-01-01')}
+          startName='startDate'
+          value={dateRange}
+          onChange={setDateRange}
+        >
+          <DateField.Group variant='secondary'>
+            <DateField.Input slot='start'>
+              {(segment) => <DateField.Segment segment={segment} />}
+            </DateField.Input>
+            <DateRangePicker.RangeSeparator />
+            <DateField.Input slot='end'>
+              {(segment) => <DateField.Segment segment={segment} />}
+            </DateField.Input>
+            <DateField.Suffix>
+              {dateRange && (
+                <CloseButton
+                  size='sm'
+                  variant='ghost'
+                  onPress={() => setDateRange(null)}
+                />
+              )}
+              <DateRangePicker.Trigger>
+                <DateRangePicker.TriggerIndicator>
+                  <IconCalendarWeek
+                    className='text-foreground'
+                    stroke={1.5}
+                  />
+                </DateRangePicker.TriggerIndicator>
+              </DateRangePicker.Trigger>
+            </DateField.Suffix>
+          </DateField.Group>
+          <DateRangePicker.Popover>
+            <RangeCalendar
+              aria-label='Date Range Calendar'
+              maxValue={today(getLocalTimeZone())}
+              minValue={parseDate('2008-01-01')}
+            >
+              <RangeCalendar.Header>
+                <RangeCalendar.YearPickerTrigger>
+                  <RangeCalendar.YearPickerTriggerHeading />
+                  <RangeCalendar.YearPickerTriggerIndicator />
+                </RangeCalendar.YearPickerTrigger>
+                <RangeCalendar.NavButton slot='previous' />
+                <RangeCalendar.NavButton slot='next' />
+              </RangeCalendar.Header>
+              <RangeCalendar.Grid>
+                <RangeCalendar.GridHeader>
+                  {(day) => (
+                    <RangeCalendar.HeaderCell>
+                      {day}
+                    </RangeCalendar.HeaderCell>
+                  )}
+                </RangeCalendar.GridHeader>
+                <RangeCalendar.GridBody>
+                  {(date) => <RangeCalendar.Cell date={date} />}
+                </RangeCalendar.GridBody>
+              </RangeCalendar.Grid>
+              <RangeCalendar.YearPickerGrid>
+                <RangeCalendar.YearPickerGridBody>
+                  {({ year }) => (
+                    <RangeCalendar.YearPickerCell year={year} />
+                  )}
+                </RangeCalendar.YearPickerGridBody>
+              </RangeCalendar.YearPickerGrid>
+            </RangeCalendar>
+          </DateRangePicker.Popover>
+        </DateRangePicker>
+        <ButtonGroup className='w-72' variant='tertiary'>
+          {/* Action Filter */}
+          <Dropdown>
+            <Button
+              fullWidth
+              className='min-w-0 flex-1'
+              isDisabled={actionOptions.length === 0}
+              variant='tertiary'
+            >
+              <IconFilter stroke={1.5} />
+              Action
+            </Button>
+            <Dropdown.Popover className='max-h-64 overflow-y-auto'>
+              <Dropdown.Menu
+                selectedKeys={actionFilter}
+                selectionMode='multiple'
+                onSelectionChange={handleActionFilterChange}
+              >
+                {actionOptions.map((action) => {
+                  const color = getActionColor(action.type);
+                  return (
+                    <Dropdown.Item
+                      id={action.type}
+                      key={action.type}
+                      textValue={action.translation}
+                    >
+                      <Dropdown.ItemIndicator>
+                        {({ isSelected }) => (
+                          <AnimatePresence>
+                            {isSelected && (
+                              <AnimatedCheck
+                                className='text-muted'
+                                stroke={1.5}
+                              />
+                            )}
+                          </AnimatePresence>
+                        )}
+                      </Dropdown.ItemIndicator>
+                      <Label>
+                        <Chip color={color} variant='soft'>
+                          {action.translation}
+                        </Chip>
+                      </Label>
+                    </Dropdown.Item>
+                  );
+                })}
+              </Dropdown.Menu>
+            </Dropdown.Popover>
+          </Dropdown>
+
+          {/* Object Type Filter — only shown for multi-object activity logs */}
+          {activityLogType !== 'single-object' && (
+            <Dropdown>
+              <Button
+                fullWidth
+                className='min-w-0 flex-1'
+                isDisabled={objectTypeOptions.length === 0}
+                variant='tertiary'
+              >
+                <IconFilter stroke={1.5} />
+                Object Type
+              </Button>
+              <Dropdown.Popover className='max-h-64 overflow-y-auto'>
+                <Dropdown.Menu
+                  selectedKeys={objectTypeFilter}
+                  selectionMode='multiple'
+                  onSelectionChange={setObjectTypeFilter}
+                >
+                  {objectTypeOptions.map((type) => (
+                    <Dropdown.Item id={type} key={type} textValue={type}>
+                      <Dropdown.ItemIndicator>
+                        {({ isSelected }) => (
+                          <AnimatePresence>
+                            {isSelected && (
+                              <AnimatedCheck
+                                className='text-muted'
+                                stroke={1.5}
+                              />
+                            )}
+                          </AnimatePresence>
+                        )}
+                      </Dropdown.ItemIndicator>
+                      <Label>{type}</Label>
+                    </Dropdown.Item>
+                  ))}
+                </Dropdown.Menu>
+              </Dropdown.Popover>
+            </Dropdown>
+          )}
+        </ButtonGroup>
+        <UserFilterAutocomplete
+          domoInstance={domoInstance}
+          tabId={tabId}
+          value={userFilter}
+          onChange={setUserFilter}
+        />
+      </div>
+    ),
+    [
+      activityLogType,
+      dateRange,
+      actionFilter,
+      actionOptions,
+      objectTypeOptions,
+      objectTypeFilter,
+      domoInstance,
+      tabId,
+      userFilter
+    ]
+  );
+
+  // Memoize export config to avoid new object reference each render
+  const exportConfig = useMemo(
+    () => ({
+      enabled: true,
+      filename: `activity-log_${activityLogType || 'export'}`,
+      onFetchAllData: fetchAllDataForExport
+    }),
+    [activityLogType, fetchAllDataForExport]
+  );
 
   if (error) {
     return (
@@ -605,192 +821,16 @@ export function ActivityLogTable() {
       </div>
       <DataTable
         columns={columns}
+        customFilters={customFilters}
         data={filteredEvents}
         entityName='events'
+        exportConfig={exportConfig}
         hasMore={hasMore}
         initialColumnVisibility={initialColumnVisibility}
         initialSorting={{ column: 'time', direction: 'descending' }}
         isRefreshing={isInitialLoad || isSearching}
         onLoadMore={fetchMoreEvents}
         onRefresh={handleRefresh}
-        customFilters={
-          <div className='flex w-full flex-row flex-wrap items-center justify-start gap-1 sm:flex-nowrap'>
-            {/* Date Range Filter */}
-            <DateRangePicker
-              shouldForceLeadingZeros
-              aria-label='Date Range Picker'
-              className='w-full sm:w-72'
-              endName='endDate'
-              granularity='day'
-              maxValue={today(getLocalTimeZone())}
-              minValue={parseDate('2008-01-01')}
-              startName='startDate'
-              value={dateRange}
-              onChange={setDateRange}
-            >
-              <DateField.Group variant='secondary'>
-                <DateField.Input slot='start'>
-                  {(segment) => <DateField.Segment segment={segment} />}
-                </DateField.Input>
-                <DateRangePicker.RangeSeparator />
-                <DateField.Input slot='end'>
-                  {(segment) => <DateField.Segment segment={segment} />}
-                </DateField.Input>
-                <DateField.Suffix>
-                  {dateRange && (
-                    <CloseButton
-                      size='sm'
-                      variant='ghost'
-                      onPress={() => setDateRange(null)}
-                    />
-                  )}
-                  <DateRangePicker.Trigger>
-                    <DateRangePicker.TriggerIndicator>
-                      <IconCalendarWeek
-                        className='text-foreground'
-                        stroke={1.5}
-                      />
-                    </DateRangePicker.TriggerIndicator>
-                  </DateRangePicker.Trigger>
-                </DateField.Suffix>
-              </DateField.Group>
-              <DateRangePicker.Popover>
-                <RangeCalendar
-                  aria-label='Date Range Calendar'
-                  maxValue={today(getLocalTimeZone())}
-                  minValue={parseDate('2008-01-01')}
-                >
-                  <RangeCalendar.Header>
-                    <RangeCalendar.YearPickerTrigger>
-                      <RangeCalendar.YearPickerTriggerHeading />
-                      <RangeCalendar.YearPickerTriggerIndicator />
-                    </RangeCalendar.YearPickerTrigger>
-                    <RangeCalendar.NavButton slot='previous' />
-                    <RangeCalendar.NavButton slot='next' />
-                  </RangeCalendar.Header>
-                  <RangeCalendar.Grid>
-                    <RangeCalendar.GridHeader>
-                      {(day) => (
-                        <RangeCalendar.HeaderCell>
-                          {day}
-                        </RangeCalendar.HeaderCell>
-                      )}
-                    </RangeCalendar.GridHeader>
-                    <RangeCalendar.GridBody>
-                      {(date) => <RangeCalendar.Cell date={date} />}
-                    </RangeCalendar.GridBody>
-                  </RangeCalendar.Grid>
-                  <RangeCalendar.YearPickerGrid>
-                    <RangeCalendar.YearPickerGridBody>
-                      {({ year }) => (
-                        <RangeCalendar.YearPickerCell year={year} />
-                      )}
-                    </RangeCalendar.YearPickerGridBody>
-                  </RangeCalendar.YearPickerGrid>
-                </RangeCalendar>
-              </DateRangePicker.Popover>
-            </DateRangePicker>
-            <ButtonGroup className='w-72' variant='tertiary'>
-              {/* Action Filter */}
-              <Dropdown>
-                <Button
-                  fullWidth
-                  className='min-w-0 flex-1'
-                  isDisabled={actionOptions.length === 0}
-                  variant='tertiary'
-                >
-                  <IconFilter stroke={1.5} />
-                  Action
-                </Button>
-                <Dropdown.Popover className='max-h-64 overflow-y-auto'>
-                  <Dropdown.Menu
-                    selectedKeys={actionFilter}
-                    selectionMode='multiple'
-                    onSelectionChange={setActionFilter}
-                  >
-                    {actionOptions.map((action) => {
-                      const color = getActionColor(action.type);
-                      return (
-                        <Dropdown.Item
-                          id={action.type}
-                          key={action.type}
-                          textValue={action.translation}
-                        >
-                          <Dropdown.ItemIndicator>
-                            {({ isSelected }) => (
-                              <AnimatePresence>
-                                {isSelected && (
-                                  <AnimatedCheck
-                                    className='text-muted'
-                                    stroke={1.5}
-                                  />
-                                )}
-                              </AnimatePresence>
-                            )}
-                          </Dropdown.ItemIndicator>
-                          <Label>
-                            <Chip color={color} variant='soft'>
-                              {action.translation}
-                            </Chip>
-                          </Label>
-                        </Dropdown.Item>
-                      );
-                    })}
-                  </Dropdown.Menu>
-                </Dropdown.Popover>
-              </Dropdown>
-
-              {/* Object Type Filter */}
-              <Dropdown>
-                <Button
-                  fullWidth
-                  className='min-w-0 flex-1'
-                  isDisabled={objectTypeOptions.length === 0}
-                  variant='tertiary'
-                >
-                  <IconFilter stroke={1.5} />
-                  Object Type
-                </Button>
-                <Dropdown.Popover className='max-h-64 overflow-y-auto'>
-                  <Dropdown.Menu
-                    selectedKeys={objectTypeFilter}
-                    selectionMode='multiple'
-                    onSelectionChange={setObjectTypeFilter}
-                  >
-                    {objectTypeOptions.map((type) => (
-                      <Dropdown.Item id={type} key={type} textValue={type}>
-                        <Dropdown.ItemIndicator>
-                          {({ isSelected }) => (
-                            <AnimatePresence>
-                              {isSelected && (
-                                <AnimatedCheck
-                                  className='text-muted'
-                                  stroke={1.5}
-                                />
-                              )}
-                            </AnimatePresence>
-                          )}
-                        </Dropdown.ItemIndicator>
-                        <Label>{type}</Label>
-                      </Dropdown.Item>
-                    ))}
-                  </Dropdown.Menu>
-                </Dropdown.Popover>
-              </Dropdown>
-            </ButtonGroup>
-            <UserFilterAutocomplete
-              domoInstance={domoInstance}
-              tabId={tabId}
-              value={userFilter}
-              onChange={setUserFilter}
-            />
-          </div>
-        }
-        exportConfig={{
-          enabled: true,
-          filename: `activity-log_${activityLogType || 'export'}`,
-          onFetchAllData: fetchAllDataForExport
-        }}
       />
     </div>
   );

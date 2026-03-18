@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { DataListItem, DomoContext, DomoObject } from '@/models';
 import {
   getCardDatasets,
+  getDatasetsForApp,
   getDatasetsForDataflow,
   getDatasetsForPage,
   getDependentDatasets
@@ -63,21 +64,24 @@ export function GetDatasetsView({
       const domoObject = context.domoObject;
       const objectType = domoObject.typeId;
       const objectId = domoObject.id;
-      const objectName =
-        domoObject.metadata?.name || `${objectType} ${objectId}`;
       const instance = context.instance;
       const origin = `https://${instance}.domo.com`;
 
-      // Determine label based on object type
+      const objectName = data.appId
+        ? domoObject.metadata?.parent?.name || `App ${data.appId}`
+        : domoObject.metadata?.name || `${objectType} ${objectId}`;
+
+      // Determine label based on object type and scope
       let typeLabel = 'DataSets';
       if (objectType === 'DATAFLOW_TYPE') {
         typeLabel = 'DataFlow DataSets';
       } else if (objectType === 'DATA_SOURCE') {
-        typeLabel = 'Dependent DataSets';
+        typeLabel = 'Dependent Views';
       }
 
       // Store view metadata
       setViewData({
+        appId: data.appId || null,
         instance,
         objectId,
         objectName,
@@ -93,6 +97,7 @@ export function GetDatasetsView({
 
       if ((!datasets && !dataflowInputs && !dataflowOutputs) || forceRefresh) {
         const refreshResult = await fetchFreshDatasets({
+          appId: data.appId,
           details: domoObject.metadata?.details,
           instance,
           objectId,
@@ -115,8 +120,11 @@ export function GetDatasetsView({
 
       if (!hasData) {
         if (!mountedRef.current) return;
-        const message =
-          objectType === 'DATAFLOW_TYPE'
+        const message = data.appId
+          ? objectType === 'WORKSHEET_VIEW'
+            ? 'No datasets found for this worksheet.'
+            : 'No datasets found for this app.'
+          : objectType === 'DATAFLOW_TYPE'
             ? 'This dataflow has no input or output datasets.'
             : objectType === 'DATA_SOURCE'
               ? 'No dependent datasets found for this dataset.'
@@ -158,11 +166,16 @@ export function GetDatasetsView({
    * Fetch fresh datasets from API
    */
   const fetchFreshDatasets = async ({
+    appId,
     details,
     instance,
     objectId,
     objectType
   }) => {
+    if (appId) {
+      const tabId = await getValidTabForInstance(instance);
+      return getDatasetsForApp({ appId, tabId });
+    }
     if (objectType === 'CARD') {
       if (details?.datasources?.length > 0) {
         return details.datasources;
@@ -171,7 +184,11 @@ export function GetDatasetsView({
       return getCardDatasets({ cardId: objectId, tabId });
     }
     const tabId = await getValidTabForInstance(instance);
-    if (objectType === 'PAGE' || objectType === 'DATA_APP_VIEW') {
+    if (
+      objectType === 'PAGE' ||
+      objectType === 'DATA_APP_VIEW' ||
+      objectType === 'WORKSHEET_VIEW'
+    ) {
       return getDatasetsForPage({ pageId: objectId, tabId });
     } else if (objectType === 'DATAFLOW_TYPE') {
       return getDatasetsForDataflow({ details });

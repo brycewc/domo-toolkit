@@ -29,13 +29,6 @@
   function emitCardError(errorData) {
     if (!isOnCardPage()) return;
 
-    // Ignore "Bad Request" errors
-    try {
-      if (JSON.parse(errorData.response)?.message === 'Bad Request') return;
-    } catch (e) {
-      // Not JSON, continue
-    }
-
     window.postMessage(
       { source: 'domo-toolkit-card-error', error: errorData },
       '*'

@@ -221,7 +221,10 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
             )}
           </AnimatePresence>
         </Button>
-        <Tooltip.Content className='flex flex-col items-center text-center'>
+        <Tooltip.Content
+          className='flex flex-col items-center text-center'
+          placement='bottom'
+        >
           <span>Copy Filtered URL</span>
           {!longPressDisabled && (
             <span className='italic'>Hold for more options</span>

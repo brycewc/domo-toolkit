@@ -122,8 +122,7 @@ export function ActionButtons({
                       const optionsUrl = chrome.runtime.getURL(
                         'src/options/index.html'
                       );
-                      const currentWindow =
-                        await chrome.windows.getCurrent();
+                      const currentWindow = await chrome.windows.getCurrent();
                       const tabs = await chrome.tabs.query({
                         url: `${optionsUrl}*`,
                         windowId: currentWindow.id
@@ -185,14 +184,6 @@ export function ActionButtons({
             </Disclosure.Heading>
             <Disclosure.Content className='flex h-full w-full flex-col items-center justify-center gap-1'>
               <div className='flex w-full flex-wrap place-items-center items-center justify-center gap-1 not-empty:mt-1 empty:hidden'>
-                <CardErrors
-                  currentContext={currentContext}
-                  isDisabled={!isDomoPage}
-                  onCollapseActions={
-                    collapsable ? () => setIsExpanded(false) : undefined
-                  }
-                  onStatusUpdate={onStatusUpdate}
-                />
                 {availableActions.has('getCards') && (
                   <GetCards
                     currentContext={currentContext}
@@ -281,13 +272,6 @@ export function ActionButtons({
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
-                {availableActions.has('setStreamToManual') && (
-                  <SetStreamToManual
-                    currentContext={currentContext}
-                    isDisabled={!isDomoPage}
-                    onStatusUpdate={onStatusUpdate}
-                  />
-                )}
                 {availableActions.has('export') && (
                   <Export
                     currentContext={currentContext}
@@ -295,6 +279,21 @@ export function ActionButtons({
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
+                {availableActions.has('setStreamToManual') && (
+                  <SetStreamToManual
+                    currentContext={currentContext}
+                    isDisabled={!isDomoPage}
+                    onStatusUpdate={onStatusUpdate}
+                  />
+                )}
+                <CardErrors
+                  currentContext={currentContext}
+                  isDisabled={!isDomoPage}
+                  onCollapseActions={
+                    collapsable ? () => setIsExpanded(false) : undefined
+                  }
+                  onStatusUpdate={onStatusUpdate}
+                />
                 {availableActions.has('removeEmptyStrings') && (
                   <RemoveEmptyStringsFromQuickFilters
                     currentContext={currentContext}
@@ -333,9 +332,14 @@ function getAvailableActions(typeId, details, metadata) {
   }
 
   if (
-    ['CARD', 'DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE'].includes(
-      typeId
-    )
+    [
+      'CARD',
+      'DATA_APP_VIEW',
+      'DATA_SOURCE',
+      'DATAFLOW_TYPE',
+      'PAGE',
+      'WORKSHEET_VIEW'
+    ].includes(typeId)
   ) {
     actions.add('getDatasets');
   }
@@ -345,9 +349,14 @@ function getAvailableActions(typeId, details, metadata) {
   }
 
   if (
-    ['CARD', 'DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE', 'WORKSHEET_VIEW'].includes(
-      typeId
-    )
+    [
+      'CARD',
+      'DATA_APP_VIEW',
+      'DATA_SOURCE',
+      'DATAFLOW_TYPE',
+      'PAGE',
+      'WORKSHEET_VIEW'
+    ].includes(typeId)
   ) {
     actions.add('getCardPages');
   }
