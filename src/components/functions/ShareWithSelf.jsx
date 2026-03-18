@@ -87,6 +87,7 @@ export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
     'DATA_APP',
     'DATA_APP_VIEW',
     'PAGE',
+    'WORKSHEET',
     'WORKSHEET_VIEW'
   ];
   const userRights = currentContext?.user?.metadata?.USER_RIGHTS || [];
@@ -148,6 +149,7 @@ function isSupportedForShare(domoObject) {
     'DATA_APP_VIEW',
     'DATA_SOURCE',
     'PAGE',
+    'WORKSHEET',
     'WORKSHEET_VIEW'
   ];
   if (!domoObject?.typeId) return false;

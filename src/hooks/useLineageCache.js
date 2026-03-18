@@ -7,14 +7,19 @@ import {
   toMapKey
 } from '@/services';
 
+import { useResolveTabId } from './useResolveTabId';
+
 const INITIAL_DEPTH = 4;
 const EXPAND_DEPTH = 4;
 
 export function useLineageCache() {
   const rawCacheRef = useRef({});
   const rootRef = useRef(null);
-  const tabIdRef = useRef(null);
   const inflightRef = useRef(new Map());
+
+  const [tabId, setTabId] = useState(null);
+  const [instance, setInstance] = useState(null);
+  const resolveTabId = useResolveTabId(tabId, instance);
 
   const [graph, setGraph] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -28,24 +33,26 @@ export function useLineageCache() {
     return newGraph;
   }, []);
 
-  const init = useCallback(async (entityType, entityId, tabId) => {
+  const init = useCallback(async (entityType, entityId, initTabId, initInstance) => {
     rootRef.current = { entityId, entityType };
-    tabIdRef.current = tabId;
+    setTabId(initTabId);
+    setInstance(initInstance || null);
     rawCacheRef.current = {};
     inflightRef.current.clear();
     setLoading(true);
 
     try {
-      const response = await getLineage(entityType, entityId, INITIAL_DEPTH, tabId);
+      const resolvedTabId = await resolveTabId();
+      const response = await getLineage(entityType, entityId, INITIAL_DEPTH, resolvedTabId);
       if (!response) throw new Error('Empty lineage response');
 
       rawCacheRef.current = response;
-      await enrichMetadata(response, tabId);
+      await enrichMetadata(response, resolvedTabId);
       rebuildGraph();
     } finally {
       setLoading(false);
     }
-  }, [rebuildGraph]);
+  }, [rebuildGraph, resolveTabId]);
 
   const isNeighborCached = useCallback((nodeId, direction) => {
     const [type, ...rest] = nodeId.split(':');
@@ -74,14 +81,14 @@ export function useLineageCache() {
     }
 
     const promise = (async () => {
-      const tabId = tabIdRef.current;
+      const resolvedTabId = await resolveTabId();
       const existingKeys = new Set(Object.keys(rawCacheRef.current));
 
-      const response = await getLineage(entityType, entityId, EXPAND_DEPTH, tabId);
+      const response = await getLineage(entityType, entityId, EXPAND_DEPTH, resolvedTabId);
       if (!response) return;
 
       Object.assign(rawCacheRef.current, response);
-      await enrichMetadata(rawCacheRef.current, tabId, existingKeys);
+      await enrichMetadata(rawCacheRef.current, resolvedTabId, existingKeys);
       rebuildGraph();
     })();
 
@@ -91,7 +98,7 @@ export function useLineageCache() {
     } finally {
       inflightRef.current.delete(key);
     }
-  }, [rebuildGraph]);
+  }, [rebuildGraph, resolveTabId]);
 
   const expandFetch = useCallback(async (nodeId, entityType, entityId) => {
     setExpandLoading((prev) => {

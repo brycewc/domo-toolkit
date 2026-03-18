@@ -10,6 +10,7 @@ import {
   Tooltip
 } from '@heroui/react';
 import {
+  IconBinaryTree,
   IconChartBar,
   IconChevronDown,
   IconClipboard,
@@ -25,6 +26,7 @@ import {
 import { useState } from 'react';
 
 import { AnimatedCheck } from '@/components';
+import { getValidTabForInstance } from '@/utils';
 
 /**
  * Available header action types for DataList
@@ -33,7 +35,7 @@ import { AnimatedCheck } from '@/components';
 
 /**
  * Available item action types for DataList items
- * @typedef {'remove' | 'openAll' | 'copy' | 'share' | 'shareAll' | 'viewsExplorer'} ItemActionType
+ * @typedef {'remove' | 'openAll' | 'copy' | 'share' | 'shareAll' | 'lineage' | 'viewsExplorer'} ItemActionType
  */
 
 /**
@@ -202,6 +204,32 @@ export function DataList({
         case 'shareAll':
           await onItemShareAll?.(actionType, item);
           break;
+
+        case 'lineage': {
+          const id = item.id;
+          const instance = item.domoObject?.baseUrl
+            ? new URL(item.domoObject.baseUrl).hostname.replace(
+                '.domo.com',
+                ''
+              )
+            : null;
+          if (id && instance) {
+            const tabId = await getValidTabForInstance(instance);
+            await chrome.storage.session.set({
+              lineageEntityId: id,
+              lineageEntityType: item.typeId || 'DATA_SOURCE',
+              lineageInstance: instance,
+              lineageObjectName: item.label || `${item.typeId || 'DATA_SOURCE'} ${id}`,
+              lineageTabId: tabId
+            });
+            const tab = await chrome.tabs.get(tabId);
+            chrome.tabs.create({
+              url: chrome.runtime.getURL('src/options/index.html#lineage'),
+              windowId: tab.windowId
+            });
+          }
+          break;
+        }
 
         case 'viewsExplorer': {
           const baseUrl = item.domoObject?.baseUrl;
@@ -584,6 +612,24 @@ function DataListItem({
     </Tooltip>
   );
 
+  const lineageButton = (
+    <Tooltip closeDelay={0} delay={400} key='lineage'>
+      <Button
+        fullWidth
+        isIconOnly
+        aria-label='Trace Lineage'
+        size='sm'
+        variant='ghost'
+        onPress={() => handleAction('lineage')}
+      >
+        <IconBinaryTree stroke={1.5} />
+      </Button>
+      <Tooltip.Content className='text-xs'>
+        Trace Lineage
+      </Tooltip.Content>
+    </Tooltip>
+  );
+
   // Compute which actions apply to this item
   const getApplicableActions = () => {
     const isUnshareable =
@@ -621,6 +667,11 @@ function DataListItem({
         actions.push(shareAllButton);
       if (itemActions.includes('share') && !isUnshareable)
         actions.push(shareButton);
+      if (
+        itemActions.includes('lineage') &&
+        (item.typeId === 'DATA_SOURCE' || item.typeId === 'DATAFLOW_TYPE')
+      )
+        actions.push(lineageButton);
       if (
         itemActions.includes('viewsExplorer') &&
         item.typeId === 'DATA_SOURCE'

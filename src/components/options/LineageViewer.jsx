@@ -82,7 +82,7 @@ export function LineageViewer() {
 
     previewHeightRef.current = 300;
     previewCacheRef.current.clear();
-    init(params.entityType, params.entityId, params.tabId).catch((err) => {
+    init(params.entityType, params.entityId, params.tabId, params.instance).catch((err) => {
       console.error('[LineageViewer] Failed to fetch trace:', err);
       setError(err.message || 'Failed to load pipeline trace');
     });
@@ -139,7 +139,7 @@ export function LineageViewer() {
     setPreviewDataset(null);
     previewCacheRef.current.clear();
     if (params) {
-      init(params.entityType, params.entityId, params.tabId).catch((err) => {
+      init(params.entityType, params.entityId, params.tabId, params.instance).catch((err) => {
         console.error('[LineageViewer] Failed to refresh:', err);
         setError(err.message || 'Failed to reload pipeline trace');
       });

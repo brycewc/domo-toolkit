@@ -286,7 +286,7 @@ export function GetDatasetsView({
       closeLabel={`Close ${viewData?.typeLabel} View`}
       headerActions={['openAll', 'copy', 'refresh']}
       isRefreshing={isRefreshing}
-      itemActions={['copy', 'openAll', 'viewsExplorer']}
+      itemActions={['copy', 'openAll', 'lineage', 'viewsExplorer']}
       itemLabel='dataset'
       items={items}
       objectId={viewData?.objectId}

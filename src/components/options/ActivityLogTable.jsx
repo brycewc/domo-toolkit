@@ -19,6 +19,7 @@ import { IconCalendarWeek, IconFilter } from '@tabler/icons-react';
 import { AnimatePresence } from 'motion/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { useResolveTabId } from '@/hooks';
 import { DomoObject } from '@/models';
 import {
   getActivityLogForObject,
@@ -69,6 +70,8 @@ export function ActivityLogTable() {
   const dateRangeEpochRef = useRef(dateRangeEpoch);
   dateRangeEpochRef.current = dateRangeEpoch;
 
+  const resolveTabId = useResolveTabId(tabId, domoInstance);
+
   const [customAvatarIds, setCustomAvatarIds] = useState(new Set());
   const checkedAvatarIdsRef = useRef(new Set());
 
@@ -117,11 +120,15 @@ export function ActivityLogTable() {
 
     const uniqueTypes = [...new Set(objects.map((obj) => obj.type))];
 
-    Promise.all(
-      uniqueTypes.map((type) =>
-        getEventTypesForObjectType(type, tabId).catch(() => [])
-      )
-    ).then((results) => {
+    resolveTabId().then((resolvedTabId) => {
+      if (!resolvedTabId) return;
+      return Promise.all(
+        uniqueTypes.map((type) =>
+          getEventTypesForObjectType(type, resolvedTabId).catch(() => [])
+        )
+      );
+    }).then((results) => {
+      if (!results) return;
       const seen = new Set();
       const options = results
         .flat()
@@ -149,7 +156,9 @@ export function ActivityLogTable() {
 
     uncheckedIds.forEach((id) => checkedAvatarIdsRef.current.add(id));
 
-    getCustomAvatarUserIds(uncheckedIds, tabId)
+    resolveTabId().then((resolvedTabId) =>
+      getCustomAvatarUserIds(uncheckedIds, resolvedTabId)
+    )
       .then((customIds) => {
         if (customIds.length === 0) return;
         setCustomAvatarIds((prev) => {
@@ -195,48 +204,53 @@ export function ActivityLogTable() {
     if (!domoInstance || !tabId || events.length === 0) return;
 
     const baseUrl = `https://${domoInstance}.domo.com`;
-    const pending = [];
 
-    for (const event of events) {
-      const { objectId, objectType } = event;
-      if (!objectType || !objectId) continue;
-      const key = `${objectType}:${objectId}`;
-      if (resolvedUrlKeysRef.current.has(key)) continue;
-      resolvedUrlKeysRef.current.add(key);
+    resolveTabId().then((resolvedTabId) => {
+      if (!resolvedTabId) return;
 
-      const obj = new DomoObject(objectType, objectId, baseUrl);
-      if (!obj.hasUrl()) continue;
+      const pending = [];
 
-      pending.push(
-        obj
-          .buildUrl(baseUrl, tabId)
+      for (const event of events) {
+        const { objectId, objectType } = event;
+        if (!objectType || !objectId) continue;
+        const key = `${objectType}:${objectId}`;
+        if (resolvedUrlKeysRef.current.has(key)) continue;
+        resolvedUrlKeysRef.current.add(key);
+
+        const obj = new DomoObject(objectType, objectId, baseUrl);
+        if (!obj.hasUrl()) continue;
+
+        pending.push(
+          obj
+            .buildUrl(baseUrl, resolvedTabId)
           .then((url) => ({ key, url }))
           .catch(() => null)
       );
     }
 
-    if (pending.length === 0) return;
+      if (pending.length === 0) return;
 
-    Promise.all(pending).then((results) => {
-      const resolved = results.filter(Boolean);
-      if (resolved.length === 0) return;
-      setObjectUrlMap((prev) => {
-        let changed = false;
-        for (const { key, url } of resolved) {
-          if (prev[key] !== url) {
-            changed = true;
-            break;
+      Promise.all(pending).then((results) => {
+        const resolved = results.filter(Boolean);
+        if (resolved.length === 0) return;
+        setObjectUrlMap((prev) => {
+          let changed = false;
+          for (const { key, url } of resolved) {
+            if (prev[key] !== url) {
+              changed = true;
+              break;
+            }
           }
-        }
-        if (!changed) return prev;
-        const next = { ...prev };
-        for (const { key, url } of resolved) {
-          next[key] = url;
-        }
-        return next;
+          if (!changed) return prev;
+          const next = { ...prev };
+          for (const { key, url } of resolved) {
+            next[key] = url;
+          }
+          return next;
+        });
       });
     });
-  }, [events, domoInstance, tabId]);
+  }, [events, domoInstance, tabId, resolveTabId]);
 
   // Define columns
   const columns = useMemo(() => {
@@ -284,6 +298,9 @@ export function ActivityLogTable() {
       setError(null);
 
       try {
+        const resolvedTabId = await resolveTabId();
+        if (!resolvedTabId) return;
+
         const tasks = buildFetchTasks(objects, userFilter, actionFilter);
 
         const fetchPromises = tasks.map((task) =>
@@ -295,7 +312,7 @@ export function ActivityLogTable() {
             objectType: task.objectType,
             offset: 0,
             start: dateRangeEpoch.start,
-            tabId,
+            tabId: resolvedTabId,
             user: task.user
           })
             .then((result) => ({
@@ -383,6 +400,7 @@ export function ActivityLogTable() {
     setIsFetchingMore(true);
 
     try {
+      const resolvedTabId = await resolveTabId();
       const fetchPromises = tasksWithMore.map((task) =>
         getActivityLogForObject({
           end: dateRangeEpochRef.current.end,
@@ -392,7 +410,7 @@ export function ActivityLogTable() {
           objectType: task.objectType,
           offset: task.offset,
           start: dateRangeEpochRef.current.start,
-          tabId,
+          tabId: resolvedTabId,
           user: task.user
         })
           .then((result) => ({
@@ -439,7 +457,7 @@ export function ActivityLogTable() {
       isFetchingMoreRef.current = false;
       setIsFetchingMore(false);
     }
-  }, [tabId, isInitialLoad, isSearching]);
+  }, [resolveTabId, isInitialLoad, isSearching]);
 
   // Handle refresh
   const handleRefresh = useCallback(() => {
@@ -448,9 +466,12 @@ export function ActivityLogTable() {
 
   // Fetch all data for export — paginates through all (object × user) tasks
   const fetchAllDataForExport = useCallback(async () => {
-    if (!tabId || objects.length === 0) {
+    if (objects.length === 0) {
       return filteredEvents;
     }
+
+    const resolvedTabId = await resolveTabId();
+    if (!resolvedTabId) return filteredEvents;
 
     const allEvents = [];
     const exportPageSize = 1000;
@@ -470,7 +491,7 @@ export function ActivityLogTable() {
             objectType: task.objectType,
             offset,
             start: dateRangeEpoch.start,
-            tabId,
+            tabId: resolvedTabId,
             user: task.user
           });
 
@@ -498,7 +519,7 @@ export function ActivityLogTable() {
 
     return allEvents;
   }, [
-    tabId,
+    resolveTabId,
     objects,
     filteredEvents,
     userFilter,
