@@ -98,6 +98,21 @@ export function ContextFooter({
           continue;
         }
 
+        if (related.source === 'parent') {
+          const parent = domoObject.metadata?.parent;
+          if (parent && parent.objectType?.id === related.typeId) {
+            result.push({
+              id: related.source,
+              isCurrentObject: false,
+              label: related.label,
+              objectId: parent.id,
+              preloaded: parent.details,
+              typeId: related.typeId
+            });
+          }
+          continue;
+        }
+
         let relatedId;
         if (related.source === 'parentId') {
           relatedId = domoObject.parentId;
@@ -186,6 +201,12 @@ export function ContextFooter({
       relatedCache[key] ||
       loadingTabs[key]
     ) {
+      return;
+    }
+
+    // Seed cache from preloaded parent data (no fetch needed)
+    if (tab.preloaded) {
+      setRelatedCache((prev) => ({ ...prev, [key]: tab.preloaded }));
       return;
     }
 

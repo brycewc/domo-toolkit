@@ -1080,11 +1080,24 @@ async function detectAndStoreContext(tabId) {
       }
     }
 
+    // DATA_SOURCE: set streamId as parentId for non-DataFlow datasets
+    const isStreamParent =
+      typeModel.id === 'DATA_SOURCE' &&
+      !parentId &&
+      enrichedMetadata.details?.streamId &&
+      enrichedMetadata.details?.type?.toLowerCase() !== 'dataflow';
+
+    if (isStreamParent) {
+      parentId = String(enrichedMetadata.details.streamId);
+      domoObject.parentId = parentId;
+    }
+
     // For objects with parents, enrich metadata with parent details
+    // (skip for stream parents — those are enriched async below)
     console.log(
       `[Background] Parent enrichment check: parentId=${parentId}, parents=${JSON.stringify(typeModel.parents)}`
     );
-    if (parentId && typeModel.parents && typeModel.parents.length > 0) {
+    if (parentId && typeModel.parents && typeModel.parents.length > 0 && !isStreamParent) {
       try {
         console.log(
           `[Background] Calling getParent for ${typeModel.id} ${objectId} with tabId=${tabId}`
@@ -1124,6 +1137,53 @@ async function detectAndStoreContext(tabId) {
       context
     );
     setTabContext(tabId, context);
+
+    // For non-DataFlow DATA_SOURCE with a stream, fetch stream details asynchronously
+    if (isStreamParent) {
+      const streamId = String(enrichedMetadata.details.streamId);
+      const streamType = getObjectType('STREAM');
+      executeInPage(
+        fetchObjectDetailsInPage,
+        [
+          {
+            apiConfig: streamType.api,
+            objectId: streamId,
+            typeId: 'STREAM'
+          }
+        ],
+        tabId
+      )
+        .then((streamMetadata) => {
+          if (isStale()) return;
+          if (!streamMetadata?.details) return;
+          const name = streamType.api.nameTemplate.replace(
+            /{([^}]+)}/g,
+            (_, path) =>
+              path === 'id'
+                ? streamId
+                : (path
+                    .split('.')
+                    .reduce(
+                      (o, k) => o?.[k],
+                      streamMetadata.details
+                    ) ?? '')
+          );
+          domoObject.metadata.parent = {
+            details: streamMetadata.details,
+            id: streamId,
+            name,
+            objectType: { id: 'STREAM', name: 'Stream' }
+          };
+          setTabContext(tabId, context);
+        })
+        .catch((err) => {
+          if (isStale()) return;
+          console.warn(
+            `[Background] Could not fetch stream ${streamId}:`,
+            err.message
+          );
+        });
+    }
 
     // For PAGE, DATA_APP_VIEW, WORKSHEET_VIEW, and REPORT_BUILDER_VIEW types, fetch child pages asynchronously (non-blocking)
     // This happens in the background while the user interacts with the popup

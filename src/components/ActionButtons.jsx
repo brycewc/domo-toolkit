@@ -365,7 +365,7 @@ function getAvailableActions(typeId, details, metadata) {
     actions.add('getViewInputs');
     actions.add('dataRepair');
     actions.add('traceLineage');
-    if (details?.streamId) {
+    if (details?.streamId && metadata?.parent?.details?.scheduleState !== 'MANUAL') {
       actions.add('setStreamToManual');
     }
   }

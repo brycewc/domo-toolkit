@@ -641,11 +641,11 @@ export const ObjectTypeRegistry = {
       endpoint: '/data/v3/datasources/{id}?includeAllDetails=true',
       pathToName: 'name'
     },
-    ['DATAFLOW_TYPE', 'DATA_SOURCE'],
+    ['DATAFLOW_TYPE', 'DATA_SOURCE', 'STREAM'],
     [
-      { field: 'streamId', label: 'Stream', typeId: 'STREAM' },
+      { label: 'Stream', source: 'parent', typeId: 'STREAM' },
       { field: 'accountId', label: 'Account', typeId: 'ACCOUNT' },
-      { label: 'DataFlow', source: 'parentId', typeId: 'DATAFLOW_TYPE' }
+      { label: 'DataFlow', source: 'parent', typeId: 'DATAFLOW_TYPE' }
     ]
   ),
   DATAFLOW: new DomoObjectType(
