@@ -1,5 +1,5 @@
-import { Button, Card, Chip } from '@heroui/react';
-import { IconExternalLink, IconSparkles, IconX } from '@tabler/icons-react';
+import { Button, Card, Chip, Link } from '@heroui/react';
+import { IconExternalLink, IconX } from '@tabler/icons-react';
 import { motion } from 'motion/react';
 import { useEffect } from 'react';
 
@@ -94,24 +94,24 @@ export function ReleaseNotesPage() {
           <p className='text-sm font-medium tracking-wide uppercase'>
             Previous Releases
           </p>
-          <div className='flex flex-col gap-2'>
+          <div className='flex flex-wrap gap-4'>
             {releases.slice(1).map((release) => (
-              <Card key={release.version}>
-                <Card.Header>
-                  <Card.Title className='flex items-center gap-2'>
-                    <IconSparkles
-                      className='shrink-0 text-accent'
-                      size={16}
-                      stroke={1.5}
-                    />
-                    v{release.version}
-                    <span className='text-xs font-normal text-muted'>
-                      {release.date}
-                    </span>
-                  </Card.Title>
-                  <Card.Description>{release.summary}</Card.Description>
-                </Card.Header>
-              </Card>
+              <Link
+                className='no-underline'
+                href={release.githubUrl}
+                key={release.version}
+                target='_blank'
+              >
+                <Chip
+                  className='w-20 justify-center'
+                  color='accent'
+                  key={release.version}
+                  size='lg'
+                  variant='soft'
+                >
+                  <Chip.Label>v{release.version}</Chip.Label>
+                </Chip>
+              </Link>
             ))}
           </div>
         </motion.div>
