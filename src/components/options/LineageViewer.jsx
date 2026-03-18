@@ -134,6 +134,7 @@ export function LineageViewer() {
   }, []);
 
   const handleRefresh = useCallback(() => {
+    setError(null);
     setSelectedNodeId(null);
     setInspectedDataflow(null);
     setPreviewDataset(null);

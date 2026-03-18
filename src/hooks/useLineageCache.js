@@ -17,9 +17,8 @@ export function useLineageCache() {
   const rootRef = useRef(null);
   const inflightRef = useRef(new Map());
 
-  const [tabId, setTabId] = useState(null);
-  const [instance, setInstance] = useState(null);
-  const resolveTabId = useResolveTabId(tabId, instance);
+  // Pass null — init seeds the refs via overrides, not state
+  const resolveTabId = useResolveTabId(null, null);
 
   const [graph, setGraph] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -35,14 +34,13 @@ export function useLineageCache() {
 
   const init = useCallback(async (entityType, entityId, initTabId, initInstance) => {
     rootRef.current = { entityId, entityType };
-    setTabId(initTabId);
-    setInstance(initInstance || null);
     rawCacheRef.current = {};
     inflightRef.current.clear();
     setLoading(true);
 
     try {
-      const resolvedTabId = await resolveTabId();
+      // Overrides seed the hook's refs for subsequent calls without overrides
+      const resolvedTabId = await resolveTabId(initTabId, initInstance);
       const response = await getLineage(entityType, entityId, INITIAL_DEPTH, resolvedTabId);
       if (!response) throw new Error('Empty lineage response');
 
