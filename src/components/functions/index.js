@@ -17,6 +17,5 @@ export { NavigateToCopiedObject } from './NavigateToCopiedObject';
 export { RemoveEmptyStringsFromQuickFilters } from './RemoveEmptyStringsFromQuickFilters';
 export { SetStreamToManual } from './SetStreamToManual';
 export { ShareWithSelf } from './ShareWithSelf';
-export { TraceLineage } from './TraceLineage';
 export { UpdateDataflowDetails } from './UpdateDataflowDetails';
 export { UpdateOwner } from './UpdateOwner';

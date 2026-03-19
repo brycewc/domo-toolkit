@@ -4,14 +4,12 @@ export const releases = [
     fullPage: true,
     githubUrl: 'https://github.com/brycewc/domo-toolkit/releases/tag/v1.1.0',
     highlights: [
-      'Fast lineage graph visualization for datasets and dataflows with ETL inspector and dataset preview',
       'Added dataflow support for Get Cards, Get Card Pages, and Delete',
       'Actions are enabled or disabled based on your Domo permissions',
-      'Improved resilience when original Domo tab is closed for activity log and lineage',
       'User and group data cached per instance for the session, improving performance'
     ],
     summary:
-      'Lineage graph, enhanced dataflow support, and permission-based action gating.',
+      'Enhanced dataflow support, permission-based action gating, and performance improvements.',
     version: '1.1.0'
   },
   {

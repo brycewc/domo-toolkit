@@ -190,7 +190,7 @@ export function GetViewInputsView({
       closeLabel='Close DataSets Used in View'
       headerActions={['openAll', 'copy', 'refresh']}
       isRefreshing={isRefreshing}
-      itemActions={['copy', 'openAll', 'lineage', 'viewsExplorer']}
+      itemActions={['copy', 'openAll', 'viewsExplorer']}
       itemLabel='dataset'
       items={items}
       objectId={viewData?.objectId}

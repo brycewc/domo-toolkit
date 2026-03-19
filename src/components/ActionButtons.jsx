@@ -33,7 +33,6 @@ import {
   RemoveEmptyStringsFromQuickFilters,
   SetStreamToManual,
   ShareWithSelf,
-  TraceLineage,
   UpdateDataflowDetails,
   UpdateOwner
 } from '@/components';
@@ -224,12 +223,6 @@ export function ActionButtons({
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
-                {availableActions.has('traceLineage') && (
-                  <TraceLineage
-                    currentContext={currentContext}
-                    onStatusUpdate={onStatusUpdate}
-                  />
-                )}
                 {availableActions.has('dataRepair') && (
                   <DataRepair
                     currentContext={currentContext}
@@ -364,7 +357,6 @@ function getAvailableActions(typeId, details, metadata) {
   if (typeId === 'DATA_SOURCE') {
     actions.add('getViewInputs');
     actions.add('dataRepair');
-    actions.add('traceLineage');
     if (details?.streamId && metadata?.parent?.details?.scheduleState !== 'MANUAL') {
       actions.add('setStreamToManual');
     }
@@ -375,7 +367,6 @@ function getAvailableActions(typeId, details, metadata) {
   }
 
   if (typeId === 'DATAFLOW_TYPE') {
-    actions.add('traceLineage');
     if (metadata?.permission?.mask & 2) {
       actions.add('updateDataflowDetails');
     }
