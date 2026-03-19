@@ -20,7 +20,10 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
   const holdTimeoutRef = useRef(null);
 
   const userRights = currentContext?.user?.metadata?.USER_RIGHTS || [];
-  const isDisabled = !currentContext?.domoObject?.id || isLoading || !userRights.includes('audit');
+  const isDisabled =
+    !currentContext?.domoObject?.id ||
+    isLoading ||
+    !userRights.includes('audit');
   const typeId = currentContext?.domoObject?.typeId;
   const longPressEnabled =
     !isDisabled &&
@@ -73,8 +76,7 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
       switch (key) {
         case 'card-pages': {
           activityLogType = 'card-pages';
-          let pages =
-            currentContext?.domoObject?.metadata?.details?.cardPages;
+          let pages = currentContext?.domoObject?.metadata?.details?.cardPages;
 
           if (!pages) {
             const cards = await getCardsForObject({
@@ -125,7 +127,7 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
           message = `Navigating to activity log for ${validPages.length} pages containing cards from ${objectName}`;
           break;
         }
-        case 'child-cards': {
+        case 'cards': {
           const cards = await getCardsForObject({
             metadata: currentContext?.domoObject.metadata,
             objectId: currentContext?.domoObject.id,
@@ -147,7 +149,7 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
             id: String(card.id),
             type: 'CARD'
           }));
-          activityLogType = 'child-cards';
+          activityLogType = 'cards';
           message = `Navigating to activity log for ${cards.length} cards on ${objectName}`;
           break;
         }
@@ -261,46 +263,46 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
           )}
         </Tooltip.Content>
       </Tooltip>
-      <Dropdown.Popover className='w-full max-w-80' placement='bottom'>
+      <Dropdown.Popover className='min-w-90' placement='bottom'>
         <Dropdown.Menu onAction={handleClick}>
-          <Dropdown.Item id='child-cards' textValue='Child cards'>
-            <div className='flex h-8 items-start justify-center pt-px'>
-              <IconChartBar className='size-4 shrink-0' stroke={1.5} />
-            </div>
-            <div className='flex flex-col'>
-              <Label>Child cards</Label>
-              <Description className='text-xs'>
-                View activity log for all cards on this{' '}
-                {currentContext?.domoObject?.typeName?.toLowerCase() ||
-                  'object'}
-              </Description>
+          <Dropdown.Item id='cards' textValue='Cards'>
+            <div className='flex h-fit items-start justify-start gap-2'>
+              <IconChartBar className='size-5 shrink-0' stroke={1.5} />
+              <div className='flex flex-col'>
+                <Label>Cards</Label>
+                <Description className='text-xs'>
+                  View activity log for all cards on this{' '}
+                  {currentContext?.domoObject?.typeName?.toLowerCase() ||
+                    'object'}
+                </Description>
+              </div>
             </div>
           </Dropdown.Item>
           {hasChildPages && (
-            <Dropdown.Item id='child-pages' textValue='Child pages'>
-              <div className='flex h-8 items-start justify-center pt-px'>
-                <IconCopy className='size-4 shrink-0' stroke={1.5} />
-              </div>
-              <div className='flex flex-col'>
-                <Label>Child pages</Label>
-                <Description className='text-xs'>
-                  View activity log for hierarchical child pages
-                </Description>
+            <Dropdown.Item id='child-pages' textValue='Child Pages'>
+              <div className='flex h-fit items-start justify-start gap-2'>
+                <IconCopy className='size-5 shrink-0' stroke={1.5} />
+                <div className='flex flex-col'>
+                  <Label>Child Pages</Label>
+                  <Description className='text-xs'>
+                    View activity log for hierarchical child pages
+                  </Description>
+                </div>
               </div>
             </Dropdown.Item>
           )}
-          <Dropdown.Item id='card-pages' textValue='Card pages'>
-            <div className='flex h-8 items-start justify-center pt-px'>
-              <IconStack2 className='size-4 shrink-0' stroke={1.5} />
-            </div>
-            <div className='flex flex-col'>
-              <Label>Card pages</Label>
-              <Description className='text-xs'>
-                View activity log for pages where cards from this{' '}
-                {currentContext?.domoObject?.typeName?.toLowerCase() ||
-                  'object'}{' '}
-                appear
-              </Description>
+          <Dropdown.Item id='card-pages' textValue='Card Pages'>
+            <div className='flex h-fit items-start justify-start gap-2'>
+              <IconStack2 className='size-5 shrink-0' stroke={1.5} />
+              <div className='flex flex-col'>
+                <Label>Card Pages</Label>
+                <Description className='text-xs'>
+                  View activity log for pages where cards from this{' '}
+                  {currentContext?.domoObject?.typeName?.toLowerCase() ||
+                    'object'}{' '}
+                  appear
+                </Description>
+              </div>
             </div>
           </Dropdown.Item>
         </Dropdown.Menu>

@@ -4,6 +4,7 @@ export { AnimatedX } from './AnimatedX';
 export { ContextFooter } from './ContextFooter';
 export * from './functions';
 export { GroupIdAnnotation } from './GroupIdAnnotation';
+export { useLongPress } from './LongPressIndicator';
 export * from './options';
 export { TimestampAnnotation } from './TimestampAnnotation';
 export { ToastProvider } from './ToastProvider';

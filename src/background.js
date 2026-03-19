@@ -38,8 +38,15 @@ function computeIsOwner(typeId, details, userId, userGroups) {
     return details?.page?.isOwner ?? null;
   }
 
+  // Approval templates: owner is { id } on the details object
+  if (typeId === 'TEMPLATE') {
+    const ownerId = details?.owner?.id;
+    if (ownerId == null) return null;
+    return String(userId) === String(ownerId);
+  }
+
   // Types where owner is a plain ID (always a user)
-  if (typeId === 'BEAST_MODE_FORMULA' || typeId === 'VARIABLE') {
+  if (typeId === 'BEAST_MODE_FORMULA' || typeId === 'MAGNUM_COLLECTION' || typeId === 'VARIABLE') {
     const ownerId = details?.owner;
     if (ownerId == null) return null;
     return String(userId) === String(ownerId);
@@ -721,7 +728,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
       const hostname = new URL(changeInfo.url).hostname;
       const instance = hostname.replace('.domo.com', '');
       invalidateInstanceUser(instance);
-    } catch {}
+    } catch { /* empty */ }
   }
 
   // React to URL changes on Domo domains
@@ -731,30 +738,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     );
 
     await detectAndStoreContext(tabId);
-
-    // Trigger favicon application for new URL with retry logic
-    // sendMessageWithRetry(tabId, { type: 'APPLY_FAVICON' }, 3)
-    //   .then(() => {
-    //     console.log(`[Background] Applied favicon for tab ${tabId}`);
-    //   })
-    //   .catch((error) => {
-    //     console.log(`[Background] Could not send APPLY_FAVICON to tab ${tabId}:`, error.message);
-    //   });
   }
-
-  // Apply favicon when favIconUrl changes (page loaded or favicon updated)
-  // if (changeInfo.favIconUrl && tab.url?.includes('domo.com')) {
-  //   console.log(
-  //     `[Background] Favicon changed for tab ${tabId}, applying rules`
-  //   );
-  //   sendMessageWithRetry(tabId, { type: 'APPLY_FAVICON' }, 3)
-  //     .then(() => {
-  //       console.log(`[Background] Applied favicon for tab ${tabId}`);
-  //     })
-  //     .catch((error) => {
-  //       console.log(`[Background] Could not send APPLY_FAVICON to tab ${tabId}:`, error.message);
-  //     });
-  // }
 
   // Update title if it's just "Domo" and we have object metadata
   if (changeInfo.title === 'Domo' && tab.url?.includes('domo.com')) {
@@ -1522,6 +1506,39 @@ async function detectAndStoreContext(tabId) {
           if (isStale()) return;
           console.warn(
             `[Background] Could not fetch permission for WORKFLOW_MODEL ${objectId}:`,
+            error.message
+          );
+        });
+    }
+
+    // For MAGNUM_COLLECTION, fetch permission asynchronously (non-blocking)
+    if (typeModel.id === 'MAGNUM_COLLECTION') {
+      executeInPage(
+        async (collectionId) => {
+          const res = await fetch(
+            `/api/datastores/v1/collections/${collectionId}/permission`
+          );
+          if (!res.ok) return null;
+          return res.json();
+        },
+        [objectId],
+        tabId
+      )
+        .then((permission) => {
+          if (isStale()) return;
+          const currentContext = getTabContext(tabId);
+          if (currentContext?.domoObject?.id === objectId) {
+            if (!currentContext.domoObject.metadata) {
+              currentContext.domoObject.metadata = {};
+            }
+            currentContext.domoObject.metadata.permission = permission;
+            setTabContext(tabId, currentContext);
+          }
+        })
+        .catch((error) => {
+          if (isStale()) return;
+          console.warn(
+            `[Background] Could not fetch permission for MAGNUM_COLLECTION ${objectId}:`,
             error.message
           );
         });

@@ -80,7 +80,13 @@ export function GetPagesView({
       const context = DomoContext.fromJSON(data.currentContext);
       const domoObject = context.domoObject;
       const objectType = domoObject.typeId;
-      const objectId = domoObject.parentId || domoObject.id;
+      const sidepanelType = data.type;
+
+      // For card pages, always use the object's own ID (not parent).
+      // parentId would be a dataflow/stream ID for DATA_SOURCE, which is wrong for card lookups.
+      const objectId = sidepanelType === 'getCardPages'
+        ? domoObject.id
+        : (domoObject.parentId || domoObject.id);
       const objectName =
         domoObject.metadata?.parent?.name ||
         domoObject.metadata?.name ||
@@ -95,8 +101,6 @@ export function GetPagesView({
             domoObject?.metadata?.parent?.id ||
             domoObject.id
           : null;
-
-      const sidepanelType = data.type;
 
       // Set label early so the loading spinner shows the right text
       setPageTypeLabel(

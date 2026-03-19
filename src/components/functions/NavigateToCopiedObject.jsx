@@ -644,7 +644,7 @@ export const NavigateToCopiedObject = forwardRef(
             </div>
           </Tooltip.Content>
         </Tooltip>
-        <Dropdown.Popover className='min-w-[18rem]' placement='bottom'>
+        <Dropdown.Popover className='min-w-60' placement='bottom'>
           <Dropdown.Menu
             onAction={(key) => {
               if (key === 'refresh-clipboard') {
@@ -659,20 +659,27 @@ export const NavigateToCopiedObject = forwardRef(
                 id='refresh-clipboard'
                 textValue='Refresh Clipboard'
               >
-                <IconRefresh stroke={1.5} />
+                <IconRefresh className='size-5 shrink-0' stroke={1.5} />
                 <Label>Refresh Clipboard</Label>
               </Dropdown.Item>
             </Dropdown.Section>
             <Separator />
+
             <Dropdown.Section>
               {filteredTypes.map((type) => (
                 <Dropdown.Item id={type.id} key={type.id} textValue={type.name}>
                   <Tooltip closeDelay={0} delay={400} key={type.id}>
                     <Tooltip.Trigger>
                       {type.hasUrl() ? (
-                        <IconExternalLink stroke={1.5} />
+                        <IconExternalLink
+                          className='size-5 shrink-0'
+                          stroke={1.5}
+                        />
                       ) : (
-                        <IconLayoutSidebarRightExpand stroke={1.5} />
+                        <IconLayoutSidebarRightExpand
+                          className='size-5 shrink-0'
+                          stroke={1.5}
+                        />
                       )}
                     </Tooltip.Trigger>
                     <Tooltip.Content>
