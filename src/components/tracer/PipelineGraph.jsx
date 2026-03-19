@@ -32,24 +32,27 @@ import { PipelineNodeToolbar } from './PipelineNodeToolbar';
 
 const PipelineGraphContext = createContext(null);
 
+const EDGE_COLOR = '#94a3b8';
+const GRID_COLOR = '#cbd5e1';
+
 const NODE_COLORS = {
   DATA_SOURCE: {
-    bg: '#f8fafc',
-    border: '#3b82f6',
-    icon: '#3b82f6',
-    text: '#1e40af'
+    border: 'border-blue-500',
+    icon: 'text-blue-500',
+    minimap: '#3b82f6',
+    text: 'text-blue-800'
   },
   DATAFLOW: {
-    bg: '#fefce8',
-    border: '#eab308',
-    icon: '#eab308',
-    text: '#854d0e'
+    border: 'border-yellow-500',
+    icon: 'text-yellow-500',
+    minimap: '#eab308',
+    text: 'text-yellow-800'
   },
   ROOT: {
-    bg: '#f0fdf4',
-    border: '#22c55e',
-    icon: '#22c55e',
-    text: '#166534'
+    border: 'border-green-500',
+    icon: 'text-green-500',
+    minimap: '#22c55e',
+    text: 'text-green-800'
   }
 };
 
@@ -95,8 +98,7 @@ const PipelineNode = memo(function PipelineNode({ data, id }) {
 
   return (
     <div
-      style={{ borderColor: colors.border }}
-      className={`w-[280px] rounded-lg border-2 bg-background px-3 py-2 shadow-sm ${
+      className={`w-70 rounded-lg border-2 bg-background px-3 py-2 shadow-sm ${colors.border} ${
         isSelected ? 'ring-2 ring-accent' : ''
       } ${data.highlighted ? 'ring-2 ring-yellow-400' : ''}`}
     >
@@ -106,16 +108,14 @@ const PipelineNode = memo(function PipelineNode({ data, id }) {
 
       <div className='flex items-start gap-2'>
         <Icon
-          className={`mt-0.5 size-4 shrink-0 ${data.entityType === 'DATAFLOW' ? 'rotate-180' : ''}`}
-          style={{ color: colors.border }}
+          className={`mt-0.5 size-4 shrink-0 ${colors.icon} ${data.entityType === 'DATAFLOW' ? 'rotate-180' : ''}`}
         />
         <div className='min-w-0 flex-1'>
           {nodeUrl ? (
             <a
-              className='line-clamp-3 text-sm font-medium wrap-break-word hover:underline'
+              className={`line-clamp-3 text-sm font-medium wrap-break-word hover:underline ${colors.text}`}
               href={nodeUrl}
               rel='noopener noreferrer'
-              style={{ color: colors.text }}
               target='_blank'
               title={nameTitle}
               onClick={(e) => e.stopPropagation()}
@@ -124,8 +124,7 @@ const PipelineNode = memo(function PipelineNode({ data, id }) {
             </a>
           ) : (
             <div
-              className='line-clamp-3 text-sm font-medium wrap-break-word'
-              style={{ color: colors.text }}
+              className={`line-clamp-3 text-sm font-medium wrap-break-word ${colors.text}`}
               title={nameTitle}
             >
               {nameContent}
@@ -178,8 +177,8 @@ const DAGRE_OPTIONS = { marginx: 40, marginy: 40, rankdir: 'LR', ranksep: 80 };
 
 const defaultEdgeOptions = {
   animated: false,
-  markerEnd: { color: '#94a3b8', type: MarkerType.ArrowClosed },
-  style: { stroke: '#94a3b8', strokeWidth: 2 },
+  markerEnd: { color: EDGE_COLOR, type: MarkerType.ArrowClosed },
+  style: { stroke: EDGE_COLOR, strokeWidth: 2 },
   type: 'default'
 };
 
@@ -263,8 +262,8 @@ export function PipelineGraph({
   );
 
   const miniMapNodeColor = useCallback((node) => {
-    if (node.data.isRoot) return NODE_COLORS.ROOT.border;
-    return NODE_COLORS[node.data.entityType]?.border || '#94a3b8';
+    if (node.data.isRoot) return NODE_COLORS.ROOT.minimap;
+    return NODE_COLORS[node.data.entityType]?.minimap || EDGE_COLOR;
   }, []);
 
   const reactFlowRef = useRef(null);
@@ -337,10 +336,10 @@ export function PipelineGraph({
       <div className='bg-content2 h-full w-full'>
         <ReactFlow
           edges={edges}
+          elementsSelectable={interactive}
           maxZoom={2}
           minZoom={0.1}
           nodes={nodes}
-          elementsSelectable={interactive}
           nodesConnectable={false}
           nodesDraggable={interactive}
           nodeTypes={nodeTypes}
@@ -349,7 +348,7 @@ export function PipelineGraph({
           onNodeClick={handleNodeClick}
           onNodesChange={onNodesChange}
         >
-          <Background color='#cbd5e1' gap={16} />
+          <Background color={GRID_COLOR} gap={16} />
           <Controls onInteractiveChange={setInteractive} />
           <MiniMap pannable zoomable nodeColor={miniMapNodeColor} />
           {levelSummary && (

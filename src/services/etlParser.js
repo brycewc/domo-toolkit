@@ -304,7 +304,7 @@ function parseTile(action) {
       if (action.fields) {
         tile.rawDetails.aggregates = action.fields
           .filter((f) => f.expression)
-          .map((f) => ({ field: f.name || '', expression: f.expression }));
+          .map((f) => ({ expression: f.expression, field: f.name || '' }));
       }
       break;
 

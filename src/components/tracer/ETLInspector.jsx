@@ -1,19 +1,32 @@
-import { Button, CloseButton, Spinner } from '@heroui/react';
 import {
+  Button,
+  ButtonGroup,
+  Chip,
+  CloseButton,
+  Disclosure,
+  DisclosureGroup,
+  ScrollShadow,
+  Spinner
+} from '@heroui/react';
+import {
+  IconAB,
+  IconAB2,
   IconAbc,
   IconAi,
   IconArchive,
   IconArchiveOff,
-  IconArrowBarDown,
   IconArrowFork,
-  IconArrowsExchange,
+  IconArrowsDiagonalMinimize2,
+  IconArrowsJoin,
   IconArrowsJoin2,
   IconBraces,
+  IconBrain,
   IconBrandPython,
   IconCalculator,
   IconCalendar,
+  IconCalendarPlus,
+  IconChartBar,
   IconChevronDown,
-  IconChevronRight,
   IconCode,
   IconColumns3,
   IconCopy,
@@ -30,24 +43,26 @@ import {
   IconLetterCase,
   IconLink,
   IconListNumbers,
+  IconPackageExport,
   IconReplace,
-  IconRobot,
   IconRotate,
   IconRowInsertBottom,
+  IconRowRemove,
   IconSchema,
   IconSearch,
   IconSortAscending,
   IconSparkles,
   IconSql,
-  IconSquareCheck,
-  IconStack,
-  IconSum,
+  IconTableColumn,
   IconTableImport,
-  IconTextWrap,
+  IconTableMinus,
+  IconTableOptions,
+  IconTableRow,
   IconTransform,
   IconTrendingUp,
   IconTypography,
-  IconVector
+  IconVector,
+  IconX
 } from '@tabler/icons-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -55,8 +70,23 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getObjectType } from '@/models';
 import { getDataflowDetail, parseDataflow, searchTiles } from '@/services';
 
+const CATEGORY_COLORS = {
+  'Aggregate': { bg: 'bg-pink-500', text: 'text-pink-500' },
+  'AI Services': { bg: 'bg-rose-500', text: 'text-rose-500' },
+  'Combine Data': { bg: 'bg-amber-500', text: 'text-amber-500' },
+  'Data Science': { bg: 'bg-lime-500', text: 'text-lime-500' },
+  'DataSets': { bg: 'bg-blue-500', text: 'text-blue-500' },
+  'Dates and Numbers': { bg: 'bg-orange-500', text: 'text-orange-500' },
+  'Filter': { bg: 'bg-emerald-500', text: 'text-emerald-500' },
+  'Performance': { bg: 'bg-slate-500', text: 'text-slate-500' },
+  'Pivot': { bg: 'bg-cyan-500', text: 'text-cyan-500' },
+  'Scripting': { bg: 'bg-purple-500', text: 'text-purple-500' },
+  'Text': { bg: 'bg-sky-500', text: 'text-sky-500' },
+  'Utility': { bg: 'bg-violet-500', text: 'text-violet-500' }
+};
+
 const CATEGORY_ICONS = {
-  'Aggregate': IconSum,
+  'Aggregate': IconArrowsDiagonalMinimize2,
   'AI Services': IconAi,
   'Combine Data': IconArrowsJoin2,
   'Data Science': IconFlask,
@@ -72,30 +102,30 @@ const CATEGORY_ICONS = {
 
 const TILE_ICONS = {
   AIForecasting: IconTrendingUp,
-  ConcatFields: IconTextWrap,
-  Constant: IconSquareCheck,
-  DateCalculator: IconCalendar,
+  ConcatFields: IconAB,
+  Constant: IconTableColumn,
+  DateCalculator: IconCalendarPlus,
   Denormaliser: IconRotate,
   ExpressionEvaluator: IconFunction,
   ExpressionRowGenerator: IconListNumbers,
   Filter: IconFilter,
   FixedInput: IconTableImport,
-  GroupBy: IconStack,
+  GroupBy: IconArrowsDiagonalMinimize2,
   JsonExpandAction: IconBraces,
-  Limit: IconArrowBarDown,
+  Limit: IconTableMinus,
   LoadFromVault: IconDatabaseImport,
   MakoVectorOutputAction: IconVector,
   MergeJoin: IconArrowsJoin2,
-  Metadata: IconColumns3,
-  MetaSelectAction: IconSquareCheck,
-  MLInferenceAction: IconFlask,
-  ModelInferenceAction: IconRobot,
+  Metadata: IconTableRow,
+  MetaSelectAction: IconTableOptions,
+  MLInferenceAction: IconBrain,
+  ModelInferenceAction: [IconArrowsJoin, 'rotate-90'],
   NormalizeAll: IconRowInsertBottom,
   Normalizer: IconRowInsertBottom,
   NumericCalculator: IconCalculator,
   Order: IconSortAscending,
   PublishToVault: IconDatabaseExport,
-  PublishToWriteback: IconDatabaseExport,
+  PublishToWriteback: IconPackageExport,
   PythonEngineAction: IconBrandPython,
   REngineAction: IconCode,
   ReplaceString: IconReplace,
@@ -111,26 +141,11 @@ const TILE_ICONS = {
   TextFormatting: IconLetterCase,
   TextGeneration: IconSparkles,
   UnionAll: IconRowInsertBottom,
-  Unique: IconArrowsExchange,
+  Unique: IconRowRemove,
   UnstashAction: IconArchiveOff,
   UserDefinedAction: IconFlask,
-  ValueMapper: IconArrowsExchange,
-  WindowAction: IconSum
-};
-
-const CATEGORY_COLORS = {
-  'Aggregate': '#ec4899',
-  'AI Services': '#f43f5e',
-  'Combine Data': '#f59e0b',
-  'Data Science': '#84cc16',
-  'DataSets': '#6366f1',
-  'Dates and Numbers': '#f97316',
-  'Filter': '#10b981',
-  'Performance': '#64748b',
-  'Pivot': '#06b6d4',
-  'Scripting': '#a855f7',
-  'Text': '#0ea5e9',
-  'Utility': '#8b5cf6'
+  ValueMapper: IconAB2,
+  WindowAction: IconChartBar
 };
 
 /**
@@ -264,20 +279,16 @@ export function ETLInspector({ dataflowId, instance, onClose, tabId }) {
             <IconArrowFork className='size-4 shrink-0 rotate-180 text-amber-500' />
             <span className='truncate font-semibold'>{dataflow.name}</span>
           </div>
-          <div className='flex shrink-0 items-center gap-1'>
+          <ButtonGroup size='sm' variant='tertiary'>
             {domoUrl && (
-              <a
-                className='hover:bg-content2 rounded p-1 text-accent'
-                href={domoUrl}
-                rel='noopener noreferrer'
-                target='_blank'
-                title='Open in Domo'
-              >
-                <IconExternalLink className='size-4' />
-              </a>
+              <Button isIconOnly onPress={() => window.open(domoUrl)}>
+                <IconExternalLink stroke={1.5} />
+              </Button>
             )}
-            <CloseButton size='sm' onPress={onClose} />
-          </div>
+            <Button isIconOnly onPress={onClose}>
+              <IconX stroke={1.5} />
+            </Button>
+          </ButtonGroup>
         </div>
         <div className='mt-1 text-xs text-muted'>
           {dataflow.tiles.length} tiles &middot; ID: {dataflow.id}
@@ -288,7 +299,7 @@ export function ETLInspector({ dataflowId, instance, onClose, tabId }) {
         <div className='relative'>
           <IconSearch className='absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted' />
           <input
-            className='border-divider w-full rounded-md border bg-background py-1.5 pr-3 pl-8 text-sm focus:ring-2 focus:ring-accent focus:outline-none'
+            className='border-divider w-full rounded-md border bg-background py-1.5 pl-8 text-sm focus:ring-2 focus:ring-accent focus:outline-none'
             placeholder='Search tiles (column, expression, value...)'
             type='text'
             value={tileSearch}
@@ -302,13 +313,13 @@ export function ETLInspector({ dataflowId, instance, onClose, tabId }) {
         )}
       </div>
 
-      <div className='flex-1 overflow-y-auto px-4 py-3' ref={scrollRef}>
+      <ScrollShadow hideScrollBar className='flex-1 px-4 py-3' ref={scrollRef}>
         {flatRows.length === 0 ? (
           <div className='py-8 text-center text-muted'>
             <p>No tiles match &ldquo;{tileSearch}&rdquo;</p>
           </div>
         ) : (
-          <div
+          <DisclosureGroup
             className='relative w-full'
             style={{ height: virtualizer.getTotalSize() }}
           >
@@ -327,7 +338,6 @@ export function ETLInspector({ dataflowId, instance, onClose, tabId }) {
                   ) : (
                     <div className='mb-1.5'>
                       <TileDetail
-                        defaultOpen={!!tileSearch}
                         searchQuery={tileSearch || undefined}
                         tile={row.tile}
                       />
@@ -336,20 +346,24 @@ export function ETLInspector({ dataflowId, instance, onClose, tabId }) {
                 </div>
               );
             })}
-          </div>
+          </DisclosureGroup>
         )}
-      </div>
+      </ScrollShadow>
     </div>
   );
 }
 
+const DEFAULT_CATEGORY_COLOR = { bg: 'bg-gray-500', text: 'text-gray-500' };
+
 function CategoryHeader({ category, count }) {
-  const color = CATEGORY_COLORS[category] || '#6b7280';
-  const Icon = CATEGORY_ICONS[category] || IconColumns3;
+  const color = CATEGORY_COLORS[category] || DEFAULT_CATEGORY_COLOR;
+  const entry = CATEGORY_ICONS[category] || IconColumns3;
+  const Icon = Array.isArray(entry) ? entry[0] : entry;
+  const rotate = Array.isArray(entry) ? entry[1] : '';
   return (
     <h3 className='mt-4 mb-2 flex items-center gap-1.5 text-xs font-semibold tracking-wider uppercase first:mt-0'>
-      <Icon className='size-3.5 shrink-0' style={{ color }} />
-      <span style={{ color }}>{category}</span>
+      <Icon className={`size-3.5 shrink-0 ${color.text} ${rotate}`} />
+      <span className={color.text}>{category}</span>
       <span className='text-muted'>({count})</span>
     </h3>
   );
@@ -417,47 +431,58 @@ function tileHasContent(tile) {
   );
 }
 
-const TileDetail = memo(function TileDetail({
-  defaultOpen = false,
-  searchQuery,
-  tile
-}) {
+const TileDetail = memo(function TileDetail({ searchQuery, tile }) {
   const hasContent = tileHasContent(tile);
-  const [open, setOpen] = useState(defaultOpen && hasContent);
-  const categoryColor = CATEGORY_COLORS[tile.category] || '#6b7280';
-  const Icon = TILE_ICONS[tile.type] || IconColumns3;
+  const categoryColor =
+    CATEGORY_COLORS[tile.category] || DEFAULT_CATEGORY_COLOR;
+  const tileEntry = TILE_ICONS[tile.type] || IconColumns3;
+  const Icon = Array.isArray(tileEntry) ? tileEntry[0] : tileEntry;
+  const tileRotate = Array.isArray(tileEntry) ? tileEntry[1] : '';
 
-  return (
-    <div className='border-divider overflow-hidden rounded-lg border bg-background'>
-      <Button
-        className='h-auto w-full justify-start gap-2 px-3 py-2'
-        disableRipple={!hasContent}
-        variant='light'
-        onPress={hasContent ? () => setOpen(!open) : undefined}
+  const trigger = (
+    <>
+      <span
+        className='flex min-w-0 flex-1 items-center gap-2'
+        title={tile.name}
       >
-        {hasContent ? (
-          open ? (
-            <IconChevronDown className='size-4 shrink-0 text-muted' />
-          ) : (
-            <IconChevronRight className='size-4 shrink-0 text-muted' />
-          )
-        ) : (
-          <div className='w-4 shrink-0' />
-        )}
-        <Icon className='size-4 shrink-0' style={{ color: categoryColor }} />
-        <span className='truncate text-sm font-medium'>
+        <Icon
+          className={`size-4 shrink-0 ${categoryColor.text} ${tileRotate}`}
+        />
+        <span className='truncate text-sm font-medium' title={tile.name}>
           {highlightMatch(tile.name, searchQuery)}
         </span>
-        <span
-          className='ml-auto shrink-0 rounded-full px-2 py-0.5 text-xs text-white'
-          style={{ backgroundColor: categoryColor }}
-        >
-          {tile.displayType}
-        </span>
-      </Button>
+      </span>
+      <Chip
+        className={`text-white ${categoryColor.bg}`}
+        size='sm'
+        variant='soft'
+      >
+        <Chip.Label>{tile.displayType}</Chip.Label>
+      </Chip>
+    </>
+  );
 
-      {open && hasContent && (
-        <div className='border-divider bg-content2 space-y-2 border-t px-3 pb-3'>
+  if (!hasContent) {
+    return (
+      <div className='border-divider flex w-full items-center justify-between gap-2 overflow-hidden rounded-lg border bg-background px-3 py-2'>
+        {trigger}
+        <IconChevronDown className='size-4 shrink-0 text-background' />
+      </div>
+    );
+  }
+
+  return (
+    <Disclosure className='border-divider overflow-hidden rounded-lg border bg-background'>
+      <Disclosure.Heading>
+        <Disclosure.Trigger className='flex w-full items-center justify-between gap-2 px-3 py-2'>
+          {trigger}
+          <Disclosure.Indicator className='size-4 shrink-0 text-muted'>
+            <IconChevronDown stroke={1.5} />
+          </Disclosure.Indicator>
+        </Disclosure.Trigger>
+      </Disclosure.Heading>
+      <Disclosure.Content>
+        <div className='border-divider bg-content2 flex flex-col gap-3 border-t px-3 pb-3'>
           {tile.inputDatasets.length > 0 && (
             <DetailSection label='Input DataSet'>
               {tile.inputDatasets.map((id, i) => (
@@ -517,13 +542,13 @@ const TileDetail = memo(function TileDetail({
             <DetailSection label='Expressions'>
               {tile.expressions.map((e, i) => (
                 <div
-                  className='border-divider mb-1 rounded border bg-background px-2 py-1 text-xs'
+                  className='border-divider rounded border bg-background px-2 py-1 text-xs'
                   key={i}
                 >
                   <div className='font-semibold'>
                     {highlightMatch(e.resultField, searchQuery)}
                   </div>
-                  <div className='mt-0.5 font-mono break-all text-muted'>
+                  <div className='font-mono break-all'>
                     {highlightMatch(e.expression, searchQuery)}
                   </div>
                 </div>
@@ -535,13 +560,13 @@ const TileDetail = memo(function TileDetail({
             <DetailSection label='Aggregates'>
               {tile.rawDetails.aggregates.map((a, i) => (
                 <div
-                  className='border-divider mb-1 rounded border bg-background px-2 py-1 text-xs'
+                  className='border-divider rounded border bg-background px-2 py-1 text-xs'
                   key={i}
                 >
                   <div className='font-semibold'>
                     {highlightMatch(a.field, searchQuery)}
                   </div>
-                  <div className='mt-0.5 font-mono break-all text-muted'>
+                  <div className='font-mono break-all text-muted'>
                     {highlightMatch(a.expression, searchQuery)}
                   </div>
                 </div>
@@ -613,7 +638,7 @@ const TileDetail = memo(function TileDetail({
             <DetailSection label='SQL'>
               {tile.sql.map((s, i) => (
                 <pre
-                  className='border-divider mb-1 overflow-x-auto rounded border bg-background px-2 py-1 font-mono text-xs'
+                  className='border-divider overflow-x-auto rounded border bg-background px-2 py-1 font-mono text-xs'
                   key={i}
                 >
                   {highlightMatch(
@@ -640,14 +665,14 @@ const TileDetail = memo(function TileDetail({
 
           <TileConfig rawDetails={tile.rawDetails} />
         </div>
-      )}
-    </div>
+      </Disclosure.Content>
+    </Disclosure>
   );
 });
 
 function DetailMono({ children }) {
   return (
-    <div className='border-divider mb-1 rounded border bg-background px-2 py-1 font-mono text-xs'>
+    <div className='border-divider rounded border bg-background px-2 py-1 font-mono text-xs'>
       {children}
     </div>
   );
@@ -655,8 +680,8 @@ function DetailMono({ children }) {
 
 function DetailSection({ children, label }) {
   return (
-    <div className='mt-2'>
-      <div className='mb-1 text-xs font-semibold text-muted'>{label}</div>
+    <div className='flex flex-col gap-1'>
+      <div className='text-xs font-semibold text-muted'>{label}</div>
       {children}
     </div>
   );
@@ -686,7 +711,7 @@ function TileConfig({ rawDetails }) {
     <DetailSection label='Configuration'>
       {entries.map(([label, value], i) => (
         <div
-          className='border-divider mb-1 flex items-center justify-between rounded border bg-background px-2 py-1 text-xs'
+          className='border-divider flex items-center justify-between rounded border bg-background px-2 py-1 text-xs'
           key={i}
         >
           <span className='font-semibold'>{label}</span>
