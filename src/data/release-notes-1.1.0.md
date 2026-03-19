@@ -1,17 +1,8 @@
 # Domo Toolkit v1.1.0 Release Notes
 
-## Lineage Graph
-
-A full-page interactive lineage visualization for datasets and dataflows. Trace upstream and downstream dependencies across your entire data pipeline.
-
-- **Expandable depth** - start with 4 levels and expand frontiers on demand with prefetching for instant expansion
-- **ETL Inspector** - click any dataflow node to inspect its Magic ETL tiles
-- **Data Preview** - click any dataset node to preview its data
-- **Launch from anywhere** - available as a button on datasets and dataflows, and as an inline action on every dataset row in Get DataSets and Get DataSets Used in View results
-
 ## Enhanced DataFlow Support
 
-DataFlows are now first-class citizens across all data discovery features:
+DataFlows now support:
 
 - **Get Cards** - lists all cards powered by a dataflow's output datasets
 - **Get Card Pages** - finds every page where cards from a dataflow's outputs appear

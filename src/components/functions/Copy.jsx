@@ -271,7 +271,7 @@ export function Copy({
         <Dropdown.Menu onAction={handleAction}>
           {dropdownItems.map((item) => (
             <Dropdown.Item id={item.id} key={item.id} textValue={item.label}>
-              <IconClipboard className='size-4 shrink-0' />
+              <IconClipboard className='size-5 shrink-0' stroke={1.5} />
               <Label>{item.label}</Label>
             </Dropdown.Item>
           ))}

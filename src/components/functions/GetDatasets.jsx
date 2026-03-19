@@ -1,8 +1,8 @@
 import { Button, Dropdown, Label, Spinner, Tooltip } from '@heroui/react';
 import { IconDatabase } from '@tabler/icons-react';
-import { AnimatePresence, motion } from 'motion/react';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 
+import { useLongPress } from '@/components';
 import {
   getDatasetsForApp,
   getDatasetsForDataflow,
@@ -11,9 +11,6 @@ import {
 } from '@/services';
 import { isSidepanel, openSidepanel, storeSidepanelData } from '@/utils';
 
-const LONG_PRESS_DURATION = 1000;
-const LONG_PRESS_SECONDS = LONG_PRESS_DURATION / 1000;
-
 export function GetDatasets({
   currentContext,
   isDisabled,
@@ -21,8 +18,7 @@ export function GetDatasets({
   onStatusUpdate
 }) {
   const [isLoading, setIsLoading] = useState(false);
-  const [isHolding, setIsHolding] = useState(false);
-  const holdTimeoutRef = useRef(null);
+  const { LongPressOverlay, pressProps } = useLongPress();
 
   const objectType = currentContext?.domoObject?.typeId;
 
@@ -35,21 +31,6 @@ export function GetDatasets({
 
   const longPressDisabled =
     isDisabled || !currentContext?.domoObject?.id || dropdownItems.length === 0;
-
-  const handlePressStart = () => {
-    setIsHolding(true);
-    holdTimeoutRef.current = setTimeout(() => {
-      setIsHolding(false);
-    }, LONG_PRESS_DURATION);
-  };
-
-  const handlePressEnd = () => {
-    setIsHolding(false);
-    if (holdTimeoutRef.current) {
-      clearTimeout(holdTimeoutRef.current);
-      holdTimeoutRef.current = null;
-    }
-  };
 
   const handleGetDatasets = async () => {
     setIsLoading(true);
@@ -269,8 +250,7 @@ export function GetDatasets({
           isPending={isLoading}
           variant='tertiary'
           onPress={handleGetDatasets}
-          onPressEnd={longPressDisabled ? undefined : handlePressEnd}
-          onPressStart={longPressDisabled ? undefined : handlePressStart}
+          {...(longPressDisabled ? {} : pressProps)}
         >
           {({ isPending }) => {
             if (isPending) {
@@ -280,26 +260,7 @@ export function GetDatasets({
             return (
               <>
                 <IconDatabase stroke={1.5} /> {buttonText}
-                <AnimatePresence>
-                  {isHolding && (
-                    <motion.div
-                      animate={{ opacity: 1 }}
-                      className='pointer-events-none absolute inset-0 overflow-hidden rounded-md'
-                      exit={{ opacity: 0, transition: { duration: 0.1 } }}
-                      initial={{ opacity: 0 }}
-                    >
-                      <motion.div
-                        animate={{ scale: 1 }}
-                        className='absolute top-1/2 left-1/2 aspect-square w-[200%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent-soft-hover'
-                        initial={{ scale: 0 }}
-                        transition={{
-                          duration: LONG_PRESS_SECONDS,
-                          ease: 'linear'
-                        }}
-                      />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                <LongPressOverlay />
               </>
             );
           }}
@@ -310,11 +271,11 @@ export function GetDatasets({
           </Tooltip.Content>
         )}
       </Tooltip>
-      <Dropdown.Popover className='w-fit min-w-48' placement='bottom left'>
+      <Dropdown.Popover className='w-fit min-w-48' placement='bottom'>
         <Dropdown.Menu onAction={handleAction}>
           {dropdownItems.map((item) => (
             <Dropdown.Item id={item.id} key={item.id} textValue={item.label}>
-              <IconDatabase className='size-4 shrink-0' />
+              <IconDatabase className='size-5 shrink-0' stroke={1.5} />
               <Label>{item.label}</Label>
             </Dropdown.Item>
           ))}

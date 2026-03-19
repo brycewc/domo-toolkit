@@ -587,7 +587,7 @@ export const ObjectTypeRegistry = {
   ),
   DATA_APP_VIEW: new DomoObjectType(
     'DATA_APP_VIEW',
-    'App Studio Page',
+    'App Page',
     '/app-studio/{parent}/pages/{id}',
     /^\d+$/,
     {
