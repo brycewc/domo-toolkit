@@ -10,15 +10,37 @@ export function useGraphVisibility({
   const [highlightedDepth, setHighlightedDepth] = useState(null);
   const initializedForRef = useRef(null);
   const initialExpandedRef = useRef(null);
+  const preserveRef = useRef(false);
 
   useEffect(() => {
     const fingerprint = getGraphFingerprint(graph, rootNodeId);
-    if (!fingerprint || initializedForRef.current === fingerprint) return;
+    if (!fingerprint) return;
+
+    if (initializedForRef.current === fingerprint) {
+      preserveRef.current = false;
+      return;
+    }
 
     initializedForRef.current = fingerprint;
-    const initial = computeInitialExpanded(graph, rootNodeId);
-    initialExpandedRef.current = initial;
-    setExpandedNodes(initial);
+
+    if (preserveRef.current) {
+      preserveRef.current = false;
+      setExpandedNodes((prev) => {
+        const initial = computeInitialExpanded(graph, rootNodeId);
+        const merged = new Map(prev);
+        for (const [nodeId, exp] of initial) {
+          if (!merged.has(nodeId)) {
+            merged.set(nodeId, exp);
+          }
+        }
+        initialExpandedRef.current = merged;
+        return merged;
+      });
+    } else {
+      const initial = computeInitialExpanded(graph, rootNodeId);
+      initialExpandedRef.current = initial;
+      setExpandedNodes(initial);
+    }
   }, [graph, rootNodeId]);
 
   const effectiveExpanded = useMemo(() => {
@@ -261,6 +283,10 @@ export function useGraphVisibility({
     setHighlightedDepth(null);
   }, []);
 
+  const preserveExpansion = useCallback(() => {
+    preserveRef.current = true;
+  }, []);
+
   return {
     clearHighlight,
     collapseLevel,
@@ -270,6 +296,7 @@ export function useGraphVisibility({
     frontierCounts,
     highlightLevel,
     levelSummary,
+    preserveExpansion,
     visibleTrace
   };
 }

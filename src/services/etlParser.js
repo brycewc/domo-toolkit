@@ -6,8 +6,10 @@
 
 /**
  * Magic ETL Tile Display Names
+ * Matches Domo's native ETL editor (localActionConfigurations)
  */
 const TILE_DISPLAY_NAMES = {
+  AIForecasting: 'AI Forecasting',
   ConcatFields: 'Combine Columns',
   Constant: 'Add Constants',
   DateCalculator: 'Date Operations',
@@ -15,75 +17,95 @@ const TILE_DISPLAY_NAMES = {
   ExpressionEvaluator: 'Add Formula',
   ExpressionRowGenerator: 'Series',
   Filter: 'Filter Rows',
+  FixedInput: 'Fixed Input',
   GroupBy: 'Group By',
-  Limit: 'Limit Rows',
-  LoadFromVault: 'Input Dataset',
+  JsonExpandAction: 'JSON Expander',
+  Limit: 'Limit',
+  LoadFromVault: 'Input DataSet',
+  MakoVectorOutputAction: 'Vector Output',
   MergeJoin: 'Join Data',
   Metadata: 'Alter Columns',
   MetaSelectAction: 'Meta Select',
   MLInferenceAction: 'AutoML Inference',
+  ModelInferenceAction: 'AI Model Inference',
   NormalizeAll: 'Dynamic Unpivot',
   Normalizer: 'Unpivot',
   NumericCalculator: 'Calculator',
-  Order: 'Sort Rows',
-  PublishToVault: 'Output Dataset',
+  Order: 'Order',
+  PublishToVault: 'Output DataSet',
+  PublishToWriteback: 'Writeback',
   PythonEngineAction: 'Python Script',
   REngineAction: 'R Script',
   ReplaceString: 'Replace Text',
   SchemaAction: 'Get Schema',
   SelectValues: 'Select Columns',
-  SetValueField: 'Set Column Value',
+  SetValueField: 'Duplicate Column',
   SplitColumnAction: 'Split Column',
-  SQL: 'SQL Query',
-  StashAction: 'Store Columns',
+  SplitFilter: 'Split Filter',
+  SplitJoin: 'Split Join',
+  SQL: 'SQL',
+  StashAction: 'Select and Store Columns',
   StringCalculator: 'String Operations',
   TextFormatting: 'Text Formatting',
+  TextGeneration: 'Text Generation',
   UnionAll: 'Append Rows',
   Unique: 'Remove Duplicates',
   UnstashAction: 'Restore Columns',
+  UserDefinedAction: 'Data Science Model',
   ValueMapper: 'Value Mapper',
   WindowAction: 'Rank & Window'
 };
 
 /**
  * Magic ETL Tile Category Map
+ * Matches Domo's native ETL editor categories (dfCategoryService)
  */
 const TILE_CATEGORY_MAP = {
-  ConcatFields: 'Transformation',
-  Constant: 'Transformation',
-  DateCalculator: 'Transformation',
-  Denormaliser: 'Normalization',
-  ExpressionEvaluator: 'Expressions',
-  ExpressionRowGenerator: 'Expressions',
-  Filter: 'Filtering',
-  GroupBy: 'Aggregation',
-  Limit: 'Transformation',
-  LoadFromVault: 'Data I/O',
-  MergeJoin: 'Joining',
-  Metadata: 'Transformation',
-  MetaSelectAction: 'Transformation',
-  MLInferenceAction: 'Advanced',
-  NormalizeAll: 'Normalization',
-  Normalizer: 'Normalization',
-  NumericCalculator: 'Transformation',
-  Order: 'Transformation',
-  PublishToVault: 'Data I/O',
-  PythonEngineAction: 'Code',
-  REngineAction: 'Code',
-  ReplaceString: 'Transformation',
-  SchemaAction: 'Transformation',
-  SelectValues: 'Transformation',
-  SetValueField: 'Transformation',
-  SplitColumnAction: 'Transformation',
-  SQL: 'Code',
-  StashAction: 'Advanced',
-  StringCalculator: 'Transformation',
-  TextFormatting: 'Transformation',
-  UnionAll: 'Joining',
-  Unique: 'Filtering',
-  UnstashAction: 'Advanced',
-  ValueMapper: 'Expressions',
-  WindowAction: 'Aggregation'
+  AIForecasting: 'AI Services',
+  ConcatFields: 'Text',
+  Constant: 'Utility',
+  DateCalculator: 'Dates and Numbers',
+  Denormaliser: 'Pivot',
+  ExpressionEvaluator: 'Utility',
+  ExpressionRowGenerator: 'Utility',
+  Filter: 'Filter',
+  FixedInput: 'DataSets',
+  GroupBy: 'Aggregate',
+  JsonExpandAction: 'Utility',
+  Limit: 'Utility',
+  LoadFromVault: 'DataSets',
+  MakoVectorOutputAction: 'DataSets',
+  MergeJoin: 'Combine Data',
+  Metadata: 'Utility',
+  MetaSelectAction: 'Utility',
+  MLInferenceAction: 'Data Science',
+  ModelInferenceAction: 'AI Services',
+  NormalizeAll: 'Pivot',
+  Normalizer: 'Pivot',
+  NumericCalculator: 'Dates and Numbers',
+  Order: 'Utility',
+  PublishToVault: 'DataSets',
+  PublishToWriteback: 'DataSets',
+  PythonEngineAction: 'Scripting',
+  REngineAction: 'Scripting',
+  ReplaceString: 'Text',
+  SchemaAction: 'Utility',
+  SelectValues: 'Utility',
+  SetValueField: 'Utility',
+  SplitColumnAction: 'Text',
+  SplitFilter: 'Filter',
+  SplitJoin: 'Combine Data',
+  SQL: 'Utility',
+  StashAction: 'Performance',
+  StringCalculator: 'Text',
+  TextFormatting: 'Text',
+  TextGeneration: 'AI Services',
+  UnionAll: 'Combine Data',
+  Unique: 'Filter',
+  UnstashAction: 'Performance',
+  UserDefinedAction: 'Data Science',
+  ValueMapper: 'Utility',
+  WindowAction: 'Aggregate'
 };
 
 /**
@@ -209,12 +231,63 @@ function parseTile(action) {
   };
 
   switch (action.type) {
+    case 'ConcatFields':
+      if (action.fields) tile.columns = action.fields.map(toFieldName).filter(Boolean);
+      if (action.separator != null) tile.rawDetails.separator = action.separator;
+      if (action.resultField) tile.rawDetails.outputField = action.resultField;
+      break;
+
+    case 'Constant':
+      if (action.fields) {
+        tile.rawDetails.constants = action.fields
+          .map((f) => ({ name: f.name || '', value: f.value ?? '' }))
+          .filter((f) => f.name);
+        tile.columns = tile.rawDetails.constants.map((c) => c.name);
+      }
+      break;
+
+    case 'DateCalculator':
+    case 'NumericCalculator':
+    case 'StringCalculator':
+      if (action.expressions) {
+        tile.expressions = action.expressions.map((e) => ({
+          expression: e.expression || e.formula || '',
+          resultField: e.resultField || e.outputField || ''
+        }));
+        tile.columns = tile.expressions.map((e) => e.resultField).filter(Boolean);
+      }
+      if (action.calculations) {
+        tile.expressions = action.calculations.map((c) => ({
+          expression: c.expression || c.formula || '',
+          resultField: c.resultField || c.outputField || ''
+        }));
+        tile.columns = tile.expressions.map((e) => e.resultField).filter(Boolean);
+      }
+      break;
+
+    case 'Denormaliser':
+      if (action.groupField) tile.columns.push(toFieldName(action.groupField));
+      if (action.pivotField) tile.rawDetails.pivotField = toFieldName(action.pivotField);
+      if (action.valueField) tile.rawDetails.valueField = toFieldName(action.valueField);
+      break;
+
     case 'ExpressionEvaluator':
       tile.expressions = (action.expressions || []).map((e) => ({
         expression: e.expression || '',
         resultField: e.resultField || ''
       }));
       tile.columns = tile.expressions.map((e) => e.resultField).filter(Boolean);
+      break;
+
+    case 'ExpressionRowGenerator':
+      if (action.expressions) {
+        tile.expressions = action.expressions.map((e) => ({
+          expression: e.expression || '',
+          resultField: e.resultField || ''
+        }));
+        tile.columns = tile.expressions.map((e) => e.resultField).filter(Boolean);
+      }
+      if (action.rowCount != null) tile.rawDetails.rowCount = action.rowCount;
       break;
 
     case 'Filter':
@@ -228,17 +301,21 @@ function parseTile(action) {
 
     case 'GroupBy':
       if (action.groups) tile.columns.push(...action.groups.map(toFieldName));
-      if (action.aggregates) {
-        tile.rawDetails.aggregates = action.aggregates;
-        tile.columns.push(
-          ...action.aggregates.map((a) => toFieldName(a.field)).filter(Boolean)
-        );
+      if (action.fields) {
+        tile.rawDetails.aggregates = action.fields
+          .filter((f) => f.expression)
+          .map((f) => ({ field: f.name || '', expression: f.expression }));
       }
       break;
 
+    case 'Limit':
+      if (action.rowLimit != null) tile.rawDetails.rowLimit = action.rowLimit;
+      break;
+
     case 'LoadFromVault':
-      // Input datasets are tracked via dependsOn / settings
-      if (action.settings?.dataSourceId) {
+      if (action.dataSourceId) {
+        tile.inputDatasets.push(String(action.dataSourceId));
+      } else if (action.settings?.dataSourceId) {
         tile.inputDatasets.push(String(action.settings.dataSourceId));
       }
       break;
@@ -268,6 +345,14 @@ function parseTile(action) {
       }
       break;
 
+    case 'NormalizeAll':
+    case 'Normalizer':
+      if (action.groupFields) tile.columns.push(...action.groupFields.map(toFieldName));
+      if (action.fields) {
+        tile.columns.push(...action.fields.map(toFieldName).filter(Boolean));
+      }
+      break;
+
     case 'Order':
       if (Array.isArray(action.fields)) {
         tile.columns = action.fields.map((f) =>
@@ -275,14 +360,21 @@ function parseTile(action) {
         ).filter(Boolean);
       }
       break;
+
     case 'PublishToVault':
-      if (action.settings?.dataSourceId) {
+      if (action.dataSource?.guid) {
+        tile.outputDataset = String(action.dataSource.guid);
+      } else if (action.settings?.dataSourceId) {
         tile.outputDataset = String(action.settings.dataSourceId);
+      }
+      if (action.versionChainType) {
+        tile.rawDetails.updateMode = action.versionChainType;
       }
       break;
 
     case 'PythonEngineAction':
       break;
+
     case 'REngineAction':
       tile.sql = (action.statements || []).filter((s) => !!s);
       break;
@@ -290,8 +382,8 @@ function parseTile(action) {
     case 'ReplaceString':
       if (action.inField) tile.columns.push(action.inField);
       if (action.outField) tile.columns.push(action.outField);
-      tile.rawDetails.search = action.searchString;
-      tile.rawDetails.replace = action.replaceString;
+      if (action.searchString) tile.rawDetails.search = action.searchString;
+      if (action.replaceString != null) tile.rawDetails.replace = action.replaceString;
       break;
 
     case 'SelectValues':
@@ -306,12 +398,28 @@ function parseTile(action) {
     case 'SetValueField':
       if (action.fieldName) {
         tile.columns.push(action.fieldName);
-        tile.rawDetails.fieldValue = action.fieldValue;
+        if (action.fieldValue != null) tile.rawDetails.fieldValue = action.fieldValue;
       }
+      break;
+
+    case 'SplitColumnAction':
+      if (action.sourceField) tile.columns.push(action.sourceField);
+      if (action.delimiter) tile.rawDetails.delimiter = action.delimiter;
       break;
 
     case 'SQL':
       tile.sql = (action.statements || []).filter((s) => !!s);
+      break;
+
+    case 'TextFormatting':
+      if (action.fields) {
+        tile.columns = action.fields.map(toFieldName).filter(Boolean);
+      }
+      if (action.formatType) tile.rawDetails.formatType = action.formatType;
+      break;
+
+    case 'UnionAll':
+      tile.rawDetails.inputCount = (action.inputs || action.dependsOn || []).length;
       break;
 
     case 'Unique':
@@ -325,7 +433,7 @@ function parseTile(action) {
     case 'ValueMapper':
       if (action.sourceField) tile.columns.push(action.sourceField);
       if (action.targetField) tile.columns.push(action.targetField);
-      tile.rawDetails.mappings = action.mappings;
+      if (action.mappings) tile.rawDetails.mappings = action.mappings;
       break;
 
     case 'WindowAction':

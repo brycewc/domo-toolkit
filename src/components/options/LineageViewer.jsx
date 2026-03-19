@@ -43,6 +43,7 @@ export function LineageViewer() {
     frontierCounts,
     highlightLevel,
     levelSummary,
+    preserveExpansion,
     visibleTrace
   } = useGraphVisibility({
     expandFetch,
@@ -140,12 +141,13 @@ export function LineageViewer() {
     setPreviewDataset(null);
     previewCacheRef.current.clear();
     if (params) {
+      preserveExpansion();
       init(params.entityType, params.entityId, params.tabId, params.instance).catch((err) => {
         console.error('[LineageViewer] Failed to refresh:', err);
         setError(err.message || 'Failed to reload pipeline trace');
       });
     }
-  }, [params, init]);
+  }, [params, init, preserveExpansion]);
 
   const handleRootClick = useCallback(() => {
     if (rootNodeId) {
