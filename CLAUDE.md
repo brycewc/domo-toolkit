@@ -281,6 +281,27 @@ Run `yarn release` to build and package locally. When the version bump is pushed
 
 Both workflows can also be triggered manually via `workflow_dispatch`.
 
+## Domo API Reference
+
+When working with Domo API endpoints (fetching data, building service functions, debugging API issues):
+
+1. **User-provided endpoints take precedence.** If the user gives you an endpoint path, method, or usage instructions directly, use those as the source of truth — even if Postman doesn't have a matching entry.
+2. When the user hasn't specified the endpoint, use the **Postman MCP** tools (prefixed `mcp__postman__`) to look up the correct endpoint, method, request body, and response format before writing or modifying API calls.
+3. Search with `searchPostmanElementsInPublicNetwork` using `q: "Domo <description>"` to find the endpoint.
+4. Use `getCollectionRequest` with `populate: true` to get full request details including example responses.
+5. The primary collection is **"Domo Product APIs"** (collection ID `17302996-d887dd51-ea30-43be-a2bd-3a81f15cce13`), workspace **"Domo Product APIs"**.
+6. Never guess at endpoint paths, request body shapes, or response formats — verify via Postman or the user first.
+
+## Package Manager
+
+Always use `yarn` instead of `npm` for all package management commands:
+
+- `yarn` instead of `npm install`
+- `yarn add <package>` instead of `npm install <package>`
+- `yarn remove <package>` instead of `npm uninstall <package>`
+- `yarn dev` instead of `npm run dev`
+- `yarn build` instead of `npm run build`
+
 ## Testing in Development
 
 When running `yarn dev`:
