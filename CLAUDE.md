@@ -268,9 +268,18 @@ Add a new object to the **beginning** of the `releases` array (newest-first). Th
 - The `ReleaseNotesPage` component (`src/components/options/ReleaseNotesPage.jsx`) displays the latest release and sends a `RELEASE_NOTES_SEEN` message on mount to clear the badge
 - `lastSeenVersion` is stored in `chrome.storage.local` to track what the user has seen
 
-### 4. Build the release
+### 4. Update `docs/RELEASE_NOTES.md`
 
-Run `yarn release` to build and package for distribution.
+Replace the contents of `docs/RELEASE_NOTES.md` with the detailed release notes for this version. This file always contains only the **latest** version's notes — do not accumulate old versions. The GitHub Release workflow uses this file as the release body.
+
+### 5. Build and publish
+
+Run `yarn release` to build and package locally. When the version bump is pushed to `main`, two GitHub Actions workflows trigger automatically:
+
+- **`.github/workflows/release.yml`** — creates a GitHub Release tagged `vX.Y.Z` using `docs/RELEASE_NOTES.md` as the body
+- **`.github/workflows/publish.yml`** — builds and publishes to Chrome Web Store and Edge Add-ons
+
+Both workflows can also be triggered manually via `workflow_dispatch`.
 
 ## Testing in Development
 
