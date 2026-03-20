@@ -2,7 +2,7 @@ import { Button, Dropdown, Label, Spinner, Tooltip } from '@heroui/react';
 import { IconDatabase } from '@tabler/icons-react';
 import { useState } from 'react';
 
-import { useLongPress } from '@/components';
+import { useLongPress } from '@/hooks';
 import {
   getDatasetsForApp,
   getDatasetsForDataflow,

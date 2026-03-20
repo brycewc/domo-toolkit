@@ -12,7 +12,6 @@ import {
   IconLayoutSidebarRightExpand,
   IconRefresh
 } from '@tabler/icons-react';
-import { AnimatePresence, motion } from 'motion/react';
 import {
   forwardRef,
   useCallback,
@@ -23,6 +22,7 @@ import {
   useState
 } from 'react';
 
+import { useLongPress } from '@/hooks';
 import {
   DomoObject,
   getAllNavigableObjectTypes,
@@ -36,9 +36,6 @@ import {
   storeSidepanelData
 } from '@/utils';
 
-const LONG_PRESS_DURATION = 1000;
-const LONG_PRESS_SECONDS = LONG_PRESS_DURATION / 1000;
-
 export const NavigateToCopiedObject = forwardRef(
   function NavigateToCopiedObject({ currentContext, onStatusUpdate }, ref) {
     const [copiedObjectId, setCopiedObjectId] = useState(null);
@@ -50,23 +47,7 @@ export const NavigateToCopiedObject = forwardRef(
     const lastCheckedClipboard = useRef('');
     const [allTypes, setAllTypes] = useState([]);
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-    const [isHolding, setIsHolding] = useState(false);
-    const holdTimeoutRef = useRef(null);
-
-    const handlePressStart = () => {
-      setIsHolding(true);
-      holdTimeoutRef.current = setTimeout(() => {
-        setIsHolding(false);
-      }, LONG_PRESS_DURATION);
-    };
-
-    const handlePressEnd = () => {
-      setIsHolding(false);
-      if (holdTimeoutRef.current) {
-        clearTimeout(holdTimeoutRef.current);
-        holdTimeoutRef.current = null;
-      }
-    };
+    const { LongPressOverlay, pressProps } = useLongPress();
 
     const handleRefreshClipboard = async () => {
       try {
@@ -559,8 +540,7 @@ export const NavigateToCopiedObject = forwardRef(
             isPending={isLoading}
             variant='tertiary'
             onPress={() => handleClick()}
-            onPressEnd={longPressDisabled ? undefined : handlePressEnd}
-            onPressStart={longPressDisabled ? undefined : handlePressStart}
+            {...(longPressDisabled ? {} : pressProps)}
           >
             {({ isPending }) =>
               isPending ? (
@@ -572,26 +552,7 @@ export const NavigateToCopiedObject = forwardRef(
                   ) : (
                     <IconExternalLink stroke={1.5} />
                   )}
-                  <AnimatePresence>
-                    {isHolding && (
-                      <motion.div
-                        animate={{ opacity: 1 }}
-                        className='pointer-events-none absolute inset-0 overflow-hidden rounded-md'
-                        exit={{ opacity: 0, transition: { duration: 0.1 } }}
-                        initial={{ opacity: 0 }}
-                      >
-                        <motion.div
-                          animate={{ scale: 1 }}
-                          className='absolute top-1/2 left-1/2 aspect-square w-[200%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent-soft-hover'
-                          initial={{ scale: 0 }}
-                          transition={{
-                            duration: LONG_PRESS_SECONDS,
-                            ease: 'linear'
-                          }}
-                        />
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                  <LongPressOverlay />
                 </>
               )
             }
