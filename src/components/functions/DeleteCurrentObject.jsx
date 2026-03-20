@@ -9,8 +9,7 @@ import {
 import { IconTrash, IconX } from '@tabler/icons-react';
 import { useState } from 'react';
 
-import { useLongPress } from '@/components';
-import { useStatusBar } from '@/hooks';
+import { useLongPress, useStatusBar } from '@/hooks';
 import {
   deleteDataflowAndOutputs,
   deleteObject,

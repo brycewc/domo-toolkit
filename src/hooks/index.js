@@ -1,4 +1,5 @@
 export { useGroupLookup } from './useGroupLookup';
+export { useLongPress } from './useLongPress';
 export { useResolveTabId } from './useResolveTabId';
 export { showReleaseToast, useReleaseNotification } from './useReleaseNotification';
 export { useStatusBar } from './useStatusBar';

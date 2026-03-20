@@ -5,19 +5,15 @@ import {
   IconFileDescription,
   IconStack2
 } from '@tabler/icons-react';
-import { AnimatePresence, motion } from 'motion/react';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 
+import { useLongPress } from '@/hooks';
 import { getCardsForObject, getPagesForCards } from '@/services';
 import { waitForChildPages } from '@/utils';
 
-const LONG_PRESS_DURATION = 1000; // ms - matches HeroUI's default
-const LONG_PRESS_SECONDS = LONG_PRESS_DURATION / 1000;
-
 export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
   const [isLoading, setIsLoading] = useState(false);
-  const [isHolding, setIsHolding] = useState(false);
-  const holdTimeoutRef = useRef(null);
+  const { LongPressOverlay, pressProps } = useLongPress();
 
   const userRights = currentContext?.user?.metadata?.USER_RIGHTS || [];
   const isDisabled =
@@ -29,23 +25,6 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
     !isDisabled &&
     ['DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE'].includes(typeId);
   const hasChildPages = ['DATA_APP_VIEW', 'PAGE'].includes(typeId);
-
-  const handlePressStart = () => {
-    if (!longPressEnabled) return;
-    setIsHolding(true);
-    // Clear holding state after long press duration (dropdown will open)
-    holdTimeoutRef.current = setTimeout(() => {
-      setIsHolding(false);
-    }, LONG_PRESS_DURATION);
-  };
-
-  const handlePressEnd = () => {
-    setIsHolding(false);
-    if (holdTimeoutRef.current) {
-      clearTimeout(holdTimeoutRef.current);
-      holdTimeoutRef.current = null;
-    }
-  };
 
   const handleClick = async (key = null) => {
     if (
@@ -234,27 +213,10 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
           isPending={isLoading}
           variant='tertiary'
           onPress={() => handleClick()}
-          onPressEnd={longPressEnabled ? handlePressEnd : undefined}
-          onPressStart={longPressEnabled ? handlePressStart : undefined}
+          {...(longPressEnabled ? pressProps : {})}
         >
           <IconFileDescription stroke={1.5} />
-          <AnimatePresence>
-            {isHolding && (
-              <motion.div
-                animate={{ opacity: 1 }}
-                className='pointer-events-none absolute inset-0 overflow-hidden rounded-md'
-                exit={{ opacity: 0, transition: { duration: 0.1 } }}
-                initial={{ opacity: 0 }}
-              >
-                <motion.div
-                  animate={{ scale: 1 }}
-                  className='absolute top-1/2 left-1/2 aspect-square w-[200%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent-soft-hover'
-                  initial={{ scale: 0 }}
-                  transition={{ duration: LONG_PRESS_SECONDS, ease: 'linear' }}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
+          <LongPressOverlay />
         </Button>
         <Tooltip.Content className='flex flex-col items-center text-center'>
           <span>Activity Log</span>
