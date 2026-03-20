@@ -93,33 +93,56 @@ export function GetCardsView({
       let queues = data.queues || [];
 
       if (!cards && !forceRefresh) {
-        // No pre-fetched cards (popup handoff) -- try background-cached context
-        const waitResult = await waitForCards(context);
-        if (waitResult.success && waitResult.cards?.length) {
-          cards = waitResult.cards;
-          forms = waitResult.forms;
-          queues = waitResult.queues;
+        // No pre-fetched cards (popup handoff) -- fetch fresh
+        if (objectType === 'DATAFLOW_TYPE') {
+          const outputs =
+            domoObject.metadata?.details?.outputs || [];
+          if (outputs.length > 0) {
+            const tabId = await getValidTabForInstance(instance);
+            const result = await fetchCardsForOutputDatasets(outputs, tabId);
+            data.outputDatasets = result.outputDatasets;
+            cards = result.cards;
+          }
         } else {
-          const tabId = await getValidTabForInstance(instance);
-          cards = await getCardsForObject({ objectId, objectType, tabId });
+          const waitResult = await waitForCards(context);
+          if (waitResult.success && waitResult.cards?.length) {
+            cards = waitResult.cards;
+            forms = waitResult.forms;
+            queues = waitResult.queues;
+          } else {
+            const tabId = await getValidTabForInstance(instance);
+            cards = await getCardsForObject({ objectId, objectType, tabId });
+          }
         }
       }
 
       if (forceRefresh) {
         const tabId = await getValidTabForInstance(instance);
-        const [refreshedCards, refreshedForms, refreshedQueues] =
-          await Promise.all([
-            getCardsForObject({ objectId, objectType, tabId }),
-            formWidgetIds.length > 0
-              ? getFormsForPage({ formWidgetIds, tabId })
-              : Promise.resolve([]),
-            queueWidgetIds.length > 0
-              ? getQueuesForPage({ queueWidgetIds, tabId })
-              : Promise.resolve([])
-          ]);
-        cards = refreshedCards;
-        forms = refreshedForms;
-        queues = refreshedQueues;
+        if (objectType === 'DATAFLOW_TYPE') {
+          const outputs =
+            data.outputDatasets ||
+            domoObject.metadata?.details?.outputs ||
+            [];
+          if (outputs.length > 0) {
+            const result = await fetchCardsForOutputDatasets(outputs, tabId);
+            data.outputDatasets = result.outputDatasets;
+            cards = result.cards;
+          }
+        } else {
+          const [refreshedCards, refreshedForms, refreshedQueues] =
+            await Promise.all([
+              getCardsForObject({ objectId, objectType, tabId }),
+              formWidgetIds.length > 0
+                ? getFormsForPage({ formWidgetIds, tabId })
+                : Promise.resolve([]),
+              queueWidgetIds.length > 0
+                ? getQueuesForPage({ queueWidgetIds, tabId })
+                : Promise.resolve([])
+            ]);
+          cards = refreshedCards;
+          forms = refreshedForms;
+          queues = refreshedQueues;
+        }
       }
 
       if (!cards || !Array.isArray(cards)) {
@@ -132,15 +155,18 @@ export function GetCardsView({
         queues: queues.length
       });
 
-      const transformedItems = transformPageItems(
-        cards,
-        forms,
-        queues,
-        origin,
-        objectType,
-        objectId,
-        parentId
-      );
+      const transformedItems =
+        objectType === 'DATAFLOW_TYPE' && data.outputDatasets
+          ? transformDataflowItems(data.outputDatasets, origin)
+          : transformPageItems(
+              cards,
+              forms,
+              queues,
+              origin,
+              objectType,
+              objectId,
+              parentId
+            );
       setError(null);
       setItems(transformedItems);
     } catch (err) {
@@ -271,6 +297,36 @@ export function GetCardsView({
 }
 
 /**
+ * Fetch cards for each output dataset of a dataflow.
+ * @param {Array<{id?: string, dataSourceId?: string, name?: string, dataSourceName?: string}>} outputs
+ * @param {number} tabId - Chrome tab ID
+ * @returns {Promise<{outputDatasets: Array, cards: Array}>}
+ */
+async function fetchCardsForOutputDatasets(outputs, tabId) {
+  const outputDatasets = [];
+  const allCards = [];
+  const seen = new Set();
+  for (const output of outputs) {
+    const dsId = output.id || output.dataSourceId;
+    const dsName =
+      output.name || output.dataSourceName || `Dataset ${dsId}`;
+    const dsCards = await getCardsForObject({
+      objectId: dsId,
+      objectType: 'DATA_SOURCE',
+      tabId
+    });
+    outputDatasets.push({ cards: dsCards, id: dsId, name: dsName });
+    for (const card of dsCards) {
+      if (!seen.has(card.id)) {
+        seen.add(card.id);
+        allCards.push(card);
+      }
+    }
+  }
+  return { cards: allCards, outputDatasets };
+}
+
+/**
  * Transform cards into DataListItem format
  * @param {Array} cards - Array of card objects
  * @param {string} origin - The base URL origin
@@ -282,13 +338,13 @@ export function GetCardsView({
 function transformCardsToItems(cards, origin, objectType, objectId, parentId) {
   return cards
     .sort((a, b) => {
-      const nameA = a.title || a.name || '';
-      const nameB = b.title || b.name || '';
+      const nameA = (a.title || a.name || '').trim();
+      const nameB = (b.title || b.name || '').trim();
       return nameA.localeCompare(nameB);
     })
     .map((card) => {
       const domoObject = new DomoObject('CARD', card.id, origin, {
-        name: card.title || card.name
+        name: (card.title || card.name || '').trim()
       });
       // Override generic card URL with page-specific URL when on a page or app
       if (objectType === 'DATA_APP_VIEW' || objectType === 'WORKSHEET_VIEW') {
@@ -386,4 +442,40 @@ function transformPageItems(
   }
 
   return items;
+}
+
+/**
+ * Transform dataflow output datasets into grouped DataListItems.
+ * Each output dataset becomes a navigable parent with its cards as children.
+ * @param {Array<{id: string, name: string, cards: Array}>} outputDatasets
+ * @param {string} origin - The base URL origin
+ * @returns {DataListItem[]}
+ */
+function transformDataflowItems(outputDatasets, origin) {
+  return outputDatasets
+    .filter((ds) => ds.cards.length > 0)
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+    .map((ds) => {
+      const cardChildren = ds.cards
+        .sort((a, b) => {
+          const nameA = (a.title || a.name || '').trim();
+          const nameB = (b.title || b.name || '').trim();
+          return nameA.localeCompare(nameB);
+        })
+        .map((card) => {
+          const domoObject = new DomoObject('CARD', card.id, origin, {
+            name: (card.title || card.name || '').trim()
+          });
+          return DataListItem.fromDomoObject(domoObject);
+        });
+
+      const dsDomoObject = new DomoObject('DATA_SOURCE', ds.id, origin, {
+        name: ds.name
+      });
+      return DataListItem.fromDomoObject(dsDomoObject, {
+        children: cardChildren,
+        count: cardChildren.length,
+        countLabel: 'cards'
+      });
+    });
 }

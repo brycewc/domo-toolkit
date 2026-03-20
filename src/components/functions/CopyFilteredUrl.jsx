@@ -1,14 +1,11 @@
 import { Button, Chip, Dropdown, Label, Tooltip } from '@heroui/react';
 import { IconClipboard, IconFilterShare } from '@tabler/icons-react';
-import { AnimatePresence, motion } from 'motion/react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { AnimatedCheck, AnimatedX } from '@/components';
+import { useLongPress } from '@/hooks';
 import { useStatusBar } from '@/hooks';
 import { buildPfilterUrl, getAllFilters } from '@/services';
-
-const LONG_PRESS_DURATION = 1000;
-const LONG_PRESS_SECONDS = LONG_PRESS_DURATION / 1000;
 
 export function CopyFilteredUrl({ currentContext, isDisabled }) {
   const [isCopied, setIsCopied] = useState(false);
@@ -16,8 +13,7 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
   const [filterCount, setFilterCount] = useState(0);
   const [heldFilters, setHeldFilters] = useState([]);
   const [hasNewFilters, setHasNewFilters] = useState(false);
-  const [isHolding, setIsHolding] = useState(false);
-  const holdTimeoutRef = useRef(null);
+  const { LongPressOverlay, pressProps } = useLongPress();
   const { showStatus } = useStatusBar();
 
   const typeId = currentContext?.domoObject?.typeId;
@@ -73,21 +69,6 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
       isMounted = false;
     };
   }, [currentContext, isSupported, typeId, heldFilters]);
-
-  const handlePressStart = () => {
-    setIsHolding(true);
-    holdTimeoutRef.current = setTimeout(() => {
-      setIsHolding(false);
-    }, LONG_PRESS_DURATION);
-  };
-
-  const handlePressEnd = () => {
-    setIsHolding(false);
-    if (holdTimeoutRef.current) {
-      clearTimeout(holdTimeoutRef.current);
-      holdTimeoutRef.current = null;
-    }
-  };
 
   const handleCopyFilteredUrl = async () => {
     if (!currentContext?.domoObject?.id || !isSupported) return;
@@ -182,8 +163,7 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
           isDisabled={isDisabled || !isSupported}
           variant='tertiary'
           onPress={handleCopyFilteredUrl}
-          onPressEnd={longPressDisabled ? undefined : handlePressEnd}
-          onPressStart={longPressDisabled ? undefined : handlePressStart}
+          {...(longPressDisabled ? {} : pressProps)}
         >
           {isFailed ? (
             <AnimatedX />
@@ -203,35 +183,22 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
               {filterCount}
             </Chip>
           )}
-          <AnimatePresence>
-            {isHolding && (
-              <motion.div
-                animate={{ opacity: 1 }}
-                className='pointer-events-none absolute inset-0 overflow-hidden rounded-md'
-                exit={{ opacity: 0, transition: { duration: 0.1 } }}
-                initial={{ opacity: 0 }}
-              >
-                <motion.div
-                  animate={{ scale: 1 }}
-                  className='absolute top-1/2 left-1/2 aspect-square w-[200%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent-soft-hover'
-                  initial={{ scale: 0 }}
-                  transition={{ duration: LONG_PRESS_SECONDS, ease: 'linear' }}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
+          <LongPressOverlay />
         </Button>
-        <Tooltip.Content className='flex flex-col items-center text-center'>
+        <Tooltip.Content
+          className='flex flex-col items-center text-center'
+          placement='bottom'
+        >
           <span>Copy Filtered URL</span>
           {!longPressDisabled && (
             <span className='italic'>Hold for more options</span>
           )}
         </Tooltip.Content>
       </Tooltip>
-      <Dropdown.Popover className='w-fit min-w-48' placement='bottom left'>
+      <Dropdown.Popover className='w-fit min-w-60' placement='bottom'>
         <Dropdown.Menu onAction={handleAction}>
           <Dropdown.Item id='pfilters' textValue='Copy pfilters param only'>
-            <IconClipboard className='size-4 shrink-0' />
+            <IconClipboard className='size-5 shrink-0' stroke={1.5} />
             <Label>Copy pfilters param only</Label>
           </Dropdown.Item>
         </Dropdown.Menu>

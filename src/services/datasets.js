@@ -1,6 +1,68 @@
 import { executeInPage } from '@/utils';
 
 /**
+ * Get a preview of a dataset's data (first N rows)
+ * @param {string} datasetId - The dataset UUID
+ * @param {number} [tabId] - Optional Chrome tab ID
+ * @param {number} [limit=100] - Max rows to return
+ * @returns {Promise<{headers: string[], rows: Array[]}>}
+ */
+export async function getDatasetPreview(datasetId, tabId = null, limit = 100) {
+  return executeInPage(
+    async (datasetId, limit) => {
+      const response = await fetch(`/api/query/v1/execute/${datasetId}`, {
+        body: JSON.stringify({ sql: `SELECT * FROM table LIMIT ${limit}` }),
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST'
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch preview: HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      const headers = data.columns || [];
+      const rows = data.rows || [];
+
+      return { headers, rows };
+    },
+    [datasetId, limit],
+    tabId
+  );
+}
+
+/**
+ * Get all datasets for a data app or worksheet
+ * @param {Object} params - Parameters
+ * @param {string|number} params.appId - The data app or worksheet ID
+ * @param {number} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<Array<{id: string, name: string}>>} Array of dataset objects
+ */
+export async function getDatasetsForApp({ appId, tabId }) {
+  const fetchLogic = async (appId) => {
+    const response = await fetch(
+      `/api/content/v1/dataapps/${appId}/dataSources`
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch datasets for app ${appId}. HTTP status: ${response.status}`
+      );
+    }
+
+    return response.json();
+  };
+
+  try {
+    return await executeInPage(fetchLogic, [appId], tabId);
+  } catch (error) {
+    console.error('[getDatasetsForApp] Error:', error);
+    throw error;
+  }
+}
+
+/**
  * Get datasets from a dataflow's inputs and outputs
  * @param {Object} params - Parameters
  * @param {Object} params.details - The dataflow metadata.details object
@@ -283,5 +345,49 @@ export function isViewType(details) {
     viewTypes.includes(details.dataProviderType) ||
     viewTypes.includes(details.displayType) ||
     viewTypes.includes(details.type)
+  );
+}
+
+/**
+ * Set a stream's schedule to MANUAL
+ * @param {Object} params - Parameters
+ * @param {string|number} params.streamId - The stream ID
+ * @param {number} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<Object>} The updated stream definition
+ */
+export async function setStreamScheduleToManual({ streamId, tabId }) {
+  return executeInPage(
+    async (streamId) => {
+      const getResponse = await fetch(
+        `/api/data/v1/streams/${streamId}?fields=all`
+      );
+      if (!getResponse.ok) {
+        throw new Error(
+          `Failed to fetch stream ${streamId}. HTTP status: ${getResponse.status}`
+        );
+      }
+
+      const definition = await getResponse.json();
+      definition.scheduleState = 'MANUAL';
+      definition.advancedScheduleJson = JSON.stringify({
+        timezone: 'UTC',
+        type: 'MANUAL'
+      });
+
+      const putResponse = await fetch(`/api/data/v1/streams/${streamId}`, {
+        body: JSON.stringify(definition),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'PUT'
+      });
+      if (!putResponse.ok) {
+        throw new Error(
+          `Failed to update stream ${streamId}. HTTP status: ${putResponse.status}`
+        );
+      }
+
+      return putResponse.json();
+    },
+    [streamId],
+    tabId
   );
 }

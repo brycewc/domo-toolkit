@@ -1,6 +1,6 @@
 ---
-description: ESLint + Prettier code style rules — sorting, formatting, and conventions
-alwaysApply: true
+globs: .js,.jsx
+alwaysApply: false
 ---
 
 # Code Style (ESLint + Prettier)

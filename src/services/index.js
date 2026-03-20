@@ -26,18 +26,25 @@ export {
 } from './cards';
 export { getCodeEngineCode } from './codeEngine';
 export {
+  deleteDataflowAndOutputs,
+  getDataflowDetail,
   getDataflowForOutputDataset,
+  getDataflowPermission,
   updateDataflowDetails
 } from './dataflows';
 export {
+  getDatasetPreview,
+  getDatasetsForApp,
   getDatasetsForDataflow,
   getDatasetsForPage,
   getDatasetsForView,
   getDependentDatasets,
   getStreamExecution,
   getStreamExecutions,
-  isViewType
+  isViewType,
+  setStreamScheduleToManual
 } from './datasets';
+export { parseDataflow, searchTiles } from './etlParser';
 export {
   buildPfilterUrl,
   encodeFilters,
@@ -63,5 +70,7 @@ export {
   getCurrentUser,
   getCurrentUserId,
   getCustomAvatarUserIds,
+  getUserGroups,
   searchUsers
 } from './users';
+export { getWorkflowPermission } from './workflows';

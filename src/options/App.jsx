@@ -1,6 +1,6 @@
-import { Button, ButtonGroup, Tabs, Tooltip } from '@heroui/react';
+import { Button, ButtonGroup, Spinner, Tabs, Tooltip } from '@heroui/react';
 import { IconBug, IconSparkles } from '@tabler/icons-react';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 
 import {
   ActivityLogTable,
@@ -17,8 +17,11 @@ const FULL_SCREEN_PAGES = new Map([
     'activity-log',
     { component: ActivityLogTable, fullWidth: true, title: getActivityLogTitle }
   ],
-  ['release-notes', { component: ReleaseNotesPage, title: 'Release Notes' }],
-  ['welcome', { component: WelcomePage, title: 'Welcome' }]
+  [
+    'release-notes',
+    { component: ReleaseNotesPage, fullWidth: true, title: 'Release Notes' }
+  ],
+  ['welcome', { component: WelcomePage, fullWidth: true, title: 'Welcome' }]
 ]);
 
 const TAB_TITLES = {
@@ -62,7 +65,15 @@ export default function App() {
         <div
           className={`flex h-full w-full flex-col px-4 pt-8 pb-4 ${fullScreenPage.fullWidth ? '' : 'max-w-4xl'}`}
         >
-          <PageComponent />
+          <Suspense
+            fallback={
+              <div className='flex h-full items-center justify-center'>
+                <Spinner size='lg' />
+              </div>
+            }
+          >
+            <PageComponent />
+          </Suspense>
         </div>
         <ToastProvider className='right-2 bottom-2' placement='bottom' />
       </div>

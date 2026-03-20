@@ -13,44 +13,19 @@ import { executeInPage } from '@/utils';
 export async function getCurrentUser(tabId = null) {
   const result = await executeInPage(
     async () => {
-      // Try to get from bootstrap
-      if (window.bootstrap?.currentUser?.USER_ID) {
-        const { USER_ID, ...metadata } = window.bootstrap.currentUser;
-        if (!metadata?.USER_RIGHTS) {
-          metadata.USER_RIGHTS = window.bootstrap?.data?.authorities || [];
-        }
-        return { id: USER_ID, metadata };
-      }
-
-      // Fallback to first API endpoint
-      try {
-        const response = await fetch('/api/identity/v1/authentication/session');
-        if (response.ok) {
-          const user = await response.json();
-          if (user.userId) {
-            const { userId, ...metadata } = user;
-            return { id: userId, metadata };
+      for (let i = 0; i < 3; i++) {
+        if (window.bootstrap?.currentUser?.USER_ID) {
+          const { USER_ID, ...metadata } = window.bootstrap.currentUser;
+          if (!metadata?.USER_RIGHTS) {
+            metadata.USER_RIGHTS = window.bootstrap?.data?.authorities || [];
           }
+          return { id: USER_ID, metadata };
         }
-      } catch (e) {
-        // Continue to next fallback
-      }
-
-      // Fallback to second API endpoint
-      try {
-        const response = await fetch('/api/content/v2/authentication/session');
-        if (response.ok) {
-          const user = await response.json();
-          if (user.userId) {
-            const { userId, ...metadata } = user;
-            return { id: userId, metadata };
-          }
+        if (i < 2) {
+          await new Promise((resolve) => setTimeout(resolve, 500));
         }
-      } catch (e) {
-        // Continue to error
       }
-
-      throw new Error('Unable to fetch current user from any source');
+      throw new Error('window.bootstrap not available after 3 attempts');
     },
     [],
     tabId
@@ -128,6 +103,27 @@ export async function getCustomAvatarUserIds(userIds, tabId = null) {
       return results.filter(Boolean);
     },
     [userIds],
+    tabId
+  );
+}
+
+/**
+ * Get the group IDs the given user belongs to.
+ * @param {number|string} userId - The user ID
+ * @param {number|null} tabId - The tab ID to execute in (optional)
+ * @returns {Promise<string[]>} Array of group ID strings
+ */
+export async function getUserGroups(userId, tabId = null) {
+  return executeInPage(
+    async (userId) => {
+      const response = await fetch(
+        `/api/content/v2/groups/grouplist?ascending=true&limit=10000&members=${userId}&offset=0&sort=name`
+      );
+      if (!response.ok) return [];
+      const data = await response.json();
+      return (data || []).map((g) => String(g.groupId));
+    },
+    [userId],
     tabId
   );
 }

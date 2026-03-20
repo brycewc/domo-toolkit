@@ -46,9 +46,7 @@ export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
 
     setIsSharing(true);
 
-    const objectName =
-      currentContext.domoObject.metadata?.name ||
-      currentContext.domoObject.typeName;
+    const label = `${currentContext.domoObject?.typeName === 'DATA_SOURCE' ? 'Account' : currentContext.domoObject?.typeName} ${currentContext.domoObject?.id}`;
 
     const promise = shareWithSelf({
       object: currentContext.domoObject,
@@ -76,16 +74,40 @@ export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
 
     showPromiseStatus(promise, {
       error: (err) => err.message,
-      loading: `Sharing **${objectName}** with yourself…`,
-      success: () => `**${objectName}** shared successfully`
+      loading: `Sharing **${label}** with yourself…`,
+      success: () => `**${label}** shared successfully`
     });
 
     promise.finally(() => setIsSharing(false));
   };
 
   const isSupportedType = isSupportedForShare(currentContext?.domoObject);
+  const contentAdminTypes = [
+    'CARD',
+    'DATA_APP',
+    'DATA_APP_VIEW',
+    'PAGE',
+    'WORKSHEET',
+    'WORKSHEET_VIEW'
+  ];
+  const userRights = currentContext?.user?.metadata?.USER_RIGHTS || [];
+  const needsContentAdmin =
+    contentAdminTypes.includes(currentContext?.domoObject?.typeId) &&
+    !userRights.includes('content.admin');
+  const needsAccountAdmin =
+    currentContext?.domoObject?.typeId === 'DATA_SOURCE' &&
+    !userRights.includes('account.admin');
+  const needsAppAdmin =
+    currentContext?.domoObject?.typeId === 'APP' &&
+    !userRights.includes('app.admin');
   const buttonDisabled =
-    isDisabled || isSharing || !currentContext?.domoObject || !isSupportedType;
+    isDisabled ||
+    isSharing ||
+    !currentContext?.domoObject ||
+    !isSupportedType ||
+    needsContentAdmin ||
+    needsAccountAdmin ||
+    needsAppAdmin;
 
   return (
     <Tooltip closeDelay={0} delay={400} disabled={!buttonDisabled}>
@@ -126,7 +148,9 @@ function isSupportedForShare(domoObject) {
     'DATA_APP',
     'DATA_APP_VIEW',
     'DATA_SOURCE',
-    'PAGE'
+    'PAGE',
+    'WORKSHEET',
+    'WORKSHEET_VIEW'
   ];
   if (!domoObject?.typeId) return false;
   if (!SUPPORTED_TYPES.includes(domoObject.typeId)) return false;

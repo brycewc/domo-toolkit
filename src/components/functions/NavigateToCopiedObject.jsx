@@ -1,10 +1,17 @@
-import { Button, Dropdown, Label, Spinner, Tooltip } from '@heroui/react';
+import {
+  Button,
+  Dropdown,
+  Label,
+  Separator,
+  Spinner,
+  Tooltip
+} from '@heroui/react';
 import {
   IconExternalLink,
   IconEye,
-  IconLayoutSidebarRightExpand
+  IconLayoutSidebarRightExpand,
+  IconRefresh
 } from '@tabler/icons-react';
-import { AnimatePresence, motion } from 'motion/react';
 import {
   forwardRef,
   useCallback,
@@ -15,6 +22,7 @@ import {
   useState
 } from 'react';
 
+import { useLongPress } from '@/hooks';
 import {
   DomoObject,
   getAllNavigableObjectTypes,
@@ -28,9 +36,6 @@ import {
   storeSidepanelData
 } from '@/utils';
 
-const LONG_PRESS_DURATION = 1000;
-const LONG_PRESS_SECONDS = LONG_PRESS_DURATION / 1000;
-
 export const NavigateToCopiedObject = forwardRef(
   function NavigateToCopiedObject({ currentContext, onStatusUpdate }, ref) {
     const [copiedObjectId, setCopiedObjectId] = useState(null);
@@ -42,21 +47,26 @@ export const NavigateToCopiedObject = forwardRef(
     const lastCheckedClipboard = useRef('');
     const [allTypes, setAllTypes] = useState([]);
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-    const [isHolding, setIsHolding] = useState(false);
-    const holdTimeoutRef = useRef(null);
+    const { LongPressOverlay, pressProps } = useLongPress();
 
-    const handlePressStart = () => {
-      setIsHolding(true);
-      holdTimeoutRef.current = setTimeout(() => {
-        setIsHolding(false);
-      }, LONG_PRESS_DURATION);
-    };
-
-    const handlePressEnd = () => {
-      setIsHolding(false);
-      if (holdTimeoutRef.current) {
-        clearTimeout(holdTimeoutRef.current);
-        holdTimeoutRef.current = null;
+    const handleRefreshClipboard = async () => {
+      try {
+        const text = await navigator.clipboard.readText();
+        lastCheckedClipboard.current = '';
+        handleClipboardData(text);
+        chrome.runtime
+          .sendMessage({
+            clipboardData: text.trim(),
+            type: 'CLIPBOARD_COPIED'
+          })
+          .catch(() => {});
+      } catch (err) {
+        onStatusUpdate?.(
+          'Clipboard Error',
+          'Could not read clipboard.',
+          'danger',
+          3000
+        );
       }
     };
 
@@ -530,8 +540,7 @@ export const NavigateToCopiedObject = forwardRef(
             isPending={isLoading}
             variant='tertiary'
             onPress={() => handleClick()}
-            onPressEnd={longPressDisabled ? undefined : handlePressEnd}
-            onPressStart={longPressDisabled ? undefined : handlePressStart}
+            {...(longPressDisabled ? {} : pressProps)}
           >
             {({ isPending }) =>
               isPending ? (
@@ -543,26 +552,7 @@ export const NavigateToCopiedObject = forwardRef(
                   ) : (
                     <IconExternalLink stroke={1.5} />
                   )}
-                  <AnimatePresence>
-                    {isHolding && (
-                      <motion.div
-                        animate={{ opacity: 1 }}
-                        className='pointer-events-none absolute inset-0 overflow-hidden rounded-md'
-                        exit={{ opacity: 0, transition: { duration: 0.1 } }}
-                        initial={{ opacity: 0 }}
-                      >
-                        <motion.div
-                          animate={{ scale: 1 }}
-                          className='absolute top-1/2 left-1/2 aspect-square w-[200%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent-soft-hover'
-                          initial={{ scale: 0 }}
-                          transition={{
-                            duration: LONG_PRESS_SECONDS,
-                            ease: 'linear'
-                          }}
-                        />
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                  <LongPressOverlay />
                 </>
               )
             }
@@ -615,31 +605,54 @@ export const NavigateToCopiedObject = forwardRef(
             </div>
           </Tooltip.Content>
         </Tooltip>
-        <Dropdown.Popover className='min-w-[18rem]' placement='bottom end'>
+        <Dropdown.Popover className='min-w-60' placement='bottom'>
           <Dropdown.Menu
             onAction={(key) => {
+              if (key === 'refresh-clipboard') {
+                handleRefreshClipboard();
+                return;
+              }
               handleClick(key);
             }}
           >
-            {filteredTypes.map((type) => (
-              <Dropdown.Item id={type.id} key={type.id} textValue={type.name}>
-                <Tooltip closeDelay={0} delay={400} key={type.id}>
-                  <Tooltip.Trigger>
-                    {type.hasUrl() ? (
-                      <IconExternalLink stroke={1.5} />
-                    ) : (
-                      <IconLayoutSidebarRightExpand stroke={1.5} />
-                    )}
-                  </Tooltip.Trigger>
-                  <Tooltip.Content>
-                    {type.hasUrl()
-                      ? 'Open in new tab'
-                      : 'View details in side panel'}
-                  </Tooltip.Content>
-                </Tooltip>
-                <Label>{type.name}</Label>
+            <Dropdown.Section>
+              <Dropdown.Item
+                id='refresh-clipboard'
+                textValue='Refresh Clipboard'
+              >
+                <IconRefresh className='size-5 shrink-0' stroke={1.5} />
+                <Label>Refresh Clipboard</Label>
               </Dropdown.Item>
-            ))}
+            </Dropdown.Section>
+            <Separator />
+
+            <Dropdown.Section>
+              {filteredTypes.map((type) => (
+                <Dropdown.Item id={type.id} key={type.id} textValue={type.name}>
+                  <Tooltip closeDelay={0} delay={400} key={type.id}>
+                    <Tooltip.Trigger>
+                      {type.hasUrl() ? (
+                        <IconExternalLink
+                          className='size-5 shrink-0'
+                          stroke={1.5}
+                        />
+                      ) : (
+                        <IconLayoutSidebarRightExpand
+                          className='size-5 shrink-0'
+                          stroke={1.5}
+                        />
+                      )}
+                    </Tooltip.Trigger>
+                    <Tooltip.Content>
+                      {type.hasUrl()
+                        ? 'Open in new tab'
+                        : 'View details in side panel'}
+                    </Tooltip.Content>
+                  </Tooltip>
+                  <Label>{type.name}</Label>
+                </Dropdown.Item>
+              ))}
+            </Dropdown.Section>
           </Dropdown.Menu>
         </Dropdown.Popover>
       </Dropdown>

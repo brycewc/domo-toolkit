@@ -30,15 +30,18 @@ export async function executeInAllFrames(func, args = [], tabId = null) {
       throw new Error('Not on a Domo page');
     }
 
-    const target = { allFrames: true, tabId: targetTabId };
+    const allFramesTarget = { allFrames: true, tabId: targetTabId };
+    const mainFrameTarget = { tabId: targetTabId };
 
-    // Mark extension-initiated requests so cardErrors.js bypasses interception
+    // Mark extension-initiated requests so cardErrors.js bypasses interception.
+    // Only target the main frame — cardErrors.js only runs there, and using
+    // allFrames can fail if an iframe is restricted, leaking the counter.
     await chrome.scripting.executeScript({
       func: () => {
         window.__domoToolkitExtDepth =
           (window.__domoToolkitExtDepth || 0) + 1;
       },
-      target,
+      target: mainFrameTarget,
       world: 'MAIN'
     });
 
@@ -47,7 +50,7 @@ export async function executeInAllFrames(func, args = [], tabId = null) {
       const results = await chrome.scripting.executeScript({
         args,
         func,
-        target,
+        target: allFramesTarget,
         world: 'MAIN'
       });
 
@@ -74,16 +77,20 @@ export async function executeInAllFrames(func, args = [], tabId = null) {
 
       return validResults;
     } finally {
-      await chrome.scripting.executeScript({
-        func: () => {
-          window.__domoToolkitExtDepth = Math.max(
-            0,
-            (window.__domoToolkitExtDepth || 0) - 1
-          );
-        },
-        target,
-        world: 'MAIN'
-      });
+      try {
+        await chrome.scripting.executeScript({
+          func: () => {
+            window.__domoToolkitExtDepth = Math.max(
+              0,
+              (window.__domoToolkitExtDepth || 0) - 1
+            );
+          },
+          target: mainFrameTarget,
+          world: 'MAIN'
+        });
+      } catch {
+        // Decrement failed (tab closed/navigated) — not recoverable
+      }
     }
   } catch (error) {
     console.error('Error executing script in all frames:', error);
@@ -150,16 +157,20 @@ export async function executeInPage(func, args = [], tabId = null) {
 
       throw new Error('No result from script execution');
     } finally {
-      await chrome.scripting.executeScript({
-        func: () => {
-          window.__domoToolkitExtDepth = Math.max(
-            0,
-            (window.__domoToolkitExtDepth || 0) - 1
-          );
-        },
-        target,
-        world: 'MAIN'
-      });
+      try {
+        await chrome.scripting.executeScript({
+          func: () => {
+            window.__domoToolkitExtDepth = Math.max(
+              0,
+              (window.__domoToolkitExtDepth || 0) - 1
+            );
+          },
+          target,
+          world: 'MAIN'
+        });
+      } catch {
+        // Decrement failed (tab closed/navigated) — not recoverable
+      }
     }
   } catch (error) {
     console.error('Error executing script in page context:', error);

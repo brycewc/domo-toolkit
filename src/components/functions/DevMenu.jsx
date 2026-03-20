@@ -62,7 +62,7 @@ export function DevMenu() {
               key={action.id}
               textValue={action.label}
             >
-              <action.icon className='size-4 shrink-0' stroke={1.5} />
+              <action.icon className='size-5 shrink-0' stroke={1.5} />
               <Label>{action.label}</Label>
             </Dropdown.Item>
           ))}

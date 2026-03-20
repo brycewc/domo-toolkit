@@ -67,8 +67,8 @@ export function GetPagesView({
       console.log('Loaded sidepanel data:', data);
       if (
         !data ||
-        (data.type !== 'getPages' &&
-          data.type !== 'getOtherPages' &&
+        (data.type !== 'getChildPages' &&
+          data.type !== 'getCardPages' &&
           data.type !== 'childPagesWarning')
       ) {
         setError('No page data found. Please try again from a page URL.');
@@ -80,7 +80,13 @@ export function GetPagesView({
       const context = DomoContext.fromJSON(data.currentContext);
       const domoObject = context.domoObject;
       const objectType = domoObject.typeId;
-      const objectId = domoObject.parentId || domoObject.id;
+      const sidepanelType = data.type;
+
+      // For card pages, always use the object's own ID (not parent).
+      // parentId would be a dataflow/stream ID for DATA_SOURCE, which is wrong for card lookups.
+      const objectId = sidepanelType === 'getCardPages'
+        ? domoObject.id
+        : (domoObject.parentId || domoObject.id);
       const objectName =
         domoObject.metadata?.parent?.name ||
         domoObject.metadata?.name ||
@@ -96,72 +102,67 @@ export function GetPagesView({
             domoObject.id
           : null;
 
-      const sidepanelType = data.type;
-
       // Set label early so the loading spinner shows the right text
       setPageTypeLabel(
-        sidepanelType === 'getOtherPages'
-          ? 'Other Pages for Cards on'
-          : objectType === 'CARD' || objectType === 'DATA_SOURCE'
+        sidepanelType === 'getCardPages'
+          ? objectType === 'CARD' ||
+            objectType === 'DATA_SOURCE' ||
+            objectType === 'DATAFLOW_TYPE'
             ? 'Pages'
-            : objectType === 'DATA_APP_VIEW'
-              ? 'App Pages'
-              : 'Child Pages'
+            : 'Card Pages'
+          : objectType === 'DATA_APP_VIEW'
+            ? 'App Pages'
+            : 'Child Pages'
       );
 
-      // Either use cached childPages or fetch fresh data
-      let childPages = data.childPages;
+      // Read initial data from the appropriate sidepanel data property
+      let childPages =
+        sidepanelType === 'getCardPages' ? data.cardPages : data.childPages;
       let cardsByPage = data.cardsByPage;
 
       if (!childPages && !forceRefresh) {
         // No pre-fetched data (popup handoff)
-        if (sidepanelType === 'getOtherPages') {
-          // Get cards from background cache, then find pages for those cards
-          const waitResult = await waitForCards(context);
-          if (waitResult.success && waitResult.cards?.length) {
-            const tabId = await getValidTabForInstance(instance);
-            const result = await getPagesForCards(
-              waitResult.cards.map((card) => card.id),
-              tabId
-            );
-            const stringId = String(objectId);
-            childPages = result.pages
-              .filter((page) => String(page.id) !== stringId)
-              .map((page) => ({
-                appId: page.appId || null,
-                appName: page.appName || null,
-                pageId: page.id,
-                pageTitle: page.name,
-                pageType: page.type
-              }));
-            cardsByPage = result.cardsByPage;
+        if (sidepanelType === 'getCardPages') {
+          if (
+            objectType === 'PAGE' ||
+            objectType === 'DATA_APP_VIEW' ||
+            objectType === 'WORKSHEET_VIEW'
+          ) {
+            // Page-like types — get cards then find other pages they appear on
+            const waitResult = await waitForCards(context);
+            if (waitResult.success && waitResult.cards?.length) {
+              const tabId = await getValidTabForInstance(instance);
+              const result = await getPagesForCards(
+                waitResult.cards.map((card) => card.id),
+                tabId
+              );
+              const stringId = String(objectId);
+              childPages = result.pages
+                .filter((page) => String(page.id) !== stringId)
+                .map((page) => ({
+                  appId: page.appId || null,
+                  appName: page.appName || null,
+                  pageId: page.id,
+                  pageTitle: page.name,
+                  pageType: page.type
+                }));
+              cardsByPage = result.cardsByPage;
+            }
           }
-        } else if (
-          objectType === 'PAGE' ||
-          objectType === 'DATA_APP_VIEW' ||
-          objectType === 'CARD'
-        ) {
-          // These types have background-cached child pages -- try that first
+          // CARD, DATA_SOURCE, DATAFLOW_TYPE — fall through to fetchFreshPages
+        } else {
+          // getChildPages or childPagesWarning — background-cached hierarchical children
           const waitResult = await waitForChildPages(context);
           if (waitResult.success) {
             childPages = waitResult.childPages;
-            if (objectType === 'CARD') {
-              // Transform to match grouped pages format
-              childPages = childPages.map((page) => ({
-                appId: page.appId || null,
-                appName: page.appName || null,
-                pageId: page.id,
-                pageTitle: page.name,
-                pageType: page.type
-              }));
-            }
           }
         }
-        // If still no data (or type doesn't use cache), fetch fresh
+        // If still no data, fetch fresh
         if (!childPages) {
-          const freshData = await fetchFreshChildPages({
+          const freshData = await fetchFreshPages({
             appId,
             instance,
+            metadata: domoObject.metadata,
             objectId,
             objectType,
             sidepanelType
@@ -172,9 +173,10 @@ export function GetPagesView({
       }
 
       if (forceRefresh) {
-        const freshData = await fetchFreshChildPages({
+        const freshData = await fetchFreshPages({
           appId,
           instance,
+          metadata: domoObject.metadata,
           objectId,
           objectType,
           sidepanelType
@@ -183,18 +185,37 @@ export function GetPagesView({
         cardsByPage = freshData.cardsByPage;
       }
 
+      // Cache card pages on background context so activity log can reuse them
+      if (sidepanelType === 'getCardPages' && childPages?.length > 0) {
+        chrome.runtime
+          .sendMessage({
+            metadataUpdates: {
+              cardPages: childPages.map((p) => ({
+                appId: p.appId,
+                appName: p.appName,
+                id: p.pageId,
+                name: p.pageTitle,
+                type: p.pageType
+              }))
+            },
+            tabId: context.tabId,
+            type: 'UPDATE_CONTEXT_METADATA'
+          })
+          .catch(() => {});
+      }
+
       if (!childPages || !childPages.length) {
         if (!mountedRef.current) return;
         const message =
-          sidepanelType === 'getOtherPages'
-            ? 'Cards on this page are not used on any other pages'
+          sidepanelType === 'getCardPages'
+            ? objectType === 'CARD'
+              ? `No pages found for card ${objectId}`
+              : objectType === 'DATA_SOURCE'
+                ? `No pages found for cards using dataset **${objectName}**`
+                : `Cards on ${objectName} are not used on any other pages`
             : objectType === 'DATA_APP_VIEW'
               ? `No views (pages) found for app studio app ${objectId}`
-              : objectType === 'CARD'
-                ? `No pages found for card ${objectId}`
-                : objectType === 'DATA_SOURCE'
-                  ? `No pages found for cards using dataset **${objectName}**`
-                  : `No child pages found for page ${objectId}`;
+              : `No child pages found for page ${objectId}`;
         onStatusUpdate?.('No Pages Found', message, 'warning');
         onBackToDefault?.();
         setIsLoading(false);
@@ -215,11 +236,7 @@ export function GetPagesView({
 
       setError(null);
 
-      if (
-        objectType === 'CARD' ||
-        objectType === 'DATA_SOURCE' ||
-        sidepanelType === 'getOtherPages'
-      ) {
+      if (sidepanelType === 'getCardPages') {
         const transformedItems = transformGroupedPagesData(
           childPages,
           origin,
@@ -272,22 +289,22 @@ export function GetPagesView({
   };
 
   /**
-   * Fetch fresh child pages data from API based on object type.
+   * Fetch fresh pages data from API based on sidepanel type and object type.
    * Dynamically finds a valid tab on the same Domo instance for API calls.
    */
-  const fetchFreshChildPages = async ({
+  const fetchFreshPages = async ({
     appId,
     instance,
+    metadata,
     objectId,
     objectType,
     sidepanelType
   }) => {
-    // Find a valid tab on the same Domo instance for API calls
     const tabId = await getValidTabForInstance(instance);
 
-    // Get Other Pages: get cards on the page, then find all other pages for those cards
-    if (sidepanelType === 'getOtherPages') {
+    if (sidepanelType === 'getCardPages') {
       const cards = await getCardsForObject({
+        metadata,
         objectId,
         objectType,
         tabId
@@ -300,10 +317,13 @@ export function GetPagesView({
         tabId
       );
 
-      // Filter out the current page
+      // For page-like types, filter out the current page
+      const excludeSelf = ['DATA_APP_VIEW', 'PAGE', 'WORKSHEET_VIEW'].includes(
+        objectType
+      );
       const stringId = String(objectId);
       const childPages = pages
-        .filter((page) => String(page.id) !== stringId)
+        .filter((page) => !excludeSelf || String(page.id) !== stringId)
         .map((page) => ({
           appId: page.appId || null,
           appName: page.appName || null,
@@ -315,8 +335,8 @@ export function GetPagesView({
       return { cardsByPage, childPages };
     }
 
+    // getChildPages / childPagesWarning — hierarchical children
     if (objectType === 'PAGE') {
-      // Fetch child pages for regular PAGE
       const childPages = await getChildPages({
         includeGrandchildren: true,
         pageId: objectId,
@@ -325,51 +345,12 @@ export function GetPagesView({
       });
       return { childPages };
     } else if (objectType === 'DATA_APP_VIEW') {
-      // Fetch all views for the app studio app
       const childPages = await getChildPages({
         appId,
         pageId: objectId,
         pageType: 'DATA_APP_VIEW',
         tabId
       });
-      return { childPages };
-    } else if (objectType === 'DATA_SOURCE') {
-      // For DATA_SOURCE: get cards then get pages for those cards
-      const cards = await getCardsForObject({
-        objectId,
-        objectType,
-        tabId
-      });
-
-      if (!cards || !cards.length) {
-        return { childPages: [] };
-      }
-
-      const { cardsByPage, pages } = await getPagesForCards(
-        cards.map((card) => card.id),
-        tabId
-      );
-
-      // Transform to match expected format with pageType
-      const childPages = pages.map((page) => ({
-        appId: page.appId || null,
-        appName: page.appName || null,
-        pageId: page.id,
-        pageTitle: page.name,
-        pageType: page.type
-      }));
-      return { cardsByPage, childPages };
-    } else if (objectType === 'CARD') {
-      const { pages } = await getPagesForCards([objectId], tabId);
-
-      // Transform to match expected format with pageType
-      const childPages = pages.map((page) => ({
-        appId: page.appId || null,
-        appName: page.appName || null,
-        pageId: page.id,
-        pageTitle: page.name,
-        pageType: page.type
-      }));
       return { childPages };
     }
 
@@ -619,30 +600,28 @@ export function GetPagesView({
           <span className='font-bold'>{pageData?.objectName}</span>
         </div>
         {items.length !== undefined &&
-          pageData?.objectType !== 'CARD' &&
-          pageData?.objectType !== 'DATA_SOURCE' &&
-          pageData?.sidepanelType !== 'getOtherPages' && (
-          <div className='flex flex-row items-center gap-1'>
-            <span className='text-sm text-muted'>
-              {items.length}{' '}
-              {pageData?.objectType === 'PAGE' ? 'child page' : 'page'}
-              {items.length === 1 ? '' : 's'}
-            </span>
-            {grandchildCount > 0 && (
-              <div className='flex flex-row items-end gap-1'>
-                <Separator
-                  className='mx-1 h-4'
-                  orientation='vertical'
-                  size='sm'
-                />
-                <span className='text-sm text-muted'>
-                  {grandchildCount} grandchild{' '}
-                  {grandchildCount === 1 ? 'page' : 'pages'}
-                </span>
-              </div>
-            )}
-          </div>
-        )}
+          pageData?.sidepanelType !== 'getCardPages' && (
+            <div className='flex flex-row items-center gap-1'>
+              <span className='text-sm text-muted'>
+                {items.length}{' '}
+                {pageData?.objectType === 'PAGE' ? 'child page' : 'page'}
+                {items.length === 1 ? '' : 's'}
+              </span>
+              {grandchildCount > 0 && (
+                <div className='flex flex-row items-end gap-1'>
+                  <Separator
+                    className='mx-1 h-4'
+                    orientation='vertical'
+                    size='sm'
+                  />
+                  <span className='text-sm text-muted'>
+                    {grandchildCount} grandchild{' '}
+                    {grandchildCount === 1 ? 'page' : 'pages'}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
       </div>
     );
   };
@@ -711,12 +690,12 @@ export function GetPagesView({
       onStatusUpdate={onStatusUpdate}
       headerActions={
         pageData?.objectType === 'DATA_APP_VIEW' &&
-        pageData?.sidepanelType !== 'getOtherPages'
+        pageData?.sidepanelType !== 'getCardPages'
           ? ['openAll', 'copy', 'refresh']
           : ['openAll', 'copy', 'shareAll', 'refresh']
       }
       itemActions={
-        pageData?.sidepanelType === 'getOtherPages'
+        pageData?.sidepanelType === 'getCardPages'
           ? ['openAll', 'copy', 'share', 'shareAll']
           : undefined
       }
@@ -738,10 +717,10 @@ function buildCardChildren(pageId, cardsByPage, origin, pageType, parentId) {
   if (!cards || !cards.length) return undefined;
 
   return cards
-    .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+    .sort((a, b) => (a.name || '').trim().localeCompare((b.name || '').trim()))
     .map((card) => {
       const domoObject = new DomoObject('CARD', card.id, origin, {
-        name: card.name
+        name: (card.name || '').trim()
       });
       // Override generic card URL with page-specific URL
       if (pageType === 'DATA_APP_VIEW' || pageType === 'WORKSHEET_VIEW') {

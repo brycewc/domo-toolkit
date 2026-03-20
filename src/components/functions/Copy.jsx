@@ -1,15 +1,12 @@
 import { Button, Dropdown, Kbd, Label, Tooltip } from '@heroui/react';
 import { IconClipboard } from '@tabler/icons-react';
-import { AnimatePresence, motion } from 'motion/react';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 
 import { AnimatedCheck } from '@/components';
+import { useLongPress } from '@/hooks';
 import { DomoObject, getObjectType } from '@/models';
 import { fetchObjectDetailsInPage } from '@/services';
 import { executeInPage } from '@/utils';
-
-const LONG_PRESS_DURATION = 1000; // ms - matches HeroUI's default
-const LONG_PRESS_SECONDS = LONG_PRESS_DURATION / 1000;
 
 /**
  * Notify background script about clipboard update so it can broadcast to all contexts
@@ -37,8 +34,7 @@ export function Copy({
   onStatusUpdate
 }) {
   const [isCopied, setIsCopied] = useState(false);
-  const [isHolding, setIsHolding] = useState(false);
-  const holdTimeoutRef = useRef(null);
+  const { LongPressOverlay, pressProps } = useLongPress();
 
   const typeId = currentContext?.domoObject?.typeId;
   const details = currentContext?.domoObject?.metadata?.details;
@@ -67,22 +63,6 @@ export function Copy({
 
   const longPressDisabled =
     isDisabled || !currentContext?.domoObject?.id || dropdownItems.length === 0;
-
-  const handlePressStart = () => {
-    setIsHolding(true);
-    // Clear holding state after long press duration (dropdown will open)
-    holdTimeoutRef.current = setTimeout(() => {
-      setIsHolding(false);
-    }, LONG_PRESS_DURATION);
-  };
-
-  const handlePressEnd = () => {
-    setIsHolding(false);
-    if (holdTimeoutRef.current) {
-      clearTimeout(holdTimeoutRef.current);
-      holdTimeoutRef.current = null;
-    }
-  };
 
   const handlePress = () => {
     const domoObject = currentContext?.domoObject;
@@ -219,31 +199,14 @@ export function Copy({
           isDisabled={isDisabled || !currentContext?.domoObject?.id}
           variant='tertiary'
           onPress={handlePress}
-          onPressEnd={longPressDisabled ? undefined : handlePressEnd}
-          onPressStart={longPressDisabled ? undefined : handlePressStart}
+          {...(longPressDisabled ? {} : pressProps)}
         >
           {isCopied ? (
             <AnimatedCheck stroke={1.5} />
           ) : (
             <IconClipboard stroke={1.5} />
           )}
-          <AnimatePresence>
-            {isHolding && (
-              <motion.div
-                animate={{ opacity: 1 }}
-                className='pointer-events-none absolute inset-0 overflow-hidden rounded-md'
-                exit={{ opacity: 0, transition: { duration: 0.1 } }}
-                initial={{ opacity: 0 }}
-              >
-                <motion.div
-                  animate={{ scale: 1 }}
-                  className='absolute top-1/2 left-1/2 aspect-square w-[200%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent-soft-hover'
-                  initial={{ scale: 0 }}
-                  transition={{ duration: LONG_PRESS_SECONDS, ease: 'linear' }}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
+          <LongPressOverlay />
         </Button>
         <Tooltip.Content className='flex flex-col items-center'>
           <div className='flex items-center gap-2'>
@@ -271,7 +234,7 @@ export function Copy({
         <Dropdown.Menu onAction={handleAction}>
           {dropdownItems.map((item) => (
             <Dropdown.Item id={item.id} key={item.id} textValue={item.label}>
-              <IconClipboard className='size-4 shrink-0' />
+              <IconClipboard className='size-5 shrink-0' stroke={1.5} />
               <Label>{item.label}</Label>
             </Dropdown.Item>
           ))}

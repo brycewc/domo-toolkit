@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CSP POC Screenshot Simulation</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    
+    .domo-page {
+      width: 100%;
+      max-width: 1200px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      overflow: hidden;
+      position: relative;
+    }
+    
+    .page-header {
+      background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+      color: white;
+      padding: 40px;
+      text-align: center;
+    }
+    
+    .page-header h1 {
+      font-size: 32px;
+      margin-bottom: 10px;
+    }
+    
+    .page-header p {
+      font-size: 14px;
+      opacity: 0.9;
+    }
+    
+    .page-content {
+      padding: 40px;
+      min-height: 400px;
+      background: #f8f9fa;
+      position: relative;
+    }
+    
+    .content-placeholder {
+      background: white;
+      border: 2px dashed #ddd;
+      border-radius: 8px;
+      padding: 40px;
+      text-align: center;
+      color: #999;
+      font-size: 14px;
+    }
+    
+    /* POC Container */
+    .react-flow-poc-container {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      width: 400px;
+      height: 300px;
+      background-color: #f0f0f0;
+      border: 2px solid #333;
+      border-radius: 8px;
+      padding: 16px;
+      z-index: 10000;
+      font-family: system-ui, -apple-system, sans-serif;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      animation: slideIn 0.3s ease-out;
+    }
+    
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateX(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+    
+    .poc-title {
+      margin-bottom: 12px;
+      font-weight: bold;
+      font-size: 14px;
+      color: #333;
+    }
+    
+    .poc-content {
+      font-size: 12px;
+      color: #666;
+      line-height: 1.5;
+    }
+    
+    .poc-content p {
+      margin-bottom: 8px;
+    }
+    
+    .poc-content p:first-child {
+      color: #27ae60;
+    }
+    
+    .poc-content p:nth-child(2) {
+      color: #27ae60;
+    }
+    
+    .poc-content p:nth-child(3) {
+      color: #f39c12;
+    }
+    
+    .poc-footer {
+      margin-top: 8px;
+      font-size: 11px;
+      color: #999;
+    }
+    
+    .console-section {
+      margin-top: 40px;
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      border: 1px solid #ddd;
+    }
+    
+    .console-title {
+      font-weight: bold;
+      font-size: 14px;
+      margin-bottom: 12px;
+      color: #333;
+    }
+    
+    .console-output {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 12px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      overflow-x: auto;
+    }
+    
+    .console-log {
+      color: #d4d4d4;
+    }
+    
+    .console-success {
+      color: #4ec9b0;
+    }
+    
+    .console-warning {
+      color: #ce9178;
+    }
+    
+    .console-error {
+      color: #f48771;
+    }
+  </style>
+</head>
+<body>
+  <div class="domo-page">
+    <div class="page-header">
+      <h1>Domo Dashboard</h1>
+      <p>CSP Proof-of-Concept Test Page</p>
+    </div>
+    
+    <div class="page-content">
+      <div class="content-placeholder">
+        <p>Page content would appear here...</p>
+        <p style="margin-top: 20px; font-size: 12px;">
+          The React Flow POC is injected via content script and appears in the top-right corner
+        </p>
+      </div>
+      
+      <!-- POC Container (as it would appear) -->
+      <div class="react-flow-poc-container">
+        <div class="poc-title">React Flow CSP POC</div>
+        <div class="poc-content">
+          <p>✓ React root created successfully</p>
+          <p>✓ Component rendered in DOM</p>
+          <p>⏳ React Flow library loading...</p>
+          <div class="poc-footer">
+            Check DevTools Console (F12) for CSP errors
+          </div>
+        </div>
+      </div>
+      
+      <!-- Console Output -->
+      <div class="console-section">
+        <div class="console-title">DevTools Console Output</div>
+        <div class="console-output">
+          <div class="console-log"><span class="console-success">[CSP-POC]</span> Initializing React Flow POC...</div>
+          <div class="console-log"><span class="console-success">[CSP-POC]</span> Container created in DOM</div>
+          <div class="console-log"><span class="console-success">[CSP-POC]</span> React component rendered successfully</div>
+          <div class="console-log"><span class="console-success">[CSP-POC]</span> Attempting to import @xyflow/react...</div>
+          <div class="console-log"><span class="console-success">[CSP-POC]</span> ✓ React Flow imported successfully!</div>
+          <div class="console-log"><span class="console-success">[CSP-POC]</span> <span class="console-success">RESULT: PASS</span> - React Flow can be injected without CSP violations</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

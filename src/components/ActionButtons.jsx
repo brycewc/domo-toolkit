@@ -23,14 +23,15 @@ import {
   DeleteCurrentObject,
   DevMenu,
   Export,
+  GetCardPages,
   GetCards,
+  GetChildPages,
   GetDatasets,
-  GetOtherPages,
-  GetPages,
   GetViewInputs,
   LockCards,
   NavigateToCopiedObject,
   RemoveEmptyStringsFromQuickFilters,
+  SetStreamToManual,
   ShareWithSelf,
   UpdateDataflowDetails,
   UpdateOwner
@@ -55,8 +56,9 @@ export function ActionButtons({
 
   const isDomoPage = currentContext?.isDomoPage ?? false;
   const typeId = currentContext?.domoObject?.typeId;
-  const details = currentContext?.domoObject?.metadata?.details;
-  const availableActions = getAvailableActions(typeId, details);
+  const metadata = currentContext?.domoObject?.metadata;
+  const details = metadata?.details;
+  const availableActions = getAvailableActions(typeId, details, metadata);
   const hasExpandableActions = availableActions.size > 0;
 
   return (
@@ -119,24 +121,26 @@ export function ActionButtons({
                       const optionsUrl = chrome.runtime.getURL(
                         'src/options/index.html'
                       );
+                      const currentWindow = await chrome.windows.getCurrent();
                       const tabs = await chrome.tabs.query({
-                        url: `${optionsUrl}*`
+                        url: `${optionsUrl}*`,
+                        windowId: currentWindow.id
                       });
                       const settingsTab = tabs.find((t) => {
                         const hash = new URL(t.url).hash.slice(1);
-                        return !hash || hash === 'settings' || hash === 'favicon';
+                        return (
+                          !hash || hash === 'settings' || hash === 'favicon'
+                        );
                       });
                       if (settingsTab) {
                         await chrome.tabs.update(settingsTab.id, {
                           active: true,
                           url: `${optionsUrl}#settings`
                         });
-                        await chrome.windows.update(settingsTab.windowId, {
-                          focused: true
-                        });
                       } else {
                         chrome.tabs.create({
-                          url: `${optionsUrl}#settings`
+                          url: `${optionsUrl}#settings`,
+                          windowId: currentWindow.id
                         });
                       }
                       if (!isSidepanel()) window.close();
@@ -179,14 +183,6 @@ export function ActionButtons({
             </Disclosure.Heading>
             <Disclosure.Content className='flex h-full w-full flex-col items-center justify-center gap-1'>
               <div className='flex w-full flex-wrap place-items-center items-center justify-center gap-1 not-empty:mt-1 empty:hidden'>
-                <CardErrors
-                  currentContext={currentContext}
-                  isDisabled={!isDomoPage}
-                  onCollapseActions={
-                    collapsable ? () => setIsExpanded(false) : undefined
-                  }
-                  onStatusUpdate={onStatusUpdate}
-                />
                 {availableActions.has('getCards') && (
                   <GetCards
                     currentContext={currentContext}
@@ -207,8 +203,8 @@ export function ActionButtons({
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
-                {availableActions.has('getViewInputs') && (
-                  <GetViewInputs
+                {availableActions.has('getChildPages') && (
+                  <GetChildPages
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
                     onCollapseActions={
@@ -217,18 +213,8 @@ export function ActionButtons({
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
-                {availableActions.has('getPages') && (
-                  <GetPages
-                    currentContext={currentContext}
-                    isDisabled={!isDomoPage}
-                    onCollapseActions={
-                      collapsable ? () => setIsExpanded(false) : undefined
-                    }
-                    onStatusUpdate={onStatusUpdate}
-                  />
-                )}
-                {availableActions.has('getOtherPages') && (
-                  <GetOtherPages
+                {availableActions.has('getCardPages') && (
+                  <GetCardPages
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
                     onCollapseActions={
@@ -241,6 +227,28 @@ export function ActionButtons({
                   <DataRepair
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
+                  />
+                )}
+                {availableActions.has('getViewInputs') && (
+                  <GetViewInputs
+                    currentContext={currentContext}
+                    isDisabled={!isDomoPage}
+                    onCollapseActions={
+                      collapsable ? () => setIsExpanded(false) : undefined
+                    }
+                    onStatusUpdate={onStatusUpdate}
+                  />
+                )}
+                {availableActions.has('updateDataflowDetails') && (
+                  <UpdateDataflowDetails
+                    currentContext={currentContext}
+                    onStatusUpdate={onStatusUpdate}
+                  />
+                )}
+                {availableActions.has('updateOwner') && (
+                  <UpdateOwner
+                    currentContext={currentContext}
+                    onStatusUpdate={onStatusUpdate}
                   />
                 )}
                 {availableActions.has('lockCards') && (
@@ -257,18 +265,6 @@ export function ActionButtons({
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
-                {availableActions.has('updateDataflowDetails') && (
-                  <UpdateDataflowDetails
-                    currentContext={currentContext}
-                    onStatusUpdate={onStatusUpdate}
-                  />
-                )}
-                {availableActions.has('updateOwner') && (
-                  <UpdateOwner
-                    currentContext={currentContext}
-                    onStatusUpdate={onStatusUpdate}
-                  />
-                )}
                 {availableActions.has('export') && (
                   <Export
                     currentContext={currentContext}
@@ -276,6 +272,21 @@ export function ActionButtons({
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
+                {availableActions.has('setStreamToManual') && (
+                  <SetStreamToManual
+                    currentContext={currentContext}
+                    isDisabled={!isDomoPage}
+                    onStatusUpdate={onStatusUpdate}
+                  />
+                )}
+                <CardErrors
+                  currentContext={currentContext}
+                  isDisabled={!isDomoPage}
+                  onCollapseActions={
+                    collapsable ? () => setIsExpanded(false) : undefined
+                  }
+                  onStatusUpdate={onStatusUpdate}
+                />
                 {availableActions.has('removeEmptyStrings') && (
                   <RemoveEmptyStringsFromQuickFilters
                     currentContext={currentContext}
@@ -296,13 +307,14 @@ export function ActionButtons({
  * Determine which expandable action buttons are available for the current context.
  * Returns a Set of action keys. Used for both rendering and disabling the expand trigger.
  */
-function getAvailableActions(typeId, details) {
+function getAvailableActions(typeId, details, metadata) {
   const actions = new Set();
 
   if (
     [
       'DATA_APP_VIEW',
       'DATA_SOURCE',
+      'DATAFLOW_TYPE',
       'PAGE',
       'REPORT_BUILDER_VIEW',
       'WORKSHEET_VIEW'
@@ -313,24 +325,41 @@ function getAvailableActions(typeId, details) {
   }
 
   if (
-    ['CARD', 'DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE'].includes(
-      typeId
-    )
+    [
+      'CARD',
+      'DATA_APP_VIEW',
+      'DATA_SOURCE',
+      'DATAFLOW_TYPE',
+      'PAGE',
+      'WORKSHEET_VIEW'
+    ].includes(typeId)
   ) {
     actions.add('getDatasets');
   }
 
-  if (['CARD', 'DATA_APP_VIEW', 'DATA_SOURCE', 'PAGE'].includes(typeId)) {
-    actions.add('getPages');
+  if (['DATA_APP_VIEW', 'PAGE', 'WORKSHEET_VIEW'].includes(typeId)) {
+    actions.add('getChildPages');
   }
 
-  if (['DATA_APP_VIEW', 'PAGE', 'WORKSHEET_VIEW'].includes(typeId)) {
-    actions.add('getOtherPages');
+  if (
+    [
+      'CARD',
+      'DATA_APP_VIEW',
+      'DATA_SOURCE',
+      'DATAFLOW_TYPE',
+      'PAGE',
+      'WORKSHEET_VIEW'
+    ].includes(typeId)
+  ) {
+    actions.add('getCardPages');
   }
 
   if (typeId === 'DATA_SOURCE') {
     actions.add('getViewInputs');
     actions.add('dataRepair');
+    if (details?.streamId && metadata?.parent?.details?.scheduleState !== 'MANUAL') {
+      actions.add('setStreamToManual');
+    }
   }
 
   if (['CARD', 'DATA_APP_VIEW', 'PAGE'].includes(typeId)) {
@@ -338,7 +367,9 @@ function getAvailableActions(typeId, details) {
   }
 
   if (typeId === 'DATAFLOW_TYPE') {
-    actions.add('updateDataflowDetails');
+    if (metadata?.permission?.mask & 2) {
+      actions.add('updateDataflowDetails');
+    }
   }
 
   if (['ALERT', 'WORKFLOW_MODEL'].includes(typeId)) {

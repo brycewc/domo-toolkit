@@ -28,7 +28,7 @@ export {
   isUserFieldName,
   JsonStringifyOrder
 } from './general';
-export { waitForChildPages } from './pageHelpers';
+export { waitForCardPages, waitForChildPages } from './pageHelpers';
 export {
   isSidepanel,
   openSidepanel,

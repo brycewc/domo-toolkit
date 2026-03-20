@@ -2,45 +2,29 @@ import { Button, Description, Dropdown, Label, Tooltip } from '@heroui/react';
 import {
   IconChartBar,
   IconCopy,
-  IconFileDescription
+  IconFileDescription,
+  IconStack2
 } from '@tabler/icons-react';
-import { AnimatePresence, motion } from 'motion/react';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 
+import { useLongPress } from '@/hooks';
 import { getCardsForObject, getPagesForCards } from '@/services';
 import { waitForChildPages } from '@/utils';
 
-const LONG_PRESS_DURATION = 1000; // ms - matches HeroUI's default
-const LONG_PRESS_SECONDS = LONG_PRESS_DURATION / 1000;
-
 export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
   const [isLoading, setIsLoading] = useState(false);
-  const [isHolding, setIsHolding] = useState(false);
-  const holdTimeoutRef = useRef(null);
+  const { LongPressOverlay, pressProps } = useLongPress();
 
-  const isDisabled = !currentContext?.domoObject?.id || isLoading;
+  const userRights = currentContext?.user?.metadata?.USER_RIGHTS || [];
+  const isDisabled =
+    !currentContext?.domoObject?.id ||
+    isLoading ||
+    !userRights.includes('audit');
+  const typeId = currentContext?.domoObject?.typeId;
   const longPressEnabled =
     !isDisabled &&
-    ['DATA_APP_VIEW', 'DATA_SOURCE', 'PAGE'].includes(
-      currentContext?.domoObject?.typeId
-    );
-
-  const handlePressStart = () => {
-    if (!longPressEnabled) return;
-    setIsHolding(true);
-    // Clear holding state after long press duration (dropdown will open)
-    holdTimeoutRef.current = setTimeout(() => {
-      setIsHolding(false);
-    }, LONG_PRESS_DURATION);
-  };
-
-  const handlePressEnd = () => {
-    setIsHolding(false);
-    if (holdTimeoutRef.current) {
-      clearTimeout(holdTimeoutRef.current);
-      holdTimeoutRef.current = null;
-    }
-  };
+    ['DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE'].includes(typeId);
+  const hasChildPages = ['DATA_APP_VIEW', 'PAGE'].includes(typeId);
 
   const handleClick = async (key = null) => {
     if (
@@ -69,10 +53,65 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
 
     try {
       switch (key) {
-        case 'child-cards': {
+        case 'card-pages': {
+          activityLogType = 'card-pages';
+          let pages = currentContext?.domoObject?.metadata?.details?.cardPages;
+
+          if (!pages) {
+            const cards = await getCardsForObject({
+              metadata: currentContext?.domoObject.metadata,
+              objectId: currentContext?.domoObject.id,
+              objectType: currentContext?.domoObject.typeId,
+              tabId: currentContext?.tabId
+            });
+
+            if (!cards || cards.length === 0) {
+              onStatusUpdate?.(
+                'No Cards Found',
+                `No cards found on ${objectName}`,
+                'warning'
+              );
+              setIsLoading(false);
+              return;
+            }
+
+            const result = await getPagesForCards(
+              cards.map((card) => card.id),
+              currentContext?.tabId
+            );
+            pages = result.pages;
+          }
+
+          const validPages = pages.filter((p) => Number(p.id) >= 0);
+
+          if (validPages.length === 0) {
+            if (pages.length === 0) {
+              onStatusUpdate?.(
+                `No Pages Found on ${currentContext?.domoObject?.typeName}`,
+                `Cards on ${objectName} are not used on any pages`,
+                'warning'
+              );
+            } else {
+              onStatusUpdate?.(
+                `No Valid Pages Found on ${currentContext?.domoObject?.typeName}`,
+                `Cards on ${objectName} are only used on Overview, Favorites, or Shared pages`,
+                'warning'
+              );
+            }
+            setIsLoading(false);
+            return;
+          }
+
+          activityLogObjects = validPages;
+          message = `Navigating to activity log for ${validPages.length} pages containing cards from ${objectName}`;
+          break;
+        }
+        case 'cards': {
           const cards = await getCardsForObject({
+            metadata: currentContext?.domoObject.metadata,
             objectId: currentContext?.domoObject.id,
-            objectType: currentContext?.domoObject.typeId
+            objectType: currentContext?.domoObject.typeId,
+            tabId: currentContext?.tabId
           });
 
           if (!cards || cards.length === 0) {
@@ -85,90 +124,45 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
             return;
           }
 
-          const cardObjects = cards.map((card) => ({
+          activityLogObjects = cards.map((card) => ({
             id: String(card.id),
             type: 'CARD'
           }));
-
-          activityLogObjects = cardObjects;
-          activityLogType = 'child-cards';
+          activityLogType = 'cards';
           message = `Navigating to activity log for ${cards.length} cards on ${objectName}`;
           break;
         }
-        case 'child-pages':
+        case 'child-pages': {
           activityLogType = 'child-pages';
-          // Handle differently based on object type
-          if (currentContext?.domoObject.typeId === 'DATA_SOURCE') {
-            // For datasets: Get all cards, then get all pages those cards appear on
-            const cards = await getCardsForObject({
-              objectId: currentContext?.domoObject.id,
-              objectType: currentContext?.domoObject.typeId,
-              tabId: currentContext?.tabId
-            });
+          const result = await waitForChildPages(currentContext);
 
-            if (!cards || cards.length === 0) {
-              onStatusUpdate?.(
-                'No Cards Found',
-                `No cards found on ${objectName}`,
-                'warning'
-              );
-              return;
-            }
-
-            // Then get all pages that those cards appear on
-            const { pages } = await getPagesForCards(
-              cards.map((card) => card.id),
-              currentContext?.tabId
-            );
-
-            if (pages.length === 0) {
-              onStatusUpdate?.(
-                `No Pages Found on ${currentContext?.domoObject?.typeName}`,
-                `Cards on ${objectName} are not used on any pages`,
-                'warning'
-              );
-              setIsLoading(false);
-              return;
-            }
-
-            activityLogObjects = pages;
-
-            message = `Navigating to activity log for ${pages.length} pages containing cards from ${objectName}`;
-          } else if (
-            currentContext?.domoObject.typeId === 'PAGE' ||
-            currentContext?.domoObject.typeId === 'DATA_APP_VIEW'
-          ) {
-            // For pages: Use cached childPages from context or wait for them to load
-            const result = await waitForChildPages(currentContext);
-
-            if (!result.success) {
-              onStatusUpdate?.('Error', result.error, 'danger');
-              setIsLoading(false);
-              return;
-            }
-
-            const childPages = result.childPages;
-
-            if (!childPages || childPages.length === 0) {
-              onStatusUpdate?.(
-                'No Child Pages Found',
-                `No child pages found for ${currentContext?.domoObject.typeName} ${currentContext?.domoObject.id}`,
-                'warning'
-              );
-              setIsLoading(false);
-              return;
-            }
-
-            const childPageObjects = childPages.map((p) => ({
-              id: String(p.pageId),
-              type: currentContext?.domoObject.typeId
-            }));
-
-            activityLogObjects = childPageObjects;
-
-            message = `Navigating to activity log for ${childPageObjects.length} child pages`;
+          if (!result.success) {
+            onStatusUpdate?.('Error', result.error, 'danger');
+            setIsLoading(false);
+            return;
           }
+
+          const childPages = (result.childPages || []).filter(
+            (p) => Number(p.pageId) >= 0
+          );
+
+          if (childPages.length === 0) {
+            onStatusUpdate?.(
+              'No Child Pages Found',
+              `No child pages found for ${currentContext?.domoObject.typeName} ${currentContext?.domoObject.id}`,
+              'warning'
+            );
+            setIsLoading(false);
+            return;
+          }
+
+          activityLogObjects = childPages.map((p) => ({
+            id: String(p.pageId),
+            type: currentContext?.domoObject.typeId
+          }));
+          message = `Navigating to activity log for ${activityLogObjects.length} child pages`;
           break;
+        }
         default:
           activityLogObjects = [
             {
@@ -191,12 +185,12 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
 
       onStatusUpdate?.('Opening Activity Log', message, 'success');
 
-      // Open the options page with the activity log tab
-      const optionsUrl = chrome.runtime.getURL(
-        'src/options/index.html#activity-log'
-      );
-
-      window.open(optionsUrl, '_blank', 'noopener,noreferrer');
+      // Open the options page in the same window (preserves incognito context)
+      const tab = await chrome.tabs.get(currentContext.tabId);
+      chrome.tabs.create({
+        url: chrome.runtime.getURL('src/options/index.html#activity-log'),
+        windowId: tab.windowId
+      });
     } catch (err) {
       console.error('Error opening activity log:', err);
       onStatusUpdate?.(
@@ -219,27 +213,10 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
           isPending={isLoading}
           variant='tertiary'
           onPress={() => handleClick()}
-          onPressEnd={longPressEnabled ? handlePressEnd : undefined}
-          onPressStart={longPressEnabled ? handlePressStart : undefined}
+          {...(longPressEnabled ? pressProps : {})}
         >
           <IconFileDescription stroke={1.5} />
-          <AnimatePresence>
-            {isHolding && (
-              <motion.div
-                animate={{ opacity: 1 }}
-                className='pointer-events-none absolute inset-0 overflow-hidden rounded-md'
-                exit={{ opacity: 0, transition: { duration: 0.1 } }}
-                initial={{ opacity: 0 }}
-              >
-                <motion.div
-                  animate={{ scale: 1 }}
-                  className='absolute top-1/2 left-1/2 aspect-square w-[200%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent-soft-hover'
-                  initial={{ scale: 0 }}
-                  transition={{ duration: LONG_PRESS_SECONDS, ease: 'linear' }}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
+          <LongPressOverlay />
         </Button>
         <Tooltip.Content className='flex flex-col items-center text-center'>
           <span>Activity Log</span>
@@ -248,32 +225,46 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
           )}
         </Tooltip.Content>
       </Tooltip>
-      <Dropdown.Popover className='w-full max-w-80' placement='bottom'>
+      <Dropdown.Popover className='min-w-90' placement='bottom'>
         <Dropdown.Menu onAction={handleClick}>
-          <Dropdown.Item id='child-cards' textValue='Child cards'>
-            <div className='flex h-8 items-start justify-center pt-px'>
-              <IconChartBar className='size-4 shrink-0' stroke={1.5} />
-            </div>
-            <div className='flex flex-col'>
-              <Label>Child cards</Label>
-              <Description className='text-xs'>
-                View activity log for all cards on this{' '}
-                {currentContext?.domoObject?.typeName?.toLowerCase() ||
-                  'object'}
-              </Description>
+          <Dropdown.Item id='cards' textValue='Cards'>
+            <div className='flex h-fit items-start justify-start gap-2'>
+              <IconChartBar className='size-5 shrink-0' stroke={1.5} />
+              <div className='flex flex-col'>
+                <Label>Cards</Label>
+                <Description className='text-xs'>
+                  View activity log for all cards on this{' '}
+                  {currentContext?.domoObject?.typeName?.toLowerCase() ||
+                    'object'}
+                </Description>
+              </div>
             </div>
           </Dropdown.Item>
-          <Dropdown.Item id='child-pages' textValue='Child pages'>
-            <div className='flex h-8 items-start justify-center pt-px'>
-              <IconCopy className='size-4 shrink-0' stroke={1.5} />
-            </div>
-            <div className='flex flex-col'>
-              <Label>Child pages</Label>
-              <Description className='text-xs'>
-                View activity log for all pages containing cards from this{' '}
-                {currentContext?.domoObject?.typeName?.toLowerCase() ||
-                  'object'}
-              </Description>
+          {hasChildPages && (
+            <Dropdown.Item id='child-pages' textValue='Child Pages'>
+              <div className='flex h-fit items-start justify-start gap-2'>
+                <IconCopy className='size-5 shrink-0' stroke={1.5} />
+                <div className='flex flex-col'>
+                  <Label>Child Pages</Label>
+                  <Description className='text-xs'>
+                    View activity log for hierarchical child pages
+                  </Description>
+                </div>
+              </div>
+            </Dropdown.Item>
+          )}
+          <Dropdown.Item id='card-pages' textValue='Card Pages'>
+            <div className='flex h-fit items-start justify-start gap-2'>
+              <IconStack2 className='size-5 shrink-0' stroke={1.5} />
+              <div className='flex flex-col'>
+                <Label>Card Pages</Label>
+                <Description className='text-xs'>
+                  View activity log for pages where cards from this{' '}
+                  {currentContext?.domoObject?.typeName?.toLowerCase() ||
+                    'object'}{' '}
+                  appear
+                </Description>
+              </div>
             </div>
           </Dropdown.Item>
         </Dropdown.Menu>

@@ -7,7 +7,7 @@ import { defineConfig } from 'vite';
 
 import manifest from './manifest.config.js';
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   build: {
     // Extensions load from disk, not network - large chunks are fine
     chunkSizeWarningLimit: 1000,
@@ -15,6 +15,13 @@ export default defineConfig({
       output: {
         // Group related modules into the same chunk to avoid cross-chunk circular dependencies
         manualChunks: (id) => {
+          if (
+            id.includes('/src/components/tracer/') ||
+            id.includes('@xyflow/react') ||
+            id.includes('@dagrejs/dagre')
+          ) {
+            return 'lineage';
+          }
           if (id.includes('/src/components/options/')) {
             return 'options-components';
           }
@@ -42,7 +49,7 @@ export default defineConfig({
     sourcemap: false
   },
   esbuild: {
-    pure: ['console.log', 'console.warn']
+    pure: mode === 'production' ? ['console.log', 'console.warn'] : []
   },
   plugins: [
     react(),
@@ -66,4 +73,4 @@ export default defineConfig({
     },
     port: 5173
   }
-});
+}));

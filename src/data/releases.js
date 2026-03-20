@@ -1,5 +1,18 @@
 export const releases = [
   {
+    date: '2026-03-18',
+    fullPage: true,
+    githubUrl: 'https://github.com/brycewc/domo-toolkit/releases/tag/v1.1.0',
+    highlights: [
+      'Added dataflow support for Get Cards, Get Card Pages, and Delete',
+      'Actions are enabled or disabled based on your Domo permissions',
+      'User and group data cached per instance for the session, improving performance'
+    ],
+    summary:
+      'Enhanced dataflow support, permission-based action gating, and performance improvements.',
+    version: '1.1.0'
+  },
+  {
     date: '2026-03-10',
     fullPage: true,
     githubUrl: 'https://github.com/brycewc/domo-toolkit/releases/tag/v1.0.0',
