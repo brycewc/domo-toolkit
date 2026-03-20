@@ -11,7 +11,7 @@ This extension is an independent, community-developed project. Domo, Inc. has no
 ## Installation
 
 <p float="left">
-<a href="https://chromewebstore.google.com/detail/domo-toolkit/gagcendhhghphglhcgjakkkocbliekaj?authuser=0&hl=en" target="_blank"><img src="Chrome_Store_Badge.png" alt="https://chromewebstore.google.com/detail/domo-toolkit/gagcendhhghphglhcgjakkkocbliekaj?authuser=0&hl=en" height="50"/></a>
+<a href="https://chromewebstore.google.com/detail/domo-toolkit/gagcendhhghphglhcgjakkkocbliekaj?utm_source=readme&utm_medium=badge&utm_campaign=readme&utm_id=readme" target="_blank"><img src="Chrome_Store_Badge.png" alt="https://chromewebstore.google.com/detail/domo-toolkit/gagcendhhghphglhcgjakkkocbliekaj" height="50"/></a>
 <a href="https://microsoftedge.microsoft.com/addons/detail/domo-toolkit/bkhnonmfkljenhejgboholmhginiiipk" target="_blank"><img src="Microsoft_Edge_Add_Ons_Badge.png" alt="https://microsoftedge.microsoft.com/addons/detail/domo-toolkit/bkhnonmfkljenhejgboholmhginiiipk" height="50"/></a>
 </p>
 

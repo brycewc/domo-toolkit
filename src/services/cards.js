@@ -465,7 +465,9 @@ export async function updateCardDefinition({
     definition.variables = true;
 
     definition.definition.formulas = {
-      card: [],
+      card: (definition.definition.formulas || []).filter(
+        (f) => f.persistedOnDataSource === false
+      ),
       dsDeleted: [],
       dsUpdated: []
     };

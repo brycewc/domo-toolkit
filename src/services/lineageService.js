@@ -174,6 +174,7 @@ export async function enrichMetadata(lineageResponse, tabId = null, existingKeys
             return (data.onboardFlows || []).map((df) => ({
               id: df.id,
               inputCount: df.inputs?.length,
+              lastExecution: df.lastExecution,
               name: df.name,
               outputCount: df.outputs?.length,
               state: df.runState

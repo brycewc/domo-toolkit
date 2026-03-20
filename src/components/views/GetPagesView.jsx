@@ -303,19 +303,23 @@ export function GetPagesView({
     const tabId = await getValidTabForInstance(instance);
 
     if (sidepanelType === 'getCardPages') {
-      const cards = await getCardsForObject({
-        metadata,
-        objectId,
-        objectType,
-        tabId
-      });
+      let cardIds;
 
-      if (!cards || !cards.length) return { cardsByPage: {}, childPages: [] };
+      if (objectType === 'CARD') {
+        cardIds = [objectId];
+      } else {
+        const cards = await getCardsForObject({
+          metadata,
+          objectId,
+          objectType,
+          tabId
+        });
 
-      const { cardsByPage, pages } = await getPagesForCards(
-        cards.map((card) => card.id),
-        tabId
-      );
+        if (!cards || !cards.length) return { cardsByPage: {}, childPages: [] };
+        cardIds = cards.map((card) => card.id);
+      }
+
+      const { cardsByPage, pages } = await getPagesForCards(cardIds, tabId);
 
       // For page-like types, filter out the current page
       const excludeSelf = ['DATA_APP_VIEW', 'PAGE', 'WORKSHEET_VIEW'].includes(

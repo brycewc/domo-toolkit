@@ -6,7 +6,8 @@ import {
   Disclosure,
   DisclosureGroup,
   ScrollShadow,
-  Spinner
+  Spinner,
+  Tabs
 } from '@heroui/react';
 import {
   IconAB,
@@ -65,7 +66,10 @@ import {
   IconX
 } from '@tabler/icons-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import JsonView from 'react18-json-view';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+import '@/assets/json-view-theme.css';
 
 import { getObjectType } from '@/models';
 import { getDataflowDetail, parseDataflow, searchTiles } from '@/services';
@@ -151,29 +155,37 @@ const TILE_ICONS = {
 /**
  * Right panel for inspecting ETL dataflow tiles
  * @param {Object} props
+ * @param {React.RefObject<Map>} [props.cacheRef] - Shared cache for parsed dataflow data
  * @param {string} props.dataflowId - Dataflow ID to inspect
  * @param {string} [props.instance] - Domo instance subdomain for building URLs
- * @param {number} [props.tabId] - Chrome tab ID
+ * @param {Function} [props.resolveTabId] - Async function that resolves a valid tab ID
  * @param {Function} props.onClose - Close handler
  */
-export function ETLInspector({ dataflowId, instance, onClose, tabId }) {
-  const [dataflow, setDataflow] = useState(null);
+export function ETLInspector({ cacheRef, dataflowId, instance, onClose, resolveTabId }) {
+  const cached = cacheRef?.current?.get(dataflowId);
+  const [dataflow, setDataflow] = useState(cached?.parsed ?? null);
+  const [rawJSON, setRawJSON] = useState(cached?.raw ?? null);
   const [domoUrl, setDomoUrl] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState(null);
   const [tileSearch, setTileSearch] = useState('');
 
   useEffect(() => {
+    if (cached) return;
+
     let cancelled = false;
 
     async function fetchDataflow() {
       setLoading(true);
       setError(null);
       try {
+        const tabId = await resolveTabId?.();
         const dataflowJSON = await getDataflowDetail(dataflowId, tabId);
         const parsed = parseDataflow(dataflowJSON);
         if (!cancelled) {
+          cacheRef?.current?.set(dataflowId, { parsed, raw: dataflowJSON });
           setDataflow(parsed);
+          setRawJSON(dataflowJSON);
           setLoading(false);
         }
       } catch (err) {
@@ -190,7 +202,7 @@ export function ETLInspector({ dataflowId, instance, onClose, tabId }) {
     return () => {
       cancelled = true;
     };
-  }, [dataflowId, tabId]);
+  }, [cacheRef, dataflowId, resolveTabId]);
 
   useEffect(() => {
     if (!instance || !dataflow) {
@@ -295,60 +307,85 @@ export function ETLInspector({ dataflowId, instance, onClose, tabId }) {
         </div>
       </div>
 
-      <div className='border-divider shrink-0 border-b px-4 py-2'>
-        <div className='relative'>
-          <IconSearch className='absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted' />
-          <input
-            className='border-divider w-full rounded-md border bg-background py-1.5 pl-8 text-sm focus:ring-2 focus:ring-accent focus:outline-none'
-            placeholder='Search tiles (column, expression, value...)'
-            type='text'
-            value={tileSearch}
-            onChange={(e) => setTileSearch(e.target.value)}
-          />
-        </div>
-        {tileSearch && (
-          <div className='mt-1 text-xs text-muted'>
-            {filteredTiles.length} of {dataflow.tiles.length} tiles match
-          </div>
-        )}
-      </div>
+      <Tabs className='flex min-h-0 flex-1 flex-col' variant='underlined'>
+        <Tabs.List className='border-divider shrink-0 justify-center border-b'>
+          <Tabs.Tab id='tiles'>Tiles</Tabs.Tab>
+          <Tabs.Tab id='json'>JSON</Tabs.Tab>
+        </Tabs.List>
 
-      <ScrollShadow hideScrollBar className='flex-1 px-4 py-3' ref={scrollRef}>
-        {flatRows.length === 0 ? (
-          <div className='py-8 text-center text-muted'>
-            <p>No tiles match &ldquo;{tileSearch}&rdquo;</p>
+        <Tabs.Panel className='flex min-h-0 flex-1 flex-col p-0' id='tiles'>
+          <div className='border-divider shrink-0 border-b px-4 py-2'>
+            <div className='relative'>
+              <IconSearch className='absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted' />
+              <input
+                className='border-divider w-full rounded-md border bg-background py-1.5 pl-8 text-sm focus:ring-2 focus:ring-accent focus:outline-none'
+                placeholder='Search tiles (column, expression, value...)'
+                type='text'
+                value={tileSearch}
+                onChange={(e) => setTileSearch(e.target.value)}
+              />
+            </div>
+            {tileSearch && (
+              <div className='mt-1 text-xs text-muted'>
+                {filteredTiles.length} of {dataflow.tiles.length} tiles match
+              </div>
+            )}
           </div>
-        ) : (
-          <DisclosureGroup
-            className='relative w-full'
-            style={{ height: virtualizer.getTotalSize() }}
-          >
-            {virtualizer.getVirtualItems().map((vItem) => {
-              const row = flatRows[vItem.index];
-              return (
-                <div
-                  className='absolute left-0 w-full'
-                  data-index={vItem.index}
-                  key={vItem.key}
-                  ref={virtualizer.measureElement}
-                  style={{ top: vItem.start }}
-                >
-                  {row.type === 'header' ? (
-                    <CategoryHeader category={row.category} count={row.count} />
-                  ) : (
-                    <div className='mb-1.5'>
-                      <TileDetail
-                        searchQuery={tileSearch || undefined}
-                        tile={row.tile}
-                      />
+
+          <ScrollShadow hideScrollBar className='flex-1 px-4 py-3' ref={scrollRef}>
+            {flatRows.length === 0 ? (
+              <div className='py-8 text-center text-muted'>
+                <p>No tiles match &ldquo;{tileSearch}&rdquo;</p>
+              </div>
+            ) : (
+              <DisclosureGroup
+                className='relative w-full'
+                style={{ height: virtualizer.getTotalSize() }}
+              >
+                {virtualizer.getVirtualItems().map((vItem) => {
+                  const row = flatRows[vItem.index];
+                  return (
+                    <div
+                      className='absolute left-0 w-full'
+                      data-index={vItem.index}
+                      key={vItem.key}
+                      ref={virtualizer.measureElement}
+                      style={{ top: vItem.start }}
+                    >
+                      {row.type === 'header' ? (
+                        <CategoryHeader category={row.category} count={row.count} />
+                      ) : (
+                        <div className='mb-1.5'>
+                          <TileDetail
+                            searchQuery={tileSearch || undefined}
+                            tile={row.tile}
+                          />
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              );
-            })}
-          </DisclosureGroup>
-        )}
-      </ScrollShadow>
+                  );
+                })}
+              </DisclosureGroup>
+            )}
+          </ScrollShadow>
+        </Tabs.Panel>
+
+        <Tabs.Panel className='min-h-0 flex-1 overflow-auto p-4' id='json'>
+          {rawJSON ? (
+            <JsonView
+              collapsed={2}
+              collapseStringMode='word'
+              collapseStringsAfterLength={80}
+              displaySize
+              src={rawJSON}
+            />
+          ) : (
+            <div className='py-8 text-center text-muted'>
+              <p>No JSON data available</p>
+            </div>
+          )}
+        </Tabs.Panel>
+      </Tabs>
     </div>
   );
 }

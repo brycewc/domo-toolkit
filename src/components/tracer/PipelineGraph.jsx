@@ -91,6 +91,17 @@ const PipelineNode = memo(function PipelineNode({ data, id }) {
     badge = `${formatNumber(meta.rowCount)} rows`;
   }
 
+  const dataflowBadge = useMemo(() => {
+    if (data.entityType !== 'DATAFLOW' || !meta?.lastExecution?.endTime) return null;
+    const formatted = new Date(meta.lastExecution.endTime).toLocaleDateString(undefined, {
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      month: 'short'
+    });
+    return `Last run ${formatted}`;
+  }, [data.entityType, meta]);
+
   const nameContent = hasName ? data.label : data.entityId;
   const nameTitle = hasName
     ? `${data.label} (${data.entityId})`
@@ -134,6 +145,7 @@ const PipelineNode = memo(function PipelineNode({ data, id }) {
             {hasName ? data.entityId : data.entityType}
           </div>
           {badge && <div className='mt-0.5 text-xs text-muted'>{badge}</div>}
+          {dataflowBadge && <div className='mt-0.5 text-xs text-muted'>{dataflowBadge}</div>}
         </div>
       </div>
 
@@ -155,19 +167,9 @@ const PipelineNode = memo(function PipelineNode({ data, id }) {
 });
 
 const NODE_WIDTH = 280;
-const CHARS_PER_LINE = 25;
 
-function estimateNodeHeight(node) {
-  const name = node.name || node.entityId || '';
-  const hasBadge =
-    node.entityType === 'DATA_SOURCE' && node.metadata?.rowCount != null;
-
-  const nameLines = Math.min(
-    3,
-    Math.max(1, Math.ceil(name.length / CHARS_PER_LINE))
-  );
-
-  return 16 + nameLines * 20 + 16 + (hasBadge ? 18 : 0);
+function estimateNodeHeight() {
+  return 90;
 }
 
 const nodeTypes = { pipeline: PipelineNode };

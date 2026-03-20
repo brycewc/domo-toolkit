@@ -2,7 +2,7 @@ import { Button, Spinner } from '@heroui/react';
 import { IconArrowFork, IconDatabase, IconReload } from '@tabler/icons-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { useGraphVisibility, useLineageCache } from '@/hooks';
+import { useGraphVisibility, useLineageCache, useResolveTabId } from '@/hooks';
 import { toLineageType, toNodeId } from '@/services';
 
 import { DataPreviewPanel, ETLInspector, PipelineGraph } from '../tracer';
@@ -15,6 +15,8 @@ export function LineageViewer() {
   const [previewDataset, setPreviewDataset] = useState(null);
   const previewHeightRef = useRef(300);
   const previewCacheRef = useRef(new Map());
+  const inspectorCacheRef = useRef(new Map());
+  const resolveTabId = useResolveTabId(params?.tabId, params?.instance);
 
   const {
     expandFetch,
@@ -83,6 +85,7 @@ export function LineageViewer() {
 
     previewHeightRef.current = 300;
     previewCacheRef.current.clear();
+    inspectorCacheRef.current.clear();
     init(params.entityType, params.entityId, params.tabId, params.instance).catch((err) => {
       console.error('[LineageViewer] Failed to fetch trace:', err);
       setError(err.message || 'Failed to load pipeline trace');
@@ -140,6 +143,7 @@ export function LineageViewer() {
     setInspectedDataflow(null);
     setPreviewDataset(null);
     previewCacheRef.current.clear();
+    inspectorCacheRef.current.clear();
     if (params) {
       preserveExpansion();
       init(params.entityType, params.entityId, params.tabId, params.instance).catch((err) => {
@@ -211,7 +215,7 @@ export function LineageViewer() {
       </div>
 
       <div className='flex min-h-0 flex-1 overflow-hidden'>
-        <div className='flex min-h-0 flex-1 flex-col'>
+        <div className='flex min-h-0 min-w-0 flex-1 flex-col'>
           {loading ? (
             <div className='flex flex-1 items-center justify-center gap-2'>
               <Spinner size='lg' />
@@ -250,7 +254,7 @@ export function LineageViewer() {
               datasetName={previewDataset.name}
               heightRef={previewHeightRef}
               key={previewDataset.id}
-              tabId={params?.tabId}
+              resolveTabId={resolveTabId}
               onClose={handleClosePreview}
             />
           )}
@@ -259,9 +263,10 @@ export function LineageViewer() {
         {inspectedDataflow && (
           <div className='w-[400px] shrink-0'>
             <ETLInspector
+              cacheRef={inspectorCacheRef}
               dataflowId={inspectedDataflow.id}
               instance={params?.instance}
-              tabId={params?.tabId}
+              resolveTabId={resolveTabId}
               onClose={handleCloseInspector}
             />
           </div>
