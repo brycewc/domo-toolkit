@@ -348,11 +348,11 @@ export function GetPagesView({
         tabId
       });
       return { childPages };
-    } else if (objectType === 'DATA_APP_VIEW') {
+    } else if (objectType === 'DATA_APP_VIEW' || objectType === 'WORKSHEET_VIEW') {
       const childPages = await getChildPages({
         appId,
         pageId: objectId,
-        pageType: 'DATA_APP_VIEW',
+        pageType: objectType,
         tabId
       });
       return { childPages };

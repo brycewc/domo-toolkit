@@ -11,36 +11,43 @@ export async function deletePageAndAllCards({
   try {
     // Check for child pages if this is a regular PAGE (not DATA_APP_VIEW) and we haven't already checked
     if (pageType === 'PAGE' && !skipChildPageCheck) {
-      const childPages = await getChildPages({
-        appId,
-        includeGrandchildren: true,
-        pageId,
-        pageType
-      });
+      // Fast existence check — skip the expensive call if no subpages exist
+      let hasSubpages = true;
+      try {
+        const subpageIds = await getSubpageIds({ pageId, tabId });
+        hasSubpages = subpageIds && subpageIds.length > 0;
+      } catch {
+        // Fast check failed — fall through to full fetch
+      }
 
-      if (childPages.length > 0) {
-        // Store child pages data for sidepanel to read
-        // Only store type, currentContext, and feature-specific data (childPages)
-        // pageId, appId, pageType are derived from currentContext.domoObject
-        await chrome.storage.session.set({
-          sidepanelDataList: {
-            childPages,
-            currentContext: currentContext?.toJSON?.() || currentContext,
-            timestamp: Date.now(),
-            type: 'childPagesWarning'
-          }
+      if (hasSubpages) {
+        const childPages = await getChildPages({
+          appId,
+          includeGrandchildren: true,
+          pageId,
+          pageType
         });
 
-        // Return status information indicating child pages were found
-        return {
-          childPagesCount: childPages.length,
-          hasChildPages: true,
-          statusDescription: `This page has ${childPages.length} child page${childPages.length !== 1 ? 's' : ''}. Please delete or reassign the child pages first.`,
-          statusTitle: 'Cannot Delete Page',
-          statusType: 'warning',
-          success: false,
-          windowId: currentContext?.tab?.windowId
-        };
+        if (childPages.length > 0) {
+          await chrome.storage.session.set({
+            sidepanelDataList: {
+              childPages,
+              currentContext: currentContext?.toJSON?.() || currentContext,
+              timestamp: Date.now(),
+              type: 'childPagesWarning'
+            }
+          });
+
+          return {
+            childPagesCount: childPages.length,
+            hasChildPages: true,
+            statusDescription: `This page has ${childPages.length} child page${childPages.length !== 1 ? 's' : ''}. Please delete or reassign the child pages first.`,
+            statusTitle: 'Cannot Delete Page',
+            statusType: 'warning',
+            success: false,
+            windowId: currentContext?.tab?.windowId
+          };
+        }
       }
     }
 
@@ -342,6 +349,30 @@ export async function getChildPages({
     console.error('Error fetching child pages:', error);
     throw error;
   }
+}
+
+/**
+ * Get all child and grandchild page IDs for a page using the fast subpages endpoint.
+ * Returns a flat array of integer page IDs. Only works for PAGE type.
+ * @param {Object} params
+ * @param {number} params.pageId - The page ID
+ * @param {number} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<number[]>} Array of subpage IDs
+ */
+export async function getSubpageIds({ pageId, tabId = null }) {
+  return executeInPage(
+    async (pageId) => {
+      const response = await fetch(
+        `/api/content/v1/pages/${pageId}/subpages`
+      );
+      if (!response.ok) {
+        throw new Error(`Failed to fetch subpages (HTTP ${response.status})`);
+      }
+      return response.json();
+    },
+    [pageId],
+    tabId
+  );
 }
 
 /**

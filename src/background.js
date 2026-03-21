@@ -6,6 +6,7 @@ import {
   getCardsForObject,
   getChildPages,
   getCurrentUser,
+  getSubpageIds,
   getDataflowForOutputDataset,
   getDataflowPermission,
   getFormsForPage,
@@ -1169,10 +1170,58 @@ async function detectAndStoreContext(tabId) {
         });
     }
 
-    // For PAGE, DATA_APP_VIEW, WORKSHEET_VIEW, and REPORT_BUILDER_VIEW types, fetch child pages asynchronously (non-blocking)
-    // This happens in the background while the user interacts with the popup
-    if (
-      typeModel.id === 'PAGE' ||
+    // Helper to store child/app pages in context metadata
+    const storeChildPages = (pages, propertyName) => {
+      const currentContext = getTabContext(tabId);
+      if (currentContext?.domoObject?.id === objectId) {
+        if (!currentContext.domoObject?.metadata) {
+          currentContext.domoObject.metadata = {};
+        }
+        if (!currentContext.domoObject.metadata?.details) {
+          currentContext.domoObject.metadata.details = {};
+        }
+        currentContext.domoObject.metadata.details[propertyName] = pages;
+        setTabContext(tabId, currentContext);
+      }
+    };
+
+    // For PAGE type, use fast subpages endpoint as a pre-check
+    if (typeModel.id === 'PAGE') {
+      getSubpageIds({ pageId: parseInt(objectId), tabId })
+        .then((subpageIds) => {
+          if (isStale()) return;
+
+          if (!subpageIds || subpageIds.length === 0) {
+            storeChildPages([], 'childPages');
+            console.log(
+              `[Background] No child pages for PAGE ${objectId} (fast check)`
+            );
+            return;
+          }
+
+          // Subpages exist — fetch full details for names and hierarchy
+          return getChildPages({
+            includeGrandchildren: true,
+            pageId: parseInt(objectId),
+            pageType: 'PAGE',
+            tabId
+          }).then((childPages) => {
+            if (isStale()) return;
+            storeChildPages(childPages, 'childPages');
+            console.log(
+              `[Background] Fetched ${childPages?.length || 0} child pages for PAGE ${objectId}`
+            );
+          });
+        })
+        .catch((error) => {
+          if (isStale()) return;
+          console.error(
+            `[Background] Error fetching child pages for PAGE ${objectId}:`,
+            error
+          );
+          storeChildPages([], 'childPages');
+        });
+    } else if (
       typeModel.id === 'DATA_APP_VIEW' ||
       typeModel.id === 'WORKSHEET_VIEW' ||
       typeModel.id === 'REPORT_BUILDER_VIEW'
@@ -1182,73 +1231,26 @@ async function detectAndStoreContext(tabId) {
           ? parseInt(domoObject.parentId)
           : null;
 
-      // Fetch child pages in background without blocking
       getChildPages({
         appId,
-        includeGrandchildren: true,
         pageId: parseInt(objectId),
         pageType: typeModel.id,
         tabId
       })
         .then((childPages) => {
           if (isStale()) return;
-          const currentContext = getTabContext(tabId);
-          if (currentContext?.domoObject?.id === objectId) {
-            // Store pages in metadata.details.childPages or appPages
-            if (!currentContext.domoObject?.metadata) {
-              currentContext.domoObject.metadata = {};
-            }
-            if (!currentContext.domoObject.metadata?.details) {
-              currentContext.domoObject.metadata.details = {};
-            }
-
-            // For DATA_APP_VIEW, WORKSHEET_VIEW, and REPORT_BUILDER_VIEW, store in appPages (sibling pages in the app)
-            // For PAGE, store in childPages (actual child pages)
-            if (
-              typeModel.id === 'DATA_APP_VIEW' ||
-              typeModel.id === 'WORKSHEET_VIEW' ||
-              typeModel.id === 'REPORT_BUILDER_VIEW'
-            ) {
-              currentContext.domoObject.metadata.details.appPages = childPages;
-            } else {
-              currentContext.domoObject.metadata.details.childPages =
-                childPages;
-            }
-
-            // Update the stored context
-            setTabContext(tabId, currentContext);
-
-            console.log(
-              `[Background] Fetched ${childPages?.length || 0} ${typeModel.id === 'DATA_APP_VIEW' || typeModel.id === 'WORKSHEET_VIEW' || typeModel.id === 'REPORT_BUILDER_VIEW' ? 'app pages' : 'child pages'} for ${typeModel.id} ${objectId}`
-            );
-          }
+          storeChildPages(childPages, 'appPages');
+          console.log(
+            `[Background] Fetched ${childPages?.length || 0} app pages for ${typeModel.id} ${objectId}`
+          );
         })
         .catch((error) => {
           if (isStale()) return;
           console.error(
-            `[Background] Error fetching child pages for ${typeModel.id} ${objectId}:`,
+            `[Background] Error fetching app pages for ${typeModel.id} ${objectId}:`,
             error
           );
-          // Store empty array on error so we don't keep retrying
-          const currentContext = getTabContext(tabId);
-          if (currentContext?.domoObject) {
-            if (!currentContext.domoObject?.metadata) {
-              currentContext.domoObject.metadata = {};
-            }
-            if (!currentContext.domoObject.metadata?.details) {
-              currentContext.domoObject.metadata.details = {};
-            }
-            if (
-              typeModel.id === 'DATA_APP_VIEW' ||
-              typeModel.id === 'WORKSHEET_VIEW' ||
-              typeModel.id === 'REPORT_BUILDER_VIEW'
-            ) {
-              currentContext.domoObject.metadata.details.appPages = [];
-            } else {
-              currentContext.domoObject.metadata.details.childPages = [];
-            }
-            setTabContext(tabId, currentContext);
-          }
+          storeChildPages([], 'appPages');
         });
     } else if (typeModel.id === 'CARD') {
       // Fetch pages for card in background without blocking

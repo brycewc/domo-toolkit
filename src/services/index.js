@@ -71,6 +71,7 @@ export {
   getAppStudioPageParent,
   getChildPages,
   getPagesForCards,
+  getSubpageIds,
   sharePagesWithSelf
 } from './pages';
 export {
