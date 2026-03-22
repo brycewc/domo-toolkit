@@ -6,6 +6,7 @@ import {
   CloseButton,
   Disclosure,
   DisclosureGroup,
+  Link,
   ScrollShadow,
   SearchField,
   Spinner,
@@ -30,6 +31,7 @@ import {
   IconCalendarPlus,
   IconChartBar,
   IconChevronDown,
+  IconClipboard,
   IconCode,
   IconColumns3,
   IconCopy,
@@ -67,11 +69,11 @@ import {
   IconX
 } from '@tabler/icons-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import JsonView from 'react18-json-view';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import JsonView from 'react18-json-view';
 
 import '@/assets/json-view-theme.css';
-
+import { AnimatedCheck } from '@/components';
 import { getObjectType } from '@/models';
 import { getDataflowDetail, parseDataflow, searchTiles } from '@/services';
 
@@ -162,7 +164,13 @@ const TILE_ICONS = {
  * @param {Function} [props.resolveTabId] - Async function that resolves a valid tab ID
  * @param {Function} props.onClose - Close handler
  */
-export function ETLInspector({ cacheRef, dataflowId, instance, onClose, resolveTabId }) {
+export function ETLInspector({
+  cacheRef,
+  dataflowId,
+  instance,
+  onClose,
+  resolveTabId
+}) {
   const cached = cacheRef?.current?.get(dataflowId);
   const [dataflow, setDataflow] = useState(cached?.parsed ?? null);
   const [rawJSON, setRawJSON] = useState(cached?.raw ?? null);
@@ -170,6 +178,7 @@ export function ETLInspector({ cacheRef, dataflowId, instance, onClose, resolveT
   const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState(null);
   const [tileSearch, setTileSearch] = useState('');
+  const [activeTab, setActiveTab] = useState('tiles');
 
   useEffect(() => {
     if (cached) return;
@@ -256,6 +265,12 @@ export function ETLInspector({ cacheRef, dataflowId, instance, onClose, resolveT
     overscan: 8
   });
 
+  useEffect(() => {
+    if (activeTab === 'tiles') {
+      virtualizer.measure();
+    }
+  }, [activeTab, virtualizer]);
+
   if (loading) {
     return (
       <Card className='border-divider h-full rounded-none border-l p-0 shadow-none'>
@@ -286,11 +301,13 @@ export function ETLInspector({ cacheRef, dataflowId, instance, onClose, resolveT
 
   return (
     <Card className='border-divider h-full rounded-none border-l p-0 shadow-none'>
-      <Card.Header className='border-divider shrink-0 gap-1 border-b px-4 py-3'>
+      <Card.Header className='border-divider shrink-0 gap-1 border-b p-2'>
         <div className='flex items-center justify-between'>
           <div className='flex min-w-0 items-center gap-2'>
             <IconArrowFork className='size-4 shrink-0 rotate-180 text-amber-500' />
-            <span className='truncate font-semibold'>{dataflow.name}</span>
+            <span className='truncate font-semibold' title={dataflow.name}>
+              {dataflow.name}
+            </span>
           </div>
           <ButtonGroup size='sm' variant='tertiary'>
             {domoUrl && (
@@ -308,18 +325,32 @@ export function ETLInspector({ cacheRef, dataflowId, instance, onClose, resolveT
         </div>
       </Card.Header>
 
-      <Tabs className='flex min-h-0 flex-1 flex-col' variant='underlined'>
-        <Tabs.List className='border-divider shrink-0 justify-center border-b'>
-          <Tabs.Tab id='tiles'>Tiles</Tabs.Tab>
-          <Tabs.Tab id='json'>JSON</Tabs.Tab>
-        </Tabs.List>
-
+      <Tabs
+        className='flex min-h-0 flex-1 flex-col'
+        defaultSelectedKey='tiles'
+        selectedKey={activeTab}
+        variant='secondary'
+        onSelectionChange={setActiveTab}
+      >
+        <Tabs.ListContainer>
+          <Tabs.List className='border-divider shrink-0 justify-center'>
+            <Tabs.Tab id='tiles'>
+              Tiles
+              <Tabs.Indicator />
+            </Tabs.Tab>
+            <Tabs.Tab id='json'>
+              JSON
+              <Tabs.Indicator />
+            </Tabs.Tab>
+          </Tabs.List>
+        </Tabs.ListContainer>
         <Tabs.Panel className='flex min-h-0 flex-1 flex-col p-0' id='tiles'>
-          <div className='border-divider shrink-0 border-b px-4 py-2'>
+          <div className='border-divider shrink-0 border-b p-2'>
             <SearchField
-              aria-label='Search tiles'
               fullWidth
+              aria-label='Search tiles'
               value={tileSearch}
+              variant='secondary'
               onChange={setTileSearch}
             >
               <SearchField.Group>
@@ -329,34 +360,37 @@ export function ETLInspector({ cacheRef, dataflowId, instance, onClose, resolveT
               </SearchField.Group>
             </SearchField>
             {tileSearch && (
-              <div className='mt-1 text-xs text-muted'>
+              <div className='text-xs text-muted'>
                 {filteredTiles.length} of {dataflow.tiles.length} tiles match
               </div>
             )}
           </div>
 
-          <ScrollShadow hideScrollBar className='flex-1 px-4 py-3' ref={scrollRef}>
+          <ScrollShadow hideScrollBar className='flex-1 p-2' ref={scrollRef}>
             {flatRows.length === 0 ? (
               <div className='py-8 text-center text-muted'>
                 <p>No tiles match &ldquo;{tileSearch}&rdquo;</p>
               </div>
             ) : (
               <DisclosureGroup
-                className='relative w-full'
+                className='w-full'
                 style={{ height: virtualizer.getTotalSize() }}
               >
                 {virtualizer.getVirtualItems().map((vItem) => {
                   const row = flatRows[vItem.index];
                   return (
                     <div
-                      className='absolute left-0 w-full'
+                      className='gap-2'
                       data-index={vItem.index}
                       key={vItem.key}
                       ref={virtualizer.measureElement}
                       style={{ top: vItem.start }}
                     >
                       {row.type === 'header' ? (
-                        <CategoryHeader category={row.category} count={row.count} />
+                        <CategoryHeader
+                          category={row.category}
+                          count={row.count}
+                        />
                       ) : (
                         <div className='mb-1.5'>
                           <TileDetail
@@ -373,20 +407,101 @@ export function ETLInspector({ cacheRef, dataflowId, instance, onClose, resolveT
           </ScrollShadow>
         </Tabs.Panel>
 
-        <Tabs.Panel className='min-h-0 flex-1 overflow-auto p-4' id='json'>
-          {rawJSON ? (
-            <JsonView
-              collapsed={2}
-              collapseStringMode='word'
-              collapseStringsAfterLength={80}
-              displaySize
-              src={rawJSON}
-            />
-          ) : (
-            <div className='py-8 text-center text-muted'>
-              <p>No JSON data available</p>
-            </div>
-          )}
+        <Tabs.Panel className='min-h-0 flex-1 overflow-auto' id='json'>
+          <ScrollShadow hideScrollBar className='h-full'>
+            {rawJSON ? (
+              <JsonView
+                displaySize
+                className='text-sm'
+                collapsed={2}
+                collapseStringMode='word'
+                collapseStringsAfterLength={80}
+                matchesURL={false}
+                src={rawJSON}
+                CopiedComponent={({ className, style }) => (
+                  <AnimatedCheck
+                    className={className + ' text-success'}
+                    size={16}
+                    stroke={1.5}
+                    style={style}
+                  />
+                )}
+                CopyComponent={({ className, onClick, style }) => (
+                  <IconClipboard
+                    className={className}
+                    size={16}
+                    stroke={1.5}
+                    style={style}
+                    onClick={onClick}
+                  />
+                )}
+                customizeCopy={(node) => {
+                  const stringValue =
+                    typeof node === 'object'
+                      ? JSON.stringify(node, null, 2)
+                      : String(node);
+                  const trimmed = stringValue.trim();
+                  const isDomoId =
+                    /^-?\d+$/.test(trimmed) ||
+                    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+                      trimmed
+                    );
+                  if (isDomoId) {
+                    chrome.runtime
+                      .sendMessage({
+                        clipboardData: trimmed,
+                        type: 'CLIPBOARD_COPIED'
+                      })
+                      .catch(() => {});
+                  }
+                  return stringValue;
+                }}
+                customizeNode={(params) => {
+                  if (params.node === null || params.node === undefined) {
+                    return { enableClipboard: false };
+                  }
+                  if (
+                    typeof params.node === 'string' &&
+                    params.node.startsWith('https://')
+                  ) {
+                    return (
+                      <Link
+                        className='text-sm text-accent no-underline decoration-accent hover:underline'
+                        href={params.node}
+                        target='_blank'
+                      >
+                        {params.node}
+                      </Link>
+                    );
+                  }
+                  if (params.indexOrName?.toLowerCase().includes('id')) {
+                    return { enableClipboard: true };
+                  }
+                  if (
+                    (typeof params.node === 'number' ||
+                      typeof params.node === 'string') &&
+                    params.node?.toString().length >= 7
+                  ) {
+                    return { enableClipboard: true };
+                  }
+                  if (
+                    typeof params.node === 'object' &&
+                    Object.keys(params.node).length > 0
+                  ) {
+                    return { enableClipboard: true };
+                  }
+                  if (Array.isArray(params.node) && params.node.length > 0) {
+                    return { enableClipboard: true };
+                  }
+                  return { enableClipboard: false };
+                }}
+              />
+            ) : (
+              <div className='py-8 text-center text-muted'>
+                <p>No JSON data available</p>
+              </div>
+            )}
+          </ScrollShadow>
         </Tabs.Panel>
       </Tabs>
     </Card>
@@ -401,7 +516,7 @@ function CategoryHeader({ category, count }) {
   const Icon = Array.isArray(entry) ? entry[0] : entry;
   const rotate = Array.isArray(entry) ? entry[1] : '';
   return (
-    <h3 className='mt-4 mb-2 flex items-center gap-1.5 text-xs font-semibold tracking-wider uppercase first:mt-0'>
+    <h3 className='mb-2 flex items-center gap-1.5 text-xs font-semibold tracking-wider uppercase first:mt-0'>
       <Icon className={`size-3.5 shrink-0 ${color.text} ${rotate}`} />
       <span className={color.text}>{category}</span>
       <span className='text-muted'>({count})</span>
@@ -504,7 +619,7 @@ const TileDetail = memo(function TileDetail({ searchQuery, tile }) {
 
   if (!hasContent) {
     return (
-      <div className='border-divider flex w-full items-center justify-between gap-2 overflow-hidden rounded-lg border bg-background px-3 py-2'>
+      <div className='border-divider flex w-full items-center justify-between gap-2 overflow-hidden rounded-lg border bg-background p-2'>
         {trigger}
         <IconChevronDown className='size-4 shrink-0 text-background' />
       </div>
@@ -514,15 +629,15 @@ const TileDetail = memo(function TileDetail({ searchQuery, tile }) {
   return (
     <Disclosure className='border-divider overflow-hidden rounded-lg border bg-background'>
       <Disclosure.Heading>
-        <Disclosure.Trigger className='flex w-full items-center justify-between gap-2 px-3 py-2'>
+        <Disclosure.Trigger className='flex w-full items-center justify-between gap-2 p-2'>
           {trigger}
-          <Disclosure.Indicator className='size-4 shrink-0 text-muted'>
+          <Disclosure.Indicator className='text-muted'>
             <IconChevronDown stroke={1.5} />
           </Disclosure.Indicator>
         </Disclosure.Trigger>
       </Disclosure.Heading>
       <Disclosure.Content>
-        <div className='border-divider bg-content2 flex flex-col gap-3 border-t px-3 pb-3'>
+        <div className='border-divider flex flex-col gap-2 border-t p-2'>
           {tile.inputDatasets.length > 0 && (
             <DetailSection label='Input DataSet'>
               {tile.inputDatasets.map((id, i) => (
@@ -582,7 +697,7 @@ const TileDetail = memo(function TileDetail({ searchQuery, tile }) {
             <DetailSection label='Expressions'>
               {tile.expressions.map((e, i) => (
                 <div
-                  className='border-divider rounded border bg-background px-2 py-1 text-xs'
+                  className='border-divider rounded border bg-background p-2 text-xs'
                   key={i}
                 >
                   <div className='font-semibold'>
@@ -600,7 +715,7 @@ const TileDetail = memo(function TileDetail({ searchQuery, tile }) {
             <DetailSection label='Aggregates'>
               {tile.rawDetails.aggregates.map((a, i) => (
                 <div
-                  className='border-divider rounded border bg-background px-2 py-1 text-xs'
+                  className='border-divider rounded border bg-background p-2 text-xs'
                   key={i}
                 >
                   <div className='font-semibold'>
@@ -678,7 +793,7 @@ const TileDetail = memo(function TileDetail({ searchQuery, tile }) {
             <DetailSection label='SQL'>
               {tile.sql.map((s, i) => (
                 <pre
-                  className='border-divider overflow-x-auto rounded border bg-background px-2 py-1 font-mono text-xs'
+                  className='border-divider overflow-x-auto rounded border bg-background p-2 font-mono text-xs'
                   key={i}
                 >
                   {highlightMatch(
@@ -692,7 +807,7 @@ const TileDetail = memo(function TileDetail({ searchQuery, tile }) {
 
           {tile.columns.length > 0 && (
             <DetailSection label={`Columns (${tile.columns.length})`}>
-              <div className='border-divider rounded border bg-background px-2 py-1 text-xs'>
+              <div className='border-divider rounded border bg-background p-2 text-xs'>
                 {tile.columns
                   .map((c) => highlightMatch(c, searchQuery))
                   .reduce((acc, col, i) => {
@@ -712,7 +827,7 @@ const TileDetail = memo(function TileDetail({ searchQuery, tile }) {
 
 function DetailMono({ children }) {
   return (
-    <div className='border-divider rounded border bg-background px-2 py-1 font-mono text-xs'>
+    <div className='border-divider rounded border bg-background p-2 font-mono text-xs'>
       {children}
     </div>
   );
@@ -721,7 +836,7 @@ function DetailMono({ children }) {
 function DetailSection({ children, label }) {
   return (
     <div className='flex flex-col gap-1'>
-      <div className='text-xs font-semibold text-muted'>{label}</div>
+      <div className='text-xs font-semibold'>{label}</div>
       {children}
     </div>
   );
@@ -751,7 +866,7 @@ function TileConfig({ rawDetails }) {
     <DetailSection label='Configuration'>
       {entries.map(([label, value], i) => (
         <div
-          className='border-divider flex items-center justify-between rounded border bg-background px-2 py-1 text-xs'
+          className='border-divider flex items-center justify-between rounded border bg-background p-2 text-xs'
           key={i}
         >
           <span className='font-semibold'>{label}</span>
