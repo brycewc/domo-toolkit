@@ -49,8 +49,8 @@
   },
   "dependencies": {
     "@dagrejs/dagre": "^2.0.4",
-    "@heroui/react": "^3.0.0-rc.1",
-    "@heroui/styles": "^3.0.0-rc.1",
+    "@heroui/react": "3.0.1",
+    "@heroui/styles": "3.0.1",
     "@tabler/icons-react": "^3.36.1",
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/react-virtual": "^3.13.18",
