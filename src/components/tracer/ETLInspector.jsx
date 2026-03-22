@@ -1,11 +1,13 @@
 import {
   Button,
   ButtonGroup,
+  Card,
   Chip,
   CloseButton,
   Disclosure,
   DisclosureGroup,
   ScrollShadow,
+  SearchField,
   Spinner,
   Tabs
 } from '@heroui/react';
@@ -50,7 +52,6 @@ import {
   IconRowInsertBottom,
   IconRowRemove,
   IconSchema,
-  IconSearch,
   IconSortAscending,
   IconSparkles,
   IconSql,
@@ -257,35 +258,35 @@ export function ETLInspector({ cacheRef, dataflowId, instance, onClose, resolveT
 
   if (loading) {
     return (
-      <div className='border-divider flex h-full flex-col border-l bg-background'>
-        <div className='border-divider flex items-center justify-between border-b px-4 py-3'>
+      <Card className='border-divider h-full rounded-none border-l p-0 shadow-none'>
+        <Card.Header className='border-divider flex-row items-center justify-between border-b px-4 py-3'>
           <span className='font-semibold'>Loading ETL...</span>
           <CloseButton size='sm' onPress={onClose} />
-        </div>
-        <div className='flex flex-1 items-center justify-center'>
+        </Card.Header>
+        <Card.Content className='items-center justify-center'>
           <Spinner size='md' />
-        </div>
-      </div>
+        </Card.Content>
+      </Card>
     );
   }
 
   if (error || !dataflow) {
     return (
-      <div className='border-divider flex h-full flex-col border-l bg-background'>
-        <div className='border-divider flex items-center justify-between border-b px-4 py-3'>
+      <Card className='border-divider h-full rounded-none border-l p-0 shadow-none'>
+        <Card.Header className='border-divider flex-row items-center justify-between border-b px-4 py-3'>
           <span className='font-semibold'>ETL Inspector</span>
           <CloseButton size='sm' onPress={onClose} />
-        </div>
-        <div className='flex flex-1 items-center justify-center text-danger'>
+        </Card.Header>
+        <Card.Content className='items-center justify-center text-danger'>
           <p>{error || 'No data available'}</p>
-        </div>
-      </div>
+        </Card.Content>
+      </Card>
     );
   }
 
   return (
-    <div className='border-divider flex h-full flex-col border-l bg-background'>
-      <div className='border-divider shrink-0 border-b px-4 py-3'>
+    <Card className='border-divider h-full rounded-none border-l p-0 shadow-none'>
+      <Card.Header className='border-divider shrink-0 gap-1 border-b px-4 py-3'>
         <div className='flex items-center justify-between'>
           <div className='flex min-w-0 items-center gap-2'>
             <IconArrowFork className='size-4 shrink-0 rotate-180 text-amber-500' />
@@ -302,10 +303,10 @@ export function ETLInspector({ cacheRef, dataflowId, instance, onClose, resolveT
             </Button>
           </ButtonGroup>
         </div>
-        <div className='mt-1 text-xs text-muted'>
+        <div className='text-xs text-muted'>
           {dataflow.tiles.length} tiles &middot; ID: {dataflow.id}
         </div>
-      </div>
+      </Card.Header>
 
       <Tabs className='flex min-h-0 flex-1 flex-col' variant='underlined'>
         <Tabs.List className='border-divider shrink-0 justify-center border-b'>
@@ -315,16 +316,18 @@ export function ETLInspector({ cacheRef, dataflowId, instance, onClose, resolveT
 
         <Tabs.Panel className='flex min-h-0 flex-1 flex-col p-0' id='tiles'>
           <div className='border-divider shrink-0 border-b px-4 py-2'>
-            <div className='relative'>
-              <IconSearch className='absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted' />
-              <input
-                className='border-divider w-full rounded-md border bg-background py-1.5 pl-8 text-sm focus:ring-2 focus:ring-accent focus:outline-none'
-                placeholder='Search tiles (column, expression, value...)'
-                type='text'
-                value={tileSearch}
-                onChange={(e) => setTileSearch(e.target.value)}
-              />
-            </div>
+            <SearchField
+              aria-label='Search tiles'
+              fullWidth
+              value={tileSearch}
+              onChange={setTileSearch}
+            >
+              <SearchField.Group>
+                <SearchField.SearchIcon />
+                <SearchField.Input placeholder='Search tiles (column, expression, value...)' />
+                <SearchField.ClearButton />
+              </SearchField.Group>
+            </SearchField>
             {tileSearch && (
               <div className='mt-1 text-xs text-muted'>
                 {filteredTiles.length} of {dataflow.tiles.length} tiles match
@@ -386,7 +389,7 @@ export function ETLInspector({ cacheRef, dataflowId, instance, onClose, resolveT
           )}
         </Tabs.Panel>
       </Tabs>
-    </div>
+    </Card>
   );
 }
 

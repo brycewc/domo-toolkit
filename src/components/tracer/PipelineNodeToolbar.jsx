@@ -1,4 +1,4 @@
-import { Button, Spinner } from '@heroui/react';
+import { Button, Separator, Spinner, Toolbar } from '@heroui/react';
 import {
   IconArrowBarToLeft,
   IconArrowBarToRight,
@@ -29,7 +29,7 @@ export const PipelineNodeToolbar = memo(function PipelineNodeToolbar({
 
   return (
     <NodeToolbar isVisible nodeId={nodeId} position={Position.Top}>
-      <div className='flex items-center gap-1 rounded-lg bg-background px-1.5 py-1 shadow-md'>
+      <Toolbar className='rounded-lg bg-background px-1.5 py-1 shadow-md'>
         {showUpstream && (
           <>
             {expanded?.up ? (
@@ -49,7 +49,7 @@ export const PipelineNodeToolbar = memo(function PipelineNodeToolbar({
         )}
 
         {showUpstream && showDownstream && (
-          <div className='mx-0.5 h-4 w-px bg-divider' />
+          <Separator className='mx-0.5 h-4' orientation='vertical' />
         )}
 
         {showDownstream && (
@@ -69,7 +69,7 @@ export const PipelineNodeToolbar = memo(function PipelineNodeToolbar({
             )}
           </>
         )}
-      </div>
+      </Toolbar>
     </NodeToolbar>
   );
 });

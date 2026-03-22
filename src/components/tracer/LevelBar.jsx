@@ -1,4 +1,4 @@
-import { Button, Tooltip } from '@heroui/react';
+import { Button, Separator, Toolbar, Tooltip } from '@heroui/react';
 import {
   IconChevronLeft,
   IconChevronRight,
@@ -71,7 +71,7 @@ const FrontierPill = memo(function FrontierPill({
 });
 
 const Connector = memo(function Connector() {
-  return <div className='bg-divider h-px w-3' />;
+  return <Separator className='w-3' />;
 });
 
 export const LevelBar = memo(function LevelBar({
@@ -109,7 +109,7 @@ export const LevelBar = memo(function LevelBar({
   }, [downstreamLevels, onExpandLevel, onExpandFrontier]);
 
   return (
-    <div className='flex items-center gap-1 rounded-xl bg-background/90 px-3 py-2 shadow-md backdrop-blur-sm'>
+    <Toolbar className='rounded-xl bg-background/90 px-3 py-2 shadow-md backdrop-blur-sm'>
       <FrontierPill
         count={frontierCounts?.upstream || 0}
         direction='upstream'
@@ -163,6 +163,6 @@ export const LevelBar = memo(function LevelBar({
         direction='downstream'
         onExpand={handleDownstreamExpand}
       />
-    </div>
+    </Toolbar>
   );
 });
