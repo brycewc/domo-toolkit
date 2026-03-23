@@ -21,7 +21,11 @@ import { useEffect, useRef, useState } from 'react';
 
 import { useStatusBar } from '@/hooks';
 import { DomoContext } from '@/models';
-import { getCodeEnginePackageInfo, updateVersionDefinition } from '@/services';
+import {
+  getCodeEnginePackageInfo,
+  getVersionDefinition,
+  updateVersionDefinition
+} from '@/services';
 import { waitForDefinition } from '@/utils';
 
 export function UpdateCodeEngineVersionsView({
@@ -31,7 +35,6 @@ export function UpdateCodeEngineVersionsView({
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [packages, setPackages] = useState([]);
-  const [definition, setDefinition] = useState(null);
   const [currentContext, setCurrentContext] = useState(null);
   const mountedRef = useRef(true);
   const { showPromiseStatus } = useStatusBar();
@@ -77,8 +80,6 @@ export function UpdateCodeEngineVersionsView({
         }
         def = waitResult.definition;
       }
-
-      setDefinition(def);
 
       // Parse code engine tiles
       const packageMap = groupTilesByPackage(def.designElements || []);
@@ -235,7 +236,13 @@ export function UpdateCodeEngineVersionsView({
     const tabId = currentContext.tabId;
 
     const promise = (async () => {
-      const modified = structuredClone(definition);
+      // Fetch the latest definition to avoid overwriting concurrent changes
+      const latestDefinition = await getVersionDefinition(
+        modelId,
+        versionNumber,
+        tabId
+      );
+      const modified = structuredClone(latestDefinition);
 
       for (const change of changes) {
         const element = modified.designElements.find(
@@ -382,6 +389,7 @@ export function UpdateCodeEngineVersionsView({
       <ScrollShadow
         hideScrollBar
         className='min-h-0 flex-1 overflow-y-auto'
+        offset={5}
         orientation='vertical'
       >
         <Card.Content>
