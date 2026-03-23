@@ -321,10 +321,74 @@ document.addEventListener(
   true
 );
 
+// ============================================================
+// Admin list view selection detection
+// ============================================================
+
+let lastAdminDetailTitle = null;
+
+function checkForAdminDetailPanel(mutations) {
+  if (!location.pathname.startsWith('/admin/')) return;
+
+  for (const mutation of mutations) {
+    if (mutation.type !== 'childList') continue;
+
+    for (const node of mutation.addedNodes) {
+      if (node.nodeType !== Node.ELEMENT_NODE) continue;
+      const isDetailPanel =
+        node.classList?.contains('bulk-item-details-content') ||
+        node.querySelector?.('.bulk-item-details-content');
+      if (isDetailPanel) {
+        const titleEl = document.querySelector('.bulk-item-details-title');
+        const currentTitle = titleEl?.innerText?.trim() || null;
+        if (currentTitle !== lastAdminDetailTitle) {
+          lastAdminDetailTitle = currentTitle;
+          triggerContextRedetection();
+        }
+        return;
+      }
+    }
+
+    for (const node of mutation.removedNodes) {
+      if (node.nodeType !== Node.ELEMENT_NODE) continue;
+      const wasDetailPanel =
+        node.classList?.contains('bulk-item-details-content') ||
+        node.querySelector?.('.bulk-item-details-content');
+      if (wasDetailPanel) {
+        lastAdminDetailTitle = null;
+        triggerContextRedetection();
+        return;
+      }
+    }
+  }
+}
+
+if (location.pathname.startsWith('/admin/')) {
+  document.addEventListener(
+    'click',
+    () => {
+      // Use setTimeout to allow Angular's digest cycle to update the detail panel
+      setTimeout(() => {
+        const titleEl = document.querySelector(
+          '.bulk-item-details-title'
+        );
+        const currentTitle = titleEl?.innerText?.trim() || null;
+
+        if (currentTitle !== lastAdminDetailTitle) {
+          lastAdminDetailTitle = currentTitle;
+          triggerContextRedetection();
+        }
+      }, 200);
+    },
+    true
+  );
+}
+
 // Set up MutationObserver to watch for modal and job overview changes
 const modalObserver = new MutationObserver((mutations) => {
   checkForCardModalElement(mutations);
   checkForJobOverviewElement(mutations);
+  checkForAdminDetailPanel(mutations);
 });
 
 // Start observing the document for modal changes
@@ -335,6 +399,17 @@ modalObserver.observe(document.body, {
 
 // Detect modals already present in the DOM (handles extension reload with modal open)
 checkForExistingCardModal();
+
+// Detect admin detail panel already present (handles extension reload or pre-selected item)
+if (
+  location.pathname.startsWith('/admin/') &&
+  document.querySelector('.bulk-item-details-content')
+) {
+  lastAdminDetailTitle =
+    document.querySelector('.bulk-item-details-title')?.innerText?.trim() ||
+    null;
+  triggerContextRedetection();
+}
 
 // ============================================================
 // Card error capture

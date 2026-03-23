@@ -319,6 +319,46 @@ export async function detectCurrentObject() {
       objectType = 'WORKSPACE';
       break;
 
+    case url.includes('/admin/'): {
+      const adminTypeMap = {
+        '/admin/pages': { scopeKey: 'pageId', typeId: 'PAGE' }
+      };
+
+      const pathname = location.pathname;
+      let adminConfig = null;
+      for (const [path, config] of Object.entries(adminTypeMap)) {
+        if (pathname.startsWith(path)) {
+          adminConfig = config;
+          break;
+        }
+      }
+
+      if (!adminConfig) return null;
+
+      try {
+        const detailPanel = document.querySelector(
+          '.bulk-item-details-content'
+        );
+        if (!detailPanel) return null;
+
+        // angular.element() is available in MAIN world on Domo admin pages
+        const scope = angular.element(detailPanel).scope();
+        const selectedId = scope?.details?.[adminConfig.scopeKey];
+        if (selectedId) {
+          return {
+            baseUrl: `${location.protocol}//${location.hostname}`,
+            id: String(selectedId),
+            typeId: adminConfig.typeId,
+            url
+          };
+        }
+      } catch (e) {
+        // Angular not available or scope access failed
+      }
+
+      return null;
+    }
+
     case url.includes('governance-toolkit'): {
       const jobElement = document.querySelector(
         '[class*="job-overview-top"]'
