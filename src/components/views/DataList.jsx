@@ -177,6 +177,29 @@ export function DataList({
             2000
           );
           break;
+        case 'lineage': {
+          const id = item.id;
+          const instance = item.domoObject?.baseUrl
+            ? new URL(item.domoObject.baseUrl).hostname.replace('.domo.com', '')
+            : null;
+          if (id && instance) {
+            const tabId = await getValidTabForInstance(instance);
+            await chrome.storage.session.set({
+              lineageEntityId: id,
+              lineageEntityType: item.typeId || 'DATA_SOURCE',
+              lineageInstance: instance,
+              lineageObjectName:
+                item.label || `${item.typeId || 'DATA_SOURCE'} ${id}`,
+              lineageTabId: tabId
+            });
+            const tab = await chrome.tabs.get(tabId);
+            chrome.tabs.create({
+              url: chrome.runtime.getURL('src/options/index.html#lineage'),
+              windowId: tab.windowId
+            });
+          }
+          break;
+        }
         case 'openAll':
           if (item.children) {
             const count = item.children.length;
@@ -193,6 +216,7 @@ export function DataList({
             );
           }
           break;
+
         case 'remove':
           onItemRemove?.(item);
           break;
@@ -204,32 +228,6 @@ export function DataList({
         case 'shareAll':
           await onItemShareAll?.(actionType, item);
           break;
-
-        case 'lineage': {
-          const id = item.id;
-          const instance = item.domoObject?.baseUrl
-            ? new URL(item.domoObject.baseUrl).hostname.replace(
-                '.domo.com',
-                ''
-              )
-            : null;
-          if (id && instance) {
-            const tabId = await getValidTabForInstance(instance);
-            await chrome.storage.session.set({
-              lineageEntityId: id,
-              lineageEntityType: item.typeId || 'DATA_SOURCE',
-              lineageInstance: instance,
-              lineageObjectName: item.label || `${item.typeId || 'DATA_SOURCE'} ${id}`,
-              lineageTabId: tabId
-            });
-            const tab = await chrome.tabs.get(tabId);
-            chrome.tabs.create({
-              url: chrome.runtime.getURL('src/options/index.html#lineage'),
-              windowId: tab.windowId
-            });
-          }
-          break;
-        }
 
         case 'viewsExplorer': {
           const baseUrl = item.domoObject?.baseUrl;
@@ -624,9 +622,7 @@ function DataListItem({
       >
         <IconBinaryTree stroke={1.5} />
       </Button>
-      <Tooltip.Content className='text-xs'>
-        Trace Lineage
-      </Tooltip.Content>
+      <Tooltip.Content className='text-xs'>Trace Lineage</Tooltip.Content>
     </Tooltip>
   );
 

@@ -6,3 +6,4 @@ export { GetPagesView } from './GetPagesView';
 export { GetViewInputsView } from './GetViewInputsView';
 export { LinkPreview } from './LinkPreview';
 export { ObjectDetailsView } from './ObjectDetailsView';
+export { UpdateCodeEngineVersionsView } from './UpdateCodeEngineVersionsView';

@@ -24,7 +24,7 @@ export {
   removeCardFromPage,
   updateCardDefinition
 } from './cards';
-export { getCodeEngineCode } from './codeEngine';
+export { getCodeEngineCode, getCodeEnginePackageInfo } from './codeEngine';
 export {
   deleteDataflowAndOutputs,
   getDataflowDetail,
@@ -82,4 +82,8 @@ export {
   getUserGroups,
   searchUsers
 } from './users';
-export { getWorkflowPermission } from './workflows';
+export {
+  getVersionDefinition,
+  getWorkflowPermission,
+  updateVersionDefinition
+} from './workflows';

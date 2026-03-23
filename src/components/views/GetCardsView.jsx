@@ -95,8 +95,7 @@ export function GetCardsView({
       if (!cards && !forceRefresh) {
         // No pre-fetched cards (popup handoff) -- fetch fresh
         if (objectType === 'DATAFLOW_TYPE') {
-          const outputs =
-            domoObject.metadata?.details?.outputs || [];
+          const outputs = domoObject.metadata?.details?.outputs || [];
           if (outputs.length > 0) {
             const tabId = await getValidTabForInstance(instance);
             const result = await fetchCardsForOutputDatasets(outputs, tabId);
@@ -120,9 +119,7 @@ export function GetCardsView({
         const tabId = await getValidTabForInstance(instance);
         if (objectType === 'DATAFLOW_TYPE') {
           const outputs =
-            data.outputDatasets ||
-            domoObject.metadata?.details?.outputs ||
-            [];
+            data.outputDatasets || domoObject.metadata?.details?.outputs || [];
           if (outputs.length > 0) {
             const result = await fetchCardsForOutputDatasets(outputs, tabId);
             data.outputDatasets = result.outputDatasets;
@@ -308,8 +305,7 @@ async function fetchCardsForOutputDatasets(outputs, tabId) {
   const seen = new Set();
   for (const output of outputs) {
     const dsId = output.id || output.dataSourceId;
-    const dsName =
-      output.name || output.dataSourceName || `Dataset ${dsId}`;
+    const dsName = output.name || output.dataSourceName || `Dataset ${dsId}`;
     const dsCards = await getCardsForObject({
       objectId: dsId,
       objectType: 'DATA_SOURCE',
@@ -353,6 +349,42 @@ function transformCardsToItems(cards, origin, objectType, objectId, parentId) {
         domoObject.url = `${origin}/page/${objectId}/kpis/details/${card.id}`;
       }
       return DataListItem.fromDomoObject(domoObject);
+    });
+}
+
+/**
+ * Transform dataflow output datasets into grouped DataListItems.
+ * Each output dataset becomes a navigable parent with its cards as children.
+ * @param {Array<{id: string, name: string, cards: Array}>} outputDatasets
+ * @param {string} origin - The base URL origin
+ * @returns {DataListItem[]}
+ */
+function transformDataflowItems(outputDatasets, origin) {
+  return outputDatasets
+    .filter((ds) => ds.cards.length > 0)
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+    .map((ds) => {
+      const cardChildren = ds.cards
+        .sort((a, b) => {
+          const nameA = (a.title || a.name || '').trim();
+          const nameB = (b.title || b.name || '').trim();
+          return nameA.localeCompare(nameB);
+        })
+        .map((card) => {
+          const domoObject = new DomoObject('CARD', card.id, origin, {
+            name: (card.title || card.name || '').trim()
+          });
+          return DataListItem.fromDomoObject(domoObject);
+        });
+
+      const dsDomoObject = new DomoObject('DATA_SOURCE', ds.id, origin, {
+        name: ds.name
+      });
+      return DataListItem.fromDomoObject(dsDomoObject, {
+        children: cardChildren,
+        count: cardChildren.length,
+        countLabel: 'cards'
+      });
     });
 }
 
@@ -442,40 +474,4 @@ function transformPageItems(
   }
 
   return items;
-}
-
-/**
- * Transform dataflow output datasets into grouped DataListItems.
- * Each output dataset becomes a navigable parent with its cards as children.
- * @param {Array<{id: string, name: string, cards: Array}>} outputDatasets
- * @param {string} origin - The base URL origin
- * @returns {DataListItem[]}
- */
-function transformDataflowItems(outputDatasets, origin) {
-  return outputDatasets
-    .filter((ds) => ds.cards.length > 0)
-    .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
-    .map((ds) => {
-      const cardChildren = ds.cards
-        .sort((a, b) => {
-          const nameA = (a.title || a.name || '').trim();
-          const nameB = (b.title || b.name || '').trim();
-          return nameA.localeCompare(nameB);
-        })
-        .map((card) => {
-          const domoObject = new DomoObject('CARD', card.id, origin, {
-            name: (card.title || card.name || '').trim()
-          });
-          return DataListItem.fromDomoObject(domoObject);
-        });
-
-      const dsDomoObject = new DomoObject('DATA_SOURCE', ds.id, origin, {
-        name: ds.name
-      });
-      return DataListItem.fromDomoObject(dsDomoObject, {
-        children: cardChildren,
-        count: cardChildren.length,
-        countLabel: 'cards'
-      });
-    });
 }

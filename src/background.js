@@ -13,6 +13,7 @@ import {
   getPagesForCards,
   getQueuesForPage,
   getUserGroups,
+  getVersionDefinition,
   getWorkflowPermission
 } from '@/services';
 import {
@@ -1511,6 +1512,37 @@ async function detectAndStoreContext(tabId) {
             error.message
           );
         });
+    }
+
+    // For WORKFLOW_MODEL_VERSION, fetch definition asynchronously (non-blocking)
+    if (typeModel.id === 'WORKFLOW_MODEL_VERSION') {
+      const modelId = domoObject.parentId;
+      const versionNumber = objectId;
+
+      if (modelId) {
+        getVersionDefinition(modelId, versionNumber, tabId)
+          .then((definition) => {
+            if (isStale()) return;
+            const currentContext = getTabContext(tabId);
+            if (currentContext?.domoObject?.id === objectId) {
+              if (!currentContext.domoObject.metadata) {
+                currentContext.domoObject.metadata = {};
+              }
+              if (!currentContext.domoObject.metadata.details) {
+                currentContext.domoObject.metadata.details = {};
+              }
+              currentContext.domoObject.metadata.details.definition = definition;
+              setTabContext(tabId, currentContext);
+            }
+          })
+          .catch((error) => {
+            if (isStale()) return;
+            console.warn(
+              `[Background] Could not fetch definition for WORKFLOW_MODEL_VERSION ${objectId}:`,
+              error.message
+            );
+          });
+      }
     }
 
     // For MAGNUM_COLLECTION, fetch permission asynchronously (non-blocking)

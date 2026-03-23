@@ -18,5 +18,6 @@ export { RemoveEmptyStringsFromQuickFilters } from './RemoveEmptyStringsFromQuic
 export { SetStreamToManual } from './SetStreamToManual';
 export { ShareWithSelf } from './ShareWithSelf';
 export { TraceLineage } from './TraceLineage';
+export { UpdateCodeEngineVersions } from './UpdateCodeEngineVersions';
 export { UpdateDataflowDetails } from './UpdateDataflowDetails';
 export { UpdateOwner } from './UpdateOwner';

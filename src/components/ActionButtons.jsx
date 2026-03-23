@@ -34,6 +34,7 @@ import {
   SetStreamToManual,
   ShareWithSelf,
   TraceLineage,
+  UpdateCodeEngineVersions,
   UpdateDataflowDetails,
   UpdateOwner
 } from '@/components';
@@ -286,6 +287,16 @@ export function ActionButtons({
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
+                {availableActions.has('updateCodeEngineVersions') && (
+                  <UpdateCodeEngineVersions
+                    currentContext={currentContext}
+                    isDisabled={!isDomoPage}
+                    onCollapseActions={
+                      collapsable ? () => setIsExpanded(false) : undefined
+                    }
+                    onStatusUpdate={onStatusUpdate}
+                  />
+                )}
                 <CardErrors
                   currentContext={currentContext}
                   isDisabled={!isDomoPage}
@@ -383,6 +394,10 @@ function getAvailableActions(typeId, details, metadata) {
 
   if (['ALERT', 'WORKFLOW_MODEL'].includes(typeId)) {
     actions.add('updateOwner');
+  }
+
+  if (typeId === 'WORKFLOW_MODEL_VERSION' && !details?.deletedAt && !details?.releasedAt) {
+    actions.add('updateCodeEngineVersions');
   }
 
   if (['CARD', 'CODEENGINE_PACKAGE'].includes(typeId)) {
