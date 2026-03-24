@@ -122,27 +122,29 @@ export function ActivityLogTable() {
 
     const uniqueTypes = [...new Set(objects.map((obj) => obj.type))];
 
-    resolveTabId().then((resolvedTabId) => {
-      if (!resolvedTabId) return;
-      return Promise.all(
-        uniqueTypes.map((type) =>
-          getEventTypesForObjectType(type, resolvedTabId).catch(() => [])
-        )
-      );
-    }).then((results) => {
-      if (!results) return;
-      const seen = new Set();
-      const options = results
-        .flat()
-        .filter((item) => {
-          const key = item.type.toLowerCase();
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        })
-        .sort((a, b) => a.translation.localeCompare(b.translation));
-      setActionOptions(options);
-    });
+    resolveTabId()
+      .then((resolvedTabId) => {
+        if (!resolvedTabId) return;
+        return Promise.all(
+          uniqueTypes.map((type) =>
+            getEventTypesForObjectType(type, resolvedTabId).catch(() => [])
+          )
+        );
+      })
+      .then((results) => {
+        if (!results) return;
+        const seen = new Set();
+        const options = results
+          .flat()
+          .filter((item) => {
+            const key = item.type.toLowerCase();
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          })
+          .sort((a, b) => a.translation.localeCompare(b.translation));
+        setActionOptions(options);
+      });
   }, [tabId, objects]);
 
   // Check which users have custom avatars (non-blocking, incremental)
@@ -158,9 +160,10 @@ export function ActivityLogTable() {
 
     uncheckedIds.forEach((id) => checkedAvatarIdsRef.current.add(id));
 
-    resolveTabId().then((resolvedTabId) =>
-      getCustomAvatarUserIds(uncheckedIds, resolvedTabId)
-    )
+    resolveTabId()
+      .then((resolvedTabId) =>
+        getCustomAvatarUserIds(uncheckedIds, resolvedTabId)
+      )
       .then((customIds) => {
         if (customIds.length === 0) return;
         setCustomAvatarIds((prev) => {
@@ -182,7 +185,8 @@ export function ActivityLogTable() {
   // Stabilized to avoid new reference when events change but types stay the same.
   const prevObjectTypeOptionsRef = useRef([]);
   const objectTypeOptions = useMemo(() => {
-    if (activityLogType === 'single-object') return prevObjectTypeOptionsRef.current;
+    if (activityLogType === 'single-object')
+      return prevObjectTypeOptionsRef.current;
     const types = new Set();
     events.forEach((event) => {
       if (event.objectType) {
@@ -234,10 +238,10 @@ export function ActivityLogTable() {
         pending.push(
           obj
             .buildUrl(baseUrl, resolvedTabId)
-          .then((url) => ({ key, url }))
-          .catch(() => null)
-      );
-    }
+            .then((url) => ({ key, url }))
+            .catch(() => null)
+        );
+      }
 
       if (pending.length === 0) return;
 
@@ -310,7 +314,11 @@ export function ActivityLogTable() {
         const resolvedTabId = await resolveTabId();
         if (!resolvedTabId) return;
 
-        const tasks = buildFetchTasks(objects, userFilter, actionFilterRef.current);
+        const tasks = buildFetchTasks(
+          objects,
+          userFilter,
+          actionFilterRef.current
+        );
 
         const fetchPromises = tasks.map((task) =>
           getActivityLogForObject({
@@ -579,10 +587,7 @@ export function ActivityLogTable() {
               )}
               <DateRangePicker.Trigger>
                 <DateRangePicker.TriggerIndicator>
-                  <IconCalendarWeek
-                    className='text-foreground'
-                    stroke={1.5}
-                  />
+                  <IconCalendarWeek className='text-foreground' stroke={1.5} />
                 </DateRangePicker.TriggerIndicator>
               </DateRangePicker.Trigger>
             </DateField.Suffix>
@@ -604,9 +609,7 @@ export function ActivityLogTable() {
               <RangeCalendar.Grid>
                 <RangeCalendar.GridHeader>
                   {(day) => (
-                    <RangeCalendar.HeaderCell>
-                      {day}
-                    </RangeCalendar.HeaderCell>
+                    <RangeCalendar.HeaderCell>{day}</RangeCalendar.HeaderCell>
                   )}
                 </RangeCalendar.GridHeader>
                 <RangeCalendar.GridBody>
@@ -615,9 +618,7 @@ export function ActivityLogTable() {
               </RangeCalendar.Grid>
               <RangeCalendar.YearPickerGrid>
                 <RangeCalendar.YearPickerGridBody>
-                  {({ year }) => (
-                    <RangeCalendar.YearPickerCell year={year} />
-                  )}
+                  {({ year }) => <RangeCalendar.YearPickerCell year={year} />}
                 </RangeCalendar.YearPickerGridBody>
               </RangeCalendar.YearPickerGrid>
             </RangeCalendar>
@@ -772,17 +773,18 @@ export function ActivityLogTable() {
   }
 
   return (
-    <div className='flex min-h-0 w-full flex-1 flex-col'>
-      <div className='mb-2 flex flex-wrap items-center justify-between'>
-        <h3 className='flex items-center gap-1 text-lg font-semibold'>
+    <div className='items-between flex min-h-0 w-full flex-1 flex-col justify-center'>
+      <div className='flex flex-wrap items-center justify-between p-4'>
+        <span
+          className='flex items-center justify-center gap-1 font-semibold'
+          style={{ fontSize: '18px' }}
+        >
           Activity Log for{' '}
           {activityLogType === 'single-object' ? (
             <>
+              <span>{objects[0]?.type}</span>
               <span className='text-accent'>{objects[0]?.name} </span>
-              <Chip color='accent' size='md' variant='soft'>
-                {objects[0].type}
-              </Chip>{' '}
-              (ID: {objects[0].id})
+              <span> (ID: {objects[0].id})</span>
             </>
           ) : (
             ` ${objects.length} ${
@@ -799,7 +801,7 @@ export function ActivityLogTable() {
                     : 'objects'
             }`
           )}
-        </h3>
+        </span>
         {total > 0 && (
           <p className='text-base text-muted'>
             {filteredEvents.length !== events.length ? (

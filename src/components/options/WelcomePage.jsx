@@ -159,7 +159,7 @@ export function WelcomePage() {
   ];
 
   return (
-    <div className='flex h-screen w-full flex-col justify-between gap-4'>
+    <div className='flex h-screen w-full max-w-4xl flex-col justify-between gap-4 px-4 pt-8 pb-4'>
       {/* Header */}
       <motion.div
         animate={{ opacity: 1, y: 0 }}

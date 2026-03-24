@@ -70,16 +70,17 @@ export default function App() {
     return (
       <div className='flex h-screen w-full justify-center'>
         <div
-          className={`flex h-full w-full flex-col ${fullScreenPage.fullWidth ? '' : 'max-w-4xl px-4 pt-8 pb-4'}`}
+          className={`flex h-full w-full flex-col justify-center ${fullScreenPage.fullWidth ? '' : 'max-w-4xl px-4 pt-8 pb-4'}`}
         >
           <Suspense
+            className='flex justify-center'
             fallback={
               <div className='flex h-full items-center justify-center'>
                 <Spinner size='lg' />
               </div>
             }
           >
-            <PageComponent />
+            <PageComponent className='flex justify-center' />
           </Suspense>
         </div>
         <ToastProvider className='right-2 bottom-2' placement='bottom' />
