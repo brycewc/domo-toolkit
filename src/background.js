@@ -444,16 +444,19 @@ chrome.runtime.onInstalled.addListener((details) => {
     );
 
     if (newReleases.length > 0) {
-      const hasFullPage = newReleases.some((r) => r.fullPage);
+      const hasFullPage = newReleases.some((r) => r.notify === 'fullPage');
+      const hasBadge = newReleases.some((r) => r.notify === 'badge');
 
       if (hasFullPage) {
         chrome.tabs.create({
           url: chrome.runtime.getURL('src/options/index.html#release-notes')
         });
         chrome.storage.local.set({ lastSeenVersion: currentVersion });
-      } else {
+      } else if (hasBadge) {
         chrome.action.setBadgeText({ text: 'NEW' });
         chrome.action.setBadgeBackgroundColor({ color: '#6366f1' });
+      } else {
+        chrome.storage.local.set({ lastSeenVersion: currentVersion });
       }
     }
   }

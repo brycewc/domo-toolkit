@@ -15,10 +15,9 @@ export async function getCurrentUser(tabId = null) {
     async () => {
       for (let i = 0; i < 3; i++) {
         if (window.bootstrap?.currentUser?.USER_ID) {
-          const { USER_ID, ...metadata } = window.bootstrap.currentUser;
-          if (!metadata?.USER_RIGHTS) {
-            metadata.USER_RIGHTS = window.bootstrap?.data?.authorities || [];
-          }
+          // eslint-disable-next-line no-unused-vars
+          const { USER_ID, USER_RIGHTS, ...metadata } = window.bootstrap.currentUser;
+          metadata.USER_RIGHTS = window.bootstrap?.data?.authorities || [];
           return { id: USER_ID, metadata };
         }
         if (i < 2) {

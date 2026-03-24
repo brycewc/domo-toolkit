@@ -243,28 +243,31 @@ Add a new object to the **beginning** of the `releases` array (newest-first). Th
 ```javascript
 {
   date: 'YYYY-MM-DD',         // release date
-  fullPage: true,              // true = auto-open release notes page; false = badge only
   githubUrl: 'https://github.com/brycewc/domo-toolkit/releases/tag/vX.Y.Z',
   highlights: [                // short bullet points shown on the release notes page
     'Added feature X',
     'Fixed bug Y',
     'Improved Z performance'
   ],
+  notify: 'fullPage',         // 'fullPage' | 'badge' | 'silent'
   summary: 'One-sentence description of this release.',
   version: 'X.Y.Z'            // must match the version in package.json
 }
 ```
 
-**When to set `fullPage: true`:** Use for minor and major releases that introduce features or changes users should know about. The background script will automatically open the release notes page in a new tab on update.
+**`notify: 'fullPage'`:** Auto-opens the release notes page in a new tab. Use for minor and major releases that introduce features or changes users should know about.
 
-**When to set `fullPage: false`:** Use for patch releases with small bug fixes. The background script will show a "NEW" badge on the extension icon instead. The badge clears when the user visits `#release-notes`.
+**`notify: 'badge'`:** Shows a "NEW" badge on the extension icon and a toast in the popup/sidepanel. Use for patch releases with notable bug fixes. The badge clears when the user visits `#release-notes`.
+
+**`notify: 'silent'`:** No notification at all. Use for trivial patch releases (minor bug fixes) where notifying the user would be noise. `lastSeenVersion` is updated automatically so no stale badge/toast appears.
 
 ### 3. How the notification system works
 
 - `src/background.js` listens for `chrome.runtime.onInstalled` with `reason === 'update'`
 - It compares `details.previousVersion` against each entry's `version` using `compareVersions()`
-- If any new release has `fullPage: true`, it opens `src/options/index.html#release-notes`
-- Otherwise, it sets a "NEW" badge via `chrome.action.setBadgeText`
+- If any new release has `notify: 'fullPage'`, it opens `src/options/index.html#release-notes`
+- If the highest notification level is `'badge'`, it sets a "NEW" badge via `chrome.action.setBadgeText`
+- If all new releases are `'silent'`, it updates `lastSeenVersion` without any notification
 - The `ReleaseNotesPage` component (`src/components/options/ReleaseNotesPage.jsx`) displays the latest release and sends a `RELEASE_NOTES_SEEN` message on mount to clear the badge
 - `lastSeenVersion` is stored in `chrome.storage.local` to track what the user has seen
 
