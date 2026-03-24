@@ -83,7 +83,7 @@ jobs:
 
       - uses: wdzeng/edge-addon@v2
         with:
-          product-id: bkhnonmfkljenhejgboholmhginiiipk
+          product-id: a9171c4d-2ffd-44c8-916f-174617c08c9f
           zip-path: release/edge-domo-toolkit-*.zip
           api-key: ${{ secrets.EDGE_API_KEY }}
           client-id: ${{ secrets.EDGE_CLIENT_ID }}
