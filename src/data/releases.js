@@ -1,4 +1,15 @@
 export const releases = [
+   {
+    date: '2026-03-23',
+    fullPage: false,
+    githubUrl: 'https://github.com/brycewc/domo-toolkit/releases/tag/v1.1.2',
+    highlights: [
+
+    ],
+    summary:
+      'All improvements from 1.1.0, plus fixing a breaking bug that caused the extension to fail to load for some users on v1.1.0',
+    version: '1.1.2'
+  },
   {
     date: '2026-03-18',
     fullPage: true,
