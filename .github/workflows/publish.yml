@@ -69,7 +69,7 @@ jobs:
           client-id: ${{ secrets.CHROME_CLIENT_ID }}
           client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
           refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
-          upload-only: ${{ inputs.upload-only }}
+          upload-only: ${{ inputs.upload-only || false }}
 
   publish-edge:
     needs: build
@@ -87,4 +87,4 @@ jobs:
           zip-path: release/edge-domo-toolkit-*.zip
           api-key: ${{ secrets.EDGE_API_KEY }}
           client-id: ${{ secrets.EDGE_CLIENT_ID }}
-          upload-only: ${{ inputs.upload-only }}
+          upload-only: ${{ inputs.upload-only || false }}
