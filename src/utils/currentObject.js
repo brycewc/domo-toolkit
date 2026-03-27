@@ -138,6 +138,11 @@ export async function detectCurrentObject() {
       objectType = 'ROLE';
       break;
 
+    case url.includes('workflows/user-task-response') && url.includes('id='):
+      objectType = 'HOPPER_TASK';
+      id = parts[parts.indexOf('id') + 1];
+      break;
+
     case url.includes('workflows/instances/') && !!parts[parts.indexOf('instances') + 3]:
       objectType = 'WORKFLOW_INSTANCE';
       break;

@@ -933,7 +933,7 @@ export const ObjectTypeRegistry = {
     'Task Center Task',
     '/queues/tasks?queueId={parent}&id={id}&openTaskDrawer=true',
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    { keyword: 'id' },
+    { keyword: 'id', parentExtract: { keyword: 'queueId', offset: 1 } },
     {
       endpoint: '/queues/v1/{parent}/tasks/{id}',
       pathToName: 'displayEntity.name'
