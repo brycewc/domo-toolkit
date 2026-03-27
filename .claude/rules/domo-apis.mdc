@@ -8,7 +8,7 @@ alwaysApply: true
 When working with Domo API endpoints (fetching data, building service functions, debugging API issues):
 
 1. **User-provided endpoints take precedence.** If the user gives you an endpoint path, method, or usage instructions directly, use those as the source of truth — even if Postman doesn't have a matching entry.
-2. When the user hasn't specified the endpoint, use the **Postman Local MCP** to look up the correct endpoint, method, request body, and response format before writing or modifying API calls.
+2. When the user hasn't specified the endpoint, use the **Postman MCP** tools (prefixed `mcp__postman__`) to look up the correct endpoint, method, request body, and response format before writing or modifying API calls. Prefer the **local STDIO MCP server** if available; fall back to the **remote streamable HTTP MCP server** otherwise. The tool names and capabilities are the same across both.
 3. Search with `searchPostmanElementsInPublicNetwork` using `q: "Domo <description>"` to find the endpoint.
 4. Use `getCollectionRequest` with `populate: true` to get full request details including example responses.
 5. The primary collection is **"Domo Product APIs"** (collection ID `17302996-d887dd51-ea30-43be-a2bd-3a81f15cce13`), workspace **"Domo Product APIs"**.

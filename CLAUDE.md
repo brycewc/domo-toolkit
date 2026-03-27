@@ -41,12 +41,13 @@ yarn preview
 
 ### Extension Contexts
 
-The extension has four execution contexts that communicate via message passing:
+The extension has five execution contexts that communicate via message passing:
 
 1. **Background Service Worker** (`src/background.js`) - Central message relay, maintains tab context cache with LRU eviction (max 10 tabs), persists to session storage
 2. **Content Script** (`src/contentScript.js`) - Injected into Domo pages, detects objects via DOM, applies favicons, monitors clipboard
 3. **Popup** (`src/popup/`) - Small UI when clicking extension icon
 4. **Side Panel** (`src/sidepanel/`) - Persistent panel alongside Domo pages
+5. **Options Page** (`src/options/`) - Full-page UI for settings, release notes, lineage viewer, and activity log
 
 ### Message Flow
 
@@ -141,7 +142,7 @@ Some object types require a parent ID for URLs or API calls:
 ### Path Alias
 
 - `@/` maps to `src/` directory
-- Example: `import { Copy } from '@/components/functions'`
+- Example: `import { Copy } from '@/components'`
 
 ### Exports
 
@@ -166,13 +167,16 @@ Some object types require a parent ID for URLs or API calls:
 - Dark mode via `data-theme` attribute
 - OKLch color space for theme colors (`src/assets/global.css`)
 
-### Formatting (Prettier)
+### Formatting & Linting (ESLint + Prettier)
 
 - Single quotes for strings and JSX attributes
 - No trailing commas
 - 2-space indentation
 - Semicolons required
 - Tailwind classes auto-sorted via prettier-plugin-tailwindcss
+- ESLint enforces strict alphabetical sorting via `eslint-plugin-perfectionist`: imports, exports, object keys, JSX props, switch cases
+- After editing `.js`/`.jsx` files, run `npx eslint --no-warn-ignored <file>` to verify — fix all errors before finishing
+- See `.claude/rules/code-style.mdc` for the full sorting and formatting spec
 
 ## Configuration Files
 
@@ -270,21 +274,31 @@ Add a new object to the **beginning** of the `releases` array (newest-first). Th
 
 Replace the contents of `docs/RELEASE_NOTES.md` with the detailed release notes for this version. This file always contains only the **latest** version's notes — do not accumulate old versions. The GitHub Release workflow uses this file as the release body.
 
-### 5. Build and publish
+### 5. Build and package locally
 
-Run `yarn release` to build and package locally. When the version bump is pushed to `main`, two GitHub Actions workflows trigger automatically:
+Run `yarn release` to build and create release zips. This runs `vite build` then `scripts/release.js`, which:
+
+- Creates `release/chrome-domo-toolkit-{version}.zip` (excludes `.crx`, `.pem`, `.vite` artifacts)
+- Creates `release/edge-domo-toolkit-{version}.zip` (same as Chrome but strips the `key` property from `manifest.json`)
+
+### 6. GitHub Actions (automated publishing)
+
+When the version bump is pushed to `main`, two workflows trigger automatically on `package.json` changes:
 
 - **`.github/workflows/release.yml`** — creates a GitHub Release tagged `vX.Y.Z` using `docs/RELEASE_NOTES.md` as the body
-- **`.github/workflows/publish.yml`** — builds and publishes to Chrome Web Store and Edge Add-ons
+- **`.github/workflows/publish.yml`** — builds the extension and publishes to Chrome Web Store and Microsoft Edge Add-ons
 
-Both workflows can also be triggered manually via `workflow_dispatch`.
+**Manual triggers:** Both workflows support `workflow_dispatch`. The publish workflow allows selecting:
+
+- **target:** `chrome`, `edge`, or `both` (default: both)
+- **upload-only:** Upload without publishing, for manual review in the store dashboard
 
 ## Domo API Reference
 
 When working with Domo API endpoints (fetching data, building service functions, debugging API issues):
 
 1. **User-provided endpoints take precedence.** If the user gives you an endpoint path, method, or usage instructions directly, use those as the source of truth — even if Postman doesn't have a matching entry.
-2. When the user hasn't specified the endpoint, use the **Postman MCP** tools (prefixed `mcp__postman__`) to look up the correct endpoint, method, request body, and response format before writing or modifying API calls.
+2. When the user hasn't specified the endpoint, use the **Postman MCP** tools (prefixed `mcp__postman__`) to look up the correct endpoint, method, request body, and response format before writing or modifying API calls. Prefer the **local STDIO MCP server** if available; fall back to the **remote streamable HTTP MCP server** otherwise. The tool names and capabilities are the same across both.
 3. Search with `searchPostmanElementsInPublicNetwork` using `q: "Domo <description>"` to find the endpoint.
 4. Use `getCollectionRequest` with `populate: true` to get full request details including example responses.
 5. The primary collection is **"Domo Product APIs"** (collection ID `17302996-d887dd51-ea30-43be-a2bd-3a81f15cce13`), workspace **"Domo Product APIs"**.
@@ -308,3 +322,44 @@ When running `yarn dev`:
 - WebSocket HMR endpoint: `ws://localhost:5173`
 - Changes to React components hot-reload without losing state
 - Changes to background.js or contentScript.js require extension reload
+
+## Claude Code Configuration (`.claude/`)
+
+The `.claude/` directory contains rules, commands, and skills that extend Claude Code's behavior for this project.
+
+### Rules (`.claude/rules/`)
+
+Rules provide context-specific instructions that are automatically loaded when relevant:
+
+| Rule | Trigger | Purpose |
+| --- | --- | --- |
+| `code-style.mdc` | Editing `.js`/`.jsx` files | Full ESLint + Prettier sorting and formatting spec |
+| `contributing-sync.mdc` | Editing `docs/CONTRIBUTING.md` | Checklist: verify tech stack versions, project structure, and extension permissions match source of truth |
+| `domo-apis.mdc` | Always | Use Postman MCP to look up Domo API endpoints before writing API calls |
+| `domo-debug-utilities.mdc` | On demand | Browser console scripts for finding IDs/UUIDs and inspecting React internals on Domo pages |
+| `package-manager.mdc` | Always | Use `yarn` instead of `npm` for all commands |
+| `release-process.mdc` | Editing release files | Checklist ensuring `package.json`, `releases.js`, and `RELEASE_NOTES.md` stay in sync |
+
+### Commands (`.claude/commands/`)
+
+- **`/domo-debug`** — Outputs browser console debug utilities for reverse-engineering Domo pages (find integer IDs, find UUIDs, inspect React fiber tree)
+- **`/prepare-release`** — Walks through the full release checklist: version bump, release entry, release notes, build, and summary
+
+### Skills (`.claude/skills/`)
+
+Skills are symlinked from `.agents/skills/` and provide specialized capabilities:
+
+- **`heroui-react`** — HeroUI v3 component library documentation and usage
+- **`playwriter`** — Browser automation via Playwright for testing and debugging
+
+## Documentation (`docs/`)
+
+- **`docs/CONTRIBUTING.md`** — Contributor guide (bug reports, PRs, tech stack, project structure). Keep in sync with the codebase — see `.claude/rules/contributing-sync.mdc`.
+- **`docs/RELEASE_NOTES.md`** — Latest version's release notes. Replaced on each release. Used as the GitHub Release body.
+- **`docs/README.md`** — Project README for GitHub Pages site.
+- **`docs/PRIVACY_POLICY.md`** — Privacy policy required for Chrome Web Store / Edge Add-ons.
+
+## GitHub Issue Templates (`.github/ISSUE_TEMPLATE/`)
+
+- **`bug-report.md`** — Structured bug report (auto-labels `Bug`, auto-assigns maintainer)
+- **`feature-request.md`** — Feature request template (auto-labels `Enhancement`)

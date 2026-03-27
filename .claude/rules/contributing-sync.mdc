@@ -1,5 +1,6 @@
 ---
-alwaysApply: true
+globs: docs/CONTRIBUTING.md
+alwaysApply: false
 ---
 
 # CONTRIBUTING.md Sync
