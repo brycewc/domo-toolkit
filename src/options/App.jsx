@@ -1,4 +1,4 @@
-import { Button, ButtonGroup, Spinner, Tabs, Tooltip } from '@heroui/react';
+import { Button, Spinner, Tabs, Tooltip } from '@heroui/react';
 import { IconBug, IconSparkles } from '@tabler/icons-react';
 import { lazy, Suspense, useEffect, useState } from 'react';
 
@@ -95,7 +95,7 @@ export default function App() {
   return (
     <div className='flex h-screen w-full justify-center'>
       <div className='fixed top-4 right-4 z-10'>
-        <ButtonGroup>
+        <div className='flex gap-1'>
           <Tooltip closeDelay={0} delay={400}>
             <Button
               isIconOnly
@@ -130,7 +130,7 @@ export default function App() {
               Request Feature
             </Tooltip.Content>
           </Tooltip>
-        </ButtonGroup>
+        </div>
       </div>
       <Tabs
         className='h-full w-full items-center rounded-sm'

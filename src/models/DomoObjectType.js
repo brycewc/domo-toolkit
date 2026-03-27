@@ -802,9 +802,9 @@ export const ObjectTypeRegistry = {
     },
     ['EXECUTOR_APPLICATION'],
     [
-      { label: 'Application', source: 'parentId', typeId: 'EXECUTOR_APPLICATION' },
-      { field: 'executionPayload.configDatasetId', label: 'Config', typeId: 'DATA_SOURCE' },
-      { field: 'executionPayload.metricsDatasetId', label: 'Log', typeId: 'DATA_SOURCE' }
+      { label: 'Governance Toolkit Application', source: 'parentId', typeId: 'EXECUTOR_APPLICATION' },
+      { field: 'executionPayload.configDatasetId', label: 'Config DataSet', typeId: 'DATA_SOURCE' },
+      { field: 'executionPayload.metricsDatasetId', label: 'Log DataSet', typeId: 'DATA_SOURCE' }
     ]
   ),
   FILE: new DomoObjectType('FILE', 'File', null, /^\d+$/, null, {

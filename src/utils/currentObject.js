@@ -319,6 +319,53 @@ export async function detectCurrentObject() {
       objectType = 'WORKSPACE';
       break;
 
+    case url.includes('governance-toolkit'): {
+      const jobElement = document.querySelector(
+        '[class*="job-overview-top"]'
+      );
+      if (!jobElement) return null;
+
+      const fiberKey = Object.keys(jobElement).find((k) =>
+        k.startsWith('__reactFiber$')
+      );
+      if (!fiberKey) return null;
+
+      let fiber = jobElement[fiberKey];
+      let jobData = null;
+
+      // Walk up the fiber tree, checking each component's hooks chain
+      while (fiber && !jobData) {
+        let hook = fiber.memoizedState;
+        while (hook) {
+          const val = hook.memoizedState;
+          // Check both direct state and ref.current (useRef wraps as { current: ... })
+          const candidate = val?.current ?? val;
+          if (
+            candidate &&
+            typeof candidate === 'object' &&
+            !Array.isArray(candidate) &&
+            typeof candidate.jobId === 'string' &&
+            typeof candidate.applicationId === 'string'
+          ) {
+            jobData = candidate;
+            break;
+          }
+          hook = hook.next;
+        }
+        fiber = fiber.return;
+      }
+
+      if (!jobData) return null;
+
+      return {
+        baseUrl: `${location.protocol}//${location.hostname}`,
+        id: jobData.jobId,
+        parentId: jobData.applicationId,
+        typeId: 'EXECUTOR_JOB',
+        url
+      };
+    }
+
     case url.includes('/admin/'): {
       const adminTypeMap = {
         '/admin/pages': { scopeKey: 'pageId', typeId: 'PAGE' }
@@ -357,51 +404,6 @@ export async function detectCurrentObject() {
       }
 
       return null;
-    }
-
-    case url.includes('governance-toolkit'): {
-      const jobElement = document.querySelector(
-        '[class*="job-overview-top"]'
-      );
-      if (!jobElement) return null;
-
-      const fiberKey = Object.keys(jobElement).find((k) =>
-        k.startsWith('__reactFiber$')
-      );
-      if (!fiberKey) return null;
-
-      let fiber = jobElement[fiberKey];
-      let jobData = null;
-
-      // Walk up the fiber tree, checking each component's hooks chain
-      while (fiber && !jobData) {
-        let hook = fiber.memoizedState;
-        while (hook) {
-          const val = hook.memoizedState;
-          if (
-            val &&
-            typeof val === 'object' &&
-            !Array.isArray(val) &&
-            typeof val.jobId === 'string' &&
-            typeof val.applicationId === 'string'
-          ) {
-            jobData = val;
-            break;
-          }
-          hook = hook.next;
-        }
-        fiber = fiber.return;
-      }
-
-      if (!jobData) return null;
-
-      return {
-        baseUrl: `${location.protocol}//${location.hostname}`,
-        id: jobData.jobId,
-        parentId: jobData.applicationId,
-        typeId: 'EXECUTOR_JOB',
-        url
-      };
     }
 
     default:

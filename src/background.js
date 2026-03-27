@@ -671,9 +671,6 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 chrome.tabs.onActivated.addListener(async ({ tabId, windowId }) => {
   console.log(`[Background] Tab ${tabId} activated in window ${windowId}`);
 
-  // Always update icon based on current theme preference
-  updateIconFromThemePreference();
-
   try {
     const tab = await chrome.tabs.get(tabId);
     if (tab.url && tab.url.includes('domo.com')) {
@@ -945,13 +942,12 @@ async function detectAndStoreContext(tabId) {
       return null;
     }
 
-    // Extract parent ID from URL if available
-    let parentId = typeModel.extractParentId(detected.url);
-
-    // For types resolved via resolveContext, extract parentId if available
-    if (!parentId && detected.resolveContext?.filesetId) {
-      parentId = detected.resolveContext.filesetId;
-    }
+    // Extract parent ID from URL, detection result, or resolveContext
+    let parentId =
+      typeModel.extractParentId(detected.url) ||
+      detected.parentId ||
+      detected.resolveContext?.filesetId ||
+      null;
 
     // Create DomoObject with original URL and parent ID for immediate URL building
     const domoObject = new DomoObject(

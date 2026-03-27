@@ -487,11 +487,16 @@ export function ContextFooter({
                   >
                     {tabs.map((tab) => (
                       <Tabs.Tab
-                        className='min-w-32 capitalize'
+                        className='max-w-40 min-w-32 flex-1 capitalize'
                         id={tab.id}
                         key={tab.id}
                       >
-                        {tab.label}
+                        <span
+                          className='line-clamp-2 text-center'
+                          title={tab.label}
+                        >
+                          {tab.label}
+                        </span>
                         <Tabs.Indicator />
                       </Tabs.Tab>
                     ))}
