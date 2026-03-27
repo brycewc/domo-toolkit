@@ -30,7 +30,7 @@ export function ReleaseNotesPage() {
   }
 
   return (
-    <div className='flex h-full min-h-[calc(100vh-20)] w-full flex-col justify-between space-y-4'>
+    <div className='flex h-screen w-full max-w-4xl flex-col justify-between gap-4 px-4 pt-8 pb-4'>
       <motion.div
         animate={{ opacity: 1, y: 0 }}
         className='flex flex-col items-center justify-center gap-4 text-center'

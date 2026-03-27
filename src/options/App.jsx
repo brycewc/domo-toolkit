@@ -37,7 +37,7 @@ const TAB_TITLES = {
 };
 
 export default function App() {
-  const theme = useTheme();
+  useTheme();
   const [currentRoute, setCurrentRoute] = useState(getHashRoute);
 
   useEffect(() => {
@@ -70,7 +70,7 @@ export default function App() {
     return (
       <div className='flex h-screen w-full justify-center'>
         <div
-          className={`flex h-full w-full flex-col justify-center ${fullScreenPage.fullWidth ? '' : 'max-w-4xl px-4 pt-8 pb-4'}`}
+          className={`flex h-full w-full flex-col items-center justify-center ${fullScreenPage.fullWidth ? '' : 'max-w-4xl px-4 pt-8 pb-4'}`}
         >
           <Suspense
             className='flex justify-center'
@@ -173,7 +173,7 @@ export default function App() {
               Configure general extension settings.
             </p>
           </div>
-          <Settings theme={theme} />
+          <Settings />
         </Tabs.Panel>
       </Tabs>
       <ToastProvider className='right-2 bottom-2' placement='bottom' />

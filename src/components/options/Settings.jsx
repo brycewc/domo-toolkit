@@ -18,25 +18,22 @@ import {
 } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 
-export function Settings({ theme = 'system' }) {
+const DEFAULT_SETTINGS = {
+  defaultClearCookiesHandling: 'auto',
+  defaultDomoInstance: '',
+  iconStyle: 'light',
+  themePreference: 'system'
+};
+
+export function Settings() {
   const [developerMode, setDeveloperMode] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   // Store all settings in a single state object for extensibility
-  const [settings, setSettings] = useState({
-    defaultClearCookiesHandling: 'auto',
-    defaultDomoInstance: '',
-    iconStyle: 'light',
-    themePreference: theme
-  });
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
 
   // Track original settings to detect changes
-  const [originalSettings, setOriginalSettings] = useState({
-    defaultClearCookiesHandling: 'auto',
-    defaultDomoInstance: '',
-    iconStyle: 'light',
-    themePreference: theme
-  });
+  const [originalSettings, setOriginalSettings] = useState(DEFAULT_SETTINGS);
 
   useEffect(() => {
     // Load all settings from storage
@@ -50,10 +47,10 @@ export function Settings({ theme = 'system' }) {
       (result) => {
         const loadedSettings = {
           defaultClearCookiesHandling:
-            result.defaultClearCookiesHandling || 'auto',
-          defaultDomoInstance: result.defaultDomoInstance || '',
-          iconStyle: result.iconStyle || 'light',
-          themePreference: result.themePreference || theme || 'system'
+            result.defaultClearCookiesHandling || DEFAULT_SETTINGS.defaultClearCookiesHandling,
+          defaultDomoInstance: result.defaultDomoInstance || DEFAULT_SETTINGS.defaultDomoInstance,
+          iconStyle: result.iconStyle || DEFAULT_SETTINGS.iconStyle,
+          themePreference: result.themePreference || DEFAULT_SETTINGS.themePreference
         };
         setSettings(loadedSettings);
         setOriginalSettings(loadedSettings);
@@ -203,7 +200,7 @@ export function Settings({ theme = 'system' }) {
       <Form className='flex flex-col gap-2' onSubmit={handleSubmit}>
         <Select
           className='w-40'
-          placeholder={theme}
+          placeholder='System'
           value={settings.themePreference}
           onChange={handleThemeChange}
         >

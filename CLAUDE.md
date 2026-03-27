@@ -8,9 +8,7 @@ Domo Toolkit is a Chrome Extension (Manifest V3) that enhances the Domo platform
 
 ## Best Practices
 
-- This extension hasn't launched yet and has no users.
-  - For cleaner code, do not provide backwards compatibility when changing features or redoing code that would have otherwise broken things if there were users.
-  - Do not write comments that clarify how a new implementation works compared to an old one. Only comments that clarify the current state of the code should be left.
+- For cleaner code, do not provide backwards compatibility whenever possible. This is because the nature of a Chrome extension means the entire codebase is the same version and run locally for a user, so there is no need to maintain compatibility with older versions of the code.
 - Follow existing code style and conventions as closely as possible.
 - Always use index files for barrel exports in folders.
 - Use named exports only (no default exports).

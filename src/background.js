@@ -481,33 +481,8 @@ chrome.runtime.onInstalled.addListener((details) => {
 restoreFromSession();
 
 /**
- * Detect system color scheme by querying an active tab
- * @returns {Promise<boolean>} true if dark mode, false otherwise
- */
-async function detectSystemColorScheme() {
-  try {
-    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tabs.length === 0) return false;
-
-    const results = await chrome.scripting.executeScript({
-      func: () => window.matchMedia('(prefers-color-scheme: dark)').matches,
-      target: { tabId: tabs[0].id },
-      world: 'MAIN'
-    });
-
-    return results?.[0]?.result ?? false;
-  } catch (error) {
-    console.log(
-      '[Background] Could not detect system color scheme:',
-      error.message
-    );
-    return false;
-  }
-}
-
-/**
- * Update extension icon based on theme preference
- * Uses dark icon variant for light mode and regular icon for dark mode
+ * Update extension icon
+ * Uses dark icon variant when isDark is true
  */
 function updateExtensionIcon(isDark) {
   const iconPath = isDark
@@ -532,25 +507,16 @@ function updateExtensionIcon(isDark) {
 }
 
 /**
- * Update icon based on stored theme preference
+ * Update icon based on stored icon style preference
  */
-async function updateIconFromThemePreference() {
-  const result = await chrome.storage.sync.get(['themePreference']);
-  const theme = result.themePreference || 'system';
-
-  if (theme === 'dark') {
-    updateExtensionIcon(true);
-  } else if (theme === 'light') {
-    updateExtensionIcon(false);
-  } else {
-    // System theme - detect from active tab
-    const isDark = await detectSystemColorScheme();
-    updateExtensionIcon(isDark);
-  }
+async function updateIconFromStorage() {
+  const result = await chrome.storage.sync.get(['iconStyle']);
+  const iconStyle = result.iconStyle || 'light';
+  updateExtensionIcon(iconStyle === 'dark');
 }
 
-// Set initial icon based on stored theme preference
-updateIconFromThemePreference();
+// Set initial icon based on stored icon style preference
+updateIconFromStorage();
 
 // Track last clipboard value to detect changes
 let lastClipboardValue = '';
@@ -780,19 +746,10 @@ chrome.webNavigation.onHistoryStateUpdated.addListener(async (details) => {
 
 // Listen for setting changes
 chrome.storage.onChanged.addListener(async (changes, areaName) => {
-  if (areaName === 'sync' && changes.themePreference !== undefined) {
-    const theme = changes.themePreference.newValue || 'system';
-    console.log('[Background] Theme preference changed to:', theme);
-
-    if (theme === 'dark') {
-      updateExtensionIcon(true);
-    } else if (theme === 'light') {
-      updateExtensionIcon(false);
-    } else {
-      // System theme - detect from active tab
-      const isDark = await detectSystemColorScheme();
-      updateExtensionIcon(isDark);
-    }
+  if (areaName === 'sync' && changes.iconStyle !== undefined) {
+    const iconStyle = changes.iconStyle.newValue || 'light';
+    console.log('[Background] Icon style changed to:', iconStyle);
+    updateExtensionIcon(iconStyle === 'dark');
   }
 
   if (
