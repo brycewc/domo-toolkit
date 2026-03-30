@@ -154,7 +154,7 @@ export function WelcomePage() {
     {
       icon: IconApi,
       label: 'Postman Collection',
-      url: 'https://www.postman.com/domoapis/domo-product-apis'
+      url: 'https://www.postman.com/brycewc/workspace/domo-product-apis'
     }
   ];
 
