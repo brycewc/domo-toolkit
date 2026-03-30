@@ -25,6 +25,7 @@ import {
   useState
 } from 'react';
 
+import { useTheme } from '@/hooks';
 import { getObjectType } from '@/models';
 
 import { LevelBar } from './LevelBar';
@@ -111,7 +112,7 @@ const PipelineNode = memo(function PipelineNode({ data, id }) {
     <div
       className={`w-70 rounded-lg border-2 bg-background px-3 py-2 shadow-sm ${colors.border} ${
         isSelected ? 'ring-2 ring-accent' : ''
-      } ${data.highlighted ? 'ring-2 ring-yellow-400' : ''}`}
+      } ${ctx?.highlightedDepth !== null && data.depth === ctx?.highlightedDepth ? 'ring-2 ring-yellow-400' : ''}`}
     >
       {data.hasIncoming && (
         <Handle className='size-2' position={Position.Left} type='target' />
@@ -188,6 +189,7 @@ export function PipelineGraph({
   error,
   expandLoading,
   frontierCounts,
+  highlightedDepth,
   instance,
   levelSummary,
   loading,
@@ -204,6 +206,7 @@ export function PipelineGraph({
   selectedNodeId,
   trace
 }) {
+  const theme = useTheme();
   const layout = useLayout(trace);
 
   const { initialEdges, initialNodes } = useMemo(() => {
@@ -215,6 +218,7 @@ export function PipelineGraph({
       .filter((pNode) => pNode && layout.positions.has(pNode.id))
       .map((pNode) => ({
         data: {
+          depth: pNode.depth,
           direction: pNode.direction,
           downstreamCount: pNode.downstreamCount,
           entityId: pNode.entityId,
@@ -222,7 +226,6 @@ export function PipelineGraph({
           expanded: pNode.expanded,
           hasIncoming: layout.nodesWithIncoming.has(pNode.id),
           hasOutgoing: layout.nodesWithOutgoing.has(pNode.id),
-          highlighted: pNode.highlighted,
           isRoot: pNode.id === rootNodeId,
           label: pNode.name,
           metadata: pNode.metadata,
@@ -300,12 +303,13 @@ export function PipelineGraph({
   const graphContext = useMemo(
     () => ({
       expandLoading,
+      highlightedDepth,
       instance,
       onCollapseNode,
       onExpandNode,
       selectedNodeId
     }),
-    [expandLoading, instance, onCollapseNode, onExpandNode, selectedNodeId]
+    [expandLoading, highlightedDepth, instance, onCollapseNode, onExpandNode, selectedNodeId]
   );
 
   if (loading) {
@@ -337,6 +341,7 @@ export function PipelineGraph({
     <PipelineGraphContext.Provider value={graphContext}>
       <div className='bg-content2 h-full w-full'>
         <ReactFlow
+          colorMode={theme}
           edges={edges}
           elementsSelectable={interactive}
           maxZoom={2}

@@ -1,4 +1,4 @@
-import { Button, Separator, Toolbar, Tooltip } from '@heroui/react';
+import { Button, Toolbar, Tooltip } from '@heroui/react';
 import {
   IconChevronLeft,
   IconChevronRight,
@@ -9,6 +9,7 @@ import { memo, useCallback, useMemo } from 'react';
 
 const LevelPill = memo(function LevelPill({
   direction,
+  index,
   isRoot,
   level,
   onCollapse,
@@ -25,8 +26,7 @@ const LevelPill = memo(function LevelPill({
     );
   }
 
-  const absDepth = Math.abs(level.depth);
-  const label = `L${absDepth}`;
+  const label = `L${index}`;
 
   return (
     <Tooltip closeDelay={0} delay={400}>
@@ -45,7 +45,7 @@ const LevelPill = memo(function LevelPill({
         {label}
         <span className='text-muted'>{level.nodeCount}</span>
       </Button>
-      <Tooltip.Content>{`${level.nodeCount} nodes at depth ${absDepth}`}</Tooltip.Content>
+      <Tooltip.Content>{`${level.nodeCount} nodes at level ${index}`}</Tooltip.Content>
     </Tooltip>
   );
 });
@@ -71,7 +71,7 @@ const FrontierPill = memo(function FrontierPill({
 });
 
 const Connector = memo(function Connector() {
-  return <Separator className='w-3' />;
+  return <div className='border-divider mx-1 h-4 shrink-0 self-center border-l' />;
 });
 
 export const LevelBar = memo(function LevelBar({
@@ -121,6 +121,7 @@ export const LevelBar = memo(function LevelBar({
           {(i > 0 || frontierCounts?.upstream > 0) && <Connector />}
           <LevelPill
             direction='upstream'
+            index={reversedUpstream.length - i}
             level={level}
             onCollapse={onCollapseLevel}
             onExpand={onExpandLevel}
@@ -145,6 +146,7 @@ export const LevelBar = memo(function LevelBar({
           {i > 0 && <Connector />}
           <LevelPill
             direction='downstream'
+            index={i + 1}
             level={level}
             onCollapse={onCollapseLevel}
             onExpand={onExpandLevel}
@@ -157,7 +159,6 @@ export const LevelBar = memo(function LevelBar({
       {downstreamLevels?.length > 0 && frontierCounts?.downstream > 0 && (
         <Connector />
       )}
-
       <FrontierPill
         count={frontierCounts?.downstream || 0}
         direction='downstream'

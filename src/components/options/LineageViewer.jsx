@@ -43,6 +43,7 @@ export function LineageViewer() {
     expandLevel,
     expandNode,
     frontierCounts,
+    highlightedDepth,
     highlightLevel,
     levelSummary,
     preserveExpansion,
@@ -230,6 +231,7 @@ export function LineageViewer() {
               error={null}
               expandLoading={expandLoading}
               frontierCounts={frontierCounts}
+              highlightedDepth={highlightedDepth}
               instance={params?.instance}
               levelSummary={levelSummary}
               loading={false}

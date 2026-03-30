@@ -109,8 +109,7 @@ export function useGraphVisibility({
       .filter((n) => visible.has(n.id))
       .map((n) => ({
         ...n,
-        expanded: effectiveExpanded.get(n.id),
-        highlighted: highlightedDepth !== null && n.depth === highlightedDepth
+        expanded: effectiveExpanded.get(n.id)
       }));
 
     const visibleEdges = graph.edges.filter(
@@ -118,10 +117,12 @@ export function useGraphVisibility({
     );
 
     return { edges: visibleEdges, nodes: visibleNodes };
-  }, [graph, rootNodeId, effectiveExpanded, adjacency, highlightedDepth]);
+  }, [graph, rootNodeId, effectiveExpanded, adjacency]);
 
   const levelSummary = useMemo(() => {
     if (!visibleTrace) return { downstream: [], upstream: [] };
+
+    const visibleIds = new Set(visibleTrace.nodes.map((n) => n.id));
 
     const depthBuckets = new Map();
     for (const node of visibleTrace.nodes) {
@@ -144,6 +145,22 @@ export function useGraphVisibility({
           const exp = effectiveExpanded.get(n.id);
           return sign > 0 ? exp?.down : exp?.up;
         });
+
+        // Skip levels where expanding would not reveal any new nodes
+        if (!allExpanded) {
+          const canRevealMore = nodesAtDepth.some((n) => {
+            const adj = sign > 0 ? adjacency.downstream : adjacency.upstream;
+            const neighbors = adj.get(n.id) || [];
+            // Has cached neighbors not yet visible
+            if (neighbors.some((id) => !visibleIds.has(id))) return true;
+            // Has uncached neighbors (would trigger a fetch)
+            const totalCount =
+              sign > 0 ? n.downstreamCount : n.upstreamCount;
+            return totalCount > neighbors.length;
+          });
+          if (!canRevealMore) continue;
+        }
+
         levels.push({
           allExpanded,
           depth,
@@ -158,31 +175,41 @@ export function useGraphVisibility({
       downstream: buildLevels(1),
       upstream: buildLevels(-1)
     };
-  }, [visibleTrace, effectiveExpanded]);
+  }, [visibleTrace, effectiveExpanded, adjacency]);
 
   const frontierCounts = useMemo(() => {
     if (!visibleTrace || !graph) return { downstream: 0, upstream: 0 };
 
-    let upCount = 0;
-    let downCount = 0;
+    const visibleIds = new Set(visibleTrace.nodes.map((n) => n.id));
 
-    for (const node of visibleTrace.nodes) {
-      const exp = effectiveExpanded.get(node.id);
-      if (node.upstreamCount > 0 && !exp?.up && node.direction !== 'downstream') {
-        upCount++;
-      }
-      if (node.downstreamCount > 0 && !exp?.down && node.direction !== 'upstream') {
-        downCount++;
-      }
-    }
+    const countForDirection = (levels, sign) => {
+      if (levels.length === 0) return 0;
+      const deepest = levels[levels.length - 1];
+      if (deepest.allExpanded) return 0;
 
-    return { downstream: downCount, upstream: upCount };
-  }, [visibleTrace, effectiveExpanded, graph]);
+      const nodesAtDepth = visibleTrace.nodes.filter(
+        (n) => n.depth === deepest.depth
+      );
+      return nodesAtDepth.filter((n) => {
+        const adj = sign > 0 ? adjacency.downstream : adjacency.upstream;
+        const neighbors = adj.get(n.id) || [];
+        if (neighbors.some((id) => !visibleIds.has(id))) return true;
+        const totalCount = sign > 0 ? n.downstreamCount : n.upstreamCount;
+        return totalCount > neighbors.length;
+      }).length;
+    };
+
+    return {
+      downstream: countForDirection(levelSummary.downstream, 1),
+      upstream: countForDirection(levelSummary.upstream, -1)
+    };
+  }, [visibleTrace, graph, levelSummary, adjacency]);
 
   const expandNode = useCallback(
     async (nodeId, direction) => {
       const needsFetch = !isNeighborCached(nodeId, direction);
       if (needsFetch) {
+        preserveRef.current = true;
         const node = graph?.nodes.find((n) => n.id === nodeId);
         if (node) {
           await expandFetch(nodeId, node.entityType, node.entityId);
@@ -233,6 +260,7 @@ export function useGraphVisibility({
       }
 
       if (fetchPromises.length > 0) {
+        preserveRef.current = true;
         await Promise.all(fetchPromises);
       }
 
@@ -294,6 +322,7 @@ export function useGraphVisibility({
     expandLevel,
     expandNode,
     frontierCounts,
+    highlightedDepth,
     highlightLevel,
     levelSummary,
     preserveExpansion,
