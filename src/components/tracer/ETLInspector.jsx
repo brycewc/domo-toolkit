@@ -68,8 +68,7 @@ import {
   IconVector,
   IconX
 } from '@tabler/icons-react';
-import { useVirtualizer } from '@tanstack/react-virtual';
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import JsonView from 'react18-json-view';
 
 import '@/assets/json-view-theme.css';
@@ -220,10 +219,10 @@ export function ETLInspector({
       return;
     }
     const baseUrl = `https://${instance}.domo.com`;
-    getObjectType('DATAFLOW')
-      .buildObjectUrl(baseUrl, dataflow.id)
-      .then(setDomoUrl)
-      .catch(() => setDomoUrl(null));
+    getObjectType('DATAFLOW_TYPE')
+      ?.buildObjectUrl(baseUrl, dataflow.id)
+      ?.then(setDomoUrl)
+      ?.catch(() => setDomoUrl(null));
   }, [instance, dataflow]);
 
   const filteredTiles = useMemo(() => {
@@ -252,24 +251,6 @@ export function ETLInspector({
     }
     return rows;
   }, [filteredTiles]);
-
-  const scrollRef = useRef(null);
-
-  const virtualizer = useVirtualizer({
-    count: flatRows.length,
-    estimateSize: useCallback(
-      (index) => (flatRows[index].type === 'header' ? 32 : 44),
-      [flatRows]
-    ),
-    getScrollElement: () => scrollRef.current,
-    overscan: 8
-  });
-
-  useEffect(() => {
-    if (activeTab === 'tiles') {
-      virtualizer.measure();
-    }
-  }, [activeTab, virtualizer]);
 
   if (loading) {
     return (
@@ -300,7 +281,7 @@ export function ETLInspector({
   }
 
   return (
-    <Card className='border-divider h-full rounded-none border-l p-0 shadow-none'>
+    <Card className='border-divider flex h-full flex-col rounded-none border-l p-0 shadow-none'>
       <Card.Header className='border-divider shrink-0 gap-1 border-b p-2'>
         <div className='flex items-center justify-between'>
           <div className='flex min-w-0 items-center gap-2'>
@@ -344,7 +325,10 @@ export function ETLInspector({
             </Tabs.Tab>
           </Tabs.List>
         </Tabs.ListContainer>
-        <Tabs.Panel className='flex min-h-0 flex-1 flex-col p-0' id='tiles'>
+        <Tabs.Panel
+          className='flex min-h-0 flex-1 flex-col overflow-hidden p-0'
+          id='tiles'
+        >
           <div className='border-divider shrink-0 border-b p-2'>
             <SearchField
               fullWidth
@@ -366,42 +350,29 @@ export function ETLInspector({
             )}
           </div>
 
-          <ScrollShadow hideScrollBar className='flex-1 p-2' ref={scrollRef}>
+          <ScrollShadow hideScrollBar className='min-h-0 flex-1 p-2'>
             {flatRows.length === 0 ? (
               <div className='py-8 text-center text-muted'>
                 <p>No tiles match &ldquo;{tileSearch}&rdquo;</p>
               </div>
             ) : (
-              <DisclosureGroup
-                className='w-full'
-                style={{ height: virtualizer.getTotalSize() }}
-              >
-                {virtualizer.getVirtualItems().map((vItem) => {
-                  const row = flatRows[vItem.index];
-                  return (
-                    <div
-                      className='gap-2'
-                      data-index={vItem.index}
-                      key={vItem.key}
-                      ref={virtualizer.measureElement}
-                      style={{ top: vItem.start }}
-                    >
-                      {row.type === 'header' ? (
-                        <CategoryHeader
-                          category={row.category}
-                          count={row.count}
-                        />
-                      ) : (
-                        <div className='mb-1.5'>
-                          <TileDetail
-                            searchQuery={tileSearch || undefined}
-                            tile={row.tile}
-                          />
-                        </div>
-                      )}
+              <DisclosureGroup className='w-full'>
+                {flatRows.map((row) =>
+                  row.type === 'header' ? (
+                    <CategoryHeader
+                      category={row.category}
+                      count={row.count}
+                      key={`h-${row.category}`}
+                    />
+                  ) : (
+                    <div className='mb-1.5' key={row.tile.id}>
+                      <TileDetail
+                        searchQuery={tileSearch || undefined}
+                        tile={row.tile}
+                      />
                     </div>
-                  );
-                })}
+                  )
+                )}
               </DisclosureGroup>
             )}
           </ScrollShadow>
@@ -413,7 +384,7 @@ export function ETLInspector({
               <JsonView
                 displaySize
                 className='text-sm'
-                collapsed={2}
+                collapsed={1}
                 collapseStringMode='word'
                 collapseStringsAfterLength={80}
                 matchesURL={false}
@@ -565,6 +536,7 @@ function tileHasContent(tile) {
     hasDetailKey(d, 'rowLimit') ||
     hasDetailKey(d, 'search') ||
     hasDetailKey(d, 'separator') ||
+    hasDetailKey(d, 'unionType') ||
     hasDetailKey(d, 'updateMode') ||
     hasDetailKey(d, 'valueField')
   );
@@ -844,6 +816,8 @@ function TileConfig({ rawDetails }) {
     entries.push(['Row Count', String(rawDetails.rowCount)]);
   if (rawDetails.inputCount != null)
     entries.push(['Inputs', String(rawDetails.inputCount)]);
+  if (rawDetails.unionType)
+    entries.push(['Union Type', rawDetails.unionType]);
   if (entries.length === 0) return null;
 
   return (

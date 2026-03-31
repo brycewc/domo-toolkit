@@ -14,46 +14,63 @@ export function convertToGraph(lineageResponse, startEntityType, startEntityId) 
   const edgeSet = new Set();
   const addedNodes = new Set();
 
-  const depths = new Map();
-  depths.set(startKey, 0);
-
+  // Run upstream and downstream BFS with independent depth maps so
+  // neither pass contaminates the other's distance calculations.
+  // Merge afterward, keeping the depth closest to root for each node.
+  const upDepths = new Map();
+  upDepths.set(startKey, 0);
   const upVisited = new Set([startKey]);
   const upQueue = [startKey];
   while (upQueue.length > 0) {
     const key = upQueue.shift();
     const entity = lineageResponse[key];
     if (!entity) continue;
-    const currentDepth = depths.get(key) ?? 0;
+    const currentDepth = upDepths.get(key);
 
     for (const parent of entity.parents || []) {
       if (!parent) continue;
       const parentKey = toMapKey(parent.type, parent.id);
       if (!upVisited.has(parentKey)) {
         upVisited.add(parentKey);
-        depths.set(parentKey, currentDepth - 1);
+        upDepths.set(parentKey, currentDepth - 1);
         upQueue.push(parentKey);
       }
     }
   }
 
+  const downDepths = new Map();
+  downDepths.set(startKey, 0);
   const downVisited = new Set([startKey]);
   const downQueue = [startKey];
   while (downQueue.length > 0) {
     const key = downQueue.shift();
     const entity = lineageResponse[key];
     if (!entity) continue;
-    const currentDepth = depths.get(key) ?? 0;
+    const currentDepth = downDepths.get(key);
 
     for (const child of entity.children || []) {
       if (!child) continue;
       const childKey = toMapKey(child.type, child.id);
       if (!downVisited.has(childKey)) {
         downVisited.add(childKey);
-        if (!depths.has(childKey)) {
-          depths.set(childKey, currentDepth + 1);
-        }
+        downDepths.set(childKey, currentDepth + 1);
         downQueue.push(childKey);
       }
+    }
+  }
+
+  // Merge: start with upstream depths, then override with downstream
+  // when it is closer to (or equidistant from) root.
+  const depths = new Map();
+  depths.set(startKey, 0);
+  for (const [key, dep] of upDepths) {
+    if (key !== startKey) depths.set(key, dep);
+  }
+  for (const [key, dep] of downDepths) {
+    if (key === startKey) continue;
+    const existing = depths.get(key);
+    if (existing === undefined || Math.abs(dep) <= Math.abs(existing)) {
+      depths.set(key, dep);
     }
   }
 

@@ -7,6 +7,13 @@
  * @returns {Promise<Array>} - Array of results from all frames that returned valid data
  */
 export async function executeInAllFrames(func, args = [], tabId = null) {
+  // Dev mode: call function directly — Vite proxy handles API routing
+  if (import.meta.env.DEV && !globalThis.chrome?.scripting) {
+    const result = await func(...args);
+    if (result == null) return [];
+    return Array.isArray(result) ? result : [result];
+  }
+
   try {
     let targetTabId = tabId;
 
@@ -107,6 +114,11 @@ export async function executeInAllFrames(func, args = [], tabId = null) {
  * @returns {Promise<any>} - The result from the executed function
  */
 export async function executeInPage(func, args = [], tabId = null) {
+  // Dev mode: call function directly — Vite proxy handles API routing
+  if (import.meta.env.DEV && !globalThis.chrome?.scripting) {
+    return func(...args);
+  }
+
   try {
     let targetTabId = tabId;
 

@@ -263,7 +263,7 @@ export function LineageViewer() {
         </div>
 
         {inspectedDataflow && (
-          <div className='w-[400px] shrink-0'>
+          <div className='h-full w-[400px] shrink-0'>
             <ETLInspector
               cacheRef={inspectorCacheRef}
               dataflowId={inspectedDataflow.id}
