@@ -518,9 +518,6 @@ async function updateIconFromStorage() {
 // Set initial icon based on stored icon style preference
 updateIconFromStorage();
 
-// Track last clipboard value to detect changes
-let lastClipboardValue = '';
-
 // 431 error handler function (stored for add/remove)
 // Only active when mode is 'auto' - preserves last 2 instances
 async function handle431Response(details) {
@@ -1582,36 +1579,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         case 'CLEAR_CARD_ERRORS': {
           clearCardErrors(message.tabId);
-          sendResponse({ success: true });
-          break;
-        }
-
-        case 'CLIPBOARD_COPIED': {
-          // Content script or Copy component detected a copy event
-          const { clipboardData, domoObject } = message;
-
-          // Cache in session storage (include object info if available)
-          await chrome.storage.session.set({
-            lastClipboardObject: clipboardData ? domoObject || null : null,
-            lastClipboardValue: clipboardData || ''
-          });
-
-          // Update in-memory value and notify if changed
-          if ((clipboardData || '') !== lastClipboardValue) {
-            lastClipboardValue = clipboardData || '';
-
-            // Notify all extension contexts about clipboard change
-            chrome.runtime
-              .sendMessage({
-                clipboardData: clipboardData || '',
-                domoObject: clipboardData ? domoObject || null : null,
-                type: 'CLIPBOARD_UPDATED'
-              })
-              .catch(() => {
-                // No listeners, that's fine
-              });
-          }
-
           sendResponse({ success: true });
           break;
         }

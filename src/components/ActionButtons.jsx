@@ -11,7 +11,7 @@ import {
   IconLayoutSidebarRightExpand,
   IconSettings
 } from '@tabler/icons-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import {
   ActivityLogCurrentObject,
@@ -47,7 +47,6 @@ export function ActionButtons({
   isLoading,
   onStatusUpdate
 }) {
-  const navigateToCopiedRef = useRef();
   const [isExpanded, setIsExpanded] = useState(defaultExpanded ?? !collapsable);
 
   useEffect(() => {
@@ -87,7 +86,6 @@ export function ActionButtons({
                 <Copy
                   currentContext={currentContext}
                   isDisabled={!isDomoPage}
-                  navigateToCopiedRef={navigateToCopiedRef}
                   onStatusUpdate={onStatusUpdate}
                 />
                 <ShareWithSelf
@@ -101,7 +99,6 @@ export function ActionButtons({
                 />
                 <NavigateToCopiedObject
                   currentContext={currentContext}
-                  ref={navigateToCopiedRef}
                   onStatusUpdate={onStatusUpdate}
                 />
                 <ClearCookies

@@ -435,27 +435,11 @@ export function ETLInspector({
                     onClick={onClick}
                   />
                 )}
-                customizeCopy={(node) => {
-                  const stringValue =
-                    typeof node === 'object'
-                      ? JSON.stringify(node, null, 2)
-                      : String(node);
-                  const trimmed = stringValue.trim();
-                  const isDomoId =
-                    /^-?\d+$/.test(trimmed) ||
-                    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-                      trimmed
-                    );
-                  if (isDomoId) {
-                    chrome.runtime
-                      .sendMessage({
-                        clipboardData: trimmed,
-                        type: 'CLIPBOARD_COPIED'
-                      })
-                      .catch(() => {});
-                  }
-                  return stringValue;
-                }}
+                customizeCopy={(node) =>
+                  typeof node === 'object'
+                    ? JSON.stringify(node, null, 2)
+                    : String(node)
+                }
                 customizeNode={(params) => {
                   if (params.node === null || params.node === undefined) {
                     return { enableClipboard: false };
