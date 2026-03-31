@@ -199,6 +199,40 @@ export async function detectCurrentObject() {
       break;
     }
 
+    case url.includes('workflows/triggers/'): {
+      const triggerModal = document.querySelector(
+        '[role="dialog"][class*="TimerModal"]'
+      );
+      if (!triggerModal) {
+        objectType = 'WORKFLOW_MODEL';
+        break;
+      }
+
+      // Extract triggerId from React fiber tree (prop on parent component)
+      const fiberKey = Object.keys(triggerModal).find((k) =>
+        k.startsWith('__reactFiber')
+      );
+      let triggerId = null;
+      if (fiberKey) {
+        let fiber = triggerModal[fiberKey];
+        for (let i = 0; i < 15 && fiber; i++) {
+          if (fiber.memoizedProps?.triggerId) {
+            triggerId = fiber.memoizedProps.triggerId;
+            break;
+          }
+          fiber = fiber.return;
+        }
+      }
+
+      return {
+        baseUrl: `${location.protocol}//${location.hostname}`,
+        id: triggerId,
+        parentId: parts[parts.indexOf('triggers') + 1],
+        typeId: 'WORKFLOW_TRIGGER',
+        url
+      };
+    }
+
     case url.includes('workflows/'):
       objectType = 'WORKFLOW_MODEL';
       break;

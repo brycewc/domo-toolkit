@@ -1547,7 +1547,11 @@ export const ObjectTypeRegistry = {
       endpoint: '/workflow/v2/executions/{id}',
       pathToName: 'modelName'
     },
-    ['WORKFLOW_MODEL']
+    ['WORKFLOW_MODEL'],
+    [
+      { label: 'Workflow Model', source: 'parentId', typeId: 'WORKFLOW_MODEL' },
+      { field: 'modelVersion', label: 'Workflow Version', parentSource: 'parentId', typeId: 'WORKFLOW_MODEL_VERSION' }
+    ]
   ),
   WORKFLOW_MODEL: new DomoObjectType(
     'WORKFLOW_MODEL',
@@ -1558,7 +1562,11 @@ export const ObjectTypeRegistry = {
     {
       endpoint: '/workflow/v1/models/{id}',
       pathToName: 'name'
-    }
+    },
+    null,
+    [
+      { field: 'versions', isArray: true, itemIdField: 'version', itemTypeId: 'WORKFLOW_MODEL_VERSION', label: 'Versions', parentSource: 'objectId' }
+    ]
   ),
   WORKFLOW_MODEL_VERSION: new DomoObjectType(
     'WORKFLOW_MODEL_VERSION',
@@ -1574,16 +1582,27 @@ export const ObjectTypeRegistry = {
       endpoint: '/workflow/v2/models/{parent}/versions/{id}',
       pathToName: 'version'
     },
-    ['WORKFLOW_MODEL']
+    ['WORKFLOW_MODEL'],
+    [
+      { label: 'Workflow Model', source: 'parentId', typeId: 'WORKFLOW_MODEL' }
+    ]
   ),
-  WORKFLOW_TIMER_START: new DomoObjectType(
-    'WORKFLOW_TIMER_START',
-    'Workflow Timer Start',
+  WORKFLOW_TRIGGER: new DomoObjectType(
+    'WORKFLOW_TRIGGER',
+    'Workflow Trigger',
+    '/workflows/triggers/{parent}',
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     null,
-    /.*/,
-    null,
-    null,
-    ['WORKFLOW_INSTANCE']
+    {
+      endpoint: '/workflow/v2/triggers/{id}',
+      pathToName: 'name'
+    },
+    ['WORKFLOW_MODEL'],
+    [
+      {
+        label: 'Workflow Model', source: 'parentId', typeId: 'WORKFLOW_MODEL'
+      }
+    ]
   ),
   WORKSHEET: new DomoObjectType(
     'WORKSHEET',

@@ -141,108 +141,11 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // NOTE: URL change detection and instance tracking are handled by service worker
-// Card modal detection requires DOM access, so we handle it here
+// Modal/overlay detection requires DOM access, so we handle it here via MutationObserver.
+// Each detector is a config object; the shared observer iterates them on every mutation batch.
 
 // Track last detected card modal ID to avoid redundant detections
 let lastDetectedCardId = null;
-
-// Track whether a job overview element is currently visible
-let lastDetectedJobView = false;
-
-// Watch for card modal element being added or removed
-function checkForCardModalElement(mutations) {
-  for (const mutation of mutations) {
-    if (mutation.type === 'childList') {
-      // Check for added nodes
-      if (mutation.addedNodes.length > 0) {
-        for (const node of mutation.addedNodes) {
-          if (node.nodeType === Node.ELEMENT_NODE) {
-            let modalElement = null;
-            if (
-              node.classList &&
-              node.classList.contains('card-details-modal')
-            ) {
-              modalElement = node;
-            } else if (node.querySelector) {
-              modalElement = node.querySelector('.card-details-modal');
-            }
-
-            if (modalElement) {
-              handleCardModalDetected();
-              return;
-            }
-          }
-        }
-      }
-
-      // Check for removed nodes
-      if (mutation.removedNodes.length > 0) {
-        for (const node of mutation.removedNodes) {
-          if (node.nodeType === Node.ELEMENT_NODE) {
-            let wasModal = false;
-            if (
-              node.classList &&
-              node.classList.contains('card-details-modal')
-            ) {
-              wasModal = true;
-            } else if (node.querySelector) {
-              const modalElement = node.querySelector('.card-details-modal');
-              if (modalElement) {
-                wasModal = true;
-              }
-            }
-
-            if (wasModal) {
-              lastDetectedCardId = null;
-              triggerContextRedetection();
-              return;
-            }
-          }
-        }
-      }
-    }
-  }
-}
-
-// Check for a card modal already present in the DOM (e.g., after extension reload)
-function checkForExistingCardModal() {
-  if (document.querySelector('.card-details-modal')) {
-    handleCardModalDetected();
-  }
-}
-
-// Watch for job overview element being added or removed (Governance Toolkit)
-function checkForJobOverviewElement(mutations) {
-  if (!location.pathname.includes('governance-toolkit')) return;
-
-  for (const mutation of mutations) {
-    if (mutation.type !== 'childList') continue;
-
-    for (const node of mutation.addedNodes) {
-      if (node.nodeType !== Node.ELEMENT_NODE) continue;
-      const isJobOverview =
-        node.classList?.value?.includes('job-overview-top') ||
-        node.querySelector?.('[class*="job-overview-top"]');
-      if (isJobOverview && !lastDetectedJobView) {
-        lastDetectedJobView = true;
-        triggerContextRedetection();
-        return;
-      }
-    }
-
-    for (const node of mutation.removedNodes) {
-      if (node.nodeType !== Node.ELEMENT_NODE) continue;
-      const wasJobOverview =
-        node.classList?.value?.includes('job-overview-top') ||
-        node.querySelector?.('[class*="job-overview-top"]');
-      if (wasJobOverview && lastDetectedJobView) {
-        lastDetectedJobView = false;
-        triggerContextRedetection();
-        return;
-      }
-    }
-  }
-}
 
 // Extract card ID from modal element ID (format: card-details-modal-{cardId})
 function extractCardIdFromModal() {
@@ -327,42 +230,6 @@ document.addEventListener(
 
 let lastAdminDetailTitle = null;
 
-function checkForAdminDetailPanel(mutations) {
-  if (!location.pathname.startsWith('/admin/')) return;
-
-  for (const mutation of mutations) {
-    if (mutation.type !== 'childList') continue;
-
-    for (const node of mutation.addedNodes) {
-      if (node.nodeType !== Node.ELEMENT_NODE) continue;
-      const isDetailPanel =
-        node.classList?.contains('bulk-item-details-content') ||
-        node.querySelector?.('.bulk-item-details-content');
-      if (isDetailPanel) {
-        const titleEl = document.querySelector('.bulk-item-details-title');
-        const currentTitle = titleEl?.innerText?.trim() || null;
-        if (currentTitle !== lastAdminDetailTitle) {
-          lastAdminDetailTitle = currentTitle;
-          triggerContextRedetection();
-        }
-        return;
-      }
-    }
-
-    for (const node of mutation.removedNodes) {
-      if (node.nodeType !== Node.ELEMENT_NODE) continue;
-      const wasDetailPanel =
-        node.classList?.contains('bulk-item-details-content') ||
-        node.querySelector?.('.bulk-item-details-content');
-      if (wasDetailPanel) {
-        lastAdminDetailTitle = null;
-        triggerContextRedetection();
-        return;
-      }
-    }
-  }
-}
-
 if (location.pathname.startsWith('/admin/')) {
   document.addEventListener(
     'click',
@@ -384,31 +251,156 @@ if (location.pathname.startsWith('/admin/')) {
   );
 }
 
-// Set up MutationObserver to watch for modal and job overview changes
+// ============================================================
+// Declarative modal/overlay detection framework
+// ============================================================
+
+/**
+ * Factory for simple boolean-presence detectors.
+ * Tracks whether the element is in the DOM and triggers redetection on transitions.
+ */
+function createSimpleDetector({ selector, urlGuard }) {
+  let isPresent = false;
+  return {
+    onDetected() {
+      if (!isPresent) {
+        isPresent = true;
+        triggerContextRedetection();
+      }
+    },
+    onLoadCheck() {
+      if (document.querySelector(selector)) {
+        isPresent = true;
+        triggerContextRedetection();
+      }
+    },
+    onRemoved() {
+      if (isPresent) {
+        isPresent = false;
+        triggerContextRedetection();
+      }
+    },
+    selector,
+    urlGuard
+  };
+}
+
+/**
+ * Registry of modal/overlay detectors.
+ * Each entry needs: selector, onDetected(), onRemoved(), onLoadCheck().
+ * Optional urlGuard string restricts the detector to pages whose pathname includes it.
+ * Use createSimpleDetector() for elements that only need boolean presence tracking.
+ */
+const MODAL_DETECTORS = [
+  // Card detail modal — custom logic for ID extraction with retry
+  {
+    onDetected() {
+      handleCardModalDetected();
+    },
+    onLoadCheck() {
+      if (document.querySelector('.card-details-modal')) {
+        handleCardModalDetected();
+      }
+    },
+    onRemoved() {
+      lastDetectedCardId = null;
+      triggerContextRedetection();
+    },
+    selector: '.card-details-modal'
+  },
+
+  // Governance Toolkit job overview panel
+  createSimpleDetector({
+    selector: '[class*="job-overview-top"]',
+    urlGuard: 'governance-toolkit'
+  }),
+
+  // Admin list detail panel — custom logic for title-based dedup
+  {
+    onDetected() {
+      const titleEl = document.querySelector('.bulk-item-details-title');
+      const currentTitle = titleEl?.innerText?.trim() || null;
+      if (currentTitle !== lastAdminDetailTitle) {
+        lastAdminDetailTitle = currentTitle;
+        triggerContextRedetection();
+      }
+    },
+    onLoadCheck() {
+      if (document.querySelector('.bulk-item-details-content')) {
+        lastAdminDetailTitle =
+          document.querySelector('.bulk-item-details-title')
+            ?.innerText?.trim() || null;
+        triggerContextRedetection();
+      }
+    },
+    onRemoved() {
+      lastAdminDetailTitle = null;
+      triggerContextRedetection();
+    },
+    selector: '.bulk-item-details-content',
+    urlGuard: '/admin/',
+    urlGuardMethod: 'startsWith'
+  },
+
+  // Workflow trigger timer modal
+  createSimpleDetector({
+    selector: '[role="dialog"][class*="TimerModal"]',
+    urlGuard: 'workflows/triggers/'
+  })
+];
+
+function matchesUrlGuard(detector) {
+  if (!detector.urlGuard) return true;
+  const method = detector.urlGuardMethod || 'includes';
+  return location.pathname[method](detector.urlGuard);
+}
+
+function nodeMatchesSelector(node, selector) {
+  return node.matches?.(selector) || !!node.querySelector?.(selector);
+}
+
+// Unified MutationObserver callback
 const modalObserver = new MutationObserver((mutations) => {
-  checkForCardModalElement(mutations);
-  checkForJobOverviewElement(mutations);
-  checkForAdminDetailPanel(mutations);
+  for (const detector of MODAL_DETECTORS) {
+    if (!matchesUrlGuard(detector)) continue;
+
+    let handled = false;
+    for (const mutation of mutations) {
+      if (mutation.type !== 'childList') continue;
+
+      for (const node of mutation.addedNodes) {
+        if (node.nodeType !== Node.ELEMENT_NODE) continue;
+        if (nodeMatchesSelector(node, detector.selector)) {
+          detector.onDetected();
+          handled = true;
+          break;
+        }
+      }
+      if (handled) break;
+
+      for (const node of mutation.removedNodes) {
+        if (node.nodeType !== Node.ELEMENT_NODE) continue;
+        if (nodeMatchesSelector(node, detector.selector)) {
+          detector.onRemoved();
+          handled = true;
+          break;
+        }
+      }
+      if (handled) break;
+    }
+  }
 });
 
-// Start observing the document for modal changes
 modalObserver.observe(document.body, {
   childList: true,
   subtree: true
 });
 
-// Detect modals already present in the DOM (handles extension reload with modal open)
-checkForExistingCardModal();
-
-// Detect admin detail panel already present (handles extension reload or pre-selected item)
-if (
-  location.pathname.startsWith('/admin/') &&
-  document.querySelector('.bulk-item-details-content')
-) {
-  lastAdminDetailTitle =
-    document.querySelector('.bulk-item-details-title')?.innerText?.trim() ||
-    null;
-  triggerContextRedetection();
+// Run on-load checks for all detectors (handles extension reload with modal/panel open)
+for (const detector of MODAL_DETECTORS) {
+  if (matchesUrlGuard(detector)) {
+    detector.onLoadCheck();
+  }
 }
 
 // ============================================================
