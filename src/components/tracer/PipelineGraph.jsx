@@ -1,5 +1,5 @@
 import dagre from '@dagrejs/dagre';
-import { Spinner } from '@heroui/react';
+import { Spinner, Surface } from '@heroui/react';
 import { IconArrowFork, IconDatabase } from '@tabler/icons-react';
 import {
   Background,
@@ -26,36 +26,10 @@ import {
 } from 'react';
 
 import { useTheme } from '@/hooks';
-import { getObjectType } from '@/models';
 
-import { LevelBar } from './LevelBar';
 import { PipelineNodeToolbar } from './PipelineNodeToolbar';
 
 const PipelineGraphContext = createContext(null);
-
-const EDGE_COLOR = '#94a3b8';
-const GRID_COLOR = '#cbd5e1';
-
-const NODE_COLORS = {
-  DATA_SOURCE: {
-    border: 'border-blue-500',
-    icon: 'text-blue-500',
-    minimap: '#3b82f6',
-    text: 'text-blue-800'
-  },
-  DATAFLOW: {
-    border: 'border-yellow-500',
-    icon: 'text-yellow-500',
-    minimap: '#eab308',
-    text: 'text-yellow-800'
-  },
-  ROOT: {
-    border: 'border-green-500',
-    icon: 'text-green-500',
-    minimap: '#22c55e',
-    text: 'text-green-800'
-  }
-};
 
 const NODE_ICONS = {
   DATA_SOURCE: IconDatabase,
@@ -71,9 +45,6 @@ function formatNumber(n) {
 
 const PipelineNode = memo(function PipelineNode({ data, id }) {
   const ctx = useContext(PipelineGraphContext);
-  const colors = data.isRoot
-    ? NODE_COLORS.ROOT
-    : NODE_COLORS[data.entityType] || NODE_COLORS.DATA_SOURCE;
   const Icon = NODE_ICONS[data.entityType] || IconDatabase;
   const meta = data.metadata;
   const hasName = data.label && data.label !== data.entityId;
@@ -81,25 +52,36 @@ const PipelineNode = memo(function PipelineNode({ data, id }) {
 
   const nodeUrl = useMemo(() => {
     if (!ctx?.instance) return null;
-    const objectType = getObjectType(data.entityType);
-    if (!objectType?.hasUrl()) return null;
-    const baseUrl = `https://${ctx.instance}.domo.com`;
-    return `${baseUrl}${objectType.urlPath.replace('{id}', data.entityId)}`;
+    const base = `https://${ctx.instance}.domo.com`;
+    if (data.entityType === 'DATA_SOURCE')
+      return `${base}/datasources/${data.entityId}/details/overview`;
+    if (data.entityType === 'DATAFLOW')
+      return `${base}/datacenter/dataflows/${data.entityId}/details`;
+    return null;
   }, [ctx?.instance, data.entityType, data.entityId]);
 
   let badge = '';
-  if (data.entityType === 'DATA_SOURCE' && meta?.rowCount != null) {
-    badge = `${formatNumber(meta.rowCount)} rows`;
+  if (data.entityType === 'DATA_SOURCE') {
+    const parts = [];
+    if (meta?.rowCount != null)
+      parts.push(`${formatNumber(meta.rowCount)} rows`);
+    if (meta?.columnCount != null)
+      parts.push(`${formatNumber(meta.columnCount)} columns`);
+    badge = parts.join(' | ');
   }
 
   const dataflowBadge = useMemo(() => {
-    if (data.entityType !== 'DATAFLOW' || !meta?.lastExecution?.endTime) return null;
-    const formatted = new Date(meta.lastExecution.endTime).toLocaleDateString(undefined, {
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      month: 'short'
-    });
+    if (data.entityType !== 'DATAFLOW' || !meta?.lastExecution?.endTime)
+      return null;
+    const formatted = new Date(meta.lastExecution.endTime).toLocaleDateString(
+      undefined,
+      {
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        month: 'short'
+      }
+    );
     return `Last run ${formatted}`;
   }, [data.entityType, meta]);
 
@@ -108,45 +90,60 @@ const PipelineNode = memo(function PipelineNode({ data, id }) {
     ? `${data.label} (${data.entityId})`
     : data.entityId;
 
+  const stripe = data.isRoot
+    ? 'bg-success'
+    : data.entityType === 'DATAFLOW'
+      ? 'bg-warning'
+      : 'bg-accent';
+
   return (
-    <div
-      className={`w-70 rounded-lg border-2 bg-background px-3 py-2 shadow-sm ${colors.border} ${
-        isSelected ? 'ring-2 ring-accent' : ''
-      } ${ctx?.highlightedDepth !== null && data.depth === ctx?.highlightedDepth ? 'ring-2 ring-yellow-400' : ''}`}
+    <Surface
+      className={`flex w-75 overflow-hidden rounded-2xl shadow-md ${
+        data.isRoot ? 'inset-ring-4 inset-ring-success' : ''
+      } ${isSelected ? 'ring-2 ring-accent' : ''} ${
+        ctx?.highlightedDepth !== null && data.depth === ctx?.highlightedDepth
+          ? 'ring-2 ring-accent'
+          : ''
+      }`}
     >
       {data.hasIncoming && (
         <Handle className='size-2' position={Position.Left} type='target' />
       )}
 
-      <div className='flex items-start gap-2'>
+      <div
+        className={`flex w-8 shrink-0 items-center justify-center border-none ${stripe}`}
+      >
         <Icon
-          className={`mt-0.5 size-4 shrink-0 ${colors.icon} ${data.entityType === 'DATAFLOW' ? 'rotate-180' : ''}`}
+          className={`size-5 text-white ${data.entityType === 'DATAFLOW' ? 'rotate-180' : ''}`}
         />
-        <div className='min-w-0 flex-1'>
-          {nodeUrl ? (
-            <a
-              className={`line-clamp-3 text-sm font-medium wrap-break-word hover:underline ${colors.text}`}
-              href={nodeUrl}
-              rel='noopener noreferrer'
-              target='_blank'
-              title={nameTitle}
-              onClick={(e) => e.stopPropagation()}
-            >
-              {nameContent}
-            </a>
-          ) : (
-            <div
-              className={`line-clamp-3 text-sm font-medium wrap-break-word ${colors.text}`}
-              title={nameTitle}
-            >
-              {nameContent}
-            </div>
-          )}
-          <div className='truncate text-xs text-muted'>
-            {hasName ? data.entityId : data.entityType}
+      </div>
+
+      <div className='flex min-h-20 min-w-0 flex-1 flex-col items-start justify-between gap-2 px-3 py-1.5'>
+        {nodeUrl ? (
+          <a
+            className='line-clamp-3 text-sm font-medium wrap-break-word hover:underline'
+            href={nodeUrl}
+            rel='noopener noreferrer'
+            target='_blank'
+            title={nameTitle}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {nameContent}
+          </a>
+        ) : (
+          <div
+            className='line-clamp-3 text-sm font-medium wrap-break-word'
+            title={nameTitle}
+          >
+            {nameContent}
           </div>
-          {badge && <div className='mt-0.5 text-xs text-muted'>{badge}</div>}
-          {dataflowBadge && <div className='mt-0.5 text-xs text-muted'>{dataflowBadge}</div>}
+        )}
+        <div className='truncate font-mono text-xs text-muted'>
+          {hasName ? data.entityId : data.entityType}
+          {badge && <div className='text-xs text-muted'>{badge}</div>}
+          {dataflowBadge && (
+            <div className='text-xs text-muted'>{dataflowBadge}</div>
+          )}
         </div>
       </div>
 
@@ -163,7 +160,7 @@ const PipelineNode = memo(function PipelineNode({ data, id }) {
           onExpandNode={ctx.onExpandNode}
         />
       )}
-    </div>
+    </Surface>
   );
 });
 
@@ -180,28 +177,20 @@ const DAGRE_OPTIONS = { marginx: 40, marginy: 40, rankdir: 'LR', ranksep: 80 };
 
 const defaultEdgeOptions = {
   animated: false,
-  markerEnd: { color: EDGE_COLOR, type: MarkerType.ArrowClosed },
-  style: { stroke: EDGE_COLOR, strokeWidth: 2 },
+  markerEnd: { color: 'var(--color-muted)', type: MarkerType.ArrowClosed },
+  style: { stroke: 'var(--color-muted)', strokeWidth: 2 },
   type: 'default'
 };
 
 export function PipelineGraph({
   error,
   expandLoading,
-  frontierCounts,
   highlightedDepth,
   instance,
-  levelSummary,
   loading,
-  onClearHighlight,
-  onCollapseLevel,
   onCollapseNode,
-  onExpandFrontier,
-  onExpandLevel,
   onExpandNode,
-  onHighlightLevel,
   onNodeClick,
-  onRootClick,
   rootNodeId,
   selectedNodeId,
   trace
@@ -267,8 +256,10 @@ export function PipelineGraph({
   );
 
   const miniMapNodeColor = useCallback((node) => {
-    if (node.data.isRoot) return NODE_COLORS.ROOT.minimap;
-    return NODE_COLORS[node.data.entityType]?.minimap || EDGE_COLOR;
+    if (node.data.isRoot) return 'var(--color-success)';
+    if (node.data.entityType === 'DATAFLOW') return 'var(--color-warning)';
+    if (node.data.entityType === 'DATA_SOURCE') return 'var(--color-accent)';
+    return 'var(--color-muted)';
   }, []);
 
   const reactFlowRef = useRef(null);
@@ -309,7 +300,14 @@ export function PipelineGraph({
       onExpandNode,
       selectedNodeId
     }),
-    [expandLoading, highlightedDepth, instance, onCollapseNode, onExpandNode, selectedNodeId]
+    [
+      expandLoading,
+      highlightedDepth,
+      instance,
+      onCollapseNode,
+      onExpandNode,
+      selectedNodeId
+    ]
   );
 
   if (loading) {
@@ -339,42 +337,37 @@ export function PipelineGraph({
 
   return (
     <PipelineGraphContext.Provider value={graphContext}>
-      <div className='bg-content2 h-full w-full'>
-        <ReactFlow
-          colorMode={theme}
-          edges={edges}
-          elementsSelectable={interactive}
-          maxZoom={2}
-          minZoom={0.1}
-          nodes={nodes}
-          nodesConnectable={false}
-          nodesDraggable={interactive}
-          nodeTypes={nodeTypes}
-          onEdgesChange={onEdgesChange}
-          onInit={handleInit}
-          onNodeClick={handleNodeClick}
-          onNodesChange={onNodesChange}
-        >
-          <Background color={GRID_COLOR} gap={16} />
-          <Controls onInteractiveChange={setInteractive} />
-          <MiniMap pannable zoomable nodeColor={miniMapNodeColor} />
-          {levelSummary && (
-            <Panel position='top-center'>
-              <LevelBar
-                downstreamLevels={levelSummary.downstream}
-                frontierCounts={frontierCounts}
-                upstreamLevels={levelSummary.upstream}
-                onClearHighlight={onClearHighlight}
-                onCollapseLevel={onCollapseLevel}
-                onExpandFrontier={onExpandFrontier}
-                onExpandLevel={onExpandLevel}
-                onHighlightLevel={onHighlightLevel}
-                onRootClick={onRootClick}
-              />
-            </Panel>
-          )}
-        </ReactFlow>
-      </div>
+      <ReactFlow
+        colorMode={theme}
+        edges={edges}
+        elementsSelectable={interactive}
+        maxZoom={2}
+        minZoom={0.1}
+        nodes={nodes}
+        nodesConnectable={false}
+        nodesDraggable={interactive}
+        nodeTypes={nodeTypes}
+        onEdgesChange={onEdgesChange}
+        onInit={handleInit}
+        onNodeClick={handleNodeClick}
+        onNodesChange={onNodesChange}
+      >
+        <Background gap={32} lineWidth={1.5} variant='cross' />
+        <Controls onInteractiveChange={setInteractive} />
+        <MiniMap pannable zoomable nodeColor={miniMapNodeColor} />
+        <Panel position='bottom-right'>
+          <div className='flex w-50 items-center justify-between gap-1 rounded-lg bg-transparent px-2 py-1 text-xs backdrop-blur-sm select-none'>
+            <div className='flex items-center gap-1.5'>
+              <IconDatabase className='size-3 text-accent' />
+              <span>DataSet</span>
+            </div>
+            <div className='flex items-center gap-1.5'>
+              <IconArrowFork className='size-3 rotate-180 text-warning' />
+              <span>DataFlow</span>
+            </div>
+          </div>
+        </Panel>
+      </ReactFlow>
     </PipelineGraphContext.Provider>
   );
 }

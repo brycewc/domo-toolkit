@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useGraphVisibility, useLineageCache, useResolveTabId } from '@/hooks';
 import { toLineageType, toNodeId } from '@/services';
 
-import { DataPreviewPanel, ETLInspector, PipelineGraph } from '../tracer';
+import { DataPreviewPanel, ETLInspector, LevelBar, PipelineGraph } from '../tracer';
 
 export function LineageViewer() {
   const [params, setParams] = useState(null);
@@ -87,7 +87,12 @@ export function LineageViewer() {
     previewHeightRef.current = 300;
     previewCacheRef.current.clear();
     inspectorCacheRef.current.clear();
-    init(params.entityType, params.entityId, params.tabId, params.instance).catch((err) => {
+    init(
+      params.entityType,
+      params.entityId,
+      params.tabId,
+      params.instance
+    ).catch((err) => {
       console.error('[LineageViewer] Failed to fetch trace:', err);
       setError(err.message || 'Failed to load pipeline trace');
     });
@@ -147,7 +152,12 @@ export function LineageViewer() {
     inspectorCacheRef.current.clear();
     if (params) {
       preserveExpansion();
-      init(params.entityType, params.entityId, params.tabId, params.instance).catch((err) => {
+      init(
+        params.entityType,
+        params.entityId,
+        params.tabId,
+        params.instance
+      ).catch((err) => {
         console.error('[LineageViewer] Failed to refresh:', err);
         setError(err.message || 'Failed to reload pipeline trace');
       });
@@ -215,7 +225,24 @@ export function LineageViewer() {
         </div>
       </div>
 
-      <div className='flex min-h-0 flex-1 overflow-hidden'>
+      <div className='relative flex min-h-0 flex-1 overflow-hidden'>
+        {levelSummary && !loading && !error && (
+          <div className='pointer-events-none absolute inset-x-0 top-0 z-10 flex justify-center pt-2'>
+            <div className='pointer-events-auto'>
+              <LevelBar
+                downstreamLevels={levelSummary.downstream}
+                frontierCounts={frontierCounts}
+                upstreamLevels={levelSummary.upstream}
+                onClearHighlight={clearHighlight}
+                onCollapseLevel={collapseLevel}
+                onExpandFrontier={handleExpandFrontier}
+                onExpandLevel={expandLevel}
+                onHighlightLevel={highlightLevel}
+                onRootClick={handleRootClick}
+              />
+            </div>
+          </div>
+        )}
         <div className='flex min-h-0 min-w-0 flex-1 flex-col'>
           {loading ? (
             <div className='flex flex-1 items-center justify-center gap-2'>
@@ -230,23 +257,15 @@ export function LineageViewer() {
             <PipelineGraph
               error={null}
               expandLoading={expandLoading}
-              frontierCounts={frontierCounts}
               highlightedDepth={highlightedDepth}
               instance={params?.instance}
-              levelSummary={levelSummary}
               loading={false}
               rootNodeId={rootNodeId}
               selectedNodeId={selectedNodeId}
               trace={visibleTrace}
-              onClearHighlight={clearHighlight}
-              onCollapseLevel={collapseLevel}
               onCollapseNode={collapseNode}
-              onExpandFrontier={handleExpandFrontier}
-              onExpandLevel={expandLevel}
               onExpandNode={expandNode}
-              onHighlightLevel={highlightLevel}
               onNodeClick={handleNodeClick}
-              onRootClick={handleRootClick}
             />
           )}
           {previewDataset && (
@@ -263,11 +282,10 @@ export function LineageViewer() {
         </div>
 
         {inspectedDataflow && (
-          <div className='h-full w-[400px] shrink-0'>
+          <div className='h-full w-100 shrink-0'>
             <ETLInspector
               cacheRef={inspectorCacheRef}
               dataflowId={inspectedDataflow.id}
-              instance={params?.instance}
               resolveTabId={resolveTabId}
               onClose={handleCloseInspector}
             />

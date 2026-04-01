@@ -166,6 +166,7 @@ Some object types require a parent ID for URLs or API calls:
 - HeroUI components for complex UI. Use HeroUI React documentation from https://heroui.com/react/llms.txt
 - Dark mode via `data-theme` attribute
 - OKLch color space for theme colors (`src/assets/global.css`)
+- When JS needs to produce a color value that ends up in the DOM (SVG `fill`, inline `style`, etc.), use `var(--color-*)` CSS variable references directly — do NOT resolve via `getComputedStyle`. Only resolve CSS variables when the color must be consumed by JS itself (e.g., canvas 2D, color math).
 
 ### Formatting & Linting (ESLint + Prettier)
 

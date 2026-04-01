@@ -336,7 +336,7 @@ function computeInitialExpanded(graph, rootNodeId) {
   for (const node of graph.nodes) {
     if (node.id === rootNodeId) {
       initial.set(node.id, { down: true, up: true });
-    } else if (Math.abs(node.depth) <= 2) {
+    } else if (Math.abs(node.depth) === 0) {
       const dir = node.direction;
       initial.set(node.id, {
         down: dir === 'root' || dir === 'downstream',

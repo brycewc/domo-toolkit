@@ -10,22 +10,49 @@ import { executeInPage } from '@/utils';
 export async function getDatasetPreview(datasetId, tabId = null, limit = 100) {
   return executeInPage(
     async (datasetId, limit) => {
+      // Get column schema
+      const schemaResponse = await fetch(
+        `/api/query/v1/datasources/${datasetId}/schema/indexed`,
+        { credentials: 'include' }
+      );
+      if (!schemaResponse.ok) {
+        throw new Error(`Failed to fetch schema: HTTP ${schemaResponse.status}`);
+      }
+      const schema = await schemaResponse.json();
+      const columns = schema.tables?.[0]?.columns || [];
+      const headers = columns.map((col) => col.name);
+
+      // Fetch data using structured query format which preserves nulls
       const response = await fetch(`/api/query/v1/execute/${datasetId}`, {
-        body: JSON.stringify({ sql: `SELECT * FROM table LIMIT ${limit}` }),
+        body: JSON.stringify({
+          context: {
+            calendar: 'StandardCalendar',
+            features: {
+              AllowNullValues: true,
+              TreatNumbersAsStrings: true
+            }
+          },
+          query: {
+            columns: columns.map((col) => ({ column: col.id, exprType: 'COLUMN' })),
+            groupByColumns: [],
+            having: null,
+            limit: { limit, offset: 0 },
+            orderByColumns: [],
+            where: null
+          },
+          querySource: 'data_table',
+          useCache: true
+        }),
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         method: 'POST'
       });
-
       if (!response.ok) {
         throw new Error(`Failed to fetch preview: HTTP ${response.status}`);
       }
 
       const data = await response.json();
-      const headers = data.columns || [];
-      const rows = data.rows || [];
-
-      return { headers, rows };
+      return { headers, rows: data.rows || [] };
     },
     [datasetId, limit],
     tabId

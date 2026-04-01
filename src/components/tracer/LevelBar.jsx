@@ -20,7 +20,7 @@ const LevelPill = memo(function LevelPill({
 }) {
   if (isRoot) {
     return (
-      <Button className='bg-success' size='sm' onPress={onRootClick}>
+      <Button size='sm' variant='primary' onPress={onRootClick}>
         Root
       </Button>
     );

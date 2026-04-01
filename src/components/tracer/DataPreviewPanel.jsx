@@ -1,6 +1,12 @@
-import { CloseButton, Spinner } from '@heroui/react';
+import {
+  CloseButton,
+  Spinner,
+  Surface,
+  Table,
+  TableLayout,
+  Virtualizer
+} from '@heroui/react';
 import { IconAlertCircle, IconTable } from '@tabler/icons-react';
-import { useVirtualizer } from '@tanstack/react-virtual';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { getDatasetPreview } from '@/services';
@@ -8,7 +14,7 @@ import { getDatasetPreview } from '@/services';
 const DEFAULT_HEIGHT = 300;
 const MIN_HEIGHT = 120;
 const MAX_HEIGHT_RATIO = 0.7;
-const ROW_HEIGHT = 28;
+const ROW_HEIGHT = 32;
 
 const ISO_DATETIME_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/;
 
@@ -119,21 +125,22 @@ export function DataPreviewPanel({
   const rows = useMemo(() => preview?.rows ?? [], [preview]);
 
   return (
-    <div
-      className='border-divider flex shrink-0 flex-col border-t bg-background'
+    <Surface
+      className='border-divider flex w-full shrink-0 flex-col border-t'
       ref={panelRef}
       style={{ height: heightValue.current }}
+      variant='default'
     >
       {/* Resize handle */}
       <div
-        className='hover:bg-content2 flex h-1.5 shrink-0 cursor-ns-resize items-center justify-center'
+        className='flex h-1.5 shrink-0 cursor-ns-resize items-center justify-center'
         onPointerDown={handlePointerDown}
       >
-        <div className='bg-divider h-0.5 w-8 rounded-full' />
+        <div className='h-0.5 w-8 rounded-full bg-surface' />
       </div>
 
-      <div className='border-divider bg-content2 flex shrink-0 items-center gap-2 border-b px-4 py-2'>
-        <IconTable className='size-4 text-accent' />
+      <div className='flex h-8 shrink-0 items-center gap-2 px-4 pt-0.5 pb-2'>
+        <IconTable size={14} />
         <span className='truncate text-sm font-semibold'>{datasetName}</span>
         {preview && (
           <span className='ml-2 text-xs text-muted'>
@@ -152,13 +159,19 @@ export function DataPreviewPanel({
 
       {error && (
         <div className='flex flex-1 items-center justify-center text-danger'>
-          <IconAlertCircle className='mr-2 size-5' />
+          <IconAlertCircle size={16} stroke={1.5} />
           <span>{error}</span>
         </div>
       )}
 
       {!loading && !error && rows.length > 0 && (
-        <VirtualTable datasetName={datasetName} headers={headers} rows={rows} />
+        <div className='min-h-0 min-w-0 flex-1'>
+          <VirtualTable
+            datasetName={datasetName}
+            headers={headers}
+            rows={rows}
+          />
+        </div>
       )}
 
       {!loading && !error && rows.length === 0 && (
@@ -166,8 +179,38 @@ export function DataPreviewPanel({
           <p>No data available</p>
         </div>
       )}
-    </div>
+    </Surface>
   );
+}
+
+function estimateColumnWidths(headers, rows) {
+  const charWidth = 7;
+  const padding = 10;
+  const minWidth = 60;
+  const maxWidth = 350;
+
+  return headers.map((header, i) => {
+    let longest = header.length;
+    for (const row of rows) {
+      const val = row[i];
+      const len = val == null ? 4 : String(val).length;
+      if (len > longest) longest = len;
+    }
+    return Math.max(
+      minWidth,
+      Math.min(maxWidth, longest * charWidth + padding)
+    );
+  });
+}
+
+function formatCell(value) {
+  if (value == null) {
+    return <span className='text-muted italic'>null</span>;
+  }
+  if (value === '') {
+    return <span className='text-muted italic'>empty string</span>;
+  }
+  return formatCellValue(value);
 }
 
 function formatCellValue(value) {
@@ -192,85 +235,83 @@ function formatCellValue(value) {
 }
 
 function VirtualTable({ datasetName, headers, rows }) {
-  const scrollRef = useRef(null);
-
-  const virtualizer = useVirtualizer({
-    count: rows.length,
-    estimateSize: () => ROW_HEIGHT,
-    getScrollElement: () => scrollRef.current,
-    overscan: 10
-  });
-
-  const virtualItems = virtualizer.getVirtualItems();
-  const colCount = headers.length + 1;
-  const topPad = virtualItems[0]?.start ?? 0;
-  const bottomPad =
-    virtualItems.length > 0
-      ? virtualizer.getTotalSize() - virtualItems[virtualItems.length - 1].end
-      : 0;
+  const columnWidths = useMemo(
+    () => estimateColumnWidths(headers, rows),
+    [headers, rows]
+  );
+  const columns = useMemo(
+    () =>
+      headers.map((header, i) => ({
+        id: `col-${i}`,
+        index: i,
+        name: header,
+        width: columnWidths[i]
+      })),
+    [headers, columnWidths]
+  );
+  const items = useMemo(() => rows.map((row, i) => ({ id: i, row })), [rows]);
+  const totalWidth = 30 + columnWidths.reduce((sum, w) => sum + w, 0);
 
   return (
-    <div className='min-h-0 flex-1 overflow-auto' ref={scrollRef}>
-      <table
-        aria-label={`Preview of ${datasetName}`}
-        className='min-w-full border-separate border-spacing-0 text-xs'
-      >
-        <thead className='sticky top-0 z-10'>
-          <tr>
-            <th className='bg-neutral-200 px-2 py-1.5 text-left font-semibold whitespace-nowrap'>
-              #
-            </th>
-            {headers.map((header, idx) => (
-              <th
-                className='bg-neutral-200 px-2 py-1.5 text-left font-semibold whitespace-nowrap'
-                key={idx}
+    <Virtualizer
+      layout={TableLayout}
+      layoutOptions={{
+        headingHeight: ROW_HEIGHT,
+        rowHeight: ROW_HEIGHT
+      }}
+    >
+      <Table className='h-full w-full'>
+        <Table.ScrollContainer className='h-full w-full overflow-auto overscroll-contain'>
+          <Table.Content
+            aria-label={`Preview of ${datasetName}`}
+            style={{ minWidth: totalWidth }}
+          >
+            <Table.Header className='h-full w-full bg-surface-secondary'>
+              <Table.Column
+                className='border-divider flex h-full items-center justify-end border-b border-l p-1'
+                id='rowNum'
+                maxWidth={30}
+                minWidth={30}
+                width={30}
               >
-                {header}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {topPad > 0 && (
-            <tr>
-              <td colSpan={colCount} style={{ height: topPad, padding: 0 }} />
-            </tr>
-          )}
-          {virtualItems.map((virtualRow) => {
-            const row = rows[virtualRow.index];
-            return (
-              <tr
-                className='border-divider border-b'
-                key={virtualRow.index}
-                style={{ height: ROW_HEIGHT }}
-              >
-                <td className='bg-neutral-200 px-2 py-1 text-muted'>
-                  {virtualRow.index + 1}
-                </td>
-                {headers.map((_, colIdx) => (
-                  <td className='px-2 py-1 whitespace-nowrap' key={colIdx}>
-                    {row[colIdx] == null ||
-                    row[colIdx] === '' ||
-                    row[colIdx] === 'null' ? (
-                      <span className='text-muted italic'>null</span>
-                    ) : (
-                      formatCellValue(row[colIdx])
+                #
+              </Table.Column>
+              <Table.Collection items={columns}>
+                {(column) => (
+                  <Table.Column
+                    className='border-divider flex h-full items-center truncate border-b border-l p-1 text-foreground'
+                    id={column.id}
+                    minWidth={column.width}
+                    title={column.name}
+                    width={column.width}
+                  >
+                    {column.name}
+                  </Table.Column>
+                )}
+              </Table.Collection>
+            </Table.Header>
+            <Table.Body items={items}>
+              {(item) => (
+                <Table.Row>
+                  <Table.Cell className='border-divider flex h-full items-center justify-end border-b border-l bg-surface-secondary p-1 font-mono text-xs text-muted'>
+                    {item.id + 1}
+                  </Table.Cell>
+                  <Table.Collection items={columns}>
+                    {(column) => (
+                      <Table.Cell
+                        className='border-divider flex h-full items-center truncate border-b border-l p-1 font-mono text-xs'
+                        title={String(item.row[column.index] ?? 'null')}
+                      >
+                        {formatCell(item.row[column.index])}
+                      </Table.Cell>
                     )}
-                  </td>
-                ))}
-              </tr>
-            );
-          })}
-          {bottomPad > 0 && (
-            <tr>
-              <td
-                colSpan={colCount}
-                style={{ height: bottomPad, padding: 0 }}
-              />
-            </tr>
-          )}
-        </tbody>
-      </table>
-    </div>
+                  </Table.Collection>
+                </Table.Row>
+              )}
+            </Table.Body>
+          </Table.Content>
+        </Table.ScrollContainer>
+      </Table>
+    </Virtualizer>
   );
 }

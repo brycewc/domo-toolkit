@@ -1,6 +1,4 @@
 import {
-  Button,
-  ButtonGroup,
   Card,
   Chip,
   CloseButton,
@@ -38,7 +36,6 @@ import {
   IconDatabase,
   IconDatabaseExport,
   IconDatabaseImport,
-  IconExternalLink,
   IconFilter,
   IconFilterCog,
   IconFlask,
@@ -65,15 +62,13 @@ import {
   IconTransform,
   IconTrendingUp,
   IconTypography,
-  IconVector,
-  IconX
+  IconVector
 } from '@tabler/icons-react';
 import { memo, useEffect, useMemo, useState } from 'react';
 import JsonView from 'react18-json-view';
 
 import '@/assets/json-view-theme.css';
 import { AnimatedCheck } from '@/components';
-import { getObjectType } from '@/models';
 import { getDataflowDetail, parseDataflow, searchTiles } from '@/services';
 
 const CATEGORY_COLORS = {
@@ -159,28 +154,26 @@ const TILE_ICONS = {
  * @param {Object} props
  * @param {React.RefObject<Map>} [props.cacheRef] - Shared cache for parsed dataflow data
  * @param {string} props.dataflowId - Dataflow ID to inspect
- * @param {string} [props.instance] - Domo instance subdomain for building URLs
  * @param {Function} [props.resolveTabId] - Async function that resolves a valid tab ID
  * @param {Function} props.onClose - Close handler
  */
-export function ETLInspector({
-  cacheRef,
-  dataflowId,
-  instance,
-  onClose,
-  resolveTabId
-}) {
+export function ETLInspector({ cacheRef, dataflowId, onClose, resolveTabId }) {
   const cached = cacheRef?.current?.get(dataflowId);
   const [dataflow, setDataflow] = useState(cached?.parsed ?? null);
   const [rawJSON, setRawJSON] = useState(cached?.raw ?? null);
-  const [domoUrl, setDomoUrl] = useState(null);
   const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState(null);
   const [tileSearch, setTileSearch] = useState('');
   const [activeTab, setActiveTab] = useState('tiles');
 
   useEffect(() => {
-    if (cached) return;
+    if (cached) {
+      setDataflow(cached.parsed);
+      setRawJSON(cached.raw);
+      setLoading(false);
+      setError(null);
+      return;
+    }
 
     let cancelled = false;
 
@@ -213,18 +206,6 @@ export function ETLInspector({
     };
   }, [cacheRef, dataflowId, resolveTabId]);
 
-  useEffect(() => {
-    if (!instance || !dataflow) {
-      setDomoUrl(null);
-      return;
-    }
-    const baseUrl = `https://${instance}.domo.com`;
-    getObjectType('DATAFLOW_TYPE')
-      ?.buildObjectUrl(baseUrl, dataflow.id)
-      ?.then(setDomoUrl)
-      ?.catch(() => setDomoUrl(null));
-  }, [instance, dataflow]);
-
   const filteredTiles = useMemo(() => {
     if (!dataflow) return [];
     if (!tileSearch.trim()) return dataflow.tiles;
@@ -254,7 +235,7 @@ export function ETLInspector({
 
   if (loading) {
     return (
-      <Card className='border-divider h-full rounded-none border-l p-0 shadow-none'>
+      <Card className='border-divider h-full rounded-none border-l bg-background p-0 shadow-none'>
         <Card.Header className='border-divider flex-row items-center justify-between border-b px-4 py-3'>
           <span className='font-semibold'>Loading ETL...</span>
           <CloseButton size='sm' onPress={onClose} />
@@ -268,7 +249,7 @@ export function ETLInspector({
 
   if (error || !dataflow) {
     return (
-      <Card className='border-divider h-full rounded-none border-l p-0 shadow-none'>
+      <Card className='border-divider h-full rounded-none border-l bg-background p-0 shadow-none'>
         <Card.Header className='border-divider flex-row items-center justify-between border-b px-4 py-3'>
           <span className='font-semibold'>ETL Inspector</span>
           <CloseButton size='sm' onPress={onClose} />
@@ -281,25 +262,16 @@ export function ETLInspector({
   }
 
   return (
-    <Card className='border-divider flex h-full flex-col rounded-none border-l p-0 shadow-none'>
+    <Card className='border-divider flex h-full flex-col rounded-none border-l bg-background p-0 shadow-none'>
       <Card.Header className='border-divider shrink-0 gap-1 border-b p-2'>
         <div className='flex items-center justify-between'>
           <div className='flex min-w-0 items-center gap-2'>
-            <IconArrowFork className='size-4 shrink-0 rotate-180 text-amber-500' />
+            <IconArrowFork className='size-4 shrink-0 rotate-180' />
             <span className='truncate font-semibold' title={dataflow.name}>
               {dataflow.name}
             </span>
           </div>
-          <ButtonGroup size='sm' variant='tertiary'>
-            {domoUrl && (
-              <Button isIconOnly onPress={() => window.open(domoUrl)}>
-                <IconExternalLink stroke={1.5} />
-              </Button>
-            )}
-            <Button isIconOnly onPress={onClose}>
-              <IconX stroke={1.5} />
-            </Button>
-          </ButtonGroup>
+          <CloseButton size='sm' onPress={onClose} />
         </div>
         <div className='text-xs text-muted'>
           {dataflow.tiles.length} tiles &middot; ID: {dataflow.id}
@@ -334,7 +306,6 @@ export function ETLInspector({
               fullWidth
               aria-label='Search tiles'
               value={tileSearch}
-              variant='secondary'
               onChange={setTileSearch}
             >
               <SearchField.Group>
@@ -350,7 +321,11 @@ export function ETLInspector({
             )}
           </div>
 
-          <ScrollShadow hideScrollBar className='min-h-0 flex-1 p-2'>
+          <ScrollShadow
+            hideScrollBar
+            className='min-h-0 flex-1 p-2'
+            offset={10}
+          >
             {flatRows.length === 0 ? (
               <div className='py-8 text-center text-muted'>
                 <p>No tiles match &ldquo;{tileSearch}&rdquo;</p>
@@ -575,15 +550,15 @@ const TileDetail = memo(function TileDetail({ searchQuery, tile }) {
 
   if (!hasContent) {
     return (
-      <div className='border-divider flex w-full items-center justify-between gap-2 overflow-hidden rounded-lg border bg-background p-2'>
+      <div className='border-divider flex w-full items-center justify-between gap-2 overflow-hidden rounded-lg border bg-surface p-2'>
         {trigger}
-        <IconChevronDown className='size-4 shrink-0 text-background' />
+        <IconChevronDown className='size-4 shrink-0 text-surface' />
       </div>
     );
   }
 
   return (
-    <Disclosure className='border-divider overflow-hidden rounded-lg border bg-background'>
+    <Disclosure className='border-divider overflow-hidden rounded-lg border bg-surface'>
       <Disclosure.Heading>
         <Disclosure.Trigger className='flex w-full items-center justify-between gap-2 p-2'>
           {trigger}
@@ -816,8 +791,7 @@ function TileConfig({ rawDetails }) {
     entries.push(['Row Count', String(rawDetails.rowCount)]);
   if (rawDetails.inputCount != null)
     entries.push(['Inputs', String(rawDetails.inputCount)]);
-  if (rawDetails.unionType)
-    entries.push(['Union Type', rawDetails.unionType]);
+  if (rawDetails.unionType) entries.push(['Union Type', rawDetails.unionType]);
   if (entries.length === 0) return null;
 
   return (
