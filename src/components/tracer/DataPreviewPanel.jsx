@@ -183,6 +183,12 @@ export function DataPreviewPanel({
   );
 }
 
+function displayLength(value) {
+  if (value == null) return 4; // "null"
+  if (value === '') return 12; // "empty string"
+  return formatCellValue(value).length;
+}
+
 function estimateColumnWidths(headers, rows) {
   const charWidth = 7;
   const padding = 10;
@@ -193,7 +199,7 @@ function estimateColumnWidths(headers, rows) {
     let longest = header.length;
     for (const row of rows) {
       const val = row[i];
-      const len = val == null ? 4 : String(val).length;
+      const len = displayLength(val);
       if (len > longest) longest = len;
     }
     return Math.max(
@@ -268,7 +274,7 @@ function VirtualTable({ datasetName, headers, rows }) {
           >
             <Table.Header className='h-full w-full bg-surface-secondary'>
               <Table.Column
-                className='border-divider flex h-full items-center justify-end border-b border-l p-1'
+                className='border-divider flex h-full items-center justify-end border-b p-1'
                 id='rowNum'
                 maxWidth={30}
                 minWidth={30}
@@ -293,7 +299,7 @@ function VirtualTable({ datasetName, headers, rows }) {
             <Table.Body items={items}>
               {(item) => (
                 <Table.Row>
-                  <Table.Cell className='border-divider flex h-full items-center justify-end border-b border-l bg-surface-secondary p-1 font-mono text-xs text-muted'>
+                  <Table.Cell className='border-divider flex h-full items-center justify-end border-b bg-surface-secondary p-1 font-mono text-xs text-muted'>
                     {item.id + 1}
                   </Table.Cell>
                   <Table.Collection items={columns}>

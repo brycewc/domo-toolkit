@@ -87,8 +87,8 @@ const PipelineNode = memo(function PipelineNode({ data, id }) {
 
   const nameContent = hasName ? data.label : data.entityId;
   const nameTitle = hasName
-    ? `${data.label} (${data.entityId})`
-    : data.entityId;
+    ? `${data.label} (ID: ${data.entityId})`
+    : `ID: ${data.entityId}`;
 
   const stripe = data.isRoot
     ? 'bg-success'
@@ -187,6 +187,7 @@ export function PipelineGraph({
   expandLoading,
   highlightedDepth,
   instance,
+  instanceRef,
   loading,
   onCollapseNode,
   onExpandNode,
@@ -263,7 +264,6 @@ export function PipelineGraph({
   }, []);
 
   const reactFlowRef = useRef(null);
-  const hasFittedRef = useRef(false);
 
   const fitViewOptions = useMemo(
     () => ({
@@ -276,20 +276,19 @@ export function PipelineGraph({
 
   const handleInit = useCallback((instance) => {
     reactFlowRef.current = instance;
-  }, []);
+    if (instanceRef) instanceRef.current = instance;
+  }, [instanceRef]);
 
+  // Re-fit whenever the layout produces new positions (collapse, expand,
+  // or initial load).  Keyed on initialNodes so user drag/selection
+  // changes (which only touch `nodes`) do not trigger a re-fit.
   useEffect(() => {
-    hasFittedRef.current = false;
-  }, [rootNodeId]);
-
-  useEffect(() => {
-    if (nodes.length > 0 && reactFlowRef.current && !hasFittedRef.current) {
-      hasFittedRef.current = true;
+    if (initialNodes.length > 0 && reactFlowRef.current) {
       requestAnimationFrame(() => {
         reactFlowRef.current.fitView(fitViewOptions);
       });
     }
-  }, [nodes, fitViewOptions]);
+  }, [initialNodes, fitViewOptions]);
 
   const graphContext = useMemo(
     () => ({

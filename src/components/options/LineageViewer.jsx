@@ -5,7 +5,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useGraphVisibility, useLineageCache, useResolveTabId } from '@/hooks';
 import { toLineageType, toNodeId } from '@/services';
 
-import { DataPreviewPanel, ETLInspector, LevelBar, PipelineGraph } from '../tracer';
+import {
+  DataPreviewPanel,
+  ETLInspector,
+  LevelBar,
+  PipelineGraph
+} from '../tracer';
 
 export function LineageViewer() {
   const [params, setParams] = useState(null);
@@ -13,6 +18,7 @@ export function LineageViewer() {
   const [selectedNodeId, setSelectedNodeId] = useState(null);
   const [inspectedDataflow, setInspectedDataflow] = useState(null);
   const [previewDataset, setPreviewDataset] = useState(null);
+  const graphInstanceRef = useRef(null);
   const previewHeightRef = useRef(300);
   const previewCacheRef = useRef(new Map());
   const inspectorCacheRef = useRef(new Map());
@@ -167,6 +173,11 @@ export function LineageViewer() {
   const handleRootClick = useCallback(() => {
     if (rootNodeId) {
       setSelectedNodeId(rootNodeId);
+      graphInstanceRef.current?.fitView({
+        maxZoom: 1.5,
+        nodes: [{ id: rootNodeId }],
+        padding: 0.3
+      });
     }
   }, [rootNodeId]);
 
@@ -220,7 +231,7 @@ export function LineageViewer() {
             variant='tertiary'
             onPress={handleRefresh}
           >
-            <IconReload className='size-4' stroke={1.5} />
+            <IconReload stroke={1.5} />
           </Button>
         </div>
       </div>
@@ -247,7 +258,7 @@ export function LineageViewer() {
           {loading ? (
             <div className='flex flex-1 items-center justify-center gap-2'>
               <Spinner size='lg' />
-              <span className='text-muted'>Loading pipeline trace...</span>
+              <span className='text-muted'>Loading lineage...</span>
             </div>
           ) : error ? (
             <div className='flex flex-1 items-center justify-center text-danger'>
@@ -259,6 +270,7 @@ export function LineageViewer() {
               expandLoading={expandLoading}
               highlightedDepth={highlightedDepth}
               instance={params?.instance}
+              instanceRef={graphInstanceRef}
               loading={false}
               rootNodeId={rootNodeId}
               selectedNodeId={selectedNodeId}

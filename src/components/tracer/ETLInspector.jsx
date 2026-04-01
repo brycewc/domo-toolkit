@@ -267,7 +267,10 @@ export function ETLInspector({ cacheRef, dataflowId, onClose, resolveTabId }) {
         <div className='flex items-center justify-between'>
           <div className='flex min-w-0 items-center gap-2'>
             <IconArrowFork className='size-4 shrink-0 rotate-180' />
-            <span className='truncate font-semibold' title={dataflow.name}>
+            <span
+              className='truncate font-semibold'
+              title={`${dataflow.name} (ID: ${dataflow.id})`}
+            >
               {dataflow.name}
             </span>
           </div>

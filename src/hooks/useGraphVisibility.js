@@ -135,6 +135,25 @@ export function useGraphVisibility({
 
     const buildLevels = (sign) => {
       const levels = [];
+      const dirKey = sign > 0 ? 'down' : 'up';
+
+      // When root is collapsed in this direction there are no visible
+      // nodes beyond depth 0. Show a synthetic collapsed level so the
+      // LevelBar can restore expansion.
+      const rootExp = effectiveExpanded.get(rootNodeId);
+      if (rootExp && !rootExp[dirKey]) {
+        const adj = sign > 0 ? adjacency.downstream : adjacency.upstream;
+        const neighborCount = (adj.get(rootNodeId) || []).length;
+        if (neighborCount > 0) {
+          levels.push({
+            allExpanded: false,
+            depth: sign,
+            nodeCount: neighborCount
+          });
+        }
+        return levels;
+      }
+
       const depths = [...depthBuckets.keys()]
         .filter((d) => (sign > 0 ? d > 0 : d < 0))
         .sort((a, b) => (sign > 0 ? a - b : b - a));
@@ -175,7 +194,7 @@ export function useGraphVisibility({
       downstream: buildLevels(1),
       upstream: buildLevels(-1)
     };
-  }, [visibleTrace, effectiveExpanded, adjacency]);
+  }, [visibleTrace, effectiveExpanded, adjacency, rootNodeId]);
 
   const frontierCounts = useMemo(() => {
     if (!visibleTrace || !graph) return { downstream: 0, upstream: 0 };
@@ -186,6 +205,14 @@ export function useGraphVisibility({
       if (levels.length === 0) return 0;
       const deepest = levels[levels.length - 1];
       if (deepest.allExpanded) return 0;
+
+      // Synthetic level from collapsed root — nodes are not in visibleTrace
+      const dirKey = sign > 0 ? 'down' : 'up';
+      const rootExp = effectiveExpanded.get(rootNodeId);
+      if (rootExp && !rootExp[dirKey]) {
+        const adj = sign > 0 ? adjacency.downstream : adjacency.upstream;
+        return (adj.get(rootNodeId) || []).length;
+      }
 
       const nodesAtDepth = visibleTrace.nodes.filter(
         (n) => n.depth === deepest.depth
@@ -203,7 +230,7 @@ export function useGraphVisibility({
       downstream: countForDirection(levelSummary.downstream, 1),
       upstream: countForDirection(levelSummary.upstream, -1)
     };
-  }, [visibleTrace, graph, levelSummary, adjacency]);
+  }, [visibleTrace, graph, levelSummary, adjacency, effectiveExpanded, rootNodeId]);
 
   const expandNode = useCallback(
     async (nodeId, direction) => {
@@ -216,12 +243,14 @@ export function useGraphVisibility({
         }
       }
 
+      const dirKey = direction === 'upstream' ? 'up' : 'down';
       setExpandedNodes((prev) => {
+        const existing = prev.get(nodeId);
+        if (existing?.[dirKey]) return prev;
         const next = new Map(prev);
-        const existing = next.get(nodeId) || { down: false, up: false };
         next.set(nodeId, {
-          ...existing,
-          [direction === 'upstream' ? 'up' : 'down']: true
+          ...(existing || { down: false, up: false }),
+          [dirKey]: true
         });
         return next;
       });
@@ -231,24 +260,79 @@ export function useGraphVisibility({
 
   const collapseNode = useCallback(
     (nodeId, direction) => {
+      const dirKey = direction === 'upstream' ? 'up' : 'down';
+
+      // Root: progressively collapse children first, then root itself.
+      // This keeps L1 visible so the LevelBar and frontier stay functional.
+      if (nodeId === rootNodeId) {
+        setExpandedNodes((prev) => {
+          const adj =
+            dirKey === 'down' ? adjacency.downstream : adjacency.upstream;
+          const children = adj.get(nodeId) || [];
+          const hasExpandedChild = children.some(
+            (childId) => prev.get(childId)?.[dirKey]
+          );
+
+          if (hasExpandedChild) {
+            const next = new Map(prev);
+            for (const childId of children) {
+              const existing = next.get(childId);
+              if (existing?.[dirKey]) {
+                next.set(childId, { ...existing, [dirKey]: false });
+              }
+            }
+            return next;
+          }
+
+          const existing = prev.get(nodeId);
+          if (existing && !existing[dirKey]) return prev;
+          const next = new Map(prev);
+          next.set(nodeId, {
+            ...(existing || { down: false, up: false }),
+            [dirKey]: false
+          });
+          return next;
+        });
+        return;
+      }
+
       setExpandedNodes((prev) => {
+        const existing = prev.get(nodeId);
+        if (existing && !existing[dirKey]) return prev;
         const next = new Map(prev);
-        const existing = next.get(nodeId) || { down: false, up: false };
         next.set(nodeId, {
-          ...existing,
-          [direction === 'upstream' ? 'up' : 'down']: false
+          ...(existing || { down: false, up: false }),
+          [dirKey]: false
         });
         return next;
       });
     },
-    []
+    [rootNodeId, adjacency]
   );
 
   const expandLevel = useCallback(
     async (direction, depth) => {
       if (!visibleTrace) return;
+      const dirKey = direction === 'upstream' ? 'up' : 'down';
 
       const nodesAtDepth = visibleTrace.nodes.filter((n) => n.depth === depth);
+
+      // When root is collapsed the level is synthetic and has no visible
+      // nodes. Expand root to restore that direction's first level.
+      if (nodesAtDepth.length === 0 && rootNodeId) {
+        setExpandedNodes((prev) => {
+          const existing = prev.get(rootNodeId);
+          if (existing?.[dirKey]) return prev;
+          const next = new Map(prev);
+          next.set(rootNodeId, {
+            ...(existing || { down: false, up: false }),
+            [dirKey]: true
+          });
+          return next;
+        });
+        return;
+      }
+
       const fetchPromises = [];
 
       for (const node of nodesAtDepth) {
@@ -265,39 +349,45 @@ export function useGraphVisibility({
       }
 
       setExpandedNodes((prev) => {
+        let changed = false;
         const next = new Map(prev);
         for (const node of nodesAtDepth) {
-          const existing = next.get(node.id) || { down: false, up: false };
-          next.set(node.id, {
-            ...existing,
-            [direction === 'upstream' ? 'up' : 'down']: true
-          });
+          const existing = next.get(node.id);
+          if (!existing?.[dirKey]) {
+            next.set(node.id, {
+              ...(existing || { down: false, up: false }),
+              [dirKey]: true
+            });
+            changed = true;
+          }
         }
-        return next;
+        return changed ? next : prev;
       });
     },
-    [visibleTrace, isNeighborCached, expandFetch]
+    [visibleTrace, isNeighborCached, expandFetch, rootNodeId]
   );
 
   const collapseLevel = useCallback(
     (direction, depth) => {
       if (!graph) return;
+      const dirKey = direction === 'upstream' ? 'up' : 'down';
 
       setExpandedNodes((prev) => {
+        let changed = false;
         const next = new Map(prev);
         for (const node of graph.nodes) {
           if (
             (direction === 'downstream' && node.depth >= depth) ||
             (direction === 'upstream' && node.depth <= depth)
           ) {
-            const existing = next.get(node.id) || { down: false, up: false };
-            next.set(node.id, {
-              ...existing,
-              [direction === 'upstream' ? 'up' : 'down']: false
-            });
+            const existing = next.get(node.id);
+            if (existing?.[dirKey]) {
+              next.set(node.id, { ...existing, [dirKey]: false });
+              changed = true;
+            }
           }
         }
-        return next;
+        return changed ? next : prev;
       });
     },
     [graph]

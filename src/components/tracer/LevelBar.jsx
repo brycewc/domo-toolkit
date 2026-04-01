@@ -41,9 +41,9 @@ const LevelPill = memo(function LevelPill({
             : onExpand(direction, level.depth)
         }
       >
-        {level.allExpanded ? <IconMinus stroke={2} /> : <IconPlus stroke={2} />}
+        {level.allExpanded ? <IconMinus /> : <IconPlus />}
         {label}
-        <span className='text-muted'>{level.nodeCount}</span>
+        <span className='text-muted'>({level.nodeCount})</span>
       </Button>
       <Tooltip.Content>{`${level.nodeCount} nodes at level ${index}`}</Tooltip.Content>
     </Tooltip>
@@ -71,7 +71,9 @@ const FrontierPill = memo(function FrontierPill({
 });
 
 const Connector = memo(function Connector() {
-  return <div className='border-divider mx-1 h-4 shrink-0 self-center border-l' />;
+  return (
+    <div className='border-divider mx-1 h-4 shrink-0 self-center border-l' />
+  );
 });
 
 export const LevelBar = memo(function LevelBar({
@@ -109,7 +111,7 @@ export const LevelBar = memo(function LevelBar({
   }, [downstreamLevels, onExpandLevel, onExpandFrontier]);
 
   return (
-    <Toolbar className='rounded-xl bg-background/90 px-3 py-2 shadow-md backdrop-blur-sm'>
+    <Toolbar className='rounded-xl bg-surface px-3 py-2 shadow-md'>
       <FrontierPill
         count={frontierCounts?.upstream || 0}
         direction='upstream'

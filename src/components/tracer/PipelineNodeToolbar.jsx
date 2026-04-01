@@ -29,7 +29,7 @@ export const PipelineNodeToolbar = memo(function PipelineNodeToolbar({
 
   return (
     <NodeToolbar isVisible nodeId={nodeId} position={Position.Top}>
-      <Toolbar className='rounded-lg bg-background px-1.5 py-1 shadow-md'>
+      <Toolbar className='rounded-lg bg-surface px-1.5 py-1 shadow-md'>
         {showUpstream && (
           <>
             {expanded?.up ? (
@@ -85,13 +85,18 @@ const CollapseButton = memo(function CollapseButton({ direction, onClick }) {
       variant='flat'
       onPress={onClick}
     >
-      <Icon className='size-3' stroke={2} />
-      <IconMinus className='size-3' stroke={2} />
+      <Icon className='size-3' />
+      <IconMinus className='size-3' />
     </Button>
   );
 });
 
-const ExpandButton = memo(function ExpandButton({ count, direction, isLoading, onClick }) {
+const ExpandButton = memo(function ExpandButton({
+  count,
+  direction,
+  isLoading,
+  onClick
+}) {
   const isUpstream = direction === 'upstream';
   const Icon = isUpstream ? IconArrowLeft : IconArrowRight;
 
