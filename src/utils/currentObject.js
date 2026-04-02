@@ -5,7 +5,7 @@
  * @returns {Object|null} Plain object with typeId, id, url, baseUrl properties
  */
 export async function detectCurrentObject() {
-  const url = location.href;
+  const url = location.href.toLowerCase();
 
   if (!location.hostname.includes('domo.com')) {
     return null;
