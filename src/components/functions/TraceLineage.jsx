@@ -1,8 +1,6 @@
 import { Button } from '@heroui/react';
 import { IconBinaryTree } from '@tabler/icons-react';
 
-import { isSidepanel } from '@/utils';
-
 export function TraceLineage({ currentContext, onStatusUpdate }) {
   const isDisabled =
     !currentContext?.domoObject?.id ||
@@ -37,7 +35,7 @@ export function TraceLineage({ currentContext, onStatusUpdate }) {
         windowId: tab.windowId
       });
 
-      if (!isSidepanel()) window.close();
+      window.close();
     } catch (err) {
       console.error('Error opening lineage viewer:', err);
       onStatusUpdate?.(

@@ -197,6 +197,7 @@ export function DataList({
               url: chrome.runtime.getURL('src/options/index.html#lineage'),
               windowId: tab.windowId
             });
+            window.close();
           }
           break;
         }
