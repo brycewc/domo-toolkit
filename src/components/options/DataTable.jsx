@@ -54,6 +54,7 @@ import { AnimatedCheck } from './../AnimatedCheck';
  * @param {Boolean} props.isRefreshing - Whether refreshing
  * @param {Function} props.onLoadMore - Infinite scroll callback
  * @param {Boolean} props.hasMore - Whether more data is available
+ * @param {React.ReactNode} props.header - Header content rendered above filters
  * @param {Function} props.onAdd - Add new callback
  */
 export function DataTable({
@@ -63,6 +64,7 @@ export function DataTable({
   entityName = 'items',
   exportConfig = null,
   hasMore = false,
+  header = null,
   initialColumnVisibility = {},
   initialSorting = null,
   isRefreshing = false,
@@ -159,6 +161,7 @@ export function DataTable({
   return (
     <Card className='flex min-h-0 w-full flex-1 flex-col'>
       <Card.Header>
+        <div className='px-1 py-2'>{header}</div>
         <div className='items-between flex w-full flex-col justify-center gap-1 sm:flex-row sm:items-center sm:justify-between'>
           <div className='flex w-full items-center gap-1 sm:justify-between'>
             <div className='flex flex-1 flex-row flex-wrap justify-start gap-1'>

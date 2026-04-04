@@ -6,12 +6,12 @@ import {
   getCardsForObject,
   getChildPages,
   getCurrentUser,
-  getSubpageIds,
   getDataflowForOutputDataset,
   getDataflowPermission,
   getFormsForPage,
   getPagesForCards,
   getQueuesForPage,
+  getSubpageIds,
   getUserGroups,
   getVersionDefinition,
   getWorkflowPermission
@@ -494,11 +494,11 @@ function updateExtensionIcon(isDark) {
         48: 'toolkit-dark-48.png'
       }
     : {
-        128: 'toolkit-128.png',
-        16: 'toolkit-16.png',
-        24: 'toolkit-24.png',
-        32: 'toolkit-32.png',
-        48: 'toolkit-48.png'
+        128: 'toolkit-transparent-128.png',
+        16: 'toolkit-transparent-16.png',
+        24: 'toolkit-transparent-24.png',
+        32: 'toolkit-transparent-32.png',
+        48: 'toolkit-transparent-48.png'
       };
 
   chrome.action.setIcon({ path: iconPath }).catch((error) => {

@@ -1,7 +1,6 @@
-import { Button, Card, Chip, Link } from '@heroui/react';
+import { Button, Card, Chip, Kbd, Link } from '@heroui/react';
 import {
   IconApi,
-  IconArrowRight,
   IconArrowUpRight,
   IconBolt,
   IconBrowser,
@@ -17,22 +16,43 @@ import {
   IconPuzzle,
   IconSettings,
   IconSparkles,
-  IconUserPlus
+  IconUserPlus,
+  IconX
 } from '@tabler/icons-react';
 import { motion } from 'motion/react';
 
 export function WelcomePage() {
-  const handleGetStarted = () => {
-    window.location.hash = 'favicon';
+  const handleClose = () => {
+    window.close();
   };
 
   const actionFeatures = [
-    { icon: IconClipboard, label: 'Copy IDs instantly' },
-    { icon: IconUserPlus, label: 'Share objects with yourself' },
-    { icon: IconEye, label: 'Analyze dependencies and relationships' },
     {
       icon: IconFileDescription,
-      label: 'Instantly view the activity log for any object'
+      label: 'Instantly view the activity log for the current object'
+    },
+    { icon: IconUserPlus, label: 'Share objects with yourself in one click' },
+    { icon: IconEye, label: 'Analyze dependencies and relationships' },
+    {
+      icon: IconClipboard,
+      label: (
+        <p>
+          Copy IDs with a click or keyboard shortcut{' '}
+          <Kbd>
+            <Kbd.Abbr
+              keyValue={
+                (
+                  navigator.userAgentData?.platform ?? navigator.platform
+                ).includes('Mac')
+                  ? 'command'
+                  : 'ctrl'
+              }
+            />
+            <Kbd.Abbr keyValue='shift' />
+            <Kbd.Content>1</Kbd.Content>
+          </Kbd>
+        </p>
+      )
     }
   ];
 
@@ -41,14 +61,14 @@ export function WelcomePage() {
       icon: IconBrowser,
       id: 'tab-titles',
       label:
-        'Tab titles are set automatically (gone are the days of hundreds of tabs named "Domo")'
+        'Tab titles are set to the object name. Say goodbye to identical tabs named "Domo"'
     },
     {
       icon: IconFavicon,
       id: 'favicons',
       label: (
-        <span>
-          Favicons automatically set to the instance logo{' '}
+        <p>
+          Favicons set to the instance logo{' '}
           <Link
             className='text-sm font-normal no-underline decoration-accent hover:text-accent hover:underline'
             href='#favicon'
@@ -59,22 +79,22 @@ export function WelcomePage() {
             </Link.Icon>
             )
           </Link>
-        </span>
+        </p>
       )
     },
     {
       icon: IconBolt,
       id: 'context',
       label:
-        'Context is dynamic, so you only see what you need when you need it'
+        'Actions and information appears when relevant, and disappears when not'
     },
     {
       icon: IconCookieOff,
       id: 'cookies',
       label: (
-        <span>
-          Cookies clear automatically on 431 errors, preserving the last 2
-          instances{' '}
+        <p>
+          431 "request headers too large" errors resolve themselves and your
+          current session stays logged in{' '}
           <Link
             className='text-sm font-normal no-underline decoration-accent hover:text-accent hover:underline'
             href='#settings'
@@ -85,14 +105,14 @@ export function WelcomePage() {
             </Link.Icon>
             )
           </Link>
-        </span>
+        </p>
       )
     }
   ];
 
   const quickStartGuide = [
-    <span className='flex flex-row items-end justify-start gap-1'>
-      Pin the extension (click{' '}
+    <p className='flex flex-row items-end justify-start gap-1'>
+      Pin the extension: click{' '}
       <IconPuzzle
         className='inline-block shrink-0 align-middle'
         size={18}
@@ -104,10 +124,10 @@ export function WelcomePage() {
         size={18}
         stroke={1.5}
       />{' '}
-      next to the extension icon)
-    </span>,
+      next to the extension icon
+    </p>,
     'Navigate to an object in Domo',
-    <span className='flex flex-row items-end justify-start gap-1'>
+    <p>
       Click the extension icon to use the popup (then click{' '}
       <IconLayoutSidebarRightExpand
         className='inline-block shrink-0 align-middle'
@@ -115,10 +135,10 @@ export function WelcomePage() {
         stroke={1.5}
       />{' '}
       to use the side panel instead if preferred)
-    </span>,
-    'Use the icon-only action buttons to copy, share, audit, delete, and more (tooltip text available on hover)',
+    </p>,
+    'Use the icon-only action buttons to copy, share, audit, navigate, and delete (tooltip text available on hover)',
     'Try navigating to different objects and observe the various available action buttons',
-    <span className='flex flex-row items-end justify-start gap-1'>
+    <p>
       Adjust your settings and set your favicon preferences (click{' '}
       <IconSettings
         className='inline-block shrink-0 align-middle'
@@ -126,8 +146,8 @@ export function WelcomePage() {
         stroke={1.5}
       />
       )
-    </span>,
-    'Advanced: Click the Current Context card to access the JSON definition for the current object'
+    </p>,
+    'Advanced: click the current context card to access the JSON definition for the current object'
   ];
 
   const links = [
@@ -170,7 +190,7 @@ export function WelcomePage() {
         <img
           alt='Domo Toolkit Logo'
           className='h-16 w-16'
-          src='/toolkit-128.png'
+          src='/toolkit-transparent-512.png'
         />
         <h1 className='text-xl font-semibold text-foreground'>
           Welcome to Domo Toolkit
@@ -201,10 +221,9 @@ export function WelcomePage() {
             >
               <Card className='h-full'>
                 <Card.Header>
-                  <Card.Description className='flex flex-row items-center justify-start gap-2 text-foreground'>
+                  <Card.Description className='flex flex-row items-start justify-start gap-2 text-foreground'>
                     <feature.icon
-                      className='shrink-0 text-accent'
-                      size={18}
+                      className='size-5.5 shrink-0 text-accent'
                       stroke={1.5}
                     />
                     {feature.label}
@@ -237,10 +256,9 @@ export function WelcomePage() {
             >
               <Card className='h-full'>
                 <Card.Header>
-                  <Card.Description className='flex flex-row items-center justify-start gap-2 text-foreground'>
+                  <Card.Description className='flex flex-row items-start justify-start gap-2 text-foreground'>
                     <feature.icon
-                      className='shrink-0 text-accent'
-                      size={18}
+                      className='size-5.5 shrink-0 text-accent'
                       stroke={1.5}
                     />
                     {feature.label}
@@ -292,21 +310,23 @@ export function WelcomePage() {
         <p className='text-sm font-medium tracking-wide uppercase'>
           Helpful Links
         </p>
-        <div className='flex flex-row flex-wrap items-center justify-evenly'>
-          {links.map((link) => (
-            <Link
-              className='no-underline'
-              href={link.url}
-              key={link.label}
-              target='_blank'
-            >
-              <Button variant='tertiary'>
-                <link.icon stroke={1.5} />
-                {link.label}
-              </Button>
-            </Link>
-          ))}
-        </div>
+        <Card>
+          <Card.Content className='flex flex-row flex-wrap items-center justify-evenly'>
+            {links.map((link) => (
+              <Link
+                className='no-underline'
+                href={link.url}
+                key={link.label}
+                target='_blank'
+              >
+                <Button variant='secondary'>
+                  <link.icon stroke={1.5} />
+                  {link.label}
+                </Button>
+              </Link>
+            ))}
+          </Card.Content>
+        </Card>
       </motion.div>
 
       {/* Footer */}
@@ -316,9 +336,9 @@ export function WelcomePage() {
         initial={{ opacity: 0 }}
         transition={{ delay: 0.3, duration: 0.3 }}
       >
-        <Button fullWidth variant='primary' onPress={handleGetStarted}>
-          Get Started
-          <IconArrowRight />
+        <Button fullWidth variant='primary' onPress={handleClose}>
+          <IconX />
+          Close
         </Button>
       </motion.div>
     </div>

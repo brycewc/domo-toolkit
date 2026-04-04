@@ -749,38 +749,10 @@ export function ActivityLogTable() {
     [activityLogType, fetchAllDataForExport]
   );
 
-  if (error) {
-    return (
-      <div className='p-4'>
-        <Alert color='danger'>
-          <Alert.Indicator>
-            <IconAlertCircle data-slot='alert-default-icon' />
-          </Alert.Indicator>
-          <Alert.Content>
-            <Alert.Title>Error Loading Activity Log</Alert.Title>
-            <Alert.Description>{error}</Alert.Description>
-          </Alert.Content>
-        </Alert>
-      </div>
-    );
-  }
-
-  if (isInitialLoad && events.length === 0) {
-    return (
-      <div className='skeleton--shimmer relative h-full w-full overflow-hidden'>
-        <Skeleton animationType='none' className='mb-4 h-4 w-1/3 rounded-lg' />
-        <Skeleton animationType='none' className='mb-2 h-8 w-full rounded-lg' />
-        <Skeleton
-          animationType='none'
-          className='mb-4 h-[calc(100vh-14rem)] w-full rounded-lg'
-        />
-      </div>
-    );
-  }
-
-  return (
-    <div className='items-between flex min-h-0 w-full flex-1 flex-col justify-center'>
-      <div className='flex flex-wrap items-center justify-between p-4'>
+  // Memoize header content
+  const header = useMemo(
+    () => (
+      <div className='flex flex-wrap items-center justify-between'>
         <span
           className='flex items-center justify-center gap-1 font-semibold'
           style={{ fontSize: '18px' }}
@@ -827,20 +799,62 @@ export function ActivityLogTable() {
           </p>
         )}
       </div>
-      <DataTable
-        columns={columns}
-        customFilters={customFilters}
-        data={filteredEvents}
-        entityName='events'
-        exportConfig={exportConfig}
-        hasMore={hasMore}
-        initialColumnVisibility={initialColumnVisibility}
-        initialSorting={{ column: 'time', direction: 'descending' }}
-        isRefreshing={isInitialLoad || isSearching}
-        onLoadMore={fetchMoreEvents}
-        onRefresh={handleRefresh}
-      />
-    </div>
+    ),
+    [
+      activityLogType,
+      events.length,
+      filteredEvents.length,
+      isFetchingMore,
+      isSearching,
+      objects,
+      total
+    ]
+  );
+
+  if (error) {
+    return (
+      <div className='p-4'>
+        <Alert color='danger'>
+          <Alert.Indicator>
+            <IconAlertCircle data-slot='alert-default-icon' />
+          </Alert.Indicator>
+          <Alert.Content>
+            <Alert.Title>Error Loading Activity Log</Alert.Title>
+            <Alert.Description>{error}</Alert.Description>
+          </Alert.Content>
+        </Alert>
+      </div>
+    );
+  }
+
+  if (isInitialLoad && events.length === 0) {
+    return (
+      <div className='skeleton--shimmer relative h-full w-full overflow-hidden'>
+        <Skeleton animationType='none' className='mb-4 h-4 w-1/3 rounded-lg' />
+        <Skeleton animationType='none' className='mb-2 h-8 w-full rounded-lg' />
+        <Skeleton
+          animationType='none'
+          className='mb-4 h-full w-full rounded-lg'
+        />
+      </div>
+    );
+  }
+
+  return (
+    <DataTable
+      columns={columns}
+      customFilters={customFilters}
+      data={filteredEvents}
+      entityName='events'
+      exportConfig={exportConfig}
+      hasMore={hasMore}
+      header={header}
+      initialColumnVisibility={initialColumnVisibility}
+      initialSorting={{ column: 'time', direction: 'descending' }}
+      isRefreshing={isInitialLoad || isSearching}
+      onLoadMore={fetchMoreEvents}
+      onRefresh={handleRefresh}
+    />
   );
 }
 

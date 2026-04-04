@@ -361,7 +361,7 @@ export function PipelineGraph({
         <Background gap={32} lineWidth={1.5} variant='cross' />
         <Controls onInteractiveChange={setInteractive} />
         <Panel position='bottom-center'>
-          <div className='flex w-50 items-center justify-around gap-2 rounded-lg bg-transparent px-2 py-1 text-xs backdrop-blur-sm select-none'>
+          <div className='flex w-fit items-center justify-around gap-2 rounded-lg border border-border bg-surface/20 px-2 py-1 text-xs backdrop-blur-sm select-none'>
             <div className='items-center' title='legend'>
               <IconInfoCircle className='size-4' />
             </div>
