@@ -15,7 +15,11 @@ import {
   Skeleton
 } from '@heroui/react';
 import { getLocalTimeZone, parseDate, today } from '@internationalized/date';
-import { IconCalendarWeek, IconFilter } from '@tabler/icons-react';
+import {
+  IconAlertCircle,
+  IconCalendarWeek,
+  IconFilter
+} from '@tabler/icons-react';
 import { AnimatePresence } from 'motion/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -749,7 +753,9 @@ export function ActivityLogTable() {
     return (
       <div className='p-4'>
         <Alert color='danger'>
-          <Alert.Indicator />
+          <Alert.Indicator>
+            <IconAlertCircle data-slot='alert-default-icon' />
+          </Alert.Indicator>
           <Alert.Content>
             <Alert.Title>Error Loading Activity Log</Alert.Title>
             <Alert.Description>{error}</Alert.Description>

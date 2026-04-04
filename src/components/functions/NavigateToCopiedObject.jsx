@@ -2,12 +2,15 @@ import {
   Button,
   Chip,
   Dropdown,
+  Header,
   Label,
   Separator,
   Spinner,
   Tooltip
 } from '@heroui/react';
 import {
+  IconAlertTriangle,
+  IconClipboard,
   IconExternalLink,
   IconEye,
   IconLayoutSidebarRightExpand
@@ -93,7 +96,11 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
       return currentContext.instance;
     }
     return defaultDomoInstance || null;
-  }, [currentContext?.isDomoPage, currentContext?.instance, defaultDomoInstance]);
+  }, [
+    currentContext?.isDomoPage,
+    currentContext?.instance,
+    defaultDomoInstance
+  ]);
 
   const readAndResolve = useCallback(async () => {
     const instance = getInstance();
@@ -304,14 +311,22 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
           Navigate to copied object
         </Tooltip.Content>
       </Tooltip>
-      <Dropdown.Popover className='min-w-60' placement='bottom'>
+      <Dropdown.Popover
+        className='flex max-h-80 w-80 min-w-80 flex-col overflow-hidden'
+        placement='bottom'
+      >
         {copiedId && (
-          <div className='pointer-events-none select-none px-3 py-2 font-mono text-xs text-muted'>
-            {copiedId}
+          <div className='text-s pointer-events-none flex shrink-0 items-center gap-1 px-4 pt-2 font-mono text-muted select-none'>
+            <IconClipboard size={12} stroke={1.5} />
+            <p title='Current clipboard value'>{copiedId}</p>
           </div>
         )}
-        <Dropdown.Menu onAction={handleAction}>
+        <Dropdown.Menu
+          className='min-h-0 flex-1 overflow-auto overscroll-contain'
+          onAction={handleAction}
+        >
           <Dropdown.Section>
+            <Header>Auto-detected</Header>
             <Dropdown.Item
               className={isLoading ? '' : 'hidden'}
               id='_loading'
@@ -321,16 +336,19 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
               <Label>Resolving...</Label>
             </Dropdown.Item>
             <Dropdown.Item
-              className={error && !isLoading ? '' : 'hidden'}
+              className={error && !isLoading ? 'pointer-events-none' : 'hidden'}
               id='_error'
               textValue={error || 'Error'}
             >
+              <IconAlertTriangle className='size-5 shrink-0' stroke={1.5} />
               <Label className='text-muted'>{error}</Label>
             </Dropdown.Item>
             <Dropdown.Item
-              className={resolvedObject && !isLoading ? '' : 'hidden'}
               id='_resolved'
               textValue='Navigate'
+              className={
+                resolvedObject && !isLoading ? 'items-start' : 'hidden'
+              }
             >
               {resolvedObject?.hasUrl() ? (
                 <IconExternalLink className='size-5 shrink-0' stroke={1.5} />
@@ -338,9 +356,6 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
                 <IconEye className='size-5 shrink-0' stroke={1.5} />
               )}
               <div className='flex flex-col gap-1'>
-                <Label className='font-medium'>
-                  {resolvedObject?.metadata?.name || copiedId}
-                </Label>
                 <Chip
                   className='w-fit lowercase'
                   color='accent'
@@ -349,6 +364,9 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
                 >
                   {resolvedObject?.typeName}
                 </Chip>
+                <Label className='font-medium'>
+                  {resolvedObject?.metadata?.name || copiedId}
+                </Label>
               </div>
             </Dropdown.Item>
           </Dropdown.Section>
@@ -357,6 +375,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
             <>
               <Separator />
               <Dropdown.Section>
+                <Header>Manual selection</Header>
                 {filteredTypes.map((type) => (
                   <Dropdown.Item
                     id={type.id}
@@ -387,5 +406,8 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
 }
 
 function isValidDomoId(text) {
-  return /^-?\d+$/.test(text) || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(text);
+  return (
+    /^-?\d+$/.test(text) ||
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(text)
+  );
 }

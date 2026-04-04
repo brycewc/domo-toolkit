@@ -6,7 +6,7 @@ import {
   Separator,
   Spinner
 } from '@heroui/react';
-import { IconRefresh } from '@tabler/icons-react';
+import { IconAlertTriangle, IconRefresh } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { DataListItem, DomoContext, DomoObject } from '@/models';
@@ -84,9 +84,10 @@ export function GetPagesView({
 
       // For card pages, always use the object's own ID (not parent).
       // parentId would be a dataflow/stream ID for DATA_SOURCE, which is wrong for card lookups.
-      const objectId = sidepanelType === 'getCardPages'
-        ? domoObject.id
-        : (domoObject.parentId || domoObject.id);
+      const objectId =
+        sidepanelType === 'getCardPages'
+          ? domoObject.id
+          : domoObject.parentId || domoObject.id;
       const objectName =
         domoObject.metadata?.parent?.name ||
         domoObject.metadata?.name ||
@@ -348,7 +349,10 @@ export function GetPagesView({
         tabId
       });
       return { childPages };
-    } else if (objectType === 'DATA_APP_VIEW' || objectType === 'WORKSHEET_VIEW') {
+    } else if (
+      objectType === 'DATA_APP_VIEW' ||
+      objectType === 'WORKSHEET_VIEW'
+    ) {
       const childPages = await getChildPages({
         appId,
         pageId: objectId,
@@ -650,7 +654,9 @@ export function GetPagesView({
   if (error) {
     return (
       <Alert className='w-full' status='warning'>
-        <Alert.Indicator />
+        <Alert.Indicator>
+          <IconAlertTriangle data-slot='alert-default-icon' />
+        </Alert.Indicator>
         <Alert.Content>
           <Alert.Title>Error</Alert.Title>
           <div className='flex flex-col items-start justify-center gap-2'>

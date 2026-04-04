@@ -210,7 +210,7 @@ export function LineageViewer() {
 
   return (
     <div className='flex h-full w-full flex-col'>
-      <div className='border-divider flex shrink-0 items-center justify-between border-b px-4 py-3'>
+      <div className='border-divider flex shrink-0 items-center justify-between border-b bg-surface px-4 py-3'>
         <div className='flex items-center gap-3'>
           {entityIcon}
           <div className='flex flex-col'>

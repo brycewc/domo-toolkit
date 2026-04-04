@@ -24,6 +24,7 @@ import {
   isUserFieldName
 } from '@/utils';
 
+import { AlertStatusIcon } from './AlertStatusIcon';
 import { AnimatedCheck } from './AnimatedCheck';
 import { GroupIdAnnotation } from './GroupIdAnnotation';
 import { TimestampAnnotation } from './TimestampAnnotation';
@@ -416,7 +417,9 @@ export function ContextFooter({
                 }
               >
                 <Tooltip.Trigger>
-                  <Alert.Indicator />
+                  <Alert.Indicator>
+                    <AlertStatusIcon />
+                  </Alert.Indicator>
                 </Tooltip.Trigger>
                 <Tooltip.Content>
                   Click to toggle context JSON view

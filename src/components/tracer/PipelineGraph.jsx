@@ -1,6 +1,10 @@
 import dagre from '@dagrejs/dagre';
 import { Spinner, Surface } from '@heroui/react';
-import { IconArrowFork, IconDatabase } from '@tabler/icons-react';
+import {
+  IconArrowFork,
+  IconDatabase,
+  IconInfoCircle
+} from '@tabler/icons-react';
 import {
   Background,
   Controls,
@@ -274,10 +278,13 @@ export function PipelineGraph({
     [rootNodeId]
   );
 
-  const handleInit = useCallback((instance) => {
-    reactFlowRef.current = instance;
-    if (instanceRef) instanceRef.current = instance;
-  }, [instanceRef]);
+  const handleInit = useCallback(
+    (instance) => {
+      reactFlowRef.current = instance;
+      if (instanceRef) instanceRef.current = instance;
+    },
+    [instanceRef]
+  );
 
   // Re-fit whenever the layout produces new positions (collapse, expand,
   // or initial load).  Keyed on initialNodes so user drag/selection
@@ -353,19 +360,25 @@ export function PipelineGraph({
       >
         <Background gap={32} lineWidth={1.5} variant='cross' />
         <Controls onInteractiveChange={setInteractive} />
-        <MiniMap pannable zoomable nodeColor={miniMapNodeColor} />
-        <Panel position='bottom-right'>
-          <div className='flex w-50 items-center justify-between gap-1 rounded-lg bg-transparent px-2 py-1 text-xs backdrop-blur-sm select-none'>
-            <div className='flex items-center gap-1.5'>
-              <IconDatabase className='size-3 text-accent' />
+        <Panel position='bottom-center'>
+          <div className='flex w-50 items-center justify-around gap-2 rounded-lg bg-transparent px-2 py-1 text-xs backdrop-blur-sm select-none'>
+            <div className='items-center' title='legend'>
+              <IconInfoCircle className='size-4' />
+            </div>
+            <div className='flex items-center gap-1.5 rounded bg-success px-2 py-1 text-white'>
+              <span>Root</span>
+            </div>
+            <div className='flex items-center gap-1.5 rounded bg-accent px-2 py-1 text-white'>
+              <IconDatabase className='size-4' />
               <span>DataSet</span>
             </div>
-            <div className='flex items-center gap-1.5'>
-              <IconArrowFork className='size-3 rotate-180 text-warning' />
+            <div className='flex items-center gap-1.5 rounded bg-warning px-2 py-1 text-white'>
+              <IconArrowFork className='size-4 rotate-180' />
               <span>DataFlow</span>
             </div>
           </div>
         </Panel>
+        <MiniMap pannable zoomable nodeColor={miniMapNodeColor} />
       </ReactFlow>
     </PipelineGraphContext.Provider>
   );

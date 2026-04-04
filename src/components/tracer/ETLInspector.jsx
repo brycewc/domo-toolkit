@@ -235,7 +235,7 @@ export function ETLInspector({ cacheRef, dataflowId, onClose, resolveTabId }) {
 
   if (loading) {
     return (
-      <Card className='border-divider h-full rounded-none border-l bg-background p-0 shadow-none'>
+      <Card className='border-divider h-full rounded-none border-l p-0 shadow-none'>
         <Card.Header className='border-divider flex-row items-center justify-between border-b px-4 py-3'>
           <span className='font-semibold'>Loading ETL...</span>
           <CloseButton size='sm' onPress={onClose} />
@@ -249,7 +249,7 @@ export function ETLInspector({ cacheRef, dataflowId, onClose, resolveTabId }) {
 
   if (error || !dataflow) {
     return (
-      <Card className='border-divider h-full rounded-none border-l bg-background p-0 shadow-none'>
+      <Card className='border-divider h-full rounded-none border-l p-0 shadow-none'>
         <Card.Header className='border-divider flex-row items-center justify-between border-b px-4 py-3'>
           <span className='font-semibold'>ETL Inspector</span>
           <CloseButton size='sm' onPress={onClose} />
@@ -262,7 +262,7 @@ export function ETLInspector({ cacheRef, dataflowId, onClose, resolveTabId }) {
   }
 
   return (
-    <Card className='border-divider flex h-full flex-col rounded-none border-l bg-background p-0 shadow-none'>
+    <Card className='border-divider flex h-full flex-col rounded-none border-l p-0 shadow-none'>
       <Card.Header className='border-divider shrink-0 gap-1 border-b p-2'>
         <div className='flex items-center justify-between'>
           <div className='flex min-w-0 items-center gap-2'>
@@ -309,6 +309,7 @@ export function ETLInspector({ cacheRef, dataflowId, onClose, resolveTabId }) {
               fullWidth
               aria-label='Search tiles'
               value={tileSearch}
+              variant='secondary'
               onChange={setTileSearch}
             >
               <SearchField.Group>
@@ -553,7 +554,7 @@ const TileDetail = memo(function TileDetail({ searchQuery, tile }) {
 
   if (!hasContent) {
     return (
-      <div className='border-divider flex w-full items-center justify-between gap-2 overflow-hidden rounded-lg border bg-surface p-2'>
+      <div className='border-divider flex w-full items-center justify-between gap-2 overflow-hidden rounded-lg border bg-surface-secondary p-2'>
         {trigger}
         <IconChevronDown className='size-4 shrink-0 text-surface' />
       </div>
@@ -561,7 +562,7 @@ const TileDetail = memo(function TileDetail({ searchQuery, tile }) {
   }
 
   return (
-    <Disclosure className='border-divider overflow-hidden rounded-lg border bg-surface'>
+    <Disclosure className='border-divider overflow-hidden rounded-lg border bg-surface-secondary'>
       <Disclosure.Heading>
         <Disclosure.Trigger className='flex w-full items-center justify-between gap-2 p-2'>
           {trigger}
@@ -631,7 +632,7 @@ const TileDetail = memo(function TileDetail({ searchQuery, tile }) {
             <DetailSection label='Expressions'>
               {tile.expressions.map((e, i) => (
                 <div
-                  className='border-divider rounded border bg-background p-2 text-xs'
+                  className='border-divider rounded border bg-surface p-2 text-xs'
                   key={i}
                 >
                   <div className='font-semibold'>
@@ -649,7 +650,7 @@ const TileDetail = memo(function TileDetail({ searchQuery, tile }) {
             <DetailSection label='Aggregates'>
               {tile.rawDetails.aggregates.map((a, i) => (
                 <div
-                  className='border-divider rounded border bg-background p-2 text-xs'
+                  className='border-divider rounded border bg-surface p-2 text-xs'
                   key={i}
                 >
                   <div className='font-semibold'>
@@ -727,7 +728,7 @@ const TileDetail = memo(function TileDetail({ searchQuery, tile }) {
             <DetailSection label='SQL'>
               {tile.sql.map((s, i) => (
                 <pre
-                  className='border-divider overflow-x-auto rounded border bg-background p-2 font-mono text-xs'
+                  className='border-divider overflow-x-auto rounded border bg-surface p-2 font-mono text-xs'
                   key={i}
                 >
                   {highlightMatch(
@@ -741,7 +742,7 @@ const TileDetail = memo(function TileDetail({ searchQuery, tile }) {
 
           {tile.columns.length > 0 && (
             <DetailSection label={`Columns (${tile.columns.length})`}>
-              <div className='border-divider rounded border bg-background p-2 text-xs'>
+              <div className='border-divider rounded border bg-surface p-2 text-xs'>
                 {tile.columns
                   .map((c) => highlightMatch(c, searchQuery))
                   .reduce((acc, col, i) => {
@@ -761,7 +762,7 @@ const TileDetail = memo(function TileDetail({ searchQuery, tile }) {
 
 function DetailMono({ children }) {
   return (
-    <div className='border-divider rounded border bg-background p-2 font-mono text-xs'>
+    <div className='border-divider rounded border bg-surface p-2 font-mono text-xs'>
       {children}
     </div>
   );
@@ -801,7 +802,7 @@ function TileConfig({ rawDetails }) {
     <DetailSection label='Configuration'>
       {entries.map(([label, value], i) => (
         <div
-          className='border-divider flex items-center justify-between rounded border bg-background p-2 text-xs'
+          className='border-divider flex items-center justify-between rounded border bg-surface p-2 text-xs'
           key={i}
         >
           <span className='font-semibold'>{label}</span>
