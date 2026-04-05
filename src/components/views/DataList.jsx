@@ -10,7 +10,6 @@ import {
   Tooltip
 } from '@heroui/react';
 import {
-  IconBinaryTree,
   IconChartBar,
   IconChevronDown,
   IconClipboard,
@@ -26,7 +25,6 @@ import {
 import { useState } from 'react';
 
 import { AnimatedCheck } from '@/components';
-import { getValidTabForInstance } from '@/utils';
 
 /**
  * Available header action types for DataList
@@ -35,7 +33,7 @@ import { getValidTabForInstance } from '@/utils';
 
 /**
  * Available item action types for DataList items
- * @typedef {'remove' | 'openAll' | 'copy' | 'share' | 'shareAll' | 'lineage' | 'viewsExplorer'} ItemActionType
+ * @typedef {'remove' | 'openAll' | 'copy' | 'share' | 'shareAll' | 'viewsExplorer'} ItemActionType
  */
 
 /**
@@ -664,11 +662,6 @@ function DataListItem({
         actions.push(shareAllButton);
       if (itemActions.includes('share') && !isUnshareable)
         actions.push(shareButton);
-      if (
-        itemActions.includes('lineage') &&
-        (item.typeId === 'DATA_SOURCE' || item.typeId === 'DATAFLOW_TYPE')
-      )
-        actions.push(lineageButton);
       if (
         itemActions.includes('viewsExplorer') &&
         item.typeId === 'DATA_SOURCE'

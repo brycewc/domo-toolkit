@@ -47,7 +47,15 @@ function computeIsOwner(typeId, details, userId, userGroups) {
     return String(userId) === String(ownerId);
   }
 
+  // Approval templates: owner is { id } on the details object
+  if (typeId === 'TEMPLATE') {
+    const ownerId = details?.owner?.id;
+    if (ownerId == null) return null;
+    return String(userId) === String(ownerId);
+  }
+
   // Types where owner is a plain ID (always a user)
+  if (typeId === 'BEAST_MODE_FORMULA' || typeId === 'MAGNUM_COLLECTION' || typeId === 'VARIABLE') {
   if (typeId === 'BEAST_MODE_FORMULA' || typeId === 'MAGNUM_COLLECTION' || typeId === 'VARIABLE') {
     const ownerId = details?.owner;
     if (ownerId == null) return null;
@@ -446,16 +454,19 @@ chrome.runtime.onInstalled.addListener((details) => {
     );
 
     if (newReleases.length > 0) {
-      const hasFullPage = newReleases.some((r) => r.fullPage);
+      const hasFullPage = newReleases.some((r) => r.notify === 'fullPage');
+      const hasBadge = newReleases.some((r) => r.notify === 'badge');
 
       if (hasFullPage) {
         chrome.tabs.create({
           url: chrome.runtime.getURL('src/options/index.html#release-notes')
         });
         chrome.storage.local.set({ lastSeenVersion: currentVersion });
-      } else {
+      } else if (hasBadge) {
         chrome.action.setBadgeText({ text: 'NEW' });
         chrome.action.setBadgeBackgroundColor({ color: '#6366f1' });
+      } else {
+        chrome.storage.local.set({ lastSeenVersion: currentVersion });
       }
     }
   }
@@ -653,6 +664,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
       const instance = hostname.replace('.domo.com', '');
       invalidateInstanceUser(instance);
     } catch { /* empty */ }
+    } catch { /* empty */ }
   }
 
   // React to URL changes on Domo domains
@@ -662,6 +674,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     );
 
     await detectAndStoreContext(tabId);
+  }
   }
 
   // Update title if it's just "Domo" and we have object metadata

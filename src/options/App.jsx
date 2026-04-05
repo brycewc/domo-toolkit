@@ -1,6 +1,6 @@
 import { Button, Link, Spinner, Tabs, Tooltip } from '@heroui/react';
 import { IconBug, IconSparkles } from '@tabler/icons-react';
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 
 import {
   ActivityLogTable,
@@ -12,18 +12,11 @@ import {
 } from '@/components';
 import { useTheme } from '@/hooks';
 
-const LineageViewer = lazy(() =>
-  import('@/components/options/LineageViewer').then((m) => ({
-    default: m.LineageViewer
-  }))
-);
-
 const FULL_SCREEN_PAGES = new Map([
   [
     'activity-log',
     { component: ActivityLogTable, fullWidth: true, title: getActivityLogTitle }
   ],
-  ['lineage', { component: LineageViewer, fullWidth: true, title: 'Lineage' }],
   [
     'release-notes',
     { component: ReleaseNotesPage, fullWidth: true, title: 'Release Notes' }

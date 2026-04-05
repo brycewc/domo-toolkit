@@ -2,8 +2,7 @@ name: Publish Extension
 
 on:
   push:
-    branches: [main]
-    paths: [package.json]
+    tags: ['v*']
   workflow_dispatch:
     inputs:
       target:
@@ -25,49 +24,37 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
 
-      - name: Check for version change
+      - name: Extract version
         id: version
         run: |
-          CURRENT=$(node -p "require('./package.json').version")
-          PREVIOUS=$(git show HEAD~1:package.json 2>/dev/null | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).version" 2>/dev/null || echo "")
-          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
-          if [ "$CURRENT" != "$PREVIOUS" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "current=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
           else
-            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "current=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
           fi
 
       - uses: actions/setup-node@v4
-        if: steps.version.outputs.changed == 'true'
         with:
           node-version: 22
           cache: yarn
 
       - run: yarn install --frozen-lockfile
-        if: steps.version.outputs.changed == 'true'
 
       - run: yarn release
-        if: steps.version.outputs.changed == 'true'
 
       - uses: actions/upload-artifact@v4
-        if: steps.version.outputs.changed == 'true'
         with:
           name: release-zips
           path: release/*.zip
           retention-days: 30
 
     outputs:
-      changed: ${{ steps.version.outputs.changed }}
       version: ${{ steps.version.outputs.current }}
 
   publish-chrome:
     needs: build
-    if: >-
-      needs.build.outputs.changed == 'true' &&
-      (inputs.target == '' || inputs.target == 'chrome' || inputs.target == 'both')
+    if: inputs.target == '' || inputs.target == 'chrome' || inputs.target == 'both'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -82,13 +69,11 @@ jobs:
           client-id: ${{ secrets.CHROME_CLIENT_ID }}
           client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
           refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
-          upload-only: ${{ inputs.upload-only }}
+          upload-only: ${{ inputs.upload-only || false }}
 
   publish-edge:
     needs: build
-    if: >-
-      needs.build.outputs.changed == 'true' &&
-      (inputs.target == '' || inputs.target == 'edge' || inputs.target == 'both')
+    if: inputs.target == '' || inputs.target == 'edge' || inputs.target == 'both'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -98,8 +83,8 @@ jobs:
 
       - uses: wdzeng/edge-addon@v2
         with:
-          product-id: bkhnonmfkljenhejgboholmhginiiipk
+          product-id: a9171c4d-2ffd-44c8-916f-174617c08c9f
           zip-path: release/edge-domo-toolkit-*.zip
           api-key: ${{ secrets.EDGE_API_KEY }}
           client-id: ${{ secrets.EDGE_CLIENT_ID }}
-          upload-only: ${{ inputs.upload-only }}
+          upload-only: ${{ inputs.upload-only || false }}

@@ -59,14 +59,6 @@ export {
 } from './filters';
 export { fetchGroupDisplayNames } from './groups';
 export {
-  convertToGraph,
-  enrichMetadata,
-  getLineage,
-  toLineageType,
-  toMapKey,
-  toNodeId
-} from './lineageService';
-export {
   deletePageAndAllCards,
   getAppStudioPageParent,
   getChildPages,

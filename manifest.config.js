@@ -25,6 +25,7 @@ export default defineManifest({
     'cookies',
     'webNavigation',
     'webRequest'
+    'webRequest'
   ],
   host_permissions: ['*://*.domo.com/*'],
   content_security_policy: {

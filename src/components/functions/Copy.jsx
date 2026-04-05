@@ -1,12 +1,14 @@
 import { Button, Dropdown, Kbd, Label, Tooltip } from '@heroui/react';
 import { IconClipboard } from '@tabler/icons-react';
 import { useState } from 'react';
+import { useState } from 'react';
 
 import { AnimatedCheck } from '@/components';
 import { useLongPress } from '@/hooks';
 
 export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
   const [isCopied, setIsCopied] = useState(false);
+  const { LongPressOverlay, pressProps } = useLongPress();
   const { LongPressOverlay, pressProps } = useLongPress();
 
   const typeId = currentContext?.domoObject?.typeId;
@@ -134,12 +136,14 @@ export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
           variant='tertiary'
           onPress={handlePress}
           {...(longPressDisabled ? {} : pressProps)}
+          {...(longPressDisabled ? {} : pressProps)}
         >
           {isCopied ? (
             <AnimatedCheck stroke={1.5} />
           ) : (
             <IconClipboard stroke={1.5} />
           )}
+          <LongPressOverlay />
           <LongPressOverlay />
         </Button>
         <Tooltip.Content className='flex flex-col items-center'>
@@ -168,6 +172,7 @@ export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
         <Dropdown.Menu onAction={handleAction}>
           {dropdownItems.map((item) => (
             <Dropdown.Item id={item.id} key={item.id} textValue={item.label}>
+              <IconClipboard className='size-5 shrink-0' stroke={1.5} />
               <IconClipboard className='size-5 shrink-0' stroke={1.5} />
               <Label>{item.label}</Label>
             </Dropdown.Item>

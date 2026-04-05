@@ -21,7 +21,9 @@ export function DataRepair({ currentContext, isDisabled }) {
         <IconBandage stroke={1.5} />
         Data Repair
       </Button>
-      <Tooltip.Content>Enable and navigate to data repair page</Tooltip.Content>
+      <Tooltip.Content>
+        Enable and navigate to the data repair tab
+      </Tooltip.Content>
     </Tooltip>
   );
 }

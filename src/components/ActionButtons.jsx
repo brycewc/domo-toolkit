@@ -222,12 +222,6 @@ export function ActionButtons({
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
-                {availableActions.has('traceLineage') && (
-                  <TraceLineage
-                    currentContext={currentContext}
-                    onStatusUpdate={onStatusUpdate}
-                  />
-                )}
                 {availableActions.has('dataRepair') && (
                   <DataRepair
                     currentContext={currentContext}
@@ -372,8 +366,10 @@ function getAvailableActions(typeId, details, metadata) {
   if (typeId === 'DATA_SOURCE') {
     actions.add('getViewInputs');
     actions.add('dataRepair');
-    actions.add('traceLineage');
-    if (details?.streamId && metadata?.parent?.details?.scheduleState !== 'MANUAL') {
+    if (
+      details?.streamId &&
+      metadata?.parent?.details?.scheduleState !== 'MANUAL'
+    ) {
       actions.add('setStreamToManual');
     }
   }
@@ -383,7 +379,6 @@ function getAvailableActions(typeId, details, metadata) {
   }
 
   if (typeId === 'DATAFLOW_TYPE') {
-    actions.add('traceLineage');
     if (metadata?.permission?.mask & 2) {
       actions.add('updateDataflowDetails');
     }
@@ -393,7 +388,11 @@ function getAvailableActions(typeId, details, metadata) {
     actions.add('updateOwner');
   }
 
-  if (typeId === 'WORKFLOW_MODEL_VERSION' && !details?.deletedAt && !details?.releasedAt) {
+  if (
+    typeId === 'WORKFLOW_MODEL_VERSION' &&
+    !details?.deletedAt &&
+    !details?.releasedAt
+  ) {
     actions.add('updateCodeEngineVersions');
   }
 

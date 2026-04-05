@@ -15,8 +15,7 @@ export function useResolveTabId(tabId, instance) {
   const tabIdRef = useRef(tabId);
   const instanceRef = useRef(instance);
 
-  // Sync from props only when non-null, so callers that pass null
-  // (e.g. useLineageCache which seeds via overrides) don't clobber ref values.
+  // Sync from props only when non-null, so callers that pass null don't clobber ref values.
   if (tabId != null) tabIdRef.current = tabId;
   if (instance != null) instanceRef.current = instance;
 
