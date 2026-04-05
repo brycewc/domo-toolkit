@@ -11,8 +11,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd());
 
   // Proxy /api/* to the real Domo instance when env vars are configured.
-  // Only active for the standalone dev-lineage page; the extension's own
-  // dev mode is unaffected because it uses chrome-extension:// origins.
+  // Only active for the standalone dev-lineage page; the extension's own dev mode is unaffected because it uses chrome-extension:// origins.
   const proxy = env.VITE_DOMO_BASE_URL
     ? {
         '/api': {

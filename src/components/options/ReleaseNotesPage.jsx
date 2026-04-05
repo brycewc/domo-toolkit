@@ -40,7 +40,7 @@ export function ReleaseNotesPage() {
         <img
           alt='Domo Toolkit Logo'
           className='h-16 w-16'
-          src='/toolkit-128.png'
+          src='/toolkit-512.png'
         />
         <h1 className='text-xl font-semibold text-foreground'>
           What's New in v{latest.version}

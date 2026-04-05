@@ -21,7 +21,6 @@ import { useEffect, useState } from 'react';
 const DEFAULT_SETTINGS = {
   defaultClearCookiesHandling: 'auto',
   defaultDomoInstance: '',
-  iconStyle: 'light',
   themePreference: 'system'
 };
 
@@ -40,17 +39,18 @@ export function Settings() {
     chrome.storage.sync.get(
       [
         'themePreference',
-        'iconStyle',
         'defaultDomoInstance',
         'defaultClearCookiesHandling'
       ],
       (result) => {
         const loadedSettings = {
           defaultClearCookiesHandling:
-            result.defaultClearCookiesHandling || DEFAULT_SETTINGS.defaultClearCookiesHandling,
-          defaultDomoInstance: result.defaultDomoInstance || DEFAULT_SETTINGS.defaultDomoInstance,
-          iconStyle: result.iconStyle || DEFAULT_SETTINGS.iconStyle,
-          themePreference: result.themePreference || DEFAULT_SETTINGS.themePreference
+            result.defaultClearCookiesHandling ||
+            DEFAULT_SETTINGS.defaultClearCookiesHandling,
+          defaultDomoInstance:
+            result.defaultDomoInstance || DEFAULT_SETTINGS.defaultDomoInstance,
+          themePreference:
+            result.themePreference || DEFAULT_SETTINGS.themePreference
         };
         setSettings(loadedSettings);
         setOriginalSettings(loadedSettings);
@@ -77,11 +77,6 @@ export function Settings() {
             hasChanges = true;
           }
 
-          if (changes.iconStyle) {
-            updatedSettings.iconStyle = changes.iconStyle.newValue;
-            hasChanges = true;
-          }
-
           if (changes.defaultDomoInstance) {
             updatedSettings.defaultDomoInstance =
               changes.defaultDomoInstance.newValue;
@@ -103,11 +98,6 @@ export function Settings() {
 
           if (changes.themePreference) {
             updatedOriginal.themePreference = changes.themePreference.newValue;
-            hasChanges = true;
-          }
-
-          if (changes.iconStyle) {
-            updatedOriginal.iconStyle = changes.iconStyle.newValue;
             hasChanges = true;
           }
 
@@ -149,13 +139,6 @@ export function Settings() {
     setSettings((prev) => ({
       ...prev,
       themePreference: value
-    }));
-  };
-
-  const handleIconStyleChange = (value) => {
-    setSettings((prev) => ({
-      ...prev,
-      iconStyle: value
     }));
   };
 
@@ -244,48 +227,6 @@ export function Settings() {
             options pages)
           </Description>
         </Select>
-        <Select
-          className='w-40'
-          value={settings.iconStyle}
-          onChange={handleIconStyleChange}
-        >
-          <Label>Extension Icon</Label>
-          <Select.Trigger>
-            <Select.Value className='flex items-center gap-2' />
-            <Select.Indicator>
-              <IconChevronDown stroke={1} />
-            </Select.Indicator>
-          </Select.Trigger>
-          <Select.Popover>
-            <ListBox>
-              <ListBox.Item id='light' textValue='Light'>
-                <img alt='Light' className='h-4 w-4' src='/toolkit-128.png' />
-                Light
-                <ListBox.ItemIndicator>
-                  {({ isSelected }) =>
-                    isSelected ? <IconCheck stroke={1.5} /> : null
-                  }
-                </ListBox.ItemIndicator>
-              </ListBox.Item>
-              <ListBox.Item id='dark' textValue='Dark'>
-                <img
-                  alt='Dark'
-                  className='h-4 w-4'
-                  src='/toolkit-dark-128.png'
-                />
-                Dark
-                <ListBox.ItemIndicator>
-                  {({ isSelected }) =>
-                    isSelected ? <IconCheck stroke={1.5} /> : null
-                  }
-                </ListBox.ItemIndicator>
-              </ListBox.Item>
-            </ListBox>
-          </Select.Popover>
-          <Description className='w-md'>
-            Light or dark extension icon, independent of theme preference
-          </Description>
-        </Select>
         <TextField className='w-40' onChange={handleDefaultInstanceChange}>
           <Label>Default Domo Instance</Label>
           <Input
@@ -370,8 +311,8 @@ export function Settings() {
             <Switch.Content>
               <Label>Developer Mode</Label>
               <Description className='w-md'>
-                Enables dev-only tools like Full Context tab and the Dev Menu in
-                the action bar
+                Enables dev-only tools like full context tab and the dev action
+                in the action bar
               </Description>
             </Switch.Content>
           </Switch>

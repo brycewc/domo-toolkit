@@ -190,13 +190,13 @@ export function WelcomePage() {
         <img
           alt='Domo Toolkit Logo'
           className='h-16 w-16'
-          src='/toolkit-transparent-512.png'
+          src='/toolkit-512.png'
         />
         <h1 className='text-xl font-semibold text-foreground'>
           Welcome to Domo Toolkit
         </h1>
         <p className='text-sm'>
-          All the tools you need for working faster in Domo
+          All the tools you need for working faster in Domo, no setup required
         </p>
       </motion.div>
 

@@ -480,44 +480,6 @@ chrome.runtime.onInstalled.addListener((details) => {
 // Restore contexts on service worker startup
 restoreFromSession();
 
-/**
- * Update extension icon
- * Uses dark icon variant when isDark is true
- */
-function updateExtensionIcon(isDark) {
-  const iconPath = isDark
-    ? {
-        128: 'toolkit-dark-128.png',
-        16: 'toolkit-dark-16.png',
-        24: 'toolkit-dark-24.png',
-        32: 'toolkit-dark-32.png',
-        48: 'toolkit-dark-48.png'
-      }
-    : {
-        128: 'toolkit-transparent-128.png',
-        16: 'toolkit-transparent-16.png',
-        24: 'toolkit-transparent-24.png',
-        32: 'toolkit-transparent-32.png',
-        48: 'toolkit-transparent-48.png'
-      };
-
-  chrome.action.setIcon({ path: iconPath }).catch((error) => {
-    console.error('[Background] Error setting icon:', error);
-  });
-}
-
-/**
- * Update icon based on stored icon style preference
- */
-async function updateIconFromStorage() {
-  const result = await chrome.storage.sync.get(['iconStyle']);
-  const iconStyle = result.iconStyle || 'light';
-  updateExtensionIcon(iconStyle === 'dark');
-}
-
-// Set initial icon based on stored icon style preference
-updateIconFromStorage();
-
 // 431 error handler function (stored for add/remove)
 // Only active when mode is 'auto' - preserves last 2 instances
 async function handle431Response(details) {
@@ -740,12 +702,6 @@ chrome.webNavigation.onHistoryStateUpdated.addListener(async (details) => {
 
 // Listen for setting changes
 chrome.storage.onChanged.addListener(async (changes, areaName) => {
-  if (areaName === 'sync' && changes.iconStyle !== undefined) {
-    const iconStyle = changes.iconStyle.newValue || 'light';
-    console.log('[Background] Icon style changed to:', iconStyle);
-    updateExtensionIcon(iconStyle === 'dark');
-  }
-
   if (
     areaName === 'sync' &&
     changes.defaultClearCookiesHandling !== undefined

@@ -5,13 +5,15 @@ export default defineManifest({
   manifest_version: 3,
   name: 'Domo Toolkit',
   version: pkg.version,
+  description: pkg.description,
   key: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1MNZyAkJW2/F7JTETTSpzS/RJFe92laTr0smLRyHFKNlFEK3TEi2NbrCuPzag7ll7yXbFK9I3P6xOIHX/Qwt2jg17Yg4QyEQDZjhxQpvPoNHQzkVKCU1iYufcZritggsTpgqzkAivmva+AJDZzRnNMVHVTzssSeyniEMkjXpDjKqiDN1GuXc9hIDHHHPgaJVphMzZlWYQDUn39Z3UNBY37bKDvZOmbpsP7JBZx3rMNVDS7GKOVEoVNYTp2NpsRki8/YM8WE1UfC+FK/3YRTqzm0sQmGoYh5Vlve2xr/GpBwYdTMB1IsgOs3xQs8MTXDcE9bCdOMHvz07IHo+i4i6PwIDAQAB',
   icons: {
-    16: 'public/toolkit-transparent-16.png',
-    24: 'public/toolkit-transparent-24.png',
-    32: 'public/toolkit-transparent-32.png',
-    48: 'public/toolkit-transparent-48.png',
-    128: 'public/toolkit-transparent-128.png'
+    16: 'public/toolkit-16.png',
+    24: 'public/toolkit-24.png',
+    32: 'public/toolkit-32.png',
+    48: 'public/toolkit-48.png',
+    128: 'public/toolkit-128.png',
+    512: 'public/toolkit-512.png'
   },
   permissions: [
     'sidePanel',
@@ -31,11 +33,12 @@ export default defineManifest({
   },
   action: {
     default_icon: {
-      16: 'public/toolkit-transparent-16.png',
-      24: 'public/toolkit-transparent-24.png',
-      32: 'public/toolkit-transparent-32.png',
-      48: 'public/toolkit-transparent-48.png',
-      128: 'public/toolkit-transparent-128.png'
+      16: 'public/toolkit-16.png',
+      24: 'public/toolkit-24.png',
+      32: 'public/toolkit-32.png',
+      48: 'public/toolkit-48.png',
+      128: 'public/toolkit-128.png',
+      512: 'public/toolkit-512.png'
     },
     default_popup: 'src/popup/index.html',
     default_title: 'Domo Toolkit'

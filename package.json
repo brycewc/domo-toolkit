@@ -2,7 +2,7 @@
   "name": "domo-toolkit",
   "version": "1.2.0",
   "license": "MIT",
-  "description": "Domo Toolkit – Tools for Domo admins and power users",
+  "description": "A collection of utilities for Domo power users.",
   "homepage": "https://github.com/brycewc/domo-toolkit",
   "repository": {
     "type": "git",

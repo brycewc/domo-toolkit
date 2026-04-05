@@ -1,4 +1,4 @@
-import { Button, Spinner, Tabs, Tooltip } from '@heroui/react';
+import { Button, Link, Spinner, Tabs, Tooltip } from '@heroui/react';
 import { IconBug, IconSparkles } from '@tabler/icons-react';
 import { lazy, Suspense, useEffect, useState } from 'react';
 
@@ -36,6 +36,8 @@ const TAB_TITLES = {
   settings: 'Settings'
 };
 
+const version = chrome.runtime.getManifest().version;
+
 export default function App() {
   useTheme();
   const [currentRoute, setCurrentRoute] = useState(getHashRoute);
@@ -65,10 +67,21 @@ export default function App() {
 
   const fullScreenPage = FULL_SCREEN_PAGES.get(currentRoute);
 
+  const VersionLink = (
+    <Link
+      className='fixed top-1 left-2 z-100 text-xs text-muted/50 no-underline hover:text-accent/50 hover:underline hover:decoration-accent/50'
+      href={'https://github.com/brycewc/domo-toolkit/releases/tag/v' + version}
+      target='_blank'
+    >
+      v{version}
+    </Link>
+  );
+
   if (fullScreenPage) {
     const PageComponent = fullScreenPage.component;
     return (
       <div className='flex h-screen w-full justify-center'>
+        {VersionLink}
         <div
           className={`flex h-full w-full flex-col items-center justify-center ${fullScreenPage.fullWidth ? '' : 'max-w-4xl px-4 pt-8 pb-4'}`}
         >
@@ -94,6 +107,7 @@ export default function App() {
 
   return (
     <div className='flex h-screen w-full justify-center'>
+      {VersionLink}
       <div className='fixed top-4 right-4 z-10'>
         <div className='flex gap-1'>
           <Tooltip closeDelay={0} delay={400}>
