@@ -17,7 +17,6 @@ import {
 } from '@tabler/icons-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { useLongPress } from '@/hooks';
 import {
   DomoObject,
   getAllNavigableObjectTypes,

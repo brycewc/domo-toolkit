@@ -56,7 +56,6 @@ function computeIsOwner(typeId, details, userId, userGroups) {
 
   // Types where owner is a plain ID (always a user)
   if (typeId === 'BEAST_MODE_FORMULA' || typeId === 'MAGNUM_COLLECTION' || typeId === 'VARIABLE') {
-  if (typeId === 'BEAST_MODE_FORMULA' || typeId === 'MAGNUM_COLLECTION' || typeId === 'VARIABLE') {
     const ownerId = details?.owner;
     if (ownerId == null) return null;
     return String(userId) === String(ownerId);
@@ -664,7 +663,6 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
       const instance = hostname.replace('.domo.com', '');
       invalidateInstanceUser(instance);
     } catch { /* empty */ }
-    } catch { /* empty */ }
   }
 
   // React to URL changes on Domo domains
@@ -674,7 +672,6 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     );
 
     await detectAndStoreContext(tabId);
-  }
   }
 
   // Update title if it's just "Domo" and we have object metadata

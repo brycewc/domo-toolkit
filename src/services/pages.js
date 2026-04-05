@@ -352,30 +352,6 @@ export async function getChildPages({
 }
 
 /**
- * Get all child and grandchild page IDs for a page using the fast subpages endpoint.
- * Returns a flat array of integer page IDs. Only works for PAGE type.
- * @param {Object} params
- * @param {number} params.pageId - The page ID
- * @param {number} [params.tabId] - Optional Chrome tab ID
- * @returns {Promise<number[]>} Array of subpage IDs
- */
-export async function getSubpageIds({ pageId, tabId = null }) {
-  return executeInPage(
-    async (pageId) => {
-      const response = await fetch(
-        `/api/content/v1/pages/${pageId}/subpages`
-      );
-      if (!response.ok) {
-        throw new Error(`Failed to fetch subpages (HTTP ${response.status})`);
-      }
-      return response.json();
-    },
-    [pageId],
-    tabId
-  );
-}
-
-/**
  * Get all pages that cards appear on (including regular pages, app studio pages, and report builder pages)
  * @param {Array<number>} cardIds - Array of card IDs
  * @returns {Promise<Object>} Array of page objects with type, id, and name
@@ -532,6 +508,30 @@ export async function getPagesForCards(cardIds, tabId = null) {
     console.error('Error fetching pages for cards:', error);
     throw error;
   }
+}
+
+/**
+ * Get all child and grandchild page IDs for a page using the fast subpages endpoint.
+ * Returns a flat array of integer page IDs. Only works for PAGE type.
+ * @param {Object} params
+ * @param {number} params.pageId - The page ID
+ * @param {number} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<number[]>} Array of subpage IDs
+ */
+export async function getSubpageIds({ pageId, tabId = null }) {
+  return executeInPage(
+    async (pageId) => {
+      const response = await fetch(
+        `/api/content/v1/pages/${pageId}/subpages`
+      );
+      if (!response.ok) {
+        throw new Error(`Failed to fetch subpages (HTTP ${response.status})`);
+      }
+      return response.json();
+    },
+    [pageId],
+    tabId
+  );
 }
 
 /**

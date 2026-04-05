@@ -57,7 +57,9 @@ export {
   getVariableControlFilters,
   mergeFilters
 } from './filters';
+export { deleteFunction } from './functions';
 export { fetchGroupDisplayNames } from './groups';
+export { convertToGraph, enrichMetadata, getLineage, toLineageType, toMapKey, toNodeId } from './lineageService';
 export {
   deletePageAndAllCards,
   getAppStudioPageParent,

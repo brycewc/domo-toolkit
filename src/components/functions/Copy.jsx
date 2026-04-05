@@ -1,14 +1,12 @@
 import { Button, Dropdown, Kbd, Label, Tooltip } from '@heroui/react';
 import { IconClipboard } from '@tabler/icons-react';
 import { useState } from 'react';
-import { useState } from 'react';
 
 import { AnimatedCheck } from '@/components';
 import { useLongPress } from '@/hooks';
 
 export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
   const [isCopied, setIsCopied] = useState(false);
-  const { LongPressOverlay, pressProps } = useLongPress();
   const { LongPressOverlay, pressProps } = useLongPress();
 
   const typeId = currentContext?.domoObject?.typeId;

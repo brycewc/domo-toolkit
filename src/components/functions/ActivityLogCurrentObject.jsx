@@ -6,7 +6,6 @@ import {
   IconStack2
 } from '@tabler/icons-react';
 import { useState } from 'react';
-import { useState } from 'react';
 
 import { useLongPress } from '@/hooks';
 import { getCardsForObject, getPagesForCards, getSubpageIds } from '@/services';
@@ -15,13 +14,8 @@ import { waitForChildPages } from '@/utils';
 export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
   const [isLoading, setIsLoading] = useState(false);
   const { LongPressOverlay, pressProps } = useLongPress();
-  const { LongPressOverlay, pressProps } = useLongPress();
 
   const userRights = currentContext?.user?.metadata?.USER_RIGHTS || [];
-  const isDisabled =
-    !currentContext?.domoObject?.id ||
-    isLoading ||
-    !userRights.includes('audit');
   const isDisabled =
     !currentContext?.domoObject?.id ||
     isLoading ||
@@ -61,7 +55,6 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
       switch (key) {
         case 'card-pages': {
           activityLogType = 'card-pages';
-          let pages = currentContext?.domoObject?.metadata?.details?.cardPages;
           let pages = currentContext?.domoObject?.metadata?.details?.cardPages;
 
           if (!pages) {
@@ -113,7 +106,6 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
           message = `Navigating to activity log for ${validPages.length} pages containing cards from ${objectName}`;
           break;
         }
-        case 'cards': {
         case 'cards': {
           const cards = await getCardsForObject({
             metadata: currentContext?.domoObject.metadata,
@@ -247,19 +239,7 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
         </Tooltip.Content>
       </Tooltip>
       <Dropdown.Popover className='min-w-90' placement='bottom'>
-      <Dropdown.Popover className='min-w-90' placement='bottom'>
         <Dropdown.Menu onAction={handleClick}>
-          <Dropdown.Item id='cards' textValue='Cards'>
-            <div className='flex h-fit items-start justify-start gap-2'>
-              <IconChartBar className='size-5 shrink-0' stroke={1.5} />
-              <div className='flex flex-col'>
-                <Label>Cards</Label>
-                <Description className='text-xs'>
-                  View activity log for all cards on this{' '}
-                  {currentContext?.domoObject?.typeName?.toLowerCase() ||
-                    'object'}
-                </Description>
-              </div>
           <Dropdown.Item id='cards' textValue='Cards'>
             <div className='flex h-fit items-start justify-start gap-2'>
               <IconChartBar className='size-5 shrink-0' stroke={1.5} />
@@ -283,30 +263,9 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
                     View activity log for hierarchical child pages
                   </Description>
                 </div>
-            <Dropdown.Item id='child-pages' textValue='Child Pages'>
-              <div className='flex h-fit items-start justify-start gap-2'>
-                <IconCopy className='size-5 shrink-0' stroke={1.5} />
-                <div className='flex flex-col'>
-                  <Label>Child Pages</Label>
-                  <Description className='text-xs'>
-                    View activity log for hierarchical child pages
-                  </Description>
-                </div>
               </div>
             </Dropdown.Item>
           )}
-          <Dropdown.Item id='card-pages' textValue='Card Pages'>
-            <div className='flex h-fit items-start justify-start gap-2'>
-              <IconStack2 className='size-5 shrink-0' stroke={1.5} />
-              <div className='flex flex-col'>
-                <Label>Card Pages</Label>
-                <Description className='text-xs'>
-                  View activity log for pages where cards from this{' '}
-                  {currentContext?.domoObject?.typeName?.toLowerCase() ||
-                    'object'}{' '}
-                  appear
-                </Description>
-              </div>
           <Dropdown.Item id='card-pages' textValue='Card Pages'>
             <div className='flex h-fit items-start justify-start gap-2'>
               <IconStack2 className='size-5 shrink-0' stroke={1.5} />

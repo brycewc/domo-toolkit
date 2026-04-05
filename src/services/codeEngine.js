@@ -1,31 +1,5 @@
 import { executeInPage } from '@/utils';
 
-/**
- * Fetch the currently-viewed version's code for a Code Engine package.
- * Reads the version number from the page's version selector input,
- * then calls the Domo API to retrieve the source code.
- *
- * @param {Object} params
- * @param {string} params.packageId - Code Engine package UUID
- * @param {number} [params.tabId] - Optional Chrome tab ID
- * @returns {Promise<{ code: string, version: string }>}
- */
-export async function getCodeEnginePackageInfo(packageId, tabId = null) {
-  return executeInPage(
-    async (packageId) => {
-      const response = await fetch(
-        `/api/codeengine/v2/packages/${packageId}?parts=versions`
-      );
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-      return response.json();
-    },
-    [packageId],
-    tabId
-  );
-}
-
 export async function getCodeEngineCode({ packageId, tabId }) {
   return executeInPage(
     async (packageId) => {
@@ -61,6 +35,32 @@ export async function getCodeEngineCode({ packageId, tabId }) {
         console.error('Error fetching code engine code:', error);
         throw error;
       }
+    },
+    [packageId],
+    tabId
+  );
+}
+
+/**
+ * Fetch the currently-viewed version's code for a Code Engine package.
+ * Reads the version number from the page's version selector input,
+ * then calls the Domo API to retrieve the source code.
+ *
+ * @param {Object} params
+ * @param {string} params.packageId - Code Engine package UUID
+ * @param {number} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<{ code: string, version: string }>}
+ */
+export async function getCodeEnginePackageInfo(packageId, tabId = null) {
+  return executeInPage(
+    async (packageId) => {
+      const response = await fetch(
+        `/api/codeengine/v2/packages/${packageId}?parts=versions`
+      );
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      return response.json();
     },
     [packageId],
     tabId

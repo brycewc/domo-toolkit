@@ -222,6 +222,12 @@ export function ActionButtons({
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
+                {availableActions.has('traceLineage') && (
+                  <TraceLineage
+                    currentContext={currentContext}
+                    onStatusUpdate={onStatusUpdate}
+                  />
+                )}
                 {availableActions.has('dataRepair') && (
                   <DataRepair
                     currentContext={currentContext}
@@ -366,6 +372,7 @@ function getAvailableActions(typeId, details, metadata) {
   if (typeId === 'DATA_SOURCE') {
     actions.add('getViewInputs');
     actions.add('dataRepair');
+    actions.add('traceLineage');
     if (
       details?.streamId &&
       metadata?.parent?.details?.scheduleState !== 'MANUAL'

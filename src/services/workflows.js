@@ -24,6 +24,23 @@ export async function getVersionDefinition(modelId, versionNumber, tabId = null)
   );
 }
 
+export async function getWorkflowPermission(modelId, userId, tabId = null) {
+  return executeInPage(
+    async (modelId, userId) => {
+      const response = await fetch(
+        `/api/workflow/v1/models/${modelId}/permissions`
+      );
+      if (!response.ok) return [];
+      const data = await response.json();
+      const users = data?.USER || [];
+      const entry = users.find((u) => String(u.id) === String(userId));
+      return entry?.permissions || [];
+    },
+    [modelId, userId],
+    tabId
+  );
+}
+
 export async function updateVersionDefinition(
   modelId,
   versionNumber,
@@ -46,23 +63,6 @@ export async function updateVersionDefinition(
       return response.json();
     },
     [modelId, versionNumber, definition],
-    tabId
-  );
-}
-
-export async function getWorkflowPermission(modelId, userId, tabId = null) {
-  return executeInPage(
-    async (modelId, userId) => {
-      const response = await fetch(
-        `/api/workflow/v1/models/${modelId}/permissions`
-      );
-      if (!response.ok) return [];
-      const data = await response.json();
-      const users = data?.USER || [];
-      const entry = users.find((u) => String(u.id) === String(userId));
-      return entry?.permissions || [];
-    },
-    [modelId, userId],
     tabId
   );
 }
