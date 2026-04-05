@@ -26,7 +26,7 @@ import {
 import { useState } from 'react';
 
 import { AnimatedCheck } from '@/components';
-import { getValidTabForInstance } from '@/services';
+import { getValidTabForInstance } from '@/utils';
 
 /**
  * Available header action types for DataList

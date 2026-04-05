@@ -260,7 +260,7 @@ Add a new object to the **beginning** of the `releases` array (newest-first). Th
 
 **`notify: 'fullPage'`:** Auto-opens the release notes page in a new tab. Use for minor and major releases that introduce features or changes users should know about.
 
-**`notify: 'badge'`:** Shows a "NEW" badge on the extension icon and a toast in the popup/sidepanel. Use for patch releases with notable bug fixes. The badge clears when the user visits `#release-notes`.
+**`notify: 'badge'`:** Shows a "NEW" badge on the extension icon and a toast in the popup/sidepanel. Use for patch releases with notable bug fixes. The badge clears when the user visits `#release-notes` or clears the toast.
 
 **`notify: 'silent'`:** No notification at all. Use for trivial patch releases (minor bug fixes) where notifying the user would be noise. `lastSeenVersion` is updated automatically so no stale badge/toast appears.
 
@@ -276,7 +276,7 @@ Add a new object to the **beginning** of the `releases` array (newest-first). Th
 
 ### 4. Update `docs/RELEASE_NOTES.md`
 
-Replace the contents of `docs/RELEASE_NOTES.md` with the detailed release notes for this version. This file always contains only the **latest** version's notes — do not accumulate old versions. The GitHub Release workflow uses this file as the release body.
+Replace the contents of `docs/RELEASE_NOTES.md` with the detailed release notes for this version. This file always contains only the **latest** version's notes — do not accumulate old versions. Only include details that changed between this version and the previous. Lots of commit messages may include details of a features development progressing over the lifetime of a branch, for developer records. But these should not be included in the release notes, only the end result of that feature. The GitHub Release workflow uses this file as the release body.
 
 ### 5. Build and package locally
 

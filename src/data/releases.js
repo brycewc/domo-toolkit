@@ -1,5 +1,19 @@
 export const releases = [
   {
+    date: '2026-04-05',
+    githubUrl: 'https://github.com/brycewc/domo-toolkit/releases/tag/v2.0.0',
+    highlights: [
+      'Lineage graph — trace upstream and downstream dependencies for datasets and dataflows with lightning-fast performance and a sleek new UI',
+      'Simplified clipboard navigation — activates on button click instead of passive monitoring, improving performance and reliability',
+      'New object type recognition: workflow triggers',
+      'New transparent extension icon that works on all toolbar backgrounds'
+    ],
+    notify: 'fullPage',
+    summary:
+      'Major release introducing a new lightning-fast lineage graph and updating workflow code engine package versions in bulk',
+    version: '2.0.0'
+  },
+  {
     date: '2026-03-24',
     githubUrl: 'https://github.com/brycewc/domo-toolkit/releases/tag/v1.1.3',
     highlights: [],
