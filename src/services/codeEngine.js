@@ -1,24 +1,31 @@
 import { executeInPage } from '@/utils';
 
-export async function getCodeEngineCode({ packageId, tabId }) {
+export async function getCodeEngineCode({ packageId, tabId, version }) {
   return executeInPage(
-    async (packageId) => {
+    async (packageId, version) => {
       try {
-        const container = document.querySelector(
-          'div[class*="module_packageControls"]'
-        );
-        const input = container?.querySelector(
-          'input[class*="SelectListInputComponent"]'
-        );
-        if (!input) {
-          throw new Error('Could not find version selector on the page');
+        // If no version provided, read from the page's version selector
+        // (works on the code engine page itself)
+        if (!version) {
+          const container = document.querySelector(
+            'div[class*="module_packageControls"]'
+          );
+          const input = container?.querySelector(
+            'input[class*="SelectListInputComponent"]'
+          );
+          if (input) {
+            const versionMatch = input.value.match(
+              /^Version\s+(\d+\.\d+\.\d+)$/
+            );
+            if (versionMatch) {
+              version = versionMatch[1];
+            }
+          }
         }
 
-        const versionMatch = input.value.match(/^Version\s+(\d+\.\d+\.\d+)$/);
-        if (!versionMatch) {
-          throw new Error(`Unexpected version format: "${input.value}"`);
+        if (!version) {
+          throw new Error('Could not determine package version');
         }
-        const version = versionMatch[1];
 
         const response = await fetch(
           `/api/codeengine/v2/packages/${packageId}/versions/${version}?parts=code`
@@ -36,7 +43,7 @@ export async function getCodeEngineCode({ packageId, tabId }) {
         throw error;
       }
     },
-    [packageId],
+    [packageId, version],
     tabId
   );
 }

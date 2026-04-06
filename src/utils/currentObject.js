@@ -175,6 +175,7 @@ export async function detectCurrentObject() {
               ) {
                 return {
                   baseUrl: `${location.protocol}//${location.hostname}`,
+                  codeEngineVersion: element.data.metadata.version || null,
                   id: element.data.metadata.packageId,
                   typeId: 'CODEENGINE_PACKAGE',
                   url

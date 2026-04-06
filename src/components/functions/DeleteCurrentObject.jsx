@@ -189,7 +189,10 @@ export function DeleteCurrentObject({
       }).then((result) => {
         dialogState.close();
         if (result.statusType === 'success' && typeId === 'WORKFLOW_MODEL') {
-          chrome.tabs.update(currentContext.tabId, { url: '/workflows' });
+          const origin = `https://${currentContext.instance}.domo.com`;
+          chrome.tabs.update(currentContext.tabId, {
+            url: `${origin}/workflows`
+          });
         }
         if (result.statusType !== 'success') {
           throw new Error(result.statusDescription || 'Delete failed');

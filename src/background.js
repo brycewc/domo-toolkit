@@ -952,6 +952,11 @@ async function detectAndStoreContext(tabId) {
 
     domoObject.metadata = enrichedMetadata;
 
+    // Preserve code engine version from workflow detection
+    if (detected.codeEngineVersion) {
+      domoObject.metadata.codeEngineVersion = detected.codeEngineVersion;
+    }
+
     // Compute isOwner if user and groups are already available
     const currentUser = context.user;
     const currentUserGroups = context.userGroups;

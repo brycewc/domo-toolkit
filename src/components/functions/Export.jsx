@@ -48,7 +48,8 @@ export function Export({ currentContext, isDisabled }) {
 
       const exportPromise = getCodeEngineCode({
         packageId,
-        tabId: currentContext.tabId
+        tabId: currentContext.tabId,
+        version: currentContext.domoObject.metadata?.codeEngineVersion || null
       }).then(async ({ code, version }) => {
         let formatted = code;
         if (!isPython) {
