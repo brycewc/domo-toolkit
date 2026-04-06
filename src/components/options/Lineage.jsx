@@ -193,9 +193,9 @@ export function Lineage() {
   const entityIcon = useMemo(
     () =>
       mappedEntityType === 'DATAFLOW' ? (
-        <IconArrowFork className='size-5 shrink-0 rotate-180' stroke={1.5} />
+        <IconArrowFork className='size-4 shrink-0 rotate-180' stroke={1.5} />
       ) : (
-        <IconDatabase className='size-5 shrink-0' stroke={1.5} />
+        <IconDatabase className='size-4 shrink-0' stroke={1.5} />
       ),
     [mappedEntityType]
   );
@@ -210,17 +210,17 @@ export function Lineage() {
 
   return (
     <div className='flex h-full w-full flex-col'>
-      <div className='border-divider flex shrink-0 items-center justify-between border-b bg-surface px-4 py-3'>
+      <div className='border-divider flex shrink-0 items-center justify-between border-b bg-surface px-5 py-5'>
         <div className='flex items-center gap-3'>
-          {entityIcon}
           <div className='flex flex-col'>
             <h2 className='text-lg font-semibold'>
               {params?.objectName || 'Pipeline Lineage'}
             </h2>
             {params?.entityId && (
-              <span className='text-xs text-muted'>
-                {params.entityType} &middot; {params.entityId}
-              </span>
+              <div className='flex items-center gap-1 text-sm text-muted'>
+                {entityIcon} &middot; {params.entityType} &middot;{' '}
+                {params.entityId}
+              </div>
             )}
           </div>
         </div>

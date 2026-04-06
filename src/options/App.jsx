@@ -5,6 +5,7 @@ import { Suspense, useEffect, useState } from 'react';
 import {
   ActivityLogTable,
   FaviconSettings,
+  Lineage,
   ReleaseNotes,
   Settings,
   ToastProvider,
@@ -17,6 +18,7 @@ const FULL_SCREEN_PAGES = new Map([
     'activity-log',
     { component: ActivityLogTable, fullWidth: true, title: getActivityLogTitle }
   ],
+  ['lineage', { component: Lineage, fullWidth: true, title: 'Lineage' }],
   [
     'release-notes',
     { component: ReleaseNotes, fullWidth: true, title: 'Release Notes' }
