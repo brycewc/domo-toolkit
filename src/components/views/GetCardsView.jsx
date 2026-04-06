@@ -152,6 +152,30 @@ export function GetCardsView({
         queues: queues.length
       });
 
+      if (
+        cards.length === 0 &&
+        forms.length === 0 &&
+        queues.length === 0
+      ) {
+        const typeName = domoObject.typeName?.toLowerCase() || 'object';
+        const hasFormsAndQueues = [
+          'DATA_APP_VIEW',
+          'PAGE',
+          'REPORT_BUILDER_VIEW',
+          'WORKSHEET_VIEW'
+        ].includes(objectType);
+        onStatusUpdate?.(
+          hasFormsAndQueues ? 'No Items Found' : 'No Cards Found',
+          hasFormsAndQueues
+            ? `No cards, forms, or queues found on this ${typeName}.`
+            : `No cards found on this ${typeName}.`,
+          'warning',
+          3000
+        );
+        onBackToDefault?.();
+        return;
+      }
+
       const transformedItems =
         objectType === 'DATAFLOW_TYPE' && data.outputDatasets
           ? transformDataflowItems(data.outputDatasets, origin)
