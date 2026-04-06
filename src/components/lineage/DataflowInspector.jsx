@@ -157,7 +157,7 @@ const TILE_ICONS = {
  * @param {Function} [props.resolveTabId] - Async function that resolves a valid tab ID
  * @param {Function} props.onClose - Close handler
  */
-export function ETLInspector({ cacheRef, dataflowId, onClose, resolveTabId }) {
+export function DataflowInspector({ cacheRef, dataflowId, onClose, resolveTabId }) {
   const cached = cacheRef?.current?.get(dataflowId);
   const [dataflow, setDataflow] = useState(cached?.parsed ?? null);
   const [rawJSON, setRawJSON] = useState(cached?.raw ?? null);
@@ -192,7 +192,7 @@ export function ETLInspector({ cacheRef, dataflowId, onClose, resolveTabId }) {
         }
       } catch (err) {
         if (!cancelled) {
-          console.error('[ETLInspector] Failed to fetch dataflow:', err);
+          console.error('[DataflowInspector] Failed to fetch dataflow:', err);
           setError(err.message || 'Failed to load ETL data');
           setLoading(false);
         }

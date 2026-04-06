@@ -5,7 +5,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import '@/assets/global.css';
-import { LineageViewer } from '@/components/options/LineageViewer';
+import { Lineage } from '@/components/options/Lineage';
 import { useTheme } from '@/hooks';
 
 function DevApp() {
@@ -13,7 +13,7 @@ function DevApp() {
   return (
     <div className='flex h-screen w-full justify-center'>
       <div className='flex h-full w-full flex-col'>
-        <LineageViewer />
+        <Lineage />
       </div>
     </div>
   );

@@ -6,13 +6,13 @@ import { useGraphVisibility, useLineageCache, useResolveTabId } from '@/hooks';
 import { toLineageType, toNodeId } from '@/services';
 
 import {
+  DataflowInspector,
   DataPreviewPanel,
-  ETLInspector,
-  LevelBar,
-  PipelineGraph
-} from '../tracer';
+  LevelToolbar,
+  LineageGraph
+} from '../lineage';
 
-export function LineageViewer() {
+export function Lineage() {
   const [params, setParams] = useState(null);
   const [error, setError] = useState(null);
   const [selectedNodeId, setSelectedNodeId] = useState(null);
@@ -99,7 +99,7 @@ export function LineageViewer() {
       params.tabId,
       params.instance
     ).catch((err) => {
-      console.error('[LineageViewer] Failed to fetch trace:', err);
+      console.error('[Lineage] Failed to fetch trace:', err);
       setError(err.message || 'Failed to load pipeline trace');
     });
   }, [params, init]);
@@ -164,7 +164,7 @@ export function LineageViewer() {
         params.tabId,
         params.instance
       ).catch((err) => {
-        console.error('[LineageViewer] Failed to refresh:', err);
+        console.error('[Lineage] Failed to refresh:', err);
         setError(err.message || 'Failed to reload pipeline trace');
       });
     }
@@ -240,7 +240,7 @@ export function LineageViewer() {
         {levelSummary && !loading && !error && (
           <div className='pointer-events-none absolute inset-x-0 top-0 z-10 flex justify-center pt-2'>
             <div className='pointer-events-auto'>
-              <LevelBar
+              <LevelToolbar
                 downstreamLevels={levelSummary.downstream}
                 frontierCounts={frontierCounts}
                 upstreamLevels={levelSummary.upstream}
@@ -265,7 +265,7 @@ export function LineageViewer() {
               <p>Error: {error}</p>
             </div>
           ) : (
-            <PipelineGraph
+            <LineageGraph
               error={null}
               expandLoading={expandLoading}
               highlightedDepth={highlightedDepth}
@@ -295,7 +295,7 @@ export function LineageViewer() {
 
         {inspectedDataflow && (
           <div className='h-full w-100 shrink-0'>
-            <ETLInspector
+            <DataflowInspector
               cacheRef={inspectorCacheRef}
               dataflowId={inspectedDataflow.id}
               resolveTabId={resolveTabId}

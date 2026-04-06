@@ -21,7 +21,7 @@ import {
 } from '@tabler/icons-react';
 import { motion } from 'motion/react';
 
-export function WelcomePage() {
+export function Welcome() {
   const handleClose = () => {
     window.close();
   };

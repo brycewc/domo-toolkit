@@ -6,10 +6,10 @@ import {
   IconArrowRight,
   IconMinus
 } from '@tabler/icons-react';
-import { NodeToolbar, Position } from '@xyflow/react';
+import { Position, NodeToolbar as XYNodeToolbar } from '@xyflow/react';
 import { memo } from 'react';
 
-export const PipelineNodeToolbar = memo(function PipelineNodeToolbar({
+export const LineageNodeToolbar = memo(function LineageNodeToolbar({
   data,
   expandLoading,
   nodeId,
@@ -28,7 +28,7 @@ export const PipelineNodeToolbar = memo(function PipelineNodeToolbar({
   if (!showUpstream && !showDownstream) return null;
 
   return (
-    <NodeToolbar isVisible nodeId={nodeId} position={Position.Top}>
+    <XYNodeToolbar isVisible nodeId={nodeId} position={Position.Top}>
       <Toolbar className='rounded-lg bg-surface px-1.5 py-1 shadow-md'>
         {showUpstream && (
           <>
@@ -70,7 +70,7 @@ export const PipelineNodeToolbar = memo(function PipelineNodeToolbar({
           </>
         )}
       </Toolbar>
-    </NodeToolbar>
+    </XYNodeToolbar>
   );
 });
 

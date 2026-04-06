@@ -616,14 +616,14 @@ function DataListItem({
       <Button
         fullWidth
         isIconOnly
-        aria-label='Trace Lineage'
+        aria-label='View Lineage'
         size='sm'
         variant='ghost'
         onPress={() => handleAction('lineage')}
       >
         <IconBinaryTree stroke={1.5} />
       </Button>
-      <Tooltip.Content className='text-xs'>Trace Lineage</Tooltip.Content>
+      <Tooltip.Content className='text-xs'>View Lineage</Tooltip.Content>
     </Tooltip>
   );
 

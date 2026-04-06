@@ -76,7 +76,7 @@ const Connector = memo(function Connector() {
   );
 });
 
-export const LevelBar = memo(function LevelBar({
+export const LevelToolbar = memo(function LevelToolbar({
   downstreamLevels,
   frontierCounts,
   onClearHighlight,

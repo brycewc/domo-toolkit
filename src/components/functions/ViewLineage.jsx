@@ -1,7 +1,7 @@
 import { Button } from '@heroui/react';
 import { IconBinaryTree } from '@tabler/icons-react';
 
-export function TraceLineage({ currentContext, onStatusUpdate }) {
+export function ViewLineage({ currentContext, onStatusUpdate }) {
   const isDisabled =
     !currentContext?.domoObject?.id ||
     !['DATA_SOURCE', 'DATAFLOW_TYPE'].includes(
@@ -55,7 +55,7 @@ export function TraceLineage({ currentContext, onStatusUpdate }) {
       onPress={handlePress}
     >
       <IconBinaryTree stroke={1.5} />
-      Trace Lineage
+      View Lineage
     </Button>
   );
 }

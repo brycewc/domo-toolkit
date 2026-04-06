@@ -1,3 +1,4 @@
+export { useGraphVisibility } from './useGraphVisibility';
 export { useGroupLookup } from './useGroupLookup';
 export { useLineageCache } from './useLineageCache';
 export { useLongPress } from './useLongPress';

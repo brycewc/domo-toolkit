@@ -1,5 +1,5 @@
+export { DataflowInspector } from './DataflowInspector';
 export { DataPreviewPanel } from './DataPreviewPanel';
-export { ETLInspector } from './ETLInspector';
-export { LevelBar } from './LevelBar';
-export { PipelineGraph } from './PipelineGraph';
-export { PipelineNodeToolbar } from './PipelineNodeToolbar';
+export { LevelToolbar } from './LevelToolbar';
+export { LineageGraph } from './LineageGraph';
+export { LineageNodeToolbar } from './LineageNodeToolbar';

@@ -33,10 +33,10 @@ import {
   RemoveEmptyStringsFromQuickFilters,
   SetStreamToManual,
   ShareWithSelf,
-  TraceLineage,
   UpdateCodeEngineVersions,
   UpdateDataflowDetails,
-  UpdateOwner
+  UpdateOwner,
+  ViewLineage
 } from '@/components';
 import { isSidepanel, openSidepanel } from '@/utils';
 
@@ -222,8 +222,8 @@ export function ActionButtons({
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
-                {availableActions.has('traceLineage') && (
-                  <TraceLineage
+                {availableActions.has('viewLineage') && (
+                  <ViewLineage
                     currentContext={currentContext}
                     onStatusUpdate={onStatusUpdate}
                   />
@@ -372,7 +372,7 @@ function getAvailableActions(typeId, details, metadata) {
   if (typeId === 'DATA_SOURCE') {
     actions.add('getViewInputs');
     actions.add('dataRepair');
-    actions.add('traceLineage');
+    actions.add('viewLineage');
     if (
       details?.streamId &&
       metadata?.parent?.details?.scheduleState !== 'MANUAL'

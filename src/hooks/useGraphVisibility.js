@@ -139,7 +139,7 @@ export function useGraphVisibility({
 
       // When root is collapsed in this direction there are no visible
       // nodes beyond depth 0. Show a synthetic collapsed level so the
-      // LevelBar can restore expansion.
+      // LevelToolbar can restore expansion.
       const rootExp = effectiveExpanded.get(rootNodeId);
       if (rootExp && !rootExp[dirKey]) {
         const adj = sign > 0 ? adjacency.downstream : adjacency.upstream;
@@ -263,7 +263,7 @@ export function useGraphVisibility({
       const dirKey = direction === 'upstream' ? 'up' : 'down';
 
       // Root: progressively collapse children first, then root itself.
-      // This keeps L1 visible so the LevelBar and frontier stay functional.
+      // This keeps L1 visible so the LevelToolbar and frontier stay functional.
       if (nodeId === rootNodeId) {
         setExpandedNodes((prev) => {
           const adj =

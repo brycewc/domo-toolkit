@@ -5,7 +5,7 @@ import { useEffect } from 'react';
 
 import { releases } from '@/data';
 
-export function ReleaseNotesPage() {
+export function ReleaseNotes() {
   useEffect(() => {
     chrome.runtime.sendMessage({ type: 'RELEASE_NOTES_SEEN' }).catch(() => {});
   }, []);

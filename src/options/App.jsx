@@ -5,10 +5,10 @@ import { Suspense, useEffect, useState } from 'react';
 import {
   ActivityLogTable,
   FaviconSettings,
-  ReleaseNotesPage,
+  ReleaseNotes,
   Settings,
   ToastProvider,
-  WelcomePage
+  Welcome
 } from '@/components';
 import { useTheme } from '@/hooks';
 
@@ -19,9 +19,9 @@ const FULL_SCREEN_PAGES = new Map([
   ],
   [
     'release-notes',
-    { component: ReleaseNotesPage, fullWidth: true, title: 'Release Notes' }
+    { component: ReleaseNotes, fullWidth: true, title: 'Release Notes' }
   ],
-  ['welcome', { component: WelcomePage, fullWidth: true, title: 'Welcome' }]
+  ['welcome', { component: Welcome, fullWidth: true, title: 'Welcome' }]
 ]);
 
 const TAB_TITLES = {

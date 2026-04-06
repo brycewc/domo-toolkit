@@ -15,7 +15,7 @@ Domo Toolkit is a Chrome Extension (Manifest V3) that enhances the Domo platform
 - Always import from top folder level using barrel exports.
 - Use path alias `@/` to refer to `src/` directory. For example, `import { Copy } from '@/components'` and not `import { Copy } from '@/components/functions/Copy'`. and also not `import { Copy } from '@/components/functions'`.
 
-**Tech Stack:** React 19 + Vite 7 + HeroUI + Tailwind CSS 4 + TanStack Table/Virtual
+**Tech Stack:** React 19 + Vite 7 + HeroUI + Tailwind CSS 4 + TanStack Virtual
 
 ## Development Commands
 
@@ -44,7 +44,7 @@ yarn preview
 The extension has five execution contexts that communicate via message passing:
 
 1. **Background Service Worker** (`src/background.js`) - Central message relay, maintains tab context cache with LRU eviction (max 10 tabs), persists to session storage
-2. **Content Script** (`src/contentScript.js`) - Injected into Domo pages, detects objects via DOM, applies favicons, monitors clipboard
+2. **Content Script** (`src/contentScript.js`) - Injected into Domo pages, detects objects via DOM, applies favicons
 3. **Popup** (`src/popup/`) - Small UI when clicking extension icon
 4. **Side Panel** (`src/sidepanel/`) - Persistent panel alongside Domo pages
 5. **Options Page** (`src/options/`) - Full-page UI for settings, release notes, lineage viewer, and activity log
@@ -61,8 +61,6 @@ Content Script (detects page context via URL/DOM)
 
 **Key message types:**
 
-- `CLIPBOARD_COPIED` - Content script detected copy event
-- `CLIPBOARD_UPDATED` - Notify about valid Domo object ID in clipboard
 - `DETECT_CONTEXT` - Force re-detection of current page
 - `GET_TAB_CONTEXT` - Popup/sidepanel requests current tab's context
 - `RELEASE_NOTES_SEEN` - Release notes page viewed, clear badge and update lastSeenVersion
@@ -219,13 +217,12 @@ Content script detects objects via:
 2. **Modal detection:** Card modals detected via MutationObserver watching for `.card-details-modal`
 3. **ID extraction:** Uses `extractConfig` with keyword/offset or fromEnd patterns
 
-## Clipboard Integration
+## Clipboard Navigation
 
-- Content script listens for copy events and window focus
+- Activated on button click (Navigate button in popup/sidepanel), not passive monitoring
+- Reads clipboard via `navigator.clipboard.readText()` in the popup/sidepanel context
 - Validates clipboard contains Domo object ID (numeric or UUID)
-- Caches to `chrome.storage.session` for background access
-- Background broadcasts `CLIPBOARD_UPDATED` when value changes
-- Keyboard shortcut: Ctrl+Shift+V (Cmd+Shift+V on Mac) triggers clipboard check
+- Identifies object type, fetches metadata, and navigates to the object's URL
 
 ## Releasing a New Version
 
@@ -271,7 +268,7 @@ Add a new object to the **beginning** of the `releases` array (newest-first). Th
 - If any new release has `notify: 'fullPage'`, it opens `src/options/index.html#release-notes`
 - If the highest notification level is `'badge'`, it sets a "NEW" badge via `chrome.action.setBadgeText`
 - If all new releases are `'silent'`, it updates `lastSeenVersion` without any notification
-- The `ReleaseNotesPage` component (`src/components/options/ReleaseNotesPage.jsx`) displays the latest release and sends a `RELEASE_NOTES_SEEN` message on mount to clear the badge
+- The `ReleaseNotes` component (`src/components/options/ReleaseNotes.jsx`) displays the latest release and sends a `RELEASE_NOTES_SEEN` message on mount to clear the badge
 - `lastSeenVersion` is stored in `chrome.storage.local` to track what the user has seen
 
 ### 4. Update `docs/RELEASE_NOTES.md`

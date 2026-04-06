@@ -31,9 +31,9 @@ import {
 
 import { useTheme } from '@/hooks';
 
-import { PipelineNodeToolbar } from './PipelineNodeToolbar';
+import { LineageNodeToolbar } from './LineageNodeToolbar';
 
-const PipelineGraphContext = createContext(null);
+const LineageGraphContext = createContext(null);
 
 const NODE_ICONS = {
   DATA_SOURCE: IconDatabase,
@@ -47,8 +47,8 @@ function formatNumber(n) {
   return n.toLocaleString();
 }
 
-const PipelineNode = memo(function PipelineNode({ data, id }) {
-  const ctx = useContext(PipelineGraphContext);
+const LineageNode = memo(function LineageNode({ data, id }) {
+  const ctx = useContext(LineageGraphContext);
   const Icon = NODE_ICONS[data.entityType] || IconDatabase;
   const meta = data.metadata;
   const hasName = data.label && data.label !== data.entityId;
@@ -156,7 +156,7 @@ const PipelineNode = memo(function PipelineNode({ data, id }) {
       )}
 
       {isSelected && (
-        <PipelineNodeToolbar
+        <LineageNodeToolbar
           data={data}
           expandLoading={ctx.expandLoading}
           nodeId={id}
@@ -174,7 +174,7 @@ function estimateNodeHeight() {
   return 90;
 }
 
-const nodeTypes = { pipeline: PipelineNode };
+const nodeTypes = { pipeline: LineageNode };
 
 const WORKER_THRESHOLD = 30;
 const DAGRE_OPTIONS = { marginx: 40, marginy: 40, rankdir: 'LR', ranksep: 80 };
@@ -186,7 +186,7 @@ const defaultEdgeOptions = {
   type: 'default'
 };
 
-export function PipelineGraph({
+export function LineageGraph({
   error,
   expandLoading,
   highlightedDepth,
@@ -342,7 +342,7 @@ export function PipelineGraph({
   }
 
   return (
-    <PipelineGraphContext.Provider value={graphContext}>
+    <LineageGraphContext.Provider value={graphContext}>
       <ReactFlow
         colorMode={theme}
         edges={edges}
@@ -380,7 +380,7 @@ export function PipelineGraph({
         </Panel>
         <MiniMap pannable zoomable nodeColor={miniMapNodeColor} />
       </ReactFlow>
-    </PipelineGraphContext.Provider>
+    </LineageGraphContext.Provider>
   );
 }
 
