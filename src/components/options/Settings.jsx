@@ -18,42 +18,39 @@ import {
 } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 
-export function Settings({ theme = 'system' }) {
+const DEFAULT_SETTINGS = {
+  defaultClearCookiesHandling: 'auto',
+  defaultDomoInstance: '',
+  themePreference: 'system'
+};
+
+export function Settings() {
   const [developerMode, setDeveloperMode] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   // Store all settings in a single state object for extensibility
-  const [settings, setSettings] = useState({
-    defaultClearCookiesHandling: 'auto',
-    defaultDomoInstance: '',
-    iconStyle: 'light',
-    themePreference: theme
-  });
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
 
   // Track original settings to detect changes
-  const [originalSettings, setOriginalSettings] = useState({
-    defaultClearCookiesHandling: 'auto',
-    defaultDomoInstance: '',
-    iconStyle: 'light',
-    themePreference: theme
-  });
+  const [originalSettings, setOriginalSettings] = useState(DEFAULT_SETTINGS);
 
   useEffect(() => {
     // Load all settings from storage
     chrome.storage.sync.get(
       [
         'themePreference',
-        'iconStyle',
         'defaultDomoInstance',
         'defaultClearCookiesHandling'
       ],
       (result) => {
         const loadedSettings = {
           defaultClearCookiesHandling:
-            result.defaultClearCookiesHandling || 'auto',
-          defaultDomoInstance: result.defaultDomoInstance || '',
-          iconStyle: result.iconStyle || 'light',
-          themePreference: result.themePreference || theme || 'system'
+            result.defaultClearCookiesHandling ||
+            DEFAULT_SETTINGS.defaultClearCookiesHandling,
+          defaultDomoInstance:
+            result.defaultDomoInstance || DEFAULT_SETTINGS.defaultDomoInstance,
+          themePreference:
+            result.themePreference || DEFAULT_SETTINGS.themePreference
         };
         setSettings(loadedSettings);
         setOriginalSettings(loadedSettings);
@@ -80,11 +77,6 @@ export function Settings({ theme = 'system' }) {
             hasChanges = true;
           }
 
-          if (changes.iconStyle) {
-            updatedSettings.iconStyle = changes.iconStyle.newValue;
-            hasChanges = true;
-          }
-
           if (changes.defaultDomoInstance) {
             updatedSettings.defaultDomoInstance =
               changes.defaultDomoInstance.newValue;
@@ -106,11 +98,6 @@ export function Settings({ theme = 'system' }) {
 
           if (changes.themePreference) {
             updatedOriginal.themePreference = changes.themePreference.newValue;
-            hasChanges = true;
-          }
-
-          if (changes.iconStyle) {
-            updatedOriginal.iconStyle = changes.iconStyle.newValue;
             hasChanges = true;
           }
 
@@ -155,13 +142,6 @@ export function Settings({ theme = 'system' }) {
     }));
   };
 
-  const handleIconStyleChange = (value) => {
-    setSettings((prev) => ({
-      ...prev,
-      iconStyle: value
-    }));
-  };
-
   const handleDefaultInstanceChange = (value) => {
     setSettings((prev) => ({
       ...prev,
@@ -203,7 +183,7 @@ export function Settings({ theme = 'system' }) {
       <Form className='flex flex-col gap-2' onSubmit={handleSubmit}>
         <Select
           className='w-40'
-          placeholder={theme}
+          placeholder='System'
           value={settings.themePreference}
           onChange={handleThemeChange}
         >
@@ -245,48 +225,6 @@ export function Settings({ theme = 'system' }) {
           <Description className='w-lg'>
             System, light, or dark theme (applies to popup, side panel, and
             options pages)
-          </Description>
-        </Select>
-        <Select
-          className='w-40'
-          value={settings.iconStyle}
-          onChange={handleIconStyleChange}
-        >
-          <Label>Extension Icon</Label>
-          <Select.Trigger>
-            <Select.Value className='flex items-center gap-2' />
-            <Select.Indicator>
-              <IconChevronDown stroke={1} />
-            </Select.Indicator>
-          </Select.Trigger>
-          <Select.Popover>
-            <ListBox>
-              <ListBox.Item id='light' textValue='Light'>
-                <img alt='Light' className='h-4 w-4' src='/toolkit-128.png' />
-                Light
-                <ListBox.ItemIndicator>
-                  {({ isSelected }) =>
-                    isSelected ? <IconCheck stroke={1.5} /> : null
-                  }
-                </ListBox.ItemIndicator>
-              </ListBox.Item>
-              <ListBox.Item id='dark' textValue='Dark'>
-                <img
-                  alt='Dark'
-                  className='h-4 w-4'
-                  src='/toolkit-dark-128.png'
-                />
-                Dark
-                <ListBox.ItemIndicator>
-                  {({ isSelected }) =>
-                    isSelected ? <IconCheck stroke={1.5} /> : null
-                  }
-                </ListBox.ItemIndicator>
-              </ListBox.Item>
-            </ListBox>
-          </Select.Popover>
-          <Description className='w-md'>
-            Light or dark extension icon, independent of theme preference
           </Description>
         </Select>
         <TextField className='w-40' onChange={handleDefaultInstanceChange}>
@@ -373,8 +311,8 @@ export function Settings({ theme = 'system' }) {
             <Switch.Content>
               <Label>Developer Mode</Label>
               <Description className='w-md'>
-                Enables dev-only tools like Full Context tab and the Dev Menu in
-                the action bar
+                Enables dev-only tools like full context tab and the dev action
+                in the action bar
               </Description>
             </Switch.Content>
           </Switch>

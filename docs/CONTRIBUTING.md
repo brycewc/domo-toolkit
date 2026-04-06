@@ -87,17 +87,18 @@ All PRs are reviewed before merging. You may be asked to make changes -- this is
 
 ## Tech Stack
 
-| Category             | Technology              | Version      |
-| -------------------- | ----------------------- | ------------ |
-| **Framework**        | React                   | 19.2.4       |
-| **Bundler**          | Vite                    | 7.3.0        |
-| **Extension Plugin** | @crxjs/vite-plugin      | 2.0.3        |
-| **UI Library**       | @heroui/react           | 3.0.0-beta.8 |
-| **CSS**              | Tailwind CSS            | 4.1.18       |
-| **Icons**            | @tabler/icons-react     | 3.36.1       |
-| **Virtualization**   | @tanstack/react-virtual | 3.13.18      |
-| **Linter**           | ESLint                  | 10.0.2       |
-| **Formatter**        | Prettier                | 3.7.4        |
+| Category             | Technology              | Version  |
+| -------------------- | ----------------------- | -------- |
+| **Framework**        | React                   | 19.2.4   |
+| **Bundler**          | Vite                    | 7.3.1    |
+| **Extension Plugin** | @crxjs/vite-plugin      | 2.4.0    |
+| **UI Library**       | @heroui/react           | 3.0.2    |
+| **CSS**              | Tailwind CSS            | 4.2.2    |
+| **Icons**            | @tabler/icons-react     | 3.41.1   |
+| **Virtualization**   | @tanstack/react-virtual | 3.13.23  |
+| **Graph Layout**     | @dagrejs/dagre          | 2.0.4    |
+| **Linter**           | ESLint                  | 10.2.0   |
+| **Formatter**        | Prettier                | 3.8.1    |
 
 ## Project Structure
 
@@ -107,6 +108,7 @@ src/
 ├── components/         # Shared React components
 │   ├── functions/      # Action button implementations
 │   ├── options/        # Settings page components
+│   ├── lineage/        # Lineage graph visualization components
 │   └── views/          # View components used in side panel for data discovery features
 ├── data/               # Release information used for new release badge and page
 ├── hooks/              # Custom React hooks
@@ -122,12 +124,13 @@ src/
 
 ## Architecture
 
-The extension has four main execution contexts:
+The extension has five main execution contexts:
 
 1. **Popup** - Small interface when extension icon is clicked
 2. **Side Panel** - Persistent panel alongside Domo pages with richer UI
-3. **Content Script** - Injected into Domo pages; detects objects, applies favicons
-4. **Background Service Worker** - Handles message passing, maintains tab context cache
+3. **Options Page** - Full-page UI for settings, release notes, lineage viewer, and activity log
+4. **Content Script** - Injected into Domo pages; detects objects, applies favicons
+5. **Background Service Worker** - Handles message passing, maintains tab context cache
 
 ### Data Flow
 

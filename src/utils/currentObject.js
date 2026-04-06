@@ -5,7 +5,7 @@
  * @returns {Object|null} Plain object with typeId, id, url, baseUrl properties
  */
 export async function detectCurrentObject() {
-  const url = location.href;
+  const url = location.href.toLowerCase();
 
   if (!location.hostname.includes('domo.com')) {
     return null;
@@ -138,6 +138,11 @@ export async function detectCurrentObject() {
       objectType = 'ROLE';
       break;
 
+    case url.includes('workflows/user-task-response') && url.includes('id='):
+      objectType = 'HOPPER_TASK';
+      id = parts[parts.indexOf('id') + 1];
+      break;
+
     case url.includes('workflows/instances/') && !!parts[parts.indexOf('instances') + 3]:
       objectType = 'WORKFLOW_INSTANCE';
       break;
@@ -192,6 +197,40 @@ export async function detectCurrentObject() {
       }
       objectType = 'WORKFLOW_MODEL_VERSION';
       break;
+    }
+
+    case url.includes('workflows/triggers/'): {
+      const triggerModal = document.querySelector(
+        '[role="dialog"][class*="TimerModal"]'
+      );
+      if (!triggerModal) {
+        objectType = 'WORKFLOW_MODEL';
+        break;
+      }
+
+      // Extract triggerId from React fiber tree (prop on parent component)
+      const fiberKey = Object.keys(triggerModal).find((k) =>
+        k.startsWith('__reactFiber')
+      );
+      let triggerId = null;
+      if (fiberKey) {
+        let fiber = triggerModal[fiberKey];
+        for (let i = 0; i < 15 && fiber; i++) {
+          if (fiber.memoizedProps?.triggerId) {
+            triggerId = fiber.memoizedProps.triggerId;
+            break;
+          }
+          fiber = fiber.return;
+        }
+      }
+
+      return {
+        baseUrl: `${location.protocol}//${location.hostname}`,
+        id: triggerId,
+        parentId: parts[parts.indexOf('triggers') + 1],
+        typeId: 'WORKFLOW_TRIGGER',
+        url
+      };
     }
 
     case url.includes('workflows/'):
@@ -338,14 +377,16 @@ export async function detectCurrentObject() {
         let hook = fiber.memoizedState;
         while (hook) {
           const val = hook.memoizedState;
+          // Check both direct state and ref.current (useRef wraps as { current: ... })
+          const candidate = val?.current ?? val;
           if (
-            val &&
-            typeof val === 'object' &&
-            !Array.isArray(val) &&
-            typeof val.jobId === 'string' &&
-            typeof val.applicationId === 'string'
+            candidate &&
+            typeof candidate === 'object' &&
+            !Array.isArray(candidate) &&
+            typeof candidate.jobId === 'string' &&
+            typeof candidate.applicationId === 'string'
           ) {
-            jobData = val;
+            jobData = candidate;
             break;
           }
           hook = hook.next;
@@ -362,6 +403,46 @@ export async function detectCurrentObject() {
         typeId: 'EXECUTOR_JOB',
         url
       };
+    }
+
+    case url.includes('/admin/'): {
+      const adminTypeMap = {
+        '/admin/pages': { scopeKey: 'pageId', typeId: 'PAGE' }
+      };
+
+      const pathname = location.pathname;
+      let adminConfig = null;
+      for (const [path, config] of Object.entries(adminTypeMap)) {
+        if (pathname.startsWith(path)) {
+          adminConfig = config;
+          break;
+        }
+      }
+
+      if (!adminConfig) return null;
+
+      try {
+        const detailPanel = document.querySelector(
+          '.bulk-item-details-content'
+        );
+        if (!detailPanel) return null;
+
+        // angular.element() is available in MAIN world on Domo admin pages
+        const scope = angular.element(detailPanel).scope();
+        const selectedId = scope?.details?.[adminConfig.scopeKey];
+        if (selectedId) {
+          return {
+            baseUrl: `${location.protocol}//${location.hostname}`,
+            id: String(selectedId),
+            typeId: adminConfig.typeId,
+            url
+          };
+        }
+      } catch (e) {
+        // Angular not available or scope access failed
+      }
+
+      return null;
     }
 
     default:

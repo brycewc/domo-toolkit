@@ -11,7 +11,8 @@ import {
   GetViewInputsView,
   LinkPreview,
   ObjectDetailsView,
-  ToastProvider
+  ToastProvider,
+  UpdateCodeEngineVersionsView
 } from '@/components';
 import { useReleaseNotification, useStatusBar, useTheme } from '@/hooks';
 import { DomoContext } from '@/models';
@@ -62,6 +63,9 @@ export default function App() {
           setViewKey(data.timestamp || Date.now());
         } else if (data?.type === 'cardErrors') {
           setActiveView('cardErrors');
+          setViewKey(data.timestamp || Date.now());
+        } else if (data?.type === 'updateCodeEngineVersions') {
+          setActiveView('updateCodeEngineVersions');
           setViewKey(data.timestamp || Date.now());
         }
       }
@@ -268,6 +272,14 @@ export default function App() {
 
             {activeView === 'cardErrors' && (
               <CardErrorsView
+                key={viewKey}
+                onBackToDefault={handleBackToDefault}
+                onStatusUpdate={showStatus}
+              />
+            )}
+
+            {activeView === 'updateCodeEngineVersions' && (
+              <UpdateCodeEngineVersionsView
                 key={viewKey}
                 onBackToDefault={handleBackToDefault}
                 onStatusUpdate={showStatus}

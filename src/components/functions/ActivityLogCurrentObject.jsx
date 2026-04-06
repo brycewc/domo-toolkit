@@ -8,7 +8,7 @@ import {
 import { useState } from 'react';
 
 import { useLongPress } from '@/hooks';
-import { getCardsForObject, getPagesForCards } from '@/services';
+import { getCardsForObject, getPagesForCards, getSubpageIds } from '@/services';
 import { waitForChildPages } from '@/utils';
 
 export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
@@ -129,24 +129,35 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
             type: 'CARD'
           }));
           activityLogType = 'cards';
+          activityLogType = 'cards';
           message = `Navigating to activity log for ${cards.length} cards on ${objectName}`;
           break;
         }
         case 'child-pages': {
           activityLogType = 'child-pages';
-          const result = await waitForChildPages(currentContext);
+          let childPageIds;
 
-          if (!result.success) {
-            onStatusUpdate?.('Error', result.error, 'danger');
-            setIsLoading(false);
-            return;
+          if (currentContext?.domoObject.typeId === 'PAGE') {
+            const subpageIds = await getSubpageIds({
+              pageId: parseInt(currentContext.domoObject.id),
+              tabId: currentContext.tabId
+            });
+            childPageIds = (subpageIds || []).filter((id) => id >= 0);
+          } else {
+            const result = await waitForChildPages(currentContext);
+
+            if (!result.success) {
+              onStatusUpdate?.('Error', result.error, 'danger');
+              setIsLoading(false);
+              return;
+            }
+
+            childPageIds = (result.childPages || [])
+              .filter((p) => Number(p.pageId) >= 0)
+              .map((p) => Number(p.pageId));
           }
 
-          const childPages = (result.childPages || []).filter(
-            (p) => Number(p.pageId) >= 0
-          );
-
-          if (childPages.length === 0) {
+          if (childPageIds.length === 0) {
             onStatusUpdate?.(
               'No Child Pages Found',
               `No child pages found for ${currentContext?.domoObject.typeName} ${currentContext?.domoObject.id}`,
@@ -156,8 +167,8 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
             return;
           }
 
-          activityLogObjects = childPages.map((p) => ({
-            id: String(p.pageId),
+          activityLogObjects = childPageIds.map((id) => ({
+            id: String(id),
             type: currentContext?.domoObject.typeId
           }));
           message = `Navigating to activity log for ${activityLogObjects.length} child pages`;
@@ -214,8 +225,10 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
           variant='tertiary'
           onPress={() => handleClick()}
           {...(longPressEnabled ? pressProps : {})}
+          {...(longPressEnabled ? pressProps : {})}
         >
           <IconFileDescription stroke={1.5} />
+          <LongPressOverlay />
           <LongPressOverlay />
         </Button>
         <Tooltip.Content className='flex flex-col items-center text-center'>

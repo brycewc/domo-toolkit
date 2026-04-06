@@ -4,35 +4,8 @@ import { useState } from 'react';
 
 import { AnimatedCheck } from '@/components';
 import { useLongPress } from '@/hooks';
-import { DomoObject, getObjectType } from '@/models';
-import { fetchObjectDetailsInPage } from '@/services';
-import { executeInPage } from '@/utils';
 
-/**
- * Notify background script about clipboard update so it can broadcast to all contexts
- * @param {string} value - The copied value (ID)
- * @param {Object} [domoObject] - Optional DomoObject with type and metadata info
- */
-const notifyClipboardUpdate = (value, domoObject = null) => {
-  if (!value) return;
-
-  chrome.runtime
-    .sendMessage({
-      clipboardData: String(value),
-      domoObject: domoObject?.toJSON?.() ?? domoObject,
-      type: 'CLIPBOARD_COPIED'
-    })
-    .catch(() => {
-      // Ignore errors (e.g., no listeners)
-    });
-};
-
-export function Copy({
-  currentContext,
-  isDisabled,
-  navigateToCopiedRef,
-  onStatusUpdate
-}) {
+export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
   const [isCopied, setIsCopied] = useState(false);
   const { LongPressOverlay, pressProps } = useLongPress();
 
@@ -77,8 +50,6 @@ export function Copy({
         'success',
         2000
       );
-      notifyClipboardUpdate(id, domoObject);
-      navigateToCopiedRef.current?.triggerDetection(id, domoObject);
     } catch (error) {
       onStatusUpdate?.(
         'Error',
@@ -89,14 +60,10 @@ export function Copy({
     }
   };
   const handleAction = async (key) => {
-    const baseUrl = currentContext?.domoObject?.baseUrl;
-    const tabId = currentContext?.tabId;
-
     switch (key) {
       case 'account': {
         const accountId =
           currentContext?.domoObject?.metadata?.details?.accountId;
-        const accountObject = new DomoObject('ACCOUNT', accountId, baseUrl);
         navigator.clipboard.writeText(accountId);
         onStatusUpdate?.(
           'Success',
@@ -104,14 +71,10 @@ export function Copy({
           'success',
           2000
         );
-        await enrichDomoObject(accountObject, tabId);
-        notifyClipboardUpdate(accountId, accountObject);
-        navigateToCopiedRef.current?.triggerDetection(accountId, accountObject);
         break;
       }
       case 'data-app': {
         const appId = currentContext?.domoObject?.parentId;
-        const appObject = new DomoObject('DATA_APP', appId, baseUrl);
         navigator.clipboard.writeText(appId);
         onStatusUpdate?.(
           'Success',
@@ -119,18 +82,10 @@ export function Copy({
           'success',
           2000
         );
-        await enrichDomoObject(appObject, tabId);
-        notifyClipboardUpdate(appId, appObject);
-        navigateToCopiedRef.current?.triggerDetection(appId, appObject);
         break;
       }
       case 'dataflow': {
         const dataflowId = currentContext?.domoObject?.parentId;
-        const dataflowObject = new DomoObject(
-          'DATAFLOW_TYPE',
-          dataflowId,
-          baseUrl
-        );
         navigator.clipboard.writeText(dataflowId);
         onStatusUpdate?.(
           'Success',
@@ -138,18 +93,11 @@ export function Copy({
           'success',
           2000
         );
-        await enrichDomoObject(dataflowObject, tabId);
-        notifyClipboardUpdate(dataflowId, dataflowObject);
-        navigateToCopiedRef.current?.triggerDetection(
-          dataflowId,
-          dataflowObject
-        );
         break;
       }
       case 'stream': {
         const streamId =
           currentContext?.domoObject?.metadata?.details?.streamId;
-        const streamObject = new DomoObject('STREAM', streamId, baseUrl);
         navigator.clipboard.writeText(streamId);
         onStatusUpdate?.(
           'Success',
@@ -157,30 +105,16 @@ export function Copy({
           'success',
           2000
         );
-        await enrichDomoObject(streamObject, tabId);
-        notifyClipboardUpdate(streamId, streamObject);
-        navigateToCopiedRef.current?.triggerDetection(streamId, streamObject);
         break;
       }
       case 'worksheet': {
         const worksheetId = currentContext?.domoObject?.parentId;
-        const worksheetObject = new DomoObject(
-          'WORKSHEET',
-          worksheetId,
-          baseUrl
-        );
         navigator.clipboard.writeText(worksheetId);
         onStatusUpdate?.(
           'Success',
           `Copied Worksheet ID **${worksheetId}** to clipboard`,
           'success',
           2000
-        );
-        await enrichDomoObject(worksheetObject, tabId);
-        notifyClipboardUpdate(worksheetId, worksheetObject);
-        navigateToCopiedRef.current?.triggerDetection(
-          worksheetId,
-          worksheetObject
         );
         break;
       }
@@ -200,12 +134,14 @@ export function Copy({
           variant='tertiary'
           onPress={handlePress}
           {...(longPressDisabled ? {} : pressProps)}
+          {...(longPressDisabled ? {} : pressProps)}
         >
           {isCopied ? (
             <AnimatedCheck stroke={1.5} />
           ) : (
             <IconClipboard stroke={1.5} />
           )}
+          <LongPressOverlay />
           <LongPressOverlay />
         </Button>
         <Tooltip.Content className='flex flex-col items-center'>
@@ -235,6 +171,7 @@ export function Copy({
           {dropdownItems.map((item) => (
             <Dropdown.Item id={item.id} key={item.id} textValue={item.label}>
               <IconClipboard className='size-5 shrink-0' stroke={1.5} />
+              <IconClipboard className='size-5 shrink-0' stroke={1.5} />
               <Label>{item.label}</Label>
             </Dropdown.Item>
           ))}
@@ -242,38 +179,4 @@ export function Copy({
       </Dropdown.Popover>
     </Dropdown>
   );
-}
-
-/**
- * Enrich a DomoObject with metadata from the API
- * @param {DomoObject} domoObject - The object to enrich
- * @param {number} tabId - The Chrome tab ID for page context execution
- * @returns {Promise<DomoObject>} The enriched object (mutated in place)
- */
-async function enrichDomoObject(domoObject, tabId) {
-  const typeModel = getObjectType(domoObject.typeId);
-  if (!typeModel?.api) return domoObject;
-
-  try {
-    const params = {
-      apiConfig: typeModel.api,
-      baseUrl: domoObject.baseUrl,
-      objectId: domoObject.id,
-      parentId: domoObject.parentId || null,
-      requiresParent: typeModel.requiresParentForApi(),
-      throwOnError: false,
-      typeId: typeModel.id
-    };
-    const metadata = await executeInPage(
-      fetchObjectDetailsInPage,
-      [params],
-      tabId
-    );
-    if (metadata) {
-      domoObject.metadata = metadata;
-    }
-  } catch (error) {
-    console.warn('[Copy] Failed to enrich object:', error);
-  }
-  return domoObject;
 }

@@ -61,6 +61,34 @@ export async function deleteDataflowAndOutputs({
 }
 
 /**
+ * Get the full detail of a DataFlow (including actions/tiles)
+ * @param {string} dataflowId - The DataFlow ID
+ * @param {number} [tabId] - Optional Chrome tab ID
+ * @returns {Promise<Object>} The full dataflow JSON
+ */
+export async function getDataflowDetail(dataflowId, tabId = null) {
+  return executeInPage(
+    async (dataflowId) => {
+      const response = await fetch(
+        `/api/dataprocessing/v1/dataflows/${dataflowId}`,
+        {
+          credentials: 'include',
+          method: 'GET'
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch dataflow: HTTP ${response.status}`);
+      }
+
+      return response.json();
+    },
+    [dataflowId],
+    tabId
+  );
+}
+
+/**
  * Get the DataFlow ID for a given output DataSet (reverse lookup).
  * Only applicable when the DataSet is an output of a DataFlow.
  * @param {string} datasetId - The DataSet UUID
@@ -117,34 +145,6 @@ export async function getDataflowPermission(dataflowId, tabId = null) {
       if (!response.ok) return null;
       const data = await response.json();
       return data?.permissions?.[0]?.permission || null;
-    },
-    [dataflowId],
-    tabId
-  );
-}
-
-/**
- * Get the full detail of a DataFlow (including actions/tiles)
- * @param {string} dataflowId - The DataFlow ID
- * @param {number} [tabId] - Optional Chrome tab ID
- * @returns {Promise<Object>} The full dataflow JSON
- */
-export async function getDataflowDetail(dataflowId, tabId = null) {
-  return executeInPage(
-    async (dataflowId) => {
-      const response = await fetch(
-        `/api/dataprocessing/v1/dataflows/${dataflowId}`,
-        {
-          credentials: 'include',
-          method: 'GET'
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch dataflow: HTTP ${response.status}`);
-      }
-
-      return response.json();
     },
     [dataflowId],
     tabId

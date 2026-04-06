@@ -396,22 +396,6 @@ export async function shareWithSelf({
             break;
           }
 
-          case 'PAGE': {
-            url = '/api/content/v1/share?sendEmail=false';
-            options = {
-              body: JSON.stringify({
-                recipients: [
-                  { id: userId, permission: 'HAS_ACCESS', type: 'user' }
-                ],
-                resources: [{ id: objectId, type: 'page' }]
-              }),
-              headers: { 'Content-Type': 'application/json' },
-              method: 'POST'
-            };
-            successMessage = `Page ${objectId} shared successfully`;
-            break;
-          }
-
           case 'DATA_SOURCE': {
             // For DataSets, we need to share the account
             if (!metadata?.details?.accountId) {
@@ -438,6 +422,22 @@ export async function shareWithSelf({
               method: 'PUT'
             };
             successMessage = `Account ${accountId} shared successfully`;
+            break;
+          }
+
+          case 'PAGE': {
+            url = '/api/content/v1/share?sendEmail=false';
+            options = {
+              body: JSON.stringify({
+                recipients: [
+                  { id: userId, permission: 'HAS_ACCESS', type: 'user' }
+                ],
+                resources: [{ id: objectId, type: 'page' }]
+              }),
+              headers: { 'Content-Type': 'application/json' },
+              method: 'POST'
+            };
+            successMessage = `Page ${objectId} shared successfully`;
             break;
           }
 

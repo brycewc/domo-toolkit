@@ -12,6 +12,7 @@ This extension is an independent, community-developed project. Domo, Inc. has no
 
 <p float="left">
 <a href="https://chromewebstore.google.com/detail/domo-toolkit/gagcendhhghphglhcgjakkkocbliekaj?utm_source=readme&utm_medium=badge&utm_campaign=readme&utm_id=readme" target="_blank"><img src="Chrome_Store_Badge.png" alt="https://chromewebstore.google.com/detail/domo-toolkit/gagcendhhghphglhcgjakkkocbliekaj" height="50"/></a>
+<a href="https://chromewebstore.google.com/detail/domo-toolkit/gagcendhhghphglhcgjakkkocbliekaj?utm_source=readme&utm_medium=badge&utm_campaign=readme&utm_id=readme" target="_blank"><img src="Chrome_Store_Badge.png" alt="https://chromewebstore.google.com/detail/domo-toolkit/gagcendhhghphglhcgjakkkocbliekaj" height="50"/></a>
 <a href="https://microsoftedge.microsoft.com/addons/detail/domo-toolkit/bkhnonmfkljenhejgboholmhginiiipk" target="_blank"><img src="Microsoft_Edge_Add_Ons_Badge.png" alt="https://microsoftedge.microsoft.com/addons/detail/domo-toolkit/bkhnonmfkljenhejgboholmhginiiipk" height="50"/></a>
 </p>
 
@@ -41,7 +42,7 @@ Handles Domo's "Request Header Fields Too Large" errors with three cookie cleari
 - **Share With Self** - Grant yourself access to pages, studio apps, and custom app designs.
 - **Delete Current Object** - Delete beast modes, appdb collections, workflows, and pages/app studio pages including their cards. Includes confirmation dialog and child page safety checks.
 - **Activity Log** - View activity log records for the current object. Long-press for advanced options: view activity for all cards on the current object, or for all pages containing those cards.
-- **Clipboard Navigation** - Copy any Domo object ID from anywhere - a card, dataset, spreadsheet, Slack message, or support ticket - and navigate to it. The extension identifies the object type, fetches its name, and builds the URL. For objects that don't support navigation, detailed information is displayed in the side panel instead.
+- **Clipboard Navigation** - Click the Navigate button to read your clipboard, identify the Domo object type, fetch its name, and navigate to it. Works with any copied Domo object ID from anywhere - a card, dataset, spreadsheet, Slack message, or support ticket. For objects that don't support navigation, detailed information is displayed in the side panel instead.
 
 ### Data Discovery
 
@@ -60,11 +61,15 @@ Card API errors are automatically captured as you browse and displayed in a dedi
 
 ### Object-Specific Actions
 
+- **Lineage** - Open a full-page lineage graph for datasets and dataflows. Traces upstream and downstream dependencies with dataset previews and dataflow tile operations directly in the graph. Supports dark mode.
 - **Copy Filtered URL** - Copy URL with all applied filters on a card, page, or app studio page (Pfilters).
 - **Export Data** - Export card data in CSV or Excel format, including applied filters. Export code engine packages as JavaScript/Python files.
 - **Data Repair** - Open the hidden data repair tab for any dataset.
 - **Update Owner** - Change ownership of alerts and workflows with a searchable user picker and a "Set to Self" shortcut.
 - **Update DataFlow Details** - Edit dataflow names and descriptions without creating a new version.
+- **Update Code Engine Versions** - Bulk update workflow code engine package versions. Update all packages to latest with a single click, or select specific packages and versions. Preserves all input and output mappings.
+- **Lock Cards** - Lock all cards on a page, app studio page, dataset, worksheet, or report builder page.
+- **Set Stream to Manual** - Set a dataset's stream schedule to manual.
 - **Fix Empty String Filters** - Remove empty string default values from "contains" quick filters on cards, so null values display instead of being filtered out.
 
 ### Custom Favicons
@@ -93,7 +98,7 @@ Both show the current context (instance, object type, object ID) and update as y
 
 ## Supported Object Types
 
-Pages, cards, datasets, dataflows, app studio apps/pages, worksheets, workspaces, report builder, users, groups, alerts, workflows, code engine packages, pro-code apps, beast modes, variables, access tokens, appdb collections, approvals, approval templates, drill paths, jupyter workspaces, filesets, files, forms, governance toolkit jobs and dozens more. Each type supports URL pattern detection, ID validation, and API-based metadata enrichment.
+Pages, cards, datasets, dataflows, app studio apps/pages, worksheets, workspaces, report builder, users, groups, alerts, workflows, workflow triggers, code engine packages, pro-code apps, beast modes, variables, access tokens, appdb collections, approvals, approval templates, drill paths, jupyter workspaces, filesets, files, forms, governance toolkit jobs and dozens more. Each type supports URL pattern detection, ID validation, and API-based metadata enrichment.
 
 ## Privacy
 

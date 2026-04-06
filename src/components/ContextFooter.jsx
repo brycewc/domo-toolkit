@@ -24,6 +24,7 @@ import {
   isUserFieldName
 } from '@/utils';
 
+import { AlertStatusIcon } from './AlertStatusIcon';
 import { AnimatedCheck } from './AnimatedCheck';
 import { GroupIdAnnotation } from './GroupIdAnnotation';
 import { TimestampAnnotation } from './TimestampAnnotation';
@@ -92,7 +93,8 @@ export function ContextFooter({
               itemIdField: related.itemIdField,
               itemTypeField: related.itemTypeField,
               itemTypeId: related.itemTypeId,
-              label: `${related.label} (${arrayData.length})`
+              label: `${related.label} (${arrayData.length})`,
+              parentId: resolveRelatedParentId(related, domoObject)
             });
           }
           continue;
@@ -128,6 +130,7 @@ export function ContextFooter({
             isCurrentObject: false,
             label: related.label,
             objectId: relatedId,
+            parentId: resolveRelatedParentId(related, domoObject),
             typeId: related.typeId
           });
         }
@@ -220,7 +223,7 @@ export function ContextFooter({
         apiConfig: relatedType.api,
         baseUrl: currentContext?.domoObject?.baseUrl,
         objectId: tab.objectId,
-        parentId: null,
+        parentId: tab.parentId || null,
         requiresParent: relatedType.requiresParentForApi(),
         throwOnError: false,
         typeId: relatedType.id
@@ -275,7 +278,8 @@ export function ContextFooter({
         isArray: true,
         itemIdField: activeTab.itemIdField,
         itemTypeField: activeTab.itemTypeField,
-        itemTypeId: activeTab.itemTypeId
+        itemTypeId: activeTab.itemTypeId,
+        parentId: activeTab.parentId
       });
       return (
         <MetadataJsonView
@@ -309,6 +313,7 @@ export function ContextFooter({
       const src = injectUrls(relatedCache[activeTabId], {
         baseUrl,
         objectId: activeTab.objectId,
+        parentId: activeTab.parentId,
         typeId: activeTab.typeId
       });
       return (
@@ -412,7 +417,9 @@ export function ContextFooter({
                 }
               >
                 <Tooltip.Trigger>
-                  <Alert.Indicator />
+                  <Alert.Indicator>
+                    <AlertStatusIcon />
+                  </Alert.Indicator>
                 </Tooltip.Trigger>
                 <Tooltip.Content>
                   Click to toggle context JSON view
@@ -487,11 +494,16 @@ export function ContextFooter({
                   >
                     {tabs.map((tab) => (
                       <Tabs.Tab
-                        className='min-w-32 capitalize'
+                        className='min-w-32 flex-1 capitalize'
                         id={tab.id}
                         key={tab.id}
                       >
-                        {tab.label}
+                        <span
+                          className='line-clamp-2 text-center'
+                          title={tab.label}
+                        >
+                          {tab.label}
+                        </span>
                         <Tabs.Indicator />
                       </Tabs.Tab>
                     ))}
@@ -514,17 +526,18 @@ export function ContextFooter({
   );
 }
 
-function buildSimpleUrl(baseUrl, typeId, objectId) {
+function buildSimpleUrl(baseUrl, typeId, objectId, parentId) {
   const type = getObjectType(typeId);
   if (!type?.hasUrl()) return null;
-  const path = type.urlPath.replace('{id}', objectId);
+  let path = type.urlPath.replace('{id}', objectId);
+  if (parentId) path = path.replace('{parent}', parentId);
   if (path.includes('{')) return null;
   return `${baseUrl}${path}`;
 }
 
 function injectUrls(
   src,
-  { baseUrl, isArray, itemIdField, itemTypeField, itemTypeId, objectId, typeId }
+  { baseUrl, isArray, itemIdField, itemTypeField, itemTypeId, objectId, parentId, typeId }
 ) {
   if (!src || !baseUrl) return src;
 
@@ -534,13 +547,13 @@ function injectUrls(
       const resolvedType = itemTypeId || item[itemTypeField];
       const itemId = itemIdField ? item[itemIdField] : item.id;
       if (!resolvedType || !itemId) return item;
-      const url = buildSimpleUrl(baseUrl, resolvedType, itemId);
+      const url = buildSimpleUrl(baseUrl, resolvedType, itemId, parentId);
       return url ? { url, ...item } : item;
     });
   }
 
   if (typeof src === 'object' && !Array.isArray(src) && typeId && objectId) {
-    const url = buildSimpleUrl(baseUrl, typeId, objectId);
+    const url = buildSimpleUrl(baseUrl, typeId, objectId, parentId);
     return url ? { url, ...src } : src;
   }
 
@@ -574,27 +587,11 @@ function MetadataJsonView({ collapsed = 1, groupMap = {}, src, userMap = {} }) {
           onClick={onClick}
         />
       )}
-      customizeCopy={(node) => {
-        const stringValue =
-          typeof node === 'object'
-            ? JSON.stringify(node, null, 2)
-            : String(node);
-        const trimmed = stringValue.trim();
-        const isDomoId =
-          /^-?\d+$/.test(trimmed) ||
-          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-            trimmed
-          );
-        if (isDomoId) {
-          chrome.runtime
-            .sendMessage({
-              clipboardData: trimmed,
-              type: 'CLIPBOARD_COPIED'
-            })
-            .catch(() => {});
-        }
-        return stringValue;
-      }}
+      customizeCopy={(node) =>
+        typeof node === 'object'
+          ? JSON.stringify(node, null, 2)
+          : String(node)
+      }
       customizeNode={(params) => {
         if (params.node === null || params.node === undefined) {
           return { enableClipboard: false };
@@ -683,4 +680,33 @@ function MetadataJsonView({ collapsed = 1, groupMap = {}, src, userMap = {} }) {
       }}
     />
   );
+}
+
+/**
+ * Resolve the parent ID that a related object needs for its API call.
+ * Uses explicit parentSource config when provided, otherwise auto-resolves
+ * from the type hierarchy.
+ */
+function resolveRelatedParentId(related, domoObject) {
+  if (related.parentSource) {
+    if (related.parentSource === 'parentId') return domoObject.parentId;
+    if (related.parentSource === 'objectId') return domoObject.id;
+    return related.parentSource
+      .split('.')
+      .reduce((obj, key) => obj?.[key], domoObject.metadata?.details);
+  }
+
+  // Auto-resolve: infer from type hierarchy
+  const relatedType = getObjectType(related.typeId || related.itemTypeId);
+  if (relatedType?.requiresParentForApi()) {
+    if (relatedType.parents?.includes(domoObject.typeId)) {
+      return domoObject.id;
+    }
+    const currentTypeModel = getObjectType(domoObject.typeId);
+    if (relatedType.parents?.some((p) => currentTypeModel?.parents?.includes(p))) {
+      return domoObject.parentId;
+    }
+  }
+
+  return null;
 }

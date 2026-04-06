@@ -1,0 +1,20 @@
+---
+description: Release checklist for version bumps and publishing
+globs: package.json,src/data/releases.js,docs/RELEASE_NOTES.md
+alwaysApply: false
+---
+
+# Release Process Checklist
+
+When preparing a release, ensure **all** of these files are updated together:
+
+1. **`package.json`** — Bump `version` (semver: patch / minor / major)
+2. **`src/data/releases.js`** — Add entry to **beginning** of `releases` array with fields sorted alphabetically: `date`, `fullPage`, `githubUrl`, `highlights`, `summary`, `version`
+3. **`docs/RELEASE_NOTES.md`** — Replace contents with this version's detailed notes (used as GitHub Release body)
+
+## Validation
+
+- `version` in `package.json` must match `version` in the new `releases.js` entry
+- `fullPage: true` for minor/major releases; `fullPage: false` for patches
+- `githubUrl` format: `https://github.com/brycewc/domo-toolkit/releases/tag/vX.Y.Z`
+- Run `yarn release` to build and package Chrome + Edge zips before committing

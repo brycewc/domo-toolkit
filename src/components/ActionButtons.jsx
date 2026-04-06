@@ -11,7 +11,7 @@ import {
   IconLayoutSidebarRightExpand,
   IconSettings
 } from '@tabler/icons-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import {
   ActivityLogCurrentObject,
@@ -33,8 +33,10 @@ import {
   RemoveEmptyStringsFromQuickFilters,
   SetStreamToManual,
   ShareWithSelf,
+  UpdateCodeEngineVersions,
   UpdateDataflowDetails,
-  UpdateOwner
+  UpdateOwner,
+  ViewLineage
 } from '@/components';
 import { isSidepanel, openSidepanel } from '@/utils';
 
@@ -45,7 +47,6 @@ export function ActionButtons({
   isLoading,
   onStatusUpdate
 }) {
-  const navigateToCopiedRef = useRef();
   const [isExpanded, setIsExpanded] = useState(defaultExpanded ?? !collapsable);
 
   useEffect(() => {
@@ -85,7 +86,6 @@ export function ActionButtons({
                 <Copy
                   currentContext={currentContext}
                   isDisabled={!isDomoPage}
-                  navigateToCopiedRef={navigateToCopiedRef}
                   onStatusUpdate={onStatusUpdate}
                 />
                 <ShareWithSelf
@@ -99,7 +99,6 @@ export function ActionButtons({
                 />
                 <NavigateToCopiedObject
                   currentContext={currentContext}
-                  ref={navigateToCopiedRef}
                   onStatusUpdate={onStatusUpdate}
                 />
                 <ClearCookies
@@ -223,6 +222,12 @@ export function ActionButtons({
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
+                {availableActions.has('viewLineage') && (
+                  <ViewLineage
+                    currentContext={currentContext}
+                    onStatusUpdate={onStatusUpdate}
+                  />
+                )}
                 {availableActions.has('dataRepair') && (
                   <DataRepair
                     currentContext={currentContext}
@@ -276,6 +281,16 @@ export function ActionButtons({
                   <SetStreamToManual
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
+                    onStatusUpdate={onStatusUpdate}
+                  />
+                )}
+                {availableActions.has('updateCodeEngineVersions') && (
+                  <UpdateCodeEngineVersions
+                    currentContext={currentContext}
+                    isDisabled={!isDomoPage}
+                    onCollapseActions={
+                      collapsable ? () => setIsExpanded(false) : undefined
+                    }
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
@@ -357,7 +372,11 @@ function getAvailableActions(typeId, details, metadata) {
   if (typeId === 'DATA_SOURCE') {
     actions.add('getViewInputs');
     actions.add('dataRepair');
-    if (details?.streamId && metadata?.parent?.details?.scheduleState !== 'MANUAL') {
+    actions.add('viewLineage');
+    if (
+      details?.streamId &&
+      metadata?.parent?.details?.scheduleState !== 'MANUAL'
+    ) {
       actions.add('setStreamToManual');
     }
   }
@@ -374,6 +393,14 @@ function getAvailableActions(typeId, details, metadata) {
 
   if (['ALERT', 'WORKFLOW_MODEL'].includes(typeId)) {
     actions.add('updateOwner');
+  }
+
+  if (
+    typeId === 'WORKFLOW_MODEL_VERSION' &&
+    !details?.deletedAt &&
+    !details?.releasedAt
+  ) {
+    actions.add('updateCodeEngineVersions');
   }
 
   if (['CARD', 'CODEENGINE_PACKAGE'].includes(typeId)) {

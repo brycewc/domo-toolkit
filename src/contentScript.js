@@ -44,205 +44,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Title will be updated when we receive tab context from background
 })();
 
-// Track last known clipboard value to detect changes
-let lastKnownClipboard = '';
-
-// Read clipboard text, trying the modern API first then falling back to execCommand.
-// navigator.clipboard.readText() requires user activation (click/key) which focus and
-// visibility events don't provide. execCommand('paste') uses the manifest clipboardRead
-// permission instead, so it works without a user gesture.
-async function readClipboardText() {
-  try {
-    return await navigator.clipboard.readText();
-  } catch {
-    // Modern API blocked (no user gesture) — fall back to execCommand
-  }
-  try {
-    const textarea = document.createElement('textarea');
-    textarea.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0';
-    document.body.appendChild(textarea);
-    textarea.focus();
-    document.execCommand('paste');
-    const text = textarea.value;
-    textarea.remove();
-    return text;
-  } catch {
-    return '';
-  }
-}
-
-// Helper function to check and cache clipboard
-async function checkAndCacheClipboard() {
-  try {
-    const clipboardText = await readClipboardText();
-    const trimmedText = clipboardText.trim();
-
-    // Validate that clipboard contains a valid Domo object ID
-    // Check if it looks like a Domo object ID (numeric including negative, or UUID)
-    const isNumeric = /^-?\d+$/.test(trimmedText);
-    const isUuid =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-        trimmedText
-      );
-
-    if (!isNumeric && !isUuid) {
-      // If the previous clipboard was a Domo ID, clear it
-      if (lastKnownClipboard) {
-        lastKnownClipboard = '';
-        chrome.runtime
-          .sendMessage({
-            clipboardData: '',
-            type: 'CLIPBOARD_COPIED'
-          })
-          .catch(() => {});
-      }
-      return null;
-    }
-
-    // Only send if clipboard has changed
-    if (trimmedText !== lastKnownClipboard) {
-      lastKnownClipboard = trimmedText;
-
-      // Send to background script to cache
-      chrome.runtime
-        .sendMessage({
-          clipboardData: trimmedText,
-          type: 'CLIPBOARD_COPIED'
-        })
-        .catch((err) => {
-          console.log('[ContentScript] Error sending clipboard data:', err);
-        });
-    }
-  } catch (error) {
-    console.log('[ContentScript] Could not read clipboard:', error);
-  }
-}
-
-// Listen for copy events to cache clipboard contents
-document.addEventListener('copy', async () => {
-  // Wait a brief moment for clipboard to be populated
-  setTimeout(async () => {
-    await checkAndCacheClipboard();
-  }, 100);
-});
-
-// Listen for window focus to detect when user returns to tab
-// This handles the case where user copied from another application
-// Small delay ensures the document is fully active before reading clipboard
-window.addEventListener('focus', () => {
-  setTimeout(checkAndCacheClipboard, 100);
-});
-
-// Also listen for visibility changes — more reliable for cross-application switching
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') {
-    setTimeout(checkAndCacheClipboard, 100);
-  }
-});
-
 // NOTE: URL change detection and instance tracking are handled by service worker
-// Card modal detection requires DOM access, so we handle it here
+// Modal/overlay detection requires DOM access, so we handle it here via MutationObserver.
+// Each detector is a config object; the shared observer iterates them on every mutation batch.
 
 // Track last detected card modal ID to avoid redundant detections
 let lastDetectedCardId = null;
-
-// Track whether a job overview element is currently visible
-let lastDetectedJobView = false;
-
-// Watch for card modal element being added or removed
-function checkForCardModalElement(mutations) {
-  for (const mutation of mutations) {
-    if (mutation.type === 'childList') {
-      // Check for added nodes
-      if (mutation.addedNodes.length > 0) {
-        for (const node of mutation.addedNodes) {
-          if (node.nodeType === Node.ELEMENT_NODE) {
-            let modalElement = null;
-            if (
-              node.classList &&
-              node.classList.contains('card-details-modal')
-            ) {
-              modalElement = node;
-            } else if (node.querySelector) {
-              modalElement = node.querySelector('.card-details-modal');
-            }
-
-            if (modalElement) {
-              handleCardModalDetected();
-              return;
-            }
-          }
-        }
-      }
-
-      // Check for removed nodes
-      if (mutation.removedNodes.length > 0) {
-        for (const node of mutation.removedNodes) {
-          if (node.nodeType === Node.ELEMENT_NODE) {
-            let wasModal = false;
-            if (
-              node.classList &&
-              node.classList.contains('card-details-modal')
-            ) {
-              wasModal = true;
-            } else if (node.querySelector) {
-              const modalElement = node.querySelector('.card-details-modal');
-              if (modalElement) {
-                wasModal = true;
-              }
-            }
-
-            if (wasModal) {
-              lastDetectedCardId = null;
-              triggerContextRedetection();
-              return;
-            }
-          }
-        }
-      }
-    }
-  }
-}
-
-// Check for a card modal already present in the DOM (e.g., after extension reload)
-function checkForExistingCardModal() {
-  if (document.querySelector('.card-details-modal')) {
-    handleCardModalDetected();
-  }
-}
-
-// Watch for job overview element being added or removed (Governance Toolkit)
-function checkForJobOverviewElement(mutations) {
-  if (!location.pathname.includes('governance-toolkit')) return;
-
-  for (const mutation of mutations) {
-    if (mutation.type !== 'childList') continue;
-
-    for (const node of mutation.addedNodes) {
-      if (node.nodeType !== Node.ELEMENT_NODE) continue;
-      const isJobOverview =
-        node.classList?.value?.includes('job-overview-top') ||
-        node.querySelector?.('[class*="job-overview-top"]');
-      if (isJobOverview && !lastDetectedJobView) {
-        lastDetectedJobView = true;
-        triggerContextRedetection();
-        return;
-      }
-    }
-
-    for (const node of mutation.removedNodes) {
-      if (node.nodeType !== Node.ELEMENT_NODE) continue;
-      const wasJobOverview =
-        node.classList?.value?.includes('job-overview-top') ||
-        node.querySelector?.('[class*="job-overview-top"]');
-      if (wasJobOverview && lastDetectedJobView) {
-        lastDetectedJobView = false;
-        triggerContextRedetection();
-        return;
-      }
-    }
-  }
-}
 
 // Extract card ID from modal element ID (format: card-details-modal-{cardId})
 function extractCardIdFromModal() {
@@ -321,20 +128,184 @@ document.addEventListener(
   true
 );
 
-// Set up MutationObserver to watch for modal and job overview changes
+// ============================================================
+// Admin list view selection detection
+// ============================================================
+
+let lastAdminDetailTitle = null;
+
+if (location.pathname.startsWith('/admin/')) {
+  document.addEventListener(
+    'click',
+    () => {
+      // Use setTimeout to allow Angular's digest cycle to update the detail panel
+      setTimeout(() => {
+        const titleEl = document.querySelector(
+          '.bulk-item-details-title'
+        );
+        const currentTitle = titleEl?.innerText?.trim() || null;
+
+        if (currentTitle !== lastAdminDetailTitle) {
+          lastAdminDetailTitle = currentTitle;
+          triggerContextRedetection();
+        }
+      }, 200);
+    },
+    true
+  );
+}
+
+// ============================================================
+// Declarative modal/overlay detection framework
+// ============================================================
+
+/**
+ * Factory for simple boolean-presence detectors.
+ * Tracks whether the element is in the DOM and triggers redetection on transitions.
+ */
+function createSimpleDetector({ selector, urlGuard }) {
+  let isPresent = false;
+  return {
+    onDetected() {
+      if (!isPresent) {
+        isPresent = true;
+        triggerContextRedetection();
+      }
+    },
+    onLoadCheck() {
+      if (document.querySelector(selector)) {
+        isPresent = true;
+        triggerContextRedetection();
+      }
+    },
+    onRemoved() {
+      if (isPresent) {
+        isPresent = false;
+        triggerContextRedetection();
+      }
+    },
+    selector,
+    urlGuard
+  };
+}
+
+/**
+ * Registry of modal/overlay detectors.
+ * Each entry needs: selector, onDetected(), onRemoved(), onLoadCheck().
+ * Optional urlGuard string restricts the detector to pages whose pathname includes it.
+ * Use createSimpleDetector() for elements that only need boolean presence tracking.
+ */
+const MODAL_DETECTORS = [
+  // Card detail modal — custom logic for ID extraction with retry
+  {
+    onDetected() {
+      handleCardModalDetected();
+    },
+    onLoadCheck() {
+      if (document.querySelector('.card-details-modal')) {
+        handleCardModalDetected();
+      }
+    },
+    onRemoved() {
+      lastDetectedCardId = null;
+      triggerContextRedetection();
+    },
+    selector: '.card-details-modal'
+  },
+
+  // Governance Toolkit job overview panel
+  createSimpleDetector({
+    selector: '[class*="job-overview-top"]',
+    urlGuard: 'governance-toolkit'
+  }),
+
+  // Admin list detail panel — custom logic for title-based dedup
+  {
+    onDetected() {
+      const titleEl = document.querySelector('.bulk-item-details-title');
+      const currentTitle = titleEl?.innerText?.trim() || null;
+      if (currentTitle !== lastAdminDetailTitle) {
+        lastAdminDetailTitle = currentTitle;
+        triggerContextRedetection();
+      }
+    },
+    onLoadCheck() {
+      if (document.querySelector('.bulk-item-details-content')) {
+        lastAdminDetailTitle =
+          document.querySelector('.bulk-item-details-title')
+            ?.innerText?.trim() || null;
+        triggerContextRedetection();
+      }
+    },
+    onRemoved() {
+      lastAdminDetailTitle = null;
+      triggerContextRedetection();
+    },
+    selector: '.bulk-item-details-content',
+    urlGuard: '/admin/',
+    urlGuardMethod: 'startsWith'
+  },
+
+  // Workflow trigger timer modal
+  createSimpleDetector({
+    selector: '[role="dialog"][class*="TimerModal"]',
+    urlGuard: 'workflows/triggers/'
+  })
+];
+
+function matchesUrlGuard(detector) {
+  if (!detector.urlGuard) return true;
+  const method = detector.urlGuardMethod || 'includes';
+  return location.pathname[method](detector.urlGuard);
+}
+
+function nodeMatchesSelector(node, selector) {
+  return node.matches?.(selector) || !!node.querySelector?.(selector);
+}
+
+// Unified MutationObserver callback
 const modalObserver = new MutationObserver((mutations) => {
-  checkForCardModalElement(mutations);
-  checkForJobOverviewElement(mutations);
+  for (const detector of MODAL_DETECTORS) {
+    if (!matchesUrlGuard(detector)) continue;
+
+    let handled = false;
+    for (const mutation of mutations) {
+      if (mutation.type !== 'childList') continue;
+
+      for (const node of mutation.addedNodes) {
+        if (node.nodeType !== Node.ELEMENT_NODE) continue;
+        if (nodeMatchesSelector(node, detector.selector)) {
+          detector.onDetected();
+          handled = true;
+          break;
+        }
+      }
+      if (handled) break;
+
+      for (const node of mutation.removedNodes) {
+        if (node.nodeType !== Node.ELEMENT_NODE) continue;
+        if (nodeMatchesSelector(node, detector.selector)) {
+          detector.onRemoved();
+          handled = true;
+          break;
+        }
+      }
+      if (handled) break;
+    }
+  }
 });
 
-// Start observing the document for modal changes
 modalObserver.observe(document.body, {
   childList: true,
   subtree: true
 });
 
-// Detect modals already present in the DOM (handles extension reload with modal open)
-checkForExistingCardModal();
+// Run on-load checks for all detectors (handles extension reload with modal/panel open)
+for (const detector of MODAL_DETECTORS) {
+  if (matchesUrlGuard(detector)) {
+    detector.onLoadCheck();
+  }
+}
 
 // ============================================================
 // Card error capture

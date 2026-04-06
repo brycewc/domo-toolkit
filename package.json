@@ -1,8 +1,8 @@
 {
   "name": "domo-toolkit",
-  "version": "1.1.3",
+  "version": "2.0.0",
   "license": "MIT",
-  "description": "Domo Toolkit – Tools for Domo admins and power users",
+  "description": "A collection of utilities for Domo power users.",
   "homepage": "https://github.com/brycewc/domo-toolkit",
   "repository": {
     "type": "git",
@@ -48,8 +48,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@heroui/react": "3.0.0-beta.8",
-    "@heroui/styles": "3.0.0-beta.8",
+    "@dagrejs/dagre": "^2.0.4",
+    "@heroui/react": "^3.0.2",
+    "@heroui/styles": "^3.0.2",
     "@tabler/icons-react": "^3.36.1",
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/react-virtual": "^3.13.18",

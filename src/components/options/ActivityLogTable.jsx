@@ -15,7 +15,11 @@ import {
   Skeleton
 } from '@heroui/react';
 import { getLocalTimeZone, parseDate, today } from '@internationalized/date';
-import { IconCalendarWeek, IconFilter } from '@tabler/icons-react';
+import {
+  IconAlertCircle,
+  IconCalendarWeek,
+  IconFilter
+} from '@tabler/icons-react';
 import { AnimatePresence } from 'motion/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -122,27 +126,29 @@ export function ActivityLogTable() {
 
     const uniqueTypes = [...new Set(objects.map((obj) => obj.type))];
 
-    resolveTabId().then((resolvedTabId) => {
-      if (!resolvedTabId) return;
-      return Promise.all(
-        uniqueTypes.map((type) =>
-          getEventTypesForObjectType(type, resolvedTabId).catch(() => [])
-        )
-      );
-    }).then((results) => {
-      if (!results) return;
-      const seen = new Set();
-      const options = results
-        .flat()
-        .filter((item) => {
-          const key = item.type.toLowerCase();
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        })
-        .sort((a, b) => a.translation.localeCompare(b.translation));
-      setActionOptions(options);
-    });
+    resolveTabId()
+      .then((resolvedTabId) => {
+        if (!resolvedTabId) return;
+        return Promise.all(
+          uniqueTypes.map((type) =>
+            getEventTypesForObjectType(type, resolvedTabId).catch(() => [])
+          )
+        );
+      })
+      .then((results) => {
+        if (!results) return;
+        const seen = new Set();
+        const options = results
+          .flat()
+          .filter((item) => {
+            const key = item.type.toLowerCase();
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          })
+          .sort((a, b) => a.translation.localeCompare(b.translation));
+        setActionOptions(options);
+      });
   }, [tabId, objects]);
 
   // Check which users have custom avatars (non-blocking, incremental)
@@ -158,9 +164,10 @@ export function ActivityLogTable() {
 
     uncheckedIds.forEach((id) => checkedAvatarIdsRef.current.add(id));
 
-    resolveTabId().then((resolvedTabId) =>
-      getCustomAvatarUserIds(uncheckedIds, resolvedTabId)
-    )
+    resolveTabId()
+      .then((resolvedTabId) =>
+        getCustomAvatarUserIds(uncheckedIds, resolvedTabId)
+      )
       .then((customIds) => {
         if (customIds.length === 0) return;
         setCustomAvatarIds((prev) => {
@@ -182,7 +189,8 @@ export function ActivityLogTable() {
   // Stabilized to avoid new reference when events change but types stay the same.
   const prevObjectTypeOptionsRef = useRef([]);
   const objectTypeOptions = useMemo(() => {
-    if (activityLogType === 'single-object') return prevObjectTypeOptionsRef.current;
+    if (activityLogType === 'single-object')
+      return prevObjectTypeOptionsRef.current;
     const types = new Set();
     events.forEach((event) => {
       if (event.objectType) {
@@ -234,10 +242,10 @@ export function ActivityLogTable() {
         pending.push(
           obj
             .buildUrl(baseUrl, resolvedTabId)
-          .then((url) => ({ key, url }))
-          .catch(() => null)
-      );
-    }
+            .then((url) => ({ key, url }))
+            .catch(() => null)
+        );
+      }
 
       if (pending.length === 0) return;
 
@@ -310,7 +318,11 @@ export function ActivityLogTable() {
         const resolvedTabId = await resolveTabId();
         if (!resolvedTabId) return;
 
-        const tasks = buildFetchTasks(objects, userFilter, actionFilterRef.current);
+        const tasks = buildFetchTasks(
+          objects,
+          userFilter,
+          actionFilterRef.current
+        );
 
         const fetchPromises = tasks.map((task) =>
           getActivityLogForObject({
@@ -579,10 +591,7 @@ export function ActivityLogTable() {
               )}
               <DateRangePicker.Trigger>
                 <DateRangePicker.TriggerIndicator>
-                  <IconCalendarWeek
-                    className='text-foreground'
-                    stroke={1.5}
-                  />
+                  <IconCalendarWeek className='text-foreground' stroke={1.5} />
                 </DateRangePicker.TriggerIndicator>
               </DateRangePicker.Trigger>
             </DateField.Suffix>
@@ -604,9 +613,7 @@ export function ActivityLogTable() {
               <RangeCalendar.Grid>
                 <RangeCalendar.GridHeader>
                   {(day) => (
-                    <RangeCalendar.HeaderCell>
-                      {day}
-                    </RangeCalendar.HeaderCell>
+                    <RangeCalendar.HeaderCell>{day}</RangeCalendar.HeaderCell>
                   )}
                 </RangeCalendar.GridHeader>
                 <RangeCalendar.GridBody>
@@ -615,9 +622,7 @@ export function ActivityLogTable() {
               </RangeCalendar.Grid>
               <RangeCalendar.YearPickerGrid>
                 <RangeCalendar.YearPickerGridBody>
-                  {({ year }) => (
-                    <RangeCalendar.YearPickerCell year={year} />
-                  )}
+                  {({ year }) => <RangeCalendar.YearPickerCell year={year} />}
                 </RangeCalendar.YearPickerGridBody>
               </RangeCalendar.YearPickerGrid>
             </RangeCalendar>
@@ -744,45 +749,20 @@ export function ActivityLogTable() {
     [activityLogType, fetchAllDataForExport]
   );
 
-  if (error) {
-    return (
-      <div className='p-4'>
-        <Alert color='danger'>
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>Error Loading Activity Log</Alert.Title>
-            <Alert.Description>{error}</Alert.Description>
-          </Alert.Content>
-        </Alert>
-      </div>
-    );
-  }
-
-  if (isInitialLoad && events.length === 0) {
-    return (
-      <div className='skeleton--shimmer relative h-full w-full overflow-hidden'>
-        <Skeleton animationType='none' className='mb-4 h-4 w-1/3 rounded-lg' />
-        <Skeleton animationType='none' className='mb-2 h-8 w-full rounded-lg' />
-        <Skeleton
-          animationType='none'
-          className='mb-4 h-[calc(100vh-14rem)] w-full rounded-lg'
-        />
-      </div>
-    );
-  }
-
-  return (
-    <div className='flex min-h-0 w-full flex-1 flex-col'>
-      <div className='mb-2 flex flex-wrap items-center justify-between'>
-        <h3 className='flex items-center gap-1 text-lg font-semibold'>
+  // Memoize header content
+  const header = useMemo(
+    () => (
+      <div className='flex flex-wrap items-center justify-between'>
+        <span
+          className='flex items-center justify-center gap-1 font-semibold'
+          style={{ fontSize: '18px' }}
+        >
           Activity Log for{' '}
           {activityLogType === 'single-object' ? (
             <>
+              <span>{objects[0]?.type}</span>
               <span className='text-accent'>{objects[0]?.name} </span>
-              <Chip color='accent' size='md' variant='soft'>
-                {objects[0].type}
-              </Chip>{' '}
-              (ID: {objects[0].id})
+              <span> (ID: {objects[0].id})</span>
             </>
           ) : (
             ` ${objects.length} ${
@@ -799,7 +779,7 @@ export function ActivityLogTable() {
                     : 'objects'
             }`
           )}
-        </h3>
+        </span>
         {total > 0 && (
           <p className='text-base text-muted'>
             {filteredEvents.length !== events.length ? (
@@ -819,20 +799,62 @@ export function ActivityLogTable() {
           </p>
         )}
       </div>
-      <DataTable
-        columns={columns}
-        customFilters={customFilters}
-        data={filteredEvents}
-        entityName='events'
-        exportConfig={exportConfig}
-        hasMore={hasMore}
-        initialColumnVisibility={initialColumnVisibility}
-        initialSorting={{ column: 'time', direction: 'descending' }}
-        isRefreshing={isInitialLoad || isSearching}
-        onLoadMore={fetchMoreEvents}
-        onRefresh={handleRefresh}
-      />
-    </div>
+    ),
+    [
+      activityLogType,
+      events.length,
+      filteredEvents.length,
+      isFetchingMore,
+      isSearching,
+      objects,
+      total
+    ]
+  );
+
+  if (error) {
+    return (
+      <div className='p-4'>
+        <Alert color='danger'>
+          <Alert.Indicator>
+            <IconAlertCircle data-slot='alert-default-icon' />
+          </Alert.Indicator>
+          <Alert.Content>
+            <Alert.Title>Error Loading Activity Log</Alert.Title>
+            <Alert.Description>{error}</Alert.Description>
+          </Alert.Content>
+        </Alert>
+      </div>
+    );
+  }
+
+  if (isInitialLoad && events.length === 0) {
+    return (
+      <div className='skeleton--shimmer relative h-full w-full overflow-hidden'>
+        <Skeleton animationType='none' className='mb-4 h-4 w-1/3 rounded-lg' />
+        <Skeleton animationType='none' className='mb-2 h-8 w-full rounded-lg' />
+        <Skeleton
+          animationType='none'
+          className='mb-4 h-full w-full rounded-lg'
+        />
+      </div>
+    );
+  }
+
+  return (
+    <DataTable
+      columns={columns}
+      customFilters={customFilters}
+      data={filteredEvents}
+      entityName='events'
+      exportConfig={exportConfig}
+      hasMore={hasMore}
+      header={header}
+      initialColumnVisibility={initialColumnVisibility}
+      initialSorting={{ column: 'time', direction: 'descending' }}
+      isRefreshing={isInitialLoad || isSearching}
+      onLoadMore={fetchMoreEvents}
+      onRefresh={handleRefresh}
+    />
   );
 }
 

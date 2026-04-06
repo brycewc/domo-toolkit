@@ -7,6 +7,23 @@ import { executeInPage } from '@/utils';
  * @param {number} [tabId] - Optional Chrome tab ID
  * @returns {Promise<string[]>} Array of permission strings, or empty array
  */
+export async function getVersionDefinition(modelId, versionNumber, tabId = null) {
+  return executeInPage(
+    async (modelId, versionNumber) => {
+      const response = await fetch(
+        `/api/workflow/v2/models/${modelId}/versions/${versionNumber}/definition`,
+        { headers: { 'Content-Type': 'application/json;charset=utf-8' } }
+      );
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      return response.json();
+    },
+    [modelId, versionNumber],
+    tabId
+  );
+}
+
 export async function getWorkflowPermission(modelId, userId, tabId = null) {
   return executeInPage(
     async (modelId, userId) => {
@@ -20,6 +37,32 @@ export async function getWorkflowPermission(modelId, userId, tabId = null) {
       return entry?.permissions || [];
     },
     [modelId, userId],
+    tabId
+  );
+}
+
+export async function updateVersionDefinition(
+  modelId,
+  versionNumber,
+  definition,
+  tabId = null
+) {
+  return executeInPage(
+    async (modelId, versionNumber, definition) => {
+      const response = await fetch(
+        `/api/workflow/v2/models/${modelId}/versions/${versionNumber}/definition`,
+        {
+          body: JSON.stringify(definition),
+          headers: { 'Content-Type': 'application/json;charset=utf-8' },
+          method: 'PUT'
+        }
+      );
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      return response.json();
+    },
+    [modelId, versionNumber, definition],
     tabId
   );
 }

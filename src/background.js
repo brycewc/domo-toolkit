@@ -11,7 +11,9 @@ import {
   getFormsForPage,
   getPagesForCards,
   getQueuesForPage,
+  getSubpageIds,
   getUserGroups,
+  getVersionDefinition,
   getWorkflowPermission
 } from '@/services';
 import {
@@ -36,6 +38,13 @@ function computeIsOwner(typeId, details, userId, userGroups) {
   // Types where the API pre-computes isOwner
   if (typeId === 'PAGE' || typeId === 'DATA_APP_VIEW') {
     return details?.page?.isOwner ?? null;
+  }
+
+  // Approval templates: owner is { id } on the details object
+  if (typeId === 'TEMPLATE') {
+    const ownerId = details?.owner?.id;
+    if (ownerId == null) return null;
+    return String(userId) === String(ownerId);
   }
 
   // Approval templates: owner is { id } on the details object
@@ -481,81 +490,6 @@ chrome.runtime.onInstalled.addListener((details) => {
 // Restore contexts on service worker startup
 restoreFromSession();
 
-/**
- * Detect system color scheme by querying an active tab
- * @returns {Promise<boolean>} true if dark mode, false otherwise
- */
-async function detectSystemColorScheme() {
-  try {
-    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tabs.length === 0) return false;
-
-    const results = await chrome.scripting.executeScript({
-      func: () => window.matchMedia('(prefers-color-scheme: dark)').matches,
-      target: { tabId: tabs[0].id },
-      world: 'MAIN'
-    });
-
-    return results?.[0]?.result ?? false;
-  } catch (error) {
-    console.log(
-      '[Background] Could not detect system color scheme:',
-      error.message
-    );
-    return false;
-  }
-}
-
-/**
- * Update extension icon based on theme preference
- * Uses dark icon variant for light mode and regular icon for dark mode
- */
-function updateExtensionIcon(isDark) {
-  const iconPath = isDark
-    ? {
-        128: 'toolkit-dark-128.png',
-        16: 'toolkit-dark-16.png',
-        24: 'toolkit-dark-24.png',
-        32: 'toolkit-dark-32.png',
-        48: 'toolkit-dark-48.png'
-      }
-    : {
-        128: 'toolkit-128.png',
-        16: 'toolkit-16.png',
-        24: 'toolkit-24.png',
-        32: 'toolkit-32.png',
-        48: 'toolkit-48.png'
-      };
-
-  chrome.action.setIcon({ path: iconPath }).catch((error) => {
-    console.error('[Background] Error setting icon:', error);
-  });
-}
-
-/**
- * Update icon based on stored theme preference
- */
-async function updateIconFromThemePreference() {
-  const result = await chrome.storage.sync.get(['themePreference']);
-  const theme = result.themePreference || 'system';
-
-  if (theme === 'dark') {
-    updateExtensionIcon(true);
-  } else if (theme === 'light') {
-    updateExtensionIcon(false);
-  } else {
-    // System theme - detect from active tab
-    const isDark = await detectSystemColorScheme();
-    updateExtensionIcon(isDark);
-  }
-}
-
-// Set initial icon based on stored theme preference
-updateIconFromThemePreference();
-
-// Track last clipboard value to detect changes
-let lastClipboardValue = '';
-
 // 431 error handler function (stored for add/remove)
 // Only active when mode is 'auto' - preserves last 2 instances
 async function handle431Response(details) {
@@ -706,9 +640,6 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 chrome.tabs.onActivated.addListener(async ({ tabId, windowId }) => {
   console.log(`[Background] Tab ${tabId} activated in window ${windowId}`);
 
-  // Always update icon based on current theme preference
-  updateIconFromThemePreference();
-
   try {
     const tab = await chrome.tabs.get(tabId);
     if (tab.url && tab.url.includes('domo.com')) {
@@ -781,21 +712,6 @@ chrome.webNavigation.onHistoryStateUpdated.addListener(async (details) => {
 
 // Listen for setting changes
 chrome.storage.onChanged.addListener(async (changes, areaName) => {
-  if (areaName === 'sync' && changes.themePreference !== undefined) {
-    const theme = changes.themePreference.newValue || 'system';
-    console.log('[Background] Theme preference changed to:', theme);
-
-    if (theme === 'dark') {
-      updateExtensionIcon(true);
-    } else if (theme === 'light') {
-      updateExtensionIcon(false);
-    } else {
-      // System theme - detect from active tab
-      const isDark = await detectSystemColorScheme();
-      updateExtensionIcon(isDark);
-    }
-  }
-
   if (
     areaName === 'sync' &&
     changes.defaultClearCookiesHandling !== undefined
@@ -989,13 +905,12 @@ async function detectAndStoreContext(tabId) {
       return null;
     }
 
-    // Extract parent ID from URL if available
-    let parentId = typeModel.extractParentId(detected.url);
-
-    // For types resolved via resolveContext, extract parentId if available
-    if (!parentId && detected.resolveContext?.filesetId) {
-      parentId = detected.resolveContext.filesetId;
-    }
+    // Extract parent ID from URL, detection result, or resolveContext
+    let parentId =
+      typeModel.extractParentId(detected.url) ||
+      detected.parentId ||
+      detected.resolveContext?.filesetId ||
+      null;
 
     // Create DomoObject with original URL and parent ID for immediate URL building
     const domoObject = new DomoObject(
@@ -1172,10 +1087,58 @@ async function detectAndStoreContext(tabId) {
         });
     }
 
-    // For PAGE, DATA_APP_VIEW, WORKSHEET_VIEW, and REPORT_BUILDER_VIEW types, fetch child pages asynchronously (non-blocking)
-    // This happens in the background while the user interacts with the popup
-    if (
-      typeModel.id === 'PAGE' ||
+    // Helper to store child/app pages in context metadata
+    const storeChildPages = (pages, propertyName) => {
+      const currentContext = getTabContext(tabId);
+      if (currentContext?.domoObject?.id === objectId) {
+        if (!currentContext.domoObject?.metadata) {
+          currentContext.domoObject.metadata = {};
+        }
+        if (!currentContext.domoObject.metadata?.details) {
+          currentContext.domoObject.metadata.details = {};
+        }
+        currentContext.domoObject.metadata.details[propertyName] = pages;
+        setTabContext(tabId, currentContext);
+      }
+    };
+
+    // For PAGE type, use fast subpages endpoint as a pre-check
+    if (typeModel.id === 'PAGE') {
+      getSubpageIds({ pageId: parseInt(objectId), tabId })
+        .then((subpageIds) => {
+          if (isStale()) return;
+
+          if (!subpageIds || subpageIds.length === 0) {
+            storeChildPages([], 'childPages');
+            console.log(
+              `[Background] No child pages for PAGE ${objectId} (fast check)`
+            );
+            return;
+          }
+
+          // Subpages exist — fetch full details for names and hierarchy
+          return getChildPages({
+            includeGrandchildren: true,
+            pageId: parseInt(objectId),
+            pageType: 'PAGE',
+            tabId
+          }).then((childPages) => {
+            if (isStale()) return;
+            storeChildPages(childPages, 'childPages');
+            console.log(
+              `[Background] Fetched ${childPages?.length || 0} child pages for PAGE ${objectId}`
+            );
+          });
+        })
+        .catch((error) => {
+          if (isStale()) return;
+          console.error(
+            `[Background] Error fetching child pages for PAGE ${objectId}:`,
+            error
+          );
+          storeChildPages([], 'childPages');
+        });
+    } else if (
       typeModel.id === 'DATA_APP_VIEW' ||
       typeModel.id === 'WORKSHEET_VIEW' ||
       typeModel.id === 'REPORT_BUILDER_VIEW'
@@ -1185,73 +1148,26 @@ async function detectAndStoreContext(tabId) {
           ? parseInt(domoObject.parentId)
           : null;
 
-      // Fetch child pages in background without blocking
       getChildPages({
         appId,
-        includeGrandchildren: true,
         pageId: parseInt(objectId),
         pageType: typeModel.id,
         tabId
       })
         .then((childPages) => {
           if (isStale()) return;
-          const currentContext = getTabContext(tabId);
-          if (currentContext?.domoObject?.id === objectId) {
-            // Store pages in metadata.details.childPages or appPages
-            if (!currentContext.domoObject?.metadata) {
-              currentContext.domoObject.metadata = {};
-            }
-            if (!currentContext.domoObject.metadata?.details) {
-              currentContext.domoObject.metadata.details = {};
-            }
-
-            // For DATA_APP_VIEW, WORKSHEET_VIEW, and REPORT_BUILDER_VIEW, store in appPages (sibling pages in the app)
-            // For PAGE, store in childPages (actual child pages)
-            if (
-              typeModel.id === 'DATA_APP_VIEW' ||
-              typeModel.id === 'WORKSHEET_VIEW' ||
-              typeModel.id === 'REPORT_BUILDER_VIEW'
-            ) {
-              currentContext.domoObject.metadata.details.appPages = childPages;
-            } else {
-              currentContext.domoObject.metadata.details.childPages =
-                childPages;
-            }
-
-            // Update the stored context
-            setTabContext(tabId, currentContext);
-
-            console.log(
-              `[Background] Fetched ${childPages?.length || 0} ${typeModel.id === 'DATA_APP_VIEW' || typeModel.id === 'WORKSHEET_VIEW' || typeModel.id === 'REPORT_BUILDER_VIEW' ? 'app pages' : 'child pages'} for ${typeModel.id} ${objectId}`
-            );
-          }
+          storeChildPages(childPages, 'appPages');
+          console.log(
+            `[Background] Fetched ${childPages?.length || 0} app pages for ${typeModel.id} ${objectId}`
+          );
         })
         .catch((error) => {
           if (isStale()) return;
           console.error(
-            `[Background] Error fetching child pages for ${typeModel.id} ${objectId}:`,
+            `[Background] Error fetching app pages for ${typeModel.id} ${objectId}:`,
             error
           );
-          // Store empty array on error so we don't keep retrying
-          const currentContext = getTabContext(tabId);
-          if (currentContext?.domoObject) {
-            if (!currentContext.domoObject?.metadata) {
-              currentContext.domoObject.metadata = {};
-            }
-            if (!currentContext.domoObject.metadata?.details) {
-              currentContext.domoObject.metadata.details = {};
-            }
-            if (
-              typeModel.id === 'DATA_APP_VIEW' ||
-              typeModel.id === 'WORKSHEET_VIEW' ||
-              typeModel.id === 'REPORT_BUILDER_VIEW'
-            ) {
-              currentContext.domoObject.metadata.details.appPages = [];
-            } else {
-              currentContext.domoObject.metadata.details.childPages = [];
-            }
-            setTabContext(tabId, currentContext);
-          }
+          storeChildPages([], 'appPages');
         });
     } else if (typeModel.id === 'CARD') {
       // Fetch pages for card in background without blocking
@@ -1514,6 +1430,37 @@ async function detectAndStoreContext(tabId) {
         });
     }
 
+    // For WORKFLOW_MODEL_VERSION, fetch definition asynchronously (non-blocking)
+    if (typeModel.id === 'WORKFLOW_MODEL_VERSION') {
+      const modelId = domoObject.parentId;
+      const versionNumber = objectId;
+
+      if (modelId) {
+        getVersionDefinition(modelId, versionNumber, tabId)
+          .then((definition) => {
+            if (isStale()) return;
+            const currentContext = getTabContext(tabId);
+            if (currentContext?.domoObject?.id === objectId) {
+              if (!currentContext.domoObject.metadata) {
+                currentContext.domoObject.metadata = {};
+              }
+              if (!currentContext.domoObject.metadata.details) {
+                currentContext.domoObject.metadata.details = {};
+              }
+              currentContext.domoObject.metadata.details.definition = definition;
+              setTabContext(tabId, currentContext);
+            }
+          })
+          .catch((error) => {
+            if (isStale()) return;
+            console.warn(
+              `[Background] Could not fetch definition for WORKFLOW_MODEL_VERSION ${objectId}:`,
+              error.message
+            );
+          });
+      }
+    }
+
     // For MAGNUM_COLLECTION, fetch permission asynchronously (non-blocking)
     if (typeModel.id === 'MAGNUM_COLLECTION') {
       executeInPage(
@@ -1598,36 +1545,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         case 'CLEAR_CARD_ERRORS': {
           clearCardErrors(message.tabId);
-          sendResponse({ success: true });
-          break;
-        }
-
-        case 'CLIPBOARD_COPIED': {
-          // Content script or Copy component detected a copy event
-          const { clipboardData, domoObject } = message;
-
-          // Cache in session storage (include object info if available)
-          await chrome.storage.session.set({
-            lastClipboardObject: clipboardData ? domoObject || null : null,
-            lastClipboardValue: clipboardData || ''
-          });
-
-          // Update in-memory value and notify if changed
-          if ((clipboardData || '') !== lastClipboardValue) {
-            lastClipboardValue = clipboardData || '';
-
-            // Notify all extension contexts about clipboard change
-            chrome.runtime
-              .sendMessage({
-                clipboardData: clipboardData || '',
-                domoObject: clipboardData ? domoObject || null : null,
-                type: 'CLIPBOARD_UPDATED'
-              })
-              .catch(() => {
-                // No listeners, that's fine
-              });
-          }
-
           sendResponse({ success: true });
           break;
         }

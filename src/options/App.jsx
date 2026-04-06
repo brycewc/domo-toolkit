@@ -1,14 +1,14 @@
-import { Button, ButtonGroup, Spinner, Tabs, Tooltip } from '@heroui/react';
+import { Button, Link, Spinner, Tabs, Tooltip } from '@heroui/react';
 import { IconBug, IconSparkles } from '@tabler/icons-react';
 import { Suspense, useEffect, useState } from 'react';
 
 import {
   ActivityLogTable,
   FaviconSettings,
-  ReleaseNotesPage,
+  ReleaseNotes,
   Settings,
   ToastProvider,
-  WelcomePage
+  Welcome
 } from '@/components';
 import { useTheme } from '@/hooks';
 
@@ -19,9 +19,9 @@ const FULL_SCREEN_PAGES = new Map([
   ],
   [
     'release-notes',
-    { component: ReleaseNotesPage, fullWidth: true, title: 'Release Notes' }
+    { component: ReleaseNotes, fullWidth: true, title: 'Release Notes' }
   ],
-  ['welcome', { component: WelcomePage, fullWidth: true, title: 'Welcome' }]
+  ['welcome', { component: Welcome, fullWidth: true, title: 'Welcome' }]
 ]);
 
 const TAB_TITLES = {
@@ -29,8 +29,10 @@ const TAB_TITLES = {
   settings: 'Settings'
 };
 
+const version = chrome.runtime.getManifest().version;
+
 export default function App() {
-  const theme = useTheme();
+  useTheme();
   const [currentRoute, setCurrentRoute] = useState(getHashRoute);
 
   useEffect(() => {
@@ -58,21 +60,33 @@ export default function App() {
 
   const fullScreenPage = FULL_SCREEN_PAGES.get(currentRoute);
 
+  const VersionLink = (
+    <Link
+      className='fixed top-1 left-2 z-100 text-xs text-muted/50 no-underline hover:text-accent/50 hover:underline hover:decoration-accent/50'
+      href={'https://github.com/brycewc/domo-toolkit/releases/tag/v' + version}
+      target='_blank'
+    >
+      v{version}
+    </Link>
+  );
+
   if (fullScreenPage) {
     const PageComponent = fullScreenPage.component;
     return (
       <div className='flex h-screen w-full justify-center'>
+        {VersionLink}
         <div
-          className={`flex h-full w-full flex-col px-4 pt-8 pb-4 ${fullScreenPage.fullWidth ? '' : 'max-w-4xl'}`}
+          className={`flex h-full w-full flex-col items-center justify-center ${fullScreenPage.fullWidth ? '' : 'max-w-4xl px-4 pt-8 pb-4'}`}
         >
           <Suspense
+            className='flex justify-center'
             fallback={
               <div className='flex h-full items-center justify-center'>
                 <Spinner size='lg' />
               </div>
             }
           >
-            <PageComponent />
+            <PageComponent className='flex justify-center' />
           </Suspense>
         </div>
         <ToastProvider className='right-2 bottom-2' placement='bottom' />
@@ -86,8 +100,9 @@ export default function App() {
 
   return (
     <div className='flex h-screen w-full justify-center'>
+      {VersionLink}
       <div className='fixed top-4 right-4 z-10'>
-        <ButtonGroup>
+        <div className='flex gap-1'>
           <Tooltip closeDelay={0} delay={400}>
             <Button
               isIconOnly
@@ -122,7 +137,7 @@ export default function App() {
               Request Feature
             </Tooltip.Content>
           </Tooltip>
-        </ButtonGroup>
+        </div>
       </div>
       <Tabs
         className='h-full w-full items-center rounded-sm'
@@ -165,7 +180,7 @@ export default function App() {
               Configure general extension settings.
             </p>
           </div>
-          <Settings theme={theme} />
+          <Settings />
         </Tabs.Panel>
       </Tabs>
       <ToastProvider className='right-2 bottom-2' placement='bottom' />

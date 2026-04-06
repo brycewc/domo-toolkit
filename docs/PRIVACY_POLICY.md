@@ -11,7 +11,7 @@ Domo Toolkit is a browser extension that enhances the Domo platform experience f
 
 **Key Points:**
 
-- We do not operate servers or collect data. The only data that leaves your device is what we sync to your Google Account: theme preference, icon preference, cookie clearing behavior preference, favicon settings, and your default Domo instance (all of which are optional). All other data is local to your device.
+- We do not operate servers or collect data. The only data that leaves your device is what we sync to your Google Account: theme preference, cookie clearing behavior preference, favicon settings, and your default Domo instance (all of which are optional). All other data is local to your device.
 - No data is transmitted to external services or third parties.
 - No data is used for advertising, analytics, or any purpose other than providing extension features.
 - No human (including the developers) can read your data.
@@ -29,11 +29,11 @@ Domo Toolkit is a browser extension that enhances the Domo platform experience f
 
 ### 2. Clipboard Data (Temporary)
 
-**What:** The extension reads your clipboard to check for valid Domo object IDs (numeric IDs or UUIDs) to power the "Navigate from Clipboard" feature.
+**What:** When you click the Navigate button, the extension reads your clipboard to check for valid Domo object IDs (numeric IDs or UUIDs).
 
 **Why:** To enable quick navigation to Domo objects when you copy an ID from in or outside of Domo.
 
-**Storage:** Only stored in session storage if the clipboard contains a valid Domo ID pattern. Never persists beyond your browser session. Clipboard contents that don't match Domo ID patterns are immediately discarded and never stored. Automatically cleared when you close your browser.
+**Storage:** Only read when you explicitly trigger the Navigate action. Never persists beyond your browser session. Clipboard contents that don't match Domo ID patterns are immediately discarded and never stored. Automatically cleared when you close your browser.
 
 ### 3. Cookie Names (Not Values)
 
@@ -49,7 +49,6 @@ Domo Toolkit is a browser extension that enhances the Domo platform experience f
 
 - Favicon customization rules (instance match regex patterns and colors)
 - Theme preference (light/dark/system)
-- Icon preference (light/dark)
 - Default Domo instance (string)
 - Cookie clearing behavior preference (default/all/auto)
 

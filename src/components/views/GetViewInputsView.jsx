@@ -1,5 +1,5 @@
 import { Alert, Button, Card, CloseButton, Spinner } from '@heroui/react';
-import { IconRefresh } from '@tabler/icons-react';
+import { IconAlertTriangle, IconRefresh } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { DataListItem, DomoContext, DomoObject } from '@/models';
@@ -161,7 +161,9 @@ export function GetViewInputsView({
   if (error) {
     return (
       <Alert className='w-full' status='warning'>
-        <Alert.Indicator />
+        <Alert.Indicator>
+          <IconAlertTriangle data-slot='alert-default-icon' />
+        </Alert.Indicator>
         <Alert.Content>
           <Alert.Title>Error</Alert.Title>
           <div className='flex flex-col items-start justify-center gap-2'>

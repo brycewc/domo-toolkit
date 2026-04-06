@@ -35,3 +35,4 @@ export {
   showStatus,
   storeSidepanelData
 } from './sidepanel';
+export { waitForDefinition } from './workflowHelpers';

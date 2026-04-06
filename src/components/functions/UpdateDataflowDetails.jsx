@@ -104,11 +104,11 @@ export function UpdateDataflowDetails({ currentContext, onStatusUpdate }) {
         <Button
           fullWidth
           className='min-w-36 flex-1 whitespace-normal'
+          variant='tertiary'
           isDisabled={
             currentContext?.domoObject.typeId !== 'DATAFLOW_TYPE' ||
             !(currentContext?.domoObject?.metadata?.permission?.mask & 2)
           }
-          variant='tertiary'
         >
           <IconArrowFork className='rotate-180' stroke={1.5} />
           Update DataFlow Details
