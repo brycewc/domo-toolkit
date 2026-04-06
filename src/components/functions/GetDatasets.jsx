@@ -1,15 +1,7 @@
 import { Button, Dropdown, Label, Spinner, Tooltip } from '@heroui/react';
 import { IconDatabase } from '@tabler/icons-react';
-import { useState } from 'react';
 
-import { useLongPress } from '@/hooks';
-import {
-  getDatasetsForApp,
-  getDatasetsForDataflow,
-  getDatasetsForPage,
-  getDependentDatasets
-} from '@/services';
-import { isSidepanel, openSidepanel, storeSidepanelData } from '@/utils';
+import { useLaunchView, useLongPress } from '@/hooks';
 
 export function GetDatasets({
   currentContext,
@@ -17,7 +9,7 @@ export function GetDatasets({
   onCollapseActions,
   onStatusUpdate
 }) {
-  const [isLoading, setIsLoading] = useState(false);
+  const { isPending, launch } = useLaunchView();
   const { LongPressOverlay, pressProps } = useLongPress();
 
   const objectType = currentContext?.domoObject?.typeId;
@@ -32,129 +24,6 @@ export function GetDatasets({
   const longPressDisabled =
     isDisabled || !currentContext?.domoObject?.id || dropdownItems.length === 0;
 
-  const handleGetDatasets = async () => {
-    setIsLoading(true);
-
-    try {
-      // Validate we have a current object
-      if (!currentContext?.domoObject) {
-        onStatusUpdate?.(
-          'No Object Detected',
-          'Please navigate to a Domo page and try again',
-          'danger'
-        );
-        setIsLoading(false);
-        return;
-      }
-
-      const objectType = currentContext.domoObject.typeId;
-      const objectId = currentContext.domoObject.id;
-
-      // Check if the current object is a valid type
-      const validTypes = [
-        'PAGE',
-        'DATA_APP_VIEW',
-        'CARD',
-        'DATAFLOW_TYPE',
-        'DATA_SOURCE',
-        'WORKSHEET_VIEW'
-      ];
-      if (!validTypes.includes(objectType)) {
-        onStatusUpdate?.(
-          'Invalid Object Type',
-          `This function only works on pages, cards, dataflows, and datasets. Current object is: ${currentContext.domoObject.typeName}`,
-          'danger'
-        );
-        setIsLoading(false);
-        return;
-      }
-
-      // Popup: hand off intent to sidepanel immediately, no API calls
-      if (!isSidepanel()) {
-        await storeSidepanelData({
-          currentContext,
-          type: 'getDatasets'
-        });
-        openSidepanel();
-        return;
-      }
-
-      // Sidepanel: fetch data, then display
-      let datasets = [];
-      let dataflowInputs = null;
-      let dataflowOutputs = null;
-
-      if (
-        objectType === 'PAGE' ||
-        objectType === 'DATA_APP_VIEW' ||
-        objectType === 'WORKSHEET_VIEW'
-      ) {
-        datasets = await getDatasetsForPage({
-          pageId: objectId,
-          tabId: currentContext?.tabId
-        });
-      } else if (objectType === 'CARD') {
-        datasets =
-          currentContext.domoObject.metadata?.details?.datasources || [];
-      } else if (objectType === 'DATAFLOW_TYPE') {
-        const details = currentContext.domoObject.metadata?.details;
-        const result = getDatasetsForDataflow({ details });
-        dataflowInputs = result.inputs;
-        dataflowOutputs = result.outputs;
-        datasets = [...result.inputs, ...result.outputs];
-      } else if (objectType === 'DATA_SOURCE') {
-        datasets = await getDependentDatasets({
-          datasetId: objectId,
-          tabId: currentContext?.tabId
-        });
-      }
-
-      if (!datasets || datasets.length === 0) {
-        const message =
-          objectType === 'DATAFLOW_TYPE'
-            ? 'This dataflow has no input or output datasets.'
-            : objectType === 'DATA_SOURCE'
-              ? 'No dependent datasets found for this dataset.'
-              : objectType === 'CARD'
-                ? 'No datasets found for this card.'
-                : 'No datasets found for this page.';
-
-        onStatusUpdate?.('No Datasets Found', message, 'warning', 3000);
-        setIsLoading(false);
-        return;
-      }
-
-      if (onCollapseActions) {
-        await storeSidepanelData({
-          message: 'Loading datasets...',
-          timestamp: Date.now(),
-          type: 'loading'
-        });
-
-        onCollapseActions();
-        await new Promise((resolve) => setTimeout(resolve, 175));
-      }
-
-      await storeSidepanelData({
-        currentContext,
-        dataflowInputs,
-        dataflowOutputs,
-        datasets: objectType === 'DATAFLOW_TYPE' ? null : datasets,
-        statusShown: true,
-        type: 'getDatasets'
-      });
-    } catch (error) {
-      console.error('[GetDatasets] Error:', error);
-      onStatusUpdate?.(
-        'Error',
-        error.message || 'Failed to get datasets',
-        'danger'
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleAction = async (key) => {
     if (key !== 'getAppDatasets') return;
 
@@ -164,65 +33,13 @@ export function GetDatasets({
       return;
     }
 
-    setIsLoading(true);
-    try {
-      // Popup: hand off to sidepanel
-      if (!isSidepanel()) {
-        await storeSidepanelData({
-          appId: parentId,
-          currentContext,
-          type: 'getDatasets'
-        });
-        openSidepanel();
-        return;
-      }
-
-      // Sidepanel: fetch and display
-      const datasets = await getDatasetsForApp({
-        appId: parentId,
-        tabId: currentContext?.tabId
-      });
-
-      if (!datasets || datasets.length === 0) {
-        const label = objectType === 'WORKSHEET_VIEW' ? 'worksheet' : 'app';
-        onStatusUpdate?.(
-          'No Datasets Found',
-          `No datasets found for this ${label}.`,
-          'warning',
-          3000
-        );
-        setIsLoading(false);
-        return;
-      }
-
-      if (onCollapseActions) {
-        await storeSidepanelData({
-          message: 'Loading datasets...',
-          timestamp: Date.now(),
-          type: 'loading'
-        });
-
-        onCollapseActions();
-        await new Promise((resolve) => setTimeout(resolve, 175));
-      }
-
-      await storeSidepanelData({
-        appId: parentId,
-        currentContext,
-        datasets,
-        statusShown: true,
-        type: 'getDatasets'
-      });
-    } catch (error) {
-      console.error('[GetDatasets] Error:', error);
-      onStatusUpdate?.(
-        'Error',
-        error.message || 'Failed to get app datasets',
-        'danger'
-      );
-    } finally {
-      setIsLoading(false);
-    }
+    await launch({
+      appId: parentId,
+      currentContext,
+      onCollapseActions,
+      onStatusUpdate,
+      type: 'getDatasets'
+    });
   };
 
   let buttonText;
@@ -247,23 +64,28 @@ export function GetDatasets({
           fullWidth
           className='relative min-w-36 flex-1 overflow-visible whitespace-normal'
           isDisabled={isDisabled}
-          isPending={isLoading}
+          isPending={isPending}
           variant='tertiary'
-          onPress={handleGetDatasets}
+          onPress={() =>
+            launch({
+              currentContext,
+              onCollapseActions,
+              onStatusUpdate,
+              type: 'getDatasets'
+            })
+          }
           {...(longPressDisabled ? {} : pressProps)}
         >
-          {({ isPending }) => {
-            if (isPending) {
-              return <Spinner color='currentColor' size='sm' />;
-            }
-
-            return (
+          {({ isPending: pending }) =>
+            pending ? (
+              <Spinner color='currentColor' size='sm' />
+            ) : (
               <>
                 <IconDatabase stroke={1.5} /> {buttonText}
                 <LongPressOverlay />
               </>
-            );
-          }}
+            )
+          }
         </Button>
         {!longPressDisabled && (
           <Tooltip.Content placement='bottom'>

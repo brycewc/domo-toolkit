@@ -1,5 +1,6 @@
 export { useGraphVisibility } from './useGraphVisibility';
 export { useGroupLookup } from './useGroupLookup';
+export { useLaunchView } from './useLaunchView';
 export { useLineageCache } from './useLineageCache';
 export { useLongPress } from './useLongPress';
 export { showReleaseToast, useReleaseNotification } from './useReleaseNotification';

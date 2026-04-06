@@ -74,8 +74,14 @@ export function GetViewInputsView({
 
       setError(null);
 
-      if (!datasets || !Array.isArray(datasets)) {
-        setError('Invalid dataset data received. Please try again.');
+      if (!datasets || !Array.isArray(datasets) || datasets.length === 0) {
+        onStatusUpdate?.(
+          'No DataSets Found',
+          'No underlying datasets found in this view.',
+          'warning',
+          3000
+        );
+        onBackToDefault?.();
         return;
       }
 

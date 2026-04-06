@@ -7,6 +7,53 @@ export function isSidepanel() {
 }
 
 /**
+ * Launch a sidepanel view. Buttons call this instead of branching on isSidepanel().
+ *
+ * The view becomes the single source of truth for fetching, validation, and display.
+ * An optional `preCheck` can short-circuit with a toast when pre-fetched data shows
+ * there are no results — avoiding an unnecessary context switch (popup → sidepanel)
+ * or a loading flash (sidepanel) just to display "no results".
+ *
+ * @param {Object} options
+ * @param {string} options.type - View type routed by sidepanel App (e.g. 'getCards')
+ * @param {Object} options.currentContext - Current DomoContext
+ * @param {Function} [options.onCollapseActions] - Collapse the action bar (sidepanel only)
+ * @param {Function} [options.onStatusUpdate] - Show a toast in the current context
+ * @param {Function} [options.preCheck] - Async fn returning { empty, title, message } or null
+ * @param {...any} options - Extra props forwarded to storeSidepanelData (e.g. appId)
+ */
+export async function launchView({
+  currentContext,
+  onCollapseActions,
+  onStatusUpdate,
+  preCheck,
+  type,
+  ...extras
+}) {
+  // In the popup, open the sidepanel immediately to preserve the user gesture
+  // (chrome.sidePanel.open requires a recent user gesture — async preChecks
+  // that poll for pre-fetched data would cause it to expire).
+  if (!isSidepanel()) {
+    await storeSidepanelData({ currentContext, type, ...extras });
+    openSidepanel();
+    return;
+  }
+
+  // In the sidepanel, run the optional preCheck before opening the view.
+  // If pre-fetched data shows the result is empty, show a toast and bail.
+  if (preCheck) {
+    const result = await preCheck();
+    if (result?.empty) {
+      onStatusUpdate?.(result.title, result.message, 'warning', 3000);
+      return;
+    }
+  }
+
+  await storeSidepanelData({ currentContext, type, ...extras });
+  onCollapseActions?.();
+}
+
+/**
  * Open the sidepanel for the current tab
  */
 export function openSidepanel() {

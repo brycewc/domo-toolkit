@@ -1,8 +1,8 @@
-import { Button, Spinner } from '@heroui/react';
+import { Button } from '@heroui/react';
 import { IconAlertTriangle } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 
-import { isSidepanel, openSidepanel, storeSidepanelData } from '@/utils';
+import { launchView } from '@/utils';
 
 export function CardErrors({
   currentContext,
@@ -10,7 +10,6 @@ export function CardErrors({
   onCollapseActions,
   onStatusUpdate
 }) {
-  const [isLoading, setIsLoading] = useState(false);
   const [errorCount, setErrorCount] = useState(0);
 
   useEffect(() => {
@@ -40,77 +39,23 @@ export function CardErrors({
 
   if (errorCount === 0) return null;
 
-  const handleViewErrors = async () => {
-    setIsLoading(true);
-
-    try {
-      if (!isSidepanel()) {
-        await storeSidepanelData({
-          currentContext,
-          type: 'cardErrors'
-        });
-        openSidepanel();
-        return;
-      }
-
-      const response = await chrome.runtime.sendMessage({
-        tabId: currentContext.tabId,
-        type: 'GET_CARD_ERRORS'
-      });
-
-      if (!response?.success || !response.errors?.length) {
-        onStatusUpdate?.('No Errors', 'No card errors found.', 'success', 2000);
-        setIsLoading(false);
-        return;
-      }
-
-      if (onCollapseActions) {
-        await storeSidepanelData({
-          message: 'Loading errors...',
-          timestamp: Date.now(),
-          type: 'loading'
-        });
-        onCollapseActions();
-        await new Promise((resolve) => setTimeout(resolve, 175));
-      }
-
-      await storeSidepanelData({
-        currentContext,
-        errors: response.errors,
-        type: 'cardErrors'
-      });
-    } catch (error) {
-      onStatusUpdate?.(
-        'Error',
-        error.message || 'Failed to load errors',
-        'danger'
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   return (
     <Button
       fullWidth
       className='min-w-36 flex-1 whitespace-normal'
       color='danger'
       isDisabled={isDisabled}
-      isPending={isLoading}
       variant='tertiary'
-      onPress={handleViewErrors}
+      onPress={() =>
+        launchView({
+          currentContext,
+          onCollapseActions,
+          onStatusUpdate,
+          type: 'cardErrors'
+        })
+      }
     >
-      {({ isPending }) => {
-        if (isPending) {
-          return <Spinner color='currentColor' size='sm' />;
-        }
-
-        return (
-          <>
-            <IconAlertTriangle stroke={1.5} /> Card Errors ({errorCount})
-          </>
-        );
-      }}
+      <IconAlertTriangle stroke={1.5} /> Card Errors ({errorCount})
     </Button>
   );
 }

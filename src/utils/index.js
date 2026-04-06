@@ -31,6 +31,7 @@ export {
 export { waitForCardPages, waitForChildPages } from './pageHelpers';
 export {
   isSidepanel,
+  launchView,
   openSidepanel,
   showStatus,
   storeSidepanelData
