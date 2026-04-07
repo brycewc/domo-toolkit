@@ -837,7 +837,17 @@ async function detectAndStoreContext(tabId) {
       return null;
     }
     const context = new DomoContext(tabId, tab.url, null);
-    setTabContext(tabId, context);
+
+    // If a context already exists for this tab (redetection), suppress
+    // broadcasts until the new domoObject is ready so the UI doesn't flash
+    // "No object detected" between states. For first-time detection,
+    // broadcast immediately so the UI knows it's on a Domo page.
+    const isRedetection = tabContexts.has(tabId);
+    if (isRedetection) {
+      tabContexts.set(tabId, context);
+    } else {
+      setTabContext(tabId, context);
+    }
 
     // Fetch current user + groups (cached per instance, non-blocking)
     getInstanceUser(context.instance, tabId)
@@ -856,7 +866,14 @@ async function detectAndStoreContext(tabId) {
               userGroups
             );
           }
-          setTabContext(tabId, currentContext);
+          // During redetection, only store silently if domoObject isn't
+          // resolved yet — the final setTabContext after detection will
+          // broadcast the complete context.
+          if (isRedetection && !currentContext.domoObject) {
+            tabContexts.set(tabId, currentContext);
+          } else {
+            setTabContext(tabId, currentContext);
+          }
         }
         console.log(
           `[Background] User for tab ${tabId} (${context.instance}):`,
@@ -875,6 +892,11 @@ async function detectAndStoreContext(tabId) {
     if (isStale()) return null;
     if (!detected) {
       console.log(`[Background] No Domo object detected on tab ${tabId}`);
+      // During redetection, broadcast the empty context so the UI clears
+      // the stale object (e.g., user deselected a workflow node)
+      if (isRedetection) {
+        setTabContext(tabId, context);
+      }
       return null;
     }
     const typeModel = getObjectType(detected.typeId);

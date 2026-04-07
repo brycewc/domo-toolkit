@@ -99,6 +99,38 @@ function triggerContextRedetection() {
 }
 
 // ============================================================
+// Code Engine version selector change detection
+// ============================================================
+
+let lastDetectedCEVersion = null;
+
+function checkCEVersionChange() {
+  const container = document.querySelector(
+    'div[class*="module_packageControls"]'
+  );
+  const input = container?.querySelector(
+    'input[class*="SelectListInputComponent"]'
+  );
+  const currentValue = input?.value || null;
+  if (currentValue && currentValue !== lastDetectedCEVersion) {
+    lastDetectedCEVersion = currentValue;
+    triggerContextRedetection();
+  }
+}
+
+if (location.pathname.includes('codeEngine') || location.pathname.includes('codeengine')) {
+  // Listen for clicks on the version dropdown to detect version changes.
+  // Use capture phase and delay to let React update the input value.
+  document.addEventListener(
+    'click',
+    () => {
+      setTimeout(checkCEVersionChange, 300);
+    },
+    true
+  );
+}
+
+// ============================================================
 // Workflow action selection detection
 // ============================================================
 
@@ -250,7 +282,29 @@ const MODAL_DETECTORS = [
   createSimpleDetector({
     selector: '[role="dialog"][class*="TimerModal"]',
     urlGuard: 'workflows/triggers/'
-  })
+  }),
+
+  // Code Engine version selector — triggers redetection when the selector
+  // first appears (handles late rendering after initial page detection)
+  {
+    onDetected() {
+      checkCEVersionChange();
+    },
+    onLoadCheck() {
+      if (
+        document.querySelector(
+          'div[class*="module_packageControls"]'
+        )
+      ) {
+        checkCEVersionChange();
+      }
+    },
+    onRemoved() {
+      lastDetectedCEVersion = null;
+    },
+    selector: 'div[class*="module_packageControls"]',
+    urlGuard: 'codeEngine'
+  }
 ];
 
 function matchesUrlGuard(detector) {

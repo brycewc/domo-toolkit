@@ -248,9 +248,29 @@ export async function detectCurrentObject() {
       objectType = 'WORKFLOW_MODEL';
       break;
 
-    case url.includes('codeengine/'):
+    case url.includes('codeengine/'): {
+      const packageId = parts[parts.indexOf('codeengine') + 1];
+      const ceContainer = document.querySelector(
+        'div[class*="module_packageControls"]'
+      );
+      const ceInput = ceContainer?.querySelector(
+        'input[class*="SelectListInputComponent"]'
+      );
+      if (ceInput) {
+        const ceMatch = ceInput.value.match(/^Version\s+(\d+\.\d+\.\d+)$/);
+        if (ceMatch && packageId) {
+          return {
+            baseUrl: `${location.protocol}//${location.hostname}`,
+            id: ceMatch[1],
+            parentId: packageId,
+            typeId: 'CODEENGINE_PACKAGE_VERSION',
+            url
+          };
+        }
+      }
       objectType = 'CODEENGINE_PACKAGE';
       break;
+    }
 
     case url.includes('appDb/'):
       objectType = 'MAGNUM_COLLECTION';
