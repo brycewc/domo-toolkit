@@ -37,39 +37,40 @@ Handles Domo's "Request Header Fields Too Large" errors with three cookie cleari
 
 ### One-Click Actions
 
-- **Copy ID** - Copy the current object's ID. Long-press for related IDs like stream ID (datasets) or studio app ID (app studio pages). Keyboard shortcut: `Ctrl+Shift+1` (`Cmd+Shift+1` on Mac).
+- **Copy ID** - Copy the current object's ID. Long-press for related IDs like stream ID (datasets) or app ID (app studio pages). Keyboard shortcut: `Ctrl+Shift+1` (`Cmd+Shift+1` on Mac).
 - **Share With Self** - Grant yourself access to pages, studio apps, and custom app designs.
-- **Delete Current Object** - Delete beast modes, appdb collections, workflows, and pages/app studio pages including their cards. Includes confirmation dialog and child page safety checks.
-- **Activity Log** - View activity log records for the current object. Long-press for advanced options: view activity for all cards on the current object, or for all pages containing those cards.
-- **Clipboard Navigation** - Click the Navigate button to read your clipboard, identify the Domo object type, fetch its name, and navigate to it. Works with any copied Domo object ID from anywhere - a card, dataset, spreadsheet, Slack message, or support ticket. For objects that don't support navigation, detailed information is displayed in the side panel instead.
+- **Activity Log** - View activity log records for the current object. Long-press for advanced options: view activity for all cards on the current object, all pages containing those cards, or all child pages.
+- **Clipboard Navigation** - Click this button to read your clipboard, identify the Domo object only by its ID on your clipboard, and navigate directly to it. Works with any Domo object ID copied from anywhere - a card, dataset, spreadsheet, Slack message, etc. For objects that don't support navigation, detailed information is displayed in the side panel instead.
+- **Delete Current Object** - Delete beast modes, appdb collections, workflows, pages/app studio pages and all their cards, and dataflows and all their outputs. Includes confirmation dialog and child page safety checks.
 
 ### Data Discovery
 
 Opens in the side panel for persistent exploration without losing your place.
 
-- **Get Cards** - Lists every card, form, and queue on a page, app studio page, worksheet page, report builder page, or dataset. Items are grouped by type when a page contains multiple kinds. Supports opening all in new tabs.
-- **Get Pages** - Shows where objects are used. For pages: child and grandchild pages in a hierarchical tree. For app studio pages: all pages within the app, grouped by parent. For cards: every page, app studio page, and report builder page where the card appears. For datasets: full downstream trace from dataset to cards to pages.
-- **Get DataSets** - Traces data lineage. For pages: every dataset powering cards on the page. For dataflows: input and output datasets. For any dataset: all dependent datasets (views and fusions built on top of it) via the lineage API.
+- **Get Cards** - Lists every card on a page, app studio page, worksheet page, report builder page, dataset, or dataflow outputs. For pages, forms and queues are included and separated from cards.
+- **Get Card Pages** - Shows where cards on an object live. For pages, shows all other pages not including the current page that contain cards that also exist on the current page. For datasets and dataflows, shows all pages and app studio pages containing cards that use the dataset or dataflow outputs as a source.
+- **Get Child Pages** - For pages, shows all child and grandchild pages.
+- **Get DataSets** - Shows datasets for an object, including inputs and outputs datasets for dataflows, dependent views for datasets, and all datasets used in cards on a page or app.
 - **Get DataSets Used in View** - For dataset views and datafusions, see the underlying source datasets that feed into the view.
 
-All discovery lists support open all, copy ID, share all, and refresh. Items are grouped hierarchically with expand/collapse, counts, direct links, and IDs on hover.
+All discovery lists support applicable actions like open all, copy ID, share with self, open lineage, open in views explorer, and remove from page. Items are grouped hierarchically or categorically with expand/collapse, counts, direct links, and IDs on hover.
 
 ### Card Error Tracking
 
-Card API errors are automatically captured as you browse and displayed in a dedicated side panel view with full response details. Errors are tracked per tab and cleared when you navigate away from a card. View error count at a glance, expand individual errors to see the full JSON response, and clear all errors with one click.
+Card API errors are automatically captured as you browse. Click the Card Errors button to view them in the side panel with full response details. Errors are tracked per tab and cleared when you navigate away from a card. View error count at a glance, expand individual errors to see the full JSON response, and clear all errors with one click.
 
 ### Object-Specific Actions
 
 - **Lineage** - Open a full-page lineage graph for datasets and dataflows. Traces upstream and downstream dependencies with dataset previews and dataflow tile operations directly in the graph. Supports dark mode.
 - **Copy Filtered URL** - Copy URL with all applied filters on a card, page, or app studio page (Pfilters).
-- **Export Data** - Export card data in CSV or Excel format, including applied filters. Export code engine packages as JavaScript/Python files.
+- **Export Data** - Export card data in CSV or Excel format, including applied filters (can be done from a card modal!). Export code engine package versions as JavaScript/Python files.
 - **Data Repair** - Open the hidden data repair tab for any dataset.
 - **Update Owner** - Change ownership of alerts and workflows with a searchable user picker and a "Set to Self" shortcut.
-- **Update DataFlow Details** - Edit dataflow names and descriptions without creating a new version.
-- **Update Code Engine Versions** - Bulk update workflow code engine package versions. Update all packages to latest with a single click, or select specific packages and versions. Preserves all input and output mappings.
-- **Lock Cards** - Lock all cards on a page, app studio page, dataset, worksheet, or report builder page.
-- **Set Stream to Manual** - Set a dataset's stream schedule to manual.
-- **Fix Empty String Filters** - Remove empty string default values from "contains" quick filters on cards, so null values display instead of being filtered out.
+- **Update DataFlow Details** - Edit a dataflow's name and description without creating a new version.
+- **Update Code Engine Versions** - Bulk update workflow code engine actions to the latest version in a single click, without unmapping inputs and outputs.
+- **Lock Cards** - Lock all cards on a page, app studio page, dataset, worksheet, report builder report, or all dataflow outputs.
+- **Set DataSet Schedule to Manual** - Set a dataset's schedule to manual.
+- **Fix Empty String Filters** - Remove empty string default values from "contains" quick filters on cards, so null values display when no value is entered instead of being filtered out.
 
 ### Custom Favicons
 
@@ -97,7 +98,7 @@ Both show the current context (instance, object type, object ID) and update as y
 
 ## Supported Object Types
 
-Pages, cards, datasets, dataflows, app studio apps/pages, worksheets, workspaces, report builder, users, groups, alerts, workflows, workflow triggers, code engine packages, pro-code apps, beast modes, variables, access tokens, appdb collections, approvals, approval templates, drill paths, jupyter workspaces, filesets, files, forms, governance toolkit jobs and dozens more. Each type supports URL pattern detection, ID validation, and API-based metadata enrichment.
+Pages, cards, datasets, dataflows, app studio apps (and their pages), worksheets (and their pages), workspaces, users, groups, alerts, workflows (including versions, executions, triggers, and actions), code engine packages (and versions), pro-code apps, beast modes, variables, access tokens, appdb collections, approvals, approval templates, jupyter workspaces, filesets, files, forms, governance toolkit jobs and dozens more.
 
 ## Privacy
 

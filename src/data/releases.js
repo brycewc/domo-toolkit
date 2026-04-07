@@ -3,14 +3,15 @@ export const releases = [
     date: '2026-04-05',
     githubUrl: 'https://github.com/brycewc/domo-toolkit/releases/tag/v2.0.0',
     highlights: [
-      'Lineage graph — trace upstream and downstream dependencies for datasets and dataflows with lightning-fast performance and a sleek new UI',
-      'Simplified clipboard navigation — activates on button click instead of passive monitoring, improving performance and reliability',
-      'New object type recognition: workflow triggers',
+      'New Lineage graph feature to trace upstream and downstream dependencies for datasets and dataflows with lightning-fast performance and a sleek UI',
+      'Easily update all code engine actions in a workflow to the latest version with a single click',
+      'Navigate from copied object now activates on button click instead of passive monitoring, improving performance and reliability',
+      'Added object type recognition for workflow triggers',
       'New transparent extension icon that works on all toolbar backgrounds'
     ],
     notify: 'fullPage',
     summary:
-      'Major release introducing a new lightning-fast lineage graph and updating workflow code engine package versions in bulk',
+      'Major release introducing a new lightning-fast lineage graph and bulk upgrade versions feature for workflow code engine actions.',
     version: '2.0.0'
   },
   {
