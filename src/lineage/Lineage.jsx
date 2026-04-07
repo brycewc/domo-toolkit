@@ -261,7 +261,7 @@ export function Lineage() {
           </div>
         )}
         <div className='pointer-events-none absolute inset-x-0 bottom-2 z-10 flex justify-center'>
-          <div className='flex w-fit items-center justify-around gap-2 rounded-lg border border-border bg-surface/20 px-2 py-1 text-xs backdrop-blur-sm select-none'>
+          <div className='pointer-events-auto flex w-fit items-center justify-around gap-2 rounded-lg border border-border bg-surface/20 px-2 py-1 text-xs backdrop-blur-sm select-none'>
             <div className='items-center' title='legend'>
               <IconInfoCircle className='size-4' />
             </div>
