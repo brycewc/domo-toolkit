@@ -69,16 +69,39 @@ export function UpdateCodeEngineVersionsView({
 
       setCurrentContext(context);
 
-      // Get definition - either from stored data or wait for it
+      // Get definition - either from stored data or fetch/wait for it
       let def = data.definition;
       if (!def) {
-        const waitResult = await waitForDefinition(context);
-        if (!waitResult.success) {
-          onStatusUpdate?.('Error', waitResult.error, 'danger');
-          onBackToDefault?.();
-          return;
+        const isCEVersion =
+          context.domoObject?.typeId === 'CODEENGINE_PACKAGE_VERSION';
+        if (isCEVersion) {
+          const wfModelId =
+            context.domoObject.metadata?.details?.workflowModelId;
+          const wfVersion =
+            context.domoObject.metadata?.details?.workflowVersionNumber;
+          if (!wfModelId || !wfVersion) {
+            onStatusUpdate?.(
+              'Error',
+              'Missing workflow context for code engine version',
+              'danger'
+            );
+            onBackToDefault?.();
+            return;
+          }
+          def = await getVersionDefinition(
+            wfModelId,
+            wfVersion,
+            context.tabId
+          );
+        } else {
+          const waitResult = await waitForDefinition(context);
+          if (!waitResult.success) {
+            onStatusUpdate?.('Error', waitResult.error, 'danger');
+            onBackToDefault?.();
+            return;
+          }
+          def = waitResult.definition;
         }
-        def = waitResult.definition;
       }
 
       // Parse code engine tiles
@@ -231,8 +254,14 @@ export function UpdateCodeEngineVersionsView({
 
     setIsSubmitting(true);
 
-    const modelId = currentContext.domoObject.parentId;
-    const versionNumber = currentContext.domoObject.id;
+    const isCEVersion =
+      currentContext.domoObject.typeId === 'CODEENGINE_PACKAGE_VERSION';
+    const modelId = isCEVersion
+      ? currentContext.domoObject.metadata?.details?.workflowModelId
+      : currentContext.domoObject.parentId;
+    const versionNumber = isCEVersion
+      ? currentContext.domoObject.metadata?.details?.workflowVersionNumber
+      : currentContext.domoObject.id;
     const tabId = currentContext.tabId;
 
     const promise = (async () => {

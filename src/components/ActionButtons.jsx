@@ -403,7 +403,18 @@ function getAvailableActions(typeId, details, metadata) {
     actions.add('updateCodeEngineVersions');
   }
 
-  if (['CARD', 'CODEENGINE_PACKAGE'].includes(typeId)) {
+  if (
+    typeId === 'CODEENGINE_PACKAGE_VERSION' &&
+    metadata?.details?.workflowModelId
+  ) {
+    actions.add('updateCodeEngineVersions');
+  }
+
+  if (
+    ['CARD', 'CODEENGINE_PACKAGE', 'CODEENGINE_PACKAGE_VERSION'].includes(
+      typeId
+    )
+  ) {
     actions.add('export');
   }
 

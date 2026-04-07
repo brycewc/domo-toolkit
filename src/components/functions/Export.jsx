@@ -34,13 +34,16 @@ export function Export({ currentContext, isDisabled }) {
 
   if (typeId === 'CARD' && NON_EXPORTABLE_CARD_TYPES.has(cardType)) return null;
 
-  if (typeId === 'CODEENGINE_PACKAGE') {
+  if (typeId === 'CODEENGINE_PACKAGE' || typeId === 'CODEENGINE_PACKAGE_VERSION') {
+    const isCEVersion = typeId === 'CODEENGINE_PACKAGE_VERSION';
     const language =
       currentContext?.domoObject?.metadata?.details?.language?.toUpperCase();
     const isPython = language === 'PYTHON';
 
     const handleCodeExport = () => {
-      const packageId = currentContext?.domoObject?.id;
+      const packageId = isCEVersion
+        ? currentContext?.domoObject?.parentId
+        : currentContext?.domoObject?.id;
       if (!packageId) return;
 
       const name =
@@ -49,7 +52,7 @@ export function Export({ currentContext, isDisabled }) {
       const exportPromise = getCodeEngineCode({
         packageId,
         tabId: currentContext.tabId,
-        version: currentContext.domoObject.metadata?.codeEngineVersion || null
+        version: isCEVersion ? currentContext.domoObject.id : null
       }).then(async ({ code, version }) => {
         let formatted = code;
         if (!isPython) {

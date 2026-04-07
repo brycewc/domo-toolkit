@@ -68,13 +68,16 @@ export function ContextFooter({
     const typeModel = getObjectType(domoObject.typeId);
     if (!typeModel) return [];
 
-    // First tab: current object
+    // First tab: current object (use 'self' label override if configured)
+    const selfLabel = typeModel.relatedObjects?.find(
+      (r) => r.source === 'self'
+    )?.label;
     const result = [
       {
         details: domoObject.metadata?.details || domoObject.metadata,
         id: domoObject.typeId,
         isCurrentObject: true,
-        label: typeModel.name,
+        label: selfLabel || typeModel.name,
         objectId: domoObject.id
       }
     ];
@@ -82,6 +85,7 @@ export function ContextFooter({
     // Additional tabs from relatedObjects config
     if (typeModel.relatedObjects) {
       for (const related of typeModel.relatedObjects) {
+        if (related.source === 'self') continue;
         if (related.isArray) {
           const arrayData = domoObject.metadata?.details?.[related.field];
           if (arrayData?.length > 0) {

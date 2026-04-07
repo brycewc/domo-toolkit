@@ -952,9 +952,12 @@ async function detectAndStoreContext(tabId) {
 
     domoObject.metadata = enrichedMetadata;
 
-    // Preserve code engine version from workflow detection
-    if (detected.codeEngineVersion) {
-      domoObject.metadata.codeEngineVersion = detected.codeEngineVersion;
+    // Preserve workflow context from CE tile detection within a workflow
+    if (detected.workflowModelId) {
+      domoObject.metadata.details = domoObject.metadata.details || {};
+      domoObject.metadata.details.workflowModelId = detected.workflowModelId;
+      domoObject.metadata.details.workflowVersionNumber =
+        detected.workflowVersionNumber;
     }
 
     // Compute isOwner if user and groups are already available
@@ -1022,6 +1025,14 @@ async function detectAndStoreContext(tabId) {
           error
         );
       }
+    }
+
+    // Compose display name from template if configured
+    if (typeModel.api?.displayName && domoObject.metadata?.parent?.name) {
+      domoObject.metadata.name = typeModel.api.displayName
+        .replace('{parent.name}', domoObject.metadata.parent.name)
+        .replace('{name}', domoObject.metadata.name || '')
+        .replace('{id}', objectId);
     }
 
     // Clear card errors when navigating to a different card on this tab

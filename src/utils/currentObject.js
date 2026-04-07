@@ -173,9 +173,19 @@ export async function detectCurrentObject() {
                 element?.data?.taskType === 'nebulaFunction' &&
                 element.data.metadata?.packageId
               ) {
+                if (element.data.metadata.version) {
+                  return {
+                    baseUrl: `${location.protocol}//${location.hostname}`,
+                    id: element.data.metadata.version,
+                    parentId: element.data.metadata.packageId,
+                    typeId: 'CODEENGINE_PACKAGE_VERSION',
+                    url,
+                    workflowModelId: modelId,
+                    workflowVersionNumber: version
+                  };
+                }
                 return {
                   baseUrl: `${location.protocol}//${location.hostname}`,
-                  codeEngineVersion: element.data.metadata.version || null,
                   id: element.data.metadata.packageId,
                   typeId: 'CODEENGINE_PACKAGE',
                   url

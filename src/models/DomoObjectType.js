@@ -13,6 +13,7 @@ export class DomoObjectType {
    * @param {Object} [api] - API configuration for fetching object details
    * @param {Array<string>} [parents] - Array of parent object type IDs this object can have
    * @param {Array<Object>} [relatedObjects] - Array of related object configs [{field, typeId, label, source?, itemIdField?}]
+   *   Use { label: 'Short Name', source: 'self' } to override the current object's tab label
    */
   constructor(
     id,
@@ -469,9 +470,17 @@ export const ObjectTypeRegistry = {
     /^[0-9]+\.[0-9]+\.[0-9]+$/,
     null,
     {
-      endpoint: '/codeengine/v2/packages/{parent}/versions/{id}'
+      displayName: '{parent.name} - {id}',
+      endpoint: '/codeengine/v2/packages/{parent}/versions/{id}',
+      pathToName: 'version'
     },
-    ['CODEENGINE_PACKAGE']
+    ['CODEENGINE_PACKAGE'],
+    [
+      { label: 'Package Version', source: 'self' },
+      { label: 'Package', source: 'parentId', typeId: 'CODEENGINE_PACKAGE' },
+      { field: 'workflowVersionNumber', label: 'Workflow Version', parentSource: 'workflowModelId', typeId: 'WORKFLOW_MODEL_VERSION' },
+      { field: 'workflowModelId', label: 'Workflow', typeId: 'WORKFLOW_MODEL' }
+    ]
   ),
   COLLECTION: new DomoObjectType(
     'COLLECTION',
@@ -704,7 +713,7 @@ export const ObjectTypeRegistry = {
     },
     ['WORKFLOW_MODEL'],
     [
-      { label: 'Workflow Model', source: 'parentId', typeId: 'WORKFLOW_MODEL' }
+      { label: 'Workflow', source: 'parentId', typeId: 'WORKFLOW_MODEL' }
     ]
   ),
   ENIGMA_FORM_INSTANCE: new DomoObjectType(
@@ -745,7 +754,8 @@ export const ObjectTypeRegistry = {
     },
     ['EXECUTOR_APPLICATION'],
     [
-      { label: 'Governance Toolkit Application', source: 'parentId', typeId: 'EXECUTOR_APPLICATION' },
+      { label: 'Job', source: 'self' },
+      { label: 'Application', source: 'parentId', typeId: 'EXECUTOR_APPLICATION' },
       { field: 'executionPayload.configDatasetId', label: 'Config DataSet', typeId: 'DATA_SOURCE' },
       { field: 'executionPayload.metricsDatasetId', label: 'Log DataSet', typeId: 'DATA_SOURCE' }
     ]
@@ -800,6 +810,7 @@ export const ObjectTypeRegistry = {
     },
     ['FILESET'],
     [
+      { label: 'File', source: 'self' },
       { label: 'FileSet', source: 'parentId', typeId: 'FILESET' }
     ]
   ),
@@ -880,7 +891,11 @@ export const ObjectTypeRegistry = {
       endpoint: '/queues/v1/{parent}/tasks/{id}',
       pathToName: 'displayEntity.name'
     },
-    ['HOPPER_QUEUE']
+    ['HOPPER_QUEUE'],
+    [
+      { label: 'Task', source: 'self' },
+      { label: 'Queue', source: 'parentId', typeId: 'HOPPER_QUEUE' }
+    ]
   ),
   HUDDLE: new DomoObjectType(
     'HUDDLE',
@@ -902,7 +917,10 @@ export const ObjectTypeRegistry = {
       endpoint: '/social/v1/objectives/key-results/{id}',
       pathToName: 'name'
     },
-    ['GOAL']
+    ['GOAL'],
+    [
+      { label: 'Goal', source: 'parentId', typeId: 'GOAL' }
+    ]
   ),
   LANDING_ENTITY: new DomoObjectType(
     'LANDING_ENTITY',
@@ -930,7 +948,11 @@ export const ObjectTypeRegistry = {
       endpoint: '/datastores/v1/collections/{id}',
       pathToName: 'name'
     },
-    ['MAGNUM_DATASTORE']
+    ['MAGNUM_DATASTORE'],
+    [
+      { label: 'Collection', source: 'self' },
+      { label: 'DataStore', source: 'parentId', typeId: 'MAGNUM_DATASTORE' }
+    ]
   ),
   MAGNUM_DATASTORE: new DomoObjectType(
     'MAGNUM_DATASTORE',
@@ -1491,8 +1513,9 @@ export const ObjectTypeRegistry = {
     },
     ['WORKFLOW_MODEL'],
     [
-      { label: 'Workflow Model', source: 'parentId', typeId: 'WORKFLOW_MODEL' },
-      { field: 'modelVersion', label: 'Workflow Version', parentSource: 'parentId', typeId: 'WORKFLOW_MODEL_VERSION' }
+      { label: 'Execution', source: 'self' },
+      { field: 'modelVersion', label: 'Version', parentSource: 'parentId', typeId: 'WORKFLOW_MODEL_VERSION' },
+      { label: 'Workflow', source: 'parentId', typeId: 'WORKFLOW_MODEL' }
     ]
   ),
   WORKFLOW_MODEL: new DomoObjectType(
@@ -1512,7 +1535,7 @@ export const ObjectTypeRegistry = {
   ),
   WORKFLOW_MODEL_VERSION: new DomoObjectType(
     'WORKFLOW_MODEL_VERSION',
-    'Workflow Model Version',
+    'Workflow Version',
     '/workflows/models/{parent}/{id}?_wfv=view',
     /^[0-9]+\.[0-9]+\.[0-9]+$/,
     {
@@ -1521,12 +1544,14 @@ export const ObjectTypeRegistry = {
       parentExtract: { keyword: 'workflows', offset: 2 }
     },
     {
+      displayName: '{parent.name} - {id}',
       endpoint: '/workflow/v2/models/{parent}/versions/{id}',
       pathToName: 'version'
     },
     ['WORKFLOW_MODEL'],
     [
-      { label: 'Workflow Model', source: 'parentId', typeId: 'WORKFLOW_MODEL' }
+      { label: 'Version', source: 'self' },
+      { label: 'Workflow', source: 'parentId', typeId: 'WORKFLOW_MODEL' }
     ]
   ),
   WORKFLOW_TRIGGER: new DomoObjectType(
@@ -1541,8 +1566,9 @@ export const ObjectTypeRegistry = {
     },
     ['WORKFLOW_MODEL'],
     [
+      { label: 'Trigger', source: 'self' },
       {
-        label: 'Workflow Model', source: 'parentId', typeId: 'WORKFLOW_MODEL'
+        label: 'Workflow', source: 'parentId', typeId: 'WORKFLOW_MODEL'
       }
     ]
   ),
