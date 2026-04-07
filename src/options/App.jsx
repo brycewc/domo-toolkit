@@ -1,8 +1,7 @@
 import { Button, Link, Spinner, Tabs, Tooltip } from '@heroui/react';
 import { IconBug, IconSparkles } from '@tabler/icons-react';
-import { Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 
-import { ActivityLogTable } from '@/activityLog/ActivityLogTable';
 import {
   FaviconSettings,
   ReleaseNotes,
@@ -11,7 +10,16 @@ import {
   Welcome
 } from '@/components';
 import { useTheme } from '@/hooks';
-import { Lineage } from '@/lineage/Lineage';
+
+const ActivityLogTable = lazy(() =>
+  import('@/activityLog/ActivityLogTable').then((m) => ({
+    default: m.ActivityLogTable
+  }))
+);
+
+const Lineage = lazy(() =>
+  import('@/lineage/Lineage').then((m) => ({ default: m.Lineage }))
+);
 
 const FULL_SCREEN_PAGES = new Map([
   [
