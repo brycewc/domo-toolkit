@@ -1,17 +1,12 @@
 import dagre from '@dagrejs/dagre';
 import { Spinner, Surface } from '@heroui/react';
-import {
-  IconArrowFork,
-  IconDatabase,
-  IconInfoCircle
-} from '@tabler/icons-react';
+import { IconArrowFork, IconDatabase } from '@tabler/icons-react';
 import {
   Background,
   Controls,
   Handle,
   MarkerType,
   MiniMap,
-  Panel,
   Position,
   ReactFlow,
   useEdgesState,
@@ -29,7 +24,7 @@ import {
   useState
 } from 'react';
 
-import { useTheme } from '@/hooks';
+import { useTheme } from '@/hooks/useTheme';
 
 import { LineageNodeToolbar } from './LineageNodeToolbar';
 
@@ -360,24 +355,6 @@ export function LineageGraph({
       >
         <Background gap={32} lineWidth={1.5} variant='cross' />
         <Controls onInteractiveChange={setInteractive} />
-        <Panel position='bottom-center'>
-          <div className='flex w-fit items-center justify-around gap-2 rounded-lg border border-border bg-surface/20 px-2 py-1 text-xs backdrop-blur-sm select-none'>
-            <div className='items-center' title='legend'>
-              <IconInfoCircle className='size-4' />
-            </div>
-            <div className='flex items-center gap-1.5 rounded bg-success px-2 py-1 text-white'>
-              <span>Root</span>
-            </div>
-            <div className='flex items-center gap-1.5 rounded bg-accent px-2 py-1 text-white'>
-              <IconDatabase className='size-4' />
-              <span>DataSet</span>
-            </div>
-            <div className='flex items-center gap-1.5 rounded bg-warning px-2 py-1 text-white'>
-              <IconArrowFork className='size-4 rotate-180' />
-              <span>DataFlow</span>
-            </div>
-          </div>
-        </Panel>
         <MiniMap pannable zoomable nodeColor={miniMapNodeColor} />
       </ReactFlow>
     </LineageGraphContext.Provider>
@@ -459,7 +436,7 @@ function useLayout(trace) {
     }));
 
     const worker = new Worker(
-      new URL('@/utils/layoutWorker.js', import.meta.url),
+      new URL('../services/layoutWorker.js', import.meta.url),
       { type: 'module' }
     );
 

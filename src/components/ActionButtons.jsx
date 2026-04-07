@@ -13,6 +13,8 @@ import {
 } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 
+import { isSidepanel, openSidepanel } from '@/utils';
+
 import {
   ActivityLogCurrentObject,
   CardErrors,
@@ -37,8 +39,7 @@ import {
   UpdateDataflowDetails,
   UpdateOwner,
   ViewLineage
-} from '@/components';
-import { isSidepanel, openSidepanel } from '@/utils';
+} from './functions';
 
 export function ActionButtons({
   collapsable = false,

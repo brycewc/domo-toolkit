@@ -21,9 +21,8 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { AnimatePresence } from 'motion/react';
 import { useMemo, useRef, useState } from 'react';
 
+import { AnimatedCheck } from '@/components/AnimatedCheck';
 import { exportToCSV, exportToExcel, generateExportFilename } from '@/utils';
-
-import { AnimatedCheck } from './../AnimatedCheck';
 
 /**
  * DataTable Component

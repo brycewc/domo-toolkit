@@ -14,11 +14,6 @@ export {
   generateExportFilename
 } from './exportData';
 export {
-  applyFaviconRules,
-  applyInstanceLogoAuto,
-  clearFaviconCache
-} from './faviconModifier';
-export {
   extractGroupIds,
   extractUserIds,
   formatEpochTimestamp,

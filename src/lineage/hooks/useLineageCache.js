@@ -1,13 +1,13 @@
 import { useCallback, useRef, useState } from 'react';
 
+import { useResolveTabId } from '@/hooks';
+
 import {
   convertToGraph,
   enrichMetadata,
   getLineage,
   toMapKey
-} from '@/services';
-
-import { useResolveTabId } from './useResolveTabId';
+} from '../services';
 
 const INITIAL_DEPTH = 4;
 const EXPAND_DEPTH = 4;

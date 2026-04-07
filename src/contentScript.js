@@ -1,7 +1,7 @@
 import {
   applyFaviconRules,
   applyInstanceLogoAuto
-} from '@/utils';
+} from './faviconModifier';
 
 // Apply favicon rules - called by service worker
 async function applyFavicon() {

@@ -1,8 +1,4 @@
 export {
-  getActivityLogForObject,
-  getEventTypesForObjectType
-} from './activityLog';
-export {
   deleteObject,
   fetchObjectDetailsInPage,
   shareWithSelf,
@@ -44,7 +40,6 @@ export {
   isViewType,
   setStreamScheduleToManual
 } from './datasets';
-export { parseDataflow, searchTiles } from './etlParser';
 export {
   buildPfilterUrl,
   encodeFilters,
@@ -59,7 +54,6 @@ export {
 } from './filters';
 export { deleteFunction } from './functions';
 export { fetchGroupDisplayNames } from './groups';
-export { convertToGraph, enrichMetadata, getLineage, toLineageType, toMapKey, toNodeId } from './lineageService';
 export {
   deletePageAndAllCards,
   getAppStudioPageParent,

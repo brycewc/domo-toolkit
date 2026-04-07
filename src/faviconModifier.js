@@ -3,7 +3,7 @@
  * Applies visual effects to page favicons based on configured rules
  */
 
-import { EXCLUDED_HOSTNAMES } from './constants';
+import { EXCLUDED_HOSTNAMES } from './utils/constants';
 
 /**
  * Apply favicon modifications based on rules
@@ -143,29 +143,6 @@ export async function applyInstanceLogoAuto() {
 
   // Apply the instance logo
   await applyInstanceLogo(favicon, subdomain);
-}
-
-/**
- * Clear all cached favicons (called when rules change)
- */
-export async function clearFaviconCache() {
-  try {
-    const storage = await chrome.storage.local.get(null);
-    const faviconKeys = Object.keys(storage).filter((key) =>
-      key.startsWith('favicon_')
-    );
-
-    if (faviconKeys.length > 0) {
-      await chrome.storage.local.remove(faviconKeys);
-      // console.log(
-      //   'Cleared favicon cache (including instance logos):',
-      //   faviconKeys.length,
-      //   'items'
-      // );
-    }
-  } catch (error) {
-    console.error('Error clearing favicon cache:', error);
-  }
 }
 
 /**

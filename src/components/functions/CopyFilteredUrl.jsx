@@ -2,10 +2,11 @@ import { Button, Chip, Dropdown, Label, Tooltip } from '@heroui/react';
 import { IconClipboard, IconFilterShare } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 
-import { AnimatedCheck, AnimatedX } from '@/components';
-import { useLongPress } from '@/hooks';
-import { useStatusBar } from '@/hooks';
+import { useLongPress, useStatusBar } from '@/hooks';
 import { buildPfilterUrl, getAllFilters } from '@/services';
+
+import { AnimatedCheck } from '../AnimatedCheck';
+import { AnimatedX } from '../AnimatedX';
 
 export function CopyFilteredUrl({ currentContext, isDisabled }) {
   const [isCopied, setIsCopied] = useState(false);

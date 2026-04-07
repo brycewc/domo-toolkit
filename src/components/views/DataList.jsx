@@ -25,7 +25,7 @@ import {
 } from '@tabler/icons-react';
 import { useState } from 'react';
 
-import { AnimatedCheck } from '@/components';
+import { AnimatedCheck } from '../AnimatedCheck';
 import { getValidTabForInstance } from '@/utils';
 
 /**

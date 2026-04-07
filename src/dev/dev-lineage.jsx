@@ -5,8 +5,8 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import '@/assets/global.css';
-import { Lineage } from '@/components/options/Lineage';
 import { useTheme } from '@/hooks';
+import { Lineage } from '@/lineage/Lineage';
 
 function DevApp() {
   useTheme();

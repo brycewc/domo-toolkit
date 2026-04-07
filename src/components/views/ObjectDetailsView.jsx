@@ -22,12 +22,6 @@ import { useEffect, useState } from 'react';
 import JsonView from 'react18-json-view';
 
 import '@/assets/json-view-theme.css';
-import {
-  AnimatedCheck,
-  GroupIdAnnotation,
-  TimestampAnnotation,
-  UserIdAnnotation
-} from '@/components';
 import { useGroupLookup, useUserLookup } from '@/hooks';
 import { DomoObject } from '@/models';
 import {
@@ -36,6 +30,11 @@ import {
   isGroupFieldName,
   isUserFieldName
 } from '@/utils';
+
+import { AnimatedCheck } from '../AnimatedCheck';
+import { GroupIdAnnotation } from '../GroupIdAnnotation';
+import { TimestampAnnotation } from '../TimestampAnnotation';
+import { UserIdAnnotation } from '../UserIdAnnotation';
 
 /**
  * Known fields to display prominently with human-readable labels.

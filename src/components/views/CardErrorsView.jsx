@@ -10,7 +10,7 @@ import { IconClipboard, IconTrash, IconX } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import JsonView from 'react18-json-view';
 
-import { AnimatedCheck } from '@/components';
+import { AnimatedCheck } from '../AnimatedCheck';
 import '@/assets/json-view-theme.css';
 import { DomoContext } from '@/models';
 

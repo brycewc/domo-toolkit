@@ -68,8 +68,10 @@ import { memo, useEffect, useMemo, useState } from 'react';
 import JsonView from 'react18-json-view';
 
 import '@/assets/json-view-theme.css';
-import { AnimatedCheck } from '@/components';
-import { getDataflowDetail, parseDataflow, searchTiles } from '@/services';
+import { AnimatedCheck } from '@/components/AnimatedCheck';
+import { getDataflowDetail } from '@/services';
+
+import { parseDataflow, searchTiles } from '../services';
 
 const CATEGORY_COLORS = {
   'Aggregate': { bg: 'bg-pink-500', text: 'text-pink-500' },
@@ -157,7 +159,12 @@ const TILE_ICONS = {
  * @param {Function} [props.resolveTabId] - Async function that resolves a valid tab ID
  * @param {Function} props.onClose - Close handler
  */
-export function DataflowInspector({ cacheRef, dataflowId, onClose, resolveTabId }) {
+export function DataflowInspector({
+  cacheRef,
+  dataflowId,
+  onClose,
+  resolveTabId
+}) {
   const cached = cacheRef?.current?.get(dataflowId);
   const [dataflow, setDataflow] = useState(cached?.parsed ?? null);
   const [rawJSON, setRawJSON] = useState(cached?.raw ?? null);

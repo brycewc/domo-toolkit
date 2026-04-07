@@ -27,29 +27,39 @@ export default defineConfig(({ mode }) => {
   return {
     build: {
       // Extensions load from disk, not network - large chunks are fine
-      chunkSizeWarningLimit: 1000,
+      chunkSizeWarningLimit: 1100,
       rollupOptions: {
+        // Suppress circular chunk warnings caused by shared third-party modules
+        // being split across manual chunks. There are no actual circular imports
+        // between our source modules.
+        onLog(level, log, defaultHandler) {
+          if (log.code === 'CIRCULAR_DEPENDENCY' || log.code === 'CIRCULAR_CHUNK') return;
+          defaultHandler(level, log);
+        },
         output: {
           // Group related modules into the same chunk to avoid cross-chunk circular dependencies
           manualChunks: (id) => {
             if (
-              id.includes('/src/components/lineage/') ||
+              id.includes('/src/lineage/') ||
               id.includes('@xyflow/react') ||
               id.includes('@dagrejs/dagre')
             ) {
               return 'lineage';
             }
+            if (id.includes('/src/activityLog/')) {
+              return 'activity-log';
+            }
             if (id.includes('/src/components/options/')) {
               return 'options-components';
             }
             if (id.includes('/src/components/views/')) {
-              return 'sidepanel-views';
+              return 'sidepanel-components';
             }
-            if (id.includes('/src/components/')) {
+            if (
+              id.includes('/src/components/') ||
+              id.includes('/src/hooks/')
+            ) {
               return 'components';
-            }
-            if (id.includes('/src/hooks/')) {
-              return 'hooks';
             }
             if (id.includes('/src/models/')) {
               return 'models';

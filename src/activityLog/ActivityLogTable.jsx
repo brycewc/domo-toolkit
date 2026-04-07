@@ -23,18 +23,18 @@ import {
 import { AnimatePresence } from 'motion/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { AnimatedCheck } from '@/components/AnimatedCheck';
 import { useResolveTabId } from '@/hooks';
 import { DomoObject } from '@/models';
-import {
-  getActivityLogForObject,
-  getCustomAvatarUserIds,
-  getEventTypesForObjectType
-} from '@/services';
+import { getCustomAvatarUserIds } from '@/services';
 import { ACTION_COLOR_PATTERNS, getInitials } from '@/utils';
 
-import { AnimatedCheck } from './../AnimatedCheck';
-import { DataTable } from './DataTable';
-import { UserFilterAutocomplete } from './UserFilterAutocomplete';
+import { DataTable } from './components/DataTable';
+import { UserFilterAutocomplete } from './components/UserFilterAutocomplete';
+import {
+  getActivityLogForObject,
+  getEventTypesForObjectType
+} from './services/activityLog';
 
 /**
  * ActivityLogTable Component

@@ -30,8 +30,6 @@ import {
 } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 
-import { clearFaviconCache } from '@/utils';
-
 export function FaviconSettings() {
   const [rules, setRules] = useState([]);
   const [originalRules, setOriginalRules] = useState([]);
@@ -174,7 +172,10 @@ export function FaviconSettings() {
 
   return (
     <div className='flex min-h-0 w-full flex-1 flex-col pt-4'>
-      <Form className='flex min-h-0 w-full flex-1 flex-col gap-2' onSubmit={onSave}>
+      <Form
+        className='flex min-h-0 w-full flex-1 flex-col gap-2'
+        onSubmit={onSave}
+      >
         <div className='flex shrink-0 flex-row gap-2'>
           <Button isDisabled={!hasChanges} type='submit'>
             <IconDeviceFloppy />
@@ -196,261 +197,270 @@ export function FaviconSettings() {
               </div>
             ) : (
               rules.map((rule, index) => (
-              <Card
-                draggable
-                key={rule.id}
-                onDragEnd={handleDragEnd}
-                onDragOver={(e) => handleDragOver(e, index)}
-                onDragStart={() => handleDragStart(index)}
-                onDrop={(e) => handleDrop(e, index)}
-                className={`cursor-move transition-opacity ${
-                  draggedIndex === index ? 'opacity-50' : ''
-                }`}
-              >
-                <Card.Content className='flex flex-row items-end justify-start gap-2'>
-                  <div className='flex flex-col items-center justify-end gap-2'>
-                    <span className='text-fg-muted text-sm font-semibold'>
-                      {index + 1}
-                    </span>
-                    <IconGripVertical
-                      className='size-8 text-muted'
-                      stroke={1.5}
-                    />
-                  </div>
-
-                  <div className='min-w-0 flex-1'>
-                    <TextField
-                      isRequired
-                      className='w-full'
-                      name='pattern'
-                      value={rule.pattern}
-                      variant='secondary'
-                      onChange={(value) =>
-                        updateRule(rule.id, 'pattern', value)
-                      }
-                    >
-                      <Label>Subdomain Pattern</Label>
-                      <Input />
-                    </TextField>
-                  </div>
-
-                  <div className='flex w-50 flex-col gap-1'>
-                    <Label>Effect</Label>
-                    <Select
-                      isRequired
-                      className='w-full'
-                      value={rule.effect}
-                      variant='secondary'
-                      onChange={(value) => updateRule(rule.id, 'effect', value)}
-                    >
-                      <Label className='sr-only'>Effect</Label>
-                      <Select.Trigger>
-                        <Select.Value />
-                        <Select.Indicator>
-                          <IconChevronDown stroke={1} />
-                        </Select.Indicator>
-                      </Select.Trigger>
-                      <Select.Popover>
-                        <ListBox>
-                          <ListBox.Item id='instance-logo'>
-                            instance-logo
-                            <ListBox.ItemIndicator>
-                              {({ isSelected }) =>
-                                isSelected ? <IconCheck stroke={1.5} /> : null
-                              }
-                            </ListBox.ItemIndicator>
-                          </ListBox.Item>
-                          <ListBox.Item id='domo-logo-colored'>
-                            domo-logo-colored
-                            <ListBox.ItemIndicator>
-                              {({ isSelected }) =>
-                                isSelected ? <IconCheck stroke={1.5} /> : null
-                              }
-                            </ListBox.ItemIndicator>
-                          </ListBox.Item>
-                          <ListBox.Item id='top'>
-                            top
-                            <ListBox.ItemIndicator>
-                              {({ isSelected }) =>
-                                isSelected ? <IconCheck stroke={1.5} /> : null
-                              }
-                            </ListBox.ItemIndicator>
-                          </ListBox.Item>
-                          <ListBox.Item id='right'>
-                            right
-                            <ListBox.ItemIndicator>
-                              {({ isSelected }) =>
-                                isSelected ? <IconCheck stroke={1.5} /> : null
-                              }
-                            </ListBox.ItemIndicator>
-                          </ListBox.Item>
-                          <ListBox.Item id='bottom'>
-                            bottom
-                            <ListBox.ItemIndicator>
-                              {({ isSelected }) =>
-                                isSelected ? <IconCheck stroke={1.5} /> : null
-                              }
-                            </ListBox.ItemIndicator>
-                          </ListBox.Item>
-                          <ListBox.Item id='left'>
-                            left
-                            <ListBox.ItemIndicator>
-                              {({ isSelected }) =>
-                                isSelected ? <IconCheck stroke={1.5} /> : null
-                              }
-                            </ListBox.ItemIndicator>
-                          </ListBox.Item>
-                        </ListBox>
-                      </Select.Popover>
-                    </Select>
-                  </div>
-
-                  <div className='flex w-25 flex-col gap-1'>
-                    <ColorPicker
-                      className='flex flex-col items-start justify-start gap-1'
-                      onChange={(newColor) =>
-                        updateRule(rule.id, 'color', newColor.toString('hexa'))
-                      }
-                      value={
-                        rule.effect === 'instance-logo'
-                          ? '#00000000'
-                          : parseColor(rule.color)
-                      }
-                    >
-                      <Label
-                        aria-label='Color picker label'
-                        htmlFor='color-picker-trigger'
-                      >
-                        Color
-                      </Label>
-                      <ColorPicker.Trigger
-                        aria-label='Color picker trigger'
-                        id='color-picker-trigger'
-                        isDisabled={rule.effect === 'instance-logo'}
-                      >
-                        <ColorSwatch
-                          className='w-25 rounded-3xl'
-                          shape='square'
-                          size='lg'
-                        />
-                      </ColorPicker.Trigger>
-                      <ColorPicker.Popover
-                        className='w-65 gap-2'
-                        placement='right'
-                      >
-                        <ColorSwatchPicker
-                          aria-label='Color swatch picker'
-                          className='justify-center gap-0.5'
-                          variant='square'
-                        >
-                          {colorPresets.map((preset) => (
-                            <ColorSwatchPicker.Item color={preset} key={preset}>
-                              <ColorSwatchPicker.Swatch />
-                              <ColorSwatchPicker.Indicator>
-                                {({ isSelected }) =>
-                                  isSelected ? <IconCheck /> : null
-                                }
-                              </ColorSwatchPicker.Indicator>
-                            </ColorSwatchPicker.Item>
-                          ))}
-                        </ColorSwatchPicker>
-                        <ColorArea
-                          aria-label='Color area'
-                          className='max-w-full'
-                          colorSpace='hsl'
-                          xChannel='saturation'
-                          yChannel='lightness'
-                        >
-                          <ColorArea.Thumb />
-                        </ColorArea>
-                        <div className='flex flex-col justify-center gap-1'>
-                          <ColorSlider
-                            aria-label='Hue slider'
-                            channel='hue'
-                            className='flex-1'
-                            colorSpace='hsl'
-                          >
-                            <Label>Hue</Label>
-                            <ColorSlider.Track>
-                              <ColorSlider.Thumb />
-                            </ColorSlider.Track>
-                          </ColorSlider>
-                          <ColorSlider
-                            aria-label='Alpha slider'
-                            channel='alpha'
-                            className='flex-1'
-                            colorSpace='hsl'
-                          >
-                            <Label>Opacity</Label>
-                            <ColorSlider.Output className='text-muted' />
-                            <ColorSlider.Track>
-                              <ColorSlider.Thumb />
-                            </ColorSlider.Track>
-                          </ColorSlider>
-                        </div>
-                        <div className='flex w-full flex-row items-center justify-start gap-1'>
-                          <ColorField
-                            aria-label='Color field'
-                            className=''
-                            colorSpace='hsl'
-                          >
-                            <ColorField.Group
-                              aria-label='Color input group'
-                              variant='secondary'
-                            >
-                              <ColorField.Prefix>
-                                <ColorSwatch shape='square' size='xs' />
-                              </ColorField.Prefix>
-                              <ColorField.Input
-                                aria-label='Color input'
-                                onPaste={(e) => {
-                                  let text = e.clipboardData
-                                    .getData('text')
-                                    .trim();
-                                  if (/^[0-9a-f]{6,8}$/i.test(text)) {
-                                    text = '#' + text;
-                                  }
-                                  try {
-                                    const parsed = parseColor(text);
-                                    updateRule(
-                                      rule.id,
-                                      'color',
-                                      parsed.toString('hexa')
-                                    );
-                                  } catch {
-                                    // Not a valid color string, let default paste proceed
-                                  }
-                                }}
-                              />
-                            </ColorField.Group>
-                          </ColorField>
-                          <Button
-                            isIconOnly
-                            aria-label='Shuffle color'
-                            className='shrink-0'
-                            variant='tertiary'
-                            onPress={() => shuffleColor(rule.id)}
-                          >
-                            <IconArrowsShuffle stroke={1.5} />
-                          </Button>
-                        </div>
-                      </ColorPicker.Popover>
-                    </ColorPicker>
-                  </div>
-
-                  {rules.length > 1 && (
-                    <div className='flex items-center'>
-                      <Button
-                        isIconOnly
-                        variant='tertiary'
-                        onPress={() => removeRow(rule.id)}
-                      >
-                        <IconTrash className='text-danger' stroke={1.5} />
-                      </Button>
+                <Card
+                  draggable
+                  key={rule.id}
+                  onDragEnd={handleDragEnd}
+                  onDragOver={(e) => handleDragOver(e, index)}
+                  onDragStart={() => handleDragStart(index)}
+                  onDrop={(e) => handleDrop(e, index)}
+                  className={`cursor-move transition-opacity ${
+                    draggedIndex === index ? 'opacity-50' : ''
+                  }`}
+                >
+                  <Card.Content className='flex flex-row items-end justify-start gap-2'>
+                    <div className='flex flex-col items-center justify-end gap-2'>
+                      <span className='text-fg-muted text-sm font-semibold'>
+                        {index + 1}
+                      </span>
+                      <IconGripVertical
+                        className='size-8 text-muted'
+                        stroke={1.5}
+                      />
                     </div>
-                  )}
-                </Card.Content>
-              </Card>
+
+                    <div className='min-w-0 flex-1'>
+                      <TextField
+                        isRequired
+                        className='w-full'
+                        name='pattern'
+                        value={rule.pattern}
+                        variant='secondary'
+                        onChange={(value) =>
+                          updateRule(rule.id, 'pattern', value)
+                        }
+                      >
+                        <Label>Subdomain Pattern</Label>
+                        <Input />
+                      </TextField>
+                    </div>
+
+                    <div className='flex w-50 flex-col gap-1'>
+                      <Label>Effect</Label>
+                      <Select
+                        isRequired
+                        className='w-full'
+                        value={rule.effect}
+                        variant='secondary'
+                        onChange={(value) =>
+                          updateRule(rule.id, 'effect', value)
+                        }
+                      >
+                        <Label className='sr-only'>Effect</Label>
+                        <Select.Trigger>
+                          <Select.Value />
+                          <Select.Indicator>
+                            <IconChevronDown stroke={1} />
+                          </Select.Indicator>
+                        </Select.Trigger>
+                        <Select.Popover>
+                          <ListBox>
+                            <ListBox.Item id='instance-logo'>
+                              instance-logo
+                              <ListBox.ItemIndicator>
+                                {({ isSelected }) =>
+                                  isSelected ? <IconCheck stroke={1.5} /> : null
+                                }
+                              </ListBox.ItemIndicator>
+                            </ListBox.Item>
+                            <ListBox.Item id='domo-logo-colored'>
+                              domo-logo-colored
+                              <ListBox.ItemIndicator>
+                                {({ isSelected }) =>
+                                  isSelected ? <IconCheck stroke={1.5} /> : null
+                                }
+                              </ListBox.ItemIndicator>
+                            </ListBox.Item>
+                            <ListBox.Item id='top'>
+                              top
+                              <ListBox.ItemIndicator>
+                                {({ isSelected }) =>
+                                  isSelected ? <IconCheck stroke={1.5} /> : null
+                                }
+                              </ListBox.ItemIndicator>
+                            </ListBox.Item>
+                            <ListBox.Item id='right'>
+                              right
+                              <ListBox.ItemIndicator>
+                                {({ isSelected }) =>
+                                  isSelected ? <IconCheck stroke={1.5} /> : null
+                                }
+                              </ListBox.ItemIndicator>
+                            </ListBox.Item>
+                            <ListBox.Item id='bottom'>
+                              bottom
+                              <ListBox.ItemIndicator>
+                                {({ isSelected }) =>
+                                  isSelected ? <IconCheck stroke={1.5} /> : null
+                                }
+                              </ListBox.ItemIndicator>
+                            </ListBox.Item>
+                            <ListBox.Item id='left'>
+                              left
+                              <ListBox.ItemIndicator>
+                                {({ isSelected }) =>
+                                  isSelected ? <IconCheck stroke={1.5} /> : null
+                                }
+                              </ListBox.ItemIndicator>
+                            </ListBox.Item>
+                          </ListBox>
+                        </Select.Popover>
+                      </Select>
+                    </div>
+
+                    <div className='flex w-25 flex-col gap-1'>
+                      <ColorPicker
+                        className='flex flex-col items-start justify-start gap-1'
+                        onChange={(newColor) =>
+                          updateRule(
+                            rule.id,
+                            'color',
+                            newColor.toString('hexa')
+                          )
+                        }
+                        value={
+                          rule.effect === 'instance-logo'
+                            ? '#00000000'
+                            : parseColor(rule.color)
+                        }
+                      >
+                        <Label
+                          aria-label='Color picker label'
+                          htmlFor='color-picker-trigger'
+                        >
+                          Color
+                        </Label>
+                        <ColorPicker.Trigger
+                          aria-label='Color picker trigger'
+                          id='color-picker-trigger'
+                          isDisabled={rule.effect === 'instance-logo'}
+                        >
+                          <ColorSwatch
+                            className='w-25 rounded-3xl'
+                            shape='square'
+                            size='lg'
+                          />
+                        </ColorPicker.Trigger>
+                        <ColorPicker.Popover
+                          className='w-65 gap-2'
+                          placement='right'
+                        >
+                          <ColorSwatchPicker
+                            aria-label='Color swatch picker'
+                            className='justify-center gap-0.5'
+                            variant='square'
+                          >
+                            {colorPresets.map((preset) => (
+                              <ColorSwatchPicker.Item
+                                color={preset}
+                                key={preset}
+                              >
+                                <ColorSwatchPicker.Swatch />
+                                <ColorSwatchPicker.Indicator>
+                                  {({ isSelected }) =>
+                                    isSelected ? <IconCheck /> : null
+                                  }
+                                </ColorSwatchPicker.Indicator>
+                              </ColorSwatchPicker.Item>
+                            ))}
+                          </ColorSwatchPicker>
+                          <ColorArea
+                            aria-label='Color area'
+                            className='max-w-full'
+                            colorSpace='hsl'
+                            xChannel='saturation'
+                            yChannel='lightness'
+                          >
+                            <ColorArea.Thumb />
+                          </ColorArea>
+                          <div className='flex flex-col justify-center gap-1'>
+                            <ColorSlider
+                              aria-label='Hue slider'
+                              channel='hue'
+                              className='flex-1'
+                              colorSpace='hsl'
+                            >
+                              <Label>Hue</Label>
+                              <ColorSlider.Track>
+                                <ColorSlider.Thumb />
+                              </ColorSlider.Track>
+                            </ColorSlider>
+                            <ColorSlider
+                              aria-label='Alpha slider'
+                              channel='alpha'
+                              className='flex-1'
+                              colorSpace='hsl'
+                            >
+                              <Label>Opacity</Label>
+                              <ColorSlider.Output className='text-muted' />
+                              <ColorSlider.Track>
+                                <ColorSlider.Thumb />
+                              </ColorSlider.Track>
+                            </ColorSlider>
+                          </div>
+                          <div className='flex w-full flex-row items-center justify-start gap-1'>
+                            <ColorField
+                              aria-label='Color field'
+                              className=''
+                              colorSpace='hsl'
+                            >
+                              <ColorField.Group
+                                aria-label='Color input group'
+                                variant='secondary'
+                              >
+                                <ColorField.Prefix>
+                                  <ColorSwatch shape='square' size='xs' />
+                                </ColorField.Prefix>
+                                <ColorField.Input
+                                  aria-label='Color input'
+                                  onPaste={(e) => {
+                                    let text = e.clipboardData
+                                      .getData('text')
+                                      .trim();
+                                    if (/^[0-9a-f]{6,8}$/i.test(text)) {
+                                      text = '#' + text;
+                                    }
+                                    try {
+                                      const parsed = parseColor(text);
+                                      updateRule(
+                                        rule.id,
+                                        'color',
+                                        parsed.toString('hexa')
+                                      );
+                                    } catch {
+                                      // Not a valid color string, let default paste proceed
+                                    }
+                                  }}
+                                />
+                              </ColorField.Group>
+                            </ColorField>
+                            <Button
+                              isIconOnly
+                              aria-label='Shuffle color'
+                              className='shrink-0'
+                              variant='tertiary'
+                              onPress={() => shuffleColor(rule.id)}
+                            >
+                              <IconArrowsShuffle stroke={1.5} />
+                            </Button>
+                          </div>
+                        </ColorPicker.Popover>
+                      </ColorPicker>
+                    </div>
+
+                    {rules.length > 1 && (
+                      <div className='flex items-center'>
+                        <Button
+                          isIconOnly
+                          variant='tertiary'
+                          onPress={() => removeRow(rule.id)}
+                        >
+                          <IconTrash className='text-danger' stroke={1.5} />
+                        </Button>
+                      </div>
+                    )}
+                  </Card.Content>
+                </Card>
               ))
             )}
           </div>
@@ -564,4 +574,27 @@ export function FaviconSettings() {
       </Accordion>
     </div>
   );
+}
+
+/**
+ * Clear all cached favicons (called when rules change)
+ */
+async function clearFaviconCache() {
+  try {
+    const storage = await chrome.storage.local.get(null);
+    const faviconKeys = Object.keys(storage).filter((key) =>
+      key.startsWith('favicon_')
+    );
+
+    if (faviconKeys.length > 0) {
+      await chrome.storage.local.remove(faviconKeys);
+      // console.log(
+      //   'Cleared favicon cache (including instance logos):',
+      //   faviconKeys.length,
+      //   'items'
+      // );
+    }
+  } catch (error) {
+    console.error('Error clearing favicon cache:', error);
+  }
 }

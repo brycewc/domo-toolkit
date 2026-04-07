@@ -2,8 +2,9 @@ import { Button, Dropdown, Kbd, Label, Tooltip } from '@heroui/react';
 import { IconClipboard } from '@tabler/icons-react';
 import { useState } from 'react';
 
-import { AnimatedCheck } from '@/components';
 import { useLongPress } from '@/hooks';
+
+import { AnimatedCheck } from '../AnimatedCheck';
 
 export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
   const [isCopied, setIsCopied] = useState(false);

@@ -1,16 +1,22 @@
 import { Button, Spinner } from '@heroui/react';
-import { IconArrowFork, IconDatabase, IconReload } from '@tabler/icons-react';
+import {
+  IconArrowFork,
+  IconDatabase,
+  IconInfoCircle,
+  IconReload
+} from '@tabler/icons-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { useGraphVisibility, useLineageCache, useResolveTabId } from '@/hooks';
-import { toLineageType, toNodeId } from '@/services';
+import { useResolveTabId } from '@/hooks';
 
 import {
   DataflowInspector,
   DataPreviewPanel,
   LevelToolbar,
   LineageGraph
-} from '../lineage';
+} from './components';
+import { useGraphVisibility, useLineageCache } from './hooks';
+import { toLineageType, toNodeId } from './services';
 
 export function Lineage() {
   const [params, setParams] = useState(null);
@@ -254,6 +260,24 @@ export function Lineage() {
             </div>
           </div>
         )}
+        <div className='pointer-events-none absolute inset-x-0 bottom-2 z-10 flex justify-center'>
+          <div className='flex w-fit items-center justify-around gap-2 rounded-lg border border-border bg-surface/20 px-2 py-1 text-xs backdrop-blur-sm select-none'>
+            <div className='items-center' title='legend'>
+              <IconInfoCircle className='size-4' />
+            </div>
+            <div className='flex items-center gap-1.5 rounded bg-success px-2 py-1 text-white'>
+              <span>Root</span>
+            </div>
+            <div className='flex items-center gap-1.5 rounded bg-accent px-2 py-1 text-white'>
+              <IconDatabase className='size-4' />
+              <span>DataSet</span>
+            </div>
+            <div className='flex items-center gap-1.5 rounded bg-warning px-2 py-1 text-white'>
+              <IconArrowFork className='size-4 rotate-180' />
+              <span>DataFlow</span>
+            </div>
+          </div>
+        </div>
         <div className='flex min-h-0 min-w-0 flex-1 flex-col'>
           {loading ? (
             <div className='flex flex-1 items-center justify-center gap-2'>

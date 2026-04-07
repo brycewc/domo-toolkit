@@ -1,7 +1,7 @@
 import { IconClipboard } from '@tabler/icons-react';
 import { useState } from 'react';
 
-import { AnimatedCheck } from '@/components';
+import { AnimatedCheck } from './AnimatedCheck';
 
 export function UserIdAnnotation({ displayName, value }) {
   const [copied, setCopied] = useState(false);
