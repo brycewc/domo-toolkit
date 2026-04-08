@@ -1,7 +1,7 @@
 export const releases = [
   {
     date: '2026-04-05',
-    githubUrl: 'https://github.com/brycewc/domo-toolkit/releases/tag/v2.0.0',
+    githubUrl: 'https://github.com/brycewc/domo-toolkit/releases/tag/v1.2.0',
     highlights: [
       'New Lineage graph feature to trace upstream and downstream dependencies for datasets and dataflows with lightning-fast performance and a sleek UI',
       'Easily update all code engine actions in a workflow to the latest version with a single click',
@@ -12,7 +12,7 @@ export const releases = [
     notify: 'fullPage',
     summary:
       'Major release introducing a new lightning-fast lineage graph and bulk upgrade versions feature for workflow code engine actions.',
-    version: '2.0.0'
+    version: '1.2.0'
   },
   {
     date: '2026-03-24',

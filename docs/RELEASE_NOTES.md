@@ -1,4 +1,4 @@
-# Domo Toolkit v2.0.0 Release Notes
+# Domo Toolkit v1.2.0 Release Notes
 
 ## Lineage
 
