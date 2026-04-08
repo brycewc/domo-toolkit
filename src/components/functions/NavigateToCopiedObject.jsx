@@ -185,6 +185,18 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
           ) {
             continue;
           }
+          if (
+            typeConfig.id === 'DATA_APP_VIEW' &&
+            metadata.details.type !== 'dav'
+          ) {
+            continue;
+          }
+          if (
+            typeConfig.id === 'PAGE' &&
+            metadata.details.type !== 'page'
+          ) {
+            continue;
+          }
 
           const domoObject = new DomoObject(typeConfig.id, text, baseUrl, {
             details: metadata.details,

@@ -415,7 +415,12 @@ export const ObjectTypeRegistry = {
       pathToName: '[0].title'
     },
     ['DATA_SOURCE', 'APP'],
-    [{ field: 'datasources', isArray: true, itemIdField: 'dataSourceId', itemTypeId: 'DATA_SOURCE', label: 'DataSets' }]
+    [
+      { field: 'contextAppId', label: 'Studio App', typeId: 'DATA_APP' },
+      { field: 'contextAppViewId', label: 'App Page', parentSource: 'contextAppId', typeId: 'DATA_APP_VIEW' },
+      { field: 'contextPageId', label: 'Page', typeId: 'PAGE' },
+      { field: 'datasources', isArray: true, itemIdField: 'dataSourceId', itemTypeId: 'DATA_SOURCE', label: 'DataSets' }
+    ]
   ),
   CERTIFICATION: new DomoObjectType(
     'CERTIFICATION',
@@ -577,6 +582,7 @@ export const ObjectTypeRegistry = {
       parentExtract: { keyword: 'app-studio', offset: 1 }
     },
     {
+      displayName: '{parent.name}: {name}',
       endpoint: '/content/v3/stacks/{id}',
       pathToName: 'title'
     },
@@ -1593,6 +1599,7 @@ export const ObjectTypeRegistry = {
       parentExtract: { keyword: 'app-studio', offset: 1 }
     },
     {
+      displayName: '{parent.name}: {name}',
       endpoint: '/content/v3/stacks/{id}',
       pathToName: 'title'
     },

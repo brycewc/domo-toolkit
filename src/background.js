@@ -20,7 +20,8 @@ import {
   clearCookies,
   detectCurrentObject,
   EXCLUDED_HOSTNAMES,
-  executeInPage
+  executeInPage,
+  SECTION_TITLES
 } from '@/utils';
 
 /**
@@ -282,6 +283,14 @@ function broadcastCardErrors(tabId) {
     .catch(() => {});
 }
 
+function buildAllowedTitles(domoObject) {
+  const allowed = [];
+  if (domoObject.metadata?.parent?.name) {
+    allowed.push(`${domoObject.metadata.parent.name} - Domo`);
+  }
+  return allowed;
+}
+
 function clearCardErrors(tabId) {
   tabCardErrors.delete(tabId);
   broadcastCardErrors(tabId);
@@ -367,6 +376,24 @@ async function restoreFromSession() {
   }
 }
 
+function setSectionTitle(tabId, url) {
+  try {
+    const pathname = new URL(url).pathname;
+    const sortedKeys = Object.keys(SECTION_TITLES).sort(
+      (a, b) => b.length - a.length
+    );
+    const matchedKey = sortedKeys.find((key) => pathname.startsWith(key));
+    if (matchedKey) {
+      setTabTitle(tabId, SECTION_TITLES[matchedKey]);
+    }
+  } catch (error) {
+    console.error(
+      `[Background] Error setting section title for tab ${tabId}:`,
+      error
+    );
+  }
+}
+
 /**
  * Store context for a specific tab and push to content script
  */
@@ -379,7 +406,8 @@ function setTabContext(tabId, context) {
   persistToSession();
 
   if (context?.domoObject?.metadata?.name) {
-    setTabTitle(tabId, context.domoObject.metadata.name);
+    const allowedTitles = buildAllowedTitles(context.domoObject);
+    setTabTitle(tabId, context.domoObject.metadata.name, allowedTitles);
   }
 
   const contextData = context?.toJSON();
@@ -413,12 +441,16 @@ function setTabContext(tabId, context) {
     });
 }
 
-function setTabTitle(tabId, objectName) {
+function setTabTitle(tabId, objectName, allowedTitles = []) {
   try {
     chrome.scripting.executeScript({
-      args: [objectName],
-      func: (objectName) => {
-        if (document.title.trim() !== 'Domo') {
+      args: [objectName, allowedTitles],
+      func: (objectName, allowedTitles) => {
+        const currentTitle = document.title.trim();
+        if (
+          currentTitle !== 'Domo' &&
+          !allowedTitles.includes(currentTitle)
+        ) {
           return;
         }
         document.title = `${objectName} - Domo`;
@@ -674,27 +706,29 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     await detectAndStoreContext(tabId);
   }
 
-  // Update title if it's just "Domo" and we have object metadata
-  if (changeInfo.title === 'Domo' && tab.url?.includes('domo.com')) {
+  // Update title when Domo sets it to "Domo" or a stale parent-only title
+  if (changeInfo.title && tab.url?.includes('domo.com')) {
     const context = getTabContext(tabId);
-    if (context?.domoObject?.metadata?.name) {
-      console.log(
-        `[Background] Updating title for tab ${tabId} to include object name`
-      );
-      try {
-        await chrome.scripting.executeScript({
-          args: [context.domoObject.metadata.name],
-          func: (name) => {
-            document.title = `${name} - Domo`;
-          },
-          target: { tabId },
-          world: 'MAIN'
-        });
-      } catch (error) {
-        console.error(
-          `[Background] Error updating title for tab ${tabId}:`,
-          error
+    if (changeInfo.title === 'Domo') {
+      // Title reset to "Domo" — apply object name or section title
+      if (context?.domoObject?.metadata?.name) {
+        console.log(
+          `[Background] Updating title for tab ${tabId} to include object name`
         );
+        const allowedTitles = buildAllowedTitles(context.domoObject);
+        setTabTitle(tabId, context.domoObject.metadata.name, allowedTitles);
+      } else if (tab.url) {
+        setSectionTitle(tabId, tab.url);
+      }
+    } else if (context?.domoObject?.metadata?.name) {
+      // Title changed to something other than "Domo" — check if it's a
+      // stale parent-only title we can enrich (e.g., "MyApp - Domo")
+      const allowedTitles = buildAllowedTitles(context.domoObject);
+      if (allowedTitles.includes(changeInfo.title)) {
+        console.log(
+          `[Background] Enriching stale title for tab ${tabId}`
+        );
+        setTabTitle(tabId, context.domoObject.metadata.name, allowedTitles);
       }
     }
   }
@@ -892,6 +926,10 @@ async function detectAndStoreContext(tabId) {
     if (isStale()) return null;
     if (!detected) {
       console.log(`[Background] No Domo object detected on tab ${tabId}`);
+      // Set a section title for list/index pages (e.g., "Workflows - Domo")
+      if (tab.url) {
+        setSectionTitle(tabId, tab.url);
+      }
       // During redetection, broadcast the empty context so the UI clears
       // the stale object (e.g., user deselected a workflow node)
       if (isRedetection) {
@@ -980,6 +1018,17 @@ async function detectAndStoreContext(tabId) {
       domoObject.metadata.details.workflowModelId = detected.workflowModelId;
       domoObject.metadata.details.workflowVersionNumber =
         detected.workflowVersionNumber;
+    }
+
+    // Preserve page/app context when a card is viewed from a page or app
+    if (detected.contextPageId) {
+      domoObject.metadata.details = domoObject.metadata.details || {};
+      domoObject.metadata.details.contextPageId = detected.contextPageId;
+    }
+    if (detected.contextAppViewId) {
+      domoObject.metadata.details = domoObject.metadata.details || {};
+      domoObject.metadata.details.contextAppViewId = detected.contextAppViewId;
+      domoObject.metadata.details.contextAppId = detected.contextAppId;
     }
 
     // Compute isOwner if user and groups are already available

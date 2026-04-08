@@ -39,6 +39,25 @@ export async function detectCurrentObject() {
     case url.includes('cardid='):
       objectType = 'CARD';
       id = parts[parts.indexOf('cardid') + 1];
+      // Extract page/app context from query params (e.g., analyzer launched from a page or app)
+      if (parts.includes('dataappid')) {
+        return {
+          baseUrl: `${location.protocol}//${location.hostname}`,
+          contextAppId: parts[parts.indexOf('dataappid') + 1],
+          contextAppViewId: parts[parts.indexOf('pageid') + 1],
+          id,
+          typeId: objectType,
+          url
+        };
+      } else if (parts.includes('pageid')) {
+        return {
+          baseUrl: `${location.protocol}//${location.hostname}`,
+          contextPageId: parts[parts.indexOf('pageid') + 1],
+          id,
+          typeId: objectType,
+          url
+        };
+      }
       break;
 
     case url.includes('kpis/details/'):
@@ -64,6 +83,26 @@ export async function detectCurrentObject() {
       }
       // Fallback: Card ID from URL
       objectType = 'CARD';
+      id = parts[parts.indexOf('details') + 1];
+      // Extract page/app context from URL prefix (card details viewed from a page or app)
+      if (url.includes('app-studio')) {
+        return {
+          baseUrl: `${location.protocol}//${location.hostname}`,
+          contextAppId: parts[parts.indexOf('app-studio') + 1],
+          contextAppViewId: parts[parts.indexOf('pages') + 1],
+          id,
+          typeId: objectType,
+          url
+        };
+      } else if (parts.includes('page')) {
+        return {
+          baseUrl: `${location.protocol}//${location.hostname}`,
+          contextPageId: parts[parts.indexOf('page') + 1],
+          id,
+          typeId: objectType,
+          url
+        };
+      }
       break;
 
     // App Studio: Prefer Card ID from modal when open; otherwise use Page ID from URL
@@ -73,6 +112,24 @@ export async function detectCurrentObject() {
       if (kpiId) {
         objectType = 'CARD';
         id = kpiId;
+        // Extract page/app context from current URL (card modal on a page or app)
+        if (url.includes('app-studio')) {
+          return {
+            baseUrl: `${location.protocol}//${location.hostname}`,
+            contextAppId: parts[parts.indexOf('app-studio') + 1],
+            contextAppViewId: parts[parts.indexOf('pages') + 1],
+            id,
+            typeId: objectType,
+            url
+          };
+        }
+        return {
+          baseUrl: `${location.protocol}//${location.hostname}`,
+          contextPageId: parts[parts.indexOf('page') + 1],
+          id,
+          typeId: objectType,
+          url
+        };
       } else {
         if (!url.includes('app-studio')) {
           objectType = 'PAGE';

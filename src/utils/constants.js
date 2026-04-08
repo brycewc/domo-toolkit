@@ -48,6 +48,13 @@ export const ACTION_COLOR_PATTERNS = {
   'updated': 'warning'
 };
 
+// URL prefix → human-readable section name for list/index pages where Domo
+// leaves the tab title as just "Domo".  Matched by longest-prefix-first so
+// more-specific paths win (e.g. /datacenter/dataflows before /datacenter).
+export const SECTION_TITLES = {
+  '/workflows': 'Workflows'
+};
+
 export const EXPORT_FORMATS = {
   csv: {
     accept: 'text/csv',

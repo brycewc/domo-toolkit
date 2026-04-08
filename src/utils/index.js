@@ -4,7 +4,8 @@ export {
   ACTION_COLOR_PATTERNS,
   EXCLUDED_HOSTNAMES,
   EXCLUDED_INSTANCES,
-  EXPORT_FORMATS
+  EXPORT_FORMATS,
+  SECTION_TITLES
 } from './constants';
 export { detectCurrentObject, getValidTabForInstance } from './currentObject';
 export { executeInAllFrames, executeInPage } from './executeInPage';

@@ -135,14 +135,12 @@ export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
           variant='tertiary'
           onPress={handlePress}
           {...(longPressDisabled ? {} : pressProps)}
-          {...(longPressDisabled ? {} : pressProps)}
         >
           {isCopied ? (
             <AnimatedCheck stroke={1.5} />
           ) : (
             <IconClipboard stroke={1.5} />
           )}
-          <LongPressOverlay />
           <LongPressOverlay />
         </Button>
         <Tooltip.Content className='flex flex-col items-center'>
@@ -171,7 +169,6 @@ export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
         <Dropdown.Menu onAction={handleAction}>
           {dropdownItems.map((item) => (
             <Dropdown.Item id={item.id} key={item.id} textValue={item.label}>
-              <IconClipboard className='size-5 shrink-0' stroke={1.5} />
               <IconClipboard className='size-5 shrink-0' stroke={1.5} />
               <Label>{item.label}</Label>
             </Dropdown.Item>
