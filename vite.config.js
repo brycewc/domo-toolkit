@@ -11,7 +11,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd());
 
   // Proxy /api/* to the real Domo instance when env vars are configured.
-  // Only active for the standalone dev-lineage page; the extension's own dev mode is unaffected because it uses chrome-extension:// origins.
+  // Only active for standalone dev pages (dev-lineage, dev-activity-log); the extension's own dev mode is unaffected because it uses chrome-extension:// origins.
   const proxy = env.VITE_DOMO_BASE_URL
     ? {
         '/api': {
@@ -109,6 +109,35 @@ export default defineConfig(({ mode }) => {
           });
         },
         name: 'dev-lineage-page'
+      },
+      {
+        configureServer(server) {
+          server.middlewares.use((req, res, next) => {
+            if (req.url !== '/dev-activity-log') return next();
+            res.setHeader('Content-Type', 'text/html');
+            res.end([
+              '<!doctype html>',
+              '<html lang="en"><head>',
+              '<meta charset="UTF-8" />',
+              '<meta name="viewport" content="width=device-width, initial-scale=1.0" />',
+              '<title>Dev Activity Log - Domo Toolkit</title>',
+              '</head>',
+              '<body class="w-full appearance-none bg-background">',
+              '<div id="root"></div>',
+              '<script type="module" src="/@vite/client"><\/script>',
+              '<script type="module">',
+              'import RefreshRuntime from "/@react-refresh";',
+              'RefreshRuntime.injectIntoGlobalHook(window);',
+              'window.$RefreshReg$ = () => {};',
+              'window.$RefreshSig$ = () => (type) => type;',
+              'window.__vite_plugin_react_preamble_installed__ = true;',
+              '<\/script>',
+              '<script type="module" src="/src/dev/dev-activity-log.jsx"><\/script>',
+              '</body></html>'
+            ].join('\n'));
+          });
+        },
+        name: 'dev-activity-log-page'
       },
       react(),
       crx({ manifest }),

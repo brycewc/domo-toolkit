@@ -12,9 +12,16 @@
 const baseUrl = import.meta.env.VITE_DOMO_BASE_URL || '';
 const instance = baseUrl.match(/\/\/([^.]+)\.domo\.com/)?.[1] || '';
 
+const entityId = import.meta.env.VITE_DOMO_ENTITY_ID;
+const entityType = import.meta.env.VITE_DOMO_ENTITY_TYPE;
+
 const sessionData = {
-  lineageEntityId: import.meta.env.VITE_DOMO_ENTITY_ID,
-  lineageEntityType: import.meta.env.VITE_DOMO_ENTITY_TYPE,
+  activityLogInstance: instance,
+  activityLogObjects: entityId && entityType ? [{ id: entityId, type: entityType }] : [],
+  activityLogTabId: 1,
+  activityLogType: 'single-object',
+  lineageEntityId: entityId,
+  lineageEntityType: entityType,
   lineageInstance: instance,
   lineageObjectName: import.meta.env.VITE_DOMO_OBJECT_NAME,
   lineageTabId: 1

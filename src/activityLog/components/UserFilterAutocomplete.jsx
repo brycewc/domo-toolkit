@@ -7,7 +7,9 @@ import {
   ListBox,
   ListBoxLoadMoreItem,
   SearchField,
-  Spinner
+  Spinner,
+  Tag,
+  TagGroup
 } from '@heroui/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -16,14 +18,14 @@ import { getInitials } from '@/utils';
 
 /**
  * UserFilterAutocomplete Component
- * Single-select autocomplete with async user fetching
+ * Multi-select autocomplete with async user fetching
  */
 export function UserFilterAutocomplete({
   domoInstance,
   onChange,
-  placeholder = 'Filter by user...',
+  placeholder = 'Filter by users...',
   tabId,
-  value = null
+  value = []
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchText, setSearchText] = useState('');
@@ -35,6 +37,9 @@ export function UserFilterAutocomplete({
   const [hasFetchedInitial, setHasFetchedInitial] = useState(false);
   const [customAvatarIds, setCustomAvatarIds] = useState(new Set());
   const lastFetchedSearch = useRef(null);
+
+  // Persist selected user objects across searches so tags always have names
+  const selectedUsersRef = useRef(new Map());
 
   const checkAvatars = useCallback(
     (fetchedUsers) => {
@@ -166,30 +171,84 @@ export function UserFilterAutocomplete({
     [domoInstance]
   );
 
+  // Handle selection changes — update ref map and notify parent
+  const handleChange = useCallback(
+    (keys) => {
+      const selectedKeys = keys || [];
+      // Add newly selected users to the ref map
+      for (const key of selectedKeys) {
+        if (!selectedUsersRef.current.has(key)) {
+          const user = users.find((u) => u.id === key);
+          if (user) {
+            selectedUsersRef.current.set(key, user);
+          }
+        }
+      }
+      // Remove deselected users from the ref map
+      for (const existingKey of selectedUsersRef.current.keys()) {
+        if (!selectedKeys.includes(existingKey)) {
+          selectedUsersRef.current.delete(existingKey);
+        }
+      }
+      onChange?.(selectedKeys);
+    },
+    [onChange, users]
+  );
+
+  // Handle removing individual tags
+  const handleRemoveTags = useCallback(
+    (keys) => {
+      const updated = value.filter((key) => !keys.has(key));
+      for (const key of keys) {
+        selectedUsersRef.current.delete(key);
+      }
+      onChange?.(updated);
+    },
+    [onChange, value]
+  );
+
+  // Resolve a user's display name from ref map or current users list
+  const getUserName = useCallback(
+    (userId) => {
+      const fromRef = selectedUsersRef.current.get(userId);
+      if (fromRef) return fromRef.displayName;
+      const fromList = users.find((u) => u.id === userId);
+      return fromList?.displayName || userId;
+    },
+    [users]
+  );
+
   return (
     <Autocomplete
       aria-label='User'
       className='w-full sm:w-72'
       isOpen={isOpen}
       placeholder={placeholder}
+      selectionMode='multiple'
       value={value}
       variant='secondary'
-      onChange={(key) => onChange?.(key || null)}
+      onChange={handleChange}
       onOpenChange={setIsOpen}
     >
       <Autocomplete.Trigger aria-label='User autocomplete trigger'>
-        <Autocomplete.Value aria-label='Selected user'>
+        <Autocomplete.Value aria-label='Selected users'>
           {({ defaultChildren, isPlaceholder, state }) => {
             if (isPlaceholder || state.selectedItems.length === 0) {
               return defaultChildren;
             }
-            const selectedItem = state.selectedItems[0];
-            const user = users.find((u) => u.id === selectedItem?.key);
-            if (!user) return defaultChildren;
+            const selectedKeys = state.selectedItems.map((item) => item.key);
             return (
-              <div className='flex items-center gap-2'>
-                <span className='truncate text-sm'>{user.displayName}</span>
-              </div>
+              <TagGroup size='sm' onRemove={handleRemoveTags}>
+                <TagGroup.List>
+                  {selectedKeys.map((key) => (
+                    <Tag id={key} key={key}>
+                      <span className='truncate text-xs'>
+                        {getUserName(key)}
+                      </span>
+                    </Tag>
+                  ))}
+                </TagGroup.List>
+              </TagGroup>
             );
           }}
         </Autocomplete.Value>

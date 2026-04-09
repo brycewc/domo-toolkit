@@ -53,7 +53,7 @@ export function ActivityLogTable() {
   const [error, setError] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [dateRange, setDateRange] = useState(null);
-  const [userFilter, setUserFilter] = useState(null);
+  const [userFilter, setUserFilter] = useState([]);
   const [actionFilter, setActionFilter] = useState(new Set());
   const actionFilterRef = useRef(new Set());
   const [objectTypeFilter, setObjectTypeFilter] = useState(new Set());
@@ -75,6 +75,10 @@ export function ActivityLogTable() {
   objectStatesRef.current = objectStates;
   const dateRangeEpochRef = useRef(dateRangeEpoch);
   dateRangeEpochRef.current = dateRangeEpoch;
+  // Stable string key for userFilter array to avoid unnecessary effect re-runs
+  const userFilterKey = userFilter.slice().sort().join(',');
+  const userFilterRef = useRef(userFilter);
+  userFilterRef.current = userFilter;
 
   const resolveTabId = useResolveTabId(tabId, domoInstance);
 
@@ -320,11 +324,11 @@ export function ActivityLogTable() {
 
         const tasks = buildFetchTasks(
           objects,
-          userFilter,
+          userFilterRef.current,
           actionFilterRef.current
         );
 
-        const fetchPromises = tasks.map((task) =>
+        const fetchThunks = tasks.map((task) => () =>
           getActivityLogForObject({
             end: dateRangeEpoch.end,
             eventType: task.eventType,
@@ -359,7 +363,7 @@ export function ActivityLogTable() {
             })
         );
 
-        const results = await Promise.all(fetchPromises);
+        const results = await promisePool(fetchThunks);
 
         const newStates = {};
         results.forEach(
@@ -392,7 +396,7 @@ export function ActivityLogTable() {
     };
 
     fetchEvents();
-  }, [objects, tabId, refreshKey, userFilter, dateRangeEpoch]);
+  }, [objects, tabId, refreshKey, userFilterKey, dateRangeEpoch]);
 
   const total = useMemo(
     () =>
@@ -423,7 +427,7 @@ export function ActivityLogTable() {
 
     try {
       const resolvedTabId = await resolveTabId();
-      const fetchPromises = tasksWithMore.map((task) =>
+      const fetchThunks = tasksWithMore.map((task) => () =>
         getActivityLogForObject({
           end: dateRangeEpochRef.current.end,
           eventType: task.eventType,
@@ -450,7 +454,7 @@ export function ActivityLogTable() {
           })
       );
 
-      const results = await Promise.all(fetchPromises);
+      const results = await promisePool(fetchThunks);
 
       setObjectStates((prev) => {
         const newStates = { ...prev };
@@ -504,7 +508,7 @@ export function ActivityLogTable() {
 
     const allEvents = [];
     const exportPageSize = 1000;
-    const tasks = buildFetchTasks(objects, userFilter, actionFilterRef.current);
+    const tasks = buildFetchTasks(objects, userFilterRef.current, actionFilterRef.current);
 
     for (const task of tasks) {
       let offset = 0;
@@ -551,7 +555,7 @@ export function ActivityLogTable() {
     resolveTabId,
     objects,
     filteredEvents,
-    userFilter,
+    userFilterKey,
     dateRangeEpoch,
     objectTypeFilter
   ]);
@@ -864,19 +868,22 @@ export function ActivityLogTable() {
  */
 function buildFetchTasks(objects, userFilter, actionFilter) {
   const actions = actionFilter.size > 0 ? [...actionFilter] : [undefined];
+  const users = userFilter.length > 0 ? userFilter : [undefined];
   return objects.flatMap((obj) =>
-    actions.map((eventType) => {
-      const parts = [obj.type, obj.id];
-      if (userFilter) parts.push(userFilter);
-      if (eventType) parts.push(eventType);
-      return {
-        eventType,
-        key: parts.join(':'),
-        objectId: obj.id,
-        objectType: obj.type,
-        user: userFilter || undefined
-      };
-    })
+    actions.flatMap((eventType) =>
+      users.map((user) => {
+        const parts = [obj.type, obj.id];
+        if (user) parts.push(user);
+        if (eventType) parts.push(eventType);
+        return {
+          eventType,
+          key: parts.join(':'),
+          objectId: obj.id,
+          objectType: obj.type,
+          user: user || undefined
+        };
+      })
+    )
   );
 }
 
@@ -1109,4 +1116,23 @@ function getActionColor(action) {
   }
 
   return 'accent';
+}
+
+/**
+ * Run an array of thunks (functions returning promises) with limited concurrency.
+ * Returns results in the same order as the input thunks.
+ */
+async function promisePool(taskFns, concurrency = 6) {
+  const results = [];
+  let index = 0;
+  async function runNext() {
+    while (index < taskFns.length) {
+      const i = index++;
+      results[i] = await taskFns[i]();
+    }
+  }
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, taskFns.length) }, runNext)
+  );
+  return results;
 }
