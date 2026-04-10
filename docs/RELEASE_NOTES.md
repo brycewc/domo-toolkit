@@ -18,9 +18,13 @@
 
 - Navigate to copied object now activates on button click instead of passive clipboard monitoring for improved reliability and reduced resource usage
 
-## New Object Types
+## Newly Supported Object Types
 
-- **WORKFLOW_TRIGGER** — modal recognition and related object support
+- Workflow Trigger
+
+## New Actions
+
+- Update a dataset schedule to manual
 
 ## Bug Fixes and Improvements
 
