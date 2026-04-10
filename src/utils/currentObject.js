@@ -32,11 +32,11 @@ export async function detectCurrentObject() {
       objectType = 'ALERT';
       break;
 
-    case url.includes('drillviewid='):
+    case parts.includes('drillviewid'):
       objectType = 'DRILL_VIEW';
       break;
 
-    case url.includes('cardid='):
+    case parts.includes('cardid'):
       objectType = 'CARD';
       id = parts[parts.indexOf('cardid') + 1];
       // Extract page/app context from query params (e.g., analyzer launched from a page or app)
@@ -195,7 +195,7 @@ export async function detectCurrentObject() {
       objectType = 'ROLE';
       break;
 
-    case url.includes('workflows/user-task-response') && url.includes('id='):
+    case url.includes('workflows/user-task-response') && parts.includes('id'):
       objectType = 'HOPPER_TASK';
       id = parts[parts.indexOf('id') + 1];
       break;
@@ -329,13 +329,13 @@ export async function detectCurrentObject() {
       break;
     }
 
-    case url.includes('appDb/'):
+    case url.includes('appdb/'):
       objectType = 'MAGNUM_COLLECTION';
       break;
 
-    case url.includes('assetlibrary?designId='):
+    case url.includes('assetlibrary') && parts.includes('designid'):
       objectType = 'APP';
-      id = parts[parts.indexOf('designId') + 1];
+      id = parts[parts.indexOf('designid') + 1];
       break;
 
     case url.includes('assetlibrary/'):
@@ -377,7 +377,7 @@ export async function detectCurrentObject() {
       objectType = 'AI_MODEL';
       break;
 
-    case url.includes('taskId='):
+    case parts.includes('taskid'):
       objectType = 'PROJECT_TASK';
       break;
 
@@ -412,11 +412,11 @@ export async function detectCurrentObject() {
       objectType = 'OBJECTIVE';
       break;
 
-    case url.includes('queues') && url.includes('id='):
+    case url.includes('queues') && parts.includes('id'):
       objectType = 'HOPPER_TASK';
       break;
 
-    case url.includes('queueId='):
+    case url.includes('queueid='):
       objectType = 'HOPPER_QUEUE';
       break;
 

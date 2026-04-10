@@ -32,7 +32,9 @@ export function UserComboBox({
   avatarBaseUrl,
   className,
   isActive = true,
+  label = 'User',
   maxListHeight,
+  menuTrigger = 'focus',
   tabId = null,
   ...comboBoxProps
 }) {
@@ -130,21 +132,23 @@ export function UserComboBox({
     onSelectionChange?.(key);
   };
 
-  const listHeight =
-    maxListHeight || (isSidepanel() ? 'max-h-60' : 'max-h-30');
+  const listHeight = maxListHeight || (isSidepanel() ? 'max-h-60' : 'max-h-30');
 
   return (
     <ComboBox
       allowsEmptyCollection
+      isRequired
       className={className}
       inputValue={inputValue}
-      menuTrigger='input'
+      menuTrigger={menuTrigger}
+      variant='secondary'
       onInputChange={handleInputChange}
       onOpenChange={handleOpenChange}
       onSelectionChange={handleSelectionChange}
       {...restComboBoxProps}
     >
-      <ComboBox.InputGroup variant='secondary'>
+      <Label>{label}</Label>
+      <ComboBox.InputGroup>
         <Input placeholder='Search users...' />
         <ComboBox.Trigger>
           <IconChevronDown stroke={1} />

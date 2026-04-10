@@ -1,11 +1,15 @@
 import {
   Button,
   Card,
+  Checkbox,
   Description,
+  Input,
   Label,
   ScrollShadow,
+  Separator,
   Spinner,
   Switch,
+  TextField,
   Tooltip
 } from '@heroui/react';
 import {
@@ -19,11 +23,7 @@ import { useEffect, useRef, useState } from 'react';
 import { UserComboBox } from '@/components';
 import { useStatusBar } from '@/hooks';
 import { DomoContext } from '@/models';
-import {
-  deleteUser,
-  TRANSFER_TYPES,
-  transferAllOwnership
-} from '@/services';
+import { deleteUser, TRANSFER_TYPES, transferAllOwnership } from '@/services';
 
 export function TransferOwnershipView({
   onBackToDefault = null,
@@ -37,10 +37,7 @@ export function TransferOwnershipView({
   const [deleteAfterTransfer, setDeleteAfterTransfer] = useState(false);
   const [typeStates, setTypeStates] = useState(() =>
     Object.fromEntries(
-      TRANSFER_TYPES.map((t) => [
-        t.key,
-        { enabled: true, status: 'idle' }
-      ])
+      TRANSFER_TYPES.map((t) => [t.key, { enabled: true, status: 'idle' }])
     )
   );
   const mountedRef = useRef(true);
@@ -214,9 +211,9 @@ export function TransferOwnershipView({
 
   return (
     <Card className='flex min-h-0 w-full flex-1 flex-col p-2'>
-      <Card.Header>
+      <Card.Header className='gap-2'>
         <Card.Title className='flex items-start justify-between'>
-          <div className='line-clamp-2 min-w-0'>Transfer Ownership</div>
+          <div className='min-w-0 flex-1 pt-1'>Transfer Ownership</div>
           {onBackToDefault && (
             <Tooltip closeDelay={0} delay={400}>
               <Button
@@ -231,91 +228,123 @@ export function TransferOwnershipView({
             </Tooltip>
           )}
         </Card.Title>
+        <Separator />
       </Card.Header>
-
-      <Card.Content className='flex flex-col gap-3'>
+      <div className='flex shrink-0 flex-col gap-2'>
         {/* Source user (from context) */}
-        <div className='flex flex-col gap-1'>
-          <span className='text-xs text-muted'>Transfer From</span>
-          <div className='rounded-md bg-default-100 px-3 py-2 text-sm'>
-            {sourceUser?.name || 'Unknown User'}
-            <span className='ml-1 text-muted'>({sourceUser?.id})</span>
-          </div>
-        </div>
+        <TextField isReadOnly isRequired>
+          <Label>Transfer From</Label>
+          <Input
+            value={sourceUser?.name || 'Unknown User'}
+            variant='secondary'
+          />
+        </TextField>
 
         {/* Target user picker */}
-        <div className='flex flex-col gap-1'>
-          <span className='text-xs text-muted'>Transfer To</span>
-          <UserComboBox
-            aria-label='Transfer To'
-            avatarBaseUrl={currentContext?.domoObject?.baseUrl}
-            selectedKey={selectedUserId}
-            tabId={currentContext?.tabId}
-            onSelectionChange={setSelectedUserId}
-          />
-        </div>
-      </Card.Content>
+        <UserComboBox
+          avatarBaseUrl={currentContext?.domoObject?.baseUrl}
+          label='Transfer To'
+          selectedKey={selectedUserId}
+          tabId={currentContext?.tabId}
+          onSelectionChange={setSelectedUserId}
+        />
 
-      {/* Scrollable toggle list */}
+        {/* Select all / none */}
+        <div className='mt-4 flex items-center gap-2'>
+          <Checkbox
+            id='select-all-types'
+            isDisabled={isSubmitting}
+            isSelected={enabledCount === TRANSFER_TYPES.length}
+            onChange={(checked) => {
+              setTypeStates((prev) =>
+                Object.fromEntries(
+                  Object.entries(prev).map(([key, state]) => [
+                    key,
+                    { ...state, enabled: checked }
+                  ])
+                )
+              );
+            }}
+            isIndeterminate={
+              enabledCount > 0 && enabledCount < TRANSFER_TYPES.length
+            }
+          >
+            <Checkbox.Control>
+              <Checkbox.Indicator />
+            </Checkbox.Control>
+          </Checkbox>
+          <Label className='text-sm font-medium' htmlFor='select-all-types'>
+            {enabledCount === TRANSFER_TYPES.length
+              ? 'Deselect All'
+              : 'Select All'}
+          </Label>
+        </div>
+        <Separator className='mt-1' />
+      </div>
+
       <ScrollShadow
         hideScrollBar
         className='min-h-0 flex-1 overflow-y-auto'
         offset={5}
         orientation='vertical'
       >
-        <Card.Content className='flex flex-col gap-0.5'>
-          {TRANSFER_TYPES.map((type) => {
-            const state = typeStates[type.key];
-            return (
-              <div
-                className='flex items-center justify-between py-1'
-                key={type.key}
-              >
-                <Switch
+        {TRANSFER_TYPES.map((type) => {
+          const state = typeStates[type.key];
+          return (
+            <div
+              className='flex items-center justify-between py-1'
+              key={type.key}
+            >
+              <div className='flex items-center gap-2'>
+                <Checkbox
+                  id={`type-${type.key}`}
                   isDisabled={isSubmitting}
                   isSelected={state.enabled}
                   onChange={() => toggleType(type.key)}
                 >
-                  <Switch.Control>
-                    <Switch.Thumb />
-                  </Switch.Control>
-                  <Label className='text-sm'>{type.label}</Label>
-                </Switch>
-                <div className='flex items-center gap-1'>
-                  {state.count > 0 && (
-                    <span className='text-xs text-muted'>{state.count}</span>
-                  )}
-                  {renderTypeStatus(state)}
-                </div>
+                  <Checkbox.Control>
+                    <Checkbox.Indicator />
+                  </Checkbox.Control>
+                </Checkbox>
+                <Label className='text-sm' htmlFor={`type-${type.key}`}>
+                  {type.label}
+                </Label>
               </div>
-            );
-          })}
-        </Card.Content>
+              <div className='flex items-center gap-1'>
+                {state.count > 0 && (
+                  <span className='text-xs text-muted'>{state.count}</span>
+                )}
+                {renderTypeStatus(state)}
+              </div>
+            </div>
+          );
+        })}
       </ScrollShadow>
-
+      <Separator />
       {/* Footer: delete toggle + submit */}
-      <div className='flex shrink-0 flex-col gap-2 border-t border-border px-3 py-2'>
+      <div className='flex shrink-0 flex-col gap-2'>
         <Switch
           isDisabled={isSubmitting}
           isSelected={deleteAfterTransfer}
           onChange={setDeleteAfterTransfer}
         >
-          <Switch.Control>
-            <Switch.Thumb />
-          </Switch.Control>
-          <Switch.Content>
-            <Label className='text-sm'>Delete user after transfer</Label>
-            <Description className='text-xs'>
-              Only if all transfers succeed
-            </Description>
-          </Switch.Content>
+          {({ isSelected }) => (
+            <>
+              <Switch.Control className={isSelected ? 'bg-danger' : ''}>
+                <Switch.Thumb />
+              </Switch.Control>
+              <Switch.Content>
+                <Label>Delete user after transfer</Label>
+                <Description>Only if all transfers succeed</Description>
+              </Switch.Content>
+            </>
+          )}
         </Switch>
 
         <Button
           fullWidth
           isDisabled={!selectedUserId || enabledCount === 0 || isSubmitting}
           isPending={isSubmitting}
-          size='sm'
           variant='primary'
           onPress={handleSubmit}
         >

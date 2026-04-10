@@ -91,25 +91,24 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
             <Form id='update-owner-form' onSubmit={handleSubmit}>
               <Modal.Header>
                 <Modal.Heading>
-                  Update {currentContext?.domoObject.typeName} Owner
+                  {/* Update {currentContext?.domoObject.typeName} Owner */}
                 </Modal.Heading>
               </Modal.Header>
               <Modal.Body className='flex justify-center'>
                 <UserComboBox
                   autoFocus
                   isRequired
-                  aria-label='Owner'
                   avatarBaseUrl={currentContext?.domoObject?.baseUrl}
                   className='w-[95%]'
                   defaultInputValue={null}
                   form='update-owner-form'
                   formValue='key'
                   isActive={isOpen}
+                  label='Owner'
+                  maxListHeight={isSidepanel() ? 'max-h-100' : 'max-h-30'}
+                  menuTrigger='input'
                   name='owner'
                   tabId={currentContext?.tabId}
-                  maxListHeight={
-                    isSidepanel() ? 'max-h-100' : 'max-h-30'
-                  }
                 />
               </Modal.Body>
               <Modal.Footer className='flex items-center justify-between'>

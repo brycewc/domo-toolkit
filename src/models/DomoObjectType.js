@@ -92,7 +92,8 @@ export class DomoObjectType {
       return parts[parts.length - offset] || null;
     }
 
-    const index = parts.indexOf(keyword);
+    // Lowercase keyword to match lowercased URLs from content script detection
+    const index = parts.indexOf(keyword.toLowerCase());
     if (index === -1) {
       return null;
     }
@@ -122,7 +123,8 @@ export class DomoObjectType {
       return parts[parts.length - offset] || null;
     }
 
-    const index = parts.indexOf(keyword);
+    // Lowercase keyword to match lowercased URLs from content script detection
+    const index = parts.indexOf(keyword.toLowerCase());
     if (index === -1) {
       return null;
     }
@@ -148,7 +150,8 @@ export class DomoObjectType {
       if (fromEnd) {
         params[name] = parts[parts.length - offset] || null;
       } else {
-        const index = parts.indexOf(keyword);
+        // Lowercase keyword to match lowercased URLs from content script detection
+        const index = parts.indexOf(keyword.toLowerCase());
         if (index !== -1) {
           params[name] = parts[index + offset] || null;
         }
@@ -885,7 +888,11 @@ export const ObjectTypeRegistry = {
     {
       endpoint: '/queues/v1/{id}',
       pathToName: 'name'
-    }
+    },
+    null,
+    [
+      { label: 'Queue', source: 'self' }
+    ]
   ),
   HOPPER_TASK: new DomoObjectType(
     'HOPPER_TASK',

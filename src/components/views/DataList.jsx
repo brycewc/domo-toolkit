@@ -25,8 +25,9 @@ import {
 } from '@tabler/icons-react';
 import { useState } from 'react';
 
-import { AnimatedCheck } from '../AnimatedCheck';
 import { getValidTabForInstance } from '@/utils';
+
+import { AnimatedCheck } from '../AnimatedCheck';
 
 /**
  * Available header action types for DataList

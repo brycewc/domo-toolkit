@@ -86,7 +86,7 @@ export const TRANSFER_TYPES = [
   {
     getOwned: getOwnedAppStudioApps,
     key: 'appStudioApps',
-    label: 'App Studio Apps',
+    label: 'App Studio Apps & Pages',
     transfer: transferAppStudioApps
   },
   {
@@ -128,25 +128,25 @@ export const TRANSFER_TYPES = [
   {
     getOwned: getOwnedDataflows,
     key: 'dataflows',
-    label: 'Dataflows',
+    label: 'DataFlows',
     transfer: transferDataflows
   },
   {
     getOwned: getOwnedDatasets,
     key: 'datasets',
-    label: 'Datasets',
+    label: 'DataSets',
     transfer: transferDatasets
   },
   {
     getOwned: getOwnedFilesets,
     key: 'filesets',
-    label: 'Filesets',
+    label: 'FileSets',
     transfer: transferFilesets
   },
   {
     getOwned: getOwnedFunctions,
     key: 'functions',
-    label: 'Functions',
+    label: 'Functions (Beast Modes & Variables)',
     transfer: transferFunctions
   },
   {
@@ -176,7 +176,7 @@ export const TRANSFER_TYPES = [
   {
     getOwned: getOwnedPages,
     key: 'pages',
-    label: 'Pages',
+    label: 'Pages (Dashboards)',
     transfer: transferPages
   },
   {
@@ -188,13 +188,13 @@ export const TRANSFER_TYPES = [
   {
     getOwned: getOwnedRepositories,
     key: 'repositories',
-    label: 'Repositories',
+    label: 'Sandbox Repositories',
     transfer: transferRepositories
   },
   {
     getOwned: getOwnedSubscriptions,
     key: 'subscriptions',
-    label: 'Subscriptions',
+    label: 'Domo Everywhere Subscriptions',
     transfer: transferSubscriptions
   },
   {
