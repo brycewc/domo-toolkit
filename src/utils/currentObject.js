@@ -7,7 +7,10 @@
 export async function detectCurrentObject() {
   const url = location.href.toLowerCase();
 
-  if (!location.hostname.includes('domo.com')) {
+  if (
+    location.hostname !== 'domo.com' &&
+    !location.hostname.endsWith('.domo.com')
+  ) {
     return null;
   }
 
@@ -579,4 +582,18 @@ export async function getValidTabForInstance(instance) {
   throw new Error(
     `No open tab found for ${instance}.domo.com. Please open a tab on that Domo instance and try again.`
   );
+}
+
+/**
+ * Check if a URL belongs to a domo.com domain (exact or any subdomain).
+ * @param {string} url - A full URL string
+ * @returns {boolean}
+ */
+export function isDomoUrl(url) {
+  try {
+    const { hostname } = new URL(url);
+    return hostname === 'domo.com' || hostname.endsWith('.domo.com');
+  } catch {
+    return false;
+  }
 }

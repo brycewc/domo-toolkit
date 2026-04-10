@@ -142,7 +142,7 @@ export default defineConfig(({ mode }) => {
       react(),
       crx({ manifest }),
       tailwindcss(),
-      visualizer({ filename: 'bundle-analysis.html', gzipSize: true })
+      visualizer({ filename: '.visuals/bundle-analysis.html', gzipSize: true })
     ],
     resolve: {
       alias: {

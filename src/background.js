@@ -21,6 +21,7 @@ import {
   detectCurrentObject,
   EXCLUDED_HOSTNAMES,
   executeInPage,
+  isDomoUrl,
   SECTION_TITLES
 } from '@/utils';
 
@@ -674,7 +675,7 @@ chrome.tabs.onActivated.addListener(async ({ tabId, windowId }) => {
 
   try {
     const tab = await chrome.tabs.get(tabId);
-    if (tab.url && tab.url.includes('domo.com')) {
+    if (tab.url && isDomoUrl(tab.url)) {
       await ensureContentScript(tabId);
 
       if (!tabContexts.has(tabId)) {
@@ -698,7 +699,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   }
 
   // React to URL changes on Domo domains
-  if (changeInfo.url && changeInfo.url.includes('domo.com')) {
+  if (changeInfo.url && isDomoUrl(changeInfo.url)) {
     console.log(
       `[Background] URL changed for tab ${tabId}, triggering detection`
     );
@@ -707,7 +708,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   }
 
   // Update title when Domo sets it to "Domo" or a stale parent-only title
-  if (changeInfo.title && tab.url?.includes('domo.com')) {
+  if (changeInfo.title && isDomoUrl(tab.url)) {
     const context = getTabContext(tabId);
     if (changeInfo.title === 'Domo') {
       // Title reset to "Domo" — apply object name or section title
@@ -736,7 +737,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 
 // Detect context when history state changes (SPA navigation)
 chrome.webNavigation.onHistoryStateUpdated.addListener(async (details) => {
-  if (details.url && details.url.includes('domo.com')) {
+  if (details.url && isDomoUrl(details.url)) {
     console.log(
       `[Background] History state updated for tab ${details.tabId}, triggering detection`
     );
@@ -842,7 +843,7 @@ async function detectAndStoreContext(tabId) {
   try {
     // Get tab info for URL
     const tab = await chrome.tabs.get(tabId);
-    if (!tab || !tab?.url?.includes('domo.com')) {
+    if (!tab || !isDomoUrl(tab.url)) {
       // Not a Domo domain - clear any existing context and broadcast the update
       console.log(
         `[Background] Tab ${tabId} is not on a Domo domain, clearing context`
@@ -1688,7 +1689,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           const activeTabId = tabs[0].id;
           let context = getTabContext(activeTabId);
 
-          if (!context && tabs[0].url && tabs[0].url.includes('domo.com')) {
+          if (!context && tabs[0].url && isDomoUrl(tabs[0].url)) {
             // Trigger detection if not cached
             context = await detectAndStoreContext(activeTabId);
           }

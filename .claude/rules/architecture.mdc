@@ -1,0 +1,113 @@
+---
+description: Extension architecture, execution contexts, message flow, and core patterns
+globs: src/background.js,src/contentScript.js,src/sidepanel/**,src/popup/**,src/options/**,src/services/**,src/models/**,src/utils/executeInPage.js
+alwaysApply: false
+---
+
+# Extension Architecture
+
+## Execution Contexts
+
+Five contexts communicate via `chrome.runtime` message passing:
+
+1. **Background Service Worker** (`src/background.js`) — Central relay, tab context cache (LRU, max 10 tabs), session storage persistence
+2. **Content Script** (`src/contentScript.js`) — Injected into Domo pages, detects objects via DOM/URL, applies favicons
+3. **Popup** (`src/popup/`) — Small UI on extension icon click
+4. **Side Panel** (`src/sidepanel/`) — Persistent panel alongside Domo pages
+5. **Options Page** (`src/options/`) — Full-page UI for settings, release notes, lineage viewer, activity log
+
+## Message Flow
+
+```
+Content Script (detects page context via URL/DOM)
+  → Background (caches context, enriches with API data)
+  → Popup/Sidepanel (receives TAB_CONTEXT_UPDATED messages)
+  → User triggers action
+  → Services execute via executeInPage() in page context
+```
+
+**Key message types:** `DETECT_CONTEXT`, `GET_TAB_CONTEXT`, `RELEASE_NOTES_SEEN`, `TAB_CONTEXT_UPDATED`
+
+## Core Models
+
+- **DomoContext** (`src/models/DomoContext.js`) — Tab's full context (tabId, URL, instance, detected object). Serializable via `toJSON()`/`fromJSON()`.
+- **DomoObject** (`src/models/DomoObject.js`) — A Domo object (Card, Page, Dataset, etc.) with ID, type, metadata, URL. Methods: `buildUrl()`, `navigateTo()`, `getParent()`, `toJSON()`, `fromJSON()`.
+- **DomoObjectType** (`src/models/DomoObjectType.js`) — Registry of ~100+ types with URL patterns, ID validation, API configs. Each type has: `id`, `name`, `urlPath`, `idPattern`, `extractConfig`, `api`, `parents`.
+
+## Executing Code in Page Context
+
+**Critical pattern:** Background, popup, and sidepanel run in isolated contexts (no page access). Services must use `executeInPage()` to run in the MAIN world with Domo's auth:
+
+```javascript
+import { executeInPage } from '@/utils';
+
+const result = await executeInPage(
+  (arg1, arg2) => {
+    // Runs in MAIN world — has page's auth cookies
+    return fetch('/api/endpoint').then((r) => r.json());
+  },
+  [arg1, arg2],
+  tabId // Optional, defaults to active tab
+);
+```
+
+**Rules:**
+- Functions are serialized — no closure variables allowed
+- Pass all needed data as arguments
+- Import from `@/utils`, not `@/utils/executeInPage`
+
+## Services Pattern
+
+Services in `src/services/` follow this pattern:
+
+1. Accept parameters including `tabId` or `inPageContext` flag
+2. Use `executeInPage()` to run API calls in page context
+3. Return structured data or throw errors
+4. Handle both current object (throw on error) and related objects (return null on error)
+
+## Context Detection Flow
+
+1. **Trigger:** URL change, tab activation, history state update, or modal detection
+2. **Background** injects detection via `executeInPage(detectCurrentObject, [])`
+3. **Detection** extracts object type + ID from URL via `DomoObjectType.extractObjectId()`
+4. **Enrichment** fetches details from API via `fetchObjectDetailsInPage()`
+5. **Caching** stores in background's `tabContexts` Map + session storage
+6. **Broadcast** sends `TAB_CONTEXT_UPDATED` to content script and extension pages
+7. **Async loading** (non-blocking): fetch child pages and cards in background
+
+## Parent Resolution
+
+Some types require a parent ID for URLs or API calls:
+
+- **URL parent:** DATA_APP_VIEW needs parent DATA_APP ID (`/app-studio/{parent}/pages/{id}`)
+- **Resolution order:** Check `parentId` → `extractParentId()` from URL → API lookup (`getAppStudioPageParent()` or `getDrillParentCardId()`)
+
+## Background Service Worker
+
+- **Session persistence:** Tab contexts saved to `chrome.storage.session` on updates
+- **LRU eviction:** Max 10 cached tabs, oldest evicted when full
+- **Context enrichment:** Async loading of child pages and cards (non-blocking)
+- **Title updates:** Automatically updates tab title from object name
+- **Favicon tracking:** Content script applies favicon rules on page load/navigation
+
+## Object Type Detection
+
+Content script detects objects via:
+
+1. **URL patterns:** Most types detected by URL structure (e.g., `/page/123`)
+2. **Modal detection:** Card modals detected via MutationObserver watching for `.card-details-modal`
+3. **ID extraction:** Uses `extractConfig` with keyword/offset or fromEnd patterns
+
+## Clipboard Navigation
+
+- Activated on button click (Navigate button in popup/sidepanel), not passive monitoring
+- Reads clipboard via `navigator.clipboard.readText()` in popup/sidepanel context
+- Validates clipboard contains Domo object ID (numeric or UUID)
+- Identifies object type, fetches metadata, navigates to object's URL
+
+## Configuration Files
+
+- **vite.config.js** — Dev server on port 5173, path alias `@/` → `src/`, CRXJS plugin
+- **manifest.config.js** — Chrome extension manifest v3 with permissions, content scripts, side panel
+- **.prettierrc** — Code formatting rules (single quotes, no trailing commas)
+- **src/assets/global.css** — Tailwind and global styles, theme colors in OKLch

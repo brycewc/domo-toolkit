@@ -138,6 +138,12 @@ export const TRANSFER_TYPES = [
     transfer: transferDatasets
   },
   {
+    getOwned: getOwnedSubscriptions,
+    key: 'subscriptions',
+    label: 'Domo Everywhere Subscriptions',
+    transfer: transferSubscriptions
+  },
+  {
     getOwned: getOwnedFilesets,
     key: 'filesets',
     label: 'FileSets',
@@ -190,12 +196,6 @@ export const TRANSFER_TYPES = [
     key: 'repositories',
     label: 'Sandbox Repositories',
     transfer: transferRepositories
-  },
-  {
-    getOwned: getOwnedSubscriptions,
-    key: 'subscriptions',
-    label: 'Domo Everywhere Subscriptions',
-    transfer: transferSubscriptions
   },
   {
     getOwned: getOwnedTaskCenterQueues,

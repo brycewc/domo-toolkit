@@ -1,3 +1,5 @@
+import { isDomoUrl } from './constants';
+
 /**
  * Execute a function in ALL frames in the page context (MAIN world)
  * Used to access filter state in nested iframes (like Domo embedded apps)
@@ -33,7 +35,7 @@ export async function executeInAllFrames(func, args = [], tabId = null) {
 
     // Verify the tab is on a Domo page
     const tab = await chrome.tabs.get(targetTabId);
-    if (!tab.url || !tab.url.includes('domo.com')) {
+    if (!tab.url || !isDomoUrl(tab.url)) {
       throw new Error('Not on a Domo page');
     }
 
@@ -138,7 +140,7 @@ export async function executeInPage(func, args = [], tabId = null) {
 
     // Verify the tab is on a Domo page
     const tab = await chrome.tabs.get(targetTabId);
-    if (!tab.url || !tab.url.includes('domo.com')) {
+    if (!tab.url || !isDomoUrl(tab.url)) {
       throw new Error('Not on a Domo page');
     }
 

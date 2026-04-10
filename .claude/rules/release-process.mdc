@@ -4,17 +4,69 @@ globs: package.json,src/data/releases.js,docs/RELEASE_NOTES.md
 alwaysApply: false
 ---
 
-# Release Process Checklist
+# Release Process
 
-When preparing a release, ensure **all** of these files are updated together:
+When the user asks to prepare a release, cut a version, or ship changes, follow these steps.
 
-1. **`package.json`** — Bump `version` (semver: patch / minor / major)
-2. **`src/data/releases.js`** — Add entry to **beginning** of `releases` array with fields sorted alphabetically: `date`, `fullPage`, `githubUrl`, `highlights`, `summary`, `version`
-3. **`docs/RELEASE_NOTES.md`** — Replace contents with this version's detailed notes (used as GitHub Release body)
+## 1. Bump the version in `package.json`
 
-## Validation
+The `version` field is the single source of truth — `manifest.config.js` reads `pkg.version`. Use semver:
 
-- `version` in `package.json` must match `version` in the new `releases.js` entry
-- `fullPage: true` for minor/major releases; `fullPage: false` for patches
-- `githubUrl` format: `https://github.com/brycewc/domo-toolkit/releases/tag/vX.Y.Z`
-- Run `yarn release` to build and package Chrome + Edge zips before committing
+- **Patch** (1.0.0 → 1.0.1): Bug fixes, minor tweaks, no new features
+- **Minor** (1.0.0 → 1.1.0): New features, non-breaking enhancements
+- **Major** (1.0.0 → 2.0.0): Breaking changes, major redesigns
+
+## 2. Add a release entry to `src/data/releases.js`
+
+Add a new object to the **beginning** of the `releases` array (newest-first). Fields sorted alphabetically:
+
+```javascript
+{
+  date: 'YYYY-MM-DD',
+  githubUrl: 'https://github.com/brycewc/domo-toolkit/releases/tag/vX.Y.Z',
+  highlights: ['Added feature X', 'Fixed bug Y', 'Improved Z performance'],
+  notify: 'fullPage',    // 'fullPage' | 'badge' | 'silent'
+  summary: 'One-sentence description of this release.',
+  version: 'X.Y.Z'       // must match package.json
+}
+```
+
+**`notify` values:**
+- `'fullPage'` — Auto-opens release notes in new tab. Use for minor/major releases.
+- `'badge'` — Shows "NEW" badge on icon + toast in popup/sidepanel. Use for notable patches. Clears when user visits `#release-notes`.
+- `'silent'` — No notification. Use for trivial patches. Updates `lastSeenVersion` automatically.
+
+## 3. Notification system internals
+
+- `src/background.js` listens for `chrome.runtime.onInstalled` with `reason === 'update'`
+- Compares `details.previousVersion` against entries using `compareVersions()`
+- `fullPage` → opens `src/options/index.html#release-notes`
+- `badge` → sets "NEW" badge via `chrome.action.setBadgeText`
+- `silent` → updates `lastSeenVersion` silently
+- `lastSeenVersion` stored in `chrome.storage.local`
+
+## 4. Update `docs/RELEASE_NOTES.md`
+
+Replace contents with this version's detailed notes only (not accumulated). Only include the end result of features, not development history. GitHub Release workflow uses this as the release body.
+
+## 5. Build and package locally
+
+Run `yarn release` (runs `vite build` then `scripts/release.js`):
+
+- Creates `release/chrome-domo-toolkit-{version}.zip`
+- Creates `release/edge-domo-toolkit-{version}.zip` (strips `key` from manifest)
+
+## 6. GitHub Actions (automated)
+
+On `package.json` changes pushed to `main`:
+
+- **`.github/workflows/release.yml`** — Creates GitHub Release tagged `vX.Y.Z` with `docs/RELEASE_NOTES.md` as body
+- **`.github/workflows/publish.yml`** — Publishes to Chrome Web Store and Edge Add-ons
+
+Both support `workflow_dispatch`. Publish workflow allows `target` (chrome/edge/both) and `upload-only` options.
+
+## Validation checklist
+
+- [ ] `version` in `package.json` matches `releases.js` entry
+- [ ] `githubUrl` format: `https://github.com/brycewc/domo-toolkit/releases/tag/vX.Y.Z`
+- [ ] `yarn release` builds and packages successfully

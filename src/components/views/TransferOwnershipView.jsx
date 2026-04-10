@@ -3,6 +3,7 @@ import {
   Card,
   Checkbox,
   Description,
+  Disclosure,
   Input,
   Label,
   ScrollShadow,
@@ -12,12 +13,7 @@ import {
   TextField,
   Tooltip
 } from '@heroui/react';
-import {
-  IconCheck,
-  IconExclamationCircle,
-  IconLoader2,
-  IconX
-} from '@tabler/icons-react';
+import { IconCheck, IconLoader2, IconX } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { UserComboBox } from '@/components';
@@ -184,17 +180,148 @@ export function TransferOwnershipView({
     }
   };
 
-  const renderTypeStatus = (state) => {
-    if (state.status === 'listing')
-      return <IconLoader2 className='animate-spin text-accent' size={16} />;
-    if (state.status === 'transferring')
-      return <IconLoader2 className='animate-spin text-warning' size={16} />;
-    if (state.status === 'done' && state.result?.failed === 0)
-      return <IconCheck className='text-success' size={16} />;
-    if (state.status === 'done' && state.result?.failed > 0)
-      return <IconExclamationCircle className='text-warning' size={16} />;
-    if (state.status === 'error')
-      return <IconX className='text-danger' size={16} />;
+  const renderTypeRow = (type) => {
+    const state = typeStates[type.key];
+    const { count, enabled, result, status } = state;
+
+    // Before transfer: show checkbox
+    if (status === 'idle') {
+      return (
+        <div
+          className='flex items-center justify-between py-1'
+          key={type.key}
+        >
+          <div className='flex items-center gap-2'>
+            <Checkbox
+              id={`type-${type.key}`}
+              isDisabled={isSubmitting}
+              isSelected={enabled}
+              onChange={() => toggleType(type.key)}
+            >
+              <Checkbox.Control>
+                <Checkbox.Indicator />
+              </Checkbox.Control>
+            </Checkbox>
+            <Label className='text-sm' htmlFor={`type-${type.key}`}>
+              {type.label}
+            </Label>
+          </div>
+        </div>
+      );
+    }
+
+    // Listing: spinner + "Searching..."
+    if (status === 'listing') {
+      return (
+        <div
+          className='flex items-center justify-between py-1'
+          key={type.key}
+        >
+          <div className='flex items-center gap-2'>
+            <IconLoader2 className='shrink-0 animate-spin text-accent' size={18} />
+            <span className='text-sm'>{type.label}</span>
+          </div>
+          <span className='shrink-0 text-xs text-muted'>Searching...</span>
+        </div>
+      );
+    }
+
+    // Transferring: spinner + count
+    if (status === 'transferring') {
+      return (
+        <div
+          className='flex items-center justify-between py-1'
+          key={type.key}
+        >
+          <div className='flex items-center gap-2'>
+            <IconLoader2 className='shrink-0 animate-spin text-warning' size={18} />
+            <span className='text-sm'>{type.label}</span>
+          </div>
+          <span className='shrink-0 text-xs text-muted'>
+            {count > 0 ? `(${count})` : ''}
+          </span>
+        </div>
+      );
+    }
+
+    // Done with all succeeded (or 0 items)
+    if (status === 'done' && (!result?.failed || result.failed === 0)) {
+      return (
+        <div
+          className='flex items-center justify-between py-1'
+          key={type.key}
+        >
+          <div className='flex items-center gap-2'>
+            <IconCheck className='shrink-0 text-success' size={18} />
+            <span className='text-sm'>{type.label}</span>
+          </div>
+          <span className='shrink-0 text-xs text-success'>
+            {count > 0
+              ? `${result?.succeeded ?? count}/${count}`
+              : 'None found'}
+          </span>
+        </div>
+      );
+    }
+
+    // Done with some failures — expandable error details
+    if (status === 'done' && result?.failed > 0) {
+      return (
+        <Disclosure key={type.key}>
+          <div className='flex items-center justify-between py-1'>
+            <div className='flex items-center gap-2'>
+              <IconX className='shrink-0 text-danger' size={18} />
+              <span className='text-sm'>{type.label}</span>
+            </div>
+            <Disclosure.Heading>
+              <Button
+                className='h-auto min-w-0 gap-1 px-1 py-0 text-xs text-danger'
+                slot='trigger'
+                variant='ghost'
+              >
+                {result.succeeded}/{count}
+                <Disclosure.Indicator />
+              </Button>
+            </Disclosure.Heading>
+          </div>
+          <Disclosure.Content>
+            <Disclosure.Body className='pb-1 pl-7 pt-0'>
+              <ul className='list-none space-y-0.5'>
+                {result.errors.slice(0, 10).map((err, i) => (
+                  <li className='text-xs text-muted' key={i}>
+                    <span className='font-mono'>{err.id}</span>
+                    {': '}
+                    {err.error}
+                  </li>
+                ))}
+                {result.errors.length > 10 && (
+                  <li className='text-xs text-muted'>
+                    ...and {result.errors.length - 10} more
+                  </li>
+                )}
+              </ul>
+            </Disclosure.Body>
+          </Disclosure.Content>
+        </Disclosure>
+      );
+    }
+
+    // Error (listing or transfer failed entirely)
+    if (status === 'error') {
+      return (
+        <div
+          className='flex items-center justify-between py-1'
+          key={type.key}
+        >
+          <div className='flex items-center gap-2'>
+            <IconX className='shrink-0 text-danger' size={18} />
+            <span className='text-sm'>{type.label}</span>
+          </div>
+          <span className='shrink-0 text-xs text-danger'>Failed</span>
+        </div>
+      );
+    }
+
     return null;
   };
 
@@ -232,7 +359,7 @@ export function TransferOwnershipView({
       </Card.Header>
       <div className='flex shrink-0 flex-col gap-2'>
         {/* Source user (from context) */}
-        <TextField isReadOnly isRequired>
+        <TextField isReadOnly isRequired className='pointer-events-none'>
           <Label>Transfer From</Label>
           <Input
             value={sourceUser?.name || 'Unknown User'}
@@ -249,76 +376,47 @@ export function TransferOwnershipView({
           onSelectionChange={setSelectedUserId}
         />
 
-        {/* Select all / none */}
-        <div className='mt-4 flex items-center gap-2'>
-          <Checkbox
-            id='select-all-types'
-            isDisabled={isSubmitting}
-            isSelected={enabledCount === TRANSFER_TYPES.length}
-            onChange={(checked) => {
-              setTypeStates((prev) =>
-                Object.fromEntries(
-                  Object.entries(prev).map(([key, state]) => [
-                    key,
-                    { ...state, enabled: checked }
-                  ])
-                )
-              );
-            }}
-            isIndeterminate={
-              enabledCount > 0 && enabledCount < TRANSFER_TYPES.length
-            }
-          >
-            <Checkbox.Control>
-              <Checkbox.Indicator />
-            </Checkbox.Control>
-          </Checkbox>
-          <Label className='text-sm font-medium' htmlFor='select-all-types'>
-            {enabledCount === TRANSFER_TYPES.length
-              ? 'Deselect All'
-              : 'Select All'}
-          </Label>
-        </div>
+        {/* Select all / none — hidden during transfer */}
+        {!isSubmitting && (
+          <div className='mt-4 flex items-center gap-2'>
+            <Checkbox
+              id='select-all-types'
+              isSelected={enabledCount === TRANSFER_TYPES.length}
+              onChange={(checked) => {
+                setTypeStates((prev) =>
+                  Object.fromEntries(
+                    Object.entries(prev).map(([key, state]) => [
+                      key,
+                      { ...state, enabled: checked }
+                    ])
+                  )
+                );
+              }}
+              isIndeterminate={
+                enabledCount > 0 && enabledCount < TRANSFER_TYPES.length
+              }
+            >
+              <Checkbox.Control>
+                <Checkbox.Indicator />
+              </Checkbox.Control>
+            </Checkbox>
+            <Label className='text-sm font-medium' htmlFor='select-all-types'>
+              {enabledCount === TRANSFER_TYPES.length
+                ? 'Deselect All'
+                : 'Select All'}
+            </Label>
+          </div>
+        )}
         <Separator className='mt-1' />
       </div>
 
       <ScrollShadow
         hideScrollBar
-        className='min-h-0 flex-1 overflow-y-auto'
+        className='min-h-0 flex-1 overflow-y-auto px-1'
         offset={5}
         orientation='vertical'
       >
-        {TRANSFER_TYPES.map((type) => {
-          const state = typeStates[type.key];
-          return (
-            <div
-              className='flex items-center justify-between py-1'
-              key={type.key}
-            >
-              <div className='flex items-center gap-2'>
-                <Checkbox
-                  id={`type-${type.key}`}
-                  isDisabled={isSubmitting}
-                  isSelected={state.enabled}
-                  onChange={() => toggleType(type.key)}
-                >
-                  <Checkbox.Control>
-                    <Checkbox.Indicator />
-                  </Checkbox.Control>
-                </Checkbox>
-                <Label className='text-sm' htmlFor={`type-${type.key}`}>
-                  {type.label}
-                </Label>
-              </div>
-              <div className='flex items-center gap-1'>
-                {state.count > 0 && (
-                  <span className='text-xs text-muted'>{state.count}</span>
-                )}
-                {renderTypeStatus(state)}
-              </div>
-            </div>
-          );
-        })}
+        {TRANSFER_TYPES.map((type) => renderTypeRow(type))}
       </ScrollShadow>
       <Separator />
       {/* Footer: delete toggle + submit */}

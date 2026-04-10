@@ -7,7 +7,7 @@ export {
   EXPORT_FORMATS,
   SECTION_TITLES
 } from './constants';
-export { detectCurrentObject, getValidTabForInstance } from './currentObject';
+export { detectCurrentObject, getValidTabForInstance, isDomoUrl } from './currentObject';
 export { executeInAllFrames, executeInPage } from './executeInPage';
 export {
   exportToCSV,

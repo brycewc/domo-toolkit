@@ -27,13 +27,9 @@ dist-ssr
 # Chrome build keys
 dist.crx
 dist.pem
-.hidden/meeting-prep-bryce.md
-.gitignore
-# Bundle analysis
-bundle-analysis.html
+
+# Generated visuals (bundle analysis, architecture diagrams, etc.)
+.visuals/
 
 # heroui-agents-md
 .heroui-docs/
-
-# bundle analysis
-bundle-analysis.html
