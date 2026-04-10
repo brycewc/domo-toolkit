@@ -1133,7 +1133,7 @@ export const ObjectTypeRegistry = {
   PUBLICATION: new DomoObjectType(
     'PUBLICATION',
     'Publication',
-    '/domo-everywhere/publications?id={id}',
+    '/admin/domo-everywhere/publications?id={id}',
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     { keyword: 'id' },
     {

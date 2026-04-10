@@ -303,6 +303,52 @@ export async function getDependentDatasets({ datasetId, tabId }) {
 }
 
 /**
+ * Get all datasets owned by a user.
+ * @param {number} userId - The Domo user ID
+ * @param {number|null} tabId - Optional Chrome tab ID
+ * @returns {Promise<Array<{id: string, name: string}>>}
+ */
+export async function getOwnedDatasets(userId, tabId = null) {
+  return executeInPage(
+    async (userId) => {
+      const response = await fetch('/api/data/ui/v3/datasources/ownedBy', {
+        body: JSON.stringify([{ id: userId.toString(), type: 'USER' }]),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST'
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+
+      const ids =
+        data && data.length > 0 && data[0].dataSourceIds
+          ? data[0].dataSourceIds
+          : [];
+      if (ids.length === 0) return [];
+
+      // Fetch names in bulk
+      const bulkResponse = await fetch(
+        '/api/data/v3/datasources/bulk?includePrivate=true&part=core',
+        {
+          body: JSON.stringify(ids),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        }
+      );
+      if (!bulkResponse.ok) {
+        return ids.map((id) => ({ id, name: id }));
+      }
+      const bulk = await bulkResponse.json();
+      const byId = Object.fromEntries(
+        (bulk.dataSources || []).map((d) => [d.id, d.name || d.id])
+      );
+      return ids.map((id) => ({ id, name: byId[id] || id }));
+    },
+    [userId],
+    tabId
+  );
+}
+
+/**
  * Get a single stream execution's detailed data
  * @param {Object} params - Parameters
  * @param {string|number} params.streamId - The stream ID
@@ -375,13 +421,6 @@ export function isViewType(details) {
   );
 }
 
-/**
- * Set a stream's schedule to MANUAL
- * @param {Object} params - Parameters
- * @param {string|number} params.streamId - The stream ID
- * @param {number} [params.tabId] - Optional Chrome tab ID
- * @returns {Promise<Object>} The updated stream definition
- */
 export async function setStreamScheduleToManual({ streamId, tabId }) {
   return executeInPage(
     async (streamId) => {
@@ -415,6 +454,52 @@ export async function setStreamScheduleToManual({ streamId, tabId }) {
       return putResponse.json();
     },
     [streamId],
+    tabId
+  );
+}
+
+/**
+ * Transfer dataset ownership to a new user.
+ * @param {string[]} datasetIds - Array of dataset IDs to transfer
+ * @param {number} fromUserId - The current owner's user ID
+ * @param {number} toUserId - The new owner's user ID
+ * @param {number|null} tabId - Optional Chrome tab ID
+ * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
+ */
+export async function transferDatasets(
+  datasetIds,
+  fromUserId,
+  toUserId,
+  tabId = null
+) {
+  return executeInPage(
+    async (datasetIds, fromUserId, toUserId) => {
+      const errors = [];
+      let succeeded = 0;
+      const batchSize = 50;
+
+      for (let i = 0; i < datasetIds.length; i += batchSize) {
+        const chunk = datasetIds.slice(i, i + batchSize);
+        try {
+          const response = await fetch('/api/data/v1/ui/bulk/reassign', {
+            body: JSON.stringify({
+              ids: chunk,
+              type: 'DATA_SOURCE',
+              userId: toUserId
+            }),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'POST'
+          });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          succeeded += chunk.length;
+        } catch (error) {
+          chunk.forEach((id) => errors.push({ error: error.message, id }));
+        }
+      }
+
+      return { errors, failed: errors.length, succeeded };
+    },
+    [datasetIds, fromUserId, toUserId],
     tabId
   );
 }

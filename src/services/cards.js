@@ -354,6 +354,65 @@ export async function getDrillParentCardId(
 }
 
 /**
+ * Get all cards owned by a user.
+ * @param {number} userId - The Domo user ID
+ * @param {number|null} tabId - Optional Chrome tab ID
+ * @returns {Promise<Array<{id: number, name: string}>>}
+ */
+export async function getOwnedCards(userId, tabId = null) {
+  return executeInPage(
+    async (userId) => {
+      const allCards = [];
+      const count = 50;
+      let moreData = true;
+      let offset = 0;
+
+      while (moreData) {
+        const response = await fetch('/api/search/v1/query', {
+          body: JSON.stringify({
+            combineResults: false,
+            count,
+            entityList: [['card']],
+            filters: [
+              {
+                facetType: 'user',
+                field: 'owned_by_id',
+                filterType: 'term',
+                name: 'OWNED_BY_ID',
+                value: `${userId}:USER`
+              }
+            ],
+            offset,
+            query: '*'
+          }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+
+        if (data.searchObjects && data.searchObjects.length > 0) {
+          allCards.push(
+            ...data.searchObjects.map((c) => ({
+              id: c.databaseId,
+              name: c.title || c.databaseId.toString()
+            }))
+          );
+          offset += count;
+          if (data.searchObjects.length < count) moreData = false;
+        } else {
+          moreData = false;
+        }
+      }
+
+      return allCards;
+    },
+    [userId],
+    tabId
+  );
+}
+
+/**
  * Get cards for a specific page
  * @param {number} pageId - The page ID
  * @returns {Promise<Array>} Array of card objects
@@ -442,6 +501,48 @@ export async function removeCardFromPage({ cardId, pageId, tabId = null }) {
     console.error('Error removing card from page:', error);
     throw error;
   }
+}
+
+/**
+ * Transfer card ownership to a new user.
+ * @param {number[]} cardIds - Array of card IDs to transfer
+ * @param {number} fromUserId - The current owner's user ID
+ * @param {number} toUserId - The new owner's user ID
+ * @param {number|null} tabId - Optional Chrome tab ID
+ * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
+ */
+export async function transferCards(
+  cardIds,
+  fromUserId,
+  toUserId,
+  tabId = null
+) {
+  return executeInPage(
+    async (cardIds, fromUserId, toUserId) => {
+      try {
+        const response = await fetch('/api/content/v1/cards/owners/add', {
+          body: JSON.stringify({
+            cardIds,
+            cardOwners: [{ id: toUserId, type: 'USER' }],
+            note: '',
+            sendEmail: false
+          }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return { errors: [], failed: 0, succeeded: cardIds.length };
+      } catch (error) {
+        return {
+          errors: cardIds.map((id) => ({ error: error.message, id })),
+          failed: cardIds.length,
+          succeeded: 0
+        };
+      }
+    },
+    [cardIds, fromUserId, toUserId],
+    tabId
+  );
 }
 
 export async function updateCardDefinition({

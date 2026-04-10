@@ -35,6 +35,7 @@ import {
   RemoveEmptyStringsFromQuickFilters,
   SetStreamToManual,
   ShareWithSelf,
+  TransferOwnership,
   UpdateCodeEngineVersions,
   UpdateDataflowDetails,
   UpdateOwner,
@@ -251,6 +252,15 @@ export function ActionButtons({
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
+                {availableActions.has('transferOwnership') && (
+                  <TransferOwnership
+                    currentContext={currentContext}
+                    onCollapseActions={
+                      collapsable ? () => setIsExpanded(false) : undefined
+                    }
+                    onStatusUpdate={onStatusUpdate}
+                  />
+                )}
                 {availableActions.has('updateOwner') && (
                   <UpdateOwner
                     currentContext={currentContext}
@@ -421,6 +431,10 @@ function getAvailableActions(typeId, details, metadata) {
 
   if (typeId === 'CARD' && details?.type !== 'domoapp') {
     actions.add('removeEmptyStrings');
+  }
+
+  if (typeId === 'USER') {
+    actions.add('transferOwnership');
   }
 
   return actions;

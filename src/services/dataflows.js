@@ -157,6 +157,105 @@ export async function getDataflowPermission(dataflowId, tabId = null) {
  * @param {Object} updates - Object containing name and/or description
  * @returns {Promise<Object>} - The updated DataFlow object
  */
+/**
+ * Get all dataflows owned by a user.
+ * @param {number} userId - The Domo user ID
+ * @param {number|null} tabId - Optional Chrome tab ID
+ * @returns {Promise<Array<{id: string, name: string}>>}
+ */
+export async function getOwnedDataflows(userId, tabId = null) {
+  return executeInPage(
+    async (userId) => {
+      const allDataflows = [];
+      const count = 100;
+      let moreData = true;
+      let offset = 0;
+
+      while (moreData) {
+        const response = await fetch('/api/search/v1/query', {
+          body: JSON.stringify({
+            count,
+            entities: ['DATAFLOW'],
+            filters: [
+              {
+                field: 'owned_by_id',
+                filterType: 'term',
+                value: userId
+              }
+            ],
+            offset,
+            query: '*'
+          }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+
+        if (data.searchObjects && data.searchObjects.length > 0) {
+          allDataflows.push(
+            ...data.searchObjects.map((d) => ({
+              id: d.databaseId,
+              name: d.title || d.databaseId.toString()
+            }))
+          );
+          offset += count;
+          if (data.searchObjects.length < count) moreData = false;
+        } else {
+          moreData = false;
+        }
+      }
+
+      return allDataflows;
+    },
+    [userId],
+    tabId
+  );
+}
+
+/**
+ * Transfer dataflow ownership to a new user.
+ * @param {string[]} dataflowIds - Array of dataflow IDs to transfer
+ * @param {number} fromUserId - The current owner's user ID
+ * @param {number} toUserId - The new owner's user ID
+ * @param {number|null} tabId - Optional Chrome tab ID
+ * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
+ */
+export async function transferDataflows(
+  dataflowIds,
+  fromUserId,
+  toUserId,
+  tabId = null
+) {
+  return executeInPage(
+    async (dataflowIds, fromUserId, toUserId) => {
+      try {
+        const response = await fetch(
+          '/api/dataprocessing/v1/dataflows/bulk/patch',
+          {
+            body: JSON.stringify({
+              dataFlowIds: dataflowIds,
+              responsibleUserId: toUserId
+            }),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'PUT'
+          }
+        );
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return { errors: [], failed: 0, succeeded: dataflowIds.length };
+      } catch (error) {
+        return {
+          errors: dataflowIds.map((id) => ({ error: error.message, id })),
+          failed: dataflowIds.length,
+          succeeded: 0
+        };
+      }
+    },
+    [dataflowIds, fromUserId, toUserId],
+    tabId
+  );
+}
+
 export async function updateDataflowDetails(dataflowId, updates) {
   const result = await executeInPage(
     async (dataflowId, updates) => {

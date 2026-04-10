@@ -73,3 +73,99 @@ export async function getCodeEnginePackageInfo(packageId, tabId = null) {
     tabId
   );
 }
+
+/**
+ * Get all Code Engine packages owned by a user.
+ * @param {number} userId - The Domo user ID
+ * @param {number|null} tabId - Optional Chrome tab ID
+ * @returns {Promise<Array<{id: string, name: string}>>}
+ */
+export async function getOwnedCodeEnginePackages(userId, tabId = null) {
+  return executeInPage(
+    async (userId) => {
+      const allPackages = [];
+      const count = 100;
+      let moreData = true;
+      let offset = 0;
+
+      while (moreData) {
+        const response = await fetch('/api/search/v1/query', {
+          body: JSON.stringify({
+            count,
+            entityList: [['package']],
+            facetValuesToInclude: [],
+            filters: [
+              {
+                field: 'owned_by_id',
+                filterType: 'term',
+                value: `${userId}:USER`
+              }
+            ],
+            hideSearchObjects: true,
+            offset,
+            query: '**'
+          }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+
+        const packages = data.searchResultsMap?.package || [];
+        if (packages.length > 0) {
+          allPackages.push(
+            ...packages.map((p) => ({ id: p.uuid, name: p.title || p.uuid }))
+          );
+          offset += count;
+          if (packages.length < count) moreData = false;
+        } else {
+          moreData = false;
+        }
+      }
+
+      return allPackages;
+    },
+    [userId],
+    tabId
+  );
+}
+
+/**
+ * Transfer Code Engine package ownership to a new user.
+ * @param {string[]} packageIds - Array of package IDs to transfer
+ * @param {number} fromUserId - The current owner's user ID
+ * @param {number} toUserId - The new owner's user ID
+ * @param {number|null} tabId - Optional Chrome tab ID
+ * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
+ */
+export async function transferCodeEnginePackages(
+  packageIds,
+  fromUserId,
+  toUserId,
+  tabId = null
+) {
+  return executeInPage(
+    async (packageIds, fromUserId, toUserId) => {
+      const errors = [];
+      let succeeded = 0;
+
+      for (const id of packageIds) {
+        try {
+          const response = await fetch(`/api/codeengine/v2/packages/${id}`, {
+            body: JSON.stringify({ owner: parseInt(toUserId) }),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'PUT'
+          });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          succeeded++;
+        } catch (error) {
+          errors.push({ error: error.message, id });
+        }
+      }
+
+      return { errors, failed: errors.length, succeeded };
+    },
+    [packageIds, fromUserId, toUserId],
+    tabId
+  );
+}

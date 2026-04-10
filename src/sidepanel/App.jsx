@@ -12,6 +12,7 @@ import {
   LinkPreview,
   ObjectDetailsView,
   ToastProvider,
+  TransferOwnershipView,
   UpdateCodeEngineVersionsView
 } from '@/components';
 import { useReleaseNotification, useStatusBar, useTheme } from '@/hooks';
@@ -63,6 +64,9 @@ export default function App() {
           setViewKey(data.timestamp || Date.now());
         } else if (data?.type === 'cardErrors') {
           setActiveView('cardErrors');
+          setViewKey(data.timestamp || Date.now());
+        } else if (data?.type === 'transferOwnership') {
+          setActiveView('transferOwnership');
           setViewKey(data.timestamp || Date.now());
         } else if (data?.type === 'updateCodeEngineVersions') {
           setActiveView('updateCodeEngineVersions');
@@ -272,6 +276,14 @@ export default function App() {
 
             {activeView === 'cardErrors' && (
               <CardErrorsView
+                key={viewKey}
+                onBackToDefault={handleBackToDefault}
+                onStatusUpdate={showStatus}
+              />
+            )}
+
+            {activeView === 'transferOwnership' && (
+              <TransferOwnershipView
                 key={viewKey}
                 onBackToDefault={handleBackToDefault}
                 onStatusUpdate={showStatus}

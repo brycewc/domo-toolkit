@@ -8,5 +8,6 @@ export { GroupIdAnnotation } from './GroupIdAnnotation';
 export * from './options';
 export { TimestampAnnotation } from './TimestampAnnotation';
 export { ToastProvider } from './ToastProvider';
+export { UserComboBox } from './UserComboBox';
 export { UserIdAnnotation } from './UserIdAnnotation';
 export * from './views';

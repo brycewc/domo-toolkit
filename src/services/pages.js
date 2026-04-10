@@ -352,6 +352,60 @@ export async function getChildPages({
 }
 
 /**
+ * Get all pages owned by a user.
+ * @param {number} userId - The Domo user ID
+ * @param {number|null} tabId - Optional Chrome tab ID
+ * @returns {Promise<Array<{id: number, name: string}>>}
+ */
+export async function getOwnedPages(userId, tabId = null) {
+  return executeInPage(
+    async (userId) => {
+      const allPages = [];
+      const limit = 50;
+      let moreData = true;
+      let skip = 0;
+
+      while (moreData) {
+        const response = await fetch(
+          `/api/content/v1/pages/adminsummary?limit=${limit}&skip=${skip}`,
+          {
+            body: JSON.stringify({
+              addPageWithNoOwner: false,
+              ascending: true,
+              groupOwnerIds: [],
+              includePageOwnerClause: 1,
+              orderBy: 'pageTitle',
+              ownerIds: [userId]
+            }),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'POST'
+          }
+        );
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+
+        if (data.pageAdminSummaries && data.pageAdminSummaries.length > 0) {
+          allPages.push(
+            ...data.pageAdminSummaries.map((p) => ({
+              id: p.pageId,
+              name: p.pageTitle || p.pageId.toString()
+            }))
+          );
+          skip += limit;
+          if (data.pageAdminSummaries.length < limit) moreData = false;
+        } else {
+          moreData = false;
+        }
+      }
+
+      return allPages;
+    },
+    [userId],
+    tabId
+  );
+}
+
+/**
  * Get all pages that cards appear on (including regular pages, app studio pages, and report builder pages)
  * @param {Array<number>} cardIds - Array of card IDs
  * @returns {Promise<Object>} Array of page objects with type, id, and name
@@ -534,14 +588,6 @@ export async function getSubpageIds({ pageId, tabId = null }) {
   );
 }
 
-/**
- * Share pages with self
- * @param {Array} pageIds - IDs of the pages to share
- * @param {number} userId - The current user's ID
- * @param {number} tabId - The tab ID to execute in
- * @returns {Promise<void>} Resolves when sharing is complete
- * @throws {Error} If the fetch fails
- */
 export async function sharePagesWithSelf({ pageIds, tabId, userId }) {
   const validPageIds = pageIds.filter((id) => id >= 0);
   if (validPageIds.length === 0) {
@@ -584,4 +630,64 @@ export async function sharePagesWithSelf({ pageIds, tabId, userId }) {
     console.error('Error sharing pages:', error);
     throw error;
   }
+}
+
+/**
+ * Transfer page ownership to a new user.
+ * @param {number[]} pageIds - Array of page IDs to transfer
+ * @param {number} fromUserId - The current owner's user ID
+ * @param {number} toUserId - The new owner's user ID
+ * @param {number|null} tabId - Optional Chrome tab ID
+ * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
+ */
+export async function transferPages(
+  pageIds,
+  fromUserId,
+  toUserId,
+  tabId = null
+) {
+  return executeInPage(
+    async (pageIds, fromUserId, toUserId) => {
+      try {
+        // Add new owner
+        const addResponse = await fetch(
+          '/api/content/v1/pages/bulk/owners',
+          {
+            body: JSON.stringify({
+              owners: [{ id: toUserId, type: 'USER' }],
+              pageIds
+            }),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'PUT'
+          }
+        );
+        if (!addResponse.ok) throw new Error(`HTTP ${addResponse.status}`);
+
+        // Remove old owner
+        const removeResponse = await fetch(
+          '/api/content/v1/pages/bulk/owners/remove',
+          {
+            body: JSON.stringify({
+              owners: [{ id: parseInt(fromUserId), type: 'USER' }],
+              pageIds
+            }),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'POST'
+          }
+        );
+        if (!removeResponse.ok)
+          throw new Error(`HTTP ${removeResponse.status}`);
+
+        return { errors: [], failed: 0, succeeded: pageIds.length };
+      } catch (error) {
+        return {
+          errors: pageIds.map((id) => ({ error: error.message, id })),
+          failed: pageIds.length,
+          succeeded: 0
+        };
+      }
+    },
+    [pageIds, fromUserId, toUserId],
+    tabId
+  );
 }

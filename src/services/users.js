@@ -47,6 +47,27 @@ export async function getCurrentUserId(tabId = null) {
 
 const USERS_PAGE_SIZE = 50;
 
+/**
+ * Delete a user by their ID.
+ * @param {number} userId - The Domo user ID to delete
+ * @param {number|null} tabId - Optional Chrome tab ID
+ * @returns {Promise<void>}
+ */
+export async function deleteUser(userId, tabId = null) {
+  return executeInPage(
+    async (userId) => {
+      const response = await fetch(`/api/identity/v1/users/${userId}`, {
+        method: 'DELETE'
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to delete user. HTTP status: ${response.status}`);
+      }
+    },
+    [userId],
+    tabId
+  );
+}
+
 export async function fetchUserDisplayNames(userIds, tabId = null) {
   return executeInPage(
     async (ids) => {
@@ -121,6 +142,25 @@ export async function getUserGroups(userId, tabId = null) {
       if (!response.ok) return [];
       const data = await response.json();
       return (data || []).map((g) => String(g.groupId));
+    },
+    [userId],
+    tabId
+  );
+}
+
+/**
+ * Get a user's display name by ID.
+ * @param {number} userId - The Domo user ID
+ * @param {number|null} tabId - Optional Chrome tab ID
+ * @returns {Promise<string|null>} The user's display name or null
+ */
+export async function getUserName(userId, tabId = null) {
+  return executeInPage(
+    async (userId) => {
+      const response = await fetch(`/api/content/v3/users/${userId}`);
+      if (!response.ok) return null;
+      const user = await response.json();
+      return user.displayName || null;
     },
     [userId],
     tabId
