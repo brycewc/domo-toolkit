@@ -39,7 +39,8 @@ import {
   UpdateCodeEngineVersions,
   UpdateDataflowDetails,
   UpdateOwner,
-  ViewLineage
+  ViewLineage,
+  ViewOwnedObjects
 } from './functions';
 
 export function ActionButtons({
@@ -261,6 +262,15 @@ export function ActionButtons({
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
+                {availableActions.has('viewOwnedObjects') && (
+                  <ViewOwnedObjects
+                    currentContext={currentContext}
+                    onCollapseActions={
+                      collapsable ? () => setIsExpanded(false) : undefined
+                    }
+                    onStatusUpdate={onStatusUpdate}
+                  />
+                )}
                 {availableActions.has('updateOwner') && (
                   <UpdateOwner
                     currentContext={currentContext}
@@ -435,6 +445,7 @@ function getAvailableActions(typeId, details, metadata) {
 
   if (typeId === 'USER') {
     actions.add('transferOwnership');
+    actions.add('viewOwnedObjects');
   }
 
   return actions;

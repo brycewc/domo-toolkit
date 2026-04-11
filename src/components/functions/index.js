@@ -22,3 +22,4 @@ export { UpdateCodeEngineVersions } from './UpdateCodeEngineVersions';
 export { UpdateDataflowDetails } from './UpdateDataflowDetails';
 export { UpdateOwner } from './UpdateOwner';
 export { ViewLineage } from './ViewLineage';
+export { ViewOwnedObjects } from './ViewOwnedObjects';

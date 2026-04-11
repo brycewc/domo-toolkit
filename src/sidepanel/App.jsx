@@ -13,7 +13,8 @@ import {
   ObjectDetailsView,
   ToastProvider,
   TransferOwnershipView,
-  UpdateCodeEngineVersionsView
+  UpdateCodeEngineVersionsView,
+  ViewOwnedObjectsView
 } from '@/components';
 import { useReleaseNotification, useStatusBar, useTheme } from '@/hooks';
 import { DomoContext } from '@/models';
@@ -70,6 +71,9 @@ export default function App() {
           setViewKey(data.timestamp || Date.now());
         } else if (data?.type === 'updateCodeEngineVersions') {
           setActiveView('updateCodeEngineVersions');
+          setViewKey(data.timestamp || Date.now());
+        } else if (data?.type === 'viewOwnedObjects') {
+          setActiveView('viewOwnedObjects');
           setViewKey(data.timestamp || Date.now());
         }
       }
@@ -292,6 +296,14 @@ export default function App() {
 
             {activeView === 'updateCodeEngineVersions' && (
               <UpdateCodeEngineVersionsView
+                key={viewKey}
+                onBackToDefault={handleBackToDefault}
+                onStatusUpdate={showStatus}
+              />
+            )}
+
+            {activeView === 'viewOwnedObjects' && (
+              <ViewOwnedObjectsView
                 key={viewKey}
                 onBackToDefault={handleBackToDefault}
                 onStatusUpdate={showStatus}
