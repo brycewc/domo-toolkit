@@ -362,28 +362,28 @@ for (const detector of MODAL_DETECTORS) {
 }
 
 // ============================================================
-// Card error capture
+// API error capture
 // ============================================================
 
-// Inject MAIN world script that intercepts card API errors.
-(function injectCardErrorCapture() {
-  if (document.getElementById('domo-toolkit-card-errors-script')) return;
+// Inject MAIN world script that intercepts failed Domo API requests.
+(function injectApiErrorCapture() {
+  if (document.getElementById('domo-toolkit-api-errors-script')) return;
 
   const script = document.createElement('script');
-  script.id = 'domo-toolkit-card-errors-script';
-  script.src = chrome.runtime.getURL('public/cardErrors.js');
+  script.id = 'domo-toolkit-api-errors-script';
+  script.src = chrome.runtime.getURL('public/apiErrors.js');
   document.documentElement.appendChild(script);
 })();
 
-// Relay card errors from MAIN world script to background service worker
+// Relay API errors from MAIN world script to background service worker
 window.addEventListener('message', (event) => {
   if (event.source !== window) return;
-  if (event.data?.source !== 'domo-toolkit-card-error') return;
+  if (event.data?.source !== 'domo-toolkit-api-error') return;
 
   chrome.runtime
     .sendMessage({
       error: event.data.error,
-      type: 'CARD_ERROR_DETECTED'
+      type: 'API_ERROR_DETECTED'
     })
     .catch(() => {});
 });

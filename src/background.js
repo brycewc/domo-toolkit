@@ -250,16 +250,16 @@ function invalidateInstanceUser(instance) {
   console.log(`[Background] Invalidated user cache for instance: ${instance}`);
 }
 
-// Per-tab card error storage
-const tabCardErrors = new Map();
-const tabLastCardId = new Map();
+// Per-tab API error storage
+const tabApiErrors = new Map();
+const tabLastObject = new Map();
 const MAX_ERRORS_PER_TAB = 50;
 
-function addCardError(tabId, error) {
-  if (!tabCardErrors.has(tabId)) {
-    tabCardErrors.set(tabId, []);
+function addApiError(tabId, error) {
+  if (!tabApiErrors.has(tabId)) {
+    tabApiErrors.set(tabId, []);
   }
-  const errors = tabCardErrors.get(tabId);
+  const errors = tabApiErrors.get(tabId);
 
   error.id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   errors.push(error);
@@ -269,17 +269,17 @@ function addCardError(tabId, error) {
     errors.splice(0, errors.length - MAX_ERRORS_PER_TAB);
   }
 
-  broadcastCardErrors(tabId);
+  broadcastApiErrors(tabId);
 }
 
-function broadcastCardErrors(tabId) {
-  const errors = getCardErrors(tabId);
+function broadcastApiErrors(tabId) {
+  const errors = getApiErrors(tabId);
   chrome.runtime
     .sendMessage({
       errorCount: errors.length,
       errors,
       tabId,
-      type: 'CARD_ERRORS_UPDATED'
+      type: 'API_ERRORS_UPDATED'
     })
     .catch(() => {});
 }
@@ -292,9 +292,9 @@ function buildAllowedTitles(domoObject) {
   return allowed;
 }
 
-function clearCardErrors(tabId) {
-  tabCardErrors.delete(tabId);
-  broadcastCardErrors(tabId);
+function clearApiErrors(tabId) {
+  tabApiErrors.delete(tabId);
+  broadcastApiErrors(tabId);
 }
 
 /**
@@ -320,8 +320,8 @@ function evictLRUIfNeeded() {
   }
 }
 
-function getCardErrors(tabId) {
-  return tabCardErrors.get(tabId) || [];
+function getApiErrors(tabId) {
+  return tabApiErrors.get(tabId) || [];
 }
 
 /**
@@ -664,8 +664,8 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   tabContexts.delete(tabId);
   tabAccessTimes.delete(tabId);
   tabDetectionGen.delete(tabId);
-  tabCardErrors.delete(tabId);
-  tabLastCardId.delete(tabId);
+  tabApiErrors.delete(tabId);
+  tabLastObject.delete(tabId);
   persistToSession();
 });
 
@@ -1107,14 +1107,13 @@ async function detectAndStoreContext(tabId) {
         .replace('{id}', objectId);
     }
 
-    // Clear card errors when navigating to a different card on this tab
-    if (typeModel.id === 'CARD') {
-      const lastCardId = tabLastCardId.get(tabId);
-      if (lastCardId && lastCardId !== objectId) {
-        clearCardErrors(tabId);
-      }
-      tabLastCardId.set(tabId, objectId);
+    // Clear API errors when navigating to a different object on this tab
+    const currentObjectKey = `${typeModel.id}:${objectId}`;
+    const lastObjectKey = tabLastObject.get(tabId);
+    if (lastObjectKey && lastObjectKey !== currentObjectKey) {
+      clearApiErrors(tabId);
     }
+    tabLastObject.set(tabId, currentObjectKey);
 
     // Final stale check before committing context
     if (isStale()) return null;
@@ -1622,17 +1621,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
     try {
       switch (message.type) {
-        case 'CARD_ERROR_DETECTED': {
+        case 'API_ERROR_DETECTED': {
           const sourceTabId = sender.tab?.id;
           if (sourceTabId) {
-            addCardError(sourceTabId, message.error);
+            addApiError(sourceTabId, message.error);
           }
           sendResponse({ success: true });
           break;
         }
 
-        case 'CLEAR_CARD_ERRORS': {
-          clearCardErrors(message.tabId);
+        case 'CLEAR_API_ERRORS': {
+          clearApiErrors(message.tabId);
           sendResponse({ success: true });
           break;
         }
@@ -1649,8 +1648,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
         }
 
-        case 'GET_CARD_ERRORS': {
-          const errors = getCardErrors(message.tabId);
+        case 'GET_API_ERRORS': {
+          const errors = getApiErrors(message.tabId);
           sendResponse({ errors, success: true });
           break;
         }

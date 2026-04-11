@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 
 import { launchView } from '@/utils';
 
-export function CardErrors({
+export function ApiErrors({
   currentContext,
   isDisabled,
   onCollapseActions,
@@ -18,7 +18,7 @@ export function CardErrors({
 
     // Fetch initial error count
     chrome.runtime
-      .sendMessage({ tabId, type: 'GET_CARD_ERRORS' })
+      .sendMessage({ tabId, type: 'GET_API_ERRORS' })
       .then((response) => {
         if (response?.success) {
           setErrorCount(response.errors?.length || 0);
@@ -28,7 +28,7 @@ export function CardErrors({
 
     // Listen for live updates
     const handleMessage = (message) => {
-      if (message.type === 'CARD_ERRORS_UPDATED' && message.tabId === tabId) {
+      if (message.type === 'API_ERRORS_UPDATED' && message.tabId === tabId) {
         setErrorCount(message.errorCount || 0);
       }
     };
@@ -51,11 +51,11 @@ export function CardErrors({
           currentContext,
           onCollapseActions,
           onStatusUpdate,
-          type: 'cardErrors'
+          type: 'apiErrors'
         })
       }
     >
-      <IconAlertTriangle stroke={1.5} /> Card Errors ({errorCount})
+      <IconAlertTriangle stroke={1.5} /> View Errors ({errorCount})
     </Button>
   );
 }

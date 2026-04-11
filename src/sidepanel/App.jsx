@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 
 import {
   ActionButtons,
-  CardErrorsView,
+  ApiErrorsView,
   ContextFooter,
   GetCardsView,
   GetDatasetsView,
@@ -62,8 +62,8 @@ export default function App() {
         } else if (data?.type === 'viewObjectDetails') {
           setActiveView('viewObjectDetails');
           setViewKey(data.timestamp || Date.now());
-        } else if (data?.type === 'cardErrors') {
-          setActiveView('cardErrors');
+        } else if (data?.type === 'apiErrors') {
+          setActiveView('apiErrors');
           setViewKey(data.timestamp || Date.now());
         } else if (data?.type === 'transferOwnership') {
           setActiveView('transferOwnership');
@@ -274,8 +274,8 @@ export default function App() {
               />
             )}
 
-            {activeView === 'cardErrors' && (
-              <CardErrorsView
+            {activeView === 'apiErrors' && (
+              <ApiErrorsView
                 key={viewKey}
                 onBackToDefault={handleBackToDefault}
                 onStatusUpdate={showStatus}

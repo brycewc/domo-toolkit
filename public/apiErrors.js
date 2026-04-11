@@ -5,32 +5,25 @@
 
   // Depth counter used by executeInPage to mark extension-initiated requests.
   // When > 0, fetch/XHR interception is bypassed so extension requests never
-  // trigger card error notifications.
+  // trigger error notifications.
   window.__domoToolkitExtDepth = 0;
 
-  function isCardEndpoint(url) {
-    var patterns = [
-      /\/api\/.*\/cards/,
-      /\/api\/.*\/visualization/,
-      /\/api\/.*\/cardviews/
-    ];
-    return patterns.some((p) => p.test(url));
+  function isApiEndpoint(url) {
+    try {
+      var path = new URL(url, location.origin).pathname;
+      return path.startsWith('/api/') || path.startsWith('/domo/');
+    } catch (e) {
+      return false;
+    }
   }
 
   var KPI_RENDER_PATTERN = /\/api\/content\/v3\/cards\/kpi\/render\/preview/;
 
-  function isOnCardPage() {
-    var href = location.href.toLowerCase();
-    return href.includes('kpis/') || href.includes('cardid');
-  }
-
   // ---- Error emission ----
 
-  function emitCardError(errorData) {
-    if (!isOnCardPage()) return;
-
+  function emitApiError(errorData) {
     window.postMessage(
-      { source: 'domo-toolkit-card-error', error: errorData },
+      { error: errorData, source: 'domo-toolkit-api-error' },
       '*'
     );
   }
@@ -45,8 +38,7 @@
 
     var url = typeof args[0] === 'string' ? args[0] : args[0] && args[0].url;
 
-    // Only intercept card endpoints
-    if (!isCardEndpoint(url) && !KPI_RENDER_PATTERN.test(url)) {
+    if (!isApiEndpoint(url)) {
       return originalFetch.apply(window, args);
     }
 
@@ -55,12 +47,12 @@
     return originalFetch
       .apply(window, args)
       .then((response) => {
-        if (!response.ok && isCardEndpoint(url)) {
+        if (!response.ok) {
           var cloned = response.clone();
           cloned
             .text()
             .then((text) => {
-              emitCardError({
+              emitApiError({
                 method: method,
                 response: text,
                 status: response.status,
@@ -70,7 +62,8 @@
               });
             })
             .catch(() => {});
-        } else if (response.ok && KPI_RENDER_PATTERN.test(url)) {
+        } else if (KPI_RENDER_PATTERN.test(url)) {
+          // KPI render can return 200 with embedded exceptions
           var cloned = response.clone();
           cloned
             .json()
@@ -79,7 +72,7 @@
                 var details =
                   data.exceptions.main && data.exceptions.main.details;
                 var innerStatus = details && details.status;
-                emitCardError({
+                emitApiError({
                   method: method,
                   response: JSON.stringify(data.exceptions, null, 2),
                   status: innerStatus || 'Exception',
@@ -94,16 +87,14 @@
         return response;
       })
       .catch((error) => {
-        if (isCardEndpoint(url)) {
-          emitCardError({
-            method: method,
-            response: error.message,
-            status: 0,
-            statusText: 'Network Error',
-            timestamp: new Date().toLocaleString(),
-            url: url
-          });
-        }
+        emitApiError({
+          method: method,
+          response: error.message,
+          status: 0,
+          statusText: 'Network Error',
+          timestamp: new Date().toLocaleString(),
+          url: url
+        });
         throw error;
       });
   };
@@ -118,11 +109,7 @@
   XMLHttpRequest.prototype.send = function() {
     var monitor = this._domoToolkitMonitor;
 
-    // Only intercept card endpoints
-    if (
-      !monitor ||
-      (!isCardEndpoint(monitor.url) && !KPI_RENDER_PATTERN.test(monitor.url))
-    ) {
+    if (!monitor || !isApiEndpoint(monitor.url)) {
       return originalXHRSend.apply(this, arguments);
     }
 
@@ -137,8 +124,8 @@
       var monitor = xhr._domoToolkitMonitor;
       if (!monitor) return;
 
-      if (xhr.status >= 400 && isCardEndpoint(monitor.url)) {
-        emitCardError({
+      if (xhr.status >= 400) {
+        emitApiError({
           method: monitor.method,
           response: xhr.responseText,
           status: xhr.status,
@@ -156,7 +143,7 @@
           if (data && data.exceptions) {
             var details = data.exceptions.main && data.exceptions.main.details;
             var innerStatus = details && details.status;
-            emitCardError({
+            emitApiError({
               method: monitor.method,
               response: JSON.stringify(data.exceptions, null, 2),
               status: innerStatus || 'Exception',
@@ -171,8 +158,8 @@
 
     xhr.addEventListener('error', () => {
       var monitor = xhr._domoToolkitMonitor;
-      if (monitor && isCardEndpoint(monitor.url)) {
-        emitCardError({
+      if (monitor) {
+        emitApiError({
           method: monitor.method,
           response: 'Network request failed',
           status: 0,

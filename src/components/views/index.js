@@ -1,4 +1,4 @@
-export { CardErrorsView } from './CardErrorsView';
+export { ApiErrorsView } from './ApiErrorsView';
 export { DataList } from './DataList';
 export { GetCardsView } from './GetCardsView';
 export { GetDatasetsView } from './GetDatasetsView';

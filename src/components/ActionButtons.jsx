@@ -17,7 +17,7 @@ import { isSidepanel, openSidepanel } from '@/utils';
 
 import {
   ActivityLogCurrentObject,
-  CardErrors,
+  ApiErrors,
   ClearCookies,
   Copy,
   CopyFilteredUrl,
@@ -305,7 +305,7 @@ export function ActionButtons({
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
-                <CardErrors
+                <ApiErrors
                   currentContext={currentContext}
                   isDisabled={!isDomoPage}
                   onCollapseActions={

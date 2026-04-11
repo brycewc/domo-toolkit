@@ -71,7 +71,7 @@ export default defineManifest({
   web_accessible_resources: [
     {
       resources: [
-        'public/cardErrors.js',
+        'public/apiErrors.js',
         'public/domo-logo-no-background.png',
         'public/domo-logo.png'
       ],

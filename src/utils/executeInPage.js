@@ -42,8 +42,8 @@ export async function executeInAllFrames(func, args = [], tabId = null) {
     const allFramesTarget = { allFrames: true, tabId: targetTabId };
     const mainFrameTarget = { tabId: targetTabId };
 
-    // Mark extension-initiated requests so cardErrors.js bypasses interception.
-    // Only target the main frame — cardErrors.js only runs there, and using
+    // Mark extension-initiated requests so apiErrors.js bypasses interception.
+    // Only target the main frame — apiErrors.js only runs there, and using
     // allFrames can fail if an iframe is restricted, leaking the counter.
     await chrome.scripting.executeScript({
       func: () => {
@@ -146,7 +146,7 @@ export async function executeInPage(func, args = [], tabId = null) {
 
     const target = { tabId: targetTabId };
 
-    // Mark extension-initiated requests so cardErrors.js bypasses interception
+    // Mark extension-initiated requests so apiErrors.js bypasses interception
     await chrome.scripting.executeScript({
       func: () => {
         window.__domoToolkitExtDepth =

@@ -10,11 +10,12 @@ import { IconClipboard, IconTrash, IconX } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import JsonView from 'react18-json-view';
 
-import { AnimatedCheck } from '../AnimatedCheck';
-import '@/assets/json-view-theme.css';
 import { DomoContext } from '@/models';
+import '@/assets/json-view-theme.css';
 
-export function CardErrorsView({
+import { AnimatedCheck } from '../AnimatedCheck';
+
+export function ApiErrorsView({
   onBackToDefault = null,
   onStatusUpdate = null
 }) {
@@ -35,7 +36,7 @@ export function CardErrorsView({
     if (!tabId) return;
 
     const handleMessage = (message) => {
-      if (message.type === 'CARD_ERRORS_UPDATED' && message.tabId === tabId) {
+      if (message.type === 'API_ERRORS_UPDATED' && message.tabId === tabId) {
         if (!mountedRef.current) return;
         if (message.errors?.length === 0) {
           onBackToDefault?.();
@@ -53,7 +54,7 @@ export function CardErrorsView({
     const result = await chrome.storage.session.get(['sidepanelDataList']);
     const data = result.sidepanelDataList;
 
-    if (!data || data.type !== 'cardErrors') {
+    if (!data || data.type !== 'apiErrors') {
       onBackToDefault?.();
       return;
     }
@@ -67,7 +68,7 @@ export function CardErrorsView({
       // Popup handoff: fetch from background
       const response = await chrome.runtime.sendMessage({
         tabId: context.tabId,
-        type: 'GET_CARD_ERRORS'
+        type: 'GET_API_ERRORS'
       });
       if (response?.errors?.length) {
         setErrors(response.errors);
@@ -81,9 +82,9 @@ export function CardErrorsView({
     if (!tabId) return;
     await chrome.runtime.sendMessage({
       tabId,
-      type: 'CLEAR_CARD_ERRORS'
+      type: 'CLEAR_API_ERRORS'
     });
-    onStatusUpdate?.('Cleared', 'All card errors cleared.', 'success', 2000);
+    onStatusUpdate?.('Cleared', 'All errors cleared.', 'success', 2000);
     onBackToDefault?.();
   };
 
@@ -92,7 +93,7 @@ export function CardErrorsView({
       <Card.Header>
         <Card.Title className='flex items-start justify-between gap-2'>
           <div className='flex flex-col gap-0.5'>
-            <span className='text-sm font-semibold'>Card Errors</span>
+            <span className='text-sm font-semibold'>API Errors</span>
             <span className='text-xs text-muted'>
               {errors.length} error{errors.length === 1 ? '' : 's'}
             </span>
