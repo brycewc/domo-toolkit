@@ -1,6 +1,7 @@
 import { releases } from '@/data';
 import { DomoContext, DomoObject, getObjectType } from '@/models';
 import {
+  checkPageType,
   extractPageContentIds,
   fetchObjectDetailsInPage,
   getCardsForObject,
@@ -801,11 +802,20 @@ chrome.commands.onCommand.addListener((command) => {
         const context = getTabContext(tab.id);
         if (context?.domoObject?.id) {
           try {
+            const typeModel = getObjectType(context.domoObject.typeId);
+            const primaryConfig = typeModel?.copyConfigs?.find(
+              (c) => c.primary
+            );
+            const copyId = primaryConfig
+              ? primaryConfig.source
+                  .split('.')
+                  .reduce((cur, key) => cur?.[key], context.domoObject)
+              : null;
             await executeInPage(
               async (text) => {
                 await navigator.clipboard.writeText(text);
               },
-              [context.domoObject.id],
+              [copyId || context.domoObject.id],
               tab.id
             );
             chrome.action.setBadgeText({ text: '\u2713' });
@@ -938,7 +948,7 @@ async function detectAndStoreContext(tabId) {
       }
       return null;
     }
-    const typeModel = getObjectType(detected.typeId);
+    let typeModel = getObjectType(detected.typeId);
 
     if (!typeModel) {
       console.warn(`[Background] Unknown object type: ${detected.typeId}`);
@@ -964,6 +974,17 @@ async function detectAndStoreContext(tabId) {
     if (!objectId) {
       console.warn(`[Background] Could not extract ID for ${detected.typeId}`);
       return null;
+    }
+
+    // Check if a detected PAGE is actually a data app view
+    if (detected.typeId === 'PAGE') {
+      const appId = await executeInPage(checkPageType, [objectId], tabId);
+      if (isStale()) return null;
+      if (appId) {
+        detected.typeId = 'DATA_APP_VIEW';
+        detected.parentId = appId;
+        typeModel = getObjectType('DATA_APP_VIEW');
+      }
     }
 
     // Extract parent ID from URL, detection result, or resolveContext
@@ -1012,24 +1033,33 @@ async function detectAndStoreContext(tabId) {
     }
 
     domoObject.metadata = enrichedMetadata;
+    domoObject.metadata.context = {};
 
     // Preserve workflow context from CE tile detection within a workflow
     if (detected.workflowModelId) {
-      domoObject.metadata.details = domoObject.metadata.details || {};
-      domoObject.metadata.details.workflowModelId = detected.workflowModelId;
-      domoObject.metadata.details.workflowVersionNumber =
+      domoObject.metadata.context.workflowModelId = detected.workflowModelId;
+      domoObject.metadata.context.workflowVersionNumber =
         detected.workflowVersionNumber;
     }
 
     // Preserve page/app context when a card is viewed from a page or app
-    if (detected.contextPageId) {
-      domoObject.metadata.details = domoObject.metadata.details || {};
-      domoObject.metadata.details.contextPageId = detected.contextPageId;
+    if (detected.pageId) {
+      const appId = await executeInPage(
+        checkPageType,
+        [detected.pageId],
+        tabId
+      );
+      if (isStale()) return null;
+      if (appId) {
+        domoObject.metadata.context.appViewId = detected.pageId;
+        domoObject.metadata.context.appId = appId;
+      } else {
+        domoObject.metadata.context.pageId = detected.pageId;
+      }
     }
-    if (detected.contextAppViewId) {
-      domoObject.metadata.details = domoObject.metadata.details || {};
-      domoObject.metadata.details.contextAppViewId = detected.contextAppViewId;
-      domoObject.metadata.details.contextAppId = detected.contextAppId;
+    if (detected.appViewId) {
+      domoObject.metadata.context.appViewId = detected.appViewId;
+      domoObject.metadata.context.appId = detected.appId;
     }
 
     // Compute isOwner if user and groups are already available
@@ -1181,10 +1211,10 @@ async function detectAndStoreContext(tabId) {
         if (!currentContext.domoObject?.metadata) {
           currentContext.domoObject.metadata = {};
         }
-        if (!currentContext.domoObject.metadata?.details) {
-          currentContext.domoObject.metadata.details = {};
+        if (!currentContext.domoObject.metadata?.context) {
+          currentContext.domoObject.metadata.context = {};
         }
-        currentContext.domoObject.metadata.details[propertyName] = pages;
+        currentContext.domoObject.metadata.context[propertyName] = pages;
         setTabContext(tabId, currentContext);
       }
     };
@@ -1266,12 +1296,12 @@ async function detectAndStoreContext(tabId) {
             if (!currentContext.domoObject?.metadata) {
               currentContext.domoObject.metadata = {};
             }
-            if (!currentContext.domoObject.metadata?.details) {
-              currentContext.domoObject.metadata.details = {};
+            if (!currentContext.domoObject.metadata?.context) {
+              currentContext.domoObject.metadata.context = {};
             }
-            currentContext.domoObject.metadata.details.cardPages =
+            currentContext.domoObject.metadata.context.cardPages =
               result.pages || [];
-            currentContext.domoObject.metadata.details.cardsByPage =
+            currentContext.domoObject.metadata.context.cardsByPage =
               result.cardsByPage || {};
 
             setTabContext(tabId, currentContext);
@@ -1292,10 +1322,10 @@ async function detectAndStoreContext(tabId) {
             if (!currentContext.domoObject?.metadata) {
               currentContext.domoObject.metadata = {};
             }
-            if (!currentContext.domoObject.metadata?.details) {
-              currentContext.domoObject.metadata.details = {};
+            if (!currentContext.domoObject.metadata?.context) {
+              currentContext.domoObject.metadata.context = {};
             }
-            currentContext.domoObject.metadata.details.cardPages = [];
+            currentContext.domoObject.metadata.context.cardPages = [];
             setTabContext(tabId, currentContext);
           }
         });
@@ -1310,22 +1340,22 @@ async function detectAndStoreContext(tabId) {
       const objType = ctx?.domoObject?.typeId;
       const contentTypes = ['PAGE', 'DATA_APP_VIEW', 'WORKSHEET_VIEW', 'REPORT_BUILDER_VIEW'];
       if (!contentTypes.includes(objType)) return;
-      const details = ctx?.domoObject?.metadata?.details;
-      if (!details) return;
-      if (details.cards == null || details.forms == null || details.queues == null)
+      const ctxMeta = ctx?.domoObject?.metadata?.context;
+      if (!ctxMeta) return;
+      if (ctxMeta.cards == null || ctxMeta.forms == null || ctxMeta.queues == null)
         return;
 
       const content = [];
-      for (const card of details.cards) {
+      for (const card of ctxMeta.cards) {
         content.push({ ...card, type: 'CARD' });
       }
-      for (const form of details.forms) {
+      for (const form of ctxMeta.forms) {
         content.push({ ...form, type: 'ENIGMA_FORM' });
       }
-      for (const queue of details.queues) {
+      for (const queue of ctxMeta.queues) {
         content.push({ ...queue, type: 'HOPPER_QUEUE' });
       }
-      details.content = content;
+      ctxMeta.content = content;
       setTabContext(tabId, ctx);
     }
 
@@ -1350,10 +1380,10 @@ async function detectAndStoreContext(tabId) {
             if (!currentContext.domoObject?.metadata) {
               currentContext.domoObject.metadata = {};
             }
-            if (!currentContext.domoObject.metadata?.details) {
-              currentContext.domoObject.metadata.details = {};
+            if (!currentContext.domoObject.metadata?.context) {
+              currentContext.domoObject.metadata.context = {};
             }
-            currentContext.domoObject.metadata.details.cards = cards;
+            currentContext.domoObject.metadata.context.cards = cards;
 
             setTabContext(tabId, currentContext);
             updatePageContent();
@@ -1370,10 +1400,10 @@ async function detectAndStoreContext(tabId) {
             if (!currentContext.domoObject?.metadata) {
               currentContext.domoObject.metadata = {};
             }
-            if (!currentContext.domoObject.metadata?.details) {
-              currentContext.domoObject.metadata.details = {};
+            if (!currentContext.domoObject.metadata?.context) {
+              currentContext.domoObject.metadata.context = {};
             }
-            currentContext.domoObject.metadata.details.cards = [];
+            currentContext.domoObject.metadata.context.cards = [];
             setTabContext(tabId, currentContext);
             updatePageContent();
           }
@@ -1395,10 +1425,10 @@ async function detectAndStoreContext(tabId) {
               if (!currentContext.domoObject?.metadata) {
                 currentContext.domoObject.metadata = {};
               }
-              if (!currentContext.domoObject.metadata?.details) {
-                currentContext.domoObject.metadata.details = {};
+              if (!currentContext.domoObject.metadata?.context) {
+                currentContext.domoObject.metadata.context = {};
               }
-              currentContext.domoObject.metadata.details.forms = forms;
+              currentContext.domoObject.metadata.context.forms = forms;
               setTabContext(tabId, currentContext);
               updatePageContent();
             }
@@ -1414,10 +1444,10 @@ async function detectAndStoreContext(tabId) {
               if (!currentContext.domoObject?.metadata) {
                 currentContext.domoObject.metadata = {};
               }
-              if (!currentContext.domoObject.metadata?.details) {
-                currentContext.domoObject.metadata.details = {};
+              if (!currentContext.domoObject.metadata?.context) {
+                currentContext.domoObject.metadata.context = {};
               }
-              currentContext.domoObject.metadata.details.forms = [];
+              currentContext.domoObject.metadata.context.forms = [];
               setTabContext(tabId, currentContext);
               updatePageContent();
             }
@@ -1428,10 +1458,10 @@ async function detectAndStoreContext(tabId) {
           if (!currentContext.domoObject?.metadata) {
             currentContext.domoObject.metadata = {};
           }
-          if (!currentContext.domoObject.metadata?.details) {
-            currentContext.domoObject.metadata.details = {};
+          if (!currentContext.domoObject.metadata?.context) {
+            currentContext.domoObject.metadata.context = {};
           }
-          currentContext.domoObject.metadata.details.forms = [];
+          currentContext.domoObject.metadata.context.forms = [];
           setTabContext(tabId, currentContext);
           updatePageContent();
         }
@@ -1446,10 +1476,10 @@ async function detectAndStoreContext(tabId) {
               if (!currentContext.domoObject?.metadata) {
                 currentContext.domoObject.metadata = {};
               }
-              if (!currentContext.domoObject.metadata?.details) {
-                currentContext.domoObject.metadata.details = {};
+              if (!currentContext.domoObject.metadata?.context) {
+                currentContext.domoObject.metadata.context = {};
               }
-              currentContext.domoObject.metadata.details.queues = queues;
+              currentContext.domoObject.metadata.context.queues = queues;
               setTabContext(tabId, currentContext);
               updatePageContent();
             }
@@ -1465,10 +1495,10 @@ async function detectAndStoreContext(tabId) {
               if (!currentContext.domoObject?.metadata) {
                 currentContext.domoObject.metadata = {};
               }
-              if (!currentContext.domoObject.metadata?.details) {
-                currentContext.domoObject.metadata.details = {};
+              if (!currentContext.domoObject.metadata?.context) {
+                currentContext.domoObject.metadata.context = {};
               }
-              currentContext.domoObject.metadata.details.queues = [];
+              currentContext.domoObject.metadata.context.queues = [];
               setTabContext(tabId, currentContext);
               updatePageContent();
             }
@@ -1479,10 +1509,10 @@ async function detectAndStoreContext(tabId) {
           if (!currentContext.domoObject?.metadata) {
             currentContext.domoObject.metadata = {};
           }
-          if (!currentContext.domoObject.metadata?.details) {
-            currentContext.domoObject.metadata.details = {};
+          if (!currentContext.domoObject.metadata?.context) {
+            currentContext.domoObject.metadata.context = {};
           }
-          currentContext.domoObject.metadata.details.queues = [];
+          currentContext.domoObject.metadata.context.queues = [];
           setTabContext(tabId, currentContext);
           updatePageContent();
         }
@@ -1531,10 +1561,10 @@ async function detectAndStoreContext(tabId) {
               if (!currentContext.domoObject.metadata) {
                 currentContext.domoObject.metadata = {};
               }
-              if (!currentContext.domoObject.metadata.details) {
-                currentContext.domoObject.metadata.details = {};
+              if (!currentContext.domoObject.metadata.context) {
+                currentContext.domoObject.metadata.context = {};
               }
-              currentContext.domoObject.metadata.details.definition = definition;
+              currentContext.domoObject.metadata.context.definition = definition;
               setTabContext(tabId, currentContext);
             }
           })
@@ -1711,7 +1741,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         case 'UPDATE_CONTEXT_METADATA': {
           // Update cached context metadata without re-fetching from API
-          const { metadataUpdates, tabId } = message;
+          const { contextUpdates, metadataUpdates, tabId } = message;
           const context = getTabContext(tabId);
 
           if (!context) {
@@ -1719,15 +1749,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             return;
           }
 
-          // Merge updates into metadata.details
           if (context.domoObject?.metadata) {
-            context.domoObject.metadata.details = {
-              ...context.domoObject.metadata.details,
-              ...metadataUpdates
-            };
-            // Also update the top-level name if it was changed
-            if (metadataUpdates.name !== undefined) {
-              context.domoObject.metadata.name = metadataUpdates.name;
+            // API-native field updates go to details
+            if (metadataUpdates) {
+              context.domoObject.metadata.details = {
+                ...context.domoObject.metadata.details,
+                ...metadataUpdates
+              };
+              // Also update the top-level name if it was changed
+              if (metadataUpdates.name !== undefined) {
+                context.domoObject.metadata.name = metadataUpdates.name;
+              }
+            }
+            // Extension-injected updates go to context
+            if (contextUpdates) {
+              context.domoObject.metadata.context = {
+                ...context.domoObject.metadata.context,
+                ...contextUpdates
+              };
             }
           }
 

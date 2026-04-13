@@ -1,4 +1,4 @@
-import { Button } from '@heroui/react';
+import { Button, Chip } from '@heroui/react';
 import { IconAlertTriangle } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 
@@ -55,7 +55,15 @@ export function ApiErrors({
         })
       }
     >
-      <IconAlertTriangle stroke={1.5} /> View Errors ({errorCount})
+      <IconAlertTriangle stroke={1.5} /> View Errors
+      <Chip
+        className='h-5 w-5 items-center justify-center rounded-full'
+        color='danger'
+        size='sm'
+        variant='soft'
+      >
+        {errorCount}
+      </Chip>
     </Button>
   );
 }

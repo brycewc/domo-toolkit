@@ -98,6 +98,7 @@ export {
 } from './jupyterWorkspaces';
 export { getOwnedMetrics, transferMetrics } from './metrics';
 export {
+  checkPageType,
   deletePageAndAllCards,
   getAppStudioPageParent,
   getChildPages,

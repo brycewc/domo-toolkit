@@ -76,9 +76,9 @@ export function UpdateCodeEngineVersionsView({
           context.domoObject?.typeId === 'CODEENGINE_PACKAGE_VERSION';
         if (isCEVersion) {
           const wfModelId =
-            context.domoObject.metadata?.details?.workflowModelId;
+            context.domoObject.metadata?.context?.workflowModelId;
           const wfVersion =
-            context.domoObject.metadata?.details?.workflowVersionNumber;
+            context.domoObject.metadata?.context?.workflowVersionNumber;
           if (!wfModelId || !wfVersion) {
             onStatusUpdate?.(
               'Error',
@@ -257,10 +257,10 @@ export function UpdateCodeEngineVersionsView({
     const isCEVersion =
       currentContext.domoObject.typeId === 'CODEENGINE_PACKAGE_VERSION';
     const modelId = isCEVersion
-      ? currentContext.domoObject.metadata?.details?.workflowModelId
+      ? currentContext.domoObject.metadata?.context?.workflowModelId
       : currentContext.domoObject.parentId;
     const versionNumber = isCEVersion
-      ? currentContext.domoObject.metadata?.details?.workflowVersionNumber
+      ? currentContext.domoObject.metadata?.context?.workflowVersionNumber
       : currentContext.domoObject.id;
     const tabId = currentContext.tabId;
 

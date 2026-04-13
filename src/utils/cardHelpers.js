@@ -11,7 +11,7 @@
  * @returns {Promise<{success: boolean, cards: Array, forms: Array, queues: Array, error: string|null}>}
  */
 export async function waitForCards(currentContext, maxAttempts = 50) {
-  let details = currentContext.domoObject.metadata?.details;
+  let details = currentContext.domoObject.metadata?.context;
   let cards = details?.cards;
   let forms = details?.forms;
   let queues = details?.queues;
@@ -43,7 +43,7 @@ export async function waitForCards(currentContext, maxAttempts = 50) {
       });
 
       if (response?.success) {
-        details = response.context?.domoObject?.metadata?.details;
+        details = response.context?.domoObject?.metadata?.context;
         if (details?.cards !== undefined && details?.cards !== null) {
           cards = details.cards;
         }

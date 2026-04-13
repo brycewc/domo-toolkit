@@ -14,6 +14,13 @@ export class DomoObjectType {
    * @param {Array<string>} [parents] - Array of parent object type IDs this object can have
    * @param {Array<Object>} [relatedObjects] - Array of related object configs [{field, typeId, label, source?, itemIdField?}]
    *   Use { label: 'Short Name', source: 'self' } to override the current object's tab label
+   * @param {Array<Object>} [copyConfigs] - Additional copy actions for the long-press dropdown
+   *   Each entry: { label: string, source: string, primary?: boolean, when?: string|Object }
+   *   - label: display label (e.g., 'Package ID')
+   *   - source: dot-path on DomoObject to resolve the copy value (e.g., 'parentId', 'metadata.details.streamId')
+   *   - primary: if true, overrides the default copy action; original object ID moves to dropdown
+   *   - when: visibility condition — omit to show when source is truthy,
+   *     string path for truthy check, or { field, matches } for case-insensitive equality
    */
   constructor(
     id,
@@ -23,7 +30,8 @@ export class DomoObjectType {
     extractConfig = null,
     api = null,
     parents = null,
-    relatedObjects = null
+    relatedObjects = null,
+    copyConfigs = null
   ) {
     this.id = id;
     this.name = name;
@@ -33,6 +41,7 @@ export class DomoObjectType {
     this.api = api;
     this.parents = parents;
     this.relatedObjects = relatedObjects;
+    this.copyConfigs = copyConfigs;
   }
 
   /**
@@ -381,7 +390,8 @@ export const ObjectTypeRegistry = {
       pathToParentId: 'data.request.templateID'
     },
     ['TEMPLATE'],
-    [{ label: 'Template', source: 'parentId', typeId: 'TEMPLATE' }]
+    [{ label: 'Template', source: 'parentId', typeId: 'TEMPLATE' }],
+    [{ label: 'Approval Template ID', source: 'parentId' }]
   ),
   AUTHORITY: new DomoObjectType(
     'AUTHORITY',
@@ -419,10 +429,10 @@ export const ObjectTypeRegistry = {
     },
     ['DATA_SOURCE', 'APP'],
     [
-      { field: 'contextAppId', label: 'Studio App', typeId: 'DATA_APP' },
-      { field: 'contextAppViewId', label: 'App Page', parentSource: 'contextAppId', typeId: 'DATA_APP_VIEW' },
-      { field: 'contextPageId', label: 'Page', typeId: 'PAGE' },
-      { field: 'datasources', isArray: true, itemIdField: 'dataSourceId', itemTypeId: 'DATA_SOURCE', label: 'DataSets' }
+      { field: 'datasources', isArray: true, itemIdField: 'dataSourceId', itemTypeId: 'DATA_SOURCE', label: 'DataSets' },
+      { field: 'pageId', fieldSource: 'context', label: 'Page', typeId: 'PAGE' },
+      { field: 'appViewId', fieldSource: 'context', label: 'App Page', parentFieldSource: 'context', parentSource: 'appId', typeId: 'DATA_APP_VIEW' },
+      { field: 'appId', fieldSource: 'context', label: 'Studio App', typeId: 'DATA_APP' }
     ]
   ),
   CERTIFICATION: new DomoObjectType(
@@ -488,7 +498,8 @@ export const ObjectTypeRegistry = {
       { label: 'Package', source: 'parentId', typeId: 'CODEENGINE_PACKAGE' },
       { field: 'workflowVersionNumber', label: 'Workflow Version', parentSource: 'workflowModelId', typeId: 'WORKFLOW_MODEL_VERSION' },
       { field: 'workflowModelId', label: 'Workflow', typeId: 'WORKFLOW_MODEL' }
-    ]
+    ],
+    [{ label: 'Package ID', primary: true, source: 'parentId' }, { label: 'Version Number', source: 'id' }]
   ),
   COLLECTION: new DomoObjectType(
     'COLLECTION',
@@ -592,8 +603,9 @@ export const ObjectTypeRegistry = {
     ['DATA_APP'],
     [
       { label: 'Studio App', source: 'parent', typeId: 'DATA_APP' },
-      { field: 'content', isArray: true, itemTypeField: 'type', label: 'Content' }
-    ]
+      { field: 'content', fieldSource: 'context', isArray: true, itemTypeField: 'type', label: 'Content' }
+    ],
+    [{ label: 'App ID', source: 'parentId' }]
   ),
   DATA_DICTIONARY: new DomoObjectType(
     'DATA_DICTIONARY',
@@ -637,6 +649,11 @@ export const ObjectTypeRegistry = {
       { label: 'Stream', source: 'parent', typeId: 'STREAM' },
       { field: 'accountId', label: 'Account', typeId: 'ACCOUNT' },
       { label: 'DataFlow', source: 'parent', typeId: 'DATAFLOW_TYPE' }
+    ],
+    [
+      { label: 'Account ID', source: 'metadata.details.accountId' },
+      { label: 'DataFlow ID', source: 'parentId', when: { field: 'metadata.details.type', matches: 'dataflow' } },
+      { label: 'Stream ID', source: 'metadata.details.streamId' }
     ]
   ),
   DATAFLOW_TYPE: new DomoObjectType(
@@ -1023,7 +1040,7 @@ export const ObjectTypeRegistry = {
       pathToName: 'title'
     },
     ['PAGE'],
-    [{ field: 'content', isArray: true, itemTypeField: 'type', label: 'Content' }]
+    [{ field: 'content', fieldSource: 'context', isArray: true, itemTypeField: 'type', label: 'Content' }]
   ),
   PAGE_ANALYZER: new DomoObjectType(
     'PAGE_ANALYZER',
@@ -1611,7 +1628,8 @@ export const ObjectTypeRegistry = {
       pathToName: 'title'
     },
     ['WORKSHEET'],
-    [{ label: 'Worksheet', source: 'parentId', typeId: 'WORKSHEET' }]
+    [{ label: 'Worksheet', source: 'parentId', typeId: 'WORKSHEET' }],
+    [{ label: 'Worksheet ID', source: 'parentId' }]
   ),
   WORKSPACE: new DomoObjectType(
     'WORKSPACE',

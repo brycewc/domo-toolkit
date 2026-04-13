@@ -45,9 +45,9 @@ export async function detectCurrentObject() {
       // Extract page/app context from query params (e.g., analyzer launched from a page or app)
       if (parts.includes('dataappid')) {
         return {
+          appId: parts[parts.indexOf('dataappid') + 1],
+          appViewId: parts[parts.indexOf('pageid') + 1],
           baseUrl: `${location.protocol}//${location.hostname}`,
-          contextAppId: parts[parts.indexOf('dataappid') + 1],
-          contextAppViewId: parts[parts.indexOf('pageid') + 1],
           id,
           typeId: objectType,
           url
@@ -55,8 +55,8 @@ export async function detectCurrentObject() {
       } else if (parts.includes('pageid')) {
         return {
           baseUrl: `${location.protocol}//${location.hostname}`,
-          contextPageId: parts[parts.indexOf('pageid') + 1],
           id,
+          pageId: parts[parts.indexOf('pageid') + 1],
           typeId: objectType,
           url
         };
@@ -90,9 +90,9 @@ export async function detectCurrentObject() {
       // Extract page/app context from URL prefix (card details viewed from a page or app)
       if (url.includes('app-studio')) {
         return {
+          appId: parts[parts.indexOf('app-studio') + 1],
+          appViewId: parts[parts.indexOf('pages') + 1],
           baseUrl: `${location.protocol}//${location.hostname}`,
-          contextAppId: parts[parts.indexOf('app-studio') + 1],
-          contextAppViewId: parts[parts.indexOf('pages') + 1],
           id,
           typeId: objectType,
           url
@@ -100,8 +100,8 @@ export async function detectCurrentObject() {
       } else if (parts.includes('page')) {
         return {
           baseUrl: `${location.protocol}//${location.hostname}`,
-          contextPageId: parts[parts.indexOf('page') + 1],
           id,
+          pageId: parts[parts.indexOf('page') + 1],
           typeId: objectType,
           url
         };
@@ -118,9 +118,9 @@ export async function detectCurrentObject() {
         // Extract page/app context from current URL (card modal on a page or app)
         if (url.includes('app-studio')) {
           return {
+            appId: parts[parts.indexOf('app-studio') + 1],
+            appViewId: parts[parts.indexOf('pages') + 1],
             baseUrl: `${location.protocol}//${location.hostname}`,
-            contextAppId: parts[parts.indexOf('app-studio') + 1],
-            contextAppViewId: parts[parts.indexOf('pages') + 1],
             id,
             typeId: objectType,
             url
@@ -128,8 +128,8 @@ export async function detectCurrentObject() {
         }
         return {
           baseUrl: `${location.protocol}//${location.hostname}`,
-          contextPageId: parts[parts.indexOf('page') + 1],
           id,
+          pageId: parts[parts.indexOf('page') + 1],
           typeId: objectType,
           url
         };

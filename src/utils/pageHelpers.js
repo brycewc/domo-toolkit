@@ -11,7 +11,7 @@
  */
 export async function waitForCardPages(currentContext, maxAttempts = 50) {
   try {
-    let details = currentContext.domoObject.metadata?.details;
+    let details = currentContext.domoObject.metadata?.context;
     let cardPages = details?.cardPages;
     let cardsByPage = details?.cardsByPage;
 
@@ -29,7 +29,7 @@ export async function waitForCardPages(currentContext, maxAttempts = 50) {
 
         if (
           response?.success &&
-          response?.context?.domoObject?.metadata?.details?.cardPages !==
+          response?.context?.domoObject?.metadata?.context?.cardPages !==
             undefined
         ) {
           cardPages =
@@ -80,7 +80,7 @@ export async function waitForChildPages(currentContext, maxAttempts = 50) {
   const propertyName =
     objectType === 'DATA_APP_VIEW' ? 'appPages' : 'childPages';
 
-  let childPages = currentContext.domoObject.metadata?.details?.[propertyName];
+  let childPages = currentContext.domoObject.metadata?.context?.[propertyName];
 
   // Three states:
   // 1. undefined/null: Not yet checked for pages - need to wait
@@ -105,7 +105,7 @@ export async function waitForChildPages(currentContext, maxAttempts = 50) {
 
       if (
         response?.success &&
-        response?.context?.domoObject?.metadata?.details?.[propertyName] !==
+        response?.context?.domoObject?.metadata?.context?.[propertyName] !==
           undefined
       ) {
         childPages = response.context.domoObject.metadata.details[propertyName];

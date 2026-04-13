@@ -87,7 +87,10 @@ export function ContextFooter({
       for (const related of typeModel.relatedObjects) {
         if (related.source === 'self') continue;
         if (related.isArray) {
-          const arrayData = domoObject.metadata?.details?.[related.field];
+          const arrayBase = related.fieldSource === 'context'
+            ? domoObject.metadata?.context
+            : domoObject.metadata?.details;
+          const arrayData = arrayBase?.[related.field];
           if (arrayData?.length > 0) {
             result.push({
               data: arrayData,
@@ -123,9 +126,12 @@ export function ContextFooter({
         if (related.source === 'parentId') {
           relatedId = domoObject.parentId;
         } else {
+          const fieldBase = related.fieldSource === 'context'
+            ? domoObject.metadata?.context
+            : domoObject.metadata?.details;
           relatedId = related.field
             .split('.')
-            .reduce((obj, key) => obj?.[key], domoObject.metadata?.details);
+            .reduce((obj, key) => obj?.[key], fieldBase);
         }
 
         if (relatedId) {
@@ -695,9 +701,12 @@ function resolveRelatedParentId(related, domoObject) {
   if (related.parentSource) {
     if (related.parentSource === 'parentId') return domoObject.parentId;
     if (related.parentSource === 'objectId') return domoObject.id;
+    const parentBase = related.parentFieldSource === 'context'
+      ? domoObject.metadata?.context
+      : domoObject.metadata?.details;
     return related.parentSource
       .split('.')
-      .reduce((obj, key) => obj?.[key], domoObject.metadata?.details);
+      .reduce((obj, key) => obj?.[key], parentBase);
   }
 
   // Auto-resolve: infer from type hierarchy

@@ -190,7 +190,7 @@ export function GetPagesView({
       if (sidepanelType === 'getCardPages' && childPages?.length > 0) {
         chrome.runtime
           .sendMessage({
-            metadataUpdates: {
+            contextUpdates: {
               cardPages: childPages.map((p) => ({
                 appId: p.appId,
                 appName: p.appName,

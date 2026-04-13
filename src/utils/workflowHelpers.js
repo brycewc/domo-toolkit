@@ -7,7 +7,7 @@
  * @returns {Promise<{success: boolean, definition: Object|null, error: string|null}>}
  */
 export async function waitForDefinition(currentContext, maxAttempts = 50) {
-  let definition = currentContext.domoObject.metadata?.details?.definition;
+  let definition = currentContext.domoObject.metadata?.context?.definition;
 
   if (definition === undefined || definition === null) {
     console.log('[workflowHelpers] Definition not yet loaded, waiting...');
@@ -24,7 +24,7 @@ export async function waitForDefinition(currentContext, maxAttempts = 50) {
       });
 
       if (response?.success) {
-        const details = response.context?.domoObject?.metadata?.details;
+        const details = response.context?.domoObject?.metadata?.context;
         if (details?.definition !== undefined && details?.definition !== null) {
           definition = details.definition;
           console.log('[workflowHelpers] Definition loaded');

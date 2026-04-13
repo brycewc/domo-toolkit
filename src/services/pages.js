@@ -1,5 +1,36 @@
 import { executeInPage, waitForCards } from '@/utils';
 
+/**
+ * Check if a page is actually a data app view and get its parent app ID.
+ * Uses the stacks API type property to distinguish pages from app views.
+ * This is a page-context function — call via executeInPage.
+ * @param {string} pageId - The page ID to check
+ * @returns {Promise<string|null>} The parent app ID if data app view, null if regular page
+ */
+export async function checkPageType(pageId) {
+  try {
+    const stacksResponse = await fetch(`/api/content/v3/stacks/${pageId}`);
+    if (!stacksResponse.ok) return null;
+    const stacksData = await stacksResponse.json();
+    if (stacksData.type !== 'dav') return null;
+
+    const summaryResponse = await fetch(
+      '/api/content/v1/pages/summary?limit=1&skip=0',
+      {
+        body: JSON.stringify({ pageId }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST'
+      }
+    );
+    if (!summaryResponse.ok) return null;
+    const summaryData = await summaryResponse.json();
+    const appId = summaryData.pages?.[0]?.dataAppId;
+    return appId ? appId.toString() : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 export async function deletePageAndAllCards({
   appId = null,
   currentContext = null,

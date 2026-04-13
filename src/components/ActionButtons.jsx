@@ -426,7 +426,7 @@ function getAvailableActions(typeId, details, metadata) {
 
   if (
     typeId === 'CODEENGINE_PACKAGE_VERSION' &&
-    metadata?.details?.workflowModelId
+    metadata?.context?.workflowModelId
   ) {
     actions.add('updateCodeEngineVersions');
   }

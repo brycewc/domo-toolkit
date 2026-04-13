@@ -142,7 +142,10 @@ export function ApiErrorsView({
                         {error.timestamp}
                       </span>
                     </div>
-                    <span className='w-full truncate text-muted'>
+                    <span
+                      className='w-full truncate text-muted'
+                      title={`${error.method} ${error.url}`}
+                    >
                       {error.method} {error.url}
                     </span>
                   </Disclosure.Trigger>

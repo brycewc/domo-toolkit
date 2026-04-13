@@ -1,4 +1,4 @@
-import { isDomoUrl } from './constants';
+import { isDomoUrl } from './currentObject';
 
 /**
  * Execute a function in ALL frames in the page context (MAIN world)

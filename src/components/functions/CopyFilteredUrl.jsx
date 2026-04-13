@@ -173,10 +173,10 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
           ) : (
             <IconFilterShare stroke={1.5} />
           )}
-          Copy Filtered URL
+          Copy Filters
           {filterCount > 0 && (
             <Chip
-              className='absolute top-1 right-1 h-5 min-w-5 justify-center rounded-3xl'
+              className='h-5 w-5 items-center justify-center rounded-full'
               color='accent'
               size='sm'
               variant='soft'
@@ -190,7 +190,7 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
           className='flex flex-col items-center text-center'
           placement='bottom'
         >
-          <span>Copy Filtered URL</span>
+          <span>Copy filtered URL (pfilter)</span>
           {!longPressDisabled && (
             <span className='italic'>Hold for more options</span>
           )}

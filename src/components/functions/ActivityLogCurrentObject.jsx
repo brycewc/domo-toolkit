@@ -55,7 +55,7 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
       switch (key) {
         case 'card-pages': {
           activityLogType = 'card-pages';
-          let pages = currentContext?.domoObject?.metadata?.details?.cardPages;
+          let pages = currentContext?.domoObject?.metadata?.context?.cardPages;
 
           if (!pages) {
             const cards = await getCardsForObject({
