@@ -486,7 +486,10 @@ chrome.runtime.onInstalled.addListener((details) => {
       (r) => compareVersions(r.version, details.previousVersion) > 0
     );
 
-    if (newReleases.length > 0) {
+    if (newReleases.length === 0) {
+      // No release entry for this version — silently update lastSeenVersion
+      chrome.storage.local.set({ lastSeenVersion: currentVersion });
+    } else {
       const hasFullPage = newReleases.some((r) => r.notify === 'fullPage');
       const hasBadge = newReleases.some((r) => r.notify === 'badge');
 

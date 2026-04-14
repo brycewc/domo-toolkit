@@ -40,7 +40,7 @@ export function useReleaseNotification() {
   useEffect(() => {
     const currentVersion = chrome.runtime.getManifest().version;
     const latestRelease = releases.find((r) => r.version === currentVersion);
-    if (latestRelease?.notify === 'silent') return;
+    if (!latestRelease || latestRelease.notify === 'silent') return;
 
     chrome.storage.local.get(['lastSeenVersion'], (result) => {
       if (result.lastSeenVersion === currentVersion) return;
