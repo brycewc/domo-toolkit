@@ -29,8 +29,9 @@ export function TransferOwnership({
         <IconUserUp stroke={1.5} />
         Transfer Ownership
       </Button>
-      <Tooltip.Content>
-        Transfer all objects owned by this user to another user
+      <Tooltip.Content className='text-wrap break-normal'>
+        Transfer all objects (or a selected subset) owned by this user to
+        another user
       </Tooltip.Content>
     </Tooltip>
   );

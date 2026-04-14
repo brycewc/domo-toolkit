@@ -100,18 +100,25 @@ export class DomoObjectType {
     const parts = url.split(/[/?=&]/);
     const { fromEnd = false, keyword, offset = 1 } = this.extractConfig;
 
+    let id;
     if (fromEnd) {
       // Extract from end of URL
-      return parts[parts.length - offset] || null;
+      id = parts[parts.length - offset] || null;
+    } else {
+      // Lowercase keyword to match lowercased URLs from content script detection
+      const index = parts.indexOf(keyword.toLowerCase());
+      if (index === -1) {
+        return null;
+      }
+      id = parts[index + offset] || null;
     }
 
-    // Lowercase keyword to match lowercased URLs from content script detection
-    const index = parts.indexOf(keyword.toLowerCase());
-    if (index === -1) {
+    // Validate extracted ID against the type's pattern (rejects e.g. "new", "graph")
+    if (id && !this.idPattern.test(id)) {
       return null;
     }
 
-    return parts[index + offset] || null;
+    return id;
   }
 
   /**
@@ -628,7 +635,7 @@ export const ObjectTypeRegistry = {
   DATA_APP_VIEW: new DomoObjectType(
     'DATA_APP_VIEW',
     'App Page',
-    { component: 'AppWindow' },
+    { component: 'LayoutDashboard' },
     '/app-studio/{parent}/pages/{id}',
     /^\d+$/,
     {
@@ -1105,7 +1112,7 @@ export const ObjectTypeRegistry = {
   PAGE: new DomoObjectType(
     'PAGE',
     'Page',
-    { component: 'Layout' },
+    { component: 'LayoutDashboard' },
     '/page/{id}',
     /^-?\d+$/,
     {

@@ -1,6 +1,5 @@
 import {
   IconApps,
-  IconAppWindow,
   IconArrowsSplit,
   IconBell,
   IconBinaryTree,
@@ -19,7 +18,7 @@ import {
   IconForms,
   IconGitBranch,
   IconKey,
-  IconLayout,
+  IconLayoutDashboard,
   IconListCheck,
   IconMail,
   IconMathFunction,
@@ -53,7 +52,6 @@ import { getObjectType } from '@/models';
 
 const ICON_MAP = {
   Apps: IconApps,
-  AppWindow: IconAppWindow,
   ArrowsSplit: IconArrowsSplit,
   Bell: IconBell,
   BinaryTree: IconBinaryTree,
@@ -72,7 +70,7 @@ const ICON_MAP = {
   Forms: IconForms,
   GitBranch: IconGitBranch,
   Key: IconKey,
-  Layout: IconLayout,
+  LayoutDashboard: IconLayoutDashboard,
   ListCheck: IconListCheck,
   Mail: IconMail,
   MathFunction: IconMathFunction,
@@ -107,14 +105,14 @@ export function ObjectTypeIcon({ className, size = 14, stroke = 1.5, typeId }) {
   if (!icon) return null;
   const Component = ICON_MAP[icon.component];
   if (!Component) return null;
-  const rotationClass = icon.rotation
-    ? `${icon.rotation < 0 ? '-' : ''}rotate-${Math.abs(icon.rotation)}`
-    : '';
   return (
     <Component
-      className={`${rotationClass}${className ? ` ${className}` : ''}`.trim()}
+      className={className}
       size={size}
       stroke={stroke}
+      style={
+        icon.rotation ? { transform: `rotate(${icon.rotation}deg)` } : undefined
+      }
     />
   );
 }

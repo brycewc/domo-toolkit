@@ -7,14 +7,14 @@ import {
   ContextFooter,
   GetCardsView,
   GetDatasetsView,
+  GetOwnedObjectsView,
   GetPagesView,
   GetViewInputsView,
   LinkPreview,
   ObjectDetailsView,
   ToastProvider,
   TransferOwnershipView,
-  UpdateCodeEngineVersionsView,
-  ViewOwnedObjectsView
+  UpdateCodeEngineVersionsView
 } from '@/components';
 import { useReleaseNotification, useStatusBar, useTheme } from '@/hooks';
 import { DomoContext } from '@/models';
@@ -309,8 +309,8 @@ export default function App() {
               />
             )}
 
-            {activeView === 'viewOwnedObjects' && (
-              <ViewOwnedObjectsView
+            {activeView === 'getOwnedObjects' && (
+              <GetOwnedObjectsView
                 key={viewKey}
                 onBackToDefault={handleBackToDefault}
                 onStatusUpdate={showStatus}

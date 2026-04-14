@@ -345,7 +345,6 @@ export function DataList({
                               >
                                 <IconRefresh
                                   className={isRefreshing ? 'animate-spin' : ''}
-                                  size={16}
                                   stroke={1.5}
                                 />
                               </Button>

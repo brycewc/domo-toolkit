@@ -30,6 +30,7 @@ import {
   GetCards,
   GetChildPages,
   GetDatasets,
+  GetOwnedObjects,
   GetViewInputs,
   LockCards,
   NavigateToCopiedObject,
@@ -40,8 +41,7 @@ import {
   UpdateCodeEngineVersions,
   UpdateDataflowDetails,
   UpdateOwner,
-  ViewLineage,
-  ViewOwnedObjects
+  ViewLineage
 } from './functions';
 
 export function ActionButtons({
@@ -266,8 +266,8 @@ export function ActionButtons({
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
-                {availableActions.has('viewOwnedObjects') && (
-                  <ViewOwnedObjects
+                {availableActions.has('getOwnedObjects') && (
+                  <GetOwnedObjects
                     currentContext={currentContext}
                     onCollapseActions={
                       collapsable ? () => setIsExpanded(false) : undefined
@@ -353,6 +353,7 @@ function getAvailableActions(currentContext) {
   const metadata = currentContext?.domoObject?.metadata;
   const details = metadata?.details;
   const url = currentContext?.url;
+  const userRights = currentContext?.user?.metadata?.USER_RIGHTS || [];
   if (
     [
       'DATA_APP_VIEW',
@@ -364,7 +365,9 @@ function getAvailableActions(currentContext) {
     ].includes(typeId)
   ) {
     actions.add('getCards');
-    actions.add('lockCards');
+    if (userRights.includes('content.admin')) {
+      actions.add('lockCards');
+    }
   }
 
   if (
@@ -452,7 +455,7 @@ function getAvailableActions(currentContext) {
 
   if (typeId === 'USER') {
     actions.add('transferOwnership');
-    actions.add('viewOwnedObjects');
+    actions.add('getOwnedObjects');
   }
 
   if (

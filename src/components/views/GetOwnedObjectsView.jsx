@@ -1,7 +1,8 @@
 import {
-  Badge,
   Button,
+  ButtonGroup,
   Card,
+  Chip,
   Disclosure,
   DisclosureGroup,
   Link,
@@ -11,13 +12,16 @@ import {
 } from '@heroui/react';
 import {
   IconCheck,
+  IconChevronDown,
   IconClipboard,
   IconLoader2,
   IconRefresh,
   IconX
 } from '@tabler/icons-react';
-import { useEffect, useRef, useState } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { AnimatedCheck } from '@/components';
 import { DomoContext, DomoObject } from '@/models';
 import { TRANSFER_TYPES } from '@/services';
 import { getSidepanelData } from '@/utils';
@@ -55,7 +59,110 @@ const TYPE_KEY_TO_DOMO_TYPE = {
   workflows: 'WORKFLOW_MODEL'
 };
 
-export function ViewOwnedObjectsView({
+const ITEM_HEIGHT = 24;
+const MAX_VISIBLE_ITEMS = 12;
+
+/**
+ * Virtualized list for items inside an expanded disclosure.
+ * Only renders visible rows, capping the container at MAX_VISIBLE_ITEMS height.
+ */
+const VirtualizedItemList = memo(function VirtualizedItemList({
+  items,
+  onCopyId,
+  origin,
+  typeKey
+}) {
+  const parentRef = useRef(null);
+  const [copiedId, setCopiedId] = useState(null);
+
+  const urls = useMemo(
+    () => items.map((item) => buildItemUrl(typeKey, item, origin)),
+    [items, origin, typeKey]
+  );
+
+  const virtualizer = useVirtualizer({
+    count: items.length,
+    estimateSize: () => ITEM_HEIGHT,
+    getScrollElement: () => parentRef.current,
+    overscan: 10
+  });
+
+  const containerHeight = Math.min(
+    items.length * ITEM_HEIGHT,
+    MAX_VISIBLE_ITEMS * ITEM_HEIGHT
+  );
+
+  return (
+    <div
+      className='overflow-y-auto'
+      ref={parentRef}
+      style={{ height: containerHeight }}
+    >
+      <div
+        className='relative w-full'
+        style={{ height: virtualizer.getTotalSize() }}
+      >
+        {virtualizer.getVirtualItems().map((virtualRow) => {
+          const item = items[virtualRow.index];
+          const url = urls[virtualRow.index];
+
+          return (
+            <div
+              className='absolute left-0 flex w-full items-center justify-between gap-1'
+              key={item.id ?? virtualRow.index}
+              style={{
+                height: ITEM_HEIGHT,
+                top: virtualRow.start
+              }}
+            >
+              <div className='min-w-0 flex-1'>
+                {url ? (
+                  <Link
+                    className='block truncate text-xs'
+                    href={url}
+                    rel='noopener noreferrer'
+                    target='_blank'
+                  >
+                    {item.name || item.id}
+                  </Link>
+                ) : (
+                  <span className='block truncate text-xs'>
+                    {item.subType ? `[${item.subType}] ` : ''}
+                    {item.name || item.id}
+                  </span>
+                )}
+              </div>
+              <Tooltip closeDelay={0} delay={400}>
+                <Button
+                  isIconOnly
+                  className='h-5 min-h-0 w-5 min-w-0'
+                  size='sm'
+                  variant='ghost'
+                  onPress={() => {
+                    setCopiedId(item.id);
+                    setTimeout(() => setCopiedId(null), 1000);
+                    onCopyId(item.id);
+                  }}
+                >
+                  {copiedId === item.id ? (
+                    <AnimatedCheck size={12} stroke={1.5} />
+                  ) : (
+                    <IconClipboard size={12} stroke={1.5} />
+                  )}
+                </Button>
+                <Tooltip.Content className='text-xs'>
+                  {copiedId === item.id ? 'Copied!' : 'Copy ID'}
+                </Tooltip.Content>
+              </Tooltip>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
+
+export function GetOwnedObjectsView({
   onBackToDefault = null,
   onStatusUpdate = null
 }) {
@@ -86,7 +193,7 @@ export function ViewOwnedObjectsView({
     try {
       const data = await getSidepanelData();
 
-      if (!data || data.type !== 'viewOwnedObjects') {
+      if (!data || data.type !== 'getOwnedObjects') {
         onBackToDefault?.();
         return;
       }
@@ -118,7 +225,7 @@ export function ViewOwnedObjectsView({
         fetchAllTypes(uid, context.tabId);
       }
     } catch (error) {
-      console.error('[ViewOwnedObjectsView] Error loading data:', error);
+      console.error('[GetOwnedObjectsView] Error loading data:', error);
       onStatusUpdate?.(
         'Error',
         error.message || 'Failed to load context',
@@ -129,7 +236,6 @@ export function ViewOwnedObjectsView({
   };
 
   const fetchAllTypes = async (uid, tid) => {
-    // Reset all to loading
     setTypeResults(
       Object.fromEntries(
         TRANSFER_TYPES.map((t) => [
@@ -174,29 +280,40 @@ export function ViewOwnedObjectsView({
     }
   };
 
-  const handleCopyId = async (id) => {
-    try {
-      await navigator.clipboard.writeText(String(id));
-      onStatusUpdate?.('Copied', `ID ${id} copied to clipboard`, 'success');
-    } catch {
-      onStatusUpdate?.('Error', 'Failed to copy to clipboard', 'danger');
-    }
-  };
-
-  const totalObjects = Object.values(typeResults).reduce(
-    (sum, r) => sum + r.count,
-    0
+  const handleCopyId = useCallback(
+    async (id) => {
+      try {
+        await navigator.clipboard.writeText(String(id));
+        onStatusUpdate?.(
+          'Copied',
+          `ID **${id}** copied to clipboard`,
+          'success'
+        );
+      } catch {
+        onStatusUpdate?.('Error', 'Failed to copy to clipboard', 'danger');
+      }
+    },
+    [onStatusUpdate]
   );
-  const loadedTypeCount = Object.values(typeResults).filter(
-    (r) => r.status === 'loaded' && r.count > 0
-  ).length;
-  const loadingCount = Object.values(typeResults).filter(
-    (r) => r.status === 'loading'
-  ).length;
-  const errorCount = Object.values(typeResults).filter(
-    (r) => r.status === 'error'
-  ).length;
-  const isFullyLoaded = loadingCount === 0;
+
+  const {
+    errorCount,
+    isFullyLoaded,
+    loadedTypeCount,
+    loadingCount,
+    totalObjects
+  } = useMemo(() => {
+    const results = Object.values(typeResults);
+    return {
+      errorCount: results.filter((r) => r.status === 'error').length,
+      isFullyLoaded: results.every((r) => r.status !== 'loading'),
+      loadedTypeCount: results.filter(
+        (r) => r.status === 'loaded' && r.count > 0
+      ).length,
+      loadingCount: results.filter((r) => r.status === 'loading').length,
+      totalObjects: results.reduce((sum, r) => sum + r.count, 0)
+    };
+  }, [typeResults]);
 
   const renderTypeRow = (type) => {
     const result = typeResults[type.key];
@@ -247,79 +364,45 @@ export function ViewOwnedObjectsView({
             <IconCheck className='shrink-0 text-muted' size={18} />
             <span className='text-sm text-muted'>{type.label}</span>
           </div>
-          <Badge size='sm' variant='flat'>
-            0
-          </Badge>
+          <div className='flex min-w-0 items-center gap-2'>
+            <Chip size='sm' variant='soft'>
+              0
+            </Chip>
+            <IconChevronDown className='text-surface' size={16} stroke={1.5} />
+          </div>
         </div>
       );
     }
 
-    // Loaded with items — expandable
+    // Loaded with items — expandable with virtualized list
     return (
-      <Disclosure key={type.key}>
-        <div className='flex items-center justify-between py-1.5'>
-          <div className='flex min-w-0 items-center gap-2'>
-            <IconCheck className='shrink-0 text-success' size={18} />
-            <span className='truncate text-sm'>{type.label}</span>
-          </div>
-          <Disclosure.Heading>
-            <Button
-              className='h-auto min-w-0 gap-1 px-1 py-0 text-xs'
-              slot='trigger'
-              variant='ghost'
-            >
-              <Badge color='primary' size='sm' variant='flat'>
-                {result.count}
-              </Badge>
-              <Disclosure.Indicator />
-            </Button>
-          </Disclosure.Heading>
-        </div>
+      <Disclosure className='w-full' key={type.key}>
+        <Disclosure.Heading className='w-full'>
+          <Disclosure.Trigger className='w-full'>
+            <div className='flex items-center justify-between py-1.5'>
+              <div className='flex min-w-0 items-center gap-2'>
+                <IconCheck className='shrink-0 text-success' size={18} />
+                <span className='truncate text-sm'>{type.label}</span>
+              </div>
+              <div className='flex min-w-0 items-center gap-2'>
+                <Chip color='accent' size='sm' variant='soft'>
+                  {result.count}
+                </Chip>
+                <Disclosure.Indicator>
+                  <IconChevronDown stroke={1.5} />
+                </Disclosure.Indicator>
+              </div>
+            </div>
+          </Disclosure.Trigger>
+        </Disclosure.Heading>
         <Disclosure.Content>
-          <Disclosure.Body className='pb-2 pl-7 pt-0'>
-            <ul className='list-none space-y-0.5'>
-              {result.items.map((item, i) => {
-                const url = buildItemUrl(type.key, item, origin);
-                return (
-                  <li
-                    className='flex items-center justify-between gap-1'
-                    key={item.id ?? i}
-                  >
-                    <div className='min-w-0 flex-1'>
-                      {url ? (
-                        <Link
-                          className='block truncate text-xs'
-                          href={url}
-                          rel='noopener noreferrer'
-                          target='_blank'
-                        >
-                          {item.name || item.id}
-                        </Link>
-                      ) : (
-                        <span className='block truncate text-xs'>
-                          {item.subType ? `[${item.subType}] ` : ''}
-                          {item.name || item.id}
-                        </span>
-                      )}
-                    </div>
-                    <Tooltip closeDelay={0} delay={400}>
-                      <Button
-                        isIconOnly
-                        className='h-5 min-h-0 w-5 min-w-0'
-                        size='sm'
-                        variant='ghost'
-                        onPress={() => handleCopyId(item.id)}
-                      >
-                        <IconClipboard size={12} />
-                      </Button>
-                      <Tooltip.Content className='text-xs'>
-                        Copy ID
-                      </Tooltip.Content>
-                    </Tooltip>
-                  </li>
-                );
-              })}
-            </ul>
+          <Disclosure.Body className='pt-0 pb-2 pl-7'>
+            <VirtualizedItemList
+              items={result.items}
+              origin={origin}
+              typeKey={type.key}
+              onCopyId={handleCopyId}
+            />
           </Disclosure.Body>
         </Disclosure.Content>
       </Disclosure>
@@ -342,12 +425,43 @@ export function ViewOwnedObjectsView({
       <Card.Header className='gap-2'>
         <Card.Title className='flex items-start justify-between'>
           <div className='min-w-0 flex-1 pt-1'>
-            <div className='truncate text-base font-semibold'>
-              Owned Objects
+            <div className='flex flex-col gap-1'>
+              <div className='line-clamp-2 min-w-0'>
+                <span>Owned Objects for</span>{' '}
+                <span className='font-bold'>{userName}</span>
+              </div>
+              <div className='shrink-0 text-xs text-muted'>
+                {isFullyLoaded ? (
+                  <>
+                    <span className='font-medium text-foreground'>
+                      {totalObjects}
+                    </span>{' '}
+                    object{totalObjects !== 1 ? 's' : ''} across{' '}
+                    <span className='font-medium text-foreground'>
+                      {loadedTypeCount}
+                    </span>{' '}
+                    type{loadedTypeCount !== 1 ? 's' : ''}
+                    {errorCount > 0 && (
+                      <span>
+                        {' ('}
+                        <span className='text-danger'>
+                          {' '}
+                          {errorCount} failed
+                        </span>
+                        {')'}
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    Searching... ({TRANSFER_TYPES.length - loadingCount}/
+                    {TRANSFER_TYPES.length} types)
+                  </>
+                )}
+              </div>
             </div>
-            <div className='truncate text-xs text-muted'>{userName}</div>
           </div>
-          <div className='flex items-center gap-1'>
+          <ButtonGroup>
             <Tooltip closeDelay={0} delay={400}>
               <Button
                 isIconOnly
@@ -356,7 +470,7 @@ export function ViewOwnedObjectsView({
                 variant='ghost'
                 onPress={handleRefresh}
               >
-                <IconRefresh size={16} stroke={1.5} />
+                <IconRefresh stroke={1.5} />
               </Button>
               <Tooltip.Content className='text-xs'>Refresh</Tooltip.Content>
             </Tooltip>
@@ -373,47 +487,20 @@ export function ViewOwnedObjectsView({
                 <Tooltip.Content className='text-xs'>Close</Tooltip.Content>
               </Tooltip>
             )}
-          </div>
+          </ButtonGroup>
         </Card.Title>
-        <Separator />
       </Card.Header>
 
-      {/* Summary */}
-      <div className='shrink-0 px-1 py-1 text-xs text-muted'>
-        {isFullyLoaded ? (
-          <>
-            <span className='font-medium text-foreground'>
-              {totalObjects}
-            </span>{' '}
-            object{totalObjects !== 1 ? 's' : ''} across{' '}
-            <span className='font-medium text-foreground'>
-              {loadedTypeCount}
-            </span>{' '}
-            type{loadedTypeCount !== 1 ? 's' : ''}
-            {errorCount > 0 && (
-              <span className='text-danger'>
-                {' '}
-                ({errorCount} failed)
-              </span>
-            )}
-          </>
-        ) : (
-          <>
-            Searching... ({TRANSFER_TYPES.length - loadingCount}/
-            {TRANSFER_TYPES.length} types)
-          </>
-        )}
-      </div>
       <Separator />
 
       {/* Type list */}
       <ScrollShadow
         hideScrollBar
-        className='min-h-0 flex-1 overflow-y-auto px-1'
+        className='min-h-0 w-full flex-1 overflow-y-auto px-1'
         offset={5}
         orientation='vertical'
       >
-        <DisclosureGroup allowsMultipleExpanded>
+        <DisclosureGroup>
           {TRANSFER_TYPES.map((type) => renderTypeRow(type))}
         </DisclosureGroup>
       </ScrollShadow>

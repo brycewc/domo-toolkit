@@ -23,10 +23,38 @@ export async function getOwnedGoals(userId, tabId = null) {
         `/api/social/v2/objectives/profile?filterKeyResults=false&includeSampleGoal=false&ownerId=${userId}&periodId=${currentPeriod.id}`
       );
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const goals = await response.json();
+      const data = await response.json();
 
-      if (!goals || goals.length === 0) return [];
-      return goals.map((g) => ({ id: g.id, name: g.name || g.id.toString() }));
+      if (!data) return [];
+
+      // Response is { assigned, company, contributing, personal, team }
+      // where each is an array of goals, except team which is a map of groupId → goal[]
+      const seen = new Set();
+      const allGoals = [];
+
+      const addGoals = (arr) => {
+        if (!Array.isArray(arr)) return;
+        for (const g of arr) {
+          if (g.id != null && !seen.has(g.id)) {
+            seen.add(g.id);
+            allGoals.push({ id: g.id, name: g.name || g.id.toString() });
+          }
+        }
+      };
+
+      addGoals(data.assigned);
+      addGoals(data.company);
+      addGoals(data.contributing);
+      addGoals(data.personal);
+
+      // team is a map: { [groupId]: goal[] }
+      if (data.team && typeof data.team === 'object') {
+        for (const goals of Object.values(data.team)) {
+          addGoals(goals);
+        }
+      }
+
+      return allGoals;
     },
     [userId],
     tabId

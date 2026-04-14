@@ -472,6 +472,30 @@ function touchTab(tabId) {
   tabAccessTimes.set(tabId, Date.now());
 }
 
+/**
+ * Update the tracked object key for a tab and clear errors if the key changed.
+ * Called on every detection attempt — both success (typeId:objectId) and
+ * failure (url:pathname) — so errors always clear on navigation.
+ */
+function updateTabObjectKey(tabId, newKey) {
+  const lastKey = tabLastObject.get(tabId);
+  if (lastKey && lastKey !== newKey) {
+    clearApiErrors(tabId);
+  }
+  tabLastObject.set(tabId, newKey);
+}
+
+/**
+ * Build a fallback object key from a URL for pages where no object is detected.
+ */
+function urlObjectKey(url) {
+  try {
+    return `url:${new URL(url).pathname}`;
+  } catch {
+    return `url:${url}`;
+  }
+}
+
 // Handle extension installation
 chrome.runtime.onInstalled.addListener((details) => {
   const currentVersion = chrome.runtime.getManifest().version;
@@ -940,8 +964,9 @@ async function detectAndStoreContext(tabId) {
     if (isStale()) return null;
     if (!detected) {
       console.log(`[Background] No Domo object detected on tab ${tabId}`);
-      // Set a section title for list/index pages (e.g., "Workflows - Domo")
+      // Track URL so errors clear when navigating between undetected pages
       if (tab.url) {
+        updateTabObjectKey(tabId, urlObjectKey(tab.url));
         setSectionTitle(tabId, tab.url);
       }
       // During redetection, broadcast the empty context so the UI clears
@@ -955,6 +980,7 @@ async function detectAndStoreContext(tabId) {
 
     if (!typeModel) {
       console.warn(`[Background] Unknown object type: ${detected.typeId}`);
+      updateTabObjectKey(tabId, urlObjectKey(tab.url));
       return null;
     }
 
@@ -976,6 +1002,7 @@ async function detectAndStoreContext(tabId) {
 
     if (!objectId) {
       console.warn(`[Background] Could not extract ID for ${detected.typeId}`);
+      updateTabObjectKey(tabId, urlObjectKey(tab.url));
       return null;
     }
 
@@ -1141,12 +1168,7 @@ async function detectAndStoreContext(tabId) {
     }
 
     // Clear API errors when navigating to a different object on this tab
-    const currentObjectKey = `${typeModel.id}:${objectId}`;
-    const lastObjectKey = tabLastObject.get(tabId);
-    if (lastObjectKey && lastObjectKey !== currentObjectKey) {
-      clearApiErrors(tabId);
-    }
-    tabLastObject.set(tabId, currentObjectKey);
+    updateTabObjectKey(tabId, `${typeModel.id}:${objectId}`);
 
     // Final stale check before committing context
     if (isStale()) return null;

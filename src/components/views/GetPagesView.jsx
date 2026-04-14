@@ -89,9 +89,13 @@ export function GetPagesView({
           ? domoObject.id
           : domoObject.parentId || domoObject.id;
       const objectName =
-        domoObject.metadata?.parent?.name ||
-        domoObject.metadata?.name ||
-        `${domoObject.typeName} ${objectId}`;
+        sidepanelType === 'getCardPages'
+          ? domoObject.metadata?.name ||
+            domoObject.metadata?.parent?.name ||
+            `${domoObject.typeName} ${objectId}`
+          : domoObject.metadata?.parent?.name ||
+            domoObject.metadata?.name ||
+            `${domoObject.typeName} ${objectId}`;
       const instance = context.instance;
       const origin = `https://${instance}.domo.com`;
 

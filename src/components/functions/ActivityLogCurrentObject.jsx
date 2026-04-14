@@ -1,7 +1,7 @@
 import { Button, Description, Dropdown, Label, Tooltip } from '@heroui/react';
 import {
   IconChartBar,
-  IconFileDescription,
+  IconLogs,
   IconSitemap,
   IconStack2
 } from '@tabler/icons-react';
@@ -227,12 +227,12 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
           {...(longPressEnabled ? pressProps : {})}
           {...(longPressEnabled ? pressProps : {})}
         >
-          <IconFileDescription stroke={1.5} />
+          <IconLogs stroke={1.5} />
           <LongPressOverlay />
           <LongPressOverlay />
         </Button>
         <Tooltip.Content className='flex flex-col items-center text-center'>
-          <span>Activity Log</span>
+          <span>Activity log</span>
           {longPressEnabled && (
             <span className='italic'>Hold for more options</span>
           )}

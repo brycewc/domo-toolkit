@@ -3,7 +3,7 @@ import { IconListDetails } from '@tabler/icons-react';
 
 import { useLaunchView } from '@/hooks';
 
-export function ViewOwnedObjects({
+export function GetOwnedObjects({
   currentContext,
   onCollapseActions,
   onStatusUpdate
@@ -22,16 +22,14 @@ export function ViewOwnedObjects({
             currentContext,
             onCollapseActions,
             onStatusUpdate,
-            type: 'viewOwnedObjects'
+            type: 'getOwnedObjects'
           })
         }
       >
         <IconListDetails stroke={1.5} />
-        View Owned Objects
+        Get Owned Objects
       </Button>
-      <Tooltip.Content>
-        View all objects owned by this user
-      </Tooltip.Content>
+      <Tooltip.Content>View all objects owned by this user</Tooltip.Content>
     </Tooltip>
   );
 }
