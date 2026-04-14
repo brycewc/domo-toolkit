@@ -1,5 +1,5 @@
 import { Button, Spinner } from '@heroui/react';
-import { IconCopy } from '@tabler/icons-react';
+import { IconSitemap } from '@tabler/icons-react';
 
 import { useLaunchView } from '@/hooks';
 import { waitForChildPages } from '@/utils';
@@ -55,7 +55,7 @@ export function GetChildPages({
           <Spinner color='currentColor' size='sm' />
         ) : (
           <>
-            <IconCopy stroke={1.5} />
+            <IconSitemap stroke={1.5} />
             {label}
           </>
         )

@@ -1,4 +1,4 @@
-import { executeInPage, waitForCards } from '@/utils';
+import { executeInPage, storeSidepanelData, waitForCards } from '@/utils';
 
 /**
  * Check if a page is actually a data app view and get its parent app ID.
@@ -60,13 +60,10 @@ export async function deletePageAndAllCards({
         });
 
         if (childPages.length > 0) {
-          await chrome.storage.session.set({
-            sidepanelDataList: {
-              childPages,
-              currentContext: currentContext?.toJSON?.() || currentContext,
-              timestamp: Date.now(),
-              type: 'childPagesWarning'
-            }
+          await storeSidepanelData({
+            childPages,
+            currentContext,
+            type: 'childPagesWarning'
           });
 
           return {

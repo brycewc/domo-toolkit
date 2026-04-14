@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from 'react';
 import JsonView from 'react18-json-view';
 
 import { DomoContext } from '@/models';
+import { getSidepanelData } from '@/utils';
 import '@/assets/json-view-theme.css';
 
 import { AnimatedCheck } from '../AnimatedCheck';
@@ -51,8 +52,7 @@ export function ApiErrorsView({
   }, [tabId, onBackToDefault]);
 
   const loadErrors = async () => {
-    const result = await chrome.storage.session.get(['sidepanelDataList']);
-    const data = result.sidepanelDataList;
+    const data = await getSidepanelData();
 
     if (!data || data.type !== 'apiErrors') {
       onBackToDefault?.();

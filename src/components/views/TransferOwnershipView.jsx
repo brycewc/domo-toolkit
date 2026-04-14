@@ -20,6 +20,7 @@ import { UserComboBox } from '@/components';
 import { useStatusBar } from '@/hooks';
 import { DomoContext } from '@/models';
 import { deleteUser, TRANSFER_TYPES, transferAllOwnership } from '@/services';
+import { getSidepanelData } from '@/utils';
 
 export function TransferOwnershipView({
   onBackToDefault = null,
@@ -49,8 +50,7 @@ export function TransferOwnershipView({
 
   const loadData = async () => {
     try {
-      const result = await chrome.storage.session.get(['sidepanelDataList']);
-      const data = result.sidepanelDataList;
+      const data = await getSidepanelData();
 
       if (!data || data.type !== 'transferOwnership') {
         onBackToDefault?.();

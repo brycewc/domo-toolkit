@@ -1,8 +1,8 @@
 import { Button, Description, Dropdown, Label, Tooltip } from '@heroui/react';
 import {
   IconChartBar,
-  IconCopy,
   IconFileDescription,
+  IconSitemap,
   IconStack2
 } from '@tabler/icons-react';
 import { useState } from 'react';
@@ -256,7 +256,7 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
           {hasChildPages && (
             <Dropdown.Item id='child-pages' textValue='Child Pages'>
               <div className='flex h-fit items-start justify-start gap-2'>
-                <IconCopy className='size-5 shrink-0' stroke={1.5} />
+                <IconSitemap className='size-5 shrink-0' stroke={1.5} />
                 <div className='flex flex-col'>
                   <Label>Child Pages</Label>
                   <Description className='text-xs'>

@@ -11,13 +11,12 @@ import {
 } from '@heroui/react';
 import {
   IconBinaryTree,
-  IconChartBar,
   IconChevronDown,
   IconClipboard,
-  IconCopyX,
   IconDots,
-  IconFolders,
+  IconQueuePopOut,
   IconRefresh,
+  IconStackPop,
   IconTable,
   IconUserPlus,
   IconUsersPlus,
@@ -28,6 +27,7 @@ import { useState } from 'react';
 import { getValidTabForInstance } from '@/utils';
 
 import { AnimatedCheck } from '../AnimatedCheck';
+import { ObjectTypeIcon } from '../ObjectTypeIcon';
 
 /**
  * Available header action types for DataList
@@ -284,7 +284,7 @@ export function DataList({
                                 variant='ghost'
                                 onPress={() => handleHeaderAction('openAll')}
                               >
-                                <IconFolders stroke={1.5} />
+                                <IconQueuePopOut stroke={1.5} />
                               </Button>
                               <Tooltip.Content className='text-xs'>
                                 Open all in new tabs
@@ -499,7 +499,7 @@ function DataListItem({
         variant='ghost'
         onPress={() => handleAction('remove')}
       >
-        <IconCopyX className='text-danger' stroke={1.5} />
+        <IconStackPop className='text-danger' stroke={1.5} />
       </Button>
       <Tooltip.Content className='text-xs'>
         Remove{' '}
@@ -520,7 +520,7 @@ function DataListItem({
         variant='ghost'
         onPress={() => handleAction('openAll')}
       >
-        <IconFolders stroke={1.5} />
+        <IconQueuePopOut stroke={1.5} />
       </Button>
       <Tooltip.Content className='text-xs'>
         Open all in new tabs
@@ -706,13 +706,10 @@ function DataListItem({
   const labelTooltip = (
     <Tooltip className='flex-1' closeDelay={0} delay={200}>
       <Tooltip.Trigger className='flex items-center truncate'>
-        {item.typeId === 'CARD' && (
-          <IconChartBar
-            className='mr-1 inline shrink-0 align-text-bottom'
-            size={14}
-            stroke={1.5}
-          />
-        )}
+        <ObjectTypeIcon
+          className='mr-1 inline shrink-0 align-text-bottom'
+          typeId={item.typeId}
+        />
         {item.label}
       </Tooltip.Trigger>
       <Tooltip.Content offset={4} placement='top left'>

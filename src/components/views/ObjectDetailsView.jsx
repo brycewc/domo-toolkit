@@ -26,6 +26,7 @@ import { useGroupLookup, useUserLookup } from '@/hooks';
 import { DomoObject } from '@/models';
 import {
   formatEpochTimestamp,
+  getSidepanelData,
   isDateFieldName,
   isGroupFieldName,
   isUserFieldName
@@ -92,8 +93,7 @@ export function ObjectDetailsView({
     }, 200);
 
     try {
-      const result = await chrome.storage.session.get(['sidepanelDataList']);
-      const data = result.sidepanelDataList;
+      const data = await getSidepanelData();
 
       if (!data || data.type !== 'viewObjectDetails') {
         setError('No object details found. Please try again.');

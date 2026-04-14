@@ -9,7 +9,7 @@ import {
   getFormsForPage,
   getQueuesForPage
 } from '@/services';
-import { getValidTabForInstance, waitForCards } from '@/utils';
+import { getSidepanelData, getValidTabForInstance, waitForCards } from '@/utils';
 
 import { DataList } from './DataList';
 
@@ -52,8 +52,7 @@ export function GetCardsView({
       : null;
 
     try {
-      const result = await chrome.storage.session.get(['sidepanelDataList']);
-      const data = result.sidepanelDataList;
+      const data = await getSidepanelData();
 
       if (!data || data.type !== 'getCards') {
         setError('No card data found. Please try again.');

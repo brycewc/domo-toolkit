@@ -24,6 +24,7 @@ import {
   DataRepair,
   DeleteCurrentObject,
   DevMenu,
+  DirectSignOn,
   Export,
   GetCardPages,
   GetCards,
@@ -59,10 +60,7 @@ export function ActionButtons({
   }, [defaultExpanded]);
 
   const isDomoPage = currentContext?.isDomoPage ?? false;
-  const typeId = currentContext?.domoObject?.typeId;
-  const metadata = currentContext?.domoObject?.metadata;
-  const details = metadata?.details;
-  const availableActions = getAvailableActions(typeId, details, metadata);
+  const availableActions = getAvailableActions(currentContext);
   const hasExpandableActions = availableActions.size > 0;
 
   return (
@@ -237,6 +235,12 @@ export function ActionButtons({
                     isDisabled={!isDomoPage}
                   />
                 )}
+                {availableActions.has('directSignOn') && (
+                  <DirectSignOn
+                    currentContext={currentContext}
+                    isDisabled={!isDomoPage}
+                  />
+                )}
                 {availableActions.has('getViewInputs') && (
                   <GetViewInputs
                     currentContext={currentContext}
@@ -343,9 +347,12 @@ export function ActionButtons({
  * Determine which expandable action buttons are available for the current context.
  * Returns a Set of action keys. Used for both rendering and disabling the expand trigger.
  */
-function getAvailableActions(typeId, details, metadata) {
+function getAvailableActions(currentContext) {
   const actions = new Set();
-
+  const typeId = currentContext?.domoObject?.typeId;
+  const metadata = currentContext?.domoObject?.metadata;
+  const details = metadata?.details;
+  const url = currentContext?.url;
   if (
     [
       'DATA_APP_VIEW',
@@ -446,6 +453,13 @@ function getAvailableActions(typeId, details, metadata) {
   if (typeId === 'USER') {
     actions.add('transferOwnership');
     actions.add('viewOwnedObjects');
+  }
+
+  if (
+    url?.includes('domo.com/auth/index') &&
+    !url?.includes('domoManualLogin=true')
+  ) {
+    actions.add('directSignOn');
   }
 
   return actions;

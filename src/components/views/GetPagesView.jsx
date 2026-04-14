@@ -18,6 +18,7 @@ import {
   sharePagesWithSelf
 } from '@/services';
 import {
+  getSidepanelData,
   getValidTabForInstance,
   waitForCards,
   waitForChildPages
@@ -62,8 +63,7 @@ export function GetPagesView({
 
     try {
       // Get the stored page data from local storage
-      const result = await chrome.storage.session.get(['sidepanelDataList']);
-      const data = result.sidepanelDataList;
+      const data = await getSidepanelData();
       console.log('Loaded sidepanel data:', data);
       if (
         !data ||

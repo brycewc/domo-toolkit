@@ -26,10 +26,12 @@ export {
 } from './general';
 export { waitForCardPages, waitForChildPages } from './pageHelpers';
 export {
+  getSidepanelData,
   isSidepanel,
   launchView,
   openSidepanel,
   showStatus,
+  sidepanelStorageKey,
   storeSidepanelData
 } from './sidepanel';
 export { waitForDefinition } from './workflowHelpers';

@@ -20,6 +20,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { DomoContext, DomoObject } from '@/models';
 import { TRANSFER_TYPES } from '@/services';
+import { getSidepanelData } from '@/utils';
 
 /**
  * Maps TRANSFER_TYPES keys to DomoObjectType IDs for URL construction.
@@ -83,8 +84,7 @@ export function ViewOwnedObjectsView({
 
   const loadData = async () => {
     try {
-      const result = await chrome.storage.session.get(['sidepanelDataList']);
-      const data = result.sidepanelDataList;
+      const data = await getSidepanelData();
 
       if (!data || data.type !== 'viewOwnedObjects') {
         onBackToDefault?.();

@@ -1,5 +1,5 @@
 import { Button, Spinner } from '@heroui/react';
-import { IconCopy } from '@tabler/icons-react';
+import { IconStack2 } from '@tabler/icons-react';
 
 import { useLaunchView } from '@/hooks';
 import { waitForCards } from '@/utils';
@@ -54,7 +54,7 @@ export function GetCardPages({
           <Spinner color='currentColor' size='sm' />
         ) : (
           <>
-            <IconCopy stroke={1.5} />
+            <IconStack2 stroke={1.5} />
             {isPageLike ? 'Get Other Card Pages' : 'Get Card Pages'}
           </>
         )

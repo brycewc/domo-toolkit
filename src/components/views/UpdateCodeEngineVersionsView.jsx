@@ -26,7 +26,7 @@ import {
   getVersionDefinition,
   updateVersionDefinition
 } from '@/services';
-import { waitForDefinition } from '@/utils';
+import { getSidepanelData, waitForDefinition } from '@/utils';
 
 export function UpdateCodeEngineVersionsView({
   onBackToDefault = null,
@@ -49,8 +49,7 @@ export function UpdateCodeEngineVersionsView({
 
   const loadData = async () => {
     try {
-      const result = await chrome.storage.session.get(['sidepanelDataList']);
-      const data = result.sidepanelDataList;
+      const data = await getSidepanelData();
 
       if (!data || data.type !== 'updateCodeEngineVersions') {
         onBackToDefault?.();

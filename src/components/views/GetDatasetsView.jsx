@@ -10,7 +10,7 @@ import {
   getDatasetsForPage,
   getDependentDatasets
 } from '@/services';
-import { getValidTabForInstance } from '@/utils';
+import { getSidepanelData, getValidTabForInstance } from '@/utils';
 
 import { DataList } from './DataList';
 
@@ -50,8 +50,7 @@ export function GetDatasetsView({
 
     try {
       // Get the stored data from session storage
-      const result = await chrome.storage.session.get(['sidepanelDataList']);
-      const data = result.sidepanelDataList;
+      const data = await getSidepanelData();
 
       if (!data || data.type !== 'getDatasets') {
         setError('No dataset data found. Please try again.');

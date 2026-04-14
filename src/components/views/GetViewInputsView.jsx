@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { DataListItem, DomoContext, DomoObject } from '@/models';
 import { getDatasetsForView } from '@/services';
-import { getValidTabForInstance } from '@/utils';
+import { getSidepanelData, getValidTabForInstance } from '@/utils';
 
 import { DataList } from './DataList';
 
@@ -42,8 +42,7 @@ export function GetViewInputsView({
       : null;
 
     try {
-      const result = await chrome.storage.session.get(['sidepanelDataList']);
-      const data = result.sidepanelDataList;
+      const data = await getSidepanelData();
 
       if (!data || data.type !== 'getViewInputs') {
         setError('No dataset data found. Please try again.');
