@@ -318,7 +318,7 @@ export function ObjectDetailsView({
                         }
                         if (
                           typeof params.node === 'number' &&
-                          isDateFieldName(params.indexOrName)
+                          isDateFieldName(params?.indexOrName)
                         ) {
                           const formatted = formatEpochTimestamp(params.node);
                           if (formatted) {
@@ -338,8 +338,8 @@ export function ObjectDetailsView({
                           const numericValue = Number(params.node);
                           if (
                             userMap[numericValue] &&
-                            (isUserFieldName(params.indexOrName) ||
-                              params.indexOrName === 'id')
+                            (isUserFieldName(params?.indexOrName) ||
+                              params?.indexOrName === 'id')
                           ) {
                             return (
                               <UserIdAnnotation
@@ -357,9 +357,9 @@ export function ObjectDetailsView({
                           const numericValue = Number(params.node);
                           if (
                             groupMap[numericValue] &&
-                            (isGroupFieldName(params.indexOrName) ||
-                              isUserFieldName(params.indexOrName) ||
-                              params.indexOrName === 'id')
+                            (isGroupFieldName(params?.indexOrName) ||
+                              isUserFieldName(params?.indexOrName) ||
+                              params?.indexOrName === 'id')
                           ) {
                             return (
                               <GroupIdAnnotation
@@ -369,7 +369,9 @@ export function ObjectDetailsView({
                             );
                           }
                         }
-                        if (params.indexOrName?.toLowerCase().includes('id')) {
+                        if (
+                          params?.indexOrName?.toLowerCase()?.includes('id')
+                        ) {
                           return { enableClipboard: true };
                         } else if (
                           (typeof params.node === 'number' ||

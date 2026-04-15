@@ -380,6 +380,18 @@ export async function detectCurrentObject() {
       objectType = 'AI_MODEL';
       break;
 
+    case url.includes('ai-library/toolkits/domo-provided/'):
+      objectType = 'AI_TOOLKIT_DOMO_PROVIDED';
+      break;
+
+    case url.includes('ai-library/toolkits/'):
+      objectType = 'AI_TOOLKIT';
+      break;
+
+    case url.includes('ai-library/agents/'):
+      objectType = 'AGENT';
+      break;
+
     case parts.includes('taskid'):
       objectType = 'PROJECT_TASK';
       break;

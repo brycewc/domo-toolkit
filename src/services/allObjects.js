@@ -187,6 +187,7 @@ export async function fetchObjectDetailsInPage(params) {
   const {
     bodyTemplate = null,
     endpoint,
+    filterByIdField = null,
     method = 'GET',
     nameTemplate = null,
     pathToDetails = null,
@@ -241,7 +242,20 @@ export async function fetchObjectDetailsInPage(params) {
       return { details: null, name: null };
     }
 
-    const data = await response.json();
+    let data = await response.json();
+
+    // If the endpoint returns a list, find the matching item by ID field
+    if (filterByIdField && Array.isArray(data)) {
+      data = data.find((item) => String(item[filterByIdField]) === String(objectId)) || null;
+      if (!data) {
+        const error = new Error(
+          `${typeId} ${objectId} not found in list response`
+        );
+        if (throwOnError) throw error;
+        return { details: null, name: null };
+      }
+    }
+
     const resolvePath = (path) =>
       (path.match(/[^.[\]]+/g) || []).reduce(
         (current, prop) => current?.[prop],

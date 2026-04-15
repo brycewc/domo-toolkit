@@ -325,22 +325,30 @@ export async function getOwnedDatasets(userId, tabId = null) {
           : [];
       if (ids.length === 0) return [];
 
-      // Fetch names in bulk
-      const bulkResponse = await fetch(
-        '/api/data/v3/datasources/bulk?includePrivate=true&part=core',
-        {
-          body: JSON.stringify(ids),
-          headers: { 'Content-Type': 'application/json' },
-          method: 'POST'
+      // Fetch names in bulk (max 100 per request)
+      const batchSize = 100;
+      const byId = {};
+      for (let i = 0; i < ids.length; i += batchSize) {
+        const chunk = ids.slice(i, i + batchSize);
+        try {
+          const bulkResponse = await fetch(
+            '/api/data/v3/datasources/bulk?includePrivate=true&part=core',
+            {
+              body: JSON.stringify(chunk),
+              headers: { 'Content-Type': 'application/json' },
+              method: 'POST'
+            }
+          );
+          if (bulkResponse.ok) {
+            const bulk = await bulkResponse.json();
+            for (const d of bulk.dataSources || []) {
+              byId[d.id] = d.name || d.id;
+            }
+          }
+        } catch {
+          // Skip failed batch — IDs will fall back to ID-as-name below
         }
-      );
-      if (!bulkResponse.ok) {
-        return ids.map((id) => ({ id, name: id }));
       }
-      const bulk = await bulkResponse.json();
-      const byId = Object.fromEntries(
-        (bulk.dataSources || []).map((d) => [d.id, d.name || d.id])
-      );
       return ids.map((id) => ({ id, name: byId[id] || id }));
     },
     [userId],

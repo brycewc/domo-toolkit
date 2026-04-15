@@ -87,9 +87,10 @@ export function ContextFooter({
       for (const related of typeModel.relatedObjects) {
         if (related.source === 'self') continue;
         if (related.isArray) {
-          const arrayBase = related.fieldSource === 'context'
-            ? domoObject.metadata?.context
-            : domoObject.metadata?.details;
+          const arrayBase =
+            related.fieldSource === 'context'
+              ? domoObject.metadata?.context
+              : domoObject.metadata?.details;
           const arrayData = arrayBase?.[related.field];
           if (arrayData?.length > 0) {
             result.push({
@@ -126,9 +127,10 @@ export function ContextFooter({
         if (related.source === 'parentId') {
           relatedId = domoObject.parentId;
         } else {
-          const fieldBase = related.fieldSource === 'context'
-            ? domoObject.metadata?.context
-            : domoObject.metadata?.details;
+          const fieldBase =
+            related.fieldSource === 'context'
+              ? domoObject.metadata?.context
+              : domoObject.metadata?.details;
           relatedId = related.field
             .split('.')
             .reduce((obj, key) => obj?.[key], fieldBase);
@@ -547,7 +549,16 @@ function buildSimpleUrl(baseUrl, typeId, objectId, parentId) {
 
 function injectUrls(
   src,
-  { baseUrl, isArray, itemIdField, itemTypeField, itemTypeId, objectId, parentId, typeId }
+  {
+    baseUrl,
+    isArray,
+    itemIdField,
+    itemTypeField,
+    itemTypeId,
+    objectId,
+    parentId,
+    typeId
+  }
 ) {
   if (!src || !baseUrl) return src;
 
@@ -598,9 +609,7 @@ function MetadataJsonView({ collapsed = 1, groupMap = {}, src, userMap = {} }) {
         />
       )}
       customizeCopy={(node) =>
-        typeof node === 'object'
-          ? JSON.stringify(node, null, 2)
-          : String(node)
+        typeof node === 'object' ? JSON.stringify(node, null, 2) : String(node)
       }
       customizeNode={(params) => {
         if (params.node === null || params.node === undefined) {
@@ -622,7 +631,7 @@ function MetadataJsonView({ collapsed = 1, groupMap = {}, src, userMap = {} }) {
         }
         if (
           typeof params.node === 'number' &&
-          isDateFieldName(params.indexOrName)
+          isDateFieldName(params?.indexOrName)
         ) {
           const formatted = formatEpochTimestamp(params.node);
           if (formatted) {
@@ -639,7 +648,8 @@ function MetadataJsonView({ collapsed = 1, groupMap = {}, src, userMap = {} }) {
           const numericValue = Number(params.node);
           if (
             userMap[numericValue] &&
-            (isUserFieldName(params.indexOrName) || params.indexOrName === 'id')
+            (isUserFieldName(params?.indexOrName) ||
+              params?.indexOrName === 'id')
           ) {
             return (
               <UserIdAnnotation
@@ -657,9 +667,9 @@ function MetadataJsonView({ collapsed = 1, groupMap = {}, src, userMap = {} }) {
           const numericValue = Number(params.node);
           if (
             groupMap[numericValue] &&
-            (isGroupFieldName(params.indexOrName) ||
-              isUserFieldName(params.indexOrName) ||
-              params.indexOrName === 'id')
+            (isGroupFieldName(params?.indexOrName) ||
+              isUserFieldName(params?.indexOrName) ||
+              params?.indexOrName === 'id')
           ) {
             return (
               <GroupIdAnnotation
@@ -669,7 +679,7 @@ function MetadataJsonView({ collapsed = 1, groupMap = {}, src, userMap = {} }) {
             );
           }
         }
-        if (params.indexOrName?.toLowerCase().includes('id')) {
+        if (params?.indexOrName?.toLowerCase()?.includes('id')) {
           return { enableClipboard: true };
         } else if (
           (typeof params.node === 'number' ||
@@ -701,9 +711,10 @@ function resolveRelatedParentId(related, domoObject) {
   if (related.parentSource) {
     if (related.parentSource === 'parentId') return domoObject.parentId;
     if (related.parentSource === 'objectId') return domoObject.id;
-    const parentBase = related.parentFieldSource === 'context'
-      ? domoObject.metadata?.context
-      : domoObject.metadata?.details;
+    const parentBase =
+      related.parentFieldSource === 'context'
+        ? domoObject.metadata?.context
+        : domoObject.metadata?.details;
     return related.parentSource
       .split('.')
       .reduce((obj, key) => obj?.[key], parentBase);
@@ -716,7 +727,9 @@ function resolveRelatedParentId(related, domoObject) {
       return domoObject.id;
     }
     const currentTypeModel = getObjectType(domoObject.typeId);
-    if (relatedType.parents?.some((p) => currentTypeModel?.parents?.includes(p))) {
+    if (
+      relatedType.parents?.some((p) => currentTypeModel?.parents?.includes(p))
+    ) {
       return domoObject.parentId;
     }
   }

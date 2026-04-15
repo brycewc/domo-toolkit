@@ -338,7 +338,20 @@ export const ObjectTypeRegistry = {
     null,
     null
   ),
-  AGENT: new DomoObjectType('AGENT', 'Agent', { component: 'Robot' }, null, /.*/, null, null),
+  AGENT: new DomoObjectType(
+    'AGENT',
+    'Agent',
+    { component: 'Robot' },
+    '/ai-library/agents/{id}',
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    { keyword: 'agents' },
+    {
+      endpoint: '/ai/v1/agents/{id}?include=all,context,toolkits,settings',
+      pathToName: 'name'
+    },
+    null,
+    [{ field: 'toolkits', isArray: true, itemIdField: 'id', itemTypeId: 'AI_TOOLKIT', label: 'Toolkits' }]
+),
   AI_CHAT: new DomoObjectType('AI_CHAT', 'AI Chat', null, null, /.*/, null, null),
   AI_MODEL: new DomoObjectType(
     'AI_MODEL',
@@ -368,10 +381,26 @@ export const ObjectTypeRegistry = {
     'AI_TOOLKIT',
     'AI Toolkit',
     null,
-    null,
+    '/ai-library/toolkits/{id}',
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    { keyword: 'toolkits' },
+    {
+      endpoint: '/ai/v1/toolkits/{id}',
+      pathToName: 'name'
+    }
+  ),
+  AI_TOOLKIT_DOMO_PROVIDED: new DomoObjectType(
+    'AI_TOOLKIT_DOMO_PROVIDED',
+    'AI Toolkit (Domo)',
     null,
-    null
+    '/ai-library/toolkits/domo-provided/{id}',
+    /^[a-z][a-z0-9_]*$/,
+    { keyword: 'domo-provided' },
+    {
+      endpoint: '/ai/v1/toolkits/domo-provided',
+      filterByIdField: 'id',
+      pathToName: 'name'
+    }
   ),
   ALERT: new DomoObjectType(
     'ALERT',

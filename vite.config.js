@@ -29,13 +29,6 @@ export default defineConfig(({ mode }) => {
       // Extensions load from disk, not network - large chunks are fine
       chunkSizeWarningLimit: 1100,
       rollupOptions: {
-        // Suppress circular chunk warnings caused by shared third-party modules
-        // being split across manual chunks. There are no actual circular imports
-        // between our source modules.
-        onLog(level, log, defaultHandler) {
-          if (log.code === 'CIRCULAR_DEPENDENCY' || log.code === 'CIRCULAR_CHUNK') return;
-          defaultHandler(level, log);
-        },
         output: {
           // Group related modules into the same chunk to avoid cross-chunk circular dependencies
           manualChunks: (id) => {
