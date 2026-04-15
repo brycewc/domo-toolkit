@@ -25,6 +25,7 @@ import {
   getOwnedTaskCenterQueues,
   getOwnedTaskCenterTasks,
   getOwnedWorkflows,
+  getUserOwnedAppStudioApps,
   transferAccounts,
   transferAiModels,
   transferAiProjects,
@@ -63,156 +64,183 @@ export const TRANSFER_TYPES = [
     getOwned: getOwnedAccounts,
     key: 'accounts',
     label: 'Accounts',
+    requiredAuthority: 'account.admin',
     transfer: transferAccounts
   },
   {
     getOwned: getOwnedAiModels,
     key: 'aiModels',
     label: 'AI Models',
+    requiredAuthority: 'ai.services.admin',
     transfer: transferAiModels
   },
   {
     getOwned: getOwnedAiProjects,
     key: 'aiProjects',
     label: 'AI Projects',
+    requiredAuthority: 'ai.services.admin',
     transfer: transferAiProjects
   },
   {
     getOwned: getOwnedAlerts,
     key: 'alerts',
     label: 'Alerts',
+    requiredAuthority: 'alert.admin',
     transfer: transferAlerts
   },
   {
     getOwned: getOwnedAppStudioApps,
+    getOwnedForTransfer: getUserOwnedAppStudioApps,
     key: 'appStudioApps',
-    label: 'App Studio Apps & Pages',
+    label: 'App Studio Apps',
+    requiredAuthority: 'content.admin',
     transfer: transferAppStudioApps
   },
   {
     getOwned: getOwnedAppDbCollections,
     key: 'appDbCollections',
     label: 'AppDB Collections',
+    requiredAuthority: 'datastore.admin',
     transfer: transferAppDbCollections
   },
   {
     getOwned: getOwnedApprovals,
     key: 'approvals',
     label: 'Approvals',
+    requiredAuthority: 'approvalcenter.admin',
     transfer: transferApprovals
   },
   {
     getOwned: getOwnedApprovalTemplates,
     key: 'approvalTemplates',
     label: 'Approval Templates',
+    requiredAuthority: 'approvalcenter.admin',
     transfer: transferApprovalTemplates
   },
   {
     getOwned: getOwnedCards,
     key: 'cards',
     label: 'Cards',
+    requiredAuthority: 'content.admin',
     transfer: transferCards
   },
   {
     getOwned: getOwnedCodeEnginePackages,
     key: 'codeEnginePackages',
     label: 'Code Engine Packages',
+    requiredAuthority: 'codeengine.package.admin',
     transfer: transferCodeEnginePackages
   },
   {
     getOwned: getOwnedCustomApps,
     key: 'customApps',
-    label: 'Custom Apps',
+    label: 'Custom App Designs',
+    requiredAuthority: 'app.admin',
     transfer: transferCustomApps
   },
   {
     getOwned: getOwnedDataflows,
     key: 'dataflows',
     label: 'DataFlows',
+    requiredAuthority: 'dataflow.admin',
     transfer: transferDataflows
   },
   {
     getOwned: getOwnedDatasets,
     key: 'datasets',
     label: 'DataSets',
+    requiredAuthority: 'dataset.admin',
     transfer: transferDatasets
   },
   {
     getOwned: getOwnedSubscriptions,
     key: 'subscriptions',
     label: 'Domo Everywhere Subscriptions',
+    requiredAuthority: 'publish.subscribers.manage',
     transfer: transferSubscriptions
   },
   {
     getOwned: getOwnedFilesets,
     key: 'filesets',
     label: 'FileSets',
+    requiredAuthority: 'fileset.admin',
     transfer: transferFilesets
   },
   {
     getOwned: getOwnedFunctions,
     key: 'functions',
     label: 'Functions (Beast Modes & Variables)',
+    requiredAuthority: 'content.admin',
     transfer: transferFunctions
   },
   {
     getOwned: getOwnedGoals,
     key: 'goals',
     label: 'Goals',
+    requiredAuthority: 'goal.admin',
     transfer: transferGoals
   },
   {
     getOwned: getOwnedGroups,
     key: 'groups',
     label: 'Groups',
+    requiredAuthority: 'group.admin',
     transfer: transferGroups
   },
   {
     getOwned: getOwnedJupyterWorkspaces,
     key: 'jupyterWorkspaces',
     label: 'Jupyter Workspaces',
+    requiredAuthority: 'datascience.notebooks.admin',
     transfer: transferJupyterWorkspaces
   },
   {
     getOwned: getOwnedMetrics,
     key: 'metrics',
     label: 'Metrics',
+    requiredAuthority: 'ai.services.admin',
     transfer: transferMetrics
   },
   {
     getOwned: getOwnedPages,
     key: 'pages',
     label: 'Pages (Dashboards)',
+    requiredAuthority: 'content.admin',
     transfer: transferPages
   },
   {
     getOwned: getOwnedProjectsAndTasks,
     key: 'projectsAndTasks',
     label: 'Projects & Tasks',
+    requiredAuthority: 'tasks.admin',
     transfer: transferProjectsAndTasks
   },
   {
     getOwned: getOwnedRepositories,
     key: 'repositories',
     label: 'Sandbox Repositories',
+    requiredAuthority: 'versions.repository.admin',
     transfer: transferRepositories
   },
   {
     getOwned: getOwnedTaskCenterQueues,
     key: 'taskCenterQueues',
     label: 'Task Center Queues',
+    requiredAuthority: 'queue.admin',
     transfer: transferTaskCenterQueues
   },
   {
     getOwned: getOwnedTaskCenterTasks,
     key: 'taskCenterTasks',
     label: 'Task Center Tasks',
+    requiredAuthority: 'queue.admin',
     transfer: transferTaskCenterTasks
   },
   {
     getOwned: getOwnedWorkflows,
     key: 'workflows',
     label: 'Workflows',
+    requiredAuthority: 'workflow.admin',
     transfer: transferWorkflows
   }
 ];
@@ -249,7 +277,8 @@ export async function transferAllOwnership({
         typeKey: type.key
       });
 
-      const owned = await type.getOwned(fromUserId, tabId);
+      const listOwned = type.getOwnedForTransfer || type.getOwned;
+      const owned = await listOwned(fromUserId, tabId);
       const count =
         type.key === 'projectsAndTasks'
           ? (owned.projects?.length || 0) + (owned.tasks?.length || 0)

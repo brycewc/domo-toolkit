@@ -6,9 +6,12 @@ import {
   Disclosure,
   DisclosureGroup,
   Link,
+  ListBox,
+  ListLayout,
   ScrollShadow,
   Separator,
-  Tooltip
+  Tooltip,
+  Virtualizer
 } from '@heroui/react';
 import {
   IconCheck,
@@ -18,7 +21,6 @@ import {
   IconRefresh,
   IconX
 } from '@tabler/icons-react';
-import { useVirtualizer } from '@tanstack/react-virtual';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { AnimatedCheck } from '@/components';
@@ -64,7 +66,7 @@ const MAX_VISIBLE_ITEMS = 12;
 
 /**
  * Virtualized list for items inside an expanded disclosure.
- * Only renders visible rows, capping the container at MAX_VISIBLE_ITEMS height.
+ * Uses HeroUI ListBox + Virtualizer, capping the container at MAX_VISIBLE_ITEMS height.
  */
 const VirtualizedItemList = memo(function VirtualizedItemList({
   items,
@@ -72,20 +74,7 @@ const VirtualizedItemList = memo(function VirtualizedItemList({
   origin,
   typeKey
 }) {
-  const parentRef = useRef(null);
   const [copiedId, setCopiedId] = useState(null);
-
-  const urls = useMemo(
-    () => items.map((item) => buildItemUrl(typeKey, item, origin)),
-    [items, origin, typeKey]
-  );
-
-  const virtualizer = useVirtualizer({
-    count: items.length,
-    estimateSize: () => ITEM_HEIGHT,
-    getScrollElement: () => parentRef.current,
-    overscan: 10
-  });
 
   const containerHeight = Math.min(
     items.length * ITEM_HEIGHT,
@@ -93,72 +82,69 @@ const VirtualizedItemList = memo(function VirtualizedItemList({
   );
 
   return (
-    <div
-      className='overflow-y-auto'
-      ref={parentRef}
-      style={{ height: containerHeight }}
-    >
-      <div
-        className='relative w-full'
-        style={{ height: virtualizer.getTotalSize() }}
+    <Virtualizer layout={ListLayout} layoutOptions={{ rowHeight: ITEM_HEIGHT }}>
+      <ListBox
+        aria-label='Owned objects'
+        className='w-full overflow-x-hidden overflow-y-auto'
+        items={items}
+        selectionMode='none'
+        style={{ height: containerHeight }}
       >
-        {virtualizer.getVirtualItems().map((virtualRow) => {
-          const item = items[virtualRow.index];
-          const url = urls[virtualRow.index];
+        {(item) => {
+          const url = buildItemUrl(typeKey, item, origin);
+          const displayName = item.name || item.id;
 
           return (
-            <div
-              className='absolute left-0 flex w-full items-center justify-between gap-1'
-              key={item.id ?? virtualRow.index}
-              style={{
-                height: ITEM_HEIGHT,
-                top: virtualRow.start
-              }}
+            <ListBox.Item
+              className='min-h-0 cursor-default px-1 py-0'
+              id={item.id}
+              textValue={String(displayName)}
+              title={item.name}
             >
-              <div className='min-w-0 flex-1'>
-                {url ? (
-                  <Link
-                    className='block truncate text-xs'
-                    href={url}
-                    rel='noopener noreferrer'
-                    target='_blank'
-                  >
-                    {item.name || item.id}
-                  </Link>
-                ) : (
-                  <span className='block truncate text-xs'>
-                    {item.subType ? `[${item.subType}] ` : ''}
-                    {item.name || item.id}
-                  </span>
-                )}
-              </div>
-              <Tooltip closeDelay={0} delay={400}>
-                <Button
-                  isIconOnly
-                  className='h-5 min-h-0 w-5 min-w-0'
-                  size='sm'
-                  variant='ghost'
-                  onPress={() => {
-                    setCopiedId(item.id);
-                    setTimeout(() => setCopiedId(null), 1000);
-                    onCopyId(item.id);
-                  }}
+              {url ? (
+                <Link
+                  className='truncate text-sm font-normal no-underline decoration-accent hover:text-accent hover:underline'
+                  href={url}
+                  rel='noopener noreferrer'
+                  target='_blank'
                 >
-                  {copiedId === item.id ? (
-                    <AnimatedCheck size={12} stroke={1.5} />
-                  ) : (
-                    <IconClipboard size={12} stroke={1.5} />
-                  )}
-                </Button>
-                <Tooltip.Content className='text-xs'>
-                  {copiedId === item.id ? 'Copied!' : 'Copy ID'}
-                </Tooltip.Content>
-              </Tooltip>
-            </div>
+                  {displayName}
+                </Link>
+              ) : (
+                <span className='truncate text-xs'>
+                  {item.subType ? `[${item.subType}] ` : ''}
+                  {displayName}
+                </span>
+              )}
+              <div className='ms-auto shrink-0'>
+                <Tooltip closeDelay={0} delay={400}>
+                  <Button
+                    isIconOnly
+                    className='h-5 min-h-0 w-5 min-w-0'
+                    size='sm'
+                    variant='ghost'
+                    onPress={() => {
+                      setCopiedId(item.id);
+                      setTimeout(() => setCopiedId(null), 1000);
+                      onCopyId(item.id);
+                    }}
+                  >
+                    {copiedId === item.id ? (
+                      <AnimatedCheck size={12} stroke={1.5} />
+                    ) : (
+                      <IconClipboard size={12} stroke={1.5} />
+                    )}
+                  </Button>
+                  <Tooltip.Content className='text-xs'>
+                    {copiedId === item.id ? 'Copied!' : 'Copy ID'}
+                  </Tooltip.Content>
+                </Tooltip>
+              </div>
+            </ListBox.Item>
           );
-        })}
-      </div>
-    </div>
+        }}
+      </ListBox>
+    </Virtualizer>
   );
 });
 
@@ -396,7 +382,7 @@ export function GetOwnedObjectsView({
           </Disclosure.Trigger>
         </Disclosure.Heading>
         <Disclosure.Content>
-          <Disclosure.Body className='pt-0 pb-2 pl-7'>
+          <Disclosure.Body>
             <VirtualizedItemList
               items={result.items}
               origin={origin}
@@ -427,7 +413,7 @@ export function GetOwnedObjectsView({
           <div className='min-w-0 flex-1 pt-1'>
             <div className='flex flex-col gap-1'>
               <div className='line-clamp-2 min-w-0'>
-                <span>Owned Objects for</span>{' '}
+                <span>Objects Owned by</span>{' '}
                 <span className='font-bold'>{userName}</span>
               </div>
               <div className='shrink-0 text-xs text-muted'>

@@ -1659,6 +1659,34 @@ async function detectAndStoreContext(tabId) {
         });
     }
 
+    // For USER type, fetch their manager (reportsTo) from the teams endpoint
+    if (typeModel.id === 'USER') {
+      executeInPage(
+        async (userId) => {
+          const response = await fetch(
+            `/api/content/v2/users/${userId}/teams`
+          );
+          if (!response.ok) return null;
+          const data = await response.json();
+          return data.reportsTo?.[0]?.userId ?? null;
+        },
+        [objectId],
+        tabId
+      )
+        .then((reportsTo) => {
+          if (isStale() || reportsTo == null) return;
+          const currentContext = getTabContext(tabId);
+          if (currentContext?.domoObject?.id === objectId) {
+            if (!currentContext.domoObject.metadata.context) {
+              currentContext.domoObject.metadata.context = {};
+            }
+            currentContext.domoObject.metadata.context.reportsTo = reportsTo;
+            setTabContext(tabId, currentContext);
+          }
+        })
+        .catch(() => {});
+    }
+
     return context;
   } catch (error) {
     console.error(

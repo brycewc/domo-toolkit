@@ -23,6 +23,7 @@ export {
   getFormsForPage,
   getOwnedAppStudioApps,
   getQueuesForPage,
+  getUserOwnedAppStudioApps,
   transferAppStudioApps
 } from './appStudio';
 export {
@@ -136,6 +137,7 @@ export {
   getCurrentUser,
   getCurrentUserId,
   getCustomAvatarUserIds,
+  getUserDetails,
   getUserGroups,
   getUserName,
   searchUsers

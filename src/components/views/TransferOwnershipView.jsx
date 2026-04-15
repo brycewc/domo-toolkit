@@ -13,13 +13,18 @@ import {
   TextField,
   Tooltip
 } from '@heroui/react';
-import { IconCheck, IconLoader2, IconX } from '@tabler/icons-react';
+import { IconCheck, IconLoader2, IconUserUp, IconX } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { UserComboBox } from '@/components';
 import { useStatusBar } from '@/hooks';
 import { DomoContext } from '@/models';
-import { deleteUser, TRANSFER_TYPES, transferAllOwnership } from '@/services';
+import {
+  deleteUser,
+  getUserDetails,
+  TRANSFER_TYPES,
+  transferAllOwnership
+} from '@/services';
 import { getSidepanelData } from '@/utils';
 
 export function TransferOwnershipView({
@@ -31,6 +36,8 @@ export function TransferOwnershipView({
   const [currentContext, setCurrentContext] = useState(null);
   const [sourceUser, setSourceUser] = useState(null);
   const [selectedUserId, setSelectedUserId] = useState(null);
+  const [selectedDisplayName, setSelectedDisplayName] = useState(null);
+  const [manager, setManager] = useState(null);
   const [deleteAfterTransfer, setDeleteAfterTransfer] = useState(false);
   const [typeStates, setTypeStates] = useState(() =>
     Object.fromEntries(
@@ -79,6 +86,22 @@ export function TransferOwnershipView({
       if (userId) {
         setSourceUser({ id: userId, name: userName });
       }
+
+      // Resolve the source user's manager for the quick-set button
+      const reportsTo = context.domoObject?.metadata?.context?.reportsTo;
+      if (reportsTo && context.tabId) {
+        getUserDetails(reportsTo, context.tabId)
+          .then((details) => {
+            if (mountedRef.current && details) {
+              setManager({
+                active: details.active,
+                id: details.id,
+                name: details.displayName
+              });
+            }
+          })
+          .catch(() => {});
+      }
     } catch (error) {
       console.error('[TransferOwnershipView] Error loading data:', error);
       onStatusUpdate?.(
@@ -98,9 +121,22 @@ export function TransferOwnershipView({
     }));
   };
 
-  const enabledCount = Object.values(typeStates).filter(
-    (s) => s.enabled
+  const userRights = currentContext?.user?.metadata?.USER_RIGHTS || [];
+  const canDeleteUsers = userRights.includes('user.edit');
+
+  const forbiddenTypes = new Set(
+    TRANSFER_TYPES.filter(
+      (t) => t.requiredAuthority && !userRights.includes(t.requiredAuthority)
+    ).map((t) => t.key)
+  );
+
+  const enabledCount = Object.entries(typeStates).filter(
+    ([key, s]) => s.enabled && !forbiddenTypes.has(key)
   ).length;
+
+  const hasTransferStarted = Object.values(typeStates).some(
+    (s) => s.status !== 'idle'
+  );
 
   const handleSubmit = async () => {
     if (!sourceUser || !selectedUserId) return;
@@ -109,7 +145,7 @@ export function TransferOwnershipView({
 
     const enabledTypes = new Set(
       Object.entries(typeStates)
-        .filter(([, s]) => s.enabled)
+        .filter(([key, s]) => s.enabled && !forbiddenTypes.has(key))
         .map(([key]) => key)
     );
 
@@ -145,6 +181,7 @@ export function TransferOwnershipView({
             'success',
             5000
           );
+          setTimeout(() => onBackToDefault?.(), 3000);
         } catch (error) {
           showStatus(
             'Transfer Complete (Delete Failed)',
@@ -167,6 +204,7 @@ export function TransferOwnershipView({
           'success',
           5000
         );
+        setTimeout(() => onBackToDefault?.(), 3000);
       }
     } catch (error) {
       showStatus(
@@ -186,26 +224,32 @@ export function TransferOwnershipView({
 
     // Before transfer: show checkbox
     if (status === 'idle') {
+      const isForbidden = forbiddenTypes.has(type.key);
       return (
-        <div
-          className='flex items-center justify-between py-1'
-          key={type.key}
-        >
+        <div className='flex items-center justify-between py-1' key={type.key}>
           <div className='flex items-center gap-2'>
             <Checkbox
               id={`type-${type.key}`}
-              isDisabled={isSubmitting}
-              isSelected={enabled}
+              isDisabled={isForbidden || isSubmitting || hasTransferStarted}
+              isSelected={!isForbidden && enabled}
               onChange={() => toggleType(type.key)}
             >
               <Checkbox.Control>
                 <Checkbox.Indicator />
               </Checkbox.Control>
             </Checkbox>
-            <Label className='text-sm' htmlFor={`type-${type.key}`}>
+            <Label
+              className={`text-sm ${isForbidden ? 'text-muted' : ''}`}
+              htmlFor={`type-${type.key}`}
+            >
               {type.label}
             </Label>
           </div>
+          {isForbidden && (
+            <span className='shrink-0 text-xs text-muted'>
+              {type.requiredAuthority}
+            </span>
+          )}
         </div>
       );
     }
@@ -213,12 +257,12 @@ export function TransferOwnershipView({
     // Listing: spinner + "Searching..."
     if (status === 'listing') {
       return (
-        <div
-          className='flex items-center justify-between py-1'
-          key={type.key}
-        >
+        <div className='flex items-center justify-between py-1' key={type.key}>
           <div className='flex items-center gap-2'>
-            <IconLoader2 className='shrink-0 animate-spin text-accent' size={18} />
+            <IconLoader2
+              className='shrink-0 animate-spin text-accent'
+              size={18}
+            />
             <span className='text-sm'>{type.label}</span>
           </div>
           <span className='shrink-0 text-xs text-muted'>Searching...</span>
@@ -229,12 +273,12 @@ export function TransferOwnershipView({
     // Transferring: spinner + count
     if (status === 'transferring') {
       return (
-        <div
-          className='flex items-center justify-between py-1'
-          key={type.key}
-        >
+        <div className='flex items-center justify-between py-1' key={type.key}>
           <div className='flex items-center gap-2'>
-            <IconLoader2 className='shrink-0 animate-spin text-warning' size={18} />
+            <IconLoader2
+              className='shrink-0 animate-spin text-warning'
+              size={18}
+            />
             <span className='text-sm'>{type.label}</span>
           </div>
           <span className='shrink-0 text-xs text-muted'>
@@ -247,10 +291,7 @@ export function TransferOwnershipView({
     // Done with all succeeded (or 0 items)
     if (status === 'done' && (!result?.failed || result.failed === 0)) {
       return (
-        <div
-          className='flex items-center justify-between py-1'
-          key={type.key}
-        >
+        <div className='flex items-center justify-between py-1' key={type.key}>
           <div className='flex items-center gap-2'>
             <IconCheck className='shrink-0 text-success' size={18} />
             <span className='text-sm'>{type.label}</span>
@@ -285,7 +326,7 @@ export function TransferOwnershipView({
             </Disclosure.Heading>
           </div>
           <Disclosure.Content>
-            <Disclosure.Body className='pb-1 pl-7 pt-0'>
+            <Disclosure.Body className='pt-0 pb-1 pl-7'>
               <ul className='list-none space-y-0.5'>
                 {result.errors.slice(0, 10).map((err, i) => (
                   <li className='text-xs text-muted' key={i}>
@@ -309,10 +350,7 @@ export function TransferOwnershipView({
     // Error (listing or transfer failed entirely)
     if (status === 'error') {
       return (
-        <div
-          className='flex items-center justify-between py-1'
-          key={type.key}
-        >
+        <div className='flex items-center justify-between py-1' key={type.key}>
           <div className='flex items-center gap-2'>
             <IconX className='shrink-0 text-danger' size={18} />
             <span className='text-sm'>{type.label}</span>
@@ -368,45 +406,78 @@ export function TransferOwnershipView({
         </TextField>
 
         {/* Target user picker */}
-        <UserComboBox
-          avatarBaseUrl={currentContext?.domoObject?.baseUrl}
-          label='Transfer To'
-          selectedKey={selectedUserId}
-          tabId={currentContext?.tabId}
-          onSelectionChange={setSelectedUserId}
-        />
-
-        {/* Select all / none — hidden during transfer */}
-        {!isSubmitting && (
-          <div className='mt-4 flex items-center gap-2'>
-            <Checkbox
-              id='select-all-types'
-              isSelected={enabledCount === TRANSFER_TYPES.length}
-              onChange={(checked) => {
-                setTypeStates((prev) =>
-                  Object.fromEntries(
-                    Object.entries(prev).map(([key, state]) => [
-                      key,
-                      { ...state, enabled: checked }
-                    ])
-                  )
-                );
+        <div className='flex items-end gap-1'>
+          <UserComboBox
+            avatarBaseUrl={currentContext?.domoObject?.baseUrl}
+            className='min-w-0 flex-1'
+            label='Transfer To'
+            selectedDisplayName={selectedDisplayName}
+            selectedKey={selectedUserId}
+            tabId={currentContext?.tabId}
+            onSelectionChange={(key) => {
+              setSelectedUserId(key);
+              setSelectedDisplayName(null);
+            }}
+          />
+          <Tooltip closeDelay={0} delay={400}>
+            <Button
+              isIconOnly
+              isDisabled={isSubmitting || !manager || !manager.active}
+              size='md'
+              variant='tertiary'
+              onPress={() => {
+                setSelectedUserId(manager.id);
+                setSelectedDisplayName(manager.name);
               }}
-              isIndeterminate={
-                enabledCount > 0 && enabledCount < TRANSFER_TYPES.length
-              }
             >
-              <Checkbox.Control>
-                <Checkbox.Indicator />
-              </Checkbox.Control>
-            </Checkbox>
-            <Label className='text-sm font-medium' htmlFor='select-all-types'>
-              {enabledCount === TRANSFER_TYPES.length
-                ? 'Deselect All'
-                : 'Select All'}
-            </Label>
-          </div>
-        )}
+              <IconUserUp stroke={1.5} />
+            </Button>
+            <Tooltip.Content className='text-xs'>
+              {manager?.active
+                ? `Transfer to manager: ${manager.name}`
+                : manager
+                  ? `Manager ${manager.name} is inactive`
+                  : 'No manager assigned'}
+            </Tooltip.Content>
+          </Tooltip>
+        </div>
+
+        {/* Select all / none */}
+        <div className='mt-4 flex items-center gap-2'>
+          <Checkbox
+            id='select-all-types'
+            isDisabled={isSubmitting || hasTransferStarted}
+            onChange={(checked) => {
+              setTypeStates((prev) =>
+                Object.fromEntries(
+                  Object.entries(prev).map(([key, state]) => [
+                    key,
+                    {
+                      ...state,
+                      enabled: forbiddenTypes.has(key) ? false : checked
+                    }
+                  ])
+                )
+              );
+            }}
+            isIndeterminate={
+              enabledCount > 0 &&
+              enabledCount < TRANSFER_TYPES.length - forbiddenTypes.size
+            }
+            isSelected={
+              enabledCount === TRANSFER_TYPES.length - forbiddenTypes.size
+            }
+          >
+            <Checkbox.Control>
+              <Checkbox.Indicator />
+            </Checkbox.Control>
+          </Checkbox>
+          <Label className='text-sm font-medium' htmlFor='select-all-types'>
+            {enabledCount === TRANSFER_TYPES.length
+              ? 'Deselect All'
+              : 'Select All'}
+          </Label>
+        </div>
         <Separator className='mt-1' />
       </div>
 
@@ -421,23 +492,25 @@ export function TransferOwnershipView({
       <Separator />
       {/* Footer: delete toggle + submit */}
       <div className='flex shrink-0 flex-col gap-2'>
-        <Switch
-          isDisabled={isSubmitting}
-          isSelected={deleteAfterTransfer}
-          onChange={setDeleteAfterTransfer}
-        >
-          {({ isSelected }) => (
-            <>
-              <Switch.Control className={isSelected ? 'bg-danger' : ''}>
-                <Switch.Thumb />
-              </Switch.Control>
-              <Switch.Content>
-                <Label>Delete user after transfer</Label>
-                <Description>Only if all transfers succeed</Description>
-              </Switch.Content>
-            </>
-          )}
-        </Switch>
+        {canDeleteUsers && (
+          <Switch
+            isDisabled={isSubmitting}
+            isSelected={deleteAfterTransfer}
+            onChange={setDeleteAfterTransfer}
+          >
+            {({ isSelected }) => (
+              <>
+                <Switch.Control className={isSelected ? 'bg-danger' : ''}>
+                  <Switch.Thumb />
+                </Switch.Control>
+                <Switch.Content>
+                  <Label>Delete user after transfer</Label>
+                  <Description>Only if all transfers succeed</Description>
+                </Switch.Content>
+              </>
+            )}
+          </Switch>
+        )}
 
         <Button
           fullWidth

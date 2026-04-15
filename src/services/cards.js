@@ -520,7 +520,8 @@ export async function transferCards(
   return executeInPage(
     async (cardIds, fromUserId, toUserId) => {
       try {
-        const response = await fetch('/api/content/v1/cards/owners/add', {
+        // Add new owner
+        const addResponse = await fetch('/api/content/v1/cards/owners/add', {
           body: JSON.stringify({
             cardIds,
             cardOwners: [{ id: toUserId, type: 'USER' }],
@@ -530,7 +531,23 @@ export async function transferCards(
           headers: { 'Content-Type': 'application/json' },
           method: 'POST'
         });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!addResponse.ok) throw new Error(`HTTP ${addResponse.status}`);
+
+        // Remove old owner
+        const removeResponse = await fetch(
+          '/api/content/v1/cards/owners/remove',
+          {
+            body: JSON.stringify({
+              cardIds,
+              cardOwners: [{ id: fromUserId, type: 'USER' }]
+            }),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'POST'
+          }
+        );
+        if (!removeResponse.ok)
+          throw new Error(`HTTP ${removeResponse.status}`);
+
         return { errors: [], failed: 0, succeeded: cardIds.length };
       } catch (error) {
         return {

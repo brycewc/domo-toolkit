@@ -390,26 +390,22 @@ export function DeleteCurrentObject({
         >
           <Tooltip closeDelay={0} delay={400} isDisabled={isDeleteDisabled}>
             {deleteButton}
-            {hasAppDeleteAction && !isDeleteDisabled ? (
-              <Tooltip.Content placement='bottom'>
-                <span className='italic'>Hold for more options</span>
-              </Tooltip.Content>
-            ) : (
-              <Tooltip.Content>
+            <Tooltip.Content className='flex flex-col items-center'>
+              <div className='text-wrap break-normal'>
                 Delete{' '}
                 <span className='lowercase'>
                   {currentContext?.domoObject?.typeName || 'object'}
-                </span>{' '}
-                <span className='font-semibold'>
-                  {currentContext?.domoObject?.metadata?.name || ''}
                 </span>{' '}
                 {typeId === 'PAGE' || typeId === 'DATA_APP_VIEW'
                   ? 'and all its cards'
                   : typeId === 'DATAFLOW_TYPE'
                     ? 'and all its output datasets'
                     : ''}
-              </Tooltip.Content>
-            )}
+              </div>
+              {hasAppDeleteAction && !isDeleteDisabled && (
+                <span className='italic'>Hold for more options</span>
+              )}
+            </Tooltip.Content>
           </Tooltip>
           <Dropdown.Popover className='w-fit min-w-60' placement='bottom'>
             <Dropdown.Menu onAction={handleDropdownAction}>

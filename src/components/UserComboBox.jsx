@@ -11,7 +11,7 @@ import {
   Spinner
 } from '@heroui/react';
 import { IconChevronDown } from '@tabler/icons-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { searchUsers } from '@/services';
 import { getInitials, isSidepanel } from '@/utils';
@@ -35,6 +35,7 @@ export function UserComboBox({
   label = 'User',
   maxListHeight,
   menuTrigger = 'focus',
+  selectedDisplayName,
   tabId = null,
   ...comboBoxProps
 }) {
@@ -46,11 +47,30 @@ export function UserComboBox({
   const [hasMore, setHasMore] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
 
+  const debounceRef = useRef(null);
+  const isOpenRef = useRef(false);
+  const searchGenRef = useRef(0);
+
+  useEffect(() => {
+    return () => clearTimeout(debounceRef.current);
+  }, []);
+
+  // Sync internal state when parent provides a display name for an external selection
+  // (e.g. "set to manager" button that selects a user not chosen from the dropdown)
+  useEffect(() => {
+    if (selectedDisplayName) {
+      setSelectedName(selectedDisplayName);
+      setInputValue(selectedDisplayName);
+    }
+  }, [selectedDisplayName]);
+
   // Fetch users based on searchQuery (decoupled from inputValue)
   useEffect(() => {
     if (!isActive) return;
 
     const controller = new AbortController();
+    searchGenRef.current += 1;
+    const gen = searchGenRef.current;
 
     async function fetchUsers() {
       setOffset(0);
@@ -60,7 +80,7 @@ export function UserComboBox({
           tabId,
           0
         );
-        if (!controller.signal.aborted) {
+        if (!controller.signal.aborted && gen === searchGenRef.current) {
           setUsers(fetchedUsers);
           setHasMore(totalCount !== null && fetchedUsers.length < totalCount);
           setOffset(fetchedUsers.length);
@@ -80,12 +100,15 @@ export function UserComboBox({
   const loadMore = async () => {
     if (isLoadingMore || !hasMore) return;
     setIsLoadingMore(true);
+    const gen = searchGenRef.current;
     try {
       const { totalCount, users: fetchedUsers } = await searchUsers(
         searchQuery,
         tabId,
         offset
       );
+      // Discard if a new search started while this was in flight
+      if (gen !== searchGenRef.current) return;
       const newUsers = [...users, ...fetchedUsers];
       setUsers(newUsers);
       setHasMore(totalCount !== null && newUsers.length < totalCount);
@@ -97,18 +120,22 @@ export function UserComboBox({
     }
   };
 
-  // onInputChange fires for both user typing AND programmatic resets.
-  // Only update searchQuery when the value differs from the current selection
-  // — this prevents re-searching on the selected name when the dropdown opens.
+  // Debounce search query updates — each keystroke would otherwise trigger
+  // 3 chrome.scripting.executeScript calls via executeInPage, freezing the UI.
   const handleInputChange = (value) => {
     setInputValue(value);
+    clearTimeout(debounceRef.current);
     if (value !== selectedName) {
-      setSearchQuery(value);
+      debounceRef.current = setTimeout(() => {
+        setSearchQuery(value);
+      }, 300);
     }
   };
 
   // Dropdown opens → reset search to show all users; closes → restore selected name
   const handleOpenChange = (open) => {
+    isOpenRef.current = open;
+    clearTimeout(debounceRef.current);
     if (open) {
       setSearchQuery('');
     } else if (selectedName) {
@@ -118,12 +145,20 @@ export function UserComboBox({
 
   const { onSelectionChange, ...restComboBoxProps } = comboBoxProps;
   const handleSelectionChange = (key) => {
+    clearTimeout(debounceRef.current);
     if (key != null) {
       const selected = users.find((u) => u.id === key);
       if (selected) {
         setSelectedName(selected.displayName);
         setInputValue(selected.displayName);
       }
+    } else if (selectedName && !isOpenRef.current) {
+      // Blur-triggered reset — the selected item isn't in the current items
+      // collection (e.g. after a search re-fetched a different page).
+      // Restore the input and keep the existing selection.
+      setInputValue(selectedName);
+      setSearchQuery('');
+      return;
     } else {
       setSelectedName('');
       setInputValue('');

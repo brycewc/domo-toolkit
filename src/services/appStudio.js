@@ -93,14 +93,21 @@ export async function getOwnedAppStudioApps(userId, tabId = null) {
     async (userId) => {
       const allApps = [];
       const limit = 30;
-      let moreData = true;
       let skip = 0;
+      let moreData = true;
 
       while (moreData) {
         const response = await fetch(
           `/api/content/v1/dataapps/adminsummary?limit=${limit}&skip=${skip}`,
           {
-            body: JSON.stringify({}),
+            body: JSON.stringify({
+              ascending: true,
+              includeOwnerClause: true,
+              includeTitleClause: true,
+              orderBy: 'title',
+              ownerIds: [userId],
+              titleSearchText: ''
+            }),
             headers: { 'Content-Type': 'application/json' },
             method: 'POST'
           }
@@ -108,20 +115,16 @@ export async function getOwnedAppStudioApps(userId, tabId = null) {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
 
-        if (
-          data.dataAppAdminSummaries &&
-          data.dataAppAdminSummaries.length > 0
-        ) {
-          for (const app of data.dataAppAdminSummaries) {
-            if (app.owners?.some((o) => o.id == userId)) {
-              allApps.push({
-                id: app.dataAppId.toString(),
-                name: app.dataAppName || app.dataAppId.toString()
-              });
-            }
+        const summaries = data.dataAppAdminSummaries;
+        if (summaries && summaries.length > 0) {
+          for (const app of summaries) {
+            allApps.push({
+              id: app.dataAppId.toString(),
+              name: app.title || app.dataAppId.toString()
+            });
           }
           skip += limit;
-          if (data.dataAppAdminSummaries.length < limit) moreData = false;
+          if (summaries.length < limit) moreData = false;
         } else {
           moreData = false;
         }
@@ -175,6 +178,72 @@ export async function getQueuesForPage({ queueWidgetIds, tabId = null }) {
       return results.filter(Boolean);
     },
     [queueWidgetIds],
+    tabId
+  );
+}
+
+/**
+ * Get App Studio apps owned by a user as an individual (not via group).
+ * Uses the search endpoint which only returns direct ownership, unlike
+ * getOwnedAppStudioApps which includes group-inherited ownership.
+ * Used by the transfer flow — only individual ownership can be transferred.
+ * @param {number} userId - The Domo user ID
+ * @param {number|null} tabId - Optional Chrome tab ID
+ * @returns {Promise<Array<{id: string, name: string}>>}
+ */
+export async function getUserOwnedAppStudioApps(userId, tabId = null) {
+  return executeInPage(
+    async (userId) => {
+      const allApps = [];
+      const count = 100;
+      let moreData = true;
+      let offset = 0;
+
+      while (moreData) {
+        const response = await fetch('/api/search/v1/query', {
+          body: JSON.stringify({
+            combineResults: false,
+            count,
+            entityList: [['data_app']],
+            facetValuesToInclude: [],
+            filters: [
+              {
+                field: 'owned_by_id',
+                filterType: 'term',
+                name: 'Owned by',
+                not: false,
+                value: userId
+              }
+            ],
+            hideSearchObjects: true,
+            offset,
+            query: '**',
+            queryProfile: 'GLOBAL'
+          }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+
+        const apps = data.searchResultsMap?.data_app || [];
+        if (apps.length > 0) {
+          allApps.push(
+            ...apps.map((a) => ({
+              id: a.databaseId.toString(),
+              name: a.title || a.databaseId.toString()
+            }))
+          );
+          offset += count;
+          if (apps.length < count) moreData = false;
+        } else {
+          moreData = false;
+        }
+      }
+
+      return allApps;
+    },
+    [userId],
     tabId
   );
 }

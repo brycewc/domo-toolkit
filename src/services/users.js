@@ -128,6 +128,29 @@ export async function getCustomAvatarUserIds(userIds, tabId = null) {
 }
 
 /**
+ * Get basic details for a user by ID.
+ * @param {number} userId - The Domo user ID
+ * @param {number|null} tabId - Optional Chrome tab ID
+ * @returns {Promise<{id: number, displayName: string, active: boolean}|null>}
+ */
+export async function getUserDetails(userId, tabId = null) {
+  return executeInPage(
+    async (userId) => {
+      const response = await fetch(`/api/content/v3/users/${userId}?includeDetails=true`);
+      if (!response.ok) return null;
+      const user = await response.json();
+      return {
+        active: user?.detail?.active,
+        displayName: user?.displayName || null,
+        id: user?.id || userId
+      };
+    },
+    [userId],
+    tabId
+  );
+}
+
+/**
  * Get the group IDs the given user belongs to.
  * @param {number|string} userId - The user ID
  * @param {number|null} tabId - The tab ID to execute in (optional)

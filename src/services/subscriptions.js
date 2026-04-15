@@ -12,7 +12,7 @@ export async function getOwnedSubscriptions(userId, tabId = null) {
       const ownedSubscriptions = [];
 
       // Get all subscription summaries
-      const response = await fetch('api/publish/v2/subscriptions/summaries');
+      const response = await fetch('/api/publish/v2/subscriptions/summaries');
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const summaries = await response.json();
 
@@ -22,7 +22,7 @@ export async function getOwnedSubscriptions(userId, tabId = null) {
       for (const summary of summaries) {
         try {
           const shareResponse = await fetch(
-            `api/publish/v2/subscriptions/${summary.subscriptionId}/share`
+            `/api/publish/v2/subscriptions/${summary.subscriptionId}/share`
           );
           if (!shareResponse.ok) continue;
           const share = await shareResponse.json();
@@ -70,7 +70,7 @@ export async function transferSubscriptions(
         try {
           // Fetch subscription details
           const shareResponse = await fetch(
-            `api/publish/v2/subscriptions/${id}/share`
+            `/api/publish/v2/subscriptions/${id}/share`
           );
           if (!shareResponse.ok)
             throw new Error(`HTTP ${shareResponse.status}`);
