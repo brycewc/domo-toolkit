@@ -9,6 +9,7 @@ export {
   updateOwner
 } from './allObjects';
 export {
+  getAppDbCollectionPermission,
   getOwnedAppDbCollections,
   transferAppDbCollections
 } from './appDb';
@@ -69,6 +70,7 @@ export {
   setStreamScheduleToManual,
   transferDatasets
 } from './datasets';
+export { runEnrichments } from './enrichments';
 export { getOwnedFilesets, transferFilesets } from './filesets';
 export {
   buildPfilterUrl,
@@ -140,6 +142,7 @@ export {
   getUserDetails,
   getUserGroups,
   getUserName,
+  getUserReportsTo,
   searchUsers
 } from './users';
 export {

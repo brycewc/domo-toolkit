@@ -1,6 +1,29 @@
 import { executeInPage } from '@/utils';
 
 /**
+ * Get permissions for an AppDB collection.
+ * @param {string} collectionId - The AppDB collection ID
+ * @param {number|null} tabId - Optional Chrome tab ID
+ * @returns {Promise<Object|null>} Permission object or null
+ */
+export async function getAppDbCollectionPermission(
+  collectionId,
+  tabId = null
+) {
+  return executeInPage(
+    async (collectionId) => {
+      const res = await fetch(
+        `/api/datastores/v1/collections/${collectionId}/permission`
+      );
+      if (!res.ok) return null;
+      return res.json();
+    },
+    [collectionId],
+    tabId
+  );
+}
+
+/**
  * Get all AppDB collections owned by a user.
  * @param {number} userId - The Domo user ID
  * @param {number|null} tabId - Optional Chrome tab ID

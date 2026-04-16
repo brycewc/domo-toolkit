@@ -7,45 +7,35 @@ export class DomoObjectType {
   /**
    * @param {string} id - The internal type identifier
    * @param {string} name - The human-readable type name
-   * @param {string} urlPath - The URL path pattern (can include {id} placeholder)
-   * @param {RegExp} idPattern - Regular expression to validate IDs for this type
-   * @param {Object} [extractConfig] - Configuration for extracting ID from URL
-   * @param {Object} [api] - API configuration for fetching object details
-   * @param {Array<string>} [parents] - Array of parent object type IDs this object can have
-   * @param {Array<Object>} [relatedObjects] - Array of related object configs [{field, typeId, label, source?, itemIdField?}]
-   *   Use { label: 'Short Name', source: 'self' } to override the current object's tab label
-   * @param {Object} [icon] - Icon config for this object type
-   *   { component: string, rotation?: number } where component is a key in the ObjectTypeIcon registry
-   * @param {Array<Object>} [copyConfigs] - Additional copy actions for the long-press dropdown
+   * @param {Object} [options] - Configuration options
+   * @param {Object} [options.api] - API configuration for fetching object details
+   * @param {Array<Object>} [options.copyConfigs] - Additional copy actions for the long-press dropdown
    *   Each entry: { label: string, source: string, primary?: boolean, when?: string|Object }
    *   - label: display label (e.g., 'Package ID')
    *   - source: dot-path on DomoObject to resolve the copy value (e.g., 'parentId', 'metadata.details.streamId')
    *   - primary: if true, overrides the default copy action; original object ID moves to dropdown
    *   - when: visibility condition — omit to show when source is truthy,
    *     string path for truthy check, or { field, matches } for case-insensitive equality
+   * @param {Object} [options.extractConfig] - Configuration for extracting ID from URL
+   * @param {Object} [options.icon] - Icon config for this object type
+   *   { component: string, rotation?: number } where component is a key in the ObjectTypeIcon registry
+   * @param {RegExp} [options.idPattern] - Regular expression to validate IDs for this type
+   * @param {Array<string>} [options.parents] - Array of parent object type IDs this object can have
+   * @param {Array<Object>} [options.relatedObjects] - Array of related object configs [{field, typeId, label, source?, itemIdField?}]
+   *   Use { label: 'Short Name', source: 'self' } to override the current object's tab label
+   * @param {string} [options.urlPath] - The URL path pattern (can include {id} placeholder)
    */
-  constructor(
-    id,
-    name,
-    icon,
-    urlPath,
-    idPattern,
-    extractConfig = null,
-    api = null,
-    parents = null,
-    relatedObjects = null,
-    copyConfigs = null
-  ) {
+  constructor(id, name, options = {}) {
     this.id = id;
     this.name = name;
-    this.icon = icon;
-    this.urlPath = urlPath;
-    this.idPattern = idPattern;
-    this.extractConfig = extractConfig;
-    this.api = api;
-    this.parents = parents;
-    this.relatedObjects = relatedObjects;
-    this.copyConfigs = copyConfigs;
+    this.api = options.api ?? null;
+    this.copyConfigs = options.copyConfigs ?? null;
+    this.extractConfig = options.extractConfig ?? null;
+    this.icon = options.icon ?? null;
+    this.idPattern = options.idPattern ?? null;
+    this.parents = options.parents ?? null;
+    this.relatedObjects = options.relatedObjects ?? null;
+    this.urlPath = options.urlPath ?? null;
   }
 
   /**
@@ -132,11 +122,7 @@ export class DomoObjectType {
     }
 
     const parts = url.split(/[/?=&]/);
-    const {
-      fromEnd = false,
-      keyword,
-      offset = 1
-    } = this.extractConfig.parentExtract;
+    const { fromEnd = false, keyword, offset = 1 } = this.extractConfig.parentExtract;
 
     if (fromEnd) {
       // Extract from end of URL
@@ -163,9 +149,7 @@ export class DomoObjectType {
     const parts = url.split(/[/?=&]/);
     const params = {};
 
-    for (const [name, config] of Object.entries(
-      this.extractConfig.urlParamExtracts
-    )) {
+    for (const [name, config] of Object.entries(this.extractConfig.urlParamExtracts)) {
       const { fromEnd = false, keyword, offset = 1 } = config;
       if (fromEnd) {
         params[name] = parts[parts.length - offset] || null;
@@ -215,8 +199,7 @@ export class DomoObjectType {
       this.api &&
       this.api.endpoint &&
       (this.api.endpoint.includes('{parent}') ||
-        (this.api.bodyTemplate &&
-          JSON.stringify(this.api.bodyTemplate).includes('{parent}')))
+        (this.api.bodyTemplate && JSON.stringify(this.api.bodyTemplate).includes('{parent}')))
     );
   }
 
@@ -233,211 +216,123 @@ export class DomoObjectType {
  * Registry of all supported object types
  */
 export const ObjectTypeRegistry = {
-  ACCESS_TOKEN: new DomoObjectType(
-    'ACCESS_TOKEN',
-    'Access token',
-    null,
-    null,
-    /.*/,
-    null,
-    null
-  ),
-  ACCOUNT: new DomoObjectType(
-    'ACCOUNT',
-    'Account',
-    { component: 'Key' },
-    '/datacenter/accounts?id={id}',
-    /^\d+$/,
-    null,
-    {
-      endpoint: '/data/v1/accounts/{id}',
-      pathToName: 'name'
-    }
-  ),
-  ACCOUNT_TEMPLATE: new DomoObjectType(
-    'ACCOUNT_TEMPLATE',
-    'Account Template',
-    { component: 'Key' },
-    null,
-    /.*/,
-    null,
-    null
-  ),
-  ACHIEVEMENT: new DomoObjectType(
-    'ACHIEVEMENT',
-    'Achievement',
-    null,
-    null,
-    /.*/,
-    null,
-    {
-      endpoint: '/content/v1/achievements/{id}',
-      pathToName: 'name'
-    }
-  ),
-  ACHIEVEMENT_ADMIN: new DomoObjectType(
-    'ACHIEVEMENT_ADMIN',
-    'Achievement Admin',
-    null,
-    null,
-    /.*/,
-    null,
-    null
-  ),
-  ADC_COLUMN_POLICY: new DomoObjectType(
-    'ADC_COLUMN_POLICY',
-    'Column PDP Policy',
-    null,
-    null,
-    /^\d+$/,
-    null,
-    null
-  ),
+  ACCESS_TOKEN: new DomoObjectType('ACCESS_TOKEN', 'Access token', {
+    idPattern: /^\d+$/
+  }),
+  ACCOUNT: new DomoObjectType('ACCOUNT', 'Account', {
+    api: { endpoint: '/data/v1/accounts/{id}', pathToName: 'name' },
+    icon: { component: 'Key' },
+    idPattern: /^\d+$/,
+    urlPath: '/datacenter/accounts?id={id}'
+  }),
+  ACCOUNT_TEMPLATE: new DomoObjectType('ACCOUNT_TEMPLATE', 'Account Template', {
+    icon: { component: 'Key' },
+    idPattern: /.*/
+  }),
+  ACHIEVEMENT: new DomoObjectType('ACHIEVEMENT', 'Achievement', {
+    api: { endpoint: '/content/v1/achievements/{id}', pathToName: 'name' },
+    idPattern: /.*/
+  }),
+  ACHIEVEMENT_ADMIN: new DomoObjectType('ACHIEVEMENT_ADMIN', 'Achievement Admin', {
+    idPattern: /.*/
+  }),
+  ADC_COLUMN_POLICY: new DomoObjectType('ADC_COLUMN_POLICY', 'Column PDP Policy', {
+    idPattern: /^\d+$/
+  }),
   ADC_COLUMN_POLICY_GROUP: new DomoObjectType(
     'ADC_COLUMN_POLICY_GROUP',
     'Column PDP Policy Group',
-    null,
-    null,
-    /^\d+$/,
-    null,
-    null
+    {
+      idPattern: /^\d+$/
+    }
   ),
   ADC_COLUMN_POLICY_MAPPING: new DomoObjectType(
     'ADC_COLUMN_POLICY_MAPPING',
     'Column PDP Policy Mapping',
-    null,
-    null,
-    /.*/,
-    null,
-    null
-  ),
-  ADC_FILTER: new DomoObjectType(
-    'ADC_FILTER',
-    'PDP Filter',
-    null,
-    null,
-    /^\d+$/,
-    null,
-    null
-  ),
-  ADC_MASK: new DomoObjectType(
-    'ADC_MASK',
-    'PDP Mask',
-    null,
-    null,
-    /^\d+$/,
-    null,
-    null
-  ),
-  ADC_POLICY: new DomoObjectType(
-    'ADC_POLICY',
-    'PDP Policy',
-    null,
-    null,
-    /^\d+$/,
-    null,
-    null
-  ),
-  AGENT: new DomoObjectType(
-    'AGENT',
-    'Agent',
-    { component: 'Robot' },
-    '/ai-library/agents/{id}',
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    { keyword: 'agents' },
     {
+      idPattern: /.*/
+    }
+  ),
+  ADC_FILTER: new DomoObjectType('ADC_FILTER', 'PDP Filter', {
+    idPattern: /^\d+$/
+  }),
+  ADC_MASK: new DomoObjectType('ADC_MASK', 'PDP Mask', { idPattern: /^\d+$/ }),
+  ADC_POLICY: new DomoObjectType('ADC_POLICY', 'PDP Policy', {
+    idPattern: /^\d+$/
+  }),
+  AGENT: new DomoObjectType('AGENT', 'Agent', {
+    api: {
       endpoint: '/ai/v1/agents/{id}?include=all,context,toolkits,settings',
       pathToName: 'name'
     },
-    null,
-    [{ field: 'toolkits', isArray: true, itemIdField: 'id', itemTypeId: 'AI_TOOLKIT', label: 'Toolkits' }]
-),
-  AI_CHAT: new DomoObjectType('AI_CHAT', 'AI Chat', null, null, /.*/, null, null),
-  AI_MODEL: new DomoObjectType(
-    'AI_MODEL',
-    'AI Model',
-    { component: 'Brain' },
-    '/ai-services/models/{id}',
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    { keyword: 'model' },
-    {
-      endpoint: '/datascience/ml/v1/models/{id}',
-      pathToName: 'name'
-    }
-  ),
-  AI_PROJECT: new DomoObjectType(
-    'AI_PROJECT',
-    'AI Project',
-    { component: 'Brain' },
-    '/ai-services/projects/{id}',
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    { keyword: 'projects' },
-    {
-      endpoint: '/datascience/ml/v1/projects/{id}',
-      pathToName: 'name'
-    }
-  ),
-  AI_TOOLKIT: new DomoObjectType(
-    'AI_TOOLKIT',
-    'AI Toolkit',
-    null,
-    '/ai-library/toolkits/{id}',
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    { keyword: 'toolkits' },
-    {
-      endpoint: '/ai/v1/toolkits/{id}',
-      pathToName: 'name'
-    }
-  ),
-  AI_TOOLKIT_DOMO_PROVIDED: new DomoObjectType(
-    'AI_TOOLKIT_DOMO_PROVIDED',
-    'AI Toolkit (Domo)',
-    null,
-    '/ai-library/toolkits/domo-provided/{id}',
-    /^[a-z][a-z0-9_]*$/,
-    { keyword: 'domo-provided' },
-    {
+    extractConfig: { keyword: 'agents' },
+    icon: { component: 'Robot' },
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    relatedObjects: [
+      {
+        field: 'toolkits',
+        isArray: true,
+        itemIdField: 'id',
+        itemTypeId: 'AI_TOOLKIT',
+        label: 'Toolkits'
+      }
+    ],
+    urlPath: '/ai-library/agents/{id}'
+  }),
+  AI_CHAT: new DomoObjectType('AI_CHAT', 'AI Chat', { idPattern: /.*/ }),
+  AI_MODEL: new DomoObjectType('AI_MODEL', 'AI Model', {
+    api: { endpoint: '/datascience/ml/v1/models/{id}', pathToName: 'name' },
+    extractConfig: { keyword: 'model' },
+    icon: { component: 'Brain' },
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    urlPath: '/ai-services/models/{id}'
+  }),
+  AI_PROJECT: new DomoObjectType('AI_PROJECT', 'AI Project', {
+    api: { endpoint: '/datascience/ml/v1/projects/{id}', pathToName: 'name' },
+    extractConfig: { keyword: 'projects' },
+    icon: { component: 'Brain' },
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    urlPath: '/ai-services/projects/{id}'
+  }),
+  AI_TOOLKIT: new DomoObjectType('AI_TOOLKIT', 'AI Toolkit', {
+    api: { endpoint: '/ai/v1/toolkits/{id}', pathToName: 'name' },
+    extractConfig: { keyword: 'toolkits' },
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    urlPath: '/ai-library/toolkits/{id}'
+  }),
+  AI_TOOLKIT_DOMO_PROVIDED: new DomoObjectType('AI_TOOLKIT_DOMO_PROVIDED', 'AI Toolkit (Domo)', {
+    api: {
       endpoint: '/ai/v1/toolkits/domo-provided',
       filterByIdField: 'id',
       pathToName: 'name'
-    }
-  ),
-  ALERT: new DomoObjectType(
-    'ALERT',
-    'Alert',
-    { component: 'Bell' },
-    '/alerts/{id}',
-    /^\d+$/,
-    { keyword: 'alerts' },
-    {
-      endpoint: '/social/v4/alerts/{id}',
-      pathToName: 'name'
-    }
-  ),
-  APP: new DomoObjectType(
-    'APP',
-    'Custom App (Brick)',
-    { component: 'Apps' },
-    '/assetlibrary/{id}/overview',
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    { keyword: 'assetlibrary' },
-    {
+    },
+    extractConfig: { keyword: 'domo-provided' },
+    idPattern: /^[a-z][a-z0-9_]*$/,
+    urlPath: '/ai-library/toolkits/domo-provided/{id}'
+  }),
+  ALERT: new DomoObjectType('ALERT', 'Alert', {
+    api: { endpoint: '/social/v4/alerts/{id}', pathToName: 'name' },
+    extractConfig: { keyword: 'alerts' },
+    icon: { component: 'Bell' },
+    idPattern: /^\d+$/,
+    urlPath: '/alerts/{id}'
+  }),
+  APP: new DomoObjectType('APP', 'Custom App (Brick)', {
+    api: {
       endpoint: '/apps/v1/designs/{id}?parts=versions',
       pathToName: 'name'
-    }
-  ),
-  APPROVAL: new DomoObjectType(
-    'APPROVAL',
-    'Approval',
-    { component: 'RubberStamp' },
-    '/approval/request-details/{id}',
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    { keyword: 'request-details' },
-    {
+    },
+    extractConfig: { keyword: 'assetlibrary' },
+    icon: { component: 'Apps' },
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    urlPath: '/assetlibrary/{id}/overview'
+  }),
+  APPROVAL: new DomoObjectType('APPROVAL', 'Approval', {
+    api: {
       bodyTemplate: {
         operationName: 'getApprovalForDetails',
         query:
-          'query getApprovalForDetails($id: ID!) {\n  request: approval(id: $id) {\n    ...approvalFields\n    __typename\n  }\n}\n\nfragment approvalFields on Approval {\n  newActivity\n  observers {\n    id\n    type\n    displayName\n    title\n    ... on Group {\n      currentUserIsMember\n      memberCount: userCount\n      __typename\n    }\n    __typename\n  }\n  lastViewed\n  newActivity\n  newMessage {\n    created\n    createdByType\n    createdBy {\n      id\n      displayName\n      __typename\n    }\n    content {\n      text\n      __typename\n    }\n    __typename\n  }\n  lastAction\n  version\n  submittedTime\n  id\n  title\n  status\n  providerName\n  templateTitle\n  buzzChannelId\n  buzzGeneralThreadId\n  templateID\n  templateInstructions\n  templateDescription\n  acknowledgment\n  snooze\n  snoozed\n  type\n  categories {\n    id\n    name\n    __typename\n  }\n  total {\n    value\n    currency\n    __typename\n  }\n  modifiedTime\n  previousApprover: previousApproverEx {\n    id\n    type\n    displayName\n    ... on User {\n      title\n      avatarKey\n      isCurrentUser\n      __typename\n    }\n    ... on Group {\n      currentUserIsMember\n      userCount\n      isDeleted\n      actor {\n        displayName\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  pendingApprover: pendingApproverEx {\n    id\n    type\n    displayName\n    ... on User {\n      title\n      avatarKey\n      isCurrentUser\n      __typename\n    }\n    ... on Group {\n      currentUserIsMember\n      userCount\n      isDeleted\n      __typename\n    }\n    __typename\n  }\n  submitter {\n    id\n    displayName\n    title\n    avatarKey\n    isCurrentUser\n    type\n    __typename\n  }\n  approvalChainIdx\n  reminder {\n    sent\n    sentBy {\n      displayName\n      title\n      id\n      isCurrentUser\n      type\n      __typename\n    }\n    __typename\n  }\n  chain {\n    actor {\n      displayName\n      __typename\n    }\n    approver {\n      id\n      type\n      displayName\n      ... on User {\n        title\n        avatarKey\n        isCurrentUser\n        __typename\n      }\n      ... on Group {\n        currentUserIsMember\n        userCount\n        isDeleted\n        __typename\n      }\n      __typename\n    }\n    status\n    time\n    type\n    key\n    __typename\n  }\n  fields {\n    data\n    name\n    type\n    key\n    ... on HeaderField {\n      fields {\n        data\n        name\n        type\n        key\n        ... on HeaderField {\n          fields {\n            data\n            name\n            type\n            key\n            __typename\n          }\n          __typename\n        }\n        __typename\n      }\n      __typename\n    }\n    ... on ItemListField {\n      fields {\n        data\n        name\n        type\n        key\n        ... on HeaderField {\n          fields {\n            data\n            name\n            type\n            key\n            ... on HeaderField {\n              fields {\n                data\n                name\n                type\n                key\n                __typename\n              }\n              __typename\n            }\n            __typename\n          }\n          __typename\n        }\n        __typename\n      }\n      __typename\n    }\n    ... on NumberField {\n      value\n      __typename\n    }\n    ... on CurrencyField {\n      number: value\n      currency\n      __typename\n    }\n    ... on DateField {\n      date: value\n      __typename\n    }\n    ... on DataSetAttachmentField {\n      dataSet: value {\n        id\n        name\n        description\n        owner {\n          id\n          displayName\n          __typename\n        }\n        provider\n        cardCount\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  history {\n    actor {\n      type\n      id\n      displayName\n      ... on User {\n        avatarKey\n        isCurrentUser\n        __typename\n      }\n      __typename\n    }\n    status\n    time\n    __typename\n  }\n  latestMessage {\n    created\n    __typename\n  }\n  latestMentioned {\n    created\n    __typename\n  }\n  workflowIntegration {\n    modelId\n    modelVersion\n    startName\n    instanceId\n    modelName\n    __typename\n  }\n  __typename\n}',
+          'query getApprovalForDetails($id: ID!) {\n request: approval(id: $id) {\n ...approvalFields\n __typename\n }\n}\n\nfragment approvalFields on Approval {\n newActivity\n observers {\n id\n type\n displayName\n title\n ... on Group {\n currentUserIsMember\n memberCount: userCount\n __typename\n }\n __typename\n }\n lastViewed\n newActivity\n newMessage {\n created\n createdByType\n createdBy {\n id\n displayName\n __typename\n }\n content {\n text\n __typename\n }\n __typename\n }\n lastAction\n version\n submittedTime\n id\n title\n status\n providerName\n templateTitle\n buzzChannelId\n buzzGeneralThreadId\n templateID\n templateInstructions\n templateDescription\n acknowledgment\n snooze\n snoozed\n type\n categories {\n id\n name\n __typename\n }\n total {\n value\n currency\n __typename\n }\n modifiedTime\n previousApprover: previousApproverEx {\n id\n type\n displayName\n ... on User {\n title\n avatarKey\n isCurrentUser\n __typename\n }\n ... on Group {\n currentUserIsMember\n userCount\n isDeleted\n actor {\n displayName\n id\n __typename\n }\n __typename\n }\n __typename\n }\n pendingApprover: pendingApproverEx {\n id\n type\n displayName\n ... on User {\n title\n avatarKey\n isCurrentUser\n __typename\n }\n ... on Group {\n currentUserIsMember\n userCount\n isDeleted\n __typename\n }\n __typename\n }\n submitter {\n id\n displayName\n title\n avatarKey\n isCurrentUser\n type\n __typename\n }\n approvalChainIdx\n reminder {\n sent\n sentBy {\n displayName\n title\n id\n isCurrentUser\n type\n __typename\n }\n __typename\n }\n chain {\n actor {\n displayName\n __typename\n }\n approver {\n id\n type\n displayName\n ... on User {\n title\n avatarKey\n isCurrentUser\n __typename\n }\n ... on Group {\n currentUserIsMember\n userCount\n isDeleted\n __typename\n }\n __typename\n }\n status\n time\n type\n key\n __typename\n }\n fields {\n data\n name\n type\n key\n ... on HeaderField {\n fields {\n data\n name\n type\n key\n ... on HeaderField {\n fields {\n data\n name\n type\n key\n __typename\n }\n __typename\n }\n __typename\n }\n __typename\n }\n ... on ItemListField {\n fields {\n data\n name\n type\n key\n ... on HeaderField {\n fields {\n data\n name\n type\n key\n ... on HeaderField {\n fields {\n data\n name\n type\n key\n __typename\n }\n __typename\n }\n __typename\n }\n __typename\n }\n __typename\n }\n __typename\n }\n ... on NumberField {\n value\n __typename\n }\n ... on CurrencyField {\n number: value\n currency\n __typename\n }\n ... on DateField {\n date: value\n __typename\n }\n ... on DataSetAttachmentField {\n dataSet: value {\n id\n name\n description\n owner {\n id\n displayName\n __typename\n }\n provider\n cardCount\n __typename\n }\n __typename\n }\n __typename\n }\n history {\n actor {\n type\n id\n displayName\n ... on User {\n avatarKey\n isCurrentUser\n __typename\n }\n __typename\n }\n status\n time\n __typename\n }\n latestMessage {\n created\n __typename\n }\n latestMentioned {\n created\n __typename\n }\n workflowIntegration {\n modelId\n modelVersion\n startName\n instanceId\n modelName\n __typename\n }\n __typename\n}',
         variables: { id: '{id}' }
       },
       endpoint: '/synapse/approval/graphql',
@@ -446,1371 +341,863 @@ export const ObjectTypeRegistry = {
       pathToName: 'data.request.title',
       pathToParentId: 'data.request.templateID'
     },
-    ['TEMPLATE'],
-    [{ label: 'Template', source: 'parentId', typeId: 'TEMPLATE' }],
-    [{ label: 'Approval Template ID', source: 'parentId' }]
-  ),
-  AUTHORITY: new DomoObjectType(
-    'AUTHORITY',
-    'Grant',
-    null,
-    null,
-    /.*/,
-    null,
-    null
-  ),
-  BEAST_MODE_FORMULA: new DomoObjectType(
-    'BEAST_MODE_FORMULA',
-    'Beast Mode',
-    { component: 'MathFunction' },
-    '/datacenter/beastmode?id={id}',
-    /^\d+$/,
-    { keyword: 'id' },
-    {
+    copyConfigs: [{ label: 'Approval Template ID', source: 'parentId' }],
+    extractConfig: { keyword: 'request-details' },
+    icon: { component: 'RubberStamp' },
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    parents: ['TEMPLATE'],
+    relatedObjects: [{ label: 'Template', source: 'parentId', typeId: 'TEMPLATE' }],
+    urlPath: '/approval/request-details/{id}'
+  }),
+  AUTHORITY: new DomoObjectType('AUTHORITY', 'Grant', { idPattern: /.*/ }),
+  BEAST_MODE_FORMULA: new DomoObjectType('BEAST_MODE_FORMULA', 'Beast Mode', {
+    api: {
       endpoint: '/query/v1/functions/template/{id}?hidden=true',
       pathToName: 'name'
     },
-    ['DATA_SOURCE', 'CARD']
-  ),
-  CARD: new DomoObjectType(
-    'CARD',
-    'Card',
-    { component: 'ChartBar' },
-    '/kpis/details/{id}',
-    /^\d+$/,
-    {
-      keyword: 'details'
-    },
-    {
+    extractConfig: { keyword: 'id' },
+    icon: { component: 'MathFunction' },
+    idPattern: /^\d+$/,
+    parents: ['DATA_SOURCE', 'CARD'],
+    urlPath: '/datacenter/beastmode?id={id}'
+  }),
+  CARD: new DomoObjectType('CARD', 'Card', {
+    api: {
       endpoint:
         '/content/v1/cards?urns={id}&includeFiltered=true&parts=metadata,datasources,domoapp,owners',
       pathToDetails: '[0]',
       pathToName: '[0].title'
     },
-    ['DATA_SOURCE', 'APP'],
-    [
-      { field: 'datasources', isArray: true, itemIdField: 'dataSourceId', itemTypeId: 'DATA_SOURCE', label: 'DataSets' },
-      { field: 'pageId', fieldSource: 'context', label: 'Page', typeId: 'PAGE' },
-      { field: 'appViewId', fieldSource: 'context', label: 'App Page', parentFieldSource: 'context', parentSource: 'appId', typeId: 'DATA_APP_VIEW' },
-      { field: 'appId', fieldSource: 'context', label: 'Studio App', typeId: 'DATA_APP' }
-    ]
-  ),
-  CERTIFICATION: new DomoObjectType(
-    'CERTIFICATION',
-    'Certification',
-    { component: 'RosetteDiscountCheck' },
-    null,
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    null,
-    null
-  ),
-  CERTIFICATION_PROCESS: new DomoObjectType(
-    'CERTIFICATION_PROCESS',
-    'Certification Process',
-    null,
-    null,
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    null,
-    null
-  ),
-  CHANNEL: new DomoObjectType(
-    'CHANNEL',
-    'Buzz Channel',
-    null,
-    null,
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    null,
-    {
-      endpoint: '/buzz/v1/channels/{id}',
-      pathToName: 'channel.title'
-    }
-  ),
-  CHART_COLOR_PALETTE: new DomoObjectType(
-    'CHART_COLOR_PALETTE',
-    'Chart Color Palette',
-    null,
-    null,
-    /.*/,
-    null,
-    null
-  ),
-  CODEENGINE_PACKAGE: new DomoObjectType(
-    'CODEENGINE_PACKAGE',
-    'Code Engine Package',
-    { component: 'Package' },
-    '/codeengine/{id}',
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    { keyword: 'codeengine' },
-    {
+    extractConfig: { keyword: 'details' },
+    icon: { component: 'ChartBar' },
+    idPattern: /^\d+$/,
+    parents: ['DATA_SOURCE', 'APP'],
+    relatedObjects: [
+      {
+        field: 'datasources',
+        isArray: true,
+        itemIdField: 'dataSourceId',
+        itemTypeId: 'DATA_SOURCE',
+        label: 'DataSets'
+      },
+      {
+        field: 'pageId',
+        fieldSource: 'context',
+        label: 'Page',
+        typeId: 'PAGE'
+      },
+      {
+        field: 'appViewId',
+        fieldSource: 'context',
+        label: 'App Page',
+        parentFieldSource: 'context',
+        parentSource: 'appId',
+        typeId: 'DATA_APP_VIEW'
+      },
+      {
+        field: 'appId',
+        fieldSource: 'context',
+        label: 'Studio App',
+        typeId: 'DATA_APP'
+      }
+    ],
+    urlPath: '/kpis/details/{id}'
+  }),
+  CERTIFICATION: new DomoObjectType('CERTIFICATION', 'Certification', {
+    icon: { component: 'RosetteDiscountCheck' },
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  }),
+  CERTIFICATION_PROCESS: new DomoObjectType('CERTIFICATION_PROCESS', 'Certification Process', {
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  }),
+  CHANNEL: new DomoObjectType('CHANNEL', 'Buzz Channel', {
+    api: { endpoint: '/buzz/v1/channels/{id}', pathToName: 'channel.title' },
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  }),
+  CHART_COLOR_PALETTE: new DomoObjectType('CHART_COLOR_PALETTE', 'Chart Color Palette', {
+    idPattern: /.*/
+  }),
+  CODEENGINE_PACKAGE: new DomoObjectType('CODEENGINE_PACKAGE', 'Code Engine Package', {
+    api: {
       endpoint: '/codeengine/v2/packages/{id}?parts=functions',
       pathToName: 'name'
-    }
-  ),
+    },
+    extractConfig: { keyword: 'codeengine' },
+    icon: { component: 'Package' },
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    urlPath: '/codeengine/{id}'
+  }),
   CODEENGINE_PACKAGE_VERSION: new DomoObjectType(
     'CODEENGINE_PACKAGE_VERSION',
     'Code Engine Package Version',
-    { component: 'Package' },
-    null,
-    /^[0-9]+\.[0-9]+\.[0-9]+$/,
-    null,
     {
-      displayName: '{parent.name} - {id}',
-      endpoint: '/codeengine/v2/packages/{parent}/versions/{id}',
-      pathToName: 'version'
-    },
-    ['CODEENGINE_PACKAGE'],
-    [
-      { label: 'Package Version', source: 'self' },
-      { label: 'Package', source: 'parentId', typeId: 'CODEENGINE_PACKAGE' },
-      { field: 'workflowVersionNumber', label: 'Workflow Version', parentSource: 'workflowModelId', typeId: 'WORKFLOW_MODEL_VERSION' },
-      { field: 'workflowModelId', label: 'Workflow', typeId: 'WORKFLOW_MODEL' }
-    ],
-    [{ label: 'Package ID', primary: true, source: 'parentId' }, { label: 'Version Number', source: 'id' }]
+      api: {
+        displayName: '{parent.name} - {id}',
+        endpoint: '/codeengine/v2/packages/{parent}/versions/{id}',
+        pathToName: 'version'
+      },
+      copyConfigs: [
+        { label: 'Package ID', primary: true, source: 'parentId' },
+        { label: 'Version Number', source: 'id' }
+      ],
+      icon: { component: 'Package' },
+      idPattern: /^[0-9]+\.[0-9]+\.[0-9]+$/,
+      parents: ['CODEENGINE_PACKAGE'],
+      relatedObjects: [
+        { label: 'Package Version', source: 'self' },
+        { label: 'Package', source: 'parentId', typeId: 'CODEENGINE_PACKAGE' },
+        {
+          field: 'workflowVersionNumber',
+          label: 'Workflow Version',
+          parentSource: 'workflowModelId',
+          typeId: 'WORKFLOW_MODEL_VERSION'
+        },
+        {
+          field: 'workflowModelId',
+          label: 'Workflow',
+          typeId: 'WORKFLOW_MODEL'
+        }
+      ]
+    }
   ),
-  COLLECTION: new DomoObjectType(
-    'COLLECTION',
-    'Collection',
-    { component: 'Folder' },
-    null,
-    /.*/,
-    null,
-    null
-  ),
-  COMMUNITY_SUPPORTED: new DomoObjectType(
-    'COMMUNITY_SUPPORTED',
-    'Community Supported Connector',
-    null,
-    null,
-    /.*/,
-    null,
-    null
-  ),
-  CONFIG_APP: new DomoObjectType(
-    'CONFIG_APP',
-    'Config App',
-    null,
-    null,
-    /.*/,
-    null,
-    null
-  ),
+  COLLECTION: new DomoObjectType('COLLECTION', 'Collection', {
+    icon: { component: 'Folder' },
+    idPattern: /.*/
+  }),
+  COMMUNITY_SUPPORTED: new DomoObjectType('COMMUNITY_SUPPORTED', 'Community Supported Connector', {
+    idPattern: /.*/
+  }),
+  CONFIG_APP: new DomoObjectType('CONFIG_APP', 'Config App', {
+    idPattern: /.*/
+  }),
   CONFIG_APP_CONFIGURATION: new DomoObjectType(
     'CONFIG_APP_CONFIGURATION',
     'Config App Configuration',
-    null,
-    null,
-    /.*/,
-    null,
-    null
+    {
+      idPattern: /.*/
+    }
   ),
-  CONNECTOR: new DomoObjectType(
-    'CONNECTOR',
-    'Connector',
-    { component: 'Plug' },
-    null,
-    /.*/,
-    null,
-    null
-  ),
-  CONTAINER_VIEW: new DomoObjectType(
-    'CONTAINER_VIEW',
-    'Container View',
-    null,
-    null,
-    /.*/,
-    null,
-    null
-  ),
-  CUSTOMER: new DomoObjectType('CUSTOMER', 'Customer', null, null, /.*/, null, null),
+  CONNECTOR: new DomoObjectType('CONNECTOR', 'Connector', {
+    icon: { component: 'Plug' },
+    idPattern: /.*/
+  }),
+  CONTAINER_VIEW: new DomoObjectType('CONTAINER_VIEW', 'Container View', {
+    idPattern: /.*/
+  }),
+  CUSTOMER: new DomoObjectType('CUSTOMER', 'Customer', { idPattern: /.*/ }),
   CUSTOMER_LANDING_ENTITY: new DomoObjectType(
     'CUSTOMER_LANDING_ENTITY',
     'Customer Landing Entity',
-    null,
-    null,
-    /.*/,
-    null,
-    null
+    { idPattern: /.*/ }
   ),
-  CUSTOMER_STATE: new DomoObjectType(
-    'CUSTOMER_STATE',
-    'Customer State',
-    null,
-    null,
-    /.*/,
-    null,
-    {
-      endpoint: '/content/v1/customer-states/{id}',
-      pathToName: 'name'
-    }
-  ),
-  DATA_APP: new DomoObjectType(
-    'DATA_APP',
-    'Studio App',
-    { component: 'Rocket', rotation: -45 },
-    '/app-studio/{id}',
-    /^\d+$/,
-    { keyword: 'app-studio' },
-    {
-      endpoint: '/content/v1/dataapps/{id}',
-      pathToName: 'title'
-    },
-    null,
-    [
+  CUSTOMER_STATE: new DomoObjectType('CUSTOMER_STATE', 'Customer State', {
+    api: { endpoint: '/content/v1/customer-states/{id}', pathToName: 'name' },
+    idPattern: /.*/
+  }),
+  DATA_APP: new DomoObjectType('DATA_APP', 'Studio App', {
+    api: { endpoint: '/content/v1/dataapps/{id}', pathToName: 'title' },
+    extractConfig: { keyword: 'app-studio' },
+    icon: { component: 'Rocket', rotation: -45 },
+    idPattern: /^\d+$/,
+    relatedObjects: [
       {
-        field: 'views', isArray: true, itemTypeId: 'DATA_APP_VIEW', label: 'Pages'
+        field: 'views',
+        isArray: true,
+        itemTypeId: 'DATA_APP_VIEW',
+        label: 'Pages'
       }
-    ]
-  ),
-  DATA_APP_VIEW: new DomoObjectType(
-    'DATA_APP_VIEW',
-    'App Page',
-    { component: 'LayoutDashboard' },
-    '/app-studio/{parent}/pages/{id}',
-    /^\d+$/,
-    {
-      keyword: 'pages',
-      parentExtract: { keyword: 'app-studio', offset: 1 }
-    },
-    {
+    ],
+    urlPath: '/app-studio/{id}'
+  }),
+  DATA_APP_VIEW: new DomoObjectType('DATA_APP_VIEW', 'App Page', {
+    api: {
       displayName: '{parent.name}: {name}',
       endpoint: '/content/v3/stacks/{id}',
       pathToName: 'title'
     },
-    ['DATA_APP'],
-    [
+    copyConfigs: [{ label: 'App ID', source: 'parentId' }],
+    extractConfig: {
+      keyword: 'pages',
+      parentExtract: { keyword: 'app-studio', offset: 1 }
+    },
+    icon: { component: 'LayoutDashboard' },
+    idPattern: /^\d+$/,
+    parents: ['DATA_APP'],
+    relatedObjects: [
       { label: 'Studio App', source: 'parent', typeId: 'DATA_APP' },
-      { field: 'content', fieldSource: 'context', isArray: true, itemTypeField: 'type', label: 'Content' }
+      {
+        field: 'content',
+        fieldSource: 'context',
+        isArray: true,
+        itemTypeField: 'type',
+        label: 'Content'
+      }
     ],
-    [{ label: 'App ID', source: 'parentId' }]
-  ),
-  DATA_DICTIONARY: new DomoObjectType(
-    'DATA_DICTIONARY',
-    'Data Dictionary',
-    null,
-    null,
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    null,
-    null
-  ),
-  DATA_LINEAGE: new DomoObjectType(
-    'DATA_LINEAGE',
-    'Data Lineage',
-    { component: 'BinaryTree' },
-    null,
-    /.*/,
-    null,
-    null
-  ),
-  DATA_SCIENCE_NOTEBOOK: new DomoObjectType(
-    'DATA_SCIENCE_NOTEBOOK',
-    'Jupyter Workspace',
-    { component: 'Notebook' },
-    '/jupyter-workspaces/{id}',
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    { keyword: 'jupyter-workspaces' },
-    {
-      endpoint: '/datascience/v1/workspaces/{id}',
-      pathToName: 'name'
-    }
-  ),
-  DATA_SOURCE: new DomoObjectType(
-    'DATA_SOURCE',
-    'DataSet',
-    { component: 'Database' },
-    '/datasources/{id}/details/data/table',
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    { keyword: 'datasources' },
-    {
+    urlPath: '/app-studio/{parent}/pages/{id}'
+  }),
+  DATA_DICTIONARY: new DomoObjectType('DATA_DICTIONARY', 'Data Dictionary', {
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  }),
+  DATA_LINEAGE: new DomoObjectType('DATA_LINEAGE', 'Data Lineage', {
+    icon: { component: 'BinaryTree' },
+    idPattern: /.*/
+  }),
+  DATA_SCIENCE_NOTEBOOK: new DomoObjectType('DATA_SCIENCE_NOTEBOOK', 'Jupyter Workspace', {
+    api: { endpoint: '/datascience/v1/workspaces/{id}', pathToName: 'name' },
+    extractConfig: { keyword: 'jupyter-workspaces' },
+    icon: { component: 'Notebook' },
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    urlPath: '/jupyter-workspaces/{id}'
+  }),
+  DATA_SOURCE: new DomoObjectType('DATA_SOURCE', 'DataSet', {
+    api: {
       endpoint: '/data/v3/datasources/{id}?includeAllDetails=true',
       pathToName: 'name'
     },
-    ['DATAFLOW_TYPE', 'DATA_SOURCE', 'STREAM'],
-    [
+    copyConfigs: [
+      { label: 'Account ID', source: 'metadata.details.accountId' },
+      {
+        label: 'DataFlow ID',
+        source: 'parentId',
+        when: { field: 'metadata.details.type', matches: 'dataflow' }
+      },
+      { label: 'Stream ID', source: 'metadata.details.streamId' }
+    ],
+    extractConfig: { keyword: 'datasources' },
+    icon: { component: 'Database' },
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    parents: ['DATAFLOW_TYPE', 'DATA_SOURCE', 'STREAM'],
+    relatedObjects: [
       { label: 'Stream', source: 'parent', typeId: 'STREAM' },
       { field: 'accountId', label: 'Account', typeId: 'ACCOUNT' },
       { label: 'DataFlow', source: 'parent', typeId: 'DATAFLOW_TYPE' }
     ],
-    [
-      { label: 'Account ID', source: 'metadata.details.accountId' },
-      { label: 'DataFlow ID', source: 'parentId', when: { field: 'metadata.details.type', matches: 'dataflow' } },
-      { label: 'Stream ID', source: 'metadata.details.streamId' }
-    ]
-  ),
-  DATAFLOW_TYPE: new DomoObjectType(
-    'DATAFLOW_TYPE',
-    'DataFlow',
-    { component: 'ArrowsSplit', rotation: 180 },
-    '/datacenter/dataflows/{id}/details',
-    /^\d+$/,
-    { keyword: 'dataflows' },
-    {
-      endpoint: '/dataprocessing/v2/dataflows/{id}',
-      pathToName: 'name'
-    },
-    null,
-    [
-      { field: 'inputs', isArray: true, itemTypeId: 'DATA_SOURCE', label: 'Inputs' },
-      { field: 'outputs', isArray: true, itemTypeId: 'DATA_SOURCE', label: 'Outputs' }
-    ]
-  ),
-  DATASOURCE: new DomoObjectType(
-    'DATASOURCE',
-    'Datasource',
-    { component: 'Database' },
-    '/datasources/{id}/details/data/table',
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    null,
-    {
+    urlPath: '/datasources/{id}/details/data/table'
+  }),
+  DATAFLOW_TYPE: new DomoObjectType('DATAFLOW_TYPE', 'DataFlow', {
+    api: { endpoint: '/dataprocessing/v2/dataflows/{id}', pathToName: 'name' },
+    extractConfig: { keyword: 'dataflows' },
+    icon: { component: 'ArrowsSplit', rotation: 180 },
+    idPattern: /^\d+$/,
+    relatedObjects: [
+      {
+        field: 'inputs',
+        isArray: true,
+        itemTypeId: 'DATA_SOURCE',
+        label: 'Inputs'
+      },
+      {
+        field: 'outputs',
+        isArray: true,
+        itemTypeId: 'DATA_SOURCE',
+        label: 'Outputs'
+      }
+    ],
+    urlPath: '/datacenter/dataflows/{id}/details'
+  }),
+  DATASOURCE: new DomoObjectType('DATASOURCE', 'Datasource', {
+    api: {
       endpoint: '/data/v3/datasources/{id}?includeAllDetails=true',
       pathToName: 'name'
-    }
-  ),
-  DEFAULT_POLICY: new DomoObjectType(
-    'DEFAULT_POLICY',
-    'Default Policy',
-    null,
-    null,
-    /.*/,
-    null,
-    null
-  ),
-  DEPLOYMENT: new DomoObjectType(
-    'DEPLOYMENT',
-    'Deployment',
-    null,
-    null,
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    null,
-    null
-  ),
-  DIRECTORY: new DomoObjectType(
-    'DIRECTORY',
-    'Directory',
-    null,
-    null,
-    /.*/,
-    null,
-    null
-  ),
-  DRILL_VIEW: new DomoObjectType(
-    'DRILL_VIEW',
-    'Drill Path',
-    { component: 'ZoomIn' },
-    '/analyzer?cardid=${parent}&drillviewid=${id}',
-    /^\d+$/,
-    { keyword: 'drillviewid', parentExtract: { keyword: 'cardid', offset: 1 } },
-    {
+    },
+    icon: { component: 'Database' },
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    urlPath: '/datasources/{id}/details/data/table'
+  }),
+  DEFAULT_POLICY: new DomoObjectType('DEFAULT_POLICY', 'Default Policy', {
+    idPattern: /.*/
+  }),
+  DEPLOYMENT: new DomoObjectType('DEPLOYMENT', 'Deployment', {
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  }),
+  DIRECTORY: new DomoObjectType('DIRECTORY', 'Directory', { idPattern: /.*/ }),
+  DRILL_VIEW: new DomoObjectType('DRILL_VIEW', 'Drill Path', {
+    api: {
       endpoint: '/content/v1/cards?urns={id}:{parent}',
       pathToName: 'title'
     },
-    ['CARD']
-  ),
-  ELEVATION: new DomoObjectType(
-    'ELEVATION',
-    'Elevation',
-    null,
-    null,
-    /.*/,
-    null,
-    null
-  ),
-  ENIGMA_FORM: new DomoObjectType(
-    'ENIGMA_FORM',
-    'Form',
-    { component: 'Forms' },
-    null,
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    null,
-    {
-      endpoint: '/forms/v2/{id}',
-      pathToName: 'name'
+    extractConfig: {
+      keyword: 'drillviewid',
+      parentExtract: { keyword: 'cardid', offset: 1 }
     },
-    ['WORKFLOW_MODEL'],
-    [
-      { label: 'Workflow', source: 'parentId', typeId: 'WORKFLOW_MODEL' }
-    ]
-  ),
-  ENIGMA_FORM_INSTANCE: new DomoObjectType(
-    'ENIGMA_FORM_INSTANCE',
-    'Form Instance',
-    null,
-    null,
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    null,
-    {
-      endpoint: '/forms/v1/instances/{id}',
-      pathToName: 'revision'
-    },
-    ['ENIGMA_FORM'],
-    [
-      { label: 'Form', source: 'parentId', typeId: 'ENIGMA_FORM' }
-    ]
-  ),
+    icon: { component: 'ZoomIn' },
+    idPattern: /^\d+$/,
+    parents: ['CARD'],
+    urlPath: '/analyzer?cardid=${parent}&drillviewid=${id}'
+  }),
+  ELEVATION: new DomoObjectType('ELEVATION', 'Elevation', { idPattern: /.*/ }),
+  ENIGMA_FORM: new DomoObjectType('ENIGMA_FORM', 'Form', {
+    api: { endpoint: '/forms/v2/{id}', pathToName: 'name' },
+    icon: { component: 'Forms' },
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    parents: ['WORKFLOW_MODEL'],
+    relatedObjects: [{ label: 'Workflow', source: 'parentId', typeId: 'WORKFLOW_MODEL' }]
+  }),
+  ENIGMA_FORM_INSTANCE: new DomoObjectType('ENIGMA_FORM_INSTANCE', 'Form Instance', {
+    api: { endpoint: '/forms/v1/instances/{id}', pathToName: 'revision' },
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    parents: ['ENIGMA_FORM'],
+    relatedObjects: [{ label: 'Form', source: 'parentId', typeId: 'ENIGMA_FORM' }]
+  }),
   EXECUTOR_APPLICATION: new DomoObjectType(
     'EXECUTOR_APPLICATION',
     'Governance Toolkit Application',
-    { component: 'Server' },
-    null,
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    null,
     {
-      endpoint: '/executor/v1/applications/{id}',
-      pathToName: 'name'
+      api: { endpoint: '/executor/v1/applications/{id}', pathToName: 'name' },
+      icon: { component: 'Server' },
+      idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     }
   ),
-  EXECUTOR_JOB: new DomoObjectType(
-    'EXECUTOR_JOB',
-    'Governance Toolkit Job',
-    { component: 'PlayerPlay' },
-    null,
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    null,
-    {
+  EXECUTOR_JOB: new DomoObjectType('EXECUTOR_JOB', 'Governance Toolkit Job', {
+    api: {
       endpoint: '/executor/v1/applications/{parent}/jobs/{id}',
       pathToName: 'jobName'
     },
-    ['EXECUTOR_APPLICATION'],
-    [
+    icon: { component: 'PlayerPlay' },
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    parents: ['EXECUTOR_APPLICATION'],
+    relatedObjects: [
       { label: 'Job', source: 'self' },
-      { label: 'Application', source: 'parentId', typeId: 'EXECUTOR_APPLICATION' },
-      { field: 'executionPayload.configDatasetId', label: 'Config DataSet', typeId: 'DATA_SOURCE' },
-      { field: 'executionPayload.metricsDatasetId', label: 'Log DataSet', typeId: 'DATA_SOURCE' }
+      {
+        label: 'Application',
+        source: 'parentId',
+        typeId: 'EXECUTOR_APPLICATION'
+      },
+      {
+        field: 'executionPayload.configDatasetId',
+        label: 'Config DataSet',
+        typeId: 'DATA_SOURCE'
+      },
+      {
+        field: 'executionPayload.metricsDatasetId',
+        label: 'Log DataSet',
+        typeId: 'DATA_SOURCE'
+      }
     ]
-  ),
-  FILE: new DomoObjectType('FILE', 'File', { component: 'File' }, null, /^\d+$/, null, {
-    endpoint: '/data/v1/data-files/{id}/details',
-    pathToName: 'name'
   }),
-  FILE_REVISION: new DomoObjectType(
-    'FILE_REVISION',
-    'File Version',
-    null,
-    null,
-    /^\d+$/,
-    null,
-    {
+  FILE: new DomoObjectType('FILE', 'File', {
+    api: { endpoint: '/data/v1/data-files/{id}/details', pathToName: 'name' },
+    icon: { component: 'File' },
+    idPattern: /^\d+$/
+  }),
+  FILE_REVISION: new DomoObjectType('FILE_REVISION', 'File Version', {
+    api: {
       endpoint: '/data/v1/data-files/{parent}/revisions/{id}',
       pathToName: 'name'
     },
-    ['FILE'],
-    [
-      { label: 'File', source: 'parentId', typeId: 'FILE' }
-    ]
-  ),
-  FILESET: new DomoObjectType(
-    'FILESET',
-    'FileSet',
-    { component: 'Folder' },
-    '/datacenter/filesets/{id}/overview',
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    { keyword: 'filesets' },
-    {
-      endpoint: '/files/v1/filesets/{id}',
-      pathToName: 'name'
-    }
-  ),
-  FILESET_DIRECTORY: new DomoObjectType(
-    'FILESET_DIRECTORY',
-    'FileSet Directory',
-    { component: 'FolderOpen' },
-    null,
-    /.*/,
-    null,
-    null
-  ),
-  FILESET_FILE: new DomoObjectType(
-    'FILESET_FILE',
-    'FileSet File',
-    { component: 'File' },
-    null,
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    null,
-    {
+    idPattern: /^\d+$/,
+    parents: ['FILE'],
+    relatedObjects: [{ label: 'File', source: 'parentId', typeId: 'FILE' }]
+  }),
+  FILESET: new DomoObjectType('FILESET', 'FileSet', {
+    api: { endpoint: '/files/v1/filesets/{id}', pathToName: 'name' },
+    extractConfig: { keyword: 'filesets' },
+    icon: { component: 'Folder' },
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    urlPath: '/datacenter/filesets/{id}/overview'
+  }),
+  FILESET_DIRECTORY: new DomoObjectType('FILESET_DIRECTORY', 'FileSet Directory', {
+    icon: { component: 'FolderOpen' },
+    idPattern: /.*/
+  }),
+  FILESET_FILE: new DomoObjectType('FILESET_FILE', 'FileSet File', {
+    api: {
       endpoint: '/files/v1/filesets/{parent}/files/{id}',
       pathToName: 'name'
     },
-    ['FILESET'],
-    [
+    icon: { component: 'File' },
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    parents: ['FILESET'],
+    relatedObjects: [
       { label: 'File', source: 'self' },
       { label: 'FileSet', source: 'parentId', typeId: 'FILESET' }
     ]
-  ),
-  GOAL: new DomoObjectType('GOAL', 'Goal', null, null, /^\d+$/, null, {
-    endpoint: '/social/v1/objectives/{id}',
-    pathToName: 'name'
   }),
-  GOAL_DELEGATE: new DomoObjectType(
-    'GOAL_DELEGATE',
-    'Goal Delegate',
-    null,
-    null,
-    /.*/,
-    null,
-    null
-  ),
-  GOAL_PERIOD: new DomoObjectType(
-    'GOAL_PERIOD',
-    'Goal Period',
-    null,
-    null,
-    /^\d+$/,
-    null,
-    {
-      endpoint: '/social/v1/objectives/periods/{id}',
-      pathToName: 'name'
-    }
-  ),
-  GOAL_TAG: new DomoObjectType(
-    'GOAL_TAG',
-    'Goal Tag',
-    null,
-    null,
-    /^\d+$/,
-    null,
-    null,
-    ['TAG_CATEGORY']
-  ),
-  GROUP: new DomoObjectType(
-    'GROUP',
-    'Group',
-    { component: 'Users' },
-    '/admin/groups/{id}?tab=people',
-    /^\d+$/,
-    { keyword: 'groups' },
-    {
-      endpoint: '/content/v2/groups/{id}',
-      pathToName: 'name'
-    },
-    null,
-    [
-      { field: 'members', isArray: true, itemTypeId: 'USER', label: 'Members' }
-    ]
-  ),
-  GROUP_CHAT: new DomoObjectType(
-    'GROUP_CHAT',
-    'Buzz Group Chat',
-    null,
-    null,
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    null,
-    null
-  ),
-  GUIDE: new DomoObjectType('GUIDE', 'Guide', null, null, /.*/, null, null),
-  HOPPER_QUEUE: new DomoObjectType(
-    'HOPPER_QUEUE',
-    'Task Center Queue',
-    { component: 'ListCheck' },
-    '/queues/tasks?queueId={id}&status=OPEN',
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    { keyword: 'queueId' },
-    {
-      endpoint: '/queues/v1/{id}',
-      pathToName: 'name'
-    },
-    null,
-    [
-      { label: 'Queue', source: 'self' }
-    ]
-  ),
-  HOPPER_TASK: new DomoObjectType(
-    'HOPPER_TASK',
-    'Task Center Task',
-    { component: 'Subtask' },
-    '/queues/tasks?queueId={parent}&id={id}&openTaskDrawer=true',
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    { keyword: 'id', parentExtract: { keyword: 'queueId', offset: 1 } },
-    {
+  GOAL: new DomoObjectType('GOAL', 'Goal', {
+    api: { endpoint: '/social/v1/objectives/{id}', pathToName: 'name' },
+    idPattern: /^\d+$/
+  }),
+  GOAL_DELEGATE: new DomoObjectType('GOAL_DELEGATE', 'Goal Delegate', {
+    idPattern: /.*/
+  }),
+  GOAL_PERIOD: new DomoObjectType('GOAL_PERIOD', 'Goal Period', {
+    api: { endpoint: '/social/v1/objectives/periods/{id}', pathToName: 'name' },
+    idPattern: /^\d+$/
+  }),
+  GOAL_TAG: new DomoObjectType('GOAL_TAG', 'Goal Tag', {
+    idPattern: /^\d+$/,
+    parents: ['TAG_CATEGORY']
+  }),
+  GROUP: new DomoObjectType('GROUP', 'Group', {
+    api: { endpoint: '/content/v2/groups/{id}', pathToName: 'name' },
+    extractConfig: { keyword: 'groups' },
+    icon: { component: 'Users' },
+    idPattern: /^\d+$/,
+    relatedObjects: [{ field: 'members', isArray: true, itemTypeId: 'USER', label: 'Members' }],
+    urlPath: '/admin/groups/{id}?tab=people'
+  }),
+  GROUP_CHAT: new DomoObjectType('GROUP_CHAT', 'Buzz Group Chat', {
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  }),
+  GUIDE: new DomoObjectType('GUIDE', 'Guide', { idPattern: /.*/ }),
+  HOPPER_QUEUE: new DomoObjectType('HOPPER_QUEUE', 'Task Center Queue', {
+    api: { endpoint: '/queues/v1/{id}', pathToName: 'name' },
+    extractConfig: { keyword: 'queueId' },
+    icon: { component: 'ListCheck' },
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    relatedObjects: [{ label: 'Queue', source: 'self' }],
+    urlPath: '/queues/tasks?queueId={id}&status=OPEN'
+  }),
+  HOPPER_TASK: new DomoObjectType('HOPPER_TASK', 'Task Center Task', {
+    api: {
       endpoint: '/queues/v1/{parent}/tasks/{id}',
       pathToName: 'displayEntity.name'
     },
-    ['HOPPER_QUEUE'],
-    [
+    extractConfig: {
+      keyword: 'id',
+      parentExtract: { keyword: 'queueId', offset: 1 }
+    },
+    icon: { component: 'Subtask' },
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    parents: ['HOPPER_QUEUE'],
+    relatedObjects: [
       { label: 'Task', source: 'self' },
       { label: 'Queue', source: 'parentId', typeId: 'HOPPER_QUEUE' }
-    ]
-  ),
-  HUDDLE: new DomoObjectType(
-    'HUDDLE',
-    'Buzz Thread',
-    null,
-    null,
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    null,
-    null
-  ),
-  IMAGE: new DomoObjectType('IMAGE', 'Image', null, null, /.*/, null, null),
-  JOB: new DomoObjectType('JOB', 'Job', null, null, /^\d+$/, null, null),
-  KEY_RESULT: new DomoObjectType(
-    'KEY_RESULT',
-    'Key Result',
-    { component: 'TargetArrow' },
-    '/goals/key-results/{id}',
-    /^\d+$/,
-    { keyword: 'key-results' },
-    {
+    ],
+    urlPath: '/queues/tasks?queueId={parent}&id={id}&openTaskDrawer=true'
+  }),
+  HUDDLE: new DomoObjectType('HUDDLE', 'Buzz Thread', {
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  }),
+  IMAGE: new DomoObjectType('IMAGE', 'Image', { idPattern: /.*/ }),
+  JOB: new DomoObjectType('JOB', 'Job', { idPattern: /^\d+$/ }),
+  KEY_RESULT: new DomoObjectType('KEY_RESULT', 'Key Result', {
+    api: {
       endpoint: '/social/v1/objectives/key-results/{id}',
       pathToName: 'name'
     },
-    ['GOAL'],
-    [
-      { label: 'Goal', source: 'parentId', typeId: 'GOAL' }
-    ]
-  ),
-  LANDING_ENTITY: new DomoObjectType(
-    'LANDING_ENTITY',
-    'Landing Entity',
-    null,
-    null,
-    /.*/,
-    null,
-    null
-  ),
-  LICENSE_PAGE: new DomoObjectType(
-    'LICENSE_PAGE',
-    'License Page',
-    null,
-    null,
-    /.*/,
-    null,
-    null
-  ),
-  MAGNUM_COLLECTION: new DomoObjectType(
-    'MAGNUM_COLLECTION',
-    'AppDB Collection',
-    { component: 'Database' },
-    '/appDb/{id}/permissions',
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    { keyword: 'appDb' },
-    {
-      endpoint: '/datastores/v1/collections/{id}',
-      pathToName: 'name'
-    },
-    ['MAGNUM_DATASTORE'],
-    [
+    extractConfig: { keyword: 'key-results' },
+    icon: { component: 'TargetArrow' },
+    idPattern: /^\d+$/,
+    parents: ['GOAL'],
+    relatedObjects: [{ label: 'Goal', source: 'parentId', typeId: 'GOAL' }],
+    urlPath: '/goals/key-results/{id}'
+  }),
+  LANDING_ENTITY: new DomoObjectType('LANDING_ENTITY', 'Landing Entity', {
+    idPattern: /.*/
+  }),
+  LICENSE_PAGE: new DomoObjectType('LICENSE_PAGE', 'License Page', {
+    idPattern: /.*/
+  }),
+  MAGNUM_COLLECTION: new DomoObjectType('MAGNUM_COLLECTION', 'AppDB Collection', {
+    api: { endpoint: '/datastores/v1/collections/{id}', pathToName: 'name' },
+    extractConfig: { keyword: 'appDb' },
+    icon: { component: 'Database' },
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    parents: ['MAGNUM_DATASTORE'],
+    relatedObjects: [
       { label: 'Collection', source: 'self' },
       { label: 'DataStore', source: 'parentId', typeId: 'MAGNUM_DATASTORE' }
-    ]
-  ),
-  MAGNUM_DATASTORE: new DomoObjectType(
-    'MAGNUM_DATASTORE',
-    'AppDB Datastore',
-    null,
-    null,
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    null,
-    {
-      endpoint: '/datastores/v1/{id}',
-      pathToName: 'name'
-    }
-  ),
-  METRIC: new DomoObjectType('METRIC', 'Metric', null, null, /.*/, null, null),
-  NAME: new DomoObjectType('NAME', 'Name', null, null, /.*/, null, null),
-  NAV_PIN_ITEM: new DomoObjectType(
-    'NAV_PIN_ITEM',
-    'Nav Pin Item',
-    null,
-    null,
-    /^\d+$/,
-    null,
-    null
-  ),
+    ],
+    urlPath: '/appDb/{id}/permissions'
+  }),
+  MAGNUM_DATASTORE: new DomoObjectType('MAGNUM_DATASTORE', 'AppDB Datastore', {
+    api: { endpoint: '/datastores/v1/{id}', pathToName: 'name' },
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  }),
+  METRIC: new DomoObjectType('METRIC', 'Metric', { idPattern: /.*/ }),
+  NAME: new DomoObjectType('NAME', 'Name', { idPattern: /.*/ }),
+  NAV_PIN_ITEM: new DomoObjectType('NAV_PIN_ITEM', 'Nav Pin Item', {
+    idPattern: /^\d+$/
+  }),
   OAUTH2_CLIENT_CREDENTIALS: new DomoObjectType(
     'OAUTH2_CLIENT_CREDENTIALS',
     'Oauth 2.0 Client Credentials',
-    null,
-    null,
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    null,
-    null
-  ),
-  OBJECTIVE: new DomoObjectType(
-    'OBJECTIVE',
-    'Goal',
-    { component: 'Target' },
-    '/goals/{id}',
-    /^\d+$/,
     {
-      keyword: 'goals'
-    },
-    {
-      endpoint: '/social/v1/objectives/{id}',
-      pathToName: 'name'
+      idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     }
   ),
-  OTP_KEY: new DomoObjectType('OTP_KEY', 'OTP Key', null, null, null, null, null),
-  PAGE: new DomoObjectType(
-    'PAGE',
-    'Page',
-    { component: 'LayoutDashboard' },
-    '/page/{id}',
-    /^-?\d+$/,
-    {
-      keyword: 'page'
-    },
-    {
-      endpoint: '/content/v3/stacks/{id}',
-      pathToName: 'title'
-    },
-    ['PAGE'],
-    [{ field: 'content', fieldSource: 'context', isArray: true, itemTypeField: 'type', label: 'Content' }]
-  ),
-  PAGE_ANALYZER: new DomoObjectType(
-    'PAGE_ANALYZER',
-    'Page Analyzer',
-    null,
-    null,
-    /.*/,
-    null,
-    null
-  ),
-  PAGE_COLLECTION: new DomoObjectType(
-    'PAGE_COLLECTION',
-    'Page Collection',
-    null,
-    null,
-    /^\d+$/,
-    null,
-    null,
-    ['PAGE']
-  ),
-  PAGE_TEMPLATE: new DomoObjectType(
-    'PAGE_TEMPLATE',
-    'Page Template',
-    null,
-    null,
-    /.*/,
-    null,
-    null
-  ),
-  POLICY_ORDER: new DomoObjectType(
-    'POLICY_ORDER',
-    'Policy Order',
-    null,
-    null,
-    /.*/,
-    null,
-    null
-  ),
-  PROJECT: new DomoObjectType(
-    'PROJECT',
-    'Project',
-    { component: 'Checklist' },
-    '/project/{id}',
-    /^\d+$/,
-    {
-      keyword: 'project'
-    },
-    {
-      endpoint: '/content/v1/projects/{id}',
-      pathToName: 'projectName'
-    }
-  ),
-  PROJECT_LIST: new DomoObjectType(
-    'PROJECT_LIST',
-    'Project List',
-    null,
-    null,
-    /^\d+$/,
-    null,
-    {
+  OBJECTIVE: new DomoObjectType('OBJECTIVE', 'Goal', {
+    api: { endpoint: '/social/v1/objectives/{id}', pathToName: 'name' },
+    extractConfig: { keyword: 'goals' },
+    icon: { component: 'Target' },
+    idPattern: /^\d+$/,
+    urlPath: '/goals/{id}'
+  }),
+  OTP_KEY: new DomoObjectType('OTP_KEY', 'OTP Key'),
+  PAGE: new DomoObjectType('PAGE', 'Page', {
+    api: { endpoint: '/content/v3/stacks/{id}', pathToName: 'title' },
+    extractConfig: { keyword: 'page' },
+    icon: { component: 'LayoutDashboard' },
+    idPattern: /^-?\d+$/,
+    parents: ['PAGE'],
+    relatedObjects: [
+      {
+        field: 'content',
+        fieldSource: 'context',
+        isArray: true,
+        itemTypeField: 'type',
+        label: 'Content'
+      }
+    ],
+    urlPath: '/page/{id}'
+  }),
+  PAGE_ANALYZER: new DomoObjectType('PAGE_ANALYZER', 'Page Analyzer', {
+    idPattern: /.*/
+  }),
+  PAGE_COLLECTION: new DomoObjectType('PAGE_COLLECTION', 'Page Collection', {
+    idPattern: /^\d+$/,
+    parents: ['PAGE']
+  }),
+  PAGE_TEMPLATE: new DomoObjectType('PAGE_TEMPLATE', 'Page Template', {
+    idPattern: /.*/
+  }),
+  POLICY_ORDER: new DomoObjectType('POLICY_ORDER', 'Policy Order', {
+    idPattern: /.*/
+  }),
+  PROJECT: new DomoObjectType('PROJECT', 'Project', {
+    api: { endpoint: '/content/v1/projects/{id}', pathToName: 'projectName' },
+    extractConfig: { keyword: 'project' },
+    icon: { component: 'Checklist' },
+    idPattern: /^\d+$/,
+    urlPath: '/project/{id}'
+  }),
+  PROJECT_LIST: new DomoObjectType('PROJECT_LIST', 'Project List', {
+    api: {
       endpoint: '/content/v1/projects/{parent}/lists/{id}',
       pathToName: 'name'
     },
-    ['PROJECT']
-  ),
-  PROJECT_TASK: new DomoObjectType(
-    'PROJECT_TASK',
-    'Task',
-    { component: 'Subtask' },
-    '/project?taskId={id}',
-    /^\d+$/,
-    { keyword: 'taskId' },
-    {
-      endpoint: '/content/v1/tasks/{id}',
-      pathToName: 'taskName'
-    },
-    ['PROJECT', 'PROJECT_LIST']
-  ),
-  PROJECT_TASK_ATTACHMENT: new DomoObjectType(
-    'PROJECT_TASK_ATTACHMENT',
-    'Task Attachment',
-    null,
-    null,
-    /.*/,
-    null,
-    null,
-    ['PROJECT_TASK']
-  ),
-  PROJECT_TASK_OWNER: new DomoObjectType(
-    'PROJECT_TASK_OWNER',
-    'Task Owner',
-    null,
-    null,
-    /^\d+$/,
-    null,
-    null,
-    ['PROJECT_TASK']
-  ),
-  PROXIER_EMAIL: new DomoObjectType(
-    'PROXIER_EMAIL',
-    'Proxier Email',
-    null,
-    null,
-    /.*/,
-    null,
-    null
-  ),
-  PROXY_USER: new DomoObjectType(
-    'PROXY_USER',
-    'Proxy User',
-    null,
-    null,
-    /.*/,
-    null,
-    null
-  ),
-  PUBLIC_URL: new DomoObjectType(
-    'PUBLIC_URL',
-    'Public Embed URL',
-    null,
-    null,
-    /.*/,
-    null,
-    null
-  ),
-  PUBLICATION: new DomoObjectType(
-    'PUBLICATION',
-    'Publication',
-    { component: 'Share' },
-    '/admin/domo-everywhere/publications?id={id}',
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    { keyword: 'id' },
-    {
-      endpoint: '/publish/v2/publications/{id}',
-      pathToName: 'name'
-    }
-  ),
-  PUBLICATION_GROUP: new DomoObjectType(
-    'PUBLICATION_GROUP',
-    'Publication Group',
-    null,
-    null,
-    /^\d+$/,
-    null,
-    null
-  ),
-  REPORT: new DomoObjectType('REPORT', 'Report', null, null, /^\d+$/, null, null),
-  REPORT_BUILDER: new DomoObjectType(
-    'REPORT_BUILDER',
-    'Report Builder',
-    { component: 'FileAnalytics' },
-    null,
-    /^\d+$/,
-    null,
-    {
-      endpoint: '/content/v1/reportbuilder/{id}',
-      pathToName: 'title'
-    }
-  ),
-  REPORT_BUILDER_PAGE: new DomoObjectType(
-    'REPORT_BUILDER_PAGE',
-    'Report Page',
-    null,
-    null,
-    /^\d+$/,
-    null,
-    null
-  ),
-  REPORT_BUILDER_VIEW: new DomoObjectType(
-    'REPORT_BUILDER_VIEW',
-    'Report Builder View',
-    { component: 'FileAnalytics' },
-    null,
-    /^\d+$/,
-    null,
-    {
+    idPattern: /^\d+$/,
+    parents: ['PROJECT']
+  }),
+  PROJECT_TASK: new DomoObjectType('PROJECT_TASK', 'Task', {
+    api: { endpoint: '/content/v1/tasks/{id}', pathToName: 'taskName' },
+    extractConfig: { keyword: 'taskId' },
+    icon: { component: 'Subtask' },
+    idPattern: /^\d+$/,
+    parents: ['PROJECT', 'PROJECT_LIST'],
+    urlPath: '/project?taskId={id}'
+  }),
+  PROJECT_TASK_ATTACHMENT: new DomoObjectType('PROJECT_TASK_ATTACHMENT', 'Task Attachment', {
+    idPattern: /.*/,
+    parents: ['PROJECT_TASK']
+  }),
+  PROJECT_TASK_OWNER: new DomoObjectType('PROJECT_TASK_OWNER', 'Task Owner', {
+    idPattern: /^\d+$/,
+    parents: ['PROJECT_TASK']
+  }),
+  PROXIER_EMAIL: new DomoObjectType('PROXIER_EMAIL', 'Proxier Email', {
+    idPattern: /.*/
+  }),
+  PROXY_USER: new DomoObjectType('PROXY_USER', 'Proxy User', {
+    idPattern: /.*/
+  }),
+  PUBLIC_URL: new DomoObjectType('PUBLIC_URL', 'Public Embed URL', {
+    idPattern: /.*/
+  }),
+  PUBLICATION: new DomoObjectType('PUBLICATION', 'Publication', {
+    api: { endpoint: '/publish/v2/publications/{id}', pathToName: 'name' },
+    extractConfig: { keyword: 'id' },
+    icon: { component: 'Share' },
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    urlPath: '/admin/domo-everywhere/publications?id={id}'
+  }),
+  PUBLICATION_GROUP: new DomoObjectType('PUBLICATION_GROUP', 'Publication Group', {
+    idPattern: /^\d+$/
+  }),
+  REPORT: new DomoObjectType('REPORT', 'Report', { idPattern: /^\d+$/ }),
+  REPORT_BUILDER: new DomoObjectType('REPORT_BUILDER', 'Report Builder', {
+    api: { endpoint: '/content/v1/reportbuilder/{id}', pathToName: 'title' },
+    icon: { component: 'FileAnalytics' },
+    idPattern: /^\d+$/
+  }),
+  REPORT_BUILDER_PAGE: new DomoObjectType('REPORT_BUILDER_PAGE', 'Report Page', {
+    idPattern: /^\d+$/
+  }),
+  REPORT_BUILDER_VIEW: new DomoObjectType('REPORT_BUILDER_VIEW', 'Report Builder View', {
+    api: {
       endpoint: '/content/v1/reportbuilder/views/{id}',
       pathToName: 'subject'
     },
-    ['REPORT_BUILDER']
-  ),
-  REPORT_SCHEDULE: new DomoObjectType(
-    'REPORT_SCHEDULE',
-    'Scheduled Report',
-    { component: 'CalendarTime' },
-    null,
-    /^\d+$/,
-    null,
-    {
-      endpoint: '/content/v1/reportschedules/{id}',
-      pathToName: 'title'
-    }
-  ),
-  REPOSITORY: new DomoObjectType(
-    'REPOSITORY',
-    'Sandbox Repository',
-    { component: 'GitBranch' },
-    '/sandbox/repositories/{id}',
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    { keyword: 'repositories' },
-    {
-      endpoint: '/versions/v1/repositories/{id}',
-      pathToName: 'name'
-    }
-  ),
+    icon: { component: 'FileAnalytics' },
+    idPattern: /^\d+$/,
+    parents: ['REPORT_BUILDER']
+  }),
+  REPORT_SCHEDULE: new DomoObjectType('REPORT_SCHEDULE', 'Scheduled Report', {
+    api: { endpoint: '/content/v1/reportschedules/{id}', pathToName: 'title' },
+    icon: { component: 'CalendarTime' },
+    idPattern: /^\d+$/
+  }),
+  REPOSITORY: new DomoObjectType('REPOSITORY', 'Sandbox Repository', {
+    api: { endpoint: '/versions/v1/repositories/{id}', pathToName: 'name' },
+    extractConfig: { keyword: 'repositories' },
+    icon: { component: 'GitBranch' },
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    urlPath: '/sandbox/repositories/{id}'
+  }),
   REPOSITORY_AUTHORIZATION: new DomoObjectType(
     'REPOSITORY_AUTHORIZATION',
     'Repository Authorization',
-    null,
-    null,
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    null,
-    null
-  ),
-  ROLE: new DomoObjectType(
-    'ROLE',
-    'Role',
-    { component: 'Shield' },
-    '/admin/roles/{id}',
-    /^\d+$/,
     {
-      keyword: 'roles'
-    },
-    {
-      endpoint: '/authorization/v1/roles/{id}',
-      pathToName: 'name'
+      idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     }
   ),
-  RYUU_APP: new DomoObjectType(
-    'RYUU_APP',
-    'Custom App (Pro-Code)',
-    null,
-    '/assetlibrary/{id}/overview',
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    { keyword: 'assetlibrary' },
-    {
-      endpoint: '/apps/v1/designs/{id}',
-      pathToName: 'name'
-    }
-  ),
-  SCHEDULE: new DomoObjectType('SCHEDULE', 'Schedule', { component: 'CalendarTime' }, null, null, null, null),
-  SEGMENT: new DomoObjectType('SEGMENT', 'Segment', null, null, /^\d+$/, null, null),
-  SESSION: new DomoObjectType(
-    'SESSION',
-    'Session',
-    null,
-    null,
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    null,
-    null
-  ),
+  ROLE: new DomoObjectType('ROLE', 'Role', {
+    api: { endpoint: '/authorization/v1/roles/{id}', pathToName: 'name' },
+    extractConfig: { keyword: 'roles' },
+    icon: { component: 'Shield' },
+    idPattern: /^\d+$/,
+    urlPath: '/admin/roles/{id}'
+  }),
+  RYUU_APP: new DomoObjectType('RYUU_APP', 'Custom App (Pro-Code)', {
+    api: { endpoint: '/apps/v1/designs/{id}', pathToName: 'name' },
+    extractConfig: { keyword: 'assetlibrary' },
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    urlPath: '/assetlibrary/{id}/overview'
+  }),
+  SCHEDULE: new DomoObjectType('SCHEDULE', 'Schedule', {
+    icon: { component: 'CalendarTime' }
+  }),
+  SEGMENT: new DomoObjectType('SEGMENT', 'Segment', { idPattern: /^\d+$/ }),
+  SESSION: new DomoObjectType('SESSION', 'Session', {
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  }),
   SMS_NOTIFICATION_COMMAND: new DomoObjectType(
     'SMS_NOTIFICATION_COMMAND',
-    'SMS Notification Command',
-    null,
-    null,
-    null,
-    null,
-    null
+    'SMS Notification Command'
   ),
-  SMS_NOTIFICATION_WEB: new DomoObjectType(
-    'SMS_NOTIFICATION_WEB',
-    'SMS Notification Web',
-    null,
-    null,
-    null,
-    null,
-    null
-  ),
-  SSO_PAGE: new DomoObjectType(
-    'SSO_PAGE',
-    'Single Sign-On(SSO) Page',
-    null,
-    null,
-    /.*/,
-    null,
-    null
-  ),
-  SSO_SETTINGS: new DomoObjectType(
-    'SSO_SETTINGS',
-    'SSO Settings',
-    null,
-    null,
-    /^\d+$/,
-    null,
-    null
-  ),
-  STORY: new DomoObjectType('STORY', 'Story', null, null, /^\d+$/, null, null),
-  STREAM: new DomoObjectType(
-    'STREAM',
-    'Stream',
-    { component: 'Transfer' },
-    null,
-    /^\d+$/,
-    null,
-    {
+  SMS_NOTIFICATION_WEB: new DomoObjectType('SMS_NOTIFICATION_WEB', 'SMS Notification Web'),
+  SSO_PAGE: new DomoObjectType('SSO_PAGE', 'Single Sign-On(SSO) Page', {
+    idPattern: /.*/
+  }),
+  SSO_SETTINGS: new DomoObjectType('SSO_SETTINGS', 'SSO Settings', {
+    idPattern: /^\d+$/
+  }),
+  STORY: new DomoObjectType('STORY', 'Story', { idPattern: /^\d+$/ }),
+  STREAM: new DomoObjectType('STREAM', 'Stream', {
+    api: {
       endpoint: '/data/v1/streams/{id}?fields=all',
       nameTemplate: '{dataProvider.name} Stream {id}',
       pathToName: 'dataProvider.name'
     },
-    ['DATA_SOURCE']
-  ),
-  SUBSCRIPTION: new DomoObjectType(
-    'SUBSCRIPTION',
-    'Subscription',
-    { component: 'Mail' },
-    null,
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    null,
-    null
-  ),
-  SYSTEM: new DomoObjectType('SYSTEM', 'System', null, null, /.*/, null, null),
-  TAG_CATEGORY: new DomoObjectType(
-    'TAG_CATEGORY',
-    'Goal Tag Category',
-    { component: 'Tag' },
-    null,
-    /^\d+$/,
-    null,
-    null
-  ),
-  TEAM: new DomoObjectType(
-    'TEAM',
-    'Team',
-    null,
-    null,
-    /^\d+$/,
-    null,
-    null,
-    null,
-    null,
-    true
-  ),
-  TEMPLATE: new DomoObjectType(
-    'TEMPLATE',
-    'Approval Template',
-    { component: 'Template' },
-    '/approval/edit-request-form/{id}',
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    { keyword: 'edit-request-form' },
-    {
+    icon: { component: 'Transfer' },
+    idPattern: /^\d+$/,
+    parents: ['DATA_SOURCE']
+  }),
+  SUBSCRIPTION: new DomoObjectType('SUBSCRIPTION', 'Subscription', {
+    icon: { component: 'Mail' },
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  }),
+  SYSTEM: new DomoObjectType('SYSTEM', 'System', { idPattern: /.*/ }),
+  TAG_CATEGORY: new DomoObjectType('TAG_CATEGORY', 'Goal Tag Category', {
+    icon: { component: 'Tag' },
+    idPattern: /^\d+$/
+  }),
+  TEAM: new DomoObjectType('TEAM', 'Team', {
+    copyConfigs: true,
+    idPattern: /^\d+$/
+  }),
+  TEMPLATE: new DomoObjectType('TEMPLATE', 'Approval Template', {
+    api: {
       bodyTemplate: {
         operationName: 'getTemplateForEdit',
         query:
-          'query getTemplateForEdit($id: ID!) {\n  template(id: $id) {\n    id\n    title\n    titleName\n    titlePlaceholder\n    acknowledgment\n    instructions\n    description\n    providerName\n    isPublic\n    chainIsLocked\n    type\n    isPublished\n    observers {\n      id\n      type\n      displayName\n      avatarKey\n      title\n      ... on Group {\n        userCount\n        __typename\n      }\n      __typename\n    }\n    categories {\n      id\n      name\n      __typename\n    }\n    owner {\n      id\n      displayName\n      avatarKey\n      __typename\n    }\n    fields {\n      key\n      type\n      name\n      data\n      placeholder\n      required\n      isPrivate\n      ... on SelectField {\n        option\n        multiselect\n        datasource\n        column\n        order\n        __typename\n      }\n      __typename\n    }\n    approvers {\n      type\n      originalType: type\n      key\n      ... on ApproverPerson {\n        id: approverId\n        approverId\n        userDetails {\n          id\n          displayName\n          title\n          avatarKey\n          isDeleted\n          __typename\n        }\n        __typename\n      }\n      ... on ApproverGroup {\n        id: approverId\n        approverId\n        groupDetails {\n          id\n          displayName\n          userCount\n          isDeleted\n          __typename\n        }\n        __typename\n      }\n      ... on ApproverPlaceholder {\n        placeholderText\n        __typename\n      }\n      __typename\n    }\n    workflowIntegration {\n      modelId\n      modelVersion\n      startName\n      modelName\n      parameterMapping {\n        fields {\n          field\n          parameter\n          required\n          type\n          __typename\n        }\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n}',
+          'query getTemplateForEdit($id: ID!) {\n template(id: $id) {\n id\n title\n titleName\n titlePlaceholder\n acknowledgment\n instructions\n description\n providerName\n isPublic\n chainIsLocked\n type\n isPublished\n observers {\n id\n type\n displayName\n avatarKey\n title\n ... on Group {\n userCount\n __typename\n }\n __typename\n }\n categories {\n id\n name\n __typename\n }\n owner {\n id\n displayName\n avatarKey\n __typename\n }\n fields {\n key\n type\n name\n data\n placeholder\n required\n isPrivate\n ... on SelectField {\n option\n multiselect\n datasource\n column\n order\n __typename\n }\n __typename\n }\n approvers {\n type\n originalType: type\n key\n ... on ApproverPerson {\n id: approverId\n approverId\n userDetails {\n id\n displayName\n title\n avatarKey\n isDeleted\n __typename\n }\n __typename\n }\n ... on ApproverGroup {\n id: approverId\n approverId\n groupDetails {\n id\n displayName\n userCount\n isDeleted\n __typename\n }\n __typename\n }\n ... on ApproverPlaceholder {\n placeholderText\n __typename\n }\n __typename\n }\n workflowIntegration {\n modelId\n modelVersion\n startName\n modelName\n parameterMapping {\n fields {\n field\n parameter\n required\n type\n __typename\n }\n __typename\n }\n __typename\n }\n __typename\n }\n}',
         variables: { id: '{id}' }
       },
       endpoint: '/synapse/approval/graphql',
       method: 'POST',
       pathToDetails: 'data.template',
       pathToName: 'data.template.title'
-    }
-  ),
-  TOKEN: new DomoObjectType(
-    'TOKEN',
-    'API Client',
-    null,
-    null,
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[X]{4}-[X]{4}-[X]{12}$/i,
-    null,
-    null
-  ),
-  USAGE_REPORT_ROWS: new DomoObjectType(
-    'USAGE_REPORT_ROWS',
-    'Rows Usage Report',
-    null,
-    null,
-    null,
-    null,
-    null
-  ),
-  USER: new DomoObjectType(
-    'USER',
-    'User',
-    { component: 'User' },
-    '/admin/people/{id}?tab=profile',
-    /^\d+$/,
-    { keyword: 'people' },
-    {
-      endpoint: '/content/v2/users/{id}',
-      pathToName: 'displayName'
-    }
-  ),
-  USER_ACHIEVEMENT: new DomoObjectType(
-    'USER_ACHIEVEMENT',
-    'User Achievement',
-    null,
-    null,
-    /^\d+$/,
-    null,
-    null
-  ),
-  USER_CUSTOM_KEY: new DomoObjectType(
-    'USER_CUSTOM_KEY',
-    'User Custom Attribute',
-    null,
-    null,
-    /.*/,
-    null,
-    null
-  ),
-  USER_STATE: new DomoObjectType(
-    'USER_STATE',
-    'User State',
-    null,
-    null,
-    /.*/,
-    null,
-    null
-  ),
-  USER_TEMPLATE: new DomoObjectType(
-    'USER_TEMPLATE',
-    'User Template',
-    null,
-    null,
-    /^\d+$/,
-    null,
-    null,
-    null,
-    null,
-    true
-  ),
-  VARIABLE: new DomoObjectType('VARIABLE', 'Variable', { component: 'Variable' }, null, /^\d+$/, null, {
-    endpoint: '/query/v1/functions/template/{id}?hidden=true',
-    pathToName: 'name'
+    },
+    extractConfig: { keyword: 'edit-request-form' },
+    icon: { component: 'Template' },
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    urlPath: '/approval/edit-request-form/{id}'
   }),
-  VARIABLE_CONTROL: new DomoObjectType(
-    'VARIABLE_CONTROL',
-    'Variable Control',
-    null,
-    null,
-    /^\d+$/,
-    null,
-    null,
-    ['VARIABLE']
-  ),
-  VECTOR_INDEX: new DomoObjectType(
-    'VECTOR_INDEX',
-    'Vector Index',
-    { component: 'VectorSpline' },
-    null,
-    /.*/,
-    null,
-    null
-  ),
-  VIDEO_ROOM: new DomoObjectType(
-    'VIDEO_ROOM',
-    'Video Call',
-    null,
-    null,
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    null,
-    null,
-    null,
-    null,
-    true
-  ),
-  VIEW: new DomoObjectType(
-    'VIEW',
-    'View',
-    null,
-    null,
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    null,
-    null
-  ),
-  VIEW_ADVANCED_EDITOR: new DomoObjectType(
-    'VIEW_ADVANCED_EDITOR',
-    'View Advanced Editor',
-    null,
-    null,
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    null,
-    null
-  ),
-  VIRTUAL_USER: new DomoObjectType(
-    'VIRTUAL_USER',
-    'Virtual User',
-    null,
-    null,
-    /^vu:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    null,
-    null
-  ),
-  WAREHOUSE_ACCOUNT: new DomoObjectType(
-    'WAREHOUSE_ACCOUNT',
-    'Cloud Integration',
-    { component: 'BuildingWarehouse' },
-    '/cloud-integrations/{id}/settings',
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    { keyword: 'cloud-integrations' },
-    {
+  TOKEN: new DomoObjectType('TOKEN', 'API Client', {
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[X]{4}-[X]{4}-[X]{12}$/i
+  }),
+  USAGE_REPORT_ROWS: new DomoObjectType('USAGE_REPORT_ROWS', 'Rows Usage Report'),
+  USER: new DomoObjectType('USER', 'User', {
+    api: { endpoint: '/content/v2/users/{id}', pathToName: 'displayName' },
+    extractConfig: { keyword: 'people' },
+    icon: { component: 'User' },
+    idPattern: /^\d+$/,
+    urlPath: '/admin/people/{id}?tab=profile'
+  }),
+  USER_ACHIEVEMENT: new DomoObjectType('USER_ACHIEVEMENT', 'User Achievement', {
+    idPattern: /^\d+$/
+  }),
+  USER_CUSTOM_KEY: new DomoObjectType('USER_CUSTOM_KEY', 'User Custom Attribute', {
+    idPattern: /.*/
+  }),
+  USER_STATE: new DomoObjectType('USER_STATE', 'User State', {
+    idPattern: /.*/
+  }),
+  USER_TEMPLATE: new DomoObjectType('USER_TEMPLATE', 'User Template', {
+    copyConfigs: true,
+    idPattern: /^\d+$/
+  }),
+  VARIABLE: new DomoObjectType('VARIABLE', 'Variable', {
+    api: {
+      endpoint: '/query/v1/functions/template/{id}?hidden=true',
+      pathToName: 'name'
+    },
+    icon: { component: 'Variable' },
+    idPattern: /^\d+$/
+  }),
+  VARIABLE_CONTROL: new DomoObjectType('VARIABLE_CONTROL', 'Variable Control', {
+    idPattern: /^\d+$/,
+    parents: ['VARIABLE']
+  }),
+  VECTOR_INDEX: new DomoObjectType('VECTOR_INDEX', 'Vector Index', {
+    icon: { component: 'VectorSpline' },
+    idPattern: /.*/
+  }),
+  VIDEO_ROOM: new DomoObjectType('VIDEO_ROOM', 'Video Call', {
+    copyConfigs: true,
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  }),
+  VIEW: new DomoObjectType('VIEW', 'View', {
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  }),
+  VIEW_ADVANCED_EDITOR: new DomoObjectType('VIEW_ADVANCED_EDITOR', 'View Advanced Editor', {
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  }),
+  VIRTUAL_USER: new DomoObjectType('VIRTUAL_USER', 'Virtual User', {
+    idPattern: /^vu:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  }),
+  WAREHOUSE_ACCOUNT: new DomoObjectType('WAREHOUSE_ACCOUNT', 'Cloud Integration', {
+    api: {
       endpoint: '/query/v1/byos/accounts/{id}',
       pathToName: 'friendlyName',
       pathToParentId: 'serviceAccountId'
     },
-    ['ACCOUNT'],
-    [{ label: 'Account', source: 'parentId', typeId: 'ACCOUNT' }]
-  ),
-  WORKBENCH_AGENT: new DomoObjectType(
-    'WORKBENCH_AGENT',
-    'On Premise Agent',
-    null,
-    null,
-    /.*/,
-    null,
-    null
-  ),
-  WORKBENCH_GROUP: new DomoObjectType(
-    'WORKBENCH_GROUP',
-    'Workbench Group',
-    null,
-    null,
-    /^\d+$/,
-    null,
-    null
-  ),
-  WORKBENCH_JOB: new DomoObjectType(
-    'WORKBENCH_JOB',
-    'On Premise Job',
-    null,
-    null,
-    /^\d+$/,
-    null,
-    null
-  ),
-  WORKBENCH_SCHEDULE: new DomoObjectType(
-    'WORKBENCH_SCHEDULE',
-    'On Premise Job Schedule',
-    null,
-    null,
-    /0/,
-    null,
-    null
-  ),
-  WORKFLOW_INSTANCE: new DomoObjectType(
-    'WORKFLOW_INSTANCE',
-    'Workflow Execution',
-    { component: 'PlayerPlay' },
-    '/workflows/instances/{parent}/{version}/{id}',
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    {
+    extractConfig: { keyword: 'cloud-integrations' },
+    icon: { component: 'BuildingWarehouse' },
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    parents: ['ACCOUNT'],
+    relatedObjects: [{ label: 'Account', source: 'parentId', typeId: 'ACCOUNT' }],
+    urlPath: '/cloud-integrations/{id}/settings'
+  }),
+  WORKBENCH_AGENT: new DomoObjectType('WORKBENCH_AGENT', 'On Premise Agent', {
+    idPattern: /.*/
+  }),
+  WORKBENCH_GROUP: new DomoObjectType('WORKBENCH_GROUP', 'Workbench Group', {
+    idPattern: /^\d+$/
+  }),
+  WORKBENCH_JOB: new DomoObjectType('WORKBENCH_JOB', 'On Premise Job', {
+    idPattern: /^\d+$/
+  }),
+  WORKBENCH_SCHEDULE: new DomoObjectType('WORKBENCH_SCHEDULE', 'On Premise Job Schedule', {
+    idPattern: /0/
+  }),
+  WORKFLOW_INSTANCE: new DomoObjectType('WORKFLOW_INSTANCE', 'Workflow Execution', {
+    api: {
+      endpoint: '/workflow/v2/executions/{id}',
+      pathToName: 'modelName'
+    },
+    extractConfig: {
       keyword: 'instances',
       offset: 3,
       parentExtract: { keyword: 'instances', offset: 1 },
       urlParamExtracts: { version: { keyword: 'instances', offset: 2 } }
     },
-    {
-      endpoint: '/workflow/v2/executions/{id}',
-      pathToName: 'modelName'
-    },
-    ['WORKFLOW_MODEL'],
-    [
+    icon: { component: 'PlayerPlay' },
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    parents: ['WORKFLOW_MODEL'],
+    relatedObjects: [
       { label: 'Execution', source: 'self' },
-      { field: 'modelVersion', label: 'Version', parentSource: 'parentId', typeId: 'WORKFLOW_MODEL_VERSION' },
+      {
+        field: 'modelVersion',
+        label: 'Version',
+        parentSource: 'parentId',
+        typeId: 'WORKFLOW_MODEL_VERSION'
+      },
       { label: 'Workflow', source: 'parentId', typeId: 'WORKFLOW_MODEL' }
-    ]
-  ),
-  WORKFLOW_MODEL: new DomoObjectType(
-    'WORKFLOW_MODEL',
-    'Workflow',
-    { component: 'Route' },
-    '/workflows/models/{id}',
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    { keyword: 'workflows', offset: 2 },
-    {
-      endpoint: '/workflow/v1/models/{id}',
-      pathToName: 'name'
-    },
-    null,
-    [
-      { field: 'versions', isArray: true, itemIdField: 'version', itemTypeId: 'WORKFLOW_MODEL_VERSION', label: 'Versions', parentSource: 'objectId' }
-    ]
-  ),
-  WORKFLOW_MODEL_VERSION: new DomoObjectType(
-    'WORKFLOW_MODEL_VERSION',
-    'Workflow Version',
-    { component: 'Route' },
-    '/workflows/models/{parent}/{id}?_wfv=view',
-    /^[0-9]+\.[0-9]+\.[0-9]+$/,
-    {
-      keyword: 'workflows',
-      offset: 3,
-      parentExtract: { keyword: 'workflows', offset: 2 }
-    },
-    {
+    ],
+    urlPath: '/workflows/instances/{parent}/{version}/{id}'
+  }),
+  WORKFLOW_MODEL: new DomoObjectType('WORKFLOW_MODEL', 'Workflow', {
+    api: { endpoint: '/workflow/v1/models/{id}', pathToName: 'name' },
+    extractConfig: { keyword: 'workflows', offset: 2 },
+    icon: { component: 'Route' },
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    relatedObjects: [
+      {
+        field: 'versions',
+        isArray: true,
+        itemIdField: 'version',
+        itemTypeId: 'WORKFLOW_MODEL_VERSION',
+        label: 'Versions',
+        parentSource: 'objectId'
+      }
+    ],
+    urlPath: '/workflows/models/{id}'
+  }),
+  WORKFLOW_MODEL_VERSION: new DomoObjectType('WORKFLOW_MODEL_VERSION', 'Workflow Version', {
+    api: {
       displayName: '{parent.name} - {id}',
       endpoint: '/workflow/v2/models/{parent}/versions/{id}',
       pathToName: 'version'
     },
-    ['WORKFLOW_MODEL'],
-    [
+    extractConfig: {
+      keyword: 'workflows',
+      offset: 3,
+      parentExtract: { keyword: 'workflows', offset: 2 }
+    },
+    icon: { component: 'Route' },
+    idPattern: /^[0-9]+\.[0-9]+\.[0-9]+$/,
+    parents: ['WORKFLOW_MODEL'],
+    relatedObjects: [
       { label: 'Version', source: 'self' },
       { label: 'Workflow', source: 'parentId', typeId: 'WORKFLOW_MODEL' }
-    ]
-  ),
-  WORKFLOW_TRIGGER: new DomoObjectType(
-    'WORKFLOW_TRIGGER',
-    'Workflow Trigger',
-    { component: 'Clock' },
-    '/workflows/triggers/{parent}',
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    null,
-    {
-      endpoint: '/workflow/v2/triggers/{id}',
-      pathToName: 'name'
-    },
-    ['WORKFLOW_MODEL'],
-    [
+    ],
+    urlPath: '/workflows/models/{parent}/{id}?_wfv=view'
+  }),
+  WORKFLOW_TRIGGER: new DomoObjectType('WORKFLOW_TRIGGER', 'Workflow Trigger', {
+    api: { endpoint: '/workflow/v2/triggers/{id}', pathToName: 'name' },
+    icon: { component: 'Clock' },
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    parents: ['WORKFLOW_MODEL'],
+    relatedObjects: [
       { label: 'Trigger', source: 'self' },
-      {
-        label: 'Workflow', source: 'parentId', typeId: 'WORKFLOW_MODEL'
-      }
-    ]
-  ),
-  WORKSHEET: new DomoObjectType(
-    'WORKSHEET',
-    'Worksheet',
-    { component: 'Table' },
-    '/app-studio/{id}',
-    /^\d+$/,
-    { keyword: 'app-studio' },
-    {
-      endpoint: '/content/v1/dataapps/{id}',
-      pathToName: 'title'
-    }
-  ),
-  WORKSHEET_VIEW: new DomoObjectType(
-    'WORKSHEET_VIEW',
-    'Worksheet View',
-    { component: 'Table' },
-    '/app-studio/{parent}/pages/{id}',
-    /^\d+$/,
-    {
-      keyword: 'pages',
-      parentExtract: { keyword: 'app-studio', offset: 1 }
-    },
-    {
+      { label: 'Workflow', source: 'parentId', typeId: 'WORKFLOW_MODEL' }
+    ],
+    urlPath: '/workflows/triggers/{parent}'
+  }),
+  WORKSHEET: new DomoObjectType('WORKSHEET', 'Worksheet', {
+    api: { endpoint: '/content/v1/dataapps/{id}', pathToName: 'title' },
+    extractConfig: { keyword: 'app-studio' },
+    icon: { component: 'Table' },
+    idPattern: /^\d+$/,
+    urlPath: '/app-studio/{id}'
+  }),
+  WORKSHEET_VIEW: new DomoObjectType('WORKSHEET_VIEW', 'Worksheet View', {
+    api: {
       displayName: '{parent.name}: {name}',
       endpoint: '/content/v3/stacks/{id}',
       pathToName: 'title'
     },
-    ['WORKSHEET'],
-    [{ label: 'Worksheet', source: 'parentId', typeId: 'WORKSHEET' }],
-    [{ label: 'Worksheet ID', source: 'parentId' }]
-  ),
-  WORKSPACE: new DomoObjectType(
-    'WORKSPACE',
-    'Workspace',
-    { component: 'Briefcase' },
-    '/workspaces/{id}',
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    { keyword: 'workspaces' },
-    {
-      endpoint: '/nav/v1/workspaces/{id}',
-      pathToName: 'name'
-    }
-  )
+    copyConfigs: [{ label: 'Worksheet ID', source: 'parentId' }],
+    extractConfig: {
+      keyword: 'pages',
+      parentExtract: { keyword: 'app-studio', offset: 1 }
+    },
+    icon: { component: 'Table' },
+    idPattern: /^\d+$/,
+    parents: ['WORKSHEET'],
+    relatedObjects: [{ label: 'Worksheet', source: 'parentId', typeId: 'WORKSHEET' }],
+    urlPath: '/app-studio/{parent}/pages/{id}'
+  }),
+  WORKSPACE: new DomoObjectType('WORKSPACE', 'Workspace', {
+    api: { endpoint: '/nav/v1/workspaces/{id}', pathToName: 'name' },
+    extractConfig: { keyword: 'workspaces' },
+    icon: { component: 'Briefcase' },
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    urlPath: '/workspaces/{id}'
+  })
 };
 
 /**
@@ -1821,8 +1208,7 @@ export const ObjectTypeRegistry = {
  */
 export function getAllNavigableObjectTypes() {
   return Object.values(ObjectTypeRegistry).filter(
-    (type) =>
-      (type.hasUrl() || type.hasApiConfig()) && type.idPattern !== null
+    (type) => (type.hasUrl() || type.hasApiConfig()) && type.idPattern !== null
   );
 }
 
@@ -1839,9 +1225,7 @@ export function getAllObjectTypes() {
  * @returns {DomoObjectType[]} Array of DomoObjectType instances with apiConfig defined
  */
 export function getAllObjectTypesWithApiConfig() {
-  return Object.values(ObjectTypeRegistry).filter((type) =>
-    type.hasApiConfig()
-  );
+  return Object.values(ObjectTypeRegistry).filter((type) => type.hasApiConfig());
 }
 
 /**

@@ -190,6 +190,27 @@ export async function getUserName(userId, tabId = null) {
   );
 }
 
+/**
+ * Get the user ID of a user's manager (reportsTo).
+ * @param {number|string} userId - The Domo user ID
+ * @param {number|null} tabId - Optional Chrome tab ID
+ * @returns {Promise<number|null>} The manager's user ID, or null
+ */
+export async function getUserReportsTo(userId, tabId = null) {
+  return executeInPage(
+    async (userId) => {
+      const response = await fetch(
+        `/api/content/v2/users/${userId}/teams`
+      );
+      if (!response.ok) return null;
+      const data = await response.json();
+      return data.reportsTo?.[0]?.userId ?? null;
+    },
+    [userId],
+    tabId
+  );
+}
+
 export async function searchUsers(text, tabId = null, offset = 0) {
   const result = await executeInPage(
     async (text, offset, limit) => {
