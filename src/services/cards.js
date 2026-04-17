@@ -448,6 +448,48 @@ export async function getPageCards(pageId) {
   }
 }
 
+/**
+ * Get every card ID accessible to a user (including shared-with, not just owned).
+ * Paginates through /access/users/{id}/cards until exhausted.
+ * @param {number|string} userId
+ * @param {number|null} tabId
+ * @returns {Promise<string[]>} Array of card ID strings
+ */
+export async function getUserAccessibleCards(userId, tabId = null) {
+  return executeInPage(
+    async (userId) => {
+      const cardIds = [];
+      const limit = 100;
+      let offset = 0;
+      let more = true;
+
+      while (more) {
+        const response = await fetch(
+          `/api/content/v1/access/users/${userId}/cards?limit=${limit}&offset=${offset}`
+        );
+        if (!response.ok) break;
+        const page = await response.json();
+        const cards = Array.isArray(page)
+          ? page
+          : (page.cards || page.cardIds || []);
+
+        for (const card of cards) {
+          const cardId =
+            typeof card === 'object' ? (card.id ?? card.cardId) : card;
+          if (cardId != null) cardIds.push(String(cardId));
+        }
+
+        more = cards.length >= limit;
+        offset += limit;
+      }
+
+      return cardIds;
+    },
+    [userId],
+    tabId
+  );
+}
+
 export async function lockCards({ cardIds, tabId = null }) {
   const LOCK_BATCH_SIZE = 50;
   const batches = [];

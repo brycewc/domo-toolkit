@@ -1,5 +1,26 @@
 import { executeInPage } from '@/utils';
 
+/**
+ * Add users to groups in a single call.
+ * @param {Array<{groupId: number|string, addMembers: Array<{type: string, id: string}>}>} accessPayload
+ * @param {number|null} tabId
+ * @returns {Promise<boolean>} true on success
+ */
+export async function addUsersToGroups(accessPayload, tabId = null) {
+  return executeInPage(
+    async (payload) => {
+      const response = await fetch('/api/content/v2/groups/access', {
+        body: JSON.stringify(payload),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'PUT'
+      });
+      return response.ok;
+    },
+    [accessPayload],
+    tabId
+  );
+}
+
 export async function fetchGroupDisplayNames(groupIds, tabId = null) {
   return executeInPage(
     async (ids) => {

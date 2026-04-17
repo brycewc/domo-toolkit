@@ -280,6 +280,43 @@ export async function fetchObjectDetailsInPage(params) {
 }
 
 /**
+ * Share a batch of resources with a set of recipients via the generic
+ * /api/content/v1/share endpoint. Useful for bulk card/page sharing flows.
+ *
+ * Supply `resources` like [{ type: 'badge', id: '123' }, ...] and
+ * `recipients` like [{ type: 'user', id: '456' }, ...].
+ *
+ * @param {Object} params
+ * @param {Array<{type: string, id: string}>} params.resources
+ * @param {Array<{type: string, id: string}>} params.recipients
+ * @param {string} [params.message='']
+ * @param {boolean} [params.sendEmail=false]
+ * @param {number|null} [tabId]
+ * @returns {Promise<boolean>} true on success
+ */
+export async function shareResources(
+  { message = '', recipients, resources, sendEmail = false },
+  tabId = null
+) {
+  if (!resources?.length || !recipients?.length) return true;
+  return executeInPage(
+    async (resources, recipients, message, sendEmail) => {
+      const response = await fetch(
+        `/api/content/v1/share?sendEmail=${sendEmail}`,
+        {
+          body: JSON.stringify({ message, recipients, resources }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        }
+      );
+      return response.ok;
+    },
+    [resources, recipients, message, sendEmail],
+    tabId
+  );
+}
+
+/**
  * Share a Domo object with the current user
  * @param {Object} params
  * @param {DomoObject} params.object - The Domo object to share

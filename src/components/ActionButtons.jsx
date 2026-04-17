@@ -25,6 +25,7 @@ import {
   DeleteCurrentObject,
   DevMenu,
   DirectSignOn,
+  Duplicate,
   Export,
   GetCardPages,
   GetCards,
@@ -275,6 +276,15 @@ export function ActionButtons({
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
+                {availableActions.has('duplicate') && (
+                  <Duplicate
+                    currentContext={currentContext}
+                    onCollapseActions={
+                      collapsable ? () => setIsExpanded(false) : undefined
+                    }
+                    onStatusUpdate={onStatusUpdate}
+                  />
+                )}
                 {availableActions.has('updateOwner') && (
                   <UpdateOwner
                     currentContext={currentContext}
@@ -456,6 +466,7 @@ function getAvailableActions(currentContext) {
   if (typeId === 'USER') {
     actions.add('transferOwnership');
     actions.add('getOwnedObjects');
+    actions.add('duplicate');
   }
 
   if (
