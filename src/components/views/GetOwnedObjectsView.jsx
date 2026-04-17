@@ -19,6 +19,7 @@ import {
   IconClipboard,
   IconLoader2,
   IconRefresh,
+  IconUserUp,
   IconX
 } from '@tabler/icons-react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -26,7 +27,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatedCheck } from '@/components';
 import { DomoContext, DomoObject } from '@/models';
 import { TRANSFER_TYPES } from '@/services';
-import { getSidepanelData } from '@/utils';
+import { getSidepanelData, launchView } from '@/utils';
 
 /**
  * Maps TRANSFER_TYPES keys to DomoObjectType IDs for URL construction.
@@ -157,6 +158,7 @@ export function GetOwnedObjectsView({
   const [userId, setUserId] = useState(null);
   const [origin, setOrigin] = useState('');
   const [tabId, setTabId] = useState(null);
+  const [currentContext, setCurrentContext] = useState(null);
   const [typeResults, setTypeResults] = useState(() =>
     Object.fromEntries(
       TRANSFER_TYPES.map((t) => [
@@ -166,6 +168,7 @@ export function GetOwnedObjectsView({
     )
   );
   const mountedRef = useRef(true);
+  const rawOwnedRef = useRef({});
 
   useEffect(() => {
     mountedRef.current = true;
@@ -205,6 +208,7 @@ export function GetOwnedObjectsView({
       setUserName(name);
       setOrigin(baseUrl);
       setTabId(context.tabId);
+      setCurrentContext(context);
       setIsLoading(false);
 
       if (uid) {
@@ -222,6 +226,7 @@ export function GetOwnedObjectsView({
   };
 
   const fetchAllTypes = async (uid, tid) => {
+    rawOwnedRef.current = {};
     setTypeResults(
       Object.fromEntries(
         TRANSFER_TYPES.map((t) => [
@@ -235,6 +240,8 @@ export function GetOwnedObjectsView({
       try {
         const owned = await type.getOwned(uid, tid);
         if (!mountedRef.current) return;
+
+        rawOwnedRef.current[type.key] = owned;
 
         const count = getItemCount(type.key, owned);
         const items = flattenItems(type.key, owned);
@@ -264,6 +271,14 @@ export function GetOwnedObjectsView({
     if (userId) {
       fetchAllTypes(userId, tabId);
     }
+  };
+
+  const handleTransferHandoff = () => {
+    launchView({
+      currentContext,
+      seededOwnedObjects: { ...rawOwnedRef.current },
+      type: 'transferOwnership'
+    });
   };
 
   const handleCopyId = useCallback(
@@ -300,6 +315,21 @@ export function GetOwnedObjectsView({
       totalObjects: results.reduce((sum, r) => sum + r.count, 0)
     };
   }, [typeResults]);
+
+  const { hasAnyTransferable, isUserSource } = useMemo(() => {
+    const userRights = currentContext?.user?.metadata?.USER_RIGHTS || [];
+    const forbidden = new Set(
+      TRANSFER_TYPES.filter(
+        (t) => t.requiredAuthority && !userRights.includes(t.requiredAuthority)
+      ).map((t) => t.key)
+    );
+    return {
+      hasAnyTransferable: TRANSFER_TYPES.some(
+        (t) => !forbidden.has(t.key) && (typeResults[t.key]?.count || 0) > 0
+      ),
+      isUserSource: currentContext?.domoObject?.typeId === 'USER'
+    };
+  }, [currentContext, typeResults]);
 
   const renderTypeRow = (type) => {
     const result = typeResults[type.key];
@@ -448,6 +478,22 @@ export function GetOwnedObjectsView({
             </div>
           </div>
           <ButtonGroup>
+            {isUserSource && (
+              <Tooltip closeDelay={0} delay={400}>
+                <Button
+                  isIconOnly
+                  isDisabled={!isFullyLoaded || !hasAnyTransferable}
+                  size='sm'
+                  variant='ghost'
+                  onPress={handleTransferHandoff}
+                >
+                  <IconUserUp stroke={1.5} />
+                </Button>
+                <Tooltip.Content className='text-xs'>
+                  Transfer these to&hellip;
+                </Tooltip.Content>
+              </Tooltip>
+            )}
             <Tooltip closeDelay={0} delay={400}>
               <Button
                 isIconOnly

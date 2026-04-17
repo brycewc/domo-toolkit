@@ -135,6 +135,7 @@ export {
   transferTaskCenterTasks
 } from './taskCenter';
 export {
+  countOwned,
   TRANSFER_TYPES,
   transferAllOwnership
 } from './transferOwnership';

@@ -32,7 +32,9 @@ export function ToastProvider(props) {
             <ToastContent>
               {!!title && <ToastTitle>{title}</ToastTitle>}
               {!!description && (
-                <ToastDescription>{description}</ToastDescription>
+                <ToastDescription className='line-clamp-4 max-h-25 overflow-hidden'>
+                  {description}
+                </ToastDescription>
               )}
             </ToastContent>
             {actionProps?.children && (

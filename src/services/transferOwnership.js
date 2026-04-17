@@ -246,6 +246,22 @@ export const TRANSFER_TYPES = [
 ];
 
 /**
+ * Count items in a raw owned-objects result, accounting for the nested
+ * projectsAndTasks shape.
+ *
+ * @param {string} typeKey
+ * @param {*} owned - Raw result from getOwned / getOwnedForTransfer
+ * @returns {number}
+ */
+export function countOwned(typeKey, owned) {
+  if (!owned) return 0;
+  if (typeKey === 'projectsAndTasks') {
+    return (owned.projects?.length || 0) + (owned.tasks?.length || 0);
+  }
+  return owned.length || 0;
+}
+
+/**
  * Transfer all ownership from one user to another for selected types.
  * Runs each enabled type in parallel via Promise.allSettled.
  *
@@ -253,6 +269,11 @@ export const TRANSFER_TYPES = [
  * @param {Set<string>} params.enabledTypes - Set of type keys to transfer
  * @param {number} params.fromUserId - Source user ID
  * @param {Function} params.onTypeProgress - Callback: ({ typeKey, status, count, result }) => void
+ * @param {Object} [params.seededOwnedObjects] - Optional pre-fetched owned map
+ *   keyed by type.key → raw result from getOwned. When present for a type that
+ *   has no dedicated getOwnedForTransfer, Phase 1 is skipped. Types with
+ *   getOwnedForTransfer always re-fetch via that variant even when seeded,
+ *   since its result may differ from getOwned.
  * @param {number} params.tabId - Chrome tab ID
  * @param {number} params.toUserId - Destination user ID
  * @returns {Promise<Map<string, {count: number, errors: Array, failed: number, succeeded: number}>>}
@@ -261,6 +282,7 @@ export async function transferAllOwnership({
   enabledTypes,
   fromUserId,
   onTypeProgress,
+  seededOwnedObjects,
   tabId,
   toUserId
 }) {
@@ -270,19 +292,24 @@ export async function transferAllOwnership({
     enabledTypes.has(type.key)
   ).map(async (type) => {
     try {
-      // Phase 1: List owned objects
-      onTypeProgress?.({
-        count: 0,
-        status: 'listing',
-        typeKey: type.key
-      });
+      // Phase 1: List owned objects (or reuse seeded data when safe)
+      const seed =
+        !type.getOwnedForTransfer && seededOwnedObjects?.[type.key];
 
-      const listOwned = type.getOwnedForTransfer || type.getOwned;
-      const owned = await listOwned(fromUserId, tabId);
-      const count =
-        type.key === 'projectsAndTasks'
-          ? (owned.projects?.length || 0) + (owned.tasks?.length || 0)
-          : owned.length;
+      let owned;
+      if (seed) {
+        owned = seed;
+      } else {
+        onTypeProgress?.({
+          count: 0,
+          status: 'listing',
+          typeKey: type.key
+        });
+        const listOwned = type.getOwnedForTransfer || type.getOwned;
+        owned = await listOwned(fromUserId, tabId);
+      }
+
+      const count = countOwned(type.key, owned);
 
       if (count === 0) {
         const result = { count: 0, errors: [], failed: 0, succeeded: 0 };
