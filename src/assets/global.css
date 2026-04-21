@@ -109,4 +109,12 @@
   .toast__close-button {
     @apply pointer-events-none -top-1 -right-1 rounded-full border bg-overlay opacity-0;
   }
+
+  /* React Aria's Virtualizer wraps the Table.Header in a
+     <div role="presentation" style="z-index: 1; position: sticky;">.
+     Rows get the same z-index:1, so they paint over the header on scroll
+     because body DOM comes after header. Force the header wrapper above. */
+  [role='presentation']:has(> [data-slot='table-header']) {
+    z-index: 10 !important;
+  }
 }

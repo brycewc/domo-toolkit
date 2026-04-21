@@ -1,10 +1,5 @@
 import { Button, Description, Dropdown, Label, Tooltip } from '@heroui/react';
-import {
-  IconChartBar,
-  IconLogs,
-  IconSitemap,
-  IconStack2
-} from '@tabler/icons-react';
+import { IconChartBar, IconLogs, IconSitemap, IconStack2 } from '@tabler/icons-react';
 import { useState } from 'react';
 
 import { useLongPress } from '@/hooks';
@@ -16,14 +11,10 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
   const { LongPressOverlay, pressProps } = useLongPress();
 
   const userRights = currentContext?.user?.metadata?.USER_RIGHTS || [];
-  const isDisabled =
-    !currentContext?.domoObject?.id ||
-    isLoading ||
-    !userRights.includes('audit');
+  const isDisabled = !currentContext?.domoObject?.id || isLoading || !userRights.includes('audit');
   const typeId = currentContext?.domoObject?.typeId;
   const longPressEnabled =
-    !isDisabled &&
-    ['DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE'].includes(typeId);
+    !isDisabled && ['DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE'].includes(typeId);
   const hasChildPages = ['DATA_APP_VIEW', 'PAGE'].includes(typeId);
 
   const handleClick = async (key = null) => {
@@ -66,11 +57,7 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
             });
 
             if (!cards || cards.length === 0) {
-              onStatusUpdate?.(
-                'No Cards Found',
-                `No cards found on ${objectName}`,
-                'warning'
-              );
+              onStatusUpdate?.('No Cards Found', `No cards found on ${objectName}`, 'warning');
               setIsLoading(false);
               return;
             }
@@ -89,13 +76,15 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
               onStatusUpdate?.(
                 `No Pages Found on ${currentContext?.domoObject?.typeName}`,
                 `Cards on ${objectName} are not used on any pages`,
-                'warning'
+                'warning',
+                5000
               );
             } else {
               onStatusUpdate?.(
                 `No Valid Pages Found on ${currentContext?.domoObject?.typeName}`,
                 `Cards on ${objectName} are only used on Overview, Favorites, or Shared pages`,
-                'warning'
+                'warning',
+                5000
               );
             }
             setIsLoading(false);
@@ -115,11 +104,7 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
           });
 
           if (!cards || cards.length === 0) {
-            onStatusUpdate?.(
-              'No Cards Found',
-              `No cards found on ${objectName}`,
-              'warning'
-            );
+            onStatusUpdate?.('No Cards Found', `No cards found on ${objectName}`, 'warning', 5000);
             setIsLoading(false);
             return;
           }
@@ -147,7 +132,7 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
             const result = await waitForChildPages(currentContext);
 
             if (!result.success) {
-              onStatusUpdate?.('Error', result.error, 'danger');
+              onStatusUpdate?.('Error', result.error, 'danger', 5000);
               setIsLoading(false);
               return;
             }
@@ -161,7 +146,8 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
             onStatusUpdate?.(
               'No Child Pages Found',
               `No child pages found for ${currentContext?.domoObject.typeName} ${currentContext?.domoObject.id}`,
-              'warning'
+              'warning',
+              5000
             );
             setIsLoading(false);
             return;
@@ -204,11 +190,7 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
       });
     } catch (err) {
       console.error('Error opening activity log:', err);
-      onStatusUpdate?.(
-        'Error',
-        `Failed to open activity log: ${err.message}`,
-        'danger'
-      );
+      onStatusUpdate?.('Error', `Failed to open activity log: ${err.message}`, 'danger', 5000);
     } finally {
       setIsLoading(false);
     }
@@ -233,9 +215,7 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
         </Button>
         <Tooltip.Content className='flex flex-col items-center text-center'>
           <span>Activity log</span>
-          {longPressEnabled && (
-            <span className='italic'>Hold for more options</span>
-          )}
+          {longPressEnabled && <span className='italic'>Hold for more options</span>}
         </Tooltip.Content>
       </Tooltip>
       <Dropdown.Popover className='min-w-90' placement='bottom'>
@@ -247,8 +227,19 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
                 <Label>Cards</Label>
                 <Description className='text-xs'>
                   View activity log for all cards on this{' '}
-                  {currentContext?.domoObject?.typeName?.toLowerCase() ||
-                    'object'}
+                  {currentContext?.domoObject?.typeName?.toLowerCase() || 'object'}
+                </Description>
+              </div>
+            </div>
+          </Dropdown.Item>
+          <Dropdown.Item id='card-pages' textValue='Card Pages'>
+            <div className='flex h-fit items-start justify-start gap-2'>
+              <IconStack2 className='size-5 shrink-0' stroke={1.5} />
+              <div className='flex flex-col'>
+                <Label>Card Pages</Label>
+                <Description className='text-xs'>
+                  View activity log for pages where cards from this{' '}
+                  {currentContext?.domoObject?.typeName?.toLowerCase() || 'object'} appear
                 </Description>
               </div>
             </div>
@@ -266,20 +257,6 @@ export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
               </div>
             </Dropdown.Item>
           )}
-          <Dropdown.Item id='card-pages' textValue='Card Pages'>
-            <div className='flex h-fit items-start justify-start gap-2'>
-              <IconStack2 className='size-5 shrink-0' stroke={1.5} />
-              <div className='flex flex-col'>
-                <Label>Card Pages</Label>
-                <Description className='text-xs'>
-                  View activity log for pages where cards from this{' '}
-                  {currentContext?.domoObject?.typeName?.toLowerCase() ||
-                    'object'}{' '}
-                  appear
-                </Description>
-              </div>
-            </div>
-          </Dropdown.Item>
         </Dropdown.Menu>
       </Dropdown.Popover>
     </Dropdown>

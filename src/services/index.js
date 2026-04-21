@@ -162,3 +162,7 @@ export {
   transferWorkflows,
   updateVersionDefinition
 } from './workflows';
+export {
+  getOwnedWorkspaces,
+  transferWorkspaces
+} from './workspaces';

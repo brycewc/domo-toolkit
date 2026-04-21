@@ -15,11 +15,7 @@ import {
   Skeleton
 } from '@heroui/react';
 import { getLocalTimeZone, parseDate, today } from '@internationalized/date';
-import {
-  IconAlertCircle,
-  IconCalendarWeek,
-  IconFilter
-} from '@tabler/icons-react';
+import { IconAlertCircle, IconCalendarWeek, IconFilter } from '@tabler/icons-react';
 import { AnimatePresence } from 'motion/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -31,10 +27,7 @@ import { ACTION_COLOR_PATTERNS, getInitials } from '@/utils';
 
 import { DataTable } from './components/DataTable';
 import { UserFilterAutocomplete } from './components/UserFilterAutocomplete';
-import {
-  getActivityLogForObject,
-  getEventTypesForObjectType
-} from './services/activityLog';
+import { getActivityLogForObject, getEventTypesForObjectType } from './services/activityLog';
 
 /**
  * ActivityLogTable Component
@@ -134,9 +127,7 @@ export function ActivityLogTable() {
       .then((resolvedTabId) => {
         if (!resolvedTabId) return;
         return Promise.all(
-          uniqueTypes.map((type) =>
-            getEventTypesForObjectType(type, resolvedTabId).catch(() => [])
-          )
+          uniqueTypes.map((type) => getEventTypesForObjectType(type, resolvedTabId).catch(() => []))
         );
       })
       .then((results) => {
@@ -160,18 +151,14 @@ export function ActivityLogTable() {
     if (!tabId || events.length === 0) return;
 
     const uniqueIds = [...new Set(events.map((e) => e.userId).filter(Boolean))];
-    const uncheckedIds = uniqueIds.filter(
-      (id) => !checkedAvatarIdsRef.current.has(id)
-    );
+    const uncheckedIds = uniqueIds.filter((id) => !checkedAvatarIdsRef.current.has(id));
 
     if (uncheckedIds.length === 0) return;
 
     uncheckedIds.forEach((id) => checkedAvatarIdsRef.current.add(id));
 
     resolveTabId()
-      .then((resolvedTabId) =>
-        getCustomAvatarUserIds(uncheckedIds, resolvedTabId)
-      )
+      .then((resolvedTabId) => getCustomAvatarUserIds(uncheckedIds, resolvedTabId))
       .then((customIds) => {
         if (customIds.length === 0) return;
         setCustomAvatarIds((prev) => {
@@ -193,8 +180,7 @@ export function ActivityLogTable() {
   // Stabilized to avoid new reference when events change but types stay the same.
   const prevObjectTypeOptionsRef = useRef([]);
   const objectTypeOptions = useMemo(() => {
-    if (activityLogType === 'single-object')
-      return prevObjectTypeOptionsRef.current;
+    if (activityLogType === 'single-object') return prevObjectTypeOptionsRef.current;
     const types = new Set();
     events.forEach((event) => {
       if (event.objectType) {
@@ -214,9 +200,7 @@ export function ActivityLogTable() {
   const filteredEvents = useMemo(() => {
     if (objectTypeFilter.size === 0) return events;
 
-    return events.filter(
-      (event) => event.objectType && objectTypeFilter.has(event.objectType)
-    );
+    return events.filter((event) => event.objectType && objectTypeFilter.has(event.objectType));
   }, [events, objectTypeFilter]);
 
   // Pre-compute object URLs so the cell renderer is synchronous
@@ -322,63 +306,58 @@ export function ActivityLogTable() {
         const resolvedTabId = await resolveTabId();
         if (!resolvedTabId) return;
 
-        const tasks = buildFetchTasks(
-          objects,
-          userFilterRef.current,
-          actionFilterRef.current
-        );
+        const tasks = buildFetchTasks(objects, userFilterRef.current, actionFilterRef.current);
 
-        const fetchThunks = tasks.map((task) => () =>
-          getActivityLogForObject({
-            end: dateRangeEpoch.end,
-            eventType: task.eventType,
-            limit: pageSize,
-            objectId: task.objectId,
-            objectType: task.objectType,
-            offset: 0,
-            start: dateRangeEpoch.start,
-            tabId: resolvedTabId,
-            user: task.user
-          })
-            .then((result) => ({
-              events: result?.events ?? [],
+        const fetchThunks = tasks.map(
+          (task) => () =>
+            getActivityLogForObject({
+              end: dateRangeEpoch.end,
               eventType: task.eventType,
-              key: task.key,
+              limit: pageSize,
               objectId: task.objectId,
               objectType: task.objectType,
-              total: result?.total ?? 0,
+              offset: 0,
+              start: dateRangeEpoch.start,
+              tabId: resolvedTabId,
               user: task.user
-            }))
-            .catch((err) => {
-              console.error(`Error fetching for ${task.key}:`, err);
-              return {
-                events: [],
+            })
+              .then((result) => ({
+                events: result?.events ?? [],
                 eventType: task.eventType,
                 key: task.key,
                 objectId: task.objectId,
                 objectType: task.objectType,
-                total: 0,
+                total: result?.total ?? 0,
                 user: task.user
-              };
-            })
+              }))
+              .catch((err) => {
+                console.error(`Error fetching for ${task.key}:`, err);
+                return {
+                  events: [],
+                  eventType: task.eventType,
+                  key: task.key,
+                  objectId: task.objectId,
+                  objectType: task.objectType,
+                  total: 0,
+                  user: task.user
+                };
+              })
         );
 
         const results = await promisePool(fetchThunks);
 
         const newStates = {};
-        results.forEach(
-          ({ events, eventType, key, objectId, objectType, total, user }) => {
-            newStates[key] = {
-              eventType,
-              hasMore: events.length < total,
-              objectId,
-              objectType,
-              offset: events.length,
-              total,
-              user
-            };
-          }
-        );
+        results.forEach(({ events, eventType, key, objectId, objectType, total, user }) => {
+          newStates[key] = {
+            eventType,
+            hasMore: events.length < total,
+            objectId,
+            objectType,
+            offset: events.length,
+            total,
+            user
+          };
+        });
         setObjectStates(newStates);
 
         const allEvents = deduplicateEvents(results.flatMap((r) => r.events));
@@ -399,8 +378,7 @@ export function ActivityLogTable() {
   }, [objects, tabId, refreshKey, userFilterKey, dateRangeEpoch]);
 
   const total = useMemo(
-    () =>
-      Object.values(objectStates).reduce((sum, state) => sum + state.total, 0),
+    () => Object.values(objectStates).reduce((sum, state) => sum + state.total, 0),
     [objectStates]
   );
 
@@ -427,31 +405,32 @@ export function ActivityLogTable() {
 
     try {
       const resolvedTabId = await resolveTabId();
-      const fetchThunks = tasksWithMore.map((task) => () =>
-        getActivityLogForObject({
-          end: dateRangeEpochRef.current.end,
-          eventType: task.eventType,
-          limit: pageSize,
-          objectId: task.objectId,
-          objectType: task.objectType,
-          offset: task.offset,
-          start: dateRangeEpochRef.current.start,
-          tabId: resolvedTabId,
-          user: task.user
-        })
-          .then((result) => ({
-            events: result?.events ?? [],
-            key: task.key,
-            total: result?.total ?? 0
-          }))
-          .catch((err) => {
-            console.error(`Error fetching more for ${task.key}:`, err);
-            return {
-              events: [],
-              key: task.key,
-              total: task.total
-            };
+      const fetchThunks = tasksWithMore.map(
+        (task) => () =>
+          getActivityLogForObject({
+            end: dateRangeEpochRef.current.end,
+            eventType: task.eventType,
+            limit: pageSize,
+            objectId: task.objectId,
+            objectType: task.objectType,
+            offset: task.offset,
+            start: dateRangeEpochRef.current.start,
+            tabId: resolvedTabId,
+            user: task.user
           })
+            .then((result) => ({
+              events: result?.events ?? [],
+              key: task.key,
+              total: result?.total ?? 0
+            }))
+            .catch((err) => {
+              console.error(`Error fetching more for ${task.key}:`, err);
+              return {
+                events: [],
+                key: task.key,
+                total: task.total
+              };
+            })
       );
 
       const results = await promisePool(fetchThunks);
@@ -551,14 +530,7 @@ export function ActivityLogTable() {
     }
 
     return allEvents;
-  }, [
-    resolveTabId,
-    objects,
-    filteredEvents,
-    userFilterKey,
-    dateRangeEpoch,
-    objectTypeFilter
-  ]);
+  }, [resolveTabId, objects, filteredEvents, userFilterKey, dateRangeEpoch, objectTypeFilter]);
 
   // Memoize filter toolbar so it doesn't re-render during event fetches
   const customFilters = useMemo(
@@ -587,11 +559,7 @@ export function ActivityLogTable() {
             </DateField.Input>
             <DateField.Suffix>
               {dateRange && (
-                <CloseButton
-                  size='sm'
-                  variant='ghost'
-                  onPress={() => setDateRange(null)}
-                />
+                <CloseButton size='sm' variant='ghost' onPress={() => setDateRange(null)} />
               )}
               <DateRangePicker.Trigger>
                 <DateRangePicker.TriggerIndicator>
@@ -616,9 +584,7 @@ export function ActivityLogTable() {
               </RangeCalendar.Header>
               <RangeCalendar.Grid>
                 <RangeCalendar.GridHeader>
-                  {(day) => (
-                    <RangeCalendar.HeaderCell>{day}</RangeCalendar.HeaderCell>
-                  )}
+                  {(day) => <RangeCalendar.HeaderCell>{day}</RangeCalendar.HeaderCell>}
                 </RangeCalendar.GridHeader>
                 <RangeCalendar.GridBody>
                   {(date) => <RangeCalendar.Cell date={date} />}
@@ -661,12 +627,7 @@ export function ActivityLogTable() {
                       <Dropdown.ItemIndicator>
                         {({ isSelected }) => (
                           <AnimatePresence>
-                            {isSelected && (
-                              <AnimatedCheck
-                                className='text-muted'
-                                stroke={1.5}
-                              />
-                            )}
+                            {isSelected && <AnimatedCheck className='text-muted' stroke={1.5} />}
                           </AnimatePresence>
                         )}
                       </Dropdown.ItemIndicator>
@@ -705,12 +666,7 @@ export function ActivityLogTable() {
                       <Dropdown.ItemIndicator>
                         {({ isSelected }) => (
                           <AnimatePresence>
-                            {isSelected && (
-                              <AnimatedCheck
-                                className='text-muted'
-                                stroke={1.5}
-                              />
-                            )}
+                            {isSelected && <AnimatedCheck className='text-muted' stroke={1.5} />}
                           </AnimatePresence>
                         )}
                       </Dropdown.ItemIndicator>
@@ -789,13 +745,11 @@ export function ActivityLogTable() {
             {filteredEvents.length !== events.length ? (
               <>
                 Showing {filteredEvents.length.toLocaleString()} filtered of{' '}
-                {events.length.toLocaleString()} fetched (
-                {total.toLocaleString()} total)
+                {events.length.toLocaleString()} fetched ({total.toLocaleString()} total)
               </>
             ) : (
               <>
-                Showing {events.length.toLocaleString()} of{' '}
-                {total.toLocaleString()} events
+                Showing {events.length.toLocaleString()} of {total.toLocaleString()} events
               </>
             )}
             {isFetchingMore && ' (loading more...)'}
@@ -836,10 +790,7 @@ export function ActivityLogTable() {
       <div className='skeleton--shimmer relative h-full w-full overflow-hidden'>
         <Skeleton animationType='none' className='mb-4 h-4 w-1/3 rounded-lg' />
         <Skeleton animationType='none' className='mb-2 h-8 w-full rounded-lg' />
-        <Skeleton
-          animationType='none'
-          className='mb-4 h-full w-full rounded-lg'
-        />
+        <Skeleton animationType='none' className='mb-4 h-full w-full rounded-lg' />
       </div>
     );
   }
@@ -858,6 +809,9 @@ export function ActivityLogTable() {
       isRefreshing={isInitialLoad || isSearching}
       onLoadMore={fetchMoreEvents}
       onRefresh={handleRefresh}
+      getRowId={(row, i) =>
+        `${row.objectType}:${row.objectId}:${row.time}:${row.actionType}:${row.userId}:${i}`
+      }
     />
   );
 }
@@ -890,10 +844,7 @@ function buildFetchTasks(objects, userFilter, actionFilter) {
 /**
  * Helper function to create an action column with colored chips
  */
-function createActionColumn({
-  actionTranslations = {},
-  key = 'actionType'
-} = {}) {
+function createActionColumn({ actionTranslations = {}, key = 'actionType' } = {}) {
   return {
     allowsSorting: true,
     cell: (row) => {
@@ -908,9 +859,9 @@ function createActionColumn({
     },
     header: 'Action',
     id: key,
-    maxWidth: 150,
-    minWidth: 60,
-    width: 75
+    maxWidth: 180,
+    minWidth: 120,
+    width: '2fr'
   };
 }
 
@@ -924,18 +875,15 @@ function createAdditionalCommentColumn({ key = 'additionalComment' } = {}) {
       if (!comment) return '-';
 
       return (
-        <div className='max-w-sm text-wrap'>
-          <span className='text-sm' title={comment}>
-            {comment}
-          </span>
-        </div>
+        <span className='truncate text-sm' title={comment}>
+          {comment}
+        </span>
       );
     },
     header: 'Description',
     id: key,
-    maxWidth: 300,
-    minWidth: 40,
-    width: 100
+    minWidth: 200,
+    width: '3fr'
   };
 }
 
@@ -971,19 +919,15 @@ function createObjectColumn({
           ) : (
             <span className='truncate text-sm font-medium'>{name || '-'}</span>
           )}
-          {type && (
-            <span className='chip chip--accent chip--soft chip--sm w-fit'>
-              {type}
-            </span>
-          )}
+          {type && <span className='chip chip--accent chip--soft chip--sm w-fit'>{type}</span>}
         </div>
       );
     },
     header: 'Object',
     id: nameKey,
-    maxWidth: 200,
-    minWidth: 50,
-    width: 75
+    maxWidth: 280,
+    minWidth: 180,
+    width: '2fr'
   };
 }
 
@@ -1009,11 +953,11 @@ function createTimestampColumn({ key = 'time' } = {}) {
         </div>
       );
     },
-    header: `Timestamp (${Intl.DateTimeFormat().resolvedOptions().timeZone})`,
+    header: `Timestamp (${getShortTimezone()})`,
     id: key,
-    maxWidth: 75,
-    minWidth: 75,
-    width: 75
+    maxWidth: 200,
+    minWidth: 140,
+    width: '1fr'
   };
 }
 
@@ -1071,9 +1015,9 @@ function createUserColumn({
     },
     header: 'User',
     id: nameKey,
-    maxWidth: 200,
-    minWidth: 40,
-    width: 50
+    maxWidth: 300,
+    minWidth: 180,
+    width: '2fr'
   };
 }
 
@@ -1118,6 +1062,16 @@ function getActionColor(action) {
   return 'accent';
 }
 
+function getShortTimezone() {
+  const parts = new Intl.DateTimeFormat(undefined, {
+    timeZoneName: 'short'
+  }).formatToParts(new Date());
+  return (
+    parts.find((p) => p.type === 'timeZoneName')?.value ??
+    Intl.DateTimeFormat().resolvedOptions().timeZone
+  );
+}
+
 /**
  * Run an array of thunks (functions returning promises) with limited concurrency.
  * Returns results in the same order as the input thunks.
@@ -1131,8 +1085,6 @@ async function promisePool(taskFns, concurrency = 6) {
       results[i] = await taskFns[i]();
     }
   }
-  await Promise.all(
-    Array.from({ length: Math.min(concurrency, taskFns.length) }, runNext)
-  );
+  await Promise.all(Array.from({ length: Math.min(concurrency, taskFns.length) }, runNext));
   return results;
 }

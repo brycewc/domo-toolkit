@@ -59,7 +59,8 @@ const TYPE_KEY_TO_DOMO_TYPE = {
   subscriptions: null,
   taskCenterQueues: 'HOPPER_QUEUE',
   taskCenterTasks: null,
-  workflows: 'WORKFLOW_MODEL'
+  workflows: 'WORKFLOW_MODEL',
+  workspaces: 'WORKSPACE'
 };
 
 const ITEM_HEIGHT = 24;

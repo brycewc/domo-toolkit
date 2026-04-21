@@ -413,13 +413,16 @@ function getAvailableActions(currentContext) {
   if (typeId === 'DATA_SOURCE') {
     actions.add('getViewInputs');
     actions.add('dataRepair');
-    actions.add('viewLineage');
     if (
       details?.streamId &&
       metadata?.parent?.details?.scheduleState !== 'MANUAL'
     ) {
       actions.add('setStreamToManual');
     }
+  }
+
+  if (['DATA_SOURCE', 'DATAFLOW_TYPE'].includes(typeId)) {
+    actions.add('viewLineage');
   }
 
   if (['CARD', 'DATA_APP_VIEW', 'PAGE'].includes(typeId)) {

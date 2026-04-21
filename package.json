@@ -54,7 +54,6 @@
     "@heroui/styles": "^3.0.2",
     "@tabler/icons-react": "^3.36.1",
     "@tailwindcss/vite": "^4.1.18",
-    "@tanstack/react-virtual": "^3.13.18",
     "@xyflow/react": "^12.10.2",
     "js-beautify": "^1.15.4",
     "motion": "^12.29.3",

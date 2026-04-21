@@ -87,18 +87,17 @@ All PRs are reviewed before merging. You may be asked to make changes -- this is
 
 ## Tech Stack
 
-| Category             | Technology              | Version  |
-| -------------------- | ----------------------- | -------- |
-| **Framework**        | React                   | 19.2.4   |
-| **Bundler**          | Vite                    | 7.3.1    |
-| **Extension Plugin** | @crxjs/vite-plugin      | 2.4.0    |
-| **UI Library**       | @heroui/react           | 3.0.2    |
-| **CSS**              | Tailwind CSS            | 4.2.2    |
-| **Icons**            | @tabler/icons-react     | 3.41.1   |
-| **Virtualization**   | @tanstack/react-virtual | 3.13.23  |
-| **Graph Layout**     | @dagrejs/dagre          | 2.0.4    |
-| **Linter**           | ESLint                  | 10.2.0   |
-| **Formatter**        | Prettier                | 3.8.1    |
+| Category             | Technology          | Version |
+| -------------------- | ------------------- | ------- |
+| **Framework**        | React               | 19.2.5  |
+| **Bundler**          | Vite                | 7.3.2   |
+| **Extension Plugin** | @crxjs/vite-plugin  | 2.4.0   |
+| **UI Library**       | @heroui/react       | 3.0.3   |
+| **CSS**              | Tailwind CSS        | 4.2.2   |
+| **Icons**            | @tabler/icons-react | 3.41.1  |
+| **Graph Layout**     | @dagrejs/dagre      | 2.0.4   |
+| **Linter**           | ESLint              | 10.2.1  |
+| **Formatter**        | Prettier            | 3.8.3   |
 
 ## Project Structure
 

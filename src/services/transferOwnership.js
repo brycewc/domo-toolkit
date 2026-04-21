@@ -25,6 +25,7 @@ import {
   getOwnedTaskCenterQueues,
   getOwnedTaskCenterTasks,
   getOwnedWorkflows,
+  getOwnedWorkspaces,
   getUserOwnedAppStudioApps,
   transferAccounts,
   transferAiModels,
@@ -51,7 +52,8 @@ import {
   transferSubscriptions,
   transferTaskCenterQueues,
   transferTaskCenterTasks,
-  transferWorkflows
+  transferWorkflows,
+  transferWorkspaces
 } from '@/services';
 
 /**
@@ -242,6 +244,13 @@ export const TRANSFER_TYPES = [
     label: 'Workflows',
     requiredAuthority: 'workflow.admin',
     transfer: transferWorkflows
+  },
+  {
+    getOwned: getOwnedWorkspaces,
+    key: 'workspaces',
+    label: 'Workspaces',
+    requiredAuthority: 'workspace.admin',
+    transfer: transferWorkspaces
   }
 ];
 
