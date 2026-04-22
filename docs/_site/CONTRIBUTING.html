@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Contributing to Domo Toolkit | Domo Toolkit</title>
+<meta name="generator" content="Jekyll v3.9.5" />
+<meta property="og:title" content="Contributing to Domo Toolkit" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Domo Toolkit is a Chrome extension built for the people who live inside Domo every day - administrators managing hundreds of objects, consultants jumping between client instances, and power users building on the platform. Every feature is built to save clicks, reduce context-switching, and surface information that Domo’s native UI buries behind multiple navigations." />
+<meta property="og:description" content="Domo Toolkit is a Chrome extension built for the people who live inside Domo every day - administrators managing hundreds of objects, consultants jumping between client instances, and power users building on the platform. Every feature is built to save clicks, reduce context-switching, and surface information that Domo’s native UI buries behind multiple navigations." />
+<link rel="canonical" href="http://localhost:4000/CONTRIBUTING.html" />
+<meta property="og:url" content="http://localhost:4000/CONTRIBUTING.html" />
+<meta property="og:site_name" content="Domo Toolkit" />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Contributing to Domo Toolkit" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebPage","description":"Domo Toolkit is a Chrome extension built for the people who live inside Domo every day - administrators managing hundreds of objects, consultants jumping between client instances, and power users building on the platform. Every feature is built to save clicks, reduce context-switching, and surface information that Domo’s native UI buries behind multiple navigations.","headline":"Contributing to Domo Toolkit","url":"http://localhost:4000/CONTRIBUTING.html"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="Domo Toolkit" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">Domo Toolkit</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/CONTRIBUTING.html">Contributing to Domo Toolkit</a><a class="page-link" href="/PRIVACY_POLICY.html">Privacy Policy for Domo Toolkit</a><a class="page-link" href="/RELEASE_NOTES.html">Domo Toolkit v1.2.0 Release Notes</a><a class="page-link" href="/">Domo Toolkit</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post">
+
+  <header class="post-header">
+    <h1 class="post-title">Contributing to Domo Toolkit</h1>
+  </header>
+
+  <div class="post-content">
+    <h1 id="contributing-to-domo-toolkit">Contributing to Domo Toolkit</h1>
+
+<p>Thanks for your interest in contributing! Whether it’s reporting a bug, suggesting a feature, or submitting code, this guide covers everything you need to know.</p>
+
+<h2 id="reporting-issues">Reporting Issues</h2>
+
+<p>Found a bug or have a feature request? <a href="https://github.com/brycewc/domo-toolkit/issues">Open an issue</a> on GitHub. An issue is just a post describing what bug you ran into or what you’d like to see – no coding or technical knowledge required. You’ll need a free <a href="https://github.com/signup">GitHub account</a> to create one. Include as much detail as you can (what you were doing, what happened, what you expected) and I’ll take it from there.</p>
+
+<h3 id="bug-reports">Bug Reports</h3>
+
+<p>Include as much of the following as you can:</p>
+
+<ul>
+  <li>What you were doing when the bug occurred</li>
+  <li>What you expected to happen vs. what actually happened</li>
+  <li>Your browser and version (e.g., Chrome 130, Edge 131)</li>
+  <li>Screenshots or screen recordings (where applicable)</li>
+  <li>The Domo object type you were working with (Page, Card, DataSet, etc.)</li>
+  <li>Any errors in the browser console (<code class="language-plaintext highlighter-rouge">F12</code> &gt; Console tab)</li>
+</ul>
+
+<h3 id="feature-requests">Feature Requests</h3>
+
+<p>Describe the problem you’re trying to solve, not just the solution you have in mind. Context about your workflow helps prioritize and design the right approach.</p>
+
+<h2 id="submitting-pull-requests">Submitting Pull Requests</h2>
+
+<h3 id="getting-started">Getting Started</h3>
+
+<ol>
+  <li>Fork the repository</li>
+  <li>
+    <p>Clone your fork and create a branch from <code class="language-plaintext highlighter-rouge">main</code>:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>git clone https://github.com/&lt;your-username&gt;/domo-toolkit.git
+<span class="nb">cd </span>domo-toolkit
+git checkout <span class="nt">-b</span> your-branch-name
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>Install dependencies and start the dev server:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>yarn
+yarn dev
+</code></pre></div>    </div>
+  </li>
+  <li>Load the extension from the <code class="language-plaintext highlighter-rouge">dist</code> directory (see <a href="#development-setup">Development Setup</a>)</li>
+</ol>
+
+<h3 id="branch-naming">Branch Naming</h3>
+
+<p>Use a short, descriptive branch name that reflects the change. For example:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">fix-431-cookie-clearing</code></li>
+  <li><code class="language-plaintext highlighter-rouge">add-workflow-delete</code></li>
+  <li><code class="language-plaintext highlighter-rouge">update-favicon-settings-ui</code></li>
+</ul>
+
+<h3 id="commit-messages">Commit Messages</h3>
+
+<p>Write clear, descriptive commit messages. Start with what the change does, not what file was edited. A single commit covering a cohesive set of changes is preferred over many small ones, but split unrelated changes into separate commits.</p>
+
+<p>Good:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">Added retry functionality for loading object details</code></li>
+  <li><code class="language-plaintext highlighter-rouge">Fixed scrolling height bug when switching between tabs on context footer</code></li>
+</ul>
+
+<p>Avoid:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">Fixed bug</code></li>
+  <li><code class="language-plaintext highlighter-rouge">Updated files</code></li>
+  <li><code class="language-plaintext highlighter-rouge">WIP</code></li>
+</ul>
+
+<h3 id="pr-guidelines">PR Guidelines</h3>
+
+<ul>
+  <li>Keep PRs focused on a single change or feature</li>
+  <li>Include a description of what the PR does and why</li>
+  <li>Test your changes against a live Domo instance (domo-community.domo.com is a great testing environment if you don’t feel comfortable testing in your usual instance)</li>
+  <li>Make sure the extension builds without errors (<code class="language-plaintext highlighter-rouge">yarn build</code>)</li>
+  <li>Run ESLint before submitting (<code class="language-plaintext highlighter-rouge">npx eslint --no-warn-ignored src/</code>)</li>
+  <li>Run Prettier before submitting (<code class="language-plaintext highlighter-rouge">npx prettier --write .</code>)</li>
+  <li>If your change affects the UI, include a screenshot or screen recording</li>
+</ul>
+
+<h3 id="code-review">Code Review</h3>
+
+<p>All PRs are reviewed before merging. You may be asked to make changes – this is normal and part of the process. Keep an eye on your PR for comments and requested changes.</p>
+
+<h1 id="helpful-developer-information">Helpful Developer Information</h1>
+
+<h2 id="tech-stack">Tech Stack</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Category</th>
+      <th>Technology</th>
+      <th>Version</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Framework</strong></td>
+      <td>React</td>
+      <td>19.2.4</td>
+    </tr>
+    <tr>
+      <td><strong>Bundler</strong></td>
+      <td>Vite</td>
+      <td>7.3.1</td>
+    </tr>
+    <tr>
+      <td><strong>Extension Plugin</strong></td>
+      <td>@crxjs/vite-plugin</td>
+      <td>2.4.0</td>
+    </tr>
+    <tr>
+      <td><strong>UI Library</strong></td>
+      <td>@heroui/react</td>
+      <td>3.0.2</td>
+    </tr>
+    <tr>
+      <td><strong>CSS</strong></td>
+      <td>Tailwind CSS</td>
+      <td>4.2.2</td>
+    </tr>
+    <tr>
+      <td><strong>Icons</strong></td>
+      <td>@tabler/icons-react</td>
+      <td>3.41.1</td>
+    </tr>
+    <tr>
+      <td><strong>Virtualization</strong></td>
+      <td>@tanstack/react-virtual</td>
+      <td>3.13.23</td>
+    </tr>
+    <tr>
+      <td><strong>Graph Layout</strong></td>
+      <td>@dagrejs/dagre</td>
+      <td>2.0.4</td>
+    </tr>
+    <tr>
+      <td><strong>Linter</strong></td>
+      <td>ESLint</td>
+      <td>10.2.0</td>
+    </tr>
+    <tr>
+      <td><strong>Formatter</strong></td>
+      <td>Prettier</td>
+      <td>3.8.1</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="project-structure">Project Structure</h2>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>src/
+├── assets/             # Static assets and CSS
+├── components/         # Shared React components
+│   ├── functions/      # Action button implementations
+│   ├── options/        # Settings page components
+│   ├── lineage/        # Lineage graph visualization components
+│   └── views/          # View components used in side panel for data discovery features
+├── data/               # Release information used for new release badge and page
+├── hooks/              # Custom React hooks
+├── models/             # Data classes (DomoObject, DomoContext, DomoObjectType)
+├── options/            # Settings/options page
+├── popup/              # Popup UI (click on extension icon)
+├── services/           # Domo API service functions
+├── sidepanel/          # Side panel UI (contextual panel alongside pages)
+├── utils/              # Utility functions
+├── background.js       # Service worker (background script)
+└── contentScript.js    # Content script (injected into Domo pages)
+</code></pre></div></div>
+
+<h2 id="architecture">Architecture</h2>
+
+<p>The extension has five main execution contexts:</p>
+
+<ol>
+  <li><strong>Popup</strong> - Small interface when extension icon is clicked</li>
+  <li><strong>Side Panel</strong> - Persistent panel alongside Domo pages with richer UI</li>
+  <li><strong>Options Page</strong> - Full-page UI for settings, release notes, lineage viewer, and activity log</li>
+  <li><strong>Content Script</strong> - Injected into Domo pages; detects objects, applies favicons</li>
+  <li><strong>Background Service Worker</strong> - Handles message passing, maintains tab context cache</li>
+</ol>
+
+<h3 id="data-flow">Data Flow</h3>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Content Script (detects page context)
+  → Background Service Worker (message relay, caches context)
+  → Popup/Sidepanel (receives context via chrome.runtime messages)
+  → User triggers action → Services execute via content script
+</code></pre></div></div>
+
+<h3 id="core-models">Core Models</h3>
+
+<ul>
+  <li><strong>DomoContext</strong> - Represents a tab’s context (instance, URL, detected object)</li>
+  <li><strong>DomoObject</strong> - Represents a Domo object (Card, Page, Dataset, etc.) with ID and type</li>
+  <li><strong>DomoObjectType</strong> - Registry of ~100+ supported object types with URL patterns, ID validation, and API configs</li>
+</ul>
+
+<h2 id="development-setup">Development Setup</h2>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Clone the repository (or your fork)</span>
+git clone https://github.com/brycewc/domo-toolkit.git
+<span class="nb">cd </span>domo-toolkit
+
+<span class="c"># Install dependencies</span>
+yarn          <span class="c"># or: npm install</span>
+
+<span class="c"># Start dev server (with HMR)</span>
+yarn dev      <span class="c"># or: npm run dev</span>
+
+<span class="c"># Build for production</span>
+yarn build    <span class="c"># or: npm run build</span>
+
+<span class="c"># Preview production build</span>
+yarn preview  <span class="c"># or: npm run preview</span>
+</code></pre></div></div>
+
+<p>Load the extension in Chrome or Edge:</p>
+
+<ol>
+  <li>Navigate to <code class="language-plaintext highlighter-rouge">chrome://extensions/</code> or <code class="language-plaintext highlighter-rouge">edge://extensions</code></li>
+  <li>Enable “Developer mode”</li>
+  <li>Click “Load unpacked” and select the <code class="language-plaintext highlighter-rouge">dist</code> directory</li>
+</ol>
+
+<h2 id="code-conventions">Code Conventions</h2>
+
+<h3 id="linting-via-eslint">Linting (via ESLint)</h3>
+
+<p>The project uses ESLint with three plugin layers configured in <code class="language-plaintext highlighter-rouge">eslint.config.js</code>:</p>
+
+<ul>
+  <li><strong><code class="language-plaintext highlighter-rouge">@eslint/js</code> recommended</strong> — standard JavaScript code-quality rules (no unused vars, no undef, etc.)</li>
+  <li><strong><code class="language-plaintext highlighter-rouge">eslint-plugin-perfectionist</code></strong> — enforces alphabetical sorting of imports, exports, object keys, JSX props, switch cases, and class members</li>
+  <li><strong><code class="language-plaintext highlighter-rouge">@stylistic/eslint-plugin</code></strong> — enforces consistent formatting (brace style, spacing, indentation, quotes, semicolons, etc.)</li>
+</ul>
+
+<p>Key sorting rules enforced by perfectionist:</p>
+
+<ul>
+  <li><strong>Imports</strong> — sorted alphabetically by module path, with named specifiers sorted inside braces</li>
+  <li><strong>Exports</strong> — sorted alphabetically by export path</li>
+  <li><strong>Object keys</strong> — sorted alphabetically in literals, destructuring, and config objects</li>
+  <li><strong>JSX props</strong> — sorted with shorthand props first, then regular props, then callbacks (<code class="language-plaintext highlighter-rouge">on*</code>), then multiline props</li>
+  <li><strong>Switch cases</strong> — sorted alphabetically, with <code class="language-plaintext highlighter-rouge">default</code> last</li>
+</ul>
+
+<p>Unused variables must be prefixed with <code class="language-plaintext highlighter-rouge">_</code> (e.g., <code class="language-plaintext highlighter-rouge">_event</code>, <code class="language-plaintext highlighter-rouge">_unused</code>). Caught errors are exempt.</p>
+
+<p>Run ESLint to check files:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>npx eslint <span class="nt">--no-warn-ignored</span> &lt;file-paths&gt;
+</code></pre></div></div>
+
+<h3 id="formatting-via-prettier">Formatting (via Prettier)</h3>
+
+<ul>
+  <li>Single quotes for strings and JSX attributes</li>
+  <li>No trailing commas</li>
+  <li>2-space indentation</li>
+  <li>Semicolons required</li>
+  <li>Tailwind classes auto-sorted via <code class="language-plaintext highlighter-rouge">prettier-plugin-tailwindcss</code></li>
+</ul>
+
+<h3 id="file-organization">File Organization</h3>
+
+<ul>
+  <li><strong>Path alias:</strong> <code class="language-plaintext highlighter-rouge">@/</code> maps to <code class="language-plaintext highlighter-rouge">src/</code> (e.g., <code class="language-plaintext highlighter-rouge">import { Copy } from '@/components'</code>)</li>
+  <li><strong>Barrel exports:</strong> Index files re-export from directories</li>
+  <li><strong>Named exports only</strong> (no default exports for components)</li>
+</ul>
+
+<h3 id="react-patterns">React Patterns</h3>
+
+<ul>
+  <li>Functional components only (no class components)</li>
+  <li>Custom hooks for reusable logic (see <code class="language-plaintext highlighter-rouge">src/hooks/</code>)</li>
+  <li>Props destructuring in function signatures</li>
+  <li>React 19 - no <code class="language-plaintext highlighter-rouge">forwardRef</code> needed</li>
+</ul>
+
+<h3 id="model-classes">Model Classes</h3>
+
+<ul>
+  <li>ES6 classes with <code class="language-plaintext highlighter-rouge">toJSON()</code> and <code class="language-plaintext highlighter-rouge">static fromJSON()</code> for serialization (required for message passing between extension contexts)</li>
+</ul>
+
+<h3 id="styling">Styling</h3>
+
+<ul>
+  <li>Tailwind CSS utility classes only (no inline styles)</li>
+  <li>HeroUI components for complex UI elements</li>
+  <li>Dark mode support via <code class="language-plaintext highlighter-rouge">data-theme</code> attribute on document root</li>
+  <li>OKLch color space for theme colors (see <code class="language-plaintext highlighter-rouge">src/assets/global.css</code>)</li>
+</ul>
+
+<h2 id="key-patterns">Key Patterns</h2>
+
+<h3 id="executing-code-in-page-context">Executing Code in Page Context</h3>
+
+<p>Services need to inherit user session, authentication, and permissions by running in the page context:</p>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">import</span> <span class="p">{</span> <span class="nx">executeInPage</span> <span class="p">}</span> <span class="k">from</span> <span class="dl">'</span><span class="s1">@/utils/executeInPage</span><span class="dl">'</span><span class="p">;</span>
+
+<span class="kd">const</span> <span class="nx">result</span> <span class="o">=</span> <span class="k">await</span> <span class="nx">executeInPage</span><span class="p">(</span>
+  <span class="p">(</span><span class="nx">arg1</span><span class="p">,</span> <span class="nx">arg2</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="c1">// This runs in the Domo page context</span>
+    <span class="k">return</span> <span class="nx">fetch</span><span class="p">(</span><span class="dl">'</span><span class="s1">/api/endpoint</span><span class="dl">'</span><span class="p">).</span><span class="nx">then</span><span class="p">((</span><span class="nx">r</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="nx">r</span><span class="p">.</span><span class="nx">json</span><span class="p">());</span>
+  <span class="p">},</span>
+  <span class="p">[</span><span class="nx">arg1</span><span class="p">,</span> <span class="nx">arg2</span><span class="p">],</span>
+  <span class="nx">tabId</span>
+<span class="p">);</span>
+</code></pre></div></div>
+
+<h3 id="message-passing">Message Passing</h3>
+
+<p>Popup and sidepanel listen for context updates from the background service worker. Messages are filtered by <code class="language-plaintext highlighter-rouge">currentTabId</code> so each view only responds to updates for the tab it’s displaying:</p>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">useEffect</span><span class="p">(()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+  <span class="kd">const</span> <span class="nx">handleMessage</span> <span class="o">=</span> <span class="p">(</span><span class="nx">message</span><span class="p">,</span> <span class="nx">sender</span><span class="p">,</span> <span class="nx">sendResponse</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nx">message</span><span class="p">.</span><span class="nx">type</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">TAB_CONTEXT_UPDATED</span><span class="dl">'</span><span class="p">)</span> <span class="p">{</span>
+      <span class="k">if</span> <span class="p">(</span><span class="nx">message</span><span class="p">.</span><span class="nx">tabId</span> <span class="o">===</span> <span class="nx">currentTabId</span><span class="p">)</span> <span class="p">{</span>
+        <span class="kd">const</span> <span class="nx">context</span> <span class="o">=</span> <span class="nx">DomoContext</span><span class="p">.</span><span class="nx">fromJSON</span><span class="p">(</span><span class="nx">message</span><span class="p">.</span><span class="nx">context</span><span class="p">);</span>
+        <span class="nx">setCurrentContext</span><span class="p">(</span><span class="nx">context</span><span class="p">);</span>
+      <span class="p">}</span>
+      <span class="nx">sendResponse</span><span class="p">({</span> <span class="na">received</span><span class="p">:</span> <span class="kc">true</span> <span class="p">});</span>
+      <span class="k">return</span> <span class="kc">true</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="kc">false</span><span class="p">;</span>
+  <span class="p">};</span>
+
+  <span class="nx">chrome</span><span class="p">.</span><span class="nx">runtime</span><span class="p">.</span><span class="nx">onMessage</span><span class="p">.</span><span class="nx">addListener</span><span class="p">(</span><span class="nx">handleMessage</span><span class="p">);</span>
+  <span class="k">return</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="nx">chrome</span><span class="p">.</span><span class="nx">runtime</span><span class="p">.</span><span class="nx">onMessage</span><span class="p">.</span><span class="nx">removeListener</span><span class="p">(</span><span class="nx">handleMessage</span><span class="p">);</span>
+<span class="p">},</span> <span class="p">[</span><span class="nx">currentTabId</span><span class="p">]);</span>
+</code></pre></div></div>
+
+<h3 id="status-bar-pattern">Status Bar Pattern</h3>
+
+<p>Status messages are managed by the <code class="language-plaintext highlighter-rouge">useStatusBar</code> hook in the parent App component (popup or sidepanel). Child components receive an <code class="language-plaintext highlighter-rouge">onStatusUpdate</code> callback prop and call it to display transient alerts:</p>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// In the parent App component (popup/App.jsx or sidepanel/App.jsx)</span>
+<span class="kd">const</span> <span class="p">{</span> <span class="nx">statusBar</span><span class="p">,</span> <span class="nx">showStatus</span><span class="p">,</span> <span class="nx">hideStatus</span> <span class="p">}</span> <span class="o">=</span> <span class="nx">useStatusBar</span><span class="p">();</span>
+
+<span class="c1">// Pass showStatus down as a prop</span>
+<span class="o">&lt;</span><span class="nx">ActionButtons</span> <span class="nx">onStatusUpdate</span><span class="o">=</span><span class="p">{</span><span class="nx">showStatus</span><span class="p">}</span> <span class="sr">/</span><span class="err">&gt;
+</span><span class="o">&lt;</span><span class="nx">ContextFooter</span> <span class="nx">onStatusUpdate</span><span class="o">=</span><span class="p">{</span><span class="nx">showStatus</span><span class="p">}</span> <span class="sr">/</span><span class="err">&gt;
+</span>
+<span class="c1">// Render StatusBar alongside content (animated overlay)</span>
+<span class="p">{</span><span class="nx">statusBar</span><span class="p">.</span><span class="nx">visible</span> <span class="o">&amp;&amp;</span> <span class="p">(</span>
+  <span class="o">&lt;</span><span class="nx">StatusBar</span>
+    <span class="nx">title</span><span class="o">=</span><span class="p">{</span><span class="nx">statusBar</span><span class="p">.</span><span class="nx">title</span><span class="p">}</span>
+    <span class="nx">description</span><span class="o">=</span><span class="p">{</span><span class="nx">statusBar</span><span class="p">.</span><span class="nx">description</span><span class="p">}</span>
+    <span class="nx">status</span><span class="o">=</span><span class="p">{</span><span class="nx">statusBar</span><span class="p">.</span><span class="nx">status</span><span class="p">}</span>
+    <span class="nx">timeout</span><span class="o">=</span><span class="p">{</span><span class="nx">statusBar</span><span class="p">.</span><span class="nx">timeout</span><span class="p">}</span>
+    <span class="nx">onClose</span><span class="o">=</span><span class="p">{</span><span class="nx">hideStatus</span><span class="p">}</span>
+  <span class="sr">/</span><span class="err">&gt;
+</span><span class="p">)}</span>
+</code></pre></div></div>
+
+<p>Inside action components, call the callback to show a status message:</p>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// In any action component</span>
+<span class="nx">onStatusUpdate</span><span class="p">(</span><span class="dl">'</span><span class="s1">Copied</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">Object ID copied to clipboard</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">success</span><span class="dl">'</span><span class="p">,</span> <span class="mi">3000</span><span class="p">);</span>
+</code></pre></div></div>
+
+<h2 id="extension-permissions">Extension Permissions</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Permission</th>
+      <th>Purpose</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">sidePanel</code></td>
+      <td>Open side panel UI</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">storage</code></td>
+      <td>Persist settings (sync) and cache (local)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">scripting</code></td>
+      <td>Inject and execute scripts in pages</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">activeTab</code></td>
+      <td>Access current tab info</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">clipboardRead/Write</code></td>
+      <td>Copy object IDs</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">cookies</code></td>
+      <td>Clear Domo cookies</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">webNavigation</code></td>
+      <td>Listen for navigation events</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">webRequest</code></td>
+      <td>Detect 431 errors for auto cookie clearing</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Host permission: <code class="language-plaintext highlighter-rouge">*://*.domo.com/*</code></p>
+
+<h2 id="configuration-files">Configuration Files</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>File</th>
+      <th>Purpose</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">vite.config.js</code></td>
+      <td>Vite config with CRXJS, Tailwind, and path aliases</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">manifest.config.js</code></td>
+      <td>Chrome extension manifest v3 (permissions, content scripts, etc.)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">eslint.config.js</code></td>
+      <td>ESLint config with perfectionist sorting and stylistic rules</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">.prettierrc</code></td>
+      <td>Prettier formatting rules</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="documentation">Documentation</h2>
+
+<ul>
+  <li><a href="https://react.dev/reference/react">React Documentation</a></li>
+  <li><a href="https://vite.dev/guide/">Vite Documentation</a></li>
+  <li><a href="https://crxjs.dev/concepts/manifest">CRXJS Documentation</a></li>
+  <li><a href="https://tailwindcss.com/docs">Tailwind CSS Documentation</a></li>
+  <li><a href="https://v3.heroui.com/docs/react/getting-started">HeroUI Documentation</a></li>
+  <li><a href="https://tabler.io/icons">Tabler Icons Documentation</a></li>
+  <li><a href="https://tanstack.com/virtual/latest/docs/introduction">TanStack Virtual Documentation</a></li>
+  <li><a href="https://eslint.org/docs/latest/">ESLint Documentation</a></li>
+  <li><a href="https://perfectionist.dev/">eslint-plugin-perfectionist Documentation</a></li>
+  <li><a href="https://prettier.io/docs">Prettier Documentation</a></li>
+</ul>
+
+  </div>
+
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">Domo Toolkit</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">Domo Toolkit</li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/brycewc"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">brycewc</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p>Domo Toolkit is a Chrome extension built for the people who live inside Domo every day - administrators managing hundreds of objects, consultants jumping between client instances, and power users building on the platform. Every feature is built to save clicks, reduce context-switching, and surface information that Domo&#39;s native UI buries behind multiple navigations.</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>
