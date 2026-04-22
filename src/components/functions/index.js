@@ -7,6 +7,7 @@ export { DataRepair } from './DataRepair';
 export { DeleteCurrentObject } from './DeleteCurrentObject';
 export { DevMenu } from './DevMenu';
 export { DirectSignOn } from './DirectSignOn';
+export { Duplicate } from './Duplicate';
 export { Export } from './Export';
 export { GetCardPages } from './GetCardPages';
 export { GetCards } from './GetCards';

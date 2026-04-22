@@ -6,7 +6,9 @@ import {
   Label,
   Spinner,
   Table,
-  Tooltip
+  TableLayout,
+  Tooltip,
+  Virtualizer
 } from '@heroui/react';
 import {
   IconChevronDown,
@@ -17,16 +19,18 @@ import {
   IconPlus,
   IconRefresh
 } from '@tabler/icons-react';
-import { useVirtualizer } from '@tanstack/react-virtual';
 import { AnimatePresence } from 'motion/react';
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { AnimatedCheck } from '@/components/AnimatedCheck';
 import { exportToCSV, exportToExcel, generateExportFilename } from '@/utils';
 
+const ROW_HEIGHT = 53;
+const HEADING_HEIGHT = 40;
+
 /**
  * DataTable Component
- * A feature-rich table using HeroUI v3 Table with @tanstack/react-virtual
+ * A feature-rich table using HeroUI v3 Table with its built-in Virtualizer + TableLayout.
  *
  * Column definition format:
  *   {
@@ -41,9 +45,13 @@ import { exportToCSV, exportToExcel, generateExportFilename } from '@/utils';
  *     maxWidth: number|string,        // optional: CSS max-width
  *   }
  *
+ * Row height is fixed at ROW_HEIGHT — cell content that overflows should be truncated
+ * and exposed via the title attribute rather than wrapped.
+ *
  * @param {Object} props
  * @param {Array} props.columns - Column definitions
  * @param {Array} props.data - Row data array
+ * @param {Function} props.getRowId - Optional: (row, index) => stable row id
  * @param {String} props.entityName - Name of entity (e.g., "events")
  * @param {Object} props.initialColumnVisibility - { columnId: boolean } map
  * @param {Object} props.initialSorting - { column: string, direction: 'ascending'|'descending' }
@@ -62,6 +70,7 @@ export function DataTable({
   data = [],
   entityName = 'items',
   exportConfig = null,
+  getRowId,
   hasMore = false,
   header = null,
   initialColumnVisibility = {},
@@ -82,19 +91,13 @@ export function DataTable({
   );
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const isLoadingMoreRef = useRef(false);
-
-  const tableContainerRef = useRef(null);
 
   const visibleColumns = useMemo(
     () => columns.filter((c) => !hiddenColumns.has(c.id)),
     [columns, hiddenColumns]
   );
 
-  const toggleableColumns = useMemo(
-    () => columns.filter((c) => c.canHide !== false),
-    [columns]
-  );
+  const toggleableColumns = useMemo(() => columns.filter((c) => c.canHide !== false), [columns]);
 
   const sortedData = useMemo(() => {
     if (!sortDescriptor?.column) return data;
@@ -109,23 +112,21 @@ export function DataTable({
     });
   }, [data, sortDescriptor, columns]);
 
-  const rowVirtualizer = useVirtualizer({
-    count: sortedData.length,
-    estimateSize: () => 53,
-    getScrollElement: () => tableContainerRef?.current,
-    measureElement: (element) => element?.getBoundingClientRect().height,
-    overscan: 10
-  });
+  const items = useMemo(
+    () =>
+      sortedData.map((row, i) => ({
+        id: getRowId ? getRowId(row, i) : (row.id ?? i),
+        row
+      })),
+    [sortedData, getRowId]
+  );
 
-  const virtualItems = rowVirtualizer.getVirtualItems();
-  const totalSize = rowVirtualizer.getTotalSize();
+  const firstColumnId = visibleColumns[0]?.id;
 
   const handleLoadMore = () => {
-    if (isLoadingMoreRef.current || !onLoadMore) return;
-    isLoadingMoreRef.current = true;
+    if (isLoadingMore || !onLoadMore) return;
     setIsLoadingMore(true);
     Promise.resolve(onLoadMore()).finally(() => {
-      isLoadingMoreRef.current = false;
       setIsLoadingMore(false);
     });
   };
@@ -142,8 +143,7 @@ export function DataTable({
         exportData = sortedData;
       }
 
-      const filename =
-        exportConfig.filename || generateExportFilename(entityName);
+      const filename = exportConfig.filename || generateExportFilename(entityName);
 
       if (format === 'csv') {
         exportToCSV(exportData, visibleColumns, filename);
@@ -174,11 +174,8 @@ export function DataTable({
                 <IconColumns stroke={1.5} />
                 Columns
                 <Chip color='accent' size='sm' variant='soft'>
-                  {
-                    toggleableColumns.filter((c) => !hiddenColumns.has(c.id))
-                      .length
-                  }
-                  /{toggleableColumns.length}
+                  {toggleableColumns.filter((c) => !hiddenColumns.has(c.id)).length}/
+                  {toggleableColumns.length}
                 </Chip>
               </Button>
               <Dropdown.Popover>
@@ -186,36 +183,21 @@ export function DataTable({
                   selectionMode='multiple'
                   onSelectionChange={(keys) => {
                     setHiddenColumns(
-                      new Set(
-                        toggleableColumns
-                          .filter((c) => !keys.has(c.id))
-                          .map((c) => c.id)
-                      )
+                      new Set(toggleableColumns.filter((c) => !keys.has(c.id)).map((c) => c.id))
                     );
                   }}
                   selectedKeys={
                     new Set(
-                      toggleableColumns
-                        .filter((c) => !hiddenColumns.has(c.id))
-                        .map((c) => c.id)
+                      toggleableColumns.filter((c) => !hiddenColumns.has(c.id)).map((c) => c.id)
                     )
                   }
                 >
                   {toggleableColumns.map((col) => (
-                    <Dropdown.Item
-                      id={col.id}
-                      key={col.id}
-                      textValue={col.header}
-                    >
+                    <Dropdown.Item id={col.id} key={col.id} textValue={col.header}>
                       <Dropdown.ItemIndicator>
                         {({ isSelected }) => (
                           <AnimatePresence>
-                            {isSelected && (
-                              <AnimatedCheck
-                                className='text-muted'
-                                stroke={1.5}
-                              />
-                            )}
+                            {isSelected && <AnimatedCheck className='text-muted' stroke={1.5} />}
                           </AnimatePresence>
                         )}
                       </Dropdown.ItemIndicator>
@@ -296,111 +278,70 @@ export function DataTable({
       </Card.Header>
 
       <Card.Content className='h-0 min-h-0 flex-1 overflow-hidden rounded-lg'>
-        <Table className='h-full' variant='secondary'>
-          <Table.ScrollContainer
-            className='h-full overflow-auto overscroll-y-contain'
-            ref={tableContainerRef}
-          >
-            <Table.Content
-              aria-label={entityName}
-              sortDescriptor={sortDescriptor}
-              onSortChange={setSortDescriptor}
-            >
-              <Table.Header className='sticky top-0 z-10'>
-                {visibleColumns.map((col, index) => (
-                  <Table.Column
-                    allowsSorting={!!col.allowsSorting}
-                    id={col.id}
-                    isRowHeader={index === 0}
-                    key={col.id}
-                    style={{
-                      maxWidth: col.maxWidth,
-                      minWidth: col.minWidth,
-                      width: col.width
-                    }}
-                  >
-                    {col.allowsSorting
-                      ? ({ sortDirection }) => (
-                          <SortableHeader sortDirection={sortDirection}>
-                            {col.header}
-                          </SortableHeader>
-                        )
-                      : col.header}
-                  </Table.Column>
-                ))}
-              </Table.Header>
-              <Table.Body
-                renderEmptyState={() => (
-                  <p className='py-8 text-center text-sm text-muted'>
-                    No results found
-                  </p>
-                )}
+        <Virtualizer
+          layout={TableLayout}
+          layoutOptions={{
+            headingHeight: HEADING_HEIGHT,
+            rowHeight: ROW_HEIGHT
+          }}
+        >
+          <Table className='h-full'>
+            <Table.ScrollContainer className='h-full overflow-auto overscroll-y-contain'>
+              <Table.Content
+                aria-label={entityName}
+                sortDescriptor={sortDescriptor}
+                onSortChange={setSortDescriptor}
               >
-                {virtualItems.length > 0 && (
-                  <Table.Row
-                    id='spacer-top'
-                    key='spacer-top'
-                    style={{ height: virtualItems[0].start }}
-                  >
-                    <Table.Cell
-                      className='p-0'
-                      colSpan={visibleColumns.length}
-                    />
-                  </Table.Row>
-                )}
-                {virtualItems.map((virtualRow) => {
-                  const row = sortedData[virtualRow.index];
-                  return (
-                    <Table.Row
-                      data-index={virtualRow.index}
-                      id={virtualRow.index}
-                      key={virtualRow.index}
-                      ref={(node) => rowVirtualizer.measureElement(node)}
+                <Table.Header className='bg-surface-secondary' columns={visibleColumns}>
+                  {(column) => (
+                    <Table.Column
+                      allowsSorting={!!column.allowsSorting}
+                      id={column.id}
+                      isRowHeader={column.id === firstColumnId}
+                      maxWidth={column.maxWidth}
+                      minWidth={column.minWidth}
+                      width={column.width}
                     >
-                      {visibleColumns.map((col) => (
-                        <Table.Cell
-                          key={col.id}
-                          style={{
-                            maxWidth: col.maxWidth,
-                            minWidth: col.minWidth,
-                            width: col.width
-                          }}
-                        >
-                          {col.cell(row)}
-                        </Table.Cell>
-                      ))}
-                    </Table.Row>
-                  );
-                })}
-                {virtualItems.length > 0 && (
-                  <Table.Row
-                    id='spacer-bottom'
-                    key='spacer-bottom'
-                    style={{
-                      height:
-                        totalSize - virtualItems[virtualItems.length - 1].end
-                    }}
-                  >
-                    <Table.Cell
-                      className='p-0'
-                      colSpan={visibleColumns.length}
-                    />
-                  </Table.Row>
-                )}
-                {onLoadMore && hasMore && (
-                  <Table.LoadMore
-                    isLoading={isLoadingMore}
-                    onLoadMore={handleLoadMore}
-                  >
-                    <Table.LoadMoreContent>
-                      <Spinner size='sm' />
-                    </Table.LoadMoreContent>
-                  </Table.LoadMore>
-                )}
-              </Table.Body>
-            </Table.Content>
-          </Table.ScrollContainer>
-        </Table>
+                      {column.allowsSorting
+                        ? ({ sortDirection }) => (
+                            <SortableHeader sortDirection={sortDirection}>
+                              {column.header}
+                            </SortableHeader>
+                          )
+                        : column.header}
+                    </Table.Column>
+                  )}
+                </Table.Header>
+                <Table.Body
+                  renderEmptyState={() => (
+                    <p className='py-8 text-center text-sm text-muted'>No results found</p>
+                  )}
+                >
+                  <Table.Collection items={items}>
+                    {(item) => (
+                      <Table.Row>
+                        <Table.Collection items={visibleColumns}>
+                          {(column) => (
+                            <Table.Cell className='flex h-full items-center overflow-hidden'>
+                              {column.cell(item.row)}
+                            </Table.Cell>
+                          )}
+                        </Table.Collection>
+                      </Table.Row>
+                    )}
+                  </Table.Collection>
+                  {onLoadMore && hasMore && (
+                    <Table.LoadMore isLoading={isLoadingMore} onLoadMore={handleLoadMore}>
+                      <Table.LoadMoreContent>
+                        <Spinner size='sm' />
+                      </Table.LoadMoreContent>
+                    </Table.LoadMore>
+                  )}
+                </Table.Body>
+              </Table.Content>
+            </Table.ScrollContainer>
+          </Table>
+        </Virtualizer>
       </Card.Content>
     </Card>
   );
@@ -408,7 +349,7 @@ export function DataTable({
 
 function SortableHeader({ children, sortDirection }) {
   return (
-    <span className='flex items-center justify-between'>
+    <span className='flex h-full items-center justify-between'>
       {children}
       {sortDirection && (
         <IconChevronDown

@@ -5,6 +5,7 @@ import {
   ActionButtons,
   ApiErrorsView,
   ContextFooter,
+  DuplicateView,
   GetCardsView,
   GetDatasetsView,
   GetOwnedObjectsView,
@@ -295,6 +296,14 @@ export default function App() {
 
             {activeView === 'transferOwnership' && (
               <TransferOwnershipView
+                key={viewKey}
+                onBackToDefault={handleBackToDefault}
+                onStatusUpdate={showStatus}
+              />
+            )}
+
+            {activeView === 'duplicate' && (
+              <DuplicateView
                 key={viewKey}
                 onBackToDefault={handleBackToDefault}
                 onStatusUpdate={showStatus}

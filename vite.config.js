@@ -27,7 +27,7 @@ export default defineConfig(({ mode }) => {
   return {
     build: {
       // Extensions load from disk, not network - large chunks are fine
-      chunkSizeWarningLimit: 1100,
+      chunkSizeWarningLimit: 1200,
       rollupOptions: {
         output: {
           // Group related modules into the same chunk to avoid cross-chunk circular dependencies
@@ -45,9 +45,12 @@ export default defineConfig(({ mode }) => {
             if (id.includes('/src/components/options/')) {
               return 'options-components';
             }
-            if (id.includes('/src/components/views/')) {
-              return 'sidepanel-components';
-            }
+            // Note: /src/components/views/ intentionally falls through to
+            // the 'components' chunk. Splitting views out produces a
+            // circular chunk dependency because src/components/index.js
+            // does `export * from './views'`, so the components chunk
+            // imports from the views chunk and vice versa — which can
+            // leave React undefined during initialization.
             if (
               id.includes('/src/components/') ||
               id.includes('/src/hooks/')

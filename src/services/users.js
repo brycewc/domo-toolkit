@@ -48,6 +48,68 @@ export async function getCurrentUserId(tabId = null) {
 const USERS_PAGE_SIZE = 50;
 
 /**
+ * Bulk-update user profile fields via the v2 users/bulk endpoint.
+ * Each entry in `users` must include `id` (as a string) plus any fields to set.
+ * @param {Array<Object>} users
+ * @param {number|null} tabId
+ * @returns {Promise<boolean>} true on success
+ */
+export async function bulkUpdateUsers(users, tabId = null) {
+  const transactionId = crypto.randomUUID();
+  return executeInPage(
+    async (users, transactionId) => {
+      const response = await fetch('/api/content/v2/users/bulk', {
+        body: JSON.stringify({ transactionId, users }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'PUT'
+      });
+      return response.ok;
+    },
+    [users, transactionId],
+    tabId
+  );
+}
+
+/**
+ * Create a new Domo user. Returns the created user with its ID.
+ * @param {Object} params
+ * @param {string} params.displayName - Full name for the new user
+ * @param {number} params.roleId - Role ID to assign
+ * @param {string} params.email - Email address for the new user
+ * @param {boolean} [params.sendInvite=true] - Whether to send an invite email
+ * @param {number|null} [tabId]
+ * @returns {Promise<{id: number, displayName: string, email: string}|null>}
+ */
+export async function createUser(
+  { displayName, email, roleId, sendInvite = true },
+  tabId = null
+) {
+  return executeInPage(
+    async (displayName, email, roleId, sendInvite) => {
+      const response = await fetch(
+        `/api/content/v3/users?sendInvite=${sendInvite}`,
+        {
+          body: JSON.stringify({
+            detail: { email },
+            displayName,
+            roleId
+          }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        }
+      );
+      if (!response.ok) return null;
+      const data = await response.json();
+      const id = data?.id ?? data?.userId ?? null;
+      if (!id) return null;
+      return { displayName, email, id };
+    },
+    [displayName, email, roleId, sendInvite],
+    tabId
+  );
+}
+
+/**
  * Delete a user by their ID.
  * @param {number} userId - The Domo user ID to delete
  * @param {number|null} tabId - Optional Chrome tab ID
@@ -123,6 +185,28 @@ export async function getCustomAvatarUserIds(userIds, tabId = null) {
       return results.filter(Boolean);
     },
     [userIds],
+    tabId
+  );
+}
+
+/**
+ * Fetch a user with the full DETAILED parts payload, including role and
+ * profile fields needed for duplication.
+ * @param {number|string} userId
+ * @param {number|null} tabId
+ * @returns {Promise<Object|null>} User object with roleId, title, department, etc.
+ */
+export async function getFullUserDetails(userId, tabId = null) {
+  return executeInPage(
+    async (userId) => {
+      const response = await fetch(
+        `/api/identity/v1/users/${userId}?parts=DETAILED`
+      );
+      if (!response.ok) return null;
+      const data = await response.json();
+      return data?.users?.[0] ?? data ?? null;
+    },
+    [userId],
     tabId
   );
 }
@@ -251,4 +335,26 @@ export async function searchUsers(text, tabId = null, offset = 0) {
   );
 
   return result;
+}
+
+/**
+ * Patch attributes on a user (e.g., locale).
+ * @param {number|string} userId
+ * @param {Array<{key: string, values: string[]}>} attributes
+ * @param {number|null} tabId
+ * @returns {Promise<boolean>} true on success
+ */
+export async function setUserAttributes(userId, attributes, tabId = null) {
+  return executeInPage(
+    async (userId, attributes) => {
+      const response = await fetch(`/api/identity/v1/users/${userId}`, {
+        body: JSON.stringify({ attributes }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'PATCH'
+      });
+      return response.ok;
+    },
+    [userId, attributes],
+    tabId
+  );
 }

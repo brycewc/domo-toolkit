@@ -25,6 +25,7 @@ import {
   DeleteCurrentObject,
   DevMenu,
   DirectSignOn,
+  Duplicate,
   Export,
   GetCardPages,
   GetCards,
@@ -275,6 +276,15 @@ export function ActionButtons({
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
+                {availableActions.has('duplicate') && (
+                  <Duplicate
+                    currentContext={currentContext}
+                    onCollapseActions={
+                      collapsable ? () => setIsExpanded(false) : undefined
+                    }
+                    onStatusUpdate={onStatusUpdate}
+                  />
+                )}
                 {availableActions.has('updateOwner') && (
                   <UpdateOwner
                     currentContext={currentContext}
@@ -403,13 +413,16 @@ function getAvailableActions(currentContext) {
   if (typeId === 'DATA_SOURCE') {
     actions.add('getViewInputs');
     actions.add('dataRepair');
-    actions.add('viewLineage');
     if (
       details?.streamId &&
       metadata?.parent?.details?.scheduleState !== 'MANUAL'
     ) {
       actions.add('setStreamToManual');
     }
+  }
+
+  if (['DATA_SOURCE', 'DATAFLOW_TYPE'].includes(typeId)) {
+    actions.add('viewLineage');
   }
 
   if (['CARD', 'DATA_APP_VIEW', 'PAGE'].includes(typeId)) {
@@ -456,6 +469,7 @@ function getAvailableActions(currentContext) {
   if (typeId === 'USER') {
     actions.add('transferOwnership');
     actions.add('getOwnedObjects');
+    actions.add('duplicate');
   }
 
   if (

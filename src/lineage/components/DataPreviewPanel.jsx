@@ -1,11 +1,4 @@
-import {
-  CloseButton,
-  Spinner,
-  Surface,
-  Table,
-  TableLayout,
-  Virtualizer
-} from '@heroui/react';
+import { CloseButton, Spinner, Surface, Table, TableLayout, Virtualizer } from '@heroui/react';
 import { IconAlertCircle, IconTable } from '@tabler/icons-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -92,9 +85,7 @@ export function DataPreviewPanel({
 
       const onMove = (ev) => {
         const delta = startY - ev.clientY;
-        const next = Math.round(
-          Math.max(MIN_HEIGHT, Math.min(maxH, startHeight + delta))
-        );
+        const next = Math.round(Math.max(MIN_HEIGHT, Math.min(maxH, startHeight + delta)));
         if (panelRef.current) {
           panelRef.current.style.height = `${next}px`;
         }
@@ -106,8 +97,7 @@ export function DataPreviewPanel({
         document.body.style.cursor = '';
         dragRef.current = null;
         if (panelRef.current) {
-          const h =
-            parseInt(panelRef.current.style.height, 10) || DEFAULT_HEIGHT;
+          const h = parseInt(panelRef.current.style.height, 10) || DEFAULT_HEIGHT;
           heightValue.current = h;
           if (heightRef) heightRef.current = h;
         }
@@ -166,11 +156,7 @@ export function DataPreviewPanel({
 
       {!loading && !error && rows.length > 0 && (
         <div className='min-h-0 min-w-0 flex-1'>
-          <VirtualTable
-            datasetName={datasetName}
-            headers={headers}
-            rows={rows}
-          />
+          <VirtualTable datasetName={datasetName} headers={headers} rows={rows} />
         </div>
       )}
 
@@ -202,10 +188,7 @@ function estimateColumnWidths(headers, rows) {
       const len = displayLength(val);
       if (len > longest) longest = len;
     }
-    return Math.max(
-      minWidth,
-      Math.min(maxWidth, longest * charWidth + padding)
-    );
+    return Math.max(minWidth, Math.min(maxWidth, longest * charWidth + padding));
   });
 }
 
@@ -241,10 +224,7 @@ function formatCellValue(value) {
 }
 
 function VirtualTable({ datasetName, headers, rows }) {
-  const columnWidths = useMemo(
-    () => estimateColumnWidths(headers, rows),
-    [headers, rows]
-  );
+  const columnWidths = useMemo(() => estimateColumnWidths(headers, rows), [headers, rows]);
   const columns = useMemo(
     () =>
       headers.map((header, i) => ({
@@ -268,10 +248,7 @@ function VirtualTable({ datasetName, headers, rows }) {
     >
       <Table className='h-full w-full'>
         <Table.ScrollContainer className='h-full w-full overflow-auto overscroll-contain'>
-          <Table.Content
-            aria-label={`Preview of ${datasetName}`}
-            style={{ minWidth: totalWidth }}
-          >
+          <Table.Content aria-label={`Preview of ${datasetName}`} style={{ minWidth: totalWidth }}>
             <Table.Header className='h-full w-full bg-surface-secondary'>
               <Table.Column
                 className='border-divider flex h-full items-center justify-end border-b p-1'
@@ -304,11 +281,13 @@ function VirtualTable({ datasetName, headers, rows }) {
                   </Table.Cell>
                   <Table.Collection items={columns}>
                     {(column) => (
-                      <Table.Cell
-                        className='border-divider flex h-full items-center truncate border-b border-l p-1 font-mono text-xs'
-                        title={String(item.row[column.index] ?? 'null')}
-                      >
-                        {formatCell(item.row[column.index])}
+                      <Table.Cell className='border-divider flex h-full items-center border-b border-l p-1'>
+                        <span
+                          className='truncate font-mono text-xs'
+                          title={String(item.row[column.index] ?? 'null')}
+                        >
+                          {formatCell(item.row[column.index])}
+                        </span>
                       </Table.Cell>
                     )}
                   </Table.Collection>

@@ -5,6 +5,7 @@ export { getOwnedAlerts, transferAlerts } from './alerts';
 export {
   deleteObject,
   fetchObjectDetailsInPage,
+  shareResources,
   shareWithSelf,
   updateOwner
 } from './allObjects';
@@ -35,6 +36,7 @@ export {
   getDrillParentCardId,
   getOwnedCards,
   getPageCards,
+  getUserAccessibleCards,
   lockCards,
   removeCardFromPage,
   transferCards,
@@ -70,6 +72,7 @@ export {
   setStreamScheduleToManual,
   transferDatasets
 } from './datasets';
+export { duplicateUser, fetchDuplicationPreview } from './duplicate';
 export { runEnrichments } from './enrichments';
 export { getOwnedFilesets, transferFilesets } from './filesets';
 export {
@@ -91,6 +94,7 @@ export {
 } from './functions';
 export { getOwnedGoals, transferGoals } from './goals';
 export {
+  addUsersToGroups,
   fetchGroupDisplayNames,
   getOwnedGroups,
   transferGroups
@@ -108,6 +112,7 @@ export {
   getOwnedPages,
   getPagesForCards,
   getSubpageIds,
+  getUserAccessiblePages,
   sharePagesWithSelf,
   transferPages
 } from './pages';
@@ -130,20 +135,25 @@ export {
   transferTaskCenterTasks
 } from './taskCenter';
 export {
+  countOwned,
   TRANSFER_TYPES,
   transferAllOwnership
 } from './transferOwnership';
 export {
+  bulkUpdateUsers,
+  createUser,
   deleteUser,
   fetchUserDisplayNames,
   getCurrentUser,
   getCurrentUserId,
   getCustomAvatarUserIds,
+  getFullUserDetails,
   getUserDetails,
   getUserGroups,
   getUserName,
   getUserReportsTo,
-  searchUsers
+  searchUsers,
+  setUserAttributes
 } from './users';
 export {
   getOwnedWorkflows,
@@ -152,3 +162,7 @@ export {
   transferWorkflows,
   updateVersionDefinition
 } from './workflows';
+export {
+  getOwnedWorkspaces,
+  transferWorkspaces
+} from './workspaces';

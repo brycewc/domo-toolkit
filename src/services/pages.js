@@ -616,6 +616,45 @@ export async function getSubpageIds({ pageId, tabId = null }) {
   );
 }
 
+/**
+ * Get every page ID accessible to a user (including shared-with, not just owned).
+ * Paginates through /access/users/{id}/pages until exhausted.
+ * @param {number|string} userId
+ * @param {number|null} tabId
+ * @returns {Promise<string[]>} Array of page ID strings
+ */
+export async function getUserAccessiblePages(userId, tabId = null) {
+  return executeInPage(
+    async (userId) => {
+      const pageIds = [];
+      const limit = 100;
+      let offset = 0;
+      let more = true;
+
+      while (more) {
+        const response = await fetch(
+          `/api/content/v1/access/users/${userId}/pages?limit=${limit}&offset=${offset}`
+        );
+        if (!response.ok) break;
+        const page = await response.json();
+        const pages = Array.isArray(page) ? page : (page.pages || []);
+
+        for (const p of pages) {
+          const pageId = typeof p === 'object' ? (p.pageId ?? p.id) : p;
+          if (pageId != null) pageIds.push(String(pageId));
+        }
+
+        more = pages.length >= limit;
+        offset += limit;
+      }
+
+      return pageIds;
+    },
+    [userId],
+    tabId
+  );
+}
+
 export async function sharePagesWithSelf({ pageIds, tabId, userId }) {
   const validPageIds = pageIds.filter((id) => id >= 0);
   if (validPageIds.length === 0) {

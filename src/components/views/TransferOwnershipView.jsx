@@ -20,6 +20,7 @@ import { UserComboBox } from '@/components';
 import { useStatusBar } from '@/hooks';
 import { DomoContext } from '@/models';
 import {
+  countOwned,
   deleteUser,
   getUserDetails,
   TRANSFER_TYPES,
@@ -27,10 +28,7 @@ import {
 } from '@/services';
 import { getSidepanelData } from '@/utils';
 
-export function TransferOwnershipView({
-  onBackToDefault = null,
-  onStatusUpdate = null
-}) {
+export function TransferOwnershipView({ onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentContext, setCurrentContext] = useState(null);
@@ -41,10 +39,11 @@ export function TransferOwnershipView({
   const [deleteAfterTransfer, setDeleteAfterTransfer] = useState(false);
   const [typeStates, setTypeStates] = useState(() =>
     Object.fromEntries(
-      TRANSFER_TYPES.map((t) => [t.key, { enabled: true, status: 'idle' }])
+      TRANSFER_TYPES.map((t) => [t.key, { count: null, enabled: true, status: 'idle' }])
     )
   );
   const mountedRef = useRef(true);
+  const seededItemsRef = useRef({});
   const { showStatus } = useStatusBar();
 
   useEffect(() => {
@@ -64,9 +63,7 @@ export function TransferOwnershipView({
         return;
       }
 
-      const context = data.currentContext
-        ? DomoContext.fromJSON(data.currentContext)
-        : null;
+      const context = data.currentContext ? DomoContext.fromJSON(data.currentContext) : null;
 
       if (!context) {
         onStatusUpdate?.('Error', 'No context available', 'danger');
@@ -102,16 +99,90 @@ export function TransferOwnershipView({
           })
           .catch(() => {});
       }
+
+      // Determine forbidden types once (used for both prelist filtering and UI)
+      const userRights = context.user?.metadata?.USER_RIGHTS || [];
+      const forbidden = new Set(
+        TRANSFER_TYPES.filter(
+          (t) => t.requiredAuthority && !userRights.includes(t.requiredAuthority)
+        ).map((t) => t.key)
+      );
+
+      // Seeded path: GetOwnedObjectsView handed off pre-fetched raw owned data
+      if (data.seededOwnedObjects && userId) {
+        seededItemsRef.current = data.seededOwnedObjects;
+        setTypeStates((prev) => {
+          const next = { ...prev };
+          for (const t of TRANSFER_TYPES) {
+            if (forbidden.has(t.key)) continue;
+            const seed = data.seededOwnedObjects[t.key];
+            // appStudioApps uses a different getter for transfer — don't mark
+            // as prelisted; let Phase 1 re-fetch via getOwnedForTransfer.
+            if (t.getOwnedForTransfer) continue;
+            const count = countOwned(t.key, seed);
+            next[t.key] = {
+              count,
+              enabled: count > 0 ? next[t.key].enabled : false,
+              status: 'prelisted'
+            };
+          }
+          return next;
+        });
+
+        // Prelist any remaining non-seeded types (e.g. appStudioApps) so the
+        // UI is still fully transparent after a partial-handoff.
+        const remaining = TRANSFER_TYPES.filter(
+          (t) => !forbidden.has(t.key) && (t.getOwnedForTransfer || !data.seededOwnedObjects[t.key])
+        );
+        if (remaining.length > 0) {
+          prelistTypes(remaining, userId, context.tabId);
+        }
+      } else if (userId && context.tabId) {
+        const toList = TRANSFER_TYPES.filter((t) => !forbidden.has(t.key));
+        prelistTypes(toList, userId, context.tabId);
+      }
     } catch (error) {
       console.error('[TransferOwnershipView] Error loading data:', error);
-      onStatusUpdate?.(
-        'Error',
-        error.message || 'Failed to load context',
-        'danger'
-      );
+      onStatusUpdate?.('Error', error.message || 'Failed to load context', 'danger');
     } finally {
       if (mountedRef.current) setIsLoading(false);
     }
+  };
+
+  const prelistTypes = async (types, fromUserId, tid) => {
+    setTypeStates((prev) => {
+      const next = { ...prev };
+      for (const t of types) {
+        next[t.key] = { ...next[t.key], count: null, status: 'prelisting' };
+      }
+      return next;
+    });
+
+    await Promise.allSettled(
+      types.map(async (type) => {
+        try {
+          const listOwned = type.getOwnedForTransfer || type.getOwned;
+          const owned = await listOwned(fromUserId, tid);
+          if (!mountedRef.current) return;
+          seededItemsRef.current[type.key] = owned;
+          const count = countOwned(type.key, owned);
+          setTypeStates((prev) => ({
+            ...prev,
+            [type.key]: {
+              count,
+              enabled: count > 0 ? prev[type.key].enabled : false,
+              status: 'prelisted'
+            }
+          }));
+        } catch {
+          if (!mountedRef.current) return;
+          setTypeStates((prev) => ({
+            ...prev,
+            [type.key]: { count: 0, enabled: false, status: 'error' }
+          }));
+        }
+      })
+    );
   };
 
   const toggleType = (key) => {
@@ -131,11 +202,25 @@ export function TransferOwnershipView({
   );
 
   const enabledCount = Object.entries(typeStates).filter(
-    ([key, s]) => s.enabled && !forbiddenTypes.has(key)
+    ([key, s]) => s.enabled && !forbiddenTypes.has(key) && s.count > 0
+  ).length;
+
+  const selectableCount = Object.entries(typeStates).filter(
+    ([key, s]) => !forbiddenTypes.has(key) && s.count !== 0
   ).length;
 
   const hasTransferStarted = Object.values(typeStates).some(
-    (s) => s.status !== 'idle'
+    (s) => s.status !== 'idle' && s.status !== 'prelisting' && s.status !== 'prelisted'
+  );
+
+  const isPrelistSettled = Object.entries(typeStates).every(
+    ([key, s]) =>
+      forbiddenTypes.has(key) ||
+      s.status === 'prelisted' ||
+      s.status === 'error' ||
+      s.status === 'listing' ||
+      s.status === 'transferring' ||
+      s.status === 'done'
   );
 
   const handleSubmit = async () => {
@@ -145,7 +230,7 @@ export function TransferOwnershipView({
 
     const enabledTypes = new Set(
       Object.entries(typeStates)
-        .filter(([key, s]) => s.enabled && !forbiddenTypes.has(key))
+        .filter(([key, s]) => s.enabled && !forbiddenTypes.has(key) && s.count > 0)
         .map(([key]) => key)
     );
 
@@ -160,6 +245,7 @@ export function TransferOwnershipView({
             [typeKey]: { ...prev[typeKey], count, result, status }
           }));
         },
+        seededOwnedObjects: seededItemsRef.current,
         tabId: currentContext.tabId,
         toUserId: selectedUserId
       });
@@ -207,12 +293,7 @@ export function TransferOwnershipView({
         setTimeout(() => onBackToDefault?.(), 3000);
       }
     } catch (error) {
-      showStatus(
-        'Transfer Failed',
-        error.message || 'An error occurred',
-        'danger',
-        5000
-      );
+      showStatus('Transfer Failed', error.message || 'An error occurred', 'danger', 5000);
     } finally {
       if (mountedRef.current) setIsSubmitting(false);
     }
@@ -222,16 +303,18 @@ export function TransferOwnershipView({
     const state = typeStates[type.key];
     const { count, enabled, result, status } = state;
 
-    // Before transfer: show checkbox
-    if (status === 'idle') {
+    // Pre-transfer states: show checkbox with count/spinner on the right.
+    if (status === 'idle' || status === 'prelisting' || status === 'prelisted') {
       const isForbidden = forbiddenTypes.has(type.key);
+      const isZero = status === 'prelisted' && count === 0;
+      const checkboxDisabled = isForbidden || isSubmitting || hasTransferStarted || isZero;
       return (
         <div className='flex items-center justify-between py-1' key={type.key}>
           <div className='flex items-center gap-2'>
             <Checkbox
               id={`type-${type.key}`}
-              isDisabled={isForbidden || isSubmitting || hasTransferStarted}
-              isSelected={!isForbidden && enabled}
+              isDisabled={checkboxDisabled}
+              isSelected={!isForbidden && !isZero && enabled}
               onChange={() => toggleType(type.key)}
             >
               <Checkbox.Control>
@@ -239,17 +322,19 @@ export function TransferOwnershipView({
               </Checkbox.Control>
             </Checkbox>
             <Label
-              className={`text-sm ${isForbidden ? 'text-muted' : ''}`}
+              className={`text-sm ${isForbidden || isZero ? 'text-muted' : ''}`}
               htmlFor={`type-${type.key}`}
             >
               {type.label}
             </Label>
           </div>
-          {isForbidden && (
-            <span className='shrink-0 text-xs text-muted'>
-              {type.requiredAuthority}
-            </span>
-          )}
+          {isForbidden ? (
+            <span className='shrink-0 text-xs text-muted'>{type.requiredAuthority}</span>
+          ) : status === 'prelisting' ? (
+            <IconLoader2 className='shrink-0 animate-spin text-accent' size={14} />
+          ) : status === 'prelisted' ? (
+            <span className='shrink-0 text-xs text-muted'>({count})</span>
+          ) : null}
         </div>
       );
     }
@@ -259,10 +344,7 @@ export function TransferOwnershipView({
       return (
         <div className='flex items-center justify-between py-1' key={type.key}>
           <div className='flex items-center gap-2'>
-            <IconLoader2
-              className='shrink-0 animate-spin text-accent'
-              size={18}
-            />
+            <IconLoader2 className='shrink-0 animate-spin text-accent' size={18} />
             <span className='text-sm'>{type.label}</span>
           </div>
           <span className='shrink-0 text-xs text-muted'>Searching...</span>
@@ -275,15 +357,10 @@ export function TransferOwnershipView({
       return (
         <div className='flex items-center justify-between py-1' key={type.key}>
           <div className='flex items-center gap-2'>
-            <IconLoader2
-              className='shrink-0 animate-spin text-warning'
-              size={18}
-            />
+            <IconLoader2 className='shrink-0 animate-spin text-warning' size={18} />
             <span className='text-sm'>{type.label}</span>
           </div>
-          <span className='shrink-0 text-xs text-muted'>
-            {count > 0 ? `(${count})` : ''}
-          </span>
+          <span className='shrink-0 text-xs text-muted'>{count > 0 ? `(${count})` : ''}</span>
         </div>
       );
     }
@@ -297,9 +374,7 @@ export function TransferOwnershipView({
             <span className='text-sm'>{type.label}</span>
           </div>
           <span className='shrink-0 text-xs text-success'>
-            {count > 0
-              ? `${result?.succeeded ?? count}/${count}`
-              : 'None found'}
+            {count > 0 ? `${result?.succeeded ?? count}/${count}` : 'None found'}
           </span>
         </div>
       );
@@ -336,9 +411,7 @@ export function TransferOwnershipView({
                   </li>
                 ))}
                 {result.errors.length > 10 && (
-                  <li className='text-xs text-muted'>
-                    ...and {result.errors.length - 10} more
-                  </li>
+                  <li className='text-xs text-muted'>...and {result.errors.length - 10} more</li>
                 )}
               </ul>
             </Disclosure.Body>
@@ -381,12 +454,7 @@ export function TransferOwnershipView({
           <div className='min-w-0 flex-1 pt-1'>Transfer Ownership</div>
           {onBackToDefault && (
             <Tooltip closeDelay={0} delay={400}>
-              <Button
-                isIconOnly
-                size='sm'
-                variant='ghost'
-                onPress={onBackToDefault}
-              >
+              <Button isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
                 <IconX stroke={1.5} />
               </Button>
               <Tooltip.Content className='text-xs'>Close</Tooltip.Content>
@@ -399,10 +467,7 @@ export function TransferOwnershipView({
         {/* Source user (from context) */}
         <TextField isReadOnly isRequired className='pointer-events-none'>
           <Label>Transfer From</Label>
-          <Input
-            value={sourceUser?.name || 'Unknown User'}
-            variant='secondary'
-          />
+          <Input value={sourceUser?.name || 'Unknown User'} variant='secondary' />
         </TextField>
 
         {/* Target user picker */}
@@ -443,41 +508,36 @@ export function TransferOwnershipView({
         </div>
 
         {/* Select all / none */}
-        <div className='mt-4 flex items-center gap-2'>
-          <Checkbox
-            id='select-all-types'
-            isDisabled={isSubmitting || hasTransferStarted}
-            onChange={(checked) => {
-              setTypeStates((prev) =>
-                Object.fromEntries(
-                  Object.entries(prev).map(([key, state]) => [
-                    key,
-                    {
-                      ...state,
-                      enabled: forbiddenTypes.has(key) ? false : checked
-                    }
-                  ])
-                )
-              );
-            }}
-            isIndeterminate={
-              enabledCount > 0 &&
-              enabledCount < TRANSFER_TYPES.length - forbiddenTypes.size
-            }
-            isSelected={
-              enabledCount === TRANSFER_TYPES.length - forbiddenTypes.size
-            }
-          >
-            <Checkbox.Control>
-              <Checkbox.Indicator />
-            </Checkbox.Control>
-          </Checkbox>
-          <Label className='text-sm font-medium' htmlFor='select-all-types'>
-            {enabledCount === TRANSFER_TYPES.length
-              ? 'Deselect All'
-              : 'Select All'}
-          </Label>
-        </div>
+        <Checkbox
+          id='select-all-types'
+          isDisabled={isSubmitting || hasTransferStarted}
+          isIndeterminate={enabledCount > 0 && enabledCount < selectableCount}
+          isSelected={selectableCount > 0 && enabledCount === selectableCount}
+          onChange={(checked) => {
+            setTypeStates((prev) =>
+              Object.fromEntries(
+                Object.entries(prev).map(([key, state]) => [
+                  key,
+                  {
+                    ...state,
+                    enabled: forbiddenTypes.has(key) || state.count === 0 ? false : checked
+                  }
+                ])
+              )
+            );
+          }}
+        >
+          <Checkbox.Control>
+            <Checkbox.Indicator />
+          </Checkbox.Control>
+          <Checkbox.Content>
+            <Label className='text-sm font-medium' htmlFor='select-all-types'>
+              {enabledCount === selectableCount && selectableCount > 0
+                ? 'Deselect All'
+                : 'Select All'}
+            </Label>
+          </Checkbox.Content>
+        </Checkbox>
         <Separator className='mt-1' />
       </div>
 
@@ -514,7 +574,7 @@ export function TransferOwnershipView({
 
         <Button
           fullWidth
-          isDisabled={!selectedUserId || enabledCount === 0 || isSubmitting}
+          isDisabled={!selectedUserId || enabledCount === 0 || isSubmitting || !isPrelistSettled}
           isPending={isSubmitting}
           variant='primary'
           onPress={handleSubmit}
