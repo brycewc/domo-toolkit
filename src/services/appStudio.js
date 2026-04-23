@@ -89,52 +89,17 @@ export async function getFormsForPage({ formWidgetIds, tabId = null }) {
  * @returns {Promise<Array<{id: string, name: string}>>}
  */
 export async function getOwnedAppStudioApps(userId, tabId = null) {
-  return executeInPage(
-    async (userId) => {
-      const allApps = [];
-      const limit = 30;
-      let skip = 0;
-      let moreData = true;
+  return fetchOwnedDataApps(userId, 'app', tabId);
+}
 
-      while (moreData) {
-        const response = await fetch(
-          `/api/content/v1/dataapps/adminsummary?limit=${limit}&skip=${skip}`,
-          {
-            body: JSON.stringify({
-              ascending: true,
-              includeOwnerClause: true,
-              includeTitleClause: true,
-              orderBy: 'title',
-              ownerIds: [userId],
-              titleSearchText: ''
-            }),
-            headers: { 'Content-Type': 'application/json' },
-            method: 'POST'
-          }
-        );
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data = await response.json();
-
-        const summaries = data.dataAppAdminSummaries;
-        if (summaries && summaries.length > 0) {
-          for (const app of summaries) {
-            allApps.push({
-              id: app.dataAppId.toString(),
-              name: app.title || app.dataAppId.toString()
-            });
-          }
-          skip += limit;
-          if (summaries.length < limit) moreData = false;
-        } else {
-          moreData = false;
-        }
-      }
-
-      return allApps;
-    },
-    [userId],
-    tabId
-  );
+/**
+ * Get all Worksheets owned by a user.
+ * @param {number} userId - The Domo user ID
+ * @param {number|null} tabId - Optional Chrome tab ID
+ * @returns {Promise<Array<{id: string, name: string}>>}
+ */
+export async function getOwnedWorksheets(userId, tabId = null) {
+  return fetchOwnedDataApps(userId, 'worksheet', tabId);
 }
 
 /**
@@ -192,8 +157,126 @@ export async function getQueuesForPage({ queueWidgetIds, tabId = null }) {
  * @returns {Promise<Array<{id: string, name: string}>>}
  */
 export async function getUserOwnedAppStudioApps(userId, tabId = null) {
+  return searchUserOwnedDataApps(userId, 'data_app', tabId);
+}
+
+/**
+ * Get Worksheets owned by a user as an individual (not via group).
+ * Counterpart to getUserOwnedAppStudioApps for the worksheet subtype.
+ * @param {number} userId - The Domo user ID
+ * @param {number|null} tabId - Optional Chrome tab ID
+ * @returns {Promise<Array<{id: string, name: string}>>}
+ */
+export async function getUserOwnedWorksheets(userId, tabId = null) {
+  return searchUserOwnedDataApps(userId, 'worksheet', tabId);
+}
+
+/**
+ * Transfer App Studio app ownership to a new user.
+ * @param {string[]} appIds - Array of app IDs to transfer
+ * @param {number} fromUserId - The current owner's user ID
+ * @param {number} toUserId - The new owner's user ID
+ * @param {number|null} tabId - Optional Chrome tab ID
+ * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
+ */
+export async function transferAppStudioApps(
+  appIds,
+  fromUserId,
+  toUserId,
+  tabId = null
+) {
+  return transferDataApps(appIds, fromUserId, toUserId, tabId);
+}
+
+/**
+ * Transfer Worksheet ownership to a new user.
+ * @param {string[]} worksheetIds - Array of worksheet IDs to transfer
+ * @param {number} fromUserId - The current owner's user ID
+ * @param {number} toUserId - The new owner's user ID
+ * @param {number|null} tabId - Optional Chrome tab ID
+ * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
+ */
+export async function transferWorksheets(
+  worksheetIds,
+  fromUserId,
+  toUserId,
+  tabId = null
+) {
+  return transferDataApps(worksheetIds, fromUserId, toUserId, tabId);
+}
+
+/**
+ * Shared pagination loop for the admin-summary dataapps endpoint. Both
+ * apps and worksheets are stored as DATA_APP on the backend; the `type`
+ * body field ('app' vs 'worksheet') is the server-side filter.
+ * @param {number} userId - The Domo user ID
+ * @param {'app'|'worksheet'} type - Subtype filter
+ * @param {number|null} tabId - Optional Chrome tab ID
+ * @returns {Promise<Array<{id: string, name: string}>>}
+ */
+function fetchOwnedDataApps(userId, type, tabId) {
   return executeInPage(
-    async (userId) => {
+    async (userId, type) => {
+      const allApps = [];
+      const limit = 30;
+      let skip = 0;
+      let moreData = true;
+
+      while (moreData) {
+        const response = await fetch(
+          `/api/content/v1/dataapps/adminsummary?limit=${limit}&skip=${skip}`,
+          {
+            body: JSON.stringify({
+              ascending: true,
+              includeOwnerClause: true,
+              includeTitleClause: true,
+              orderBy: 'title',
+              ownerIds: [userId],
+              titleSearchText: '',
+              type
+            }),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'POST'
+          }
+        );
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+
+        const summaries = data.dataAppAdminSummaries;
+        if (summaries && summaries.length > 0) {
+          for (const app of summaries) {
+            allApps.push({
+              id: app.dataAppId.toString(),
+              name: app.title || app.dataAppId.toString()
+            });
+          }
+          skip += limit;
+          if (summaries.length < limit) moreData = false;
+        } else {
+          moreData = false;
+        }
+      }
+
+      return allApps;
+    },
+    [userId, type],
+    tabId
+  );
+}
+
+/**
+ * Shared pagination loop for the search-endpoint dataapps query. The Domo
+ * search index treats 'data_app' (app studio apps) and 'worksheet' as
+ * distinct entity types despite both being DATA_APP on the backend, so the
+ * entityList value is what routes the query.
+ * @param {number} userId - The Domo user ID
+ * @param {'data_app'|'worksheet'} entity - Search entity type
+ * @param {number|null} tabId - Optional Chrome tab ID
+ * @returns {Promise<Array<{id: string, name: string}>>}
+ */
+function searchUserOwnedDataApps(userId, entity, tabId) {
+  return executeInPage(
+    async (userId, entity) => {
       const allApps = [];
       const count = 100;
       let moreData = true;
@@ -204,7 +287,7 @@ export async function getUserOwnedAppStudioApps(userId, tabId = null) {
           body: JSON.stringify({
             combineResults: false,
             count,
-            entityList: [['data_app']],
+            entityList: [[entity]],
             facetValuesToInclude: [],
             filters: [
               {
@@ -226,7 +309,7 @@ export async function getUserOwnedAppStudioApps(userId, tabId = null) {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
 
-        const apps = data.searchResultsMap?.data_app || [];
+        const apps = data.searchResultsMap?.[entity] || [];
         if (apps.length > 0) {
           allApps.push(
             ...apps.map((a) => ({
@@ -243,34 +326,31 @@ export async function getUserOwnedAppStudioApps(userId, tabId = null) {
 
       return allApps;
     },
-    [userId],
+    [userId, entity],
     tabId
   );
 }
 
 /**
- * Transfer App Studio app ownership to a new user.
- * @param {string[]} appIds - Array of app IDs to transfer
+ * Transfer ownership of data apps (App Studio apps or Worksheets) to a new
+ * user. Worksheet IDs are valid data-app IDs for the bulk-owners endpoints,
+ * so this helper backs both transferAppStudioApps and transferWorksheets.
+ * @param {string[]} ids - Array of data app IDs to transfer
  * @param {number} fromUserId - The current owner's user ID
  * @param {number} toUserId - The new owner's user ID
  * @param {number|null} tabId - Optional Chrome tab ID
  * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
  */
-export async function transferAppStudioApps(
-  appIds,
-  fromUserId,
-  toUserId,
-  tabId = null
-) {
+function transferDataApps(ids, fromUserId, toUserId, tabId) {
   return executeInPage(
-    async (appIds, fromUserId, toUserId) => {
+    async (ids, fromUserId, toUserId) => {
       try {
         // Add new owner
         const addResponse = await fetch(
           '/api/content/v1/dataapps/bulk/owners',
           {
             body: JSON.stringify({
-              entityIds: appIds,
+              entityIds: ids,
               note: '',
               owners: [{ id: parseInt(toUserId), type: 'USER' }],
               sendEmail: false
@@ -286,7 +366,7 @@ export async function transferAppStudioApps(
           '/api/content/v1/dataapps/bulk/owners/remove',
           {
             body: JSON.stringify({
-              entityIds: appIds,
+              entityIds: ids,
               owners: [{ id: fromUserId, type: 'USER' }]
             }),
             headers: { 'Content-Type': 'application/json' },
@@ -296,16 +376,16 @@ export async function transferAppStudioApps(
         if (!removeResponse.ok)
           throw new Error(`HTTP ${removeResponse.status}`);
 
-        return { errors: [], failed: 0, succeeded: appIds.length };
+        return { errors: [], failed: 0, succeeded: ids.length };
       } catch (error) {
         return {
-          errors: appIds.map((id) => ({ error: error.message, id })),
-          failed: appIds.length,
+          errors: ids.map((id) => ({ error: error.message, id })),
+          failed: ids.length,
           succeeded: 0
         };
       }
     },
-    [appIds, fromUserId, toUserId],
+    [ids, fromUserId, toUserId],
     tabId
   );
 }

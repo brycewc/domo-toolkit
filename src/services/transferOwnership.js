@@ -25,8 +25,10 @@ import {
   getOwnedTaskCenterQueues,
   getOwnedTaskCenterTasks,
   getOwnedWorkflows,
+  getOwnedWorksheets,
   getOwnedWorkspaces,
   getUserOwnedAppStudioApps,
+  getUserOwnedWorksheets,
   transferAccounts,
   transferAiModels,
   transferAiProjects,
@@ -53,6 +55,7 @@ import {
   transferTaskCenterQueues,
   transferTaskCenterTasks,
   transferWorkflows,
+  transferWorksheets,
   transferWorkspaces
 } from '@/services';
 
@@ -246,6 +249,14 @@ export const TRANSFER_TYPES = [
     transfer: transferWorkflows
   },
   {
+    getOwned: getOwnedWorksheets,
+    getOwnedForTransfer: getUserOwnedWorksheets,
+    key: 'worksheets',
+    label: 'Worksheets',
+    requiredAuthority: 'content.admin',
+    transfer: transferWorksheets
+  },
+  {
     getOwned: getOwnedWorkspaces,
     key: 'workspaces',
     label: 'Workspaces',
@@ -253,6 +264,45 @@ export const TRANSFER_TYPES = [
     transfer: transferWorkspaces
   }
 ];
+
+/**
+ * Maps TRANSFER_TYPES keys to DomoObjectType ID strings for audit logging.
+ * Unlike TYPE_KEY_TO_DOMO_TYPE in GetOwnedObjectsView (which uses null for
+ * non-navigable types to skip link construction), this map is complete so
+ * every row in the transfer log has a type label.
+ *
+ * For projectsAndTasks, the log row builder should emit 'PROJECT' or 'TASK'
+ * based on the item's subType rather than reading this map.
+ */
+export const TYPE_KEY_TO_LOG_TYPE = {
+  accounts: 'ACCOUNT',
+  aiModels: 'AI_MODEL',
+  aiProjects: 'AI_PROJECT',
+  alerts: 'ALERT',
+  appDbCollections: 'MAGNUM_COLLECTION',
+  approvals: 'APPROVAL',
+  approvalTemplates: 'TEMPLATE',
+  appStudioApps: 'DATA_APP',
+  cards: 'CARD',
+  codeEnginePackages: 'CODEENGINE_PACKAGE',
+  customApps: 'APP',
+  dataflows: 'DATAFLOW_TYPE',
+  datasets: 'DATA_SOURCE',
+  filesets: 'FILESET',
+  functions: 'BEAST_MODE_FORMULA',
+  goals: 'GOAL',
+  groups: 'GROUP',
+  jupyterWorkspaces: 'DATA_SCIENCE_NOTEBOOK',
+  metrics: 'METRIC',
+  pages: 'PAGE',
+  projectsAndTasks: null,
+  repositories: 'REPOSITORY',
+  subscriptions: 'SUBSCRIPTION',
+  taskCenterQueues: 'HOPPER_QUEUE',
+  taskCenterTasks: 'HOPPER_TASK',
+  workflows: 'WORKFLOW_MODEL',
+  workspaces: 'WORKSPACE'
+};
 
 /**
  * Count items in a raw owned-objects result, accounting for the nested
@@ -268,6 +318,26 @@ export function countOwned(typeKey, owned) {
     return (owned.projects?.length || 0) + (owned.tasks?.length || 0);
   }
   return owned.length || 0;
+}
+
+/**
+ * Flatten a raw owned-objects result into `[{id, name, subType?}, ...]` for
+ * audit logging. projectsAndTasks gets `subType: 'Project' | 'Task'` so the
+ * log row builder can emit accurate type labels.
+ *
+ * @param {string} typeKey
+ * @param {*} owned - Raw result from getOwned / getOwnedForTransfer
+ * @returns {Array<{id: any, name: string, subType?: string}>}
+ */
+export function flattenOwned(typeKey, owned) {
+  if (!owned) return [];
+  if (typeKey === 'projectsAndTasks') {
+    return [
+      ...(owned.projects || []).map((p) => ({ ...p, subType: 'Project' })),
+      ...(owned.tasks || []).map((t) => ({ ...t, subType: 'Task' }))
+    ];
+  }
+  return Array.isArray(owned) ? owned : [];
 }
 
 /**
@@ -300,12 +370,14 @@ export async function transferAllOwnership({
   const transferPromises = TRANSFER_TYPES.filter((type) =>
     enabledTypes.has(type.key)
   ).map(async (type) => {
+    // Hoisted so the catch block can still emit a meaningful `attempted` list
+    // when Phase 2 fails after Phase 1 succeeded.
+    let owned;
     try {
       // Phase 1: List owned objects (or reuse seeded data when safe)
       const seed =
         !type.getOwnedForTransfer && seededOwnedObjects?.[type.key];
 
-      let owned;
       if (seed) {
         owned = seed;
       } else {
@@ -321,7 +393,13 @@ export async function transferAllOwnership({
       const count = countOwned(type.key, owned);
 
       if (count === 0) {
-        const result = { count: 0, errors: [], failed: 0, succeeded: 0 };
+        const result = {
+          attempted: [],
+          count: 0,
+          errors: [],
+          failed: 0,
+          succeeded: 0
+        };
         results.set(type.key, result);
         onTypeProgress?.({
           count: 0,
@@ -376,7 +454,11 @@ export async function transferAllOwnership({
         );
       }
 
-      const result = { count, ...transferResult };
+      const result = {
+        attempted: flattenOwned(type.key, owned),
+        count,
+        ...transferResult
+      };
       results.set(type.key, result);
       onTypeProgress?.({
         count,
@@ -386,6 +468,7 @@ export async function transferAllOwnership({
       });
     } catch (error) {
       const result = {
+        attempted: flattenOwned(type.key, owned),
         count: 0,
         errors: [{ error: error.message, id: 'all' }],
         failed: 1,

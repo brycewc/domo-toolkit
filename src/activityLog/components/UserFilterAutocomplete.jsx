@@ -16,6 +16,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { getCustomAvatarUserIds, searchUsers } from '@/services';
 import { getInitials } from '@/utils';
 
+const MAX_VISIBLE_TAGS = 5;
+
 /**
  * UserFilterAutocomplete Component
  * Multi-select autocomplete with async user fetching
@@ -67,11 +69,7 @@ export function UserFilterAutocomplete({
     async function fetchInitialUsers() {
       setIsLoading(true);
       try {
-        const { totalCount, users: fetchedUsers } = await searchUsers(
-          '',
-          tabId,
-          0
-        );
+        const { totalCount, users: fetchedUsers } = await searchUsers('', tabId, 0);
         if (!controller.signal.aborted) {
           setUsers(fetchedUsers);
           setHasMore(totalCount !== null && fetchedUsers.length < totalCount);
@@ -110,11 +108,7 @@ export function UserFilterAutocomplete({
       setIsLoading(true);
       setSearchOffset(0);
       try {
-        const { totalCount, users: fetchedUsers } = await searchUsers(
-          searchText,
-          tabId,
-          0
-        );
+        const { totalCount, users: fetchedUsers } = await searchUsers(searchText, tabId, 0);
         if (!controller.signal.aborted) {
           setUsers(fetchedUsers);
           setHasMore(totalCount !== null && fetchedUsers.length < totalCount);
@@ -221,7 +215,7 @@ export function UserFilterAutocomplete({
   return (
     <Autocomplete
       aria-label='User'
-      className='w-full sm:w-72'
+      className='w-full sm:min-w-72 sm:flex-1'
       isOpen={isOpen}
       placeholder={placeholder}
       selectionMode='multiple'
@@ -237,17 +231,24 @@ export function UserFilterAutocomplete({
               return defaultChildren;
             }
             const selectedKeys = state.selectedItems.map((item) => item.key);
+            const visibleKeys = selectedKeys.slice(0, MAX_VISIBLE_TAGS);
+            const overflowCount = selectedKeys.length - visibleKeys.length;
             return (
-              <TagGroup size='sm' onRemove={handleRemoveTags}>
-                <TagGroup.List>
-                  {selectedKeys.map((key) => (
+              <TagGroup
+                className='flex min-w-0 flex-row items-center gap-1'
+                size='sm'
+                onRemove={handleRemoveTags}
+              >
+                <TagGroup.List className='flex-nowrap'>
+                  {visibleKeys.map((key) => (
                     <Tag id={key} key={key}>
-                      <span className='truncate text-xs'>
-                        {getUserName(key)}
-                      </span>
+                      <span className='truncate text-xs'>{getUserName(key)}</span>
                     </Tag>
                   ))}
                 </TagGroup.List>
+                {overflowCount > 0 && (
+                  <span className='shrink-0 text-xs text-muted'>+{overflowCount} more</span>
+                )}
               </TagGroup>
             );
           }}
@@ -257,13 +258,10 @@ export function UserFilterAutocomplete({
       </Autocomplete.Trigger>
       <Autocomplete.Popover
         aria-label='User autocomplete popover'
-        className='h-fit max-h-160'
+        className='flex h-fit max-h-120! w-120! min-w-0! flex-col overflow-hidden!'
         placement='bottom left'
       >
-        <Autocomplete.Filter
-          inputValue={searchText}
-          onInputChange={setSearchText}
-        >
+        <Autocomplete.Filter inputValue={searchText} onInputChange={setSearchText}>
           <SearchField
             autoFocus
             aria-label='Search user filter field'
@@ -272,14 +270,12 @@ export function UserFilterAutocomplete({
           >
             <SearchField.Group>
               <SearchField.SearchIcon />
-              <SearchField.Input
-                aria-label='Search users'
-                placeholder='Search users...'
-              />
+              <SearchField.Input aria-label='Search users' placeholder='Search users...' />
               <SearchField.ClearButton />
             </SearchField.Group>
           </SearchField>
           <ListBox
+            className='min-h-0 flex-1 overflow-y-auto'
             items={users}
             renderEmptyState={() =>
               isLoading ? (
@@ -292,18 +288,10 @@ export function UserFilterAutocomplete({
             }
           >
             {users?.map((user) => (
-              <ListBox.Item
-                id={user.id}
-                key={user.id}
-                textValue={user.displayName}
-              >
+              <ListBox.Item id={user.id} key={user.id} textValue={user.displayName}>
                 <Avatar size='sm'>
-                  {customAvatarIds.has(user.id) && (
-                    <Avatar.Image src={getAvatarUrl(user.id)} />
-                  )}
-                  <Avatar.Fallback>
-                    {getInitials(user.displayName)}
-                  </Avatar.Fallback>
+                  {customAvatarIds.has(user.id) && <Avatar.Image src={getAvatarUrl(user.id)} />}
+                  <Avatar.Fallback>{getInitials(user.displayName)}</Avatar.Fallback>
                 </Avatar>
                 <div className='flex flex-col'>
                   <Label>{user.displayName}</Label>
@@ -313,11 +301,11 @@ export function UserFilterAutocomplete({
               </ListBox.Item>
             ))}
             {hasMore && (
-              <ListBoxLoadMoreItem
-                isLoading={isLoadingMore}
-                onLoadMore={loadMoreUsers}
-              >
-                Load more users...
+              <ListBoxLoadMoreItem isLoading={isLoadingMore} onLoadMore={loadMoreUsers}>
+                <div className='flex items-center justify-center gap-2 py-2'>
+                  <Spinner size='sm' />
+                  <span className='muted text-sm'>Loading more users...</span>
+                </div>
               </ListBoxLoadMoreItem>
             )}
           </ListBox>

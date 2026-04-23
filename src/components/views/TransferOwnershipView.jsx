@@ -22,11 +22,35 @@ import { DomoContext } from '@/models';
 import {
   countOwned,
   deleteUser,
+  getFullUserDetails,
   getUserDetails,
+  sendEmail,
   TRANSFER_TYPES,
-  transferAllOwnership
+  transferAllOwnership,
+  TYPE_KEY_TO_LOG_TYPE,
+  uploadDataFile
 } from '@/services';
-import { getSidepanelData } from '@/utils';
+import {
+  buildExcelBlob,
+  generateExportFilename,
+  getSidepanelData
+} from '@/utils';
+
+const LOG_COLUMNS = [
+  { accessorKey: 'Object Type', header: 'Object Type' },
+  { accessorKey: 'Object ID', header: 'Object ID' },
+  { accessorKey: 'Object Name', header: 'Object Name' },
+  { accessorKey: 'Date', header: 'Date' },
+  { accessorKey: 'Status', header: 'Status' },
+  { accessorKey: 'Notes', header: 'Notes' },
+  { accessorKey: 'Previous Owner ID', header: 'Previous Owner ID' },
+  { accessorKey: 'Previous Owner Name', header: 'Previous Owner Name' },
+  { accessorKey: 'New Owner ID', header: 'New Owner ID' },
+  { accessorKey: 'New Owner Name', header: 'New Owner Name' }
+];
+
+const XLSX_MIME_TYPE =
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
 export function TransferOwnershipView({ onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
@@ -37,6 +61,8 @@ export function TransferOwnershipView({ onBackToDefault = null, onStatusUpdate =
   const [selectedDisplayName, setSelectedDisplayName] = useState(null);
   const [manager, setManager] = useState(null);
   const [deleteAfterTransfer, setDeleteAfterTransfer] = useState(false);
+  const [emailNewOwner, setEmailNewOwner] = useState(false);
+  const [targetUser, setTargetUser] = useState(null); // { email, displayName }
   const [typeStates, setTypeStates] = useState(() =>
     Object.fromEntries(
       TRANSFER_TYPES.map((t) => [t.key, { count: null, enabled: true, status: 'idle' }])
@@ -53,6 +79,33 @@ export function TransferOwnershipView({ onBackToDefault = null, onStatusUpdate =
       mountedRef.current = false;
     };
   }, []);
+
+  // Resolve email + displayName for the destination user whenever it changes.
+  // Powers both the email-toggle enable state and the attachment's "New Owner
+  // Name" column. Reset on every change so the toggle disables until the new
+  // lookup resolves.
+  useEffect(() => {
+    if (!selectedUserId || !currentContext?.tabId) {
+      setTargetUser(null);
+      return;
+    }
+    setTargetUser(null);
+    let cancelled = false;
+    getFullUserDetails(selectedUserId, currentContext.tabId)
+      .then((user) => {
+        if (cancelled || !mountedRef.current || !user) return;
+        setTargetUser({
+          displayName: user.displayName || null,
+          email: user.emailAddress || user.email || null
+        });
+      })
+      .catch(() => {
+        if (!cancelled && mountedRef.current) setTargetUser(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedUserId, currentContext?.tabId]);
 
   const loadData = async () => {
     try {
@@ -256,6 +309,50 @@ export function TransferOwnershipView({ onBackToDefault = null, onStatusUpdate =
       for (const [, result] of results) {
         totalSucceeded += result.succeeded || 0;
         totalFailed += result.failed || 0;
+      }
+
+      // Email the new owner a summary + attachment. Runs before the delete
+      // step so the recipient gets their context even if the delete fails or
+      // the extension session ends early.
+      if (emailNewOwner && targetUser?.email && totalSucceeded > 0) {
+        try {
+          const rows = buildTransferLogRows({
+            fromUserId: sourceUser.id,
+            fromUserName: sourceUser.name,
+            results,
+            toUserId: selectedUserId,
+            toUserName: targetUser.displayName
+          });
+          const blob = await buildExcelBlob(rows, LOG_COLUMNS, 'Transfer Log');
+          const filename = `${generateExportFilename('transferred-objects')}.xlsx`;
+          const dataFileId = await uploadDataFile(
+            blob,
+            filename,
+            XLSX_MIME_TYPE,
+            currentContext.tabId
+          );
+          await sendEmail(
+            {
+              bodyHtml: renderEmailBody({
+                sourceUserName: sourceUser.name,
+                totalFailed,
+                totalSucceeded
+              }),
+              dataFileAttachments: [dataFileId],
+              recipientEmails: targetUser.email,
+              subject: `Ownership transferred to you from ${sourceUser.name}`
+            },
+            currentContext.tabId
+          );
+        } catch (err) {
+          showStatus(
+            'Email Not Sent',
+            err.message || 'Failed to email new owner',
+            'warning'
+          );
+          // Intentionally do not abort the delete step below — the transfer
+          // itself succeeded; the email is a courtesy.
+        }
       }
 
       if (totalFailed === 0 && deleteAfterTransfer) {
@@ -550,8 +647,28 @@ export function TransferOwnershipView({ onBackToDefault = null, onStatusUpdate =
         {TRANSFER_TYPES.map((type) => renderTypeRow(type))}
       </ScrollShadow>
       <Separator />
-      {/* Footer: delete toggle + submit */}
+      {/* Footer: email + delete toggles + submit */}
       <div className='flex shrink-0 flex-col gap-2'>
+        <Switch
+          isDisabled={!targetUser?.email || isSubmitting}
+          isSelected={emailNewOwner && !!targetUser?.email}
+          onChange={setEmailNewOwner}
+        >
+          <Switch.Control>
+            <Switch.Thumb />
+          </Switch.Control>
+          <Switch.Content>
+            <Label>Email new owner with summary</Label>
+            <Description>
+              {targetUser?.email
+                ? `Sends an Excel attachment to ${targetUser.email}`
+                : selectedUserId
+                  ? 'Email unavailable for selected user'
+                  : 'Select a destination user to enable'}
+            </Description>
+          </Switch.Content>
+        </Switch>
+
         {canDeleteUsers && (
           <Switch
             isDisabled={isSubmitting}
@@ -588,4 +705,50 @@ export function TransferOwnershipView({ onBackToDefault = null, onStatusUpdate =
       </div>
     </Card>
   );
+}
+
+function buildTransferLogRows({
+  fromUserId,
+  fromUserName,
+  results,
+  toUserId,
+  toUserName
+}) {
+  const date = new Date().toISOString().slice(0, -5);
+  const rows = [];
+  for (const [typeKey, result] of results) {
+    const typeDef = TRANSFER_TYPES.find((t) => t.key === typeKey);
+    const logType = TYPE_KEY_TO_LOG_TYPE[typeKey];
+    const failedById = new Map((result.errors || []).map((e) => [e.id, e.error]));
+    // `{id: 'all'}` sentinel means the whole batch failed — every row in this
+    // type should be marked FAILED with the shared error message.
+    const wholeBatchError = failedById.get('all');
+    for (const item of result.attempted ?? []) {
+      const isFailure = wholeBatchError !== undefined || failedById.has(item.id);
+      rows.push({
+        'Date': date,
+        'New Owner ID': toUserId,
+        'New Owner Name': toUserName,
+        'Notes': isFailure ? (wholeBatchError ?? failedById.get(item.id)) : '',
+        'Object ID': item.id,
+        'Object Name': item.name,
+        'Object Type': item.subType
+          ? item.subType.toUpperCase()
+          : (logType ?? typeDef?.label ?? typeKey),
+        'Previous Owner ID': fromUserId,
+        'Previous Owner Name': fromUserName,
+        'Status': isFailure ? 'FAILED' : 'TRANSFERRED'
+      });
+    }
+  }
+  return rows;
+}
+
+function renderEmailBody({ sourceUserName, totalFailed, totalSucceeded }) {
+  const objectWord = totalSucceeded === 1 ? 'object' : 'objects';
+  const failedLine =
+    totalFailed > 0
+      ? `<p>${totalFailed} object${totalFailed === 1 ? '' : 's'} could not be transferred and ${totalFailed === 1 ? 'is' : 'are'} included in the attachment with a FAILED status.</p>`
+      : '';
+  return `<p>Ownership of <strong>${totalSucceeded}</strong> ${objectWord} has been transferred to you from <strong>${sourceUserName}</strong>.</p><p>A complete list is attached.</p>${failedLine}`;
 }

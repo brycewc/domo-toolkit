@@ -1,6 +1,5 @@
 import {
   Button,
-  Card,
   Chip,
   Dropdown,
   Label,
@@ -158,126 +157,122 @@ export function DataTable({
   };
 
   return (
-    <Card className='flex min-h-0 w-full flex-1 flex-col'>
-      <Card.Header>
-        <div className='px-1 py-2'>{header}</div>
-        <div className='items-between flex w-full flex-col justify-center gap-1 sm:flex-row sm:items-center sm:justify-between'>
-          <div className='flex w-full items-center gap-1 sm:justify-between'>
-            <div className='flex flex-1 flex-row flex-wrap justify-start gap-1'>
-              {customFilters}
-            </div>
-          </div>
-          <div className='flex flex-row items-center justify-end gap-1'>
-            {/* Column Visibility Dropdown */}
-            <Dropdown>
-              <Button variant='tertiary'>
-                <IconColumns stroke={1.5} />
-                Columns
-                <Chip color='accent' size='sm' variant='soft'>
-                  {toggleableColumns.filter((c) => !hiddenColumns.has(c.id)).length}/
-                  {toggleableColumns.length}
-                </Chip>
-              </Button>
-              <Dropdown.Popover>
-                <Dropdown.Menu
-                  selectionMode='multiple'
-                  onSelectionChange={(keys) => {
-                    setHiddenColumns(
-                      new Set(toggleableColumns.filter((c) => !keys.has(c.id)).map((c) => c.id))
-                    );
-                  }}
-                  selectedKeys={
-                    new Set(
-                      toggleableColumns.filter((c) => !hiddenColumns.has(c.id)).map((c) => c.id)
-                    )
-                  }
-                >
-                  {toggleableColumns.map((col) => (
-                    <Dropdown.Item id={col.id} key={col.id} textValue={col.header}>
-                      <Dropdown.ItemIndicator>
-                        {({ isSelected }) => (
-                          <AnimatePresence>
-                            {isSelected && <AnimatedCheck className='text-muted' stroke={1.5} />}
-                          </AnimatePresence>
-                        )}
-                      </Dropdown.ItemIndicator>
-                      <Label>{col.header}</Label>
-                    </Dropdown.Item>
-                  ))}
-                </Dropdown.Menu>
-              </Dropdown.Popover>
-            </Dropdown>
+    <div className='flex min-h-0 w-full flex-1 flex-col gap-2 p-4'>
+      <div className='p-1'>{header}</div>
+      <div className='items-between flex w-full flex-col justify-center gap-1 sm:flex-row sm:items-center sm:justify-between'>
+        <div className='flex w-full items-center gap-1 sm:justify-between'>
+          <div className='flex flex-1 flex-row flex-wrap justify-start gap-1'>{customFilters}</div>
+        </div>
+        <div className='flex flex-row items-center justify-end gap-1'>
+          {/* Column Visibility Dropdown */}
+          <Dropdown>
+            <Button variant='tertiary'>
+              <IconColumns stroke={1.5} />
+              Columns
+              <Chip color='accent' size='sm' variant='soft'>
+                {toggleableColumns.filter((c) => !hiddenColumns.has(c.id)).length}/
+                {toggleableColumns.length}
+              </Chip>
+            </Button>
+            <Dropdown.Popover>
+              <Dropdown.Menu
+                selectionMode='multiple'
+                onSelectionChange={(keys) => {
+                  setHiddenColumns(
+                    new Set(toggleableColumns.filter((c) => !keys.has(c.id)).map((c) => c.id))
+                  );
+                }}
+                selectedKeys={
+                  new Set(
+                    toggleableColumns.filter((c) => !hiddenColumns.has(c.id)).map((c) => c.id)
+                  )
+                }
+              >
+                {toggleableColumns.map((col) => (
+                  <Dropdown.Item id={col.id} key={col.id} textValue={col.header}>
+                    <Dropdown.ItemIndicator>
+                      {({ isSelected }) => (
+                        <AnimatePresence>
+                          {isSelected && <AnimatedCheck className='text-muted' stroke={1.5} />}
+                        </AnimatePresence>
+                      )}
+                    </Dropdown.ItemIndicator>
+                    <Label>{col.header}</Label>
+                  </Dropdown.Item>
+                ))}
+              </Dropdown.Menu>
+            </Dropdown.Popover>
+          </Dropdown>
 
-            {/* Export Dropdown */}
-            {exportConfig?.enabled && (
-              <Tooltip closeDelay={0} delay={400}>
-                <Dropdown>
-                  <Button
-                    isIconOnly
-                    isDisabled={isExporting || data.length === 0}
-                    isPending={isExporting}
-                    variant='tertiary'
-                  >
-                    {({ isPending }) =>
-                      isPending ? (
-                        <Spinner color='currentColor' size='sm' />
-                      ) : (
-                        <IconDownload stroke={1.5} />
-                      )
-                    }
-                  </Button>
-                  <Dropdown.Popover>
-                    <Dropdown.Menu onAction={(key) => handleExport(key)}>
-                      <Dropdown.Item id='csv' textValue='Export as CSV'>
-                        <IconFileTypeCsv stroke={1.5} />
-                        <Label>Export as CSV</Label>
-                      </Dropdown.Item>
-                      <Dropdown.Item id='xlsx' textValue='Export as Excel'>
-                        <IconFileTypeXls stroke={1.5} />
-                        <Label>Export as Excel</Label>
-                      </Dropdown.Item>
-                    </Dropdown.Menu>
-                  </Dropdown.Popover>
-                </Dropdown>
-                <Tooltip.Content>Export</Tooltip.Content>
-              </Tooltip>
-            )}
-
-            {/* Refresh Button */}
-            {onRefresh && (
-              <Tooltip closeDelay={0} delay={400}>
+          {/* Export Dropdown */}
+          {exportConfig?.enabled && (
+            <Tooltip closeDelay={0} delay={400}>
+              <Dropdown>
                 <Button
                   isIconOnly
-                  isDisabled={isRefreshing}
-                  isPending={isRefreshing}
+                  isDisabled={isExporting || data.length === 0}
+                  isPending={isExporting}
                   variant='tertiary'
-                  onPress={onRefresh}
                 >
                   {({ isPending }) =>
                     isPending ? (
                       <Spinner color='currentColor' size='sm' />
                     ) : (
-                      <IconRefresh stroke={1.5} />
+                      <IconDownload stroke={1.5} />
                     )
                   }
                 </Button>
-                <Tooltip.Content>Refresh</Tooltip.Content>
-              </Tooltip>
-            )}
-          </div>
+                <Dropdown.Popover>
+                  <Dropdown.Menu onAction={(key) => handleExport(key)}>
+                    <Dropdown.Item id='csv' textValue='Export as CSV'>
+                      <IconFileTypeCsv stroke={1.5} />
+                      <Label>Export as CSV</Label>
+                    </Dropdown.Item>
+                    <Dropdown.Item id='xlsx' textValue='Export as Excel'>
+                      <IconFileTypeXls stroke={1.5} />
+                      <Label>Export as Excel</Label>
+                    </Dropdown.Item>
+                  </Dropdown.Menu>
+                </Dropdown.Popover>
+              </Dropdown>
+              <Tooltip.Content>Export</Tooltip.Content>
+            </Tooltip>
+          )}
 
-          {onAdd && (
-            <div className='flex items-center gap-1'>
-              <Button onPress={onAdd}>
-                <IconPlus stroke={1.5} />
-                Add New
+          {/* Refresh Button */}
+          {onRefresh && (
+            <Tooltip closeDelay={0} delay={400}>
+              <Button
+                isIconOnly
+                isDisabled={isRefreshing}
+                isPending={isRefreshing}
+                variant='tertiary'
+                onPress={onRefresh}
+              >
+                {({ isPending }) =>
+                  isPending ? (
+                    <Spinner color='currentColor' size='sm' />
+                  ) : (
+                    <IconRefresh stroke={1.5} />
+                  )
+                }
               </Button>
-            </div>
+              <Tooltip.Content>Refresh</Tooltip.Content>
+            </Tooltip>
           )}
         </div>
-      </Card.Header>
 
-      <Card.Content className='h-0 min-h-0 flex-1 overflow-hidden rounded-lg'>
+        {onAdd && (
+          <div className='flex items-center gap-1'>
+            <Button onPress={onAdd}>
+              <IconPlus stroke={1.5} />
+              Add New
+            </Button>
+          </div>
+        )}
+      </div>
+
+      <div className='relative flex h-0 min-h-0 flex-1 flex-col'>
         <Virtualizer
           layout={TableLayout}
           layoutOptions={{
@@ -286,13 +281,13 @@ export function DataTable({
           }}
         >
           <Table className='h-full'>
-            <Table.ScrollContainer className='h-full overflow-auto overscroll-y-contain'>
+            <Table.ScrollContainer className='overflow-auto overscroll-y-contain'>
               <Table.Content
                 aria-label={entityName}
                 sortDescriptor={sortDescriptor}
                 onSortChange={setSortDescriptor}
               >
-                <Table.Header className='bg-surface-secondary' columns={visibleColumns}>
+                <Table.Header className='h-full w-full' columns={visibleColumns}>
                   {(column) => (
                     <Table.Column
                       allowsSorting={!!column.allowsSorting}
@@ -312,28 +307,22 @@ export function DataTable({
                     </Table.Column>
                   )}
                 </Table.Header>
-                <Table.Body
-                  renderEmptyState={() => (
-                    <p className='py-8 text-center text-sm text-muted'>No results found</p>
-                  )}
-                >
-                  <Table.Collection items={items}>
+                <Table.Body>
+                  <Table.Collection dependencies={[visibleColumns]} items={items}>
                     {(item) => (
-                      <Table.Row>
-                        <Table.Collection items={visibleColumns}>
-                          {(column) => (
-                            <Table.Cell className='flex h-full items-center overflow-hidden'>
-                              {column.cell(item.row)}
-                            </Table.Cell>
-                          )}
-                        </Table.Collection>
+                      <Table.Row columns={visibleColumns} dependencies={[visibleColumns]}>
+                        {(column) => (
+                          <Table.Cell className='flex h-full items-center'>
+                            {column.cell(item.row)}
+                          </Table.Cell>
+                        )}
                       </Table.Row>
                     )}
                   </Table.Collection>
-                  {onLoadMore && hasMore && (
+                  {onLoadMore && hasMore && items.length > 0 && (
                     <Table.LoadMore isLoading={isLoadingMore} onLoadMore={handleLoadMore}>
                       <Table.LoadMoreContent>
-                        <Spinner size='sm' />
+                        <Spinner size='md' />
                       </Table.LoadMoreContent>
                     </Table.LoadMore>
                   )}
@@ -342,8 +331,13 @@ export function DataTable({
             </Table.ScrollContainer>
           </Table>
         </Virtualizer>
-      </Card.Content>
-    </Card>
+        {items.length === 0 && (
+          <div className='pointer-events-none absolute inset-x-0 bottom-0 top-10 flex items-center justify-center'>
+            <p className='text-sm text-muted'>No results found</p>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 

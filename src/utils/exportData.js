@@ -1,4 +1,51 @@
 /**
+ * Build an Excel (.xlsx) Blob from tabular data. Shared internals for
+ * download-mode (exportToExcel) and attachment-mode callers.
+ * @param {Array} data - Array of row data objects
+ * @param {Array} columns - Array of visible column definitions
+ * @param {string} sheetName - Name of the Excel sheet
+ * @returns {Promise<Blob>} The workbook as a Blob with the xlsx MIME type
+ */
+export async function buildExcelBlob(data, columns, sheetName = 'Data') {
+  const exportData = transformDataForExport(data || [], columns);
+  const headers = columns.map((col) =>
+    typeof col.header === 'string' ? col.header : col.accessorKey || col.id
+  );
+
+  // Create worksheet data with headers
+  const wsData = [headers];
+  exportData.forEach((row) => {
+    const rowValues = headers.map((header) => row[header] ?? '');
+    wsData.push(rowValues);
+  });
+
+  const XLSX = await import('xlsx');
+
+  // Create workbook and worksheet
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+  // Auto-size columns based on content
+  const colWidths = headers.map((header) => {
+    let maxLen = header.length;
+    exportData.forEach((row) => {
+      const cellValue = String(row[header] ?? '');
+      maxLen = Math.max(maxLen, cellValue.length);
+    });
+    return { wch: Math.min(maxLen + 2, 50) }; // Cap at 50 characters
+  });
+  ws['!cols'] = colWidths;
+
+  // Add worksheet to workbook
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+
+  const wbOut = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  return new Blob([wbOut], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  });
+}
+
+/**
  * Export data to CSV format and trigger download
  * @param {Array} data - Array of row data objects
  * @param {Array} columns - Array of visible column definitions
@@ -58,43 +105,7 @@ export async function exportToExcel(
     return;
   }
 
-  const exportData = transformDataForExport(data, columns);
-  const headers = columns.map((col) =>
-    typeof col.header === 'string' ? col.header : col.accessorKey || col.id
-  );
-
-  // Create worksheet data with headers
-  const wsData = [headers];
-  exportData.forEach((row) => {
-    const rowValues = headers.map((header) => row[header] ?? '');
-    wsData.push(rowValues);
-  });
-
-  const XLSX = await import('xlsx');
-
-  // Create workbook and worksheet
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet(wsData);
-
-  // Auto-size columns based on content
-  const colWidths = headers.map((header) => {
-    let maxLen = header.length;
-    exportData.forEach((row) => {
-      const cellValue = String(row[header] ?? '');
-      maxLen = Math.max(maxLen, cellValue.length);
-    });
-    return { wch: Math.min(maxLen + 2, 50) }; // Cap at 50 characters
-  });
-  ws['!cols'] = colWidths;
-
-  // Add worksheet to workbook
-  XLSX.utils.book_append_sheet(wb, ws, sheetName);
-
-  // Generate and download
-  const wbOut = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-  const blob = new Blob([wbOut], {
-    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-  });
+  const blob = await buildExcelBlob(data, columns, sheetName);
   downloadBlob(blob, `${filename}.xlsx`);
 }
 

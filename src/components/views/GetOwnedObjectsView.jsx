@@ -60,6 +60,7 @@ const TYPE_KEY_TO_DOMO_TYPE = {
   taskCenterQueues: 'HOPPER_QUEUE',
   taskCenterTasks: null,
   workflows: 'WORKFLOW_MODEL',
+  worksheets: 'WORKSHEET',
   workspaces: 'WORKSPACE'
 };
 

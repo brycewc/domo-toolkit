@@ -10,6 +10,7 @@ export {
 export { detectCurrentObject, getValidTabForInstance, isDomoUrl } from './currentObject';
 export { executeInAllFrames, executeInPage } from './executeInPage';
 export {
+  buildExcelBlob,
   exportToCSV,
   exportToExcel,
   generateExportFilename

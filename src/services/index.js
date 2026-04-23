@@ -24,9 +24,12 @@ export {
   extractPageContentIds,
   getFormsForPage,
   getOwnedAppStudioApps,
+  getOwnedWorksheets,
   getQueuesForPage,
   getUserOwnedAppStudioApps,
-  transferAppStudioApps
+  getUserOwnedWorksheets,
+  transferAppStudioApps,
+  transferWorksheets
 } from './appStudio';
 export {
   exportCard,
@@ -74,6 +77,7 @@ export {
 } from './datasets';
 export { duplicateUser, fetchDuplicationPreview } from './duplicate';
 export { runEnrichments } from './enrichments';
+export { uploadDataFile } from './files';
 export { getOwnedFilesets, transferFilesets } from './filesets';
 export {
   buildPfilterUrl,
@@ -103,6 +107,7 @@ export {
   getOwnedJupyterWorkspaces,
   transferJupyterWorkspaces
 } from './jupyterWorkspaces';
+export { sendEmail } from './messages';
 export { getOwnedMetrics, transferMetrics } from './metrics';
 export {
   checkPageType,
@@ -123,7 +128,7 @@ export {
 export {
   getOwnedRepositories,
   transferRepositories
-} from './repositories';
+} from './sandbox';
 export {
   getOwnedSubscriptions,
   transferSubscriptions
@@ -136,8 +141,10 @@ export {
 } from './taskCenter';
 export {
   countOwned,
+  flattenOwned,
   TRANSFER_TYPES,
-  transferAllOwnership
+  transferAllOwnership,
+  TYPE_KEY_TO_LOG_TYPE
 } from './transferOwnership';
 export {
   bulkUpdateUsers,

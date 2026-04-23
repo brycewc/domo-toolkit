@@ -6,7 +6,12 @@ import {
   DisclosureGroup,
   Tooltip
 } from '@heroui/react';
-import { IconClipboard, IconTrash, IconX } from '@tabler/icons-react';
+import {
+  IconChevronDown,
+  IconClipboard,
+  IconTrash,
+  IconX
+} from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import JsonView from 'react18-json-view';
 
@@ -131,27 +136,35 @@ export function ApiErrorsView({
             const parsed = parseResponse(error.response);
 
             return (
-              <Disclosure key={error.id}>
+              <Disclosure
+                className='border-danger-200 dark:border-danger-200/20 overflow-hidden rounded-lg border bg-danger-50 dark:bg-danger-50/10'
+                key={error.id}
+              >
                 <Disclosure.Heading>
-                  <Disclosure.Trigger className='border-danger-200 bg-danger-50 dark:border-danger-200/20 dark:bg-danger-50/10 flex w-full flex-col items-start gap-0.5 rounded-md border px-2.5 py-1.5 text-left text-xs'>
-                    <div className='flex w-full items-center justify-between'>
-                      <span className='font-semibold text-danger'>
-                        {error.status} {error.statusText}
-                      </span>
-                      <span className='text-[10px] text-muted'>
-                        {error.timestamp}
+                  <Disclosure.Trigger className='flex w-full items-center justify-between gap-2 px-2.5 py-1.5 text-left text-xs'>
+                    <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
+                      <div className='flex w-full items-center justify-between gap-2'>
+                        <span className='font-semibold text-danger'>
+                          {error.status} {error.statusText}
+                        </span>
+                        <span className='shrink-0 text-[10px] text-muted'>
+                          {error.timestamp}
+                        </span>
+                      </div>
+                      <span
+                        className='w-full truncate text-muted'
+                        title={`${error.method} ${error.url}`}
+                      >
+                        {error.method} {error.url}
                       </span>
                     </div>
-                    <span
-                      className='w-full truncate text-muted'
-                      title={`${error.method} ${error.url}`}
-                    >
-                      {error.method} {error.url}
-                    </span>
+                    <Disclosure.Indicator className='shrink-0 text-muted'>
+                      <IconChevronDown stroke={1.5} />
+                    </Disclosure.Indicator>
                   </Disclosure.Trigger>
                 </Disclosure.Heading>
                 <Disclosure.Content>
-                  <div className='border-default-200 bg-default-50 dark:border-default-200/20 mt-0.5 rounded-md border p-2'>
+                  <div className='border-danger-200 dark:border-danger-200/20 border-t p-2'>
                     {parsed ? (
                       <JsonView
                         displaySize
@@ -180,7 +193,7 @@ export function ApiErrorsView({
                         )}
                       />
                     ) : (
-                      <pre className='max-h-48 overflow-y-auto text-[11px] break-all whitespace-pre-wrap'>
+                      <pre className='max-h-48 overflow-y-auto rounded border border-danger-200 bg-surface p-2 text-[11px] break-all whitespace-pre-wrap dark:border-danger-200/20'>
                         {error.response}
                       </pre>
                     )}

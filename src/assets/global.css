@@ -1,6 +1,23 @@
 @import 'tailwindcss';
 @import '@heroui/styles';
 
+/* Force desktop-mode HeroUI styling across the extension.
+   Popup/sidepanel shells never exceed ~500px, so HeroUI's mobile-first
+   breakpoints would otherwise keep every component in its oversized mobile
+   variant. Setting --breakpoint-* to 0 makes sm:/md:/lg:/xl:/2xl: utilities
+   match at all widths, which compiles HeroUI's @apply directives (input.css,
+   button.css, select.css, toast.css, etc.) into their desktop forms. HeroUI
+   uses no max-width queries, so this is a one-way tightening. Toast's one
+   JS-based viewport check (toast.js useMediaQuery) is handled separately by
+   the custom ToastProvider. */
+@theme {
+  --breakpoint-sm: 0px;
+  --breakpoint-md: 0px;
+  --breakpoint-lg: 0px;
+  --breakpoint-xl: 0px;
+  --breakpoint-2xl: 0px;
+}
+
 /* Open Sans variable font — bundled locally */
 @font-face {
   font-family: 'Open Sans';
@@ -98,16 +115,27 @@
 }
 
 @layer components {
-  /* HeroUI uses sm: breakpoints for toast desktop layout. Extension
-   popups/sidepanels never reach the sm (640px) threshold. A custom
-   ToastProvider component handles the JS media query (action button
-   placement). These overrides handle the remaining CSS breakpoints. */
+  /* Toast customizations on top of HeroUI's desktop layout (now always
+     active via the breakpoint override above). self-center and
+     rounded-full/border/bg-overlay are extension-specific tweaks, not
+     HeroUI defaults. The custom ToastProvider still handles Toast's
+     JS-based viewport check for action-button placement. */
   .toast__action {
     @apply mt-0 self-center;
   }
 
   .toast__close-button {
     @apply pointer-events-none -top-1 -right-1 rounded-full border bg-overlay opacity-0;
+  }
+
+  /* HeroUI's desktop toast region pins min-width to --toast-width (460px
+     default), which overflows narrow popup/sidepanel shells. Clamp the
+     min-width to the smaller of --toast-width or the available viewport
+     (minus a 2rem gutter) so toasts retain their desktop presence when
+     space allows but shrink gracefully in narrow shells. */
+  .toast-region {
+    min-width: min(var(--toast-width, 460px), calc(100vw - 2rem));
+    max-width: calc(100vw - 2rem);
   }
 
   /* React Aria's Virtualizer wraps the Table.Header in a

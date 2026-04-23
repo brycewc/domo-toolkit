@@ -610,7 +610,7 @@ export function ActivityLogTable() {
               <IconFilter stroke={1.5} />
               Action
             </Button>
-            <Dropdown.Popover className='max-h-64 overflow-y-auto'>
+            <Dropdown.Popover className='max-h-120! overflow-y-auto'>
               <Dropdown.Menu
                 selectedKeys={actionFilter}
                 selectionMode='multiple'
@@ -787,10 +787,40 @@ export function ActivityLogTable() {
 
   if (isInitialLoad && events.length === 0) {
     return (
-      <div className='skeleton--shimmer relative h-full w-full overflow-hidden'>
-        <Skeleton animationType='none' className='mb-4 h-4 w-1/3 rounded-lg' />
-        <Skeleton animationType='none' className='mb-2 h-8 w-full rounded-lg' />
-        <Skeleton animationType='none' className='mb-4 h-full w-full rounded-lg' />
+      <div className='skeleton--shimmer flex h-full min-h-0 w-full flex-1 flex-col gap-2 overflow-hidden p-4'>
+        {/* Title + subtitle row */}
+        <div className='flex items-center justify-between p-1'>
+          <Skeleton animationType='none' className='h-6 w-80 rounded-lg' />
+          <Skeleton animationType='none' className='h-4 w-44 rounded-lg' />
+        </div>
+
+        {/* Filter row */}
+        <div className='flex w-full items-center justify-between gap-1'>
+          <div className='flex flex-1 flex-row flex-wrap items-center gap-1'>
+            <Skeleton animationType='none' className='h-9 w-72 rounded-xl' />
+            <Skeleton animationType='none' className='h-9 w-72 rounded-xl' />
+            <Skeleton animationType='none' className='h-9 min-w-72 flex-1 rounded-xl' />
+          </div>
+          <div className='flex flex-row items-center gap-1'>
+            <Skeleton animationType='none' className='h-9 w-28 rounded-xl' />
+            <Skeleton animationType='none' className='h-9 w-9 rounded-xl' />
+            <Skeleton animationType='none' className='h-9 w-9 rounded-xl' />
+          </div>
+        </div>
+
+        {/* Table: heading bar + data rows */}
+        <div className='flex h-0 min-h-0 flex-1 flex-col gap-1 overflow-hidden'>
+          <Skeleton animationType='none' className='h-10 w-full shrink-0 rounded-lg' />
+          <div className='flex flex-1 flex-col gap-1 overflow-hidden'>
+            {Array.from({ length: 15 }).map((_, i) => (
+              <Skeleton
+                animationType='none'
+                className='h-13.25 w-full shrink-0 rounded-lg'
+                key={i}
+              />
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
@@ -859,7 +889,6 @@ function createActionColumn({ actionTranslations = {}, key = 'actionType' } = {}
     },
     header: 'Action',
     id: key,
-    maxWidth: 180,
     minWidth: 120,
     width: '2fr'
   };
@@ -925,7 +954,6 @@ function createObjectColumn({
     },
     header: 'Object',
     id: nameKey,
-    maxWidth: 280,
     minWidth: 180,
     width: '2fr'
   };
@@ -955,7 +983,6 @@ function createTimestampColumn({ key = 'time' } = {}) {
     },
     header: `Timestamp (${getShortTimezone()})`,
     id: key,
-    maxWidth: 200,
     minWidth: 140,
     width: '1fr'
   };
@@ -1015,7 +1042,6 @@ function createUserColumn({
     },
     header: 'User',
     id: nameKey,
-    maxWidth: 300,
     minWidth: 180,
     width: '2fr'
   };
