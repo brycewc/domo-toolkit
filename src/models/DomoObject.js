@@ -1,7 +1,7 @@
 import { getAppStudioPageParent, getDrillParentCardId } from '@/services';
 import { executeInPage } from '@/utils';
 
-import { getObjectType } from './DomoObjectType';
+import { DomoObjectType, getObjectType } from './DomoObjectType';
 
 /**
  * DomoObject class represents an instance of a Domo object
@@ -58,6 +58,8 @@ export class DomoObject {
       // For types requiring a parent, build URL if we have the parent ID
       if (parentId) {
         let builtUrl = `${baseUrl}${this.objectType.urlPath.replace('{parent}', parentId).replace('{id}', id)}`;
+        // Resolve {metadata.dot.path} placeholders from this object's metadata
+        builtUrl = DomoObjectType.resolveMetadataPlaceholders(builtUrl, this.metadata);
         // Resolve extra URL placeholders (e.g. {version}) from the original URL
         if (builtUrl.includes('{') && originalUrl) {
           const extraParams = this.objectType.extractUrlParams(originalUrl);
@@ -72,7 +74,10 @@ export class DomoObject {
       }
     } else {
       // For simple types, build URL synchronously
-      this.url = `${baseUrl}${this.objectType.urlPath.replace('{id}', id)}`;
+      let builtUrl = `${baseUrl}${this.objectType.urlPath.replace('{id}', id)}`;
+      builtUrl = DomoObjectType.resolveMetadataPlaceholders(builtUrl, this.metadata);
+      // Fall back to originalUrl if any metadata placeholders remain unresolved
+      this.url = builtUrl.includes('{') && originalUrl ? originalUrl : builtUrl;
     }
   }
 
@@ -114,9 +119,21 @@ export class DomoObject {
       console.log(
         `Building URL for ${this.typeName} ${this.id} with parent ${parentId}`
       );
-      return this.objectType.buildObjectUrl(baseUrl, this.id, parentId);
+      return this.objectType.buildObjectUrl(
+        baseUrl,
+        this.id,
+        parentId,
+        tabId,
+        this.metadata
+      );
     }
-    return this.objectType.buildObjectUrl(baseUrl, this.id);
+    return this.objectType.buildObjectUrl(
+      baseUrl,
+      this.id,
+      null,
+      tabId,
+      this.metadata
+    );
   }
 
   /**

@@ -7,10 +7,7 @@
 export async function detectCurrentObject() {
   const url = location.href.toLowerCase();
 
-  if (
-    location.hostname !== 'domo.com' &&
-    !location.hostname.endsWith('.domo.com')
-  ) {
+  if (location.hostname !== 'domo.com' && !location.hostname.endsWith('.domo.com')) {
     return null;
   }
 
@@ -66,9 +63,7 @@ export async function detectCurrentObject() {
     case url.includes('kpis/details/'):
       // Prefer Drill Path ID from breadcrumb when on a drill path
       try {
-        const bcSpan = document.querySelector(
-          'ul.breadcrumb li:last-child span[id]'
-        );
+        const bcSpan = document.querySelector('ul.breadcrumb li:last-child span[id]');
         const bcId = bcSpan && (bcSpan.id || bcSpan.getAttribute('id'));
         if (bcId && bcId.indexOf(':') > -1) {
           // Format: dr:<drill_path_id>:<card_id>
@@ -172,8 +167,7 @@ export async function detectCurrentObject() {
       objectType = 'BEAST_MODE_FORMULA';
       break;
 
-    case url.includes('datasources/') &&
-      parts[parts.indexOf('datasources') + 1].length > 5:
+    case url.includes('datasources/') && parts[parts.indexOf('datasources') + 1].length > 5:
       objectType = 'DATA_SOURCE';
       break;
 
@@ -209,9 +203,7 @@ export async function detectCurrentObject() {
 
     case url.includes('workflows/') && !!parts[parts.indexOf('workflows') + 3]: {
       // Check for a selected nebulaFunction action in the workflow editor
-      const selectedNode = document.querySelector(
-        '.react-flow__node.selected'
-      );
+      const selectedNode = document.querySelector('.react-flow__node.selected');
       if (selectedNode) {
         const nodeId = selectedNode.getAttribute('data-id');
         if (nodeId) {
@@ -225,9 +217,7 @@ export async function detectCurrentObject() {
             );
             if (defResponse.ok) {
               const definition = await defResponse.json();
-              const element = (definition.designElements || []).find(
-                (el) => el.id === nodeId
-              );
+              const element = (definition.designElements || []).find((el) => el.id === nodeId);
 
               if (
                 element?.data?.taskType === 'nebulaFunction' &&
@@ -271,18 +261,14 @@ export async function detectCurrentObject() {
     }
 
     case url.includes('workflows/triggers/'): {
-      const triggerModal = document.querySelector(
-        '[role="dialog"][class*="TimerModal"]'
-      );
+      const triggerModal = document.querySelector('[role="dialog"][class*="TimerModal"]');
       if (!triggerModal) {
         objectType = 'WORKFLOW_MODEL';
         break;
       }
 
       // Extract triggerId from React fiber tree (prop on parent component)
-      const fiberKey = Object.keys(triggerModal).find((k) =>
-        k.startsWith('__reactFiber')
-      );
+      const fiberKey = Object.keys(triggerModal).find((k) => k.startsWith('__reactFiber'));
       let triggerId = null;
       if (fiberKey) {
         let fiber = triggerModal[fiberKey];
@@ -310,12 +296,8 @@ export async function detectCurrentObject() {
 
     case url.includes('codeengine/'): {
       const packageId = parts[parts.indexOf('codeengine') + 1];
-      const ceContainer = document.querySelector(
-        'div[class*="module_packageControls"]'
-      );
-      const ceInput = ceContainer?.querySelector(
-        'input[class*="SelectListInputComponent"]'
-      );
+      const ceContainer = document.querySelector('div[class*="module_packageControls"]');
+      const ceInput = ceContainer?.querySelector('input[class*="SelectListInputComponent"]');
       if (ceInput) {
         const ceMatch = ceInput.value.match(/^Version\s+(\d+\.\d+\.\d+)$/);
         if (ceMatch && packageId) {
@@ -356,9 +338,7 @@ export async function detectCurrentObject() {
         objectType = 'FILESET_FILE';
         // Extract file path: everything after /preview/
         const previewIndex = url.indexOf('/preview/');
-        const filePath = url
-          .substring(previewIndex + '/preview/'.length)
-          .split('?')[0];
+        const filePath = url.substring(previewIndex + '/preview/'.length).split('?')[0];
         // Return early with extra context for async ID resolution
         return {
           baseUrl: `${location.protocol}//${location.hostname}`,
@@ -460,16 +440,15 @@ export async function detectCurrentObject() {
     case url.includes('workspaces/'):
       objectType = 'WORKSPACE';
       break;
+    case url.includes('certifiedcontent') && url.includes('edit-form/'):
+      objectType = 'CERTIFICATION_PROCESS';
+      break;
 
     case url.includes('governance-toolkit'): {
-      const jobElement = document.querySelector(
-        '[class*="job-overview-top"]'
-      );
+      const jobElement = document.querySelector('[class*="job-overview-top"]');
       if (!jobElement) return null;
 
-      const fiberKey = Object.keys(jobElement).find((k) =>
-        k.startsWith('__reactFiber$')
-      );
+      const fiberKey = Object.keys(jobElement).find((k) => k.startsWith('__reactFiber$'));
       if (!fiberKey) return null;
 
       let fiber = jobElement[fiberKey];
@@ -525,9 +504,7 @@ export async function detectCurrentObject() {
       if (!adminConfig) return null;
 
       try {
-        const detailPanel = document.querySelector(
-          '.bulk-item-details-content'
-        );
+        const detailPanel = document.querySelector('.bulk-item-details-content');
         if (!detailPanel) return null;
 
         // angular.element() is available in MAIN world on Domo admin pages

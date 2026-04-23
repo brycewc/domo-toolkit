@@ -1,13 +1,4 @@
-import {
-  Button,
-  Chip,
-  Dropdown,
-  Header,
-  Label,
-  Separator,
-  Spinner,
-  Tooltip
-} from '@heroui/react';
+import { Button, Chip, Dropdown, Header, Label, Separator, Spinner, Tooltip } from '@heroui/react';
 import {
   IconAlertTriangle,
   IconClipboard,
@@ -17,18 +8,9 @@ import {
 } from '@tabler/icons-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import {
-  DomoObject,
-  getAllNavigableObjectTypes,
-  getAllObjectTypesWithApiConfig
-} from '@/models';
+import { DomoObject, getAllNavigableObjectTypes, getAllObjectTypesWithApiConfig } from '@/models';
 import { fetchObjectDetailsInPage } from '@/services';
-import {
-  executeInPage,
-  isSidepanel,
-  openSidepanel,
-  storeSidepanelData
-} from '@/utils';
+import { executeInPage, isSidepanel, openSidepanel, storeSidepanelData } from '@/utils';
 
 const TYPE_PRIORITY = [
   'CARD',
@@ -69,10 +51,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
   }, []);
 
   const filteredTypes = useMemo(
-    () =>
-      copiedId
-        ? allTypes.filter((type) => type.isValidObjectId(copiedId))
-        : allTypes,
+    () => (copiedId ? allTypes.filter((type) => type.isValidObjectId(copiedId)) : allTypes),
     [allTypes, copiedId]
   );
 
@@ -96,11 +75,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
       return currentContext.instance;
     }
     return defaultDomoInstance || null;
-  }, [
-    currentContext?.isDomoPage,
-    currentContext?.instance,
-    defaultDomoInstance
-  ]);
+  }, [currentContext?.isDomoPage, currentContext?.instance, defaultDomoInstance]);
 
   const readAndResolve = useCallback(async () => {
     const instance = getInstance();
@@ -160,11 +135,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
         if (typeConfig.requiresParentForApi()) {
           try {
             const obj = new DomoObject(typeConfig.id, text, baseUrl);
-            params.parentId = await obj.getParent(
-              false,
-              null,
-              currentContext?.tabId
-            );
+            params.parentId = await obj.getParent(false, null, currentContext?.tabId);
           } catch {
             continue;
           }
@@ -179,29 +150,33 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
         if (abortRef.current !== runId) return;
 
         if (metadata?.details) {
-          if (
-            typeConfig.id === 'DATAFLOW_TYPE' &&
-            metadata.details.deleted === true
-          ) {
+          if (typeConfig.id === 'DATAFLOW_TYPE' && metadata.details.deleted === true) {
             continue;
           }
-          if (
-            typeConfig.id === 'DATA_APP_VIEW' &&
-            metadata.details.type !== 'dav'
-          ) {
+          if (typeConfig.id === 'DATA_APP_VIEW' && metadata.details.type !== 'dav') {
             continue;
           }
-          if (
-            typeConfig.id === 'PAGE' &&
-            metadata.details.type !== 'page'
-          ) {
+          if (typeConfig.id === 'PAGE' && metadata.details.type !== 'page') {
+            continue;
+          }
+          if (typeConfig.id === 'CERTIFICATION_PROCESS' && !metadata.details.type) {
             continue;
           }
 
-          const domoObject = new DomoObject(typeConfig.id, text, baseUrl, {
+          const domoMetadata = {
             details: metadata.details,
             name: metadata.name
-          });
+          };
+          // Mirrors the CERTIFICATION_PROCESS enrichment — clipboard flow builds
+          // its own DomoObject instead of going through the page-detection pipeline.
+          if (typeConfig.id === 'CERTIFICATION_PROCESS') {
+            domoMetadata.context = {
+              certifiedType: metadata.details.type.startsWith('CC:CARD')
+                ? 'certified-cards'
+                : 'certified-datasets'
+            };
+          }
+          const domoObject = new DomoObject(typeConfig.id, text, baseUrl, domoMetadata);
 
           setResolvedObject(domoObject);
           setError(null);
@@ -258,12 +233,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
           );
         });
       } catch (err) {
-        onStatusUpdate?.(
-          'Error',
-          err.message || 'An error occurred',
-          'danger',
-          4000
-        );
+        onStatusUpdate?.('Error', err.message || 'An error occurred', 'danger', 4000);
       }
     },
     [currentContext, onStatusUpdate]
@@ -291,8 +261,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
     [copiedId, getInstance, handleNavigate, resolvedObject]
   );
 
-  const needsDefaultInstance =
-    !currentContext?.isDomoPage && !defaultDomoInstance;
+  const needsDefaultInstance = !currentContext?.isDomoPage && !defaultDomoInstance;
 
   if (needsDefaultInstance) {
     return (
@@ -306,9 +275,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
         >
           <IconExternalLink stroke={1.5} />
         </Button>
-        <Tooltip.Content placement='top'>
-          Set a default Domo instance in settings
-        </Tooltip.Content>
+        <Tooltip.Content placement='top'>Set a default Domo instance in settings</Tooltip.Content>
       </Tooltip>
     );
   }
@@ -319,16 +286,14 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
         <Button fullWidth isIconOnly variant='tertiary'>
           <IconExternalLink stroke={1.5} />
         </Button>
-        <Tooltip.Content placement='top'>
-          Navigate to copied object
-        </Tooltip.Content>
+        <Tooltip.Content placement='top'>Navigate to copied object</Tooltip.Content>
       </Tooltip>
       <Dropdown.Popover
         className='flex max-h-80 w-80 min-w-80 flex-col overflow-hidden'
         placement='bottom'
       >
         {copiedId && (
-          <div className='text-s pointer-events-none flex shrink-0 items-center gap-1 px-4 pt-2 font-mono text-muted select-none'>
+          <div className='pointer-events-none flex shrink-0 items-center gap-1 px-2 pt-2 font-mono text-xs text-muted select-none'>
             <IconClipboard size={12} stroke={1.5} />
             <p title='Current clipboard value'>{copiedId}</p>
           </div>
@@ -339,11 +304,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
         >
           <Dropdown.Section>
             <Header>Auto-detected</Header>
-            <Dropdown.Item
-              className={isLoading ? '' : 'hidden'}
-              id='_loading'
-              textValue='Loading'
-            >
+            <Dropdown.Item className={isLoading ? '' : 'hidden'} id='_loading' textValue='Loading'>
               <Spinner color='currentColor' size='sm' />
               <Label>Resolving...</Label>
             </Dropdown.Item>
@@ -356,11 +317,9 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
               <Label className='text-muted'>{error}</Label>
             </Dropdown.Item>
             <Dropdown.Item
+              className={resolvedObject && !isLoading ? 'items-start' : 'hidden'}
               id='_resolved'
               textValue='Navigate'
-              className={
-                resolvedObject && !isLoading ? 'items-start' : 'hidden'
-              }
             >
               {resolvedObject?.hasUrl() ? (
                 <IconExternalLink className='size-5 shrink-0' stroke={1.5} />
@@ -368,17 +327,10 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
                 <IconEye className='size-5 shrink-0' stroke={1.5} />
               )}
               <div className='flex flex-col gap-1'>
-                <Chip
-                  className='w-fit lowercase'
-                  color='accent'
-                  size='sm'
-                  variant='soft'
-                >
+                <Chip className='w-fit lowercase' color='accent' size='sm' variant='soft'>
                   {resolvedObject?.typeName}
                 </Chip>
-                <Label className='font-medium'>
-                  {resolvedObject?.metadata?.name || copiedId}
-                </Label>
+                <Label className='font-medium'>{resolvedObject?.metadata?.name || copiedId}</Label>
               </div>
             </Dropdown.Item>
           </Dropdown.Section>
@@ -389,21 +341,11 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
               <Dropdown.Section>
                 <Header>Manual selection</Header>
                 {filteredTypes.map((type) => (
-                  <Dropdown.Item
-                    id={type.id}
-                    key={type.id}
-                    textValue={type.name}
-                  >
+                  <Dropdown.Item id={type.id} key={type.id} textValue={type.name}>
                     {type.hasUrl() ? (
-                      <IconExternalLink
-                        className='size-5 shrink-0'
-                        stroke={1.5}
-                      />
+                      <IconExternalLink className='size-5 shrink-0' stroke={1.5} />
                     ) : (
-                      <IconLayoutSidebarRightExpand
-                        className='size-5 shrink-0'
-                        stroke={1.5}
-                      />
+                      <IconLayoutSidebarRightExpand className='size-5 shrink-0' stroke={1.5} />
                     )}
                     <Label>{type.name}</Label>
                   </Dropdown.Item>

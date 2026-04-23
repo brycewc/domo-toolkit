@@ -23,7 +23,11 @@ export class DomoObjectType {
    * @param {Array<string>} [options.parents] - Array of parent object type IDs this object can have
    * @param {Array<Object>} [options.relatedObjects] - Array of related object configs [{field, typeId, label, source?, itemIdField?}]
    *   Use { label: 'Short Name', source: 'self' } to override the current object's tab label
-   * @param {string} [options.urlPath] - The URL path pattern (can include {id} placeholder)
+   * @param {string} [options.urlPath] - The URL path pattern. Supported placeholders:
+   *   - `{id}`: the object ID
+   *   - `{parent}`: the parent object ID (fetched async if needed)
+   *   - `{metadata.<dot.path>}`: any value resolved by dot-path from the DomoObject's `metadata`
+   *     (e.g., `{metadata.details.type}`). Unresolved placeholders fall back to `originalUrl`.
    */
   constructor(id, name, options = {}) {
     this.id = id;
@@ -39,14 +43,32 @@ export class DomoObjectType {
   }
 
   /**
+   * Resolve {metadata.dot.path} placeholders in a string using the provided metadata object.
+   * Placeholders whose values are null/undefined are left intact so callers can decide how to handle them.
+   * @param {string} str - String containing metadata placeholders
+   * @param {Object} [metadata] - Metadata object to resolve against
+   * @returns {string} The string with resolvable placeholders replaced
+   */
+  static resolveMetadataPlaceholders(str, metadata) {
+    if (!str || !metadata) return str;
+    return str.replace(/\{metadata\.([^}]+)\}/g, (match, path) => {
+      const value = path
+        .split('.')
+        .reduce((current, prop) => current?.[prop], metadata);
+      return value != null ? value : match;
+    });
+  }
+
+  /**
    * Build the full URL for this object
    * @param {string} baseUrl - The base URL (e.g., https://instance.domo.com)
    * @param {string} id - The object ID
    * @param {string} [parentId] - Optional parent ID for types that require it
    * @param {number} [tabId] - Optional Chrome tab ID for executing in-page lookups
+   * @param {Object} [metadata] - Optional metadata object for resolving {metadata.dot.path} placeholders
    * @returns {string|Promise<string>} The full URL (may be async if parent lookup is needed)
    */
-  async buildObjectUrl(baseUrl, id, parentId, tabId) {
+  async buildObjectUrl(baseUrl, id, parentId, tabId, metadata) {
     if (!this.hasUrl()) {
       throw new Error(`Object type ${this.id} does not have a navigable URL`);
     }
@@ -73,6 +95,8 @@ export class DomoObjectType {
       }
       url = url.replace('{parent}', parentId);
     }
+
+    url = DomoObjectType.resolveMetadataPlaceholders(url, metadata);
 
     return `${baseUrl}${url}`;
   }
@@ -405,7 +429,24 @@ export const ObjectTypeRegistry = {
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   }),
   CERTIFICATION_PROCESS: new DomoObjectType('CERTIFICATION_PROCESS', 'Certification Process', {
-    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    api: {
+      bodyTemplate: {
+        operationName: 'getTemplateForEdit',
+        query:
+          'query getTemplateForEdit($id: ID!) {\n  template(id: $id) {\n    id\n    type\n    title\n    titleName\n    titlePlaceholder\n    acknowledgment\n    instructions\n    description\n    providerName\n    isPublic\n    isPublished\n    chainIsLocked\n   \n    categories {\n      id\n      name\n    }\n    owner {\n      id\n      displayName\n      avatarKey\n    }\n    fields {\n      key\n      type\n      name\n      data\n      placeholder\n      required\n      isPrivate\n    }\n    approvers {\n      type\n      originalType: type\n      key\n      ... on ApproverPerson {\n        id: approverId\n          userDetails {\n          id\n          type\n          displayName\n          title\n          avatarKey\n        }\n      }\n      ... on ApproverGroup {\n        id: approverId\n        \n        groupDetails {\n          id\n          type\n          displayName\n          userCount\n          isDeleted\n        }\n      }\n      ... on ApproverPlaceholder {\n        placeholderText\n      }\n    }\n  }\n  \n}',
+        variables: { id: '{id}' }
+      },
+      endpoint: '/synapse/approval/graphql',
+      method: 'POST',
+      pathToDetails: 'data.template',
+      pathToName: 'data.template.title'
+    },
+    extractConfig: {
+      keyword: 'edit-form'
+    },
+    icon: { component: 'RosetteDiscountCheck' },
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    urlPath: '/admin/certifiedcontent/{metadata.context.certifiedType}/edit-form/{id}'
   }),
   CHANNEL: new DomoObjectType('CHANNEL', 'Buzz Channel', {
     api: { endpoint: '/buzz/v1/channels/{id}', pathToName: 'channel.title' },

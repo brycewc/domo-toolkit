@@ -242,6 +242,19 @@ const ENRICHMENTS = [
     id: 'user-reports-to',
     storePath: 'context.reportsTo',
     types: ['USER']
+  },
+
+  // URL segment for CERTIFICATION_PROCESS, derived from the template type
+  // (CC:CARD[:DOMO] → certified-cards; CC:DSET[:DOMO] → certified-datasets)
+  {
+    fetch: ({ enrichedMetadata }) => {
+      const type = enrichedMetadata.details?.type;
+      if (!type) return undefined;
+      return type.startsWith('CC:CARD') ? 'certified-cards' : 'certified-datasets';
+    },
+    id: 'certification-process-certified-type',
+    storePath: 'context.certifiedType',
+    types: ['CERTIFICATION_PROCESS']
   }
 ];
 
