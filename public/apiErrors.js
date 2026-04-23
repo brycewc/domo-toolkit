@@ -57,7 +57,7 @@
                 response: text,
                 status: response.status,
                 statusText: response.statusText,
-                timestamp: new Date().toLocaleString(),
+                timestamp: new Date().toLocaleTimeString(),
                 url: url
               });
             })
@@ -77,7 +77,7 @@
                   response: JSON.stringify(data.exceptions, null, 2),
                   status: innerStatus || 'Exception',
                   statusText: (details && details.statusReason) || '',
-                  timestamp: new Date().toLocaleString(),
+                  timestamp: new Date().toLocaleTimeString(),
                   url: url
                 });
               }
@@ -92,7 +92,7 @@
           response: error.message,
           status: 0,
           statusText: 'Network Error',
-          timestamp: new Date().toLocaleString(),
+          timestamp: new Date().toLocaleTimeString(),
           url: url
         });
         throw error;
@@ -130,7 +130,7 @@
           response: xhr.responseText,
           status: xhr.status,
           statusText: xhr.statusText,
-          timestamp: new Date().toLocaleString(),
+          timestamp: new Date().toLocaleTimeString(),
           url: monitor.url
         });
       } else if (
@@ -148,7 +148,7 @@
               response: JSON.stringify(data.exceptions, null, 2),
               status: innerStatus || 'Exception',
               statusText: (details && details.statusReason) || '',
-              timestamp: new Date().toLocaleString(),
+              timestamp: new Date().toLocaleTimeString(),
               url: monitor.url
             });
           }
@@ -164,7 +164,7 @@
           response: 'Network request failed',
           status: 0,
           statusText: 'Network Error',
-          timestamp: new Date().toLocaleString(),
+          timestamp: new Date().toLocaleTimeString(),
           url: monitor.url
         });
       }

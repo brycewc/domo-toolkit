@@ -1,20 +1,10 @@
-import { Button, Spinner } from '@heroui/react';
-import {
-  IconArrowFork,
-  IconDatabase,
-  IconInfoCircle,
-  IconReload
-} from '@tabler/icons-react';
+import { Button, Spinner, Tooltip } from '@heroui/react';
+import { IconArrowFork, IconDatabase, IconInfoCircle, IconReload } from '@tabler/icons-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useResolveTabId } from '@/hooks';
 
-import {
-  DataflowInspector,
-  DataPreviewPanel,
-  LevelToolbar,
-  LineageGraph
-} from './components';
+import { DataflowInspector, DataPreviewPanel, LevelToolbar, LineageGraph } from './components';
 import { useGraphVisibility, useLineageCache } from './hooks';
 import { toLineageType, toNodeId } from './services';
 
@@ -30,21 +20,11 @@ export function Lineage() {
   const inspectorCacheRef = useRef(new Map());
   const resolveTabId = useResolveTabId(params?.tabId, params?.instance);
 
-  const {
-    expandFetch,
-    expandLoading,
-    graph,
-    init,
-    isNeighborCached,
-    loading,
-    prefetch
-  } = useLineageCache();
+  const { expandFetch, expandLoading, graph, init, isNeighborCached, loading, prefetch } =
+    useLineageCache();
 
   const rootNodeId = useMemo(
-    () =>
-      params
-        ? toNodeId(toLineageType(params.entityType), params.entityId)
-        : null,
+    () => (params ? toNodeId(toLineageType(params.entityType), params.entityId) : null),
     [params]
   );
 
@@ -86,9 +66,7 @@ export function Lineage() {
             tabId: result.lineageTabId
           });
         } else {
-          setError(
-            'No lineage parameters found. Open this from a dataset or dataflow page.'
-          );
+          setError('No lineage parameters found. Open this from a dataset or dataflow page.');
         }
       });
   }, []);
@@ -99,12 +77,7 @@ export function Lineage() {
     previewHeightRef.current = 300;
     previewCacheRef.current.clear();
     inspectorCacheRef.current.clear();
-    init(
-      params.entityType,
-      params.entityId,
-      params.tabId,
-      params.instance
-    ).catch((err) => {
+    init(params.entityType, params.entityId, params.tabId, params.instance).catch((err) => {
       console.error('[Lineage] Failed to fetch trace:', err);
       setError(err.message || 'Failed to load pipeline trace');
     });
@@ -112,8 +85,7 @@ export function Lineage() {
 
   useEffect(() => {
     if (!params) return;
-    const label =
-      params.objectName || `${params.entityType} ${params.entityId}`;
+    const label = params.objectName || `${params.entityType} ${params.entityId}`;
     document.title = `Lineage: ${label} - Domo Toolkit`;
   }, [params]);
 
@@ -164,12 +136,7 @@ export function Lineage() {
     inspectorCacheRef.current.clear();
     if (params) {
       preserveExpansion();
-      init(
-        params.entityType,
-        params.entityId,
-        params.tabId,
-        params.instance
-      ).catch((err) => {
+      init(params.entityType, params.entityId, params.tabId, params.instance).catch((err) => {
         console.error('[Lineage] Failed to refresh:', err);
         setError(err.message || 'Failed to reload pipeline trace');
       });
@@ -219,26 +186,21 @@ export function Lineage() {
       <div className='border-divider flex shrink-0 items-center justify-between border-b bg-surface px-5 py-5'>
         <div className='flex items-center gap-3'>
           <div className='flex flex-col'>
-            <h2 className='text-lg font-semibold'>
-              {params?.objectName || 'Pipeline Lineage'}
-            </h2>
+            <h2 className='text-lg font-semibold'>{params?.objectName || 'Pipeline Lineage'}</h2>
             {params?.entityId && (
               <div className='flex items-center gap-1 text-sm text-muted'>
-                {entityIcon} &middot; {params.entityType} &middot;{' '}
-                {params.entityId}
+                {entityIcon} &middot; {params.entityType} &middot; {params.entityId}
               </div>
             )}
           </div>
         </div>
         <div className='flex items-center gap-2'>
-          <Button
-            isIconOnly
-            size='sm'
-            variant='tertiary'
-            onPress={handleRefresh}
-          >
-            <IconReload stroke={1.5} />
-          </Button>
+          <Tooltip closeDelay={0} delay={400}>
+            <Button isIconOnly size='sm' variant='tertiary' onPress={handleRefresh}>
+              <IconReload stroke={1.5} />
+            </Button>
+            <Tooltip.Content placement='left'>Refresh</Tooltip.Content>
+          </Tooltip>
         </div>
       </div>
 

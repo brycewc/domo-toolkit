@@ -46,7 +46,8 @@
     "build": "vite build",
     "lint": "eslint --fix",
     "release": "vite build && node scripts/release.js",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test-docs": "cd docs && bundle exec jekyll serve"
   },
   "dependencies": {
     "@dagrejs/dagre": "^2.0.4",

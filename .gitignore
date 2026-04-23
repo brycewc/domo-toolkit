@@ -12,6 +12,7 @@ dist
 release
 dist-ssr
 *.local
+Gemfile.lock
 
 # Editor directories and files
 .vscode/*

@@ -4,14 +4,11 @@ import {
   Card,
   Disclosure,
   DisclosureGroup,
+  Separator,
+  Spinner,
   Tooltip
 } from '@heroui/react';
-import {
-  IconChevronDown,
-  IconClipboard,
-  IconTrash,
-  IconX
-} from '@tabler/icons-react';
+import { IconChevronDown, IconClipboard, IconEraser, IconX } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import JsonView from 'react18-json-view';
 
@@ -21,10 +18,7 @@ import '@/assets/json-view-theme.css';
 
 import { AnimatedCheck } from '../AnimatedCheck';
 
-export function ApiErrorsView({
-  onBackToDefault = null,
-  onStatusUpdate = null
-}) {
+export function ApiErrorsView({ onBackToDefault = null, onStatusUpdate = null }) {
   const [errors, setErrors] = useState([]);
   const [tabId, setTabId] = useState(null);
   const mountedRef = useRef(true);
@@ -105,23 +99,13 @@ export function ApiErrorsView({
           </div>
           <ButtonGroup>
             <Tooltip closeDelay={0} delay={400}>
-              <Button
-                isIconOnly
-                size='sm'
-                variant='ghost'
-                onPress={handleClearAll}
-              >
-                <IconTrash size={16} stroke={1.5} />
+              <Button isIconOnly size='sm' variant='tertiary' onPress={handleClearAll}>
+                <IconEraser stroke={1.5} />
               </Button>
-              <Tooltip.Content>Clear all errors</Tooltip.Content>
+              <Tooltip.Content>Clear errors</Tooltip.Content>
             </Tooltip>
             <Tooltip closeDelay={0} delay={400}>
-              <Button
-                isIconOnly
-                size='sm'
-                variant='ghost'
-                onPress={() => onBackToDefault?.()}
-              >
+              <Button isIconOnly size='sm' variant='tertiary' onPress={() => onBackToDefault?.()}>
                 <IconX stroke={1.5} />
               </Button>
               <Tooltip.Content>Close</Tooltip.Content>
@@ -134,37 +118,41 @@ export function ApiErrorsView({
         <DisclosureGroup className='flex flex-col gap-1.5'>
           {errors.map((error) => {
             const parsed = parseResponse(error.response);
+            const path = stripDomain(error.url);
 
             return (
               <Disclosure
-                className='border-danger-200 dark:border-danger-200/20 overflow-hidden rounded-lg border bg-danger-50 dark:bg-danger-50/10'
+                className='border-divider overflow-hidden rounded-lg border bg-surface-secondary'
                 key={error.id}
               >
                 <Disclosure.Heading>
-                  <Disclosure.Trigger className='flex w-full items-center justify-between gap-2 px-2.5 py-1.5 text-left text-xs'>
-                    <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
-                      <div className='flex w-full items-center justify-between gap-2'>
-                        <span className='font-semibold text-danger'>
+                  <Disclosure.Trigger className='flex w-full items-center justify-between p-2 text-left text-xs'>
+                    <div className='flex min-w-0 flex-1 flex-col gap-1'>
+                      <div className='justify-left flex w-full items-center gap-2'>
+                        <span className='shrink-0 font-semibold text-danger'>
                           {error.status} {error.statusText}
                         </span>
-                        <span className='shrink-0 text-[10px] text-muted'>
-                          {error.timestamp}
-                        </span>
+                        <Separator orientation='vertical' variant='secondary' />
+                        <span className='shrink-0 text-muted'>{error.timestamp}</span>
                       </div>
                       <span
-                        className='w-full truncate text-muted'
-                        title={`${error.method} ${error.url}`}
+                        className='flex w-full min-w-0 flex-1 items-center gap-1 truncate'
+                        title={`${error.method} ${path}`}
                       >
-                        {error.method} {error.url}
+                        <span className='shrink-0 font-semibold'>{error.method}</span>
+                        <span className='truncate'>{path}</span>
                       </span>
                     </div>
-                    <Disclosure.Indicator className='shrink-0 text-muted'>
+                    <Disclosure.Indicator>
                       <IconChevronDown stroke={1.5} />
                     </Disclosure.Indicator>
                   </Disclosure.Trigger>
                 </Disclosure.Heading>
                 <Disclosure.Content>
-                  <div className='border-danger-200 dark:border-danger-200/20 border-t p-2'>
+                  <div className='px-4'>
+                    <Separator variant='secondary' />
+                  </div>
+                  <div className='p-2'>
                     {parsed ? (
                       <JsonView
                         displaySize
@@ -193,9 +181,7 @@ export function ApiErrorsView({
                         )}
                       />
                     ) : (
-                      <pre className='max-h-48 overflow-y-auto rounded border border-danger-200 bg-surface p-2 text-[11px] break-all whitespace-pre-wrap dark:border-danger-200/20'>
-                        {error.response}
-                      </pre>
+                      <Spinner />
                     )}
                   </div>
                 </Disclosure.Content>
@@ -214,5 +200,14 @@ function parseResponse(response) {
     return JSON.parse(response);
   } catch {
     return null;
+  }
+}
+
+function stripDomain(url) {
+  try {
+    const { hash, pathname, search } = new URL(url);
+    return `${pathname}${search}${hash}`;
+  } catch {
+    return url;
   }
 }

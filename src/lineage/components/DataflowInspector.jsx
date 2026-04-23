@@ -1,14 +1,16 @@
 import {
+  Button,
   Card,
   Chip,
-  CloseButton,
   Disclosure,
   DisclosureGroup,
   Link,
   ScrollShadow,
   SearchField,
+  Separator,
   Spinner,
-  Tabs
+  Tabs,
+  Tooltip
 } from '@heroui/react';
 import {
   IconAB,
@@ -62,7 +64,8 @@ import {
   IconTransform,
   IconTrendingUp,
   IconTypography,
-  IconVector
+  IconVector,
+  IconX
 } from '@tabler/icons-react';
 import { memo, useEffect, useMemo, useState } from 'react';
 import JsonView from 'react18-json-view';
@@ -159,12 +162,7 @@ const TILE_ICONS = {
  * @param {Function} [props.resolveTabId] - Async function that resolves a valid tab ID
  * @param {Function} props.onClose - Close handler
  */
-export function DataflowInspector({
-  cacheRef,
-  dataflowId,
-  onClose,
-  resolveTabId
-}) {
+export function DataflowInspector({ cacheRef, dataflowId, onClose, resolveTabId }) {
   const cached = cacheRef?.current?.get(dataflowId);
   const [dataflow, setDataflow] = useState(cached?.parsed ?? null);
   const [rawJSON, setRawJSON] = useState(cached?.raw ?? null);
@@ -245,7 +243,12 @@ export function DataflowInspector({
       <Card className='border-divider h-full rounded-none border-l p-0 shadow-none'>
         <Card.Header className='border-divider flex-row items-center justify-between border-b px-4 py-3'>
           <span className='font-semibold'>Loading ETL...</span>
-          <CloseButton size='sm' onPress={onClose} />
+          <Tooltip closeDelay={0} delay={400}>
+            <Button isIconOnly size='sm' variant='tertiary' onPress={onClose}>
+              <IconX stroke={1.5} />
+            </Button>
+            <Tooltip.Content>Close</Tooltip.Content>
+          </Tooltip>
         </Card.Header>
         <Card.Content className='items-center justify-center'>
           <Spinner size='md' />
@@ -259,7 +262,12 @@ export function DataflowInspector({
       <Card className='border-divider h-full rounded-none border-l p-0 shadow-none'>
         <Card.Header className='border-divider flex-row items-center justify-between border-b px-4 py-3'>
           <span className='font-semibold'>ETL Inspector</span>
-          <CloseButton size='sm' onPress={onClose} />
+          <Tooltip closeDelay={0} delay={400}>
+            <Button isIconOnly size='sm' variant='tertiary' onPress={onClose}>
+              <IconX stroke={1.5} />
+            </Button>
+            <Tooltip.Content>Close</Tooltip.Content>
+          </Tooltip>
         </Card.Header>
         <Card.Content className='items-center justify-center text-danger'>
           <p>{error || 'No data available'}</p>
@@ -281,7 +289,12 @@ export function DataflowInspector({
               {dataflow.name}
             </span>
           </div>
-          <CloseButton size='sm' onPress={onClose} />
+          <Tooltip closeDelay={0} delay={400}>
+            <Button isIconOnly size='sm' variant='tertiary' onPress={onClose}>
+              <IconX stroke={1.5} />
+            </Button>
+            <Tooltip.Content>Close</Tooltip.Content>
+          </Tooltip>
         </div>
         <div className='text-xs text-muted'>
           {dataflow.tiles.length} tiles &middot; ID: {dataflow.id}
@@ -307,10 +320,7 @@ export function DataflowInspector({
             </Tabs.Tab>
           </Tabs.List>
         </Tabs.ListContainer>
-        <Tabs.Panel
-          className='flex min-h-0 flex-1 flex-col overflow-hidden p-0'
-          id='tiles'
-        >
+        <Tabs.Panel className='flex min-h-0 flex-1 flex-col overflow-hidden p-0' id='tiles'>
           <div className='border-divider shrink-0 border-b p-2'>
             <SearchField
               fullWidth
@@ -332,11 +342,7 @@ export function DataflowInspector({
             )}
           </div>
 
-          <ScrollShadow
-            hideScrollBar
-            className='min-h-0 flex-1 p-2'
-            offset={10}
-          >
+          <ScrollShadow hideScrollBar className='min-h-0 flex-1 p-2' offset={10}>
             {flatRows.length === 0 ? (
               <div className='py-8 text-center text-muted'>
                 <p>No tiles match &ldquo;{tileSearch}&rdquo;</p>
@@ -352,10 +358,7 @@ export function DataflowInspector({
                     />
                   ) : (
                     <div className='mb-1.5' key={row.tile.id}>
-                      <TileDetail
-                        searchQuery={tileSearch || undefined}
-                        tile={row.tile}
-                      />
+                      <TileDetail searchQuery={tileSearch || undefined} tile={row.tile} />
                     </div>
                   )
                 )}
@@ -393,18 +396,13 @@ export function DataflowInspector({
                   />
                 )}
                 customizeCopy={(node) =>
-                  typeof node === 'object'
-                    ? JSON.stringify(node, null, 2)
-                    : String(node)
+                  typeof node === 'object' ? JSON.stringify(node, null, 2) : String(node)
                 }
                 customizeNode={(params) => {
                   if (params.node === null || params.node === undefined) {
                     return { enableClipboard: false };
                   }
-                  if (
-                    typeof params.node === 'string' &&
-                    params.node.startsWith('https://')
-                  ) {
+                  if (typeof params.node === 'string' && params.node.startsWith('https://')) {
                     return (
                       <Link
                         className='text-sm text-accent no-underline decoration-accent hover:underline'
@@ -419,16 +417,12 @@ export function DataflowInspector({
                     return { enableClipboard: true };
                   }
                   if (
-                    (typeof params.node === 'number' ||
-                      typeof params.node === 'string') &&
+                    (typeof params.node === 'number' || typeof params.node === 'string') &&
                     params.node?.toString().length >= 7
                   ) {
                     return { enableClipboard: true };
                   }
-                  if (
-                    typeof params.node === 'object' &&
-                    Object.keys(params.node).length > 0
-                  ) {
+                  if (typeof params.node === 'object' && Object.keys(params.node).length > 0) {
                     return { enableClipboard: true };
                   }
                   if (Array.isArray(params.node) && params.node.length > 0) {
@@ -473,21 +467,14 @@ function hasDetailKey(rawDetails, key) {
 }
 
 function highlightMatch(text, query) {
-  const str =
-    text == null
-      ? ''
-      : typeof text === 'string'
-        ? text
-        : text.name || String(text);
+  const str = text == null ? '' : typeof text === 'string' ? text : text.name || String(text);
   if (!query || !str) return str;
   const idx = str.toLowerCase().indexOf(query.toLowerCase());
   if (idx === -1) return str;
   return (
     <>
       {str.slice(0, idx)}
-      <mark className='rounded bg-yellow-200 px-0.5'>
-        {str.slice(idx, idx + query.length)}
-      </mark>
+      <mark className='rounded bg-yellow-200 px-0.5'>{str.slice(idx, idx + query.length)}</mark>
       {str.slice(idx + query.length)}
     </>
   );
@@ -530,30 +517,20 @@ function tileHasContent(tile) {
 
 const TileDetail = memo(function TileDetail({ searchQuery, tile }) {
   const hasContent = tileHasContent(tile);
-  const categoryColor =
-    CATEGORY_COLORS[tile.category] || DEFAULT_CATEGORY_COLOR;
+  const categoryColor = CATEGORY_COLORS[tile.category] || DEFAULT_CATEGORY_COLOR;
   const tileEntry = TILE_ICONS[tile.type] || IconColumns3;
   const Icon = Array.isArray(tileEntry) ? tileEntry[0] : tileEntry;
   const tileRotate = Array.isArray(tileEntry) ? tileEntry[1] : '';
 
   const trigger = (
     <>
-      <span
-        className='flex min-w-0 flex-1 items-center gap-2'
-        title={tile.name}
-      >
-        <Icon
-          className={`size-4 shrink-0 ${categoryColor.text} ${tileRotate}`}
-        />
+      <span className='flex min-w-0 flex-1 items-center gap-2' title={tile.name}>
+        <Icon className={`size-4 shrink-0 ${categoryColor.text} ${tileRotate}`} />
         <span className='truncate text-sm font-medium' title={tile.name}>
           {highlightMatch(tile.name, searchQuery)}
         </span>
       </span>
-      <Chip
-        className={`text-white ${categoryColor.bg}`}
-        size='sm'
-        variant='soft'
-      >
+      <Chip className={`text-white ${categoryColor.bg}`} size='sm' variant='soft'>
         <Chip.Label>{tile.displayType}</Chip.Label>
       </Chip>
     </>
@@ -573,13 +550,16 @@ const TileDetail = memo(function TileDetail({ searchQuery, tile }) {
       <Disclosure.Heading>
         <Disclosure.Trigger className='flex w-full items-center justify-between gap-2 p-2'>
           {trigger}
-          <Disclosure.Indicator className='text-muted'>
+          <Disclosure.Indicator>
             <IconChevronDown stroke={1.5} />
           </Disclosure.Indicator>
         </Disclosure.Trigger>
       </Disclosure.Heading>
       <Disclosure.Content>
-        <div className='border-divider flex flex-col gap-2 border-t p-2'>
+        <div className='px-4'>
+          <Separator variant='secondary' />
+        </div>
+        <div className='flex flex-col gap-2 p-2'>
           {tile.inputDatasets.length > 0 && (
             <DetailSection label='Input DataSet'>
               {tile.inputDatasets.map((id, i) => (
@@ -602,9 +582,7 @@ const TileDetail = memo(function TileDetail({ searchQuery, tile }) {
               {tile.rawDetails.constants.map((c, i) => (
                 <DetailMono key={i}>
                   {highlightMatch(c.name, searchQuery)} ={' '}
-                  <span className='text-muted'>
-                    {highlightMatch(String(c.value), searchQuery)}
-                  </span>
+                  <span className='text-muted'>{highlightMatch(String(c.value), searchQuery)}</span>
                 </DetailMono>
               ))}
             </DetailSection>
@@ -614,10 +592,7 @@ const TileDetail = memo(function TileDetail({ searchQuery, tile }) {
             <DetailSection label='Filters'>
               {tile.filters.map((f, i) => (
                 <DetailMono key={i}>
-                  {highlightMatch(
-                    `${f.field} ${f.operator} ${f.value}`,
-                    searchQuery
-                  )}
+                  {highlightMatch(`${f.field} ${f.operator} ${f.value}`, searchQuery)}
                 </DetailMono>
               ))}
             </DetailSection>
@@ -638,13 +613,8 @@ const TileDetail = memo(function TileDetail({ searchQuery, tile }) {
           {tile.expressions.length > 0 && (
             <DetailSection label='Expressions'>
               {tile.expressions.map((e, i) => (
-                <div
-                  className='border-divider rounded border bg-surface p-2 text-xs'
-                  key={i}
-                >
-                  <div className='font-semibold'>
-                    {highlightMatch(e.resultField, searchQuery)}
-                  </div>
+                <div className='border-divider rounded border bg-surface p-2 text-xs' key={i}>
+                  <div className='font-semibold'>{highlightMatch(e.resultField, searchQuery)}</div>
                   <div className='font-mono break-all'>
                     {highlightMatch(e.expression, searchQuery)}
                   </div>
@@ -656,13 +626,8 @@ const TileDetail = memo(function TileDetail({ searchQuery, tile }) {
           {tile.rawDetails.aggregates?.length > 0 && (
             <DetailSection label='Aggregates'>
               {tile.rawDetails.aggregates.map((a, i) => (
-                <div
-                  className='border-divider rounded border bg-surface p-2 text-xs'
-                  key={i}
-                >
-                  <div className='font-semibold'>
-                    {highlightMatch(a.field, searchQuery)}
-                  </div>
+                <div className='border-divider rounded border bg-surface p-2 text-xs' key={i}>
+                  <div className='font-semibold'>{highlightMatch(a.field, searchQuery)}</div>
                   <div className='font-mono break-all text-muted'>
                     {highlightMatch(a.expression, searchQuery)}
                   </div>
@@ -683,8 +648,7 @@ const TileDetail = memo(function TileDetail({ searchQuery, tile }) {
             </DetailSection>
           )}
 
-          {(tile.rawDetails.search != null ||
-            tile.rawDetails.replace != null) && (
+          {(tile.rawDetails.search != null || tile.rawDetails.replace != null) && (
             <DetailSection label='Search / Replace'>
               <DetailMono>
                 {highlightMatch(tile.rawDetails.search || '', searchQuery)}
@@ -697,10 +661,7 @@ const TileDetail = memo(function TileDetail({ searchQuery, tile }) {
           {tile.rawDetails.fieldValue != null && (
             <DetailSection label='Value'>
               <DetailMono>
-                {highlightMatch(
-                  String(tile.rawDetails.fieldValue),
-                  searchQuery
-                )}
+                {highlightMatch(String(tile.rawDetails.fieldValue), searchQuery)}
               </DetailMono>
             </DetailSection>
           )}
@@ -710,15 +671,9 @@ const TileDetail = memo(function TileDetail({ searchQuery, tile }) {
               {Array.isArray(tile.rawDetails.mappings)
                 ? tile.rawDetails.mappings.map((m, i) => (
                     <DetailMono key={i}>
-                      {highlightMatch(
-                        String(m.source ?? m.from ?? ''),
-                        searchQuery
-                      )}
+                      {highlightMatch(String(m.source ?? m.from ?? ''), searchQuery)}
                       {' → '}
-                      {highlightMatch(
-                        String(m.target ?? m.to ?? ''),
-                        searchQuery
-                      )}
+                      {highlightMatch(String(m.target ?? m.to ?? ''), searchQuery)}
                     </DetailMono>
                   ))
                 : Object.entries(tile.rawDetails.mappings).map(([k, v], i) => (
@@ -738,10 +693,7 @@ const TileDetail = memo(function TileDetail({ searchQuery, tile }) {
                   className='border-divider overflow-x-auto rounded border bg-surface p-2 font-mono text-xs'
                   key={i}
                 >
-                  {highlightMatch(
-                    typeof s === 'string' ? s : s.query,
-                    searchQuery
-                  )}
+                  {highlightMatch(typeof s === 'string' ? s : s.query, searchQuery)}
                 </pre>
               ))}
             </DetailSection>
@@ -769,9 +721,7 @@ const TileDetail = memo(function TileDetail({ searchQuery, tile }) {
 
 function DetailMono({ children }) {
   return (
-    <div className='border-divider rounded border bg-surface p-2 font-mono text-xs'>
-      {children}
-    </div>
+    <div className='border-divider rounded border bg-surface p-2 font-mono text-xs'>{children}</div>
   );
 }
 
@@ -786,22 +736,15 @@ function DetailSection({ children, label }) {
 
 function TileConfig({ rawDetails }) {
   const entries = [];
-  if (rawDetails.separator != null)
-    entries.push(['Separator', rawDetails.separator || '(empty)']);
-  if (rawDetails.outputField)
-    entries.push(['Output Field', rawDetails.outputField]);
+  if (rawDetails.separator != null) entries.push(['Separator', rawDetails.separator || '(empty)']);
+  if (rawDetails.outputField) entries.push(['Output Field', rawDetails.outputField]);
   if (rawDetails.delimiter) entries.push(['Delimiter', rawDetails.delimiter]);
   if (rawDetails.formatType) entries.push(['Format', rawDetails.formatType]);
-  if (rawDetails.pivotField)
-    entries.push(['Pivot Field', rawDetails.pivotField]);
-  if (rawDetails.valueField)
-    entries.push(['Value Field', rawDetails.valueField]);
-  if (rawDetails.rowLimit != null)
-    entries.push(['Row Limit', String(rawDetails.rowLimit)]);
-  if (rawDetails.rowCount != null)
-    entries.push(['Row Count', String(rawDetails.rowCount)]);
-  if (rawDetails.inputCount != null)
-    entries.push(['Inputs', String(rawDetails.inputCount)]);
+  if (rawDetails.pivotField) entries.push(['Pivot Field', rawDetails.pivotField]);
+  if (rawDetails.valueField) entries.push(['Value Field', rawDetails.valueField]);
+  if (rawDetails.rowLimit != null) entries.push(['Row Limit', String(rawDetails.rowLimit)]);
+  if (rawDetails.rowCount != null) entries.push(['Row Count', String(rawDetails.rowCount)]);
+  if (rawDetails.inputCount != null) entries.push(['Inputs', String(rawDetails.inputCount)]);
   if (rawDetails.unionType) entries.push(['Union Type', rawDetails.unionType]);
   if (entries.length === 0) return null;
 

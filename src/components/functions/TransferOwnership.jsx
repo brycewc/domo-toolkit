@@ -3,11 +3,7 @@ import { IconUserUp } from '@tabler/icons-react';
 
 import { useLaunchView } from '@/hooks';
 
-export function TransferOwnership({
-  currentContext,
-  onCollapseActions,
-  onStatusUpdate
-}) {
+export function TransferOwnership({ currentContext, onCollapseActions, onStatusUpdate }) {
   const { isPending, launch } = useLaunchView();
 
   return (
@@ -29,9 +25,8 @@ export function TransferOwnership({
         <IconUserUp stroke={1.5} />
         Transfer Ownership
       </Button>
-      <Tooltip.Content className='text-wrap break-normal'>
-        Transfer all objects (or a selected subset) owned by this user to
-        another user
+      <Tooltip.Content className='text-wrap break-normal' placement='top'>
+        Transfer objects owned by this user to another user
       </Tooltip.Content>
     </Tooltip>
   );
