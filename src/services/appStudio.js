@@ -152,12 +152,21 @@ export async function getQueuesForPage({ queueWidgetIds, tabId = null }) {
  * Uses the search endpoint which only returns direct ownership, unlike
  * getOwnedAppStudioApps which includes group-inherited ownership.
  * Used by the transfer flow — only individual ownership can be transferred.
+ *
+ * Note: the search index's `data_app` entity is a superset that includes
+ * worksheets, so we fetch the worksheet entity in parallel and subtract
+ * to produce an apps-only list.
  * @param {number} userId - The Domo user ID
  * @param {number|null} tabId - Optional Chrome tab ID
  * @returns {Promise<Array<{id: string, name: string}>>}
  */
 export async function getUserOwnedAppStudioApps(userId, tabId = null) {
-  return searchUserOwnedDataApps(userId, 'data_app', tabId);
+  const [allDataApps, worksheets] = await Promise.all([
+    searchUserOwnedDataApps(userId, 'data_app', tabId),
+    searchUserOwnedDataApps(userId, 'worksheet', tabId)
+  ]);
+  const worksheetIds = new Set(worksheets.map((w) => w.id));
+  return allDataApps.filter((a) => !worksheetIds.has(a.id));
 }
 
 /**
@@ -169,6 +178,39 @@ export async function getUserOwnedAppStudioApps(userId, tabId = null) {
  */
 export async function getUserOwnedWorksheets(userId, tabId = null) {
   return searchUserOwnedDataApps(userId, 'worksheet', tabId);
+}
+
+/**
+ * Share an App Studio app or Worksheet with a user. Both types share the same
+ * `/api/content/v1/dataapps/share` endpoint — callers pass the app ID for
+ * `DATA_APP` and `WORKSHEET`, or the parent app ID for `DATA_APP_VIEW` and
+ * `WORKSHEET_VIEW`.
+ * @param {Object} params
+ * @param {string|number} params.appId - The app ID to share
+ * @param {number} params.userId - The user ID to share with
+ * @param {number|null} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<void>} Resolves on success, throws on HTTP failure
+ */
+export async function shareStudioApp({ appId, tabId = null, userId }) {
+  return executeInPage(
+    async (appId, userId) => {
+      const response = await fetch(
+        '/api/content/v1/dataapps/share?sendEmail=false',
+        {
+          body: JSON.stringify({
+            dataAppIds: [appId],
+            message: 'I thought you might find this interesting.',
+            recipients: [{ id: userId, type: 'user' }]
+          }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        }
+      );
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    },
+    [appId, userId],
+    tabId
+  );
 }
 
 /**

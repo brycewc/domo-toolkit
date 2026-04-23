@@ -216,9 +216,6 @@ export class DomoObjectType {
  * Registry of all supported object types
  */
 export const ObjectTypeRegistry = {
-  ACCESS_TOKEN: new DomoObjectType('ACCESS_TOKEN', 'Access token', {
-    idPattern: /^\d+$/
-  }),
   ACCOUNT: new DomoObjectType('ACCOUNT', 'Account', {
     api: { endpoint: '/data/v1/accounts/{id}', pathToName: 'name' },
     icon: { component: 'Key' },

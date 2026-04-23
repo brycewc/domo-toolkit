@@ -1,6 +1,38 @@
 import { executeInPage } from '@/utils';
 
 /**
+ * Archive (soft-delete) an approval template.
+ * @param {Object} params
+ * @param {string} params.templateId - The approval template ID
+ * @param {number|null} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<void>} Resolves on success, throws on HTTP failure or
+ *   a GraphQL response missing `success`
+ */
+export async function deleteApprovalTemplate({ tabId = null, templateId }) {
+  return executeInPage(
+    async (templateId) => {
+      const response = await fetch('/api/synapse/approval/graphql', {
+        body: JSON.stringify({
+          operationName: 'archiveTemplate',
+          query:
+            'mutation archiveTemplate($id: ID!) {\n  success: deleteTemplate(id: $id)\n}',
+          variables: { id: templateId }
+        }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST'
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      if (!data.data?.success) {
+        throw new Error(data.data?.error || 'Archive template failed');
+      }
+    },
+    [templateId],
+    tabId
+  );
+}
+
+/**
  * Get all pending approvals where the user is an approver.
  * @param {number} userId - The Domo user ID
  * @param {number|null} tabId - Optional Chrome tab ID

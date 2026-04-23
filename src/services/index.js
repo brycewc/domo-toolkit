@@ -1,20 +1,22 @@
-export { getOwnedAccounts, transferAccounts } from './accounts';
+export { getOwnedAccounts, shareAccount, transferAccounts } from './accounts';
 export { getOwnedAiModels, transferAiModels } from './aiModels';
 export { getOwnedAiProjects, transferAiProjects } from './aiProjects';
-export { getOwnedAlerts, transferAlerts } from './alerts';
 export {
-  deleteObject,
-  fetchObjectDetailsInPage,
-  shareResources,
-  shareWithSelf,
-  updateOwner
-} from './allObjects';
+  getOwnedAlerts,
+  transferAlerts,
+  updateAlertOwner
+} from './alerts';
+export { fetchObjectDetailsInPage, shareResources } from './allObjects';
 export {
+  deleteAppDbCollection,
   getAppDbCollectionPermission,
+  getAppInstanceCollections,
   getOwnedAppDbCollections,
+  shareAppDbCollection,
   transferAppDbCollections
 } from './appDb';
 export {
+  deleteApprovalTemplate,
   getOwnedApprovals,
   getOwnedApprovalTemplates,
   transferApprovals,
@@ -28,6 +30,7 @@ export {
   getQueuesForPage,
   getUserOwnedAppStudioApps,
   getUserOwnedWorksheets,
+  shareStudioApp,
   transferAppStudioApps,
   transferWorksheets
 } from './appStudio';
@@ -51,7 +54,13 @@ export {
   getOwnedCodeEnginePackages,
   transferCodeEnginePackages
 } from './codeEngine';
-export { getOwnedCustomApps, transferCustomApps } from './customApps';
+export {
+  deleteCustomApp,
+  getAppInstance,
+  getOwnedCustomApps,
+  shareCustomAppDesign,
+  transferCustomApps
+} from './customApps';
 export {
   deleteDataflowAndOutputs,
   getDataflowDetail,
@@ -75,6 +84,7 @@ export {
   setStreamScheduleToManual,
   transferDatasets
 } from './datasets';
+export { deleteObject } from './deleteObject';
 export { duplicateUser, fetchDuplicationPreview } from './duplicate';
 export { runEnrichments } from './enrichments';
 export { uploadDataFile } from './files';
@@ -118,7 +128,7 @@ export {
   getPagesForCards,
   getSubpageIds,
   getUserAccessiblePages,
-  sharePagesWithSelf,
+  sharePages,
   transferPages
 } from './pages';
 export {
@@ -129,6 +139,7 @@ export {
   getOwnedRepositories,
   transferRepositories
 } from './sandbox';
+export { shareWithSelf } from './share';
 export {
   getOwnedSubscriptions,
   transferSubscriptions
@@ -163,11 +174,13 @@ export {
   setUserAttributes
 } from './users';
 export {
+  deleteWorkflow,
   getOwnedWorkflows,
   getVersionDefinition,
   getWorkflowPermission,
   transferWorkflows,
-  updateVersionDefinition
+  updateVersionDefinition,
+  updateWorkflowOwner
 } from './workflows';
 export {
   getOwnedWorkspaces,

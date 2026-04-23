@@ -8,7 +8,7 @@ import {
   getChildPages,
   getPagesForCards,
   removeCardFromPage,
-  sharePagesWithSelf
+  sharePages
 } from '@/services';
 import { getSidepanelData, getValidTabForInstance, waitForCards, waitForChildPages } from '@/utils';
 
@@ -427,7 +427,7 @@ export function GetPagesView({ onBackToDefault = null, onStatusUpdate = null }) 
     try {
       if (pageData?.instance) {
         const tabId = await getValidTabForInstance(pageData.instance);
-        await sharePagesWithSelf({
+        await sharePages({
           pageIds: [item.id],
           tabId,
           userId: pageData.userId
@@ -454,7 +454,7 @@ export function GetPagesView({ onBackToDefault = null, onStatusUpdate = null }) 
         const tabId = await getValidTabForInstance(pageData.instance);
         const pageIds = [item.id, ...item.children.map((child) => child.id)];
         const count = pageIds.length;
-        await sharePagesWithSelf({
+        await sharePages({
           pageIds,
           tabId,
           userId: pageData.userId
@@ -502,7 +502,7 @@ export function GetPagesView({ onBackToDefault = null, onStatusUpdate = null }) 
 
         const count = pageIds.length;
 
-        await sharePagesWithSelf({
+        await sharePages({
           pageIds,
           tabId,
           userId: pageData.userId

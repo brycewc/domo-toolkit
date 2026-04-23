@@ -1,12 +1,56 @@
 import { executeInPage } from '@/utils';
 
 /**
- * Get the current user's permissions for a Workflow Model.
- * @param {string} modelId - The Workflow Model ID
- * @param {number|string} userId - The current user's ID
- * @param {number} [tabId] - Optional Chrome tab ID
- * @returns {Promise<string[]>} Array of permission strings, or empty array
+ * Delete a Workflow Model. Internally lists the model's versions and
+ * deactivates any that are still active before issuing the DELETE, because
+ * the delete endpoint rejects models with active versions.
+ * @param {Object} params
+ * @param {string} params.modelId - The Workflow Model ID
+ * @param {number|null} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<void>} Resolves on success, throws on HTTP failure
  */
+export async function deleteWorkflow({ modelId, tabId = null }) {
+  return executeInPage(
+    async (modelId) => {
+      const versionsRes = await fetch(
+        `/api/workflow/v2/models/${modelId}/versions`
+      );
+      if (!versionsRes.ok) {
+        throw new Error(
+          `Failed to list workflow versions: HTTP ${versionsRes.status}`
+        );
+      }
+      const versions = await versionsRes.json();
+      const activeVersions = versions.filter((v) => v.active);
+      for (const ver of activeVersions) {
+        const deactivateRes = await fetch(
+          `/api/workflow/v2/models/${modelId}/versions/${ver.version}`,
+          {
+            body: JSON.stringify({
+              active: false,
+              description: ver.description
+            }),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'PUT'
+          }
+        );
+        if (!deactivateRes.ok) {
+          throw new Error(
+            `Failed to deactivate version ${ver.version}: HTTP ${deactivateRes.status}`
+          );
+        }
+      }
+
+      const deleteRes = await fetch(`/api/workflow/v1/models/${modelId}`, {
+        method: 'DELETE'
+      });
+      if (!deleteRes.ok) throw new Error(`HTTP ${deleteRes.status}`);
+    },
+    [modelId],
+    tabId
+  );
+}
+
 /**
  * Get all workflows owned by a user.
  * @param {number} userId - The Domo user ID
@@ -168,6 +212,33 @@ export async function updateVersionDefinition(
       return response.json();
     },
     [modelId, versionNumber, definition],
+    tabId
+  );
+}
+
+/**
+ * Update the owner of a Workflow Model via PATCH-style partial update.
+ * @param {Object} params
+ * @param {string} params.modelId - The Workflow Model ID
+ * @param {number|string} params.newOwnerId - The new owner's user ID
+ * @param {number|null} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<void>} Resolves on success, throws on HTTP failure
+ */
+export async function updateWorkflowOwner({
+  modelId,
+  newOwnerId,
+  tabId = null
+}) {
+  return executeInPage(
+    async (modelId, newOwnerId) => {
+      const response = await fetch(`/api/workflow/v1/models/${modelId}`, {
+        body: JSON.stringify({ id: modelId, owner: String(newOwnerId) }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'PUT'
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    },
+    [modelId, newOwnerId],
     tabId
   );
 }

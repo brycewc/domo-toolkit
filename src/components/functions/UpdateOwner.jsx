@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 
 import { UserComboBox } from '@/components';
 import { useStatusBar } from '@/hooks';
-import { updateOwner } from '@/services';
+import { updateAlertOwner, updateWorkflowOwner } from '@/services';
 import { isSidepanel } from '@/utils';
 
 export function UpdateOwner({ currentContext, onStatusUpdate }) {
@@ -30,9 +30,9 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
 
     const typeName = currentContext?.domoObject?.typeName;
 
-    const promise = updateOwner({
+    const promise = updateOwnerForObject({
+      newOwnerId: ownerId,
       object: currentContext?.domoObject,
-      owner: ownerId,
       tabId: currentContext?.tabId
     }).then(() => {
       setIsOpen(false);
@@ -149,4 +149,17 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
       </Modal.Backdrop>
     </Modal>
   );
+}
+
+async function updateOwnerForObject({ newOwnerId, object, tabId }) {
+  switch (object?.typeId) {
+    case 'ALERT':
+      return updateAlertOwner({ alertId: object.id, newOwnerId, tabId });
+    case 'WORKFLOW_MODEL':
+      return updateWorkflowOwner({ modelId: object.id, newOwnerId, tabId });
+    default:
+      throw new Error(
+        `Update owner not supported for object type: ${object?.typeId}`
+      );
+  }
 }

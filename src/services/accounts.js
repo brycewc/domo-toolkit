@@ -61,6 +61,36 @@ export async function getOwnedAccounts(userId, tabId = null) {
 }
 
 /**
+ * Share an account with a user at a given access level.
+ * @param {Object} params
+ * @param {number} params.accountId - The account ID
+ * @param {number} params.userId - The user ID to grant access to
+ * @param {string} [params.accessLevel='CAN_VIEW'] - Domo access level
+ *   (e.g., 'CAN_VIEW', 'CAN_USE', 'OWNER')
+ * @param {number|null} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<void>} Resolves on success, throws on HTTP failure
+ */
+export async function shareAccount({
+  accessLevel = 'CAN_VIEW',
+  accountId,
+  tabId = null,
+  userId
+}) {
+  return executeInPage(
+    async (accountId, userId, accessLevel) => {
+      const response = await fetch(`/api/data/v2/accounts/share/${accountId}`, {
+        body: JSON.stringify({ accessLevel, id: userId, type: 'USER' }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'PUT'
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    },
+    [accountId, userId, accessLevel],
+    tabId
+  );
+}
+
+/**
  * Transfer account ownership to a new user.
  * @param {number[]} accountIds - Array of account IDs to transfer
  * @param {number} fromUserId - The current owner's user ID

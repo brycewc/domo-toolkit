@@ -1,6 +1,46 @@
 import { executeInPage } from '@/utils';
 
 /**
+ * Delete a Custom App design.
+ * @param {Object} params
+ * @param {string} params.designId - The app design ID
+ * @param {number|null} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<void>} Resolves on success, throws on HTTP failure
+ */
+export async function deleteCustomApp({ designId, tabId = null }) {
+  return executeInPage(
+    async (designId) => {
+      const response = await fetch(`/api/apps/v1/designs/${designId}`, {
+        method: 'DELETE'
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    },
+    [designId],
+    tabId
+  );
+}
+
+/**
+ * Fetch details for a Custom App instance. Returns the raw instance record,
+ * which includes `designId` pointing at the underlying app design.
+ * @param {Object} params
+ * @param {string} params.appInstanceId - The app instance ID
+ * @param {number|null} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<Object>} The app instance record
+ */
+export async function getAppInstance({ appInstanceId, tabId = null }) {
+  return executeInPage(
+    async (appInstanceId) => {
+      const response = await fetch(`/api/apps/v1/instances/${appInstanceId}`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json();
+    },
+    [appInstanceId],
+    tabId
+  );
+}
+
+/**
  * Get all custom apps (bricks and pro code apps) owned by a user.
  * @param {number} userId - The Domo user ID
  * @param {number|null} tabId - Optional Chrome tab ID
@@ -40,6 +80,38 @@ export async function getOwnedCustomApps(userId, tabId = null) {
       return allApps;
     },
     [userId],
+    tabId
+  );
+}
+
+/**
+ * Share a Custom App design with a user at a given permission level.
+ * @param {Object} params
+ * @param {string} params.designId - The app design ID
+ * @param {number} params.userId - The user ID to grant permission to
+ * @param {string} [params.permission='ADMIN'] - Permission level (e.g., 'ADMIN', 'WRITE', 'READ')
+ * @param {number|null} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<void>} Resolves on success, throws on HTTP failure
+ */
+export async function shareCustomAppDesign({
+  designId,
+  permission = 'ADMIN',
+  tabId = null,
+  userId
+}) {
+  return executeInPage(
+    async (designId, permission, userId) => {
+      const response = await fetch(
+        `/api/apps/v1/designs/${designId}/permissions/${permission}`,
+        {
+          body: JSON.stringify([userId]),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        }
+      );
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    },
+    [designId, permission, userId],
     tabId
   );
 }

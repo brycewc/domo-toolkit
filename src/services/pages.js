@@ -655,7 +655,7 @@ export async function getUserAccessiblePages(userId, tabId = null) {
   );
 }
 
-export async function sharePagesWithSelf({ pageIds, tabId, userId }) {
+export async function sharePages({ pageIds, tabId, userId }) {
   const validPageIds = pageIds.filter((id) => id >= 0);
   if (validPageIds.length === 0) {
     throw new Error('No valid pages to share (all page IDs are negative)');

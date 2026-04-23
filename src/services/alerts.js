@@ -78,3 +78,33 @@ export async function transferAlerts(
     tabId
   );
 }
+
+/**
+ * Update the owner of a single alert.
+ * @param {Object} params
+ * @param {number|string} params.alertId - The alert ID
+ * @param {number|string} params.newOwnerId - The new owner's user ID
+ * @param {number|null} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<void>} Resolves on success, throws on HTTP failure
+ */
+export async function updateAlertOwner({
+  alertId,
+  newOwnerId,
+  tabId = null
+}) {
+  return executeInPage(
+    async (alertId, newOwnerId) => {
+      const response = await fetch(`/api/social/v4/alerts/${alertId}`, {
+        body: JSON.stringify({
+          id: Number(alertId),
+          owner: Number(newOwnerId)
+        }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'PATCH'
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    },
+    [alertId, newOwnerId],
+    tabId
+  );
+}

@@ -42,7 +42,6 @@ export function DeleteCurrentObject({
   const typeId = currentContext?.domoObject?.typeId;
 
   const supportedTypes = [
-    'ACCESS_TOKEN',
     'APP',
     'BEAST_MODE_FORMULA',
     'DATA_APP_VIEW',
