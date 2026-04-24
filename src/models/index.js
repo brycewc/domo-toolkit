@@ -3,6 +3,7 @@ export { DomoContext } from './DomoContext';
 export { DomoObject } from './DomoObject';
 export {
   DomoObjectType,
+  fetchObjectDetailsInPage,
   getAllNavigableObjectTypes,
   getAllObjectTypes,
   getAllObjectTypesWithApiConfig,

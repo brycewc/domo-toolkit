@@ -8,8 +8,7 @@ import {
 } from '@tabler/icons-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { DomoObject, getAllNavigableObjectTypes, getAllObjectTypesWithApiConfig } from '@/models';
-import { fetchObjectDetailsInPage } from '@/services';
+import { DomoObject, fetchObjectDetailsInPage, getAllNavigableObjectTypes, getAllObjectTypesWithApiConfig } from '@/models';
 import { executeInPage, isSidepanel, openSidepanel, storeSidepanelData } from '@/utils';
 
 const TYPE_PRIORITY = [

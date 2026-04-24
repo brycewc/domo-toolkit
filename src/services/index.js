@@ -6,7 +6,6 @@ export {
   transferAlerts,
   updateAlertOwner
 } from './alerts';
-export { fetchObjectDetailsInPage, shareResources } from './allObjects';
 export {
   deleteAppDbCollection,
   getAppDbCollectionPermission,
@@ -139,7 +138,7 @@ export {
   getOwnedRepositories,
   transferRepositories
 } from './sandbox';
-export { shareWithSelf } from './share';
+export { shareContent, shareWithSelf } from './share';
 export {
   getOwnedSubscriptions,
   transferSubscriptions

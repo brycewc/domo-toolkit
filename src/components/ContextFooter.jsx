@@ -14,8 +14,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import JsonView from 'react18-json-view';
 
 import { useGroupLookup, useUserLookup } from '@/hooks';
-import { getObjectType } from '@/models';
-import { fetchObjectDetailsInPage } from '@/services';
+import { fetchObjectDetailsInPage, getObjectType } from '@/models';
 import {
   executeInPage,
   formatEpochTimestamp,

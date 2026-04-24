@@ -1,8 +1,12 @@
 import { releases } from '@/data';
-import { DomoContext, DomoObject, getObjectType } from '@/models';
+import {
+  DomoContext,
+  DomoObject,
+  fetchObjectDetailsInPage,
+  getObjectType
+} from '@/models';
 import {
   checkPageType,
-  fetchObjectDetailsInPage,
   getCurrentUser,
   getDataflowForOutputDataset,
   getUserGroups,

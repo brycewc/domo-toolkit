@@ -1,7 +1,6 @@
-import { getObjectType } from '@/models';
+import { fetchObjectDetailsInPage, getObjectType } from '@/models';
 import { executeInPage } from '@/utils';
 
-import { fetchObjectDetailsInPage } from './allObjects';
 import { getAppDbCollectionPermission } from './appDb';
 import {
   extractPageContentIds,

@@ -7,10 +7,10 @@
  * the UI via an optional `onStepProgress` callback.
  */
 
-import { shareResources } from './allObjects';
 import { getUserAccessibleCards } from './cards';
 import { addUsersToGroups, fetchGroupDisplayNames } from './groups';
 import { getUserAccessiblePages } from './pages';
+import { shareContent } from './share';
 import {
   bulkUpdateUsers,
   createUser,
@@ -194,7 +194,7 @@ export async function duplicateUser({
     const cardIds = await getUserAccessibleCards(sourceUserId, tabId);
     for (let i = 0; i < cardIds.length; i += SHARE_BATCH_SIZE) {
       const batch = cardIds.slice(i, i + SHARE_BATCH_SIZE);
-      const ok = await shareResources(
+      const ok = await shareContent(
         {
           recipients: [{ id: String(newUserId), type: 'user' }],
           resources: batch.map((id) => ({ id, type: 'badge' }))
@@ -216,7 +216,7 @@ export async function duplicateUser({
     const pageIds = await getUserAccessiblePages(sourceUserId, tabId);
     for (let i = 0; i < pageIds.length; i += SHARE_BATCH_SIZE) {
       const batch = pageIds.slice(i, i + SHARE_BATCH_SIZE);
-      const ok = await shareResources(
+      const ok = await shareContent(
         {
           recipients: [{ id: String(newUserId), type: 'user' }],
           resources: batch.map((id) => ({ id, type: 'page' }))
