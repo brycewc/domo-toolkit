@@ -50,7 +50,7 @@
     "test-docs": "cd docs && bundle exec jekyll serve"
   },
   "dependencies": {
-    "@dagrejs/dagre": "^2.0.4",
+    "@dagrejs/dagre": "^3.0.0",
     "@heroui/react": "^3.0.3",
     "@heroui/styles": "^3.0.3",
     "@tabler/icons-react": "^3.41.1",
@@ -62,21 +62,21 @@
     "react-dom": "^19.2.5",
     "react18-json-view": "^0.2.10",
     "tailwindcss": "^4.2.4",
-    "xlsx": "^0.18.5"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@crxjs/vite-plugin": "^2.0.3",
     "@eslint/js": "^10.0.1",
     "@stylistic/eslint-plugin": "^5.10.0",
-    "@vitejs/plugin-react": "^4.7.0",
+    "@vitejs/plugin-react": "^6.0.1",
     "archiver": "^7.0.1",
     "eslint": "^10.2.1",
     "eslint-plugin-perfectionist": "^5.9.0",
     "globals": "^17.5.0",
     "prettier": "^3.8.3",
-    "prettier-plugin-tailwindcss": "^0.7.2",
+    "prettier-plugin-tailwindcss": "^0.7.3",
     "rollup-plugin-visualizer": "^7.0.1",
-    "vite": "^7.3.2",
+    "vite": "^8.0.10",
     "vite-plugin-zip-pack": "^1.2.4"
   }
 }
