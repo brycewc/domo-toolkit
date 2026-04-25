@@ -40,7 +40,7 @@ import {
   ShareWithSelf,
   TransferOwnership,
   UpdateCodeEngineVersions,
-  UpdateDataflowDetails,
+  UpdateDetails,
   UpdateOwner,
   ViewLineage
 } from './functions';
@@ -252,8 +252,8 @@ export function ActionButtons({
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
-                {availableActions.has('updateDataflowDetails') && (
-                  <UpdateDataflowDetails
+                {availableActions.has('updateDetails') && (
+                  <UpdateDetails
                     currentContext={currentContext}
                     onStatusUpdate={onStatusUpdate}
                   />
@@ -431,7 +431,11 @@ function getAvailableActions(currentContext) {
 
   if (typeId === 'DATAFLOW_TYPE') {
     if (metadata?.permission?.mask & 2) {
-      actions.add('updateDataflowDetails');
+      actions.add('updateDetails');
+    }
+  } else if (typeId === 'DATA_SOURCE') {
+    if (metadata?.isOwner || userRights.includes('dataset.admin')) {
+      actions.add('updateDetails');
     }
   }
 

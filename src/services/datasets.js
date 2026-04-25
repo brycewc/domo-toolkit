@@ -356,6 +356,14 @@ export async function getOwnedDatasets(userId, tabId = null) {
   );
 }
 
+export async function getProviders() {
+  return executeInPage(async () => {
+    const res = await fetch('/api/data/v1/providers');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }, []);
+}
+
 /**
  * Get a single stream execution's detailed data
  * @param {Object} params - Parameters
@@ -509,5 +517,27 @@ export async function transferDatasets(
     },
     [datasetIds, fromUserId, toUserId],
     tabId
+  );
+}
+
+export async function updateDatasetProperties(datasetId, updates) {
+  return executeInPage(
+    async (id, updates) => {
+      const payload = {};
+      // The endpoint ignores displayType server-side and always derives it
+      // from userDefinedType. Sending null clears userDefinedType and resets
+      // displayType to the dataset's dataProviderType.
+      if ('userDefinedType' in updates) {
+        payload.userDefinedType = updates.userDefinedType;
+      }
+      const res = await fetch(`/api/data/v3/datasources/${id}/properties`, {
+        body: JSON.stringify(payload),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'PUT'
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json().catch(() => null);
+    },
+    [datasetId, updates]
   );
 }

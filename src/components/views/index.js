@@ -10,3 +10,4 @@ export { LinkPreview } from './LinkPreview';
 export { ObjectDetailsView } from './ObjectDetailsView';
 export { TransferOwnershipView } from './TransferOwnershipView';
 export { UpdateCodeEngineVersionsView } from './UpdateCodeEngineVersionsView';
+export { UpdateDetailsView } from './UpdateDetailsView';

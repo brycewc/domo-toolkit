@@ -77,11 +77,13 @@ export {
   getDatasetsForView,
   getDependentDatasets,
   getOwnedDatasets,
+  getProviders,
   getStreamExecution,
   getStreamExecutions,
   isViewType,
   setStreamScheduleToManual,
-  transferDatasets
+  transferDatasets,
+  updateDatasetProperties
 } from './datasets';
 export { deleteObject } from './deleteObject';
 export { duplicateUser, fetchDuplicationPreview } from './duplicate';

@@ -1,8 +1,8 @@
 import {
   Button,
   Card,
-  Description,
   Disclosure,
+  FieldError,
   Input,
   Label,
   ScrollShadow,
@@ -11,21 +11,13 @@ import {
   TextField,
   Tooltip
 } from '@heroui/react';
-import {
-  IconAlertTriangle,
-  IconCheck,
-  IconLoader2,
-  IconRefresh,
-  IconX
-} from '@tabler/icons-react';
+import { IconAlertTriangle, IconCheck, IconLoader2, IconRefresh, IconX } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { useStatusBar } from '@/hooks';
 import { DomoContext } from '@/models';
 import { duplicateUser, fetchDuplicationPreview } from '@/services';
 import { getSidepanelData } from '@/utils';
-
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
  * Registry of duplicatable object types. Add an entry here to support a new
@@ -34,8 +26,7 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  */
 const duplicatorsByType = {
   USER: {
-    fetchPreview: ({ sourceUserId, tabId }) =>
-      fetchDuplicationPreview({ sourceUserId, tabId }),
+    fetchPreview: ({ sourceUserId, tabId }) => fetchDuplicationPreview({ sourceUserId, tabId }),
     fields: [
       {
         key: 'newDisplayName',
@@ -46,17 +37,13 @@ const duplicatorsByType = {
         key: 'newEmail',
         label: 'Email',
         required: true,
-        type: 'email',
-        validate: (v) => EMAIL_REGEX.test(v)
+        type: 'email'
       }
     ],
     renderPreviewSections: (preview) => [
       {
         emptyText: 'None',
-        items:
-          preview.source.roleId != null
-            ? [`Role ID ${preview.source.roleId}`]
-            : [],
+        items: preview.source.roleId != null ? [`Role ID ${preview.source.roleId}`] : [],
         key: 'role',
         label: 'Role'
       },
@@ -112,13 +99,9 @@ const duplicatorsByType = {
 const buildInitialStepStates = (steps) =>
   Object.fromEntries(steps.map((s) => [s.key, { status: 'idle' }]));
 
-const buildInitialValues = (fields) =>
-  Object.fromEntries(fields.map((f) => [f.key, '']));
+const buildInitialValues = (fields) => Object.fromEntries(fields.map((f) => [f.key, '']));
 
-export function DuplicateView({
-  onBackToDefault = null,
-  onStatusUpdate = null
-}) {
+export function DuplicateView({ onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   const [currentContext, setCurrentContext] = useState(null);
   const [sourceUser, setSourceUser] = useState(null);
@@ -150,9 +133,7 @@ export function DuplicateView({
         return;
       }
 
-      const context = data.currentContext
-        ? DomoContext.fromJSON(data.currentContext)
-        : null;
+      const context = data.currentContext ? DomoContext.fromJSON(data.currentContext) : null;
 
       if (!context) {
         onStatusUpdate?.('Error', 'No context available', 'danger');
@@ -164,11 +145,7 @@ export function DuplicateView({
       const typeConfig = duplicatorsByType[typeId];
 
       if (!typeConfig) {
-        onStatusUpdate?.(
-          'Error',
-          `Duplication is not supported for ${typeId}`,
-          'danger'
-        );
+        onStatusUpdate?.('Error', `Duplication is not supported for ${typeId}`, 'danger');
         onBackToDefault?.();
         return;
       }
@@ -186,11 +163,7 @@ export function DuplicateView({
       if (userId) setSourceUser({ id: userId, name: userName });
     } catch (error) {
       console.error('[DuplicateView] Error loading data:', error);
-      onStatusUpdate?.(
-        'Error',
-        error.message || 'Failed to load context',
-        'danger'
-      );
+      onStatusUpdate?.('Error', error.message || 'Failed to load context', 'danger');
     } finally {
       if (mountedRef.current) setIsLoading(false);
     }
@@ -225,24 +198,14 @@ export function DuplicateView({
   const setValue = (key, v) => setValues((prev) => ({ ...prev, [key]: v }));
 
   const fieldValidity = (field) => {
-    const raw = values[field.key] ?? '';
-    const trimmed = raw.trim();
-    if (field.required && !trimmed) return { isInvalid: false, ok: false };
-    if (trimmed && field.validate && !field.validate(trimmed)) {
-      return { isInvalid: true, ok: false };
-    }
-    return { isInvalid: false, ok: !field.required || !!trimmed };
+    const trimmed = (values[field.key] ?? '').trim();
+    return { ok: !field.required || !!trimmed };
   };
 
   const canSubmit =
-    !!config &&
-    !!preview &&
-    !isSubmitting &&
-    config.fields.every((f) => fieldValidity(f).ok);
+    !!config && !!preview && !isSubmitting && config.fields.every((f) => fieldValidity(f).ok);
 
-  const hasStarted = Object.values(stepStates).some(
-    (s) => s.status !== 'idle'
-  );
+  const hasStarted = Object.values(stepStates).some((s) => s.status !== 'idle');
 
   const handleSubmit = async () => {
     if (!canSubmit || !sourceUser) return;
@@ -290,12 +253,7 @@ export function DuplicateView({
         );
       }
     } catch (error) {
-      showStatus(
-        'Duplication Failed',
-        error.message || 'An error occurred',
-        'danger',
-        5000
-      );
+      showStatus('Duplication Failed', error.message || 'An error occurred', 'danger', 5000);
     } finally {
       if (mountedRef.current) setIsSubmitting(false);
     }
@@ -316,17 +274,10 @@ export function DuplicateView({
     <Card className='flex min-h-0 w-full flex-1 flex-col p-2'>
       <Card.Header className='gap-2'>
         <Card.Title className='flex items-start justify-between'>
-          <div className='min-w-0 flex-1 pt-1'>
-            {config?.title || 'Duplicate'}
-          </div>
+          <div className='min-w-0 flex-1 pt-1'>{config?.title || 'Duplicate'}</div>
           {onBackToDefault && (
             <Tooltip closeDelay={0} delay={400}>
-              <Button
-                isIconOnly
-                size='sm'
-                variant='ghost'
-                onPress={onBackToDefault}
-              >
+              <Button isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
                 <IconX stroke={1.5} />
               </Button>
               <Tooltip.Content className='text-xs'>Close</Tooltip.Content>
@@ -339,38 +290,29 @@ export function DuplicateView({
       <div className='flex shrink-0 flex-col gap-2'>
         <TextField isReadOnly isRequired className='pointer-events-none'>
           <Label>Duplicate From</Label>
-          <Input
-            value={sourceUser?.name || 'Unknown User'}
-            variant='secondary'
-          />
+          <Input value={sourceUser?.name || 'Unknown User'} variant='secondary' />
         </TextField>
 
-        {config?.fields.map((field) => {
-          const { isInvalid } = fieldValidity(field);
-          return (
-            <TextField
-              id={`duplicate-${field.key}`}
-              isInvalid={isInvalid}
-              isRequired={field.required}
-              key={field.key}
-              name={field.key}
-              variant='secondary'
-            >
-              <Label>{field.label}</Label>
-              <Input
-                className='h-8'
-                type={field.type || 'text'}
-                value={values[field.key] ?? ''}
-                onChange={(e) => setValue(field.key, e.target.value)}
-              />
-              {isInvalid && (
-                <Description className='text-xs text-danger'>
-                  Invalid {field.label.toLowerCase()}
-                </Description>
-              )}
-            </TextField>
-          );
-        })}
+        {config?.fields.map((field) => (
+          <TextField
+            id={`duplicate-${field.key}`}
+            isRequired={field.required}
+            key={field.key}
+            name={field.key}
+            type={field?.type}
+            variant='secondary'
+          >
+            <Label>{field.label}</Label>
+            <Input
+              className='h-8'
+              value={values[field.key] ?? ''}
+              onChange={(e) => setValue(field.key, e.target.value)}
+            />
+            <FieldError className='text-xs text-danger'>
+              Invalid {field.label.toLowerCase()}
+            </FieldError>
+          </TextField>
+        ))}
 
         <Separator className='mt-1' />
       </div>
@@ -392,15 +334,9 @@ export function DuplicateView({
         {hasStarted && config && (
           <>
             <Separator className='my-3' />
-            <div className='mb-1 text-xs font-medium text-muted uppercase'>
-              Progress
-            </div>
+            <div className='mb-1 text-xs font-medium text-muted uppercase'>Progress</div>
             {config.steps.map((step) => (
-              <StepRow
-                key={step.key}
-                state={stepStates[step.key]}
-                step={step}
-              />
+              <StepRow key={step.key} state={stepStates[step.key]} step={step} />
             ))}
           </>
         )}
@@ -468,9 +404,7 @@ function PreviewPanel({ config, error, isLoading, onRetry, preview }) {
 
   return (
     <div className='flex flex-col gap-1'>
-      <div className='mb-1 text-xs font-medium text-muted uppercase'>
-        Will be copied
-      </div>
+      <div className='mb-1 text-xs font-medium text-muted uppercase'>Will be copied</div>
       {sections.map((section) => (
         <PreviewSection key={section.key} section={section} />
       ))}
@@ -496,9 +430,7 @@ function PreviewSection({ section }) {
     return (
       <div className='flex items-center justify-between py-1'>
         <span className='text-sm'>{section.label}</span>
-        <span className='shrink-0 text-xs text-muted'>
-          {section.emptyText || 'None'}
-        </span>
+        <span className='shrink-0 text-xs text-muted'>{section.emptyText || 'None'}</span>
       </div>
     );
   }
@@ -508,9 +440,7 @@ function PreviewSection({ section }) {
     return (
       <div className='flex items-start justify-between gap-2 py-1'>
         <span className='text-sm'>{section.label}</span>
-        <span className='min-w-0 shrink-0 text-right text-xs text-muted'>
-          {items.join(', ')}
-        </span>
+        <span className='min-w-0 shrink-0 text-right text-xs text-muted'>{items.join(', ')}</span>
       </div>
     );
   }
@@ -539,9 +469,7 @@ function PreviewSection({ section }) {
               </li>
             ))}
             {items.length > 20 && (
-              <li className='text-xs text-muted'>
-                ...and {items.length - 20} more
-              </li>
+              <li className='text-xs text-muted'>...and {items.length - 20} more</li>
             )}
           </ul>
         </Disclosure.Body>
@@ -569,10 +497,7 @@ function StepRow({ state, step }) {
     return (
       <div className='flex items-center justify-between py-1' key={step.key}>
         <div className='flex items-center gap-2'>
-          <IconLoader2
-            className='shrink-0 animate-spin text-accent'
-            size={18}
-          />
+          <IconLoader2 className='shrink-0 animate-spin text-accent' size={18} />
           <span className='text-sm'>{step.label}</span>
         </div>
       </div>
@@ -587,9 +512,7 @@ function StepRow({ state, step }) {
           <IconCheck className='shrink-0 text-success' size={18} />
           <span className='text-sm'>{step.label}</span>
         </div>
-        {detail && (
-          <span className='shrink-0 text-xs text-success'>{detail}</span>
-        )}
+        {detail && <span className='shrink-0 text-xs text-success'>{detail}</span>}
       </div>
     );
   }

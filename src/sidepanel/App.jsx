@@ -15,7 +15,8 @@ import {
   ObjectDetailsView,
   ToastProvider,
   TransferOwnershipView,
-  UpdateCodeEngineVersionsView
+  UpdateCodeEngineVersionsView,
+  UpdateDetailsView
 } from '@/components';
 import { useReleaseNotification, useStatusBar, useTheme } from '@/hooks';
 import { DomoContext } from '@/models';
@@ -312,6 +313,14 @@ export default function App() {
 
             {activeView === 'updateCodeEngineVersions' && (
               <UpdateCodeEngineVersionsView
+                key={viewKey}
+                onBackToDefault={handleBackToDefault}
+                onStatusUpdate={showStatus}
+              />
+            )}
+
+            {activeView === 'updateDetails' && (
+              <UpdateDetailsView
                 key={viewKey}
                 onBackToDefault={handleBackToDefault}
                 onStatusUpdate={showStatus}
