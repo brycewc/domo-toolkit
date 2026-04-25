@@ -1,10 +1,10 @@
-export { ActivityLogCurrentObject } from './ActivityLogCurrentObject';
+export { ActivityLog } from './ActivityLog';
 export { ApiErrors } from './ApiErrors';
 export { ClearCookies } from './ClearCookies';
 export { Copy } from './Copy';
 export { CopyFilteredUrl } from './CopyFilteredUrl';
 export { DataRepair } from './DataRepair';
-export { DeleteCurrentObject } from './DeleteCurrentObject';
+export { DeleteObject } from './DeleteObject';
 export { DevMenu } from './DevMenu';
 export { DirectSignOn } from './DirectSignOn';
 export { Duplicate } from './Duplicate';
