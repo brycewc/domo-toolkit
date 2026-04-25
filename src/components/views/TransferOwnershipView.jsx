@@ -30,11 +30,7 @@ import {
   TYPE_KEY_TO_LOG_TYPE,
   uploadDataFile
 } from '@/services';
-import {
-  buildExcelBlob,
-  generateExportFilename,
-  getSidepanelData
-} from '@/utils';
+import { buildExcelBlob, generateExportFilename, getSidepanelData } from '@/utils';
 
 const LOG_COLUMNS = [
   { accessorKey: 'Object Type', header: 'Object Type' },
@@ -49,8 +45,7 @@ const LOG_COLUMNS = [
   { accessorKey: 'New Owner Name', header: 'New Owner Name' }
 ];
 
-const XLSX_MIME_TYPE =
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const XLSX_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
 export function TransferOwnershipView({ onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
@@ -345,11 +340,7 @@ export function TransferOwnershipView({ onBackToDefault = null, onStatusUpdate =
             currentContext.tabId
           );
         } catch (err) {
-          showStatus(
-            'Email Not Sent',
-            err.message || 'Failed to email new owner',
-            'warning'
-          );
+          showStatus('Email Not Sent', err.message || 'Failed to email new owner', 'warning', 5000);
           // Intentionally do not abort the delete step below — the transfer
           // itself succeeded; the email is a courtesy.
         }
@@ -362,7 +353,7 @@ export function TransferOwnershipView({ onBackToDefault = null, onStatusUpdate =
             'Transfer Complete',
             `Transferred **${totalSucceeded}** object${totalSucceeded !== 1 ? 's' : ''} and deleted user **${sourceUser.name}**`,
             'success',
-            5000
+            7000
           );
           setTimeout(() => onBackToDefault?.(), 3000);
         } catch (error) {
@@ -370,7 +361,7 @@ export function TransferOwnershipView({ onBackToDefault = null, onStatusUpdate =
             'Transfer Complete (Delete Failed)',
             `Transferred **${totalSucceeded}** object${totalSucceeded !== 1 ? 's' : ''} but failed to delete user: ${error.message}`,
             'warning',
-            5000
+            7000
           );
         }
       } else if (totalFailed > 0) {
@@ -378,19 +369,19 @@ export function TransferOwnershipView({ onBackToDefault = null, onStatusUpdate =
           'Transfer Partially Complete',
           `**${totalSucceeded}** succeeded, **${totalFailed}** failed`,
           'warning',
-          5000
+          7000
         );
       } else {
         showStatus(
           'Transfer Complete',
           `Transferred **${totalSucceeded}** object${totalSucceeded !== 1 ? 's' : ''}`,
           'success',
-          5000
+          7000
         );
         setTimeout(() => onBackToDefault?.(), 3000);
       }
     } catch (error) {
-      showStatus('Transfer Failed', error.message || 'An error occurred', 'danger', 5000);
+      showStatus('Transfer Failed', error.message || 'An error occurred', 'danger', 7000);
     } finally {
       if (mountedRef.current) setIsSubmitting(false);
     }
@@ -707,13 +698,7 @@ export function TransferOwnershipView({ onBackToDefault = null, onStatusUpdate =
   );
 }
 
-function buildTransferLogRows({
-  fromUserId,
-  fromUserName,
-  results,
-  toUserId,
-  toUserName
-}) {
+function buildTransferLogRows({ fromUserId, fromUserName, results, toUserId, toUserName }) {
   const date = new Date().toISOString().slice(0, -5);
   const rows = [];
   for (const [typeKey, result] of results) {

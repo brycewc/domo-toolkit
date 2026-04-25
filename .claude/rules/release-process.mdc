@@ -6,7 +6,68 @@ alwaysApply: false
 
 # Release Process
 
-When the user asks to prepare a release, cut a version, or ship changes, follow these steps.
+`docs/RELEASE_NOTES.md` has two lifecycle phases:
+
+- **Between releases** — maintained as a running WIP list while features land. See "Maintaining WIP release notes" below.
+- **At release time** — polished, finalized, and used as the GitHub Release body. See the numbered checklist starting at step 1.
+
+## Maintaining WIP release notes
+
+Because this project ships slowly with many changes per release, the user keeps `docs/RELEASE_NOTES.md` as a running WIP list during development so nothing is forgotten when it's time to compile the final notes. When the user asks you to add to the WIP notes, capture items continuously rather than only at release time.
+
+### After a release ships
+
+Wipe `docs/RELEASE_NOTES.md` and start a fresh WIP list for the next version. Title it `# Domo Toolkit vX.Y.Z Release Notes (WIP)` with the next expected version. Include a blockquote note if the version bump is being reconsidered (e.g., patch → minor due to scope creep).
+
+### Adding items to the WIP list
+
+- Use the same section structure as prior final releases (New Features, Newly Supported Object Types, UI/UX Changes, Bug Fixes, etc.) so the final polish pass is just fleshing out bullets, not restructuring.
+- Keep bullets short — the user will expand them at release time. Just enough detail to remember what was done.
+- Don't include internal refactoring in user-facing sections. A short "Refactoring" note at the bottom is fine as a reminder to decide at release time whether to mention it.
+
+### Working from voice-transcribed rambles
+
+The user may paste rough transcriptions of voice notes. Condense into bullets, grouping into the standard sections. The ramble will be out of order and repetitive — reorganize aggressively.
+
+### Preserve uncertainty inline
+
+When the ramble is unsure about something ("I can't remember which version", "may have been last release", "I think I did this"), preserve the uncertainty with an italic parenthetical — e.g., `_(may have landed in prior version)_` or `TODO:` for incomplete work. Don't silently assert or silently drop. These are self-triage signals for the final polish pass.
+
+### Verifying WIP claims against git history
+
+Before asserting that a fix is new to this version, verify with `git tag --contains <sha>`. Empty output = commit isn't in any release, so it's new. Chronology alone (commit date vs tag date) is **not** sufficient — commits can be cherry-picked onto release branches. Always cross-check both.
+
+When a ramble is ambiguous about direction or details (e.g., "A recognized as B or B as A, I can't remember which"), grep `git log` for keywords and let the commit message lock it down before writing the bullet. Commit subjects are more reliable than fuzzy recall.
+
+### Commits are save/sync points, not atomic features
+
+The user is a solo developer who commits frequently as a way to save and sync changes between laptop and desktop, **not** as holistic feature commits. This has a critical implication for release notes:
+
+**Do not list "bug fixes" that were never shipped to users.** A commit titled "Fixed X" during this version's development cycle is only a user-facing bug fix if X was broken in a released version. Iteration on this version's new features — even when the commit says "fixed" — is part of the feature's initial delivery and should NOT appear in the Bug Fixes section.
+
+When scanning `git log` for release notes, for each "fix" commit ask:
+
+> Did this bug ever reach a released version?
+
+- **Yes** → Include in Bug Fixes.
+- **No (the bug only existed during this version's dev work on a new feature)** → Skip it entirely, or fold the resulting capability into the new feature's description.
+- **Unsure** → Add the bullet with an italic uncertainty marker (e.g., `_(verify this shipped in v{prior} before including)_`) and resolve during the polish pass.
+
+Examples:
+- "Fixed subscriptions not fetching for transfer ownership" during a version that **adds** Transfer Ownership → skip (iteration).
+- "Fixed subscriptions not fetching for Get Card Pages" during a version after Get Card Pages has shipped → include (real bug fix).
+- "Fixed side panel state not syncing across windows" → include (side panel shipped long ago).
+- "DevMenu: email functionality" → skip (DevMenu is developer-only, never user-facing).
+
+### Version bump signaling
+
+If the WIP list is accumulating substantial new features, flag when a minor bump may be warranted over a patch. Semver guidance:
+
+- Multiple new features + UX changes → minor
+- Isolated bug fixes → patch
+- Breaking changes → major
+
+---
 
 ## 1. Bump the version in `package.json`
 
@@ -45,9 +106,15 @@ Add a new object to the **beginning** of the `releases` array (newest-first). Fi
 - `silent` → updates `lastSeenVersion` silently
 - `lastSeenVersion` stored in `chrome.storage.local`
 
-## 4. Update `docs/RELEASE_NOTES.md`
+## 4. Finalize `docs/RELEASE_NOTES.md`
 
-Replace contents with this version's detailed notes only (not accumulated). Only include the end result of features, not development history. GitHub Release workflow uses this as the release body.
+At this point the file already exists as a WIP list accumulated during development (see "Maintaining WIP release notes" above). Polish it for publication:
+
+- Remove the `(WIP)` suffix from the title
+- Flesh out short bullets into user-facing descriptions (the end result, not development history)
+- Resolve all inline `TODO` and `_(may have...)_` uncertainties — verify against `git log` and either confirm, correct, or remove
+- Drop the internal "Refactoring" note unless a refactor is genuinely user-visible
+- Only include this version's notes (not accumulated across versions). GitHub Release workflow uses this file as the release body.
 
 ## 5. Build and package locally
 

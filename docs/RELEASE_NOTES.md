@@ -1,36 +1,79 @@
-# Domo Toolkit v1.2.0 Release Notes
+# Domo Toolkit v1.3.0 Release Notes (WIP)
 
-## Lineage
+> Version bumped from 1.2.1 → 1.3.0 due to scope of new features.
 
-- Trace upstream and downstream datasets and dataflows via the new lightning-fast lineage viewer
-- View dataset previews and dataflow tile operations directly from the graph for quick insights into your data pipelines
-- Can be opened from dataset and dataflow pages and any data discovery views with dataset/dataflow links
-- Includes support for dark mode and opens in a new tab for maximum screen real estate
-- Huge thank you to Will West for his work on this feature!
+## New Features
 
-## Bulk Update Workflow Code Engine Package Versions
+### Off-boarding: Transfer Ownership
 
-- New bulk update feature for workflow actions and their defined code engine package versions
-- Update all package references to the latest version with a single click, or select specific packages and versions to update
-- Keeps all input and output mappings, saving you hours per week of tedious clicks
+- Transfer ownership of all object types from one user to another
+- Select which object types to include in the transfer
+- Preview what needs to be (or can be) transferred beforehand, with object counts shown on mount
+- Option to delete the user after a successful transfer
+- Option to email the recipient with an Excel attachment listing everything transferred (types + IDs)
+- Quick button to transfer ownership to the user's manager (uses `reportsTo` from user context)
 
-## Clipboard Navigation Overhaul
+### View Ownership by User
 
-- Navigate to copied object now activates on button click instead of passive clipboard monitoring for improved reliability and reduced resource usage
+- View everything a given user owns, grouped by object type
+- Shares much of its functionality with Transfer Ownership
+- Virtualized list for fast rendering of large ownership results
+
+### Duplicate (Clone) User
+
+- Clone an existing user — copies all access, group membership, and user configuration
+- Just change the name and email; everything else carries over
+- (Consider renaming the button to "Clone")
+
+### Direct Sign-On
+
+- New Direct Sign-On button
 
 ## Newly Supported Object Types
 
-- Workflow Trigger
+- Certification Process (recognized objects + Navigate to Copied Object)
+- AI Toolkits and AI Agents in the AI Library (registered objects + URL detection)
+  - TODO: Navigate to Copied Object, Transfer Ownership, View Ownership
 
-## New Actions
+## API Error Tracking Expansion
 
-- Update a dataset schedule to manual
+- Expanded from just cards to all object types
+- Also tracks non-object errors (e.g., list pages) — shows all errors
+- ApiErrors count now rendered as a soft-danger chip
+- General UI refinements to ApiErrorsView
+- Not fully done yet, maybe some UI changes
+
+## UI/UX Changes
+
+- Dropped mobile breakpoints for the extension UI — buttons are smaller with less padding, overall more desktop-sized (side panel and popup were too large before because they inherited mobile styles)
+- Activity Log: filter by multiple users _(not fully working yet)_
+- New `ObjectTypeIcon` component renders in DataListView for visual object-type identification
+- CopyFilteredUrl: count moved next to the label; button relabeled "Copy Filters"
+- Toast messages now truncate at max-height (was growing unbounded for long text)
+- Code Engine Package Version: default copy action now copies the parent Code Engine Package ID (via new `copyConfigs` on DomoObjectType)
 
 ## Bug Fixes and Improvements
 
-- New transparent extension icon that looks great on all toolbar backgrounds — removed the light/dark icon toggle from settings
-- Alert icons updated to Tabler icon set for consistency
-- Removed case sensitivity in URL-based object detection (accommodates a new code engine route)
-- Improved reliability of governance toolkit job detection
-- Fixed Get Card Pages not working from the popup
-- New child pages API endpoint for improved speed of page discovery
+- Removed duplicate icon in the alternate/additional actions menu for Copy
+- Fixed side panel state not syncing when two separate browser windows were open (windows didn't share focus, so state wouldn't update on one and would overwrite on the other)
+- Fixed detection issues caused by the URL-lowercasing change:
+  - Code Engine route with capitalized "Engine" broke some detection logic
+  - Card ID detection broke when "I" was capitalized
+- Fixed Navigate to Copied Object incorrectly identifying Pages as App Studio apps
+- Fixed Delete button not showing its normal tooltip for objects that have additional options (verified)
+- ID validation added to current object detection
+
+## Security
+
+- CodeQL remediation: tightened URL matching; scoped GitHub Actions permissions
+
+## Docs / GitHub Pages Site
+
+- Local development setup for the docs site
+- Dark mode support on the GitHub Pages site
+
+## Refactoring
+
+- Various internal refactors for extensibility and code quality (not user-facing)
+- Removed `allObjects.js`; dispatch functions moved to per-domain files (e.g., `share.js`) and domain logic extracted into service files
+- `DomoObjectType` now uses an objects-object argument for cleaner configuration

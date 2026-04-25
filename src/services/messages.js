@@ -61,7 +61,7 @@ export async function sendEmail(
         recipientsGroupIds,
         recipientsUserIds,
         subject,
-        text: `<div style="display: flex; flex-direction: column; font-family: Helvetica; overflow-x: auto; flex-wrap: wrap; width: 100%; text-align: left;"><div style="display: flex; flex-direction: column; justify-content: flex-start; width: 100%">${bodyHtml || ''}</div></div>`
+        text: `<div style="display: flex; flex-direction: column; font-family: Helvetica; overflow-x: auto; flex-wrap: wrap; width: 100%; text-align: center;"><div style="display: flex; flex-direction: column; justify-content: center; width: 100%">${bodyHtml || ''}</div></div>`
       },
       emailsParam
     ],

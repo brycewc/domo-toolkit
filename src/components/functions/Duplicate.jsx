@@ -3,11 +3,7 @@ import { IconUserPlus } from '@tabler/icons-react';
 
 import { useLaunchView } from '@/hooks';
 
-export function Duplicate({
-  currentContext,
-  onCollapseActions,
-  onStatusUpdate
-}) {
+export function Duplicate({ currentContext, onCollapseActions, onStatusUpdate }) {
   const { isPending, launch } = useLaunchView();
 
   return (
@@ -30,7 +26,7 @@ export function Duplicate({
         Duplicate User
       </Button>
       <Tooltip.Content className='text-wrap break-normal'>
-        Clone this user — role, profile, groups, and shared access
+        Clone this user's role, profile, groups, and shared content
       </Tooltip.Content>
     </Tooltip>
   );

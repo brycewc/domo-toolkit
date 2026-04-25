@@ -5,7 +5,6 @@ import {
   Disclosure,
   DisclosureGroup,
   Separator,
-  Spinner,
   Tooltip
 } from '@heroui/react';
 import { IconChevronDown, IconClipboard, IconEraser, IconX } from '@tabler/icons-react';
@@ -180,8 +179,12 @@ export function ApiErrorsView({ onBackToDefault = null, onStatusUpdate = null })
                           />
                         )}
                       />
+                    ) : error.response ? (
+                      <pre className='whitespace-pre-wrap break-words text-sm'>
+                        {error.response}
+                      </pre>
                     ) : (
-                      <Spinner />
+                      <span className='text-sm italic text-muted'>No response body</span>
                     )}
                   </div>
                 </Disclosure.Content>

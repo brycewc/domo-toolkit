@@ -30,11 +30,7 @@ import { TimestampAnnotation } from './TimestampAnnotation';
 import { UserIdAnnotation } from './UserIdAnnotation';
 import '@/assets/json-view-theme.css';
 
-export function ContextFooter({
-  currentContext,
-  isLoading,
-  onStatusUpdate: _onStatusUpdate
-}) {
+export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onStatusUpdate }) {
   const [developerMode, setDeveloperMode] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [relatedCache, setRelatedCache] = useState({});
@@ -68,9 +64,7 @@ export function ContextFooter({
     if (!typeModel) return [];
 
     // First tab: current object (use 'self' label override if configured)
-    const selfLabel = typeModel.relatedObjects?.find(
-      (r) => r.source === 'self'
-    )?.label;
+    const selfLabel = typeModel.relatedObjects?.find((r) => r.source === 'self')?.label;
     const result = [
       {
         details: domoObject.metadata?.details || domoObject.metadata,
@@ -130,9 +124,7 @@ export function ContextFooter({
             related.fieldSource === 'context'
               ? domoObject.metadata?.context
               : domoObject.metadata?.details;
-          relatedId = related.field
-            .split('.')
-            .reduce((obj, key) => obj?.[key], fieldBase);
+          relatedId = related.field.split('.').reduce((obj, key) => obj?.[key], fieldBase);
         }
 
         if (relatedId) {
@@ -184,16 +176,10 @@ export function ContextFooter({
   const activeTab = tabs.find((t) => t.id === activeTabId);
   const activeSrc = useMemo(() => {
     if (!activeTab) {
-      return (
-        currentContext?.domoObject?.metadata?.details ||
-        currentContext?.domoObject?.metadata
-      );
+      return currentContext?.domoObject?.metadata?.details || currentContext?.domoObject?.metadata;
     }
     if (activeTab.isCurrentObject) {
-      return (
-        currentContext?.domoObject?.metadata?.details ||
-        currentContext?.domoObject?.metadata
-      );
+      return currentContext?.domoObject?.metadata?.details || currentContext?.domoObject?.metadata;
     }
     if (activeTab.isArray) return activeTab.data;
     if (activeTab.isFullContext) return currentContext;
@@ -208,13 +194,7 @@ export function ContextFooter({
 
     // Skip if it's the current object tab, an array tab, or already cached/loading
     const tab = tabs.find((t) => t.id === key);
-    if (
-      !tab ||
-      tab.isCurrentObject ||
-      tab.isArray ||
-      relatedCache[key] ||
-      loadingTabs[key]
-    ) {
+    if (!tab || tab.isCurrentObject || tab.isArray || relatedCache[key] || loadingTabs[key]) {
       return;
     }
 
@@ -276,8 +256,7 @@ export function ContextFooter({
           groupMap={groupMap}
           userMap={userMap}
           src={
-            currentContext?.domoObject?.metadata?.details ||
-            currentContext?.domoObject?.metadata
+            currentContext?.domoObject?.metadata?.details || currentContext?.domoObject?.metadata
           }
         />
       );
@@ -292,24 +271,11 @@ export function ContextFooter({
         itemTypeId: activeTab.itemTypeId,
         parentId: activeTab.parentId
       });
-      return (
-        <MetadataJsonView
-          collapsed={2}
-          groupMap={groupMap}
-          src={src}
-          userMap={userMap}
-        />
-      );
+      return <MetadataJsonView collapsed={2} groupMap={groupMap} src={src} userMap={userMap} />;
     }
 
     if (activeTab.isFullContext) {
-      return (
-        <MetadataJsonView
-          groupMap={groupMap}
-          src={currentContext}
-          userMap={userMap}
-        />
-      );
+      return <MetadataJsonView groupMap={groupMap} src={currentContext} userMap={userMap} />;
     }
 
     if (loadingTabs[activeTabId]) {
@@ -327,16 +293,10 @@ export function ContextFooter({
         parentId: activeTab.parentId,
         typeId: activeTab.typeId
       });
-      return (
-        <MetadataJsonView groupMap={groupMap} src={src} userMap={userMap} />
-      );
+      return <MetadataJsonView groupMap={groupMap} src={src} userMap={userMap} />;
     }
 
-    return (
-      <p className='py-2 text-center text-sm text-muted'>
-        Select this tab to load details
-      </p>
-    );
+    return <p className='py-2 text-center text-sm text-muted'>Select this tab to load details</p>;
   };
 
   const alertContent = (
@@ -349,18 +309,9 @@ export function ContextFooter({
           <div className='skeleton--shimmer relative flex w-full flex-col gap-2 overflow-hidden'>
             <div className='flex w-full items-center justify-between'>
               <div className='flex items-center gap-x-1'>
-                <Skeleton
-                  animationType='none'
-                  className='h-4 w-24 rounded-md'
-                />
-                <Skeleton
-                  animationType='none'
-                  className='h-5 w-12 rounded-2xl'
-                />
-                <Skeleton
-                  animationType='none'
-                  className='h-5 w-12 rounded-2xl'
-                />
+                <Skeleton animationType='none' className='h-4 w-24 rounded-md' />
+                <Skeleton animationType='none' className='h-5 w-12 rounded-2xl' />
+                <Skeleton animationType='none' className='h-5 w-12 rounded-2xl' />
               </div>
               <Skeleton animationType='none' className='h-5 w-5 rounded-full' />
             </div>
@@ -375,43 +326,26 @@ export function ContextFooter({
               data-slot='alert-title'
             >
               {currentContext?.isDomoPage ? (
-                <div className='flex flex-wrap items-center gap-x-1'>
-                  <span className='flex flex-wrap items-center justify-start gap-x-1'>
+                <div className='flex min-w-0 flex-1 items-center gap-x-1'>
+                  <span className='min-w-0 truncate' title='Current Context'>
                     Current Context
                   </span>
                   <Tooltip closeDelay={0} delay={400}>
-                    <Tooltip.Trigger className='flex items-center'>
-                      <Chip
-                        className='w-fit lowercase'
-                        color='accent'
-                        size='sm'
-                        variant='soft'
-                      >
+                    <Tooltip.Trigger className='flex shrink-0 items-center'>
+                      <Chip className='w-fit lowercase' color='accent' size='sm' variant='soft'>
                         {currentContext?.instance}
                       </Chip>
                     </Tooltip.Trigger>
-                    <Tooltip.Content>
-                      Instance: {currentContext?.instance}.domo.com
-                    </Tooltip.Content>
+                    <Tooltip.Content>Instance: {currentContext?.instance}.domo.com</Tooltip.Content>
                   </Tooltip>
                   <Tooltip closeDelay={0} delay={400}>
-                    <Tooltip.Trigger className='flex items-center'>
-                      <Chip
-                        className='w-fit lowercase'
-                        color='accent'
-                        size='sm'
-                        variant='soft'
-                      >
+                    <Tooltip.Trigger className='flex shrink-0 items-center'>
+                      <Chip className='w-fit lowercase' color='accent' size='sm' variant='soft'>
                         {currentContext?.domoObject?.typeName}
                       </Chip>
                     </Tooltip.Trigger>
                     <Tooltip.Content className='flex items-center rounded p-0'>
-                      <Chip
-                        className='w-fit rounded-xl'
-                        color='accent'
-                        size='sm'
-                        variant='soft'
-                      >
+                      <Chip className='w-fit rounded-xl' color='accent' size='sm' variant='soft'>
                         {currentContext?.domoObject?.typeId}
                       </Chip>
                     </Tooltip.Content>
@@ -423,18 +357,14 @@ export function ContextFooter({
               <Tooltip
                 closeDelay={0}
                 delay={400}
-                isDisabled={
-                  !currentContext?.domoObject?.id || !currentContext?.isDomoPage
-                }
+                isDisabled={!currentContext?.domoObject?.id || !currentContext?.isDomoPage}
               >
                 <Tooltip.Trigger>
                   <Alert.Indicator>
                     <AlertStatusIcon />
                   </Alert.Indicator>
                 </Tooltip.Trigger>
-                <Tooltip.Content>
-                  Click to toggle context JSON view
-                </Tooltip.Content>
+                <Tooltip.Content>Click to toggle context JSON view</Tooltip.Content>
               </Tooltip>
             </div>
             <Alert.Description className='flex h-full flex-col flex-wrap items-start justify-center gap-1'>
@@ -460,11 +390,7 @@ export function ContextFooter({
   );
 
   // No disclosure when not on a Domo page or no object
-  if (
-    !currentContext?.isDomoPage ||
-    isLoading ||
-    !currentContext?.domoObject?.id
-  ) {
+  if (!currentContext?.isDomoPage || isLoading || !currentContext?.domoObject?.id) {
     return alertContent;
   }
 
@@ -476,9 +402,7 @@ export function ContextFooter({
       onExpandedChange={setIsExpanded}
     >
       <Disclosure.Heading>
-        <Disclosure.Trigger className='w-full cursor-pointer'>
-          {alertContent}
-        </Disclosure.Trigger>
+        <Disclosure.Trigger className='w-full cursor-pointer'>{alertContent}</Disclosure.Trigger>
       </Disclosure.Heading>
       <Disclosure.Content
         className={`card flex min-h-0 flex-1 flex-col bg-surface p-0 ${isExpanded ? '' : 'collapse'}`}
@@ -499,20 +423,10 @@ export function ContextFooter({
                   orientation='horizontal'
                   size={40}
                 >
-                  <Tabs.List
-                    aria-label='Object details'
-                    className='w-fit min-w-full flex-nowrap'
-                  >
+                  <Tabs.List aria-label='Object details' className='w-fit min-w-full flex-nowrap'>
                     {tabs.map((tab) => (
-                      <Tabs.Tab
-                        className='min-w-32 flex-1 capitalize'
-                        id={tab.id}
-                        key={tab.id}
-                      >
-                        <span
-                          className='line-clamp-2 text-center'
-                          title={tab.label}
-                        >
+                      <Tabs.Tab className='min-w-32 flex-1 capitalize' id={tab.id} key={tab.id}>
+                        <span className='line-clamp-2 text-center' title={tab.label}>
                           {tab.label}
                         </span>
                         <Tabs.Indicator />
@@ -548,16 +462,7 @@ function buildSimpleUrl(baseUrl, typeId, objectId, parentId) {
 
 function injectUrls(
   src,
-  {
-    baseUrl,
-    isArray,
-    itemIdField,
-    itemTypeField,
-    itemTypeId,
-    objectId,
-    parentId,
-    typeId
-  }
+  { baseUrl, isArray, itemIdField, itemTypeField, itemTypeId, objectId, parentId, typeId }
 ) {
   if (!src || !baseUrl) return src;
 
@@ -581,6 +486,11 @@ function injectUrls(
 }
 
 function MetadataJsonView({ collapsed = 1, groupMap = {}, src, userMap = {} }) {
+  // Remount when lookup maps change — react18-json-view's JsonNode calls
+  // useContext before customizeNode's early return but useState after it, so
+  // switching a node between element/config return types across renders
+  // breaks the Rules of Hooks. Remounting sidesteps the library bug.
+  const jsonViewKey = `${Object.keys(userMap).sort().join(',')}|${Object.keys(groupMap).sort().join(',')}`;
   return (
     <JsonView
       displaySize
@@ -588,6 +498,7 @@ function MetadataJsonView({ collapsed = 1, groupMap = {}, src, userMap = {} }) {
       collapsed={collapsed}
       collapseStringMode='word'
       collapseStringsAfterLength={150}
+      key={jsonViewKey}
       matchesURL={false}
       src={src}
       CopiedComponent={({ className, style }) => (
@@ -614,10 +525,7 @@ function MetadataJsonView({ collapsed = 1, groupMap = {}, src, userMap = {} }) {
         if (params.node === null || params.node === undefined) {
           return { enableClipboard: false };
         }
-        if (
-          typeof params.node === 'string' &&
-          params.node.startsWith('https://')
-        ) {
+        if (typeof params.node === 'string' && params.node.startsWith('https://')) {
           return (
             <Link
               className='text-sm text-accent no-underline decoration-accent hover:underline'
@@ -628,39 +536,26 @@ function MetadataJsonView({ collapsed = 1, groupMap = {}, src, userMap = {} }) {
             </Link>
           );
         }
-        if (
-          typeof params.node === 'number' &&
-          isDateFieldName(params?.indexOrName)
-        ) {
+        if (typeof params.node === 'number' && isDateFieldName(params?.indexOrName)) {
           const formatted = formatEpochTimestamp(params.node);
           if (formatted) {
-            return (
-              <TimestampAnnotation formatted={formatted} value={params.node} />
-            );
+            return <TimestampAnnotation formatted={formatted} value={params.node} />;
           }
         }
         if (
-          (typeof params.node === 'number' ||
-            typeof params.node === 'string') &&
+          (typeof params.node === 'number' || typeof params.node === 'string') &&
           Object.keys(userMap).length > 0
         ) {
           const numericValue = Number(params.node);
           if (
             userMap[numericValue] &&
-            (isUserFieldName(params?.indexOrName) ||
-              params?.indexOrName === 'id')
+            (isUserFieldName(params?.indexOrName) || params?.indexOrName === 'id')
           ) {
-            return (
-              <UserIdAnnotation
-                displayName={userMap[numericValue]}
-                value={params.node}
-              />
-            );
+            return <UserIdAnnotation displayName={userMap[numericValue]} value={params.node} />;
           }
         }
         if (
-          (typeof params.node === 'number' ||
-            typeof params.node === 'string') &&
+          (typeof params.node === 'number' || typeof params.node === 'string') &&
           Object.keys(groupMap).length > 0
         ) {
           const numericValue = Number(params.node);
@@ -670,26 +565,17 @@ function MetadataJsonView({ collapsed = 1, groupMap = {}, src, userMap = {} }) {
               isUserFieldName(params?.indexOrName) ||
               params?.indexOrName === 'id')
           ) {
-            return (
-              <GroupIdAnnotation
-                displayName={groupMap[numericValue]}
-                value={params.node}
-              />
-            );
+            return <GroupIdAnnotation displayName={groupMap[numericValue]} value={params.node} />;
           }
         }
         if (params?.indexOrName?.toLowerCase()?.includes('id')) {
           return { enableClipboard: true };
         } else if (
-          (typeof params.node === 'number' ||
-            typeof params.node === 'string') &&
+          (typeof params.node === 'number' || typeof params.node === 'string') &&
           params.node?.toString().length >= 7
         ) {
           return { enableClipboard: true };
-        } else if (
-          typeof params.node === 'object' &&
-          Object.keys(params.node).length > 0
-        ) {
+        } else if (typeof params.node === 'object' && Object.keys(params.node).length > 0) {
           return { enableClipboard: true };
         } else if (Array.isArray(params.node) && params.node.length > 0) {
           return { enableClipboard: true };
@@ -714,9 +600,7 @@ function resolveRelatedParentId(related, domoObject) {
       related.parentFieldSource === 'context'
         ? domoObject.metadata?.context
         : domoObject.metadata?.details;
-    return related.parentSource
-      .split('.')
-      .reduce((obj, key) => obj?.[key], parentBase);
+    return related.parentSource.split('.').reduce((obj, key) => obj?.[key], parentBase);
   }
 
   // Auto-resolve: infer from type hierarchy
@@ -726,9 +610,7 @@ function resolveRelatedParentId(related, domoObject) {
       return domoObject.id;
     }
     const currentTypeModel = getObjectType(domoObject.typeId);
-    if (
-      relatedType.parents?.some((p) => currentTypeModel?.parents?.includes(p))
-    ) {
+    if (relatedType.parents?.some((p) => currentTypeModel?.parents?.includes(p))) {
       return domoObject.parentId;
     }
   }

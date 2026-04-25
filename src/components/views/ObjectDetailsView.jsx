@@ -76,6 +76,12 @@ export function ObjectDetailsView({
   const groupMap = useGroupLookup(domoObject?.metadata?.details);
   const userMap = useUserLookup(domoObject?.metadata?.details);
 
+  // Remount JsonView when lookup maps change — react18-json-view's JsonNode
+  // calls useContext before customizeNode's early return but useState after
+  // it, so switching a node between element/config returns mid-render trips
+  // the Rules of Hooks. Remounting on map changes sidesteps the library bug.
+  const jsonViewKey = `${Object.keys(userMap).sort().join(',')}|${Object.keys(groupMap).sort().join(',')}`;
+
   // Load data on mount
   useEffect(() => {
     loadObjectDetails();
@@ -279,6 +285,7 @@ export function ObjectDetailsView({
                       collapsed={1}
                       collapseStringMode='word'
                       collapseStringsAfterLength={50}
+                      key={jsonViewKey}
                       matchesURL={false}
                       src={domoObject.metadata?.details}
                       CopiedComponent={({ className, style }) => (
