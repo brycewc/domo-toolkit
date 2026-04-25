@@ -6,7 +6,7 @@ import { useLongPress } from '@/hooks';
 import { getCardsForObject, getPagesForCards, getSubpageIds } from '@/services';
 import { waitForChildPages } from '@/utils';
 
-export function ActivityLogCurrentObject({ currentContext, onStatusUpdate }) {
+export function ActivityLog({ currentContext, onStatusUpdate }) {
   const [isLoading, setIsLoading] = useState(false);
   const { LongPressOverlay, pressProps } = useLongPress();
 

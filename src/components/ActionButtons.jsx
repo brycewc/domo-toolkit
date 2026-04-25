@@ -16,13 +16,13 @@ import { useEffect, useState } from 'react';
 import { isSidepanel, openSidepanel } from '@/utils';
 
 import {
-  ActivityLogCurrentObject,
+  ActivityLog,
   ApiErrors,
   ClearCookies,
   Copy,
   CopyFilteredUrl,
   DataRepair,
-  DeleteCurrentObject,
+  DeleteObject,
   DevMenu,
   DirectSignOn,
   Duplicate,
@@ -95,7 +95,7 @@ export function ActionButtons({
                   isDisabled={!isDomoPage}
                   onStatusUpdate={onStatusUpdate}
                 />
-                <ActivityLogCurrentObject
+                <ActivityLog
                   currentContext={currentContext}
                   onStatusUpdate={onStatusUpdate}
                 />
@@ -108,7 +108,7 @@ export function ActionButtons({
                   isDisabled={!isDomoPage}
                   onStatusUpdate={onStatusUpdate}
                 />
-                <DeleteCurrentObject
+                <DeleteObject
                   currentContext={currentContext}
                   isDisabled={!isDomoPage}
                   onStatusUpdate={onStatusUpdate}

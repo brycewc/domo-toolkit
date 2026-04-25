@@ -26,7 +26,7 @@ import {
   waitForChildPages
 } from '@/utils';
 
-export function DeleteCurrentObject({
+export function DeleteObject({
   currentContext,
   isDisabled,
   onStatusUpdate
