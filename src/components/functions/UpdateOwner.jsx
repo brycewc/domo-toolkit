@@ -62,7 +62,7 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
 
   return (
     <Modal isOpen={isOpen} onOpenChange={setIsOpen}>
-      <Tooltip closeDelay={0} delay={400}>
+      <Tooltip closeDelay={100} delay={400}>
         <Button
           fullWidth
           className='min-w-36 flex-1 whitespace-normal'

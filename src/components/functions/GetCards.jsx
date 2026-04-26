@@ -14,7 +14,7 @@ export function GetCards({ currentContext, isDisabled, onCollapseActions, onStat
   const objectType = currentContext?.domoObject?.typeId;
 
   return (
-    <Tooltip closeDelay={0} delay={400}>
+    <Tooltip closeDelay={100} delay={400}>
       <Button
         fullWidth
         className='min-w-36 flex-1 whitespace-normal'

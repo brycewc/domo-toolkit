@@ -12,7 +12,7 @@ export function GetCardPages({ currentContext, isDisabled, onCollapseActions, on
   const isPageLike = PAGE_LIKE_TYPES.includes(objectType);
 
   return (
-    <Tooltip closeDelay={0} delay={400}>
+    <Tooltip closeDelay={100} delay={400}>
       <Button
         fullWidth
         className='min-w-36 flex-1 whitespace-normal'

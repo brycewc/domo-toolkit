@@ -148,7 +148,7 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
 
   return (
     <Dropdown isDisabled={longPressDisabled} trigger='longPress'>
-      <Tooltip closeDelay={0} delay={400}>
+      <Tooltip closeDelay={100} delay={400}>
         <Button
           fullWidth
           className={`min-w-36 flex-1 whitespace-normal ${hasNewFilters ? 'animate-pulse' : ''}`}

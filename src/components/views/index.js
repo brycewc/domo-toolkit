@@ -1,5 +1,6 @@
 export { ApiErrorsView } from './ApiErrorsView';
 export { DataList } from './DataList';
+export { DeleteObjectView } from './DeleteObjectView';
 export { DuplicateView } from './DuplicateView';
 export { GetCardsView } from './GetCardsView';
 export { GetDatasetsView } from './GetDatasetsView';

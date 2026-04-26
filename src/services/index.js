@@ -54,6 +54,7 @@ export {
   transferCodeEnginePackages
 } from './codeEngine';
 export {
+  deleteAppAndAllContent,
   deleteCustomApp,
   getAppInstance,
   getOwnedCustomApps,
@@ -86,6 +87,7 @@ export {
   updateDatasetProperties
 } from './datasets';
 export { deleteObject } from './deleteObject';
+export { getDependenciesForDelete } from './dependencies';
 export { duplicateUser, fetchDuplicationPreview } from './duplicate';
 export { runEnrichments } from './enrichments';
 export { uploadDataFile } from './files';

@@ -1,5 +1,82 @@
 import { executeInPage } from '@/utils';
 
+import { getCardsForObject } from './cards';
+import { getChildPages } from './pages';
+
+/**
+ * Delete an entire App Studio app — all its pages and all cards on those
+ * pages. Used by the cascade delete path on a `DATA_APP_VIEW` /
+ * `WORKSHEET_VIEW` page.
+ *
+ * Steps: (1) fetch sibling pages via `getChildPages`, (2) collect the unique
+ * card IDs across the current page + siblings, (3) bulk-delete cards,
+ * (4) delete the app design.
+ *
+ * @param {Object} params
+ * @param {string|number} params.appId - The parent app ID
+ * @param {string|number} params.currentPageId - The page the user is on
+ * @param {string} params.currentPageType - 'DATA_APP_VIEW' or 'WORKSHEET_VIEW'
+ * @param {number|null} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<{cardCount: number}>} Number of cards deleted
+ */
+export async function deleteAppAndAllContent({
+  appId,
+  currentPageId,
+  currentPageType,
+  tabId = null
+}) {
+  const pages = await getChildPages({
+    appId: parseInt(appId),
+    pageId: parseInt(currentPageId),
+    pageType: currentPageType,
+    tabId
+  });
+
+  const allCardIds = new Set();
+  const pageIds = [currentPageId, ...pages.map((p) => p.pageId)];
+  for (const pageId of pageIds) {
+    const cards = await getCardsForObject({
+      objectId: pageId,
+      objectType: currentPageType,
+      tabId
+    });
+    for (const card of cards) {
+      allCardIds.add(card.id);
+    }
+  }
+
+  const cardCount = allCardIds.size;
+  if (cardCount > 0) {
+    await executeInPage(
+      async (cardIds) => {
+        const res = await fetch(`/api/content/v1/cards/bulk?cardIds=${cardIds}`, {
+          method: 'DELETE'
+        });
+        if (!res.ok) {
+          throw new Error(`Failed to delete cards. HTTP status: ${res.status}`);
+        }
+      },
+      [[...allCardIds].join(',')],
+      tabId
+    );
+  }
+
+  await executeInPage(
+    async (appId) => {
+      const res = await fetch(`/api/content/v1/dataapps/${appId}`, {
+        method: 'DELETE'
+      });
+      if (!res.ok) {
+        throw new Error(`Failed to delete app. HTTP status: ${res.status}`);
+      }
+    },
+    [appId],
+    tabId
+  );
+
+  return { cardCount };
+}
+
 /**
  * Delete a Custom App design.
  * @param {Object} params

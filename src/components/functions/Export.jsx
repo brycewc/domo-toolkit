@@ -29,15 +29,13 @@ export function Export({ currentContext, isDisabled }) {
   const { showPromiseStatus } = useStatusBar();
 
   const typeId = currentContext?.domoObject?.typeId;
-  const cardType =
-    currentContext?.domoObject?.metadata?.details?.type?.toLowerCase();
+  const cardType = currentContext?.domoObject?.metadata?.details?.type?.toLowerCase();
 
   if (typeId === 'CARD' && NON_EXPORTABLE_CARD_TYPES.has(cardType)) return null;
 
   if (typeId === 'CODEENGINE_PACKAGE' || typeId === 'CODEENGINE_PACKAGE_VERSION') {
     const isCEVersion = typeId === 'CODEENGINE_PACKAGE_VERSION';
-    const language =
-      currentContext?.domoObject?.metadata?.details?.language?.toUpperCase();
+    const language = currentContext?.domoObject?.metadata?.details?.language?.toUpperCase();
     const isPython = language === 'PYTHON';
 
     const handleCodeExport = () => {
@@ -46,8 +44,7 @@ export function Export({ currentContext, isDisabled }) {
         : currentContext?.domoObject?.id;
       if (!packageId) return;
 
-      const name =
-        currentContext.domoObject.metadata?.name || 'code-engine-package';
+      const name = currentContext.domoObject.metadata?.name || 'code-engine-package';
 
       const exportPromise = getCodeEngineCode({
         packageId,
@@ -82,7 +79,7 @@ export function Export({ currentContext, isDisabled }) {
     };
 
     return (
-      <Tooltip closeDelay={0} delay={400}>
+      <Tooltip closeDelay={100} delay={400}>
         <Button
           fullWidth
           className='min-w-36 flex-1 whitespace-normal'
@@ -90,16 +87,11 @@ export function Export({ currentContext, isDisabled }) {
           variant='tertiary'
           onPress={handleCodeExport}
         >
-          {isPython ? (
-            <IconBrandPython stroke={1.5} />
-          ) : (
-            <IconFileTypeJs stroke={1.5} />
-          )}
+          {isPython ? <IconBrandPython stroke={1.5} /> : <IconFileTypeJs stroke={1.5} />}
           Download Version
         </Button>
         <Tooltip.Content>
-          Download code engine package version code as a{' '}
-          {isPython ? '.py' : '.js'} file
+          Download code engine package version code as a {isPython ? '.py' : '.js'} file
         </Tooltip.Content>
       </Tooltip>
     );
@@ -109,8 +101,7 @@ export function Export({ currentContext, isDisabled }) {
     const objectId = currentContext?.domoObject?.id;
     if (!objectId) return;
 
-    const title =
-      currentContext.domoObject.metadata?.name || currentContext.domoObject.id;
+    const title = currentContext.domoObject.metadata?.name || currentContext.domoObject.id;
 
     showPromiseStatus(
       exportCard({
@@ -120,8 +111,7 @@ export function Export({ currentContext, isDisabled }) {
         tabId: currentContext.tabId
       }),
       {
-        error: (err) =>
-          `Could not export card **${objectId}** – ${err.message}`,
+        error: (err) => `Could not export card **${objectId}** – ${err.message}`,
         loading: `Exporting **${title}**…`,
         success: (data) => `Downloading **${data.fileName}**`
       }

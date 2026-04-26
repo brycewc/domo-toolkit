@@ -74,6 +74,7 @@ import { ObjectTypeIcon } from '../ObjectTypeIcon';
  * @param {Boolean} props.showCounts - Whether to show item counts
  * @param {String} props.objectType - The type of object being displayed (e.g., 'DATA_APP_VIEW', 'PAGE')
  * @param {String} props.itemLabel - Label for items in status messages (default: 'item')
+ * @param {'transparent' | 'default' | 'secondary' | 'tertiary'} [props.variant] - Card variant (default: HeroUI's `default`). Use `transparent` when nested inside another Card to avoid double shadows/borders.
  */
 export function DataList({
   closeLabel = 'Close',
@@ -93,7 +94,8 @@ export function DataList({
   onStatusUpdate,
   showActions = true,
   showCounts = true,
-  title
+  title,
+  variant
 }) {
   const [isCopied, setIsCopied] = useState(false);
   const [isHeaderShared, setIsHeaderShared] = useState(false);
@@ -236,7 +238,7 @@ export function DataList({
   const hasHeaderActions = headerActions.length > 0 || onClose;
 
   return (
-    <Card className='flex max-h-fit min-h-0 w-full flex-1 flex-col p-2'>
+    <Card className='flex max-h-fit min-h-0 w-full flex-1 flex-col p-2' variant={variant}>
       {(title || hasHeaderActions) && (
         <Card.Header>
           <Card.Title className='flex items-start justify-between gap-2'>

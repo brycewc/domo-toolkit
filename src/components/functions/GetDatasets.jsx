@@ -59,7 +59,7 @@ export function GetDatasets({ currentContext, isDisabled, onCollapseActions, onS
 
   return (
     <Dropdown isDisabled={longPressDisabled} trigger='longPress'>
-      <Tooltip closeDelay={0} delay={400}>
+      <Tooltip closeDelay={100} delay={400}>
         <Button
           fullWidth
           className='relative min-w-36 flex-1 overflow-visible whitespace-normal'

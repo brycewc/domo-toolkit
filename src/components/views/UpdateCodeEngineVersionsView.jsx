@@ -124,10 +124,14 @@ export function UpdateCodeEngineVersionsView({
           async ([packageId, { actions, versions }]) => {
             let packageName = packageId;
             let availableVersions = [];
+            let isDomoBuiltin = false;
 
             try {
               const info = await getCodeEnginePackageInfo(packageId, tabId);
               packageName = info.name || packageId;
+              isDomoBuiltin =
+                info.availability === 'GLOBAL' &&
+                info.packageSource === 'DOMO';
               availableVersions = (info.versions || [])
                 .filter((v) => v.released != null)
                 .map((v) => v.version)
@@ -145,6 +149,16 @@ export function UpdateCodeEngineVersionsView({
             const latestVersion =
               availableVersions.length > 0 ? availableVersions[0] : null;
 
+            // Built-in Domo packages can only be upgraded to latest — no
+            // downgrades or intermediate versions.
+            if (isDomoBuiltin) {
+              availableVersions =
+                latestVersion &&
+                (!isSingleVersion || currentVersion !== latestVersion)
+                  ? [latestVersion]
+                  : [];
+            }
+
             // Default: latest if single version and not already on latest, otherwise no-change
             let defaultSelected = 'no-change';
             if (
@@ -161,6 +175,7 @@ export function UpdateCodeEngineVersionsView({
               })),
               availableVersions,
               currentVersion,
+              isDomoBuiltin,
               isSingleVersion,
               latestVersion,
               packageId,
@@ -437,6 +452,16 @@ export function UpdateCodeEngineVersionsView({
                   >
                     {pkg.packageName}
                   </Link>
+                  {pkg.isDomoBuiltin && (
+                    <Chip
+                      className='shrink-0'
+                      color='primary'
+                      size='sm'
+                      variant='soft'
+                    >
+                      Built-in
+                    </Chip>
+                  )}
                   <span className='shrink-0 text-xs text-muted'>
                     {pkg.actions.length} action
                     {pkg.actions.length !== 1 ? 's' : ''}

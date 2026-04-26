@@ -5,6 +5,7 @@ import {
   ActionButtons,
   ApiErrorsView,
   ContextFooter,
+  DeleteObjectView,
   DuplicateView,
   GetCardsView,
   GetDatasetsView,
@@ -321,6 +322,14 @@ export default function App() {
 
             {activeView === 'updateDetails' && (
               <UpdateDetailsView
+                key={viewKey}
+                onBackToDefault={handleBackToDefault}
+                onStatusUpdate={showStatus}
+              />
+            )}
+
+            {activeView === 'deleteObject' && (
+              <DeleteObjectView
                 key={viewKey}
                 onBackToDefault={handleBackToDefault}
                 onStatusUpdate={showStatus}

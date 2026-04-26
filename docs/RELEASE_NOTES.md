@@ -29,6 +29,12 @@
 
 - New Direct Sign-On button
 
+### Update Object Details
+
+- Generalized "Update Dataflow Details" into a generic component that works for any object type
+- Newly supports datasets (used to update `userDefinedType`)
+- Interface moved from a modal to a view
+
 ## Newly Supported Object Types
 
 - Certification Process (recognized objects + Navigate to Copied Object)
@@ -51,6 +57,9 @@
 - CopyFilteredUrl: count moved next to the label; button relabeled "Copy Filters"
 - Toast messages now truncate at max-height (was growing unbounded for long text)
 - Code Engine Package Version: default copy action now copies the parent Code Engine Package ID (via new `copyConfigs` on DomoObjectType)
+- Tooltips added to all action buttons
+- Current context header truncates when chips are too large
+- Update Code Engine Versions: built-in Domo packages restricted to upgrade-to-latest only (no downgrades or intermediate versions); built-ins are labeled with a "Built-in" chip
 
 ## Bug Fixes and Improvements
 
