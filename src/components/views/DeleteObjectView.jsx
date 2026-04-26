@@ -461,13 +461,16 @@ function DependencySection({ deps, error, isLoading, onRetry, onStatusUpdate }) 
 
   if (error) {
     return (
-      <div className='flex shrink-0 items-center gap-2 rounded-md border border-danger/40 bg-danger-soft p-2'>
-        <IconAlertTriangle className='shrink-0 text-danger' size={16} />
-        <span className='text-danger-fg min-w-0 flex-1 text-xs'>{error}</span>
-        <Button size='sm' variant='ghost' onPress={onRetry}>
-          Retry
-        </Button>
-      </div>
+      <Alert className='w-full shrink-0 bg-danger-soft' status='danger'>
+        <Alert.Indicator />
+        <Alert.Content>
+          <Alert.Title>Could not check dependencies</Alert.Title>
+          <Alert.Description>{error}</Alert.Description>
+          <Button className='mt-2' size='sm' variant='ghost' onPress={onRetry}>
+            Retry
+          </Button>
+        </Alert.Content>
+      </Alert>
     );
   }
 
@@ -475,21 +478,26 @@ function DependencySection({ deps, error, isLoading, onRetry, onStatusUpdate }) 
 
   if (!deps.supported) {
     return (
-      <div className='flex shrink-0 items-center gap-2 rounded-md border border-border bg-muted/20 p-2'>
-        <IconAlertTriangle className='shrink-0 text-muted' size={16} />
-        <span className='text-xs text-muted'>
-          Dependency check is not available for this object type. Verify dependencies manually
-          before deleting.
-        </span>
-      </div>
+      <Alert className='w-full shrink-0 bg-muted/20' status='default'>
+        <Alert.Indicator />
+        <Alert.Content>
+          <Alert.Description>
+            Dependency check is not available for this object type. Verify dependencies manually
+            before deleting.
+          </Alert.Description>
+        </Alert.Content>
+      </Alert>
     );
   }
 
   if (deps.totalCount === 0) {
     return (
-      <div className='flex shrink-0 items-center gap-2 rounded-md border border-success/40 bg-success-soft p-2'>
-        <span className='text-success-fg text-xs'>No dependencies found.</span>
-      </div>
+      <Alert className='w-full shrink-0 bg-success-soft' status='success'>
+        <Alert.Indicator />
+        <Alert.Content>
+          <Alert.Description>No dependencies found.</Alert.Description>
+        </Alert.Content>
+      </Alert>
     );
   }
 

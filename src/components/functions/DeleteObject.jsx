@@ -90,7 +90,7 @@ export function DeleteObject({ currentContext, isDisabled, onStatusUpdate }) {
           <IconTrash className={btnDisabled ? '' : 'text-danger'} stroke={1.5} />
         )}
       </Button>
-      <Tooltip.Content className='flex max-w-50 flex-col items-center justify-center text-center text-wrap break-normal'>
+      <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center text-center text-wrap break-normal'>
         List dependencies and confirm delete of {typeName}
         {tooltipSuffix}
       </Tooltip.Content>

@@ -35,6 +35,14 @@
 - Newly supports datasets (used to update `userDefinedType`)
 - Interface moved from a modal to a view
 
+### Delete Object Improvements
+
+- Lists the object's dependencies (child pages, output datasets, downstream cards) before confirming the delete — collapsible groups so even objects with many dependents stay scannable
+- Pages with child pages are now hard-blocked from deletion (with the reason shown inline) instead of just warning after the fact
+- Interface moved from a modal to a view, consistent with Update Object Details
+- Worksheet pages are now deletable (previously the primary delete button was disabled for them)
+- The "Delete app and all cards" cascade option for app pages is now a visible button inside the view (previously hidden behind a long-press on the trigger)
+
 ## Newly Supported Object Types
 
 - Certification Process (recognized objects + Navigate to Copied Object)

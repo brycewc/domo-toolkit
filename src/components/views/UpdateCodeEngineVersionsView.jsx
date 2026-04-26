@@ -8,15 +8,11 @@ import {
   ListBox,
   ScrollShadow,
   Select,
+  Separator,
   Spinner,
   Tooltip
 } from '@heroui/react';
-import {
-  IconArrowRight,
-  IconCheck,
-  IconChevronDown,
-  IconX
-} from '@tabler/icons-react';
+import { IconArrowRight, IconCheck, IconChevronDown, IconX } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { useStatusBar } from '@/hooks';
@@ -28,10 +24,7 @@ import {
 } from '@/services';
 import { getSidepanelData, waitForDefinition } from '@/utils';
 
-export function UpdateCodeEngineVersionsView({
-  onBackToDefault = null,
-  onStatusUpdate = null
-}) {
+export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [packages, setPackages] = useState([]);
@@ -56,9 +49,7 @@ export function UpdateCodeEngineVersionsView({
         return;
       }
 
-      const context = data.currentContext
-        ? DomoContext.fromJSON(data.currentContext)
-        : null;
+      const context = data.currentContext ? DomoContext.fromJSON(data.currentContext) : null;
 
       if (!context) {
         onStatusUpdate?.('Error', 'No context available', 'danger');
@@ -71,27 +62,16 @@ export function UpdateCodeEngineVersionsView({
       // Get definition - either from stored data or fetch/wait for it
       let def = data.definition;
       if (!def) {
-        const isCEVersion =
-          context.domoObject?.typeId === 'CODEENGINE_PACKAGE_VERSION';
+        const isCEVersion = context.domoObject?.typeId === 'CODEENGINE_PACKAGE_VERSION';
         if (isCEVersion) {
-          const wfModelId =
-            context.domoObject.metadata?.context?.workflowModelId;
-          const wfVersion =
-            context.domoObject.metadata?.context?.workflowVersionNumber;
+          const wfModelId = context.domoObject.metadata?.context?.workflowModelId;
+          const wfVersion = context.domoObject.metadata?.context?.workflowVersionNumber;
           if (!wfModelId || !wfVersion) {
-            onStatusUpdate?.(
-              'Error',
-              'Missing workflow context for code engine version',
-              'danger'
-            );
+            onStatusUpdate?.('Error', 'Missing workflow context for code engine version', 'danger');
             onBackToDefault?.();
             return;
           }
-          def = await getVersionDefinition(
-            wfModelId,
-            wfVersion,
-            context.tabId
-          );
+          def = await getVersionDefinition(wfModelId, wfVersion, context.tabId);
         } else {
           const waitResult = await waitForDefinition(context);
           if (!waitResult.success) {
@@ -120,70 +100,61 @@ export function UpdateCodeEngineVersionsView({
       // Fetch package info (name + versions) for each package
       const tabId = context.tabId;
       const packageEntries = await Promise.all(
-        Array.from(packageMap.entries()).map(
-          async ([packageId, { actions, versions }]) => {
-            let packageName = packageId;
-            let availableVersions = [];
-            let isDomoBuiltin = false;
+        Array.from(packageMap.entries()).map(async ([packageId, { actions, versions }]) => {
+          let packageName = packageId;
+          let availableVersions = [];
+          let isDomoBuiltin = false;
 
-            try {
-              const info = await getCodeEnginePackageInfo(packageId, tabId);
-              packageName = info.name || packageId;
-              isDomoBuiltin =
-                info.availability === 'GLOBAL' &&
-                info.packageSource === 'DOMO';
-              availableVersions = (info.versions || [])
-                .filter((v) => v.released != null)
-                .map((v) => v.version)
-                .sort((a, b) => compareSemver(b, a));
-            } catch (error) {
-              console.warn(
-                `[UpdateCEVersions] Failed to fetch package info for ${packageId}:`,
-                error
-              );
-            }
-
-            const uniqueVersions = Array.from(versions);
-            const isSingleVersion = uniqueVersions.length === 1;
-            const currentVersion = isSingleVersion ? uniqueVersions[0] : null;
-            const latestVersion =
-              availableVersions.length > 0 ? availableVersions[0] : null;
-
-            // Built-in Domo packages can only be upgraded to latest — no
-            // downgrades or intermediate versions.
-            if (isDomoBuiltin) {
-              availableVersions =
-                latestVersion &&
-                (!isSingleVersion || currentVersion !== latestVersion)
-                  ? [latestVersion]
-                  : [];
-            }
-
-            // Default: latest if single version and not already on latest, otherwise no-change
-            let defaultSelected = 'no-change';
-            if (
-              !isSingleVersion ||
-              (latestVersion && currentVersion !== latestVersion)
-            ) {
-              defaultSelected = latestVersion;
-            }
-
-            return {
-              actions: actions.map((a) => ({
-                ...a,
-                selectedVersion: 'inherit'
-              })),
-              availableVersions,
-              currentVersion,
-              isDomoBuiltin,
-              isSingleVersion,
-              latestVersion,
-              packageId,
-              packageName,
-              selectedVersion: defaultSelected
-            };
+          try {
+            const info = await getCodeEnginePackageInfo(packageId, tabId);
+            packageName = info.name || packageId;
+            isDomoBuiltin = info.availability === 'GLOBAL' && info.packageSource === 'DOMO';
+            availableVersions = (info.versions || [])
+              .filter((v) => v.released != null)
+              .map((v) => v.version)
+              .sort((a, b) => compareSemver(b, a));
+          } catch (error) {
+            console.warn(
+              `[UpdateCEVersions] Failed to fetch package info for ${packageId}:`,
+              error
+            );
           }
-        )
+
+          const uniqueVersions = Array.from(versions);
+          const isSingleVersion = uniqueVersions.length === 1;
+          const currentVersion = isSingleVersion ? uniqueVersions[0] : null;
+          const latestVersion = availableVersions.length > 0 ? availableVersions[0] : null;
+
+          // Built-in Domo packages can only be upgraded to latest — no
+          // downgrades or intermediate versions.
+          if (isDomoBuiltin) {
+            availableVersions =
+              latestVersion && (!isSingleVersion || currentVersion !== latestVersion)
+                ? [latestVersion]
+                : [];
+          }
+
+          // Default: latest if single version and not already on latest, otherwise no-change
+          let defaultSelected = 'no-change';
+          if (!isSingleVersion || (latestVersion && currentVersion !== latestVersion)) {
+            defaultSelected = latestVersion;
+          }
+
+          return {
+            actions: actions.map((a) => ({
+              ...a,
+              selectedVersion: 'inherit'
+            })),
+            availableVersions,
+            currentVersion,
+            isDomoBuiltin,
+            isSingleVersion,
+            latestVersion,
+            packageId,
+            packageName,
+            selectedVersion: defaultSelected
+          };
+        })
       );
 
       if (!mountedRef.current) return;
@@ -191,11 +162,7 @@ export function UpdateCodeEngineVersionsView({
       setPackages(packageEntries);
     } catch (error) {
       console.error('[UpdateCEVersionsView] Error loading data:', error);
-      onStatusUpdate?.(
-        'Error',
-        error.message || 'Failed to load code engine packages',
-        'danger'
-      );
+      onStatusUpdate?.('Error', error.message || 'Failed to load code engine packages', 'danger');
     } finally {
       if (mountedRef.current) setIsLoading(false);
     }
@@ -203,9 +170,7 @@ export function UpdateCodeEngineVersionsView({
 
   const handlePackageVersionChange = (packageId, version) => {
     setPackages((prev) =>
-      prev.map((pkg) =>
-        pkg.packageId === packageId ? { ...pkg, selectedVersion: version } : pkg
-      )
+      prev.map((pkg) => (pkg.packageId === packageId ? { ...pkg, selectedVersion: version } : pkg))
     );
   };
 
@@ -216,9 +181,7 @@ export function UpdateCodeEngineVersionsView({
           ? {
               ...pkg,
               actions: pkg.actions.map((a) =>
-                a.elementId === elementId
-                  ? { ...a, selectedVersion: version }
-                  : a
+                a.elementId === elementId ? { ...a, selectedVersion: version } : a
               )
             }
           : pkg
@@ -257,19 +220,13 @@ export function UpdateCodeEngineVersionsView({
     const changes = computeChanges();
 
     if (changes.length === 0) {
-      onStatusUpdate?.(
-        'No Changes',
-        'No version changes to apply.',
-        'warning',
-        2000
-      );
+      onStatusUpdate?.('No Changes', 'No version changes to apply.', 'warning', 2000);
       return;
     }
 
     setIsSubmitting(true);
 
-    const isCEVersion =
-      currentContext.domoObject.typeId === 'CODEENGINE_PACKAGE_VERSION';
+    const isCEVersion = currentContext.domoObject.typeId === 'CODEENGINE_PACKAGE_VERSION';
     const modelId = isCEVersion
       ? currentContext.domoObject.metadata?.context?.workflowModelId
       : currentContext.domoObject.parentId;
@@ -280,17 +237,11 @@ export function UpdateCodeEngineVersionsView({
 
     const promise = (async () => {
       // Fetch the latest definition to avoid overwriting concurrent changes
-      const latestDefinition = await getVersionDefinition(
-        modelId,
-        versionNumber,
-        tabId
-      );
+      const latestDefinition = await getVersionDefinition(modelId, versionNumber, tabId);
       const modified = structuredClone(latestDefinition);
 
       for (const change of changes) {
-        const element = modified.designElements.find(
-          (el) => el.id === change.elementId
-        );
+        const element = modified.designElements.find((el) => el.id === change.elementId);
         if (element?.data?.metadata) {
           element.data.metadata.version = change.newVersion;
         }
@@ -352,7 +303,7 @@ export function UpdateCodeEngineVersionsView({
             <IconChevronDown stroke={1.5} />
           </Select.Indicator>
         </Select.Trigger>
-        <Select.Popover className='h-60'>
+        <Select.Popover className='max-h-60!'>
           <ListBox>
             <ListBox.Item
               id={isActionLevel ? 'inherit' : 'no-change'}
@@ -361,9 +312,7 @@ export function UpdateCodeEngineVersionsView({
             >
               <Label>{isActionLevel ? 'Inherit' : 'No Change'}</Label>
               <ListBox.ItemIndicator>
-                {({ isSelected }) =>
-                  isSelected ? <IconCheck stroke={1.5} /> : null
-                }
+                {({ isSelected }) => (isSelected ? <IconCheck stroke={1.5} /> : null)}
               </ListBox.ItemIndicator>
             </ListBox.Item>
             {availableVersions.map((v) => (
@@ -375,9 +324,7 @@ export function UpdateCodeEngineVersionsView({
               >
                 <Label>{v === latestVersion ? `Latest - ${v}` : v}</Label>
                 <ListBox.ItemIndicator>
-                  {({ isSelected }) =>
-                    isSelected ? <IconCheck stroke={1.5} /> : null
-                  }
+                  {({ isSelected }) => (isSelected ? <IconCheck stroke={1.5} /> : null)}
                 </ListBox.ItemIndicator>
               </ListBox.Item>
             ))}
@@ -403,9 +350,7 @@ export function UpdateCodeEngineVersionsView({
       <Card.Header>
         <Card.Title className='flex items-start justify-between'>
           <div className='flex flex-col gap-1'>
-            <div className='line-clamp-2 min-w-0'>
-              Update Code Engine Versions
-            </div>
+            <div className='line-clamp-2 min-w-0'>Update Code Engine Versions</div>
 
             <div className='flex flex-row items-center gap-1'>
               <span className='text-sm text-muted'>
@@ -415,12 +360,7 @@ export function UpdateCodeEngineVersionsView({
           </div>
           {onBackToDefault && (
             <Tooltip closeDelay={0} delay={400}>
-              <Button
-                isIconOnly
-                size='sm'
-                variant='ghost'
-                onPress={onBackToDefault}
-              >
+              <Button isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
                 <IconX stroke={1.5} />
               </Button>
               <Tooltip.Content className='text-xs'>Close</Tooltip.Content>
@@ -428,7 +368,7 @@ export function UpdateCodeEngineVersionsView({
           )}
         </Card.Title>
       </Card.Header>
-
+      <Separator />
       <ScrollShadow
         hideScrollBar
         className='min-h-0 flex-1 overflow-y-auto'
@@ -438,10 +378,8 @@ export function UpdateCodeEngineVersionsView({
         <Card.Content>
           {packages.map((pkg, index) => (
             <div
+              className={index > 0 ? 'w-full border-t border-border pt-2 pb-1' : 'pb-1'}
               key={pkg.packageId}
-              className={
-                index > 0 ? 'w-full border-t border-border pt-2 pb-1' : 'pb-1'
-              }
             >
               <div className='flex w-full flex-col gap-1'>
                 <div className='flex w-full items-end justify-between gap-2'>
@@ -453,12 +391,7 @@ export function UpdateCodeEngineVersionsView({
                     {pkg.packageName}
                   </Link>
                   {pkg.isDomoBuiltin && (
-                    <Chip
-                      className='shrink-0'
-                      color='primary'
-                      size='sm'
-                      variant='soft'
-                    >
+                    <Chip className='shrink-0' color='accent' size='sm' variant='soft'>
                       Built-in
                     </Chip>
                   )}
@@ -481,9 +414,7 @@ export function UpdateCodeEngineVersionsView({
                           : 'danger'
                     }
                   >
-                    {pkg.isSingleVersion
-                      ? pkg.currentVersion
-                      : 'Multiple Versions'}
+                    {pkg.isSingleVersion ? pkg.currentVersion : 'Multiple Versions'}
                   </Chip>
                   <div className='flex items-center justify-end gap-2'>
                     <IconArrowRight className='shrink-0 text-muted' />
@@ -517,20 +448,14 @@ export function UpdateCodeEngineVersionsView({
                     <Disclosure.Content>
                       <div className='flex flex-col gap-1.5 pt-1 pl-1'>
                         {pkg.actions.map((action) => (
-                          <div
-                            className='flex flex-col gap-0.5'
-                            key={action.elementId}
-                          >
-                            <span
-                              className='truncate text-xs'
-                              title={action.actionName}
-                            >
+                          <div className='flex flex-col gap-0.5' key={action.elementId}>
+                            <span className='truncate text-xs' title={action.actionName}>
                               {action.actionName}
                             </span>
                             <div className='flex items-center justify-between gap-2'>
                               <Chip
                                 className='h-9'
-                                size='lg'
+                                size='sm'
                                 variant='soft'
                                 color={
                                   pkg.latestVersion === pkg.currentVersion
@@ -576,11 +501,7 @@ export function UpdateCodeEngineVersionsView({
           variant='primary'
           onPress={handleSubmit}
         >
-          {isSubmitting ? (
-            <Spinner color='currentColor' size='sm' />
-          ) : (
-            'Update Versions'
-          )}
+          {isSubmitting ? <Spinner color='currentColor' size='sm' /> : 'Update Versions'}
         </Button>
       </div>
     </Card>
@@ -608,10 +529,7 @@ function groupTilesByPackage(designElements) {
   const packageMap = new Map();
 
   for (const el of designElements) {
-    if (
-      el.data?.taskType !== 'nebulaFunction' ||
-      !el.data?.metadata?.packageId
-    ) {
+    if (el.data?.taskType !== 'nebulaFunction' || !el.data?.metadata?.packageId) {
       continue;
     }
 
