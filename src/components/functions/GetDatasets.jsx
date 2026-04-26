@@ -3,12 +3,7 @@ import { IconDatabase } from '@tabler/icons-react';
 
 import { useLaunchView, useLongPress } from '@/hooks';
 
-export function GetDatasets({
-  currentContext,
-  isDisabled,
-  onCollapseActions,
-  onStatusUpdate
-}) {
+export function GetDatasets({ currentContext, isDisabled, onCollapseActions, onStatusUpdate }) {
   const { isPending, launch } = useLaunchView();
   const { LongPressOverlay, pressProps } = useLongPress();
 
@@ -43,18 +38,23 @@ export function GetDatasets({
   };
 
   let buttonText;
+  let label;
   switch (objectType) {
     case 'CARD':
       buttonText = 'Get Card DataSets';
+      label = 'List datasets powering this card';
       break;
     case 'DATA_SOURCE':
-      buttonText = 'Get Views';
+      buttonText = 'Get Dependent Views';
+      label = 'List dataset views dependent on this dataset';
       break;
     case 'DATAFLOW_TYPE':
       buttonText = 'Get DataFlow DataSets';
+      label = 'List dataset inputs and outputs for this dataflow';
       break;
     default:
       buttonText = 'Get DataSets';
+      label = 'List datasets for this object';
   }
 
   return (
@@ -87,11 +87,10 @@ export function GetDatasets({
             )
           }
         </Button>
-        {!longPressDisabled && (
-          <Tooltip.Content placement='bottom'>
-            <span className='italic'>Hold for more options</span>
-          </Tooltip.Content>
-        )}
+        <Tooltip.Content className='flex flex-col items-center text-wrap break-normal'>
+          <span>{label}</span>
+          {!longPressDisabled && <span className='italic'>Hold for more options</span>}
+        </Tooltip.Content>
       </Tooltip>
       <Dropdown.Popover className='w-fit min-w-48' placement='bottom'>
         <Dropdown.Menu onAction={handleAction}>

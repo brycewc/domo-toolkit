@@ -1,6 +1,6 @@
 import { Button, Tooltip } from '@heroui/react';
-import { IconArrowFork } from '@tabler/icons-react';
 
+import { ObjectTypeIcon } from '@/components';
 import { useLaunchView } from '@/hooks';
 
 export function UpdateDetails({ currentContext, onStatusUpdate }) {
@@ -27,10 +27,12 @@ export function UpdateDetails({ currentContext, onStatusUpdate }) {
           })
         }
       >
-        <IconArrowFork className='rotate-180' stroke={1.5} />
+        <ObjectTypeIcon typeId={typeId} />
         {label}
       </Button>
-      <Tooltip.Content>{tooltip}</Tooltip.Content>
+      <Tooltip.Content className='flex flex-col items-center text-wrap break-normal'>
+        {tooltip}
+      </Tooltip.Content>
     </Tooltip>
   );
 }

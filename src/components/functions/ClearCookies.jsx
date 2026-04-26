@@ -23,9 +23,7 @@ export function ClearCookies({ currentContext, isDisabled }) {
 
     const handleStorageChange = (changes, areaName) => {
       if (areaName === 'sync' && changes.defaultClearCookiesHandling) {
-        setCookieClearingMode(
-          changes.defaultClearCookiesHandling.newValue || 'auto'
-        );
+        setCookieClearingMode(changes.defaultClearCookiesHandling.newValue || 'auto');
       }
     };
 
@@ -83,7 +81,7 @@ export function ClearCookies({ currentContext, isDisabled }) {
   const tooltipText =
     cookieClearingMode === 'all'
       ? 'Clear all Domo cookies'
-      : 'Clear cookies (preserve last 2 instances)';
+      : 'Clear Domo cookies and preserve last 2 instances';
 
   return (
     <Tooltip closeDelay={0} delay={400}>
@@ -96,7 +94,9 @@ export function ClearCookies({ currentContext, isDisabled }) {
       >
         <IconCookieOff className='text-danger' />
       </Button>
-      <Tooltip.Content>{tooltipText}</Tooltip.Content>
+      <Tooltip.Content className='flex flex-col items-center text-wrap break-normal'>
+        {tooltipText}
+      </Tooltip.Content>
     </Tooltip>
   );
 }
@@ -112,9 +112,7 @@ async function getDomainsToPreserve() {
     }
   });
 
-  domoTabs.sort(
-    (a, b) => (b.lastAccessed || b.id) - (a.lastAccessed || a.id)
-  );
+  domoTabs.sort((a, b) => (b.lastAccessed || b.id) - (a.lastAccessed || a.id));
 
   const seenDomains = new Set();
   const recentDomoTabs = [];
@@ -130,21 +128,12 @@ async function getDomainsToPreserve() {
   const daSidsToPreserve = [];
   for (const { tab } of recentDomoTabs) {
     try {
-      const data = await executeInPage(
-        async () => window.bootstrap?.data,
-        [],
-        tab.id
-      );
+      const data = await executeInPage(async () => window.bootstrap?.data, [], tab.id);
       if (data?.environmentId && data?.analytics?.company) {
-        daSidsToPreserve.push(
-          `DA-SID-${data.environmentId}-${data.analytics.company}`
-        );
+        daSidsToPreserve.push(`DA-SID-${data.environmentId}-${data.analytics.company}`);
       }
     } catch (e) {
-      console.warn(
-        `[ClearCookies] Could not get DA-SID for tab ${tab.id}:`,
-        e
-      );
+      console.warn(`[ClearCookies] Could not get DA-SID for tab ${tab.id}:`, e);
     }
   }
 

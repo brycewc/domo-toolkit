@@ -1,14 +1,9 @@
-import { Button, Dropdown, Label } from '@heroui/react';
+import { Button, Dropdown, Label, Tooltip } from '@heroui/react';
 import { IconCode, IconMail, IconSparkles } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 
 import { showReleaseToast, useStatusBar } from '@/hooks';
-import {
-  getCurrentUserId,
-  getFullUserDetails,
-  sendEmail,
-  uploadDataFile
-} from '@/services';
+import { getCurrentUserId, getFullUserDetails, sendEmail, uploadDataFile } from '@/services';
 import { buildExcelBlob, generateExportFilename } from '@/utils';
 
 const DEV_ACTIONS = [
@@ -24,8 +19,7 @@ const DEV_ACTIONS = [
   }
 ];
 
-const XLSX_MIME_TYPE =
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const XLSX_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
 const DEV_LOG_COLUMNS = [
   { accessorKey: 'Object Type', header: 'Object Type' },
@@ -78,22 +72,19 @@ export function DevMenu() {
 
   return (
     <Dropdown>
-      <Button
-        fullWidth
-        className='min-w-36 flex-1 whitespace-normal'
-        variant='tertiary'
-      >
-        <IconCode stroke={1.5} />
-        Dev
-      </Button>
+      <Tooltip closeDelay={0} delay={400}>
+        <Button fullWidth className='min-w-36 flex-1 whitespace-normal' variant='tertiary'>
+          <IconCode stroke={1.5} />
+          Dev
+        </Button>
+        <Tooltip.Content className='flex flex-col items-center text-wrap break-normal'>
+          Developer testing utilities
+        </Tooltip.Content>
+      </Tooltip>
       <Dropdown.Popover className='w-fit min-w-40' placement='bottom'>
         <Dropdown.Menu onAction={handleAction}>
           {DEV_ACTIONS.map((action) => (
-            <Dropdown.Item
-              id={action.id}
-              key={action.id}
-              textValue={action.label}
-            >
+            <Dropdown.Item id={action.id} key={action.id} textValue={action.label}>
               <action.icon className='size-5 shrink-0' stroke={1.5} />
               <Label>{action.label}</Label>
             </Dropdown.Item>
@@ -118,11 +109,7 @@ async function runTestTransferEmail(showStatus) {
     const email = user?.emailAddress || user?.email;
     const displayName = user?.displayName || `User ${userId}`;
     if (!email) {
-      showStatus(
-        'Dev Email Failed',
-        'Could not resolve an email for the current user',
-        'danger'
-      );
+      showStatus('Dev Email Failed', 'Could not resolve an email for the current user', 'danger');
       return;
     }
 
@@ -156,10 +143,6 @@ async function runTestTransferEmail(showStatus) {
 
     showStatus('Dev Email Sent', `Delivered to **${email}**`, 'success');
   } catch (error) {
-    showStatus(
-      'Dev Email Failed',
-      error.message || 'Unknown error',
-      'danger'
-    );
+    showStatus('Dev Email Failed', error.message || 'Unknown error', 'danger');
   }
 }

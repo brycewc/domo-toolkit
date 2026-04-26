@@ -5,10 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useStatusBar } from '@/hooks';
 import { getCardDefinition, updateCardDefinition } from '@/services';
 
-export function RemoveEmptyStringsFromQuickFilters({
-  currentContext,
-  onStatusUpdate
-}) {
+export function RemoveEmptyStringsFromQuickFilters({ currentContext, onStatusUpdate }) {
   const [emptyCount, setEmptyCount] = useState(null);
   const definitionRef = useRef(null);
   const cardId = currentContext?.domoObject?.id;
@@ -64,18 +61,15 @@ export function RemoveEmptyStringsFromQuickFilters({
       }
     });
 
-    const promise = updateCardDefinition({ cardId, definition, tabId }).then(
-      () => {
-        setEmptyCount(0);
-        definitionRef.current = null;
-        chrome.tabs.reload(tabId);
-        return removed;
-      }
-    );
+    const promise = updateCardDefinition({ cardId, definition, tabId }).then(() => {
+      setEmptyCount(0);
+      definitionRef.current = null;
+      chrome.tabs.reload(tabId);
+      return removed;
+    });
 
     showPromiseStatus(promise, {
-      error: () =>
-        `Failed to remove empty strings from card **${cardId}** quick filters`,
+      error: () => `Failed to remove empty strings from card **${cardId}** quick filters`,
       loading: `Removing empty strings from card **${cardId}**…`,
       success: (count) =>
         `Removed ${count} empty string quick filter${count === 1 ? '' : 's'} from card **${cardId}**`
@@ -94,11 +88,10 @@ export function RemoveEmptyStringsFromQuickFilters({
         <IconXboxX stroke={1.5} />
         Fix Empty String Filters
       </Button>
-      <Tooltip.Content className='break-normal'>
-        Sets the default of contains quick filters to nothing instead of an
-        empty string, so that null values will show instead of being filtered
-        out. Currently affects {emptyCount} filter{emptyCount === 1 ? '' : 's'}{' '}
-        on this card.
+      <Tooltip.Content className='flex flex-col items-center text-wrap break-normal'>
+        Sets the default of contains quick filters to nothing instead of an empty string, so that
+        null values will show instead of being filtered out. Currently affects {emptyCount} filter
+        {emptyCount === 1 ? '' : 's'} on this card.
       </Tooltip.Content>
     </Tooltip>
   );
@@ -108,8 +101,6 @@ function countEmptyStringFilters(definition) {
   if (!Array.isArray(definition?.definition?.controls)) return 0;
   return definition.definition.controls.filter(
     (control) =>
-      Array.isArray(control.values) &&
-      control.values.length === 1 &&
-      control.values[0] === ''
+      Array.isArray(control.values) && control.values.length === 1 && control.values[0] === ''
   ).length;
 }

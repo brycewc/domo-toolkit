@@ -21,7 +21,7 @@ export function DataRepair({ currentContext, isDisabled }) {
         <IconBandage stroke={1.5} />
         Data Repair
       </Button>
-      <Tooltip.Content>
+      <Tooltip.Content className='flex flex-col items-center text-wrap break-normal'>
         Enable and navigate to the data repair tab
       </Tooltip.Content>
     </Tooltip>

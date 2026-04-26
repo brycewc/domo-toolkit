@@ -110,20 +110,12 @@ export function DataList({
           setIsCopied(true);
           setTimeout(() => setIsCopied(false), 1000);
           await navigator.clipboard.writeText(objectId?.toString() || '');
-          onStatusUpdate?.(
-            'Copied',
-            `ID **${objectId}** copied to clipboard`,
-            'success',
-            2000
-          );
+          onStatusUpdate?.('Copied', `ID **${objectId}** copied to clipboard`, 'success', 2000);
           break;
 
         case 'openAll': {
           // Filter out DATA_APP items (we want their children, not the app itself)
-          const urls = collectAllUrls(
-            items,
-            (item) => item.typeId !== 'DATA_APP'
-          );
+          const urls = collectAllUrls(items, (item) => item.typeId !== 'DATA_APP');
           const count = urls.length;
           urls.forEach((url) => {
             window.open(url, '_blank', 'noopener,noreferrer');
@@ -152,12 +144,7 @@ export function DataList({
       }
     } catch (err) {
       console.error(`[DataList] Error in header action ${actionType}:`, err);
-      onStatusUpdate?.(
-        'Error',
-        err.message || `Failed to ${actionType}`,
-        'danger',
-        3000
-      );
+      onStatusUpdate?.('Error', err.message || `Failed to ${actionType}`, 'danger', 3000);
     }
   };
 
@@ -171,12 +158,7 @@ export function DataList({
       switch (actionType) {
         case 'copy':
           await navigator.clipboard.writeText(item.id?.toString() || '');
-          onStatusUpdate?.(
-            'Copied',
-            `ID **${item.id}** copied to clipboard`,
-            'success',
-            2000
-          );
+          onStatusUpdate?.('Copied', `ID **${item.id}** copied to clipboard`, 'success', 2000);
           break;
         case 'lineage': {
           const id = item.id;
@@ -189,8 +171,7 @@ export function DataList({
               lineageEntityId: id,
               lineageEntityType: item.typeId || 'DATA_SOURCE',
               lineageInstance: instance,
-              lineageObjectName:
-                item.label || `${item.typeId || 'DATA_SOURCE'} ${id}`,
+              lineageObjectName: item.label || `${item.typeId || 'DATA_SOURCE'} ${id}`,
               lineageTabId: tabId
             });
             const tab = await chrome.tabs.get(tabId);
@@ -248,12 +229,7 @@ export function DataList({
       }
     } catch (err) {
       console.error(`[DataList] Error in item action ${actionType}:`, err);
-      onStatusUpdate?.(
-        'Error',
-        err.message || `Failed to ${actionType}`,
-        'danger',
-        3000
-      );
+      onStatusUpdate?.('Error', err.message || `Failed to ${actionType}`, 'danger', 3000);
     }
   };
 
@@ -307,9 +283,7 @@ export function DataList({
                                 )}
                               </Button>
                               <Tooltip.Content className='text-xs'>
-                                {isHeaderShared
-                                  ? 'Shared!'
-                                  : 'Share all with yourself'}
+                                {isHeaderShared ? 'Shared!' : 'Share all with yourself'}
                               </Tooltip.Content>
                             </Tooltip>
                           )}
@@ -348,9 +322,7 @@ export function DataList({
                                   stroke={1.5}
                                 />
                               </Button>
-                              <Tooltip.Content className='text-xs'>
-                                Refresh
-                              </Tooltip.Content>
+                              <Tooltip.Content className='text-xs'>Refresh</Tooltip.Content>
                             </Tooltip>
                           )}
                         </ButtonGroup>
@@ -360,17 +332,10 @@ export function DataList({
                 )}
                 {onClose && (
                   <Tooltip closeDelay={0} delay={400}>
-                    <Button
-                      isIconOnly
-                      size='sm'
-                      variant='ghost'
-                      onPress={onClose}
-                    >
+                    <Button isIconOnly size='sm' variant='ghost' onPress={onClose}>
                       <IconX stroke={1.5} />
                     </Button>
-                    <Tooltip.Content className='text-xs'>
-                      {closeLabel}
-                    </Tooltip.Content>
+                    <Tooltip.Content className='text-xs'>{closeLabel}</Tooltip.Content>
                   </Tooltip>
                 )}
               </ButtonGroup>
@@ -386,10 +351,7 @@ export function DataList({
         orientation='vertical'
       >
         <Card.Content>
-          <DisclosureGroup
-            allowsMultipleExpanded
-            className='flex w-full flex-col'
-          >
+          <DisclosureGroup allowsMultipleExpanded className='flex w-full flex-col'>
             {items.map((item, index) => (
               <DataListItem
                 item={item}
@@ -521,9 +483,7 @@ function DataListItem({
       >
         <IconQueuePopOut stroke={1.5} />
       </Button>
-      <Tooltip.Content className='text-xs'>
-        Open all in new tabs
-      </Tooltip.Content>
+      <Tooltip.Content className='text-xs'>Open all in new tabs</Tooltip.Content>
     </Tooltip>
   );
 
@@ -537,15 +497,9 @@ function DataListItem({
         variant='ghost'
         onPress={() => handleAction('copy')}
       >
-        {isCopied ? (
-          <AnimatedCheck stroke={1.5} />
-        ) : (
-          <IconClipboard stroke={1.5} />
-        )}
+        {isCopied ? <AnimatedCheck stroke={1.5} /> : <IconClipboard stroke={1.5} />}
       </Button>
-      <Tooltip.Content className='text-xs'>
-        {isCopied ? 'Copied!' : 'Copy ID'}
-      </Tooltip.Content>
+      <Tooltip.Content className='text-xs'>{isCopied ? 'Copied!' : 'Copy ID'}</Tooltip.Content>
     </Tooltip>
   );
 
@@ -559,11 +513,7 @@ function DataListItem({
         variant='ghost'
         onPress={() => handleAction('shareAll')}
       >
-        {isShared ? (
-          <AnimatedCheck stroke={1.5} />
-        ) : (
-          <IconUsersPlus stroke={1.5} />
-        )}
+        {isShared ? <AnimatedCheck stroke={1.5} /> : <IconUsersPlus stroke={1.5} />}
       </Button>
       <Tooltip.Content className='text-xs'>
         {isShared ? 'Shared!' : 'Share all with yourself'}
@@ -581,11 +531,7 @@ function DataListItem({
         variant='ghost'
         onPress={() => handleAction('share')}
       >
-        {isShared ? (
-          <AnimatedCheck stroke={1.5} />
-        ) : (
-          <IconUserPlus stroke={1.5} />
-        )}
+        {isShared ? <AnimatedCheck stroke={1.5} /> : <IconUserPlus stroke={1.5} />}
       </Button>
       <Tooltip.Content className='text-xs'>
         {isShared ? 'Shared!' : 'Share with yourself'}
@@ -605,9 +551,7 @@ function DataListItem({
       >
         <IconTable stroke={1.5} />
       </Button>
-      <Tooltip.Content className='text-xs'>
-        Open in Views Explorer
-      </Tooltip.Content>
+      <Tooltip.Content className='text-xs'>Open in Views Explorer</Tooltip.Content>
     </Tooltip>
   );
 
@@ -652,8 +596,7 @@ function DataListItem({
 
     if (itemActions) {
       const actions = [];
-      if (itemActions.includes('openAll') && hasChildren)
-        actions.push(openAllButton);
+      if (itemActions.includes('openAll') && hasChildren) actions.push(openAllButton);
       if (
         itemActions.includes('shareAll') &&
         hasChildren &&
@@ -662,17 +605,13 @@ function DataListItem({
         item.countLabel !== 'cards'
       )
         actions.push(shareAllButton);
-      if (itemActions.includes('share') && !isUnshareable)
-        actions.push(shareButton);
+      if (itemActions.includes('share') && !isUnshareable) actions.push(shareButton);
       if (
         itemActions.includes('lineage') &&
         (item.typeId === 'DATA_SOURCE' || item.typeId === 'DATAFLOW_TYPE')
       )
         actions.push(lineageButton);
-      if (
-        itemActions.includes('viewsExplorer') &&
-        item.typeId === 'DATA_SOURCE'
-      )
+      if (itemActions.includes('viewsExplorer') && item.typeId === 'DATA_SOURCE')
         actions.push(viewsExplorerButton);
       if (itemActions.includes('copy')) actions.push(copyButton);
       return actions;
@@ -687,8 +626,7 @@ function DataListItem({
     }
 
     if (
-      ((objectType === 'CARD' &&
-        (item.typeId === 'PAGE' || item.typeId === 'DATA_APP_VIEW')) ||
+      ((objectType === 'CARD' && (item.typeId === 'PAGE' || item.typeId === 'DATA_APP_VIEW')) ||
         (itemActions && itemActions?.includes('remove'))) &&
       Number(item.id) >= 0
     ) {
@@ -704,9 +642,10 @@ function DataListItem({
 
   const labelTooltip = (
     <Tooltip className='flex-1' closeDelay={0} delay={200}>
-      <Tooltip.Trigger className='flex items-center truncate'>
+      <Tooltip.Trigger className='block truncate'>
         <ObjectTypeIcon
-          className='mr-1 inline shrink-0 align-text-bottom'
+          className='mr-1 inline-block shrink-0 align-[-2px]'
+          size={16}
           typeId={item.typeId}
         />
         {item.label}
@@ -758,9 +697,7 @@ function DataListItem({
   if (!hasChildren) {
     return (
       <div className='flex min-h-9 w-full flex-row items-center justify-between gap-1 border-t border-border py-1'>
-        <div className='flex w-full min-w-0 flex-1 basis-4/5 items-center gap-2'>
-          {itemLabel}
-        </div>
+        <div className='flex w-full min-w-0 flex-1 basis-4/5 items-center gap-2'>{itemLabel}</div>
         {actions}
       </div>
     );
@@ -780,9 +717,7 @@ function DataListItem({
             className='flex shrink-0 flex-row items-center gap-1'
             variant='tertiary'
           >
-            {item.isVirtualParent && (
-              <p className='truncate text-sm font-medium'>{item.label}</p>
-            )}
+            {item.isVirtualParent && <p className='truncate text-sm font-medium'>{item.label}</p>}
             {showCounts && item.count !== undefined && (
               <p className='text-sm text-muted'>
                 {' '}

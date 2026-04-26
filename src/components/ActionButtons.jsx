@@ -1,16 +1,5 @@
-import {
-  Button,
-  ButtonGroup,
-  Card,
-  Disclosure,
-  Skeleton,
-  Tooltip
-} from '@heroui/react';
-import {
-  IconChevronDown,
-  IconLayoutSidebarRightExpand,
-  IconSettings
-} from '@tabler/icons-react';
+import { Button, ButtonGroup, Card, Disclosure, Skeleton, Tooltip } from '@heroui/react';
+import { IconChevronDown, IconLayoutSidebarRightExpand, IconSettings } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 
 import { isSidepanel, openSidepanel } from '@/utils';
@@ -95,10 +84,7 @@ export function ActionButtons({
                   isDisabled={!isDomoPage}
                   onStatusUpdate={onStatusUpdate}
                 />
-                <ActivityLog
-                  currentContext={currentContext}
-                  onStatusUpdate={onStatusUpdate}
-                />
+                <ActivityLog currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
                 <NavigateToCopiedObject
                   currentContext={currentContext}
                   onStatusUpdate={onStatusUpdate}
@@ -119,9 +105,7 @@ export function ActionButtons({
                     isIconOnly
                     variant='tertiary'
                     onPress={async () => {
-                      const optionsUrl = chrome.runtime.getURL(
-                        'src/options/index.html'
-                      );
+                      const optionsUrl = chrome.runtime.getURL('src/options/index.html');
                       const currentWindow = await chrome.windows.getCurrent();
                       const tabs = await chrome.tabs.query({
                         url: `${optionsUrl}*`,
@@ -129,9 +113,7 @@ export function ActionButtons({
                       });
                       const settingsTab = tabs.find((t) => {
                         const hash = new URL(t.url).hash.slice(1);
-                        return (
-                          !hash || hash === 'settings' || hash === 'favicon'
-                        );
+                        return !hash || hash === 'settings' || hash === 'favicon';
                       });
                       if (settingsTab) {
                         await chrome.tabs.update(settingsTab.id, {
@@ -169,12 +151,7 @@ export function ActionButtons({
                   </Tooltip>
                 ) : (
                   <Tooltip closeDelay={0} delay={400}>
-                    <Button
-                      fullWidth
-                      isIconOnly
-                      variant='tertiary'
-                      onPress={openSidepanel}
-                    >
+                    <Button fullWidth isIconOnly variant='tertiary' onPress={openSidepanel}>
                       <IconLayoutSidebarRightExpand stroke={1.5} />
                     </Button>
                     <Tooltip.Content>Open side panel</Tooltip.Content>
@@ -188,9 +165,7 @@ export function ActionButtons({
                   <GetCards
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
-                    onCollapseActions={
-                      collapsable ? () => setIsExpanded(false) : undefined
-                    }
+                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
@@ -198,9 +173,7 @@ export function ActionButtons({
                   <GetDatasets
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
-                    onCollapseActions={
-                      collapsable ? () => setIsExpanded(false) : undefined
-                    }
+                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
@@ -208,9 +181,7 @@ export function ActionButtons({
                   <GetChildPages
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
-                    onCollapseActions={
-                      collapsable ? () => setIsExpanded(false) : undefined
-                    }
+                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
@@ -218,78 +189,50 @@ export function ActionButtons({
                   <GetCardPages
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
-                    onCollapseActions={
-                      collapsable ? () => setIsExpanded(false) : undefined
-                    }
+                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
                     onStatusUpdate={onStatusUpdate}
-                  />
-                )}
-                {availableActions.has('viewLineage') && (
-                  <ViewLineage
-                    currentContext={currentContext}
-                    onStatusUpdate={onStatusUpdate}
-                  />
-                )}
-                {availableActions.has('dataRepair') && (
-                  <DataRepair
-                    currentContext={currentContext}
-                    isDisabled={!isDomoPage}
-                  />
-                )}
-                {availableActions.has('directSignOn') && (
-                  <DirectSignOn
-                    currentContext={currentContext}
-                    isDisabled={!isDomoPage}
                   />
                 )}
                 {availableActions.has('getViewInputs') && (
                   <GetViewInputs
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
-                    onCollapseActions={
-                      collapsable ? () => setIsExpanded(false) : undefined
-                    }
+                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
+                {availableActions.has('viewLineage') && (
+                  <ViewLineage currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
+                )}
+                {availableActions.has('dataRepair') && (
+                  <DataRepair currentContext={currentContext} isDisabled={!isDomoPage} />
+                )}
                 {availableActions.has('updateDetails') && (
-                  <UpdateDetails
-                    currentContext={currentContext}
-                    onStatusUpdate={onStatusUpdate}
-                  />
+                  <UpdateDetails currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('transferOwnership') && (
                   <TransferOwnership
                     currentContext={currentContext}
-                    onCollapseActions={
-                      collapsable ? () => setIsExpanded(false) : undefined
-                    }
+                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
                 {availableActions.has('getOwnedObjects') && (
                   <GetOwnedObjects
                     currentContext={currentContext}
-                    onCollapseActions={
-                      collapsable ? () => setIsExpanded(false) : undefined
-                    }
+                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
                 {availableActions.has('duplicate') && (
                   <Duplicate
                     currentContext={currentContext}
-                    onCollapseActions={
-                      collapsable ? () => setIsExpanded(false) : undefined
-                    }
+                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
                 {availableActions.has('updateOwner') && (
-                  <UpdateOwner
-                    currentContext={currentContext}
-                    onStatusUpdate={onStatusUpdate}
-                  />
+                  <UpdateOwner currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('lockCards') && (
                   <LockCards
@@ -323,18 +266,14 @@ export function ActionButtons({
                   <UpdateCodeEngineVersions
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
-                    onCollapseActions={
-                      collapsable ? () => setIsExpanded(false) : undefined
-                    }
+                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
                 <ApiErrors
                   currentContext={currentContext}
                   isDisabled={!isDomoPage}
-                  onCollapseActions={
-                    collapsable ? () => setIsExpanded(false) : undefined
-                  }
+                  onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
                   onStatusUpdate={onStatusUpdate}
                 />
                 {availableActions.has('removeEmptyStrings') && (
@@ -342,6 +281,9 @@ export function ActionButtons({
                     currentContext={currentContext}
                     onStatusUpdate={onStatusUpdate}
                   />
+                )}
+                {availableActions.has('directSignOn') && (
+                  <DirectSignOn currentContext={currentContext} isDisabled={!isDomoPage} />
                 )}
                 <DevMenu />
               </div>
@@ -381,14 +323,9 @@ function getAvailableActions(currentContext) {
   }
 
   if (
-    [
-      'CARD',
-      'DATA_APP_VIEW',
-      'DATA_SOURCE',
-      'DATAFLOW_TYPE',
-      'PAGE',
-      'WORKSHEET_VIEW'
-    ].includes(typeId)
+    ['CARD', 'DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE', 'WORKSHEET_VIEW'].includes(
+      typeId
+    )
   ) {
     actions.add('getDatasets');
   }
@@ -398,14 +335,9 @@ function getAvailableActions(currentContext) {
   }
 
   if (
-    [
-      'CARD',
-      'DATA_APP_VIEW',
-      'DATA_SOURCE',
-      'DATAFLOW_TYPE',
-      'PAGE',
-      'WORKSHEET_VIEW'
-    ].includes(typeId)
+    ['CARD', 'DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE', 'WORKSHEET_VIEW'].includes(
+      typeId
+    )
   ) {
     actions.add('getCardPages');
   }
@@ -413,10 +345,7 @@ function getAvailableActions(currentContext) {
   if (typeId === 'DATA_SOURCE') {
     actions.add('getViewInputs');
     actions.add('dataRepair');
-    if (
-      details?.streamId &&
-      metadata?.parent?.details?.scheduleState !== 'MANUAL'
-    ) {
+    if (details?.streamId && metadata?.parent?.details?.scheduleState !== 'MANUAL') {
       actions.add('setStreamToManual');
     }
   }
@@ -443,26 +372,15 @@ function getAvailableActions(currentContext) {
     actions.add('updateOwner');
   }
 
-  if (
-    typeId === 'WORKFLOW_MODEL_VERSION' &&
-    !details?.deletedAt &&
-    !details?.releasedAt
-  ) {
+  if (typeId === 'WORKFLOW_MODEL_VERSION' && !details?.deletedAt && !details?.releasedAt) {
     actions.add('updateCodeEngineVersions');
   }
 
-  if (
-    typeId === 'CODEENGINE_PACKAGE_VERSION' &&
-    metadata?.context?.workflowModelId
-  ) {
+  if (typeId === 'CODEENGINE_PACKAGE_VERSION' && metadata?.context?.workflowModelId) {
     actions.add('updateCodeEngineVersions');
   }
 
-  if (
-    ['CARD', 'CODEENGINE_PACKAGE', 'CODEENGINE_PACKAGE_VERSION'].includes(
-      typeId
-    )
-  ) {
+  if (['CARD', 'CODEENGINE_PACKAGE', 'CODEENGINE_PACKAGE_VERSION'].includes(typeId)) {
     actions.add('export');
   }
 
@@ -476,10 +394,7 @@ function getAvailableActions(currentContext) {
     actions.add('duplicate');
   }
 
-  if (
-    url?.includes('domo.com/auth/index') &&
-    !url?.includes('domoManualLogin=true')
-  ) {
+  if (url?.includes('domo.com/auth/index') && !url?.includes('domoManualLogin=true')) {
     actions.add('directSignOn');
   }
 

@@ -75,17 +75,14 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
           <IconUserEdit stroke={1.5} />
           Update Owner
         </Button>
-        <Tooltip.Content>
+        <Tooltip.Content className='flex flex-col items-center text-wrap break-normal'>
           Update {currentContext?.domoObject.typeName} owner
         </Tooltip.Content>
       </Tooltip>
       <Modal.Backdrop>
         <Modal.Container className='p-1' placement='top' scroll='outside'>
           <Modal.Dialog className='p-2'>
-            <Modal.CloseTrigger
-              className='absolute top-2 right-2'
-              variant='ghost'
-            >
+            <Modal.CloseTrigger className='absolute top-2 right-2' variant='ghost'>
               <IconX stroke={1.5} />
             </Modal.CloseTrigger>
             <Form id='update-owner-form' onSubmit={handleSubmit}>
@@ -125,20 +122,10 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
                   <Tooltip.Content>Update owner to yourself</Tooltip.Content>
                 </Tooltip>
                 <div className='flex gap-2'>
-                  <Button
-                    isDisabled={isSubmitting}
-                    size='sm'
-                    slot='close'
-                    variant='tertiary'
-                  >
+                  <Button isDisabled={isSubmitting} size='sm' slot='close' variant='tertiary'>
                     Cancel
                   </Button>
-                  <Button
-                    isDisabled={isSubmitting}
-                    size='sm'
-                    type='submit'
-                    variant='primary'
-                  >
+                  <Button isDisabled={isSubmitting} size='sm' type='submit' variant='primary'>
                     Save
                   </Button>
                 </div>
@@ -158,8 +145,6 @@ async function updateOwnerForObject({ newOwnerId, object, tabId }) {
     case 'WORKFLOW_MODEL':
       return updateWorkflowOwner({ modelId: object.id, newOwnerId, tabId });
     default:
-      throw new Error(
-        `Update owner not supported for object type: ${object?.typeId}`
-      );
+      throw new Error(`Update owner not supported for object type: ${object?.typeId}`);
   }
 }

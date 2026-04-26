@@ -8,7 +8,12 @@ import {
 } from '@tabler/icons-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { DomoObject, fetchObjectDetailsInPage, getAllNavigableObjectTypes, getAllObjectTypesWithApiConfig } from '@/models';
+import {
+  DomoObject,
+  fetchObjectDetailsInPage,
+  getAllNavigableObjectTypes,
+  getAllObjectTypesWithApiConfig
+} from '@/models';
 import { executeInPage, isSidepanel, openSidepanel, storeSidepanelData } from '@/utils';
 
 const TYPE_PRIORITY = [
@@ -274,7 +279,9 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
         >
           <IconExternalLink stroke={1.5} />
         </Button>
-        <Tooltip.Content placement='top'>Set a default Domo instance in settings</Tooltip.Content>
+        <Tooltip.Content className='flex flex-col items-center text-wrap break-normal'>
+          Set a default Domo instance in settings
+        </Tooltip.Content>
       </Tooltip>
     );
   }
@@ -285,7 +292,9 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
         <Button fullWidth isIconOnly variant='tertiary'>
           <IconExternalLink stroke={1.5} />
         </Button>
-        <Tooltip.Content placement='top'>Navigate to copied object</Tooltip.Content>
+        <Tooltip.Content className='flex flex-col items-center text-wrap break-normal'>
+          Navigate to copied object
+        </Tooltip.Content>
       </Tooltip>
       <Dropdown.Popover
         className='flex max-h-80 w-80 min-w-80 flex-col overflow-hidden'

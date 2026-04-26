@@ -95,11 +95,9 @@ export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
     contentAdminTypes.includes(currentContext?.domoObject?.typeId) &&
     !userRights.includes('content.admin');
   const needsAccountAdmin =
-    currentContext?.domoObject?.typeId === 'DATA_SOURCE' &&
-    !userRights.includes('account.admin');
+    currentContext?.domoObject?.typeId === 'DATA_SOURCE' && !userRights.includes('account.admin');
   const needsAppAdmin =
-    currentContext?.domoObject?.typeId === 'APP' &&
-    !userRights.includes('app.admin');
+    currentContext?.domoObject?.typeId === 'APP' && !userRights.includes('app.admin');
   const buttonDisabled =
     isDisabled ||
     isSharing ||
@@ -120,20 +118,17 @@ export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
       >
         <IconUserPlus stroke={1.5} />
       </Button>
-      <Tooltip.Content>
+      <Tooltip.Content className='text-wrap break-normal'>
         {currentContext?.domoObject?.typeId === 'DATA_SOURCE' &&
         currentContext?.domoObject?.metadata?.details?.accountId ? (
           <>
-            Share <span className='font-semibold'>dataset account</span> with
-            yourself
+            Share <span className='font-semibold'>dataset account</span> with yourself
           </>
         ) : (
           <>
             Share{' '}
-            <span className='font-semibold lowercase'>
-              {currentContext?.domoObject?.name}
-            </span>{' '}
-            with yourself
+            <span className='font-semibold lowercase'>{currentContext?.domoObject?.name}</span> with
+            yourself
           </>
         )}
       </Tooltip.Content>

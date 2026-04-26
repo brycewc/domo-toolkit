@@ -3,11 +3,7 @@ import { IconListDetails } from '@tabler/icons-react';
 
 import { useLaunchView } from '@/hooks';
 
-export function GetOwnedObjects({
-  currentContext,
-  onCollapseActions,
-  onStatusUpdate
-}) {
+export function GetOwnedObjects({ currentContext, onCollapseActions, onStatusUpdate }) {
   const { isPending, launch } = useLaunchView();
 
   return (
@@ -29,7 +25,9 @@ export function GetOwnedObjects({
         <IconListDetails stroke={1.5} />
         Get Owned Objects
       </Button>
-      <Tooltip.Content>View all objects owned by this user</Tooltip.Content>
+      <Tooltip.Content className='flex flex-col items-center text-wrap break-normal'>
+        List all objects of all types owned by this user
+      </Tooltip.Content>
     </Tooltip>
   );
 }

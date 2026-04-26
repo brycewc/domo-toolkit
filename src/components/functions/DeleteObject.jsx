@@ -1,11 +1,4 @@
-import {
-  AlertDialog,
-  Button,
-  Dropdown,
-  Label,
-  Tooltip,
-  useOverlayState
-} from '@heroui/react';
+import { AlertDialog, Button, Dropdown, Label, Tooltip, useOverlayState } from '@heroui/react';
 import { IconTrash, IconX } from '@tabler/icons-react';
 import { useState } from 'react';
 
@@ -26,11 +19,7 @@ import {
   waitForChildPages
 } from '@/utils';
 
-export function DeleteObject({
-  currentContext,
-  isDisabled,
-  onStatusUpdate
-}) {
+export function DeleteObject({ currentContext, isDisabled, onStatusUpdate }) {
   const [isDeleting, setIsDeleting] = useState(false);
   const { LongPressOverlay, pressProps } = useLongPress({
     color: 'bg-danger-soft-hover'
@@ -133,8 +122,7 @@ export function DeleteObject({
       showPromiseStatus(promise, {
         error: (err) => err.message || 'Failed to delete object',
         loading: `Deleting **${objectName}** and its cards…`,
-        success: (result) =>
-          result.statusDescription || `**${objectName}** deleted`
+        success: (result) => result.statusDescription || `**${objectName}** deleted`
       });
 
       promise.finally(() => setIsDeleting(false));
@@ -143,8 +131,7 @@ export function DeleteObject({
 
     // DATAFLOW_TYPE: delete output datasets first, then the dataflow
     if (typeId === 'DATAFLOW_TYPE') {
-      const outputs =
-        currentContext.domoObject.metadata?.details?.outputs || [];
+      const outputs = currentContext.domoObject.metadata?.details?.outputs || [];
 
       setIsDeleting(true);
 
@@ -202,19 +189,14 @@ export function DeleteObject({
       showPromiseStatus(promise, {
         error: (err) => err.message || 'Failed to delete object',
         loading: `Deleting **${objectName}**…`,
-        success: (result) =>
-          result.statusDescription || `**${objectName}** deleted`
+        success: (result) => result.statusDescription || `**${objectName}** deleted`
       });
 
       promise.finally(() => setIsDeleting(false));
       return;
     }
 
-    onStatusUpdate?.(
-      'Error',
-      `Deletion not supported for object type: ${typeId}`,
-      'danger'
-    );
+    onStatusUpdate?.('Error', `Deletion not supported for object type: ${typeId}`, 'danger');
     dialogState.close();
   };
 
@@ -240,10 +222,7 @@ export function DeleteObject({
 
       // Collect cards from all pages
       const allCardIds = new Set();
-      const pageIds = [
-        currentContext.domoObject.id,
-        ...pages.map((p) => p.pageId)
-      ];
+      const pageIds = [currentContext.domoObject.id, ...pages.map((p) => p.pageId)];
       for (const pageId of pageIds) {
         const cards = await getCardsForObject({
           objectId: pageId,
@@ -260,14 +239,11 @@ export function DeleteObject({
       if (cardCount > 0) {
         await executeInPage(
           async (cardIds) => {
-            const res = await fetch(
-              `/api/content/v1/cards/bulk?cardIds=${cardIds}`,
-              { method: 'DELETE' }
-            );
+            const res = await fetch(`/api/content/v1/cards/bulk?cardIds=${cardIds}`, {
+              method: 'DELETE'
+            });
             if (!res.ok) {
-              throw new Error(
-                `Failed to delete cards. HTTP status: ${res.status}`
-              );
+              throw new Error(`Failed to delete cards. HTTP status: ${res.status}`);
             }
           },
           [[...allCardIds].join(',')],
@@ -294,8 +270,7 @@ export function DeleteObject({
     })();
 
     showPromiseStatus(promise, {
-      error: (err) =>
-        err.message || `Failed to delete ${appLabel.toLowerCase()}`,
+      error: (err) => err.message || `Failed to delete ${appLabel.toLowerCase()}`,
       loading: `Deleting **${appName}** and all its cards…`,
       success: (result) =>
         `**${appName}** and ${result.cardCount} card${result.cardCount !== 1 ? 's' : ''} deleted`
@@ -319,13 +294,9 @@ export function DeleteObject({
       return !isOwner && !userRights.includes('dataflow.admin');
     }
     if (typeId === 'WORKFLOW_MODEL') {
-      const permValues =
-        currentContext?.domoObject?.metadata?.permission?.values || [];
-      const hasDeletePerm =
-        permValues.includes('ADMIN') || permValues.includes('DELETE');
-      return (
-        !isOwner && !hasDeletePerm && !userRights.includes('workflow.admin')
-      );
+      const permValues = currentContext?.domoObject?.metadata?.permission?.values || [];
+      const hasDeletePerm = permValues.includes('ADMIN') || permValues.includes('DELETE');
+      return !isOwner && !hasDeletePerm && !userRights.includes('workflow.admin');
     }
     if (typeId === 'BEAST_MODE_FORMULA' || typeId === 'VARIABLE') {
       return !isOwner && !userRights.includes('content.admin');
@@ -338,15 +309,12 @@ export function DeleteObject({
     }
     if (typeId === 'MAGNUM_COLLECTION') {
       const userId = currentContext?.user?.id;
-      const userPerms = (
-        currentContext?.domoObject?.metadata?.permission?.USER || []
-      ).find((u) => String(u.id) === String(userId));
-      const hasDeletePerm =
-        userPerms?.permissions?.includes('ADMIN') ||
-        userPerms?.permissions?.includes('DELETE');
-      return (
-        !isOwner && !hasDeletePerm && !userRights.includes('datastore.admin')
+      const userPerms = (currentContext?.domoObject?.metadata?.permission?.USER || []).find(
+        (u) => String(u.id) === String(userId)
       );
+      const hasDeletePerm =
+        userPerms?.permissions?.includes('ADMIN') || userPerms?.permissions?.includes('DELETE');
+      return !isOwner && !hasDeletePerm && !userRights.includes('datastore.admin');
     }
     return false;
   })();
@@ -379,22 +347,13 @@ export function DeleteObject({
 
   return (
     <>
-      <AlertDialog
-        isOpen={dialogState.isOpen}
-        onOpenChange={dialogState.setOpen}
-      >
-        <Dropdown
-          isDisabled={!hasAppDeleteAction || isDeleteDisabled}
-          trigger='longPress'
-        >
+      <AlertDialog isOpen={dialogState.isOpen} onOpenChange={dialogState.setOpen}>
+        <Dropdown isDisabled={!hasAppDeleteAction || isDeleteDisabled} trigger='longPress'>
           <Tooltip closeDelay={0} delay={400} isDisabled={isDeleteDisabled}>
             {deleteButton}
             <Tooltip.Content className='flex flex-col items-center'>
               <div className='text-wrap break-normal'>
-                Delete{' '}
-                <span className='lowercase'>
-                  {currentContext?.domoObject?.typeName || 'object'}
-                </span>{' '}
+                Delete {currentContext?.domoObject?.typeName.toLowerCase() || 'object'}{' '}
                 {typeId === 'PAGE' || typeId === 'DATA_APP_VIEW'
                   ? 'and all its cards'
                   : typeId === 'DATAFLOW_TYPE'
@@ -408,14 +367,8 @@ export function DeleteObject({
           </Tooltip>
           <Dropdown.Popover className='w-fit min-w-60' placement='bottom'>
             <Dropdown.Menu onAction={handleDropdownAction}>
-              <Dropdown.Item
-                id='deleteApp'
-                textValue={`Delete ${appLabel} and All Cards`}
-              >
-                <IconTrash
-                  className='size-5 shrink-0 text-danger'
-                  stroke={1.5}
-                />
+              <Dropdown.Item id='deleteApp' textValue={`Delete ${appLabel} and All Cards`}>
+                <IconTrash className='size-5 shrink-0 text-danger' stroke={1.5} />
                 <Label>Delete {appLabel} and All Cards</Label>
               </Dropdown.Item>
             </Dropdown.Menu>
@@ -425,10 +378,7 @@ export function DeleteObject({
           <AlertDialog.Container className='p-1' placement='top'>
             <AlertDialog.Dialog className='p-2 pt-3'>
               <div className='absolute top-0 left-0 h-1.25 w-full bg-danger' />
-              <AlertDialog.CloseTrigger
-                className='absolute top-3 right-2'
-                variant='ghost'
-              >
+              <AlertDialog.CloseTrigger className='absolute top-3 right-2' variant='ghost'>
                 <IconX stroke={1.5} />
               </AlertDialog.CloseTrigger>
               <AlertDialog.Header>
@@ -438,51 +388,35 @@ export function DeleteObject({
               </AlertDialog.Header>
               <AlertDialog.Body>
                 Are you sure you want to delete the{' '}
-                <span className='lowercase'>
-                  {currentContext?.domoObject?.typeName}
-                </span>{' '}
+                <span className='lowercase'>{currentContext?.domoObject?.typeName}</span>{' '}
                 <span className='font-bold'>
                   {currentContext?.domoObject?.metadata?.name || ''} (ID:{' '}
                   {currentContext?.domoObject?.id})
                 </span>{' '}
                 {typeId === 'PAGE' || typeId === 'DATA_APP_VIEW' ? (
                   <span className='italic'>
-                    and{' '}
-                    {currentContext?.domoObject?.metadata?.cardCount ||
-                      'all its'}{' '}
-                    cards{' '}
+                    and {currentContext?.domoObject?.metadata?.cardCount || 'all its'} cards{' '}
                   </span>
                 ) : typeId === 'DATAFLOW_TYPE' ? (
                   <span className='italic'>
                     and{' '}
-                    {currentContext?.domoObject?.metadata?.details?.outputs
-                      ?.length || 'all its'}{' '}
+                    {currentContext?.domoObject?.metadata?.details?.outputs?.length || 'all its'}{' '}
                     output dataset
-                    {currentContext?.domoObject?.metadata?.details?.outputs
-                      ?.length !== 1
+                    {currentContext?.domoObject?.metadata?.details?.outputs?.length !== 1
                       ? 's'
                       : ''}{' '}
                   </span>
                 ) : (
                   ''
                 )}
-                permanently?
+                permanently? This function does not check dependencies, by deleting you are
+                verifying you've already checked dependencies or are explicitly ignoring them.
               </AlertDialog.Body>
               <AlertDialog.Footer>
-                <Button
-                  isDisabled={isDeleting}
-                  size='sm'
-                  slot='close'
-                  variant='tertiary'
-                >
+                <Button isDisabled={isDeleting} size='sm' slot='close' variant='tertiary'>
                   Cancel
                 </Button>
-                <Button
-                  isDisabled={isDeleting}
-                  size='sm'
-                  variant='danger'
-                  onPress={handleDelete}
-                >
+                <Button isDisabled={isDeleting} size='sm' variant='danger' onPress={handleDelete}>
                   Delete {currentContext?.domoObject?.typeName}
                   {typeId === 'PAGE' || typeId === 'DATA_APP_VIEW'
                     ? ' and All Cards'
@@ -496,44 +430,27 @@ export function DeleteObject({
         </AlertDialog.Backdrop>
       </AlertDialog>
 
-      <AlertDialog
-        isOpen={appDialogState.isOpen}
-        onOpenChange={appDialogState.setOpen}
-      >
+      <AlertDialog isOpen={appDialogState.isOpen} onOpenChange={appDialogState.setOpen}>
         <AlertDialog.Backdrop>
           <AlertDialog.Container className='p-1' placement='top'>
             <AlertDialog.Dialog className='p-2 pt-3'>
               <div className='absolute top-0 left-0 h-1.25 w-full bg-danger' />
-              <AlertDialog.CloseTrigger
-                className='absolute top-3 right-2'
-                variant='ghost'
-              >
+              <AlertDialog.CloseTrigger className='absolute top-3 right-2' variant='ghost'>
                 <IconX stroke={1.5} />
               </AlertDialog.CloseTrigger>
               <AlertDialog.Header>
-                <AlertDialog.Heading>
-                  Delete {appLabel} and All Cards
-                </AlertDialog.Heading>
+                <AlertDialog.Heading>Delete {appLabel} and All Cards</AlertDialog.Heading>
               </AlertDialog.Header>
               <AlertDialog.Body>
-                Are you sure you want to delete the entire{' '}
-                {appLabel.toLowerCase()}{' '}
+                Are you sure you want to delete the entire {appLabel.toLowerCase()}{' '}
                 <span className='font-bold'>
                   {appName} (ID: {currentContext?.domoObject?.parentId})
                 </span>
-                ,{' '}
-                <span className='italic'>
-                  all its pages, and all cards on those pages
-                </span>{' '}
+                , <span className='italic'>all its pages, and all cards on those pages</span>{' '}
                 permanently?
               </AlertDialog.Body>
               <AlertDialog.Footer>
-                <Button
-                  isDisabled={isDeleting}
-                  size='sm'
-                  slot='close'
-                  variant='tertiary'
-                >
+                <Button isDisabled={isDeleting} size='sm' slot='close' variant='tertiary'>
                   Cancel
                 </Button>
                 <Button

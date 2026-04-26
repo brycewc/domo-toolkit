@@ -12,8 +12,7 @@ export function SetStreamToManual({ currentContext, isDisabled }) {
     if (!streamId) return;
 
     const datasetName =
-      currentContext.domoObject.metadata?.name ||
-      `Dataset ${currentContext.domoObject.id}`;
+      currentContext.domoObject.metadata?.name || `Dataset ${currentContext.domoObject.id}`;
 
     showPromiseStatus(
       setStreamScheduleToManual({
@@ -40,7 +39,9 @@ export function SetStreamToManual({ currentContext, isDisabled }) {
         <IconCalendarOff stroke={1.5} />
         Set to Manual
       </Button>
-      <Tooltip.Content>Set dataset stream schedule to manual</Tooltip.Content>
+      <Tooltip.Content className='flex flex-col items-center text-wrap break-normal'>
+        Set dataset stream schedule to manual (not scheduled)
+      </Tooltip.Content>
     </Tooltip>
   );
 }

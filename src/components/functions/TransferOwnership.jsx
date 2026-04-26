@@ -25,7 +25,7 @@ export function TransferOwnership({ currentContext, onCollapseActions, onStatusU
         <IconUserUp stroke={1.5} />
         Transfer Ownership
       </Button>
-      <Tooltip.Content className='text-wrap break-normal' placement='top'>
+      <Tooltip.Content className='flex flex-col items-center text-wrap break-normal'>
         Transfer objects owned by this user to another user
       </Tooltip.Content>
     </Tooltip>

@@ -100,7 +100,7 @@ const ICON_MAP = {
   ZoomIn: IconZoomIn
 };
 
-export function ObjectTypeIcon({ className, size = 14, stroke = 1.5, typeId }) {
+export function ObjectTypeIcon({ className, size, stroke = 1.5, typeId }) {
   const icon = getObjectType(typeId)?.icon;
   if (!icon) return null;
   const Component = ICON_MAP[icon.component];
@@ -108,11 +108,9 @@ export function ObjectTypeIcon({ className, size = 14, stroke = 1.5, typeId }) {
   return (
     <Component
       className={className}
-      size={size}
       stroke={stroke}
-      style={
-        icon.rotation ? { transform: `rotate(${icon.rotation}deg)` } : undefined
-      }
+      style={icon.rotation ? { transform: `rotate(${icon.rotation}deg)` } : undefined}
+      {...(size !== undefined && { size })}
     />
   );
 }

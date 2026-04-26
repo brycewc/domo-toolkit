@@ -1,4 +1,4 @@
-import { Button } from '@heroui/react';
+import { Button, Tooltip } from '@heroui/react';
 import { IconLock } from '@tabler/icons-react';
 
 import { useStatusBar } from '@/hooks';
@@ -13,23 +13,14 @@ const VALID_TYPES = [
   'WORKSHEET_VIEW'
 ];
 
-const PRE_FETCHED_TYPES = [
-  'DATA_APP_VIEW',
-  'DATA_SOURCE',
-  'PAGE',
-  'WORKSHEET_VIEW'
-];
+const PRE_FETCHED_TYPES = ['DATA_APP_VIEW', 'DATA_SOURCE', 'PAGE', 'WORKSHEET_VIEW'];
 
 export function LockCards({ currentContext, isDisabled }) {
   const { showPromiseStatus, showStatus } = useStatusBar();
 
   const handleLockCards = async () => {
     if (!currentContext?.domoObject) {
-      showStatus(
-        'No Object Detected',
-        'Please navigate to a Domo page and try again',
-        'danger'
-      );
+      showStatus('No Object Detected', 'Please navigate to a Domo page and try again', 'danger');
       return;
     }
 
@@ -71,21 +62,25 @@ export function LockCards({ currentContext, isDisabled }) {
     showPromiseStatus(promise, {
       error: (err) => err.message || 'Failed to lock cards',
       loading: 'Locking cards…',
-      success: (data) =>
-        `Locked **${data.count}** card${data.count === 1 ? '' : 's'}`
+      success: (data) => `Locked **${data.count}** card${data.count === 1 ? '' : 's'}`
     });
   };
 
   return (
-    <Button
-      fullWidth
-      className='min-w-36 flex-1 whitespace-normal'
-      isDisabled={isDisabled}
-      variant='tertiary'
-      onPress={handleLockCards}
-    >
-      <IconLock stroke={1.5} />
-      Lock Cards
-    </Button>
+    <Tooltip closeDelay={0} delay={400}>
+      <Button
+        fullWidth
+        className='min-w-36 flex-1 whitespace-normal'
+        isDisabled={isDisabled}
+        variant='tertiary'
+        onPress={handleLockCards}
+      >
+        <IconLock stroke={1.5} />
+        Lock Cards
+      </Button>
+      <Tooltip.Content className='flex flex-col items-center text-wrap break-normal'>
+        Lock all cards on this object from being edited
+      </Tooltip.Content>
+    </Tooltip>
   );
 }

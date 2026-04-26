@@ -11,10 +11,9 @@ export async function getDatasetPreview(datasetId, tabId = null, limit = 100) {
   return executeInPage(
     async (datasetId, limit) => {
       // Get column schema
-      const schemaResponse = await fetch(
-        `/api/query/v1/datasources/${datasetId}/schema/indexed`,
-        { credentials: 'include' }
-      );
+      const schemaResponse = await fetch(`/api/query/v1/datasources/${datasetId}/schema/indexed`, {
+        credentials: 'include'
+      });
       if (!schemaResponse.ok) {
         throw new Error(`Failed to fetch schema: HTTP ${schemaResponse.status}`);
       }
@@ -68,14 +67,10 @@ export async function getDatasetPreview(datasetId, tabId = null, limit = 100) {
  */
 export async function getDatasetsForApp({ appId, tabId }) {
   const fetchLogic = async (appId) => {
-    const response = await fetch(
-      `/api/content/v1/dataapps/${appId}/dataSources`
-    );
+    const response = await fetch(`/api/content/v1/dataapps/${appId}/dataSources`);
 
     if (!response.ok) {
-      throw new Error(
-        `Failed to fetch datasets for app ${appId}. HTTP status: ${response.status}`
-      );
+      throw new Error(`Failed to fetch datasets for app ${appId}. HTTP status: ${response.status}`);
     }
 
     return response.json();
@@ -119,9 +114,7 @@ export function getDatasetsForDataflow({ details }) {
 export async function getDatasetsForPage({ pageId, tabId }) {
   const fetchLogic = async (pageId) => {
     console.log('[getDatasetsForPage] Fetching datasets for page:', pageId);
-    const response = await fetch(
-      `/api/content/v1/datasources/pages/${pageId}`
-    );
+    const response = await fetch(`/api/content/v1/datasources/pages/${pageId}`);
 
     if (!response.ok) {
       throw new Error(
@@ -198,9 +191,7 @@ export async function getDatasetsForView({ datasetId, tabId }) {
         for (const j of sel.joins) {
           if (!j) continue;
           const name =
-            j.left === false
-              ? j.leftItem && j.leftItem.name
-              : j.rightItem && j.rightItem.name;
+            j.left === false ? j.leftItem && j.leftItem.name : j.rightItem && j.rightItem.name;
           if (name) idsSet.add(stripTicks(name));
         }
       }
@@ -231,9 +222,7 @@ export async function getDatasetsForView({ datasetId, tabId }) {
 
     const namesResponse = await bulkResponse.json();
     const namesData = namesResponse.dataSources || [];
-    const byId = Object.fromEntries(
-      namesData.map((d) => [d.id || d.datasetId, d])
-    );
+    const byId = Object.fromEntries(namesData.map((d) => [d.id || d.datasetId, d]));
     const ordered = datasetIds.map((id) => byId[id]).filter(Boolean);
     // console.log('[getDatasetsForView] ordered:', ordered);
     return ordered;
@@ -319,10 +308,7 @@ export async function getOwnedDatasets(userId, tabId = null) {
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
 
-      const ids =
-        data && data.length > 0 && data[0].dataSourceIds
-          ? data[0].dataSourceIds
-          : [];
+      const ids = data && data.length > 0 && data[0].dataSourceIds ? data[0].dataSourceIds : [];
       if (ids.length === 0) return [];
 
       // Fetch names in bulk (max 100 per request)
@@ -375,9 +361,7 @@ export async function getProviders() {
 export async function getStreamExecution({ executionId, streamId, tabId }) {
   return executeInPage(
     async (streamId, executionId) => {
-      const response = await fetch(
-        `/api/data/v1/streams/${streamId}/executions/${executionId}`
-      );
+      const response = await fetch(`/api/data/v1/streams/${streamId}/executions/${executionId}`);
       if (!response.ok) {
         throw new Error(
           `Failed to fetch execution ${executionId} for stream ${streamId}. HTTP status: ${response.status}`
@@ -393,17 +377,14 @@ export async function getStreamExecution({ executionId, streamId, tabId }) {
 export async function getStreamExecutions({ limit = 100, streamId, tabId }) {
   const result = await executeInPage(
     async (streamId, limit) => {
-      const stateResponse = await fetch(
-        `/api/data/v1/streams/state/${streamId}`
-      );
+      const stateResponse = await fetch(`/api/data/v1/streams/state/${streamId}`);
       if (!stateResponse.ok) {
         throw new Error(
           `Failed to fetch stream state for stream ${streamId}. HTTP status: ${stateResponse.status}`
         );
       }
       const stateData = await stateResponse.json();
-      const offset =
-        stateData[0].executionId < limit ? 0 : stateData[0].executionId - limit;
+      const offset = stateData[0].executionId < limit ? 0 : stateData[0].executionId - limit;
 
       const response = await fetch(
         `/api/data/v1/streams/${streamId}/executions?limit=${limit}&offset=${offset}`
@@ -440,13 +421,9 @@ export function isViewType(details) {
 export async function setStreamScheduleToManual({ streamId, tabId }) {
   return executeInPage(
     async (streamId) => {
-      const getResponse = await fetch(
-        `/api/data/v1/streams/${streamId}?fields=all`
-      );
+      const getResponse = await fetch(`/api/data/v1/streams/${streamId}?fields=all`);
       if (!getResponse.ok) {
-        throw new Error(
-          `Failed to fetch stream ${streamId}. HTTP status: ${getResponse.status}`
-        );
+        throw new Error(`Failed to fetch stream ${streamId}. HTTP status: ${getResponse.status}`);
       }
 
       const definition = await getResponse.json();
@@ -462,9 +439,7 @@ export async function setStreamScheduleToManual({ streamId, tabId }) {
         method: 'PUT'
       });
       if (!putResponse.ok) {
-        throw new Error(
-          `Failed to update stream ${streamId}. HTTP status: ${putResponse.status}`
-        );
+        throw new Error(`Failed to update stream ${streamId}. HTTP status: ${putResponse.status}`);
       }
 
       return putResponse.json();
@@ -482,12 +457,7 @@ export async function setStreamScheduleToManual({ streamId, tabId }) {
  * @param {number|null} tabId - Optional Chrome tab ID
  * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
  */
-export async function transferDatasets(
-  datasetIds,
-  fromUserId,
-  toUserId,
-  tabId = null
-) {
+export async function transferDatasets(datasetIds, fromUserId, toUserId, tabId = null) {
   return executeInPage(
     async (datasetIds, fromUserId, toUserId) => {
       const errors = [];
@@ -522,22 +492,15 @@ export async function transferDatasets(
 
 export async function updateDatasetProperties(datasetId, updates) {
   return executeInPage(
-    async (id, updates) => {
-      const payload = {};
-      // The endpoint ignores displayType server-side and always derives it
-      // from userDefinedType. Sending null clears userDefinedType and resets
-      // displayType to the dataset's dataProviderType.
-      if ('userDefinedType' in updates) {
-        payload.userDefinedType = updates.userDefinedType;
-      }
+    async (id, body) => {
       const res = await fetch(`/api/data/v3/datasources/${id}/properties`, {
-        body: JSON.stringify(payload),
+        body,
         headers: { 'Content-Type': 'application/json' },
         method: 'PUT'
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return res.json().catch(() => null);
     },
-    [datasetId, updates]
+    [datasetId, JSON.stringify(updates)]
   );
 }

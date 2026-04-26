@@ -1,15 +1,10 @@
-import { Button, Chip } from '@heroui/react';
+import { Button, Chip, Tooltip } from '@heroui/react';
 import { IconAlertTriangle } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 
 import { launchView } from '@/utils';
 
-export function ApiErrors({
-  currentContext,
-  isDisabled,
-  onCollapseActions,
-  onStatusUpdate
-}) {
+export function ApiErrors({ currentContext, isDisabled, onCollapseActions, onStatusUpdate }) {
   const [errorCount, setErrorCount] = useState(0);
 
   useEffect(() => {
@@ -40,30 +35,35 @@ export function ApiErrors({
   if (errorCount === 0) return null;
 
   return (
-    <Button
-      fullWidth
-      className='min-w-36 flex-1 whitespace-normal'
-      color='danger'
-      isDisabled={isDisabled}
-      variant='tertiary'
-      onPress={() =>
-        launchView({
-          currentContext,
-          onCollapseActions,
-          onStatusUpdate,
-          type: 'apiErrors'
-        })
-      }
-    >
-      <IconAlertTriangle stroke={1.5} /> View Errors
-      <Chip
-        className='h-5 w-5 items-center justify-center rounded-full'
+    <Tooltip closeDelay={0} delay={400}>
+      <Button
+        fullWidth
+        className='min-w-36 flex-1 whitespace-normal'
         color='danger'
-        size='sm'
-        variant='soft'
+        isDisabled={isDisabled}
+        variant='tertiary'
+        onPress={() =>
+          launchView({
+            currentContext,
+            onCollapseActions,
+            onStatusUpdate,
+            type: 'apiErrors'
+          })
+        }
       >
-        {errorCount}
-      </Chip>
-    </Button>
+        <IconAlertTriangle stroke={1.5} /> View Errors
+        <Chip
+          className='h-5 w-5 items-center justify-center rounded-full'
+          color='danger'
+          size='sm'
+          variant='soft'
+        >
+          {errorCount}
+        </Chip>
+      </Button>
+      <Tooltip.Content className='flex flex-col items-center text-wrap break-normal'>
+        List API errors captured on this page
+      </Tooltip.Content>
+    </Tooltip>
   );
 }

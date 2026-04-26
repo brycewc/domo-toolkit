@@ -18,8 +18,7 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
   const { showStatus } = useStatusBar();
 
   const typeId = currentContext?.domoObject?.typeId;
-  const isSupported =
-    typeId === 'PAGE' || typeId === 'DATA_APP_VIEW' || typeId === 'CARD';
+  const isSupported = typeId === 'PAGE' || typeId === 'DATA_APP_VIEW' || typeId === 'CARD';
 
   const longPressDisabled = isDisabled || !isSupported;
 
@@ -57,10 +56,7 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
           }
         }
       } catch (error) {
-        console.warn(
-          '[CopyFilteredUrl] Failed to pre-fetch filter count:',
-          error
-        );
+        console.warn('[CopyFilteredUrl] Failed to pre-fetch filter count:', error);
       }
     };
 
@@ -94,12 +90,7 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
       setTimeout(() => setIsCopied(false), 2000);
 
       if (allFilters.length === 0) {
-        showStatus(
-          'No Filters Active',
-          'Copied base URL without filters',
-          'warning',
-          3000
-        );
+        showStatus('No Filters Active', 'Copied base URL without filters', 'warning', 3000);
       } else {
         showStatus(
           'Success',
@@ -186,14 +177,9 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
           )}
           <LongPressOverlay />
         </Button>
-        <Tooltip.Content
-          className='flex flex-col items-center text-center'
-          placement='bottom'
-        >
+        <Tooltip.Content className='flex flex-col items-center text-center'>
           <span>Copy filtered URL (pfilter)</span>
-          {!longPressDisabled && (
-            <span className='italic'>Hold for more options</span>
-          )}
+          {!longPressDisabled && <span className='italic'>Hold for more options</span>}
         </Tooltip.Content>
       </Tooltip>
       <Dropdown.Popover className='w-fit min-w-60' placement='bottom'>

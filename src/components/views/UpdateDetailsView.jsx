@@ -1,16 +1,17 @@
 import {
   Button,
   Card,
-  Collection,
   ComboBox,
   Input,
   Label,
   ListBox,
+  ListLayout,
   Separator,
   Spinner,
   TextArea,
   TextField,
-  Tooltip
+  Tooltip,
+  Virtualizer
 } from '@heroui/react';
 import {
   IconAlertTriangle,
@@ -23,11 +24,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { useStatusBar } from '@/hooks';
 import { DomoContext } from '@/models';
-import {
-  getProviders,
-  updateDataflowDetails,
-  updateDatasetProperties
-} from '@/services';
+import { getProviders, updateDataflowDetails, updateDatasetProperties } from '@/services';
 import { getSidepanelData } from '@/utils';
 
 const updatersByType = {
@@ -41,8 +38,7 @@ const updatersByType = {
       }
     ],
     getOriginal: (ctx) => ({
-      userDefinedType:
-        ctx.domoObject?.metadata?.details?.userDefinedType || ''
+      userDefinedType: ctx.domoObject?.metadata?.details?.userDefinedType || ''
     }),
     loadOptions: async () => {
       const providers = await getProviders();
@@ -70,10 +66,7 @@ const updatersByType = {
   }
 };
 
-export function UpdateDetailsView({
-  onBackToDefault = null,
-  onStatusUpdate = null
-}) {
+export function UpdateDetailsView({ onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   const [currentContext, setCurrentContext] = useState(null);
   const [config, setConfig] = useState(null);
@@ -101,17 +94,11 @@ export function UpdateDetailsView({
         onBackToDefault?.();
         return;
       }
-      const context = data.currentContext
-        ? DomoContext.fromJSON(data.currentContext)
-        : null;
+      const context = data.currentContext ? DomoContext.fromJSON(data.currentContext) : null;
       const typeId = context?.domoObject?.typeId;
       const cfg = updatersByType[typeId];
       if (!context || !cfg) {
-        onStatusUpdate?.(
-          'Error',
-          `Update Details not supported for ${typeId}`,
-          'danger'
-        );
+        onStatusUpdate?.('Error', `Update Details not supported for ${typeId}`, 'danger');
         onBackToDefault?.();
         return;
       }
@@ -124,11 +111,7 @@ export function UpdateDetailsView({
       if (cfg.loadOptions) loadOptions(cfg);
     } catch (error) {
       console.error('[UpdateDetailsView] Error loading data:', error);
-      onStatusUpdate?.(
-        'Error',
-        error.message || 'Failed to load context',
-        'danger'
-      );
+      onStatusUpdate?.('Error', error.message || 'Failed to load context', 'danger');
     } finally {
       if (mountedRef.current) setIsLoading(false);
     }
@@ -186,10 +169,7 @@ export function UpdateDetailsView({
       loading: isReset
         ? `Resetting ${config.typeName} **userDefinedType**…`
         : `Updating ${config.typeName} **${fieldList}**…`,
-      success: (f) =>
-        isReset
-          ? `Reset ${config.typeName} userDefinedType`
-          : `Updated ${f}`
+      success: (f) => (isReset ? `Reset ${config.typeName} userDefinedType` : `Updated ${f}`)
     });
 
     promise
@@ -205,12 +185,7 @@ export function UpdateDetailsView({
   const handleSubmit = () => {
     const diff = buildDiff();
     if (Object.keys(diff).length === 0) {
-      onStatusUpdate?.(
-        'No changes to update',
-        'No fields were modified',
-        'warning',
-        2000
-      );
+      onStatusUpdate?.('No changes to update', 'No fields were modified', 'warning', 2000);
       return;
     }
     for (const f of config.fields) {
@@ -239,9 +214,7 @@ export function UpdateDetailsView({
 
   if (!config) return null;
 
-  const hasResettableValue = config.fields.some(
-    (f) => f.resettable && originalValues[f.key]
-  );
+  const hasResettableValue = config.fields.some((f) => f.resettable && originalValues[f.key]);
 
   return (
     <Card className='flex min-h-0 w-full flex-1 flex-col p-2'>
@@ -250,12 +223,7 @@ export function UpdateDetailsView({
           <div className='min-w-0 flex-1 pt-1'>{config.title}</div>
           {onBackToDefault && (
             <Tooltip closeDelay={0} delay={400}>
-              <Button
-                isIconOnly
-                size='sm'
-                variant='ghost'
-                onPress={onBackToDefault}
-              >
+              <Button isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
                 <IconX stroke={1.5} />
               </Button>
               <Tooltip.Content className='text-xs'>Close</Tooltip.Content>
@@ -278,14 +246,10 @@ export function UpdateDetailsView({
             value={values[field.key] ?? ''}
             onChange={(v) => setValue(field.key, v)}
             onReset={hasResettableValue ? handleReset : undefined}
-            onRetryOptions={
-              config.loadOptions ? () => loadOptions(config) : undefined
-            }
+            onRetryOptions={config.loadOptions ? () => loadOptions(config) : undefined}
           />
         ))}
       </div>
-
-      <Separator className='my-3' />
 
       <div className='flex shrink-0 flex-col gap-2'>
         <Button
@@ -372,30 +336,22 @@ function FieldRow({
             <Label>{field.label}</Label>
             <ComboBox.InputGroup>
               <Input
-                placeholder={
-                  isLoadingOptions
-                    ? 'Loading providers…'
-                    : 'Type or pick a value…'
-                }
+                placeholder={isLoadingOptions ? 'Loading providers…' : 'Type or pick a value…'}
               />
               <ComboBox.Trigger>
                 <IconChevronDown stroke={1} />
               </ComboBox.Trigger>
             </ComboBox.InputGroup>
             <ComboBox.Popover placement='bottom start'>
-              <ListBox className='max-h-60 overflow-y-auto'>
-                <Collection items={items}>
+              <Virtualizer layout={ListLayout} layoutOptions={{ rowHeight: 32 }}>
+                <ListBox className='max-h-60 overflow-y-auto' items={items}>
                   {(item) => (
-                    <ListBox.Item
-                      id={item.id}
-                      key={item.id}
-                      textValue={item.name}
-                    >
+                    <ListBox.Item id={item.id} textValue={item.name}>
                       {item.name}
                     </ListBox.Item>
                   )}
-                </Collection>
-              </ListBox>
+                </ListBox>
+              </Virtualizer>
             </ComboBox.Popover>
           </ComboBox>
           {showResetButton && (
@@ -419,10 +375,7 @@ function FieldRow({
         </div>
         {optionsError && (
           <div className='flex items-center gap-2 py-1'>
-            <IconAlertTriangle
-              className='shrink-0 text-danger'
-              size={16}
-            />
+            <IconAlertTriangle className='shrink-0 text-danger' size={16} />
             <span className='min-w-0 flex-1 text-xs text-danger'>
               Could not load suggestions; you can still type a value
             </span>
