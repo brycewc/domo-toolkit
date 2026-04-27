@@ -1,6 +1,6 @@
 import {
   IconApps,
-  IconArrowsSplit,
+  IconArrowFork,
   IconBell,
   IconBinaryTree,
   IconBrain,
@@ -52,7 +52,7 @@ import { getObjectType } from '@/models';
 
 const ICON_MAP = {
   Apps: IconApps,
-  ArrowsSplit: IconArrowsSplit,
+  ArrowFork: IconArrowFork,
   Bell: IconBell,
   BinaryTree: IconBinaryTree,
   Brain: IconBrain,

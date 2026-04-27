@@ -163,7 +163,15 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
           if (typeConfig.id === 'PAGE' && metadata.details.type !== 'page') {
             continue;
           }
-          if (typeConfig.id === 'CERTIFICATION_PROCESS' && !metadata.details.type) {
+          // TEMPLATE and CERTIFICATION_PROCESS share the same API endpoint —
+          // discriminate by `details.type`: 'AC' → TEMPLATE, anything else → CERTIFICATION_PROCESS.
+          if (typeConfig.id === 'TEMPLATE' && metadata.details.type !== 'AC') {
+            continue;
+          }
+          if (
+            typeConfig.id === 'CERTIFICATION_PROCESS' &&
+            (!metadata.details.type || metadata.details.type === 'AC')
+          ) {
             continue;
           }
 

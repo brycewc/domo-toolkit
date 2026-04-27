@@ -3,14 +3,20 @@ import { Button, Tooltip } from '@heroui/react';
 import { ObjectTypeIcon } from '@/components';
 import { useLaunchView } from '@/hooks';
 
+// Per-type tooltip describing what fields the Update Details view edits.
+// Falls back to a generic message for any type without an entry here.
+const TOOLTIPS_BY_TYPE = {
+  DATA_SOURCE: "Edit this dataset's user defined type",
+  DATAFLOW_TYPE: "Edit this dataflow's name and description"
+};
+
 export function UpdateDetails({ currentContext, onStatusUpdate }) {
   const { isPending, launch } = useLaunchView();
   const typeId = currentContext?.domoObject?.typeId;
-  const isDataset = typeId === 'DATA_SOURCE';
-  const label = isDataset ? 'Update DataSet Details' : 'Update DataFlow Details';
-  const tooltip = isDataset
-    ? "Edit this dataset's userDefinedType"
-    : "Edit this dataflow's name and description";
+  const typeName = currentContext?.domoObject?.typeName || 'Object';
+  const label = `Update ${typeName} Details`;
+  const tooltip =
+    TOOLTIPS_BY_TYPE[typeId] || `Edit this ${typeName.toLowerCase()}'s details`;
 
   return (
     <Tooltip closeDelay={100} delay={400}>

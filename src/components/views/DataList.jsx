@@ -11,13 +11,13 @@ import {
 } from '@heroui/react';
 import {
   IconBinaryTree,
+  IconBrandSafari,
   IconChevronDown,
   IconClipboard,
   IconDots,
   IconQueuePopOut,
   IconRefresh,
   IconStackPop,
-  IconTable,
   IconUserPlus,
   IconUsersPlus,
   IconX
@@ -28,16 +28,6 @@ import { getValidTabForInstance } from '@/utils';
 
 import { AnimatedCheck } from '../AnimatedCheck';
 import { ObjectTypeIcon } from '../ObjectTypeIcon';
-
-/**
- * Available header action types for DataList
- * @typedef {'openAll' | 'copy' | 'shareAll' | 'refresh'} HeaderActionType
- */
-
-/**
- * Available item action types for DataList items
- * @typedef {'remove' | 'openAll' | 'copy' | 'share' | 'shareAll' | 'viewsExplorer'} ItemActionType
- */
 
 /**
  * DataList Component
@@ -236,6 +226,7 @@ export function DataList({
   };
 
   const hasHeaderActions = headerActions.length > 0 || onClose;
+  const sortedItems = sortItemsByLabel(items);
 
   return (
     <Card className='flex max-h-fit min-h-0 w-full flex-1 flex-col p-2' variant={variant}>
@@ -354,7 +345,7 @@ export function DataList({
       >
         <Card.Content>
           <DisclosureGroup allowsMultipleExpanded className='flex w-full flex-col'>
-            {items.map((item, index) => (
+            {sortedItems.map((item, index) => (
               <DataListItem
                 item={item}
                 itemActions={itemActions}
@@ -371,6 +362,16 @@ export function DataList({
     </Card>
   );
 }
+
+/**
+ * Available header action types for DataList
+ * @typedef {'openAll' | 'copy' | 'shareAll' | 'refresh'} HeaderActionType
+ */
+
+/**
+ * Available item action types for DataList items
+ * @typedef {'remove' | 'openAll' | 'copy' | 'share' | 'shareAll' | 'viewsExplorer'} ItemActionType
+ */
 
 /**
  * Recursively collect all URLs from items and their children
@@ -551,7 +552,7 @@ function DataListItem({
         variant='ghost'
         onPress={() => handleAction('viewsExplorer')}
       >
-        <IconTable stroke={1.5} />
+        <IconBrandSafari stroke={1.5} />
       </Button>
       <Tooltip.Content className='text-xs'>Open in Views Explorer</Tooltip.Content>
     </Tooltip>
@@ -579,7 +580,8 @@ function DataListItem({
       item.typeId === 'DATA_APP_VIEW' ||
       item.typeId === 'REPORT_BUILDER_VIEW' ||
       item.typeId === 'CARD' ||
-      Number(item.id) < 0;
+      Number(item.id) < 0 ||
+      item.unshareable === true;
 
     // items that shouldn't have shareAll button
     const isUnshareableParent = item.typeId === 'DATA_APP';
@@ -588,10 +590,8 @@ function DataListItem({
       if (!hasChildren) return [];
       const actions = [];
       if (item.id !== 'REPORT_BUILDER_group') {
-        // if (itemActions && itemActions?.includes('openAll'))
         actions.push(openAllButton);
-        // if (itemActions && itemActions?.includes('shareAll'))
-        actions.push(shareAllButton);
+        if (!isUnshareable) actions.push(shareAllButton);
       }
       return actions;
     }
@@ -753,4 +753,25 @@ function DataListItem({
       </Disclosure.Content>
     </Disclosure>
   );
+}
+
+/**
+ * Recursively sort items alphabetically by label using locale-aware,
+ * case-insensitive comparison. Returns a new array — does not mutate input.
+ * Items with `children` get a new shallow copy so their children can be sorted
+ * without touching the caller's data.
+ */
+function sortItemsByLabel(items) {
+  if (!Array.isArray(items)) return items;
+  return [...items]
+    .sort((a, b) => {
+      const labelA = (a?.label ?? '').toString();
+      const labelB = (b?.label ?? '').toString();
+      return labelA.localeCompare(labelB, undefined, { sensitivity: 'base' });
+    })
+    .map((item) =>
+      Array.isArray(item?.children) && item.children.length > 0
+        ? { ...item, children: sortItemsByLabel(item.children) }
+        : item
+    );
 }

@@ -38,10 +38,21 @@
 ### Delete Object Improvements
 
 - Lists the object's dependencies (child pages, output datasets, downstream cards) before confirming the delete — collapsible groups so even objects with many dependents stay scannable
+- Dependencies are grouped into a "Will be deleted" section (items the primary delete also removes) and an "Other dependencies" section (items affected but not deleted) so the relationship is clear without per-item parentheticals
+- App pages and worksheet pages now list their cards (deleted with the page) and their sibling pages (deleted only via the cascade button) so the user can see the full impact of either path
 - Pages with child pages are now hard-blocked from deletion (with the reason shown inline) instead of just warning after the fact
+- Items in dependency lists are sorted alphabetically
+- Status alerts (loading, error, no-deps, dependency-check-not-available) use proper Alert components for consistent styling
+- Output datasets of a dataflow no longer show non-functional Share / Share-All buttons (those datasets have no account to share)
 - Interface moved from a modal to a view, consistent with Update Object Details
 - Worksheet pages are now deletable (previously the primary delete button was disabled for them)
 - The "Delete app and all cards" cascade option for app pages is now a visible button inside the view (previously hidden behind a long-press on the trigger)
+
+### Object Details: Lazy Datasets Tab
+
+- Context footer for PAGE / DATA_APP_VIEW / WORKSHEET_VIEW objects now includes a "Datasets" tab — loads on tab click, shows the raw `dataSources` API response for inspection and copy, with each dataset linked to its details page
+- Tab label uses a `(...)` placeholder during fetch and updates to `(N)` once the count is known
+- General infrastructure now supports lazy-loaded arrays as related objects (any future tab can opt in by adding a `fetcher` key on its `relatedObjects` entry)
 
 ## Newly Supported Object Types
 
@@ -68,6 +79,8 @@
 - Tooltips added to all action buttons
 - Current context header truncates when chips are too large
 - Update Code Engine Versions: built-in Domo packages restricted to upgrade-to-latest only (no downgrades or intermediate versions); built-ins are labeled with a "Built-in" chip
+- DataList components sort items alphabetically by default (no longer rely on source order)
+- DataFlow icon swapped to `IconArrowFork` (rotated to a "merge into one" shape) — the previous icon was near-symmetric and looked the same with or without rotation
 
 ## Bug Fixes and Improvements
 
@@ -79,6 +92,7 @@
 - Fixed Navigate to Copied Object incorrectly identifying Pages as App Studio apps
 - Fixed Delete button not showing its normal tooltip for objects that have additional options (verified)
 - ID validation added to current object detection
+- Navigate to Copied Object: templates and certification processes (which share an API endpoint) are no longer mistaken for each other — discriminated by the response's `type` field (`AC` → Template, otherwise → Certification Process)
 
 ## Security
 

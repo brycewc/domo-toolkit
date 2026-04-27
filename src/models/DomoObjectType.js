@@ -22,7 +22,11 @@ export class DomoObjectType {
    * @param {RegExp} [options.idPattern] - Regular expression to validate IDs for this type
    * @param {Array<string>} [options.parents] - Array of parent object type IDs this object can have
    * @param {Array<Object>} [options.relatedObjects] - Array of related object configs [{field, typeId, label, source?, itemIdField?}]
-   *   Use { label: 'Short Name', source: 'self' } to override the current object's tab label
+   *   Use { label: 'Short Name', source: 'self' } to override the current object's tab label.
+   *   For an `isArray: true` entry, set `fetcher: '<key>'` (matching a key in
+   *   ContextFooter's `LAZY_ARRAY_FETCHERS` registry) to defer the load until
+   *   the user activates the tab. The presence of `fetcher` is the lazy signal;
+   *   omit it for eager arrays read directly from metadata.
    * @param {string} [options.urlPath] - The URL path pattern. Supported placeholders:
    *   - `{id}`: the object ID
    *   - `{parent}`: the parent object ID (fetched async if needed)
@@ -52,9 +56,7 @@ export class DomoObjectType {
   static resolveMetadataPlaceholders(str, metadata) {
     if (!str || !metadata) return str;
     return str.replace(/\{metadata\.([^}]+)\}/g, (match, path) => {
-      const value = path
-        .split('.')
-        .reduce((current, prop) => current?.[prop], metadata);
+      const value = path.split('.').reduce((current, prop) => current?.[prop], metadata);
       return value != null ? value : match;
     });
   }
@@ -569,6 +571,13 @@ export const ObjectTypeRegistry = {
         isArray: true,
         itemTypeField: 'type',
         label: 'Content'
+      },
+      {
+        fetcher: 'datasetsForPage',
+        isArray: true,
+        itemIdField: 'id',
+        itemTypeId: 'DATA_SOURCE',
+        label: 'DataSets'
       }
     ],
     urlPath: '/app-studio/{parent}/pages/{id}'
@@ -615,7 +624,7 @@ export const ObjectTypeRegistry = {
   DATAFLOW_TYPE: new DomoObjectType('DATAFLOW_TYPE', 'DataFlow', {
     api: { endpoint: '/dataprocessing/v2/dataflows/{id}', pathToName: 'name' },
     extractConfig: { keyword: 'dataflows' },
-    icon: { component: 'ArrowsSplit', rotation: 180 },
+    icon: { component: 'ArrowFork', rotation: 180 },
     idPattern: /^\d+$/,
     relatedObjects: [
       {
@@ -876,6 +885,13 @@ export const ObjectTypeRegistry = {
         isArray: true,
         itemTypeField: 'type',
         label: 'Content'
+      },
+      {
+        fetcher: 'datasetsForPage',
+        isArray: true,
+        itemIdField: 'id',
+        itemTypeId: 'DATA_SOURCE',
+        label: 'DataSets'
       }
     ],
     urlPath: '/page/{id}'
@@ -1226,7 +1242,16 @@ export const ObjectTypeRegistry = {
     icon: { component: 'Table' },
     idPattern: /^\d+$/,
     parents: ['WORKSHEET'],
-    relatedObjects: [{ label: 'Worksheet', source: 'parentId', typeId: 'WORKSHEET' }],
+    relatedObjects: [
+      { label: 'Worksheet', source: 'parentId', typeId: 'WORKSHEET' },
+      {
+        fetcher: 'datasetsForPage',
+        isArray: true,
+        itemIdField: 'id',
+        itemTypeId: 'DATA_SOURCE',
+        label: 'DataSets'
+      }
+    ],
     urlPath: '/app-studio/{parent}/pages/{id}'
   }),
   WORKSPACE: new DomoObjectType('WORKSPACE', 'Workspace', {
@@ -1324,28 +1349,21 @@ export async function fetchObjectDetailsInPage(params) {
     if (filterByIdField && Array.isArray(data)) {
       data = data.find((item) => String(item[filterByIdField]) === String(objectId)) || null;
       if (!data) {
-        const error = new Error(
-          `${typeId} ${objectId} not found in list response`
-        );
+        const error = new Error(`${typeId} ${objectId} not found in list response`);
         if (throwOnError) throw error;
         return { details: null, name: null };
       }
     }
 
     const resolvePath = (path) =>
-      (path.match(/[^.[\]]+/g) || []).reduce(
-        (current, prop) => current?.[prop],
-        data
-      );
+      (path.match(/[^.[\]]+/g) || []).reduce((current, prop) => current?.[prop], data);
     const details = pathToDetails ? resolvePath(pathToDetails) : data;
     const name = nameTemplate
       ? nameTemplate.replace(/{([^}]+)}/g, (_, path) =>
           path === 'id' ? objectId : (resolvePath(path) ?? '')
         )
       : resolvePath(pathToName);
-    const extractedParentId = pathToParentId
-      ? resolvePath(pathToParentId)
-      : undefined;
+    const extractedParentId = pathToParentId ? resolvePath(pathToParentId) : undefined;
 
     return { details, name, parentId: extractedParentId };
   } catch (error) {

@@ -390,7 +390,7 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
         }}
       >
         <AlertDialog.Backdrop>
-          <AlertDialog.Container className='p-1' placement='top'>
+          <AlertDialog.Container className='p-1'>
             <AlertDialog.Dialog className='p-2 pt-3'>
               <div className='absolute top-0 left-0 h-1.25 w-full bg-danger' />
               <AlertDialog.CloseTrigger className='absolute top-3 right-2' variant='ghost'>
@@ -478,10 +478,10 @@ function DependencySection({ deps, error, isLoading, onRetry, onStatusUpdate }) 
 
   if (!deps.supported) {
     return (
-      <Alert className='w-full shrink-0 bg-muted/20' status='default'>
+      <Alert className='w-full shrink-0 bg-surface-secondary' status='default'>
         <Alert.Indicator />
         <Alert.Content>
-          <Alert.Description>
+          <Alert.Description className='text-foreground'>
             Dependency check is not available for this object type. Verify dependencies manually
             before deleting.
           </Alert.Description>
@@ -501,54 +501,64 @@ function DependencySection({ deps, error, isLoading, onRetry, onStatusUpdate }) 
     );
   }
 
-  const items = deps.groups.map((group, idx) => {
-    const countLabel = pluralizeForType(group.items[0]?.typeId, group.items.length);
-    const children = group.items.map(
-      (item) =>
-        new DataListItem({
+  const buildItems = (groups, idPrefix) =>
+    groups.map((group, idx) => {
+      const children = group.items.map((item) => {
+        const dli = new DataListItem({
           id: item.id,
           label: item.label,
           typeId: item.typeId,
           url: item.url
-        })
-    );
-    const groupItem = DataListItem.createGroup({
-      children,
-      id: `dep-group-${idx}`,
-      label: group.label
+        });
+        if (item.unshareable) dli.unshareable = true;
+        return dli;
+      });
+      const groupItem = DataListItem.createGroup({
+        children,
+        id: `${idPrefix}-${idx}`,
+        label: group.label
+      });
+      if (group.unshareable) groupItem.unshareable = true;
+      return groupItem;
     });
-    if (countLabel) groupItem.countLabel = countLabel;
-    return groupItem;
-  });
+
+  const deletedGroups = deps.groups.filter((g) => g.deleted);
+  const otherGroups = deps.groups.filter((g) => !g.deleted);
 
   return (
-    <div className='flex min-h-0 flex-1 flex-col overflow-hidden'>
-      <DataList
-        itemLabel='dependency'
-        items={items}
-        showActions={true}
-        showCounts={true}
-        variant='transparent'
-        onStatusUpdate={onStatusUpdate}
-      />
+    <div className='flex min-h-0 flex-1 flex-col gap-1 overflow-hidden'>
+      {deletedGroups.length > 0 && (
+        <>
+          <p className='shrink-0 px-2 pt-1 text-xs font-medium text-muted uppercase'>
+            Will be deleted
+          </p>
+          <DataList
+            itemLabel='dependency'
+            items={buildItems(deletedGroups, 'deleted-group')}
+            showActions={true}
+            showCounts={true}
+            variant='transparent'
+            onStatusUpdate={onStatusUpdate}
+          />
+        </>
+      )}
+      {otherGroups.length > 0 && (
+        <>
+          <p className='shrink-0 px-2 pt-1 text-xs font-medium text-muted uppercase'>
+            Other dependencies
+          </p>
+          <DataList
+            itemLabel='dependency'
+            items={buildItems(otherGroups, 'other-group')}
+            showActions={true}
+            showCounts={true}
+            variant='transparent'
+            onStatusUpdate={onStatusUpdate}
+          />
+        </>
+      )}
     </div>
   );
-}
-
-function pluralizeForType(typeId, count) {
-  switch (typeId) {
-    case 'CARD':
-      return count === 1 ? 'card' : 'cards';
-    case 'DATA_APP_VIEW':
-    case 'PAGE':
-      return count === 1 ? 'page' : 'pages';
-    case 'DATA_SOURCE':
-      return count === 1 ? 'dataset' : 'datasets';
-    case 'DATAFLOW_TYPE':
-      return count === 1 ? 'dataflow' : 'dataflows';
-    default:
-      return null;
-  }
 }
 
 function resolveSuffix(config, context) {

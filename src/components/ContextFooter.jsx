@@ -15,6 +15,7 @@ import JsonView from 'react18-json-view';
 
 import { useGroupLookup, useUserLookup } from '@/hooks';
 import { fetchObjectDetailsInPage, getObjectType } from '@/models';
+import { getDatasetsForPage } from '@/services';
 import {
   executeInPage,
   formatEpochTimestamp,
@@ -22,6 +23,14 @@ import {
   isGroupFieldName,
   isUserFieldName
 } from '@/utils';
+
+// Maps relatedObjects[].fetcher key → (params) => Promise<Array>. Lives here
+// (not in DomoObjectType.js) so the type model stays import-free of services.
+// Adding a new lazy-array fetcher = one entry here + one `fetcher: '<key>'` on
+// the relatedObjects entry.
+const LAZY_ARRAY_FETCHERS = {
+  datasetsForPage: ({ objectId, tabId }) => getDatasetsForPage({ pageId: objectId, tabId })
+};
 
 import { AlertStatusIcon } from './AlertStatusIcon';
 import { AnimatedCheck } from './AnimatedCheck';
@@ -80,6 +89,22 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
       for (const related of typeModel.relatedObjects) {
         if (related.source === 'self') continue;
         if (related.isArray) {
+          // Lazy: presence of `fetcher` defers the load until tab activation.
+          // Data lands in relatedCache; count appended at render time.
+          if (related.fetcher) {
+            result.push({
+              fetcher: related.fetcher,
+              id: related.field || related.fetcher,
+              isArray: true,
+              isCurrentObject: false,
+              itemIdField: related.itemIdField,
+              itemTypeField: related.itemTypeField,
+              itemTypeId: related.itemTypeId,
+              label: related.label,
+              parentId: resolveRelatedParentId(related, domoObject)
+            });
+            continue;
+          }
           const arrayBase =
             related.fieldSource === 'context'
               ? domoObject.metadata?.context
@@ -181,7 +206,9 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
     if (activeTab.isCurrentObject) {
       return currentContext?.domoObject?.metadata?.details || currentContext?.domoObject?.metadata;
     }
-    if (activeTab.isArray) return activeTab.data;
+    if (activeTab.isArray) {
+      return activeTab.fetcher ? relatedCache[activeTabId] : activeTab.data;
+    }
     if (activeTab.isFullContext) return currentContext;
     return relatedCache[activeTabId] || null;
   }, [activeTab, activeTabId, currentContext, relatedCache]);
@@ -192,11 +219,13 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
   const handleTabChange = async (key) => {
     setActiveTabId(key);
 
-    // Skip if it's the current object tab, an array tab, or already cached/loading
+    // Skip if it's the current object tab or already cached/loading
     const tab = tabs.find((t) => t.id === key);
-    if (!tab || tab.isCurrentObject || tab.isArray || relatedCache[key] || loadingTabs[key]) {
+    if (!tab || tab.isCurrentObject || relatedCache[key] || loadingTabs[key]) {
       return;
     }
+    // Eager arrays carry their data on the tab — nothing to fetch
+    if (tab.isArray && !tab.fetcher) return;
 
     // Seed cache from preloaded parent data (no fetch needed)
     if (tab.preloaded) {
@@ -204,35 +233,49 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
       return;
     }
 
-    const relatedType = getObjectType(tab.typeId);
-    if (!relatedType?.api) return;
-
     setLoadingTabs((prev) => ({ ...prev, [key]: true }));
 
     try {
-      const params = {
-        apiConfig: relatedType.api,
-        baseUrl: currentContext?.domoObject?.baseUrl,
-        objectId: tab.objectId,
-        parentId: tab.parentId || null,
-        requiresParent: relatedType.requiresParentForApi(),
-        throwOnError: false,
-        typeId: relatedType.id
-      };
-
-      const metadata = await executeInPage(
-        fetchObjectDetailsInPage,
-        [params],
-        currentContext?.tabId
-      );
-
-      if (metadata?.details) {
-        setRelatedCache((prev) => ({ ...prev, [key]: metadata.details }));
+      if (tab.fetcher) {
+        // Lazy array: dispatch to the registered fetcher, store the array in cache.
+        const fetcher = LAZY_ARRAY_FETCHERS[tab.fetcher];
+        if (!fetcher) throw new Error(`Unknown lazy array fetcher: ${tab.fetcher}`);
+        const arr = await fetcher({
+          objectId: currentContext?.domoObject?.id,
+          tabId: currentContext?.tabId
+        });
+        setRelatedCache((prev) => ({ ...prev, [key]: arr ?? [] }));
       } else {
-        setRelatedCache((prev) => ({
-          ...prev,
-          [key]: { error: 'No details available' }
-        }));
+        const relatedType = getObjectType(tab.typeId);
+        if (!relatedType?.api) {
+          setLoadingTabs((prev) => ({ ...prev, [key]: false }));
+          return;
+        }
+
+        const params = {
+          apiConfig: relatedType.api,
+          baseUrl: currentContext?.domoObject?.baseUrl,
+          objectId: tab.objectId,
+          parentId: tab.parentId || null,
+          requiresParent: relatedType.requiresParentForApi(),
+          throwOnError: false,
+          typeId: relatedType.id
+        };
+
+        const metadata = await executeInPage(
+          fetchObjectDetailsInPage,
+          [params],
+          currentContext?.tabId
+        );
+
+        if (metadata?.details) {
+          setRelatedCache((prev) => ({ ...prev, [key]: metadata.details }));
+        } else {
+          setRelatedCache((prev) => ({
+            ...prev,
+            [key]: { error: 'No details available' }
+          }));
+        }
       }
     } catch (error) {
       console.error(`[ContextFooter] Error fetching ${key} details:`, error);
@@ -263,7 +306,21 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
     }
 
     if (activeTab.isArray) {
-      const src = injectUrls(activeTab.data, {
+      const arrayData = activeTab.fetcher ? relatedCache[activeTabId] : activeTab.data;
+      if (activeTab.fetcher) {
+        if (loadingTabs[activeTabId]) {
+          return (
+            <div className='flex items-center justify-center py-4'>
+              <Spinner size='sm' />
+            </div>
+          );
+        }
+        if (arrayData?.error) {
+          return <p className='p-2 text-xs text-danger'>{arrayData.error}</p>;
+        }
+        if (!Array.isArray(arrayData)) return null;
+      }
+      const src = injectUrls(arrayData, {
         baseUrl,
         isArray: true,
         itemIdField: activeTab.itemIdField,
@@ -424,14 +481,21 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
                   size={40}
                 >
                   <Tabs.List aria-label='Object details' className='w-fit min-w-full flex-nowrap'>
-                    {tabs.map((tab) => (
-                      <Tabs.Tab className='min-w-32 flex-1 capitalize' id={tab.id} key={tab.id}>
-                        <span className='line-clamp-2 text-center' title={tab.label}>
-                          {tab.label}
-                        </span>
-                        <Tabs.Indicator />
-                      </Tabs.Tab>
-                    ))}
+                    {tabs.map((tab) => {
+                      const cached = relatedCache[tab.id];
+                      const lazyCountSuffix = tab.fetcher
+                        ? ` (${Array.isArray(cached) ? cached.length : '...'})`
+                        : '';
+                      const displayLabel = `${tab.label}${lazyCountSuffix}`;
+                      return (
+                        <Tabs.Tab className='min-w-32 flex-1 capitalize' id={tab.id} key={tab.id}>
+                          <span className='line-clamp-2 text-center' title={displayLabel}>
+                            {displayLabel}
+                          </span>
+                          <Tabs.Indicator />
+                        </Tabs.Tab>
+                      );
+                    })}
                   </Tabs.List>
                 </ScrollShadow>
               </Tabs.ListContainer>
