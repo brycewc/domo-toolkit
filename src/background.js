@@ -248,7 +248,7 @@ function invalidateInstanceUser(instance) {
 
 // Per-tab API error storage
 const tabApiErrors = new Map();
-const tabLastObject = new Map();
+const tabLastContext = new Map();
 const MAX_ERRORS_PER_TAB = 50;
 
 function addApiError(tabId, error) {
@@ -326,6 +326,14 @@ function getApiErrors(tabId) {
 function getTabContext(tabId) {
   touchTab(tabId);
   return tabContexts.get(tabId) || null;
+}
+
+function pathnameOf(url) {
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return url ?? null;
+  }
 }
 
 /**
@@ -468,27 +476,18 @@ function touchTab(tabId) {
 }
 
 /**
- * Update the tracked object key for a tab and clear errors if the key changed.
- * Called on every detection attempt — both success (typeId:objectId) and
- * failure (url:pathname) — so errors always clear on navigation.
+ * Update the tracked {objectKey, url} for a tab and clear errors only when
+ * BOTH change. Same URL with object toggling (e.g., selecting a tile in a
+ * modal) preserves errors; same object across URLs (e.g., card view ↔ edit)
+ * also preserves them.
  */
-function updateTabObjectKey(tabId, newKey) {
-  const lastKey = tabLastObject.get(tabId);
-  if (lastKey && lastKey !== newKey) {
+function updateTabContextKey(tabId, { objectKey, url }) {
+  const urlPath = pathnameOf(url);
+  const prev = tabLastContext.get(tabId);
+  if (prev && prev.objectKey !== objectKey && prev.url !== urlPath) {
     clearApiErrors(tabId);
   }
-  tabLastObject.set(tabId, newKey);
-}
-
-/**
- * Build a fallback object key from a URL for pages where no object is detected.
- */
-function urlObjectKey(url) {
-  try {
-    return `url:${new URL(url).pathname}`;
-  } catch {
-    return `url:${url}`;
-  }
+  tabLastContext.set(tabId, { objectKey, url: urlPath });
 }
 
 // Handle extension installation
@@ -688,7 +687,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   tabAccessTimes.delete(tabId);
   tabDetectionGen.delete(tabId);
   tabApiErrors.delete(tabId);
-  tabLastObject.delete(tabId);
+  tabLastContext.delete(tabId);
   persistToSession();
 });
 
@@ -959,9 +958,8 @@ async function detectAndStoreContext(tabId) {
     if (isStale()) return null;
     if (!detected) {
       console.log(`[Background] No Domo object detected on tab ${tabId}`);
-      // Track URL so errors clear when navigating between undetected pages
       if (tab.url) {
-        updateTabObjectKey(tabId, urlObjectKey(tab.url));
+        updateTabContextKey(tabId, { objectKey: null, url: tab.url });
         setSectionTitle(tabId, tab.url);
       }
       // During redetection, broadcast the empty context so the UI clears
@@ -975,7 +973,7 @@ async function detectAndStoreContext(tabId) {
 
     if (!typeModel) {
       console.warn(`[Background] Unknown object type: ${detected.typeId}`);
-      updateTabObjectKey(tabId, urlObjectKey(tab.url));
+      updateTabContextKey(tabId, { objectKey: null, url: tab.url });
       return null;
     }
 
@@ -997,7 +995,7 @@ async function detectAndStoreContext(tabId) {
 
     if (!objectId) {
       console.warn(`[Background] Could not extract ID for ${detected.typeId}`);
-      updateTabObjectKey(tabId, urlObjectKey(tab.url));
+      updateTabContextKey(tabId, { objectKey: null, url: tab.url });
       return null;
     }
 
@@ -1162,8 +1160,10 @@ async function detectAndStoreContext(tabId) {
         .replace('{id}', objectId);
     }
 
-    // Clear API errors when navigating to a different object on this tab
-    updateTabObjectKey(tabId, `${typeModel.id}:${objectId}`);
+    updateTabContextKey(tabId, {
+      objectKey: `${typeModel.id}:${objectId}`,
+      url: tab.url
+    });
 
     // Final stale check before committing context
     if (isStale()) return null;
