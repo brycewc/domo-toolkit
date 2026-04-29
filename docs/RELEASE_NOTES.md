@@ -48,11 +48,13 @@
 - Worksheet pages are now deletable (previously the primary delete button was disabled for them)
 - The "Delete app and all cards" cascade option for app pages is now a visible button inside the view (previously hidden behind a long-press on the trigger)
 
-### Object Details: Lazy Datasets Tab
+### Object Details: Lazy Related-Data Tabs
 
 - Context footer for PAGE / DATA_APP_VIEW / WORKSHEET_VIEW objects now includes a "Datasets" tab — loads on tab click, shows the raw `dataSources` API response for inspection and copy, with each dataset linked to its details page
+- DATA_SOURCE objects now include a "Columns" tab — lazy-loads the dataset's column schema (id, name, type, etc.) for inspection and copy
 - Tab label uses a `(...)` placeholder during fetch and updates to `(N)` once the count is known
-- General infrastructure now supports lazy-loaded arrays as related objects (any future tab can opt in by adding a `fetcher` key on its `relatedObjects` entry)
+- Renamed `relatedObjects` → `relatedData` on DomoObjectType to reflect that entries can now be plain data (e.g., dataset columns) without a navigable type/id
+- General infrastructure supports lazy-loaded arrays as related data (any future tab can opt in by adding a `fetcher` key on its `relatedData` entry); items without `itemTypeId`/`itemIdField` render as plain JSON without URL injection
 
 ## Newly Supported Object Types
 

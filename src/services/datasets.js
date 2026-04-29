@@ -1,6 +1,30 @@
 import { executeInPage } from '@/utils';
 
 /**
+ * Get a dataset's column schema (id, name, type, etc. per column)
+ * @param {Object} params - Parameters
+ * @param {string} params.datasetId - The dataset UUID
+ * @param {number} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<Array<Object>>} Array of column descriptors
+ */
+export async function getDatasetColumns({ datasetId, tabId }) {
+  return executeInPage(
+    async (datasetId) => {
+      const response = await fetch(`/api/query/v1/datasources/${datasetId}/schema/indexed`, {
+        credentials: 'include'
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch schema: HTTP ${response.status}`);
+      }
+      const schema = await response.json();
+      return schema.tables?.[0]?.columns || [];
+    },
+    [datasetId],
+    tabId
+  );
+}
+
+/**
  * Get a preview of a dataset's data (first N rows)
  * @param {string} datasetId - The dataset UUID
  * @param {number} [tabId] - Optional Chrome tab ID
@@ -8,20 +32,11 @@ import { executeInPage } from '@/utils';
  * @returns {Promise<{headers: string[], rows: Array[]}>}
  */
 export async function getDatasetPreview(datasetId, tabId = null, limit = 100) {
-  return executeInPage(
-    async (datasetId, limit) => {
-      // Get column schema
-      const schemaResponse = await fetch(`/api/query/v1/datasources/${datasetId}/schema/indexed`, {
-        credentials: 'include'
-      });
-      if (!schemaResponse.ok) {
-        throw new Error(`Failed to fetch schema: HTTP ${schemaResponse.status}`);
-      }
-      const schema = await schemaResponse.json();
-      const columns = schema.tables?.[0]?.columns || [];
-      const headers = columns.map((col) => col.name);
+  const columns = await getDatasetColumns({ datasetId, tabId });
+  const headers = columns.map((col) => col.name);
 
-      // Fetch data using structured query format which preserves nulls
+  const rows = await executeInPage(
+    async (datasetId, columns, limit) => {
       const response = await fetch(`/api/query/v1/execute/${datasetId}`, {
         body: JSON.stringify({
           context: {
@@ -51,11 +66,13 @@ export async function getDatasetPreview(datasetId, tabId = null, limit = 100) {
       }
 
       const data = await response.json();
-      return { headers, rows: data.rows || [] };
+      return data.rows || [];
     },
-    [datasetId, limit],
+    [datasetId, columns, limit],
     tabId
   );
+
+  return { headers, rows };
 }
 
 /**

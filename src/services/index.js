@@ -71,6 +71,7 @@ export {
   updateDataflowDetails
 } from './dataflows';
 export {
+  getDatasetColumns,
   getDatasetPreview,
   getDatasetsForApp,
   getDatasetsForDataflow,

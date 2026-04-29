@@ -21,12 +21,15 @@ export class DomoObjectType {
    *   { component: string, rotation?: number } where component is a key in the ObjectTypeIcon registry
    * @param {RegExp} [options.idPattern] - Regular expression to validate IDs for this type
    * @param {Array<string>} [options.parents] - Array of parent object type IDs this object can have
-   * @param {Array<Object>} [options.relatedObjects] - Array of related object configs [{field, typeId, label, source?, itemIdField?}]
+   * @param {Array<Object>} [options.relatedData] - Array of related-data configs [{field, typeId, label, source?, itemIdField?}]
    *   Use { label: 'Short Name', source: 'self' } to override the current object's tab label.
    *   For an `isArray: true` entry, set `fetcher: '<key>'` (matching a key in
    *   ContextFooter's `LAZY_ARRAY_FETCHERS` registry) to defer the load until
    *   the user activates the tab. The presence of `fetcher` is the lazy signal;
    *   omit it for eager arrays read directly from metadata.
+   *   Entries don't have to point at navigable Domo objects — omit `itemTypeId`/
+   *   `itemIdField` (or `typeId` for single entries) to render plain data
+   *   (e.g., dataset columns) without URL injection.
    * @param {string} [options.urlPath] - The URL path pattern. Supported placeholders:
    *   - `{id}`: the object ID
    *   - `{parent}`: the parent object ID (fetched async if needed)
@@ -42,7 +45,7 @@ export class DomoObjectType {
     this.icon = options.icon ?? null;
     this.idPattern = options.idPattern ?? null;
     this.parents = options.parents ?? null;
-    this.relatedObjects = options.relatedObjects ?? null;
+    this.relatedData = options.relatedData ?? null;
     this.urlPath = options.urlPath ?? null;
   }
 
@@ -291,7 +294,7 @@ export const ObjectTypeRegistry = {
     extractConfig: { keyword: 'agents' },
     icon: { component: 'Robot' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    relatedObjects: [
+    relatedData: [
       {
         field: 'toolkits',
         isArray: true,
@@ -369,7 +372,7 @@ export const ObjectTypeRegistry = {
     icon: { component: 'RubberStamp' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     parents: ['TEMPLATE'],
-    relatedObjects: [{ label: 'Template', source: 'parentId', typeId: 'TEMPLATE' }],
+    relatedData: [{ label: 'Template', source: 'parentId', typeId: 'TEMPLATE' }],
     urlPath: '/approval/request-details/{id}'
   }),
   AUTHORITY: new DomoObjectType('AUTHORITY', 'Grant', { idPattern: /.*/ }),
@@ -395,7 +398,7 @@ export const ObjectTypeRegistry = {
     icon: { component: 'ChartBar' },
     idPattern: /^\d+$/,
     parents: ['DATA_SOURCE', 'APP'],
-    relatedObjects: [
+    relatedData: [
       {
         field: 'datasources',
         isArray: true,
@@ -483,7 +486,7 @@ export const ObjectTypeRegistry = {
       icon: { component: 'Package' },
       idPattern: /^[0-9]+\.[0-9]+\.[0-9]+$/,
       parents: ['CODEENGINE_PACKAGE'],
-      relatedObjects: [
+      relatedData: [
         { label: 'Package Version', source: 'self' },
         { label: 'Package', source: 'parentId', typeId: 'CODEENGINE_PACKAGE' },
         {
@@ -539,7 +542,7 @@ export const ObjectTypeRegistry = {
     extractConfig: { keyword: 'app-studio' },
     icon: { component: 'Rocket', rotation: -45 },
     idPattern: /^\d+$/,
-    relatedObjects: [
+    relatedData: [
       {
         field: 'views',
         isArray: true,
@@ -563,7 +566,7 @@ export const ObjectTypeRegistry = {
     icon: { component: 'LayoutDashboard' },
     idPattern: /^\d+$/,
     parents: ['DATA_APP'],
-    relatedObjects: [
+    relatedData: [
       { label: 'Studio App', source: 'parent', typeId: 'DATA_APP' },
       {
         field: 'content',
@@ -614,10 +617,11 @@ export const ObjectTypeRegistry = {
     icon: { component: 'Database' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     parents: ['DATAFLOW_TYPE', 'DATA_SOURCE', 'STREAM'],
-    relatedObjects: [
+    relatedData: [
       { label: 'Stream', source: 'parent', typeId: 'STREAM' },
       { field: 'accountId', label: 'Account', typeId: 'ACCOUNT' },
-      { label: 'DataFlow', source: 'parent', typeId: 'DATAFLOW_TYPE' }
+      { label: 'DataFlow', source: 'parent', typeId: 'DATAFLOW_TYPE' },
+      { fetcher: 'datasetColumns', isArray: true, label: 'Columns' }
     ],
     urlPath: '/datasources/{id}/details/data/table'
   }),
@@ -626,7 +630,7 @@ export const ObjectTypeRegistry = {
     extractConfig: { keyword: 'dataflows' },
     icon: { component: 'ArrowFork', rotation: 180 },
     idPattern: /^\d+$/,
-    relatedObjects: [
+    relatedData: [
       {
         field: 'inputs',
         isArray: true,
@@ -678,13 +682,13 @@ export const ObjectTypeRegistry = {
     icon: { component: 'Forms' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     parents: ['WORKFLOW_MODEL'],
-    relatedObjects: [{ label: 'Workflow', source: 'parentId', typeId: 'WORKFLOW_MODEL' }]
+    relatedData: [{ label: 'Workflow', source: 'parentId', typeId: 'WORKFLOW_MODEL' }]
   }),
   ENIGMA_FORM_INSTANCE: new DomoObjectType('ENIGMA_FORM_INSTANCE', 'Form Instance', {
     api: { endpoint: '/forms/v1/instances/{id}', pathToName: 'revision' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     parents: ['ENIGMA_FORM'],
-    relatedObjects: [{ label: 'Form', source: 'parentId', typeId: 'ENIGMA_FORM' }]
+    relatedData: [{ label: 'Form', source: 'parentId', typeId: 'ENIGMA_FORM' }]
   }),
   EXECUTOR_APPLICATION: new DomoObjectType(
     'EXECUTOR_APPLICATION',
@@ -703,7 +707,7 @@ export const ObjectTypeRegistry = {
     icon: { component: 'PlayerPlay' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     parents: ['EXECUTOR_APPLICATION'],
-    relatedObjects: [
+    relatedData: [
       { label: 'Job', source: 'self' },
       {
         label: 'Application',
@@ -734,7 +738,7 @@ export const ObjectTypeRegistry = {
     },
     idPattern: /^\d+$/,
     parents: ['FILE'],
-    relatedObjects: [{ label: 'File', source: 'parentId', typeId: 'FILE' }]
+    relatedData: [{ label: 'File', source: 'parentId', typeId: 'FILE' }]
   }),
   FILESET: new DomoObjectType('FILESET', 'FileSet', {
     api: { endpoint: '/files/v1/filesets/{id}', pathToName: 'name' },
@@ -755,7 +759,7 @@ export const ObjectTypeRegistry = {
     icon: { component: 'File' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     parents: ['FILESET'],
-    relatedObjects: [
+    relatedData: [
       { label: 'File', source: 'self' },
       { label: 'FileSet', source: 'parentId', typeId: 'FILESET' }
     ]
@@ -780,7 +784,7 @@ export const ObjectTypeRegistry = {
     extractConfig: { keyword: 'groups' },
     icon: { component: 'Users' },
     idPattern: /^\d+$/,
-    relatedObjects: [{ field: 'members', isArray: true, itemTypeId: 'USER', label: 'Members' }],
+    relatedData: [{ field: 'members', isArray: true, itemTypeId: 'USER', label: 'Members' }],
     urlPath: '/admin/groups/{id}?tab=people'
   }),
   GROUP_CHAT: new DomoObjectType('GROUP_CHAT', 'Buzz Group Chat', {
@@ -792,7 +796,7 @@ export const ObjectTypeRegistry = {
     extractConfig: { keyword: 'queueId' },
     icon: { component: 'ListCheck' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    relatedObjects: [{ label: 'Queue', source: 'self' }],
+    relatedData: [{ label: 'Queue', source: 'self' }],
     urlPath: '/queues/tasks?queueId={id}&status=OPEN'
   }),
   HOPPER_TASK: new DomoObjectType('HOPPER_TASK', 'Task Center Task', {
@@ -807,7 +811,7 @@ export const ObjectTypeRegistry = {
     icon: { component: 'Subtask' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     parents: ['HOPPER_QUEUE'],
-    relatedObjects: [
+    relatedData: [
       { label: 'Task', source: 'self' },
       { label: 'Queue', source: 'parentId', typeId: 'HOPPER_QUEUE' }
     ],
@@ -827,7 +831,7 @@ export const ObjectTypeRegistry = {
     icon: { component: 'TargetArrow' },
     idPattern: /^\d+$/,
     parents: ['GOAL'],
-    relatedObjects: [{ label: 'Goal', source: 'parentId', typeId: 'GOAL' }],
+    relatedData: [{ label: 'Goal', source: 'parentId', typeId: 'GOAL' }],
     urlPath: '/goals/key-results/{id}'
   }),
   LANDING_ENTITY: new DomoObjectType('LANDING_ENTITY', 'Landing Entity', {
@@ -842,7 +846,7 @@ export const ObjectTypeRegistry = {
     icon: { component: 'Database' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     parents: ['MAGNUM_DATASTORE'],
-    relatedObjects: [
+    relatedData: [
       { label: 'Collection', source: 'self' },
       { label: 'DataStore', source: 'parentId', typeId: 'MAGNUM_DATASTORE' }
     ],
@@ -878,7 +882,7 @@ export const ObjectTypeRegistry = {
     icon: { component: 'LayoutDashboard' },
     idPattern: /^-?\d+$/,
     parents: ['PAGE'],
-    relatedObjects: [
+    relatedData: [
       {
         field: 'content',
         fieldSource: 'context',
@@ -1132,7 +1136,7 @@ export const ObjectTypeRegistry = {
     icon: { component: 'BuildingWarehouse' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     parents: ['ACCOUNT'],
-    relatedObjects: [{ label: 'Account', source: 'parentId', typeId: 'ACCOUNT' }],
+    relatedData: [{ label: 'Account', source: 'parentId', typeId: 'ACCOUNT' }],
     urlPath: '/cloud-integrations/{id}/settings'
   }),
   WORKBENCH_AGENT: new DomoObjectType('WORKBENCH_AGENT', 'On Premise Agent', {
@@ -1161,7 +1165,7 @@ export const ObjectTypeRegistry = {
     icon: { component: 'PlayerPlay' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     parents: ['WORKFLOW_MODEL'],
-    relatedObjects: [
+    relatedData: [
       { label: 'Execution', source: 'self' },
       {
         field: 'modelVersion',
@@ -1178,7 +1182,7 @@ export const ObjectTypeRegistry = {
     extractConfig: { keyword: 'workflows', offset: 2 },
     icon: { component: 'Route' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    relatedObjects: [
+    relatedData: [
       {
         field: 'versions',
         isArray: true,
@@ -1204,7 +1208,7 @@ export const ObjectTypeRegistry = {
     icon: { component: 'Route' },
     idPattern: /^[0-9]+\.[0-9]+\.[0-9]+$/,
     parents: ['WORKFLOW_MODEL'],
-    relatedObjects: [
+    relatedData: [
       { label: 'Version', source: 'self' },
       { label: 'Workflow', source: 'parentId', typeId: 'WORKFLOW_MODEL' }
     ],
@@ -1215,7 +1219,7 @@ export const ObjectTypeRegistry = {
     icon: { component: 'Clock' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     parents: ['WORKFLOW_MODEL'],
-    relatedObjects: [
+    relatedData: [
       { label: 'Trigger', source: 'self' },
       { label: 'Workflow', source: 'parentId', typeId: 'WORKFLOW_MODEL' }
     ],
@@ -1242,7 +1246,7 @@ export const ObjectTypeRegistry = {
     icon: { component: 'Table' },
     idPattern: /^\d+$/,
     parents: ['WORKSHEET'],
-    relatedObjects: [
+    relatedData: [
       { label: 'Worksheet', source: 'parentId', typeId: 'WORKSHEET' },
       {
         fetcher: 'datasetsForPage',

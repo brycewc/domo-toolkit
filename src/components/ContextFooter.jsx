@@ -15,7 +15,7 @@ import JsonView from 'react18-json-view';
 
 import { useGroupLookup, useUserLookup } from '@/hooks';
 import { fetchObjectDetailsInPage, getObjectType } from '@/models';
-import { getDatasetsForPage } from '@/services';
+import { getDatasetColumns, getDatasetsForPage } from '@/services';
 import {
   executeInPage,
   formatEpochTimestamp,
@@ -24,11 +24,12 @@ import {
   isUserFieldName
 } from '@/utils';
 
-// Maps relatedObjects[].fetcher key → (params) => Promise<Array>. Lives here
+// Maps relatedData[].fetcher key → (params) => Promise<Array>. Lives here
 // (not in DomoObjectType.js) so the type model stays import-free of services.
 // Adding a new lazy-array fetcher = one entry here + one `fetcher: '<key>'` on
-// the relatedObjects entry.
+// the relatedData entry.
 const LAZY_ARRAY_FETCHERS = {
+  datasetColumns: ({ objectId, tabId }) => getDatasetColumns({ datasetId: objectId, tabId }),
   datasetsForPage: ({ objectId, tabId }) => getDatasetsForPage({ pageId: objectId, tabId })
 };
 
@@ -73,7 +74,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
     if (!typeModel) return [];
 
     // First tab: current object (use 'self' label override if configured)
-    const selfLabel = typeModel.relatedObjects?.find((r) => r.source === 'self')?.label;
+    const selfLabel = typeModel.relatedData?.find((r) => r.source === 'self')?.label;
     const result = [
       {
         details: domoObject.metadata?.details || domoObject.metadata,
@@ -84,9 +85,9 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
       }
     ];
 
-    // Additional tabs from relatedObjects config
-    if (typeModel.relatedObjects) {
-      for (const related of typeModel.relatedObjects) {
+    // Additional tabs from relatedData config
+    if (typeModel.relatedData) {
+      for (const related of typeModel.relatedData) {
         if (related.source === 'self') continue;
         if (related.isArray) {
           // Lazy: presence of `fetcher` defers the load until tab activation.
