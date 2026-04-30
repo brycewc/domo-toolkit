@@ -27,6 +27,7 @@ import {
   RemoveEmptyStringsFromQuickFilters,
   SetStreamToManual,
   ShareWithSelf,
+  SyncJSDocFromSource,
   TransferOwnership,
   UpdateCodeEngineVersions,
   UpdateDetails,
@@ -270,6 +271,14 @@ export function ActionButtons({
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
+                {availableActions.has('syncJSDocFromSource') && (
+                  <SyncJSDocFromSource
+                    currentContext={currentContext}
+                    isDisabled={!isDomoPage}
+                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
+                    onStatusUpdate={onStatusUpdate}
+                  />
+                )}
                 <ApiErrors
                   currentContext={currentContext}
                   isDisabled={!isDomoPage}
@@ -382,6 +391,10 @@ function getAvailableActions(currentContext) {
 
   if (['CARD', 'CODEENGINE_PACKAGE', 'CODEENGINE_PACKAGE_VERSION'].includes(typeId)) {
     actions.add('export');
+  }
+
+  if (['CODEENGINE_PACKAGE', 'CODEENGINE_PACKAGE_VERSION'].includes(typeId)) {
+    actions.add('syncJSDocFromSource');
   }
 
   if (typeId === 'CARD' && details?.type !== 'domoapp') {

@@ -14,6 +14,7 @@ import {
   GetViewInputsView,
   LinkPreview,
   ObjectDetailsView,
+  SyncJSDocFromSourceView,
   ToastProvider,
   TransferOwnershipView,
   UpdateCodeEngineVersionsView,
@@ -314,6 +315,14 @@ export default function App() {
 
             {activeView === 'updateCodeEngineVersions' && (
               <UpdateCodeEngineVersionsView
+                key={viewKey}
+                onBackToDefault={handleBackToDefault}
+                onStatusUpdate={showStatus}
+              />
+            )}
+
+            {activeView === 'syncJSDocFromSource' && (
+              <SyncJSDocFromSourceView
                 key={viewKey}
                 onBackToDefault={handleBackToDefault}
                 onStatusUpdate={showStatus}

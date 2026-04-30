@@ -56,6 +56,8 @@
     "@tabler/icons-react": "^3.41.1",
     "@tailwindcss/vite": "^4.2.2",
     "@xyflow/react": "^12.10.2",
+    "acorn": "^8.16.0",
+    "comment-parser": "^1.4.6",
     "js-beautify": "^1.15.4",
     "motion": "^12.38.0",
     "react": "^19.2.5",

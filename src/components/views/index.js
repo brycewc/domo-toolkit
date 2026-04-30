@@ -9,6 +9,7 @@ export { GetPagesView } from './GetPagesView';
 export { GetViewInputsView } from './GetViewInputsView';
 export { LinkPreview } from './LinkPreview';
 export { ObjectDetailsView } from './ObjectDetailsView';
+export { SyncJSDocFromSourceView } from './SyncJSDocFromSourceView';
 export { TransferOwnershipView } from './TransferOwnershipView';
 export { UpdateCodeEngineVersionsView } from './UpdateCodeEngineVersionsView';
 export { UpdateDetailsView } from './UpdateDetailsView';

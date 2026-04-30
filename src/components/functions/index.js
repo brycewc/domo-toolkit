@@ -20,6 +20,7 @@ export { NavigateToCopiedObject } from './NavigateToCopiedObject';
 export { RemoveEmptyStringsFromQuickFilters } from './RemoveEmptyStringsFromQuickFilters';
 export { SetStreamToManual } from './SetStreamToManual';
 export { ShareWithSelf } from './ShareWithSelf';
+export { SyncJSDocFromSource } from './SyncJSDocFromSource';
 export { TransferOwnership } from './TransferOwnership';
 export { UpdateCodeEngineVersions } from './UpdateCodeEngineVersions';
 export { UpdateDetails } from './UpdateDetails';

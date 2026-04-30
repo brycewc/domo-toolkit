@@ -25,6 +25,26 @@ export {
   isUserFieldName,
   JsonStringifyOrder
 } from './general';
+export {
+  applyJSDocRewrites,
+  buildManifestFunctions,
+  diffFunctions,
+  evaluateJSDocDefault,
+  findCurrentVersionInfo,
+  findLatestVersion,
+  findLatestVersionInfo,
+  findVersionForBaseline,
+  incrementPatch,
+  isVersionReleased,
+  mergeManifestFunctions,
+  parseFunctionSignatures,
+  parseJSDoc,
+  parseSourceToManifest,
+  preparePackagePayload,
+  reconcileSignatures,
+  resolveTargetVersion,
+  serializeJSDocDefault
+} from './jsdocToPackage';
 export { waitForCardPages, waitForChildPages } from './pageHelpers';
 export {
   getSidepanelData,

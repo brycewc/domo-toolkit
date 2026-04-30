@@ -49,8 +49,13 @@ export {
 } from './cards';
 export {
   getCodeEngineCode,
+  getCodeEngineEditorSource,
+  getCodeEnginePackageDefinition,
   getCodeEnginePackageInfo,
   getOwnedCodeEnginePackages,
+  postCodeEnginePackageVersion,
+  releaseCodeEnginePackageVersion,
+  setCodeEngineEditorSource,
   transferCodeEnginePackages
 } from './codeEngine';
 export {
