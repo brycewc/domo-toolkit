@@ -4,6 +4,7 @@ import { mapJSDocType } from './typeMap';
 export function buildManifestFunctions({ reconciledDocs, typedefs }) {
   const functions = [];
   const warnings = [];
+  const perFunctionMeta = {};
 
   for (const doc of reconciledDocs) {
     const inputs = buildInputs(doc, typedefs, warnings);
@@ -18,9 +19,12 @@ export function buildManifestFunctions({ reconciledDocs, typedefs }) {
     };
     if (output) fn.output = output;
     functions.push(fn);
+    perFunctionMeta[doc.functionName] = {
+      explicitOutputName: !!doc.returns?.explicitName
+    };
   }
 
-  return { functions, warnings };
+  return { functions, perFunctionMeta, warnings };
 }
 
 function applyDescendantChildrenRule(entries) {

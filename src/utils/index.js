@@ -28,6 +28,7 @@ export {
 export {
   applyJSDocRewrites,
   buildManifestFunctions,
+  computeStructuralDiff,
   diffFunctions,
   evaluateJSDocDefault,
   findCurrentVersionInfo,

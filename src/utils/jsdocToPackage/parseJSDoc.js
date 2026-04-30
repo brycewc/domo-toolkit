@@ -107,15 +107,27 @@ function extractReturns(returnsTag) {
   const rawType = returnsTag.type || '';
   const nameRaw = (returnsTag.name || '').trim();
   const descRaw = (returnsTag.description || '').trim();
-  let name = null;
-  let description;
-  if (nameRaw && /^[A-Za-z_$][\w$]*$/.test(nameRaw)) {
-    name = nameRaw;
-    description = descRaw.replace(/^-\s*/, '');
-  } else {
-    description = [nameRaw, descRaw].filter(Boolean).join(' ').replace(/^-\s*/, '').trim();
+  const isIdentifier = nameRaw && /^[A-Za-z_$][\w$]*$/.test(nameRaw);
+
+  // Form: `@returns {type} name - description` (dash-separated; user explicitly named the output)
+  if (isIdentifier && /^-\s/.test(descRaw)) {
+    return {
+      description: descRaw.replace(/^-\s*/, ''),
+      explicitName: true,
+      name: nameRaw,
+      rawType
+    };
   }
-  return { description, name, rawType };
+
+  // Form: `@returns {type} name` (single identifier, no description; user explicitly named the output)
+  if (isIdentifier && !descRaw) {
+    return { description: '', explicitName: true, name: nameRaw, rawType };
+  }
+
+  // Form: `@returns {type} description...` (no name, all description even when the first word is
+  // a valid identifier like "The"). Treat the whole post-type text as the description.
+  const fullDesc = [nameRaw, descRaw].filter(Boolean).join(' ').replace(/^-\s*/, '').trim();
+  return { description: fullDesc, explicitName: false, name: null, rawType };
 }
 
 function findFunctionNameAfter(source, fromIndex) {

@@ -8,6 +8,7 @@ import { applyJSDocRewrites } from './rewriteJSDoc';
 export { buildManifestFunctions } from './buildManifestFunctions';
 export { deriveDisplayName } from './displayName';
 export {
+  computeStructuralDiff,
   diffFunctions,
   findCurrentVersionInfo,
   findLatestVersion,
@@ -49,7 +50,8 @@ export function parseSourceToManifest(source, existingFunctions = []) {
 
   const merged = mergeManifestFunctions({
     derivedFunctions: built.functions,
-    existingFunctions
+    existingFunctions,
+    perFunctionMeta: built.perFunctionMeta
   });
 
   return {

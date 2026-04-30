@@ -28,6 +28,7 @@ import {
   setCodeEngineEditorSource
 } from '@/services';
 import {
+  computeStructuralDiff,
   findCurrentVersionInfo,
   findVersionForBaseline,
   getSidepanelData,
@@ -378,16 +379,59 @@ function DecisionRow({ decision }) {
   );
 }
 
-function FieldDiff({ derivedValue, existingValue, field }) {
+function DiffRow({ diff }) {
+  const pathStr = formatPath(diff.path);
+  if (diff.kind === 'added') {
+    return (
+      <div className='flex flex-col gap-0.5'>
+        {pathStr && (
+          <span className='font-mono text-[10px] text-muted'>{pathStr} (added)</span>
+        )}
+        <pre className='overflow-x-auto rounded bg-success-soft px-1 py-0.5 text-[11px] whitespace-pre-wrap text-success'>
+          + {formatFieldValue(diff.value)}
+        </pre>
+      </div>
+    );
+  }
+  if (diff.kind === 'removed') {
+    return (
+      <div className='flex flex-col gap-0.5'>
+        {pathStr && (
+          <span className='font-mono text-[10px] text-muted'>{pathStr} (removed)</span>
+        )}
+        <pre className='overflow-x-auto rounded bg-danger-soft px-1 py-0.5 text-[11px] whitespace-pre-wrap text-danger'>
+          − {formatFieldValue(diff.value)}
+        </pre>
+      </div>
+    );
+  }
   return (
     <div className='flex flex-col gap-0.5'>
-      <span className='text-[10px] text-muted'>{field}</span>
+      {pathStr && <span className='font-mono text-[10px] text-muted'>{pathStr}</span>}
       <pre className='overflow-x-auto rounded bg-danger-soft px-1 py-0.5 text-[11px] whitespace-pre-wrap text-danger'>
-        − {formatFieldValue(existingValue)}
+        − {formatFieldValue(diff.before)}
       </pre>
       <pre className='overflow-x-auto rounded bg-success-soft px-1 py-0.5 text-[11px] whitespace-pre-wrap text-success'>
-        + {formatFieldValue(derivedValue)}
+        + {formatFieldValue(diff.after)}
       </pre>
+    </div>
+  );
+}
+
+function FieldDiff({ derivedValue, existingValue, field }) {
+  const diffs = computeStructuralDiff(existingValue, derivedValue);
+  return (
+    <div className='flex flex-col gap-1'>
+      <span className='text-[10px] text-muted'>{field}</span>
+      {diffs.length === 0 ? (
+        <span className='text-[10px] text-muted italic'>(no detectable difference)</span>
+      ) : (
+        <div className='flex flex-col gap-2'>
+          {diffs.map((d, idx) => (
+            <DiffRow diff={d} key={`${formatPath(d.path)}-${idx}`} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -401,6 +445,17 @@ function formatFieldValue(value) {
   } catch {
     return String(value);
   }
+}
+
+function formatPath(segments) {
+  if (!segments || segments.length === 0) return '';
+  return segments
+    .map((s, i) => {
+      const str = String(s);
+      if (i === 0) return str;
+      return /^\d+$/.test(str) ? `[${str}]` : `.${str}`;
+    })
+    .join('');
 }
 
 function JSDocRewritesSection({ rewrites }) {
