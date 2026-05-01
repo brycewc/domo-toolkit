@@ -79,16 +79,13 @@ const VirtualizedItemList = memo(function VirtualizedItemList({
 }) {
   const [copiedId, setCopiedId] = useState(null);
 
-  const containerHeight = Math.min(
-    items.length * ITEM_HEIGHT,
-    MAX_VISIBLE_ITEMS * ITEM_HEIGHT
-  );
+  const containerHeight = Math.min(items.length * ITEM_HEIGHT, MAX_VISIBLE_ITEMS * ITEM_HEIGHT);
 
   return (
     <Virtualizer layout={ListLayout} layoutOptions={{ rowHeight: ITEM_HEIGHT }}>
       <ListBox
         aria-label='Owned objects'
-        className='w-full overflow-x-hidden overflow-y-auto'
+        className='w-full overflow-x-hidden overflow-y-auto p-0'
         items={items}
         selectionMode='none'
         style={{ height: containerHeight }}
@@ -151,10 +148,7 @@ const VirtualizedItemList = memo(function VirtualizedItemList({
   );
 });
 
-export function GetOwnedObjectsView({
-  onBackToDefault = null,
-  onStatusUpdate = null
-}) {
+export function GetOwnedObjectsView({ onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   const [userName, setUserName] = useState('');
   const [userId, setUserId] = useState(null);
@@ -163,10 +157,7 @@ export function GetOwnedObjectsView({
   const [currentContext, setCurrentContext] = useState(null);
   const [typeResults, setTypeResults] = useState(() =>
     Object.fromEntries(
-      TRANSFER_TYPES.map((t) => [
-        t.key,
-        { count: 0, error: null, items: [], status: 'idle' }
-      ])
+      TRANSFER_TYPES.map((t) => [t.key, { count: 0, error: null, items: [], status: 'idle' }])
     )
   );
   const mountedRef = useRef(true);
@@ -189,9 +180,7 @@ export function GetOwnedObjectsView({
         return;
       }
 
-      const context = data.currentContext
-        ? DomoContext.fromJSON(data.currentContext)
-        : null;
+      const context = data.currentContext ? DomoContext.fromJSON(data.currentContext) : null;
 
       if (!context) {
         onStatusUpdate?.('Error', 'No context available', 'danger');
@@ -218,11 +207,7 @@ export function GetOwnedObjectsView({
       }
     } catch (error) {
       console.error('[GetOwnedObjectsView] Error loading data:', error);
-      onStatusUpdate?.(
-        'Error',
-        error.message || 'Failed to load context',
-        'danger'
-      );
+      onStatusUpdate?.('Error', error.message || 'Failed to load context', 'danger');
       if (mountedRef.current) setIsLoading(false);
     }
   };
@@ -231,10 +216,7 @@ export function GetOwnedObjectsView({
     rawOwnedRef.current = {};
     setTypeResults(
       Object.fromEntries(
-        TRANSFER_TYPES.map((t) => [
-          t.key,
-          { count: 0, error: null, items: [], status: 'loading' }
-        ])
+        TRANSFER_TYPES.map((t) => [t.key, { count: 0, error: null, items: [], status: 'loading' }])
       )
     );
 
@@ -287,11 +269,7 @@ export function GetOwnedObjectsView({
     async (id) => {
       try {
         await navigator.clipboard.writeText(String(id));
-        onStatusUpdate?.(
-          'Copied',
-          `ID **${id}** copied to clipboard`,
-          'success'
-        );
+        onStatusUpdate?.('Copied', `ID **${id}** copied to clipboard`, 'success');
       } catch {
         onStatusUpdate?.('Error', 'Failed to copy to clipboard', 'danger');
       }
@@ -299,20 +277,12 @@ export function GetOwnedObjectsView({
     [onStatusUpdate]
   );
 
-  const {
-    errorCount,
-    isFullyLoaded,
-    loadedTypeCount,
-    loadingCount,
-    totalObjects
-  } = useMemo(() => {
+  const { errorCount, isFullyLoaded, loadedTypeCount, loadingCount, totalObjects } = useMemo(() => {
     const results = Object.values(typeResults);
     return {
       errorCount: results.filter((r) => r.status === 'error').length,
       isFullyLoaded: results.every((r) => r.status !== 'loading'),
-      loadedTypeCount: results.filter(
-        (r) => r.status === 'loaded' && r.count > 0
-      ).length,
+      loadedTypeCount: results.filter((r) => r.status === 'loaded' && r.count > 0).length,
       loadingCount: results.filter((r) => r.status === 'loading').length,
       totalObjects: results.reduce((sum, r) => sum + r.count, 0)
     };
@@ -339,15 +309,9 @@ export function GetOwnedObjectsView({
     // Loading
     if (result.status === 'loading' || result.status === 'idle') {
       return (
-        <div
-          className='flex items-center justify-between py-1.5'
-          key={type.key}
-        >
+        <div className='flex items-center justify-between py-1.5' key={type.key}>
           <div className='flex items-center gap-2'>
-            <IconLoader2
-              className='shrink-0 animate-spin text-accent'
-              size={18}
-            />
+            <IconLoader2 className='shrink-0 animate-spin text-accent' size={18} />
             <span className='text-sm'>{type.label}</span>
           </div>
           <span className='shrink-0 text-xs text-muted'>Searching...</span>
@@ -358,10 +322,7 @@ export function GetOwnedObjectsView({
     // Error
     if (result.status === 'error') {
       return (
-        <div
-          className='flex items-center justify-between py-1.5'
-          key={type.key}
-        >
+        <div className='flex items-center justify-between py-1.5' key={type.key}>
           <div className='flex items-center gap-2'>
             <IconX className='shrink-0 text-danger' size={18} />
             <span className='text-sm'>{type.label}</span>
@@ -374,10 +335,7 @@ export function GetOwnedObjectsView({
     // Loaded with 0 items
     if (result.count === 0) {
       return (
-        <div
-          className='flex items-center justify-between py-1.5'
-          key={type.key}
-        >
+        <div className='flex items-center justify-between py-1.5' key={type.key}>
           <div className='flex items-center gap-2'>
             <IconCheck className='shrink-0 text-muted' size={18} />
             <span className='text-sm text-muted'>{type.label}</span>
@@ -445,35 +403,27 @@ export function GetOwnedObjectsView({
           <div className='min-w-0 flex-1 pt-1'>
             <div className='flex flex-col gap-1'>
               <div className='line-clamp-2 min-w-0'>
-                <span>Objects Owned by</span>{' '}
-                <span className='font-bold'>{userName}</span>
+                <span>Objects Owned by</span> <span className='font-bold'>{userName}</span>
               </div>
               <div className='shrink-0 text-xs text-muted'>
                 {isFullyLoaded ? (
                   <>
-                    <span className='font-medium text-foreground'>
-                      {totalObjects}
-                    </span>{' '}
-                    object{totalObjects !== 1 ? 's' : ''} across{' '}
-                    <span className='font-medium text-foreground'>
-                      {loadedTypeCount}
-                    </span>{' '}
-                    type{loadedTypeCount !== 1 ? 's' : ''}
+                    <span className='font-medium text-foreground'>{totalObjects}</span> object
+                    {totalObjects !== 1 ? 's' : ''} across{' '}
+                    <span className='font-medium text-foreground'>{loadedTypeCount}</span> type
+                    {loadedTypeCount !== 1 ? 's' : ''}
                     {errorCount > 0 && (
                       <span>
                         {' ('}
-                        <span className='text-danger'>
-                          {' '}
-                          {errorCount} failed
-                        </span>
+                        <span className='text-danger'> {errorCount} failed</span>
                         {')'}
                       </span>
                     )}
                   </>
                 ) : (
                   <>
-                    Searching... ({TRANSFER_TYPES.length - loadingCount}/
-                    {TRANSFER_TYPES.length} types)
+                    Searching... ({TRANSFER_TYPES.length - loadingCount}/{TRANSFER_TYPES.length}{' '}
+                    types)
                   </>
                 )}
               </div>
@@ -491,9 +441,7 @@ export function GetOwnedObjectsView({
                 >
                   <IconUserUp stroke={1.5} />
                 </Button>
-                <Tooltip.Content className='text-xs'>
-                  Transfer these to&hellip;
-                </Tooltip.Content>
+                <Tooltip.Content className='text-xs'>Transfer these to&hellip;</Tooltip.Content>
               </Tooltip>
             )}
             <Tooltip closeDelay={0} delay={400}>
@@ -510,12 +458,7 @@ export function GetOwnedObjectsView({
             </Tooltip>
             {onBackToDefault && (
               <Tooltip closeDelay={0} delay={400}>
-                <Button
-                  isIconOnly
-                  size='sm'
-                  variant='ghost'
-                  onPress={onBackToDefault}
-                >
+                <Button isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
                   <IconX stroke={1.5} />
                 </Button>
                 <Tooltip.Content className='text-xs'>Close</Tooltip.Content>
@@ -534,9 +477,7 @@ export function GetOwnedObjectsView({
         offset={5}
         orientation='vertical'
       >
-        <DisclosureGroup>
-          {TRANSFER_TYPES.map((type) => renderTypeRow(type))}
-        </DisclosureGroup>
+        <DisclosureGroup>{TRANSFER_TYPES.map((type) => renderTypeRow(type))}</DisclosureGroup>
       </ScrollShadow>
     </Card>
   );

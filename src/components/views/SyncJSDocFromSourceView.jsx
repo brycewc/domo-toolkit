@@ -3,6 +3,7 @@ import {
   Card,
   Chip,
   Disclosure,
+  DisclosureGroup,
   ScrollShadow,
   Separator,
   Spinner,
@@ -112,8 +113,7 @@ export function SyncJSDocFromSourceView({ onBackToDefault = null, onStatusUpdate
       : null;
 
   const currentVersionInfo = useMemo(
-    () =>
-      packageDef ? findCurrentVersionInfo(packageDef.versions, currentVersionId) : null,
+    () => (packageDef ? findCurrentVersionInfo(packageDef.versions, currentVersionId) : null),
     [packageDef, currentVersionId]
   );
 
@@ -297,14 +297,6 @@ export function SyncJSDocFromSourceView({ onBackToDefault = null, onStatusUpdate
   );
 }
 
-function actionRank(action) {
-  if (action === 'added') return 0;
-  if (action === 'updated') return 1;
-  if (action === 'kept') return 2;
-  if (action === 'unchanged') return 3;
-  return 4;
-}
-
 function DecisionPill({ action }) {
   if (action === 'added') {
     return (
@@ -336,20 +328,12 @@ function DecisionPill({ action }) {
 
 function DecisionRow({ decision }) {
   const hasDiff = decision.action === 'updated' && decision.diffFields?.length > 0;
-  if (!hasDiff) {
-    return (
-      <div className='flex items-center justify-between gap-2 text-xs'>
-        <span className='truncate font-mono'>{decision.name}</span>
-        <DecisionPill action={decision.action} />
-      </div>
-    );
-  }
   return (
-    <Disclosure className='w-full'>
+    <Disclosure className='w-full' id={decision.name} isDisabled={!hasDiff}>
       <Disclosure.Heading>
         <Button
           fullWidth
-          className='items-center justify-between gap-2 px-1 py-0.5 text-xs'
+          className='items-center justify-between gap-1 px-1 py-0.5 text-xs'
           slot='trigger'
           variant='ghost'
         >
@@ -357,24 +341,28 @@ function DecisionRow({ decision }) {
             <Disclosure.Indicator>
               <IconChevronDown size={12} stroke={1.5} />
             </Disclosure.Indicator>
-            <span className='truncate font-mono'>{decision.name}</span>
-            <span className='shrink-0 text-muted'>({decision.diffFields.join(', ')})</span>
+            <span className='font-mono'>{decision.name}</span>
+            {hasDiff && (
+              <span className='truncate text-muted'>({decision.diffFields.join(', ')})</span>
+            )}
           </span>
           <DecisionPill action={decision.action} />
         </Button>
       </Disclosure.Heading>
-      <Disclosure.Content>
-        <div className='flex flex-col gap-1 border-l border-border pt-1 pl-2 text-xs'>
-          {decision.diffFields.map((field) => (
-            <FieldDiff
-              derivedValue={decision.derived?.[field]}
-              existingValue={decision.existing?.[field]}
-              field={field}
-              key={field}
-            />
-          ))}
-        </div>
-      </Disclosure.Content>
+      {hasDiff && (
+        <Disclosure.Content>
+          <div className='flex flex-col gap-1 border-l border-border pt-1 pl-2 text-xs'>
+            {decision.diffFields.map((field) => (
+              <FieldDiff
+                derivedValue={decision.derived?.[field]}
+                existingValue={decision.existing?.[field]}
+                field={field}
+                key={field}
+              />
+            ))}
+          </div>
+        </Disclosure.Content>
+      )}
     </Disclosure>
   );
 }
@@ -384,9 +372,7 @@ function DiffRow({ diff }) {
   if (diff.kind === 'added') {
     return (
       <div className='flex flex-col gap-0.5'>
-        {pathStr && (
-          <span className='font-mono text-[10px] text-muted'>{pathStr} (added)</span>
-        )}
+        {pathStr && <span className='font-mono text-[10px] text-muted'>{pathStr} (added)</span>}
         <pre className='overflow-x-auto rounded bg-success-soft px-1 py-0.5 text-[11px] whitespace-pre-wrap text-success'>
           + {formatFieldValue(diff.value)}
         </pre>
@@ -396,9 +382,7 @@ function DiffRow({ diff }) {
   if (diff.kind === 'removed') {
     return (
       <div className='flex flex-col gap-0.5'>
-        {pathStr && (
-          <span className='font-mono text-[10px] text-muted'>{pathStr} (removed)</span>
-        )}
+        {pathStr && <span className='font-mono text-[10px] text-muted'>{pathStr} (removed)</span>}
         <pre className='overflow-x-auto rounded bg-danger-soft px-1 py-0.5 text-[11px] whitespace-pre-wrap text-danger'>
           − {formatFieldValue(diff.value)}
         </pre>
@@ -469,13 +453,7 @@ function JSDocRewritesSection({ rewrites }) {
   return (
     <Disclosure className='w-full'>
       <Disclosure.Heading>
-        <Button
-          fullWidth
-          className='justify-between'
-          size='sm'
-          slot='trigger'
-          variant='ghost'
-        >
+        <Button fullWidth className='justify-between' size='sm' slot='trigger' variant='ghost'>
           JSDoc updates ({rewrites.length})
           <Disclosure.Indicator>
             <IconChevronDown stroke={1.5} />
@@ -513,17 +491,10 @@ function JSDocRewritesSection({ rewrites }) {
 
 function ManifestDecisionsSection({ decisions }) {
   if (!decisions || decisions.length === 0) return null;
-  const ordered = [...decisions].sort((a, b) => actionRank(a.action) - actionRank(b.action));
   return (
     <Disclosure defaultExpanded className='w-full'>
       <Disclosure.Heading>
-        <Button
-          fullWidth
-          className='justify-between'
-          size='sm'
-          slot='trigger'
-          variant='ghost'
-        >
+        <Button fullWidth className='justify-between' size='sm' slot='trigger' variant='ghost'>
           Manifest changes ({decisions.length})
           <Disclosure.Indicator>
             <IconChevronDown stroke={1.5} />
@@ -531,11 +502,11 @@ function ManifestDecisionsSection({ decisions }) {
         </Button>
       </Disclosure.Heading>
       <Disclosure.Content>
-        <div className='flex flex-col gap-1 pt-1 pl-1'>
-          {ordered.map((d) => (
+        <DisclosureGroup className='flex flex-col gap-1 pt-1 pl-1'>
+          {decisions.map((d) => (
             <DecisionRow decision={d} key={d.name} />
           ))}
-        </div>
+        </DisclosureGroup>
       </Disclosure.Content>
     </Disclosure>
   );
@@ -574,7 +545,8 @@ function SummaryRow({
   return (
     <div className='flex flex-wrap items-center gap-1 text-xs text-muted'>
       <span>
-        +{newFunctionCount} added, {updatedFunctionCount} updated, {unchangedFunctionCount} unchanged
+        +{newFunctionCount} added, {updatedFunctionCount} updated, {unchangedFunctionCount}{' '}
+        unchanged
       </span>
       {jsdocRewriteCount > 0 && (
         <>
@@ -650,13 +622,7 @@ function WarningsSection({ warnings }) {
   return (
     <Disclosure className='w-full'>
       <Disclosure.Heading>
-        <Button
-          fullWidth
-          className='justify-between'
-          size='sm'
-          slot='trigger'
-          variant='ghost'
-        >
+        <Button fullWidth className='justify-between' size='sm' slot='trigger' variant='ghost'>
           Warnings ({warnings.length})
           <Disclosure.Indicator>
             <IconChevronDown stroke={1.5} />
@@ -672,9 +638,7 @@ function WarningsSection({ warnings }) {
             >
               <IconAlertTriangle className='mt-0.5 shrink-0' size={12} stroke={1.5} />
               <div className='flex flex-col gap-0.5'>
-                {w.functionName && (
-                  <span className='font-mono text-muted'>{w.functionName}</span>
-                )}
+                {w.functionName && <span className='font-mono text-muted'>{w.functionName}</span>}
                 <span>{w.message}</span>
               </div>
             </div>
