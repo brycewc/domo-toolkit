@@ -18,6 +18,8 @@ import {
 } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 
+import { usePerInstanceSettings } from '@/hooks';
+
 const DEFAULT_SETTINGS = {
   defaultClearCookiesHandling: 'auto',
   defaultDomoInstance: '',
@@ -27,6 +29,11 @@ const DEFAULT_SETTINGS = {
 export function Settings() {
   const [developerMode, setDeveloperMode] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const {
+    clear: clearPerInstance,
+    settings: perInstanceSettings,
+    update: updatePerInstance
+  } = usePerInstanceSettings();
 
   // Store all settings in a single state object for extensibility
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
@@ -298,6 +305,66 @@ export function Settings() {
           </Button>
         </div>
       </Form>
+
+      <Separator className='my-2' />
+      <div className='flex w-md flex-col gap-2'>
+        <Label>Per-Instance Settings</Label>
+        <Description className='w-md'>
+          Stored locally on this device, populated automatically when you use features
+          like the DomoStats Activity Log source. Manage or clear them here.
+        </Description>
+        {Object.keys(perInstanceSettings).length === 0 ? (
+          <p className='text-sm text-muted'>No instance settings stored yet.</p>
+        ) : (
+          Object.entries(perInstanceSettings)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([instance, instanceSettings]) => (
+              <div
+                className='flex flex-col gap-2 rounded-lg border border-border p-2'
+                key={instance}
+              >
+                <div className='flex items-center justify-between gap-2'>
+                  <span className='truncate font-semibold' title={`${instance}.domo.com`}>
+                    {instance}.domo.com
+                  </span>
+                  <Button
+                    size='sm'
+                    variant='ghost'
+                    onPress={() => clearPerInstance(instance)}
+                  >
+                    Clear
+                  </Button>
+                </div>
+                {instanceSettings.activityLogDatasetId && (
+                  <div className='flex flex-col gap-1 pl-1'>
+                    <span className='text-xs text-muted'>Activity Log Dataset ID</span>
+                    <code className='truncate text-xs' title={instanceSettings.activityLogDatasetId}>
+                      {instanceSettings.activityLogDatasetId}
+                    </code>
+                    <Switch
+                      isSelected={!!instanceSettings.preferActivityLogDataset}
+                      onChange={(v) =>
+                        updatePerInstance(instance, 'preferActivityLogDataset', v)
+                      }
+                    >
+                      <Switch.Control>
+                        <Switch.Thumb />
+                      </Switch.Control>
+                      <Switch.Content>
+                        <Label>Always use DomoStats Activity Log dataset</Label>
+                        <Description className='w-md'>
+                          When enabled, the Activity Log opens in DomoStats mode by default
+                          for this instance.
+                        </Description>
+                      </Switch.Content>
+                    </Switch>
+                  </div>
+                )}
+              </div>
+            ))
+        )}
+      </div>
+
       {import.meta.env.DEV && (
         <>
           <Separator className='my-2' />

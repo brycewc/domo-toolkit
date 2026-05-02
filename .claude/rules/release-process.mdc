@@ -13,7 +13,9 @@ alwaysApply: false
 
 ## Maintaining WIP release notes
 
-Because this project ships slowly with many changes per release, the user keeps `docs/RELEASE_NOTES.md` as a running WIP list during development so nothing is forgotten when it's time to compile the final notes. When the user asks you to add to the WIP notes, capture items continuously rather than only at release time.
+Because this project ships slowly with many changes per release, the user keeps `docs/RELEASE_NOTES.md` as a running WIP list during development so nothing is forgotten when it's time to compile the final notes.
+
+**Update the WIP list automatically after every change worth noting — do not wait for the user to ask.** Trigger after any user-facing change: new feature, bug fix to a previously shipped behavior, UI/UX adjustment, newly supported object type, performance improvement, etc. Skip for pure internal refactors (or jot under a "Refactoring" reminder section at the bottom), dev-only tooling, and iteration on this version's not-yet-shipped features (see "Commits are save/sync points, not atomic features" below). Mention the WIP update briefly in the end-of-turn summary so the user sees it happened.
 
 ### After a release ships
 

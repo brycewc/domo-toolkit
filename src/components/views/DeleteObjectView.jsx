@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { ObjectTypeIcon } from '@/components';
 import { useStatusBar } from '@/hooks';
-import { DataListItem, DomoContext } from '@/models';
+import { DataListItem, DomoContext, DomoObject } from '@/models';
 import {
   deleteAppAndAllContent,
   deleteDataflowAndOutputs,
@@ -319,6 +319,7 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
         </Card.Header>
 
         <DependencySection
+          baseUrl={currentContext.domoObject?.baseUrl}
           deps={deps}
           error={depsError}
           isLoading={isLoadingDeps}
@@ -421,8 +422,8 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
                     permanently?
                     {deps?.totalCount > 0 && (
                       <div className='mt-2 text-xs text-muted'>
-                        {deps.totalCount} dependenc{deps.totalCount === 1 ? 'y' : 'ies'} shown above
-                        will be affected.
+                        {deps.totalCount} dependenc{deps.totalCount === 1 ? 'y' : 'ies'} shown will
+                        be affected.
                       </div>
                     )}
                   </>
@@ -449,7 +450,7 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
   );
 }
 
-function DependencySection({ deps, error, isLoading, onRetry, onStatusUpdate }) {
+function DependencySection({ baseUrl, deps, error, isLoading, onRetry, onStatusUpdate }) {
   if (isLoading) {
     return (
       <div className='flex shrink-0 items-center justify-center gap-2 py-3'>
@@ -505,6 +506,7 @@ function DependencySection({ deps, error, isLoading, onRetry, onStatusUpdate }) 
     groups.map((group, idx) => {
       const children = group.items.map((item) => {
         const dli = new DataListItem({
+          domoObject: baseUrl ? new DomoObject(item.typeId, item.id, baseUrl) : null,
           id: item.id,
           label: item.label,
           typeId: item.typeId,
@@ -518,7 +520,6 @@ function DependencySection({ deps, error, isLoading, onRetry, onStatusUpdate }) 
         id: `${idPrefix}-${idx}`,
         label: group.label
       });
-      if (group.unshareable) groupItem.unshareable = true;
       return groupItem;
     });
 
@@ -533,6 +534,7 @@ function DependencySection({ deps, error, isLoading, onRetry, onStatusUpdate }) 
             Will be deleted
           </p>
           <DataList
+            itemActions={['copy', 'lineage', 'viewsExplorer']}
             itemLabel='dependency'
             items={buildItems(deletedGroups, 'deleted-group')}
             showActions={true}
@@ -548,6 +550,7 @@ function DependencySection({ deps, error, isLoading, onRetry, onStatusUpdate }) 
             Other dependencies
           </p>
           <DataList
+            itemActions={['copy', 'lineage', 'viewsExplorer']}
             itemLabel='dependency'
             items={buildItems(otherGroups, 'other-group')}
             showActions={true}

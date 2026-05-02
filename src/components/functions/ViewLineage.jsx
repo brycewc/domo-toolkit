@@ -22,9 +22,10 @@ export function ViewLineage({ currentContext, onStatusUpdate }) {
 
       onStatusUpdate?.('Opening Lineage', 'Loading pipeline lineage visualization...', 'success');
 
-      // Open in the same window (preserves incognito context)
+      // Open in the same window (preserves incognito context), right after the launching tab
       const tab = await chrome.tabs.get(currentContext.tabId);
       chrome.tabs.create({
+        index: tab.index + 1,
         url: chrome.runtime.getURL('src/options/index.html#lineage'),
         windowId: tab.windowId
       });

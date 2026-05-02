@@ -39,11 +39,12 @@
 
 - Lists the object's dependencies (child pages, output datasets, downstream cards) before confirming the delete — collapsible groups so even objects with many dependents stay scannable
 - Dependencies are grouped into a "Will be deleted" section (items the primary delete also removes) and an "Other dependencies" section (items affected but not deleted) so the relationship is clear without per-item parentheticals
-- App pages and worksheet pages now list their cards (deleted with the page) and their sibling pages (deleted only via the cascade button) so the user can see the full impact of either path
+- All page types (regular pages, app pages, worksheet pages) list the cards that will be deleted with them; app and worksheet pages also list their sibling pages (deleted only via the cascade button) so the user can see the full impact of either path
 - Pages with child pages are now hard-blocked from deletion (with the reason shown inline) instead of just warning after the fact
 - Items in dependency lists are sorted alphabetically
 - Status alerts (loading, error, no-deps, dependency-check-not-available) use proper Alert components for consistent styling
-- Output datasets of a dataflow no longer show non-functional Share / Share-All buttons (those datasets have no account to share)
+- Output datasets of a dataflow no longer show non-functional Share / Share-All buttons (those datasets have no account to share); group headers in the dependency list (e.g., "Output datasets", "Cards on this page", "Cards using these output datasets") also no longer show a non-functional Share-All since cards aren't shareable in the toolkit's share-with-self sense
+- Output dataset rows in the dependency list now expose Lineage and Open in Views Explorer actions alongside Copy ID, so users can investigate before confirming the delete
 - Interface moved from a modal to a view, consistent with Update Object Details
 - Worksheet pages are now deletable (previously the primary delete button was disabled for them)
 - The "Delete app and all cards" cascade option for app pages is now a visible button inside the view (previously hidden behind a long-press on the trigger)
@@ -55,6 +56,16 @@
 - Tab label uses a `(...)` placeholder during fetch and updates to `(N)` once the count is known
 - Renamed `relatedObjects` → `relatedData` on DomoObjectType to reflect that entries can now be plain data (e.g., dataset columns) without a navigable type/id
 - General infrastructure supports lazy-loaded arrays as related data (any future tab can opt in by adding a `fetcher` key on its `relatedData` entry); items without `itemTypeId`/`itemIdField` render as plain JSON without URL injection
+
+### Activity Log: DomoStats Dataset Source
+
+- Activity Log can now pull records from a DomoStats "Activity Log" dataset, giving access beyond the audit API's ~1-year retention window
+- Retention warning banner at the top of the Activity Log page communicates the API's retention limit and offers the DomoStats option inline
+- "Use DomoStats" button auto-discovers the right dataset (queries all `dataProviderType=domostats` datasets, then bulk-checks stream configs for `report=audit`); the dataset ID is cached locally per instance so subsequent uses skip discovery
+- Per-instance "Always use DomoStats Activity Log dataset" toggle in the source chip and the Settings page — when enabled, Activity Log opens in DomoStats mode by default for that instance
+- Stale dataset ID (deleted or no longer accessible) shows a soft error with a one-click "Re-run discovery" recovery action
+- New "Per-Instance Settings" section on the Settings page to view, manage, and clear stored per-Domo-instance values (currently just Activity Log dataset configuration)
+- Multi-tab consistency: toggling the preference in any open Activity Log tab or on the Settings page updates everywhere via `chrome.storage.onChanged`
 
 ## Newly Supported Object Types
 
@@ -83,6 +94,7 @@
 - Update Code Engine Versions: built-in Domo packages restricted to upgrade-to-latest only (no downgrades or intermediate versions); built-ins are labeled with a "Built-in" chip
 - DataList components sort items alphabetically by default (no longer rely on source order)
 - DataFlow icon swapped to `IconArrowFork` (rotated to a "merge into one" shape) — the previous icon was near-symmetric and looked the same with or without rotation
+- Tabs opened from the popup or side panel (Activity Log, Lineage, Settings, Release Notes "View Details") now open immediately to the right of the launching tab instead of at the end of the tab strip
 
 ## Bug Fixes and Improvements
 
@@ -110,3 +122,5 @@
 - Various internal refactors for extensibility and code quality (not user-facing)
 - Removed `allObjects.js`; dispatch functions moved to per-domain files (e.g., `share.js`) and domain logic extracted into service files
 - `DomoObjectType` now uses an objects-object argument for cleaner configuration
+- `DataList` shareability replaced with an allow-list (`SHAREABLE_TYPES`) plus a recursive `hasShareableChildren` check; group-level `unshareable: true` opt-outs in `dependencies.js` removed since the recursive rule subsumes them
+- New `usePerInstanceSettings` hook for per-Domo-instance settings stored in `chrome.storage.local` — generic shape, reusable beyond Activity Log; subscribes to `chrome.storage.onChanged` so consumers stay in sync without re-reading

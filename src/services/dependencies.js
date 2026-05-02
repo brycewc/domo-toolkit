@@ -97,8 +97,7 @@ const FETCHERS = {
           unshareable: true,
           url: `${origin}/datasources/${o.dataSourceId}/details/overview`
         })),
-        label: 'Output datasets',
-        unshareable: true
+        label: 'Output datasets'
       },
       {
         blocking: false,
@@ -115,14 +114,35 @@ const FETCHERS = {
   },
 
   PAGE: async ({ id, instance }, tabId) => {
+    const origin = `https://${instance}.domo.com`;
+    const groups = [];
+
+    const cards = await getCardsForObject({
+      objectId: id,
+      objectType: 'PAGE',
+      tabId
+    });
+    if (cards.length > 0) {
+      groups.push({
+        blocking: false,
+        deleted: true,
+        items: cards.map((c) => ({
+          id: c.id,
+          label: c.title || `Card ${c.id}`,
+          typeId: 'CARD',
+          url: `${origin}/kpis/details/${c.id}`
+        })),
+        label: 'Cards on this page'
+      });
+    }
+
     const childPages = await getChildPages({
       pageId: parseInt(id),
       pageType: 'PAGE',
       tabId
     });
-    const origin = `https://${instance}.domo.com`;
-    return [
-      {
+    if (childPages.length > 0) {
+      groups.push({
         blocking: true,
         blockingReason: `This page has ${childPages.length} child page${childPages.length !== 1 ? 's' : ''}. Reassign or delete the child pages first.`,
         deleted: false,
@@ -133,8 +153,10 @@ const FETCHERS = {
           url: `${origin}/page/${p.pageId}`
         })),
         label: 'Child pages'
-      }
-    ];
+      });
+    }
+
+    return groups;
   },
   WORKSHEET_VIEW: fetchAppPageDependencies
 };

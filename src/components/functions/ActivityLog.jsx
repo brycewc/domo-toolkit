@@ -182,9 +182,10 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
 
       onStatusUpdate?.('Opening Activity Log', message, 'success');
 
-      // Open the options page in the same window (preserves incognito context)
+      // Open the options page in the same window (preserves incognito context), right after the launching tab
       const tab = await chrome.tabs.get(currentContext.tabId);
       chrome.tabs.create({
+        index: tab.index + 1,
         url: chrome.runtime.getURL('src/options/index.html#activity-log'),
         windowId: tab.windowId
       });

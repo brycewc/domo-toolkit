@@ -21,7 +21,12 @@ export function showReleaseToast() {
       children: 'View Details',
       onPress: async () => {
         const currentWindow = await chrome.windows.getCurrent();
+        const [activeTab] = await chrome.tabs.query({
+          active: true,
+          windowId: currentWindow.id
+        });
         chrome.tabs.create({
+          index: activeTab ? activeTab.index + 1 : undefined,
           url: chrome.runtime.getURL('src/options/index.html#release-notes'),
           windowId: currentWindow.id
         });

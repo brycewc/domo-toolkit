@@ -122,7 +122,12 @@ export function ActionButtons({
                           url: `${optionsUrl}#settings`
                         });
                       } else {
+                        const [activeTab] = await chrome.tabs.query({
+                          active: true,
+                          windowId: currentWindow.id
+                        });
                         chrome.tabs.create({
+                          index: activeTab ? activeTab.index + 1 : undefined,
                           url: `${optionsUrl}#settings`,
                           windowId: currentWindow.id
                         });

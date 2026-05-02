@@ -168,6 +168,7 @@ export function DataList({
             });
             const tab = await chrome.tabs.get(tabId);
             chrome.tabs.create({
+              index: tab.index + 1,
               url: chrome.runtime.getURL('src/options/index.html#lineage'),
               windowId: tab.windowId
             });
@@ -402,6 +403,21 @@ function collectAllUrls(itemList, filter = null) {
 }
 
 /**
+ * Allow-list of typeIds that the toolkit's "share with self" flow can target
+ * directly. `share.js` also accepts DATA_APP_VIEW / WORKSHEET_VIEW / CARD, but
+ * only as workarounds for current-object detection or for `domoapp` cards
+ * specifically — neither concern applies inside a DataList, so we surface
+ * share/shareAll only for the canonical shareable forms.
+ */
+const SHAREABLE_TYPES = new Set([
+  'APP',
+  'DATA_APP',
+  'DATA_SOURCE',
+  'PAGE',
+  'WORKSHEET'
+]);
+
+/**
  * DataListItem Component
  * Individual item in the DataList, supports nested children
  *
@@ -576,22 +592,12 @@ function DataListItem({
 
   // Compute which actions apply to this item
   const getApplicableActions = () => {
-    const isUnshareable =
-      item.typeId === 'DATA_APP_VIEW' ||
-      item.typeId === 'REPORT_BUILDER_VIEW' ||
-      item.typeId === 'CARD' ||
-      Number(item.id) < 0 ||
-      item.unshareable === true;
-
-    // items that shouldn't have shareAll button
-    const isUnshareableParent = item.typeId === 'DATA_APP';
-
     if (item.isVirtualParent) {
       if (!hasChildren) return [];
       const actions = [];
       if (item.id !== 'REPORT_BUILDER_group') {
         actions.push(openAllButton);
-        if (!isUnshareable) actions.push(shareAllButton);
+        if (hasShareableChildren(item)) actions.push(shareAllButton);
       }
       return actions;
     }
@@ -599,15 +605,9 @@ function DataListItem({
     if (itemActions) {
       const actions = [];
       if (itemActions.includes('openAll') && hasChildren) actions.push(openAllButton);
-      if (
-        itemActions.includes('shareAll') &&
-        hasChildren &&
-        !isUnshareable &&
-        !isUnshareableParent &&
-        item.countLabel !== 'cards'
-      )
+      if (itemActions.includes('shareAll') && hasShareableChildren(item))
         actions.push(shareAllButton);
-      if (itemActions.includes('share') && !isUnshareable) actions.push(shareButton);
+      if (itemActions.includes('share') && isItemShareable(item)) actions.push(shareButton);
       if (
         itemActions.includes('lineage') &&
         (item.typeId === 'DATA_SOURCE' || item.typeId === 'DATAFLOW_TYPE')
@@ -624,6 +624,8 @@ function DataListItem({
     const actions = [];
     if (hasChildren && item.typeId !== 'DATA_APP') {
       actions.push(openAllButton);
+    }
+    if (hasShareableChildren(item)) {
       actions.push(shareAllButton);
     }
 
@@ -635,7 +637,7 @@ function DataListItem({
       actions.push(removeButton);
     }
 
-    if (!isUnshareable) actions.push(shareButton);
+    if (isItemShareable(item)) actions.push(shareButton);
     actions.push(copyButton);
     return actions;
   };
@@ -753,6 +755,20 @@ function DataListItem({
       </Disclosure.Content>
     </Disclosure>
   );
+}
+
+function hasShareableChildren(item) {
+  if (!item?.children?.length) return false;
+  return item.children.some(
+    (c) => isItemShareable(c) || hasShareableChildren(c)
+  );
+}
+
+function isItemShareable(item) {
+  if (!item) return false;
+  if (item.unshareable === true) return false;
+  if (Number(item.id) < 0) return false;
+  return SHAREABLE_TYPES.has(item.typeId);
 }
 
 /**

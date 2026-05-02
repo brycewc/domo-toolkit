@@ -12,7 +12,8 @@ import {
   Dropdown,
   Label,
   RangeCalendar,
-  Skeleton
+  Skeleton,
+  Switch
 } from '@heroui/react';
 import { getLocalTimeZone, parseDate, today } from '@internationalized/date';
 import { IconAlertCircle, IconCalendarWeek, IconFilter } from '@tabler/icons-react';
@@ -20,7 +21,7 @@ import { AnimatePresence } from 'motion/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { AnimatedCheck } from '@/components/AnimatedCheck';
-import { useResolveTabId } from '@/hooks';
+import { usePerInstanceSettings, useResolveTabId } from '@/hooks';
 import { DomoObject } from '@/models';
 import { getCustomAvatarUserIds } from '@/services';
 import { ACTION_COLOR_PATTERNS, getInitials } from '@/utils';
@@ -28,6 +29,8 @@ import { ACTION_COLOR_PATTERNS, getInitials } from '@/utils';
 import { DataTable } from './components/DataTable';
 import { UserFilterAutocomplete } from './components/UserFilterAutocomplete';
 import { getActivityLogForObject, getEventTypesForObjectType } from './services/activityLog';
+import { getActivityLogFromDataset } from './services/activityLogDataset';
+import { findActivityLogDataset } from './services/findActivityLogDataset';
 
 /**
  * ActivityLogTable Component
@@ -45,6 +48,7 @@ export function ActivityLogTable() {
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [error, setError] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [source, setSource] = useState('api');
   const [dateRange, setDateRange] = useState(null);
   const [userFilter, setUserFilter] = useState([]);
   const [actionFilter, setActionFilter] = useState(new Set());
@@ -52,6 +56,21 @@ export function ActivityLogTable() {
   const [objectTypeFilter, setObjectTypeFilter] = useState(new Set());
   // Track pagination state per object: { "type:id": { offset, total, hasMore } }
   const [objectStates, setObjectStates] = useState({});
+  // Dataset-source pagination — single global offset/total since the dataset query
+  // is one call regardless of how many objects/actions/users are filtered
+  const [datasetState, setDatasetState] = useState({ hasMore: false, offset: 0, total: 0 });
+  const [isDiscovering, setIsDiscovering] = useState(false);
+  const [discoveryError, setDiscoveryError] = useState(null);
+  // Soft error specific to the dataset path — surfaced in the header banner
+  // (with Re-run discovery / Switch to API actions) rather than the global
+  // `error` state which short-circuits the whole view.
+  const [datasetFetchError, setDatasetFetchError] = useState(null);
+  const {
+    isLoading: perInstanceLoading,
+    settings: perInstanceSettings,
+    update: updatePerInstance
+  } = usePerInstanceSettings();
+  const initialSourceCheckRef = useRef(false);
 
   const dateRangeEpoch = useMemo(() => {
     if (!dateRange) return {};
@@ -63,9 +82,12 @@ export function ActivityLogTable() {
   }, [dateRange]);
 
   const hasLoadedRef = useRef(false);
+  const prevSourceRef = useRef(source);
   const isFetchingMoreRef = useRef(false);
   const objectStatesRef = useRef(objectStates);
   objectStatesRef.current = objectStates;
+  const datasetStateRef = useRef(datasetState);
+  datasetStateRef.current = datasetState;
   const dateRangeEpochRef = useRef(dateRangeEpoch);
   dateRangeEpochRef.current = dateRangeEpoch;
   // Stable string key for userFilter array to avoid unnecessary effect re-runs
@@ -79,6 +101,21 @@ export function ActivityLogTable() {
   const checkedAvatarIdsRef = useRef(new Set());
 
   const pageSize = 100; // Fetch in chunks per object
+
+  // Pre-select the dataset source on first mount when this instance has the
+  // "Always use DomoStats Activity Log dataset" preference set. Runs once,
+  // gated by both the per-instance settings finishing their initial load and
+  // domoInstance being known.
+  useEffect(() => {
+    if (initialSourceCheckRef.current) return;
+    if (perInstanceLoading) return;
+    if (!domoInstance) return;
+    initialSourceCheckRef.current = true;
+    const instanceSettings = perInstanceSettings[domoInstance];
+    if (instanceSettings?.preferActivityLogDataset && instanceSettings?.activityLogDatasetId) {
+      setSource('dataset');
+    }
+  }, [perInstanceLoading, perInstanceSettings, domoInstance]);
 
   // Load objects from storage on mount
   useEffect(() => {
@@ -293,6 +330,16 @@ export function ActivityLogTable() {
         return;
       }
 
+      // Source swaps (api ↔ dataset) should show the full initial-load skeleton —
+      // the data shape is identical but the source is fundamentally different,
+      // and lingering rows from the prior source are confusing during the swap.
+      const sourceChanged = prevSourceRef.current !== source;
+      prevSourceRef.current = source;
+      if (sourceChanged) {
+        hasLoadedRef.current = false;
+        setEvents([]);
+      }
+
       if (hasLoadedRef.current) {
         setIsSearching(true);
       } else {
@@ -301,72 +348,105 @@ export function ActivityLogTable() {
       }
 
       setError(null);
+      setDatasetFetchError(null);
 
       try {
         const resolvedTabId = await resolveTabId();
         if (!resolvedTabId) return;
 
-        const tasks = buildFetchTasks(objects, userFilterRef.current, actionFilterRef.current);
+        if (source === 'dataset') {
+          const datasetId = await resolveDatasetId(domoInstance);
+          const result = await getActivityLogFromDataset({
+            datasetId,
+            filters: buildDatasetFilters({
+              actionFilter: actionFilterRef.current,
+              dateRangeEpoch,
+              objects,
+              userFilter: userFilterRef.current
+            }),
+            limit: pageSize,
+            offset: 0,
+            tabId: resolvedTabId
+          });
+          const events = result?.events ?? [];
+          const total = result?.total ?? 0;
+          setDatasetState({
+            hasMore: events.length < total,
+            offset: events.length,
+            total
+          });
+          // Clear API per-task state so derived totals/hasMore aren't polluted
+          setObjectStates({});
+          setEvents(events);
+        } else {
+          const tasks = buildFetchTasks(objects, userFilterRef.current, actionFilterRef.current);
 
-        const fetchThunks = tasks.map(
-          (task) => () =>
-            getActivityLogForObject({
-              end: dateRangeEpoch.end,
-              eventType: task.eventType,
-              limit: pageSize,
-              objectId: task.objectId,
-              objectType: task.objectType,
-              offset: 0,
-              start: dateRangeEpoch.start,
-              tabId: resolvedTabId,
-              user: task.user
-            })
-              .then((result) => ({
-                events: result?.events ?? [],
+          const fetchThunks = tasks.map(
+            (task) => () =>
+              getActivityLogForObject({
+                end: dateRangeEpoch.end,
                 eventType: task.eventType,
-                key: task.key,
+                limit: pageSize,
                 objectId: task.objectId,
                 objectType: task.objectType,
-                total: result?.total ?? 0,
+                offset: 0,
+                start: dateRangeEpoch.start,
+                tabId: resolvedTabId,
                 user: task.user
-              }))
-              .catch((err) => {
-                console.error(`Error fetching for ${task.key}:`, err);
-                return {
-                  events: [],
+              })
+                .then((result) => ({
+                  events: result?.events ?? [],
                   eventType: task.eventType,
                   key: task.key,
                   objectId: task.objectId,
                   objectType: task.objectType,
-                  total: 0,
+                  total: result?.total ?? 0,
                   user: task.user
-                };
-              })
-        );
+                }))
+                .catch((err) => {
+                  console.error(`Error fetching for ${task.key}:`, err);
+                  return {
+                    events: [],
+                    eventType: task.eventType,
+                    key: task.key,
+                    objectId: task.objectId,
+                    objectType: task.objectType,
+                    total: 0,
+                    user: task.user
+                  };
+                })
+          );
 
-        const results = await promisePool(fetchThunks);
+          const results = await promisePool(fetchThunks);
 
-        const newStates = {};
-        results.forEach(({ events, eventType, key, objectId, objectType, total, user }) => {
-          newStates[key] = {
-            eventType,
-            hasMore: events.length < total,
-            objectId,
-            objectType,
-            offset: events.length,
-            total,
-            user
-          };
-        });
-        setObjectStates(newStates);
+          const newStates = {};
+          results.forEach(({ events, eventType, key, objectId, objectType, total, user }) => {
+            newStates[key] = {
+              eventType,
+              hasMore: events.length < total,
+              objectId,
+              objectType,
+              offset: events.length,
+              total,
+              user
+            };
+          });
+          setObjectStates(newStates);
+          // Clear dataset state so derived totals/hasMore aren't polluted
+          setDatasetState({ hasMore: false, offset: 0, total: 0 });
 
-        const allEvents = deduplicateEvents(results.flatMap((r) => r.events));
-        allEvents.sort((a, b) => new Date(b.time) - new Date(a.time));
+          const allEvents = deduplicateEvents(results.flatMap((r) => r.events));
+          allEvents.sort((a, b) => new Date(b.time) - new Date(a.time));
 
-        setEvents(allEvents);
+          setEvents(allEvents);
+        }
       } catch (err) {
         console.error('Error fetching activity log:', err);
-        setError(err.message || 'Failed to fetch activity log');
+        if (source === 'dataset') {
+          setDatasetFetchError(err.message || 'Failed to fetch from DomoStats dataset');
+        } else {
+          setError(err.message || 'Failed to fetch activity log');
+        }
       } finally {
         hasLoadedRef.current = true;
         setIsInitialLoad(false);
@@ -375,21 +455,69 @@ export function ActivityLogTable() {
     };
 
     fetchEvents();
-  }, [objects, tabId, refreshKey, userFilterKey, dateRangeEpoch]);
+  }, [objects, tabId, refreshKey, userFilterKey, dateRangeEpoch, source, domoInstance]);
 
-  const total = useMemo(
-    () => Object.values(objectStates).reduce((sum, state) => sum + state.total, 0),
-    [objectStates]
-  );
+  const total = useMemo(() => {
+    if (source === 'dataset') return datasetState.total;
+    return Object.values(objectStates).reduce((sum, state) => sum + state.total, 0);
+  }, [source, datasetState.total, objectStates]);
 
   // Check if any objects still have more events to fetch
   const hasMore = useMemo(() => {
+    if (source === 'dataset') return datasetState.hasMore;
     return Object.values(objectStates).some((state) => state.hasMore);
-  }, [objectStates]);
+  }, [source, datasetState.hasMore, objectStates]);
 
-  // Fetch more events when scrolling — reads task info from objectStates
+  // Fetch more events when scrolling — reads task info from objectStates (API
+  // source) or from datasetState (DomoStats source).
   const fetchMoreEvents = useCallback(async () => {
     if (isFetchingMoreRef.current || isInitialLoad || isSearching) {
+      return;
+    }
+
+    if (source === 'dataset') {
+      const currentDatasetState = datasetStateRef.current;
+      if (!currentDatasetState.hasMore) return;
+
+      isFetchingMoreRef.current = true;
+      setIsFetchingMore(true);
+
+      try {
+        const resolvedTabId = await resolveTabId();
+        const datasetId = await resolveDatasetId(domoInstance);
+        const result = await getActivityLogFromDataset({
+          datasetId,
+          filters: buildDatasetFilters({
+            actionFilter: actionFilterRef.current,
+            dateRangeEpoch: dateRangeEpochRef.current,
+            objects,
+            userFilter: userFilterRef.current
+          }),
+          limit: pageSize,
+          offset: currentDatasetState.offset,
+          tabId: resolvedTabId
+        });
+        const newEvents = result?.events ?? [];
+        const total = result?.total ?? currentDatasetState.total;
+        setDatasetState((prev) => {
+          const newOffset = prev.offset + newEvents.length;
+          return {
+            hasMore: newOffset < total,
+            offset: newOffset,
+            total
+          };
+        });
+        setEvents((prev) => {
+          const allEvents = deduplicateEvents([...prev, ...newEvents]);
+          allEvents.sort((a, b) => new Date(b.time) - new Date(a.time));
+          return allEvents;
+        });
+      } catch (err) {
+        console.error('Error fetching more events from dataset:', err);
+      } finally {
+        isFetchingMoreRef.current = false;
+        setIsFetchingMore(false);
+      }
       return;
     }
 
@@ -462,12 +590,66 @@ export function ActivityLogTable() {
       isFetchingMoreRef.current = false;
       setIsFetchingMore(false);
     }
-  }, [resolveTabId, isInitialLoad, isSearching]);
+  }, [resolveTabId, isInitialLoad, isSearching, source, domoInstance, objects]);
 
   // Handle refresh
   const handleRefresh = useCallback(() => {
     setRefreshKey((prev) => prev + 1);
   }, []);
+
+  // "Use DomoStats" handler — runs discovery if no cached dataset ID exists
+  // (or if `forceDiscovery: true` is passed to bypass the cache, used by the
+  // stale-ID recovery action), persists the discovered ID, then flips source
+  // to 'dataset' (or just refreshes if already there).
+  const handleUseDomoStats = useCallback(
+    async ({ forceDiscovery = false } = {}) => {
+      setDiscoveryError(null);
+      setDatasetFetchError(null);
+
+      if (!forceDiscovery) {
+        // Hot path: cached ID already exists, just flip
+        try {
+          const stored = await chrome.storage.local.get(['perInstance']);
+          if (stored?.perInstance?.[domoInstance]?.activityLogDatasetId) {
+            setSource('dataset');
+            return;
+          }
+        } catch {
+          // fall through to discovery
+        }
+      }
+
+      setIsDiscovering(true);
+      try {
+        const resolvedTabId = await resolveTabId();
+        if (!resolvedTabId) {
+          throw new Error('Could not resolve a Domo tab to run discovery against');
+        }
+        const datasetId = await findActivityLogDataset({ tabId: resolvedTabId });
+        if (!datasetId) {
+          setDiscoveryError(
+            'No DomoStats Activity Log dataset found in this instance. ' +
+              'Add the Activity Log report from the DomoStats connector to use this option.'
+          );
+          return;
+        }
+        await updatePerInstance(domoInstance, 'activityLogDatasetId', datasetId);
+        if (forceDiscovery) {
+          // Already in dataset mode — trigger a re-fetch via refreshKey instead
+          // of a redundant setSource('dataset')
+          setRefreshKey((prev) => prev + 1);
+        } else {
+          setSource('dataset');
+        }
+      } catch (err) {
+        console.error('Error discovering DomoStats Activity Log dataset:', err);
+        setDiscoveryError(err.message || 'Failed to discover DomoStats Activity Log dataset');
+      } finally {
+        setIsDiscovering(false);
+      }
+    },
+    [domoInstance, resolveTabId, updatePerInstance]
+  );
 
   // Handle action filter changes — updates dropdown state and triggers re-fetch via ref
   const handleActionFilterChange = useCallback((newFilter) => {
@@ -712,60 +894,153 @@ export function ActivityLogTable() {
   // Memoize header content
   const header = useMemo(
     () => (
-      <div className='flex flex-wrap items-center justify-between'>
-        <span
-          className='flex items-center justify-center gap-1 font-semibold'
-          style={{ fontSize: '18px' }}
-        >
-          Activity Log for{' '}
-          {activityLogType === 'single-object' ? (
-            <>
-              <span>{objects[0]?.type}</span>
-              <span className='text-accent'>{objects[0]?.name} </span>
-              <span> (ID: {objects[0].id})</span>
-            </>
-          ) : (
-            ` ${objects.length} ${
-              activityLogType === 'child-cards'
-                ? objects.length === 1
-                  ? 'card'
-                  : 'cards'
-                : activityLogType === 'child-pages'
-                  ? objects.length === 1
-                    ? 'page'
-                    : 'pages'
-                  : objects.length === 1
-                    ? 'object'
-                    : 'objects'
-            }`
-          )}
-        </span>
-        {total > 0 && (
-          <p className='text-base text-muted'>
-            {filteredEvents.length !== events.length ? (
+      <div className='flex flex-col gap-2'>
+        {source === 'api' && (
+          <Alert color='warning'>
+            <Alert.Indicator>
+              <IconAlertCircle data-slot='alert-default-icon' />
+            </Alert.Indicator>
+            <Alert.Content>
+              <Alert.Title>Activity Log API only retains the past year</Alert.Title>
+              <Alert.Description>
+                For older history, switch to the DomoStats Activity Log dataset (preserves
+                history from the day you connected it in Domo).
+              </Alert.Description>
+              {discoveryError && (
+                <Alert.Description className='mt-1 text-danger'>
+                  {discoveryError}
+                </Alert.Description>
+              )}
+              <Button
+                className='mt-2'
+                isDisabled={isDiscovering}
+                isPending={isDiscovering}
+                size='sm'
+                variant='secondary'
+                onPress={handleUseDomoStats}
+              >
+                {isDiscovering ? 'Searching for dataset…' : 'Use DomoStats'}
+              </Button>
+            </Alert.Content>
+          </Alert>
+        )}
+        {source === 'dataset' && !datasetFetchError && (
+          <div className='flex flex-wrap items-center gap-3'>
+            <Chip color='success' size='sm' variant='soft'>
+              Source: DomoStats dataset
+            </Chip>
+            <Switch
+              isSelected={!!perInstanceSettings[domoInstance]?.preferActivityLogDataset}
+              size='sm'
+              onChange={(v) =>
+                domoInstance &&
+                updatePerInstance(domoInstance, 'preferActivityLogDataset', v)
+              }
+            >
+              <Switch.Control>
+                <Switch.Thumb />
+              </Switch.Control>
+              <Switch.Content>
+                <Label className='text-xs'>Always for this instance</Label>
+              </Switch.Content>
+            </Switch>
+            <Button size='sm' variant='ghost' onPress={() => setSource('api')}>
+              Switch to API
+            </Button>
+          </div>
+        )}
+        {source === 'dataset' && datasetFetchError && (
+          <Alert color='danger'>
+            <Alert.Indicator>
+              <IconAlertCircle data-slot='alert-default-icon' />
+            </Alert.Indicator>
+            <Alert.Content>
+              <Alert.Title>Couldn&apos;t load from the DomoStats dataset</Alert.Title>
+              <Alert.Description>{datasetFetchError}</Alert.Description>
+              <Alert.Description className='mt-1 text-xs'>
+                The cached dataset may have been deleted or you may have lost access.
+                Re-run discovery to find a fresh one, or switch back to the API source.
+              </Alert.Description>
+              <div className='mt-2 flex flex-wrap gap-2'>
+                <Button
+                  isDisabled={isDiscovering}
+                  isPending={isDiscovering}
+                  size='sm'
+                  variant='secondary'
+                  onPress={() => handleUseDomoStats({ forceDiscovery: true })}
+                >
+                  {isDiscovering ? 'Re-running discovery…' : 'Re-run discovery'}
+                </Button>
+                <Button size='sm' variant='ghost' onPress={() => setSource('api')}>
+                  Switch to API
+                </Button>
+              </div>
+            </Alert.Content>
+          </Alert>
+        )}
+        <div className='flex flex-wrap items-center justify-between'>
+          <span
+            className='flex items-center justify-center gap-1 font-semibold'
+            style={{ fontSize: '18px' }}
+          >
+            Activity Log for{' '}
+            {activityLogType === 'single-object' ? (
               <>
-                Showing {filteredEvents.length.toLocaleString()} filtered of{' '}
-                {events.length.toLocaleString()} fetched ({total.toLocaleString()} total)
+                <span>{objects[0]?.type}</span>
+                <span className='text-accent'>{objects[0]?.name} </span>
+                <span> (ID: {objects[0].id})</span>
               </>
             ) : (
-              <>
-                Showing {events.length.toLocaleString()} of {total.toLocaleString()} events
-              </>
+              ` ${objects.length} ${
+                activityLogType === 'child-cards'
+                  ? objects.length === 1
+                    ? 'card'
+                    : 'cards'
+                  : activityLogType === 'child-pages'
+                    ? objects.length === 1
+                      ? 'page'
+                      : 'pages'
+                    : objects.length === 1
+                      ? 'object'
+                      : 'objects'
+              }`
             )}
-            {isFetchingMore && ' (loading more...)'}
-            {isSearching && ' (searching...)'}
-          </p>
-        )}
+          </span>
+          {total > 0 && (
+            <p className='text-base text-muted'>
+              {filteredEvents.length !== events.length ? (
+                <>
+                  Showing {filteredEvents.length.toLocaleString()} filtered of{' '}
+                  {events.length.toLocaleString()} fetched ({total.toLocaleString()} total)
+                </>
+              ) : (
+                <>
+                  Showing {events.length.toLocaleString()} of {total.toLocaleString()} events
+                </>
+              )}
+              {isFetchingMore && ' (loading more...)'}
+              {isSearching && ' (searching...)'}
+            </p>
+          )}
+        </div>
       </div>
     ),
     [
       activityLogType,
+      datasetFetchError,
+      discoveryError,
+      domoInstance,
       events.length,
       filteredEvents.length,
+      handleUseDomoStats,
+      isDiscovering,
       isFetchingMore,
       isSearching,
       objects,
-      total
+      perInstanceSettings,
+      source,
+      total,
+      updatePerInstance
     ]
   );
 
@@ -844,6 +1119,23 @@ export function ActivityLogTable() {
       }
     />
   );
+}
+
+/**
+ * Pack the table's current filter state into the shape `getActivityLogFromDataset`
+ * expects. Multi-object/multi-action/multi-user filters become `IN(...)` clauses
+ * in the dataset query (no fan-out, unlike the audit-API path).
+ */
+function buildDatasetFilters({ actionFilter, dateRangeEpoch, objects, userFilter }) {
+  const objectIds = objects.map((o) => String(o.id));
+  const objectTypes = [...new Set(objects.map((o) => o.type))];
+  const actions = actionFilter && actionFilter.size > 0 ? [...actionFilter] : [];
+  const userIds = Array.isArray(userFilter) ? userFilter : [];
+  const dateRange =
+    dateRangeEpoch?.start && dateRangeEpoch?.end
+      ? { end: dateRangeEpoch.end, start: dateRangeEpoch.start }
+      : null;
+  return { actions, dateRange, objectIds, objectTypes, userIds };
 }
 
 /**
@@ -1113,4 +1405,27 @@ async function promisePool(taskFns, concurrency = 6) {
   }
   await Promise.all(Array.from({ length: Math.min(concurrency, taskFns.length) }, runNext));
   return results;
+}
+
+/**
+ * Resolve the DomoStats Activity Log dataset ID for a given Domo instance from
+ * `chrome.storage.local.perInstance[<instance>].activityLogDatasetId`.
+ *
+ * Phase 3 (discovery) writes this key automatically; Phase 4 will surface it in
+ * Settings. Until then, the user can populate it via DevTools to test the
+ * dataset path against a real DomoStats Activity Log dataset.
+ */
+async function resolveDatasetId(domoInstance) {
+  if (!domoInstance) {
+    throw new Error('Cannot resolve DomoStats dataset: Domo instance is unknown');
+  }
+  const result = await chrome.storage.local.get(['perInstance']);
+  const datasetId = result.perInstance?.[domoInstance]?.activityLogDatasetId;
+  if (!datasetId) {
+    throw new Error(
+      `No DomoStats Activity Log dataset configured for "${domoInstance}". ` +
+        'Switch to API and click "Use DomoStats" to run discovery again.'
+    );
+  }
+  return datasetId;
 }
