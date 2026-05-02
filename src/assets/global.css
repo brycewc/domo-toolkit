@@ -145,4 +145,23 @@
   [role='presentation']:has(> [data-slot='table-header']) {
     z-index: 10 !important;
   }
+
+  /* HeroUI 3.0.3 + Virtualizer + Table.LoadMore breakage:
+     The primary variant applies overflow:clip on .table__content and
+     .table__body:not(tbody) for rounded-corner masking. React Aria's
+     Virtualizer additionally wraps the body in a <div role="presentation">
+     with inline overflow:hidden. React Aria's TableLoadMoreItem positions
+     its 1×1 sentinel exactly at the body's bottom edge, so all three
+     clipping layers hide it — the IntersectionObserver never fires and
+     infinite scroll silently breaks. Force overflow:visible on each layer
+     so the sentinel can intersect with the scroll container.
+
+     Visual side-effect: the body/content corners no longer mask content,
+     but the .table__scroll-container still clips at its rounded border, so
+     the visible scroll area still has rounded corners. */
+  .table-root--primary .table__content,
+  .table__body:not(tbody),
+  [role='presentation']:has(> [data-slot='table-body']) {
+    overflow: visible !important;
+  }
 }

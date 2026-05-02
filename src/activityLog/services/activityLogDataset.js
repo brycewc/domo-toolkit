@@ -59,6 +59,7 @@ export async function getActivityLogFromDataset({
   filters = {},
   limit = 100,
   offset = 0,
+  sortDirection = 'descending',
   tabId
 } = {}) {
   if (!datasetId) {
@@ -66,9 +67,10 @@ export async function getActivityLogFromDataset({
   }
 
   const where = buildWhere(filters);
+  const order = sortDirection === 'ascending' ? 'ASCENDING' : 'DESCENDING';
 
   const { rawRows, total } = await executeInPage(
-    async (datasetId, columns, where, queryContext, countContext, limit, offset) => {
+    async (datasetId, columns, where, queryContext, countContext, limit, offset, order) => {
       const url = `/api/query/v1/execute/${datasetId}`;
       const init = {
         credentials: 'include',
@@ -86,7 +88,7 @@ export async function getActivityLogFromDataset({
           orderByColumns: [
             {
               expression: { column: 'Event_Time', exprType: 'COLUMN' },
-              order: 'DESCENDING'
+              order
             }
           ],
           where
@@ -147,7 +149,8 @@ export async function getActivityLogFromDataset({
       QUERY_CONTEXT,
       COUNT_QUERY_CONTEXT,
       limit,
-      offset
+      offset,
+      order
     ],
     tabId
   );

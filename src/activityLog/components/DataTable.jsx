@@ -38,6 +38,8 @@ const HEADING_HEIGHT = 40;
  *     cell: (row) => ReactNode,        // render function receiving the row data object
  *     accessor: (row) => any,          // optional: custom value accessor for sorting
  *     allowsSorting: boolean,          // optional: whether sortable (default false)
+ *     manualSort: boolean,             // optional: when true and this column is the active
+ *                                      //   sort, skip local sort (parent has sorted upstream)
  *     canHide: boolean,               // optional: appears in visibility toggle (default true)
  *     width: number|string,           // optional: CSS width
  *     minWidth: number|string,        // optional: CSS min-width
@@ -47,13 +49,18 @@ const HEADING_HEIGHT = 40;
  * Row height is fixed at ROW_HEIGHT — cell content that overflows should be truncated
  * and exposed via the title attribute rather than wrapped.
  *
+ * Sort state can be controlled (parent passes `sortDescriptor` + `onSortChange`) or
+ * uncontrolled (DataTable owns the state, seeded by `initialSorting`).
+ *
  * @param {Object} props
  * @param {Array} props.columns - Column definitions
  * @param {Array} props.data - Row data array
  * @param {Function} props.getRowId - Optional: (row, index) => stable row id
  * @param {String} props.entityName - Name of entity (e.g., "events")
  * @param {Object} props.initialColumnVisibility - { columnId: boolean } map
- * @param {Object} props.initialSorting - { column: string, direction: 'ascending'|'descending' }
+ * @param {Object} props.initialSorting - { column: string, direction: 'ascending'|'descending' } (uncontrolled mode)
+ * @param {Object} props.sortDescriptor - Controlled sort state (pair with onSortChange)
+ * @param {Function} props.onSortChange - Controlled sort change handler
  * @param {React.ReactNode} props.customFilters - Custom filter components
  * @param {Object} props.exportConfig - Export configuration
  * @param {Function} props.onRefresh - Refresh callback
@@ -77,9 +84,14 @@ export function DataTable({
   isRefreshing = false,
   onAdd,
   onLoadMore,
-  onRefresh = null
+  onRefresh = null,
+  onSortChange,
+  sortDescriptor: controlledSortDescriptor
 }) {
-  const [sortDescriptor, setSortDescriptor] = useState(initialSorting);
+  const [uncontrolledSortDescriptor, setUncontrolledSortDescriptor] = useState(initialSorting);
+  const isSortControlled = controlledSortDescriptor !== undefined && onSortChange !== undefined;
+  const sortDescriptor = isSortControlled ? controlledSortDescriptor : uncontrolledSortDescriptor;
+  const setSortDescriptor = isSortControlled ? onSortChange : setUncontrolledSortDescriptor;
   const [hiddenColumns, setHiddenColumns] = useState(
     () =>
       new Set(
@@ -101,7 +113,9 @@ export function DataTable({
   const sortedData = useMemo(() => {
     if (!sortDescriptor?.column) return data;
     const col = columns.find((c) => c.id === sortDescriptor.column);
-    if (!col) return data;
+    // manualSort means the parent has already sorted (e.g. server-side); the
+    // sortDescriptor is just for UI affordance, don't re-sort locally.
+    if (!col || col.manualSort) return data;
     const accessor = col.accessor || ((row) => row[col.id]);
     return [...data].sort((a, b) => {
       const aVal = accessor(a);

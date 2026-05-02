@@ -1,9 +1,19 @@
 /**
  * Map a positional row from the DomoStats Activity Log dataset query response
- * into the same record shape that the audit-API path produces, so the existing
- * column renderers (createTimestampColumn / createUserColumn / createActionColumn
- * / createObjectColumn / createAdditionalCommentColumn in ActivityLogTable.jsx)
- * don't need to know which source produced the row.
+ * into a record shape consumed by the activity log table. Mostly mirrors the
+ * audit-API record shape (time/userId/actionType/object*) so shared columns
+ * Just Work, with two intentional divergences:
+ *
+ *   - The dataset has Source_ID / Name / Type identifying the actor (which
+ *     can be a USER, SYSTEM job, ETL, etc.) — surfaced as sourceId/sourceName/
+ *     sourceType so the table can render a "Source" column similar to "Object".
+ *   - User_ID is a separate underlying user reference that may or may not be
+ *     populated. We use it as `userId`, leave `userName` null, and let the
+ *     table look up display names via `fetchUserDisplayNames`.
+ *
+ * The dataset has no equivalent of the API's `additionalComment` / Description,
+ * so we set it to null — the table swaps Description out for the Source column
+ * when source==='dataset' so the slot isn't wasted.
  *
  * Column order matches the request body's `columns` array — see
  * `ACTIVITY_LOG_DATASET_COLUMNS` in services/activityLogDataset.js. Indices below
@@ -40,8 +50,11 @@ export function datasetRowToActivityRecord(row) {
     objectId: row[FIELD_INDEX.Object_ID] ?? null,
     objectName: row[FIELD_INDEX.Object_Name] ?? null,
     objectType: row[FIELD_INDEX.Object_Type] ?? null,
+    sourceId: row[FIELD_INDEX.Source_ID] ?? null,
+    sourceName: row[FIELD_INDEX.Name] ?? null,
+    sourceType: row[FIELD_INDEX.Type] ?? null,
     time: row[FIELD_INDEX.Event_Time] ?? null,
-    userId: row[FIELD_INDEX.Source_ID] ?? row[FIELD_INDEX.User_ID] ?? null,
-    userName: row[FIELD_INDEX.Name] ?? null
+    userId: row[FIELD_INDEX.User_ID] ?? null,
+    userName: null
   };
 }

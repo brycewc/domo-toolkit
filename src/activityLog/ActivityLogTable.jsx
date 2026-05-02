@@ -28,7 +28,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatedCheck } from '@/components/AnimatedCheck';
 import { usePerInstanceSettings, useResolveTabId } from '@/hooks';
 import { DomoObject } from '@/models';
-import { getCustomAvatarUserIds } from '@/services';
+import { fetchUserDisplayNames, getCustomAvatarUserIds } from '@/services';
 import { ACTION_COLOR_PATTERNS, getInitials } from '@/utils';
 
 import { DataTable } from './components/DataTable';
@@ -59,6 +59,12 @@ export function ActivityLogTable() {
   const [actionFilter, setActionFilter] = useState(new Set());
   const actionFilterRef = useRef(new Set());
   const [objectTypeFilter, setObjectTypeFilter] = useState(new Set());
+  // Sort state lives here (not in DataTable) because the time column's sort
+  // is server-side when source==='dataset'. Direction toggles trigger refetch.
+  const [sortDescriptor, setSortDescriptor] = useState({
+    column: 'time',
+    direction: 'descending'
+  });
   // Track pagination state per object: { "type:id": { offset, total, hasMore } }
   const [objectStates, setObjectStates] = useState({});
   // Dataset-source pagination — single global offset/total since the dataset query
@@ -99,6 +105,11 @@ export function ActivityLogTable() {
   const userFilterKey = userFilter.slice().sort().join(',');
   const userFilterRef = useRef(userFilter);
   userFilterRef.current = userFilter;
+  // Refetch trigger for dataset source when the user toggles time-sort
+  // direction. Empty string for api source (no server-side sort) or when the
+  // active sort isn't time (other columns are local-only).
+  const datasetSortKey =
+    source === 'dataset' && sortDescriptor?.column === 'time' ? sortDescriptor.direction : '';
   // Mirror source/domoInstance/objects into refs so fetchMoreEvents can read
   // current values without listing them as useCallback deps. Stable callback
   // identity matters here — HeroUI's Table.LoadMore wires its intersection
@@ -110,11 +121,18 @@ export function ActivityLogTable() {
   domoInstanceRef.current = domoInstance;
   const objectsRef = useRef(objects);
   objectsRef.current = objects;
+  const sortDescriptorRef = useRef(sortDescriptor);
+  sortDescriptorRef.current = sortDescriptor;
 
   const resolveTabId = useResolveTabId(tabId, domoInstance);
 
   const [customAvatarIds, setCustomAvatarIds] = useState(new Set());
   const checkedAvatarIdsRef = useRef(new Set());
+  // userId → displayName map populated lazily for events that arrive without
+  // a userName (DomoStats dataset rows store User_ID separately from
+  // Source.Name, so we look up the user's display name ourselves).
+  const [userNameMap, setUserNameMap] = useState({});
+  const fetchedUserNameIdsRef = useRef(new Set());
 
   const pageSize = 100; // Fetch in chunks per object
 
@@ -229,6 +247,26 @@ export function ActivityLogTable() {
       .catch(() => {});
   }, [events, tabId]);
 
+  // Look up display names for any event that arrives with a userId but no
+  // userName (DomoStats path). Fires incrementally as new ids appear; the
+  // ref tracks already-fetched ids so each id is requested at most once.
+  useEffect(() => {
+    if (!tabId || events.length === 0) return;
+    const idsWithoutName = [
+      ...new Set(events.filter((e) => e.userId && !e.userName).map((e) => String(e.userId)))
+    ];
+    const unfetched = idsWithoutName.filter((id) => !fetchedUserNameIdsRef.current.has(id));
+    if (unfetched.length === 0) return;
+    unfetched.forEach((id) => fetchedUserNameIdsRef.current.add(id));
+    resolveTabId()
+      .then((resolvedTabId) => fetchUserDisplayNames(unfetched, resolvedTabId))
+      .then((map) => {
+        if (!map || Object.keys(map).length === 0) return;
+        setUserNameMap((prev) => ({ ...prev, ...map }));
+      })
+      .catch(() => {});
+  }, [events, tabId, resolveTabId]);
+
   // Get unique object types for filter — only relevant for multi-object logs.
   // Stabilized to avoid new reference when events change but types stay the same.
   const prevObjectTypeOptionsRef = useRef([]);
@@ -312,20 +350,28 @@ export function ActivityLogTable() {
     });
   }, [events, domoInstance, tabId, resolveTabId]);
 
-  // Define columns
+  // Define columns. Time-column sort is server-side when source==='dataset'
+  // (manualSort=true skips DataTable's local sort; toggling direction triggers
+  // a refetch via datasetSortKey). On api source the time column behaves like
+  // every other column — local-only sort of currently-loaded rows — until the
+  // audit endpoint's server-side sort is verified.
+  // Last column varies by source: Description (additionalComment) on api,
+  // Source (sourceId/sourceName/sourceType) on dataset since the dataset has
+  // no description field but does carry actor info the API doesn't expose.
   const columns = useMemo(() => {
     const baseUrl = domoInstance ? `https://${domoInstance}.domo.com` : null;
     const actionTranslations = Object.fromEntries(
       actionOptions.map((a) => [a.type, a.translation])
     );
+    const isDataset = source === 'dataset';
     return [
-      createTimestampColumn(),
-      createUserColumn({ customAvatarIds, domoInstance }),
+      createTimestampColumn({ manualSort: isDataset }),
+      createUserColumn({ customAvatarIds, domoInstance, userNameMap }),
       createActionColumn({ actionTranslations }),
       createObjectColumn({ baseUrl, objectUrlMap }),
-      createAdditionalCommentColumn()
+      isDataset ? createSourceColumn() : createAdditionalCommentColumn()
     ];
-  }, [domoInstance, tabId, actionOptions, customAvatarIds, objectUrlMap]);
+  }, [domoInstance, tabId, actionOptions, customAvatarIds, objectUrlMap, source, userNameMap]);
 
   // Set initial column visibility based on number of objects
   const initialColumnVisibility = useMemo(
@@ -382,6 +428,10 @@ export function ActivityLogTable() {
             }),
             limit: pageSize,
             offset: 0,
+            sortDirection:
+              sortDescriptorRef.current?.column === 'time'
+                ? sortDescriptorRef.current.direction
+                : 'descending',
             tabId: resolvedTabId
           });
           const events = result?.events ?? [];
@@ -471,7 +521,18 @@ export function ActivityLogTable() {
     };
 
     fetchEvents();
-  }, [objects, tabId, refreshKey, userFilterKey, dateRangeEpoch, source, domoInstance]);
+    // datasetSortKey collapses to '' when irrelevant (api source, or non-time
+    // active sort) so toggling User/Action sort doesn't trigger refetch.
+  }, [
+    objects,
+    tabId,
+    refreshKey,
+    userFilterKey,
+    dateRangeEpoch,
+    source,
+    domoInstance,
+    datasetSortKey
+  ]);
 
   const total = useMemo(() => {
     if (source === 'dataset') return datasetState.total;
@@ -515,6 +576,10 @@ export function ActivityLogTable() {
           }),
           limit: pageSize,
           offset: currentDatasetState.offset,
+          sortDirection:
+            sortDescriptorRef.current?.column === 'time'
+              ? sortDescriptorRef.current.direction
+              : 'descending',
           tabId: resolvedTabId
         });
         const newEvents = result?.events ?? [];
@@ -528,9 +593,15 @@ export function ActivityLogTable() {
           };
         });
         setEvents((prev) => {
-          const allEvents = deduplicateEvents([...prev, ...newEvents]);
-          allEvents.sort((a, b) => new Date(b.time) - new Date(a.time));
-          return allEvents;
+          // Don't re-sort: the server returned this page in the user's chosen
+          // sortDirection (asc or desc), and `prev` is in that same order from
+          // the prior page. Concatenation preserves the order; deduplication
+          // only filters, so the merged list stays correctly ordered. Sorting
+          // here would override the server's order — and since the time column
+          // is rendered with `manualSort: true` on dataset source, DataTable
+          // doesn't re-sort either, so whatever order we set here is what the
+          // user sees.
+          return deduplicateEvents([...prev, ...newEvents]);
         });
       } catch (err) {
         console.error('Error fetching more events from dataset:', err);
@@ -1133,10 +1204,11 @@ export function ActivityLogTable() {
       hasMore={hasMore}
       header={header}
       initialColumnVisibility={initialColumnVisibility}
-      initialSorting={{ column: 'time', direction: 'descending' }}
       isRefreshing={isInitialLoad || isSearching}
+      sortDescriptor={sortDescriptor}
       onLoadMore={fetchMoreEvents}
       onRefresh={handleRefresh}
+      onSortChange={setSortDescriptor}
       getRowId={(row, i) =>
         `${row.objectType}:${row.objectId}:${row.time}:${row.actionType}:${row.userId}:${i}`
       }
@@ -1275,12 +1347,49 @@ function createObjectColumn({
 }
 
 /**
+ * Helper function to create a source column for the DomoStats dataset path.
+ * The dataset's Source_ID/Name/Type identifies the actor (user, system job,
+ * ETL, etc.). Renders name + type chip in the same shape as the Object column;
+ * id is exposed via a `title` tooltip rather than an extra line so the row
+ * height stays in lockstep with the rest of the table.
+ */
+function createSourceColumn({
+  idKey = 'sourceId',
+  nameKey = 'sourceName',
+  typeKey = 'sourceType'
+} = {}) {
+  return {
+    accessor: (row) => row[nameKey],
+    allowsSorting: true,
+    cell: (row) => {
+      const name = row[nameKey];
+      const type = row[typeKey];
+      const id = row[idKey];
+      const tooltip = id ? `${name || '-'} (${id})` : name || '-';
+
+      return (
+        <div className='flex flex-col gap-1'>
+          <span className='truncate text-sm font-medium' title={tooltip}>
+            {name || '-'}
+          </span>
+          {type && <span className='chip chip--accent chip--soft chip--sm w-fit'>{type}</span>}
+        </div>
+      );
+    },
+    header: 'Source',
+    id: nameKey,
+    minWidth: 180,
+    width: '2fr'
+  };
+}
+
+/**
  * Helper function to create a timestamp column with formatted date/time
  */
-function createTimestampColumn({ key = 'time' } = {}) {
+function createTimestampColumn({ allowsSorting = true, key = 'time', manualSort = false } = {}) {
   return {
     accessor: (row) => new Date(row[key]).getTime(),
-    allowsSorting: true,
+    allowsSorting,
     cell: (row) => {
       const timestamp = row[key];
       if (!timestamp) return '-';
@@ -1298,6 +1407,7 @@ function createTimestampColumn({ key = 'time' } = {}) {
     },
     header: `Timestamp (${getShortTimezone()})`,
     id: key,
+    manualSort,
     minWidth: 140,
     width: '1fr'
   };
@@ -1310,7 +1420,8 @@ function createUserColumn({
   customAvatarIds = new Set(),
   domoInstance = null,
   idKey = 'userId',
-  nameKey = 'userName'
+  nameKey = 'userName',
+  userNameMap = {}
 } = {}) {
   const getAvatarUrl = (userId) =>
     domoInstance
@@ -1318,11 +1429,14 @@ function createUserColumn({
       : null;
 
   return {
-    accessor: (row) => row[nameKey],
+    accessor: (row) => row[nameKey] || (row[idKey] != null ? userNameMap[row[idKey]] : null),
     allowsSorting: true,
     cell: (row) => {
-      const name = row[nameKey];
       const id = row[idKey];
+      // Prefer the row's own name, then the fetched-by-id map (DomoStats path
+      // arrives without userName populated and we fill the map via
+      // fetchUserDisplayNames).
+      const name = row[nameKey] || (id != null ? userNameMap[id] : null);
 
       return (
         <div className='flex items-center gap-3'>

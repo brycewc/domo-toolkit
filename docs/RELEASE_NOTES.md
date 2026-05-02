@@ -67,6 +67,8 @@
 - Stale dataset ID (deleted or no longer accessible) shows a soft error with a one-click "Re-run discovery" recovery action
 - New "Per-Instance Settings" section on the Settings page to view, manage, and clear stored per-Domo-instance values (currently just Activity Log dataset configuration)
 - Multi-tab consistency: toggling the preference in any open Activity Log tab or on the Settings page updates everywhere via `chrome.storage.onChanged`
+- Timestamp column sort is now server-side on DomoStats — toggling direction triggers a refetch from offset 0, so ascending sort starts with the oldest available events and pagination loads progressively newer ones. On the API source the timestamp column keeps its prior client-only sort (re-orders already-loaded rows), unchanged from previous releases
+- Source-specific columns: on DomoStats the Description column is replaced with a "Source" column showing the actor's `Source_ID`, `Name`, and `Type` (USER / SYSTEM / ETL etc.) — the dataset has no Description equivalent but does carry actor info the audit API doesn't expose. The User column on DomoStats shows the underlying `User_ID` and the toolkit looks up the user's display name on demand via the bulk users API
 
 ## Newly Supported Object Types
 
