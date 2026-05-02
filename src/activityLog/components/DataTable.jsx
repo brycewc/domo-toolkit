@@ -332,7 +332,7 @@ export function DataTable({
           </Table>
         </Virtualizer>
         {items.length === 0 && (
-          <div className='pointer-events-none absolute inset-x-0 bottom-0 top-10 flex items-center justify-center'>
+          <div className='pointer-events-none absolute inset-x-0 top-10 bottom-0 flex items-center justify-center'>
             <p className='text-sm text-muted'>No results found</p>
           </div>
         )}

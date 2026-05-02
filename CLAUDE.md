@@ -32,6 +32,7 @@ Rules load automatically when their glob/trigger matches. Read them when working
 | `architecture.mdc`         | Core source files      | Extension contexts, message flow, core models, `executeInPage()`, services pattern, detection flow           |
 | `release-process.mdc`      | Release files          | Full release checklist: version bump, releases.js, release notes, build, CI/CD                               |
 | `wip-release-notes.mdc`    | Always                 | Auto-update `docs/RELEASE_NOTES.md` WIP list after every notable change without being asked                  |
+| `local-testing.mdc`        | Always                 | Localhost dev routes (`/dev-activity-log`, `/dev-lineage`) for testing UI changes before claiming success    |
 | `domo-apis.mdc`            | Always                 | Use Postman MCP to look up Domo API endpoints before writing API calls                                       |
 | `package-manager.mdc`      | Always                 | Use `yarn` not `npm`                                                                                         |
 | `contributing-sync.mdc`    | `docs/CONTRIBUTING.md` | Keep contributor guide in sync with codebase                                                                 |

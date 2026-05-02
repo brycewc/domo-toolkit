@@ -62,7 +62,8 @@
 - Activity Log can now pull records from a DomoStats "Activity Log" dataset, giving access beyond the audit API's ~1-year retention window
 - Retention warning banner at the top of the Activity Log page communicates the API's retention limit and offers the DomoStats option inline
 - "Use DomoStats" button auto-discovers the right dataset (queries all `dataProviderType=domostats` datasets, then bulk-checks stream configs for `report=audit`); the dataset ID is cached locally per instance so subsequent uses skip discovery
-- Per-instance "Always use DomoStats Activity Log dataset" toggle in the source chip and the Settings page — when enabled, Activity Log opens in DomoStats mode by default for that instance
+- Per-instance "Always use DomoStats Activity Log dataset" toggle in the source banner and the Settings page — when enabled, Activity Log opens in DomoStats mode by default for that instance
+- Active-source banner is now an Alert in all states (warning on API, success on DomoStats, danger on dataset error) so the visual treatment doesn't shift when you flip sources
 - Stale dataset ID (deleted or no longer accessible) shows a soft error with a one-click "Re-run discovery" recovery action
 - New "Per-Instance Settings" section on the Settings page to view, manage, and clear stored per-Domo-instance values (currently just Activity Log dataset configuration)
 - Multi-tab consistency: toggling the preference in any open Activity Log tab or on the Settings page updates everywhere via `chrome.storage.onChanged`

@@ -9,6 +9,7 @@ A walkthrough of every file touched in Phases 1-5 plus a structured test plan fo
 **The problem.** Domo's audit API (`/api/audit/v1/user-audits`) silently caps at one year of retention. Users with longer historical needs typically pull the **Activity Log** report from the **DomoStats** connector, which then accumulates from the day it was connected.
 
 **The change.** Two things, shipped together:
+
 1. A **retention warning** banner on the Activity Log page so users know about the API's one-year limit.
 2. A **DomoStats data source** that swaps the audit-API rows for dataset-query rows — same UI, same filters, same table — with auto-discovery of the right DomoStats dataset, per-instance dataset-ID caching, and a per-instance "always prefer dataset" preference.
 
@@ -40,9 +41,11 @@ A walkthrough of every file touched in Phases 1-5 plus a structured test plan fo
 ## Setup before testing
 
 1. **Build and load the unpacked extension:**
+
    ```bash
    yarn build
    ```
+
    Then in Chrome at `chrome://extensions` → "Load unpacked" → select `dist/`.
 
 2. **Pick a Domo instance to test against.** You'll need at least one instance where:
@@ -70,6 +73,7 @@ Each flow lists steps, expected behavior, and what to verify. Run them roughly i
 5. **Expect** (within a few seconds): Banner disappears, source confirmation chip appears: `[Source: DomoStats dataset] [☐ Always for this instance] [Switch to API]`. Table reloads with DomoStats data.
 
 **Verify:**
+
 - DevTools → `await chrome.storage.local.get(['perInstance'])` shows `perInstance[<instance>].activityLogDatasetId` = the discovered UUID.
 - Records older than ~1 year ago appear in the table (sort by timestamp descending; scroll to the bottom or filter to a date older than a year).
 - Filtering by date / user / action all still work.
@@ -83,6 +87,7 @@ Each flow lists steps, expected behavior, and what to verify. Run them roughly i
 3. Source remains `'api'`. Audit-API rows are still rendered.
 
 **Verify:**
+
 - `chrome.storage.local.perInstance[<instance>]` still has no `activityLogDatasetId` (we don't persist on no-match).
 - Clicking "Use DomoStats" again re-runs discovery (no caching of the negative result).
 
@@ -96,6 +101,7 @@ Each flow lists steps, expected behavior, and what to verify. Run them roughly i
 4. **Expect:** Source flips immediately — no pending state, no discovery roundtrip.
 
 **Verify:**
+
 - Network tab shows no calls to `/api/data/v3/datasources` or `/api/data/v1/streams/bulk` — only the dataset query itself.
 
 ### Flow 4: Mount-time preference pre-select
@@ -108,6 +114,7 @@ Each flow lists steps, expected behavior, and what to verify. Run them roughly i
 4. **Expect:** Page opens directly in DomoStats mode — source chip visible from the first frame, retention banner does NOT appear, no "Use DomoStats" click required.
 
 **Verify:**
+
 - The mount-time effect ran exactly once: the source did not flicker `'api'` → `'dataset'` mid-render. (Watch the page closely on reload; if there's a flash of the banner, log a bug.)
 
 ### Flow 5: Toggle "Always for this instance" off
@@ -120,6 +127,7 @@ Each flow lists steps, expected behavior, and what to verify. Run them roughly i
 4. **Expect:** Page opens in `'api'` mode (banner shown again) since the preference is now off.
 
 **Verify:**
+
 - `chrome.storage.local.perInstance[<instance>].activityLogDatasetId` is **still set** (only the preference was toggled, the cached ID stays).
 - Subsequent "Use DomoStats" click is still instant (hot path).
 
@@ -131,6 +139,7 @@ Each flow lists steps, expected behavior, and what to verify. Run them roughly i
 2. **Expect:** Source flips to `'api'`. Retention banner reappears. Loading skeleton briefly shows, then audit-API rows render.
 
 **Verify:**
+
 - `preferActivityLogDataset` is **still `true`** in storage — switching mid-session does NOT un-set the persistent preference.
 - Closing and reopening Activity Log opens in `'dataset'` mode (per the preference). Confirms ad-hoc API choice doesn't override the preference.
 
@@ -143,6 +152,7 @@ Each flow lists steps, expected behavior, and what to verify. Run them roughly i
 3. Rows from the previous source are cleared before the swap completes.
 
 **Verify:**
+
 - No mixed/stale rows are visible during the swap.
 - Skeleton remains until the new source's first page returns.
 
@@ -161,6 +171,7 @@ Each flow lists steps, expected behavior, and what to verify. Run them roughly i
 7. **Expect:** That instance's card disappears. Storage reflects the deletion.
 
 **Verify:**
+
 - After Clear, opening Activity Log on that instance shows the API banner again (no cached ID, no preference). Clicking "Use DomoStats" re-runs discovery.
 
 ### Flow 9: Multi-tab consistency
@@ -171,12 +182,14 @@ Each flow lists steps, expected behavior, and what to verify. Run them roughly i
 4. **Expect:** Tab 1's source chip Switch updates within a moment to reflect the new value (without a manual refresh).
 
 **Verify:**
+
 - This works in either direction — toggling in tab 1's chip should also update tab 2's Settings page.
 - Toggling in tab 2 then closing/reopening tab 1's Activity Log respects the new preference (Flow 4 again, but with a different mutation source).
 
 ### Flow 10: Stale-ID recovery
 
 **Setup:** Cause a stale-ID failure. Easiest way:
+
 - DevTools console: `chrome.storage.local.set({perInstance: {'<instance>': {activityLogDatasetId: '00000000-0000-0000-0000-000000000000'}}})`
 - Or rename the actual DomoStats Activity Log dataset's connector to a different report (so it no longer matches `report=audit`) — actually, a fake UUID is faster.
 
@@ -187,6 +200,7 @@ Each flow lists steps, expected behavior, and what to verify. Run them roughly i
 5. **Expect:** Pending state, then discovery runs (forced — bypasses the cached bogus ID). On success, the danger alert disappears, the source chip reappears, the new (correct) dataset ID is persisted, and the table reloads.
 
 **Verify:**
+
 - After recovery, `chrome.storage.local.perInstance[<instance>].activityLogDatasetId` is the new UUID, not the bogus one.
 - "Switch to API" from the danger alert also works — flips source to `'api'` and the alert disappears.
 
@@ -204,6 +218,7 @@ Run these checks in DomoStats source mode (`source === 'dataset'`):
 | Multiple filters combined | Left-folded `AND` of all of the above | Stack a date range + action filter + user; result respects all. |
 
 **Verify:**
+
 - Network tab → POST to `/api/query/v1/execute/{datasetId}` → request body's `where` field. Confirm the structure matches the table above. The date format must be `'YYYY-MM-DD HH:mm:ss'` (space, not 'T') wrapped in `STRING_VALUE`.
 
 ### Flow 12: Pagination through many pages
@@ -215,6 +230,7 @@ Run these checks in DomoStats source mode (`source === 'dataset'`):
 5. Repeat scrolling several times.
 
 **Verify:**
+
 - Each `fetchMore` triggers exactly one POST to `/api/query/v1/execute/{datasetId}` with `limit: { limit: 100, offset: <growing> }`.
 - No duplicate rows (the `deduplicateEvents` post-process catches any overlap).
 - "Showing X of Y events" updates correctly. Y matches the count query result.
@@ -248,18 +264,22 @@ Repeat for API mode to confirm both work.
 ## Cross-cutting checks
 
 ### Performance
+
 - Discovery: should complete in 1-3 seconds for an instance with ~10-100 datasets, longer for ~1000+. The bulk-streams loop short-circuits at the first match.
 - Dataset queries: count + page run in parallel, total round-trip should be similar to the audit API.
 
 ### Accessibility / keyboard
+
 - The "Use DomoStats" button, the "Always for this instance" Switch, the "Switch to API" button, the "Re-run discovery" button — all should be keyboard-reachable.
 
 ### Error/edge cases
+
 - Open the Activity Log on an object whose data flows but the user lacks permission for. Both API and dataset paths should surface a meaningful error.
 - Network failure mid-discovery: should surface the error in `discoveryError`, not crash. Source remains `'api'`.
 - `chrome.storage.local` quota: well under any limits at our scale, but worth knowing — clear settings if needed via the Settings page Clear button.
 
 ### Browser/extension state
+
 - Reload the extension at `chrome://extensions`. Cached `perInstance` values should persist (it's `chrome.storage.local`, not session storage).
 - Clear extension storage. Should reset to fresh-install behavior on next use.
 
@@ -292,7 +312,7 @@ If all six pass, the feature is working end-to-end.
 
 ## Files at-a-glance for code review
 
-```
+```text
 src/activityLog/services/activityLogDataset.js     [NEW]  Dataset fetcher (count + page)
 src/activityLog/services/findActivityLogDataset.js [NEW]  Two-step discovery
 src/activityLog/utils/datasetFilterMapper.js       [NEW]  Filter → WHERE translator

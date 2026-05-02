@@ -16,7 +16,12 @@ import {
   Switch
 } from '@heroui/react';
 import { getLocalTimeZone, parseDate, today } from '@internationalized/date';
-import { IconAlertCircle, IconCalendarWeek, IconFilter } from '@tabler/icons-react';
+import {
+  IconAlertCircle,
+  IconCalendarWeek,
+  IconCircleCheck,
+  IconFilter
+} from '@tabler/icons-react';
 import { AnimatePresence } from 'motion/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -94,6 +99,17 @@ export function ActivityLogTable() {
   const userFilterKey = userFilter.slice().sort().join(',');
   const userFilterRef = useRef(userFilter);
   userFilterRef.current = userFilter;
+  // Mirror source/domoInstance/objects into refs so fetchMoreEvents can read
+  // current values without listing them as useCallback deps. Stable callback
+  // identity matters here — HeroUI's Table.LoadMore wires its intersection
+  // observer to onLoadMore once; if the reference churns, the observer can
+  // miss scroll-into-view events.
+  const sourceRef = useRef(source);
+  sourceRef.current = source;
+  const domoInstanceRef = useRef(domoInstance);
+  domoInstanceRef.current = domoInstance;
+  const objectsRef = useRef(objects);
+  objectsRef.current = objects;
 
   const resolveTabId = useResolveTabId(tabId, domoInstance);
 
@@ -469,13 +485,17 @@ export function ActivityLogTable() {
   }, [source, datasetState.hasMore, objectStates]);
 
   // Fetch more events when scrolling — reads task info from objectStates (API
-  // source) or from datasetState (DomoStats source).
+  // source) or from datasetState (DomoStats source). Reads source/domoInstance/
+  // objects via refs so the callback identity stays stable (only changes when
+  // isInitialLoad/isSearching toggle). HeroUI's Table.LoadMore wires its
+  // intersection observer to onLoadMore once per reference; churning the
+  // identity makes the observer miss scroll triggers.
   const fetchMoreEvents = useCallback(async () => {
     if (isFetchingMoreRef.current || isInitialLoad || isSearching) {
       return;
     }
 
-    if (source === 'dataset') {
+    if (sourceRef.current === 'dataset') {
       const currentDatasetState = datasetStateRef.current;
       if (!currentDatasetState.hasMore) return;
 
@@ -484,13 +504,13 @@ export function ActivityLogTable() {
 
       try {
         const resolvedTabId = await resolveTabId();
-        const datasetId = await resolveDatasetId(domoInstance);
+        const datasetId = await resolveDatasetId(domoInstanceRef.current);
         const result = await getActivityLogFromDataset({
           datasetId,
           filters: buildDatasetFilters({
             actionFilter: actionFilterRef.current,
             dateRangeEpoch: dateRangeEpochRef.current,
-            objects,
+            objects: objectsRef.current,
             userFilter: userFilterRef.current
           }),
           limit: pageSize,
@@ -590,7 +610,7 @@ export function ActivityLogTable() {
       isFetchingMoreRef.current = false;
       setIsFetchingMore(false);
     }
-  }, [resolveTabId, isInitialLoad, isSearching, source, domoInstance, objects]);
+  }, [resolveTabId, isInitialLoad, isSearching]);
 
   // Handle refresh
   const handleRefresh = useCallback(() => {
@@ -896,61 +916,64 @@ export function ActivityLogTable() {
     () => (
       <div className='flex flex-col gap-2'>
         {source === 'api' && (
-          <Alert color='warning'>
+          <Alert status='warning'>
             <Alert.Indicator>
               <IconAlertCircle data-slot='alert-default-icon' />
             </Alert.Indicator>
             <Alert.Content>
               <Alert.Title>Activity Log API only retains the past year</Alert.Title>
               <Alert.Description>
-                For older history, switch to the DomoStats Activity Log dataset (preserves
-                history from the day you connected it in Domo).
+                For older history, switch to the DomoStats Activity Log dataset (preserves history
+                from the day you connected it in Domo).
               </Alert.Description>
               {discoveryError && (
-                <Alert.Description className='mt-1 text-danger'>
-                  {discoveryError}
-                </Alert.Description>
+                <Alert.Description className='mt-1 text-danger'>{discoveryError}</Alert.Description>
               )}
-              <Button
-                className='mt-2'
-                isDisabled={isDiscovering}
-                isPending={isDiscovering}
-                size='sm'
-                variant='secondary'
-                onPress={handleUseDomoStats}
-              >
-                {isDiscovering ? 'Searching for dataset…' : 'Use DomoStats'}
-              </Button>
             </Alert.Content>
+            <Button
+              isDisabled={isDiscovering}
+              isPending={isDiscovering}
+              size='sm'
+              variant='secondary'
+              onPress={handleUseDomoStats}
+            >
+              {isDiscovering ? 'Searching for dataset…' : 'Use DomoStats'}
+            </Button>
           </Alert>
         )}
         {source === 'dataset' && !datasetFetchError && (
-          <div className='flex flex-wrap items-center gap-3'>
-            <Chip color='success' size='sm' variant='soft'>
-              Source: DomoStats dataset
-            </Chip>
-            <Switch
-              isSelected={!!perInstanceSettings[domoInstance]?.preferActivityLogDataset}
-              size='sm'
-              onChange={(v) =>
-                domoInstance &&
-                updatePerInstance(domoInstance, 'preferActivityLogDataset', v)
-              }
-            >
-              <Switch.Control>
-                <Switch.Thumb />
-              </Switch.Control>
-              <Switch.Content>
-                <Label className='text-xs'>Always for this instance</Label>
-              </Switch.Content>
-            </Switch>
-            <Button size='sm' variant='ghost' onPress={() => setSource('api')}>
+          <Alert status='success'>
+            <Alert.Indicator>
+              <IconCircleCheck data-slot='alert-default-icon' />
+            </Alert.Indicator>
+            <Alert.Content>
+              <Alert.Title>Using DomoStats Activity Log dataset</Alert.Title>
+              {/* <Alert.Description>
+                History reaches back to when this dataset was first connected in Domo — older than
+                the past year the Activity Log API exposes.
+              </Alert.Description> */}
+              <Switch
+                isSelected={!!perInstanceSettings[domoInstance]?.preferActivityLogDataset}
+                size='sm'
+                onChange={(v) =>
+                  domoInstance && updatePerInstance(domoInstance, 'preferActivityLogDataset', v)
+                }
+              >
+                <Switch.Control>
+                  <Switch.Thumb />
+                </Switch.Control>
+                <Switch.Content>
+                  <Label className='text-xs'>Always for this instance</Label>
+                </Switch.Content>
+              </Switch>
+            </Alert.Content>
+            <Button size='sm' variant='secondary' onPress={() => setSource('api')}>
               Switch to API
             </Button>
-          </div>
+          </Alert>
         )}
         {source === 'dataset' && datasetFetchError && (
-          <Alert color='danger'>
+          <Alert status='danger'>
             <Alert.Indicator>
               <IconAlertCircle data-slot='alert-default-icon' />
             </Alert.Indicator>
@@ -958,8 +981,8 @@ export function ActivityLogTable() {
               <Alert.Title>Couldn&apos;t load from the DomoStats dataset</Alert.Title>
               <Alert.Description>{datasetFetchError}</Alert.Description>
               <Alert.Description className='mt-1 text-xs'>
-                The cached dataset may have been deleted or you may have lost access.
-                Re-run discovery to find a fresh one, or switch back to the API source.
+                The cached dataset may have been deleted or you may have lost access. Re-run
+                discovery to find a fresh one, or switch back to the API source.
               </Alert.Description>
               <div className='mt-2 flex flex-wrap gap-2'>
                 <Button
