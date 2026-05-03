@@ -92,7 +92,8 @@ const VirtualizedItemList = memo(function VirtualizedItemList({
       >
         {(item) => {
           const url = buildItemUrl(typeKey, item, origin);
-          const displayName = item.name || item.id;
+          const realId = item.originalId ?? item.id;
+          const displayName = item.name || realId;
 
           return (
             <ListBox.Item
@@ -126,7 +127,7 @@ const VirtualizedItemList = memo(function VirtualizedItemList({
                     onPress={() => {
                       setCopiedId(item.id);
                       setTimeout(() => setCopiedId(null), 1000);
-                      onCopyId(item.id);
+                      onCopyId(realId);
                     }}
                   >
                     {copiedId === item.id ? (
@@ -503,19 +504,40 @@ function buildItemUrl(typeKey, item, origin) {
 }
 
 function flattenItems(typeKey, owned) {
+  let items;
   if (typeKey === 'projectsAndTasks') {
-    return [
-      ...(owned.projects || []).map((p) => ({
+    items = [
+      ...(owned?.projects || []).map((p, i) => ({
         ...p,
+        id: p.id != null ? `project-${p.id}` : `project-fallback-${i}`,
+        originalId: p.id,
         subType: 'Project'
       })),
-      ...(owned.tasks || []).map((t) => ({
+      ...(owned?.tasks || []).map((t, i) => ({
         ...t,
+        id: t.id != null ? `task-${t.id}` : `task-fallback-${i}`,
+        originalId: t.id,
         subType: 'Task'
       }))
     ];
+  } else {
+    items = Array.isArray(owned) ? owned : [];
   }
-  return owned;
+
+  // React Aria's collection builder requires every item to have a unique,
+  // non-null `id` (or `key`). If an upstream getOwned* mapper drifts out of
+  // sync with its API shape and emits items with undefined/duplicate ids,
+  // ListBox throws "Could not determine key for item" and the whole view
+  // crashes. Normalize defensively so a broken upstream degrades gracefully.
+  const seen = new Set();
+  return items.map((item, i) => {
+    if (item == null) return { id: `${typeKey}-fallback-${i}`, originalId: null };
+    const original = item.originalId !== undefined ? item.originalId : item.id;
+    let key = item.id != null ? String(item.id) : `${typeKey}-fallback-${i}`;
+    if (seen.has(key)) key = `${key}-dup-${i}`;
+    seen.add(key);
+    return key === item.id ? item : { ...item, id: key, originalId: original };
+  });
 }
 
 function getItemCount(typeKey, owned) {

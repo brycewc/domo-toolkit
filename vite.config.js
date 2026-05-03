@@ -29,6 +29,10 @@ export default defineConfig(({ mode }) => {
       // Extensions load from disk, not network - large chunks are fine
       chunkSizeWarningLimit: 1200,
       rollupOptions: {
+        treeshake: {
+          manualPureFunctions:
+            mode === 'production' ? ['console.log', 'console.warn'] : []
+        },
         output: {
           // Group related modules into the same chunk to avoid cross-chunk circular dependencies
           manualChunks: (id) => {
@@ -70,9 +74,6 @@ export default defineConfig(({ mode }) => {
         }
       },
       sourcemap: false
-    },
-    esbuild: {
-      pure: mode === 'production' ? ['console.log', 'console.warn'] : []
     },
     plugins: [
       // Serve the standalone lineage dev page via middleware so CRXJS

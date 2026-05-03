@@ -22,9 +22,10 @@ export async function getOwnedProjectsAndTasks(userId, tabId = null) {
         );
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
+        const projects = Array.isArray(data) ? data : data?.projects || [];
 
-        if (data && data.length > 0) {
-          for (const project of data) {
+        if (projects.length > 0) {
+          for (const project of projects) {
             if (project.assignedTo == userId) {
               allProjects.push({
                 id: project.id,
@@ -33,7 +34,7 @@ export async function getOwnedProjectsAndTasks(userId, tabId = null) {
             }
           }
           offset += limit;
-          if (data.length < limit) moreData = false;
+          if (projects.length < limit) moreData = false;
         } else {
           moreData = false;
         }

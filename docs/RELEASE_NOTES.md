@@ -110,6 +110,9 @@
 - Fixed Delete button not showing its normal tooltip for objects that have additional options (verified)
 - ID validation added to current object detection
 - Navigate to Copied Object: templates and certification processes (which share an API endpoint) are no longer mistaken for each other — discriminated by the response's `type` field (`AC` → Template, otherwise → Certification Process)
+- Fixed View Ownership crash ("Could not determine key for item") caused by upstream `getOwned*` mappers returning items with undefined or duplicate `id` fields. `flattenItems` now normalizes every item to a unique non-null `id` so any future API shape drift degrades gracefully instead of taking down the whole view; project/task list keys are namespaced (`project-<id>` / `task-<id>`) so colliding numeric IDs no longer collide
+- Fixed `getOwnedGroups` returning items with `id: undefined` because the API payload uses `groupId` (not `id`); also fixed its strict-equals filter `o.id === userId` (string vs number) which was zeroing out every match — now compares as strings and requires `type === 'USER'`
+- Fixed `getOwnedProjectsAndTasks` always returning empty: the `/api/content/v2/users/.../projects` endpoint now responds with `{_metadata, projects: [...]}` instead of a flat array, so `data.length` was always undefined
 
 ## Security
 

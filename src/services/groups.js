@@ -71,8 +71,15 @@ export async function getOwnedGroups(userId, tabId = null) {
         if (data && data.length > 0) {
           allGroups.push(
             ...data
-              .filter((g) => g.owners?.some((o) => o.id === userId))
-              .map((g) => ({ id: g.id, name: g.name || g.id.toString() }))
+              .filter((g) =>
+                g.owners?.some(
+                  (o) => o.type === 'USER' && String(o.id) === String(userId)
+                )
+              )
+              .map((g) => ({
+                id: g.groupId,
+                name: g.name || g.groupId.toString()
+              }))
           );
           offset += limit;
           if (data.length < limit) moreData = false;
