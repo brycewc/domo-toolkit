@@ -44,7 +44,7 @@ export async function getOwnedAccounts(userId, tabId = null) {
         const accounts = data.searchResultsMap?.account || [];
         if (accounts.length > 0) {
           allAccounts.push(
-            ...accounts.map((a) => ({ id: a.databaseId, name: a.title || a.databaseId.toString() }))
+            ...accounts.map((a) => ({ id: a.databaseId, name: a.name || a.databaseId.toString() }))
           );
           offset += count;
           if (accounts.length < count) moreData = false;
@@ -70,12 +70,7 @@ export async function getOwnedAccounts(userId, tabId = null) {
  * @param {number|null} [params.tabId] - Optional Chrome tab ID
  * @returns {Promise<void>} Resolves on success, throws on HTTP failure
  */
-export async function shareAccount({
-  accessLevel = 'CAN_VIEW',
-  accountId,
-  tabId = null,
-  userId
-}) {
+export async function shareAccount({ accessLevel = 'CAN_VIEW', accountId, tabId = null, userId }) {
   return executeInPage(
     async (accountId, userId, accessLevel) => {
       const response = await fetch(`/api/data/v2/accounts/share/${accountId}`, {
@@ -98,12 +93,7 @@ export async function shareAccount({
  * @param {number|null} tabId - Optional Chrome tab ID
  * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
  */
-export async function transferAccounts(
-  accountIds,
-  fromUserId,
-  toUserId,
-  tabId = null
-) {
+export async function transferAccounts(accountIds, fromUserId, toUserId, tabId = null) {
   return executeInPage(
     async (accountIds, fromUserId, toUserId) => {
       const errors = [];

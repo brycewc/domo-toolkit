@@ -1,1 +1,4 @@
 # *.js
+
+# Personal scratch list — also exempt from remark lint via .remarkignore.
+docs/TODO.md

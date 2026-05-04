@@ -15,11 +15,7 @@ import {
   TYPE_KEY_TO_LOG_TYPE,
   uploadDataFile
 } from '@/services';
-import {
-  buildExcelBlob,
-  generateExportFilename,
-  getSidepanelData
-} from '@/utils';
+import { buildExcelBlob, generateExportFilename, getSidepanelData } from '@/utils';
 
 const LOG_COLUMNS = [
   { accessorKey: 'Object Type', header: 'Object Type' },
@@ -34,8 +30,7 @@ const LOG_COLUMNS = [
   { accessorKey: 'New Owner Name', header: 'New Owner Name' }
 ];
 
-const XLSX_MIME_TYPE =
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const XLSX_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
 /**
  * Maps TRANSFER_TYPES keys to DomoObjectType IDs for URL construction.
@@ -105,9 +100,7 @@ export function OwnershipView({ onBackToDefault = null, onStatusUpdate = null })
         onBackToDefault?.();
         return;
       }
-      const context = data.currentContext
-        ? DomoContext.fromJSON(data.currentContext)
-        : null;
+      const context = data.currentContext ? DomoContext.fromJSON(data.currentContext) : null;
       if (!context) {
         onStatusUpdate?.('Error', 'No context available', 'danger');
         onBackToDefault?.();
@@ -206,6 +199,13 @@ export function OwnershipView({ onBackToDefault = null, onStatusUpdate = null })
 
   // Build DataList items, threading both fetch status and transfer status
   // (transfer state takes priority during the transfer phase).
+  //
+  // Constructed via `new DataListItem(...)` instead of `createGroup` because
+  // `createGroup` falls back `count` to `children.length` when count is
+  // undefined — which would force `(0)` to render during the loading phase
+  // (children = [], so fallback = 0). We want the count slot to stay empty
+  // until a real fetch result lands, and `(0)` to appear ONLY when a fetch
+  // genuinely returns zero items.
   const dataListItems = useMemo(
     () =>
       TRANSFER_TYPES.map((t) => {
@@ -215,7 +215,7 @@ export function OwnershipView({ onBackToDefault = null, onStatusUpdate = null })
 
         let count;
         let error = null;
-        let children = [];
+        let children;
 
         if (result?.status === 'loaded' && result.items !== null) {
           count = countOwned(t.key, result.items);
@@ -229,15 +229,14 @@ export function OwnershipView({ onBackToDefault = null, onStatusUpdate = null })
           if (xfer.count !== undefined) count = xfer.count;
         }
 
-        return DataListItem.createGroup({
+        return new DataListItem({
           children,
           count,
           error,
           id: t.key,
+          isVirtualParent: true,
           label: t.label,
-          metadata: forbidden.has(t.key)
-            ? `Requires ${t.requiredAuthority}`
-            : undefined,
+          metadata: forbidden.has(t.key) ? `Requires ${t.requiredAuthority}` : undefined,
           status
         });
       }),
@@ -344,8 +343,7 @@ export function OwnershipView({ onBackToDefault = null, onStatusUpdate = null })
               } else if (status === 'error') {
                 next[typeKey] = {
                   count: 0,
-                  error:
-                    result?.errors?.[0]?.error || 'Transfer failed before completing',
+                  error: result?.errors?.[0]?.error || 'Transfer failed before completing',
                   status: 'failed'
                 };
               }
@@ -376,12 +374,7 @@ export function OwnershipView({ onBackToDefault = null, onStatusUpdate = null })
             });
             const blob = await buildExcelBlob(rows, LOG_COLUMNS, 'Transfer Log');
             const filename = `${generateExportFilename('transferred-objects')}.xlsx`;
-            const dataFileId = await uploadDataFile(
-              blob,
-              filename,
-              XLSX_MIME_TYPE,
-              tabId
-            );
+            const dataFileId = await uploadDataFile(blob, filename, XLSX_MIME_TYPE, tabId);
             await sendEmail(
               {
                 bodyHtml: renderEmailBody({
@@ -477,10 +470,10 @@ export function OwnershipView({ onBackToDefault = null, onStatusUpdate = null })
       }, 0);
       return (
         <>
-          <span className='font-medium text-foreground'>{selectedTypeKeys.size}</span>{' '}
-          type{selectedTypeKeys.size !== 1 ? 's' : ''},{' '}
-          <span className='font-medium text-foreground'>{objectCount}</span>{' '}
-          object{objectCount !== 1 ? 's' : ''} selected
+          <span className='font-medium text-foreground'>{selectedTypeKeys.size}</span> type
+          {selectedTypeKeys.size !== 1 ? 's' : ''},{' '}
+          <span className='font-medium text-foreground'>{objectCount}</span> object
+          {objectCount !== 1 ? 's' : ''} selected
         </>
       );
     }
@@ -523,6 +516,13 @@ export function OwnershipView({ onBackToDefault = null, onStatusUpdate = null })
     const actions = [];
     if (isUserSource) {
       actions.push({
+        icon: <IconUserUp stroke={1.5} />,
+        isDisabled: !isFullyLoaded || !hasAnyTransferable || isTransferring,
+        key: 'transfer',
+        onPress: handleOpenTransferModal,
+        tooltipText: 'Transfer ownership to…'
+      });
+      actions.push({
         icon: <IconChecks stroke={1.5} />,
         isActive: selectionMode,
         isDisabled: !isFullyLoaded || !hasAnyTransferable || isTransferring,
@@ -535,13 +535,6 @@ export function OwnershipView({ onBackToDefault = null, onStatusUpdate = null })
           }
         },
         tooltipText: selectionMode ? 'Exit selection mode' : 'Select types to transfer'
-      });
-      actions.push({
-        icon: <IconUserUp stroke={1.5} />,
-        isDisabled: !isFullyLoaded || !hasAnyTransferable || isTransferring,
-        key: 'transfer',
-        onPress: handleOpenTransferModal,
-        tooltipText: 'Transfer ownership to…'
       });
     }
     return actions;
@@ -588,8 +581,7 @@ export function OwnershipView({ onBackToDefault = null, onStatusUpdate = null })
         onToggleSelection={toggleSelection}
         title={
           <>
-            <span>Objects Owned by</span>{' '}
-            <span className='font-bold'>{userName}</span>
+            <span>Objects Owned by</span> <span className='font-bold'>{userName}</span>
           </>
         }
       />
@@ -622,7 +614,7 @@ function buildLeafItems(typeKey, owned, origin) {
         id: `${prefix}-${item.id}`,
         label: item.subType
           ? `[${item.subType}] ${item.name || item.id}`
-          : (item.name || String(item.id)),
+          : item.name || String(item.id),
         originalId: item.id,
         typeId: null,
         url: null

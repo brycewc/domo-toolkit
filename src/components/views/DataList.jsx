@@ -283,16 +283,14 @@ export function DataList({
         // IconDots Popover collapse — so primary actions like Refresh are one
         // click instead of two. Subtext truncates first when buttons take their
         // share of width; a `title` attribute surfaces the full text on hover.
-        <Card.Header className='relative gap-1'>
-          {title && (
-            <Card.Title className='line-clamp-1 min-w-0 pr-8'>{title}</Card.Title>
-          )}
+        <Card.Header className='gap-1'>
+          {title && <Card.Title className='line-clamp-1 min-w-0 pr-8'>{title}</Card.Title>}
           {onClose && (
             <Tooltip closeDelay={0} delay={400}>
               <Button
                 isIconOnly
                 aria-label={closeLabel}
-                className='absolute top-2 right-2'
+                className='absolute top-1 right-2'
                 size='sm'
                 variant='ghost'
                 onPress={onClose}
@@ -312,6 +310,22 @@ export function DataList({
               </div>
               {hasInlineActions && (
                 <ButtonGroup hideSeparator className='flex shrink-0' size='sm' variant='ghost'>
+                  {customHeaderActions?.map((action) => (
+                    <Tooltip closeDelay={0} delay={400} key={action.key}>
+                      <Button
+                        isIconOnly
+                        aria-label={action.ariaLabel ?? action.tooltipText}
+                        className={action.isActive ? 'text-accent' : undefined}
+                        isDisabled={action.isDisabled}
+                        size='sm'
+                        variant='ghost'
+                        onPress={action.onPress}
+                      >
+                        {action.icon}
+                      </Button>
+                      <Tooltip.Content className='text-xs'>{action.tooltipText}</Tooltip.Content>
+                    </Tooltip>
+                  ))}
                   {headerActions.includes('openAll') && (
                     <Tooltip closeDelay={0} delay={400}>
                       <Button
@@ -372,30 +386,11 @@ export function DataList({
                         variant='ghost'
                         onPress={() => handleHeaderAction('refresh')}
                       >
-                        <IconRefresh
-                          className={isRefreshing ? 'animate-spin' : ''}
-                          stroke={1.5}
-                        />
+                        <IconRefresh className={isRefreshing ? 'animate-spin' : ''} stroke={1.5} />
                       </Button>
                       <Tooltip.Content className='text-xs'>Refresh</Tooltip.Content>
                     </Tooltip>
                   )}
-                  {customHeaderActions?.map((action) => (
-                    <Tooltip closeDelay={0} delay={400} key={action.key}>
-                      <Button
-                        isIconOnly
-                        aria-label={action.ariaLabel ?? action.tooltipText}
-                        className={action.isActive ? 'text-accent' : undefined}
-                        isDisabled={action.isDisabled}
-                        size='sm'
-                        variant='ghost'
-                        onPress={action.onPress}
-                      >
-                        {action.icon}
-                      </Button>
-                      <Tooltip.Content className='text-xs'>{action.tooltipText}</Tooltip.Content>
-                    </Tooltip>
-                  ))}
                 </ButtonGroup>
               )}
             </div>
@@ -682,8 +677,7 @@ function DataListItemImpl({
   // to a spinner or X icon to mirror the row's lifecycle without changing
   // its layout. See useParallelFetches for the producing hook.
   const isLoadingState =
-    item.isVirtualParent &&
-    (item.status === 'loading' || item.status === 'transferring');
+    item.isVirtualParent && (item.status === 'loading' || item.status === 'transferring');
   const isErrorState =
     item.isVirtualParent && (item.status === 'error' || item.status === 'failed');
   const showsErrorBody = isErrorState && item.error;
@@ -990,10 +984,34 @@ function DataListItemImpl({
   // are no children. Pure 'loading' state stays as a flat row — nothing to
   // expand mid-fetch.
   if (!hasChildren && !showsErrorBody) {
+    // Virtual parents that loaded with zero items render muted with a `(0)`
+    // count so they read as "fetched-and-empty" rather than indistinguishable
+    // from rows that have content. Distinct from `status === 'loading'` (which
+    // shows a spinner) and `status === 'error'` (which auto-promotes to a
+    // Disclosure with the error in the body).
+    //
+    // Outer div carries border-t; inner div carries `my-1 min-h-9`. This
+    // mirrors the Disclosure structure so flat rows and Disclosure-heading
+    // rows have identical vertical metrics — without the 8px gap that
+    // appears when a flat row only has `py-1` while the Disclosure row has
+    // `my-1` on its heading.
+    const isMutedEmpty = item.isVirtualParent && item.count === 0;
     return (
-      <div className='flex min-h-9 w-full flex-row items-center justify-between gap-1 border-t border-border py-1'>
-        <div className='flex w-full min-w-0 flex-1 basis-4/5 items-center gap-2'>{itemLabel}</div>
-        {selectionMode ? (selectionSlot ?? statusIndicator) : (statusIndicator ?? actions)}
+      <div className='w-full border-t border-border'>
+        <div
+          className={`my-1 flex min-h-9 w-full flex-row items-center justify-between gap-1 ${isMutedEmpty ? 'text-muted' : ''}`}
+        >
+          <div className='flex w-full min-w-0 flex-1 basis-4/5 items-center gap-2'>
+            {itemLabel}
+            {showCounts && item.isVirtualParent && item.count !== undefined && (
+              <p className='shrink-0 text-sm whitespace-nowrap text-muted'>
+                ({item.count}
+                {item.countLabel ? ` ${item.countLabel}` : ''})
+              </p>
+            )}
+          </div>
+          {selectionMode ? (selectionSlot ?? statusIndicator) : (statusIndicator ?? actions)}
+        </div>
       </div>
     );
   }
@@ -1021,7 +1039,7 @@ function DataListItemImpl({
       isExpanded={isOpen}
       onExpandedChange={(open) => onToggleExpanded?.(item.id, open)}
     >
-      <Disclosure.Heading className='my-1 flex min-h-9 w-full flex-row justify-between gap-1'>
+      <Disclosure.Heading className='my-1 flex min-h-9 w-full flex-row items-center justify-between gap-1'>
         {item.isVirtualParent ? (
           // Virtual parents: the entire label area IS the Trigger so clicking
           // the bold "App Studio Apps" text toggles expansion. Trigger claims
@@ -1033,16 +1051,17 @@ function DataListItemImpl({
             className='flex min-w-0 flex-1 basis-4/5 flex-row items-center gap-2'
             variant='tertiary'
           >
-            <p className='flex-1 truncate text-left text-sm font-medium'>{item.label}</p>
+            <p className='min-w-0 truncate text-left text-sm font-medium'>{item.label}</p>
             {statusIndicator
               ? statusIndicator
-              : showCounts && item.count !== undefined && (
-                  <p className='text-sm text-muted'>
-                    {' '}
+              : showCounts &&
+                item.count !== undefined && (
+                  <p className='shrink-0 text-sm whitespace-nowrap text-muted'>
                     ({item.count}
                     {item.countLabel ? ` ${item.countLabel}` : ''})
                   </p>
                 )}
+            <span aria-hidden='true' className='flex-1' />
             {!isLoadingState && (
               <Disclosure.Indicator>
                 <IconChevronDown stroke={1.5} />
@@ -1068,8 +1087,7 @@ function DataListItemImpl({
             >
               <span aria-hidden='true' className='flex-1' />
               {showCounts && item.count !== undefined && (
-                <p className='text-sm text-muted'>
-                  {' '}
+                <p className='shrink-0 text-sm whitespace-nowrap text-muted'>
                   ({item.count}
                   {item.countLabel ? ` ${item.countLabel}` : ''})
                 </p>
@@ -1084,9 +1102,7 @@ function DataListItemImpl({
       </Disclosure.Heading>
       <Disclosure.Content>
         <Disclosure.Body>
-          {showsErrorBody && (
-            <p className='px-2 py-1 text-xs text-danger'>{item.error}</p>
-          )}
+          {showsErrorBody && <p className='px-2 py-1 text-xs text-danger'>{item.error}</p>}
           {hasChildren && (
             // Each nesting level needs its own DisclosureGroup so React Aria
             // scopes single-expansion coordination to siblings at that level

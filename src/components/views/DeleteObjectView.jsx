@@ -359,9 +359,8 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
                   <IconTrash className='text-danger' stroke={1.5} />
                   {cascadeLabel}
                 </Button>
-                <Tooltip.Content className='text-xs'>
-                  Cascade option — deletes the entire {appLabel.toLowerCase()} instead of just this
-                  page
+                <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+                  Deletes the entire {appLabel.toLowerCase()} instead of just this page
                 </Tooltip.Content>
               </Tooltip>
             );
