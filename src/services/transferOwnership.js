@@ -267,7 +267,7 @@ export const TRANSFER_TYPES = [
 
 /**
  * Maps TRANSFER_TYPES keys to DomoObjectType ID strings for audit logging.
- * Unlike TYPE_KEY_TO_DOMO_TYPE in GetOwnedObjectsView (which uses null for
+ * Unlike TYPE_KEY_TO_DOMO_TYPE in OwnershipView (which uses null for
  * non-navigable types to skip link construction), this map is complete so
  * every row in the transfer log has a type label.
  *

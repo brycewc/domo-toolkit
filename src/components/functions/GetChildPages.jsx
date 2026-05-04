@@ -16,7 +16,7 @@ export function GetChildPages({ currentContext, isDisabled, onCollapseActions, o
         : 'Get Child Pages';
 
   return (
-    <Tooltip closeDelay={100} delay={400}>
+    <Tooltip closeDelay={100} delay={600}>
       <Button
         fullWidth
         className='min-w-36 flex-1 whitespace-normal'
@@ -57,7 +57,7 @@ export function GetChildPages({ currentContext, isDisabled, onCollapseActions, o
           )
         }
       </Button>
-      <Tooltip.Content className='flex flex-col items-center text-wrap break-normal'>
+      <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
         List all pages nested under this object
       </Tooltip.Content>
     </Tooltip>

@@ -98,6 +98,9 @@
 - DataList components sort items alphabetically by default (no longer rely on source order)
 - DataFlow icon swapped to `IconArrowFork` (rotated to a "merge into one" shape) — the previous icon was near-symmetric and looked the same with or without rotation
 - Tabs opened from the popup or side panel (Activity Log, Lineage, Settings, Release Notes "View Details") now open immediately to the right of the launching tab instead of at the end of the tab strip
+- View Ownership and Transfer Ownership are now a single Ownership view; clicking Transfer Ownership opens a destination-picker modal that floats on top of the underlying object list, so the source data stays visible during the transfer and per-type rows transition spinner → check/X as each transfer completes. Both side-panel buttons (Get Owned Objects / Transfer Ownership) launch the merged view; the latter auto-opens the modal
+- Selection mode in DataList: a header toggle replaces row action slots with checkboxes for selectable items. First use is the new Ownership view's type picker; the same primitive will support future bulk-edit features (e.g. transferring cards between datasets) without re-implementing the pattern
+- DataList header redesigned to surface primary actions inline instead of behind a three-dots Popover: close button is now an absolute-positioned sibling of the title (HeroUI canonical pattern), title is a single line, and subtext + action buttons share a second row. All actions render inline; the IconDots collapse is gone. Affects every DataList view (Pages, Cards, Datasets, Delete Object dependencies, View Inputs, Ownership)
 
 ## Bug Fixes and Improvements
 
@@ -110,9 +113,9 @@
 - Fixed Delete button not showing its normal tooltip for objects that have additional options (verified)
 - ID validation added to current object detection
 - Navigate to Copied Object: templates and certification processes (which share an API endpoint) are no longer mistaken for each other — discriminated by the response's `type` field (`AC` → Template, otherwise → Certification Process)
-- Fixed View Ownership crash ("Could not determine key for item") caused by upstream `getOwned*` mappers returning items with undefined or duplicate `id` fields. `flattenItems` now normalizes every item to a unique non-null `id` so any future API shape drift degrades gracefully instead of taking down the whole view; project/task list keys are namespaced (`project-<id>` / `task-<id>`) so colliding numeric IDs no longer collide
 - Fixed `getOwnedGroups` returning items with `id: undefined` because the API payload uses `groupId` (not `id`); also fixed its strict-equals filter `o.id === userId` (string vs number) which was zeroing out every match — now compares as strings and requires `type === 'USER'`
 - Fixed `getOwnedProjectsAndTasks` always returning empty: the `/api/content/v2/users/.../projects` endpoint now responds with `{_metadata, projects: [...]}` instead of a flat array, so `data.length` was always undefined
+- Fixed Ownership view crash ("Could not determine key for item") via the architectural rewrite — the merged view uses TanStack Virtual through DataList instead of HeroUI's React-Aria-based ListBox. Project and task IDs are namespaced (`project-<id>` / `task-<id>`) at the leaf level via DataListItem's new `originalId` field so colliding numeric IDs no longer collide while clipboard copy still yields the canonical raw ID
 
 ## Security
 
@@ -130,3 +133,5 @@
 - `DomoObjectType` now uses an objects-object argument for cleaner configuration
 - `DataList` shareability replaced with an allow-list (`SHAREABLE_TYPES`) plus a recursive `hasShareableChildren` check; group-level `unshareable: true` opt-outs in `dependencies.js` removed since the recursive rule subsumes them
 - New `usePerInstanceSettings` hook for per-Domo-instance settings stored in `chrome.storage.local` — generic shape, reusable beyond Activity Log; subscribes to `chrome.storage.onChanged` so consumers stay in sync without re-reading
+- New `useParallelFetches` hook consolidates the `Promise.allSettled` + per-key state machine that was open-coded in five-plus views (`GetOwnedObjects`, `TransferOwnership`, `SyncJSDocFromSource`, etc.). Returns `{ results, isFullyLoaded, errorCount, loadingCount, refresh }` with per-key streaming updates so progressive UI is the default. Used by the new Ownership view; future Get-All-Dependencies and similar parallel-fetch views slot in by passing a different spec list
+- DataList items now support optional `status` (`'loading' | 'loaded' | 'transferring' | 'transferred' | 'error' | 'failed'`) and `error` fields on virtual parents — DataList renders a spinner / X icon in the count slot and surfaces the error inside the body when expanded. Same field powers both fetch progress and transfer progress; non-virtual-parent rows ignore it. New `originalId` field on DataListItem lets consumers namespace `id` for uniqueness while preserving the canonical id for clipboard copy

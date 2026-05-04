@@ -59,7 +59,7 @@ export function GetDatasets({ currentContext, isDisabled, onCollapseActions, onS
 
   return (
     <Dropdown isDisabled={longPressDisabled} trigger='longPress'>
-      <Tooltip closeDelay={100} delay={400}>
+      <Tooltip closeDelay={100} delay={600}>
         <Button
           fullWidth
           className='relative min-w-36 flex-1 overflow-visible whitespace-normal'
@@ -87,7 +87,7 @@ export function GetDatasets({ currentContext, isDisabled, onCollapseActions, onS
             )
           }
         </Button>
-        <Tooltip.Content className='flex flex-col items-center text-wrap break-normal'>
+        <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
           <span>{label}</span>
           {!longPressDisabled && <span className='italic'>Hold for more options</span>}
         </Tooltip.Content>

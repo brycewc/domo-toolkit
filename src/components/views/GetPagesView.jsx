@@ -115,10 +115,10 @@ export function GetPagesView({ onBackToDefault = null, onStatusUpdate = null }) 
             const waitResult = await waitForCards(context);
             if (waitResult.success && waitResult.cards?.length) {
               const tabId = await getValidTabForInstance(instance);
-              const result = await getPagesForCards(
+              const result = (await getPagesForCards(
                 waitResult.cards.map((card) => card.id),
                 tabId
-              );
+              )) ?? { cardsByPage: {}, pages: [] };
               const stringId = String(objectId);
               childPages = result.pages
                 .filter((page) => String(page.id) !== stringId)
@@ -292,7 +292,13 @@ export function GetPagesView({ onBackToDefault = null, onStatusUpdate = null }) 
         cardIds = cards.map((card) => card.id);
       }
 
-      const { cardsByPage, pages } = await getPagesForCards(cardIds, tabId);
+      // Treat null result the same as empty — keeps the UI stable if the
+      // executeInPage bridge nulls out (script timeout, OOM, transient errors).
+      const result = (await getPagesForCards(cardIds, tabId)) ?? {
+        cardsByPage: {},
+        pages: []
+      };
+      const { cardsByPage, pages } = result;
 
       // For page-like types, filter out the current page
       const excludeSelf = ['DATA_APP_VIEW', 'PAGE', 'WORKSHEET_VIEW'].includes(objectType);
@@ -521,36 +527,35 @@ export function GetPagesView({ onBackToDefault = null, onStatusUpdate = null }) 
     }
   };
 
-  // Build the title section with name, label, and stats
-  const renderTitle = () => {
-    const grandchildCount = items.reduce((total, item) => total + (item.children?.length || 0), 0);
+  const renderTitle = () => (
+    <span>
+      {pageTypeLabel}
+      {pageTypeLabel.endsWith('on') ? '' : ' for'}{' '}
+      <span className='font-bold'>{pageData?.objectName}</span>
+    </span>
+  );
 
+  const renderSubtext = () => {
+    if (items.length === undefined || pageData?.sidepanelType === 'getCardPages') return null;
+    const grandchildCount = items.reduce(
+      (total, item) => total + (item.children?.length || 0),
+      0
+    );
     return (
-      <div className='flex w-full flex-col gap-1'>
-        <div className='line-clamp-2 min-w-0'>
-          <span>
-            {pageTypeLabel}
-            {pageTypeLabel.endsWith('on') ? '' : ' for'}
-          </span>{' '}
-          <span className='font-bold'>{pageData?.objectName}</span>
-        </div>
-        {items.length !== undefined && pageData?.sidepanelType !== 'getCardPages' && (
-          <div className='flex flex-row items-center gap-1'>
-            <span className='text-sm text-muted'>
-              {items.length} {pageData?.objectType === 'PAGE' ? 'child page' : 'page'}
-              {items.length === 1 ? '' : 's'}
+      <span className='inline-flex items-center gap-1'>
+        <span>
+          {items.length} {pageData?.objectType === 'PAGE' ? 'child page' : 'page'}
+          {items.length === 1 ? '' : 's'}
+        </span>
+        {grandchildCount > 0 && (
+          <>
+            <Separator className='mx-1 h-3' orientation='vertical' size='sm' />
+            <span>
+              {grandchildCount} grandchild {grandchildCount === 1 ? 'page' : 'pages'}
             </span>
-            {grandchildCount > 0 && (
-              <div className='flex flex-row items-end gap-1'>
-                <Separator className='mx-1 h-4' orientation='vertical' size='sm' />
-                <span className='text-sm text-muted'>
-                  {grandchildCount} grandchild {grandchildCount === 1 ? 'page' : 'pages'}
-                </span>
-              </div>
-            )}
-          </div>
+          </>
         )}
-      </div>
+      </span>
     );
   };
   if (isLoading) {
@@ -606,6 +611,7 @@ export function GetPagesView({ onBackToDefault = null, onStatusUpdate = null }) 
       objectType={pageData?.objectType}
       showActions={true}
       showCounts={true}
+      subtext={renderSubtext()}
       title={renderTitle()}
       onClose={onBackToDefault}
       onItemRemove={handleItemRemove}
@@ -749,7 +755,7 @@ function transformGroupedPagesData(childPages, origin, cardsByPage) {
     );
   }
 
-  // Handle regular Pages/Dashboards
+  // Handle dashboards (regular/old pages)
   if (pagesByType.PAGE.length > 0) {
     const sortedPages = pagesByType.PAGE.sort((a, b) => a.pageTitle.localeCompare(b.pageTitle));
 
@@ -769,7 +775,7 @@ function transformGroupedPagesData(childPages, origin, cardsByPage) {
       DataListItem.createGroup({
         children,
         id: 'PAGE_group',
-        label: 'Pages/Dashboards',
+        label: 'Dashboards',
         metadata: `${children.length} page${children.length !== 1 ? 's' : ''}`
       })
     );

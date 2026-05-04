@@ -137,7 +137,12 @@ export function ActionButtons({
                   >
                     <IconSettings stroke={1.5} />
                   </Button>
-                  <Tooltip.Content>Extension settings</Tooltip.Content>
+                  <Tooltip.Content
+                    className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+                    offset={4}
+                  >
+                    Extension settings
+                  </Tooltip.Content>
                 </Tooltip>
                 {collapsable ? (
                   <Tooltip closeDelay={0} delay={400}>
@@ -153,14 +158,24 @@ export function ActionButtons({
                       </Disclosure.Indicator>
                     </Button>
 
-                    <Tooltip.Content>Expand</Tooltip.Content>
+                    <Tooltip.Content
+                      className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+                      offset={4}
+                    >
+                      Expand
+                    </Tooltip.Content>
                   </Tooltip>
                 ) : (
                   <Tooltip closeDelay={0} delay={400}>
                     <Button fullWidth isIconOnly variant='tertiary' onPress={openSidepanel}>
                       <IconLayoutSidebarRightExpand stroke={1.5} />
                     </Button>
-                    <Tooltip.Content>Open side panel</Tooltip.Content>
+                    <Tooltip.Content
+                      className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+                      offset={4}
+                    >
+                      Open side panel
+                    </Tooltip.Content>
                   </Tooltip>
                 )}
               </ButtonGroup>

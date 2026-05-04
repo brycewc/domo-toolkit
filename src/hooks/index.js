@@ -1,6 +1,7 @@
 export { useGroupLookup } from './useGroupLookup';
 export { useLaunchView } from './useLaunchView';
 export { useLongPress } from './useLongPress';
+export { useParallelFetches } from './useParallelFetches';
 export { usePerInstanceSettings } from './usePerInstanceSettings';
 export { showReleaseToast, useReleaseNotification } from './useReleaseNotification';
 export { useResolveTabId } from './useResolveTabId';

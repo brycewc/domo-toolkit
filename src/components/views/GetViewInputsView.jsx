@@ -125,24 +125,16 @@ export function GetViewInputsView({
     }
   };
 
-  const renderTitle = () => {
-    const totalCount = items.length;
+  const renderTitle = () => (
+    <span>
+      DataSets Used in View for <span className='font-bold'>{viewData?.objectName}</span>
+    </span>
+  );
 
-    return (
-      <div className='flex flex-col gap-1'>
-        <div className='line-clamp-2 min-w-0'>
-          <span>DataSets Used in View for</span>{' '}
-          <span className='font-bold'>{viewData?.objectName}</span>
-        </div>
-        {totalCount > 0 && (
-          <div className='flex flex-row items-center gap-1'>
-            <span className='text-sm text-muted'>
-              {totalCount} dataset{totalCount === 1 ? '' : 's'}
-            </span>
-          </div>
-        )}
-      </div>
-    );
+  const renderSubtext = () => {
+    const totalCount = items.length;
+    if (totalCount === 0) return null;
+    return `${totalCount} dataset${totalCount === 1 ? '' : 's'}`;
   };
 
   if (isLoading) {
@@ -204,6 +196,7 @@ export function GetViewInputsView({
       objectType='DATA_SOURCE'
       showActions={true}
       showCounts={true}
+      subtext={renderSubtext()}
       title={renderTitle()}
       onClose={onBackToDefault}
       onRefresh={handleRefresh}

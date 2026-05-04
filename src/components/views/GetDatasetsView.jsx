@@ -231,25 +231,16 @@ export function GetDatasetsView({
     return items.length;
   };
 
-  // Build the title section
-  const renderTitle = () => {
-    const totalCount = getTotalCount();
+  const renderTitle = () => (
+    <span>
+      {viewData?.typeLabel} for <span className='font-bold'>{viewData?.objectName}</span>
+    </span>
+  );
 
-    return (
-      <div className='flex flex-col gap-1'>
-        <div className='line-clamp-2 min-w-0'>
-          <span>{viewData?.typeLabel} for</span>{' '}
-          <span className='font-bold'>{viewData?.objectName}</span>
-        </div>
-        {totalCount > 0 && (
-          <div className='flex flex-row items-center gap-1'>
-            <span className='text-sm text-muted'>
-              {totalCount} dataset{totalCount === 1 ? '' : 's'}
-            </span>
-          </div>
-        )}
-      </div>
-    );
+  const renderSubtext = () => {
+    const totalCount = getTotalCount();
+    if (totalCount === 0) return null;
+    return `${totalCount} dataset${totalCount === 1 ? '' : 's'}`;
   };
 
   if (isLoading) {
@@ -311,6 +302,7 @@ export function GetDatasetsView({
       objectType={viewData?.objectType}
       showActions={true}
       showCounts={true}
+      subtext={renderSubtext()}
       title={renderTitle()}
       onClose={onBackToDefault}
       onRefresh={handleRefresh}

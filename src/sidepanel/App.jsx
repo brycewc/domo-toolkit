@@ -9,14 +9,13 @@ import {
   DuplicateView,
   GetCardsView,
   GetDatasetsView,
-  GetOwnedObjectsView,
   GetPagesView,
   GetViewInputsView,
   LinkPreview,
   ObjectDetailsView,
+  OwnershipView,
   SyncJSDocFromSourceView,
   ToastProvider,
-  TransferOwnershipView,
   UpdateCodeEngineVersionsView,
   UpdateDetailsView
 } from '@/components';
@@ -297,14 +296,6 @@ export default function App() {
               />
             )}
 
-            {activeView === 'transferOwnership' && (
-              <TransferOwnershipView
-                key={viewKey}
-                onBackToDefault={handleBackToDefault}
-                onStatusUpdate={showStatus}
-              />
-            )}
-
             {activeView === 'duplicate' && (
               <DuplicateView
                 key={viewKey}
@@ -345,8 +336,8 @@ export default function App() {
               />
             )}
 
-            {activeView === 'getOwnedObjects' && (
-              <GetOwnedObjectsView
+            {activeView === 'ownership' && (
+              <OwnershipView
                 key={viewKey}
                 onBackToDefault={handleBackToDefault}
                 onStatusUpdate={showStatus}

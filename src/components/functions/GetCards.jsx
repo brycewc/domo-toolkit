@@ -14,7 +14,7 @@ export function GetCards({ currentContext, isDisabled, onCollapseActions, onStat
   const objectType = currentContext?.domoObject?.typeId;
 
   return (
-    <Tooltip closeDelay={100} delay={400}>
+    <Tooltip closeDelay={100} delay={600}>
       <Button
         fullWidth
         className='min-w-36 flex-1 whitespace-normal'
@@ -62,7 +62,7 @@ export function GetCards({ currentContext, isDisabled, onCollapseActions, onStat
           )
         }
       </Button>
-      <Tooltip.Content className='flex flex-col items-center text-wrap break-normal'>
+      <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
         List all cards on this object
       </Tooltip.Content>
     </Tooltip>

@@ -180,11 +180,11 @@ export function ApiErrorsView({ onBackToDefault = null, onStatusUpdate = null })
                         )}
                       />
                     ) : error.response ? (
-                      <pre className='whitespace-pre-wrap break-words text-sm'>
+                      <pre className='text-sm break-normal whitespace-pre-wrap'>
                         {error.response}
                       </pre>
                     ) : (
-                      <span className='text-sm italic text-muted'>No response body</span>
+                      <span className='text-sm text-muted italic'>No response body</span>
                     )}
                   </div>
                 </Disclosure.Content>

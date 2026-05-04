@@ -79,7 +79,7 @@ export function Export({ currentContext, isDisabled }) {
     };
 
     return (
-      <Tooltip closeDelay={100} delay={400}>
+      <Tooltip closeDelay={100} delay={600}>
         <Button
           fullWidth
           className='min-w-36 flex-1 whitespace-normal'
@@ -90,7 +90,7 @@ export function Export({ currentContext, isDisabled }) {
           {isPython ? <IconBrandPython stroke={1.5} /> : <IconFileTypeJs stroke={1.5} />}
           Download Version
         </Button>
-        <Tooltip.Content>
+        <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
           Download code engine package version code as a {isPython ? '.py' : '.js'} file
         </Tooltip.Content>
       </Tooltip>

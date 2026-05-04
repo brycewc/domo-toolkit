@@ -35,7 +35,7 @@ export function ApiErrors({ currentContext, isDisabled, onCollapseActions, onSta
   if (errorCount === 0) return null;
 
   return (
-    <Tooltip closeDelay={100} delay={400}>
+    <Tooltip closeDelay={100} delay={600}>
       <Button
         fullWidth
         className='min-w-36 flex-1 whitespace-normal'
@@ -61,7 +61,7 @@ export function ApiErrors({ currentContext, isDisabled, onCollapseActions, onSta
           {errorCount}
         </Chip>
       </Button>
-      <Tooltip.Content className='flex flex-col items-center text-wrap break-normal'>
+      <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
         List API errors captured on this page
       </Tooltip.Content>
     </Tooltip>

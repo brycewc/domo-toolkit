@@ -18,16 +18,29 @@ export class DataListItem {
    * @param {DataListItem[]} [config.children] - Optional nested child items
    * @param {boolean} [config.isVirtualParent] - Whether this is a grouping/virtual parent node
    * @param {DomoObject} [config.domoObject] - Optional DomoObject instance for richer functionality
+   * @param {'loading'|'loaded'|'transferring'|'transferred'|'error'|'failed'} [config.status]
+   *   Async-state for virtual-parent groupings. When undefined, treated as 'loaded'.
+   *   Spans both fetch (`loading`/`loaded`/`error`) and transfer (`transferring`/
+   *   `transferred`/`failed`) phases so a row can reuse the same field across
+   *   the lifecycle.
+   * @param {string} [config.error] - Error message to display when status is 'error' or 'failed'
+   * @param {string|number} [config.originalId] - Canonical id for clipboard
+   *   copy when `id` has been namespaced for uniqueness (e.g.
+   *   `project-123`/`task-123` to avoid cross-namespace collisions). When
+   *   absent, copy actions use `id` directly.
    */
   constructor({
     children = undefined,
     count = undefined,
     countLabel = null,
     domoObject = null,
+    error = null,
     id,
     isVirtualParent = false,
     label,
     metadata = null,
+    originalId = undefined,
+    status = undefined,
     typeId = null,
     url = null
   }) {
@@ -41,6 +54,9 @@ export class DataListItem {
     this.children = children;
     this.isVirtualParent = isVirtualParent;
     this.domoObject = domoObject;
+    this.status = status;
+    this.error = error;
+    this.originalId = originalId;
   }
 
   /**
@@ -48,19 +64,28 @@ export class DataListItem {
    * @param {Object} config - Configuration object
    * @param {string} config.id - Unique identifier for the group
    * @param {string} config.label - Display label for the group
-   * @param {DataListItem[]} config.children - Child items in this group
+   * @param {DataListItem[]} [config.children] - Child items in this group
+   * @param {number} [config.count] - Override child count (defaults to children.length).
+   *   Useful for async-loading rows where children aren't populated yet but a
+   *   total is known.
    * @param {string} [config.metadata] - Optional metadata (defaults to child count description)
+   * @param {'loading'|'loaded'|'transferring'|'transferred'|'error'|'failed'} [config.status]
+   *   Async state that DataList renders as a spinner or X icon in the count slot.
+   * @param {string} [config.error] - Error message rendered inside the body when expanded (status='error'/'failed').
    * @returns {DataListItem}
    */
-  static createGroup({ children, id, label, metadata }) {
+  static createGroup({ children, count, error, id, label, metadata, status }) {
+    const childCount = Array.isArray(children) ? children.length : 0;
     return new DataListItem({
       children,
-      count: children.length,
+      count: count !== undefined ? count : childCount,
       domoObject: null,
+      error,
       id,
       isVirtualParent: true,
       label,
-      metadata: metadata || `${children.length} item${children.length !== 1 ? 's' : ''}`,
+      metadata: metadata || `${childCount} item${childCount !== 1 ? 's' : ''}`,
+      status,
       typeId: null,
       url: null
     });
@@ -106,10 +131,13 @@ export class DataListItem {
       count: data.count,
       countLabel: data.countLabel || null,
       domoObject: data.domoObject ? DomoObject.fromJSON(data.domoObject) : null,
+      error: data.error || null,
       id: data.id,
       isVirtualParent: data.isVirtualParent || false,
       label: data.label,
       metadata: data.metadata,
+      originalId: data.originalId,
+      status: data.status,
       typeId: data.typeId,
       url: data.url
     });
@@ -143,10 +171,13 @@ export class DataListItem {
       count: this.count,
       countLabel: this.countLabel,
       domoObject: this.domoObject?.toJSON() || null,
+      error: this.error,
       id: this.id,
       isVirtualParent: this.isVirtualParent,
       label: this.label,
       metadata: this.metadata,
+      originalId: this.originalId,
+      status: this.status,
       typeId: this.typeId,
       url: this.url
     };

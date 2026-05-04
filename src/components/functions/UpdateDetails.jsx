@@ -15,11 +15,10 @@ export function UpdateDetails({ currentContext, onStatusUpdate }) {
   const typeId = currentContext?.domoObject?.typeId;
   const typeName = currentContext?.domoObject?.typeName || 'Object';
   const label = `Update ${typeName} Details`;
-  const tooltip =
-    TOOLTIPS_BY_TYPE[typeId] || `Edit this ${typeName.toLowerCase()}'s details`;
+  const tooltip = TOOLTIPS_BY_TYPE[typeId] || `Edit this ${typeName.toLowerCase()}'s details`;
 
   return (
-    <Tooltip closeDelay={100} delay={400}>
+    <Tooltip closeDelay={100} delay={600}>
       <Button
         fullWidth
         className='min-w-36 flex-1 whitespace-normal'
@@ -36,7 +35,7 @@ export function UpdateDetails({ currentContext, onStatusUpdate }) {
         <ObjectTypeIcon typeId={typeId} />
         {label}
       </Button>
-      <Tooltip.Content className='flex flex-col items-center text-wrap break-normal'>
+      <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
         {tooltip}
       </Tooltip.Content>
     </Tooltip>

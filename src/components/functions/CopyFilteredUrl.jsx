@@ -148,7 +148,7 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
 
   return (
     <Dropdown isDisabled={longPressDisabled} trigger='longPress'>
-      <Tooltip closeDelay={100} delay={400}>
+      <Tooltip closeDelay={100} delay={600}>
         <Button
           fullWidth
           className={`min-w-36 flex-1 whitespace-normal ${hasNewFilters ? 'animate-pulse' : ''}`}
@@ -177,7 +177,7 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
           )}
           <LongPressOverlay />
         </Button>
-        <Tooltip.Content className='flex flex-col items-center text-center'>
+        <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
           <span>Copy filtered URL (pfilter)</span>
           {!longPressDisabled && <span className='italic'>Hold for more options</span>}
         </Tooltip.Content>

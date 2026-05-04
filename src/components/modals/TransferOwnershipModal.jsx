@@ -1,0 +1,269 @@
+import {
+  Button,
+  Description,
+  Form,
+  Input,
+  Label,
+  Modal,
+  Switch,
+  TextField,
+  Tooltip
+} from '@heroui/react';
+import { IconUserUp, IconX } from '@tabler/icons-react';
+import { useEffect, useMemo, useState } from 'react';
+
+import { UserComboBox } from '@/components';
+import { countOwned, getFullUserDetails, getUserDetails } from '@/services';
+
+/**
+ * Modal that collects the destination user, email/delete preferences, and
+ * a confirmation submit. Operates on a parent-owned `selectedTypeKeys` set;
+ * the modal does not edit selection. On submit, the modal closes immediately
+ * and hands form data to the parent's `onSubmit` — the parent runs the
+ * transfer pipeline (transferAllOwnership + email-new-owner + delete-user)
+ * and threads progress into DataList rows via the parent's transferStatus
+ * state.
+ *
+ * @param {Object} props
+ * @param {Object} props.currentContext - Active DomoContext (carries baseUrl, tabId, user.metadata.USER_RIGHTS, and the source user's reportsTo).
+ * @param {boolean} props.isOpen
+ * @param {(open: boolean) => void} props.onOpenChange
+ * @param {(formData: { toUserId: number, toUserDisplayName: string|null, emailNewOwner: boolean, deleteAfterTransfer: boolean, targetUser: { displayName: string|null, email: string|null }|null }) => void} props.onSubmit
+ * @param {Object} props.results - useParallelFetches results, used to count selected objects for the summary.
+ * @param {Set<string>} props.selectedTypeKeys
+ * @param {{ id: number|string, name: string }} props.sourceUser
+ */
+export function TransferOwnershipModal({
+  currentContext,
+  isOpen,
+  onOpenChange,
+  onSubmit,
+  results,
+  selectedTypeKeys,
+  sourceUser
+}) {
+  const [selectedUserId, setSelectedUserId] = useState(null);
+  const [selectedDisplayName, setSelectedDisplayName] = useState(null);
+  const [emailNewOwner, setEmailNewOwner] = useState(false);
+  const [deleteAfterTransfer, setDeleteAfterTransfer] = useState(false);
+  const [targetUser, setTargetUser] = useState(null);
+  const [manager, setManager] = useState(null);
+
+  // Reset form whenever the modal opens fresh — stale picks from a previous
+  // session shouldn't leak into the next attempt.
+  useEffect(() => {
+    if (!isOpen) return;
+    setSelectedUserId(null);
+    setSelectedDisplayName(null);
+    setEmailNewOwner(false);
+    setDeleteAfterTransfer(false);
+    setTargetUser(null);
+  }, [isOpen]);
+
+  // Resolve manager (reportsTo) for the manager-shortcut button. Only fires
+  // while the modal is open so we don't waste lookups.
+  useEffect(() => {
+    if (!isOpen) return;
+    const reportsTo = currentContext?.domoObject?.metadata?.context?.reportsTo;
+    if (!reportsTo || !currentContext?.tabId) {
+      setManager(null);
+      return;
+    }
+    let cancelled = false;
+    getUserDetails(reportsTo, currentContext.tabId)
+      .then((details) => {
+        if (cancelled || !details) return;
+        setManager({
+          active: details.active,
+          id: details.id,
+          name: details.displayName
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setManager(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, currentContext?.domoObject?.metadata?.context?.reportsTo, currentContext?.tabId]);
+
+  // Resolve email + displayName for the destination whenever it changes.
+  // Powers the email-toggle's enable state and the attachment's "New Owner
+  // Name" column when the parent emails the recipient post-transfer.
+  useEffect(() => {
+    if (!selectedUserId || !currentContext?.tabId) {
+      setTargetUser(null);
+      return;
+    }
+    setTargetUser(null);
+    let cancelled = false;
+    getFullUserDetails(selectedUserId, currentContext.tabId)
+      .then((user) => {
+        if (cancelled || !user) return;
+        setTargetUser({
+          displayName: user.displayName || null,
+          email: user.emailAddress || user.email || null
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setTargetUser(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedUserId, currentContext?.tabId]);
+
+  const userRights = currentContext?.user?.metadata?.USER_RIGHTS || [];
+  const canDeleteUsers = userRights.includes('user.edit');
+
+  const selectedTypeCount = selectedTypeKeys?.size ?? 0;
+  const selectedObjectCount = useMemo(() => {
+    if (!selectedTypeKeys || !results) return 0;
+    let total = 0;
+    for (const key of selectedTypeKeys) {
+      const result = results[key];
+      if (result?.status === 'loaded' && result.items) {
+        total += countOwned(key, result.items);
+      }
+    }
+    return total;
+  }, [selectedTypeKeys, results]);
+
+  const handleSubmit = (e) => {
+    if (e) e.preventDefault();
+    if (!selectedUserId || selectedTypeCount === 0) return;
+
+    const formData = {
+      deleteAfterTransfer: deleteAfterTransfer && canDeleteUsers,
+      emailNewOwner: emailNewOwner && !!targetUser?.email,
+      targetUser,
+      toUserDisplayName: selectedDisplayName ?? targetUser?.displayName ?? null,
+      toUserId: selectedUserId
+    };
+
+    // Close modal immediately so per-row transfer progress is visible
+    // underneath; the parent runs transferAllOwnership and updates DataList
+    // rows via its transferStatus state.
+    onOpenChange(false);
+    onSubmit(formData);
+  };
+
+  return (
+    <Modal isOpen={isOpen} onOpenChange={onOpenChange}>
+      <Modal.Backdrop>
+        <Modal.Container className='p-1' placement='top' scroll='outside'>
+          <Modal.Dialog className='p-2'>
+            <Modal.CloseTrigger className='absolute top-2 right-2' variant='ghost'>
+              <IconX stroke={1.5} />
+            </Modal.CloseTrigger>
+            <Form id='transfer-ownership-form' onSubmit={handleSubmit}>
+              <Modal.Header>
+                <Modal.Heading>Transfer Ownership</Modal.Heading>
+              </Modal.Header>
+              <Modal.Body className='flex flex-col gap-2'>
+                <TextField isReadOnly className='pointer-events-none'>
+                  <Label>Transfer From</Label>
+                  <Input value={sourceUser?.name || 'Unknown User'} variant='secondary' />
+                </TextField>
+
+                <div className='flex items-end gap-1'>
+                  <UserComboBox
+                    avatarBaseUrl={currentContext?.domoObject?.baseUrl}
+                    className='min-w-0 flex-1'
+                    isActive={isOpen}
+                    label='Transfer To'
+                    selectedDisplayName={selectedDisplayName}
+                    selectedKey={selectedUserId}
+                    tabId={currentContext?.tabId}
+                    onSelectionChange={(key) => {
+                      setSelectedUserId(key);
+                      setSelectedDisplayName(null);
+                    }}
+                  />
+                  <Tooltip closeDelay={0} delay={400}>
+                    <Button
+                      isIconOnly
+                      isDisabled={!manager || !manager.active}
+                      size='md'
+                      variant='tertiary'
+                      onPress={() => {
+                        if (!manager?.id) return;
+                        setSelectedUserId(manager.id);
+                        setSelectedDisplayName(manager.name);
+                      }}
+                    >
+                      <IconUserUp stroke={1.5} />
+                    </Button>
+                    <Tooltip.Content className='text-xs'>
+                      {manager?.active
+                        ? `Transfer to manager: ${manager.name}`
+                        : manager
+                          ? `Manager ${manager.name} is inactive`
+                          : 'No manager assigned'}
+                    </Tooltip.Content>
+                  </Tooltip>
+                </div>
+
+                <Switch
+                  isDisabled={!targetUser?.email}
+                  isSelected={emailNewOwner && !!targetUser?.email}
+                  onChange={setEmailNewOwner}
+                >
+                  <Switch.Control>
+                    <Switch.Thumb />
+                  </Switch.Control>
+                  <Switch.Content>
+                    <Label>Email new owner with summary</Label>
+                    <Description>
+                      {targetUser?.email
+                        ? `Sends an Excel attachment to ${targetUser.email}`
+                        : selectedUserId
+                          ? 'Email unavailable for selected user'
+                          : 'Select a destination user to enable'}
+                    </Description>
+                  </Switch.Content>
+                </Switch>
+
+                {canDeleteUsers && (
+                  <Switch isSelected={deleteAfterTransfer} onChange={setDeleteAfterTransfer}>
+                    {({ isSelected }) => (
+                      <>
+                        <Switch.Control className={isSelected ? 'bg-danger' : ''}>
+                          <Switch.Thumb />
+                        </Switch.Control>
+                        <Switch.Content>
+                          <Label>Delete user after transfer</Label>
+                          <Description>Only if all transfers succeed</Description>
+                        </Switch.Content>
+                      </>
+                    )}
+                  </Switch>
+                )}
+
+                <p className='text-xs text-muted'>
+                  <span className='font-medium text-foreground'>{selectedTypeCount}</span>{' '}
+                  type{selectedTypeCount !== 1 ? 's' : ''},{' '}
+                  <span className='font-medium text-foreground'>{selectedObjectCount}</span>{' '}
+                  object{selectedObjectCount !== 1 ? 's' : ''} selected
+                </p>
+              </Modal.Body>
+              <Modal.Footer className='flex justify-end gap-2'>
+                <Button size='sm' slot='close' variant='tertiary'>
+                  Cancel
+                </Button>
+                <Button
+                  isDisabled={!selectedUserId || selectedTypeCount === 0}
+                  size='sm'
+                  type='submit'
+                  variant='primary'
+                >
+                  Transfer
+                </Button>
+              </Modal.Footer>
+            </Form>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
+    </Modal>
+  );
+}

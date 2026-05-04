@@ -12,26 +12,20 @@ export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
   const { LongPressOverlay, pressProps } = useLongPress();
 
   const domoObject = currentContext?.domoObject;
-  const typeModel = domoObject?.typeId
-    ? getObjectType(domoObject.typeId)
-    : null;
+  const typeModel = domoObject?.typeId ? getObjectType(domoObject.typeId) : null;
   const primaryConfig = typeModel?.copyConfigs?.find((c) => c.primary);
 
   // Build dropdown items from copyConfigs, filtering by visibility conditions
   const dropdownItems = useMemo(() => {
     if (!typeModel?.copyConfigs || !domoObject) return [];
 
-    const resolve = (source) =>
-      source.split('.').reduce((cur, key) => cur?.[key], domoObject);
+    const resolve = (source) => source.split('.').reduce((cur, key) => cur?.[key], domoObject);
 
     const isVisible = (config) => {
       if (!config.when) return !!resolve(config.source);
       if (typeof config.when === 'string') return !!resolve(config.when);
       const val = resolve(config.when.field);
-      return (
-        typeof val === 'string' &&
-        val.toLowerCase() === config.when.matches.toLowerCase()
-      );
+      return typeof val === 'string' && val.toLowerCase() === config.when.matches.toLowerCase();
     };
 
     return typeModel.copyConfigs
@@ -43,16 +37,12 @@ export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
       }));
   }, [domoObject, primaryConfig, typeModel]);
 
-  const longPressDisabled =
-    isDisabled || !domoObject?.id || dropdownItems.length === 0;
+  const longPressDisabled = isDisabled || !domoObject?.id || dropdownItems.length === 0;
 
   const handlePress = () => {
-    const resolve = (source) =>
-      source.split('.').reduce((cur, key) => cur?.[key], domoObject);
+    const resolve = (source) => source.split('.').reduce((cur, key) => cur?.[key], domoObject);
 
-    const copyId = primaryConfig
-      ? resolve(primaryConfig.source)
-      : domoObject?.id;
+    const copyId = primaryConfig ? resolve(primaryConfig.source) : domoObject?.id;
     const copyLabel = primaryConfig?.label || `${domoObject?.typeName} ID`;
     try {
       navigator.clipboard.writeText(copyId);
@@ -98,22 +88,19 @@ export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
           onPress={handlePress}
           {...(longPressDisabled ? {} : pressProps)}
         >
-          {isCopied ? (
-            <AnimatedCheck stroke={1.5} />
-          ) : (
-            <IconClipboard stroke={1.5} />
-          )}
+          {isCopied ? <AnimatedCheck stroke={1.5} /> : <IconClipboard stroke={1.5} />}
           <LongPressOverlay />
         </Button>
-        <Tooltip.Content className='flex flex-col items-center'>
+        <Tooltip.Content
+          className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+          offset={4}
+        >
           <div className='flex items-center gap-2'>
             <span>Copy {primaryConfig?.label || 'ID'}</span>
             <Kbd className='text-xs'>
               <Kbd.Abbr
                 keyValue={
-                  (
-                    navigator.userAgentData?.platform ?? navigator.platform
-                  ).includes('Mac')
+                  (navigator.userAgentData?.platform ?? navigator.platform).includes('Mac')
                     ? 'command'
                     : 'ctrl'
                 }
@@ -122,9 +109,7 @@ export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
               <Kbd.Content>1</Kbd.Content>
             </Kbd>
           </div>
-          {!longPressDisabled && (
-            <span className='italic'>Hold for more options</span>
-          )}
+          {!longPressDisabled && <span className='italic'>Hold for more options</span>}
         </Tooltip.Content>
       </Tooltip>
       <Dropdown.Popover className='w-fit min-w-48' placement='bottom left'>

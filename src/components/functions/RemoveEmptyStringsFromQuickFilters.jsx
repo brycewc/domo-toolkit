@@ -77,7 +77,7 @@ export function RemoveEmptyStringsFromQuickFilters({ currentContext, onStatusUpd
   };
 
   return (
-    <Tooltip closeDelay={100} delay={400}>
+    <Tooltip closeDelay={100} delay={600}>
       <Button
         fullWidth
         className='min-w-36 flex-1 whitespace-normal'
@@ -88,7 +88,7 @@ export function RemoveEmptyStringsFromQuickFilters({ currentContext, onStatusUpd
         <IconXboxX stroke={1.5} />
         Fix Empty String Filters
       </Button>
-      <Tooltip.Content className='flex flex-col items-center text-wrap break-normal'>
+      <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
         Sets the default of contains quick filters to nothing instead of an empty string, so that
         null values will show instead of being filtered out. Currently affects {emptyCount} filter
         {emptyCount === 1 ? '' : 's'} on this card.

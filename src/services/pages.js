@@ -444,20 +444,27 @@ export async function getPagesForCards(cardIds, tabId = null) {
     // Execute fetch in page context to use authenticated session
     const result = await executeInPage(
       async (cardIds) => {
-        // Fetch all cards in parallel (one request per card for speed)
+        // Fetch all cards in parallel (one request per card for speed).
+        // Per-fetch `.catch` ensures one network failure (or non-OK response)
+        // doesn't sink the whole Promise.all. With 400+ cards on busy
+        // datasets, a single transient rejection would otherwise null out the
+        // entire result and crash the destructure on the caller side.
         const results = await Promise.all(
           cardIds.map((cardId) =>
-            fetch(`/api/content/v1/cards?urns=${cardId}&parts=adminAllPages`).then((response) => {
-              if (!response.ok) return null;
-              return response.json();
-            })
+            fetch(`/api/content/v1/cards?urns=${cardId}&parts=adminAllPages`)
+              .then((response) => (response.ok ? response.json() : null))
+              .catch(() => null)
           )
         );
 
         const allDetailCards = results.filter(Boolean).flat();
 
+        // Empty result is a legitimate "this card isn't on any pages" case,
+        // not an error. Returning empty here keeps the executeScript bridge
+        // serializable and lets the caller render a friendly "no pages found"
+        // state instead of crashing on a thrown error.
         if (!allDetailCards.length) {
-          throw new Error('No cards found.');
+          return { cardsByPage: {}, pages: [] };
         }
 
         // Build flat lists of all pages, app pages, and report pages from all cards

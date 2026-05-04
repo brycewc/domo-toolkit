@@ -118,18 +118,15 @@ export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
       >
         <IconUserPlus stroke={1.5} />
       </Button>
-      <Tooltip.Content className='text-wrap break-normal'>
+      <Tooltip.Content
+        className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+        offset={4}
+      >
         {currentContext?.domoObject?.typeId === 'DATA_SOURCE' &&
         currentContext?.domoObject?.metadata?.details?.accountId ? (
-          <>
-            Share <span className='font-semibold'>dataset account</span> with yourself
-          </>
+          <>Share dataset account with yourself</>
         ) : (
-          <>
-            Share{' '}
-            <span className='font-semibold lowercase'>{currentContext?.domoObject?.name}</span> with
-            yourself
-          </>
+          <>Share {currentContext?.domoObject?.typeName.toLowerCase()} with yourself</>
         )}
       </Tooltip.Content>
     </Tooltip>

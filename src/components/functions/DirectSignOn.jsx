@@ -10,7 +10,7 @@ export function DirectSignOn({ currentContext, isDisabled }) {
   };
 
   return (
-    <Tooltip closeDelay={100} delay={400}>
+    <Tooltip closeDelay={100} delay={600}>
       <Button
         fullWidth
         className='min-w-36 flex-1 whitespace-normal'
@@ -21,7 +21,9 @@ export function DirectSignOn({ currentContext, isDisabled }) {
         <IconLogin2 stroke={1.5} />
         Direct Sign-On
       </Button>
-      <Tooltip.Content>Navigate to the direct sign-on page</Tooltip.Content>
+      <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+        Navigate to the direct sign-on page
+      </Tooltip.Content>
     </Tooltip>
   );
 }

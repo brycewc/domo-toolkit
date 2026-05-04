@@ -94,7 +94,7 @@ export function ClearCookies({ currentContext, isDisabled }) {
       >
         <IconCookieOff className='text-danger' />
       </Button>
-      <Tooltip.Content className='flex flex-col items-center text-wrap break-normal'>
+      <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
         {tooltipText}
       </Tooltip.Content>
     </Tooltip>

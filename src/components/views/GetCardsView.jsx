@@ -230,26 +230,19 @@ export function GetCardsView({
 
   const totalItems = itemCounts.cards + itemCounts.forms + itemCounts.queues;
 
-  const renderTitle = () => {
-    const titlePrefix = hasMultipleTypes ? 'Items for' : 'Cards for';
-    return (
-      <div className='flex flex-col gap-1'>
-        <div className='line-clamp-2 min-w-0'>
-          <span>{titlePrefix}</span>{' '}
-          <span className='font-bold'>{viewData?.objectName}</span>
-        </div>
-        {totalItems > 0 && (
-          <div className='flex flex-row items-center gap-1'>
-            <span className='text-sm text-muted'>
-              {hasMultipleTypes
-                ? `${totalItems} item${totalItems === 1 ? '' : 's'}`
-                : `${itemCounts.cards} card${itemCounts.cards === 1 ? '' : 's'}`}
-            </span>
-          </div>
-        )}
-      </div>
-    );
-  };
+  const titlePrefix = hasMultipleTypes ? 'Items for' : 'Cards for';
+  const renderTitle = () => (
+    <span>
+      {titlePrefix} <span className='font-bold'>{viewData?.objectName}</span>
+    </span>
+  );
+
+  const renderSubtext = () =>
+    totalItems > 0
+      ? hasMultipleTypes
+        ? `${totalItems} item${totalItems === 1 ? '' : 's'}`
+        : `${itemCounts.cards} card${itemCounts.cards === 1 ? '' : 's'}`
+      : null;
 
   if (isLoading) {
     if (!showSpinner) return null;
@@ -310,6 +303,7 @@ export function GetCardsView({
       objectType={viewData?.objectType}
       showActions={true}
       showCounts={true}
+      subtext={renderSubtext()}
       title={renderTitle()}
       onClose={onBackToDefault}
       onRefresh={handleRefresh}
