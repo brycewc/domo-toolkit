@@ -12,6 +12,7 @@
 - Option to delete the user after a successful transfer
 - Option to email the recipient with an Excel attachment listing everything transferred (types + IDs)
 - Quick button to transfer ownership to the user's manager (uses `reportsTo` from user context)
+- Clicking Transfer Ownership now opens the OwnershipView directly into selection mode (no modal popup) with every eligible type pre-checked; a Select all / Deselect all toggle button appears under the header actions for quick bulk-selection changes
 
 ### View Ownership by User
 

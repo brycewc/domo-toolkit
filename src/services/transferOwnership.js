@@ -9,7 +9,7 @@ import {
   getOwnedAppStudioApps,
   getOwnedCards,
   getOwnedCodeEnginePackages,
-  getOwnedCustomApps,
+  // getOwnedCustomApps,
   getOwnedDataflows,
   getOwnedDatasets,
   getOwnedFilesets,
@@ -39,7 +39,7 @@ import {
   transferAppStudioApps,
   transferCards,
   transferCodeEnginePackages,
-  transferCustomApps,
+  // transferCustomApps,
   transferDataflows,
   transferDatasets,
   transferFilesets,
@@ -136,13 +136,13 @@ export const TRANSFER_TYPES = [
     requiredAuthority: 'codeengine.package.admin',
     transfer: transferCodeEnginePackages
   },
-  {
-    getOwned: getOwnedCustomApps,
-    key: 'customApps',
-    label: 'Custom App Designs',
-    requiredAuthority: 'app.admin',
-    transfer: transferCustomApps
-  },
+  // {
+  //   getOwned: getOwnedCustomApps,
+  //   key: 'customApps',
+  //   label: 'Custom App Designs',
+  //   requiredAuthority: 'app.admin',
+  //   transfer: transferCustomApps
+  // }, Excluding for now because there is no server-side filtering and it takes forever to load
   {
     getOwned: getOwnedDataflows,
     key: 'dataflows',
@@ -367,122 +367,101 @@ export async function transferAllOwnership({
 }) {
   const results = new Map();
 
-  const transferPromises = TRANSFER_TYPES.filter((type) =>
-    enabledTypes.has(type.key)
-  ).map(async (type) => {
-    // Hoisted so the catch block can still emit a meaningful `attempted` list
-    // when Phase 2 fails after Phase 1 succeeded.
-    let owned;
-    try {
-      // Phase 1: List owned objects (or reuse seeded data when safe)
-      const seed =
-        !type.getOwnedForTransfer && seededOwnedObjects?.[type.key];
+  const transferPromises = TRANSFER_TYPES.filter((type) => enabledTypes.has(type.key)).map(
+    async (type) => {
+      // Hoisted so the catch block can still emit a meaningful `attempted` list
+      // when Phase 2 fails after Phase 1 succeeded.
+      let owned;
+      try {
+        // Phase 1: List owned objects (or reuse seeded data when safe)
+        const seed = !type.getOwnedForTransfer && seededOwnedObjects?.[type.key];
 
-      if (seed) {
-        owned = seed;
-      } else {
+        if (seed) {
+          owned = seed;
+        } else {
+          onTypeProgress?.({
+            count: 0,
+            status: 'listing',
+            typeKey: type.key
+          });
+          const listOwned = type.getOwnedForTransfer || type.getOwned;
+          owned = await listOwned(fromUserId, tabId);
+        }
+
+        const count = countOwned(type.key, owned);
+
+        if (count === 0) {
+          const result = {
+            attempted: [],
+            count: 0,
+            errors: [],
+            failed: 0,
+            succeeded: 0
+          };
+          results.set(type.key, result);
+          onTypeProgress?.({
+            count: 0,
+            result,
+            status: 'done',
+            typeKey: type.key
+          });
+          return;
+        }
+
+        // Phase 2: Transfer ownership
         onTypeProgress?.({
-          count: 0,
-          status: 'listing',
+          count,
+          status: 'transferring',
           typeKey: type.key
         });
-        const listOwned = type.getOwnedForTransfer || type.getOwned;
-        owned = await listOwned(fromUserId, tabId);
-      }
 
-      const count = countOwned(type.key, owned);
+        let transferResult;
 
-      if (count === 0) {
+        // Handle special types with non-standard signatures
+        if (type.key === 'projectsAndTasks') {
+          transferResult = await type.transfer(owned, fromUserId, toUserId, tabId);
+        } else if (type.key === 'approvals') {
+          // Approvals need the full objects (id + version)
+          transferResult = await type.transfer(owned, fromUserId, toUserId, tabId);
+        } else if (type.key === 'taskCenterTasks') {
+          // Tasks need the full objects (id + queueId)
+          transferResult = await type.transfer(owned, fromUserId, toUserId, tabId);
+        } else {
+          // Standard types: extract IDs and pass to transfer
+          const ids = owned.map((o) => o.id);
+          transferResult = await type.transfer(ids, fromUserId, toUserId, tabId);
+        }
+
         const result = {
-          attempted: [],
+          attempted: flattenOwned(type.key, owned),
+          count,
+          ...transferResult
+        };
+        results.set(type.key, result);
+        onTypeProgress?.({
+          count,
+          result,
+          status: 'done',
+          typeKey: type.key
+        });
+      } catch (error) {
+        const result = {
+          attempted: flattenOwned(type.key, owned),
           count: 0,
-          errors: [],
-          failed: 0,
+          errors: [{ error: error.message, id: 'all' }],
+          failed: 1,
           succeeded: 0
         };
         results.set(type.key, result);
         onTypeProgress?.({
           count: 0,
           result,
-          status: 'done',
+          status: 'error',
           typeKey: type.key
         });
-        return;
       }
-
-      // Phase 2: Transfer ownership
-      onTypeProgress?.({
-        count,
-        status: 'transferring',
-        typeKey: type.key
-      });
-
-      let transferResult;
-
-      // Handle special types with non-standard signatures
-      if (type.key === 'projectsAndTasks') {
-        transferResult = await type.transfer(
-          owned,
-          fromUserId,
-          toUserId,
-          tabId
-        );
-      } else if (type.key === 'approvals') {
-        // Approvals need the full objects (id + version)
-        transferResult = await type.transfer(
-          owned,
-          fromUserId,
-          toUserId,
-          tabId
-        );
-      } else if (type.key === 'taskCenterTasks') {
-        // Tasks need the full objects (id + queueId)
-        transferResult = await type.transfer(
-          owned,
-          fromUserId,
-          toUserId,
-          tabId
-        );
-      } else {
-        // Standard types: extract IDs and pass to transfer
-        const ids = owned.map((o) => o.id);
-        transferResult = await type.transfer(
-          ids,
-          fromUserId,
-          toUserId,
-          tabId
-        );
-      }
-
-      const result = {
-        attempted: flattenOwned(type.key, owned),
-        count,
-        ...transferResult
-      };
-      results.set(type.key, result);
-      onTypeProgress?.({
-        count,
-        result,
-        status: 'done',
-        typeKey: type.key
-      });
-    } catch (error) {
-      const result = {
-        attempted: flattenOwned(type.key, owned),
-        count: 0,
-        errors: [{ error: error.message, id: 'all' }],
-        failed: 1,
-        succeeded: 0
-      };
-      results.set(type.key, result);
-      onTypeProgress?.({
-        count: 0,
-        result,
-        status: 'error',
-        typeKey: type.key
-      });
     }
-  });
+  );
 
   await Promise.allSettled(transferPromises);
 

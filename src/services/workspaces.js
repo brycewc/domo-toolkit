@@ -83,12 +83,7 @@ export async function getOwnedWorkspaces(userId, tabId = null) {
  * @param {number|null} tabId - Optional Chrome tab ID
  * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
  */
-export async function transferWorkspaces(
-  workspaceIds,
-  fromUserId,
-  toUserId,
-  tabId = null
-) {
+export async function transferWorkspaces(workspaceIds, fromUserId, toUserId, tabId = null) {
   return executeInPage(
     async (workspaceIds, fromUserId, toUserId) => {
       const errors = [];
@@ -97,17 +92,12 @@ export async function transferWorkspaces(
       for (const id of workspaceIds) {
         try {
           // Step 1: list current members
-          const listRes = await fetch(
-            `/api/nav/v1/workspaces/${id}/members`,
-            { method: 'GET' }
-          );
+          const listRes = await fetch(`/api/nav/v1/workspaces/${id}/members`, { method: 'GET' });
           if (!listRes.ok) {
             throw new Error(`List members HTTP ${listRes.status}`);
           }
           const payload = await listRes.json();
-          const members = Array.isArray(payload)
-            ? payload
-            : payload.members || [];
+          const members = Array.isArray(payload) ? payload : payload.members || [];
 
           const destMember = members.find(
             (m) => m.memberType === 'USER' && m.memberId === toUserId
@@ -118,38 +108,33 @@ export async function transferWorkspaces(
 
           // Step 2: ensure destination is OWNER
           if (destMember) {
-            const putRes = await fetch(
-              `/api/nav/v1/workspaces/${id}/members/${destMember.id}`,
-              {
-                body: JSON.stringify({
-                  ...destMember,
-                  memberRole: 'OWNER'
-                }),
-                headers: { 'Content-Type': 'application/json' },
-                method: 'PUT'
-              }
-            );
+            const putRes = await fetch(`/api/nav/v1/workspaces/${id}/members/${destMember.id}`, {
+              body: JSON.stringify({
+                ...destMember,
+                memberRole: 'OWNER'
+              }),
+              headers: { 'Content-Type': 'application/json' },
+              method: 'PUT'
+            });
             if (!putRes.ok) {
               throw new Error(`Promote existing member HTTP ${putRes.status}`);
             }
           } else {
-            const postRes = await fetch(
-              `/api/nav/v1/workspaces/${id}/members/${toUserId}`,
-              {
-                body: JSON.stringify({
-                  members: [
-                    {
-                      memberId: toUserId,
-                      memberRole: 'OWNER',
-                      memberType: 'USER'
-                    }
-                  ],
-                  sendEmail: false
-                }),
-                headers: { 'Content-Type': 'application/json' },
-                method: 'POST'
-              }
-            );
+            const postRes = await fetch(`/api/nav/v1/workspaces/${id}/members`, {
+              body: JSON.stringify({
+                emailMessage: 'Bulk ownership transfer via Domo Toolkit',
+                members: [
+                  {
+                    memberId: toUserId,
+                    memberRole: 'OWNER',
+                    memberType: 'USER'
+                  }
+                ],
+                sendEmail: false
+              }),
+              headers: { 'Content-Type': 'application/json' },
+              method: 'POST'
+            });
             if (!postRes.ok) {
               throw new Error(`Add OWNER HTTP ${postRes.status}`);
             }
@@ -157,10 +142,9 @@ export async function transferWorkspaces(
 
           // Step 3: remove the previous owner if they're a direct member
           if (sourceMember) {
-            const delRes = await fetch(
-              `/api/nav/v1/workspaces/${id}/members/${sourceMember.id}`,
-              { method: 'DELETE' }
-            );
+            const delRes = await fetch(`/api/nav/v1/workspaces/${id}/members/${sourceMember.id}`, {
+              method: 'DELETE'
+            });
             if (!delRes.ok) {
               throw new Error(
                 `Promoted new OWNER but failed to remove previous owner: HTTP ${delRes.status}. Workspace may now have two owners.`

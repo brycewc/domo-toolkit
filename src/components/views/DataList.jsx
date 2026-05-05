@@ -3,6 +3,7 @@ import {
   ButtonGroup,
   Card,
   Checkbox,
+  CheckboxGroup,
   Disclosure,
   DisclosureGroup,
   Link,
@@ -69,10 +70,11 @@ import { ObjectTypeIcon } from '../ObjectTypeIcon';
  * @param {String} props.itemLabel - Label for items in status messages (default: 'item')
  * @param {Number} props.virtualThreshold - Item array length above which virtualization activates at that level (default: 50). Both the top-level items map and any item's children map virtualize automatically when their length exceeds this. Pass `Infinity` to disable.
  * @param {'transparent' | 'default' | 'secondary' | 'tertiary'} [props.variant] - Card variant (default: HeroUI's `default`). Use `transparent` when nested inside another Card to avoid double shadows/borders.
- * @param {Boolean} [props.selectionMode] - When true, replaces each row's action slot with a Checkbox for items where `isSelectable` returns true. Selection state is controlled by the consumer via `selectedIds` + `onToggleSelection`.
+ * @param {Boolean} [props.selectionMode] - When true, replaces each row's action slot with a Checkbox for items where `isSelectable` returns true and wraps the rendered items in a HeroUI `CheckboxGroup` so a select-all in `selectionToolbar` can show indeterminate state. Selection state is controlled by the consumer via `selectedIds` + `onSelectionChange`.
  * @param {Set} [props.selectedIds] - Controlled set of currently-selected item ids. Required when `selectionMode` is true.
- * @param {Function} [props.onToggleSelection] - `(id, isSelected) => void` callback fired when a checkbox toggles. Required when `selectionMode` is true.
+ * @param {Function} [props.onSelectionChange] - `(newSelectedIds: Set<string>) => void` callback fired when the selection set changes. Required when `selectionMode` is true. Receives the full new Set after any add/remove from the wrapping `CheckboxGroup`'s `onChange`.
  * @param {Function} [props.isSelectable] - `(item) => boolean` filter. When `selectionMode` is true, only items returning true get a checkbox; others render an empty action slot. Defaults to `() => true`.
+ * @param {React.ReactNode} [props.selectionToolbar] - Selection-mode-only content rendered as a third header row directly under the action buttons. Use for "Select all"/"Deselect all" or other bulk-selection controls. Ignored when `selectionMode` is false.
  * @param {React.ReactNode} [props.subtext] - Secondary content rendered on the second header row (typically counts, status text, or a breadcrumb). Truncates with `title`-attribute hover-overflow if it can't fit alongside header actions.
  * @param {Array<{ key: string, icon: React.ReactNode, tooltipText: string, onPress: () => void, isDisabled?: boolean, isActive?: boolean, ariaLabel?: string }>} [props.customHeaderActions] - View-specific header buttons rendered inline after the built-in `headerActions`. Use this for actions that don't fit the preset enum (Transfer Ownership, Selection toggle, etc.).
  */
@@ -92,11 +94,12 @@ export function DataList({
   onItemShare,
   onItemShareAll,
   onRefresh,
+  onSelectionChange,
   onShareAll,
   onStatusUpdate,
-  onToggleSelection,
   selectedIds,
   selectionMode = false,
+  selectionToolbar,
   showActions = true,
   showCounts = true,
   subtext,
@@ -267,7 +270,30 @@ export function DataList({
 
   const hasInlineActions =
     headerActions.length > 0 || (customHeaderActions && customHeaderActions.length > 0);
-  const hasHeader = title || subtext || hasInlineActions || onClose;
+  const hasSelectionToolbar = selectionMode && Boolean(selectionToolbar);
+  const hasHeader = title || subtext || hasInlineActions || onClose || hasSelectionToolbar;
+
+  // In selection mode, wrap the rendered items in a HeroUI CheckboxGroup so
+  // each row's `<Checkbox value={item.id}>` is driven by group context. The
+  // wrapper uses `display: contents` (via the `render` prop) so it doesn't
+  // disturb the Card's flex/scroll chain — CheckboxGroup's default
+  // `flex flex-col gap-2` would interrupt the `min-h-0 flex-1` lineage that
+  // makes ScrollShadow scroll. The group still emits `role="group"` for ARIA.
+  // Selected ids are coerced to strings because React Aria's CheckboxGroup
+  // values are strings; per-row `value={String(item.id)}` matches.
+  const withSelectionGroup = (children) => {
+    if (!selectionMode) return children;
+    return (
+      <CheckboxGroup
+        aria-label='Select items'
+        render={(props) => <div {...props} style={{ display: 'contents' }} />}
+        value={selectedIds ? [...selectedIds].map(String) : []}
+        onChange={(values) => onSelectionChange?.(new Set(values))}
+      >
+        {children}
+      </CheckboxGroup>
+    );
+  };
   // sortItemsByLabel recurses through children — for 130-item parent lists with
   // 400 leaf children that's a non-trivial sort. Memoizing keeps it from
   // re-running on every state change (e.g. each Disclosure toggle).
@@ -395,70 +421,73 @@ export function DataList({
               )}
             </div>
           )}
+          {selectionMode && selectionToolbar && (
+            <div className='flex min-w-0 items-center'>{selectionToolbar}</div>
+          )}
         </Card.Header>
       )}
 
-      {sortedItems.length > virtualThreshold ? (
-        // Virtualized top-level: VirtualizedItems is the scroll container.
-        // Bypass ScrollShadow so TanStack Virtual listens for scroll on an
-        // element that actually scrolls. Loses ScrollShadow's edge-fade
-        // gradient — acceptable for high-volume lists where windowing matters
-        // more than the visual flourish.
-        <Card.Content className='flex min-h-0 w-full flex-1 flex-col p-0'>
-          <DisclosureGroup className='flex min-h-0 w-full flex-1 flex-col'>
-            <VirtualizedItems
-              items={sortedItems}
-              renderItem={(item) => (
-                <DataListItem
-                  expandedIds={expandedIds}
-                  isSelectable={isSelectable}
-                  item={item}
-                  itemActions={itemActions}
-                  objectType={objectType}
-                  selectedIds={selectedIds}
-                  selectionMode={selectionMode}
-                  showActions={showActions}
-                  showCounts={showCounts}
-                  virtualThreshold={virtualThreshold}
-                  onItemAction={handleItemAction}
-                  onToggleExpanded={onToggleExpanded}
-                  onToggleSelection={onToggleSelection}
+      {sortedItems.length > virtualThreshold
+        ? // Virtualized top-level: VirtualizedItems is the scroll container.
+          // Bypass ScrollShadow so TanStack Virtual listens for scroll on an
+          // element that actually scrolls. Loses ScrollShadow's edge-fade
+          // gradient — acceptable for high-volume lists where windowing matters
+          // more than the visual flourish.
+          withSelectionGroup(
+            <Card.Content className='flex min-h-0 w-full flex-1 flex-col p-0'>
+              <DisclosureGroup className='flex min-h-0 w-full flex-1 flex-col'>
+                <VirtualizedItems
+                  items={sortedItems}
+                  renderItem={(item) => (
+                    <DataListItem
+                      expandedIds={expandedIds}
+                      isSelectable={isSelectable}
+                      item={item}
+                      itemActions={itemActions}
+                      objectType={objectType}
+                      selectedIds={selectedIds}
+                      selectionMode={selectionMode}
+                      showActions={showActions}
+                      showCounts={showCounts}
+                      virtualThreshold={virtualThreshold}
+                      onItemAction={handleItemAction}
+                      onToggleExpanded={onToggleExpanded}
+                    />
+                  )}
                 />
-              )}
-            />
-          </DisclosureGroup>
-        </Card.Content>
-      ) : (
-        <ScrollShadow
-          hideScrollBar
-          className='min-h-0 flex-1 overflow-y-auto overscroll-x-none overscroll-y-contain'
-          offset={2}
-          orientation='vertical'
-        >
-          <Card.Content>
-            <DisclosureGroup className='flex w-full flex-col'>
-              {sortedItems.map((item, index) => (
-                <DataListItem
-                  expandedIds={expandedIds}
-                  isSelectable={isSelectable}
-                  item={item}
-                  itemActions={itemActions}
-                  key={item.id || index}
-                  objectType={objectType}
-                  selectedIds={selectedIds}
-                  selectionMode={selectionMode}
-                  showActions={showActions}
-                  showCounts={showCounts}
-                  virtualThreshold={virtualThreshold}
-                  onItemAction={handleItemAction}
-                  onToggleExpanded={onToggleExpanded}
-                  onToggleSelection={onToggleSelection}
-                />
-              ))}
-            </DisclosureGroup>
-          </Card.Content>
-        </ScrollShadow>
-      )}
+              </DisclosureGroup>
+            </Card.Content>
+          )
+        : withSelectionGroup(
+            <ScrollShadow
+              hideScrollBar
+              className='min-h-0 flex-1 overflow-y-auto overscroll-x-none overscroll-y-contain'
+              offset={2}
+              orientation='vertical'
+            >
+              <Card.Content>
+                <DisclosureGroup className='flex w-full flex-col'>
+                  {sortedItems.map((item, index) => (
+                    <DataListItem
+                      expandedIds={expandedIds}
+                      isSelectable={isSelectable}
+                      item={item}
+                      itemActions={itemActions}
+                      key={item.id || index}
+                      objectType={objectType}
+                      selectedIds={selectedIds}
+                      selectionMode={selectionMode}
+                      showActions={showActions}
+                      showCounts={showCounts}
+                      virtualThreshold={virtualThreshold}
+                      onItemAction={handleItemAction}
+                      onToggleExpanded={onToggleExpanded}
+                    />
+                  ))}
+                </DisclosureGroup>
+              </Card.Content>
+            </ScrollShadow>
+          )}
     </Card>
   );
 }
@@ -617,7 +646,6 @@ function arePropsEqualForRow(prev, next) {
   if (prev.virtualThreshold !== next.virtualThreshold) return false;
   if (prev.onItemAction !== next.onItemAction) return false;
   if (prev.onToggleExpanded !== next.onToggleExpanded) return false;
-  if (prev.onToggleSelection !== next.onToggleSelection) return false;
   if (prev.selectionMode !== next.selectionMode) return false;
   if (prev.isSelectable !== next.isSelectable) return false;
   if (prev.depth !== next.depth) return false;
@@ -660,7 +688,6 @@ function DataListItemImpl({
   objectType,
   onItemAction,
   onToggleExpanded,
-  onToggleSelection,
   selectedIds,
   selectionMode = false,
   showActions = true,
@@ -693,20 +720,31 @@ function DataListItemImpl({
   ) : null;
 
   // Selection-mode rendering: when on, the row's action slot becomes a
-  // checkbox for selectable items. Non-selectable rows fall through to the
-  // status indicator (so loading/error rows still render meaningfully) or
-  // an empty slot. Default mode keeps the actions slot.
+  // checkbox for selectable items. The Checkbox uses `value={String(item.id)}`
+  // and inherits its checked state from the wrapping CheckboxGroup (added by
+  // DataList when selectionMode is true). The group's `onChange` handles state
+  // updates — no per-row callback needed. Non-selectable rows fall through to
+  // the status indicator or an empty slot.
+  //
+  // The 32px (`w-8`) wrapper matches the width of the action-slot Button
+  // (`size='sm'` icon-only). Without it, a bare Checkbox.Control is only 20px
+  // wide, the trigger's `flex-1` would grow ~12px wider in selection mode, and
+  // the chevron would shift right out of the column it occupies in default
+  // mode. Centering the 20px control inside the 32px wrapper keeps the
+  // checkbox's optical position aligned with where the action button sits.
   const isItemSelectableInMode =
     selectionMode && (typeof isSelectable === 'function' ? isSelectable(item) : true);
   const selectionSlot = isItemSelectableInMode ? (
-    <Checkbox
-      isSelected={selectedIds?.has(item.id) ?? false}
-      onChange={(checked) => onToggleSelection?.(item.id, checked)}
-    >
-      <Checkbox.Control>
-        <Checkbox.Indicator />
-      </Checkbox.Control>
-    </Checkbox>
+    <div className='flex w-8 shrink-0 items-center justify-center'>
+      <Checkbox
+        aria-label={typeof item.label === 'string' ? item.label : `Select ${item.id}`}
+        value={String(item.id)}
+      >
+        <Checkbox.Control>
+          <Checkbox.Indicator />
+        </Checkbox.Control>
+      </Checkbox>
+    </div>
   ) : null;
 
   const handleAction = useCallback(
@@ -1025,7 +1063,6 @@ function DataListItemImpl({
     objectType,
     onItemAction,
     onToggleExpanded,
-    onToggleSelection,
     selectedIds,
     selectionMode,
     showActions,

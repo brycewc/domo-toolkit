@@ -1,4 +1,4 @@
-import { Card, Spinner } from '@heroui/react';
+import { Card, Checkbox, Label, Spinner } from '@heroui/react';
 import { IconChecks, IconUserUp } from '@tabler/icons-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -78,6 +78,12 @@ export function OwnershipView({ onBackToDefault = null, onStatusUpdate = null })
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedTypeKeys, setSelectedTypeKeys] = useState(() => new Set());
   const [transferModalOpen, setTransferModalOpen] = useState(false);
+  // True when selection-mode was engaged before fetches completed (e.g. via the
+  // TransferOwnership action button's `autoEnableSelectionMode` launch flag, or
+  // a click on the IconChecks toggle while still loading). Once `isFullyLoaded`
+  // becomes true, we drain this flag by populating selectedTypeKeys with every
+  // eligible type. See the auto-select effect below.
+  const [pendingSelectAll, setPendingSelectAll] = useState(false);
   // { [typeKey]: { status, error?, succeeded?, failed?, count? } }
   const [transferStatus, setTransferStatus] = useState({});
   const [isTransferring, setIsTransferring] = useState(false);
@@ -120,13 +126,13 @@ export function OwnershipView({ onBackToDefault = null, onStatusUpdate = null })
       setTabId(context.tabId);
       setCurrentContext(context);
 
-      // Transfer Ownership action button passes `autoOpenTransferModal: true`
-      // so the modal pops open as soon as fetches start. Selection mode also
-      // auto-engages; the modal's submit handler auto-selects all eligible
-      // types if the user submits without picking specifics.
-      if (data.autoOpenTransferModal && context.domoObject?.typeId === 'USER') {
+      // Transfer Ownership action button passes `autoEnableSelectionMode: true`
+      // so we engage selection mode as soon as the view mounts. The actual
+      // checkbox population happens in the auto-select effect once parallel
+      // fetches resolve — at this point in loadData() results are still empty.
+      if (data.autoEnableSelectionMode && context.domoObject?.typeId === 'USER') {
         setSelectionMode(true);
-        setTransferModalOpen(true);
+        setPendingSelectAll(true);
       }
     } catch (error) {
       console.error('[OwnershipView] Error loading data:', error);
@@ -197,6 +203,43 @@ export function OwnershipView({ onBackToDefault = null, onStatusUpdate = null })
     [forbidden, results]
   );
 
+  // Every type the toolkit user can actually transfer right now (loaded, > 0
+  // items, not forbidden). Recomputed when fetch results change so the "Select
+  // all" toolbar button stays accurate as types finish loading.
+  const eligibleTypeKeys = useMemo(
+    () =>
+      TRANSFER_TYPES.filter((t) => {
+        if (forbidden.has(t.key)) return false;
+        const r = results[t.key];
+        return r?.status === 'loaded' && r.items && countOwned(t.key, r.items) > 0;
+      }).map((t) => t.key),
+    [forbidden, results]
+  );
+
+  // Auto-select drainer: when entering selection mode while fetches were still
+  // in flight (e.g. the TransferOwnership launch path), pre-select every
+  // eligible type — but only AFTER all parallel fetches have settled. Firing
+  // earlier (when only the first eligible type has loaded) would snapshot a
+  // partial set and miss every type that resolves later. Cleared after one
+  // fire so the user's manual deselects aren't clobbered.
+  //
+  // The `Object.keys(results).length === 0` guard handles a subtle race on
+  // initial mount: when `userId` first becomes non-null, `specs` recomputes
+  // to a non-empty array, but `useParallelFetches`'s effect hasn't yet run
+  // its `setResults(buildInitial(specs))` for the new specs. So `results` is
+  // still `{}`, `loadingCount` is 0, and `isFullyLoaded` reads true
+  // vacuously. Without the guard, this effect would fire prematurely with
+  // `eligibleTypeKeys = []`, snapshot an empty Set, and clear
+  // `pendingSelectAll` — leaving nothing selected when fetches actually
+  // finish.
+  useEffect(() => {
+    if (!pendingSelectAll) return;
+    if (Object.keys(results).length === 0) return;
+    if (!isFullyLoaded) return;
+    setSelectedTypeKeys(new Set(eligibleTypeKeys));
+    setPendingSelectAll(false);
+  }, [pendingSelectAll, isFullyLoaded, eligibleTypeKeys, results]);
+
   // Build DataList items, threading both fetch status and transfer status
   // (transfer state takes priority during the transfer phase).
   //
@@ -256,15 +299,6 @@ export function OwnershipView({ onBackToDefault = null, onStatusUpdate = null })
     [forbidden, results]
   );
 
-  const toggleSelection = useCallback((id, isSelected) => {
-    setSelectedTypeKeys((prev) => {
-      const next = new Set(prev);
-      if (isSelected) next.add(id);
-      else next.delete(id);
-      return next;
-    });
-  }, []);
-
   const exitSelectionMode = useCallback(() => {
     setSelectionMode(false);
     setSelectedTypeKeys(new Set());
@@ -275,16 +309,22 @@ export function OwnershipView({ onBackToDefault = null, onStatusUpdate = null })
   // (pre-selected all transferable types). User can deselect inside the view.
   const handleOpenTransferModal = useCallback(() => {
     if (selectedTypeKeys.size === 0) {
-      const eligible = TRANSFER_TYPES.filter((t) => {
-        if (forbidden.has(t.key)) return false;
-        const r = results[t.key];
-        return r?.status === 'loaded' && r.items && countOwned(t.key, r.items) > 0;
-      }).map((t) => t.key);
-      setSelectedTypeKeys(new Set(eligible));
+      setSelectedTypeKeys(new Set(eligibleTypeKeys));
       setSelectionMode(true);
     }
     setTransferModalOpen(true);
-  }, [selectedTypeKeys, forbidden, results]);
+  }, [selectedTypeKeys, eligibleTypeKeys]);
+
+  // Select-all / Clear handlers used by the toolbar Checkbox. The Checkbox
+  // itself derives its visual state (indeterminate vs. checked) from the
+  // eligible/selected counts — these handlers are pure state mutators.
+  const selectAllEligible = useCallback(() => {
+    setSelectedTypeKeys(new Set(eligibleTypeKeys));
+  }, [eligibleTypeKeys]);
+
+  const clearSelection = useCallback(() => {
+    setSelectedTypeKeys(new Set());
+  }, []);
 
   // Submit handler invoked by the modal. Runs transferAllOwnership, threading
   // per-type progress into transferStatus (which feeds DataList rows). Then
@@ -531,6 +571,10 @@ export function OwnershipView({ onBackToDefault = null, onStatusUpdate = null })
           if (selectionMode) {
             exitSelectionMode();
           } else {
+            // Mirror the TransferOwnership launch path: entering selection mode
+            // pre-selects every eligible type. User can deselect inside the
+            // view; the toolbar's Select/Deselect-all toggle stays available.
+            setSelectedTypeKeys(new Set(eligibleTypeKeys));
             setSelectionMode(true);
           }
         },
@@ -539,12 +583,56 @@ export function OwnershipView({ onBackToDefault = null, onStatusUpdate = null })
     }
     return actions;
   }, [
+    eligibleTypeKeys,
     exitSelectionMode,
     handleOpenTransferModal,
     hasAnyTransferable,
     isFullyLoaded,
     isTransferring,
     isUserSource,
+    selectionMode
+  ]);
+
+  // Toolbar rendered just under the header action row when selection mode is
+  // engaged. The "Select all" Checkbox shows three states:
+  //   - unchecked: no eligible types are selected
+  //   - indeterminate: some (but not all) eligible types are selected
+  //   - checked: every eligible type is selected
+  // It lives outside the per-row CheckboxGroup (rendered by DataList around
+  // the items list) so we control its visual state directly via
+  // `isIndeterminate` / `isSelected` instead of letting the group derive it.
+  // This mirrors the HeroUI v3 docs' "Indeterminate" pattern, where the
+  // select-all sits as a sibling of the inner CheckboxGroup. See DataList's
+  // `selectionToolbar` prop.
+  const selectionToolbar = useMemo(() => {
+    if (!selectionMode) return null;
+    const totalEligible = eligibleTypeKeys.length;
+    const totalSelected = selectedTypeKeys.size;
+    return (
+      <Checkbox
+        aria-label='Select all eligible types'
+        isDisabled={totalEligible === 0 || isTransferring}
+        isIndeterminate={totalSelected > 0 && totalSelected < totalEligible}
+        isSelected={totalEligible > 0 && totalSelected === totalEligible}
+        onChange={(isSelected) => {
+          if (isSelected) selectAllEligible();
+          else clearSelection();
+        }}
+      >
+        <Checkbox.Control>
+          <Checkbox.Indicator />
+        </Checkbox.Control>
+        <Checkbox.Content>
+          <Label>Select all</Label>
+        </Checkbox.Content>
+      </Checkbox>
+    );
+  }, [
+    clearSelection,
+    eligibleTypeKeys.length,
+    isTransferring,
+    selectAllEligible,
+    selectedTypeKeys.size,
     selectionMode
   ]);
 
@@ -572,13 +660,14 @@ export function OwnershipView({ onBackToDefault = null, onStatusUpdate = null })
         items={dataListItems}
         selectedIds={selectedTypeKeys}
         selectionMode={selectionMode}
+        selectionToolbar={selectionToolbar}
         showActions={true}
         showCounts={true}
         subtext={subtextNode}
         onClose={onBackToDefault}
         onRefresh={refreshFetches}
+        onSelectionChange={setSelectedTypeKeys}
         onStatusUpdate={onStatusUpdate}
-        onToggleSelection={toggleSelection}
         title={
           <>
             <span>Objects Owned by</span> <span className='font-bold'>{userName}</span>

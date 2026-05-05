@@ -15,7 +15,7 @@ export function TransferOwnership({ currentContext, onCollapseActions, onStatusU
         variant='tertiary'
         onPress={() =>
           launch({
-            autoOpenTransferModal: true,
+            autoEnableSelectionMode: true,
             currentContext,
             onCollapseActions,
             onStatusUpdate,
