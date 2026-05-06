@@ -14,6 +14,7 @@ import { getSidepanelData, getValidTabForInstance, waitForCards } from '@/utils'
 import { DataList } from './DataList';
 
 export function GetCardsView({
+  currentContext = null,
   onBackToDefault = null,
   onStatusUpdate = null
 }) {
@@ -294,7 +295,8 @@ export function GetCardsView({
   return (
     <DataList
       closeLabel='Close Cards View'
-      headerActions={['openAll', 'copy', 'refresh']}
+      currentContext={currentContext}
+      headerActions={['openAll', 'copy', 'reload', 'refresh']}
       isRefreshing={isRefreshing}
       itemActions={['copy', 'openAll']}
       itemLabel={hasMultipleTypes ? 'item' : 'card'}
@@ -305,6 +307,7 @@ export function GetCardsView({
       showCounts={true}
       subtext={renderSubtext()}
       title={renderTitle()}
+      viewType='getCards'
       onClose={onBackToDefault}
       onRefresh={handleRefresh}
       onStatusUpdate={onStatusUpdate}

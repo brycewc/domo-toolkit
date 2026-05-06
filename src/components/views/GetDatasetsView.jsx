@@ -15,6 +15,7 @@ import { getSidepanelData, getValidTabForInstance } from '@/utils';
 import { DataList } from './DataList';
 
 export function GetDatasetsView({
+  currentContext = null,
   onBackToDefault = null,
   onStatusUpdate = null
 }) {
@@ -293,7 +294,8 @@ export function GetDatasetsView({
   return (
     <DataList
       closeLabel={`Close ${viewData?.typeLabel} View`}
-      headerActions={['openAll', 'copy', 'refresh']}
+      currentContext={currentContext}
+      headerActions={['openAll', 'copy', 'reload', 'refresh']}
       isRefreshing={isRefreshing}
       itemActions={['copy', 'openAll', 'viewsExplorer', 'lineage']}
       itemLabel='dataset'
@@ -304,6 +306,7 @@ export function GetDatasetsView({
       showCounts={true}
       subtext={renderSubtext()}
       title={renderTitle()}
+      viewType='getDatasets'
       onClose={onBackToDefault}
       onRefresh={handleRefresh}
       onStatusUpdate={onStatusUpdate}

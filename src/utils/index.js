@@ -1,3 +1,4 @@
+export { getAvailableActions } from './availableActions';
 export { waitForCards } from './cardHelpers';
 export { clearCookies } from './clearCookies';
 export {

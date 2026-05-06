@@ -9,6 +9,7 @@ import {
   Link,
   Popover,
   ScrollShadow,
+  Separator,
   Tooltip
 } from '@heroui/react';
 import {
@@ -20,6 +21,7 @@ import {
   IconLoader2,
   IconQueuePopOut,
   IconRefresh,
+  IconRefreshAlert,
   IconStackPop,
   IconUserPlus,
   IconUsersPlus,
@@ -28,7 +30,7 @@ import {
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 
-import { getValidTabForInstance } from '@/utils';
+import { getAvailableActions, getValidTabForInstance, launchView } from '@/utils';
 
 import { AnimatedCheck } from '../AnimatedCheck';
 import { ObjectTypeIcon } from '../ObjectTypeIcon';
@@ -77,9 +79,12 @@ import { ObjectTypeIcon } from '../ObjectTypeIcon';
  * @param {React.ReactNode} [props.selectionToolbar] - Selection-mode-only content rendered as a third header row directly under the action buttons. Use for "Select all"/"Deselect all" or other bulk-selection controls. Ignored when `selectionMode` is false.
  * @param {React.ReactNode} [props.subtext] - Secondary content rendered on the second header row (typically counts, status text, or a breadcrumb). Truncates with `title`-attribute hover-overflow if it can't fit alongside header actions.
  * @param {Array<{ key: string, icon: React.ReactNode, tooltipText: string, onPress: () => void, isDisabled?: boolean, isActive?: boolean, ariaLabel?: string }>} [props.customHeaderActions] - View-specific header buttons rendered inline after the built-in `headerActions`. Use this for actions that don't fit the preset enum (Transfer Ownership, Selection toggle, etc.).
+ * @param {string} [props.viewType] - The action key for this view (e.g. `'getCards'`, `'getDatasets'`). Required when `'reload'` is in `headerActions`. Used as the `type` passed to `launchView` and as the key looked up against `getAvailableActions(currentContext)` to decide if reload is enabled.
+ * @param {Object} [props.currentContext] - Live `DomoContext` for the user's currently-active object. Required when `'reload'` is in `headerActions`. Drives whether reload is enabled (current object differs from original AND supports the view).
  */
 export function DataList({
   closeLabel = 'Close',
+  currentContext,
   customHeaderActions,
   headerActions = [],
   isRefreshing = false,
@@ -105,6 +110,7 @@ export function DataList({
   subtext,
   title,
   variant,
+  viewType,
   virtualThreshold = 50
 }) {
   const [isCopied, setIsCopied] = useState(false);
@@ -157,6 +163,14 @@ export function DataList({
             onRefresh?.();
             break;
 
+          case 'reload':
+            // Re-launch the same view (`viewType`) for the user's currently
+            // active object. Writes new sidepanel data; App.jsx's storage
+            // listener bumps `viewKey`, remounting this view component which
+            // re-reads the new context from sidepanel storage.
+            await launchView({ currentContext, type: viewType });
+            break;
+
           case 'shareAll':
             await onShareAll?.();
             setIsHeaderShared(true);
@@ -171,7 +185,16 @@ export function DataList({
         onStatusUpdate?.('Error', err.message || `Failed to ${actionType}`, 'danger', 3000);
       }
     },
-    [items, itemLabel, objectId, onRefresh, onShareAll, onStatusUpdate]
+    [
+      currentContext,
+      items,
+      itemLabel,
+      objectId,
+      onRefresh,
+      onShareAll,
+      onStatusUpdate,
+      viewType
+    ]
   );
 
   /**
@@ -300,7 +323,7 @@ export function DataList({
   const sortedItems = useMemo(() => sortItemsByLabel(items), [items]);
 
   return (
-    <Card className='flex max-h-fit min-h-0 w-full flex-1 flex-col p-2' variant={variant}>
+    <Card className='flex max-h-fit min-h-0 w-full flex-1 flex-col gap-0 p-2' variant={variant}>
       {hasHeader && (
         // HeroUI canonical header pattern: close button is an absolute-positioned
         // sibling of Card.Title (NOT inside Card.Title). Card.Title is one line
@@ -402,6 +425,48 @@ export function DataList({
                       </Tooltip.Content>
                     </Tooltip>
                   )}
+                  {headerActions.includes('reload') &&
+                    viewType &&
+                    (() => {
+                      // Always rendered (when opted-in) to keep the action bar
+                      // layout stable as the user navigates. When the current
+                      // object can't reload, the button is *faded* and ignores
+                      // clicks — but is NOT `isDisabled`, because HeroUI/React
+                      // Aria disables pointer events on disabled buttons,
+                      // which would suppress the tooltip explaining *why*.
+                      const currentTypeId = currentContext?.domoObject?.typeId;
+                      const reloadDisabledReason = !currentTypeId
+                        ? 'Navigate to a Domo object to reload'
+                        : !getAvailableActions(currentContext).has(viewType)
+                          ? "Current object doesn't support this view"
+                          : currentContext.domoObject.id === objectId &&
+                              currentTypeId === objectType
+                            ? 'Already showing data for the current object'
+                            : null;
+                      const isReloadDisabled = reloadDisabledReason !== null;
+                      const tooltipText = reloadDisabledReason ?? 'Reload for current object';
+                      return (
+                        <Tooltip closeDelay={0} delay={400}>
+                          <Button
+                            isIconOnly
+                            aria-disabled={isReloadDisabled}
+                            aria-label='Reload'
+                            size='sm'
+                            variant='ghost'
+                            onPress={() => {
+                              if (isReloadDisabled) return;
+                              handleHeaderAction('reload');
+                            }}
+                            className={
+                              isReloadDisabled ? 'cursor-not-allowed opacity-50' : undefined
+                            }
+                          >
+                            <IconRefreshAlert stroke={1.5} />
+                          </Button>
+                          <Tooltip.Content className='text-xs'>{tooltipText}</Tooltip.Content>
+                        </Tooltip>
+                      );
+                    })()}
                   {headerActions.includes('refresh') && (
                     <Tooltip closeDelay={0} delay={400}>
                       <Button
@@ -426,7 +491,7 @@ export function DataList({
           )}
         </Card.Header>
       )}
-
+      <Separator className='mt-1.5' />
       {sortedItems.length > virtualThreshold
         ? // Virtualized top-level: VirtualizedItems is the scroll container.
           // Bypass ScrollShadow so TanStack Virtual listens for scroll on an
@@ -435,7 +500,7 @@ export function DataList({
           // more than the visual flourish.
           withSelectionGroup(
             <Card.Content className='flex min-h-0 w-full flex-1 flex-col p-0'>
-              <DisclosureGroup className='flex min-h-0 w-full flex-1 flex-col'>
+              <DisclosureGroup className='flex min-h-0 w-full flex-1 flex-col divide-y divide-border'>
                 <VirtualizedItems
                   items={sortedItems}
                   renderItem={(item) => (
@@ -466,7 +531,7 @@ export function DataList({
               orientation='vertical'
             >
               <Card.Content>
-                <DisclosureGroup className='flex w-full flex-col'>
+                <DisclosureGroup className='flex w-full flex-col divide-y divide-border'>
                   {sortedItems.map((item, index) => (
                     <DataListItem
                       expandedIds={expandedIds}
@@ -494,7 +559,7 @@ export function DataList({
 
 /**
  * Available header action types for DataList
- * @typedef {'openAll' | 'copy' | 'shareAll' | 'refresh'} HeaderActionType
+ * @typedef {'openAll' | 'copy' | 'shareAll' | 'refresh' | 'reload'} HeaderActionType
  */
 
 /**
@@ -581,6 +646,7 @@ function VirtualizedItems({ bounded = false, items, renderItem }) {
       }
     >
       <div
+        className='divide-y divide-border'
         style={{
           height: virtualizer.getTotalSize(),
           position: 'relative',
@@ -1035,7 +1101,7 @@ function DataListItemImpl({
     // `my-1` on its heading.
     const isMutedEmpty = item.isVirtualParent && item.count === 0;
     return (
-      <div className='w-full border-t border-border'>
+      <div className='w-full'>
         <div
           className={`my-1 flex min-h-9 w-full flex-row items-center justify-between gap-1 ${isMutedEmpty ? 'text-muted' : ''}`}
         >
@@ -1072,7 +1138,7 @@ function DataListItemImpl({
 
   return (
     <Disclosure
-      className='space-0 w-full border-t border-border'
+      className='space-0 w-full'
       isExpanded={isOpen}
       onExpandedChange={(open) => onToggleExpanded?.(item.id, open)}
     >
@@ -1147,7 +1213,7 @@ function DataListItemImpl({
             // group's context and expanding a child would collapse its
             // parent. This wrapper recurses naturally via DataListItemImpl,
             // so arbitrary depth is handled.
-            <DisclosureGroup className='flex w-full flex-col'>
+            <DisclosureGroup className='flex w-full flex-col divide-y divide-border'>
               {item.children.length > virtualThreshold ? (
                 <VirtualizedItems
                   bounded

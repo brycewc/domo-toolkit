@@ -14,7 +14,11 @@ import { getSidepanelData, getValidTabForInstance, waitForCards, waitForChildPag
 
 import { DataList } from './DataList';
 
-export function GetPagesView({ onBackToDefault = null, onStatusUpdate = null }) {
+export function GetPagesView({
+  currentContext = null,
+  onBackToDefault = null,
+  onStatusUpdate = null
+}) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
@@ -604,6 +608,7 @@ export function GetPagesView({ onBackToDefault = null, onStatusUpdate = null }) 
   return (
     <DataList
       closeLabel={`Close ${pageTypeLabel} View`}
+      currentContext={currentContext}
       isRefreshing={isRefreshing}
       itemLabel='page'
       items={items}
@@ -613,6 +618,7 @@ export function GetPagesView({ onBackToDefault = null, onStatusUpdate = null }) 
       showCounts={true}
       subtext={renderSubtext()}
       title={renderTitle()}
+      viewType={pageData?.sidepanelType}
       onClose={onBackToDefault}
       onItemRemove={handleItemRemove}
       onItemShare={handleItemShare}
@@ -622,8 +628,8 @@ export function GetPagesView({ onBackToDefault = null, onStatusUpdate = null }) 
       onStatusUpdate={onStatusUpdate}
       headerActions={
         pageData?.objectType === 'DATA_APP_VIEW' && pageData?.sidepanelType !== 'getCardPages'
-          ? ['openAll', 'copy', 'refresh']
-          : ['openAll', 'copy', 'shareAll', 'refresh']
+          ? ['openAll', 'copy', 'reload', 'refresh']
+          : ['openAll', 'copy', 'shareAll', 'reload', 'refresh']
       }
       itemActions={
         pageData?.sidepanelType === 'getCardPages'

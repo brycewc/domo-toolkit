@@ -250,6 +250,7 @@ export default function App() {
               activeView === 'getCardPages' ||
               activeView === 'childPagesWarning') && (
               <GetPagesView
+                currentContext={currentContext}
                 key={viewKey}
                 onBackToDefault={handleBackToDefault}
                 onStatusUpdate={showStatus}
@@ -258,6 +259,7 @@ export default function App() {
 
             {activeView === 'getCards' && (
               <GetCardsView
+                currentContext={currentContext}
                 key={viewKey}
                 onBackToDefault={handleBackToDefault}
                 onStatusUpdate={showStatus}
@@ -266,6 +268,7 @@ export default function App() {
 
             {activeView === 'getDatasets' && (
               <GetDatasetsView
+                currentContext={currentContext}
                 key={viewKey}
                 onBackToDefault={handleBackToDefault}
                 onStatusUpdate={showStatus}
@@ -274,6 +277,7 @@ export default function App() {
 
             {activeView === 'getViewInputs' && (
               <GetViewInputsView
+                currentContext={currentContext}
                 key={viewKey}
                 onBackToDefault={handleBackToDefault}
                 onStatusUpdate={showStatus}
