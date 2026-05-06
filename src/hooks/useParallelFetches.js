@@ -41,6 +41,23 @@ export function useParallelFetches(specs, { autoFetch = true } = {}) {
         .fetch()
         .then((items) => {
           if (!isMounted) return;
+          if (items == null) {
+            // Fetch resolved without data — surface as an error so the
+            // consumer's error UI fires (X indicator, expandable disclosure
+            // body) instead of leaving the row in an indeterminate "loaded
+            // but nothing to show" state. Common with services that respond
+            // 200 + null body when a feature is disabled (e.g. Domo's
+            // approvals API on instances without ApprovalCenter).
+            setResults((prev) => ({
+              ...prev,
+              [spec.key]: {
+                error: 'No data returned',
+                items: null,
+                status: 'error'
+              }
+            }));
+            return;
+          }
           setResults((prev) => ({
             ...prev,
             [spec.key]: { error: null, items, status: 'loaded' }
@@ -51,7 +68,7 @@ export function useParallelFetches(specs, { autoFetch = true } = {}) {
           setResults((prev) => ({
             ...prev,
             [spec.key]: {
-              error: error?.message ?? String(error),
+              error: error?.message || String(error) || 'Request failed',
               items: null,
               status: 'error'
             }
