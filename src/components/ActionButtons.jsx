@@ -23,6 +23,7 @@ import {
   GetOwnedObjects,
   GetViewInputs,
   LockCards,
+  MigrateDownstreamContent,
   NavigateToCopiedObject,
   RemoveEmptyStringsFromQuickFilters,
   SetStreamToManual,
@@ -230,6 +231,13 @@ export function ActionButtons({
                 )}
                 {availableActions.has('updateDetails') && (
                   <UpdateDetails currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
+                )}
+                {availableActions.has('migrateDownstreamContent') && (
+                  <MigrateDownstreamContent
+                    currentContext={currentContext}
+                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
+                    onStatusUpdate={onStatusUpdate}
+                  />
                 )}
                 {availableActions.has('transferOwnership') && (
                   <TransferOwnership

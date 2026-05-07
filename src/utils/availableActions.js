@@ -50,6 +50,7 @@ export function getAvailableActions(currentContext) {
   if (typeId === 'DATA_SOURCE') {
     actions.add('getViewInputs');
     actions.add('dataRepair');
+    actions.add('migrateDownstreamContent');
     if (details?.streamId && metadata?.parent?.details?.scheduleState !== 'MANUAL') {
       actions.add('setStreamToManual');
     }

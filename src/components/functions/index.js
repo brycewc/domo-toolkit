@@ -16,6 +16,7 @@ export { GetDatasets } from './GetDatasets';
 export { GetOwnedObjects } from './GetOwnedObjects';
 export { GetViewInputs } from './GetViewInputs';
 export { LockCards } from './LockCards';
+export { MigrateDownstreamContent } from './MigrateDownstreamContent';
 export { NavigateToCopiedObject } from './NavigateToCopiedObject';
 export { RemoveEmptyStringsFromQuickFilters } from './RemoveEmptyStringsFromQuickFilters';
 export { SetStreamToManual } from './SetStreamToManual';

@@ -4,6 +4,16 @@
 
 ## New Features
 
+### Migrate Downstream Content (Datasets)
+
+- New "Migrate Downstream Content" action button on datasets — finds every card, dataset view, and dataflow that uses the in-scope dataset as an input and rewires their input to a new dataset
+- Discovery uses Domo's lineage API (no DomoStats setup required) plus the dataset's cards endpoint
+- Sidepanel view mirrors the Transfer Ownership UX: every found item is pre-selected, with checkboxes on both type groups and individual items so the user can deselect entire categories or cherry-pick
+- Target dataset picker uses async typeahead search with paginated load-more
+- Schema-compatibility check runs as soon as a target is picked — surfaces missing/type-mismatched columns inline; the Migrate button switches to "Proceed Anyway" so the user has to confirm before transferring through a known-incompatible target
+- Per-type progress reported live in the sidepanel rows; failures expose the underlying error message
+- Dataset-view input-swap recurses through SQL `selectBody` (joins, set operations), updates column `referenceDataSourceId` references, rewrites `formattedExpression` mappings, then does a final string sweep — the same hardened logic from the original CLI tool
+
 ### Off-boarding: Transfer Ownership
 
 - Transfer ownership of all object types from one user to another

@@ -3,6 +3,7 @@ export { AlertStatusIcon } from './AlertStatusIcon';
 export { AnimatedCheck } from './AnimatedCheck';
 export { AnimatedX } from './AnimatedX';
 export { ContextFooter } from './ContextFooter';
+export { DatasetComboBox } from './DatasetComboBox';
 export * from './functions';
 export { GroupIdAnnotation } from './GroupIdAnnotation';
 export * from './modals';

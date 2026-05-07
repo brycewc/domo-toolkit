@@ -12,6 +12,7 @@ import {
   GetPagesView,
   GetViewInputsView,
   LinkPreview,
+  MigrateDownstreamContentView,
   ObjectDetailsView,
   OwnershipView,
   SyncJSDocFromSourceView,
@@ -342,6 +343,14 @@ export default function App() {
 
             {activeView === 'ownership' && (
               <OwnershipView
+                key={viewKey}
+                onBackToDefault={handleBackToDefault}
+                onStatusUpdate={showStatus}
+              />
+            )}
+
+            {activeView === 'migrateDownstream' && (
+              <MigrateDownstreamContentView
                 key={viewKey}
                 onBackToDefault={handleBackToDefault}
                 onStatusUpdate={showStatus}

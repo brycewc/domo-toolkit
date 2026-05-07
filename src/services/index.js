@@ -129,6 +129,18 @@ export {
 export { sendEmail } from './messages';
 export { getOwnedMetrics, transferMetrics } from './metrics';
 export {
+  compareDatasetSchemas,
+  getDownstreamCards,
+  getDownstreamContent,
+  getDownstreamLineage,
+  MIGRATE_TYPES,
+  migrateAllDownstreamContent,
+  searchDatasets,
+  swapCardInput,
+  swapDataflowInput,
+  swapDatasetViewInput
+} from './migrateDownstreamContent';
+export {
   checkPageType,
   deletePageAndAllCards,
   getAppStudioPageParent,

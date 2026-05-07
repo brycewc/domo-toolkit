@@ -7,6 +7,7 @@ export { GetDatasetsView } from './GetDatasetsView';
 export { GetPagesView } from './GetPagesView';
 export { GetViewInputsView } from './GetViewInputsView';
 export { LinkPreview } from './LinkPreview';
+export { MigrateDownstreamContentView } from './MigrateDownstreamContentView';
 export { ObjectDetailsView } from './ObjectDetailsView';
 export { OwnershipView } from './OwnershipView';
 export { SyncJSDocFromSourceView } from './SyncJSDocFromSourceView';
