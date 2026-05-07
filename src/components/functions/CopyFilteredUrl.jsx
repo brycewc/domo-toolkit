@@ -177,7 +177,10 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
           )}
           <LongPressOverlay />
         </Button>
-        <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+        <Tooltip.Content
+          className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+          offset={4}
+        >
           <span>Copy filtered URL (pfilter)</span>
           {!longPressDisabled && <span className='italic'>Hold for more options</span>}
         </Tooltip.Content>

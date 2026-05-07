@@ -40,7 +40,7 @@ export async function getOwnedTaskCenterQueues(userId, tabId = null) {
           allQueues.push(
             ...data.searchObjects.map((q) => ({
               id: q.uuid,
-              name: q.title || q.uuid
+              name: q.winnerText || q.uuid
             }))
           );
           offset += count;

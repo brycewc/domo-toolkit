@@ -1,7 +1,8 @@
-import { Alert, Button, Card, CloseButton, Spinner } from '@heroui/react';
+import { Alert, Button, Card, Spinner } from '@heroui/react';
 import { IconAlertTriangle, IconRefresh } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 
+import { CloseButton } from '@/components';
 import { DataListItem, DomoContext, DomoObject } from '@/models';
 import { getDatasetsForView } from '@/services';
 import { getSidepanelData, getValidTabForInstance } from '@/utils';

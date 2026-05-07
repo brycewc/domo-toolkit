@@ -8,6 +8,7 @@ import {
   ToastIndicator,
   ToastTitle
 } from '@heroui/react';
+import { IconX } from '@tabler/icons-react';
 
 export function ToastProvider(props) {
   return (
@@ -42,7 +43,9 @@ export function ToastProvider(props) {
                 {actionProps.children}
               </ToastActionButton>
             )}
-            <ToastCloseButton />
+            <ToastCloseButton>
+              <IconX stroke={1.5} />
+            </ToastCloseButton>
           </Toast>
         );
       }}

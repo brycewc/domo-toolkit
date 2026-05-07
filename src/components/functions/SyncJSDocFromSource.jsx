@@ -27,7 +27,10 @@ export function SyncJSDocFromSource({
       >
         <IconFileCode stroke={1.5} /> Sync JSDoc to Package
       </Button>
-      <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+      <Tooltip.Content
+        className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+        offset={4}
+      >
         Generate the package definition from JSDoc in the IDE source and release a new version
       </Tooltip.Content>
     </Tooltip>

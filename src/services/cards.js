@@ -395,7 +395,7 @@ export async function getOwnedCards(userId, tabId = null) {
           allCards.push(
             ...data.searchObjects.map((c) => ({
               id: c.databaseId,
-              name: c.title || c.databaseId.toString()
+              name: c.winnerText || c.databaseId.toString()
             }))
           );
           offset += count;

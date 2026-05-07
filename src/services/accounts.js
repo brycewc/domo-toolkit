@@ -44,7 +44,10 @@ export async function getOwnedAccounts(userId, tabId = null) {
         const accounts = data.searchResultsMap?.account || [];
         if (accounts.length > 0) {
           allAccounts.push(
-            ...accounts.map((a) => ({ id: a.databaseId, name: a.name || a.databaseId.toString() }))
+            ...accounts.map((a) => ({
+              id: a.databaseId,
+              name: a.winnerText || a.databaseId.toString()
+            }))
           );
           offset += count;
           if (accounts.length < count) moreData = false;

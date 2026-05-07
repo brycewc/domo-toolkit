@@ -4,7 +4,6 @@ import {
   ButtonGroup,
   Card,
   Chip,
-  CloseButton,
   Disclosure,
   Link,
   ScrollShadow,
@@ -22,6 +21,7 @@ import { useEffect, useState } from 'react';
 import JsonView from 'react18-json-view';
 
 import '@/assets/json-view-theme.css';
+import { CloseButton } from '@/components';
 import { useGroupLookup, useUserLookup } from '@/hooks';
 import { DomoObject } from '@/models';
 import {

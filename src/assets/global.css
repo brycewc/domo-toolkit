@@ -146,6 +146,20 @@
     z-index: 10 !important;
   }
 
+  /* Strip the default `disclosure__body { p-2 }` from disclosures that live
+     inside a DataList CheckboxGroup. When DataList is in selection mode it
+     wraps its items in `<CheckboxGroup>` (display: contents) for state
+     collection — this descendant scope only matches the selection-mode
+     subtree. The 8px padding on the body collides with the row's own `my-1`
+     margins and the selection-placeholder indentation, making disclosed
+     children feel disconnected from their parent header. We can't pass a
+     className to suppress it because HeroUI's Disclosure.Body applies user
+     classNames to an inner wrapper, not the outer padded element. Default
+     (non-selection) mode keeps the standard padding. */
+  [data-slot='checkbox-group'] .disclosure__body {
+    @apply p-0;
+  }
+
   /* HeroUI 3.0.3 + Virtualizer + Table.LoadMore breakage:
      The primary variant applies overflow:clip on .table__content and
      .table__body:not(tbody) for rounded-corner masking. React Aria's

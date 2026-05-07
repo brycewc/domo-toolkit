@@ -12,13 +12,9 @@ import { executeInPage } from '@/utils';
 export async function deleteWorkflow({ modelId, tabId = null }) {
   return executeInPage(
     async (modelId) => {
-      const versionsRes = await fetch(
-        `/api/workflow/v2/models/${modelId}/versions`
-      );
+      const versionsRes = await fetch(`/api/workflow/v2/models/${modelId}/versions`);
       if (!versionsRes.ok) {
-        throw new Error(
-          `Failed to list workflow versions: HTTP ${versionsRes.status}`
-        );
+        throw new Error(`Failed to list workflow versions: HTTP ${versionsRes.status}`);
       }
       const versions = await versionsRes.json();
       const activeVersions = versions.filter((v) => v.active);
@@ -91,7 +87,7 @@ export async function getOwnedWorkflows(userId, tabId = null) {
           allWorkflows.push(
             ...data.searchObjects.map((w) => ({
               id: w.uuid,
-              name: w.title || w.uuid
+              name: w.winnerText || w.uuid
             }))
           );
           offset += count;
@@ -128,9 +124,7 @@ export async function getVersionDefinition(modelId, versionNumber, tabId = null)
 export async function getWorkflowPermission(modelId, userId, tabId = null) {
   return executeInPage(
     async (modelId, userId) => {
-      const response = await fetch(
-        `/api/workflow/v1/models/${modelId}/permissions`
-      );
+      const response = await fetch(`/api/workflow/v1/models/${modelId}/permissions`);
       if (!response.ok) return [];
       const data = await response.json();
       const users = data?.USER || [];
@@ -150,12 +144,7 @@ export async function getWorkflowPermission(modelId, userId, tabId = null) {
  * @param {number|null} tabId - Optional Chrome tab ID
  * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
  */
-export async function transferWorkflows(
-  workflowIds,
-  fromUserId,
-  toUserId,
-  tabId = null
-) {
+export async function transferWorkflows(workflowIds, fromUserId, toUserId, tabId = null) {
   return executeInPage(
     async (workflowIds, fromUserId, toUserId) => {
       const errors = [];
@@ -163,9 +152,7 @@ export async function transferWorkflows(
 
       for (const id of workflowIds) {
         try {
-          const getResponse = await fetch(
-            `/api/workflow/v1/models/${id}`
-          );
+          const getResponse = await fetch(`/api/workflow/v1/models/${id}`);
           if (!getResponse.ok) throw new Error(`HTTP ${getResponse.status}`);
           const workflow = await getResponse.json();
 
@@ -190,12 +177,7 @@ export async function transferWorkflows(
   );
 }
 
-export async function updateVersionDefinition(
-  modelId,
-  versionNumber,
-  definition,
-  tabId = null
-) {
+export async function updateVersionDefinition(modelId, versionNumber, definition, tabId = null) {
   return executeInPage(
     async (modelId, versionNumber, definition) => {
       const response = await fetch(
@@ -224,11 +206,7 @@ export async function updateVersionDefinition(
  * @param {number|null} [params.tabId] - Optional Chrome tab ID
  * @returns {Promise<void>} Resolves on success, throws on HTTP failure
  */
-export async function updateWorkflowOwner({
-  modelId,
-  newOwnerId,
-  tabId = null
-}) {
+export async function updateWorkflowOwner({ modelId, newOwnerId, tabId = null }) {
   return executeInPage(
     async (modelId, newOwnerId) => {
       const response = await fetch(`/api/workflow/v1/models/${modelId}`, {

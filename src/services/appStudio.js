@@ -356,7 +356,7 @@ function searchUserOwnedDataApps(userId, entity, tabId) {
           allApps.push(
             ...apps.map((a) => ({
               id: a.databaseId.toString(),
-              name: a.title || a.databaseId.toString()
+              name: a.winnerText || a.databaseId.toString()
             }))
           );
           offset += count;

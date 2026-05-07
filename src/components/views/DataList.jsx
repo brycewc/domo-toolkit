@@ -6,7 +6,6 @@ import {
   CheckboxGroup,
   Disclosure,
   DisclosureGroup,
-  Label,
   Link,
   Popover,
   ScrollShadow,
@@ -73,7 +72,7 @@ import { ObjectTypeIcon } from '../ObjectTypeIcon';
  * @param {String} props.itemLabel - Label for items in status messages (default: 'item')
  * @param {Number} props.virtualThreshold - Item array length above which virtualization activates at that level (default: 50). Both the top-level items map and any item's children map virtualize automatically when their length exceeds this. Pass `Infinity` to disable.
  * @param {'transparent' | 'default' | 'secondary' | 'tertiary'} [props.variant] - Card variant (default: HeroUI's `default`). Use `transparent` when nested inside another Card to avoid double shadows/borders.
- * @param {Boolean} [props.selectionMode] - When true, selectable rows render their label inside a HeroUI `<Checkbox>` (with the row label as `Checkbox.Content` + `<Label>`, so HeroUI vertically aligns the control against the text). Non-selectable rows get a leading 16px placeholder so labels stay column-aligned. For Disclosure rows, the chevron splits off into its own sibling `Disclosure.Trigger` so clicking the label area selects the row and clicking the chevron toggles disclosure. The trailing action slot is hidden in selection mode. Items are wrapped in a `CheckboxGroup` so a select-all in `selectionToolbar` can show indeterminate state. Selection state is controlled by the consumer via `selectedIds` + `onSelectionChange`.
+ * @param {Boolean} [props.selectionMode] - When true, selectable rows render a leading `<Checkbox>` (control only, with `aria-label={item.label}` for screen readers). The row's label, count, empty space, and chevron all live inside the `Disclosure.Trigger` — so clicking the actual checkbox toggles selection while clicking anywhere else in the row toggles the disclosure. Non-selectable rows get a leading 16px placeholder so labels stay column-aligned. The trailing action slot is hidden in selection mode. Items are wrapped in a `CheckboxGroup` so a select-all in `selectionToolbar` can show indeterminate state. Selection state is controlled by the consumer via `selectedIds` + `onSelectionChange`.
  * @param {Set} [props.selectedIds] - Controlled set of currently-selected item ids. Required when `selectionMode` is true.
  * @param {Function} [props.onSelectionChange] - `(newSelectedIds: Set<string>) => void` callback fired when the selection set changes. Required when `selectionMode` is true. Receives the full new Set after any add/remove from the wrapping `CheckboxGroup`'s `onChange`.
  * @param {Function} [props.isSelectable] - `(item) => boolean` filter. When `selectionMode` is true, only items returning true get a checkbox-wrapped label; others get an empty 16px placeholder to preserve column alignment. Defaults to `() => true`.
@@ -1105,28 +1104,29 @@ function DataListItemImpl({
         <div
           className={`my-1 flex min-h-9 w-full flex-row items-center justify-between gap-2 ${isMutedEmpty ? 'text-muted' : ''}`}
         >
+          {/* Selectable: Checkbox is control-only with `aria-label` for screen
+              readers — toggling selection requires clicking the actual
+              checkbox. Non-selectable: leading 16px placeholder for column
+              alignment. Either way the label container is a separate sibling
+              so its click semantics (Link navigation / tooltip ID surfacing)
+              stay independent of the selection control. */}
           {isItemSelectableInMode ? (
             <Checkbox
-              className='!mt-0 flex h-9 min-w-0 flex-1 basis-4/5 items-center gap-2'
+              aria-label={typeof item.label === 'string' ? item.label : `Select ${item.id}`}
+              className='!mt-0 shrink-0'
               value={String(item.id)}
             >
               <Checkbox.Control>
                 <Checkbox.Indicator />
               </Checkbox.Control>
-              <Checkbox.Content className='flex min-w-0 flex-1 flex-row items-center gap-2'>
-                <Label className='min-w-0 truncate text-sm font-medium'>{item.label}</Label>
-                {flatCount}
-              </Checkbox.Content>
             </Checkbox>
           ) : (
-            <>
-              {selectionPlaceholder}
-              <div className='flex w-full min-w-0 flex-1 basis-4/5 items-center gap-2'>
-                {itemLabel}
-                {flatCount}
-              </div>
-            </>
+            selectionPlaceholder
           )}
+          <div className='flex w-full min-w-0 flex-1 basis-4/5 items-center gap-2'>
+            {itemLabel}
+            {flatCount}
+          </div>
           {statusIndicator ?? (selectionMode ? null : actions)}
         </div>
       </div>
@@ -1157,25 +1157,45 @@ function DataListItemImpl({
     >
       <Disclosure.Heading className='my-1 flex min-h-9 w-full flex-row items-center justify-between gap-2'>
         {isItemSelectableInMode ? (
-          // Selection mode + selectable: label and count live inside the
-          // Checkbox so HeroUI vertically centers the control against the
-          // text. `h-9` makes the Checkbox span the full row height so its
-          // internal `items-center` (from the `.checkbox` flex container)
-          // centers Control + Content against the row's vertical center,
-          // matching where the disclosure-trigger label sits in default mode.
-          // The chevron becomes its own Disclosure.Trigger on the right
-          // — separate sibling button, so clicking the checkbox area selects
-          // the row and clicking the chevron toggles disclosure with no event
-          // conflict.
-          <Checkbox
-            className='!mt-0 flex h-9 min-w-0 flex-1 basis-4/5 items-center gap-2'
-            value={String(item.id)}
-          >
-            <Checkbox.Control>
-              <Checkbox.Indicator />
-            </Checkbox.Control>
-            <Checkbox.Content className='flex min-w-0 flex-1 flex-row items-center gap-2'>
-              <Label className='min-w-0 truncate text-sm font-medium'>{item.label}</Label>
+          // Selection mode + selectable: the Checkbox is the control alone
+          // (no label content), with an `aria-label` for screen readers.
+          // The row's label, count, empty space, and chevron all live inside
+          // the sibling Disclosure.Trigger — so the only way to toggle
+          // selection is to click the actual checkbox, while clicking
+          // anywhere else in the row toggles the disclosure. This matches
+          // how a disclosure-with-selection row should feel: the checkbox is
+          // a small focused affordance, not a wide hit area that swallows
+          // every click.
+          //
+          // The trigger uses `flex-1 min-w-0 self-stretch` so it (a) claims
+          // the remaining row width, (b) allows the inner label to truncate
+          // for long names (`min-w-0` lets flex children shrink below their
+          // content width), and (c) spans the full row height — so empty
+          // space above/below text is also clickable, not just the
+          // text bounding box. HeroUI's `.disclosure__indicator` has
+          // `margin-inline-start: auto`, which pushes the chevron to the
+          // trigger's right edge inside its flex context.
+          //
+          // `mt-0!` overrides HeroUI's CheckboxGroup CSS rule
+          // `.checkbox-group [data-slot="checkbox"] { @apply mt-4 }`, which
+          // would otherwise inflate the row to ~52px (descendant selector
+          // wins over a plain `mt-0` utility on specificity).
+          <>
+            <Checkbox
+              aria-label={typeof item.label === 'string' ? item.label : `Select ${item.id}`}
+              className='mt-0! shrink-0'
+              value={String(item.id)}
+            >
+              <Checkbox.Control>
+                <Checkbox.Indicator />
+              </Checkbox.Control>
+            </Checkbox>
+            <Disclosure.Trigger
+              aria-label='Toggle'
+              className='flex min-w-0 flex-1 flex-row items-center gap-2 self-stretch'
+              variant='tertiary'
+            >
+              <p className='min-w-0 truncate text-left text-sm font-medium'>{item.label}</p>
               {statusIndicator
                 ? statusIndicator
                 : showCounts &&
@@ -1185,8 +1205,13 @@ function DataListItemImpl({
                       {item.countLabel ? ` ${item.countLabel}` : ''})
                     </p>
                   )}
-            </Checkbox.Content>
-          </Checkbox>
+              {!isLoadingState && (
+                <Disclosure.Indicator>
+                  <IconChevronDown stroke={1.5} />
+                </Disclosure.Indicator>
+              )}
+            </Disclosure.Trigger>
+          </>
         ) : item.isVirtualParent ? (
           // Virtual parents: the entire label area IS the Trigger so clicking
           // the bold "App Studio Apps" text toggles expansion. Trigger claims
@@ -1250,34 +1275,6 @@ function DataListItemImpl({
               </Disclosure.Trigger>
             </div>
           </>
-        )}
-        {isItemSelectableInMode && !isLoadingState && (
-          // HeroUI Button (inline-flex) instead of Disclosure.Trigger because
-          // `.disclosure__trigger` is `display: inline-block` and HeroUI's
-          // component CSS loads after Tailwind utilities, so a `flex` utility
-          // can't override it. With a plain inline-block trigger, an inline
-          // svg child sits on the baseline of its line-box (i.e. visually
-          // bottom-anchored) instead of vertically centered against the
-          // checkbox at y=18. The HeroUI Button class `.button` is
-          // `inline-flex items-center justify-center` so the chevron icon
-          // centers correctly. We bypass Disclosure.Trigger's automatic
-          // state-wiring and call `onToggleExpanded` directly — Disclosure is
-          // already controlled via `isExpanded={isOpen}`, so updating the
-          // parent's expanded set is enough.
-          <Button
-            isIconOnly
-            aria-expanded={isOpen}
-            aria-label='Toggle'
-            className='shrink-0'
-            size='sm'
-            variant='ghost'
-            onPress={() => onToggleExpanded?.(item.id, !isOpen)}
-          >
-            <IconChevronDown
-              className={`transition-transform duration-200 ${isOpen ? '-rotate-180' : ''}`}
-              stroke={1.5}
-            />
-          </Button>
         )}
         {selectionMode ? null : actions}
       </Disclosure.Heading>

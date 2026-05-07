@@ -75,7 +75,10 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
           <IconUserEdit stroke={1.5} />
           Update Owner
         </Button>
-        <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+        <Tooltip.Content
+          className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+          offset={4}
+        >
           Update {currentContext?.domoObject.typeName} owner
         </Tooltip.Content>
       </Tooltip>
@@ -119,7 +122,12 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
                   >
                     <IconUser stroke={1.5} />
                   </Button>
-                  <Tooltip.Content>Update owner to yourself</Tooltip.Content>
+                  <Tooltip.Content
+                    className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+                    offset={4}
+                  >
+                    Update owner to yourself
+                  </Tooltip.Content>
                 </Tooltip>
                 <div className='flex gap-2'>
                   <Button isDisabled={isSubmitting} size='sm' slot='close' variant='tertiary'>

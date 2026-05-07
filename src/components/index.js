@@ -2,6 +2,7 @@ export { ActionButtons } from './ActionButtons';
 export { AlertStatusIcon } from './AlertStatusIcon';
 export { AnimatedCheck } from './AnimatedCheck';
 export { AnimatedX } from './AnimatedX';
+export { CloseButton } from './CloseButton';
 export { ContextFooter } from './ContextFooter';
 export * from './functions';
 export { GroupIdAnnotation } from './GroupIdAnnotation';

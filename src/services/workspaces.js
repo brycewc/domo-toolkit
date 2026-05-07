@@ -47,7 +47,7 @@ export async function getOwnedWorkspaces(userId, tabId = null) {
           allWorkspaces.push(
             ...workspaces.map((w) => ({
               id: (w.databaseId ?? w.id)?.toString(),
-              name: w.title || w.name || (w.databaseId ?? w.id)?.toString()
+              name: w.winnerText || (w.databaseId ?? w.id)?.toString()
             }))
           );
           offset += count;

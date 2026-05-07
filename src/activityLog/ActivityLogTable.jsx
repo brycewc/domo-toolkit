@@ -6,7 +6,6 @@ import {
   Button,
   ButtonGroup,
   Chip,
-  CloseButton,
   DateField,
   DateRangePicker,
   Dropdown,
@@ -25,6 +24,7 @@ import {
 import { AnimatePresence } from 'motion/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { CloseButton } from '@/components';
 import { AnimatedCheck } from '@/components/AnimatedCheck';
 import { usePerInstanceSettings, useResolveTabId } from '@/hooks';
 import { DomoObject } from '@/models';

@@ -1,7 +1,8 @@
-import { CloseButton, Spinner, Surface, Table, TableLayout, Virtualizer } from '@heroui/react';
+import { Spinner, Surface, Table, TableLayout, Virtualizer } from '@heroui/react';
 import { IconAlertCircle, IconTable } from '@tabler/icons-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { CloseButton } from '@/components';
 import { getDatasetPreview } from '@/services';
 
 const DEFAULT_HEIGHT = 300;

@@ -56,7 +56,10 @@ export function GetCardPages({ currentContext, isDisabled, onCollapseActions, on
           )
         }
       </Button>
-      <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+      <Tooltip.Content
+        className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+        offset={4}
+      >
         {isPageLike
           ? 'List other pages/apps/worksheets where these cards appear'
           : 'List pages/apps/worksheets where this card appears'}

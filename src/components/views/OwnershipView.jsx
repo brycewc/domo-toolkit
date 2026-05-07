@@ -78,11 +78,13 @@ export function OwnershipView({ onBackToDefault = null, onStatusUpdate = null })
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedTypeKeys, setSelectedTypeKeys] = useState(() => new Set());
   const [transferModalOpen, setTransferModalOpen] = useState(false);
-  // True when selection-mode was engaged before fetches completed (e.g. via the
-  // TransferOwnership action button's `autoEnableSelectionMode` launch flag, or
-  // a click on the IconChecks toggle while still loading). Once `isFullyLoaded`
-  // becomes true, we drain this flag by populating selectedTypeKeys with every
-  // eligible type. See the auto-select effect below.
+  // True when selection-mode was engaged with a pre-selection that may need
+  // pruning once fetches settle — currently only the TransferOwnership
+  // launch path (`autoEnableSelectionMode`) uses this. `loadData` pre-selects
+  // every type the user has authority for so checkboxes appear pre-checked
+  // as each fetch resolves; this flag tells the auto-select effect to fire
+  // once `isFullyLoaded` to prune any pre-selected type that didn't end up
+  // eligible (failed or returned 0 items). See the auto-select effect below.
   const [pendingSelectAll, setPendingSelectAll] = useState(false);
   // { [typeKey]: { status, error?, succeeded?, failed?, count? } }
   const [transferStatus, setTransferStatus] = useState({});
@@ -127,12 +129,23 @@ export function OwnershipView({ onBackToDefault = null, onStatusUpdate = null })
       setCurrentContext(context);
 
       // Transfer Ownership action button passes `autoEnableSelectionMode: true`
-      // so we engage selection mode as soon as the view mounts. The actual
-      // checkbox population happens in the auto-select effect once parallel
-      // fetches resolve — at this point in loadData() results are still empty.
+      // so we engage selection mode as soon as the view mounts. We
+      // optimistically pre-select every type the toolkit user has authority
+      // for (forbidden filter is authority-based, derivable from
+      // `context.user` without waiting on fetches) so each row's checkbox
+      // appears already-checked the moment its fetch resolves — instead of
+      // every checkbox flipping unchecked → checked together when the slowest
+      // fetch finishes (which made users uncertain whether they had to act
+      // during loading). The auto-select effect below still runs to PRUNE
+      // any pre-selected types that ended up failing or returning 0 items.
       if (data.autoEnableSelectionMode && context.domoObject?.typeId === 'USER') {
         setSelectionMode(true);
         setPendingSelectAll(true);
+        const userRights = context.user?.metadata?.USER_RIGHTS || [];
+        const initiallySelected = TRANSFER_TYPES.filter(
+          (t) => !t.requiredAuthority || userRights.includes(t.requiredAuthority)
+        ).map((t) => t.key);
+        setSelectedTypeKeys(new Set(initiallySelected));
       }
     } catch (error) {
       console.error('[OwnershipView] Error loading data:', error);
@@ -216,12 +229,15 @@ export function OwnershipView({ onBackToDefault = null, onStatusUpdate = null })
     [forbidden, results]
   );
 
-  // Auto-select drainer: when entering selection mode while fetches were still
-  // in flight (e.g. the TransferOwnership launch path), pre-select every
-  // eligible type — but only AFTER all parallel fetches have settled. Firing
-  // earlier (when only the first eligible type has loaded) would snapshot a
-  // partial set and miss every type that resolves later. Cleared after one
-  // fire so the user's manual deselects aren't clobbered.
+  // Auto-select pruner: `loadData` optimistically pre-selects every type the
+  // toolkit user has authority for, so each row's checkbox shows up
+  // pre-checked as its fetch resolves. Once all fetches settle, this effect
+  // fires once to PRUNE any types that ended up not eligible (failed fetches
+  // or empty results) — so the bottom Select-all checkbox doesn't read as
+  // indeterminate forever and an empty/failed type isn't silently included
+  // in the transfer. We only REMOVE keys that aren't in `eligibleTypeKeys`,
+  // never add keys back: that preserves any deselections the user made
+  // during the loading phase.
   //
   // The `Object.keys(results).length === 0` guard handles a subtle race on
   // initial mount: when `userId` first becomes non-null, `specs` recomputes
@@ -229,14 +245,20 @@ export function OwnershipView({ onBackToDefault = null, onStatusUpdate = null })
   // its `setResults(buildInitial(specs))` for the new specs. So `results` is
   // still `{}`, `loadingCount` is 0, and `isFullyLoaded` reads true
   // vacuously. Without the guard, this effect would fire prematurely with
-  // `eligibleTypeKeys = []`, snapshot an empty Set, and clear
-  // `pendingSelectAll` — leaving nothing selected when fetches actually
-  // finish.
+  // `eligibleTypeKeys = []`, prune everything, and clear `pendingSelectAll`
+  // — leaving nothing selected when fetches actually finish.
   useEffect(() => {
     if (!pendingSelectAll) return;
     if (Object.keys(results).length === 0) return;
     if (!isFullyLoaded) return;
-    setSelectedTypeKeys(new Set(eligibleTypeKeys));
+    const eligible = new Set(eligibleTypeKeys);
+    setSelectedTypeKeys((prev) => {
+      const next = new Set();
+      for (const key of prev) {
+        if (eligible.has(key)) next.add(key);
+      }
+      return next;
+    });
     setPendingSelectAll(false);
   }, [pendingSelectAll, isFullyLoaded, eligibleTypeKeys, results]);
 
@@ -504,14 +526,24 @@ export function OwnershipView({ onBackToDefault = null, onStatusUpdate = null })
       );
     }
     if (selectionMode) {
-      const objectCount = Array.from(selectedTypeKeys).reduce((sum, key) => {
+      // Filter to eligible types: during the autoEnableSelectionMode launch
+      // path, `selectedTypeKeys` is pre-populated with every non-forbidden
+      // type so checkboxes appear pre-checked as fetches resolve. Counting
+      // raw `selectedTypeKeys.size` would include pre-selected types that
+      // haven't loaded yet — display would read e.g. "27 types selected"
+      // immediately on launch, then drift down as failed/empty types get
+      // pruned. Counting only currently-eligible-and-selected matches what
+      // the user sees on the rows: "X types, Y objects" tracks the loaded
+      // row state, not the optimistic pre-selection.
+      const selectedEligibleKeys = eligibleTypeKeys.filter((k) => selectedTypeKeys.has(k));
+      const objectCount = selectedEligibleKeys.reduce((sum, key) => {
         const r = results[key];
         return sum + (r?.status === 'loaded' && r.items ? countOwned(key, r.items) : 0);
       }, 0);
       return (
         <>
-          <span className='font-medium text-foreground'>{selectedTypeKeys.size}</span> type
-          {selectedTypeKeys.size !== 1 ? 's' : ''},{' '}
+          <span className='font-medium text-foreground'>{selectedEligibleKeys.length}</span> type
+          {selectedEligibleKeys.length !== 1 ? 's' : ''},{' '}
           <span className='font-medium text-foreground'>{objectCount}</span> object
           {objectCount !== 1 ? 's' : ''} selected
         </>
@@ -540,6 +572,7 @@ export function OwnershipView({ onBackToDefault = null, onStatusUpdate = null })
       </>
     );
   }, [
+    eligibleTypeKeys,
     isFullyLoaded,
     isTransferring,
     loadedTypeCount,
@@ -607,13 +640,20 @@ export function OwnershipView({ onBackToDefault = null, onStatusUpdate = null })
   const selectionToolbar = useMemo(() => {
     if (!selectionMode) return null;
     const totalEligible = eligibleTypeKeys.length;
-    const totalSelected = selectedTypeKeys.size;
+    // Count selected ∩ eligible — `selectedTypeKeys` may include pre-selected
+    // types that haven't loaded yet (autoEnableSelectionMode launch path).
+    // Comparing raw `selectedTypeKeys.size` against `totalEligible` would
+    // make the Select-all read as unchecked or indeterminate even when every
+    // currently-loaded row is checked.
+    const totalSelectedEligible = eligibleTypeKeys.filter((k) =>
+      selectedTypeKeys.has(k)
+    ).length;
     return (
       <Checkbox
         aria-label='Select all eligible types'
         isDisabled={totalEligible === 0 || isTransferring}
-        isIndeterminate={totalSelected > 0 && totalSelected < totalEligible}
-        isSelected={totalEligible > 0 && totalSelected === totalEligible}
+        isIndeterminate={totalSelectedEligible > 0 && totalSelectedEligible < totalEligible}
+        isSelected={totalEligible > 0 && totalSelectedEligible === totalEligible}
         onChange={(isSelected) => {
           if (isSelected) selectAllEligible();
           else clearSelection();
@@ -629,10 +669,10 @@ export function OwnershipView({ onBackToDefault = null, onStatusUpdate = null })
     );
   }, [
     clearSelection,
-    eligibleTypeKeys.length,
+    eligibleTypeKeys,
     isTransferring,
     selectAllEligible,
-    selectedTypeKeys.size,
+    selectedTypeKeys,
     selectionMode
   ]);
 

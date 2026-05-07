@@ -7,16 +7,10 @@ export async function getCodeEngineCode({ packageId, tabId, version }) {
         // If no version provided, read from the page's version selector
         // (works on the code engine page itself)
         if (!version) {
-          const container = document.querySelector(
-            'div[class*="module_packageControls"]'
-          );
-          const input = container?.querySelector(
-            'input[class*="SelectListInputComponent"]'
-          );
+          const container = document.querySelector('div[class*="module_packageControls"]');
+          const input = container?.querySelector('input[class*="SelectListInputComponent"]');
           if (input) {
-            const versionMatch = input.value.match(
-              /^Version\s+(\d+\.\d+\.\d+)$/
-            );
+            const versionMatch = input.value.match(/^Version\s+(\d+\.\d+\.\d+)$/);
             if (versionMatch) {
               version = versionMatch[1];
             }
@@ -31,9 +25,7 @@ export async function getCodeEngineCode({ packageId, tabId, version }) {
           `/api/codeengine/v2/packages/${packageId}/versions/${version}?parts=code`
         );
         if (!response.ok) {
-          throw new Error(
-            `Failed to fetch package code. HTTP status: ${response.status}`
-          );
+          throw new Error(`Failed to fetch package code. HTTP status: ${response.status}`);
         }
 
         const data = await response.json();
@@ -144,9 +136,7 @@ export async function getCodeEnginePackageDefinition(packageId, tabId = null) {
 export async function getCodeEnginePackageInfo(packageId, tabId = null) {
   return executeInPage(
     async (packageId) => {
-      const response = await fetch(
-        `/api/codeengine/v2/packages/${packageId}?parts=versions`
-      );
+      const response = await fetch(`/api/codeengine/v2/packages/${packageId}?parts=versions`);
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
@@ -197,7 +187,7 @@ export async function getOwnedCodeEnginePackages(userId, tabId = null) {
         const packages = data.searchResultsMap?.package || [];
         if (packages.length > 0) {
           allPackages.push(
-            ...packages.map((p) => ({ id: p.uuid, name: p.title || p.uuid }))
+            ...packages.map((p) => ({ id: p.uuid, name: p.winnerText || p.uuid }))
           );
           offset += count;
           if (packages.length < count) moreData = false;
@@ -302,12 +292,7 @@ export async function setCodeEngineEditorSource({ code, tabId }) {
  * @param {number|null} tabId - Optional Chrome tab ID
  * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
  */
-export async function transferCodeEnginePackages(
-  packageIds,
-  fromUserId,
-  toUserId,
-  tabId = null
-) {
+export async function transferCodeEnginePackages(packageIds, fromUserId, toUserId, tabId = null) {
   return executeInPage(
     async (packageIds, fromUserId, toUserId) => {
       const errors = [];

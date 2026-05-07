@@ -11,6 +11,7 @@ import remarkLintListItemSpacing from 'remark-lint-list-item-spacing';
 import remarkLintMaximumHeadingLength from 'remark-lint-maximum-heading-length';
 import remarkLintMaximumLineLength from 'remark-lint-maximum-line-length';
 import remarkLintNoDuplicateHeadings from 'remark-lint-no-duplicate-headings';
+import remarkLintNoFileNameIrregularCharacters from 'remark-lint-no-file-name-irregular-characters';
 import remarkPresetLintConsistent from 'remark-preset-lint-consistent';
 import remarkPresetLintMarkdownStyleGuide from 'remark-preset-lint-markdown-style-guide';
 import remarkPresetLintRecommended from 'remark-preset-lint-recommended';
@@ -64,7 +65,10 @@ const config = {
     [remarkLintMaximumLineLength, false],
     [remarkLintMaximumHeadingLength, false],
     [remarkLintNoDuplicateHeadings, false],
-    [remarkLintListItemSpacing, false]
+    [remarkLintListItemSpacing, false],
+    // Disabled because Jekyll requires `_config.yml` / `_includes` / `_sass`
+    // (leading underscores) and existing assets use snake_case names.
+    [remarkLintNoFileNameIrregularCharacters, false]
   ]
 };
 

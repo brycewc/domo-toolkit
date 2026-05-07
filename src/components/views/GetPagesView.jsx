@@ -1,7 +1,8 @@
-import { Alert, Button, Card, CloseButton, Separator, Spinner } from '@heroui/react';
+import { Alert, Button, Card, Separator, Spinner } from '@heroui/react';
 import { IconAlertTriangle, IconRefresh } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 
+import { CloseButton } from '@/components';
 import { DataListItem, DomoContext, DomoObject } from '@/models';
 import {
   getCardsForObject,
