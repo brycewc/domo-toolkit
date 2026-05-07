@@ -7,6 +7,10 @@ import { fileURLToPath } from 'node:url';
 
 import dictionaryEn from 'dictionary-en';
 import remarkFrontmatter from 'remark-frontmatter';
+import remarkLintListItemSpacing from 'remark-lint-list-item-spacing';
+import remarkLintMaximumHeadingLength from 'remark-lint-maximum-heading-length';
+import remarkLintMaximumLineLength from 'remark-lint-maximum-line-length';
+import remarkLintNoDuplicateHeadings from 'remark-lint-no-duplicate-headings';
 import remarkPresetLintConsistent from 'remark-preset-lint-consistent';
 import remarkPresetLintMarkdownStyleGuide from 'remark-preset-lint-markdown-style-guide';
 import remarkPresetLintRecommended from 'remark-preset-lint-recommended';
@@ -35,6 +39,11 @@ const config = {
   },
   plugins: [
     remarkFrontmatter,
+    // `remark-gfm` must run on the outer mdast tree so the parser
+    // recognizes task lists, tables, strikethrough, and autolinks.
+    // Without this, `- [ ] item` parses as a plain list item and the
+    // stringifier escapes the `[` to `\[` on every format-on-save.
+    remarkGfm,
     [
       remarkRetext,
       unified().use({
@@ -43,14 +52,19 @@ const config = {
           retextSyntaxUrls,
           [retextSentenceSpacing, { preferred: 1 }],
           retextRepeatedWords,
-          retextUsage,
-          remarkGfm
+          retextUsage
         ]
       })
     ],
     remarkPresetLintConsistent,
     remarkPresetLintRecommended,
-    remarkPresetLintMarkdownStyleGuide
+    remarkPresetLintMarkdownStyleGuide,
+    // Override style-guide rules that fight prose docs. Order matters —
+    // these must come *after* the preset to win the last-in-wins merge.
+    [remarkLintMaximumLineLength, false],
+    [remarkLintMaximumHeadingLength, false],
+    [remarkLintNoDuplicateHeadings, false],
+    [remarkLintListItemSpacing, false]
   ]
 };
 
