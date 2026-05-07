@@ -101,7 +101,7 @@ const FETCHERS = {
       },
       {
         blocking: false,
-        deleted: false,
+        deleted: true,
         items: cards.map((c) => ({
           id: c.id,
           label: c.title || `Card ${c.id}`,

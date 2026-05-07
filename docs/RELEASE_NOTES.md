@@ -42,6 +42,7 @@
 - Lists the object's dependencies (child pages, output datasets, downstream cards) before confirming the delete — collapsible groups so even objects with many dependents stay scannable
 - Dependencies are grouped into a "Will be deleted" section (items the primary delete also removes) and an "Other dependencies" section (items affected but not deleted) so the relationship is clear without per-item parentheticals
 - All page types (regular pages, app pages, worksheet pages) list the cards that will be deleted with them; app and worksheet pages also list their sibling pages (deleted only via the cascade button) so the user can see the full impact of either path
+- Dataflow deletes now list cards built on the output datasets in the "Will be deleted" section, since deleting the output datasets also deletes those cards
 - Pages with child pages are now hard-blocked from deletion (with the reason shown inline) instead of just warning after the fact
 - Items in dependency lists are sorted alphabetically
 - Status alerts (loading, error, no-deps, dependency-check-not-available) use proper Alert components for consistent styling

@@ -425,21 +425,25 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
                 <Tooltip.Content>Click to toggle context JSON view</Tooltip.Content>
               </Tooltip>
             </div>
-            <Alert.Description className='flex h-full flex-col flex-wrap items-start justify-start gap-1'>
-              <div className='flex flex-col items-start justify-start truncate'>
+            <Alert.Description className='flex h-full w-full min-w-0 flex-col items-start justify-start gap-1 text-left'>
+              <div className='flex w-full min-w-0 flex-col items-start justify-start text-left'>
                 {currentContext?.isDomoPage ? (
                   !currentContext?.instance || !currentContext?.domoObject?.id ? (
-                    <span className='font-medium'>No object detected on this page</span>
+                    <span className='w-full truncate text-left font-medium'>
+                      No object detected on this page
+                    </span>
                   ) : (
                     <>
-                      <span className='font-medium'>
+                      <span className='w-full truncate text-left font-medium'>
                         {currentContext?.domoObject?.metadata?.name}
                       </span>
-                      <span>ID: {currentContext?.domoObject?.id}</span>
+                      <span className='w-full truncate text-left'>
+                        ID: {currentContext?.domoObject?.id}
+                      </span>
                     </>
                   )
                 ) : (
-                  <span className='font-medium'>
+                  <span className='w-full truncate text-left font-medium'>
                     Navigate to an instance to enable most features
                   </span>
                 )}
