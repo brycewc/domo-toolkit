@@ -187,7 +187,10 @@ export async function scanContentForColumns({ originId, selectedItems, tabId = n
       let definition;
       let used;
       if (typeKey === 'cards') {
-        definition = await getCardDefinition({ cardId: item.id, tabId });
+        // Drill cards are fetched via their `dr:<drillId>:<rootId>` URN, not
+        // the bare numeric id — the kpi/definition endpoint sends `urn` as
+        // the body key, and a drill's bare id returns an unrelated payload.
+        definition = await getCardDefinition({ cardId: item.urn || item.id, tabId });
         used = extractCardColumnRefs(definition);
       } else if (typeKey === 'datasetViews') {
         definition = await fetchDatasetViewDefinition(item.id, tabId);

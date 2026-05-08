@@ -8,7 +8,7 @@
 
 import { executeInPage } from '@/utils';
 
-import { getCardDefinition } from './cards';
+import { getCardDefinition, getDrillCardMetadata, getDrillsForCards } from './cards';
 import { makeItemKey } from './columnReferences';
 import {
   hasEffectiveMapping,
@@ -22,14 +22,24 @@ import {
 // ===========================================================================
 
 /**
- * Cards that have this dataset as their primary datasource.
+ * Cards (and drill_view cards) that have this dataset as their primary
+ * datasource.
+ *
+ * The dataset → cards endpoint only returns parent (kpi) cards. Drill cards
+ * aren't surfaced there; we discover them by asking each parent for its
+ * `drillPathURNs`, then fetching drill metadata to filter to drills whose
+ * own datasource matches `datasetId`.
+ *
+ * Drill cards in the result set carry `isDrill: true`, the drill's `urn`
+ * (the `dr:<drillId>:<rootId>` form), and `parentId`. Regular cards have
+ * just `{id, name}`.
  *
  * @param {string} datasetId
  * @param {number|null} tabId
- * @returns {Promise<Array<{id: number, name: string}>>}
+ * @returns {Promise<Array<{id: number, name: string, urn?: string, isDrill?: boolean, parentId?: number}>>}
  */
 export async function getDownstreamCards(datasetId, tabId = null) {
-  return executeInPage(
+  const parents = await executeInPage(
     async (datasetId) => {
       const response = await fetch(`/api/content/v1/datasources/${datasetId}/cards`, {
         credentials: 'include'
@@ -51,6 +61,43 @@ export async function getDownstreamCards(datasetId, tabId = null) {
     [datasetId],
     tabId
   );
+
+  if (parents.length === 0) return parents;
+
+  // Discover drills via the bulk parts=drillPath,drillPathURNs endpoint.
+  // Drill discovery is best-effort — if it fails we still migrate parents.
+  const drillRefs = await getDrillsForCards(parents.map((p) => p.id), tabId).catch(() => []);
+  if (drillRefs.length === 0) return parents;
+
+  // Fetch each drill's metadata so we can (a) get its title for display and
+  // (b) confirm its dataset matches `datasetId` — drills attached to a
+  // parent migrate as part of THIS dataset's flow only when the drill is
+  // also sourced from this dataset.
+  const drillMetas = await getDrillCardMetadata(
+    drillRefs.map((d) => d.urn),
+    tabId
+  ).catch(() => []);
+  const metaByUrn = new Map(drillMetas.map((m) => [m.urn, m]));
+
+  const seen = new Set();
+  const drills = [];
+  for (const ref of drillRefs) {
+    if (seen.has(ref.drillId)) continue;
+    seen.add(ref.drillId);
+    const meta = metaByUrn.get(ref.urn);
+    if (meta && meta.datasourceId && meta.datasourceId !== datasetId) continue;
+    drills.push({
+      id: ref.drillId,
+      isDrill: true,
+      name: meta?.title
+        ? `↳ ${meta.title}${ref.parentTitle ? ` (drill of ${ref.parentTitle})` : ''}`
+        : `Drill ${ref.drillId}`,
+      parentId: ref.parentId,
+      urn: ref.urn
+    });
+  }
+
+  return [...parents, ...drills];
 }
 
 /**
@@ -315,13 +362,21 @@ export async function swapCardInput({
   originId,
   tabId = null,
   targetId,
+  urn,
   useFullPath = false
 }) {
-  if (!useFullPath && !hasEffectiveMapping(columnMap)) {
+  // Drill cards (urn = `dr:<drillId>:<rootId>`) always go through the full-PUT
+  // path: the lightweight `/datasource/{id}` shortcut is for plain kpi cards
+  // and likely won't recognize the drill, and we need to preserve the drill's
+  // `drillpath` array (parent linkage) on PUT.
+  const isDrill = typeof urn === 'string' && urn.startsWith('dr:');
+  if (!isDrill && !useFullPath && !hasEffectiveMapping(columnMap)) {
     return swapCardInputFast(cardId, originId, targetId, tabId);
   }
   try {
-    const definition = cachedDefinition || (await getCardDefinition({ cardId, tabId }));
+    const fetchUrn = urn || cardId;
+    const definition =
+      cachedDefinition || (await getCardDefinition({ cardId: fetchUrn, tabId }));
     let rewritten = hasEffectiveMapping(columnMap)
       ? rewriteCardColumns(definition, columnMap)
       : JSON.parse(JSON.stringify(definition));
@@ -331,7 +386,7 @@ export async function swapCardInput({
       }
     }
     rewritten = JSON.parse(JSON.stringify(rewritten).replaceAll(originId, targetId));
-    return await putCardForMigration(cardId, rewritten, tabId);
+    return await putCardForMigration(cardId, rewritten, tabId, { isDrill, urn });
   } catch (err) {
     console.error('[swapCardInput] full-path failed:', err);
     return { error: err?.message || String(err), success: false };
@@ -469,14 +524,23 @@ async function fetchDatasetViewDefinitionInPage(viewId, tabId) {
  * dataProvider.dataSourceId from columns[0].sourceId, transforms
  * conditionalFormats from array to {card, datasource}.
  */
-async function putCardForMigration(cardId, definition, tabId) {
+async function putCardForMigration(
+  cardId,
+  definition,
+  tabId,
+  { isDrill = false, urn = null } = {}
+) {
   const datasetId = definition?.columns?.[0]?.sourceId;
 
   // Strip internal-only fields the v3 PUT endpoint doesn't accept.
   delete definition.id;
   delete definition.urn;
   delete definition.columns;
-  delete definition.drillpath;
+  // For drill cards, `drillpath` is a `[parentId]` array that must be
+  // preserved — it's how Domo links a drill back to its root parent. For
+  // regular kpi cards, `drillpath` is empty in the v3 response and the
+  // standard updateCardDefinition strips it; we follow suit there.
+  if (!isDrill) delete definition.drillpath;
   delete definition.embedded;
   delete definition.dataSourceWrite;
 
@@ -511,10 +575,14 @@ async function putCardForMigration(cardId, definition, tabId) {
     };
   }
 
+  // For drill cards the URL must use the full `dr:<drillId>:<rootId>` URN —
+  // PUTing to the bare numeric id returns "Unable to find card id in urn".
+  const pathSegment = isDrill && urn ? urn : String(cardId);
+
   return executeInPage(
-    async (cardId, definition) => {
+    async (pathSegment, definition) => {
       try {
-        const response = await fetch(`/api/content/v3/cards/kpi/${cardId}`, {
+        const response = await fetch(`/api/content/v3/cards/kpi/${pathSegment}`, {
           body: JSON.stringify(definition),
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
@@ -537,7 +605,7 @@ async function putCardForMigration(cardId, definition, tabId) {
         return { error: err?.message || String(err), success: false };
       }
     },
-    [cardId, definition],
+    [pathSegment, definition],
     tabId
   );
 }
@@ -783,6 +851,7 @@ async function dispatchSwap(typeKey, item, options) {
       originId: options.originId,
       tabId: options.tabId,
       targetId: options.targetId,
+      urn: item.urn,
       useFullPath: options.useFullPath
     });
   }
