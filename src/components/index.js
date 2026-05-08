@@ -4,6 +4,7 @@ export { AnimatedCheck } from './AnimatedCheck';
 export { AnimatedX } from './AnimatedX';
 export { CloseButton } from './CloseButton';
 export { ContextFooter } from './ContextFooter';
+export { DatasetComboBox } from './DatasetComboBox';
 export * from './functions';
 export { GroupIdAnnotation } from './GroupIdAnnotation';
 export * from './modals';

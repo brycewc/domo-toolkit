@@ -9,6 +9,7 @@ import {
   ApiErrors,
   ClearCookies,
   Copy,
+  CopyColorRules,
   CopyFilteredUrl,
   DataRepair,
   DeleteObject,
@@ -230,6 +231,12 @@ export function ActionButtons({
                 )}
                 {availableActions.has('updateDetails') && (
                   <UpdateDetails currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
+                )}
+                {availableActions.has('copyColorRules') && (
+                  <CopyColorRules
+                    currentContext={currentContext}
+                    onStatusUpdate={onStatusUpdate}
+                  />
                 )}
                 {availableActions.has('transferOwnership') && (
                   <TransferOwnership

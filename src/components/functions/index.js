@@ -2,6 +2,7 @@ export { ActivityLog } from './ActivityLog';
 export { ApiErrors } from './ApiErrors';
 export { ClearCookies } from './ClearCookies';
 export { Copy } from './Copy';
+export { CopyColorRules } from './CopyColorRules';
 export { CopyFilteredUrl } from './CopyFilteredUrl';
 export { DataRepair } from './DataRepair';
 export { DeleteObject } from './DeleteObject';

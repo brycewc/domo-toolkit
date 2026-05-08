@@ -73,6 +73,15 @@
 - Timestamp column sort is now server-side on DomoStats — toggling direction triggers a refetch from offset 0, so ascending sort starts with the oldest available events and pagination loads progressively newer ones. On the API source the timestamp column keeps its prior client-only sort (re-orders already-loaded rows), unchanged from previous releases
 - Source-specific columns: on DomoStats the Description column is replaced with a "Source" column showing the actor's `Source_ID`, `Name`, and `Type` (USER / SYSTEM / ETL etc.) — the dataset has no Description equivalent but does carry actor info the audit API doesn't expose. The User column on DomoStats shows the underlying `User_ID` and the toolkit looks up the user's display name on demand via the bulk users API
 
+### Copy Color Rules (Conditional Formats)
+
+- New action button on datasets — copy a dataset's color rules to another dataset in one click
+- Source rules are fetched via `POST /api/content/v1/datasources/conditionalFormats`; destination is selected with the new `DatasetComboBox` (paste a UUID or search by name)
+- Per-rule column references are validated against the destination's schema; missing columns show as a warning but the user can still proceed
+- Beast Mode (calculated column) references are name-matched between source and destination — when both datasets have a Beast Mode with the same name, the rule's `calculation_<uuid>` reference is rewritten to the destination's id at copy time so rules keep working across datasets that have equivalent calculations
+- If the destination already has color rules, a warning callout makes it clear the existing rules will be replaced (PUT semantics)
+- Saves the back-and-forth of recreating identical rule sets across datasets, which Domo's UI offers no copy path for
+
 ## Newly Supported Object Types
 
 - Certification Process (recognized objects + Navigate to Copied Object)
@@ -144,3 +153,4 @@
 - New `usePerInstanceSettings` hook for per-Domo-instance settings stored in `chrome.storage.local` — generic shape, reusable beyond Activity Log; subscribes to `chrome.storage.onChanged` so consumers stay in sync without re-reading
 - New `useParallelFetches` hook consolidates the `Promise.allSettled` + per-key state machine that was open-coded in five-plus views (`GetOwnedObjects`, `TransferOwnership`, `SyncJSDocFromSource`, etc.). Returns `{ results, isFullyLoaded, errorCount, loadingCount, refresh }` with per-key streaming updates so progressive UI is the default. Used by the new Ownership view; future Get-All-Dependencies and similar parallel-fetch views slot in by passing a different spec list
 - DataList items now support optional `status` (`'loading' | 'loaded' | 'transferring' | 'transferred' | 'error' | 'failed'`) and `error` fields on virtual parents — DataList renders a spinner / X icon in the count slot and surfaces the error inside the body when expanded. Same field powers both fetch progress and transfer progress; non-virtual-parent rows ignore it. New `originalId` field on DataListItem lets consumers namespace `id` for uniqueness while preserving the canonical id for clipboard copy
+- New shared `DatasetComboBox` component — async paginated dataset picker that mirrors `UserComboBox` (debounced server search, offset pagination, race-guarded fetches). Both name search and paste-a-UUID lookup go through a single `POST /api/data/ui/v3/datasources/search` call (the UUID path swaps the wildcard id filter for a `databaseId` term filter) so result objects have an identical shape. Renders provider icons from `/api/data/v1/providers/{type}/images/96.png` instead of avatars. First consumer is the new Copy Color Rules action

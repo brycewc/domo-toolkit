@@ -76,6 +76,8 @@ export {
   updateDataflowDetails
 } from './dataflows';
 export {
+  getColorRules,
+  getDatasetBeastModes,
   getDatasetColumns,
   getDatasetPreview,
   getDatasetsForApp,
@@ -88,6 +90,8 @@ export {
   getStreamExecution,
   getStreamExecutions,
   isViewType,
+  searchDatasets,
+  setColorRules,
   setStreamScheduleToManual,
   transferDatasets,
   updateDatasetProperties

@@ -48,6 +48,7 @@ export function getAvailableActions(currentContext) {
   }
 
   if (typeId === 'DATA_SOURCE') {
+    actions.add('copyColorRules');
     actions.add('getViewInputs');
     actions.add('dataRepair');
     if (details?.streamId && metadata?.parent?.details?.scheduleState !== 'MANUAL') {

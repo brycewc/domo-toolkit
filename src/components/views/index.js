@@ -1,4 +1,5 @@
 export { ApiErrorsView } from './ApiErrorsView';
+export { CopyColorRulesView } from './CopyColorRulesView';
 export { DataList } from './DataList';
 export { DeleteObjectView } from './DeleteObjectView';
 export { DuplicateView } from './DuplicateView';

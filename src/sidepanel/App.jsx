@@ -5,6 +5,7 @@ import {
   ActionButtons,
   ApiErrorsView,
   ContextFooter,
+  CopyColorRulesView,
   DeleteObjectView,
   DuplicateView,
   GetCardsView,
@@ -326,6 +327,14 @@ export default function App() {
 
             {activeView === 'updateDetails' && (
               <UpdateDetailsView
+                key={viewKey}
+                onBackToDefault={handleBackToDefault}
+                onStatusUpdate={showStatus}
+              />
+            )}
+
+            {activeView === 'copyColorRules' && (
+              <CopyColorRulesView
                 key={viewKey}
                 onBackToDefault={handleBackToDefault}
                 onStatusUpdate={showStatus}

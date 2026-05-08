@@ -1,4 +1,58 @@
+import { getObjectType } from '@/models';
 import { executeInPage } from '@/utils';
+
+const DATASETS_PAGE_SIZE = 50;
+
+/**
+ * Get the conditional-format ("color") rules for a dataset.
+ * @param {string} datasetId - The dataset UUID
+ * @param {number|null} [tabId] - Optional Chrome tab ID
+ * @returns {Promise<Array<Object>>} Array of rule objects (empty if none)
+ */
+export async function getColorRules(datasetId, tabId = null) {
+  return executeInPage(
+    async (id) => {
+      const response = await fetch('/api/content/v1/datasources/conditionalFormats', {
+        body: JSON.stringify([id]),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST'
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch color rules. HTTP status: ${response.status}`);
+      }
+      const data = await response.json();
+      return data?.[id] || [];
+    },
+    [datasetId],
+    tabId
+  );
+}
+
+/**
+ * Get a dataset's Beast Mode (calculated column) definitions.
+ * Each value is keyed by its `calculation_<uuid>` id and includes at least a
+ * `name`. Used by the Copy Color Rules view to remap rule references between
+ * datasets — beast mode ids are not stable across datasets, but names usually are.
+ * @param {string} datasetId - The dataset UUID
+ * @param {number|null} [tabId] - Optional Chrome tab ID
+ * @returns {Promise<Object>} Map of `calculation_<uuid>` to `{name, ...}` (empty if none)
+ */
+export async function getDatasetBeastModes(datasetId, tabId = null) {
+  return executeInPage(
+    async (id) => {
+      const response = await fetch(`/api/data/v3/datasources/${id}?includeAllDetails=true`, {
+        credentials: 'include'
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch dataset definition. HTTP status: ${response.status}`);
+      }
+      const data = await response.json();
+      return data?.properties?.formulas?.formulas || {};
+    },
+    [datasetId],
+    tabId
+  );
+}
 
 /**
  * Get a dataset's column schema (id, name, type, etc. per column)
@@ -432,6 +486,89 @@ export function isViewType(details) {
     viewTypes.includes(details.dataProviderType) ||
     viewTypes.includes(details.displayType) ||
     viewTypes.includes(details.type)
+  );
+}
+
+/**
+ * Search datasets by name (paginated) or look up a single dataset by ID.
+ *
+ * Mirrors the signature of `searchUsers` so consumers like DatasetComboBox can
+ * stay structurally identical to UserComboBox. When `text` parses as a
+ * DATA_SOURCE UUID the call swaps in a `databaseId` term filter so the result
+ * collapses to that single dataset; otherwise it runs a name search.
+ *
+ * @param {string} text - Search text or a DATA_SOURCE UUID
+ * @param {number|null} [tabId] - Optional Chrome tab ID
+ * @param {number} [offset=0] - Pagination offset
+ * @returns {Promise<{totalCount: number|null, datasets: Array<Object>}>}
+ */
+export async function searchDatasets(text, tabId = null, offset = 0) {
+  const isId = !!text && getObjectType('DATA_SOURCE').isValidObjectId(text);
+  const filters = isId ? [{ field: 'databaseId', filterType: 'term', value: text }] : [];
+
+  return executeInPage(
+    async (filters, query, offset, count) => {
+      const response = await fetch('/api/data/ui/v3/datasources/search', {
+        body: JSON.stringify({
+          combineResults: true,
+          count,
+          entities: ['DATASET'],
+          filters,
+          offset,
+          query,
+          sort: {
+            fieldSorts: [{ field: 'create_date', sortOrder: 'DESC' }],
+            isRelevance: false
+          }
+        }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST'
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to search datasets. Status: ${response.status}`);
+      }
+      const data = await response.json();
+      return {
+        datasets: data.dataSources || [],
+        totalCount: data._metaData?.totalCount ?? null
+      };
+    },
+    [filters, isId ? '*' : text || '*', offset, DATASETS_PAGE_SIZE],
+    tabId
+  );
+}
+
+/**
+ * Replace a dataset's conditional-format ("color") rules with the supplied list.
+ * Each rule's `dataSourceId` (top level and inside `condition`) is rewritten to
+ * the destination dataset id before sending — source rules carry references to
+ * their original dataset that would otherwise persist on the destination.
+ *
+ * @param {string} datasetId - The destination dataset UUID
+ * @param {Array<Object>} rules - Rule objects shaped like `{condition, format, dataSourceId}`
+ * @param {number|null} [tabId] - Optional Chrome tab ID
+ * @returns {Promise<Object|null>}
+ */
+export async function setColorRules(datasetId, rules, tabId = null) {
+  const rewritten = rules.map((rule) => ({
+    ...rule,
+    condition: { ...rule.condition, dataSourceId: datasetId },
+    dataSourceId: datasetId
+  }));
+  return executeInPage(
+    async (id, body) => {
+      const response = await fetch(`/api/content/v1/datasources/conditionalFormats/${id}`, {
+        body,
+        headers: { 'Content-Type': 'application/json' },
+        method: 'PUT'
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to save color rules. HTTP status: ${response.status}`);
+      }
+      return response.json().catch(() => null);
+    },
+    [datasetId, JSON.stringify(rewritten)],
+    tabId
   );
 }
 
