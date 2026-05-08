@@ -10,7 +10,7 @@ export function Duplicate({ currentContext, onCollapseActions, onStatusUpdate })
     <Tooltip closeDelay={100} delay={600}>
       <Button
         fullWidth
-        className='min-w-36 flex-1 whitespace-normal'
+        className='h-auto min-h-9 min-w-36 flex-1 whitespace-normal py-1.5'
         isPending={isPending}
         variant='tertiary'
         onPress={() =>

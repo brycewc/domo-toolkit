@@ -59,6 +59,19 @@ export {
   transferCodeEnginePackages
 } from './codeEngine';
 export {
+  extractCardColumnRefs,
+  extractDataflowColumnRefs,
+  extractDatasetViewColumnRefs,
+  makeItemKey,
+  scanContentForColumns
+} from './columnReferences';
+export {
+  hasEffectiveMapping,
+  rewriteCardColumns,
+  rewriteDataflowColumns,
+  rewriteDatasetViewColumns
+} from './columnRewriter';
+export {
   deleteAppAndAllContent,
   deleteCustomApp,
   getAppInstance,

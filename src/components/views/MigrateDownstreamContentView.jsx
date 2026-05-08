@@ -170,6 +170,24 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
 
   const totalSelected = selectedCounts.cards + selectedCounts.datasetViews + selectedCounts.dataflows;
 
+  // Full selected items array per type — passed to the modal so it can scan
+  // each item's definition for column references when a schema mismatch is
+  // detected. Distinct from `selectedCounts` (numbers) and `selectedIds`
+  // (flat key Set).
+  const selectedItemsByType = useMemo(() => {
+    const acc = { cards: [], dataflows: [], datasetViews: [] };
+    for (const t of MIGRATE_TYPES) {
+      const r = results[t.key];
+      const items = r?.status === 'loaded' ? r.items?.items || [] : [];
+      for (const item of items) {
+        if (selectedIds.has(leafSelectionId(t.key, item.id))) {
+          acc[t.key].push(item);
+        }
+      }
+    }
+    return acc;
+  }, [results, selectedIds]);
+
   const dataListItems = useMemo(
     () =>
       MIGRATE_TYPES.map((t) => {
@@ -323,17 +341,15 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
   const handleOpenModal = useCallback(() => setTransferModalOpen(true), []);
 
   const handleSubmit = useCallback(
-    async ({ targetId, targetName }) => {
-      const selectedItems = { cards: [], dataflows: [], datasetViews: [] };
-      for (const t of MIGRATE_TYPES) {
-        const r = results[t.key];
-        const items = r?.status === 'loaded' ? r.items?.items || [] : [];
-        for (const item of items) {
-          if (selectedIds.has(leafSelectionId(t.key, item.id))) {
-            selectedItems[t.key].push(item);
-          }
-        }
-      }
+    async ({
+      columnMap,
+      definitionsByItemKey,
+      targetColumnTypes,
+      targetId,
+      targetName,
+      useFullPath
+    }) => {
+      const selectedItems = selectedItemsByType;
 
       const initialStatus = {};
       for (const t of MIGRATE_TYPES) {
@@ -346,6 +362,8 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
 
       try {
         const transferResults = await migrateAllDownstreamContent({
+          columnMap,
+          definitionsByItemKey,
           onProgress: ({ count, result, status, typeKey }) => {
             if (!mountedRef.current) return;
             setTransferStatus((prev) => {
@@ -369,7 +387,9 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
           originId: datasetId,
           selectedItems,
           tabId,
-          targetId
+          targetColumnTypes,
+          targetId,
+          useFullPath
         });
 
         let totalSucceeded = 0;
@@ -401,7 +421,7 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
         if (mountedRef.current) setIsTransferring(false);
       }
     },
-    [datasetId, results, selectedIds, showStatus, tabId]
+    [datasetId, selectedItemsByType, showStatus, tabId]
   );
 
   const customHeaderActions = useMemo(
@@ -458,6 +478,7 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
         currentContext={currentContext}
         isOpen={transferModalOpen}
         selectedCounts={selectedCounts}
+        selectedItems={selectedItemsByType}
         sourceDataset={{ id: datasetId, name: datasetName }}
         onOpenChange={setTransferModalOpen}
         onSubmit={handleSubmit}

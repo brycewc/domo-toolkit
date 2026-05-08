@@ -62,7 +62,7 @@ export function GetDatasets({ currentContext, isDisabled, onCollapseActions, onS
       <Tooltip closeDelay={100} delay={600}>
         <Button
           fullWidth
-          className='relative min-w-36 flex-1 overflow-visible whitespace-normal'
+          className='relative h-auto min-h-9 min-w-36 flex-1 overflow-visible whitespace-normal py-1.5'
           isDisabled={isDisabled}
           isPending={isPending}
           variant='tertiary'

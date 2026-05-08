@@ -97,7 +97,16 @@ export function DatasetComboBox({
       const { datasets: fetched, totalCount } = await searchDatasets(searchQuery, tabId, offset);
       if (gen !== searchGenRef.current) return;
       const filtered = excludeIds ? fetched.filter((d) => !excludeIds.has(d.id)) : fetched;
-      const merged = [...datasets, ...filtered];
+      // Dedupe by id when merging — Domo's search occasionally returns the
+      // same row across pages, and React requires unique keys per item.
+      const seen = new Set(datasets.map((d) => d.id));
+      const merged = [...datasets];
+      for (const d of filtered) {
+        if (!seen.has(d.id)) {
+          seen.add(d.id);
+          merged.push(d);
+        }
+      }
       setDatasets(merged);
       setHasMore(totalCount !== null && merged.length < totalCount);
       setOffset(offset + fetched.length);

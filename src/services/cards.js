@@ -665,8 +665,16 @@ export async function updateCardDefinition({
           method: 'PUT'
         });
         if (!response.ok) {
+          // Include the response body so callers can surface why the
+          // update was rejected (Domo returns helpful detail in JSON body).
+          let bodyText = '';
+          try {
+            bodyText = await response.text();
+          } catch {
+            // body unreadable — fall through with empty
+          }
           throw new Error(
-            `Failed to update card ${cardId}. HTTP status: ${response.status}`
+            `Failed to update card ${cardId}. HTTP ${response.status}: ${bodyText}`.trim()
           );
         }
         return response.json();

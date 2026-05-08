@@ -182,7 +182,7 @@ export function ActionButtons({
               </ButtonGroup>
             </Disclosure.Heading>
             <Disclosure.Content className='flex h-full w-full flex-col items-center justify-center gap-1'>
-              <div className='flex w-full flex-wrap place-items-center items-center justify-center gap-1 not-empty:mt-1 empty:hidden'>
+              <div className='flex w-full flex-wrap items-stretch justify-center gap-1 not-empty:mt-1 empty:hidden'>
                 {availableActions.has('getCards') && (
                   <GetCards
                     currentContext={currentContext}
