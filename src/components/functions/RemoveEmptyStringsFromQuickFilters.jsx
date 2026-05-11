@@ -1,9 +1,9 @@
 import { Button, Tooltip } from '@heroui/react';
-import { IconXboxX } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 
-import { useStatusBar } from '@/hooks';
-import { getCardDefinition, updateCardDefinition } from '@/services';
+import { useStatusBar } from '@/hooks/useStatusBar';
+import { getCardDefinition, updateCardDefinition } from '@/services/cards';
+import IconCancel from '@icons/cancel.svg?react';
 
 export function RemoveEmptyStringsFromQuickFilters({ currentContext, onStatusUpdate }) {
   const [emptyCount, setEmptyCount] = useState(null);
@@ -85,7 +85,7 @@ export function RemoveEmptyStringsFromQuickFilters({ currentContext, onStatusUpd
         variant='tertiary'
         onPress={handleClick}
       >
-        <IconXboxX stroke={1.5} />
+        <IconCancel />
         Fix Empty String Filters
       </Button>
       <Tooltip.Content

@@ -1,5 +1,5 @@
-import { fetchObjectDetailsInPage, getObjectType } from '@/models';
-import { executeInPage } from '@/utils';
+import { fetchObjectDetailsInPage, getObjectType } from '@/models/DomoObjectType';
+import { executeInPage } from '@/utils/executeInPage';
 
 import { getAppDbCollectionPermission } from './appDb';
 import {

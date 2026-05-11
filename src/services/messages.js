@@ -1,4 +1,4 @@
-import { executeInPage } from '@/utils';
+import { executeInPage } from '@/utils/executeInPage';
 
 /**
  * Send an email via Domo's social messaging endpoint, optionally with data-file

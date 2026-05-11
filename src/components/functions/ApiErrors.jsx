@@ -1,8 +1,8 @@
 import { Button, Chip, Tooltip } from '@heroui/react';
-import { IconAlertTriangle } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 
-import { launchView } from '@/utils';
+import { launchView } from '@/utils/sidepanel';
+import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
 
 export function ApiErrors({ currentContext, isDisabled, onCollapseActions, onStatusUpdate }) {
   const [errorCount, setErrorCount] = useState(0);
@@ -51,7 +51,7 @@ export function ApiErrors({ currentContext, isDisabled, onCollapseActions, onSta
           })
         }
       >
-        <IconAlertTriangle stroke={1.5} /> View Errors
+        <IconExclamationTriangle /> View Errors
         <Chip
           className='h-5 w-5 items-center justify-center rounded-full'
           color='danger'

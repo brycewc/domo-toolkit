@@ -1,7 +1,30 @@
-import { getObjectType } from '@/models';
-import { executeInPage } from '@/utils';
+import { getObjectType } from '@/models/DomoObjectType';
+import { executeInPage } from '@/utils/executeInPage';
 
 const DATASETS_PAGE_SIZE = 50;
+
+export async function cancelStreamExecution({ executionId, streamId, tabId }) {
+  return executeInPage(
+    async (streamId, executionId) => {
+      const response = await fetch(
+        `/api/data/v1/streams/${streamId}/executions/${executionId}/abort`,
+        {
+          body: JSON.stringify({ category: 'CONNECTOR', message: 'Cancelled via Domo Toolkit' }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'PUT'
+        }
+      );
+      if (!response.ok) {
+        throw new Error(
+          `Failed to abort execution ${executionId}. HTTP status: ${response.status}`
+        );
+      }
+      return response.json();
+    },
+    [streamId, executionId],
+    tabId
+  );
+}
 
 /**
  * Get the conditional-format ("color") rules for a dataset.

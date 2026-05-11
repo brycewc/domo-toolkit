@@ -10,27 +10,21 @@ import {
   Spinner,
   Tooltip
 } from '@heroui/react';
-import {
-  IconAlertTriangle,
-  IconChevronDown,
-  IconClipboard,
-  IconRefresh,
-  IconX
-} from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import JsonView from 'react18-json-view';
 
 import '@/assets/json-view-theme.css';
-import { CloseButton } from '@/components';
-import { useGroupLookup, useUserLookup } from '@/hooks';
-import { DomoObject } from '@/models';
-import {
-  formatEpochTimestamp,
-  getSidepanelData,
-  isDateFieldName,
-  isGroupFieldName,
-  isUserFieldName
-} from '@/utils';
+import { CloseButton } from '@/components/CloseButton';
+import { useGroupLookup } from '@/hooks/useGroupLookup';
+import { useUserLookup } from '@/hooks/useUserLookup';
+import { DomoObject } from '@/models/DomoObject';
+import { formatEpochTimestamp, isDateFieldName, isGroupFieldName, isUserFieldName } from '@/utils/general';
+import { getSidepanelData } from '@/utils/sidepanel';
+import IconChevronDown from '@icons/chevron-down.svg?react';
+import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
+import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
+import IconSync from '@icons/sync.svg?react';
+import IconX from '@icons/x.svg?react';
 
 import { AnimatedCheck } from '../AnimatedCheck';
 import { GroupIdAnnotation } from '../GroupIdAnnotation';
@@ -162,7 +156,7 @@ export function ObjectDetailsView({
     return (
       <Alert className='w-full' status='warning'>
         <Alert.Indicator>
-          <IconAlertTriangle data-slot='alert-default-icon' />
+          <IconExclamationTriangle data-slot='alert-default-icon' />
         </Alert.Indicator>
         <Alert.Content>
           <Alert.Title>Error</Alert.Title>
@@ -172,7 +166,7 @@ export function ObjectDetailsView({
               {isRetrying ? (
                 <Spinner color='currentColor' size='sm' />
               ) : (
-                <IconRefresh stroke={1.5} />
+                <IconSync />
               )}
               Retry
             </Button>
@@ -216,7 +210,7 @@ export function ObjectDetailsView({
                 variant='ghost'
                 onPress={handleCopyId}
               >
-                <IconClipboard stroke={1.5} />
+                <IconClipboardCopy />
               </Button>
               <Tooltip.Content className='text-xs'>Copy ID</Tooltip.Content>
             </Tooltip>
@@ -229,7 +223,7 @@ export function ObjectDetailsView({
                   variant='ghost'
                   onPress={onBackToDefault}
                 >
-                  <IconX stroke={1.5} />
+                  <IconX />
                 </Button>
                 <Tooltip.Content className='text-xs'>Close</Tooltip.Content>
               </Tooltip>
@@ -273,7 +267,7 @@ export function ObjectDetailsView({
                   >
                     Full JSON
                     <Disclosure.Indicator>
-                      <IconChevronDown stroke={1.5} />
+                      <IconChevronDown />
                     </Disclosure.Indicator>
                   </Button>
                 </Disclosure.Heading>
@@ -297,10 +291,9 @@ export function ObjectDetailsView({
                         />
                       )}
                       CopyComponent={({ className, onClick, style }) => (
-                        <IconClipboard
+                        <IconClipboardCopy
                           className={className}
                           size={16}
-                          stroke={1.5}
                           style={style}
                           onClick={onClick}
                         />

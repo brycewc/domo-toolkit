@@ -1,12 +1,10 @@
 import { Button, Toolbar, Tooltip } from '@heroui/react';
-import {
-  IconChevronLeft,
-  IconChevronRight,
-  IconMinus,
-  IconPlus
-} from '@tabler/icons-react';
 import { memo, useCallback, useMemo } from 'react';
 
+import IconChevronLeft from '@icons/chevron-left.svg?react';
+import IconChevronRight from '@icons/chevron-right.svg?react';
+import IconMinus from '@icons/minus.svg?react';
+import IconPlus from '@icons/plus.svg?react';
 const LevelPill = memo(function LevelPill({
   direction,
   index,

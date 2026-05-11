@@ -1,4 +1,4 @@
-import { executeInPage } from '@/utils';
+import { executeInPage } from '@/utils/executeInPage';
 
 /**
  * Get all Task Center queues owned by a user.

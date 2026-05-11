@@ -1,8 +1,8 @@
 import { Button, Tooltip } from '@heroui/react';
-import { IconPalette } from '@tabler/icons-react';
 
-import { useLaunchView } from '@/hooks';
-import { getColorRules } from '@/services';
+import { useLaunchView } from '@/hooks/useLaunchView';
+import { getColorRules } from '@/services/datasets';
+import IconColor from '@icons/color.svg?react';
 
 export function CopyColorRules({ currentContext, onStatusUpdate }) {
   const { isPending, launch } = useLaunchView();
@@ -35,7 +35,7 @@ export function CopyColorRules({ currentContext, onStatusUpdate }) {
           })
         }
       >
-        <IconPalette stroke={1.5} />
+        <IconColor />
         Copy Color Rules
       </Button>
       <Tooltip.Content

@@ -1,4 +1,4 @@
-import { executeInPage } from '@/utils';
+import { executeInPage } from '@/utils/executeInPage';
 
 /**
  * Get all sandbox repositories owned by a user.

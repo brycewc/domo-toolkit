@@ -2,8 +2,9 @@ import { Button, Tooltip } from '@heroui/react';
 import { IconCookieOff } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 
-import { useStatusBar } from '@/hooks';
-import { clearCookies, executeInPage } from '@/utils';
+import { useStatusBar } from '@/hooks/useStatusBar';
+import { clearCookies } from '@/utils/clearCookies';
+import { executeInPage } from '@/utils/executeInPage';
 
 const EXCLUDED_HOSTNAMES = [
   'domo-support.domo.com',

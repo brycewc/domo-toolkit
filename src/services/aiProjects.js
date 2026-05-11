@@ -1,4 +1,4 @@
-import { executeInPage } from '@/utils';
+import { executeInPage } from '@/utils/executeInPage';
 
 /**
  * Get all AI projects owned by a user.

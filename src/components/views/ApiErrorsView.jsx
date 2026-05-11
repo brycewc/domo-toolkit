@@ -7,12 +7,15 @@ import {
   Separator,
   Tooltip
 } from '@heroui/react';
-import { IconChevronDown, IconClipboard, IconEraser, IconX } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import JsonView from 'react18-json-view';
 
-import { DomoContext } from '@/models';
-import { getSidepanelData } from '@/utils';
+import { DomoContext } from '@/models/DomoContext';
+import { getSidepanelData } from '@/utils/sidepanel';
+import IconChevronDown from '@icons/chevron-down.svg?react';
+import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
+import IconTrash from '@icons/trash.svg?react';
+import IconX from '@icons/x.svg?react';
 import '@/assets/json-view-theme.css';
 
 import { AnimatedCheck } from '../AnimatedCheck';
@@ -98,14 +101,14 @@ export function ApiErrorsView({ onBackToDefault = null, onStatusUpdate = null })
           </div>
           <ButtonGroup>
             <Tooltip closeDelay={0} delay={400}>
-              <Button isIconOnly size='sm' variant='tertiary' onPress={handleClearAll}>
-                <IconEraser stroke={1.5} />
+              <Button isIconOnly size='sm' variant='ghost' onPress={handleClearAll}>
+                <IconTrash />
               </Button>
               <Tooltip.Content>Clear errors</Tooltip.Content>
             </Tooltip>
             <Tooltip closeDelay={0} delay={400}>
-              <Button isIconOnly size='sm' variant='tertiary' onPress={() => onBackToDefault?.()}>
-                <IconX stroke={1.5} />
+              <Button isIconOnly size='sm' variant='ghost' onPress={() => onBackToDefault?.()}>
+                <IconX />
               </Button>
               <Tooltip.Content>Close</Tooltip.Content>
             </Tooltip>
@@ -121,7 +124,7 @@ export function ApiErrorsView({ onBackToDefault = null, onStatusUpdate = null })
 
             return (
               <Disclosure
-                className='border-divider overflow-hidden rounded-lg border bg-surface-secondary'
+                className='overflow-hidden rounded-lg border border-border'
                 key={error.id}
               >
                 <Disclosure.Heading>
@@ -143,7 +146,7 @@ export function ApiErrorsView({ onBackToDefault = null, onStatusUpdate = null })
                       </span>
                     </div>
                     <Disclosure.Indicator>
-                      <IconChevronDown stroke={1.5} />
+                      <IconChevronDown />
                     </Disclosure.Indicator>
                   </Disclosure.Trigger>
                 </Disclosure.Heading>
@@ -170,10 +173,9 @@ export function ApiErrorsView({ onBackToDefault = null, onStatusUpdate = null })
                           />
                         )}
                         CopyComponent={({ className, onClick, style }) => (
-                          <IconClipboard
+                          <IconClipboardCopy
                             className={className}
                             size={16}
-                            stroke={1.5}
                             style={style}
                             onClick={onClick}
                           />

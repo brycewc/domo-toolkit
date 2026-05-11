@@ -1,9 +1,10 @@
 import { Spinner, Surface, Table, TableLayout, Virtualizer } from '@heroui/react';
-import { IconAlertCircle, IconTable } from '@tabler/icons-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { CloseButton } from '@/components';
-import { getDatasetPreview } from '@/services';
+import { CloseButton } from '@/components/CloseButton';
+import { getDatasetPreview } from '@/services/datasets';
+import IconExclamationPointCircle from '@icons/exclamation-point-circle.svg?react';
+import IconTable from '@icons/table.svg?react';
 
 const DEFAULT_HEIGHT = 300;
 const MIN_HEIGHT = 120;
@@ -150,7 +151,7 @@ export function DataPreviewPanel({
 
       {error && (
         <div className='flex flex-1 items-center justify-center text-danger'>
-          <IconAlertCircle size={16} stroke={1.5} />
+          <IconExclamationPointCircle size={16} />
           <span>{error}</span>
         </div>
       )}

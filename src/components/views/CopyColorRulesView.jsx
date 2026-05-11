@@ -1,17 +1,14 @@
 import { Alert, Button, Card, Separator, Spinner, Tooltip } from '@heroui/react';
-import { IconAlertTriangle, IconCircleCheck, IconX } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 
-import { DatasetComboBox } from '@/components';
-import { useStatusBar } from '@/hooks';
-import { DomoContext } from '@/models';
-import {
-  getColorRules,
-  getDatasetBeastModes,
-  getDatasetColumns,
-  setColorRules
-} from '@/services';
-import { getSidepanelData } from '@/utils';
+import { DatasetComboBox } from '@/components/DatasetComboBox';
+import { useStatusBar } from '@/hooks/useStatusBar';
+import { DomoContext } from '@/models/DomoContext';
+import { getColorRules, getDatasetBeastModes, getDatasetColumns, setColorRules } from '@/services/datasets';
+import { getSidepanelData } from '@/utils/sidepanel';
+import IconCheckCircle from '@icons/check-circle.svg?react';
+import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
+import IconX from '@icons/x.svg?react';
 
 export function CopyColorRulesView({ onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
@@ -175,7 +172,7 @@ export function CopyColorRulesView({ onBackToDefault = null, onStatusUpdate = nu
           {onBackToDefault && (
             <Tooltip closeDelay={0} delay={400}>
               <Button isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
-                <IconX stroke={1.5} />
+                <IconX />
               </Button>
               <Tooltip.Content className='text-xs'>Close</Tooltip.Content>
             </Tooltip>
@@ -204,7 +201,7 @@ export function CopyColorRulesView({ onBackToDefault = null, onStatusUpdate = nu
         {sameDataset && (
           <Alert className='w-full border border-border bg-transparent' status='warning'>
             <Alert.Indicator>
-              <IconAlertTriangle data-slot='alert-default-icon' />
+              <IconExclamationTriangle data-slot='alert-default-icon' />
             </Alert.Indicator>
             <Alert.Content>
               <Alert.Title>Same dataset</Alert.Title>
@@ -223,7 +220,7 @@ export function CopyColorRulesView({ onBackToDefault = null, onStatusUpdate = nu
         {!isLoadingDestination && destinationHasRules && (
           <Alert className='w-full border border-border bg-transparent' status='warning'>
             <Alert.Indicator>
-              <IconAlertTriangle data-slot='alert-default-icon' />
+              <IconExclamationTriangle data-slot='alert-default-icon' />
             </Alert.Indicator>
             <Alert.Content>
               <Alert.Title>Destination already has color rules</Alert.Title>
@@ -238,7 +235,7 @@ export function CopyColorRulesView({ onBackToDefault = null, onStatusUpdate = nu
         {schemaResolved && (
           <Alert className='w-full border border-border bg-transparent' status='success'>
             <Alert.Indicator>
-              <IconCircleCheck data-slot='alert-default-icon' />
+              <IconCheckCircle data-slot='alert-default-icon' />
             </Alert.Indicator>
             <Alert.Content>
               <Alert.Title>Schema matches</Alert.Title>
@@ -257,7 +254,7 @@ export function CopyColorRulesView({ onBackToDefault = null, onStatusUpdate = nu
         {!isLoadingDestination && missingColumns.length > 0 && (
           <Alert className='w-full border border-border bg-transparent' status='warning'>
             <Alert.Indicator>
-              <IconAlertTriangle data-slot='alert-default-icon' />
+              <IconExclamationTriangle data-slot='alert-default-icon' />
             </Alert.Indicator>
             <Alert.Content>
               <Alert.Title>

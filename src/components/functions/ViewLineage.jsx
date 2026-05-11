@@ -1,6 +1,6 @@
 import { Button, Tooltip } from '@heroui/react';
-import { IconBinaryTree } from '@tabler/icons-react';
 
+import IconLineage from '@icons/lineage.svg?react';
 export function ViewLineage({ currentContext, onStatusUpdate }) {
   const isDisabled =
     !currentContext?.domoObject?.id ||
@@ -46,7 +46,7 @@ export function ViewLineage({ currentContext, onStatusUpdate }) {
         variant='tertiary'
         onPress={handlePress}
       >
-        <IconBinaryTree stroke={1.5} />
+        <IconLineage />
         View Lineage
       </Button>
       <Tooltip.Content

@@ -1,17 +1,16 @@
 import { Alert, Button, Card, Spinner } from '@heroui/react';
-import { IconAlertTriangle, IconRefresh } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 
-import { CloseButton } from '@/components';
-import { DataListItem, DomoContext, DomoObject } from '@/models';
-import {
-  getCardDatasets,
-  getDatasetsForApp,
-  getDatasetsForDataflow,
-  getDatasetsForPage,
-  getDependentDatasets
-} from '@/services';
-import { getSidepanelData, getValidTabForInstance } from '@/utils';
+import { CloseButton } from '@/components/CloseButton';
+import { DataListItem } from '@/models/DataListItem';
+import { DomoContext } from '@/models/DomoContext';
+import { DomoObject } from '@/models/DomoObject';
+import { getCardDatasets } from '@/services/cards';
+import { getDatasetsForApp, getDatasetsForDataflow, getDatasetsForPage, getDependentDatasets } from '@/services/datasets';
+import { getValidTabForInstance } from '@/utils/currentObject';
+import { getSidepanelData } from '@/utils/sidepanel';
+import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
+import IconSync from '@icons/sync.svg?react';
 
 import { DataList } from './DataList';
 
@@ -267,7 +266,7 @@ export function GetDatasetsView({
     return (
       <Alert className='w-full' status='warning'>
         <Alert.Indicator>
-          <IconAlertTriangle data-slot='alert-default-icon' />
+          <IconExclamationTriangle data-slot='alert-default-icon' />
         </Alert.Indicator>
         <Alert.Content>
           <Alert.Title>Error</Alert.Title>
@@ -277,7 +276,7 @@ export function GetDatasetsView({
               {isRetrying ? (
                 <Spinner color='currentColor' size='sm' />
               ) : (
-                <IconRefresh stroke={1.5} />
+                <IconSync />
               )}
               Retry
             </Button>

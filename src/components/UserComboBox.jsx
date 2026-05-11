@@ -10,11 +10,12 @@ import {
   ListBoxLoadMoreItem,
   Spinner
 } from '@heroui/react';
-import { IconChevronDown } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 
-import { searchUsers } from '@/services';
-import { getInitials, isSidepanel } from '@/utils';
+import { searchUsers } from '@/services/users';
+import { getInitials } from '@/utils/general';
+import { isSidepanel } from '@/utils/sidepanel';
+import IconChevronDown from '@icons/chevron-down.svg?react';
 
 /**
  * Async paginated user search ComboBox.
@@ -186,7 +187,7 @@ export function UserComboBox({
       <ComboBox.InputGroup>
         <Input placeholder='Search users...' />
         <ComboBox.Trigger>
-          <IconChevronDown stroke={1} />
+          <IconChevronDown />
         </ComboBox.Trigger>
       </ComboBox.InputGroup>
       <ComboBox.Popover placement='bottom start'>

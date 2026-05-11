@@ -1,28 +1,28 @@
 import { Card, Spinner } from '@heroui/react';
 import { useEffect, useRef, useState } from 'react';
 
-import {
-  ActionButtons,
-  ApiErrorsView,
-  ContextFooter,
-  CopyColorRulesView,
-  DeleteObjectView,
-  DuplicateView,
-  GetCardsView,
-  GetDatasetsView,
-  GetPagesView,
-  GetViewInputsView,
-  LinkPreview,
-  ObjectDetailsView,
-  OwnershipView,
-  SyncJSDocFromSourceView,
-  ToastProvider,
-  UpdateCodeEngineVersionsView,
-  UpdateDetailsView
-} from '@/components';
-import { useReleaseNotification, useStatusBar, useTheme } from '@/hooks';
-import { DomoContext } from '@/models';
-import { sidepanelStorageKey } from '@/utils';
+import { ActionButtons } from '@/components/ActionButtons';
+import { ContextFooter } from '@/components/ContextFooter';
+import { ToastProvider } from '@/components/ToastProvider';
+import { ApiErrorsView } from '@/components/views/ApiErrorsView';
+import { CopyColorRulesView } from '@/components/views/CopyColorRulesView';
+import { DeleteObjectView } from '@/components/views/DeleteObjectView';
+import { DuplicateView } from '@/components/views/DuplicateView';
+import { GetCardsView } from '@/components/views/GetCardsView';
+import { GetDatasetsView } from '@/components/views/GetDatasetsView';
+import { GetPagesView } from '@/components/views/GetPagesView';
+import { GetViewInputsView } from '@/components/views/GetViewInputsView';
+import { LinkPreview } from '@/components/views/LinkPreview';
+import { ObjectDetailsView } from '@/components/views/ObjectDetailsView';
+import { OwnershipView } from '@/components/views/OwnershipView';
+import { SyncJSDocFromSourceView } from '@/components/views/SyncJSDocFromSourceView';
+import { UpdateCodeEngineVersionsView } from '@/components/views/UpdateCodeEngineVersionsView';
+import { UpdateDetailsView } from '@/components/views/UpdateDetailsView';
+import { useReleaseNotification } from '@/hooks/useReleaseNotification';
+import { useStatusBar } from '@/hooks/useStatusBar';
+import { useTheme } from '@/hooks/useTheme';
+import { DomoContext } from '@/models/DomoContext';
+import { sidepanelStorageKey } from '@/utils/sidepanel';
 
 export default function App() {
   useTheme();

@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 
-import { launchView } from '@/utils';
+import { launchView } from '@/utils/sidepanel';
 
 /**
  * Wraps `launchView` with pending state for button feedback.

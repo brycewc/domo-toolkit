@@ -1,9 +1,14 @@
 import { Button, Link, Spinner, Tabs, Tooltip } from '@heroui/react';
-import { IconBug, IconSparkles } from '@tabler/icons-react';
+import { IconBug } from '@tabler/icons-react';
 import { lazy, Suspense, useEffect, useState } from 'react';
 
-import { FaviconSettings, ReleaseNotes, Settings, ToastProvider, Welcome } from '@/components';
-import { useTheme } from '@/hooks';
+import { FaviconSettings } from '@/components/options/FaviconSettings';
+import { ReleaseNotes } from '@/components/options/ReleaseNotes';
+import { Settings } from '@/components/options/Settings';
+import { Welcome } from '@/components/options/Welcome';
+import { ToastProvider } from '@/components/ToastProvider';
+import { useTheme } from '@/hooks/useTheme';
+import IconAiSparkle from '@icons/ai-sparkle.svg?react';
 
 const ActivityLogTable = lazy(() =>
   import('@/activityLog/ActivityLogTable').then((m) => ({
@@ -125,7 +130,7 @@ export default function App() {
                 );
               }}
             >
-              <IconSparkles stroke={1.5} />
+              <IconAiSparkle />
             </Button>
             <Tooltip.Content className='w-fit text-center'>Request feature</Tooltip.Content>
           </Tooltip>

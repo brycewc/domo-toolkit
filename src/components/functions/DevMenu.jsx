@@ -1,19 +1,24 @@
 import { Button, Dropdown, Label, Tooltip } from '@heroui/react';
-import { IconCode, IconMail, IconSparkles } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 
-import { showReleaseToast, useStatusBar } from '@/hooks';
-import { getCurrentUserId, getFullUserDetails, sendEmail, uploadDataFile } from '@/services';
-import { buildExcelBlob, generateExportFilename } from '@/utils';
+import { showReleaseToast } from '@/hooks/useReleaseNotification';
+import { useStatusBar } from '@/hooks/useStatusBar';
+import { uploadDataFile } from '@/services/files';
+import { sendEmail } from '@/services/messages';
+import { getCurrentUserId, getFullUserDetails } from '@/services/users';
+import { buildExcelBlob, generateExportFilename } from '@/utils/exportData';
+import IconAiSparkle from '@icons/ai-sparkle.svg?react';
+import IconCodeTags from '@icons/code-tags.svg?react';
+import IconEnvelope from '@icons/envelope.svg?react';
 
 const DEV_ACTIONS = [
   {
-    icon: IconSparkles,
+    icon: IconAiSparkle,
     id: 'releaseToast',
     label: 'Test Release Toast'
   },
   {
-    icon: IconMail,
+    icon: IconEnvelope,
     id: 'testTransferEmail',
     label: 'Test Transfer Email (self)'
   }
@@ -74,7 +79,7 @@ export function DevMenu() {
     <Dropdown>
       <Tooltip closeDelay={100} delay={600}>
         <Button fullWidth className='min-w-36 flex-1 whitespace-normal' variant='tertiary'>
-          <IconCode stroke={1.5} />
+          <IconCodeTags />
           Dev
         </Button>
         <Tooltip.Content

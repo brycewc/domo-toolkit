@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react';
 
-import { ActionButtons, ContextFooter, ToastProvider } from '@/components';
-import { useReleaseNotification, useStatusBar, useTheme } from '@/hooks';
-import { DomoContext } from '@/models';
+import { ActionButtons } from '@/components/ActionButtons';
+import { ContextFooter } from '@/components/ContextFooter';
+import { ToastProvider } from '@/components/ToastProvider';
+import { useReleaseNotification } from '@/hooks/useReleaseNotification';
+import { useStatusBar } from '@/hooks/useStatusBar';
+import { useTheme } from '@/hooks/useTheme';
+import { DomoContext } from '@/models/DomoContext';
 
 export default function App() {
   useTheme();

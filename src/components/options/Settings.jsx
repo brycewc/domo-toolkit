@@ -11,14 +11,12 @@ import {
   TextField
 } from '@heroui/react';
 import { toast } from '@heroui/react';
-import {
-  IconCheck,
-  IconChevronDown,
-  IconDeviceFloppy
-} from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 
-import { usePerInstanceSettings } from '@/hooks';
+import { usePerInstanceSettings } from '@/hooks/usePerInstanceSettings';
+import IconCheck from '@icons/check.svg?react';
+import IconChevronDown from '@icons/chevron-down.svg?react';
+import IconSave from '@icons/save.svg?react';
 
 const DEFAULT_SETTINGS = {
   defaultClearCookiesHandling: 'auto',
@@ -44,20 +42,13 @@ export function Settings() {
   useEffect(() => {
     // Load all settings from storage
     chrome.storage.sync.get(
-      [
-        'themePreference',
-        'defaultDomoInstance',
-        'defaultClearCookiesHandling'
-      ],
+      ['themePreference', 'defaultDomoInstance', 'defaultClearCookiesHandling'],
       (result) => {
         const loadedSettings = {
           defaultClearCookiesHandling:
-            result.defaultClearCookiesHandling ||
-            DEFAULT_SETTINGS.defaultClearCookiesHandling,
-          defaultDomoInstance:
-            result.defaultDomoInstance || DEFAULT_SETTINGS.defaultDomoInstance,
-          themePreference:
-            result.themePreference || DEFAULT_SETTINGS.themePreference
+            result.defaultClearCookiesHandling || DEFAULT_SETTINGS.defaultClearCookiesHandling,
+          defaultDomoInstance: result.defaultDomoInstance || DEFAULT_SETTINGS.defaultDomoInstance,
+          themePreference: result.themePreference || DEFAULT_SETTINGS.themePreference
         };
         setSettings(loadedSettings);
         setOriginalSettings(loadedSettings);
@@ -85,8 +76,7 @@ export function Settings() {
           }
 
           if (changes.defaultDomoInstance) {
-            updatedSettings.defaultDomoInstance =
-              changes.defaultDomoInstance.newValue;
+            updatedSettings.defaultDomoInstance = changes.defaultDomoInstance.newValue;
             hasChanges = true;
           }
 
@@ -109,8 +99,7 @@ export function Settings() {
           }
 
           if (changes.defaultDomoInstance) {
-            updatedOriginal.defaultDomoInstance =
-              changes.defaultDomoInstance.newValue;
+            updatedOriginal.defaultDomoInstance = changes.defaultDomoInstance.newValue;
             hasChanges = true;
           }
 
@@ -169,15 +158,9 @@ export function Settings() {
   };
 
   // Check if settings have changed
-  const hasChanges =
-    JSON.stringify(settings) !== JSON.stringify(originalSettings);
+  const hasChanges = JSON.stringify(settings) !== JSON.stringify(originalSettings);
 
-  const showStatus = (
-    title,
-    description,
-    status = 'accent',
-    timeout = 3000
-  ) => {
+  const showStatus = (title, description, status = 'accent', timeout = 3000) => {
     toast(title, { description, timeout: timeout || 0, variant: status });
   };
 
@@ -186,10 +169,10 @@ export function Settings() {
   }
 
   return (
-    <div className='flex h-full min-h-[calc(100vh-20)] w-md flex-col gap-2 pt-4'>
+    <div className='flex h-full min-h-[calc(100vh-20)] w-xl flex-col gap-2 py-4'>
       <Form className='flex flex-col gap-2' onSubmit={handleSubmit}>
         <Select
-          className='w-40'
+          className='w-50'
           placeholder='System'
           value={settings.themePreference}
           onChange={handleThemeChange}
@@ -198,7 +181,7 @@ export function Settings() {
           <Select.Trigger>
             <Select.Value />
             <Select.Indicator>
-              <IconChevronDown stroke={1} />
+              <IconChevronDown />
             </Select.Indicator>
           </Select.Trigger>
           <Select.Popover>
@@ -206,48 +189,37 @@ export function Settings() {
               <ListBox.Item id='system' textValue='System'>
                 System
                 <ListBox.ItemIndicator>
-                  {({ isSelected }) =>
-                    isSelected ? <IconCheck stroke={1.5} /> : null
-                  }
+                  {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
                 </ListBox.ItemIndicator>
               </ListBox.Item>
               <ListBox.Item id='light' textValue='Light'>
                 Light
                 <ListBox.ItemIndicator>
-                  {({ isSelected }) =>
-                    isSelected ? <IconCheck stroke={1.5} /> : null
-                  }
+                  {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
                 </ListBox.ItemIndicator>
               </ListBox.Item>
               <ListBox.Item id='dark' textValue='Dark'>
                 Dark
                 <ListBox.ItemIndicator>
-                  {({ isSelected }) =>
-                    isSelected ? <IconCheck stroke={1.5} /> : null
-                  }
+                  {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
                 </ListBox.ItemIndicator>
               </ListBox.Item>
             </ListBox>
           </Select.Popover>
           <Description className='w-lg'>
-            System, light, or dark theme (applies to popup, side panel, and
-            options pages)
+            System, light, or dark theme (applies to popup, side panel, and options pages)
           </Description>
         </Select>
-        <TextField className='w-40' onChange={handleDefaultInstanceChange}>
+        <TextField className='w-50' onChange={handleDefaultInstanceChange}>
           <Label>Default Domo Instance</Label>
-          <Input
-            placeholder='Enter an instance'
-            value={settings.defaultDomoInstance}
-          />
-          <Description className='w-md'>
-            This is used when navigating to copied objects from non-Domo
-            websites. Enter without .domo.com (e.g., company for
-            company.domo.com)
+          <Input placeholder='Enter an instance' value={settings.defaultDomoInstance} />
+          <Description className='w-lg'>
+            This is used when navigating to copied objects from non-Domo websites. Enter without
+            .domo.com (e.g., company for company.domo.com)
           </Description>
         </TextField>
         <Select
-          className='w-40'
+          className='w-50'
           value={settings.defaultClearCookiesHandling}
           onChange={handleClearCookiesHandlingChange}
         >
@@ -255,7 +227,7 @@ export function Settings() {
           <Select.Trigger>
             <Select.Value />
             <Select.Indicator>
-              <IconChevronDown stroke={1} />
+              <IconChevronDown />
             </Select.Indicator>
           </Select.Trigger>
           <Select.Popover>
@@ -263,55 +235,45 @@ export function Settings() {
               <ListBox.Item id='auto' textValue='Auto'>
                 Auto
                 <ListBox.ItemIndicator>
-                  {({ isSelected }) =>
-                    isSelected ? <IconCheck stroke={1.5} /> : null
-                  }
+                  {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
                 </ListBox.ItemIndicator>
               </ListBox.Item>
               <ListBox.Item id='preserve' textValue='Preserve'>
                 Preserve
                 <ListBox.ItemIndicator>
-                  {({ isSelected }) =>
-                    isSelected ? <IconCheck stroke={1.5} /> : null
-                  }
+                  {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
                 </ListBox.ItemIndicator>
               </ListBox.Item>
               <ListBox.Item id='all' textValue='All'>
                 All
                 <ListBox.ItemIndicator>
-                  {({ isSelected }) =>
-                    isSelected ? <IconCheck stroke={1.5} /> : null
-                  }
+                  {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
                 </ListBox.ItemIndicator>
               </ListBox.Item>
             </ListBox>
           </Select.Popover>
           <Description className='w-lg'>
             <p>
-              Auto: Clear cookies on 431 errors, preserve last 2 instances
-              (removes manual button)
+              Auto: Clear cookies on 431 errors, preserve last 2 instances (removes manual button)
             </p>
-            <p>
-              Preserve: Preserve last 2 instances (only manual, no
-              auto-clearing)
-            </p>
+            <p>Preserve: Preserve last 2 instances (only manual, no auto-clearing)</p>
             <p>All: Clear all Domo cookies (only manual, no auto-clearing)</p>
           </Description>
         </Select>
         <div className='pt-1'>
           <Button isDisabled={!hasChanges} type='submit' variant='primary'>
-            <IconDeviceFloppy />
+            <IconSave />
             Save Settings
           </Button>
         </div>
       </Form>
 
       <Separator className='my-2' />
-      <div className='flex w-md flex-col gap-2'>
+      <div className='flex w-lg flex-col gap-2'>
         <Label>Per-Instance Settings</Label>
-        <Description className='w-md'>
-          Stored locally on this device, populated automatically when you use features
-          like the DomoStats Activity Log source. Manage or clear them here.
+        <Description className='w-lg'>
+          Stored locally on this device, populated automatically when you use features like the
+          DomoStats Activity Log source. Manage or clear them here.
         </Description>
         {Object.keys(perInstanceSettings).length === 0 ? (
           <p className='text-sm text-muted'>No instance settings stored yet.</p>
@@ -327,34 +289,31 @@ export function Settings() {
                   <span className='truncate font-semibold' title={`${instance}.domo.com`}>
                     {instance}.domo.com
                   </span>
-                  <Button
-                    size='sm'
-                    variant='ghost'
-                    onPress={() => clearPerInstance(instance)}
-                  >
+                  <Button size='sm' variant='ghost' onPress={() => clearPerInstance(instance)}>
                     Clear
                   </Button>
                 </div>
                 {instanceSettings.activityLogDatasetId && (
                   <div className='flex flex-col gap-1 pl-1'>
                     <span className='text-xs text-muted'>Activity Log Dataset ID</span>
-                    <code className='truncate text-xs' title={instanceSettings.activityLogDatasetId}>
+                    <code
+                      className='truncate text-xs'
+                      title={instanceSettings.activityLogDatasetId}
+                    >
                       {instanceSettings.activityLogDatasetId}
                     </code>
                     <Switch
                       isSelected={!!instanceSettings.preferActivityLogDataset}
-                      onChange={(v) =>
-                        updatePerInstance(instance, 'preferActivityLogDataset', v)
-                      }
+                      onChange={(v) => updatePerInstance(instance, 'preferActivityLogDataset', v)}
                     >
                       <Switch.Control>
                         <Switch.Thumb />
                       </Switch.Control>
                       <Switch.Content>
                         <Label>Always use DomoStats Activity Log dataset</Label>
-                        <Description className='w-md'>
-                          When enabled, the Activity Log opens in DomoStats mode by default
-                          for this instance.
+                        <Description>
+                          When enabled, the Activity Log opens in DomoStats mode by default for this
+                          instance.
                         </Description>
                       </Switch.Content>
                     </Switch>
@@ -368,18 +327,14 @@ export function Settings() {
       {import.meta.env.DEV && (
         <>
           <Separator className='my-2' />
-          <Switch
-            isSelected={developerMode}
-            onChange={handleDeveloperModeChange}
-          >
+          <Switch isSelected={developerMode} onChange={handleDeveloperModeChange}>
             <Switch.Control>
               <Switch.Thumb />
             </Switch.Control>
             <Switch.Content>
               <Label>Developer Mode</Label>
-              <Description className='w-md'>
-                Enables dev-only tools like full context tab and the dev action
-                in the action bar
+              <Description className='w-xl'>
+                Enables dev-only tools like full context tab and the dev action in the action bar
               </Description>
             </Switch.Content>
           </Switch>

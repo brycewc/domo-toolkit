@@ -1,7 +1,7 @@
 import { Button, Tooltip } from '@heroui/react';
-import { IconUserPlus } from '@tabler/icons-react';
 
-import { useLaunchView } from '@/hooks';
+import { useLaunchView } from '@/hooks/useLaunchView';
+import IconPersonPlus from '@icons/person-plus.svg?react';
 
 export function Duplicate({ currentContext, onCollapseActions, onStatusUpdate }) {
   const { isPending, launch } = useLaunchView();
@@ -22,7 +22,7 @@ export function Duplicate({ currentContext, onCollapseActions, onStatusUpdate })
           })
         }
       >
-        <IconUserPlus stroke={1.5} />
+        <IconPersonPlus />
         Duplicate User
       </Button>
       <Tooltip.Content

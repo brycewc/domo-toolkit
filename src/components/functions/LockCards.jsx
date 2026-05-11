@@ -1,9 +1,9 @@
 import { Button, Tooltip } from '@heroui/react';
-import { IconLock } from '@tabler/icons-react';
 
-import { useStatusBar } from '@/hooks';
-import { getCardsForObject, lockCards } from '@/services';
-import { waitForCards } from '@/utils';
+import { useStatusBar } from '@/hooks/useStatusBar';
+import { getCardsForObject, lockCards } from '@/services/cards';
+import { waitForCards } from '@/utils/cardHelpers';
+import IconLockClosed from '@icons/lock-closed.svg?react';
 
 const VALID_TYPES = [
   'DATA_APP_VIEW',
@@ -75,7 +75,7 @@ export function LockCards({ currentContext, isDisabled }) {
         variant='tertiary'
         onPress={handleLockCards}
       >
-        <IconLock stroke={1.5} />
+        <IconLockClosed />
         Lock Cards
       </Button>
       <Tooltip.Content

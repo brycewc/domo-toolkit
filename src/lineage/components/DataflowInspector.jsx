@@ -12,67 +12,61 @@ import {
   Tabs,
   Tooltip
 } from '@heroui/react';
-import {
-  IconAB,
-  IconAB2,
-  IconAbc,
-  IconAi,
-  IconArchive,
-  IconArchiveOff,
-  IconArrowFork,
-  IconArrowsDiagonalMinimize2,
-  IconArrowsJoin,
-  IconArrowsJoin2,
-  IconBraces,
-  IconBrain,
-  IconBrandPython,
-  IconCalculator,
-  IconCalendar,
-  IconCalendarPlus,
-  IconChartBar,
-  IconChevronDown,
-  IconClipboard,
-  IconCode,
-  IconColumns3,
-  IconCopyPlus,
-  IconDatabase,
-  IconDatabaseExport,
-  IconDatabaseImport,
-  IconFilter,
-  IconFilterCog,
-  IconFlask,
-  IconFunction,
-  IconGauge,
-  IconGitFork,
-  IconLetterCase,
-  IconLink,
-  IconListNumbers,
-  IconPackageExport,
-  IconReplace,
-  IconRotate,
-  IconRowInsertBottom,
-  IconRowRemove,
-  IconSchema,
-  IconSortAscending,
-  IconSparkles,
-  IconSql,
-  IconTableColumn,
-  IconTableImport,
-  IconTableMinus,
-  IconTableOptions,
-  IconTableRow,
-  IconTransform,
-  IconTrendingUp,
-  IconTypography,
-  IconVector,
-  IconX
-} from '@tabler/icons-react';
 import { memo, useEffect, useMemo, useState } from 'react';
 import JsonView from 'react18-json-view';
 
 import '@/assets/json-view-theme.css';
 import { AnimatedCheck } from '@/components/AnimatedCheck';
-import { getDataflowDetail } from '@/services';
+import { getDataflowDetail } from '@/services/dataflows';
+import IconASemicolonB from '@icons/a-semicolon-b.svg?react';
+import IconAToB from '@icons/a-to-b.svg?react';
+import IconAbc from '@icons/abc.svg?react';
+import IconAiModel from '@icons/ai-model.svg?react';
+import IconAiPencil from '@icons/ai-pencil.svg?react';
+import IconAi from '@icons/ai.svg?react';
+import IconAnalyzer from '@icons/analyzer.svg?react';
+import IconArrowsDiagonalIn from '@icons/arrows-diagonal-in.svg?react';
+import IconArrowsRotating from '@icons/arrows-rotating.svg?react';
+import IconCalculator from '@icons/calculator.svg?react';
+import IconCalendar from '@icons/calendar.svg?react';
+import IconCapitalization from '@icons/capitalization.svg?react';
+import IconChartBarBox from '@icons/chart-bar-box.svg?react';
+import IconChevronDown from '@icons/chevron-down.svg?react';
+import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
+import IconCloudUpload from '@icons/cloud-upload.svg?react';
+import IconCodeTags from '@icons/code-tags.svg?react';
+import IconColumnArrowsOut from '@icons/column-arrows-out.svg?react';
+import IconColumnConstants from '@icons/column-constants.svg?react';
+import IconColumnSelect from '@icons/column-select.svg?react';
+import IconDatabaseIn from '@icons/database-in.svg?react';
+import IconDatabaseOut from '@icons/database-out.svg?react';
+import IconDatabase from '@icons/database.svg?react';
+import IconDataflow from '@icons/dataflow.svg?react';
+import IconDateAdd from '@icons/date-add.svg?react';
+import IconForecast from '@icons/forecast.svg?react';
+import IconFunctionOf from '@icons/function-of.svg?react';
+import IconFunnel from '@icons/funnel.svg?react';
+import IconGauge from '@icons/gauge.svg?react';
+import IconGear from '@icons/gear.svg?react';
+import IconGetSchema from '@icons/get-schema.svg?react';
+import IconJoinLeftOuter from '@icons/join-left-outer.svg?react';
+import IconJoin from '@icons/join.svg?react';
+import IconLetters from '@icons/letters.svg?react';
+import IconListBulleted from '@icons/list-bulleted.svg?react';
+import IconMetaSelect from '@icons/meta-select.svg?react';
+import IconPencil from '@icons/pencil.svg?react';
+import IconPython from '@icons/python.svg?react';
+import IconRowAdd from '@icons/row-add.svg?react';
+import IconRowRemove from '@icons/row-remove.svg?react';
+import IconSageMaker from '@icons/sage-maker.svg?react';
+import IconSql from '@icons/sql.svg?react';
+import IconTableEdit from '@icons/table-edit.svg?react';
+import IconTableRow from '@icons/table-row.svg?react';
+import IconTable from '@icons/table.svg?react';
+import IconTree from '@icons/tree.svg?react';
+import IconVector from '@icons/vector.svg?react';
+import IconWrench from '@icons/wrench.svg?react';
+import IconX from '@icons/x.svg?react';
 
 import { parseDataflow, searchTiles } from '../services';
 
@@ -92,66 +86,66 @@ const CATEGORY_COLORS = {
 };
 
 const CATEGORY_ICONS = {
-  'Aggregate': IconArrowsDiagonalMinimize2,
+  'Aggregate': IconArrowsDiagonalIn,
   'AI Services': IconAi,
-  'Combine Data': IconArrowsJoin2,
-  'Data Science': IconFlask,
+  'Combine Data': IconJoinLeftOuter,
+  'Data Science': IconAnalyzer,
   'DataSets': IconDatabase,
   'Dates and Numbers': IconCalendar,
-  'Filter': IconFilter,
+  'Filter': IconFunnel,
   'Performance': IconGauge,
-  'Pivot': IconRotate,
-  'Scripting': IconCode,
-  'Text': IconTypography,
-  'Utility': IconTransform
+  'Pivot': IconArrowsRotating,
+  'Scripting': IconCodeTags,
+  'Text': IconCapitalization,
+  'Utility': IconWrench
 };
 
 const TILE_ICONS = {
-  AIForecasting: IconTrendingUp,
-  ConcatFields: IconAB,
-  Constant: IconTableColumn,
-  DateCalculator: IconCalendarPlus,
-  Denormaliser: IconRotate,
-  ExpressionEvaluator: IconFunction,
-  ExpressionRowGenerator: IconListNumbers,
-  Filter: IconFilter,
-  FixedInput: IconTableImport,
-  GroupBy: IconArrowsDiagonalMinimize2,
-  JsonExpandAction: IconBraces,
-  Limit: IconTableMinus,
-  LoadFromVault: IconDatabaseImport,
+  AIForecasting: IconForecast,
+  ConcatFields: IconASemicolonB,
+  Constant: IconColumnConstants,
+  DateCalculator: IconDateAdd,
+  Denormaliser: IconArrowsRotating,
+  ExpressionEvaluator: IconFunctionOf,
+  ExpressionRowGenerator: IconColumnConstants,
+  Filter: IconFunnel,
+  FixedInput: IconTableEdit,
+  GroupBy: IconArrowsDiagonalIn,
+  JsonExpandAction: IconTree,
+  Limit: IconTable,
+  LoadFromVault: IconDatabaseIn,
   MakoVectorOutputAction: IconVector,
-  MergeJoin: IconArrowsJoin2,
+  MergeJoin: IconJoinLeftOuter,
   Metadata: IconTableRow,
-  MetaSelectAction: IconTableOptions,
-  MLInferenceAction: IconBrain,
-  ModelInferenceAction: [IconArrowsJoin, 'rotate-90'],
-  NormalizeAll: IconRowInsertBottom,
-  Normalizer: IconRowInsertBottom,
+  MetaSelectAction: IconMetaSelect,
+  MLInferenceAction: IconSageMaker,
+  ModelInferenceAction: [IconAiModel, 'rotate-90'],
+  NormalizeAll: IconRowAdd,
+  Normalizer: IconRowAdd,
   NumericCalculator: IconCalculator,
-  Order: IconSortAscending,
-  PublishToVault: IconDatabaseExport,
-  PublishToWriteback: IconPackageExport,
-  PythonEngineAction: IconBrandPython,
-  REngineAction: IconCode,
-  ReplaceString: IconReplace,
-  SchemaAction: IconSchema,
-  SelectValues: IconColumns3,
-  SetValueField: IconCopyPlus,
-  SplitColumnAction: IconLink,
-  SplitFilter: IconFilterCog,
-  SplitJoin: IconGitFork,
+  Order: IconListBulleted,
+  PublishToVault: IconDatabaseOut,
+  PublishToWriteback: IconCloudUpload,
+  PythonEngineAction: IconPython,
+  REngineAction: IconCodeTags,
+  ReplaceString: IconPencil,
+  SchemaAction: IconGetSchema,
+  SelectValues: IconColumnSelect,
+  SetValueField: IconAToB,
+  SplitColumnAction: IconColumnArrowsOut,
+  SplitFilter: IconFunnel,
+  SplitJoin: IconJoin,
   SQL: IconSql,
-  StashAction: IconArchive,
+  StashAction: IconGear,
   StringCalculator: IconAbc,
-  TextFormatting: IconLetterCase,
-  TextGeneration: IconSparkles,
-  UnionAll: IconRowInsertBottom,
+  TextFormatting: IconLetters,
+  TextGeneration: IconAiPencil,
+  UnionAll: IconRowAdd,
   Unique: IconRowRemove,
-  UnstashAction: IconArchiveOff,
-  UserDefinedAction: IconFlask,
-  ValueMapper: IconAB2,
-  WindowAction: IconChartBar
+  UnstashAction: IconGear,
+  UserDefinedAction: IconAnalyzer,
+  ValueMapper: IconAToB,
+  WindowAction: IconChartBarBox
 };
 
 /**
@@ -245,7 +239,7 @@ export function DataflowInspector({ cacheRef, dataflowId, onClose, resolveTabId 
           <span className='font-semibold'>Loading ETL...</span>
           <Tooltip closeDelay={0} delay={400}>
             <Button isIconOnly size='sm' variant='tertiary' onPress={onClose}>
-              <IconX stroke={1.5} />
+              <IconX />
             </Button>
             <Tooltip.Content>Close</Tooltip.Content>
           </Tooltip>
@@ -264,7 +258,7 @@ export function DataflowInspector({ cacheRef, dataflowId, onClose, resolveTabId 
           <span className='font-semibold'>ETL Inspector</span>
           <Tooltip closeDelay={0} delay={400}>
             <Button isIconOnly size='sm' variant='tertiary' onPress={onClose}>
-              <IconX stroke={1.5} />
+              <IconX />
             </Button>
             <Tooltip.Content>Close</Tooltip.Content>
           </Tooltip>
@@ -281,7 +275,7 @@ export function DataflowInspector({ cacheRef, dataflowId, onClose, resolveTabId 
       <Card.Header className='border-divider shrink-0 gap-1 border-b p-2'>
         <div className='flex items-center justify-between'>
           <div className='flex min-w-0 items-center gap-2'>
-            <IconArrowFork className='size-4 shrink-0 rotate-180' />
+            <IconDataflow className='size-4 shrink-0' />
             <span
               className='truncate font-semibold'
               title={`${dataflow.name} (ID: ${dataflow.id})`}
@@ -291,7 +285,7 @@ export function DataflowInspector({ cacheRef, dataflowId, onClose, resolveTabId 
           </div>
           <Tooltip closeDelay={0} delay={400}>
             <Button isIconOnly size='sm' variant='tertiary' onPress={onClose}>
-              <IconX stroke={1.5} />
+              <IconX />
             </Button>
             <Tooltip.Content>Close</Tooltip.Content>
           </Tooltip>
@@ -387,10 +381,9 @@ export function DataflowInspector({ cacheRef, dataflowId, onClose, resolveTabId 
                   />
                 )}
                 CopyComponent={({ className, onClick, style }) => (
-                  <IconClipboard
+                  <IconClipboardCopy
                     className={className}
                     size={16}
-                    stroke={1.5}
                     style={style}
                     onClick={onClick}
                   />
@@ -447,7 +440,7 @@ const DEFAULT_CATEGORY_COLOR = { bg: 'bg-gray-500', text: 'text-gray-500' };
 
 function CategoryHeader({ category, count }) {
   const color = CATEGORY_COLORS[category] || DEFAULT_CATEGORY_COLOR;
-  const entry = CATEGORY_ICONS[category] || IconColumns3;
+  const entry = CATEGORY_ICONS[category] || IconColumnSelect;
   const Icon = Array.isArray(entry) ? entry[0] : entry;
   const rotate = Array.isArray(entry) ? entry[1] : '';
   return (
@@ -518,7 +511,7 @@ function tileHasContent(tile) {
 const TileDetail = memo(function TileDetail({ searchQuery, tile }) {
   const hasContent = tileHasContent(tile);
   const categoryColor = CATEGORY_COLORS[tile.category] || DEFAULT_CATEGORY_COLOR;
-  const tileEntry = TILE_ICONS[tile.type] || IconColumns3;
+  const tileEntry = TILE_ICONS[tile.type] || IconColumnSelect;
   const Icon = Array.isArray(tileEntry) ? tileEntry[0] : tileEntry;
   const tileRotate = Array.isArray(tileEntry) ? tileEntry[1] : '';
 
@@ -551,7 +544,7 @@ const TileDetail = memo(function TileDetail({ searchQuery, tile }) {
         <Disclosure.Trigger className='flex w-full items-center justify-between gap-2 p-2'>
           {trigger}
           <Disclosure.Indicator>
-            <IconChevronDown stroke={1.5} />
+            <IconChevronDown />
           </Disclosure.Indicator>
         </Disclosure.Trigger>
       </Disclosure.Heading>

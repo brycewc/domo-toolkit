@@ -1,10 +1,10 @@
 import { CloseButton as HeroCloseButton } from '@heroui/react';
-import { IconX } from '@tabler/icons-react';
 
+import IconX from '@icons/x.svg?react';
 export function CloseButton({ children, ...props }) {
   return (
     <HeroCloseButton {...props}>
-      {children ?? <IconX stroke={1.5} />}
+      {children ?? <IconX />}
     </HeroCloseButton>
   );
 }

@@ -1,8 +1,11 @@
 import { Button, Spinner, Tooltip } from '@heroui/react';
-import { IconArrowFork, IconDatabase, IconInfoCircle, IconReload } from '@tabler/icons-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { useResolveTabId } from '@/hooks';
+import { useResolveTabId } from '@/hooks/useResolveTabId';
+import IconDatabase from '@icons/database.svg?react';
+import IconDataflow from '@icons/dataflow.svg?react';
+import IconInfoCircle from '@icons/info-circle.svg?react';
+import IconSync from '@icons/sync.svg?react';
 
 import { DataflowInspector, DataPreviewPanel, LevelToolbar, LineageGraph } from './components';
 import { useGraphVisibility, useLineageCache } from './hooks';
@@ -166,9 +169,9 @@ export function Lineage() {
   const entityIcon = useMemo(
     () =>
       mappedEntityType === 'DATAFLOW' ? (
-        <IconArrowFork className='size-4 shrink-0 rotate-180' stroke={1.5} />
+        <IconDataflow className='size-4 shrink-0' />
       ) : (
-        <IconDatabase className='size-4 shrink-0' stroke={1.5} />
+        <IconDatabase className='size-4 shrink-0' />
       ),
     [mappedEntityType]
   );
@@ -197,7 +200,7 @@ export function Lineage() {
         <div className='flex items-center gap-2'>
           <Tooltip closeDelay={0} delay={400}>
             <Button isIconOnly size='sm' variant='tertiary' onPress={handleRefresh}>
-              <IconReload stroke={1.5} />
+              <IconSync />
             </Button>
             <Tooltip.Content placement='left'>Refresh</Tooltip.Content>
           </Tooltip>
@@ -235,7 +238,7 @@ export function Lineage() {
               <span>DataSet</span>
             </div>
             <div className='flex items-center gap-1.5 rounded bg-warning px-2 py-1 text-white'>
-              <IconArrowFork className='size-4 rotate-180' />
+              <IconDataflow className='size-4' />
               <span>DataFlow</span>
             </div>
           </div>

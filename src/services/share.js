@@ -1,4 +1,4 @@
-import { executeInPage } from '@/utils';
+import { executeInPage } from '@/utils/executeInPage';
 
 import { shareAccount } from './accounts';
 import { getAppInstanceCollections, shareAppDbCollection } from './appDb';

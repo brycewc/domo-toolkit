@@ -1,8 +1,8 @@
 import { Button, Tooltip } from '@heroui/react';
-import { IconCalendarOff } from '@tabler/icons-react';
 
-import { useStatusBar } from '@/hooks';
-import { setStreamScheduleToManual } from '@/services';
+import { useStatusBar } from '@/hooks/useStatusBar';
+import { setStreamScheduleToManual } from '@/services/datasets';
+import IconCalendarSimple from '@icons/calendar-simple.svg?react';
 
 export function SetStreamToManual({ currentContext, isDisabled }) {
   const { showPromiseStatus } = useStatusBar();
@@ -36,7 +36,7 @@ export function SetStreamToManual({ currentContext, isDisabled }) {
         variant='tertiary'
         onPress={handlePress}
       >
-        <IconCalendarOff stroke={1.5} />
+        <IconCalendarSimple />
         Set to Manual
       </Button>
       <Tooltip.Content

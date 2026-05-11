@@ -1,6 +1,6 @@
 import { Button, Tooltip } from '@heroui/react';
-import { IconLogin2 } from '@tabler/icons-react';
 
+import IconArrowRightCircle from '@icons/arrow-right-circle.svg?react';
 export function DirectSignOn({ currentContext, isDisabled }) {
   const handleDirectSignOn = () => {
     const url = new URL(currentContext.url);
@@ -18,7 +18,7 @@ export function DirectSignOn({ currentContext, isDisabled }) {
         variant='tertiary'
         onPress={handleDirectSignOn}
       >
-        <IconLogin2 stroke={1.5} />
+        <IconArrowRightCircle />
         Direct Sign-On
       </Button>
       <Tooltip.Content

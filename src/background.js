@@ -1,25 +1,15 @@
 import { releases } from '@/data';
-import {
-  DomoContext,
-  DomoObject,
-  fetchObjectDetailsInPage,
-  getObjectType
-} from '@/models';
-import {
-  checkPageType,
-  getCurrentUser,
-  getDataflowForOutputDataset,
-  getUserGroups,
-  runEnrichments
-} from '@/services';
-import {
-  clearCookies,
-  detectCurrentObject,
-  EXCLUDED_HOSTNAMES,
-  executeInPage,
-  isDomoUrl,
-  SECTION_TITLES
-} from '@/utils';
+import { DomoContext } from '@/models/DomoContext';
+import { DomoObject } from '@/models/DomoObject';
+import { fetchObjectDetailsInPage, getObjectType } from '@/models/DomoObjectType';
+import { getDataflowForOutputDataset } from '@/services/dataflows';
+import { runEnrichments } from '@/services/enrichments';
+import { checkPageType } from '@/services/pages';
+import { getCurrentUser, getUserGroups } from '@/services/users';
+import { clearCookies } from '@/utils/clearCookies';
+import { EXCLUDED_HOSTNAMES, SECTION_TITLES } from '@/utils/constants';
+import { detectCurrentObject, isDomoUrl } from '@/utils/currentObject';
+import { executeInPage } from '@/utils/executeInPage';
 
 /**
  * Compute whether the current user is an owner of the detected object.

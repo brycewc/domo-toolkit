@@ -36,7 +36,9 @@ const config = {
   // save.
   settings: {
     bullet: '-',
-    listItemIndent: 'one'
+    emphasis: '*',
+    listItemIndent: 'one',
+    rule: '-'
   },
   plugins: [
     remarkFrontmatter,

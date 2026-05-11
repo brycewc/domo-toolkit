@@ -1,8 +1,8 @@
 import { Button, Tooltip } from '@heroui/react';
-import { IconBrandSafari } from '@tabler/icons-react';
 
-import { isViewType } from '@/services';
-import { launchView } from '@/utils';
+import { isViewType } from '@/services/datasets';
+import { launchView } from '@/utils/sidepanel';
+import IconCompass from '@icons/compass.svg?react';
 
 export function GetViewInputs({ currentContext, isDisabled, onCollapseActions, onStatusUpdate }) {
   const objectType = currentContext?.domoObject?.typeId;
@@ -25,7 +25,7 @@ export function GetViewInputs({ currentContext, isDisabled, onCollapseActions, o
           })
         }
       >
-        <IconBrandSafari stroke={1.5} /> Get View Inputs
+        <IconCompass /> Get View Inputs
       </Button>
       <Tooltip.Content
         className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'

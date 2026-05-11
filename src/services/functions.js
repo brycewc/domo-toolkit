@@ -1,4 +1,4 @@
-import { executeInPage } from '@/utils';
+import { executeInPage } from '@/utils/executeInPage';
 
 export async function deleteFunction(functionId) {
   await fetch(`/api/query/v1/functions/template/${functionId}`, {

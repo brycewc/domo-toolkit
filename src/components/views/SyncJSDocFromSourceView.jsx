@@ -9,34 +9,20 @@ import {
   Spinner,
   Tooltip
 } from '@heroui/react';
-import {
-  IconAlertTriangle,
-  IconChevronDown,
-  IconCircleCheck,
-  IconCircleDashed,
-  IconCirclePlus,
-  IconRefresh,
-  IconX
-} from '@tabler/icons-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { useStatusBar } from '@/hooks';
-import { DomoContext } from '@/models';
-import {
-  getCodeEngineEditorSource,
-  getCodeEnginePackageDefinition,
-  postCodeEnginePackageVersion,
-  setCodeEngineEditorSource
-} from '@/services';
-import {
-  computeStructuralDiff,
-  findCurrentVersionInfo,
-  findVersionForBaseline,
-  getSidepanelData,
-  parseSourceToManifest,
-  preparePackagePayload,
-  resolveTargetVersion
-} from '@/utils';
+import { useStatusBar } from '@/hooks/useStatusBar';
+import { DomoContext } from '@/models/DomoContext';
+import { getCodeEngineEditorSource, getCodeEnginePackageDefinition, postCodeEnginePackageVersion, setCodeEngineEditorSource } from '@/services/codeEngine';
+import { computeStructuralDiff, findCurrentVersionInfo, findVersionForBaseline, parseSourceToManifest, preparePackagePayload, resolveTargetVersion } from '@/utils/jsdocToPackage';
+import { getSidepanelData } from '@/utils/sidepanel';
+import IconCheckCircle from '@icons/check-circle.svg?react';
+import IconChevronDown from '@icons/chevron-down.svg?react';
+import IconCircle from '@icons/circle.svg?react';
+import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
+import IconPlusCircle from '@icons/plus-circle.svg?react';
+import IconSync from '@icons/sync.svg?react';
+import IconX from '@icons/x.svg?react';
 
 export function SyncJSDocFromSourceView({ onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
@@ -219,7 +205,7 @@ export function SyncJSDocFromSourceView({ onBackToDefault = null, onStatusUpdate
         <ViewHeader subtitle={null} title='Sync JSDoc' onBackToDefault={onBackToDefault} />
         <Separator />
         <Card.Content className='flex flex-col items-center gap-2 py-8'>
-          <IconAlertTriangle className='text-danger' stroke={1.5} />
+          <IconExclamationTriangle className='text-danger' />
           <p className='text-sm text-danger'>{error}</p>
         </Card.Content>
       </Card>
@@ -248,7 +234,7 @@ export function SyncJSDocFromSourceView({ onBackToDefault = null, onStatusUpdate
 
           {parsed?.error && (
             <div className='flex items-center gap-2 rounded-md bg-danger-soft p-2 text-sm text-danger'>
-              <IconAlertTriangle stroke={1.5} />
+              <IconExclamationTriangle />
               <span>Parser error: {parsed.error}</span>
             </div>
           )}
@@ -285,7 +271,7 @@ export function SyncJSDocFromSourceView({ onBackToDefault = null, onStatusUpdate
             <Spinner color='currentColor' size='sm' />
           ) : (
             <>
-              <IconRefresh stroke={1.5} />{' '}
+              <IconSync />{' '}
               {target.mode === 'overwrite'
                 ? `Save to ${target.version}`
                 : `Save as new ${target.version}`}
@@ -301,27 +287,27 @@ function DecisionPill({ action }) {
   if (action === 'added') {
     return (
       <Chip color='success' size='sm' variant='soft'>
-        <IconCirclePlus size={12} stroke={1.5} /> Added
+        <IconPlusCircle size={12} /> Added
       </Chip>
     );
   }
   if (action === 'updated') {
     return (
       <Chip color='accent' size='sm' variant='soft'>
-        <IconRefresh size={12} stroke={1.5} /> Updated
+        <IconSync size={12} /> Updated
       </Chip>
     );
   }
   if (action === 'unchanged') {
     return (
       <Chip size='sm' variant='soft'>
-        <IconCircleCheck size={12} stroke={1.5} /> Unchanged
+        <IconCheckCircle size={12} /> Unchanged
       </Chip>
     );
   }
   return (
     <Chip size='sm' variant='soft'>
-      <IconCircleDashed size={12} stroke={1.5} /> Kept
+      <IconCircle size={12} /> Kept
     </Chip>
   );
 }
@@ -339,7 +325,7 @@ function DecisionRow({ decision }) {
         >
           <span className='flex min-w-0 items-center gap-1'>
             <Disclosure.Indicator>
-              <IconChevronDown size={12} stroke={1.5} />
+              <IconChevronDown size={12} />
             </Disclosure.Indicator>
             <span className='font-mono'>{decision.name}</span>
             {hasDiff && (
@@ -456,7 +442,7 @@ function JSDocRewritesSection({ rewrites }) {
         <Button fullWidth className='justify-between' size='sm' slot='trigger' variant='ghost'>
           JSDoc updates ({rewrites.length})
           <Disclosure.Indicator>
-            <IconChevronDown stroke={1.5} />
+            <IconChevronDown />
           </Disclosure.Indicator>
         </Button>
       </Disclosure.Heading>
@@ -497,7 +483,7 @@ function ManifestDecisionsSection({ decisions }) {
         <Button fullWidth className='justify-between' size='sm' slot='trigger' variant='ghost'>
           Manifest changes ({decisions.length})
           <Disclosure.Indicator>
-            <IconChevronDown stroke={1.5} />
+            <IconChevronDown />
           </Disclosure.Indicator>
         </Button>
       </Disclosure.Heading>
@@ -600,7 +586,7 @@ function ViewHeader({ onBackToDefault, subtitle, title }) {
         {onBackToDefault && (
           <Tooltip closeDelay={0} delay={400}>
             <Button isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
-              <IconX stroke={1.5} />
+              <IconX />
             </Button>
             <Tooltip.Content className='text-xs'>Close</Tooltip.Content>
           </Tooltip>
@@ -614,7 +600,7 @@ function WarningsSection({ warnings }) {
   if (!warnings || warnings.length === 0) {
     return (
       <div className='flex items-center gap-2 text-xs text-muted'>
-        <IconCircleCheck size={14} stroke={1.5} />
+        <IconCheckCircle size={14} />
         <span>No warnings</span>
       </div>
     );
@@ -625,7 +611,7 @@ function WarningsSection({ warnings }) {
         <Button fullWidth className='justify-between' size='sm' slot='trigger' variant='ghost'>
           Warnings ({warnings.length})
           <Disclosure.Indicator>
-            <IconChevronDown stroke={1.5} />
+            <IconChevronDown />
           </Disclosure.Indicator>
         </Button>
       </Disclosure.Heading>
@@ -636,7 +622,7 @@ function WarningsSection({ warnings }) {
               className={`flex items-start gap-1 ${w.severity === 'error' ? 'text-danger' : 'text-warning'}`}
               key={idx}
             >
-              <IconAlertTriangle className='mt-0.5 shrink-0' size={12} stroke={1.5} />
+              <IconExclamationTriangle className='mt-0.5 shrink-0' size={12} />
               <div className='flex flex-col gap-0.5'>
                 {w.functionName && <span className='font-mono text-muted'>{w.functionName}</span>}
                 <span>{w.message}</span>

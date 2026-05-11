@@ -1,4 +1,4 @@
-import { executeInPage } from '@/utils';
+import { executeInPage } from '@/utils/executeInPage';
 
 export async function getCodeEngineCode({ packageId, tabId, version }) {
   return executeInPage(

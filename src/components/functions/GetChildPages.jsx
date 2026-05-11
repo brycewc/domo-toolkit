@@ -1,8 +1,8 @@
 import { Button, Spinner, Tooltip } from '@heroui/react';
-import { IconSitemap } from '@tabler/icons-react';
 
-import { useLaunchView } from '@/hooks';
-import { waitForChildPages } from '@/utils';
+import { useLaunchView } from '@/hooks/useLaunchView';
+import { waitForChildPages } from '@/utils/pageHelpers';
+import IconTree from '@icons/tree.svg?react';
 
 export function GetChildPages({ currentContext, isDisabled, onCollapseActions, onStatusUpdate }) {
   const { isPending, launch } = useLaunchView();
@@ -51,7 +51,7 @@ export function GetChildPages({ currentContext, isDisabled, onCollapseActions, o
             <Spinner color='currentColor' size='sm' />
           ) : (
             <>
-              <IconSitemap stroke={1.5} />
+              <IconTree />
               {label}
             </>
           )

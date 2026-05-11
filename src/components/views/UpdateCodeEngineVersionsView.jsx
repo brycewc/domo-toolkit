@@ -12,17 +12,18 @@ import {
   Spinner,
   Tooltip
 } from '@heroui/react';
-import { IconArrowRight, IconCheck, IconChevronDown, IconX } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 
-import { useStatusBar } from '@/hooks';
-import { DomoContext } from '@/models';
-import {
-  getCodeEnginePackageInfo,
-  getVersionDefinition,
-  updateVersionDefinition
-} from '@/services';
-import { getSidepanelData, waitForDefinition } from '@/utils';
+import { useStatusBar } from '@/hooks/useStatusBar';
+import { DomoContext } from '@/models/DomoContext';
+import { getCodeEnginePackageInfo } from '@/services/codeEngine';
+import { getVersionDefinition, updateVersionDefinition } from '@/services/workflows';
+import { getSidepanelData } from '@/utils/sidepanel';
+import { waitForDefinition } from '@/utils/workflowHelpers';
+import IconArrowRight from '@icons/arrow-right.svg?react';
+import IconCheck from '@icons/check.svg?react';
+import IconChevronDown from '@icons/chevron-down.svg?react';
+import IconX from '@icons/x.svg?react';
 
 export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
@@ -300,7 +301,7 @@ export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusU
         <Select.Trigger className='items-center py-0'>
           <Select.Value />
           <Select.Indicator>
-            <IconChevronDown stroke={1.5} />
+            <IconChevronDown />
           </Select.Indicator>
         </Select.Trigger>
         <Select.Popover className='max-h-60!'>
@@ -312,7 +313,7 @@ export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusU
             >
               <Label>{isActionLevel ? 'Inherit' : 'No Change'}</Label>
               <ListBox.ItemIndicator>
-                {({ isSelected }) => (isSelected ? <IconCheck stroke={1.5} /> : null)}
+                {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
               </ListBox.ItemIndicator>
             </ListBox.Item>
             {availableVersions.map((v) => (
@@ -324,7 +325,7 @@ export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusU
               >
                 <Label>{v === latestVersion ? `Latest - ${v}` : v}</Label>
                 <ListBox.ItemIndicator>
-                  {({ isSelected }) => (isSelected ? <IconCheck stroke={1.5} /> : null)}
+                  {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
                 </ListBox.ItemIndicator>
               </ListBox.Item>
             ))}
@@ -361,7 +362,7 @@ export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusU
           {onBackToDefault && (
             <Tooltip closeDelay={0} delay={400}>
               <Button isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
-                <IconX stroke={1.5} />
+                <IconX />
               </Button>
               <Tooltip.Content className='text-xs'>Close</Tooltip.Content>
             </Tooltip>
@@ -441,7 +442,7 @@ export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusU
                       >
                         Per-action overrides
                         <Disclosure.Indicator>
-                          <IconChevronDown stroke={1.5} />
+                          <IconChevronDown />
                         </Disclosure.Indicator>
                       </Button>
                     </Disclosure.Heading>

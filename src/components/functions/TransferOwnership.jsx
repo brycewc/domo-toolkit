@@ -1,7 +1,7 @@
 import { Button, Tooltip } from '@heroui/react';
-import { IconUserUp } from '@tabler/icons-react';
 
-import { useLaunchView } from '@/hooks';
+import { useLaunchView } from '@/hooks/useLaunchView';
+import IconArrowsHorizontalBox from '@icons/arrows-horizontal-box.svg?react';
 
 export function TransferOwnership({ currentContext, onCollapseActions, onStatusUpdate }) {
   const { isPending, launch } = useLaunchView();
@@ -23,7 +23,7 @@ export function TransferOwnership({ currentContext, onCollapseActions, onStatusU
           })
         }
       >
-        <IconUserUp stroke={1.5} />
+        <IconArrowsHorizontalBox />
         Transfer Ownership
       </Button>
       <Tooltip.Content

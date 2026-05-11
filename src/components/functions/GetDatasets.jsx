@@ -1,7 +1,8 @@
 import { Button, Dropdown, Label, Spinner, Tooltip } from '@heroui/react';
-import { IconDatabase } from '@tabler/icons-react';
 
-import { useLaunchView, useLongPress } from '@/hooks';
+import { useLaunchView } from '@/hooks/useLaunchView';
+import { useLongPress } from '@/hooks/useLongPress';
+import IconDatabase from '@icons/database.svg?react';
 
 export function GetDatasets({ currentContext, isDisabled, onCollapseActions, onStatusUpdate }) {
   const { isPending, launch } = useLaunchView();
@@ -81,7 +82,7 @@ export function GetDatasets({ currentContext, isDisabled, onCollapseActions, onS
               <Spinner color='currentColor' size='sm' />
             ) : (
               <>
-                <IconDatabase stroke={1.5} /> {buttonText}
+                <IconDatabase /> {buttonText}
                 <LongPressOverlay />
               </>
             )
@@ -99,7 +100,7 @@ export function GetDatasets({ currentContext, isDisabled, onCollapseActions, onS
         <Dropdown.Menu onAction={handleAction}>
           {dropdownItems.map((item) => (
             <Dropdown.Item id={item.id} key={item.id} textValue={item.label}>
-              <IconDatabase className='size-5 shrink-0' stroke={1.5} />
+              <IconDatabase className='size-5 shrink-0' />
               <Label>{item.label}</Label>
             </Dropdown.Item>
           ))}

@@ -1,4 +1,5 @@
-import { executeInPage, EXPORT_FORMATS } from '@/utils';
+import { EXPORT_FORMATS } from '@/utils/constants';
+import { executeInPage } from '@/utils/executeInPage';
 
 /**
  * Export a card as a file download, using the card's current view state

@@ -1,4 +1,4 @@
-import { executeInPage } from '@/utils';
+import { executeInPage } from '@/utils/executeInPage';
 
 const DATASOURCES_PAGE_SIZE = 50;
 const STREAMS_BATCH_SIZE = 50;

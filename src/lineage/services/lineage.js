@@ -1,4 +1,4 @@
-import { executeInPage } from '@/utils';
+import { executeInPage } from '@/utils/executeInPage';
 
 const LINEAGE_TYPE_MAP = { DATAFLOW_TYPE: 'DATAFLOW' };
 

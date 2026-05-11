@@ -31,10 +31,10 @@ Evaluate proposals on technical merit — correctness and fit — not against a 
 ## Best Practices
 
 - No backwards compatibility — extension runs locally, entire codebase is same version
-- Named exports only (no default exports)
-- Barrel exports via `index.js` in every folder
-- Import from top folder level: `import { Copy } from '@/components'` (not `@/components/functions/Copy` or `@/components/functions`)
-- `@/` path alias maps to `src/`
+- Named exports only (no default exports), **except** SVG icons in `src/components/icons/` which are imported as default via SVGR's `?react` query
+- **No barrel files.** Import every symbol directly from its source file. Example: `import { Copy } from '@/components/functions/Copy';` not `import { Copy } from '@/components';`. Barrels were removed because they caused TDZ initialization errors with circular dependencies and were no longer best practice for Vite 7+ (which tree-shakes per-file imports without needing the indirection)
+- SVG icons live in `src/assets/icons/` and are imported as default via SVGR's `?react` query: `import IconCard from '@icons/card.svg?react';`
+- Path aliases: `@/` maps to `src/`; `@icons/` maps to `src/assets/icons/` (shortcut for the icon set)
 
 ## Development
 

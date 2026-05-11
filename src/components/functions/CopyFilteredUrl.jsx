@@ -1,9 +1,11 @@
 import { Button, Chip, Dropdown, Label, Tooltip } from '@heroui/react';
-import { IconClipboard, IconFilterShare } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 
-import { useLongPress, useStatusBar } from '@/hooks';
-import { buildPfilterUrl, getAllFilters } from '@/services';
+import { useLongPress } from '@/hooks/useLongPress';
+import { useStatusBar } from '@/hooks/useStatusBar';
+import { buildPfilterUrl, getAllFilters } from '@/services/filters';
+import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
+import IconFunnel from '@icons/funnel.svg?react';
 
 import { AnimatedCheck } from '../AnimatedCheck';
 import { AnimatedX } from '../AnimatedX';
@@ -162,7 +164,7 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
           ) : isCopied ? (
             <AnimatedCheck />
           ) : (
-            <IconFilterShare stroke={1.5} />
+            <IconFunnel />
           )}
           Copy Filters
           {filterCount > 0 && (
@@ -188,7 +190,7 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
       <Dropdown.Popover className='w-fit min-w-60' placement='bottom'>
         <Dropdown.Menu onAction={handleAction}>
           <Dropdown.Item id='pfilters' textValue='Copy pfilters param only'>
-            <IconClipboard className='size-5 shrink-0' stroke={1.5} />
+            <IconClipboardCopy className='size-5 shrink-0' />
             <Label>Copy pfilters param only</Label>
           </Dropdown.Item>
         </Dropdown.Menu>

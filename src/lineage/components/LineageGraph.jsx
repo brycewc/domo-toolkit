@@ -1,6 +1,5 @@
 import dagre from '@dagrejs/dagre';
 import { Spinner, Surface } from '@heroui/react';
-import { IconArrowFork, IconDatabase } from '@tabler/icons-react';
 import {
   Background,
   Controls,
@@ -25,6 +24,8 @@ import {
 } from 'react';
 
 import { useTheme } from '@/hooks/useTheme';
+import IconDatabase from '@icons/database.svg?react';
+import IconDataflow from '@icons/dataflow.svg?react';
 
 import { LineageNodeToolbar } from './LineageNodeToolbar';
 
@@ -32,7 +33,7 @@ const LineageGraphContext = createContext(null);
 
 const NODE_ICONS = {
   DATA_SOURCE: IconDatabase,
-  DATAFLOW: IconArrowFork
+  DATAFLOW: IconDataflow
 };
 
 function formatNumber(n) {
@@ -100,9 +101,7 @@ const LineageNode = memo(function LineageNode({ data, id }) {
       {data.hasIncoming && <Handle className='size-2' position={Position.Left} type='target' />}
 
       <div className={`flex w-8 shrink-0 items-center justify-center border-none ${stripe}`}>
-        <Icon
-          className={`size-5 text-white ${data.entityType === 'DATAFLOW' ? 'rotate-180' : ''}`}
-        />
+        <Icon className='size-5 text-white' />
       </div>
 
       <div className='flex min-h-20 min-w-0 flex-1 flex-col items-start justify-between gap-2 px-3 py-1.5'>

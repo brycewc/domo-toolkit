@@ -1,10 +1,10 @@
 import { Button, Tooltip } from '@heroui/react';
-import { IconUserPlus } from '@tabler/icons-react';
 import { useState } from 'react';
 
-import { useStatusBar } from '@/hooks';
-import { shareWithSelf } from '@/services';
-import { isSidepanel } from '@/utils';
+import { useStatusBar } from '@/hooks/useStatusBar';
+import { shareWithSelf } from '@/services/share';
+import { isSidepanel } from '@/utils/sidepanel';
+import IconPersonPlus from '@icons/person-plus.svg?react';
 
 export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
   const [isSharing, setIsSharing] = useState(false);
@@ -52,18 +52,31 @@ export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
       object: currentContext.domoObject,
       tabId: currentContext.tabId,
       userId: currentContext.user?.id
-    }).then((result) => {
+    }).then(async (result) => {
       const tabId = currentContext?.tabId;
-      chrome.tabs.reload(tabId);
-
       if (tabId) {
-        const listener = (updatedTabId, changeInfo) => {
-          if (updatedTabId === tabId && changeInfo.status === 'complete') {
+        // Wait for the reload to complete BEFORE closing the popup or sending
+        // DETECT_CONTEXT. Closing the popup tears down its renderer, which
+        // kills any pending tabs.onUpdated listener registered here and drops
+        // any chrome.runtime messages still in flight from that context. The
+        // background's own onUpdated listener also won't help — it only acts
+        // on `changeInfo.url`, which a same-URL reload doesn't carry.
+        await new Promise((resolve) => {
+          const timeoutId = setTimeout(() => {
             chrome.tabs.onUpdated.removeListener(listener);
-            chrome.runtime.sendMessage({ tabId, type: 'DETECT_CONTEXT' });
-          }
-        };
-        chrome.tabs.onUpdated.addListener(listener);
+            resolve();
+          }, 8000);
+          const listener = (updatedTabId, changeInfo) => {
+            if (updatedTabId === tabId && changeInfo.status === 'complete') {
+              chrome.tabs.onUpdated.removeListener(listener);
+              clearTimeout(timeoutId);
+              resolve();
+            }
+          };
+          chrome.tabs.onUpdated.addListener(listener);
+          chrome.tabs.reload(tabId);
+        });
+        await chrome.runtime.sendMessage({ tabId, type: 'DETECT_CONTEXT' });
       }
 
       const inSidepanel = isSidepanel();
@@ -116,7 +129,7 @@ export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
         variant='tertiary'
         onPress={handleShare}
       >
-        <IconUserPlus stroke={1.5} />
+        <IconPersonPlus />
       </Button>
       <Tooltip.Content
         className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'

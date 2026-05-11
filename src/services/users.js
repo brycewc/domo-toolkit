@@ -2,7 +2,7 @@
  * Domo API service for user-related operations
  */
 
-import { executeInPage } from '@/utils';
+import { executeInPage } from '@/utils/executeInPage';
 
 /**
  * Get the current user with ID and metadata

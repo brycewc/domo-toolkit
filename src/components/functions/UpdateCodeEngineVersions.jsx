@@ -1,7 +1,7 @@
 import { Button, Tooltip } from '@heroui/react';
-import { IconPackages } from '@tabler/icons-react';
 
-import { launchView } from '@/utils';
+import { launchView } from '@/utils/sidepanel';
+import IconPackage from '@icons/package.svg?react';
 
 export function UpdateCodeEngineVersions({
   currentContext,
@@ -25,7 +25,7 @@ export function UpdateCodeEngineVersions({
           })
         }
       >
-        <IconPackages stroke={1.5} /> Update Code Engine Versions
+        <IconPackage /> Update Code Engine Versions
       </Button>
       <Tooltip.Content
         className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'

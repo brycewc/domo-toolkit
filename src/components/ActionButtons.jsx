@@ -1,40 +1,41 @@
 import { Button, ButtonGroup, Card, Disclosure, Skeleton, Tooltip } from '@heroui/react';
-import { IconChevronDown, IconLayoutSidebarRightExpand, IconSettings } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 
-import { getAvailableActions, isSidepanel, openSidepanel } from '@/utils';
-
-import {
-  ActivityLog,
-  ApiErrors,
-  ClearCookies,
-  Copy,
-  CopyColorRules,
-  CopyFilteredUrl,
-  DataRepair,
-  DeleteObject,
-  DevMenu,
-  DirectSignOn,
-  Duplicate,
-  Export,
-  GetCardPages,
-  GetCards,
-  GetChildPages,
-  GetDatasets,
-  GetOwnedObjects,
-  GetViewInputs,
-  LockCards,
-  NavigateToCopiedObject,
-  RemoveEmptyStringsFromQuickFilters,
-  SetStreamToManual,
-  ShareWithSelf,
-  SyncJSDocFromSource,
-  TransferOwnership,
-  UpdateCodeEngineVersions,
-  UpdateDetails,
-  UpdateOwner,
-  ViewLineage
-} from './functions';
+import { ActivityLog } from '@/components/functions/ActivityLog';
+import { ApiErrors } from '@/components/functions/ApiErrors';
+import { CancelStreamExecution } from '@/components/functions/CancelStreamExecution';
+import { ClearCookies } from '@/components/functions/ClearCookies';
+import { Copy } from '@/components/functions/Copy';
+import { CopyColorRules } from '@/components/functions/CopyColorRules';
+import { CopyFilteredUrl } from '@/components/functions/CopyFilteredUrl';
+import { DataRepair } from '@/components/functions/DataRepair';
+import { DeleteObject } from '@/components/functions/DeleteObject';
+import { DevMenu } from '@/components/functions/DevMenu';
+import { DirectSignOn } from '@/components/functions/DirectSignOn';
+import { Duplicate } from '@/components/functions/Duplicate';
+import { Export } from '@/components/functions/Export';
+import { GetCardPages } from '@/components/functions/GetCardPages';
+import { GetCards } from '@/components/functions/GetCards';
+import { GetChildPages } from '@/components/functions/GetChildPages';
+import { GetDatasets } from '@/components/functions/GetDatasets';
+import { GetOwnedObjects } from '@/components/functions/GetOwnedObjects';
+import { GetViewInputs } from '@/components/functions/GetViewInputs';
+import { LockCards } from '@/components/functions/LockCards';
+import { NavigateToCopiedObject } from '@/components/functions/NavigateToCopiedObject';
+import { RemoveEmptyStringsFromQuickFilters } from '@/components/functions/RemoveEmptyStringsFromQuickFilters';
+import { SetStreamToManual } from '@/components/functions/SetStreamToManual';
+import { ShareWithSelf } from '@/components/functions/ShareWithSelf';
+import { SyncJSDocFromSource } from '@/components/functions/SyncJSDocFromSource';
+import { TransferOwnership } from '@/components/functions/TransferOwnership';
+import { UpdateCodeEngineVersions } from '@/components/functions/UpdateCodeEngineVersions';
+import { UpdateDetails } from '@/components/functions/UpdateDetails';
+import { UpdateOwner } from '@/components/functions/UpdateOwner';
+import { ViewLineage } from '@/components/functions/ViewLineage';
+import { getAvailableActions } from '@/utils/availableActions';
+import { isSidepanel, openSidepanel } from '@/utils/sidepanel';
+import IconChevronDown from '@icons/chevron-down.svg?react';
+import IconGear from '@icons/gear.svg?react';
+import IconRightRail from '@icons/right-rail.svg?react';
 
 export function ActionButtons({
   collapsable = false,
@@ -136,7 +137,7 @@ export function ActionButtons({
                       if (!isSidepanel()) window.close();
                     }}
                   >
-                    <IconSettings stroke={1.5} />
+                    <IconGear />
                   </Button>
                   <Tooltip.Content
                     className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
@@ -155,7 +156,7 @@ export function ActionButtons({
                       variant='tertiary'
                     >
                       <Disclosure.Indicator>
-                        <IconChevronDown stroke={1.5} />
+                        <IconChevronDown />
                       </Disclosure.Indicator>
                     </Button>
 
@@ -169,7 +170,7 @@ export function ActionButtons({
                 ) : (
                   <Tooltip closeDelay={0} delay={400}>
                     <Button fullWidth isIconOnly variant='tertiary' onPress={openSidepanel}>
-                      <IconLayoutSidebarRightExpand stroke={1.5} />
+                      <IconRightRail />
                     </Button>
                     <Tooltip.Content
                       className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
@@ -281,6 +282,12 @@ export function ActionButtons({
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
                     onStatusUpdate={onStatusUpdate}
+                  />
+                )}
+                {availableActions.has('cancelStreamExecution') && (
+                  <CancelStreamExecution
+                    currentContext={currentContext}
+                    isDisabled={!isDomoPage}
                   />
                 )}
                 {availableActions.has('setStreamToManual') && (

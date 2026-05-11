@@ -1,4 +1,4 @@
-import { executeInPage } from '@/utils';
+import { executeInPage } from '@/utils/executeInPage';
 
 import { buildWhere } from '../utils/datasetFilterMapper';
 import { datasetRowToActivityRecord } from '../utils/datasetRowAdapter';

@@ -10,27 +10,27 @@ import {
   Popover,
   ScrollShadow,
   Separator,
+  Spinner,
   Tooltip
 } from '@heroui/react';
-import {
-  IconBinaryTree,
-  IconBrandSafari,
-  IconChevronDown,
-  IconClipboard,
-  IconDots,
-  IconLoader2,
-  IconQueuePopOut,
-  IconRefresh,
-  IconRefreshAlert,
-  IconStackPop,
-  IconUserPlus,
-  IconUsersPlus,
-  IconX
-} from '@tabler/icons-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 
-import { getAvailableActions, getValidTabForInstance, launchView } from '@/utils';
+import { getAvailableActions } from '@/utils/availableActions';
+import { getValidTabForInstance } from '@/utils/currentObject';
+import { launchView } from '@/utils/sidepanel';
+import IconArrowSquareOut from '@icons/arrow-square-out.svg?react';
+import IconCancel from '@icons/cancel.svg?react';
+import IconChevronDown from '@icons/chevron-down.svg?react';
+import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
+import IconCompass from '@icons/compass.svg?react';
+import IconDotsHorizontal from '@icons/dots-horizontal.svg?react';
+import IconLineage from '@icons/lineage.svg?react';
+import IconPeoplePlus from '@icons/people-plus.svg?react';
+import IconPersonPlus from '@icons/person-plus.svg?react';
+import IconReset from '@icons/reset.svg?react';
+import IconSync from '@icons/sync.svg?react';
+import IconX from '@icons/x.svg?react';
 
 import { AnimatedCheck } from '../AnimatedCheck';
 import { ObjectTypeIcon } from '../ObjectTypeIcon';
@@ -77,6 +77,7 @@ import { ObjectTypeIcon } from '../ObjectTypeIcon';
  * @param {Function} [props.onSelectionChange] - `(newSelectedIds: Set<string>) => void` callback fired when the selection set changes. Required when `selectionMode` is true. Receives the full new Set after any add/remove from the wrapping `CheckboxGroup`'s `onChange`.
  * @param {Function} [props.isSelectable] - `(item) => boolean` filter. When `selectionMode` is true, only items returning true get a checkbox-wrapped label; others get an empty 16px placeholder to preserve column alignment. Defaults to `() => true`.
  * @param {React.ReactNode} [props.selectionToolbar] - Selection-mode-only content rendered as a third header row directly under the action buttons. Use for "Select all"/"Deselect all" or other bulk-selection controls. Ignored when `selectionMode` is false.
+ * @param {React.ReactNode} [props.footer] - Content rendered inside the Card below the items list, separated from the scroll area by a `<Separator>`. Use for a primary action that should sit pinned beneath the list (e.g. a full-width "Transfer ownership to…" button in selection mode). Consumers decide visibility — pass `null`/`false` to omit.
  * @param {React.ReactNode} [props.subtext] - Secondary content rendered on the second header row (typically counts, status text, or a breadcrumb). Truncates with `title`-attribute hover-overflow if it can't fit alongside header actions.
  * @param {Array<{ key: string, icon: React.ReactNode, tooltipText: string, onPress: () => void, isDisabled?: boolean, isActive?: boolean, ariaLabel?: string }>} [props.customHeaderActions] - View-specific header buttons rendered inline after the built-in `headerActions`. Use this for actions that don't fit the preset enum (Transfer Ownership, Selection toggle, etc.).
  * @param {string} [props.viewType] - The action key for this view (e.g. `'getCards'`, `'getDatasets'`). Required when `'reload'` is in `headerActions`. Used as the `type` passed to `launchView` and as the key looked up against `getAvailableActions(currentContext)` to decide if reload is enabled.
@@ -86,6 +87,7 @@ export function DataList({
   closeLabel = 'Close',
   currentContext,
   customHeaderActions,
+  footer,
   headerActions = [],
   isRefreshing = false,
   isSelectable,
@@ -320,11 +322,18 @@ export function DataList({
         // sibling of Card.Title (NOT inside Card.Title). Card.Title is one line
         // with right padding to clear the close icon. Subtext + action buttons
         // live on a second row inside Card.Header. Actions render inline — no
-        // IconDots Popover collapse — so primary actions like Refresh are one
+        // IconDotsHorizontal Popover collapse — so primary actions like Refresh are one
         // click instead of two. Subtext truncates first when buttons take their
         // share of width; a `title` attribute surfaces the full text on hover.
         <Card.Header className='gap-1'>
-          {title && <Card.Title className='line-clamp-1 min-w-0 pr-8'>{title}</Card.Title>}
+          {title && (
+            <Card.Title
+              className='line-clamp-1 min-w-0 pr-8'
+              title={typeof title === 'string' ? title : undefined}
+            >
+              {title}
+            </Card.Title>
+          )}
           {onClose && (
             <Tooltip closeDelay={0} delay={400}>
               <Button
@@ -335,7 +344,7 @@ export function DataList({
                 variant='ghost'
                 onPress={onClose}
               >
-                <IconX stroke={1.5} />
+                <IconX />
               </Button>
               <Tooltip.Content className='text-xs'>{closeLabel}</Tooltip.Content>
             </Tooltip>
@@ -375,7 +384,7 @@ export function DataList({
                         variant='ghost'
                         onPress={() => handleHeaderAction('openAll')}
                       >
-                        <IconQueuePopOut stroke={1.5} />
+                        <IconArrowSquareOut />
                       </Button>
                       <Tooltip.Content className='text-xs'>Open all in new tabs</Tooltip.Content>
                     </Tooltip>
@@ -392,7 +401,7 @@ export function DataList({
                         {isHeaderShared ? (
                           <AnimatedCheck stroke={1.5} />
                         ) : (
-                          <IconUsersPlus stroke={1.5} />
+                          <IconPeoplePlus />
                         )}
                       </Button>
                       <Tooltip.Content className='text-xs'>
@@ -409,7 +418,7 @@ export function DataList({
                         variant='ghost'
                         onPress={() => handleHeaderAction('copy')}
                       >
-                        {isCopied ? <AnimatedCheck stroke={1.5} /> : <IconClipboard stroke={1.5} />}
+                        {isCopied ? <AnimatedCheck stroke={1.5} /> : <IconClipboardCopy />}
                       </Button>
                       <Tooltip.Content className='text-xs'>
                         {isCopied ? 'Copied!' : 'Copy ID'}
@@ -452,7 +461,7 @@ export function DataList({
                               isReloadDisabled ? 'cursor-not-allowed opacity-50' : undefined
                             }
                           >
-                            <IconRefreshAlert stroke={1.5} />
+                            <IconReset />
                           </Button>
                           <Tooltip.Content className='text-xs'>{tooltipText}</Tooltip.Content>
                         </Tooltip>
@@ -468,7 +477,7 @@ export function DataList({
                         variant='ghost'
                         onPress={() => handleHeaderAction('refresh')}
                       >
-                        <IconRefresh className={isRefreshing ? 'animate-spin' : ''} stroke={1.5} />
+                        <IconSync className={isRefreshing ? 'animate-spin' : ''} />
                       </Button>
                       <Tooltip.Content className='text-xs'>Refresh</Tooltip.Content>
                     </Tooltip>
@@ -544,6 +553,16 @@ export function DataList({
               </Card.Content>
             </ScrollShadow>
           )}
+      {footer && (
+        // Mirrors the header's Separator pattern (`mt-1.5` on the top divider)
+        // so the footer slot has the same 6px breathing room above its rule as
+        // the header has below its rule. `shrink-0` keeps it pinned even when
+        // the list above is taller than the viewport.
+        <>
+          <Separator className='mt-1.5' />
+          <div className='shrink-0 pt-2'>{footer}</div>
+        </>
+      )}
     </Card>
   );
 }
@@ -766,9 +785,10 @@ function DataListItemImpl({
     item.isVirtualParent && (item.status === 'error' || item.status === 'failed');
   const showsErrorBody = isErrorState && item.error;
   const statusIndicator = isLoadingState ? (
-    <IconLoader2
-      size={18}
-      className={`shrink-0 animate-spin ${
+    <Spinner
+      color='current'
+      size='sm'
+      className={`shrink-0 ${
         item.status === 'transferring' ? 'text-warning' : 'text-accent'
       }`}
     />
@@ -845,7 +865,7 @@ function DataListItemImpl({
           variant='ghost'
           onPress={() => handleAction('remove')}
         >
-          <IconStackPop className='text-danger' stroke={1.5} />
+          <IconCancel className='text-danger' />
         </Button>
         <Tooltip.Content className='text-xs'>
           Remove{' '}
@@ -866,7 +886,7 @@ function DataListItemImpl({
           variant='ghost'
           onPress={() => handleAction('openAll')}
         >
-          <IconQueuePopOut stroke={1.5} />
+          <IconArrowSquareOut />
         </Button>
         <Tooltip.Content className='text-xs'>Open all in new tabs</Tooltip.Content>
       </Tooltip>
@@ -882,7 +902,7 @@ function DataListItemImpl({
           variant='ghost'
           onPress={() => handleAction('copy')}
         >
-          {isCopied ? <AnimatedCheck stroke={1.5} /> : <IconClipboard stroke={1.5} />}
+          {isCopied ? <AnimatedCheck stroke={1.5} /> : <IconClipboardCopy />}
         </Button>
         <Tooltip.Content className='text-xs'>{isCopied ? 'Copied!' : 'Copy ID'}</Tooltip.Content>
       </Tooltip>
@@ -898,7 +918,7 @@ function DataListItemImpl({
           variant='ghost'
           onPress={() => handleAction('shareAll')}
         >
-          {isShared ? <AnimatedCheck stroke={1.5} /> : <IconUsersPlus stroke={1.5} />}
+          {isShared ? <AnimatedCheck stroke={1.5} /> : <IconPeoplePlus />}
         </Button>
         <Tooltip.Content className='text-xs'>
           {isShared ? 'Shared!' : 'Share all with yourself'}
@@ -916,7 +936,7 @@ function DataListItemImpl({
           variant='ghost'
           onPress={() => handleAction('share')}
         >
-          {isShared ? <AnimatedCheck stroke={1.5} /> : <IconUserPlus stroke={1.5} />}
+          {isShared ? <AnimatedCheck stroke={1.5} /> : <IconPersonPlus />}
         </Button>
         <Tooltip.Content className='text-xs'>
           {isShared ? 'Shared!' : 'Share with yourself'}
@@ -934,7 +954,7 @@ function DataListItemImpl({
           variant='ghost'
           onPress={() => handleAction('viewsExplorer')}
         >
-          <IconBrandSafari stroke={1.5} />
+          <IconCompass />
         </Button>
         <Tooltip.Content className='text-xs'>Open in Views Explorer</Tooltip.Content>
       </Tooltip>
@@ -950,7 +970,7 @@ function DataListItemImpl({
           variant='ghost'
           onPress={() => handleAction('lineage')}
         >
-          <IconBinaryTree stroke={1.5} />
+          <IconLineage />
         </Button>
         <Tooltip.Content className='text-xs'>View Lineage</Tooltip.Content>
       </Tooltip>
@@ -1059,7 +1079,7 @@ function DataListItemImpl({
       : applicableActions.length > 1 && (
           <Popover>
             <Button isIconOnly size='sm' variant='ghost'>
-              <IconDots stroke={1.5} />
+              <IconDotsHorizontal />
             </Button>
             <Popover.Content offset={4} placement='left'>
               <Popover.Dialog className='p-0'>
@@ -1207,7 +1227,7 @@ function DataListItemImpl({
                   )}
               {!isLoadingState && (
                 <Disclosure.Indicator>
-                  <IconChevronDown stroke={1.5} />
+                  <IconChevronDown />
                 </Disclosure.Indicator>
               )}
             </Disclosure.Trigger>
@@ -1238,7 +1258,7 @@ function DataListItemImpl({
               <span aria-hidden='true' className='flex-1' />
               {!isLoadingState && (
                 <Disclosure.Indicator>
-                  <IconChevronDown stroke={1.5} />
+                  <IconChevronDown />
                 </Disclosure.Indicator>
               )}
             </Disclosure.Trigger>
@@ -1270,7 +1290,7 @@ function DataListItemImpl({
                 variant='tertiary'
               >
                 <Disclosure.Indicator>
-                  <IconChevronDown stroke={1.5} />
+                  <IconChevronDown />
                 </Disclosure.Indicator>
               </Disclosure.Trigger>
             </div>

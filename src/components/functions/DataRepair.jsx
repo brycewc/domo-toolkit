@@ -1,6 +1,6 @@
 import { Button, Tooltip } from '@heroui/react';
-import { IconBandage } from '@tabler/icons-react';
 
+import IconWrench from '@icons/wrench.svg?react';
 export function DataRepair({ currentContext, isDisabled }) {
   const handleDataRepair = () => {
     const origin = new URL(currentContext.url).origin;
@@ -18,7 +18,7 @@ export function DataRepair({ currentContext, isDisabled }) {
         variant='tertiary'
         onPress={handleDataRepair}
       >
-        <IconBandage stroke={1.5} />
+        <IconWrench />
         Data Repair
       </Button>
       <Tooltip.Content

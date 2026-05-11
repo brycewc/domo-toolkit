@@ -9,20 +9,18 @@ import {
   Tooltip,
   Virtualizer
 } from '@heroui/react';
-import {
-  IconChevronDown,
-  IconColumns,
-  IconDownload,
-  IconFileTypeCsv,
-  IconFileTypeXls,
-  IconPlus,
-  IconRefresh
-} from '@tabler/icons-react';
 import { AnimatePresence } from 'motion/react';
 import { useMemo, useState } from 'react';
 
 import { AnimatedCheck } from '@/components/AnimatedCheck';
-import { exportToCSV, exportToExcel, generateExportFilename } from '@/utils';
+import { exportToCSV, exportToExcel, generateExportFilename } from '@/utils/exportData';
+import IconAddColumn from '@icons/add-column.svg?react';
+import IconChevronDown from '@icons/chevron-down.svg?react';
+import IconCsv from '@icons/csv.svg?react';
+import IconDownload from '@icons/download.svg?react';
+import IconExcel from '@icons/excel.svg?react';
+import IconPlus from '@icons/plus.svg?react';
+import IconSync from '@icons/sync.svg?react';
 
 const ROW_HEIGHT = 53;
 const HEADING_HEIGHT = 40;
@@ -181,7 +179,7 @@ export function DataTable({
           {/* Column Visibility Dropdown */}
           <Dropdown>
             <Button variant='tertiary'>
-              <IconColumns stroke={1.5} />
+              <IconAddColumn />
               Columns
               <Chip color='accent' size='sm' variant='soft'>
                 {toggleableColumns.filter((c) => !hiddenColumns.has(c.id)).length}/
@@ -232,18 +230,18 @@ export function DataTable({
                     isPending ? (
                       <Spinner color='currentColor' size='sm' />
                     ) : (
-                      <IconDownload stroke={1.5} />
+                      <IconDownload />
                     )
                   }
                 </Button>
                 <Dropdown.Popover>
                   <Dropdown.Menu onAction={(key) => handleExport(key)}>
                     <Dropdown.Item id='csv' textValue='Export as CSV'>
-                      <IconFileTypeCsv stroke={1.5} />
+                      <IconCsv />
                       <Label>Export as CSV</Label>
                     </Dropdown.Item>
                     <Dropdown.Item id='xlsx' textValue='Export as Excel'>
-                      <IconFileTypeXls stroke={1.5} />
+                      <IconExcel />
                       <Label>Export as Excel</Label>
                     </Dropdown.Item>
                   </Dropdown.Menu>
@@ -267,7 +265,7 @@ export function DataTable({
                   isPending ? (
                     <Spinner color='currentColor' size='sm' />
                   ) : (
-                    <IconRefresh stroke={1.5} />
+                    <IconSync />
                   )
                 }
               </Button>
@@ -279,7 +277,7 @@ export function DataTable({
         {onAdd && (
           <div className='flex items-center gap-1'>
             <Button onPress={onAdd}>
-              <IconPlus stroke={1.5} />
+              <IconPlus />
               Add New
             </Button>
           </div>
@@ -361,7 +359,6 @@ function SortableHeader({ children, sortDirection }) {
       {children}
       {sortDirection && (
         <IconChevronDown
-          stroke={1.5}
           className={`size-3 transition-transform duration-100 ${
             sortDirection === 'ascending' ? 'rotate-180' : ''
           }`}

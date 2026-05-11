@@ -1,7 +1,7 @@
 import { Button, Tooltip } from '@heroui/react';
-import { IconTrash } from '@tabler/icons-react';
 
-import { useLaunchView } from '@/hooks';
+import { useLaunchView } from '@/hooks/useLaunchView';
+import IconTrash from '@icons/trash.svg?react';
 
 const SUPPORTED_TYPES = [
   'APP',
@@ -87,7 +87,7 @@ export function DeleteObject({ currentContext, isDisabled, onStatusUpdate }) {
         }
       >
         {({ isDisabled: btnDisabled }) => (
-          <IconTrash className={btnDisabled ? '' : 'text-danger'} stroke={1.5} />
+          <IconTrash className={btnDisabled ? '' : 'text-danger'} />
         )}
       </Button>
       <Tooltip.Content

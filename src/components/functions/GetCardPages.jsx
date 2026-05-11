@@ -1,8 +1,8 @@
 import { Button, Spinner, Tooltip } from '@heroui/react';
-import { IconStack2 } from '@tabler/icons-react';
 
-import { useLaunchView } from '@/hooks';
-import { waitForCards } from '@/utils';
+import { useLaunchView } from '@/hooks/useLaunchView';
+import { waitForCards } from '@/utils/cardHelpers';
+import IconPagesBars from '@icons/pages-bars.svg?react';
 
 const PAGE_LIKE_TYPES = ['DATA_APP_VIEW', 'PAGE', 'WORKSHEET_VIEW'];
 
@@ -50,7 +50,7 @@ export function GetCardPages({ currentContext, isDisabled, onCollapseActions, on
             <Spinner color='currentColor' size='sm' />
           ) : (
             <>
-              <IconStack2 stroke={1.5} />
+              <IconPagesBars />
               {isPageLike ? 'Get Other Card Pages' : 'Get Card Pages'}
             </>
           )

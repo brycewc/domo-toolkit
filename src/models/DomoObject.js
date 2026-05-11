@@ -1,5 +1,6 @@
-import { getAppStudioPageParent, getDrillParentCardId } from '@/services';
-import { executeInPage } from '@/utils';
+import { getDrillParentCardId } from '@/services/cards';
+import { getAppStudioPageParent } from '@/services/pages';
+import { executeInPage } from '@/utils/executeInPage';
 
 import { DomoObjectType, getObjectType } from './DomoObjectType';
 

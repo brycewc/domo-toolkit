@@ -1,4 +1,6 @@
-import { executeInPage, storeSidepanelData, waitForCards } from '@/utils';
+import { waitForCards } from '@/utils/cardHelpers';
+import { executeInPage } from '@/utils/executeInPage';
+import { storeSidepanelData } from '@/utils/sidepanel';
 
 /**
  * Check if a page is actually a data app view and get its parent app ID.

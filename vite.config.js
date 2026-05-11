@@ -4,6 +4,7 @@ import react from '@vitejs/plugin-react';
 import path from 'node:path';
 import { visualizer } from 'rollup-plugin-visualizer';
 import { defineConfig, loadEnv } from 'vite';
+import svgr from 'vite-plugin-svgr';
 
 import manifest from './manifest.config.js';
 
@@ -136,6 +137,7 @@ export default defineConfig(({ mode }) => {
         },
         name: 'dev-activity-log-page'
       },
+      svgr({ svgrOptions: { icon: true, titleProp: true } }),
       react(),
       crx({ manifest }),
       tailwindcss(),
@@ -143,7 +145,8 @@ export default defineConfig(({ mode }) => {
     ],
     resolve: {
       alias: {
-        '@': `${path.resolve(__dirname, 'src')}`
+        '@': `${path.resolve(__dirname, 'src')}`,
+        '@icons': `${path.resolve(__dirname, 'src/assets/icons')}`
       }
     },
     server: {

@@ -15,21 +15,21 @@ import {
   Switch
 } from '@heroui/react';
 import { getLocalTimeZone, parseDate, today } from '@internationalized/date';
-import {
-  IconAlertCircle,
-  IconCalendarWeek,
-  IconCircleCheck,
-  IconFilter
-} from '@tabler/icons-react';
 import { AnimatePresence } from 'motion/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { CloseButton } from '@/components';
 import { AnimatedCheck } from '@/components/AnimatedCheck';
-import { usePerInstanceSettings, useResolveTabId } from '@/hooks';
-import { DomoObject } from '@/models';
-import { fetchUserDisplayNames, getCustomAvatarUserIds } from '@/services';
-import { ACTION_COLOR_PATTERNS, getInitials } from '@/utils';
+import { CloseButton } from '@/components/CloseButton';
+import { usePerInstanceSettings } from '@/hooks/usePerInstanceSettings';
+import { useResolveTabId } from '@/hooks/useResolveTabId';
+import { DomoObject } from '@/models/DomoObject';
+import { fetchUserDisplayNames, getCustomAvatarUserIds } from '@/services/users';
+import { ACTION_COLOR_PATTERNS } from '@/utils/constants';
+import { getInitials } from '@/utils/general';
+import IconCalendar from '@icons/calendar.svg?react';
+import IconCheckCircle from '@icons/check-circle.svg?react';
+import IconExclamationPointCircle from '@icons/exclamation-point-circle.svg?react';
+import IconFunnel from '@icons/funnel.svg?react';
 
 import { DataTable } from './components/DataTable';
 import { UserFilterAutocomplete } from './components/UserFilterAutocomplete';
@@ -836,7 +836,7 @@ export function ActivityLogTable() {
               )}
               <DateRangePicker.Trigger>
                 <DateRangePicker.TriggerIndicator>
-                  <IconCalendarWeek className='text-foreground' stroke={1.5} />
+                  <IconCalendar className='text-foreground' />
                 </DateRangePicker.TriggerIndicator>
               </DateRangePicker.Trigger>
             </DateField.Suffix>
@@ -880,7 +880,7 @@ export function ActivityLogTable() {
               isDisabled={actionOptions.length === 0}
               variant='tertiary'
             >
-              <IconFilter stroke={1.5} />
+              <IconFunnel />
               Action
             </Button>
             <Dropdown.Popover className='max-h-120! overflow-y-auto'>
@@ -925,7 +925,7 @@ export function ActivityLogTable() {
                 isDisabled={objectTypeOptions.length === 0}
                 variant='tertiary'
               >
-                <IconFilter stroke={1.5} />
+                <IconFunnel />
                 Object Type
               </Button>
               <Dropdown.Popover className='max-h-64 overflow-y-auto'>
@@ -989,7 +989,7 @@ export function ActivityLogTable() {
         {source === 'api' && (
           <Alert status='warning'>
             <Alert.Indicator>
-              <IconAlertCircle data-slot='alert-default-icon' />
+              <IconExclamationPointCircle data-slot='alert-default-icon' />
             </Alert.Indicator>
             <Alert.Content>
               <Alert.Title>Activity Log API only retains the past year</Alert.Title>
@@ -1015,7 +1015,7 @@ export function ActivityLogTable() {
         {source === 'dataset' && !datasetFetchError && (
           <Alert status='success'>
             <Alert.Indicator>
-              <IconCircleCheck data-slot='alert-default-icon' />
+              <IconCheckCircle data-slot='alert-default-icon' />
             </Alert.Indicator>
             <Alert.Content>
               <Alert.Title>Using DomoStats Activity Log dataset</Alert.Title>
@@ -1046,7 +1046,7 @@ export function ActivityLogTable() {
         {source === 'dataset' && datasetFetchError && (
           <Alert status='danger'>
             <Alert.Indicator>
-              <IconAlertCircle data-slot='alert-default-icon' />
+              <IconExclamationPointCircle data-slot='alert-default-icon' />
             </Alert.Indicator>
             <Alert.Content>
               <Alert.Title>Couldn&apos;t load from the DomoStats dataset</Alert.Title>
@@ -1143,7 +1143,7 @@ export function ActivityLogTable() {
       <div className='p-4'>
         <Alert color='danger'>
           <Alert.Indicator>
-            <IconAlertCircle data-slot='alert-default-icon' />
+            <IconExclamationPointCircle data-slot='alert-default-icon' />
           </Alert.Indicator>
           <Alert.Content>
             <Alert.Title>Error Loading Activity Log</Alert.Title>

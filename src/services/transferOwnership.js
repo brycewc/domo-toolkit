@@ -1,63 +1,44 @@
+import { getOwnedAccounts, transferAccounts } from './accounts';
+import { getOwnedAiModels, transferAiModels } from './aiModels';
+import { getOwnedAiProjects, transferAiProjects } from './aiProjects';
+import { getOwnedAlerts, transferAlerts } from './alerts';
+import { getOwnedAppDbCollections, transferAppDbCollections } from './appDb';
 import {
-  getOwnedAccounts,
-  getOwnedAiModels,
-  getOwnedAiProjects,
-  getOwnedAlerts,
-  getOwnedAppDbCollections,
   getOwnedApprovals,
   getOwnedApprovalTemplates,
+  transferApprovals,
+  transferApprovalTemplates
+} from './approvals';
+import {
   getOwnedAppStudioApps,
-  getOwnedCards,
-  getOwnedCodeEnginePackages,
-  // getOwnedCustomApps,
-  getOwnedDataflows,
-  getOwnedDatasets,
-  getOwnedFilesets,
-  getOwnedFunctions,
-  getOwnedGoals,
-  getOwnedGroups,
-  getOwnedJupyterWorkspaces,
-  getOwnedMetrics,
-  getOwnedPages,
-  getOwnedProjectsAndTasks,
-  getOwnedRepositories,
-  getOwnedSubscriptions,
-  getOwnedTaskCenterQueues,
-  getOwnedTaskCenterTasks,
-  getOwnedWorkflows,
   getOwnedWorksheets,
-  getOwnedWorkspaces,
   getUserOwnedAppStudioApps,
   getUserOwnedWorksheets,
-  transferAccounts,
-  transferAiModels,
-  transferAiProjects,
-  transferAlerts,
-  transferAppDbCollections,
-  transferApprovals,
-  transferApprovalTemplates,
   transferAppStudioApps,
-  transferCards,
-  transferCodeEnginePackages,
-  // transferCustomApps,
-  transferDataflows,
-  transferDatasets,
-  transferFilesets,
-  transferFunctions,
-  transferGoals,
-  transferGroups,
-  transferJupyterWorkspaces,
-  transferMetrics,
-  transferPages,
-  transferProjectsAndTasks,
-  transferRepositories,
-  transferSubscriptions,
+  transferWorksheets
+} from './appStudio';
+import { getOwnedCards, transferCards } from './cards';
+import { getOwnedCodeEnginePackages, transferCodeEnginePackages } from './codeEngine';
+import { getOwnedDataflows, transferDataflows } from './dataflows';
+import { getOwnedDatasets, transferDatasets } from './datasets';
+import { getOwnedFilesets, transferFilesets } from './filesets';
+import { getOwnedFunctions, transferFunctions } from './functions';
+import { getOwnedGoals, transferGoals } from './goals';
+import { getOwnedGroups, transferGroups } from './groups';
+import { getOwnedJupyterWorkspaces, transferJupyterWorkspaces } from './jupyterWorkspaces';
+import { getOwnedMetrics, transferMetrics } from './metrics';
+import { getOwnedPages, transferPages } from './pages';
+import { getOwnedProjectsAndTasks, transferProjectsAndTasks } from './projects';
+import { getOwnedRepositories, transferRepositories } from './sandbox';
+import { getOwnedSubscriptions, transferSubscriptions } from './subscriptions';
+import {
+  getOwnedTaskCenterQueues,
+  getOwnedTaskCenterTasks,
   transferTaskCenterQueues,
-  transferTaskCenterTasks,
-  transferWorkflows,
-  transferWorksheets,
-  transferWorkspaces
-} from '@/services';
+  transferTaskCenterTasks
+} from './taskCenter';
+import { getOwnedWorkflows, transferWorkflows } from './workflows';
+import { getOwnedWorkspaces, transferWorkspaces } from './workspaces';
 
 /**
  * Registry of all transferable object types.

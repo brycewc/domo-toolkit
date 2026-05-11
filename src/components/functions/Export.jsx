@@ -1,20 +1,19 @@
 import { Button, Dropdown, Label, Tooltip } from '@heroui/react';
-import {
-  IconBrandPython,
-  IconCsv,
-  IconFileDownload,
-  IconFileTypeJs,
-  IconFileTypeXls
-} from '@tabler/icons-react';
 
-import { useStatusBar } from '@/hooks';
-import { exportCard, getCodeEngineCode } from '@/services';
+import { useStatusBar } from '@/hooks/useStatusBar';
+import { exportCard } from '@/services/cards';
+import { getCodeEngineCode } from '@/services/codeEngine';
+import IconCsv from '@icons/csv.svg?react';
+import IconCurlyBrackets from '@icons/curly-brackets.svg?react';
+import IconDownload from '@icons/download.svg?react';
+import IconExcel from '@icons/excel.svg?react';
+import IconPython from '@icons/python.svg?react';
 
 const NON_EXPORTABLE_CARD_TYPES = new Set(['domoapp', 'text']);
 
 const CARD_EXPORT_OPTIONS = [
   {
-    icon: IconFileTypeXls,
+    icon: IconExcel,
     id: 'excel',
     label: 'Export as Excel'
   },
@@ -87,7 +86,7 @@ export function Export({ currentContext, isDisabled }) {
           variant='tertiary'
           onPress={handleCodeExport}
         >
-          {isPython ? <IconBrandPython stroke={1.5} /> : <IconFileTypeJs stroke={1.5} />}
+          {isPython ? <IconPython /> : <IconCurlyBrackets />}
           Download Version
         </Button>
         <Tooltip.Content
@@ -129,7 +128,7 @@ export function Export({ currentContext, isDisabled }) {
         isDisabled={isDisabled}
         variant='tertiary'
       >
-        <IconFileDownload stroke={1.5} />
+        <IconDownload />
         Export
       </Button>
       <Dropdown.Popover className='w-fit min-w-40' placement='bottom'>

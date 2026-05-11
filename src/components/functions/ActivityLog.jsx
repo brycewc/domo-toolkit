@@ -1,10 +1,14 @@
 import { Button, Description, Dropdown, Label, Tooltip } from '@heroui/react';
-import { IconChartBar, IconLogs, IconSitemap, IconStack2 } from '@tabler/icons-react';
 import { useState } from 'react';
 
-import { useLongPress } from '@/hooks';
-import { getCardsForObject, getPagesForCards, getSubpageIds } from '@/services';
-import { waitForChildPages } from '@/utils';
+import { useLongPress } from '@/hooks/useLongPress';
+import { getCardsForObject } from '@/services/cards';
+import { getPagesForCards, getSubpageIds } from '@/services/pages';
+import { waitForChildPages } from '@/utils/pageHelpers';
+import IconChartBarBox from '@icons/chart-bar-box.svg?react';
+import IconListSearch from '@icons/list-search.svg?react';
+import IconPagesBars from '@icons/pages-bars.svg?react';
+import IconTree from '@icons/tree.svg?react';
 
 export function ActivityLog({ currentContext, onStatusUpdate }) {
   const [isLoading, setIsLoading] = useState(false);
@@ -210,7 +214,7 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
           {...(longPressEnabled ? pressProps : {})}
           {...(longPressEnabled ? pressProps : {})}
         >
-          <IconLogs stroke={1.5} />
+          <IconListSearch />
           <LongPressOverlay />
           <LongPressOverlay />
         </Button>
@@ -226,7 +230,7 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
         <Dropdown.Menu onAction={handleClick}>
           <Dropdown.Item id='cards' textValue='Cards'>
             <div className='flex h-fit items-start justify-start gap-2'>
-              <IconChartBar className='size-5 shrink-0' stroke={1.5} />
+              <IconChartBarBox className='size-5 shrink-0' />
               <div className='flex flex-col'>
                 <Label>Cards</Label>
                 <Description className='text-xs'>
@@ -238,7 +242,7 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
           </Dropdown.Item>
           <Dropdown.Item id='card-pages' textValue='Card Pages'>
             <div className='flex h-fit items-start justify-start gap-2'>
-              <IconStack2 className='size-5 shrink-0' stroke={1.5} />
+              <IconPagesBars className='size-5 shrink-0' />
               <div className='flex flex-col'>
                 <Label>Card Pages</Label>
                 <Description className='text-xs'>
@@ -251,7 +255,7 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
           {hasChildPages && (
             <Dropdown.Item id='child-pages' textValue='Child Pages'>
               <div className='flex h-fit items-start justify-start gap-2'>
-                <IconSitemap className='size-5 shrink-0' stroke={1.5} />
+                <IconTree className='size-5 shrink-0' />
                 <div className='flex flex-col'>
                   <Label>Child Pages</Label>
                   <Description className='text-xs'>

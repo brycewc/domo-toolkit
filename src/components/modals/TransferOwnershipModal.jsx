@@ -9,11 +9,13 @@ import {
   TextField,
   Tooltip
 } from '@heroui/react';
-import { IconUserUp, IconX } from '@tabler/icons-react';
 import { useEffect, useMemo, useState } from 'react';
 
-import { UserComboBox } from '@/components';
-import { countOwned, getFullUserDetails, getUserDetails } from '@/services';
+import { UserComboBox } from '@/components/UserComboBox';
+import { countOwned } from '@/services/transferOwnership';
+import { getFullUserDetails, getUserDetails } from '@/services/users';
+import IconPerson from '@icons/person.svg?react';
+import IconX from '@icons/x.svg?react';
 
 /**
  * Modal that collects the destination user, email/delete preferences, and
@@ -154,7 +156,7 @@ export function TransferOwnershipModal({
         <Modal.Container className='p-1' placement='top' scroll='outside'>
           <Modal.Dialog className='p-2'>
             <Modal.CloseTrigger className='absolute top-2 right-2' variant='ghost'>
-              <IconX stroke={1.5} />
+              <IconX />
             </Modal.CloseTrigger>
             <Form id='transfer-ownership-form' onSubmit={handleSubmit}>
               <Modal.Header>
@@ -192,7 +194,7 @@ export function TransferOwnershipModal({
                         setSelectedDisplayName(manager.name);
                       }}
                     >
-                      <IconUserUp stroke={1.5} />
+                      <IconPerson />
                     </Button>
                     <Tooltip.Content className='text-xs'>
                       {manager?.active
@@ -241,10 +243,10 @@ export function TransferOwnershipModal({
                 )}
 
                 <p className='text-xs text-muted'>
-                  <span className='font-medium text-foreground'>{selectedTypeCount}</span>{' '}
-                  type{selectedTypeCount !== 1 ? 's' : ''},{' '}
-                  <span className='font-medium text-foreground'>{selectedObjectCount}</span>{' '}
-                  object{selectedObjectCount !== 1 ? 's' : ''} selected
+                  <span className='font-medium text-foreground'>{selectedTypeCount}</span> type
+                  {selectedTypeCount !== 1 ? 's' : ''},{' '}
+                  <span className='font-medium text-foreground'>{selectedObjectCount}</span> object
+                  {selectedObjectCount !== 1 ? 's' : ''} selected
                 </p>
               </Modal.Body>
               <Modal.Footer className='flex justify-end gap-2'>

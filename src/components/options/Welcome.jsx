@@ -1,26 +1,25 @@
 import { Button, Card, Chip, Kbd, Link } from '@heroui/react';
 import {
   IconApi,
-  IconArrowUpRight,
-  IconBolt,
-  IconBrowser,
   IconBug,
-  IconClipboard,
   IconCookieOff,
-  IconEye,
-  IconFavicon,
-  IconFileDescription,
-  IconFileTypeDoc,
-  IconLayoutSidebarRightExpand,
-  IconPinned,
-  IconPuzzle,
-  IconSettings,
-  IconSparkles,
-  IconUserPlus,
-  IconX
+  IconPuzzle
 } from '@tabler/icons-react';
 import { motion } from 'motion/react';
 
+import IconAiSparkle from '@icons/ai-sparkle.svg?react';
+import IconArrowUpRight from '@icons/arrow-up-right.svg?react';
+import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
+import IconCrossPin from '@icons/cross-pin.svg?react';
+import IconEye from '@icons/eye.svg?react';
+import IconFileDocument from '@icons/file-document.svg?react';
+import IconGear from '@icons/gear.svg?react';
+import IconLightningBolt from '@icons/lightning-bolt.svg?react';
+import IconPersonPlus from '@icons/person-plus.svg?react';
+import IconRightRail from '@icons/right-rail.svg?react';
+import IconStar from '@icons/star.svg?react';
+import IconWebpage from '@icons/webpage.svg?react';
+import IconX from '@icons/x.svg?react';
 export function Welcome() {
   const handleClose = () => {
     window.close();
@@ -28,13 +27,13 @@ export function Welcome() {
 
   const actionFeatures = [
     {
-      icon: IconFileDescription,
+      icon: IconFileDocument,
       label: 'Instantly view the activity log for the current object'
     },
-    { icon: IconUserPlus, label: 'Share objects with yourself in one click' },
+    { icon: IconPersonPlus, label: 'Share objects with yourself in one click' },
     { icon: IconEye, label: 'Analyze dependencies and relationships' },
     {
-      icon: IconClipboard,
+      icon: IconClipboardCopy,
       label: (
         <p>
           Copy IDs with a click or keyboard shortcut{' '}
@@ -58,13 +57,13 @@ export function Welcome() {
 
   const automaticFeatures = [
     {
-      icon: IconBrowser,
+      icon: IconWebpage,
       id: 'tab-titles',
       label:
         'Tab titles are set to the object name. Say goodbye to identical tabs named "Domo"'
     },
     {
-      icon: IconFavicon,
+      icon: IconStar,
       id: 'favicons',
       label: (
         <p>
@@ -83,7 +82,7 @@ export function Welcome() {
       )
     },
     {
-      icon: IconBolt,
+      icon: IconLightningBolt,
       id: 'context',
       label:
         'Actions and information appears when relevant, and disappears when not'
@@ -119,20 +118,18 @@ export function Welcome() {
         stroke={1.5}
       />{' '}
       in your browser toolbar, then click{' '}
-      <IconPinned
+      <IconCrossPin
         className='inline-block shrink-0 align-middle'
         size={18}
-        stroke={1.5}
       />{' '}
       next to the extension icon
     </p>,
     'Navigate to an object in Domo',
     <p>
       Click the extension icon to use the popup (then click{' '}
-      <IconLayoutSidebarRightExpand
+      <IconRightRail
         className='inline-block shrink-0 align-middle'
         size={18}
-        stroke={1.5}
       />{' '}
       to use the side panel instead if preferred)
     </p>,
@@ -140,10 +137,9 @@ export function Welcome() {
     'Try navigating to different objects and observe the various available action buttons',
     <p>
       Adjust your settings and set your favicon preferences (click{' '}
-      <IconSettings
+      <IconGear
         className='inline-block shrink-0 align-middle'
         size={18}
-        stroke={1.5}
       />
       )
     </p>,
@@ -152,7 +148,7 @@ export function Welcome() {
 
   const links = [
     {
-      icon: IconFileTypeDoc,
+      icon: IconFileDocument,
       label: 'Documentation',
       url: 'https://domotoolkit.com'
     },
@@ -167,7 +163,7 @@ export function Welcome() {
       url: 'https://github.com/brycewc/domo-toolkit/issues/new?template=bug-report.md'
     },
     {
-      icon: IconSparkles,
+      icon: IconAiSparkle,
       label: 'Request a Feature',
       url: 'https://github.com/brycewc/domo-toolkit/issues/new?template=feature-request.md'
     },

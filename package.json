@@ -41,6 +41,10 @@
   "type": "module",
   "browser": {},
   "private": true,
+  "sideEffects": [
+    "**/*.css",
+    "src/dev/chromePolyfill.js"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -102,6 +106,7 @@
     "unified": "^11.0.5",
     "unified-prettier": "^2.0.1",
     "vite": "^8.0.10",
+    "vite-plugin-svgr": "^5.2.0",
     "vite-plugin-zip-pack": "^1.2.4"
   }
 }

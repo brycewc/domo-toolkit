@@ -13,19 +13,18 @@ import {
   Tooltip,
   Virtualizer
 } from '@heroui/react';
-import {
-  IconAlertTriangle,
-  IconArrowBackUp,
-  IconChevronDown,
-  IconRefresh,
-  IconX
-} from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 
-import { useStatusBar } from '@/hooks';
-import { DomoContext } from '@/models';
-import { getProviders, updateDataflowDetails, updateDatasetProperties } from '@/services';
-import { getSidepanelData } from '@/utils';
+import { useStatusBar } from '@/hooks/useStatusBar';
+import { DomoContext } from '@/models/DomoContext';
+import { updateDataflowDetails } from '@/services/dataflows';
+import { getProviders, updateDatasetProperties } from '@/services/datasets';
+import { getSidepanelData } from '@/utils/sidepanel';
+import IconArrowCurvedBack from '@icons/arrow-curved-back.svg?react';
+import IconChevronDown from '@icons/chevron-down.svg?react';
+import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
+import IconSync from '@icons/sync.svg?react';
+import IconX from '@icons/x.svg?react';
 
 const updatersByType = {
   DATA_SOURCE: {
@@ -224,7 +223,7 @@ export function UpdateDetailsView({ onBackToDefault = null, onStatusUpdate = nul
           {onBackToDefault && (
             <Tooltip closeDelay={0} delay={400}>
               <Button isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
-                <IconX stroke={1.5} />
+                <IconX />
               </Button>
               <Tooltip.Content className='text-xs'>Close</Tooltip.Content>
             </Tooltip>
@@ -339,7 +338,7 @@ function FieldRow({
                 placeholder={isLoadingOptions ? 'Loading providers…' : 'Type or pick a value…'}
               />
               <ComboBox.Trigger>
-                <IconChevronDown stroke={1} />
+                <IconChevronDown />
               </ComboBox.Trigger>
             </ComboBox.InputGroup>
             <ComboBox.Popover placement='bottom start'>
@@ -363,7 +362,7 @@ function FieldRow({
                 variant='tertiary'
                 onPress={onReset}
               >
-                <IconArrowBackUp stroke={1.5} />
+                <IconArrowCurvedBack />
               </Button>
               <Tooltip.Content className='text-xs'>
                 {originalValue
@@ -375,13 +374,13 @@ function FieldRow({
         </div>
         {optionsError && (
           <div className='flex items-center gap-2 py-1'>
-            <IconAlertTriangle className='shrink-0 text-danger' size={16} />
+            <IconExclamationTriangle className='shrink-0 text-danger' size={16} />
             <span className='min-w-0 flex-1 text-xs text-danger'>
               Could not load suggestions; you can still type a value
             </span>
             {onRetryOptions && (
               <Button size='sm' variant='ghost' onPress={onRetryOptions}>
-                <IconRefresh stroke={1.5} />
+                <IconSync />
                 Retry
               </Button>
             )}

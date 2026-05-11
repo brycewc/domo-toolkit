@@ -13,8 +13,8 @@ import {
 } from '@heroui/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { getCustomAvatarUserIds, searchUsers } from '@/services';
-import { getInitials } from '@/utils';
+import { getCustomAvatarUserIds, searchUsers } from '@/services/users';
+import { getInitials } from '@/utils/general';
 
 const MAX_VISIBLE_TAGS = 5;
 

@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react';
 
-import { getValidTabForInstance } from '@/utils';
+import { getValidTabForInstance } from '@/utils/currentObject';
 
 /**
  * Hook that provides a resilient tab ID resolver.

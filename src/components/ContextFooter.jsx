@@ -9,20 +9,16 @@ import {
   Tabs,
   Tooltip
 } from '@heroui/react';
-import { IconClipboard } from '@tabler/icons-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import JsonView from 'react18-json-view';
 
-import { useGroupLookup, useUserLookup } from '@/hooks';
-import { fetchObjectDetailsInPage, getObjectType } from '@/models';
-import { getDatasetColumns, getDatasetsForPage } from '@/services';
-import {
-  executeInPage,
-  formatEpochTimestamp,
-  isDateFieldName,
-  isGroupFieldName,
-  isUserFieldName
-} from '@/utils';
+import { useGroupLookup } from '@/hooks/useGroupLookup';
+import { useUserLookup } from '@/hooks/useUserLookup';
+import { fetchObjectDetailsInPage, getObjectType } from '@/models/DomoObjectType';
+import { getDatasetColumns, getDatasetsForPage } from '@/services/datasets';
+import { executeInPage } from '@/utils/executeInPage';
+import { formatEpochTimestamp, isDateFieldName, isGroupFieldName, isUserFieldName } from '@/utils/general';
+import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
 
 // Maps relatedData[].fetcher key → (params) => Promise<Array>. Lives here
 // (not in DomoObjectType.js) so the type model stays import-free of services.
@@ -583,10 +579,9 @@ function MetadataJsonView({ collapsed = 1, groupMap = {}, src, userMap = {} }) {
         />
       )}
       CopyComponent={({ className, onClick, style }) => (
-        <IconClipboard
+        <IconClipboardCopy
           className={className}
           size={16}
-          stroke={1.5}
           style={style}
           onClick={onClick}
         />

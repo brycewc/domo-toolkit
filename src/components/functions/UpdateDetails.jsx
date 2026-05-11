@@ -1,7 +1,7 @@
 import { Button, Tooltip } from '@heroui/react';
 
-import { ObjectTypeIcon } from '@/components';
-import { useLaunchView } from '@/hooks';
+import { ObjectTypeIcon } from '@/components/ObjectTypeIcon';
+import { useLaunchView } from '@/hooks/useLaunchView';
 
 // Per-type tooltip describing what fields the Update Details view edits.
 // Falls back to a generic message for any type without an entry here.

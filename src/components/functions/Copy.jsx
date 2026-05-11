@@ -1,9 +1,9 @@
 import { Button, Dropdown, Kbd, Label, Tooltip } from '@heroui/react';
-import { IconClipboard } from '@tabler/icons-react';
 import { useMemo, useState } from 'react';
 
-import { useLongPress } from '@/hooks';
-import { getObjectType } from '@/models';
+import { useLongPress } from '@/hooks/useLongPress';
+import { getObjectType } from '@/models/DomoObjectType';
+import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
 
 import { AnimatedCheck } from '../AnimatedCheck';
 
@@ -88,7 +88,7 @@ export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
           onPress={handlePress}
           {...(longPressDisabled ? {} : pressProps)}
         >
-          {isCopied ? <AnimatedCheck stroke={1.5} /> : <IconClipboard stroke={1.5} />}
+          {isCopied ? <AnimatedCheck stroke={1.5} /> : <IconClipboardCopy />}
           <LongPressOverlay />
         </Button>
         <Tooltip.Content
@@ -116,7 +116,7 @@ export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
         <Dropdown.Menu onAction={handleAction}>
           {dropdownItems.map((item) => (
             <Dropdown.Item id={item.id} key={item.id} textValue={item.label}>
-              <IconClipboard className='size-5 shrink-0' stroke={1.5} />
+              <IconClipboardCopy className='size-5 shrink-0' />
               <Label>{item.label}</Label>
             </Dropdown.Item>
           ))}

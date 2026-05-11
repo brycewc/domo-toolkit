@@ -1,18 +1,20 @@
 import { Alert, AlertDialog, Button, Card, Spinner, Tooltip } from '@heroui/react';
-import { IconAlertTriangle, IconTrash, IconX } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 
-import { ObjectTypeIcon } from '@/components';
-import { useStatusBar } from '@/hooks';
-import { DataListItem, DomoContext, DomoObject } from '@/models';
-import {
-  deleteAppAndAllContent,
-  deleteDataflowAndOutputs,
-  deleteObject,
-  deletePageAndAllCards,
-  getDependenciesForDelete
-} from '@/services';
-import { getSidepanelData } from '@/utils';
+import { ObjectTypeIcon } from '@/components/ObjectTypeIcon';
+import { useStatusBar } from '@/hooks/useStatusBar';
+import { DataListItem } from '@/models/DataListItem';
+import { DomoContext } from '@/models/DomoContext';
+import { DomoObject } from '@/models/DomoObject';
+import { deleteAppAndAllContent } from '@/services/customApps';
+import { deleteDataflowAndOutputs } from '@/services/dataflows';
+import { deleteObject } from '@/services/deleteObject';
+import { getDependenciesForDelete } from '@/services/dependencies';
+import { deletePageAndAllCards } from '@/services/pages';
+import { getSidepanelData } from '@/utils/sidepanel';
+import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
+import IconTrash from '@icons/trash.svg?react';
+import IconX from '@icons/x.svg?react';
 
 import { DataList } from './DataList';
 
@@ -310,7 +312,7 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
             {onBackToDefault && (
               <Tooltip closeDelay={0} delay={400}>
                 <Button isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
-                  <IconX stroke={1.5} />
+                  <IconX />
                 </Button>
                 <Tooltip.Content className='text-xs'>Close</Tooltip.Content>
               </Tooltip>
@@ -330,7 +332,7 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
         {isBlocked && deps?.blockingReason && (
           <Alert className='w-full shrink-0 bg-warning-soft' status='warning'>
             <Alert.Indicator>
-              <IconAlertTriangle data-slot='alert-default-icon' />
+              <IconExclamationTriangle data-slot='alert-default-icon' />
             </Alert.Indicator>
             <Alert.Content>
               <Alert.Description>{deps.blockingReason}</Alert.Description>
@@ -356,7 +358,7 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
                     })
                   }
                 >
-                  <IconTrash className='text-danger' stroke={1.5} />
+                  <IconTrash className='text-danger' />
                   {cascadeLabel}
                 </Button>
                 <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
@@ -373,7 +375,7 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
               variant='danger'
               onPress={() => setPendingAction({ kind: 'primary', label: primaryLabel })}
             >
-              <IconTrash stroke={1.5} />
+              <IconTrash />
               {primaryLabel}
             </Button>
             <Tooltip.Content className='text-xs'>
@@ -394,7 +396,7 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
             <AlertDialog.Dialog className='p-2 pt-3'>
               <div className='absolute top-0 left-0 h-1.25 w-full bg-danger' />
               <AlertDialog.CloseTrigger className='absolute top-3 right-2' variant='ghost'>
-                <IconX stroke={1.5} />
+                <IconX />
               </AlertDialog.CloseTrigger>
               <AlertDialog.Header>
                 <AlertDialog.Heading>{pendingAction?.label}</AlertDialog.Heading>

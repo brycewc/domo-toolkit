@@ -1,7 +1,7 @@
 import { Button, Tooltip } from '@heroui/react';
-import { IconListDetails } from '@tabler/icons-react';
 
-import { useLaunchView } from '@/hooks';
+import { useLaunchView } from '@/hooks/useLaunchView';
+import IconListBulleted from '@icons/list-bulleted.svg?react';
 
 export function GetOwnedObjects({ currentContext, onCollapseActions, onStatusUpdate }) {
   const { isPending, launch } = useLaunchView();
@@ -22,7 +22,7 @@ export function GetOwnedObjects({ currentContext, onCollapseActions, onStatusUpd
           })
         }
       >
-        <IconListDetails stroke={1.5} />
+        <IconListBulleted />
         Get Owned Objects
       </Button>
       <Tooltip.Content

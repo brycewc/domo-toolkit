@@ -6,7 +6,7 @@ import { createRoot } from 'react-dom/client';
 
 import '@/assets/global.css';
 import { ActivityLogTable } from '@/activityLog/ActivityLogTable';
-import { useTheme } from '@/hooks';
+import { useTheme } from '@/hooks/useTheme';
 
 function DevApp() {
   useTheme();

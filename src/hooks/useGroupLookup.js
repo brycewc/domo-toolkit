@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
-import { fetchGroupDisplayNames } from '@/services';
-import { extractGroupIds } from '@/utils';
+import { fetchGroupDisplayNames } from '@/services/groups';
+import { extractGroupIds } from '@/utils/general';
 
 export function useGroupLookup(src, tabId = null) {
   const [groupMap, setGroupMap] = useState({});

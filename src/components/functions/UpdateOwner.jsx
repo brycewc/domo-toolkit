@@ -1,11 +1,14 @@
 import { Button, Form, Modal, Tooltip } from '@heroui/react';
-import { IconUser, IconUserEdit, IconX } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 
-import { UserComboBox } from '@/components';
-import { useStatusBar } from '@/hooks';
-import { updateAlertOwner, updateWorkflowOwner } from '@/services';
-import { isSidepanel } from '@/utils';
+import { UserComboBox } from '@/components/UserComboBox';
+import { useStatusBar } from '@/hooks/useStatusBar';
+import { updateAlertOwner } from '@/services/alerts';
+import { updateWorkflowOwner } from '@/services/workflows';
+import { isSidepanel } from '@/utils/sidepanel';
+import IconPencilBox from '@icons/pencil-box.svg?react';
+import IconPerson from '@icons/person.svg?react';
+import IconX from '@icons/x.svg?react';
 
 export function UpdateOwner({ currentContext, onStatusUpdate }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -72,7 +75,7 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
             currentContext?.domoObject.typeId !== 'WORKFLOW_MODEL'
           }
         >
-          <IconUserEdit stroke={1.5} />
+          <IconPencilBox />
           Update Owner
         </Button>
         <Tooltip.Content
@@ -86,7 +89,7 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
         <Modal.Container className='p-1' placement='top' scroll='outside'>
           <Modal.Dialog className='p-2'>
             <Modal.CloseTrigger className='absolute top-2 right-2' variant='ghost'>
-              <IconX stroke={1.5} />
+              <IconX />
             </Modal.CloseTrigger>
             <Form id='update-owner-form' onSubmit={handleSubmit}>
               <Modal.Header>
@@ -120,7 +123,7 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
                     variant='tertiary'
                     onPress={handleSetToSelf}
                   >
-                    <IconUser stroke={1.5} />
+                    <IconPerson />
                   </Button>
                   <Tooltip.Content
                     className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'

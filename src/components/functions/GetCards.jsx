@@ -1,8 +1,8 @@
 import { Button, Spinner, Tooltip } from '@heroui/react';
-import { IconChartBar } from '@tabler/icons-react';
 
-import { useLaunchView } from '@/hooks';
-import { waitForCards } from '@/utils';
+import { useLaunchView } from '@/hooks/useLaunchView';
+import { waitForCards } from '@/utils/cardHelpers';
+import IconCard from '@icons/card.svg?react';
 
 // Types that have cards pre-fetched in background
 const PRE_FETCHED_TYPES = ['DATA_APP_VIEW', 'DATA_SOURCE', 'PAGE', 'WORKSHEET_VIEW'];
@@ -57,7 +57,7 @@ export function GetCards({ currentContext, isDisabled, onCollapseActions, onStat
             <Spinner color='currentColor' size='sm' />
           ) : (
             <>
-              <IconChartBar stroke={1.5} /> Get Cards
+              <IconCard /> Get Cards
             </>
           )
         }

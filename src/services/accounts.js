@@ -1,4 +1,4 @@
-import { executeInPage } from '@/utils';
+import { executeInPage } from '@/utils/executeInPage';
 
 /**
  * Get all accounts owned by a user.
@@ -104,7 +104,7 @@ export async function transferAccounts(accountIds, fromUserId, toUserId, tabId =
 
       for (const id of accountIds) {
         try {
-          const response = await fetch(`/api/data/v2/accounts/share/${id}`, {
+          const grantResp = await fetch(`/api/data/v2/accounts/share/${id}`, {
             body: JSON.stringify({
               accessLevel: 'OWNER',
               id: toUserId,
@@ -113,7 +113,23 @@ export async function transferAccounts(accountIds, fromUserId, toUserId, tabId =
             headers: { 'Content-Type': 'application/json' },
             method: 'PUT'
           });
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          if (!grantResp.ok) throw new Error(`Grant new owner HTTP ${grantResp.status}`);
+
+          const revokeResp = await fetch(`/api/data/v2/accounts/share/${id}`, {
+            body: JSON.stringify({
+              accessLevel: 'NONE',
+              id: fromUserId,
+              type: 'USER'
+            }),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'PUT'
+          });
+          if (!revokeResp.ok) {
+            throw new Error(
+              `Revoke previous owner HTTP ${revokeResp.status} (new owner was added; previous owner still has access)`
+            );
+          }
+
           succeeded++;
         } catch (error) {
           errors.push({ error: error.message, id });

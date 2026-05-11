@@ -11,13 +11,16 @@ import {
   TextField,
   Tooltip
 } from '@heroui/react';
-import { IconAlertTriangle, IconCheck, IconLoader2, IconRefresh, IconX } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 
-import { useStatusBar } from '@/hooks';
-import { DomoContext } from '@/models';
-import { duplicateUser, fetchDuplicationPreview } from '@/services';
-import { getSidepanelData } from '@/utils';
+import { useStatusBar } from '@/hooks/useStatusBar';
+import { DomoContext } from '@/models/DomoContext';
+import { duplicateUser, fetchDuplicationPreview } from '@/services/duplicate';
+import { getSidepanelData } from '@/utils/sidepanel';
+import IconCheck from '@icons/check.svg?react';
+import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
+import IconSync from '@icons/sync.svg?react';
+import IconX from '@icons/x.svg?react';
 
 /**
  * Registry of duplicatable object types. Add an entry here to support a new
@@ -278,7 +281,7 @@ export function DuplicateView({ onBackToDefault = null, onStatusUpdate = null })
           {onBackToDefault && (
             <Tooltip closeDelay={0} delay={400}>
               <Button isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
-                <IconX stroke={1.5} />
+                <IconX />
               </Button>
               <Tooltip.Content className='text-xs'>Close</Tooltip.Content>
             </Tooltip>
@@ -388,10 +391,10 @@ function PreviewPanel({ config, error, isLoading, onRetry, preview }) {
   if (error) {
     return (
       <div className='flex items-center gap-2 py-2'>
-        <IconAlertTriangle className='shrink-0 text-danger' size={18} />
+        <IconExclamationTriangle className='shrink-0 text-danger' size={18} />
         <span className='min-w-0 flex-1 text-sm text-danger'>{error}</span>
         <Button size='sm' variant='tertiary' onPress={onRetry}>
-          <IconRefresh stroke={1.5} />
+          <IconSync />
           Retry
         </Button>
       </div>
@@ -497,7 +500,7 @@ function StepRow({ state, step }) {
     return (
       <div className='flex items-center justify-between py-1' key={step.key}>
         <div className='flex items-center gap-2'>
-          <IconLoader2 className='shrink-0 animate-spin text-accent' size={18} />
+          <Spinner className='shrink-0 text-accent' color='current' size='sm' />
           <span className='text-sm'>{step.label}</span>
         </div>
       </div>

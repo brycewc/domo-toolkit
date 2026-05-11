@@ -1,4 +1,4 @@
-import { executeInPage } from '@/utils';
+import { executeInPage } from '@/utils/executeInPage';
 
 import { getCardsForObject } from './cards';
 import { getChildPages } from './pages';

@@ -1,21 +1,21 @@
-import { Card, Checkbox, Label, Spinner } from '@heroui/react';
-import { IconChecks, IconUserUp } from '@tabler/icons-react';
+import { Button, Card, Checkbox, Label, Spinner } from '@heroui/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { DataList, TransferOwnershipModal } from '@/components';
-import { useParallelFetches, useStatusBar } from '@/hooks';
-import { DataListItem, DomoContext, DomoObject } from '@/models';
-import {
-  countOwned,
-  deleteUser,
-  flattenOwned,
-  sendEmail,
-  TRANSFER_TYPES,
-  transferAllOwnership,
-  TYPE_KEY_TO_LOG_TYPE,
-  uploadDataFile
-} from '@/services';
-import { buildExcelBlob, generateExportFilename, getSidepanelData } from '@/utils';
+import { TransferOwnershipModal } from '@/components/modals/TransferOwnershipModal';
+import { DataList } from '@/components/views/DataList';
+import { useParallelFetches } from '@/hooks/useParallelFetches';
+import { useStatusBar } from '@/hooks/useStatusBar';
+import { DataListItem } from '@/models/DataListItem';
+import { DomoContext } from '@/models/DomoContext';
+import { DomoObject } from '@/models/DomoObject';
+import { uploadDataFile } from '@/services/files';
+import { sendEmail } from '@/services/messages';
+import { countOwned, flattenOwned, TRANSFER_TYPES, transferAllOwnership, TYPE_KEY_TO_LOG_TYPE } from '@/services/transferOwnership';
+import { deleteUser } from '@/services/users';
+import { buildExcelBlob, generateExportFilename } from '@/utils/exportData';
+import { getSidepanelData } from '@/utils/sidepanel';
+import IconArrowsHorizontalBox from '@icons/arrows-horizontal-box.svg?react';
+import IconFormatListChecks from '@icons/format-list-checks.svg?react';
 
 const LOG_COLUMNS = [
   { accessorKey: 'Object Type', header: 'Object Type' },
@@ -326,16 +326,14 @@ export function OwnershipView({ onBackToDefault = null, onStatusUpdate = null })
     setSelectedTypeKeys(new Set());
   }, []);
 
-  // "Transfer to..." button: if nothing's selected, auto-engage selection mode
-  // and select every eligible type. Matches the prior TransferOwnership default
-  // (pre-selected all transferable types). User can deselect inside the view.
+  // The footer Transfer button only renders inside selection mode (and the
+  // selection-toggle header action seeds `selectedTypeKeys` with every eligible
+  // type when first entered), so the prior "auto-engage selection mode if
+  // nothing's selected" fallback can't trigger from here anymore — this is
+  // just an open-the-modal handler now.
   const handleOpenTransferModal = useCallback(() => {
-    if (selectedTypeKeys.size === 0) {
-      setSelectedTypeKeys(new Set(eligibleTypeKeys));
-      setSelectionMode(true);
-    }
     setTransferModalOpen(true);
-  }, [selectedTypeKeys, eligibleTypeKeys]);
+  }, []);
 
   // Select-all / Clear handlers used by the toolbar Checkbox. The Checkbox
   // itself derives its visual state (indeterminate vs. checked) from the
@@ -588,15 +586,13 @@ export function OwnershipView({ onBackToDefault = null, onStatusUpdate = null })
   const customHeaderActions = useMemo(() => {
     const actions = [];
     if (isUserSource) {
+      // Transfer action moved out of the header — it now lives as a full-width
+      // Button in the DataList footer slot, only visible when selection mode is
+      // engaged. The selection toggle stays in the header so users can enter
+      // selection mode (which reveals the footer button) without committing to
+      // a destination yet.
       actions.push({
-        icon: <IconUserUp stroke={1.5} />,
-        isDisabled: !isFullyLoaded || !hasAnyTransferable || isTransferring,
-        key: 'transfer',
-        onPress: handleOpenTransferModal,
-        tooltipText: 'Transfer ownership to…'
-      });
-      actions.push({
-        icon: <IconChecks stroke={1.5} />,
+        icon: <IconFormatListChecks />,
         isActive: selectionMode,
         isDisabled: !isFullyLoaded || !hasAnyTransferable || isTransferring,
         key: 'selection',
@@ -618,7 +614,6 @@ export function OwnershipView({ onBackToDefault = null, onStatusUpdate = null })
   }, [
     eligibleTypeKeys,
     exitSelectionMode,
-    handleOpenTransferModal,
     hasAnyTransferable,
     isFullyLoaded,
     isTransferring,
@@ -676,6 +671,44 @@ export function OwnershipView({ onBackToDefault = null, onStatusUpdate = null })
     selectionMode
   ]);
 
+  // Full-width Transfer button pinned to the bottom of the Card when selection
+  // mode is engaged. Replaces the header's transfer action so the primary CTA
+  // sits where the user's attention finishes after scrolling through type
+  // checkboxes. Disabled until there's at least one selected-and-eligible type
+  // (filtering to eligible matters during autoEnableSelectionMode pre-select,
+  // when `selectedTypeKeys` may temporarily include not-yet-resolved types).
+  const selectionFooter = useMemo(() => {
+    if (!selectionMode) return null;
+    const totalSelectedEligible = eligibleTypeKeys.filter((k) =>
+      selectedTypeKeys.has(k)
+    ).length;
+    return (
+      <Button
+        fullWidth
+        size='sm'
+        startContent={<IconArrowsHorizontalBox />}
+        variant='primary'
+        onPress={handleOpenTransferModal}
+        isDisabled={
+          totalSelectedEligible === 0 ||
+          isTransferring ||
+          !isFullyLoaded ||
+          !hasAnyTransferable
+        }
+      >
+        Transfer ownership to…
+      </Button>
+    );
+  }, [
+    eligibleTypeKeys,
+    handleOpenTransferModal,
+    hasAnyTransferable,
+    isFullyLoaded,
+    isTransferring,
+    selectedTypeKeys,
+    selectionMode
+  ]);
+
   if (isLoading) {
     return (
       <Card className='flex h-full w-full items-center justify-center'>
@@ -692,6 +725,7 @@ export function OwnershipView({ onBackToDefault = null, onStatusUpdate = null })
       <DataList
         closeLabel='Close Ownership View'
         customHeaderActions={customHeaderActions}
+        footer={selectionFooter}
         headerActions={['refresh']}
         isRefreshing={loadingCount > 0}
         isSelectable={isTypeSelectable}

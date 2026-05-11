@@ -1,20 +1,15 @@
 import { Button, Chip, Dropdown, Header, Label, Separator, Spinner, Tooltip } from '@heroui/react';
-import {
-  IconAlertTriangle,
-  IconClipboard,
-  IconExternalLink,
-  IconEye,
-  IconLayoutSidebarRightExpand
-} from '@tabler/icons-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import {
-  DomoObject,
-  fetchObjectDetailsInPage,
-  getAllNavigableObjectTypes,
-  getAllObjectTypesWithApiConfig
-} from '@/models';
-import { executeInPage, isSidepanel, openSidepanel, storeSidepanelData } from '@/utils';
+import { DomoObject } from '@/models/DomoObject';
+import { fetchObjectDetailsInPage, getAllNavigableObjectTypes, getAllObjectTypesWithApiConfig } from '@/models/DomoObjectType';
+import { executeInPage } from '@/utils/executeInPage';
+import { isSidepanel, openSidepanel, storeSidepanelData } from '@/utils/sidepanel';
+import IconArrowSquareOut from '@icons/arrow-square-out.svg?react';
+import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
+import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
+import IconEye from '@icons/eye.svg?react';
+import IconRightRail from '@icons/right-rail.svg?react';
 
 const TYPE_PRIORITY = [
   'CARD',
@@ -285,7 +280,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
           variant='tertiary'
           onPress={() => {}}
         >
-          <IconExternalLink stroke={1.5} />
+          <IconArrowSquareOut />
         </Button>
         <Tooltip.Content
           className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
@@ -301,7 +296,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
     <Dropdown isOpen={isOpen} onOpenChange={handleOpenChange}>
       <Tooltip closeDelay={0} delay={400}>
         <Button fullWidth isIconOnly variant='tertiary'>
-          <IconExternalLink stroke={1.5} />
+          <IconArrowSquareOut />
         </Button>
         <Tooltip.Content
           className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
@@ -316,7 +311,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
       >
         {copiedId && (
           <div className='pointer-events-none flex shrink-0 items-center gap-1 px-2 pt-2 font-mono text-xs text-muted select-none'>
-            <IconClipboard size={12} stroke={1.5} />
+            <IconClipboardCopy size={12} />
             <p title='Current clipboard value'>{copiedId}</p>
           </div>
         )}
@@ -335,7 +330,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
               id='_error'
               textValue={error || 'Error'}
             >
-              <IconAlertTriangle className='size-5 shrink-0' stroke={1.5} />
+              <IconExclamationTriangle className='size-5 shrink-0' />
               <Label className='text-muted'>{error}</Label>
             </Dropdown.Item>
             <Dropdown.Item
@@ -344,9 +339,9 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
               textValue='Navigate'
             >
               {resolvedObject?.hasUrl() ? (
-                <IconExternalLink className='size-5 shrink-0' stroke={1.5} />
+                <IconArrowSquareOut className='size-5 shrink-0' />
               ) : (
-                <IconEye className='size-5 shrink-0' stroke={1.5} />
+                <IconEye className='size-5 shrink-0' />
               )}
               <div className='flex flex-col gap-1'>
                 <Chip className='w-fit lowercase' color='accent' size='sm' variant='soft'>
@@ -365,9 +360,9 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
                 {filteredTypes.map((type) => (
                   <Dropdown.Item id={type.id} key={type.id} textValue={type.name}>
                     {type.hasUrl() ? (
-                      <IconExternalLink className='size-5 shrink-0' stroke={1.5} />
+                      <IconArrowSquareOut className='size-5 shrink-0' />
                     ) : (
-                      <IconLayoutSidebarRightExpand className='size-5 shrink-0' stroke={1.5} />
+                      <IconRightRail className='size-5 shrink-0' />
                     )}
                     <Label>{type.name}</Label>
                   </Dropdown.Item>

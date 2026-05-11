@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 
-import { useResolveTabId } from '@/hooks';
+import { useResolveTabId } from '@/hooks/useResolveTabId';
 
 import {
   convertToGraph,

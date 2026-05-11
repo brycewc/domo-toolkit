@@ -51,6 +51,9 @@ export function getAvailableActions(currentContext) {
     actions.add('copyColorRules');
     actions.add('getViewInputs');
     actions.add('dataRepair');
+    if (details?.streamId && metadata?.parent?.details?.currentExecutionState === 'ACTIVE') {
+      actions.add('cancelStreamExecution');
+    }
     if (details?.streamId && metadata?.parent?.details?.scheduleState !== 'MANUAL') {
       actions.add('setStreamToManual');
     }
