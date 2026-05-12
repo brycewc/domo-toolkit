@@ -542,7 +542,47 @@ export function GetPagesView({
   );
 
   const renderSubtext = () => {
-    if (items.length === undefined || pageData?.sidepanelType === 'getCardPages') return null;
+    if (items.length === undefined) return null;
+
+    if (pageData?.sidepanelType === 'getCardPages') {
+      const pageTypes = new Set([
+        'DATA_APP_VIEW',
+        'PAGE',
+        'REPORT_BUILDER_VIEW',
+        'WORKSHEET_VIEW'
+      ]);
+      const cardIds = new Set();
+      const tally = (list) => {
+        let pages = 0;
+        for (const item of list || []) {
+          if (item.typeId === 'CARD') cardIds.add(item.id);
+          else if (pageTypes.has(item.typeId)) pages++;
+          if (item.children?.length) {
+            pages += tally(item.children);
+          }
+        }
+        return pages;
+      };
+      const pages = tally(items);
+      const cards = cardIds.size;
+      if (!pages) return null;
+      return (
+        <span className='inline-flex items-center gap-1'>
+          <span>
+            {pages} page{pages === 1 ? '' : 's'}
+          </span>
+          {cards > 0 && (
+            <>
+              <Separator className='mx-1 h-3' orientation='vertical' size='sm' />
+              <span>
+                {cards} card{cards === 1 ? '' : 's'}
+              </span>
+            </>
+          )}
+        </span>
+      );
+    }
+
     const grandchildCount = items.reduce(
       (total, item) => total + (item.children?.length || 0),
       0

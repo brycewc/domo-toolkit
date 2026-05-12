@@ -1,7 +1,8 @@
 import { Button, Tooltip } from '@heroui/react';
-import IconStop from '@icons/stop.svg?react';
+
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { cancelStreamExecution } from '@/services/datasets';
+import IconStop from '@icons/stop.svg?react';
 
 export function CancelStreamExecution({ currentContext, isDisabled }) {
   const { showPromiseStatus } = useStatusBar();
@@ -39,13 +40,13 @@ export function CancelStreamExecution({ currentContext, isDisabled }) {
         onPress={handlePress}
       >
         <IconStop />
-        Cancel Update
+        Cancel Run
       </Button>
       <Tooltip.Content
         className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
         offset={4}
       >
-        Cancel the currently running update for this dataset's stream
+        Cancel the currently running execution for this dataset's stream
       </Tooltip.Content>
     </Tooltip>
   );

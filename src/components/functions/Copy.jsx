@@ -25,6 +25,9 @@ export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
       if (!config.when) return !!resolve(config.source);
       if (typeof config.when === 'string') return !!resolve(config.when);
       const val = resolve(config.when.field);
+      if (config.when.length !== undefined) {
+        return Array.isArray(val) && val.length === config.when.length;
+      }
       return typeof val === 'string' && val.toLowerCase() === config.when.matches.toLowerCase();
     };
 

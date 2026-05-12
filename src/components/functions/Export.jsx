@@ -122,15 +122,23 @@ export function Export({ currentContext, isDisabled }) {
 
   return (
     <Dropdown isDisabled={isDisabled}>
-      <Button
-        fullWidth
-        className='min-w-36 flex-1 whitespace-normal'
-        isDisabled={isDisabled}
-        variant='tertiary'
-      >
-        <IconDownload />
-        Export
-      </Button>
+      <Tooltip closeDelay={100} delay={600}>
+        <Button
+          fullWidth
+          className='min-w-36 flex-1 whitespace-normal'
+          isDisabled={isDisabled}
+          variant='tertiary'
+        >
+          <IconDownload />
+          Export
+        </Button>
+        <Tooltip.Content
+          className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+          offset={4}
+        >
+          Quick export card data as Excel or CSV
+        </Tooltip.Content>
+      </Tooltip>
       <Dropdown.Popover className='w-fit min-w-40' placement='bottom'>
         <Dropdown.Menu onAction={(key) => handleCardExport(key)}>
           {CARD_EXPORT_OPTIONS.map((opt) => (

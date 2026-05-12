@@ -15,7 +15,8 @@ export class DomoObjectType {
    *   - source: dot-path on DomoObject to resolve the copy value (e.g., 'parentId', 'metadata.details.streamId')
    *   - primary: if true, overrides the default copy action; original object ID moves to dropdown
    *   - when: visibility condition — omit to show when source is truthy,
-   *     string path for truthy check, or { field, matches } for case-insensitive equality
+   *     string path for truthy check, { field, matches } for case-insensitive equality,
+   *     or { field, length } for array-length equality (e.g., show only when an array has exactly N items)
    * @param {Object} [options.extractConfig] - Configuration for extracting ID from URL
    * @param {Object} [options.icon] - Icon config for this object type
    *   { component: string, rotation?: number } where component is a key in the ObjectTypeIcon registry
@@ -394,6 +395,13 @@ export const ObjectTypeRegistry = {
       pathToDetails: '[0]',
       pathToName: '[0].title'
     },
+    copyConfigs: [
+      {
+        label: 'DataSet ID',
+        source: 'metadata.details.datasources.0.dataSourceId',
+        when: { field: 'metadata.details.datasources', length: 1 }
+      }
+    ],
     extractConfig: { keyword: 'details' },
     icon: { component: 'Card' },
     idPattern: /^\d+$/,

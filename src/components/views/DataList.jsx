@@ -1266,29 +1266,32 @@ function DataListItemImpl({
         ) : (
           // Regular items: label stays outside the Trigger so the <Link> /
           // tooltip-wrapped span retains its own click semantics (navigate /
-          // surface ID). The count sits next to the label as a sibling so it
-          // reads as "<label> (<count>)" — same visual rhythm as a virtual
-          // parent. The Trigger then takes flex-1 to claim any remaining
-          // empty space between the count and the chevron, so clicking that
-          // empty space still toggles the disclosure instead of landing on
-          // the Link. HeroUI's `.disclosure__indicator` has
-          // `margin-inline-start: auto`, which pushes the chevron to the
-          // trigger's right edge inside its flex context.
+          // surface ID). The count moves INTO the Trigger as its first child
+          // so the trigger's min-content size is `count + gap + chevron`
+          // rather than just the chevron — otherwise a long, truncating label
+          // would collapse the trigger to a 16px hit area next to a 100px+
+          // count that did nothing on click. The Trigger keeps flex-1 to
+          // claim any remaining empty space between the count and the
+          // chevron, so clicking that empty space also toggles disclosure.
+          // HeroUI's `.disclosure__indicator` has `margin-inline-start: auto`,
+          // which pushes the chevron to the trigger's right edge inside its
+          // flex context — so the count visually sits adjacent to the label
+          // (left side of trigger) and the chevron stays pinned right.
           <>
             {selectionPlaceholder}
             <div className='flex w-full min-w-0 flex-1 basis-4/5 items-center gap-2'>
               {itemLabel}
-              {showCounts && item.count !== undefined && (
-                <p className='shrink-0 text-sm whitespace-nowrap text-muted'>
-                  ({item.count}
-                  {item.countLabel ? ` ${item.countLabel}` : ''})
-                </p>
-              )}
               <Disclosure.Trigger
                 aria-label='Toggle'
-                className='flex flex-1 flex-row items-center'
+                className='flex flex-1 flex-row items-center gap-2'
                 variant='tertiary'
               >
+                {showCounts && item.count !== undefined && (
+                  <p className='shrink-0 text-sm whitespace-nowrap text-muted'>
+                    ({item.count}
+                    {item.countLabel ? ` ${item.countLabel}` : ''})
+                  </p>
+                )}
                 <Disclosure.Indicator>
                   <IconChevronDown />
                 </Disclosure.Indicator>

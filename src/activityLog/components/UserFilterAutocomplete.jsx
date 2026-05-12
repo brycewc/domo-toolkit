@@ -226,17 +226,17 @@ export function UserFilterAutocomplete({
     >
       <Autocomplete.Trigger aria-label='User autocomplete trigger'>
         <Autocomplete.Value aria-label='Selected users'>
-          {({ defaultChildren, isPlaceholder, state }) => {
-            if (isPlaceholder || state.selectedItems.length === 0) {
+          {({ defaultChildren }) => {
+            if (value.length === 0) {
               return defaultChildren;
             }
-            const selectedKeys = state.selectedItems.map((item) => item.key);
-            const visibleKeys = selectedKeys.slice(0, MAX_VISIBLE_TAGS);
-            const overflowCount = selectedKeys.length - visibleKeys.length;
+            const visibleKeys = value.slice(0, MAX_VISIBLE_TAGS);
+            const overflowCount = value.length - visibleKeys.length;
             return (
               <TagGroup
                 className='flex min-w-0 flex-row items-center gap-1'
                 size='sm'
+                variant='surface'
                 onRemove={handleRemoveTags}
               >
                 <TagGroup.List className='flex-nowrap'>
