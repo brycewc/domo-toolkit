@@ -14,17 +14,23 @@ const EXCLUDED_HOSTNAMES = [
 ];
 
 export function ClearCookies({ currentContext, isDisabled }) {
-  const [cookieClearingMode, setCookieClearingMode] = useState('auto');
+  const [showButton, setShowButton] = useState(true);
+  const [behavior, setBehavior] = useState('preserve');
   const { showPromiseStatus } = useStatusBar();
 
   useEffect(() => {
-    chrome.storage.sync.get(['defaultClearCookiesHandling'], (result) => {
-      setCookieClearingMode(result.defaultClearCookiesHandling || 'auto');
+    chrome.storage.sync.get(['showClearCookiesButton', 'clearCookiesButtonBehavior'], (result) => {
+      setShowButton(result.showClearCookiesButton ?? true);
+      setBehavior(result.clearCookiesButtonBehavior || 'preserve');
     });
 
     const handleStorageChange = (changes, areaName) => {
-      if (areaName === 'sync' && changes.defaultClearCookiesHandling) {
-        setCookieClearingMode(changes.defaultClearCookiesHandling.newValue || 'auto');
+      if (areaName !== 'sync') return;
+      if (changes.showClearCookiesButton) {
+        setShowButton(changes.showClearCookiesButton.newValue ?? true);
+      }
+      if (changes.clearCookiesButtonBehavior) {
+        setBehavior(changes.clearCookiesButtonBehavior.newValue || 'preserve');
       }
     };
 
@@ -34,7 +40,7 @@ export function ClearCookies({ currentContext, isDisabled }) {
     };
   }, []);
 
-  if (cookieClearingMode === 'auto') {
+  if (!showButton) {
     return null;
   }
 
@@ -42,7 +48,7 @@ export function ClearCookies({ currentContext, isDisabled }) {
     const promise = (async () => {
       let result;
 
-      if (cookieClearingMode === 'all') {
+      if (behavior === 'all') {
         result = await clearCookies({
           domains: null,
           excludeDomains: false,
@@ -80,7 +86,7 @@ export function ClearCookies({ currentContext, isDisabled }) {
   };
 
   const tooltipText =
-    cookieClearingMode === 'all'
+    behavior === 'all'
       ? 'Clear all Domo cookies'
       : 'Clear Domo cookies and preserve last 2 instances';
 
@@ -93,7 +99,7 @@ export function ClearCookies({ currentContext, isDisabled }) {
         variant='tertiary'
         onPress={handleClearCookies}
       >
-        <IconCookieOff className='text-danger' />
+        <IconCookieOff className='text-danger' stroke={1.5} />
       </Button>
       <Tooltip.Content
         className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'

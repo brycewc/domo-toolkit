@@ -318,6 +318,44 @@ function getTabContext(tabId) {
   return tabContexts.get(tabId) || null;
 }
 
+// One-shot migration from the legacy `defaultClearCookiesHandling` tri-state
+// to three independent settings (auto / button visibility / button behavior).
+async function migrateClearCookiesSetting() {
+  const { defaultClearCookiesHandling } = await chrome.storage.sync.get([
+    'defaultClearCookiesHandling'
+  ]);
+  if (defaultClearCookiesHandling === undefined) return;
+
+  const mapping = {
+    all: {
+      autoClearCookiesOn431: false,
+      clearCookiesButtonBehavior: 'all',
+      showClearCookiesButton: true
+    },
+    auto: {
+      autoClearCookiesOn431: true,
+      clearCookiesButtonBehavior: 'preserve',
+      showClearCookiesButton: false
+    },
+    preserve: {
+      autoClearCookiesOn431: false,
+      clearCookiesButtonBehavior: 'preserve',
+      showClearCookiesButton: true
+    }
+  };
+  const newSettings = mapping[defaultClearCookiesHandling];
+  if (!newSettings) return;
+
+  await chrome.storage.sync.set(newSettings);
+  await chrome.storage.sync.remove('defaultClearCookiesHandling');
+  console.log(
+    '[Background] Migrated cookie clearing setting:',
+    defaultClearCookiesHandling,
+    '→',
+    newSettings
+  );
+}
+
 function pathnameOf(url) {
   try {
     return new URL(url).pathname;
@@ -484,6 +522,8 @@ function updateTabContextKey(tabId, { objectKey, url }) {
 chrome.runtime.onInstalled.addListener((details) => {
   const currentVersion = chrome.runtime.getManifest().version;
 
+  migrateClearCookiesSetting();
+
   if (details.reason === 'install') {
     chrome.tabs.create({
       url: chrome.runtime.getURL('src/options/index.html#welcome')
@@ -536,7 +576,7 @@ chrome.runtime.onInstalled.addListener((details) => {
 restoreFromSession();
 
 // 431 error handler function (stored for add/remove)
-// Only active when mode is 'auto' - preserves last 2 instances
+// Only active when autoClearCookiesOn431 is true - preserves last 2 instances
 async function handle431Response(details) {
   if (details.statusCode === 431) {
     try {
@@ -660,15 +700,23 @@ function enable431Listener() {
   }
 }
 
-// Initialize 431 listener based on stored setting
-chrome.storage.sync.get(['defaultClearCookiesHandling'], (result) => {
-  const mode = result.defaultClearCookiesHandling || 'auto';
+// Initialize 431 listener based on stored setting.
+// Reads the new key; falls back to deriving from the legacy key on the first
+// boot after update if the migration hasn't completed yet.
+chrome.storage.sync.get(
+  ['autoClearCookiesOn431', 'defaultClearCookiesHandling'],
+  (result) => {
+    const enabled =
+      result.autoClearCookiesOn431 ??
+      (result.defaultClearCookiesHandling === undefined
+        ? true
+        : result.defaultClearCookiesHandling === 'auto');
 
-  // Only enable 431 auto-clear listener for 'auto' mode
-  if (mode === 'auto') {
-    enable431Listener();
+    if (enabled) {
+      enable431Listener();
+    }
   }
-});
+);
 
 // Clean up when tabs are closed
 chrome.tabs.onRemoved.addListener((tabId) => {
@@ -759,14 +807,8 @@ chrome.webNavigation.onHistoryStateUpdated.addListener(async (details) => {
 
 // Listen for setting changes
 chrome.storage.onChanged.addListener(async (changes, areaName) => {
-  if (
-    areaName === 'sync' &&
-    changes.defaultClearCookiesHandling !== undefined
-  ) {
-    const mode = changes.defaultClearCookiesHandling.newValue || 'auto';
-
-    // Only enable 431 auto-clear listener for 'auto' mode
-    if (mode === 'auto') {
+  if (areaName === 'sync' && changes.autoClearCookiesOn431 !== undefined) {
+    if (changes.autoClearCookiesOn431.newValue) {
       enable431Listener();
     } else {
       disable431Listener();

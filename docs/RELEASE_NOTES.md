@@ -1,6 +1,4 @@
-# Domo Toolkit v1.3.0 Release Notes (WIP)
-
-> Version bumped from 1.2.1 → 1.3.0 due to scope of new features.
+# Domo Toolkit v1.3.0 Release Notes
 
 ## New Features
 
@@ -84,6 +82,12 @@
 - Shows a structural diff against the current manifest before updating, so added, changed, and removed functions/parameters are explicit before you confirm
 - Saves the manual work of keeping the manifest in sync with JSDoc — previously authors had to edit both surfaces and keep them aligned by hand
 - Also serves as a quick way to update the package definition to match the code after edits, without needing to do all the tedious manual edits in the UI
+
+### Cookie Clearing Settings
+
+- Split the single cookie clearing behavior setting into three independent controls: auto-clear on 431 errors (on/off), show manual cookie button (on/off), and manual button behavior (preserve last 2 instances/clear all)
+- Previously the three options were coupled, so users had to choose between automatic clearing OR a manual button — never both. Auto-clearing occasionally fails, and some users want to clear cookies when no 431 has occurred; both pain points are addressed by letting the auto behavior and the manual button coexist
+- Existing users are migrated to settings that exactly preserve their prior behavior (Auto → auto on, button hidden; Preserve → auto off, button on, behavior preserve; All → auto off, button on, behavior all)
 
 ## Newly Supported Object Types
 

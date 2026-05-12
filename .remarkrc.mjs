@@ -12,6 +12,7 @@ import remarkLintMaximumHeadingLength from 'remark-lint-maximum-heading-length';
 import remarkLintMaximumLineLength from 'remark-lint-maximum-line-length';
 import remarkLintNoDuplicateHeadings from 'remark-lint-no-duplicate-headings';
 import remarkLintNoFileNameIrregularCharacters from 'remark-lint-no-file-name-irregular-characters';
+import remarkLintOrderedListMarkerValue from 'remark-lint-ordered-list-marker-value';
 import remarkPresetLintConsistent from 'remark-preset-lint-consistent';
 import remarkPresetLintMarkdownStyleGuide from 'remark-preset-lint-markdown-style-guide';
 import remarkPresetLintRecommended from 'remark-preset-lint-recommended';
@@ -38,6 +39,9 @@ const config = {
     bullet: '-',
     emphasis: '*',
     listItemIndent: 'one',
+    // Force `[text](url)` form for links even when text === url.
+    // Without this, mdast-util-to-markdown collapses them to autolinks (`<url>`).
+    resourceLink: true,
     rule: '-'
   },
   plugins: [
@@ -70,7 +74,10 @@ const config = {
     [remarkLintListItemSpacing, false],
     // Disabled because Jekyll requires `_config.yml` / `_includes` / `_sass`
     // (leading underscores) and existing assets use snake_case names.
-    [remarkLintNoFileNameIrregularCharacters, false]
+    [remarkLintNoFileNameIrregularCharacters, false],
+    // Disabled because we prefer explicit `1. 2. 3.` numbering over the style
+    // guide's "lazy numbering" (every item written as `1.`).
+    [remarkLintOrderedListMarkerValue, false]
   ]
 };
 

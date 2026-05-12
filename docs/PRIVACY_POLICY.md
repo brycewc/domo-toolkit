@@ -3,7 +3,7 @@
 
 # Privacy Policy for Domo Toolkit
 
-**Last Updated:** March 8, 2026
+**Last Updated:** May 12, 2026
 
 ## Overview
 
@@ -11,7 +11,7 @@ Domo Toolkit is a browser extension that enhances the Domo platform experience f
 
 **Key Points:**
 
-- We do not operate servers or collect data. The only data that leaves your device is what we sync to your Google Account: theme preference, cookie clearing behavior preference, favicon settings, and your default Domo instance (all of which are optional). All other data is local to your device.
+- We do not operate servers or collect data. The only data that leaves your device is what we sync to your Google Account: theme preference, cookie clearing preferences, favicon settings, and your default Domo instance (all of which are optional). All other data is local to your device.
 - No data is transmitted to external services or third parties.
 - No data is used for advertising, analytics, or any purpose other than providing extension features.
 - No human (including the developers) can read your data.
@@ -37,7 +37,7 @@ Domo Toolkit is a browser extension that enhances the Domo platform experience f
 
 ### 3. Cookie Names (Not Values)
 
-**What:** The extension reads the names of cookies for \*.domo.com domains to identify Domo session cookies (DA-SID cookies). These are named DA-SID-\<environmentId\>-\<instanceId\>. These values are grabbed from window.bootstrap.data and do not contain sensitive information. For example, domo-community.domo.com would be named DA-SID-prod1-mmmm-0012-0200.
+**What:** The extension reads the names of cookies for \*.domo.com domains to identify Domo session cookies (DA-SID cookies). These are named DA-SID-\<environmentId>-\<instanceId>. These values are grabbed from window\.bootstrap.data and do not contain sensitive information. For example, domo-community.domo.com would be named DA-SID-prod1-mmmm-0012-0200.
 
 **Why:** To provide intelligent cookie management that resolves HTTP 431 errors while preserving your active sessions across multiple Domo instances.
 
@@ -50,7 +50,7 @@ Domo Toolkit is a browser extension that enhances the Domo platform experience f
 - Favicon customization rules (instance match regex patterns and colors)
 - Theme preference (light/dark/system)
 - Default Domo instance (string)
-- Cookie clearing behavior preference (default/all/auto)
+- Cookie clearing preferences (auto-clear on 431 errors, manual button visibility, manual button behavior)
 
 **Why:** To remember your preferences across browser sessions.
 
@@ -142,7 +142,7 @@ All information accessed by the extension is used exclusively to provide the fea
 
 ### Disabling Features
 
-- Automatic 431 handling can be disabled in settings by adjusting your cookie clearing behavior
+- Automatic 431 handling can be disabled in settings by toggling off the auto-clear setting
 - The extension can be disabled or uninstalled at any time via your browser's extension management
 
 ## Children's Privacy
@@ -155,14 +155,14 @@ If we make material changes to this privacy policy, we will update the "Last Upd
 
 ## Open Source
 
-You don't just have to take our word for it. Domo Toolkit is entirely open source under MIT license. You can review the complete source code to verify our privacy practices here: [https://github.com/brycewc/domo-toolkit](https://github.com/brycewc/domo-toolkit)
+You don't just have to take our word for it. Domo Toolkit is entirely open source under MIT license. You can review the complete source code to verify our privacy practices here: <https://github.com/brycewc/domo-toolkit>
 
 ## Contact
 
 If you have questions about this privacy policy or the extension's data practices, please contact us:
 
-- **Email:** toolkit@domo.com
-- **GitHub Issues:** [https://github.com/brycewc/domo-toolkit/issues](https://github.com/brycewc/domo-toolkit/issues)
+- **Email:** <toolkit@domo.com>
+- **GitHub Issues:** <https://github.com/brycewc/domo-toolkit/issues>
 
 ## Limited Use Disclosure
 

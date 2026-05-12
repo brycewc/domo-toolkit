@@ -19,10 +19,14 @@ import IconChevronDown from '@icons/chevron-down.svg?react';
 import IconSave from '@icons/save.svg?react';
 
 const DEFAULT_SETTINGS = {
-  defaultClearCookiesHandling: 'auto',
+  autoClearCookiesOn431: true,
+  clearCookiesButtonBehavior: 'preserve',
   defaultDomoInstance: '',
+  showClearCookiesButton: true,
   themePreference: 'system'
 };
+
+const TRACKED_KEYS = Object.keys(DEFAULT_SETTINGS);
 
 export function Settings() {
   const [developerMode, setDeveloperMode] = useState(false);
@@ -41,20 +45,15 @@ export function Settings() {
 
   useEffect(() => {
     // Load all settings from storage
-    chrome.storage.sync.get(
-      ['themePreference', 'defaultDomoInstance', 'defaultClearCookiesHandling'],
-      (result) => {
-        const loadedSettings = {
-          defaultClearCookiesHandling:
-            result.defaultClearCookiesHandling || DEFAULT_SETTINGS.defaultClearCookiesHandling,
-          defaultDomoInstance: result.defaultDomoInstance || DEFAULT_SETTINGS.defaultDomoInstance,
-          themePreference: result.themePreference || DEFAULT_SETTINGS.themePreference
-        };
-        setSettings(loadedSettings);
-        setOriginalSettings(loadedSettings);
-        setIsLoading(false);
+    chrome.storage.sync.get(TRACKED_KEYS, (result) => {
+      const loadedSettings = { ...DEFAULT_SETTINGS };
+      for (const key of TRACKED_KEYS) {
+        if (result[key] !== undefined) loadedSettings[key] = result[key];
       }
-    );
+      setSettings(loadedSettings);
+      setOriginalSettings(loadedSettings);
+      setIsLoading(false);
+    });
 
     if (import.meta.env.DEV) {
       chrome.storage.local.get(['developerMode'], (result) => {
@@ -64,54 +63,22 @@ export function Settings() {
 
     // Listen for storage changes (e.g., from other tabs or extension pages)
     const handleStorageChange = (changes, areaName) => {
-      if (areaName === 'sync') {
-        // Use functional updates to avoid stale closure issues
-        setSettings((prevSettings) => {
-          const updatedSettings = { ...prevSettings };
-          let hasChanges = false;
+      if (areaName !== 'sync') return;
 
-          if (changes.themePreference) {
-            updatedSettings.themePreference = changes.themePreference.newValue;
+      const applyChanges = (prev) => {
+        let hasChanges = false;
+        const updated = { ...prev };
+        for (const key of TRACKED_KEYS) {
+          if (changes[key] !== undefined) {
+            updated[key] = changes[key].newValue ?? DEFAULT_SETTINGS[key];
             hasChanges = true;
           }
+        }
+        return hasChanges ? updated : prev;
+      };
 
-          if (changes.defaultDomoInstance) {
-            updatedSettings.defaultDomoInstance = changes.defaultDomoInstance.newValue;
-            hasChanges = true;
-          }
-
-          if (changes.defaultClearCookiesHandling !== undefined) {
-            updatedSettings.defaultClearCookiesHandling =
-              changes.defaultClearCookiesHandling.newValue;
-            hasChanges = true;
-          }
-
-          return hasChanges ? updatedSettings : prevSettings;
-        });
-
-        setOriginalSettings((prevOriginal) => {
-          const updatedOriginal = { ...prevOriginal };
-          let hasChanges = false;
-
-          if (changes.themePreference) {
-            updatedOriginal.themePreference = changes.themePreference.newValue;
-            hasChanges = true;
-          }
-
-          if (changes.defaultDomoInstance) {
-            updatedOriginal.defaultDomoInstance = changes.defaultDomoInstance.newValue;
-            hasChanges = true;
-          }
-
-          if (changes.defaultClearCookiesHandling !== undefined) {
-            updatedOriginal.defaultClearCookiesHandling =
-              changes.defaultClearCookiesHandling.newValue;
-            hasChanges = true;
-          }
-
-          return hasChanges ? updatedOriginal : prevOriginal;
-        });
-      }
+      setSettings(applyChanges);
+      setOriginalSettings(applyChanges);
     };
 
     chrome.storage.onChanged.addListener(handleStorageChange);
@@ -145,10 +112,24 @@ export function Settings() {
     }));
   };
 
-  const handleClearCookiesHandlingChange = (value) => {
+  const handleAutoClearChange = (value) => {
     setSettings((prev) => ({
       ...prev,
-      defaultClearCookiesHandling: value
+      autoClearCookiesOn431: value
+    }));
+  };
+
+  const handleShowButtonChange = (value) => {
+    setSettings((prev) => ({
+      ...prev,
+      showClearCookiesButton: value
+    }));
+  };
+
+  const handleButtonBehaviorChange = (value) => {
+    setSettings((prev) => ({
+      ...prev,
+      clearCookiesButtonBehavior: value
     }));
   };
 
@@ -218,12 +199,43 @@ export function Settings() {
             .domo.com (e.g., company for company.domo.com)
           </Description>
         </TextField>
+        <Switch
+          isSelected={settings.autoClearCookiesOn431}
+          onChange={handleAutoClearChange}
+        >
+          <Switch.Control>
+            <Switch.Thumb />
+          </Switch.Control>
+          <Switch.Content>
+            <Label>Auto-clear cookies on 431 errors</Label>
+            <Description className='w-lg'>
+              When a Domo page returns HTTP 431, automatically clear cookies and preserve the last 2
+              instances.
+            </Description>
+          </Switch.Content>
+        </Switch>
+        <Switch
+          isSelected={settings.showClearCookiesButton}
+          onChange={handleShowButtonChange}
+        >
+          <Switch.Control>
+            <Switch.Thumb />
+          </Switch.Control>
+          <Switch.Content>
+            <Label>Show clear cookies button</Label>
+            <Description className='w-lg'>
+              Adds a manual clear-cookies button to the popup action bar. Useful as a fallback when
+              auto-clearing fails or when you want to clear cookies without a 431 error.
+            </Description>
+          </Switch.Content>
+        </Switch>
         <Select
           className='w-50'
-          value={settings.defaultClearCookiesHandling}
-          onChange={handleClearCookiesHandlingChange}
+          isDisabled={!settings.showClearCookiesButton}
+          value={settings.clearCookiesButtonBehavior}
+          onChange={handleButtonBehaviorChange}
         >
-          <Label>Cookie Clearing Behavior</Label>
+          <Label>Clear cookies button behavior</Label>
           <Select.Trigger>
             <Select.Value />
             <Select.Indicator>
@@ -232,20 +244,14 @@ export function Settings() {
           </Select.Trigger>
           <Select.Popover>
             <ListBox>
-              <ListBox.Item id='auto' textValue='Auto'>
-                Auto
+              <ListBox.Item id='preserve' textValue='Preserve last 2 instances'>
+                Preserve last 2 instances
                 <ListBox.ItemIndicator>
                   {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
                 </ListBox.ItemIndicator>
               </ListBox.Item>
-              <ListBox.Item id='preserve' textValue='Preserve'>
-                Preserve
-                <ListBox.ItemIndicator>
-                  {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
-                </ListBox.ItemIndicator>
-              </ListBox.Item>
-              <ListBox.Item id='all' textValue='All'>
-                All
+              <ListBox.Item id='all' textValue='Clear all Domo cookies'>
+                Clear all Domo cookies
                 <ListBox.ItemIndicator>
                   {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
                 </ListBox.ItemIndicator>
@@ -253,11 +259,8 @@ export function Settings() {
             </ListBox>
           </Select.Popover>
           <Description className='w-lg'>
-            <p>
-              Auto: Clear cookies on 431 errors, preserve last 2 instances (removes manual button)
-            </p>
-            <p>Preserve: Preserve last 2 instances (only manual, no auto-clearing)</p>
-            <p>All: Clear all Domo cookies (only manual, no auto-clearing)</p>
+            What the button does on click. Preserve keeps the DA-SID cookies for your two
+            most-recently-used instances; All wipes every Domo cookie.
           </Description>
         </Select>
         <div className='pt-1'>

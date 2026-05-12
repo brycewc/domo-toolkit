@@ -1,10 +1,5 @@
 import { Button, Card, Chip, Kbd, Link } from '@heroui/react';
-import {
-  IconApi,
-  IconBug,
-  IconCookieOff,
-  IconPuzzle
-} from '@tabler/icons-react';
+import { IconApi, IconBug, IconCookieOff, IconPuzzle } from '@tabler/icons-react';
 import { motion } from 'motion/react';
 
 import IconAiSparkle from '@icons/ai-sparkle.svg?react';
@@ -16,7 +11,7 @@ import IconFileDocument from '@icons/file-document.svg?react';
 import IconGear from '@icons/gear.svg?react';
 import IconLightningBolt from '@icons/lightning-bolt.svg?react';
 import IconPersonPlus from '@icons/person-plus.svg?react';
-import IconRightRail from '@icons/right-rail.svg?react';
+import IconRightRailFill from '@icons/right-rail-fill.svg?react';
 import IconStar from '@icons/star.svg?react';
 import IconWebpage from '@icons/webpage.svg?react';
 import IconX from '@icons/x.svg?react';
@@ -40,9 +35,7 @@ export function Welcome() {
           <Kbd>
             <Kbd.Abbr
               keyValue={
-                (
-                  navigator.userAgentData?.platform ?? navigator.platform
-                ).includes('Mac')
+                (navigator.userAgentData?.platform ?? navigator.platform).includes('Mac')
                   ? 'command'
                   : 'ctrl'
               }
@@ -59,8 +52,7 @@ export function Welcome() {
     {
       icon: IconWebpage,
       id: 'tab-titles',
-      label:
-        'Tab titles are set to the object name. Say goodbye to identical tabs named "Domo"'
+      label: 'Tab titles are set to the object name. Say goodbye to identical tabs named "Domo"'
     },
     {
       icon: IconStar,
@@ -84,16 +76,15 @@ export function Welcome() {
     {
       icon: IconLightningBolt,
       id: 'context',
-      label:
-        'Actions and information appears when relevant, and disappears when not'
+      label: 'Actions and information appears when relevant, and disappears when not'
     },
     {
       icon: IconCookieOff,
       id: 'cookies',
       label: (
         <p>
-          431 "request headers too large" errors resolve themselves and your
-          current session stays logged in{' '}
+          431 "request headers too large" errors resolve themselves and your current session stays
+          logged in{' '}
           <Link
             className='text-sm font-normal no-underline decoration-accent hover:text-accent hover:underline'
             href='#settings'
@@ -112,36 +103,22 @@ export function Welcome() {
   const quickStartGuide = [
     <p className='flex flex-row items-end justify-start gap-1'>
       Pin the extension: click{' '}
-      <IconPuzzle
-        className='inline-block shrink-0 align-middle'
-        size={18}
-        stroke={1.5}
-      />{' '}
-      in your browser toolbar, then click{' '}
-      <IconCrossPin
-        className='inline-block shrink-0 align-middle'
-        size={18}
-      />{' '}
-      next to the extension icon
+      <IconPuzzle className='inline-block shrink-0 align-middle' size={18} stroke={1.5} /> in your
+      browser toolbar, then click{' '}
+      <IconCrossPin className='inline-block shrink-0 align-middle' size={18} /> next to the
+      extension icon
     </p>,
     'Navigate to an object in Domo',
     <p>
       Click the extension icon to use the popup (then click{' '}
-      <IconRightRail
-        className='inline-block shrink-0 align-middle'
-        size={18}
-      />{' '}
-      to use the side panel instead if preferred)
+      <IconRightRailFill className='inline-block shrink-0 align-middle' size={18} /> to use the side
+      panel instead if preferred)
     </p>,
     'Use the icon-only action buttons to copy, share, audit, navigate, and delete (tooltip text available on hover)',
     'Try navigating to different objects and observe the various available action buttons',
     <p>
       Adjust your settings and set your favicon preferences (click{' '}
-      <IconGear
-        className='inline-block shrink-0 align-middle'
-        size={18}
-      />
-      )
+      <IconGear className='inline-block shrink-0 align-middle' size={18} />)
     </p>,
     'Advanced: click the current context card to access the JSON definition for the current object'
   ];
@@ -183,14 +160,8 @@ export function Welcome() {
         initial={{ opacity: 0, y: -20 }}
         transition={{ duration: 0.3 }}
       >
-        <img
-          alt='Domo Toolkit Logo'
-          className='h-16 w-16'
-          src='/toolkit-512.png'
-        />
-        <h1 className='text-xl font-semibold text-foreground'>
-          Welcome to Domo Toolkit
-        </h1>
+        <img alt='Domo Toolkit Logo' className='h-16 w-16' src='/toolkit-512.png' />
+        <h1 className='text-xl font-semibold text-foreground'>Welcome to Domo Toolkit</h1>
         <p className='text-sm'>
           All the tools you need for working faster in Domo, no setup required
         </p>
@@ -203,9 +174,7 @@ export function Welcome() {
         initial={{ opacity: 0 }}
         transition={{ delay: 0.1, duration: 0.3 }}
       >
-        <p className='text-sm font-medium tracking-wide uppercase'>
-          What you can do
-        </p>
+        <p className='text-sm font-medium tracking-wide uppercase'>What you can do</p>
         <div className='grid grid-cols-2 gap-2'>
           {actionFeatures.map((feature, index) => (
             <motion.div
@@ -218,10 +187,7 @@ export function Welcome() {
               <Card className='h-full'>
                 <Card.Header>
                   <Card.Description className='flex flex-row items-start justify-start gap-2 text-foreground'>
-                    <feature.icon
-                      className='size-5.5 shrink-0 text-accent'
-                      stroke={1.5}
-                    />
+                    <feature.icon className='size-5.5 shrink-0 text-accent' stroke={1.5} />
                     {feature.label}
                   </Card.Description>
                 </Card.Header>
@@ -238,9 +204,7 @@ export function Welcome() {
         initial={{ opacity: 0 }}
         transition={{ delay: 0.1, duration: 0.3 }}
       >
-        <p className='text-sm font-medium tracking-wide uppercase'>
-          What happens automatically
-        </p>
+        <p className='text-sm font-medium tracking-wide uppercase'>What happens automatically</p>
         <div className='grid grid-cols-2 gap-2'>
           {automaticFeatures.map((feature, index) => (
             <motion.div
@@ -253,10 +217,7 @@ export function Welcome() {
               <Card className='h-full'>
                 <Card.Header>
                   <Card.Description className='flex flex-row items-start justify-start gap-2 text-foreground'>
-                    <feature.icon
-                      className='size-5.5 shrink-0 text-accent'
-                      stroke={1.5}
-                    />
+                    <feature.icon className='size-5.5 shrink-0 text-accent' stroke={1.5} />
                     {feature.label}
                   </Card.Description>
                 </Card.Header>
@@ -273,9 +234,7 @@ export function Welcome() {
         initial={{ opacity: 0 }}
         transition={{ delay: 0.2, duration: 0.3 }}
       >
-        <p className='text-sm font-medium tracking-wide uppercase'>
-          Quick Start Guide
-        </p>
+        <p className='text-sm font-medium tracking-wide uppercase'>Quick Start Guide</p>
         <Card>
           <Card.Content>
             <ol className='space-y-2 text-sm'>
@@ -303,18 +262,11 @@ export function Welcome() {
         initial={{ opacity: 0 }}
         transition={{ delay: 0.25, duration: 0.3 }}
       >
-        <p className='text-sm font-medium tracking-wide uppercase'>
-          Helpful Links
-        </p>
+        <p className='text-sm font-medium tracking-wide uppercase'>Helpful Links</p>
         <Card>
           <Card.Content className='flex flex-row flex-wrap items-center justify-evenly'>
             {links.map((link) => (
-              <Link
-                className='no-underline'
-                href={link.url}
-                key={link.label}
-                target='_blank'
-              >
+              <Link className='no-underline' href={link.url} key={link.label} target='_blank'>
                 <Button variant='secondary'>
                   <link.icon stroke={1.5} />
                   {link.label}

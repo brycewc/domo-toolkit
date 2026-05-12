@@ -35,7 +35,7 @@ import { getAvailableActions } from '@/utils/availableActions';
 import { isSidepanel, openSidepanel } from '@/utils/sidepanel';
 import IconChevronDown from '@icons/chevron-down.svg?react';
 import IconGear from '@icons/gear.svg?react';
-import IconRightRail from '@icons/right-rail.svg?react';
+import IconRightRailFill from '@icons/right-rail-fill.svg?react';
 
 export function ActionButtons({
   collapsable = false,
@@ -92,12 +92,12 @@ export function ActionButtons({
                   currentContext={currentContext}
                   onStatusUpdate={onStatusUpdate}
                 />
-                <ClearCookies
+                <DeleteObject
                   currentContext={currentContext}
                   isDisabled={!isDomoPage}
                   onStatusUpdate={onStatusUpdate}
                 />
-                <DeleteObject
+                <ClearCookies
                   currentContext={currentContext}
                   isDisabled={!isDomoPage}
                   onStatusUpdate={onStatusUpdate}
@@ -170,7 +170,7 @@ export function ActionButtons({
                 ) : (
                   <Tooltip closeDelay={0} delay={400}>
                     <Button fullWidth isIconOnly variant='tertiary' onPress={openSidepanel}>
-                      <IconRightRail />
+                      <IconRightRailFill />
                     </Button>
                     <Tooltip.Content
                       className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
@@ -234,10 +234,7 @@ export function ActionButtons({
                   <UpdateDetails currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('copyColorRules') && (
-                  <CopyColorRules
-                    currentContext={currentContext}
-                    onStatusUpdate={onStatusUpdate}
-                  />
+                  <CopyColorRules currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('transferOwnership') && (
                   <TransferOwnership
@@ -285,10 +282,7 @@ export function ActionButtons({
                   />
                 )}
                 {availableActions.has('cancelStreamExecution') && (
-                  <CancelStreamExecution
-                    currentContext={currentContext}
-                    isDisabled={!isDomoPage}
-                  />
+                  <CancelStreamExecution currentContext={currentContext} isDisabled={!isDomoPage} />
                 )}
                 {availableActions.has('setStreamToManual') && (
                   <SetStreamToManual

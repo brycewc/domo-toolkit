@@ -2,14 +2,18 @@ import { Button, Chip, Dropdown, Header, Label, Separator, Spinner, Tooltip } fr
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { DomoObject } from '@/models/DomoObject';
-import { fetchObjectDetailsInPage, getAllNavigableObjectTypes, getAllObjectTypesWithApiConfig } from '@/models/DomoObjectType';
+import {
+  fetchObjectDetailsInPage,
+  getAllNavigableObjectTypes,
+  getAllObjectTypesWithApiConfig
+} from '@/models/DomoObjectType';
 import { executeInPage } from '@/utils/executeInPage';
 import { isSidepanel, openSidepanel, storeSidepanelData } from '@/utils/sidepanel';
 import IconArrowSquareOut from '@icons/arrow-square-out.svg?react';
 import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
 import IconEye from '@icons/eye.svg?react';
-import IconRightRail from '@icons/right-rail.svg?react';
+import IconRightRailFill from '@icons/right-rail-fill.svg?react';
 
 const TYPE_PRIORITY = [
   'CARD',
@@ -362,7 +366,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
                     {type.hasUrl() ? (
                       <IconArrowSquareOut className='size-5 shrink-0' />
                     ) : (
-                      <IconRightRail className='size-5 shrink-0' />
+                      <IconRightRailFill className='size-5 shrink-0' />
                     )}
                     <Label>{type.name}</Label>
                   </Dropdown.Item>
