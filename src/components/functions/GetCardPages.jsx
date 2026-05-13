@@ -22,8 +22,7 @@ export function GetCardPages({ currentContext, isDisabled, onCollapseActions, on
     dropdownItems = [{ id: 'getParentCardPages', label: 'Get Worksheet Card Pages' }];
   }
 
-  const longPressDisabled =
-    isDisabled || !domoObject?.id || dropdownItems.length === 0;
+  const longPressDisabled = isDisabled || !domoObject?.id || dropdownItems.length === 0;
 
   const handleAction = async (key) => {
     if (key !== 'getParentCardPages') return;
