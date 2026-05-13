@@ -31,7 +31,7 @@ export async function getOwnedSubscriptions(userId, tabId = null) {
             ownedSubscriptions.push({
               id: share.subscription.id,
               name:
-                summary.subscriptionName ||
+                summary.publicationSummary?.name ||
                 share.subscription.id.toString()
             });
           }

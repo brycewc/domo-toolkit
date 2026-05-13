@@ -351,6 +351,7 @@ export default function App() {
 
             {activeView === 'ownership' && (
               <OwnershipView
+                currentContext={currentContext}
                 key={viewKey}
                 onBackToDefault={handleBackToDefault}
                 onStatusUpdate={showStatus}

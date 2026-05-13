@@ -105,6 +105,10 @@ export function getAvailableActions(currentContext) {
     actions.add('transferOwnership');
     actions.add('getOwnedObjects');
     actions.add('duplicate');
+    // Sidepanel routing key used by both GetOwnedObjects and TransferOwnership
+    // — added here so DataList's reload affordance can verify the current
+    // object supports the shared OwnershipView. Not consumed by any button.
+    actions.add('ownership');
   }
 
   if (url?.includes('domo.com/auth/index') && !url?.includes('domoManualLogin=true')) {

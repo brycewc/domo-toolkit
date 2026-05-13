@@ -120,10 +120,10 @@
 - Tooltips added to all action buttons
 - Current context header truncates when chips are too large
 - Data discovery view header redesigned to surface primary actions inline instead of behind a three-dots popover
-- New reload button in the data discovery view header to rerun the action for the current object (now different from the object the view was launched from)
 - Get Pages (card → other pages) view now shows a subtext row with the total number of pages and the total number of distinct cards (from the source object) appearing on them
 - Navigate to Copied Object's "Manual selection" list no longer shows "Goal" twice — the old `OBJECTIVE` type alias is now merged into `GOAL`
 - Navigate to Copied Object dropdown items: each entry now leads with the object-type icon, and the action icon (external-link or sidepanel) is right-aligned after the label
+- Data discovery disclosure groups (e.g. View Ownership by User) now scroll inside the group when expanded with more than 12 children, instead of growing tall enough to push the rest of the list down.
 
 ## Bug Fixes and Improvements
 
@@ -138,6 +138,7 @@
 - ID validation added to current object detection
 - Navigate to Copied Object: templates and certification processes (which share an API endpoint) are no longer mistaken for each other — discriminated by the response's `type` field (`AC` → Template, otherwise → Certification Process)
 - Navigate to Copied Object: manually picking a sidepanel-only type from the "Manual selection" list now fetches its details before opening the sidepanel, so the view actually shows data instead of an empty card
+- Navigate to Copied Object: the "Manual selection" list now hides types whose parent ID we can't resolve from the copied ID alone (PROJECT\_LIST, CODEENGINE\_PACKAGE\_VERSION, EXECUTOR\_JOB, FILE\_REVISION, FILESET\_FILE) — previously they appeared in the list but silently routed to an empty ObjectDetailsView.
 - Various internal refactors for extensibility and code quality (not user-facing)
 
 ## Docs / GitHub Pages Site

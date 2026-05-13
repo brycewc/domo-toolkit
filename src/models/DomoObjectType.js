@@ -120,6 +120,20 @@ export class DomoObjectType {
   }
 
   /**
+   * Whether this type's parent ID can be resolved from just an object ID,
+   * without an originating URL or a pre-stored parentId. True only for types
+   * with a built-in resolver in `DomoObject.getParent`'s switch — currently
+   * only `DATA_APP_VIEW` (via `getAppStudioPageParent`). When true, both
+   * `buildObjectUrl` (URL flow) and `fetchObjectMetadata` callers (API flow)
+   * can fill in the parent placeholder lazily, so a parent-requiring type is
+   * still navigable from just a clipboard ID. Keep in sync with that switch.
+   * @returns {boolean}
+   */
+  canResolveParentFromIdAlone() {
+    return this.id === 'DATA_APP_VIEW';
+  }
+
+  /**
    * Extract the ID from a URL for this object type
    * @param {string} url - The URL to extract from
    * @returns {string|null} The extracted ID or null if not found
@@ -478,6 +492,7 @@ export const ObjectTypeRegistry = {
   CHANNEL: new DomoObjectType('CHANNEL', 'Buzz Channel', {
     aliases: ['GROUP_CHAT'],
     api: { endpoint: '/buzz/v1/channels/{id}', pathToName: 'channel.title' },
+    icon: { component: 'ChatBubbles' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   }),
   CODEENGINE_PACKAGE: new DomoObjectType('CODEENGINE_PACKAGE', 'Code Engine Package', {
@@ -610,7 +625,7 @@ export const ObjectTypeRegistry = {
   DATA_SCIENCE_NOTEBOOK: new DomoObjectType('DATA_SCIENCE_NOTEBOOK', 'Jupyter Workspace', {
     api: { endpoint: '/datascience/v1/workspaces/{id}', pathToName: 'name' },
     extractConfig: { keyword: 'jupyter-workspaces' },
-    icon: { component: 'CardNotebook' },
+    icon: { component: 'Jupyter' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     urlPath: '/jupyter-workspaces/{id}'
   }),
@@ -688,10 +703,8 @@ export const ObjectTypeRegistry = {
     ],
     urlPath: '/datacenter/dataflows/{id}/details'
   }),
-  DEFAULT_POLICY: new DomoObjectType('DEFAULT_POLICY', 'Default Policy', {
-    idPattern: /.*/
-  }),
-  DEPLOYMENT: new DomoObjectType('DEPLOYMENT', 'Deployment', {
+  DEPLOYMENT: new DomoObjectType('DEPLOYMENT', 'Repository Deployment', {
+    icon: { component: 'Package' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   }),
   DRILL_VIEW: new DomoObjectType('DRILL_VIEW', 'Drill Path', {
@@ -717,6 +730,7 @@ export const ObjectTypeRegistry = {
   }),
   ENIGMA_FORM_INSTANCE: new DomoObjectType('ENIGMA_FORM_INSTANCE', 'Form Instance', {
     api: { endpoint: '/forms/v1/instances/{id}', pathToName: 'revision' },
+    icon: { component: 'CardNotebook' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     parents: ['ENIGMA_FORM'],
     relatedData: [{ label: 'Form', source: 'parentId', typeId: 'ENIGMA_FORM' }]
@@ -726,7 +740,7 @@ export const ObjectTypeRegistry = {
     'Governance Toolkit Application',
     {
       api: { endpoint: '/executor/v1/applications/{id}', pathToName: 'name' },
-      icon: { component: 'CardNotebook' },
+      icon: { component: 'Toolbox' },
       idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     }
   ),
@@ -735,7 +749,7 @@ export const ObjectTypeRegistry = {
       endpoint: '/executor/v1/applications/{parent}/jobs/{id}',
       pathToName: 'jobName'
     },
-    icon: { component: 'Play' },
+    icon: { component: 'Toolbox' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     parents: ['EXECUTOR_APPLICATION'],
     relatedData: [
@@ -826,7 +840,6 @@ export const ObjectTypeRegistry = {
     relatedData: [{ field: 'members', isArray: true, itemTypeId: 'USER', label: 'Members' }],
     urlPath: '/admin/groups/{id}?tab=people'
   }),
-  GUIDE: new DomoObjectType('GUIDE', 'Guide', { idPattern: /.*/ }),
   HOPPER_QUEUE: new DomoObjectType('HOPPER_QUEUE', 'Task Center Queue', {
     api: { endpoint: '/queues/v1/{id}', pathToName: 'name' },
     extractConfig: { keyword: 'queueId' },
@@ -854,10 +867,9 @@ export const ObjectTypeRegistry = {
     urlPath: '/queues/tasks?queueId={parent}&id={id}&openTaskDrawer=true'
   }),
   HUDDLE: new DomoObjectType('HUDDLE', 'Buzz Thread', {
+    icon: { component: 'ChatBubble' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   }),
-  IMAGE: new DomoObjectType('IMAGE', 'Image', { idPattern: /.*/ }),
-  JOB: new DomoObjectType('JOB', 'Job', { idPattern: /^\d+$/ }),
   KEY_RESULT: new DomoObjectType('KEY_RESULT', 'Key Result', {
     api: {
       endpoint: '/social/v1/objectives/key-results/{id}',
@@ -871,15 +883,13 @@ export const ObjectTypeRegistry = {
     urlPath: '/goals/key-results/{id}'
   }),
   LANDING_ENTITY: new DomoObjectType('LANDING_ENTITY', 'Landing Entity', {
-    idPattern: /.*/
-  }),
-  LICENSE_PAGE: new DomoObjectType('LICENSE_PAGE', 'License Page', {
+    icon: { component: 'Building' },
     idPattern: /.*/
   }),
   MAGNUM_COLLECTION: new DomoObjectType('MAGNUM_COLLECTION', 'AppDB Collection', {
     api: { endpoint: '/datastores/v1/collections/{id}', pathToName: 'name' },
     extractConfig: { keyword: 'appDb' },
-    icon: { component: 'Database' },
+    icon: { component: 'DataCollection' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     parents: ['MAGNUM_DATASTORE'],
     relatedData: [
@@ -890,16 +900,22 @@ export const ObjectTypeRegistry = {
   }),
   MAGNUM_DATASTORE: new DomoObjectType('MAGNUM_DATASTORE', 'AppDB Datastore', {
     api: { endpoint: '/datastores/v1/{id}', pathToName: 'name' },
+    icon: { component: 'DataCollection' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   }),
-  METRIC: new DomoObjectType('METRIC', 'Metric', { idPattern: /.*/ }),
+  METRIC: new DomoObjectType('METRIC', 'Metric', {
+    icon: { component: 'ChartLine' },
+    idPattern: /.*/
+  }),
   NAV_PIN_ITEM: new DomoObjectType('NAV_PIN_ITEM', 'Nav Pin Item', {
+    icon: { component: 'Pin' },
     idPattern: /^\d+$/
   }),
   OAUTH2_CLIENT_CREDENTIALS: new DomoObjectType(
     'OAUTH2_CLIENT_CREDENTIALS',
     'Oauth 2.0 Client Credentials',
     {
+      icon: { component: 'Key' },
       idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     }
   ),
@@ -929,11 +945,9 @@ export const ObjectTypeRegistry = {
     urlPath: '/page/{id}'
   }),
   PAGE_COLLECTION: new DomoObjectType('PAGE_COLLECTION', 'Page Collection', {
+    icon: { component: 'Pages' },
     idPattern: /^\d+$/,
     parents: ['PAGE']
-  }),
-  PAGE_TEMPLATE: new DomoObjectType('PAGE_TEMPLATE', 'Page Template', {
-    idPattern: /.*/
   }),
   PROJECT: new DomoObjectType('PROJECT', 'Project', {
     api: { endpoint: '/content/v1/projects/{id}', pathToName: 'projectName' },
@@ -947,7 +961,7 @@ export const ObjectTypeRegistry = {
       endpoint: '/content/v1/projects/{parent}/lists/{id}',
       pathToName: 'name'
     },
-    icon: { component: 'List' },
+    icon: { component: 'ListBulleted' },
     idPattern: /^\d+$/,
     parents: ['PROJECT']
   }),
@@ -960,15 +974,9 @@ export const ObjectTypeRegistry = {
     urlPath: '/project?taskId={id}'
   }),
   PROJECT_TASK_ATTACHMENT: new DomoObjectType('PROJECT_TASK_ATTACHMENT', 'Task Attachment', {
-    idPattern: /.*/,
-    parents: ['PROJECT_TASK']
-  }),
-  PROJECT_TASK_OWNER: new DomoObjectType('PROJECT_TASK_OWNER', 'Task Owner', {
+    icon: { component: 'Document' },
     idPattern: /^\d+$/,
     parents: ['PROJECT_TASK']
-  }),
-  PROXIER_EMAIL: new DomoObjectType('PROXIER_EMAIL', 'Proxier Email', {
-    idPattern: /.*/
   }),
   PROXY_USER: new DomoObjectType('PROXY_USER', 'Proxy User', {
     idPattern: /.*/
@@ -1016,7 +1024,7 @@ export const ObjectTypeRegistry = {
     extractConfig: { keyword: 'repositories' },
     icon: { component: 'Sandcastle' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    urlPath: '/sandbox/repositories/{id}'
+    urlPath: '/admin/sandbox/repositories/{id}'
   }),
   REPOSITORY_AUTHORIZATION: new DomoObjectType(
     'REPOSITORY_AUTHORIZATION',
@@ -1084,7 +1092,7 @@ export const ObjectTypeRegistry = {
   }),
   TOKEN: new DomoObjectType('TOKEN', 'API Client', {
     icon: { component: 'Key' },
-    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[X]{4}-[X]{4}-[X]{12}$/i
+    idPattern: /^\d+$/
   }),
   USER: new DomoObjectType('USER', 'Person', {
     api: { endpoint: '/content/v2/users/{id}', pathToName: 'displayName' },
@@ -1094,9 +1102,6 @@ export const ObjectTypeRegistry = {
     urlPath: '/admin/people/{id}?tab=profile'
   }),
   USER_CUSTOM_KEY: new DomoObjectType('USER_CUSTOM_KEY', 'User Custom Attribute', {
-    idPattern: /.*/
-  }),
-  USER_STATE: new DomoObjectType('USER_STATE', 'User State', {
     idPattern: /.*/
   }),
   USER_TEMPLATE: new DomoObjectType('USER_TEMPLATE', 'User Template', {
@@ -1149,6 +1154,7 @@ export const ObjectTypeRegistry = {
     idPattern: /^\d+$/
   }),
   WORKBENCH_JOB: new DomoObjectType('WORKBENCH_JOB', 'On Premise Job', {
+    aliases: ['JOB'],
     idPattern: /^\d+$/
   }),
   WORKBENCH_SCHEDULE: new DomoObjectType('WORKBENCH_SCHEDULE', 'On Premise Job Schedule', {

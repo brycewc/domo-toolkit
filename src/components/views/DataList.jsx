@@ -398,11 +398,7 @@ export function DataList({
                         variant='ghost'
                         onPress={() => handleHeaderAction('shareAll')}
                       >
-                        {isHeaderShared ? (
-                          <AnimatedCheck stroke={1.5} />
-                        ) : (
-                          <IconPeoplePlus />
-                        )}
+                        {isHeaderShared ? <AnimatedCheck stroke={1.5} /> : <IconPeoplePlus />}
                       </Button>
                       <Tooltip.Content className='text-xs'>
                         {isHeaderShared ? 'Shared!' : 'Share all with yourself'}
@@ -786,11 +782,9 @@ function DataListItemImpl({
   const showsErrorBody = isErrorState && item.error;
   const statusIndicator = isLoadingState ? (
     <Spinner
+      className={`shrink-0 ${item.status === 'transferring' ? 'text-warning' : 'text-accent'}`}
       color='current'
       size='sm'
-      className={`shrink-0 ${
-        item.status === 'transferring' ? 'text-warning' : 'text-accent'
-      }`}
     />
   ) : isErrorState ? (
     <IconX className='shrink-0 text-danger' size={18} />
@@ -1133,7 +1127,7 @@ function DataListItemImpl({
           {isItemSelectableInMode ? (
             <Checkbox
               aria-label={typeof item.label === 'string' ? item.label : `Select ${item.id}`}
-              className='!mt-0 shrink-0'
+              className='mt-0! shrink-0'
               value={String(item.id)}
             >
               <Checkbox.Control>
@@ -1318,6 +1312,22 @@ function DataListItemImpl({
                   items={item.children}
                   renderItem={(child) => <DataListItem {...childRenderProps(child)} />}
                 />
+              ) : item.children.length > MAX_VISIBLE_CHILDREN_ROWS ? (
+                // Cap height + scroll without paying virtualization's DOM cost.
+                // Virtualization only kicks in past `virtualThreshold` (default
+                // 50), but past `MAX_VISIBLE_CHILDREN_ROWS` (12) an inline map
+                // already grows the disclosure tall enough to push the rest of
+                // the list, so we wrap in a bounded scroll viewport. Dividers
+                // move from `DisclosureGroup` onto this wrapper since the
+                // group now has a single child.
+                <div
+                  className='w-full divide-y divide-border overflow-y-auto overscroll-contain'
+                  style={{ height: MAX_VISIBLE_CHILDREN_ROWS * ROW_HEIGHT }}
+                >
+                  {item.children.map((child, index) => (
+                    <DataListItem key={child.id || index} {...childRenderProps(child)} />
+                  ))}
+                </div>
               ) : (
                 item.children.map((child, index) => (
                   <DataListItem key={child.id || index} {...childRenderProps(child)} />

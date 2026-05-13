@@ -10,7 +10,13 @@ import { DomoContext } from '@/models/DomoContext';
 import { DomoObject } from '@/models/DomoObject';
 import { uploadDataFile } from '@/services/files';
 import { sendEmail } from '@/services/messages';
-import { countOwned, flattenOwned, TRANSFER_TYPES, transferAllOwnership, TYPE_KEY_TO_LOG_TYPE } from '@/services/transferOwnership';
+import {
+  countOwned,
+  flattenOwned,
+  TRANSFER_TYPES,
+  transferAllOwnership,
+  TYPE_KEY_TO_LOG_TYPE
+} from '@/services/transferOwnership';
 import { deleteUser } from '@/services/users';
 import { buildExcelBlob, generateExportFilename } from '@/utils/exportData';
 import { getSidepanelData } from '@/utils/sidepanel';
@@ -52,28 +58,36 @@ const TYPE_KEY_TO_DOMO_TYPE = {
   datasets: 'DATA_SOURCE',
   filesets: 'FILESET',
   functions: 'BEAST_MODE_FORMULA',
-  goals: null,
+  goals: 'GOAL',
   groups: 'GROUP',
   jupyterWorkspaces: 'DATA_SCIENCE_NOTEBOOK',
-  metrics: null,
+  metrics: 'METRIC',
   pages: 'PAGE',
   projectsAndTasks: null,
   repositories: 'REPOSITORY',
-  subscriptions: null,
+  subscriptions: 'SUBSCRIPTION',
   taskCenterQueues: 'HOPPER_QUEUE',
-  taskCenterTasks: null,
+  taskCenterTasks: 'HOPPER_TASK',
   workflows: 'WORKFLOW_MODEL',
   worksheets: 'WORKSHEET',
   workspaces: 'WORKSPACE'
 };
 
-export function OwnershipView({ onBackToDefault = null, onStatusUpdate = null }) {
+export function OwnershipView({
+  currentContext = null,
+  onBackToDefault = null,
+  onStatusUpdate = null
+}) {
   const [isLoading, setIsLoading] = useState(true);
   const [userName, setUserName] = useState('');
   const [userId, setUserId] = useState(null);
   const [tabId, setTabId] = useState(null);
   const [origin, setOrigin] = useState('');
-  const [currentContext, setCurrentContext] = useState(null);
+  // Frozen snapshot of the context at view launch — its `domoObject` is the
+  // source user being browsed/transferred. Distinct from the `currentContext`
+  // prop above, which is the LIVE context tracking whatever object the user is
+  // currently looking at in Domo (used by DataList's reload affordance).
+  const [launchContext, setLaunchContext] = useState(null);
 
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedTypeKeys, setSelectedTypeKeys] = useState(() => new Set());
@@ -126,7 +140,7 @@ export function OwnershipView({ onBackToDefault = null, onStatusUpdate = null })
       setUserName(name);
       setOrigin(baseUrl);
       setTabId(context.tabId);
-      setCurrentContext(context);
+      setLaunchContext(context);
 
       // Transfer Ownership action button passes `autoEnableSelectionMode: true`
       // so we engage selection mode as soon as the view mounts. We
@@ -181,15 +195,15 @@ export function OwnershipView({ onBackToDefault = null, onStatusUpdate = null })
   // the toolkit user's USER_RIGHTS (the user running the extension), not the
   // source user being browsed. Matches the prior TransferOwnership semantics.
   const forbidden = useMemo(() => {
-    const userRights = currentContext?.user?.metadata?.USER_RIGHTS || [];
+    const userRights = launchContext?.user?.metadata?.USER_RIGHTS || [];
     return new Set(
       TRANSFER_TYPES.filter(
         (t) => t.requiredAuthority && !userRights.includes(t.requiredAuthority)
       ).map((t) => t.key)
     );
-  }, [currentContext]);
+  }, [launchContext]);
 
-  const isUserSource = currentContext?.domoObject?.typeId === 'USER';
+  const isUserSource = launchContext?.domoObject?.typeId === 'USER';
 
   // Aggregate stats for the subtext line
   const { loadedTypeCount, totalObjects } = useMemo(() => {
@@ -640,9 +654,7 @@ export function OwnershipView({ onBackToDefault = null, onStatusUpdate = null })
     // Comparing raw `selectedTypeKeys.size` against `totalEligible` would
     // make the Select-all read as unchecked or indeterminate even when every
     // currently-loaded row is checked.
-    const totalSelectedEligible = eligibleTypeKeys.filter((k) =>
-      selectedTypeKeys.has(k)
-    ).length;
+    const totalSelectedEligible = eligibleTypeKeys.filter((k) => selectedTypeKeys.has(k)).length;
     return (
       <Checkbox
         aria-label='Select all eligible types'
@@ -679,9 +691,7 @@ export function OwnershipView({ onBackToDefault = null, onStatusUpdate = null })
   // when `selectedTypeKeys` may temporarily include not-yet-resolved types).
   const selectionFooter = useMemo(() => {
     if (!selectionMode) return null;
-    const totalSelectedEligible = eligibleTypeKeys.filter((k) =>
-      selectedTypeKeys.has(k)
-    ).length;
+    const totalSelectedEligible = eligibleTypeKeys.filter((k) => selectedTypeKeys.has(k)).length;
     return (
       <Button
         fullWidth
@@ -690,10 +700,7 @@ export function OwnershipView({ onBackToDefault = null, onStatusUpdate = null })
         variant='primary'
         onPress={handleOpenTransferModal}
         isDisabled={
-          totalSelectedEligible === 0 ||
-          isTransferring ||
-          !isFullyLoaded ||
-          !hasAnyTransferable
+          totalSelectedEligible === 0 || isTransferring || !isFullyLoaded || !hasAnyTransferable
         }
       >
         Transfer ownership to…
@@ -724,20 +731,24 @@ export function OwnershipView({ onBackToDefault = null, onStatusUpdate = null })
     <>
       <DataList
         closeLabel='Close Ownership View'
+        currentContext={currentContext}
         customHeaderActions={customHeaderActions}
         footer={selectionFooter}
-        headerActions={['refresh']}
+        headerActions={['reload', 'refresh']}
         isRefreshing={loadingCount > 0}
         isSelectable={isTypeSelectable}
         itemActions={['copy']}
         itemLabel='object'
         items={dataListItems}
+        objectId={userId}
+        objectType='USER'
         selectedIds={selectedTypeKeys}
         selectionMode={selectionMode}
         selectionToolbar={selectionToolbar}
         showActions={true}
         showCounts={true}
         subtext={subtextNode}
+        viewType='ownership'
         onClose={onBackToDefault}
         onRefresh={refreshFetches}
         onSelectionChange={setSelectedTypeKeys}
@@ -749,7 +760,7 @@ export function OwnershipView({ onBackToDefault = null, onStatusUpdate = null })
         }
       />
       <TransferOwnershipModal
-        currentContext={currentContext}
+        currentContext={launchContext}
         isOpen={transferModalOpen}
         results={results}
         selectedTypeKeys={selectedTypeKeys}

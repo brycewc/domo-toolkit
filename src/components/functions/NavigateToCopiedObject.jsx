@@ -44,7 +44,17 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
   const allTypes = useMemo(() => {
     const seen = new Set();
     return getAllNavigableObjectTypes()
-      .filter((type) => (type.hasUrl() ? !type.requiresParentForUrl() : true))
+      .filter((type) => {
+        // Types whose parent is resolvable from an ID alone (e.g. DATA_APP_VIEW)
+        // are always navigable — `buildObjectUrl` / `fetchObjectMetadata` fill
+        // the placeholder lazily via `DomoObject.getParent`.
+        if (type.canResolveParentFromIdAlone()) return true;
+        // Otherwise include only types that don't need a parent at all:
+        // URL types must not require one in the URL, sidepanel-only types must
+        // not require one in the API endpoint. Without this, manual picks
+        // would route to an empty ObjectDetailsView with no metadata fetched.
+        return type.hasUrl() ? !type.requiresParentForUrl() : !type.requiresParentForApi();
+      })
       .sort((a, b) => a.name.localeCompare(b.name))
       .filter((type) => {
         const key = type.urlPath || type.api?.endpoint;

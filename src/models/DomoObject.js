@@ -32,14 +32,7 @@ export class DomoObject {
    * @param {string} [originalUrl] - Optional original URL for parent extraction
    * @param {string} [parentId] - Optional parent ID if already known
    */
-  constructor(
-    type,
-    id,
-    baseUrl,
-    metadata = {},
-    originalUrl = null,
-    parentId = null
-  ) {
+  constructor(type, id, baseUrl, metadata = {}, originalUrl = null, parentId = null) {
     this.id = id;
     this.baseUrl = baseUrl;
     this.metadata = metadata;
@@ -117,24 +110,10 @@ export class DomoObject {
   async buildUrl(baseUrl, tabId = null) {
     if (this.requiresParentForUrl()) {
       const parentId = await this.getParent(false, null, tabId);
-      console.log(
-        `Building URL for ${this.typeName} ${this.id} with parent ${parentId}`
-      );
-      return this.objectType.buildObjectUrl(
-        baseUrl,
-        this.id,
-        parentId,
-        tabId,
-        this.metadata
-      );
+      console.log(`Building URL for ${this.typeName} ${this.id} with parent ${parentId}`);
+      return this.objectType.buildObjectUrl(baseUrl, this.id, parentId, tabId, this.metadata);
     }
-    return this.objectType.buildObjectUrl(
-      baseUrl,
-      this.id,
-      null,
-      tabId,
-      this.metadata
-    );
+    return this.objectType.buildObjectUrl(baseUrl, this.id, null, tabId, this.metadata);
   }
 
   /**
@@ -164,23 +143,17 @@ export class DomoObject {
           case 'DATA_APP_VIEW':
             parentId = await getAppStudioPageParent(this.id, inPageContext, tabId);
             break;
-          case 'DRILL_PATH':
+          case 'DRILL_VIEW':
             parentId = await getDrillParentCardId(this.id, inPageContext, tabId);
             break;
           default:
-            throw new Error(
-              `Parent lookup not supported for type: ${this.objectType.id}`
-            );
+            throw new Error(`Parent lookup not supported for type: ${this.objectType.id}`);
         }
       }
     }
 
     // Fetch parent details and store in metadata
-    if (
-      parentId &&
-      this.objectType.parents &&
-      this.objectType.parents.length > 0
-    ) {
+    if (parentId && this.objectType.parents && this.objectType.parents.length > 0) {
       const parentTypeId = this.objectType.parents[0]; // Use first parent type
       const parentType = getObjectType(parentTypeId);
       const parentTypeName = parentType ? parentType.name : parentTypeId;
@@ -221,16 +194,15 @@ export class DomoObject {
             };
 
             if (method !== 'GET' && bodyTemplate) {
-              options.body = JSON.stringify(bodyTemplate).replace(
-                /{id}/g,
-                parentId
-              );
+              options.body = JSON.stringify(bodyTemplate).replace(/{id}/g, parentId);
               options.headers = {
                 'Content-Type': 'application/json'
               };
             }
 
-            console.log(`[getParent:fetchParentDetails] Fetching ${method} ${url}, hasBody=${!!options.body}`);
+            console.log(
+              `[getParent:fetchParentDetails] Fetching ${method} ${url}, hasBody=${!!options.body}`
+            );
 
             const response = await fetch(url, options);
 
@@ -244,19 +216,19 @@ export class DomoObject {
             console.log('[getParent:fetchParentDetails] Response data keys:', Object.keys(data));
 
             const details = pathToDetails
-              ? pathToDetails
-                  .split('.')
-                  .reduce((current, prop) => current?.[prop], data)
+              ? pathToDetails.split('.').reduce((current, prop) => current?.[prop], data)
               : data;
             const resolvePath = (path) =>
               path.split('.').reduce((current, prop) => current?.[prop], data);
             const name = nameTemplate
               ? nameTemplate.replace(/{([^}]+)}/g, (_, path) =>
-                  path === 'id' ? parentId : resolvePath(path) ?? ''
+                  path === 'id' ? parentId : (resolvePath(path) ?? '')
                 )
               : resolvePath(pathToName);
 
-            console.log(`[getParent:fetchParentDetails] Extracted name=${name}, hasDetails=${!!details}`);
+            console.log(
+              `[getParent:fetchParentDetails] Extracted name=${name}, hasDetails=${!!details}`
+            );
 
             return {
               details: details,

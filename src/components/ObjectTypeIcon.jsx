@@ -10,12 +10,16 @@ import IconCardNotebook from '@icons/card-notebook.svg?react';
 import IconCard from '@icons/card.svg?react';
 import IconCertifiedCompany from '@icons/certified-company.svg?react';
 import IconCertified from '@icons/certified.svg?react';
+import IconChartLine from '@icons/chart-line.svg?react';
+import IconChatBubble from '@icons/chat-bubble.svg?react';
+import IconChatBubbles from '@icons/chat-bubbles.svg?react';
 import IconCheckIn from '@icons/check-in.svg?react';
 import IconClock from '@icons/clock.svg?react';
 import IconCodeTags from '@icons/code-tags.svg?react';
 import IconCode from '@icons/code.svg?react';
 import IconConnector from '@icons/connector.svg?react';
 import IconDataApp from '@icons/data-app.svg?react';
+import IconDataCollection from '@icons/data-collection.svg?react';
 import IconDataWarehouse from '@icons/data-warehouse.svg?react';
 import IconDatabase from '@icons/database.svg?react';
 import IconDataflow from '@icons/dataflow.svg?react';
@@ -28,12 +32,17 @@ import IconFormatListChecks from '@icons/format-list-checks.svg?react';
 import IconFormula from '@icons/formula.svg?react';
 import IconGear from '@icons/gear.svg?react';
 import IconGoals from '@icons/goals.svg?react';
+import IconJupyter from '@icons/jupyter.svg?react';
 import IconKey from '@icons/key.svg?react';
 import IconLineage from '@icons/lineage.svg?react';
+import IconListBulleted from '@icons/list-bulleted.svg?react';
 import IconNewspaper from '@icons/newspaper.svg?react';
+import IconPackage from '@icons/package.svg?react';
 import IconPagesBars from '@icons/pages-bars.svg?react';
+import IconPages from '@icons/pages.svg?react';
 import IconPeople from '@icons/people.svg?react';
 import IconPerson from '@icons/person.svg?react';
+import IconPin from '@icons/pin.svg?react';
 import IconPlay from '@icons/play.svg?react';
 import IconProject from '@icons/project.svg?react';
 import IconRingingBell from '@icons/ringing-bell.svg?react';
@@ -59,6 +68,9 @@ const ICON_MAP = {
   CardNotebook: IconCardNotebook,
   Certified: IconCertified,
   CertifiedCompany: IconCertifiedCompany,
+  ChartLine: IconChartLine,
+  ChatBubble: IconChatBubble,
+  ChatBubbles: IconChatBubbles,
   CheckIn: IconCheckIn,
   Clock: IconClock,
   Code: IconCode,
@@ -66,6 +78,7 @@ const ICON_MAP = {
   Connector: IconConnector,
   DataApp: IconDataApp,
   Database: IconDatabase,
+  DataCollection: IconDataCollection,
   Dataflow: IconDataflow,
   DataWarehouse: IconDataWarehouse,
   Document: IconDocument,
@@ -77,12 +90,17 @@ const ICON_MAP = {
   Formula: IconFormula,
   Gear: IconGear,
   Goals: IconGoals,
+  Jupyter: IconJupyter,
   Key: IconKey,
   Lineage: IconLineage,
+  ListBulleted: IconListBulleted,
   Newspaper: IconNewspaper,
+  Package: IconPackage,
+  Pages: IconPages,
   PagesBars: IconPagesBars,
   People: IconPeople,
   Person: IconPerson,
+  Pin: IconPin,
   Play: IconPlay,
   Project: IconProject,
   RingingBell: IconRingingBell,
