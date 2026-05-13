@@ -5,7 +5,8 @@ import { DomoObject } from '@/models/DomoObject';
 import {
   fetchObjectDetailsInPage,
   getAllNavigableObjectTypes,
-  getAllObjectTypesWithApiConfig
+  getAllObjectTypesWithApiConfig,
+  getObjectType
 } from '@/models/DomoObjectType';
 import { executeInPage } from '@/utils/executeInPage';
 import { isSidepanel, openSidepanel, storeSidepanelData } from '@/utils/sidepanel';
@@ -14,6 +15,8 @@ import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
 import IconEye from '@icons/eye.svg?react';
 import IconRightRailFill from '@icons/right-rail-fill.svg?react';
+
+import { ObjectTypeIcon } from '../ObjectTypeIcon';
 
 const TYPE_PRIORITY = [
   'CARD',
@@ -80,6 +83,40 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
     return defaultDomoInstance || null;
   }, [currentContext?.isDomoPage, currentContext?.instance, defaultDomoInstance]);
 
+  const fetchObjectMetadata = useCallback(
+    async (typeConfig, objectId, baseUrl) => {
+      const params = {
+        apiConfig: typeConfig.api,
+        baseUrl,
+        objectId,
+        parentId: null,
+        requiresParent: typeConfig.requiresParentForApi(),
+        throwOnError: false,
+        typeId: typeConfig.id
+      };
+
+      if (typeConfig.requiresParentForApi()) {
+        try {
+          const obj = new DomoObject(typeConfig.id, objectId, baseUrl);
+          params.parentId = await obj.getParent(false, null, currentContext?.tabId);
+        } catch {
+          return null;
+        }
+      }
+
+      try {
+        return await executeInPage(
+          fetchObjectDetailsInPage,
+          [params],
+          currentContext?.tabId
+        );
+      } catch {
+        return null;
+      }
+    },
+    [currentContext?.tabId]
+  );
+
   const readAndResolve = useCallback(async () => {
     const instance = getInstance();
     if (!instance) return;
@@ -124,86 +161,47 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
     for (const typeConfig of typesToTry) {
       if (abortRef.current !== runId) return;
 
-      try {
-        const params = {
-          apiConfig: typeConfig.api,
-          baseUrl,
-          objectId: text,
-          parentId: null,
-          requiresParent: typeConfig.requiresParentForApi(),
-          throwOnError: false,
-          typeId: typeConfig.id
-        };
+      const metadata = await fetchObjectMetadata(typeConfig, text, baseUrl);
 
-        if (typeConfig.requiresParentForApi()) {
-          try {
-            const obj = new DomoObject(typeConfig.id, text, baseUrl);
-            params.parentId = await obj.getParent(false, null, currentContext?.tabId);
-          } catch {
-            continue;
-          }
-        }
+      if (abortRef.current !== runId) return;
+      if (!metadata?.details) continue;
 
-        const metadata = await executeInPage(
-          fetchObjectDetailsInPage,
-          [params],
-          currentContext?.tabId
-        );
-
-        if (abortRef.current !== runId) return;
-
-        if (metadata?.details) {
-          if (typeConfig.id === 'DATAFLOW_TYPE' && metadata.details.deleted === true) {
-            continue;
-          }
-          if (typeConfig.id === 'DATA_APP_VIEW' && metadata.details.type !== 'dav') {
-            continue;
-          }
-          if (typeConfig.id === 'PAGE' && metadata.details.type !== 'page') {
-            continue;
-          }
-          // TEMPLATE and CERTIFICATION_PROCESS share the same API endpoint —
-          // discriminate by `details.type`: 'AC' → TEMPLATE, anything else → CERTIFICATION_PROCESS.
-          if (typeConfig.id === 'TEMPLATE' && metadata.details.type !== 'AC') {
-            continue;
-          }
-          if (
-            typeConfig.id === 'CERTIFICATION_PROCESS' &&
-            (!metadata.details.type || metadata.details.type === 'AC')
-          ) {
-            continue;
-          }
-
-          const domoMetadata = {
-            details: metadata.details,
-            name: metadata.name
-          };
-          // Mirrors the CERTIFICATION_PROCESS enrichment — clipboard flow builds
-          // its own DomoObject instead of going through the page-detection pipeline.
-          if (typeConfig.id === 'CERTIFICATION_PROCESS') {
-            domoMetadata.context = {
-              certifiedType: metadata.details.type.startsWith('CC:CARD')
-                ? 'certified-cards'
-                : 'certified-datasets'
-            };
-          }
-          const domoObject = new DomoObject(typeConfig.id, text, baseUrl, domoMetadata);
-
-          setResolvedObject(domoObject);
-          setError(null);
-          setIsLoading(false);
-          return;
-        }
-      } catch {
+      if (typeConfig.id === 'DATAFLOW_TYPE' && metadata.details.deleted === true) {
         continue;
       }
+      if (typeConfig.id === 'DATA_APP_VIEW' && metadata.details.type !== 'dav') {
+        continue;
+      }
+      if (typeConfig.id === 'PAGE' && metadata.details.type !== 'page') {
+        continue;
+      }
+      // TEMPLATE and CERTIFICATION_PROCESS share the same API endpoint —
+      // discriminate by `details.type`: 'AC' → TEMPLATE, anything else → CERTIFICATION_PROCESS.
+      if (typeConfig.id === 'TEMPLATE' && metadata.details.type !== 'AC') {
+        continue;
+      }
+      if (
+        typeConfig.id === 'CERTIFICATION_PROCESS' &&
+        (!metadata.details.type || metadata.details.type === 'AC')
+      ) {
+        continue;
+      }
+
+      const domoObject = buildResolvedDomoObject(typeConfig, metadata, baseUrl, text);
+      // STREAM without an associated dataset can't redirect — try next type.
+      if (!domoObject) continue;
+
+      setResolvedObject(domoObject);
+      setError(null);
+      setIsLoading(false);
+      return;
     }
 
     if (abortRef.current === runId) {
       setError('Could not determine object type');
       setIsLoading(false);
     }
-  }, [currentContext?.tabId, getInstance]);
+  }, [fetchObjectMetadata, getInstance]);
 
   const handleOpenChange = useCallback(
     (open) => {
@@ -251,7 +249,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
   );
 
   const handleAction = useCallback(
-    (key) => {
+    async (key) => {
       setIsOpen(false);
 
       if (key === '_resolved' && resolvedObject) {
@@ -265,11 +263,37 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
       const instance = getInstance();
       if (!instance) return;
 
+      const typeConfig = getObjectType(key);
+      if (!typeConfig) return;
+
       const baseUrl = `https://${instance}.domo.com`;
-      const domoObject = new DomoObject(key, copiedId, baseUrl);
+
+      // Sidepanel-bound types (no URL) fetch metadata up front so
+      // ObjectDetailsView renders with data instead of an empty card; STREAM
+      // also fetches because it redirects to its associated dataset.
+      let domoObject;
+      if (!typeConfig.hasUrl() && typeConfig.hasApiConfig()) {
+        const metadata = await fetchObjectMetadata(typeConfig, copiedId, baseUrl);
+        if (metadata?.details) {
+          domoObject = buildResolvedDomoObject(typeConfig, metadata, baseUrl, copiedId);
+        }
+        if (!domoObject && typeConfig.id === 'STREAM') {
+          onStatusUpdate?.(
+            'No DataSet Found',
+            'Could not find a dataset associated with this stream',
+            'warning',
+            4000
+          );
+          return;
+        }
+      }
+
+      if (!domoObject) {
+        domoObject = new DomoObject(key, copiedId, baseUrl);
+      }
       handleNavigate(domoObject);
     },
-    [copiedId, getInstance, handleNavigate, resolvedObject]
+    [copiedId, fetchObjectMetadata, getInstance, handleNavigate, onStatusUpdate, resolvedObject]
   );
 
   const needsDefaultInstance = !currentContext?.isDomoPage && !defaultDomoInstance;
@@ -342,17 +366,21 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
               id='_resolved'
               textValue='Navigate'
             >
-              {resolvedObject?.hasUrl() ? (
-                <IconArrowSquareOut className='size-5 shrink-0' />
-              ) : (
-                <IconEye className='size-5 shrink-0' />
-              )}
+              <ObjectTypeIcon
+                className='size-5 shrink-0'
+                typeId={resolvedObject?.typeId}
+              />
               <div className='flex flex-col gap-1'>
                 <Chip className='w-fit lowercase' color='accent' size='sm' variant='soft'>
                   {resolvedObject?.typeName}
                 </Chip>
                 <Label className='font-medium'>{resolvedObject?.metadata?.name || copiedId}</Label>
               </div>
+              {resolvedObject?.hasUrl() ? (
+                <IconArrowSquareOut className='ml-auto size-5 shrink-0' />
+              ) : (
+                <IconEye className='ml-auto size-5 shrink-0' />
+              )}
             </Dropdown.Item>
           </Dropdown.Section>
 
@@ -363,12 +391,13 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
                 <Header>Manual selection</Header>
                 {filteredTypes.map((type) => (
                   <Dropdown.Item id={type.id} key={type.id} textValue={type.name}>
-                    {type.hasUrl() ? (
-                      <IconArrowSquareOut className='size-5 shrink-0' />
-                    ) : (
-                      <IconRightRailFill className='size-5 shrink-0' />
-                    )}
+                    <ObjectTypeIcon className='size-5 shrink-0' typeId={type.id} />
                     <Label>{type.name}</Label>
+                    {type.hasUrl() || type.redirectsToType ? (
+                      <IconArrowSquareOut className='ml-auto size-5 shrink-0' />
+                    ) : (
+                      <IconRightRailFill className='ml-auto size-5 shrink-0' />
+                    )}
                   </Dropdown.Item>
                 ))}
               </Dropdown.Section>
@@ -377,6 +406,41 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
         </Dropdown.Menu>
       </Dropdown.Popover>
     </Dropdown>
+  );
+}
+
+function buildDomoMetadata(typeConfig, metadata) {
+  const domoMetadata = {
+    details: metadata.details,
+    name: metadata.name
+  };
+  // CERTIFICATION_PROCESS doesn't go through the page-detection pipeline, so
+  // the clipboard flow has to add the context discriminator itself.
+  if (typeConfig.id === 'CERTIFICATION_PROCESS' && metadata.details?.type) {
+    domoMetadata.context = {
+      certifiedType: metadata.details.type.startsWith('CC:CARD')
+        ? 'certified-cards'
+        : 'certified-datasets'
+    };
+  }
+  return domoMetadata;
+}
+
+function buildResolvedDomoObject(typeConfig, metadata, baseUrl, fallbackId) {
+  // STREAM has no UI of its own in Domo — redirect to its associated dataset.
+  if (typeConfig.id === 'STREAM') {
+    const datasetId = metadata.details?.dataSource?.id;
+    if (!datasetId) return null;
+    return new DomoObject('DATA_SOURCE', datasetId, baseUrl, {
+      details: metadata.details.dataSource,
+      name: metadata.details.dataSource.name
+    });
+  }
+  return new DomoObject(
+    typeConfig.id,
+    fallbackId,
+    baseUrl,
+    buildDomoMetadata(typeConfig, metadata)
   );
 }
 

@@ -1,4 +1,5 @@
 import { getObjectType } from '@/models/DomoObjectType';
+import IconAdc from '@icons/adc.svg?react';
 import IconAiBook from '@icons/ai-book.svg?react';
 import IconAiModel from '@icons/ai-model.svg?react';
 import IconAiRobot from '@icons/ai-robot.svg?react';
@@ -19,6 +20,7 @@ import IconDataflow from '@icons/dataflow.svg?react';
 import IconDocument from '@icons/document.svg?react';
 import IconDrill from '@icons/drill.svg?react';
 import IconEnvelope from '@icons/envelope.svg?react';
+import IconFileDrawer from '@icons/file-drawer.svg?react';
 import IconFolder from '@icons/folder.svg?react';
 import IconFormatListChecks from '@icons/format-list-checks.svg?react';
 import IconFormula from '@icons/formula.svg?react';
@@ -35,6 +37,7 @@ import IconRingingBell from '@icons/ringing-bell.svg?react';
 import IconSandcastle from '@icons/sandcastle.svg?react';
 import IconShield from '@icons/shield.svg?react';
 import IconTag from '@icons/tag.svg?react';
+import IconToolbox from '@icons/toolbox.svg?react';
 import IconVariable from '@icons/variable.svg?react';
 import IconVector from '@icons/vector.svg?react';
 import IconWorkflow from '@icons/workflow.svg?react';
@@ -42,6 +45,7 @@ import IconWorksheets from '@icons/worksheets.svg?react';
 import IconWorkspace from '@icons/workspace.svg?react';
 
 const ICON_MAP = {
+  Adc: IconAdc,
   AiBook: IconAiBook,
   AiModel: IconAiModel,
   AiRobot: IconAiRobot,
@@ -62,6 +66,7 @@ const ICON_MAP = {
   Document: IconDocument,
   Drill: IconDrill,
   Envelope: IconEnvelope,
+  FileDrawer: IconFileDrawer,
   Folder: IconFolder,
   FormatListChecks: IconFormatListChecks,
   Formula: IconFormula,
@@ -78,6 +83,7 @@ const ICON_MAP = {
   Sandcastle: IconSandcastle,
   Shield: IconShield,
   Tag: IconTag,
+  Toolbox: IconToolbox,
   Variable: IconVariable,
   Vector: IconVector,
   Workflow: IconWorkflow,

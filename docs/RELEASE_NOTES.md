@@ -104,6 +104,7 @@
 - Card: long-press Copy menu now offers a "Copy DataSet ID" action when the card is powered by exactly one dataset
 - Update Code Engine Versions: built-in Domo packages restricted to upgrade-to-latest only (no downgrades or intermediate versions); built-ins are labeled with a "Built-in" chip
 - Tabs opened from the popup or side panel (Activity Log, Lineage, Settings, Release Notes "View Details") now open immediately to the right of the launching tab instead of at the end of the tab strip
+- Navigate to Copied Object: a copied stream ID now resolves to (and navigates to) its associated dataset
 
 ## UI Changes
 
@@ -116,6 +117,8 @@
 - Data discovery view header redesigned to surface primary actions inline instead of behind a three-dots popover
 - New reload button in the data discovery view header to rerun the action for the current object (now different from the object the view was launched from)
 - Get Pages (card → other pages) view now shows a subtext row with the total number of pages and the total number of distinct cards (from the source object) appearing on them
+- Navigate to Copied Object's "Manual selection" list no longer shows "Goal" twice — the old `OBJECTIVE` type alias is now merged into `GOAL`
+- Navigate to Copied Object dropdown items: each entry now leads with the object-type icon, and the action icon (external-link or sidepanel) is right-aligned after the label
 
 ## Bug Fixes and Improvements
 
@@ -129,6 +132,7 @@
 - Fixed Share with Self not refreshing the popup/side panel context after the share — the popup was closing before the tab reload finished, killing the listener that triggers the context refresh
 - ID validation added to current object detection
 - Navigate to Copied Object: templates and certification processes (which share an API endpoint) are no longer mistaken for each other — discriminated by the response's `type` field (`AC` → Template, otherwise → Certification Process)
+- Navigate to Copied Object: manually picking a sidepanel-only type from the "Manual selection" list now fetches its details before opening the sidepanel, so the view actually shows data instead of an empty card
 - Various internal refactors for extensibility and code quality (not user-facing)
 
 ## Docs / GitHub Pages Site

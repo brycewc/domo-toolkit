@@ -8,6 +8,9 @@ export class DomoObjectType {
    * @param {string} id - The internal type identifier
    * @param {string} name - The human-readable type name
    * @param {Object} [options] - Configuration options
+   * @param {Array<string>} [options.aliases] - Legacy or alternate type IDs that should resolve to this same config
+   *   via `getObjectType()`. Use when Domo has renamed a type (e.g. OBJECTIVE → GOAL) so existing references
+   *   to the old name keep working without a separate registry entry.
    * @param {Object} [options.api] - API configuration for fetching object details
    * @param {Array<Object>} [options.copyConfigs] - Additional copy actions for the long-press dropdown
    *   Each entry: { label: string, source: string, primary?: boolean, when?: string|Object }
@@ -22,6 +25,10 @@ export class DomoObjectType {
    *   { component: string, rotation?: number } where component is a key in the ObjectTypeIcon registry
    * @param {RegExp} [options.idPattern] - Regular expression to validate IDs for this type
    * @param {Array<string>} [options.parents] - Array of parent object type IDs this object can have
+   * @param {string} [options.redirectsToType] - When this type has no UI of its own, navigating to it redirects
+   *   to an object of this target type instead (e.g. STREAM → DATA_SOURCE). Setting this lets the UI advertise
+   *   the type as URL-navigating even though it has no `urlPath` itself. The actual ID resolution from the
+   *   response (e.g. STREAM's `dataSource.id`) lives in NavigateToCopiedObject's `buildResolvedDomoObject`.
    * @param {Array<Object>} [options.relatedData] - Array of related-data configs [{field, typeId, label, source?, itemIdField?}]
    *   Use { label: 'Short Name', source: 'self' } to override the current object's tab label.
    *   For an `isArray: true` entry, set `fetcher: '<key>'` (matching a key in
@@ -40,12 +47,14 @@ export class DomoObjectType {
   constructor(id, name, options = {}) {
     this.id = id;
     this.name = name;
+    this.aliases = options.aliases ?? null;
     this.api = options.api ?? null;
     this.copyConfigs = options.copyConfigs ?? null;
     this.extractConfig = options.extractConfig ?? null;
     this.icon = options.icon ?? null;
     this.idPattern = options.idPattern ?? null;
     this.parents = options.parents ?? null;
+    this.redirectsToType = options.redirectsToType ?? null;
     this.relatedData = options.relatedData ?? null;
     this.urlPath = options.urlPath ?? null;
   }
@@ -257,10 +266,8 @@ export const ObjectTypeRegistry = {
     idPattern: /.*/
   }),
   ACHIEVEMENT: new DomoObjectType('ACHIEVEMENT', 'Achievement', {
+    aliases: ['ACHIEVEMENT_ADMIN', 'USER_ACHIEVEMENT'],
     api: { endpoint: '/content/v1/achievements/{id}', pathToName: 'name' },
-    idPattern: /.*/
-  }),
-  ACHIEVEMENT_ADMIN: new DomoObjectType('ACHIEVEMENT_ADMIN', 'Achievement Admin', {
     idPattern: /.*/
   }),
   ADC_COLUMN_POLICY: new DomoObjectType('ADC_COLUMN_POLICY', 'Column PDP Policy', {
@@ -285,6 +292,7 @@ export const ObjectTypeRegistry = {
   }),
   ADC_MASK: new DomoObjectType('ADC_MASK', 'PDP Mask', { idPattern: /^\d+$/ }),
   ADC_POLICY: new DomoObjectType('ADC_POLICY', 'PDP Policy', {
+    icon: { component: 'Adc' },
     idPattern: /^\d+$/
   }),
   AGENT: new DomoObjectType('AGENT', 'Agent', {
@@ -324,6 +332,7 @@ export const ObjectTypeRegistry = {
   AI_TOOLKIT: new DomoObjectType('AI_TOOLKIT', 'AI Toolkit', {
     api: { endpoint: '/ai/v1/toolkits/{id}', pathToName: 'name' },
     extractConfig: { keyword: 'toolkits' },
+    icon: { component: 'Toolbox' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     urlPath: '/ai-library/toolkits/{id}'
   }),
@@ -334,6 +343,7 @@ export const ObjectTypeRegistry = {
       pathToName: 'name'
     },
     extractConfig: { keyword: 'domo-provided' },
+    icon: { component: 'Toolbox' },
     idPattern: /^[a-z][a-z0-9_]*$/,
     urlPath: '/ai-library/toolkits/domo-provided/{id}'
   }),
@@ -462,13 +472,12 @@ export const ObjectTypeRegistry = {
     urlPath: '/admin/certifiedcontent/{metadata.context.certifiedType}/edit-form/{id}'
   }),
   CHANNEL: new DomoObjectType('CHANNEL', 'Buzz Channel', {
+    aliases: ['GROUP_CHAT'],
     api: { endpoint: '/buzz/v1/channels/{id}', pathToName: 'channel.title' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   }),
-  CHART_COLOR_PALETTE: new DomoObjectType('CHART_COLOR_PALETTE', 'Chart Color Palette', {
-    idPattern: /.*/
-  }),
   CODEENGINE_PACKAGE: new DomoObjectType('CODEENGINE_PACKAGE', 'Code Engine Package', {
+    aliases: ['PACKAGE'],
     api: {
       endpoint: '/codeengine/v2/packages/{id}?parts=functions',
       pathToName: 'name'
@@ -513,9 +522,6 @@ export const ObjectTypeRegistry = {
   ),
   COLLECTION: new DomoObjectType('COLLECTION', 'Collection', {
     icon: { component: 'Folder' },
-    idPattern: /.*/
-  }),
-  COMMUNITY_SUPPORTED: new DomoObjectType('COMMUNITY_SUPPORTED', 'Community Supported Connector', {
     idPattern: /.*/
   }),
   CONFIG_APP: new DomoObjectType('CONFIG_APP', 'Config App', {
@@ -596,10 +602,6 @@ export const ObjectTypeRegistry = {
   DATA_DICTIONARY: new DomoObjectType('DATA_DICTIONARY', 'Data Dictionary', {
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   }),
-  DATA_LINEAGE: new DomoObjectType('DATA_LINEAGE', 'Data Lineage', {
-    icon: { component: 'Lineage' },
-    idPattern: /.*/
-  }),
   DATA_SCIENCE_NOTEBOOK: new DomoObjectType('DATA_SCIENCE_NOTEBOOK', 'Jupyter Workspace', {
     api: { endpoint: '/datascience/v1/workspaces/{id}', pathToName: 'name' },
     extractConfig: { keyword: 'jupyter-workspaces' },
@@ -608,6 +610,7 @@ export const ObjectTypeRegistry = {
     urlPath: '/jupyter-workspaces/{id}'
   }),
   DATA_SOURCE: new DomoObjectType('DATA_SOURCE', 'DataSet', {
+    aliases: ['DATASOURCE', 'DATASET', 'DATA_LINEAGE'],
     api: {
       endpoint: '/data/v3/datasources/{id}?includeAllDetails=true',
       pathToName: 'name'
@@ -654,22 +657,12 @@ export const ObjectTypeRegistry = {
     ],
     urlPath: '/datacenter/dataflows/{id}/details'
   }),
-  DATASOURCE: new DomoObjectType('DATASOURCE', 'Datasource', {
-    api: {
-      endpoint: '/data/v3/datasources/{id}?includeAllDetails=true',
-      pathToName: 'name'
-    },
-    icon: { component: 'Database' },
-    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    urlPath: '/datasources/{id}/details/data/table'
-  }),
   DEFAULT_POLICY: new DomoObjectType('DEFAULT_POLICY', 'Default Policy', {
     idPattern: /.*/
   }),
   DEPLOYMENT: new DomoObjectType('DEPLOYMENT', 'Deployment', {
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   }),
-  DIRECTORY: new DomoObjectType('DIRECTORY', 'Directory', { idPattern: /.*/ }),
   DRILL_VIEW: new DomoObjectType('DRILL_VIEW', 'Drill Path', {
     api: {
       endpoint: '/content/v1/cards?urns={id}:{parent}',
@@ -684,7 +677,6 @@ export const ObjectTypeRegistry = {
     parents: ['CARD'],
     urlPath: '/analyzer?cardid=${parent}&drillviewid=${id}'
   }),
-  ELEVATION: new DomoObjectType('ELEVATION', 'Elevation', { idPattern: /.*/ }),
   ENIGMA_FORM: new DomoObjectType('ENIGMA_FORM', 'Form', {
     api: { endpoint: '/forms/v2/{id}', pathToName: 'name' },
     icon: { component: 'CardNotebook' },
@@ -773,11 +765,15 @@ export const ObjectTypeRegistry = {
     ]
   }),
   GOAL: new DomoObjectType('GOAL', 'Goal', {
+    aliases: ['OBJECTIVE'],
     api: { endpoint: '/social/v1/objectives/{id}', pathToName: 'name' },
-    idPattern: /^\d+$/
+    extractConfig: { keyword: 'goals' },
+    icon: { component: 'Goals' },
+    idPattern: /^\d+$/,
+    urlPath: '/goals/{id}'
   }),
   GOAL_DELEGATE: new DomoObjectType('GOAL_DELEGATE', 'Goal Delegate', {
-    idPattern: /.*/
+    idPattern: /^\d+$/
   }),
   GOAL_PERIOD: new DomoObjectType('GOAL_PERIOD', 'Goal Period', {
     api: { endpoint: '/social/v1/objectives/periods/{id}', pathToName: 'name' },
@@ -794,9 +790,6 @@ export const ObjectTypeRegistry = {
     idPattern: /^\d+$/,
     relatedData: [{ field: 'members', isArray: true, itemTypeId: 'USER', label: 'Members' }],
     urlPath: '/admin/groups/{id}?tab=people'
-  }),
-  GROUP_CHAT: new DomoObjectType('GROUP_CHAT', 'Buzz Group Chat', {
-    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   }),
   GUIDE: new DomoObjectType('GUIDE', 'Guide', { idPattern: /.*/ }),
   HOPPER_QUEUE: new DomoObjectType('HOPPER_QUEUE', 'Task Center Queue', {
@@ -865,7 +858,6 @@ export const ObjectTypeRegistry = {
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   }),
   METRIC: new DomoObjectType('METRIC', 'Metric', { idPattern: /.*/ }),
-  NAME: new DomoObjectType('NAME', 'Name', { idPattern: /.*/ }),
   NAV_PIN_ITEM: new DomoObjectType('NAV_PIN_ITEM', 'Nav Pin Item', {
     idPattern: /^\d+$/
   }),
@@ -876,15 +868,8 @@ export const ObjectTypeRegistry = {
       idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     }
   ),
-  OBJECTIVE: new DomoObjectType('OBJECTIVE', 'Goal', {
-    api: { endpoint: '/social/v1/objectives/{id}', pathToName: 'name' },
-    extractConfig: { keyword: 'goals' },
-    icon: { component: 'Goals' },
-    idPattern: /^\d+$/,
-    urlPath: '/goals/{id}'
-  }),
-  OTP_KEY: new DomoObjectType('OTP_KEY', 'OTP Key'),
   PAGE: new DomoObjectType('PAGE', 'Page', {
+    aliases: ['PAGE_ANALYZER', 'STORY'],
     api: { endpoint: '/content/v3/stacks/{id}', pathToName: 'title' },
     extractConfig: { keyword: 'page' },
     icon: { component: 'PagesBars' },
@@ -908,17 +893,11 @@ export const ObjectTypeRegistry = {
     ],
     urlPath: '/page/{id}'
   }),
-  PAGE_ANALYZER: new DomoObjectType('PAGE_ANALYZER', 'Page Analyzer', {
-    idPattern: /.*/
-  }),
   PAGE_COLLECTION: new DomoObjectType('PAGE_COLLECTION', 'Page Collection', {
     idPattern: /^\d+$/,
     parents: ['PAGE']
   }),
   PAGE_TEMPLATE: new DomoObjectType('PAGE_TEMPLATE', 'Page Template', {
-    idPattern: /.*/
-  }),
-  POLICY_ORDER: new DomoObjectType('POLICY_ORDER', 'Policy Order', {
     idPattern: /.*/
   }),
   PROJECT: new DomoObjectType('PROJECT', 'Project', {
@@ -978,7 +957,8 @@ export const ObjectTypeRegistry = {
     idPattern: /^\d+$/
   }),
   REPORT_BUILDER_PAGE: new DomoObjectType('REPORT_BUILDER_PAGE', 'Report Page', {
-    idPattern: /^\d+$/
+    idPattern: /^\d+$/,
+    parents: ['REPORT_BUILDER']
   }),
   REPORT_BUILDER_VIEW: new DomoObjectType('REPORT_BUILDER_VIEW', 'Report Builder View', {
     api: {
@@ -1028,18 +1008,6 @@ export const ObjectTypeRegistry = {
   SESSION: new DomoObjectType('SESSION', 'Session', {
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   }),
-  SMS_NOTIFICATION_COMMAND: new DomoObjectType(
-    'SMS_NOTIFICATION_COMMAND',
-    'SMS Notification Command'
-  ),
-  SMS_NOTIFICATION_WEB: new DomoObjectType('SMS_NOTIFICATION_WEB', 'SMS Notification Web'),
-  SSO_PAGE: new DomoObjectType('SSO_PAGE', 'Single Sign-On(SSO) Page', {
-    idPattern: /.*/
-  }),
-  SSO_SETTINGS: new DomoObjectType('SSO_SETTINGS', 'SSO Settings', {
-    idPattern: /^\d+$/
-  }),
-  STORY: new DomoObjectType('STORY', 'Story', { idPattern: /^\d+$/ }),
   STREAM: new DomoObjectType('STREAM', 'Stream', {
     api: {
       endpoint: '/data/v1/streams/{id}?fields=all',
@@ -1048,19 +1016,15 @@ export const ObjectTypeRegistry = {
     },
     icon: { component: 'Database' },
     idPattern: /^\d+$/,
-    parents: ['DATA_SOURCE']
+    parents: ['DATA_SOURCE'],
+    redirectsToType: 'DATA_SOURCE'
   }),
   SUBSCRIPTION: new DomoObjectType('SUBSCRIPTION', 'Subscription', {
-    icon: { component: 'Envelope' },
+    icon: { component: 'FileDrawer' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   }),
-  SYSTEM: new DomoObjectType('SYSTEM', 'System', { idPattern: /.*/ }),
   TAG_CATEGORY: new DomoObjectType('TAG_CATEGORY', 'Goal Tag Category', {
     icon: { component: 'Tag' },
-    idPattern: /^\d+$/
-  }),
-  TEAM: new DomoObjectType('TEAM', 'Team', {
-    copyConfigs: true,
     idPattern: /^\d+$/
   }),
   TEMPLATE: new DomoObjectType('TEMPLATE', 'Approval Template', {
@@ -1084,16 +1048,12 @@ export const ObjectTypeRegistry = {
   TOKEN: new DomoObjectType('TOKEN', 'API Client', {
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[X]{4}-[X]{4}-[X]{12}$/i
   }),
-  USAGE_REPORT_ROWS: new DomoObjectType('USAGE_REPORT_ROWS', 'Rows Usage Report'),
   USER: new DomoObjectType('USER', 'Person', {
     api: { endpoint: '/content/v2/users/{id}', pathToName: 'displayName' },
     extractConfig: { keyword: 'people' },
     icon: { component: 'Person' },
     idPattern: /^\d+$/,
     urlPath: '/admin/people/{id}?tab=profile'
-  }),
-  USER_ACHIEVEMENT: new DomoObjectType('USER_ACHIEVEMENT', 'User Achievement', {
-    idPattern: /^\d+$/
   }),
   USER_CUSTOM_KEY: new DomoObjectType('USER_CUSTOM_KEY', 'User Custom Attribute', {
     idPattern: /.*/
@@ -1111,7 +1071,8 @@ export const ObjectTypeRegistry = {
       pathToName: 'name'
     },
     icon: { component: 'Variable' },
-    idPattern: /^\d+$/
+    idPattern: /^\d+$/,
+    urlPath: '/datacenter/beastmode?id={id}'
   }),
   VARIABLE_CONTROL: new DomoObjectType('VARIABLE_CONTROL', 'Variable Control', {
     idPattern: /^\d+$/,
@@ -1120,10 +1081,6 @@ export const ObjectTypeRegistry = {
   VECTOR_INDEX: new DomoObjectType('VECTOR_INDEX', 'Vector Index', {
     icon: { component: 'Vector' },
     idPattern: /.*/
-  }),
-  VIDEO_ROOM: new DomoObjectType('VIDEO_ROOM', 'Video Call', {
-    copyConfigs: true,
-    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   }),
   VIEW: new DomoObjectType('VIEW', 'View', {
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -1422,10 +1379,27 @@ export function getAllObjectTypesWithUrl() {
 }
 
 /**
- * Get an DomoObjectType by its type
- * @param {string} type - The type
- * @returns {DomoObjectType|null} The DomoObjectType instance or null if not found
+ * Reverse lookup table: alias type ID → canonical DomoObjectType.
+ * Built once at module load; the registry is static after that.
+ */
+const ALIAS_LOOKUP = (() => {
+  const map = {};
+  for (const type of Object.values(ObjectTypeRegistry)) {
+    if (!type.aliases) continue;
+    for (const alias of type.aliases) {
+      map[alias] = type;
+    }
+  }
+  return map;
+})();
+
+/**
+ * Get a DomoObjectType by its type ID, falling back to alias lookup.
+ * Aliases let renamed types (e.g. OBJECTIVE → GOAL) keep working without
+ * duplicating their config; both IDs resolve to the same canonical instance.
+ * @param {string} type - The type ID or alias
+ * @returns {DomoObjectType|null} The canonical DomoObjectType instance, or null if not found
  */
 export function getObjectType(type) {
-  return ObjectTypeRegistry[type] || null;
+  return ObjectTypeRegistry[type] || ALIAS_LOOKUP[type] || null;
 }
