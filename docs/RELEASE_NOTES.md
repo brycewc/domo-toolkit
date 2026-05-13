@@ -105,6 +105,9 @@
 - Update Code Engine Versions: built-in Domo packages restricted to upgrade-to-latest only (no downgrades or intermediate versions); built-ins are labeled with a "Built-in" chip
 - Tabs opened from the popup or side panel (Activity Log, Lineage, Settings, Release Notes "View Details") now open immediately to the right of the launching tab instead of at the end of the tab strip
 - Navigate to Copied Object: a copied stream ID now resolves to (and navigates to) its associated dataset
+- Share with Self (dataset): now shares all accounts wired to the dataset's stream in a single click (Domo recently added multi-account support to streams); falls back to the legacy single `accountId` on the dataset for unmigrated streams
+- Copy → Account ID (dataset): prefers the stream's accounts list (single-account case only) with fallback to the dataset's legacy `accountId`; hidden when the stream pulls from more than one account (multi-account IDs are still inspectable via the JSON context footer)
+- Dataset context footer: the "Account" related-data tab lists all accounts wired to the stream when present, otherwise renders the legacy single account from the dataset
 
 ## UI Changes
 

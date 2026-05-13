@@ -1,4 +1,5 @@
 import { DomoObject } from '@/models/DomoObject';
+import { getAccountIdsForDomoObject } from '@/services/accounts';
 
 /**
  * ObjectType class represents a Domo object id with its configuration
@@ -13,13 +14,15 @@ export class DomoObjectType {
    *   to the old name keep working without a separate registry entry.
    * @param {Object} [options.api] - API configuration for fetching object details
    * @param {Array<Object>} [options.copyConfigs] - Additional copy actions for the long-press dropdown
-   *   Each entry: { label: string, source: string, primary?: boolean, when?: string|Object }
+   *   Each entry: { label: string, source: string|Function, primary?: boolean, when?: string|Object|Function }
    *   - label: display label (e.g., 'Package ID')
-   *   - source: dot-path on DomoObject to resolve the copy value (e.g., 'parentId', 'metadata.details.streamId')
+   *   - source: dot-path on DomoObject to resolve the copy value (e.g., 'parentId', 'metadata.details.streamId'),
+   *     or a function (domoObject) => value that derives the copy value — return null/undefined to hide the entry.
    *   - primary: if true, overrides the default copy action; original object ID moves to dropdown
    *   - when: visibility condition — omit to show when source is truthy,
    *     string path for truthy check, { field, matches } for case-insensitive equality,
-   *     or { field, length } for array-length equality (e.g., show only when an array has exactly N items)
+   *     { field, length } for array-length equality (e.g., show only when an array has exactly N items),
+   *     or a function (domoObject) => boolean for arbitrary checks.
    * @param {Object} [options.extractConfig] - Configuration for extracting ID from URL
    * @param {Object} [options.icon] - Icon config for this object type
    *   { component: string, rotation?: number } where component is a key in the ObjectTypeIcon registry
@@ -268,6 +271,7 @@ export const ObjectTypeRegistry = {
   ACHIEVEMENT: new DomoObjectType('ACHIEVEMENT', 'Achievement', {
     aliases: ['ACHIEVEMENT_ADMIN', 'USER_ACHIEVEMENT'],
     api: { endpoint: '/content/v1/achievements/{id}', pathToName: 'name' },
+    icon: { component: 'CertifiedCompany' },
     idPattern: /.*/
   }),
   ADC_COLUMN_POLICY: new DomoObjectType('ADC_COLUMN_POLICY', 'Column PDP Policy', {
@@ -616,7 +620,19 @@ export const ObjectTypeRegistry = {
       pathToName: 'name'
     },
     copyConfigs: [
-      { label: 'Account ID', source: 'metadata.details.accountId' },
+      // Accounts live on the stream (`metadata.parent.details.accounts`) now
+      // that the singular `accountId` field has been removed from the
+      // datasource response. Only show this entry when the stream pulls
+      // from exactly one account — multi-account is rare and a single Copy
+      // affordance can't pick the "right" one; users can grab the IDs from
+      // the JSON context footer in that case.
+      {
+        label: 'Account ID',
+        source: (obj) => {
+          const ids = getAccountIdsForDomoObject(obj);
+          return ids.length === 1 ? ids[0] : null;
+        }
+      },
       {
         label: 'DataFlow ID',
         source: 'parentId',
@@ -630,6 +646,20 @@ export const ObjectTypeRegistry = {
     parents: ['DATAFLOW_TYPE', 'DATA_SOURCE', 'STREAM'],
     relatedData: [
       { label: 'Stream', source: 'parent', typeId: 'STREAM' },
+      // Preferred: multi-account list from the stream definition. Only renders
+      // when the stream's `accounts` array is populated (migrated streams).
+      {
+        field: 'accounts',
+        fieldSource: 'parent',
+        isArray: true,
+        itemIdField: 'accountId',
+        itemTypeId: 'ACCOUNT',
+        label: 'Account'
+      },
+      // Fallback: legacy singular accountId on the datasource response.
+      // Most datasets still aren't multi-account, so this is the dominant
+      // case today. The two entries are practically mutually exclusive —
+      // migrated streams stop populating `accountId` on the datasource.
       { field: 'accountId', label: 'Account', typeId: 'ACCOUNT' },
       { label: 'DataFlow', source: 'parent', typeId: 'DATAFLOW_TYPE' },
       { fetcher: 'datasetColumns', isArray: true, label: 'Columns' }

@@ -105,7 +105,9 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
           const arrayBase =
             related.fieldSource === 'context'
               ? domoObject.metadata?.context
-              : domoObject.metadata?.details;
+              : related.fieldSource === 'parent'
+                ? domoObject.metadata?.parent?.details
+                : domoObject.metadata?.details;
           const arrayData = arrayBase?.[related.field];
           if (arrayData?.length > 0) {
             result.push({
@@ -145,7 +147,9 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
           const fieldBase =
             related.fieldSource === 'context'
               ? domoObject.metadata?.context
-              : domoObject.metadata?.details;
+              : related.fieldSource === 'parent'
+                ? domoObject.metadata?.parent?.details
+                : domoObject.metadata?.details;
           relatedId = related.field.split('.').reduce((obj, key) => obj?.[key], fieldBase);
         }
 

@@ -2,6 +2,7 @@ import { Button, Tooltip } from '@heroui/react';
 import { useState } from 'react';
 
 import { useStatusBar } from '@/hooks/useStatusBar';
+import { getAccountIdsForDomoObject } from '@/services/accounts';
 import { shareWithSelf } from '@/services/share';
 import { isSidepanel } from '@/utils/sidepanel';
 import IconPersonPlus from '@icons/person-plus.svg?react';
@@ -34,7 +35,7 @@ export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
     }
 
     if (currentContext.domoObject.typeId === 'DATA_SOURCE') {
-      if (!currentContext.domoObject.metadata?.details?.accountId) {
+      if (getAccountIdsForDomoObject(currentContext.domoObject).length === 0) {
         onStatusUpdate?.(
           'Missing Account Information',
           'DataSet account information not found. Please refresh and try again.',
@@ -46,7 +47,16 @@ export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
 
     setIsSharing(true);
 
-    const label = `${currentContext.domoObject?.typeName === 'DATA_SOURCE' ? 'Account' : currentContext.domoObject?.typeName} ${currentContext.domoObject?.id}`;
+    let label;
+    if (currentContext.domoObject?.typeId === 'DATA_SOURCE') {
+      const accountIds = getAccountIdsForDomoObject(currentContext.domoObject);
+      label =
+        accountIds.length > 1
+          ? `${accountIds.length} accounts (${accountIds.join(', ')})`
+          : `Account ${accountIds[0]}`;
+    } else {
+      label = `${currentContext.domoObject?.typeName} ${currentContext.domoObject?.id}`;
+    }
 
     const promise = shareWithSelf({
       object: currentContext.domoObject,
@@ -136,8 +146,8 @@ export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
         offset={4}
       >
         {currentContext?.domoObject?.typeId === 'DATA_SOURCE' &&
-        currentContext?.domoObject?.metadata?.details?.accountId ? (
-          <>Share dataset account with yourself</>
+        getAccountIdsForDomoObject(currentContext?.domoObject).length > 0 ? (
+          <>Share dataset account(s) with yourself</>
         ) : (
           <>Share {currentContext?.domoObject?.typeName.toLowerCase()} with yourself</>
         )}
@@ -163,7 +173,7 @@ function isSupportedForShare(domoObject) {
     return domoObject.metadata?.details?.type === 'domoapp';
   }
   if (domoObject.typeId === 'DATA_SOURCE') {
-    return !!domoObject.metadata?.details?.accountId;
+    return getAccountIdsForDomoObject(domoObject).length > 0;
   }
   return true;
 }

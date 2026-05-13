@@ -1,6 +1,46 @@
 import { executeInPage } from '@/utils/executeInPage';
 
 /**
+ * Pull the account IDs associated with a DATA_SOURCE or STREAM DomoObject.
+ *
+ * Domo's stream definition recently grew an `accounts` array (each entry
+ * shaped `{ accountId, metadata, streamId }`) to support multi-account
+ * pulls per dataset. Most datasets haven't been migrated yet, so we prefer
+ * the new `accounts` array when populated and fall back to the legacy
+ * singular `accountId` on the datasource response otherwise.
+ *
+ * Resolution order for DATA_SOURCE:
+ *   1. `metadata.parent.details.accounts[].accountId` (new, multi-account)
+ *   2. `metadata.details.accountId` (legacy, single-account)
+ *
+ * For STREAM we read `metadata.details.accounts` directly.
+ *
+ * Returns an empty array when no accounts are wired up yet (e.g. the
+ * stream parent enrichment hasn't completed, or the dataset is a
+ * DataFlow output with no stream).
+ *
+ * @param {Object|null|undefined} domoObject
+ * @returns {number[]}
+ */
+export function getAccountIdsForDomoObject(domoObject) {
+  if (!domoObject?.typeId) return [];
+  if (domoObject.typeId === 'STREAM') {
+    const accounts = domoObject.metadata?.details?.accounts;
+    if (!Array.isArray(accounts)) return [];
+    return accounts.map((a) => a?.accountId).filter((id) => id != null);
+  }
+  if (domoObject.typeId === 'DATA_SOURCE') {
+    const accounts = domoObject.metadata?.parent?.details?.accounts;
+    if (Array.isArray(accounts) && accounts.length > 0) {
+      return accounts.map((a) => a?.accountId).filter((id) => id != null);
+    }
+    const legacyId = domoObject.metadata?.details?.accountId;
+    if (legacyId != null) return [legacyId];
+  }
+  return [];
+}
+
+/**
  * Get all accounts owned by a user.
  * @param {number} userId - The Domo user ID
  * @param {number|null} tabId - Optional Chrome tab ID

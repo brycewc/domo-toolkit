@@ -1,6 +1,6 @@
 import { executeInPage } from '@/utils/executeInPage';
 
-import { shareAccount } from './accounts';
+import { getAccountIdsForDomoObject, shareAccount } from './accounts';
 import { getAppInstanceCollections, shareAppDbCollection } from './appDb';
 import { shareStudioApp } from './appStudio';
 import { getAppInstance, shareCustomAppDesign } from './customApps';
@@ -147,12 +147,19 @@ async function shareForType({ object, tabId, userId }) {
           'DataSet is a DataFlow output and does not have an account to share'
         );
       }
-      const accountId = object.metadata?.details?.accountId;
-      if (!accountId) {
-        throw new Error('DataSet account ID not found in metadata');
+      const accountIds = getAccountIdsForDomoObject(object);
+      if (accountIds.length === 0) {
+        throw new Error('DataSet account information not found');
       }
-      await shareAccount({ accountId, tabId, userId });
-      return `Account ${accountId} shared successfully`;
+      await Promise.all(
+        accountIds.map((accountId) =>
+          shareAccount({ accountId, tabId, userId })
+        )
+      );
+      if (accountIds.length === 1) {
+        return `Account ${accountIds[0]} shared successfully`;
+      }
+      return `${accountIds.length} accounts shared successfully (${accountIds.join(', ')})`;
     }
 
     case 'PAGE':

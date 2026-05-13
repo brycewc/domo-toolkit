@@ -19,10 +19,14 @@ export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
   const dropdownItems = useMemo(() => {
     if (!typeModel?.copyConfigs || !domoObject) return [];
 
-    const resolve = (source) => source.split('.').reduce((cur, key) => cur?.[key], domoObject);
+    const resolve = (source) =>
+      typeof source === 'function'
+        ? source(domoObject)
+        : source.split('.').reduce((cur, key) => cur?.[key], domoObject);
 
     const isVisible = (config) => {
       if (!config.when) return !!resolve(config.source);
+      if (typeof config.when === 'function') return !!config.when(domoObject);
       if (typeof config.when === 'string') return !!resolve(config.when);
       const val = resolve(config.when.field);
       if (config.when.length !== undefined) {
@@ -34,7 +38,7 @@ export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
     return typeModel.copyConfigs
       .filter((c) => !c.primary && isVisible(c))
       .map((c) => ({
-        id: c.source,
+        id: typeof c.source === 'function' ? c.label : c.source,
         label: `Copy ${c.label}`,
         value: resolve(c.source)
       }));
@@ -43,7 +47,10 @@ export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
   const longPressDisabled = isDisabled || !domoObject?.id || dropdownItems.length === 0;
 
   const handlePress = () => {
-    const resolve = (source) => source.split('.').reduce((cur, key) => cur?.[key], domoObject);
+    const resolve = (source) =>
+      typeof source === 'function'
+        ? source(domoObject)
+        : source.split('.').reduce((cur, key) => cur?.[key], domoObject);
 
     const copyId = primaryConfig ? resolve(primaryConfig.source) : domoObject?.id;
     const copyLabel = primaryConfig?.label || `${domoObject?.typeName} ID`;
