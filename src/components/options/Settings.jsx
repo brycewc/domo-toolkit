@@ -22,7 +22,7 @@ const DEFAULT_SETTINGS = {
   autoClearCookiesOn431: true,
   clearCookiesButtonBehavior: 'preserve',
   defaultDomoInstance: '',
-  showClearCookiesButton: true,
+  showClearCookiesButton: false,
   themePreference: 'system'
 };
 

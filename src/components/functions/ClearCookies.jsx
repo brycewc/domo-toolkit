@@ -14,20 +14,20 @@ const EXCLUDED_HOSTNAMES = [
 ];
 
 export function ClearCookies({ currentContext, isDisabled }) {
-  const [showButton, setShowButton] = useState(true);
+  const [showButton, setShowButton] = useState(false);
   const [behavior, setBehavior] = useState('preserve');
   const { showPromiseStatus } = useStatusBar();
 
   useEffect(() => {
     chrome.storage.sync.get(['showClearCookiesButton', 'clearCookiesButtonBehavior'], (result) => {
-      setShowButton(result.showClearCookiesButton ?? true);
+      setShowButton(result.showClearCookiesButton ?? false);
       setBehavior(result.clearCookiesButtonBehavior || 'preserve');
     });
 
     const handleStorageChange = (changes, areaName) => {
       if (areaName !== 'sync') return;
       if (changes.showClearCookiesButton) {
-        setShowButton(changes.showClearCookiesButton.newValue ?? true);
+        setShowButton(changes.showClearCookiesButton.newValue ?? false);
       }
       if (changes.clearCookiesButtonBehavior) {
         setBehavior(changes.clearCookiesButtonBehavior.newValue || 'preserve');
