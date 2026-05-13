@@ -4,9 +4,11 @@ import IconAiBook from '@icons/ai-book.svg?react';
 import IconAiModel from '@icons/ai-model.svg?react';
 import IconAiRobot from '@icons/ai-robot.svg?react';
 import IconApprovalCenter from '@icons/approval-center.svg?react';
+import IconBuilding from '@icons/building.svg?react';
 import IconCalendarTime from '@icons/calendar-time.svg?react';
 import IconCardNotebook from '@icons/card-notebook.svg?react';
 import IconCard from '@icons/card.svg?react';
+import IconCertifiedCompany from '@icons/certified-company.svg?react';
 import IconCertified from '@icons/certified.svg?react';
 import IconCheckIn from '@icons/check-in.svg?react';
 import IconClock from '@icons/clock.svg?react';
@@ -24,6 +26,7 @@ import IconFileDrawer from '@icons/file-drawer.svg?react';
 import IconFolder from '@icons/folder.svg?react';
 import IconFormatListChecks from '@icons/format-list-checks.svg?react';
 import IconFormula from '@icons/formula.svg?react';
+import IconGear from '@icons/gear.svg?react';
 import IconGoals from '@icons/goals.svg?react';
 import IconKey from '@icons/key.svg?react';
 import IconLineage from '@icons/lineage.svg?react';
@@ -50,10 +53,12 @@ const ICON_MAP = {
   AiModel: IconAiModel,
   AiRobot: IconAiRobot,
   ApprovalCenter: IconApprovalCenter,
+  Building: IconBuilding,
   CalendarTime: IconCalendarTime,
   Card: IconCard,
   CardNotebook: IconCardNotebook,
   Certified: IconCertified,
+  CertifiedCompany: IconCertifiedCompany,
   CheckIn: IconCheckIn,
   Clock: IconClock,
   Code: IconCode,
@@ -70,6 +75,7 @@ const ICON_MAP = {
   Folder: IconFolder,
   FormatListChecks: IconFormatListChecks,
   Formula: IconFormula,
+  Gear: IconGear,
   Goals: IconGoals,
   Key: IconKey,
   Lineage: IconLineage,

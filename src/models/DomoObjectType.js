@@ -471,7 +471,7 @@ export const ObjectTypeRegistry = {
     extractConfig: {
       keyword: 'edit-form'
     },
-    icon: { component: 'Certified' },
+    icon: { component: 'CertifiedCompany' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     urlPath: '/admin/certifiedcontent/{metadata.context.certifiedType}/edit-form/{id}'
   }),
@@ -553,6 +553,7 @@ export const ObjectTypeRegistry = {
   ),
   CUSTOMER_STATE: new DomoObjectType('CUSTOMER_STATE', 'Customer State', {
     api: { endpoint: '/content/v1/customer-states/{id}', pathToName: 'name' },
+    icon: { component: 'Building' },
     idPattern: /.*/
   }),
   DATA_APP: new DomoObjectType('DATA_APP', 'Studio App', {
@@ -766,6 +767,7 @@ export const ObjectTypeRegistry = {
       endpoint: '/data/v1/data-files/{parent}/revisions/{id}',
       pathToName: 'name'
     },
+    icon: { component: 'Document' },
     idPattern: /^\d+$/,
     parents: ['FILE'],
     relatedData: [{ label: 'Document', source: 'parentId', typeId: 'FILE' }]
@@ -803,13 +805,16 @@ export const ObjectTypeRegistry = {
     urlPath: '/goals/{id}'
   }),
   GOAL_DELEGATE: new DomoObjectType('GOAL_DELEGATE', 'Goal Delegate', {
+    icon: { component: 'Person' },
     idPattern: /^\d+$/
   }),
   GOAL_PERIOD: new DomoObjectType('GOAL_PERIOD', 'Goal Period', {
     api: { endpoint: '/social/v1/objectives/periods/{id}', pathToName: 'name' },
+    icon: { component: 'CalendarTime' },
     idPattern: /^\d+$/
   }),
   GOAL_TAG: new DomoObjectType('GOAL_TAG', 'Goal Tag', {
+    icon: { component: 'Tag' },
     idPattern: /^\d+$/,
     parents: ['TAG_CATEGORY']
   }),
@@ -942,6 +947,7 @@ export const ObjectTypeRegistry = {
       endpoint: '/content/v1/projects/{parent}/lists/{id}',
       pathToName: 'name'
     },
+    icon: { component: 'List' },
     idPattern: /^\d+$/,
     parents: ['PROJECT']
   }),
@@ -987,6 +993,7 @@ export const ObjectTypeRegistry = {
     idPattern: /^\d+$/
   }),
   REPORT_BUILDER_PAGE: new DomoObjectType('REPORT_BUILDER_PAGE', 'Report Page', {
+    icon: { component: 'PagesBars' },
     idPattern: /^\d+$/,
     parents: ['REPORT_BUILDER']
   }),
@@ -995,7 +1002,7 @@ export const ObjectTypeRegistry = {
       endpoint: '/content/v1/reportbuilder/views/{id}',
       pathToName: 'subject'
     },
-    icon: { component: 'CheckIn' },
+    icon: { component: 'PagesBars' },
     idPattern: /^\d+$/,
     parents: ['REPORT_BUILDER']
   }),
@@ -1076,6 +1083,7 @@ export const ObjectTypeRegistry = {
     urlPath: '/approval/edit-request-form/{id}'
   }),
   TOKEN: new DomoObjectType('TOKEN', 'API Client', {
+    icon: { component: 'Key' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[X]{4}-[X]{4}-[X]{12}$/i
   }),
   USER: new DomoObjectType('USER', 'Person', {
@@ -1144,7 +1152,7 @@ export const ObjectTypeRegistry = {
     idPattern: /^\d+$/
   }),
   WORKBENCH_SCHEDULE: new DomoObjectType('WORKBENCH_SCHEDULE', 'On Premise Job Schedule', {
-    idPattern: /0/
+    idPattern: /.*/
   }),
   WORKFLOW_INSTANCE: new DomoObjectType('WORKFLOW_INSTANCE', 'Workflow Execution', {
     api: {

@@ -6,4 +6,3 @@
 - [ ] I am bad at committing often and with better commit messages. Write a skill to have Claude prompt me to commit and auto-generate messages.
 - [ ] Add back icon color changing options.
 - [ ] Add option to open activity log for an app when on app studio page
-- [ ] Add alternate action for get other pages for cards when on app studio page, to do so for the whole app

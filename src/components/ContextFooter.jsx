@@ -17,7 +17,12 @@ import { useUserLookup } from '@/hooks/useUserLookup';
 import { fetchObjectDetailsInPage, getObjectType } from '@/models/DomoObjectType';
 import { getDatasetColumns, getDatasetsForPage } from '@/services/datasets';
 import { executeInPage } from '@/utils/executeInPage';
-import { formatEpochTimestamp, isDateFieldName, isGroupFieldName, isUserFieldName } from '@/utils/general';
+import {
+  formatEpochTimestamp,
+  isDateFieldName,
+  isGroupFieldName,
+  isUserFieldName
+} from '@/utils/general';
 import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
 
 // Maps relatedData[].fetcher key → (params) => Promise<Array>. Lives here
@@ -32,9 +37,11 @@ const LAZY_ARRAY_FETCHERS = {
 import { AlertStatusIcon } from './AlertStatusIcon';
 import { AnimatedCheck } from './AnimatedCheck';
 import { GroupIdAnnotation } from './GroupIdAnnotation';
+import { ObjectTypeIcon } from './ObjectTypeIcon';
 import { TimestampAnnotation } from './TimestampAnnotation';
-import { UserIdAnnotation } from './UserIdAnnotation';
 import '@/assets/json-view-theme.css';
+
+import { UserIdAnnotation } from './UserIdAnnotation';
 
 export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onStatusUpdate }) {
   const [developerMode, setDeveloperMode] = useState(false);
@@ -399,6 +406,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
                   <Tooltip closeDelay={0} delay={400}>
                     <Tooltip.Trigger className='flex shrink-0 items-center'>
                       <Chip className='w-fit lowercase' color='accent' size='sm' variant='soft'>
+                        <ObjectTypeIcon typeId={currentContext?.domoObject?.typeId} />
                         {currentContext?.domoObject?.typeName}
                       </Chip>
                     </Tooltip.Trigger>
@@ -583,12 +591,7 @@ function MetadataJsonView({ collapsed = 1, groupMap = {}, src, userMap = {} }) {
         />
       )}
       CopyComponent={({ className, onClick, style }) => (
-        <IconClipboardCopy
-          className={className}
-          size={16}
-          style={style}
-          onClick={onClick}
-        />
+        <IconClipboardCopy className={className} size={16} style={style} onClick={onClick} />
       )}
       customizeCopy={(node) =>
         typeof node === 'object' ? JSON.stringify(node, null, 2) : String(node)

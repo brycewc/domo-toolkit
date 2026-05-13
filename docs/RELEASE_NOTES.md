@@ -102,6 +102,8 @@
 
 - Code Engine Package Version: default copy action now copies the parent Code Engine Package ID
 - Card: long-press Copy menu now offers a "Copy DataSet ID" action when the card is powered by exactly one dataset
+- Get Cards: long-press menu on app/worksheet pages now offers a "Get App Cards" / "Get Worksheet Cards" alternate action — lists every card, form, and queue across all views on the parent app/worksheet, grouped by page so the same card appearing on multiple pages shows under each
+- Get Card Pages: long-press menu on app/worksheet pages now offers a "Get App Card Pages" / "Get Worksheet Card Pages" alternate action — aggregates every card across all views on the parent and lists the other pages those cards live on (pages inside the same app/worksheet are excluded since "other" is the point)
 - Update Code Engine Versions: built-in Domo packages restricted to upgrade-to-latest only (no downgrades or intermediate versions); built-ins are labeled with a "Built-in" chip
 - Tabs opened from the popup or side panel (Activity Log, Lineage, Settings, Release Notes "View Details") now open immediately to the right of the launching tab instead of at the end of the tab strip
 - Navigate to Copied Object: a copied stream ID now resolves to (and navigates to) its associated dataset

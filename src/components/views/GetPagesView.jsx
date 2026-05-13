@@ -5,7 +5,11 @@ import { CloseButton } from '@/components/CloseButton';
 import { DataListItem } from '@/models/DataListItem';
 import { DomoContext } from '@/models/DomoContext';
 import { DomoObject } from '@/models/DomoObject';
-import { getCardsForObject, removeCardFromPage } from '@/services/cards';
+import {
+  getCardsForObject,
+  getCardsForParent,
+  removeCardFromPage
+} from '@/services/cards';
 import { getChildPages, getPagesForCards, sharePages } from '@/services/pages';
 import { waitForCards } from '@/utils/cardHelpers';
 import { getValidTabForInstance } from '@/utils/currentObject';
@@ -64,6 +68,11 @@ export function GetPagesView({
       ) {
         setError('No page data found. Please try again from a page URL.');
         setIsLoading(false);
+        return;
+      }
+
+      if (data.type === 'getCardPages' && data.scope === 'parent') {
+        await loadParentScopeCardPages(data);
         return;
       }
 
@@ -265,6 +274,94 @@ export function GetPagesView({
         setShowSpinner(false);
       }
     }
+  };
+
+  const loadParentScopeCardPages = async (data) => {
+    const context = DomoContext.fromJSON(data.currentContext);
+    const childTypeId = context.domoObject.typeId;
+    const parentTypeId =
+      childTypeId === 'WORKSHEET_VIEW' ? 'WORKSHEET' : 'DATA_APP';
+    const parentId = data.parentId || context.domoObject.parentId;
+    const instance = context.instance;
+    const origin = `https://${instance}.domo.com`;
+    const parentLabel = parentTypeId === 'WORKSHEET' ? 'worksheet' : 'app';
+
+    if (!parentId) {
+      setError('Could not determine parent ID.');
+      return;
+    }
+
+    setPageTypeLabel('Card Pages');
+
+    const tabId = await getValidTabForInstance(instance);
+    const { parentName, viewGroups } = await getCardsForParent({
+      parentId,
+      tabId
+    });
+
+    // Aggregate and dedupe card IDs across all views.
+    const cardIdSet = new Set();
+    for (const vg of viewGroups) {
+      for (const card of vg.cards) {
+        if (card?.id != null) cardIdSet.add(card.id);
+      }
+    }
+    const cardIds = [...cardIdSet];
+
+    if (cardIds.length === 0) {
+      onStatusUpdate?.(
+        'No Cards Found',
+        `No cards found across any view on this ${parentLabel}.`,
+        'warning',
+        3000
+      );
+      onBackToDefault?.();
+      return;
+    }
+
+    const result = (await getPagesForCards(cardIds, tabId)) ?? {
+      cardsByPage: {},
+      pages: []
+    };
+
+    // Exclude views inside the parent app/worksheet -- the user wants OTHER
+    // pages, not other views within the same app.
+    const stringParentId = String(parentId);
+    const childPages = result.pages
+      .filter((page) => String(page.appId) !== stringParentId)
+      .map((page) => ({
+        appId: page.appId || null,
+        appName: page.appName || null,
+        pageId: page.id,
+        pageTitle: page.name,
+        pageType: page.type
+      }));
+
+    if (childPages.length === 0) {
+      onStatusUpdate?.(
+        'No Pages Found',
+        `Cards on this ${parentLabel} are not used on any other pages.`,
+        'warning'
+      );
+      onBackToDefault?.();
+      return;
+    }
+
+    setPageData({
+      appId: null,
+      instance,
+      objectId: parentId,
+      objectName: parentName,
+      objectType: parentTypeId,
+      origin,
+      sidepanelType: 'getCardPages',
+      userId: context.user?.id
+    });
+
+    setError(null);
+    setItems(
+      transformGroupedPagesData(childPages, origin, result.cardsByPage)
+    );
   };
 
   /**

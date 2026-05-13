@@ -1,6 +1,12 @@
 import { EXPORT_FORMATS } from '@/utils/constants';
 import { executeInPage } from '@/utils/executeInPage';
 
+import {
+  extractPageContentIds,
+  getFormsForPage,
+  getQueuesForPage
+} from './appStudio';
+
 /**
  * Export a card as a file download, using the card's current view state
  * (applied filters, date range, chart overrides, etc.).
@@ -323,6 +329,90 @@ export async function getCardsForObject({
     console.error('Error fetching cards for object:', error);
     throw error;
   }
+}
+
+/**
+ * Fetch all content (cards, forms, queues) across every view on a parent
+ * DATA_APP or WORKSHEET, grouped by view. Both types share the same backend
+ * endpoint, so the parent type doesn't need to be passed in.
+ *
+ * @param {Object} params
+ * @param {string} params.parentId - The DATA_APP or WORKSHEET ID
+ * @param {number|null} [params.tabId=null] - Target tab
+ * @returns {Promise<{
+ *   parentName: string,
+ *   viewGroups: Array<{
+ *     viewId: string,
+ *     viewName: string,
+ *     cards: Array,
+ *     forms: Array,
+ *     queues: Array
+ *   }>
+ * }>}
+ */
+export async function getCardsForParent({ parentId, tabId = null }) {
+  // 1. Fetch the parent app/worksheet to get its name and view list.
+  const parentData = await executeInPage(
+    async (parentId) => {
+      const response = await fetch(`/api/content/v1/dataapps/${parentId}`);
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch parent ${parentId}. HTTP status: ${response.status}`
+        );
+      }
+      const data = await response.json();
+      return {
+        name: data.title || data.name || `App ${parentId}`,
+        views: (data.views || []).map((v) => ({
+          viewId: String(v.viewId),
+          viewName: v.title || `View ${v.viewId}`
+        }))
+      };
+    },
+    [parentId],
+    tabId
+  );
+
+  // 2. For each view, fetch details + cards in parallel, then forms/queues
+  //    from widget IDs in the layout. Per-view errors are isolated so one
+  //    failing view doesn't take down the whole result.
+  const viewGroups = await Promise.all(
+    parentData.views.map(async ({ viewId, viewName }) => {
+      try {
+        const [details, cards] = await Promise.all([
+          fetchViewDetails(viewId, tabId),
+          getCardsForObject({
+            objectId: viewId,
+            objectType: 'DATA_APP_VIEW',
+            tabId
+          }).catch(() => [])
+        ]);
+
+        const { formWidgetIds, queueWidgetIds } = extractPageContentIds(details);
+
+        const [forms, queues] = await Promise.all([
+          formWidgetIds.length > 0
+            ? getFormsForPage({ formWidgetIds, tabId }).catch(() => [])
+            : Promise.resolve([]),
+          queueWidgetIds.length > 0
+            ? getQueuesForPage({ queueWidgetIds, tabId }).catch(() => [])
+            : Promise.resolve([])
+        ]);
+
+        return { cards, forms, queues, viewId, viewName };
+      } catch (error) {
+        console.warn(`Error fetching content for view ${viewId}:`, error);
+        return { cards: [], forms: [], queues: [], viewId, viewName };
+      }
+    })
+  );
+
+  // 3. Drop views that ended up with no content -- keeps the grouped list clean.
+  const nonEmpty = viewGroups.filter(
+    (vg) => vg.cards.length > 0 || vg.forms.length > 0 || vg.queues.length > 0
+  );
+
+  return { parentName: parentData.name, viewGroups: nonEmpty };
 }
 
 export async function getDrillParentCardId(
@@ -679,5 +769,25 @@ export async function updateCardDefinition({
   } catch (error) {
     console.error('Error updating card definition:', error);
     throw error;
+  }
+}
+
+/**
+ * Fetch the bare stacks details for a view so we can read pageLayoutV4 and
+ * derive form/queue widget IDs. Returns null on failure rather than throwing.
+ */
+async function fetchViewDetails(viewId, tabId) {
+  try {
+    return await executeInPage(
+      async (viewId) => {
+        const response = await fetch(`/api/content/v3/stacks/${viewId}`);
+        if (!response.ok) return null;
+        return response.json();
+      },
+      [viewId],
+      tabId
+    );
+  } catch {
+    return null;
   }
 }
