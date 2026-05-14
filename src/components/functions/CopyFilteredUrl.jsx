@@ -14,8 +14,6 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
   const [isCopied, setIsCopied] = useState(false);
   const [isFailed, setIsFailed] = useState(false);
   const [filterCount, setFilterCount] = useState(0);
-  const [heldFilters, setHeldFilters] = useState([]);
-  const [hasNewFilters, setHasNewFilters] = useState(false);
   const { LongPressOverlay, pressProps } = useLongPress();
   const { showStatus } = useStatusBar();
 
@@ -30,7 +28,6 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
     const updateFilterDetection = async () => {
       if (!currentContext?.domoObject?.id || !isSupported) {
         setFilterCount(0);
-        setHasNewFilters(false);
         return;
       }
 
@@ -42,20 +39,6 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
 
         if (isMounted) {
           setFilterCount(allFilters.length);
-
-          if (heldFilters.length !== allFilters.length) {
-            setHasNewFilters(heldFilters.length > 0 && allFilters.length > 0);
-          } else if (allFilters.length > 0) {
-            const heldStr = JSON.stringify(
-              [...heldFilters].sort((a, b) => a.column.localeCompare(b.column))
-            );
-            const detectedStr = JSON.stringify(
-              [...allFilters].sort((a, b) => a.column.localeCompare(b.column))
-            );
-            setHasNewFilters(heldStr !== detectedStr);
-          } else {
-            setHasNewFilters(false);
-          }
         }
       } catch (error) {
         console.warn('[CopyFilteredUrl] Failed to pre-fetch filter count:', error);
@@ -67,7 +50,7 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
     return () => {
       isMounted = false;
     };
-  }, [currentContext, isSupported, typeId, heldFilters]);
+  }, [currentContext, isSupported, typeId]);
 
   const handleCopyFilteredUrl = async () => {
     if (!currentContext?.domoObject?.id || !isSupported) return;
@@ -81,9 +64,7 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
         tabId: currentContext.tabId
       });
 
-      setHeldFilters(allFilters);
       setFilterCount(allFilters.length);
-      setHasNewFilters(false);
 
       const filteredUrl = buildPfilterUrl(currentUrl, objectId, allFilters);
       await navigator.clipboard.writeText(filteredUrl);
@@ -119,9 +100,7 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
         tabId: currentContext.tabId
       });
 
-      setHeldFilters(allFilters);
       setFilterCount(allFilters.length);
-      setHasNewFilters(false);
 
       if (allFilters.length === 0) {
         setIsFailed(true);
@@ -153,7 +132,7 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
       <Tooltip closeDelay={100} delay={600}>
         <Button
           fullWidth
-          className={`min-w-36 flex-1 whitespace-normal ${hasNewFilters ? 'animate-pulse' : ''}`}
+          className='min-w-36 flex-1 whitespace-normal'
           isDisabled={isDisabled || !isSupported}
           variant='tertiary'
           onPress={handleCopyFilteredUrl}
