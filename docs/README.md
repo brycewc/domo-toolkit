@@ -103,6 +103,7 @@ Both show the current context (instance, object type, object ID) and update as y
 ### Settings
 
 - **Theme** - System, light, or dark mode.
+- **Extension Icon** - Choose between Domo Blue, Black, or White for the toolbar icon so it stays visible against any browser theme.
 - **Default Domo Instance** - Set your go-to instance for clipboard navigation from non-Domo sites.
 - **Cookie Clearing** - Three independent toggles: auto-clear on 431 errors, show manual cookie button, and manual button behavior (preserve last 2 instances or clear all).
 - **Favicon Rules** - Rule editor with pattern matching, effect selection, color picker, and drag-and-drop reordering.

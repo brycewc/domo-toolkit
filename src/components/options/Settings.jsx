@@ -22,6 +22,7 @@ const DEFAULT_SETTINGS = {
   autoClearCookiesOn431: true,
   clearCookiesButtonBehavior: 'preserve',
   defaultDomoInstance: '',
+  iconColor: 'blue',
   showClearCookiesButton: false,
   themePreference: 'system'
 };
@@ -105,6 +106,13 @@ export function Settings() {
     }));
   };
 
+  const handleIconColorChange = (value) => {
+    setSettings((prev) => ({
+      ...prev,
+      iconColor: value
+    }));
+  };
+
   const handleDefaultInstanceChange = (value) => {
     setSettings((prev) => ({
       ...prev,
@@ -150,7 +158,7 @@ export function Settings() {
   }
 
   return (
-    <div className='flex h-full min-h-[calc(100vh-20)] w-xl flex-col gap-2 py-4'>
+    <div className='flex h-full min-h-[calc(100vh-10)] w-xl flex-col gap-2 py-4'>
       <Form className='flex flex-col gap-2' onSubmit={handleSubmit}>
         <Select
           className='w-50'
@@ -191,6 +199,50 @@ export function Settings() {
             System, light, or dark theme (applies to popup, side panel, and options pages)
           </Description>
         </Select>
+        <Select className='w-50' value={settings.iconColor} onChange={handleIconColorChange}>
+          <Label>Extension Icon</Label>
+          <Select.Trigger>
+            <Select.Value />
+            <Select.Indicator>
+              <IconChevronDown />
+            </Select.Indicator>
+          </Select.Trigger>
+          <Select.Popover>
+            <ListBox>
+              <ListBox.Item id='blue' textValue='Domo Blue'>
+                <span className='flex flex-row items-center gap-2'>
+                  <img alt='' className='h-4 w-4' src='/toolkit-16.png' />
+                  Domo Blue
+                </span>
+                <ListBox.ItemIndicator>
+                  {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
+                </ListBox.ItemIndicator>
+              </ListBox.Item>
+              <ListBox.Item id='black' textValue='Black'>
+                <span className='flex flex-row items-center gap-2'>
+                  <img alt='' className='h-4 w-4' src='/toolkit-black-16.png' />
+                  Black
+                </span>
+                <ListBox.ItemIndicator>
+                  {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
+                </ListBox.ItemIndicator>
+              </ListBox.Item>
+              <ListBox.Item id='white' textValue='White'>
+                <span className='flex flex-row items-center gap-2'>
+                  <img alt='' className='h-4 w-4' src='/toolkit-white-16.png' />
+                  White
+                </span>
+                <ListBox.ItemIndicator>
+                  {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
+                </ListBox.ItemIndicator>
+              </ListBox.Item>
+            </ListBox>
+          </Select.Popover>
+          <Description className='w-lg'>
+            Choose the toolbar icon color. Useful when a custom browser theme makes the default hard
+            to see.
+          </Description>
+        </Select>
         <TextField className='w-50' onChange={handleDefaultInstanceChange}>
           <Label>Default Domo Instance</Label>
           <Input placeholder='Enter an instance' value={settings.defaultDomoInstance} />
@@ -199,10 +251,7 @@ export function Settings() {
             .domo.com (e.g., company for company.domo.com)
           </Description>
         </TextField>
-        <Switch
-          isSelected={settings.autoClearCookiesOn431}
-          onChange={handleAutoClearChange}
-        >
+        <Switch isSelected={settings.autoClearCookiesOn431} onChange={handleAutoClearChange}>
           <Switch.Control>
             <Switch.Thumb />
           </Switch.Control>
@@ -214,10 +263,7 @@ export function Settings() {
             </Description>
           </Switch.Content>
         </Switch>
-        <Switch
-          isSelected={settings.showClearCookiesButton}
-          onChange={handleShowButtonChange}
-        >
+        <Switch isSelected={settings.showClearCookiesButton} onChange={handleShowButtonChange}>
           <Switch.Control>
             <Switch.Thumb />
           </Switch.Control>
@@ -328,7 +374,7 @@ export function Settings() {
       </div>
 
       {import.meta.env.DEV && (
-        <>
+        <div className='pb-4'>
           <Separator className='my-2' />
           <Switch isSelected={developerMode} onChange={handleDeveloperModeChange}>
             <Switch.Control>
@@ -341,7 +387,7 @@ export function Settings() {
               </Description>
             </Switch.Content>
           </Switch>
-        </>
+        </div>
       )}
     </div>
   );

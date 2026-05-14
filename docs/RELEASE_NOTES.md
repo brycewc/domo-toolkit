@@ -6,6 +6,11 @@
 
 - Replaced Tabler icons with Domo's official icon set across the entire extension for visual consistency with the Domo platform
 
+### Custom Toolbar Icon Color (restored)
+
+- Added a Settings dropdown to choose between Domo Blue, Black, or White for the toolbar icon. Useful when a custom browser theme makes the default icon hard to see (e.g., blue Chrome theme on blue Domo icon)
+- Restores a feature removed in v1.2.0 (previously offered Light/Dark variants with backgrounds); adapted to preserve the v1.2.0 transparent-icon design and add a black and white option
+
 ### Off-boarding: Transfer Ownership
 
 - Transfer ownership of all object types from one user to another

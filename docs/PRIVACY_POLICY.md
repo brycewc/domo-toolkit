@@ -3,7 +3,7 @@
 
 # Privacy Policy for Domo Toolkit
 
-**Last Updated:** May 12, 2026
+**Last Updated:** May 14, 2026
 
 ## Overview
 
@@ -11,7 +11,7 @@ Domo Toolkit is a browser extension that enhances the Domo platform experience f
 
 **Key Points:**
 
-- We do not operate servers or collect data. The only data that leaves your device is what we sync to your Google Account: theme preference, cookie clearing preferences, favicon settings, and your default Domo instance (all of which are optional). All other data is local to your device.
+- We do not operate servers or collect data. The only data that leaves your device is what we sync to your Google Account: theme preference, extension icon preference, cookie clearing preferences, favicon settings, and your default Domo instance (all of which are optional). All other data is local to your device.
 - No data is transmitted to external services or third parties.
 - No data is used for advertising, analytics, or any purpose other than providing extension features.
 - No human (including the developers) can read your data.
@@ -49,6 +49,7 @@ Domo Toolkit is a browser extension that enhances the Domo platform experience f
 
 - Favicon customization rules (instance match regex patterns and colors)
 - Theme preference (light/dark/system)
+- Extension icon color preference (Domo Blue, Black, or White)
 - Default Domo instance (string)
 - Cookie clearing preferences (auto-clear on 431 errors, manual button visibility, manual button behavior)
 

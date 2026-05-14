@@ -318,6 +318,30 @@ function getTabContext(tabId) {
   return tabContexts.get(tabId) || null;
 }
 
+const ICON_PATHS = {
+  black: {
+    16: 'toolkit-black-16.png',
+    24: 'toolkit-black-24.png',
+    32: 'toolkit-black-32.png'
+  },
+  blue: {
+    16: 'toolkit-16.png',
+    24: 'toolkit-24.png',
+    32: 'toolkit-32.png'
+  },
+  white: {
+    16: 'toolkit-white-16.png',
+    24: 'toolkit-white-24.png',
+    32: 'toolkit-white-32.png'
+  }
+};
+
+function applyIconFromStorage() {
+  chrome.storage.sync.get(['iconColor'], (result) => {
+    setActionIcon(result.iconColor || 'blue');
+  });
+}
+
 // One-shot migration from the legacy `defaultClearCookiesHandling` tri-state
 // to three independent settings (auto / button visibility / button behavior).
 async function migrateClearCookiesSetting() {
@@ -407,6 +431,13 @@ async function restoreFromSession() {
   } catch (error) {
     console.error('[Background] Error restoring from session storage:', error);
   }
+}
+
+function setActionIcon(color) {
+  const path = ICON_PATHS[color] ?? ICON_PATHS.blue;
+  chrome.action
+    .setIcon({ path })
+    .catch((err) => console.error('[Background] setIcon failed:', err));
 }
 
 function setSectionTitle(tabId, url) {
@@ -523,6 +554,7 @@ chrome.runtime.onInstalled.addListener((details) => {
   const currentVersion = chrome.runtime.getManifest().version;
 
   migrateClearCookiesSetting();
+  applyIconFromStorage();
 
   if (details.reason === 'install') {
     chrome.tabs.create({
@@ -574,6 +606,9 @@ chrome.runtime.onInstalled.addListener((details) => {
 
 // Restore contexts on service worker startup
 restoreFromSession();
+applyIconFromStorage();
+
+chrome.runtime.onStartup.addListener(applyIconFromStorage);
 
 // 431 error handler function (stored for add/remove)
 // Only active when autoClearCookiesOn431 is true - preserves last 2 instances
@@ -813,6 +848,10 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
     } else {
       disable431Listener();
     }
+  }
+
+  if (areaName === 'sync' && changes.iconColor) {
+    applyIconFromStorage();
   }
 
   if (areaName === 'sync' && changes.faviconRules) {
