@@ -9,6 +9,7 @@ import {
   ToastTitle
 } from '@heroui/react';
 
+import IconX from '@icons/x.svg?react';
 export function ToastProvider(props) {
   return (
     <Toast.Provider {...props}>
@@ -32,7 +33,9 @@ export function ToastProvider(props) {
             <ToastContent>
               {!!title && <ToastTitle>{title}</ToastTitle>}
               {!!description && (
-                <ToastDescription>{description}</ToastDescription>
+                <ToastDescription className='line-clamp-4 max-h-25 overflow-hidden'>
+                  {description}
+                </ToastDescription>
               )}
             </ToastContent>
             {actionProps?.children && (
@@ -40,7 +43,9 @@ export function ToastProvider(props) {
                 {actionProps.children}
               </ToastActionButton>
             )}
-            <ToastCloseButton />
+            <ToastCloseButton>
+              <IconX />
+            </ToastCloseButton>
           </Toast>
         );
       }}

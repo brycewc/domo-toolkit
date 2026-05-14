@@ -1,14 +1,20 @@
-import { Alert, Button, Card, CloseButton, Spinner } from '@heroui/react';
-import { IconAlertTriangle, IconRefresh } from '@tabler/icons-react';
+import { Alert, Button, Card, Spinner } from '@heroui/react';
 import { useEffect, useRef, useState } from 'react';
 
-import { DataListItem, DomoContext, DomoObject } from '@/models';
-import { getDatasetsForView } from '@/services';
-import { getValidTabForInstance } from '@/utils';
+import { CloseButton } from '@/components/CloseButton';
+import { DataListItem } from '@/models/DataListItem';
+import { DomoContext } from '@/models/DomoContext';
+import { DomoObject } from '@/models/DomoObject';
+import { getDatasetsForView } from '@/services/datasets';
+import { getValidTabForInstance } from '@/utils/currentObject';
+import { getSidepanelData } from '@/utils/sidepanel';
+import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
+import IconSync from '@icons/sync.svg?react';
 
 import { DataList } from './DataList';
 
 export function GetViewInputsView({
+  currentContext = null,
   onBackToDefault = null,
   onStatusUpdate = null
 }) {
@@ -42,8 +48,7 @@ export function GetViewInputsView({
       : null;
 
     try {
-      const result = await chrome.storage.session.get(['sidepanelDataList']);
-      const data = result.sidepanelDataList;
+      const data = await getSidepanelData();
 
       if (!data || data.type !== 'getViewInputs') {
         setError('No dataset data found. Please try again.');
@@ -126,24 +131,16 @@ export function GetViewInputsView({
     }
   };
 
-  const renderTitle = () => {
-    const totalCount = items.length;
+  const renderTitle = () => (
+    <span>
+      DataSets Used in View for <span className='font-bold'>{viewData?.objectName}</span>
+    </span>
+  );
 
-    return (
-      <div className='flex flex-col gap-1'>
-        <div className='line-clamp-2 min-w-0'>
-          <span>DataSets Used in View for</span>{' '}
-          <span className='font-bold'>{viewData?.objectName}</span>
-        </div>
-        {totalCount > 0 && (
-          <div className='flex flex-row items-center gap-1'>
-            <span className='text-sm text-muted'>
-              {totalCount} dataset{totalCount === 1 ? '' : 's'}
-            </span>
-          </div>
-        )}
-      </div>
-    );
+  const renderSubtext = () => {
+    const totalCount = items.length;
+    if (totalCount === 0) return null;
+    return `${totalCount} dataset${totalCount === 1 ? '' : 's'}`;
   };
 
   if (isLoading) {
@@ -168,7 +165,7 @@ export function GetViewInputsView({
     return (
       <Alert className='w-full' status='warning'>
         <Alert.Indicator>
-          <IconAlertTriangle data-slot='alert-default-icon' />
+          <IconExclamationTriangle data-slot='alert-default-icon' />
         </Alert.Indicator>
         <Alert.Content>
           <Alert.Title>Error</Alert.Title>
@@ -178,7 +175,7 @@ export function GetViewInputsView({
               {isRetrying ? (
                 <Spinner color='currentColor' size='sm' />
               ) : (
-                <IconRefresh stroke={1.5} />
+                <IconSync />
               )}
               Retry
             </Button>
@@ -196,7 +193,8 @@ export function GetViewInputsView({
   return (
     <DataList
       closeLabel='Close DataSets Used in View'
-      headerActions={['openAll', 'copy', 'refresh']}
+      currentContext={currentContext}
+      headerActions={['openAll', 'copy', 'reload', 'refresh']}
       isRefreshing={isRefreshing}
       itemActions={['copy', 'openAll', 'viewsExplorer']}
       itemLabel='dataset'
@@ -205,7 +203,9 @@ export function GetViewInputsView({
       objectType='DATA_SOURCE'
       showActions={true}
       showCounts={true}
+      subtext={renderSubtext()}
       title={renderTitle()}
+      viewType='getViewInputs'
       onClose={onBackToDefault}
       onRefresh={handleRefresh}
       onStatusUpdate={onStatusUpdate}

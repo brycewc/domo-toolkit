@@ -1,4 +1,15 @@
 /**
+ * Read the current window's sidepanel data from session storage.
+ * @returns {Promise<Object|null>} The stored data, or null if none
+ */
+export async function getSidepanelData() {
+  const { id } = await chrome.windows.getCurrent();
+  const key = sidepanelStorageKey(id);
+  const result = await chrome.storage.session.get([key]);
+  return result[key] || null;
+}
+
+/**
  * Determine if currently running in sidepanel context
  * @returns {boolean}
  */
@@ -123,6 +134,15 @@ export async function showStatus({
 }
 
 /**
+ * Build the window-scoped storage key for sidepanel data.
+ * @param {number} windowId
+ * @returns {string}
+ */
+export function sidepanelStorageKey(windowId) {
+  return `sidepanelData_${windowId}`;
+}
+
+/**
  * Store data for sidepanel and optionally open it
  * Accepts any properties and passes them through to storage.
  * Special handling for currentContext to call toJSON() if available.
@@ -136,13 +156,30 @@ export async function showStatus({
 export async function storeSidepanelData(options) {
   const { currentContext, ...rest } = options;
 
+  // Resolve window ID so each window gets its own storage slot
+  let windowId;
+  const tabId = currentContext?.tabId;
+  if (tabId) {
+    try {
+      const tab = await chrome.tabs.get(tabId);
+      windowId = tab.windowId;
+    } catch {
+      // Tab may have closed — fall back to current window
+    }
+  }
+  if (!windowId) {
+    const win = await chrome.windows.getCurrent();
+    windowId = win.id;
+  }
+
   const data = {
     ...rest,
     currentContext: currentContext?.toJSON?.() || currentContext,
-    tabId: currentContext?.tabId || null,
+    tabId: tabId || null,
     timestamp: Date.now()
   };
 
-  console.log('[storeSidepanelData] Storing data:', data);
-  await chrome.storage.session.set({ sidepanelDataList: data });
+  const key = sidepanelStorageKey(windowId);
+  console.log(`[storeSidepanelData] Storing data for window ${windowId}:`, data);
+  await chrome.storage.session.set({ [key]: data });
 }

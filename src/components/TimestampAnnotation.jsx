@@ -1,8 +1,8 @@
-import { IconClipboard } from '@tabler/icons-react';
 import { useState } from 'react';
 
-import { AnimatedCheck } from './AnimatedCheck';
+import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
 
+import { AnimatedCheck } from './AnimatedCheck';
 export function TimestampAnnotation({ formatted, value }) {
   const [copied, setCopied] = useState(false);
 
@@ -24,10 +24,9 @@ export function TimestampAnnotation({ formatted, value }) {
           style={{ display: 'inline-block' }}
         />
       ) : (
-        <IconClipboard
+        <IconClipboardCopy
           className='json-view--copy'
           size={16}
-          stroke={1.5}
           onClick={handleCopy}
         />
       )}

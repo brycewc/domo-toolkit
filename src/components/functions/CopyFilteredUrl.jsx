@@ -1,9 +1,11 @@
 import { Button, Chip, Dropdown, Label, Tooltip } from '@heroui/react';
-import { IconClipboard, IconFilterShare } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 
-import { useLongPress, useStatusBar } from '@/hooks';
-import { buildPfilterUrl, getAllFilters } from '@/services';
+import { useLongPress } from '@/hooks/useLongPress';
+import { useStatusBar } from '@/hooks/useStatusBar';
+import { buildPfilterUrl, getAllFilters } from '@/services/filters';
+import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
+import IconFunnel from '@icons/funnel.svg?react';
 
 import { AnimatedCheck } from '../AnimatedCheck';
 import { AnimatedX } from '../AnimatedX';
@@ -18,8 +20,7 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
   const { showStatus } = useStatusBar();
 
   const typeId = currentContext?.domoObject?.typeId;
-  const isSupported =
-    typeId === 'PAGE' || typeId === 'DATA_APP_VIEW' || typeId === 'CARD';
+  const isSupported = typeId === 'PAGE' || typeId === 'DATA_APP_VIEW' || typeId === 'CARD';
 
   const longPressDisabled = isDisabled || !isSupported;
 
@@ -57,10 +58,7 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
           }
         }
       } catch (error) {
-        console.warn(
-          '[CopyFilteredUrl] Failed to pre-fetch filter count:',
-          error
-        );
+        console.warn('[CopyFilteredUrl] Failed to pre-fetch filter count:', error);
       }
     };
 
@@ -94,12 +92,7 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
       setTimeout(() => setIsCopied(false), 2000);
 
       if (allFilters.length === 0) {
-        showStatus(
-          'No Filters Active',
-          'Copied base URL without filters',
-          'warning',
-          3000
-        );
+        showStatus('No Filters Active', 'Copied base URL without filters', 'warning', 3000);
       } else {
         showStatus(
           'Success',
@@ -157,7 +150,7 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
 
   return (
     <Dropdown isDisabled={longPressDisabled} trigger='longPress'>
-      <Tooltip closeDelay={0} delay={400}>
+      <Tooltip closeDelay={100} delay={600}>
         <Button
           fullWidth
           className={`min-w-36 flex-1 whitespace-normal ${hasNewFilters ? 'animate-pulse' : ''}`}
@@ -171,12 +164,12 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
           ) : isCopied ? (
             <AnimatedCheck />
           ) : (
-            <IconFilterShare stroke={1.5} />
+            <IconFunnel />
           )}
-          Copy Filtered URL
+          Copy Filters
           {filterCount > 0 && (
             <Chip
-              className='absolute top-1 right-1 h-5 min-w-5 justify-center rounded-3xl'
+              className='h-5 w-5 items-center justify-center rounded-full'
               color='accent'
               size='sm'
               variant='soft'
@@ -187,19 +180,17 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
           <LongPressOverlay />
         </Button>
         <Tooltip.Content
-          className='flex flex-col items-center text-center'
-          placement='bottom'
+          className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+          offset={4}
         >
-          <span>Copy Filtered URL</span>
-          {!longPressDisabled && (
-            <span className='italic'>Hold for more options</span>
-          )}
+          <span>Copy filtered URL (pfilter)</span>
+          {!longPressDisabled && <span className='italic'>Hold for more options</span>}
         </Tooltip.Content>
       </Tooltip>
       <Dropdown.Popover className='w-fit min-w-60' placement='bottom'>
         <Dropdown.Menu onAction={handleAction}>
           <Dropdown.Item id='pfilters' textValue='Copy pfilters param only'>
-            <IconClipboard className='size-5 shrink-0' stroke={1.5} />
+            <IconClipboardCopy className='size-5 shrink-0' />
             <Label>Copy pfilters param only</Label>
           </Dropdown.Item>
         </Dropdown.Menu>

@@ -6,35 +6,36 @@ import {
   Button,
   ButtonGroup,
   Chip,
-  CloseButton,
   DateField,
   DateRangePicker,
   Dropdown,
   Label,
   RangeCalendar,
-  Skeleton
+  Skeleton,
+  Switch
 } from '@heroui/react';
 import { getLocalTimeZone, parseDate, today } from '@internationalized/date';
-import {
-  IconAlertCircle,
-  IconCalendarWeek,
-  IconFilter
-} from '@tabler/icons-react';
 import { AnimatePresence } from 'motion/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { AnimatedCheck } from '@/components/AnimatedCheck';
-import { useResolveTabId } from '@/hooks';
-import { DomoObject } from '@/models';
-import { getCustomAvatarUserIds } from '@/services';
-import { ACTION_COLOR_PATTERNS, getInitials } from '@/utils';
+import { CloseButton } from '@/components/CloseButton';
+import { usePerInstanceSettings } from '@/hooks/usePerInstanceSettings';
+import { useResolveTabId } from '@/hooks/useResolveTabId';
+import { DomoObject } from '@/models/DomoObject';
+import { fetchUserDisplayNames, getCustomAvatarUserIds } from '@/services/users';
+import { ACTION_COLOR_PATTERNS } from '@/utils/constants';
+import { getInitials } from '@/utils/general';
+import IconCalendar from '@icons/calendar.svg?react';
+import IconCheckCircle from '@icons/check-circle.svg?react';
+import IconExclamationPointCircle from '@icons/exclamation-point-circle.svg?react';
+import IconFunnel from '@icons/funnel.svg?react';
 
 import { DataTable } from './components/DataTable';
 import { UserFilterAutocomplete } from './components/UserFilterAutocomplete';
-import {
-  getActivityLogForObject,
-  getEventTypesForObjectType
-} from './services/activityLog';
+import { getActivityLogForObject, getEventTypesForObjectType } from './services/activityLog';
+import { getActivityLogFromDataset } from './services/activityLogDataset';
+import { findActivityLogDataset } from './services/findActivityLogDataset';
 
 /**
  * ActivityLogTable Component
@@ -52,13 +53,35 @@ export function ActivityLogTable() {
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [error, setError] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [source, setSource] = useState('api');
   const [dateRange, setDateRange] = useState(null);
-  const [userFilter, setUserFilter] = useState(null);
+  const [userFilter, setUserFilter] = useState([]);
   const [actionFilter, setActionFilter] = useState(new Set());
   const actionFilterRef = useRef(new Set());
   const [objectTypeFilter, setObjectTypeFilter] = useState(new Set());
+  // Sort state lives here (not in DataTable) because the time column's sort
+  // is server-side when source==='dataset'. Direction toggles trigger refetch.
+  const [sortDescriptor, setSortDescriptor] = useState({
+    column: 'time',
+    direction: 'descending'
+  });
   // Track pagination state per object: { "type:id": { offset, total, hasMore } }
   const [objectStates, setObjectStates] = useState({});
+  // Dataset-source pagination — single global offset/total since the dataset query
+  // is one call regardless of how many objects/actions/users are filtered
+  const [datasetState, setDatasetState] = useState({ hasMore: false, offset: 0, total: 0 });
+  const [isDiscovering, setIsDiscovering] = useState(false);
+  const [discoveryError, setDiscoveryError] = useState(null);
+  // Soft error specific to the dataset path — surfaced in the header banner
+  // (with Re-run discovery / Switch to API actions) rather than the global
+  // `error` state which short-circuits the whole view.
+  const [datasetFetchError, setDatasetFetchError] = useState(null);
+  const {
+    isLoading: perInstanceLoading,
+    settings: perInstanceSettings,
+    update: updatePerInstance
+  } = usePerInstanceSettings();
+  const initialSourceCheckRef = useRef(false);
 
   const dateRangeEpoch = useMemo(() => {
     if (!dateRange) return {};
@@ -70,18 +93,63 @@ export function ActivityLogTable() {
   }, [dateRange]);
 
   const hasLoadedRef = useRef(false);
+  const prevSourceRef = useRef(source);
   const isFetchingMoreRef = useRef(false);
   const objectStatesRef = useRef(objectStates);
   objectStatesRef.current = objectStates;
+  const datasetStateRef = useRef(datasetState);
+  datasetStateRef.current = datasetState;
   const dateRangeEpochRef = useRef(dateRangeEpoch);
   dateRangeEpochRef.current = dateRangeEpoch;
+  // Stable string key for userFilter array to avoid unnecessary effect re-runs
+  const userFilterKey = userFilter.slice().sort().join(',');
+  const userFilterRef = useRef(userFilter);
+  userFilterRef.current = userFilter;
+  // Refetch trigger for dataset source when the user toggles time-sort
+  // direction. Empty string for api source (no server-side sort) or when the
+  // active sort isn't time (other columns are local-only).
+  const datasetSortKey =
+    source === 'dataset' && sortDescriptor?.column === 'time' ? sortDescriptor.direction : '';
+  // Mirror source/domoInstance/objects into refs so fetchMoreEvents can read
+  // current values without listing them as useCallback deps. Stable callback
+  // identity matters here — HeroUI's Table.LoadMore wires its intersection
+  // observer to onLoadMore once; if the reference churns, the observer can
+  // miss scroll-into-view events.
+  const sourceRef = useRef(source);
+  sourceRef.current = source;
+  const domoInstanceRef = useRef(domoInstance);
+  domoInstanceRef.current = domoInstance;
+  const objectsRef = useRef(objects);
+  objectsRef.current = objects;
+  const sortDescriptorRef = useRef(sortDescriptor);
+  sortDescriptorRef.current = sortDescriptor;
 
   const resolveTabId = useResolveTabId(tabId, domoInstance);
 
   const [customAvatarIds, setCustomAvatarIds] = useState(new Set());
   const checkedAvatarIdsRef = useRef(new Set());
+  // userId → displayName map populated lazily for events that arrive without
+  // a userName (DomoStats dataset rows store User_ID separately from
+  // Source.Name, so we look up the user's display name ourselves).
+  const [userNameMap, setUserNameMap] = useState({});
+  const fetchedUserNameIdsRef = useRef(new Set());
 
   const pageSize = 100; // Fetch in chunks per object
+
+  // Pre-select the dataset source on first mount when this instance has the
+  // "Always use DomoStats Activity Log dataset" preference set. Runs once,
+  // gated by both the per-instance settings finishing their initial load and
+  // domoInstance being known.
+  useEffect(() => {
+    if (initialSourceCheckRef.current) return;
+    if (perInstanceLoading) return;
+    if (!domoInstance) return;
+    initialSourceCheckRef.current = true;
+    const instanceSettings = perInstanceSettings[domoInstance];
+    if (instanceSettings?.preferActivityLogDataset && instanceSettings?.activityLogDatasetId) {
+      setSource('dataset');
+    }
+  }, [perInstanceLoading, perInstanceSettings, domoInstance]);
 
   // Load objects from storage on mount
   useEffect(() => {
@@ -130,9 +198,7 @@ export function ActivityLogTable() {
       .then((resolvedTabId) => {
         if (!resolvedTabId) return;
         return Promise.all(
-          uniqueTypes.map((type) =>
-            getEventTypesForObjectType(type, resolvedTabId).catch(() => [])
-          )
+          uniqueTypes.map((type) => getEventTypesForObjectType(type, resolvedTabId).catch(() => []))
         );
       })
       .then((results) => {
@@ -156,18 +222,14 @@ export function ActivityLogTable() {
     if (!tabId || events.length === 0) return;
 
     const uniqueIds = [...new Set(events.map((e) => e.userId).filter(Boolean))];
-    const uncheckedIds = uniqueIds.filter(
-      (id) => !checkedAvatarIdsRef.current.has(id)
-    );
+    const uncheckedIds = uniqueIds.filter((id) => !checkedAvatarIdsRef.current.has(id));
 
     if (uncheckedIds.length === 0) return;
 
     uncheckedIds.forEach((id) => checkedAvatarIdsRef.current.add(id));
 
     resolveTabId()
-      .then((resolvedTabId) =>
-        getCustomAvatarUserIds(uncheckedIds, resolvedTabId)
-      )
+      .then((resolvedTabId) => getCustomAvatarUserIds(uncheckedIds, resolvedTabId))
       .then((customIds) => {
         if (customIds.length === 0) return;
         setCustomAvatarIds((prev) => {
@@ -185,12 +247,31 @@ export function ActivityLogTable() {
       .catch(() => {});
   }, [events, tabId]);
 
+  // Look up display names for any event that arrives with a userId but no
+  // userName (DomoStats path). Fires incrementally as new ids appear; the
+  // ref tracks already-fetched ids so each id is requested at most once.
+  useEffect(() => {
+    if (!tabId || events.length === 0) return;
+    const idsWithoutName = [
+      ...new Set(events.filter((e) => e.userId && !e.userName).map((e) => String(e.userId)))
+    ];
+    const unfetched = idsWithoutName.filter((id) => !fetchedUserNameIdsRef.current.has(id));
+    if (unfetched.length === 0) return;
+    unfetched.forEach((id) => fetchedUserNameIdsRef.current.add(id));
+    resolveTabId()
+      .then((resolvedTabId) => fetchUserDisplayNames(unfetched, resolvedTabId))
+      .then((map) => {
+        if (!map || Object.keys(map).length === 0) return;
+        setUserNameMap((prev) => ({ ...prev, ...map }));
+      })
+      .catch(() => {});
+  }, [events, tabId, resolveTabId]);
+
   // Get unique object types for filter — only relevant for multi-object logs.
   // Stabilized to avoid new reference when events change but types stay the same.
   const prevObjectTypeOptionsRef = useRef([]);
   const objectTypeOptions = useMemo(() => {
-    if (activityLogType === 'single-object')
-      return prevObjectTypeOptionsRef.current;
+    if (activityLogType === 'single-object') return prevObjectTypeOptionsRef.current;
     const types = new Set();
     events.forEach((event) => {
       if (event.objectType) {
@@ -210,9 +291,7 @@ export function ActivityLogTable() {
   const filteredEvents = useMemo(() => {
     if (objectTypeFilter.size === 0) return events;
 
-    return events.filter(
-      (event) => event.objectType && objectTypeFilter.has(event.objectType)
-    );
+    return events.filter((event) => event.objectType && objectTypeFilter.has(event.objectType));
   }, [events, objectTypeFilter]);
 
   // Pre-compute object URLs so the cell renderer is synchronous
@@ -271,20 +350,28 @@ export function ActivityLogTable() {
     });
   }, [events, domoInstance, tabId, resolveTabId]);
 
-  // Define columns
+  // Define columns. Time-column sort is server-side when source==='dataset'
+  // (manualSort=true skips DataTable's local sort; toggling direction triggers
+  // a refetch via datasetSortKey). On api source the time column behaves like
+  // every other column — local-only sort of currently-loaded rows — until the
+  // audit endpoint's server-side sort is verified.
+  // Last column varies by source: Description (additionalComment) on api,
+  // Source (sourceId/sourceName/sourceType) on dataset since the dataset has
+  // no description field but does carry actor info the API doesn't expose.
   const columns = useMemo(() => {
     const baseUrl = domoInstance ? `https://${domoInstance}.domo.com` : null;
     const actionTranslations = Object.fromEntries(
       actionOptions.map((a) => [a.type, a.translation])
     );
+    const isDataset = source === 'dataset';
     return [
-      createTimestampColumn(),
-      createUserColumn({ customAvatarIds, domoInstance }),
+      createTimestampColumn({ manualSort: isDataset }),
+      createUserColumn({ customAvatarIds, domoInstance, userNameMap }),
       createActionColumn({ actionTranslations }),
       createObjectColumn({ baseUrl, objectUrlMap }),
-      createAdditionalCommentColumn()
+      isDataset ? createSourceColumn() : createAdditionalCommentColumn()
     ];
-  }, [domoInstance, tabId, actionOptions, customAvatarIds, objectUrlMap]);
+  }, [domoInstance, tabId, actionOptions, customAvatarIds, objectUrlMap, source, userNameMap]);
 
   // Set initial column visibility based on number of objects
   const initialColumnVisibility = useMemo(
@@ -305,6 +392,16 @@ export function ActivityLogTable() {
         return;
       }
 
+      // Source swaps (api ↔ dataset) should show the full initial-load skeleton —
+      // the data shape is identical but the source is fundamentally different,
+      // and lingering rows from the prior source are confusing during the swap.
+      const sourceChanged = prevSourceRef.current !== source;
+      prevSourceRef.current = source;
+      if (sourceChanged) {
+        hasLoadedRef.current = false;
+        setEvents([]);
+      }
+
       if (hasLoadedRef.current) {
         setIsSearching(true);
       } else {
@@ -313,57 +410,83 @@ export function ActivityLogTable() {
       }
 
       setError(null);
+      setDatasetFetchError(null);
 
       try {
         const resolvedTabId = await resolveTabId();
         if (!resolvedTabId) return;
 
-        const tasks = buildFetchTasks(
-          objects,
-          userFilter,
-          actionFilterRef.current
-        );
-
-        const fetchPromises = tasks.map((task) =>
-          getActivityLogForObject({
-            end: dateRangeEpoch.end,
-            eventType: task.eventType,
+        if (source === 'dataset') {
+          const datasetId = await resolveDatasetId(domoInstance);
+          const result = await getActivityLogFromDataset({
+            datasetId,
+            filters: buildDatasetFilters({
+              actionFilter: actionFilterRef.current,
+              dateRangeEpoch,
+              objects,
+              userFilter: userFilterRef.current
+            }),
             limit: pageSize,
-            objectId: task.objectId,
-            objectType: task.objectType,
             offset: 0,
-            start: dateRangeEpoch.start,
-            tabId: resolvedTabId,
-            user: task.user
-          })
-            .then((result) => ({
-              events: result?.events ?? [],
-              eventType: task.eventType,
-              key: task.key,
-              objectId: task.objectId,
-              objectType: task.objectType,
-              total: result?.total ?? 0,
-              user: task.user
-            }))
-            .catch((err) => {
-              console.error(`Error fetching for ${task.key}:`, err);
-              return {
-                events: [],
+            sortDirection:
+              sortDescriptorRef.current?.column === 'time'
+                ? sortDescriptorRef.current.direction
+                : 'descending',
+            tabId: resolvedTabId
+          });
+          const events = result?.events ?? [];
+          const total = result?.total ?? 0;
+          setDatasetState({
+            hasMore: events.length < total,
+            offset: events.length,
+            total
+          });
+          // Clear API per-task state so derived totals/hasMore aren't polluted
+          setObjectStates({});
+          setEvents(events);
+        } else {
+          const tasks = buildFetchTasks(objects, userFilterRef.current, actionFilterRef.current);
+
+          const fetchThunks = tasks.map(
+            (task) => () =>
+              getActivityLogForObject({
+                end: dateRangeEpoch.end,
                 eventType: task.eventType,
-                key: task.key,
+                limit: pageSize,
                 objectId: task.objectId,
                 objectType: task.objectType,
-                total: 0,
+                offset: 0,
+                start: dateRangeEpoch.start,
+                tabId: resolvedTabId,
                 user: task.user
-              };
-            })
-        );
+              })
+                .then((result) => ({
+                  events: result?.events ?? [],
+                  eventType: task.eventType,
+                  key: task.key,
+                  objectId: task.objectId,
+                  objectType: task.objectType,
+                  total: result?.total ?? 0,
+                  user: task.user
+                }))
+                .catch((err) => {
+                  console.error(`Error fetching for ${task.key}:`, err);
+                  return {
+                    events: [],
+                    eventType: task.eventType,
+                    key: task.key,
+                    objectId: task.objectId,
+                    objectType: task.objectType,
+                    total: 0,
+                    user: task.user
+                  };
+                })
+          );
 
-        const results = await Promise.all(fetchPromises);
+          const results = await promisePool(fetchThunks);
 
-        const newStates = {};
-        results.forEach(
-          ({ events, eventType, key, objectId, objectType, total, user }) => {
+          const newStates = {};
+          results.forEach(({ events, eventType, key, objectId, objectType, total, user }) => {
             newStates[key] = {
               eventType,
               hasMore: events.length < total,
@@ -373,17 +496,23 @@ export function ActivityLogTable() {
               total,
               user
             };
-          }
-        );
-        setObjectStates(newStates);
+          });
+          setObjectStates(newStates);
+          // Clear dataset state so derived totals/hasMore aren't polluted
+          setDatasetState({ hasMore: false, offset: 0, total: 0 });
 
-        const allEvents = deduplicateEvents(results.flatMap((r) => r.events));
-        allEvents.sort((a, b) => new Date(b.time) - new Date(a.time));
+          const allEvents = deduplicateEvents(results.flatMap((r) => r.events));
+          allEvents.sort((a, b) => new Date(b.time) - new Date(a.time));
 
-        setEvents(allEvents);
+          setEvents(allEvents);
+        }
       } catch (err) {
         console.error('Error fetching activity log:', err);
-        setError(err.message || 'Failed to fetch activity log');
+        if (source === 'dataset') {
+          setDatasetFetchError(err.message || 'Failed to fetch from DomoStats dataset');
+        } else {
+          setError(err.message || 'Failed to fetch activity log');
+        }
       } finally {
         hasLoadedRef.current = true;
         setIsInitialLoad(false);
@@ -392,22 +521,94 @@ export function ActivityLogTable() {
     };
 
     fetchEvents();
-  }, [objects, tabId, refreshKey, userFilter, dateRangeEpoch]);
+    // datasetSortKey collapses to '' when irrelevant (api source, or non-time
+    // active sort) so toggling User/Action sort doesn't trigger refetch.
+  }, [
+    objects,
+    tabId,
+    refreshKey,
+    userFilterKey,
+    dateRangeEpoch,
+    source,
+    domoInstance,
+    datasetSortKey
+  ]);
 
-  const total = useMemo(
-    () =>
-      Object.values(objectStates).reduce((sum, state) => sum + state.total, 0),
-    [objectStates]
-  );
+  const total = useMemo(() => {
+    if (source === 'dataset') return datasetState.total;
+    return Object.values(objectStates).reduce((sum, state) => sum + state.total, 0);
+  }, [source, datasetState.total, objectStates]);
 
   // Check if any objects still have more events to fetch
   const hasMore = useMemo(() => {
+    if (source === 'dataset') return datasetState.hasMore;
     return Object.values(objectStates).some((state) => state.hasMore);
-  }, [objectStates]);
+  }, [source, datasetState.hasMore, objectStates]);
 
-  // Fetch more events when scrolling — reads task info from objectStates
+  // Fetch more events when scrolling — reads task info from objectStates (API
+  // source) or from datasetState (DomoStats source). Reads source/domoInstance/
+  // objects via refs so the callback identity stays stable (only changes when
+  // isInitialLoad/isSearching toggle). HeroUI's Table.LoadMore wires its
+  // intersection observer to onLoadMore once per reference; churning the
+  // identity makes the observer miss scroll triggers.
   const fetchMoreEvents = useCallback(async () => {
     if (isFetchingMoreRef.current || isInitialLoad || isSearching) {
+      return;
+    }
+
+    if (sourceRef.current === 'dataset') {
+      const currentDatasetState = datasetStateRef.current;
+      if (!currentDatasetState.hasMore) return;
+
+      isFetchingMoreRef.current = true;
+      setIsFetchingMore(true);
+
+      try {
+        const resolvedTabId = await resolveTabId();
+        const datasetId = await resolveDatasetId(domoInstanceRef.current);
+        const result = await getActivityLogFromDataset({
+          datasetId,
+          filters: buildDatasetFilters({
+            actionFilter: actionFilterRef.current,
+            dateRangeEpoch: dateRangeEpochRef.current,
+            objects: objectsRef.current,
+            userFilter: userFilterRef.current
+          }),
+          limit: pageSize,
+          offset: currentDatasetState.offset,
+          sortDirection:
+            sortDescriptorRef.current?.column === 'time'
+              ? sortDescriptorRef.current.direction
+              : 'descending',
+          tabId: resolvedTabId
+        });
+        const newEvents = result?.events ?? [];
+        const total = result?.total ?? currentDatasetState.total;
+        setDatasetState((prev) => {
+          const newOffset = prev.offset + newEvents.length;
+          return {
+            hasMore: newOffset < total,
+            offset: newOffset,
+            total
+          };
+        });
+        setEvents((prev) => {
+          // Don't re-sort: the server returned this page in the user's chosen
+          // sortDirection (asc or desc), and `prev` is in that same order from
+          // the prior page. Concatenation preserves the order; deduplication
+          // only filters, so the merged list stays correctly ordered. Sorting
+          // here would override the server's order — and since the time column
+          // is rendered with `manualSort: true` on dataset source, DataTable
+          // doesn't re-sort either, so whatever order we set here is what the
+          // user sees.
+          return deduplicateEvents([...prev, ...newEvents]);
+        });
+      } catch (err) {
+        console.error('Error fetching more events from dataset:', err);
+      } finally {
+        isFetchingMoreRef.current = false;
+        setIsFetchingMore(false);
+      }
       return;
     }
 
@@ -423,34 +624,35 @@ export function ActivityLogTable() {
 
     try {
       const resolvedTabId = await resolveTabId();
-      const fetchPromises = tasksWithMore.map((task) =>
-        getActivityLogForObject({
-          end: dateRangeEpochRef.current.end,
-          eventType: task.eventType,
-          limit: pageSize,
-          objectId: task.objectId,
-          objectType: task.objectType,
-          offset: task.offset,
-          start: dateRangeEpochRef.current.start,
-          tabId: resolvedTabId,
-          user: task.user
-        })
-          .then((result) => ({
-            events: result?.events ?? [],
-            key: task.key,
-            total: result?.total ?? 0
-          }))
-          .catch((err) => {
-            console.error(`Error fetching more for ${task.key}:`, err);
-            return {
-              events: [],
-              key: task.key,
-              total: task.total
-            };
+      const fetchThunks = tasksWithMore.map(
+        (task) => () =>
+          getActivityLogForObject({
+            end: dateRangeEpochRef.current.end,
+            eventType: task.eventType,
+            limit: pageSize,
+            objectId: task.objectId,
+            objectType: task.objectType,
+            offset: task.offset,
+            start: dateRangeEpochRef.current.start,
+            tabId: resolvedTabId,
+            user: task.user
           })
+            .then((result) => ({
+              events: result?.events ?? [],
+              key: task.key,
+              total: result?.total ?? 0
+            }))
+            .catch((err) => {
+              console.error(`Error fetching more for ${task.key}:`, err);
+              return {
+                events: [],
+                key: task.key,
+                total: task.total
+              };
+            })
       );
 
-      const results = await Promise.all(fetchPromises);
+      const results = await promisePool(fetchThunks);
 
       setObjectStates((prev) => {
         const newStates = { ...prev };
@@ -486,6 +688,60 @@ export function ActivityLogTable() {
     setRefreshKey((prev) => prev + 1);
   }, []);
 
+  // "Use DomoStats" handler — runs discovery if no cached dataset ID exists
+  // (or if `forceDiscovery: true` is passed to bypass the cache, used by the
+  // stale-ID recovery action), persists the discovered ID, then flips source
+  // to 'dataset' (or just refreshes if already there).
+  const handleUseDomoStats = useCallback(
+    async ({ forceDiscovery = false } = {}) => {
+      setDiscoveryError(null);
+      setDatasetFetchError(null);
+
+      if (!forceDiscovery) {
+        // Hot path: cached ID already exists, just flip
+        try {
+          const stored = await chrome.storage.local.get(['perInstance']);
+          if (stored?.perInstance?.[domoInstance]?.activityLogDatasetId) {
+            setSource('dataset');
+            return;
+          }
+        } catch {
+          // fall through to discovery
+        }
+      }
+
+      setIsDiscovering(true);
+      try {
+        const resolvedTabId = await resolveTabId();
+        if (!resolvedTabId) {
+          throw new Error('Could not resolve a Domo tab to run discovery against');
+        }
+        const datasetId = await findActivityLogDataset({ tabId: resolvedTabId });
+        if (!datasetId) {
+          setDiscoveryError(
+            'No DomoStats Activity Log dataset found in this instance. ' +
+              'Add the Activity Log report from the DomoStats connector to use this option.'
+          );
+          return;
+        }
+        await updatePerInstance(domoInstance, 'activityLogDatasetId', datasetId);
+        if (forceDiscovery) {
+          // Already in dataset mode — trigger a re-fetch via refreshKey instead
+          // of a redundant setSource('dataset')
+          setRefreshKey((prev) => prev + 1);
+        } else {
+          setSource('dataset');
+        }
+      } catch (err) {
+        console.error('Error discovering DomoStats Activity Log dataset:', err);
+        setDiscoveryError(err.message || 'Failed to discover DomoStats Activity Log dataset');
+      } finally {
+        setIsDiscovering(false);
+      }
+    },
+    [domoInstance, resolveTabId, updatePerInstance]
+  );
+
   // Handle action filter changes — updates dropdown state and triggers re-fetch via ref
   const handleActionFilterChange = useCallback((newFilter) => {
     setActionFilter(newFilter);
@@ -504,7 +760,7 @@ export function ActivityLogTable() {
 
     const allEvents = [];
     const exportPageSize = 1000;
-    const tasks = buildFetchTasks(objects, userFilter, actionFilterRef.current);
+    const tasks = buildFetchTasks(objects, userFilterRef.current, actionFilterRef.current);
 
     for (const task of tasks) {
       let offset = 0;
@@ -547,14 +803,7 @@ export function ActivityLogTable() {
     }
 
     return allEvents;
-  }, [
-    resolveTabId,
-    objects,
-    filteredEvents,
-    userFilter,
-    dateRangeEpoch,
-    objectTypeFilter
-  ]);
+  }, [resolveTabId, objects, filteredEvents, userFilterKey, dateRangeEpoch, objectTypeFilter]);
 
   // Memoize filter toolbar so it doesn't re-render during event fetches
   const customFilters = useMemo(
@@ -583,15 +832,11 @@ export function ActivityLogTable() {
             </DateField.Input>
             <DateField.Suffix>
               {dateRange && (
-                <CloseButton
-                  size='sm'
-                  variant='ghost'
-                  onPress={() => setDateRange(null)}
-                />
+                <CloseButton size='sm' variant='ghost' onPress={() => setDateRange(null)} />
               )}
               <DateRangePicker.Trigger>
                 <DateRangePicker.TriggerIndicator>
-                  <IconCalendarWeek className='text-foreground' stroke={1.5} />
+                  <IconCalendar className='text-foreground' />
                 </DateRangePicker.TriggerIndicator>
               </DateRangePicker.Trigger>
             </DateField.Suffix>
@@ -612,9 +857,7 @@ export function ActivityLogTable() {
               </RangeCalendar.Header>
               <RangeCalendar.Grid>
                 <RangeCalendar.GridHeader>
-                  {(day) => (
-                    <RangeCalendar.HeaderCell>{day}</RangeCalendar.HeaderCell>
-                  )}
+                  {(day) => <RangeCalendar.HeaderCell>{day}</RangeCalendar.HeaderCell>}
                 </RangeCalendar.GridHeader>
                 <RangeCalendar.GridBody>
                   {(date) => <RangeCalendar.Cell date={date} />}
@@ -637,10 +880,10 @@ export function ActivityLogTable() {
               isDisabled={actionOptions.length === 0}
               variant='tertiary'
             >
-              <IconFilter stroke={1.5} />
+              <IconFunnel />
               Action
             </Button>
-            <Dropdown.Popover className='max-h-64 overflow-y-auto'>
+            <Dropdown.Popover className='max-h-120! overflow-y-auto'>
               <Dropdown.Menu
                 selectedKeys={actionFilter}
                 selectionMode='multiple'
@@ -657,12 +900,7 @@ export function ActivityLogTable() {
                       <Dropdown.ItemIndicator>
                         {({ isSelected }) => (
                           <AnimatePresence>
-                            {isSelected && (
-                              <AnimatedCheck
-                                className='text-muted'
-                                stroke={1.5}
-                              />
-                            )}
+                            {isSelected && <AnimatedCheck className='text-muted' stroke={1.5} />}
                           </AnimatePresence>
                         )}
                       </Dropdown.ItemIndicator>
@@ -687,7 +925,7 @@ export function ActivityLogTable() {
                 isDisabled={objectTypeOptions.length === 0}
                 variant='tertiary'
               >
-                <IconFilter stroke={1.5} />
+                <IconFunnel />
                 Object Type
               </Button>
               <Dropdown.Popover className='max-h-64 overflow-y-auto'>
@@ -701,12 +939,7 @@ export function ActivityLogTable() {
                       <Dropdown.ItemIndicator>
                         {({ isSelected }) => (
                           <AnimatePresence>
-                            {isSelected && (
-                              <AnimatedCheck
-                                className='text-muted'
-                                stroke={1.5}
-                              />
-                            )}
+                            {isSelected && <AnimatedCheck className='text-muted' stroke={1.5} />}
                           </AnimatePresence>
                         )}
                       </Dropdown.ItemIndicator>
@@ -752,62 +985,156 @@ export function ActivityLogTable() {
   // Memoize header content
   const header = useMemo(
     () => (
-      <div className='flex flex-wrap items-center justify-between'>
-        <span
-          className='flex items-center justify-center gap-1 font-semibold'
-          style={{ fontSize: '18px' }}
-        >
-          Activity Log for{' '}
-          {activityLogType === 'single-object' ? (
-            <>
-              <span>{objects[0]?.type}</span>
-              <span className='text-accent'>{objects[0]?.name} </span>
-              <span> (ID: {objects[0].id})</span>
-            </>
-          ) : (
-            ` ${objects.length} ${
-              activityLogType === 'child-cards'
-                ? objects.length === 1
-                  ? 'card'
-                  : 'cards'
-                : activityLogType === 'child-pages'
-                  ? objects.length === 1
-                    ? 'page'
-                    : 'pages'
-                  : objects.length === 1
-                    ? 'object'
-                    : 'objects'
-            }`
-          )}
-        </span>
-        {total > 0 && (
-          <p className='text-base text-muted'>
-            {filteredEvents.length !== events.length ? (
+      <div className='flex flex-col gap-2'>
+        {source === 'api' && (
+          <Alert status='warning'>
+            <Alert.Indicator>
+              <IconExclamationPointCircle data-slot='alert-default-icon' />
+            </Alert.Indicator>
+            <Alert.Content>
+              <Alert.Title>Activity Log API only retains the past year</Alert.Title>
+              <Alert.Description>
+                For older history, switch to the DomoStats Activity Log dataset (preserves history
+                from the day you connected it in Domo).
+              </Alert.Description>
+              {discoveryError && (
+                <Alert.Description className='mt-1 text-danger'>{discoveryError}</Alert.Description>
+              )}
+            </Alert.Content>
+            <Button
+              isDisabled={isDiscovering}
+              isPending={isDiscovering}
+              size='sm'
+              variant='secondary'
+              onPress={handleUseDomoStats}
+            >
+              {isDiscovering ? 'Searching for dataset…' : 'Use DomoStats'}
+            </Button>
+          </Alert>
+        )}
+        {source === 'dataset' && !datasetFetchError && (
+          <Alert status='success'>
+            <Alert.Indicator>
+              <IconCheckCircle data-slot='alert-default-icon' />
+            </Alert.Indicator>
+            <Alert.Content>
+              <Alert.Title>Using DomoStats Activity Log dataset</Alert.Title>
+              {/* <Alert.Description>
+                History reaches back to when this dataset was first connected in Domo — older than
+                the past year the Activity Log API exposes.
+              </Alert.Description> */}
+              <Switch
+                isSelected={!!perInstanceSettings[domoInstance]?.preferActivityLogDataset}
+                size='sm'
+                onChange={(v) =>
+                  domoInstance && updatePerInstance(domoInstance, 'preferActivityLogDataset', v)
+                }
+              >
+                <Switch.Control>
+                  <Switch.Thumb />
+                </Switch.Control>
+                <Switch.Content>
+                  <Label className='text-xs'>Always for this instance</Label>
+                </Switch.Content>
+              </Switch>
+            </Alert.Content>
+            <Button size='sm' variant='secondary' onPress={() => setSource('api')}>
+              Switch to API
+            </Button>
+          </Alert>
+        )}
+        {source === 'dataset' && datasetFetchError && (
+          <Alert status='danger'>
+            <Alert.Indicator>
+              <IconExclamationPointCircle data-slot='alert-default-icon' />
+            </Alert.Indicator>
+            <Alert.Content>
+              <Alert.Title>Couldn&apos;t load from the DomoStats dataset</Alert.Title>
+              <Alert.Description>{datasetFetchError}</Alert.Description>
+              <Alert.Description className='mt-1 text-xs'>
+                The cached dataset may have been deleted or you may have lost access. Re-run
+                discovery to find a fresh one, or switch back to the API source.
+              </Alert.Description>
+              <div className='mt-2 flex flex-wrap gap-2'>
+                <Button
+                  isDisabled={isDiscovering}
+                  isPending={isDiscovering}
+                  size='sm'
+                  variant='secondary'
+                  onPress={() => handleUseDomoStats({ forceDiscovery: true })}
+                >
+                  {isDiscovering ? 'Re-running discovery…' : 'Re-run discovery'}
+                </Button>
+                <Button size='sm' variant='ghost' onPress={() => setSource('api')}>
+                  Switch to API
+                </Button>
+              </div>
+            </Alert.Content>
+          </Alert>
+        )}
+        <div className='flex flex-wrap items-center justify-between'>
+          <span
+            className='flex items-center justify-center gap-1 font-semibold'
+            style={{ fontSize: '18px' }}
+          >
+            Activity Log for{' '}
+            {activityLogType === 'single-object' ? (
               <>
-                Showing {filteredEvents.length.toLocaleString()} filtered of{' '}
-                {events.length.toLocaleString()} fetched (
-                {total.toLocaleString()} total)
+                <span>{objects[0]?.type}</span>
+                <span className='text-accent'>{objects[0]?.name} </span>
+                <span> (ID: {objects[0].id})</span>
               </>
             ) : (
-              <>
-                Showing {events.length.toLocaleString()} of{' '}
-                {total.toLocaleString()} events
-              </>
+              ` ${objects.length} ${
+                activityLogType === 'child-cards'
+                  ? objects.length === 1
+                    ? 'card'
+                    : 'cards'
+                  : activityLogType === 'child-pages'
+                    ? objects.length === 1
+                      ? 'page'
+                      : 'pages'
+                    : objects.length === 1
+                      ? 'object'
+                      : 'objects'
+              }`
             )}
-            {isFetchingMore && ' (loading more...)'}
-            {isSearching && ' (searching...)'}
-          </p>
-        )}
+          </span>
+          {total > 0 && (
+            <p className='text-base text-muted'>
+              {filteredEvents.length !== events.length ? (
+                <>
+                  Showing {filteredEvents.length.toLocaleString()} filtered of{' '}
+                  {events.length.toLocaleString()} fetched ({total.toLocaleString()} total)
+                </>
+              ) : (
+                <>
+                  Showing {events.length.toLocaleString()} of {total.toLocaleString()} events
+                </>
+              )}
+              {isFetchingMore && ' (loading more...)'}
+              {isSearching && ' (searching...)'}
+            </p>
+          )}
+        </div>
       </div>
     ),
     [
       activityLogType,
+      datasetFetchError,
+      discoveryError,
+      domoInstance,
       events.length,
       filteredEvents.length,
+      handleUseDomoStats,
+      isDiscovering,
       isFetchingMore,
       isSearching,
       objects,
-      total
+      perInstanceSettings,
+      source,
+      total,
+      updatePerInstance
     ]
   );
 
@@ -816,7 +1143,7 @@ export function ActivityLogTable() {
       <div className='p-4'>
         <Alert color='danger'>
           <Alert.Indicator>
-            <IconAlertCircle data-slot='alert-default-icon' />
+            <IconExclamationPointCircle data-slot='alert-default-icon' />
           </Alert.Indicator>
           <Alert.Content>
             <Alert.Title>Error Loading Activity Log</Alert.Title>
@@ -829,13 +1156,40 @@ export function ActivityLogTable() {
 
   if (isInitialLoad && events.length === 0) {
     return (
-      <div className='skeleton--shimmer relative h-full w-full overflow-hidden'>
-        <Skeleton animationType='none' className='mb-4 h-4 w-1/3 rounded-lg' />
-        <Skeleton animationType='none' className='mb-2 h-8 w-full rounded-lg' />
-        <Skeleton
-          animationType='none'
-          className='mb-4 h-full w-full rounded-lg'
-        />
+      <div className='skeleton--shimmer flex h-full min-h-0 w-full flex-1 flex-col gap-2 overflow-hidden p-4'>
+        {/* Title + subtitle row */}
+        <div className='flex items-center justify-between p-1'>
+          <Skeleton animationType='none' className='h-6 w-80 rounded-lg' />
+          <Skeleton animationType='none' className='h-4 w-44 rounded-lg' />
+        </div>
+
+        {/* Filter row */}
+        <div className='flex w-full items-center justify-between gap-1'>
+          <div className='flex flex-1 flex-row flex-wrap items-center gap-1'>
+            <Skeleton animationType='none' className='h-9 w-72 rounded-xl' />
+            <Skeleton animationType='none' className='h-9 w-72 rounded-xl' />
+            <Skeleton animationType='none' className='h-9 min-w-72 flex-1 rounded-xl' />
+          </div>
+          <div className='flex flex-row items-center gap-1'>
+            <Skeleton animationType='none' className='h-9 w-28 rounded-xl' />
+            <Skeleton animationType='none' className='h-9 w-9 rounded-xl' />
+            <Skeleton animationType='none' className='h-9 w-9 rounded-xl' />
+          </div>
+        </div>
+
+        {/* Table: heading bar + data rows */}
+        <div className='flex h-0 min-h-0 flex-1 flex-col gap-1 overflow-hidden'>
+          <Skeleton animationType='none' className='h-10 w-full shrink-0 rounded-lg' />
+          <div className='flex flex-1 flex-col gap-1 overflow-hidden'>
+            {Array.from({ length: 15 }).map((_, i) => (
+              <Skeleton
+                animationType='none'
+                className='h-13.25 w-full shrink-0 rounded-lg'
+                key={i}
+              />
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
@@ -850,12 +1204,33 @@ export function ActivityLogTable() {
       hasMore={hasMore}
       header={header}
       initialColumnVisibility={initialColumnVisibility}
-      initialSorting={{ column: 'time', direction: 'descending' }}
       isRefreshing={isInitialLoad || isSearching}
+      sortDescriptor={sortDescriptor}
       onLoadMore={fetchMoreEvents}
       onRefresh={handleRefresh}
+      onSortChange={setSortDescriptor}
+      getRowId={(row, i) =>
+        `${row.objectType}:${row.objectId}:${row.time}:${row.actionType}:${row.userId}:${i}`
+      }
     />
   );
+}
+
+/**
+ * Pack the table's current filter state into the shape `getActivityLogFromDataset`
+ * expects. Multi-object/multi-action/multi-user filters become `IN(...)` clauses
+ * in the dataset query (no fan-out, unlike the audit-API path).
+ */
+function buildDatasetFilters({ actionFilter, dateRangeEpoch, objects, userFilter }) {
+  const objectIds = objects.map((o) => String(o.id));
+  const objectTypes = [...new Set(objects.map((o) => o.type))];
+  const actions = actionFilter && actionFilter.size > 0 ? [...actionFilter] : [];
+  const userIds = Array.isArray(userFilter) ? userFilter : [];
+  const dateRange =
+    dateRangeEpoch?.start && dateRangeEpoch?.end
+      ? { end: dateRangeEpoch.end, start: dateRangeEpoch.start }
+      : null;
+  return { actions, dateRange, objectIds, objectTypes, userIds };
 }
 
 /**
@@ -864,29 +1239,29 @@ export function ActivityLogTable() {
  */
 function buildFetchTasks(objects, userFilter, actionFilter) {
   const actions = actionFilter.size > 0 ? [...actionFilter] : [undefined];
+  const users = userFilter.length > 0 ? userFilter : [undefined];
   return objects.flatMap((obj) =>
-    actions.map((eventType) => {
-      const parts = [obj.type, obj.id];
-      if (userFilter) parts.push(userFilter);
-      if (eventType) parts.push(eventType);
-      return {
-        eventType,
-        key: parts.join(':'),
-        objectId: obj.id,
-        objectType: obj.type,
-        user: userFilter || undefined
-      };
-    })
+    actions.flatMap((eventType) =>
+      users.map((user) => {
+        const parts = [obj.type, obj.id];
+        if (user) parts.push(user);
+        if (eventType) parts.push(eventType);
+        return {
+          eventType,
+          key: parts.join(':'),
+          objectId: obj.id,
+          objectType: obj.type,
+          user: user || undefined
+        };
+      })
+    )
   );
 }
 
 /**
  * Helper function to create an action column with colored chips
  */
-function createActionColumn({
-  actionTranslations = {},
-  key = 'actionType'
-} = {}) {
+function createActionColumn({ actionTranslations = {}, key = 'actionType' } = {}) {
   return {
     allowsSorting: true,
     cell: (row) => {
@@ -901,9 +1276,8 @@ function createActionColumn({
     },
     header: 'Action',
     id: key,
-    maxWidth: 150,
-    minWidth: 60,
-    width: 75
+    minWidth: 120,
+    width: '2fr'
   };
 }
 
@@ -917,18 +1291,15 @@ function createAdditionalCommentColumn({ key = 'additionalComment' } = {}) {
       if (!comment) return '-';
 
       return (
-        <div className='max-w-sm text-wrap'>
-          <span className='text-sm' title={comment}>
-            {comment}
-          </span>
-        </div>
+        <span className='truncate text-sm' title={comment}>
+          {comment}
+        </span>
       );
     },
     header: 'Description',
     id: key,
-    maxWidth: 300,
-    minWidth: 40,
-    width: 100
+    minWidth: 200,
+    width: '3fr'
   };
 }
 
@@ -964,29 +1335,61 @@ function createObjectColumn({
           ) : (
             <span className='truncate text-sm font-medium'>{name || '-'}</span>
           )}
-          {type && (
-            <span className='chip chip--accent chip--soft chip--sm w-fit'>
-              {type}
-            </span>
-          )}
+          {type && <span className='chip chip--accent chip--soft chip--sm w-fit'>{type}</span>}
         </div>
       );
     },
     header: 'Object',
     id: nameKey,
-    maxWidth: 200,
-    minWidth: 50,
-    width: 75
+    minWidth: 180,
+    width: '2fr'
+  };
+}
+
+/**
+ * Helper function to create a source column for the DomoStats dataset path.
+ * The dataset's Source_ID/Name/Type identifies the actor (user, system job,
+ * ETL, etc.). Renders name + type chip in the same shape as the Object column;
+ * id is exposed via a `title` tooltip rather than an extra line so the row
+ * height stays in lockstep with the rest of the table.
+ */
+function createSourceColumn({
+  idKey = 'sourceId',
+  nameKey = 'sourceName',
+  typeKey = 'sourceType'
+} = {}) {
+  return {
+    accessor: (row) => row[nameKey],
+    allowsSorting: true,
+    cell: (row) => {
+      const name = row[nameKey];
+      const type = row[typeKey];
+      const id = row[idKey];
+      const tooltip = id ? `${name || '-'} (${id})` : name || '-';
+
+      return (
+        <div className='flex flex-col gap-1'>
+          <span className='truncate text-sm font-medium' title={tooltip}>
+            {name || '-'}
+          </span>
+          {type && <span className='chip chip--accent chip--soft chip--sm w-fit'>{type}</span>}
+        </div>
+      );
+    },
+    header: 'Source',
+    id: nameKey,
+    minWidth: 180,
+    width: '2fr'
   };
 }
 
 /**
  * Helper function to create a timestamp column with formatted date/time
  */
-function createTimestampColumn({ key = 'time' } = {}) {
+function createTimestampColumn({ allowsSorting = true, key = 'time', manualSort = false } = {}) {
   return {
     accessor: (row) => new Date(row[key]).getTime(),
-    allowsSorting: true,
+    allowsSorting,
     cell: (row) => {
       const timestamp = row[key];
       if (!timestamp) return '-';
@@ -1002,11 +1405,11 @@ function createTimestampColumn({ key = 'time' } = {}) {
         </div>
       );
     },
-    header: `Timestamp (${Intl.DateTimeFormat().resolvedOptions().timeZone})`,
+    header: `Timestamp (${getShortTimezone()})`,
     id: key,
-    maxWidth: 75,
-    minWidth: 75,
-    width: 75
+    manualSort,
+    minWidth: 140,
+    width: '1fr'
   };
 }
 
@@ -1017,7 +1420,8 @@ function createUserColumn({
   customAvatarIds = new Set(),
   domoInstance = null,
   idKey = 'userId',
-  nameKey = 'userName'
+  nameKey = 'userName',
+  userNameMap = {}
 } = {}) {
   const getAvatarUrl = (userId) =>
     domoInstance
@@ -1025,11 +1429,14 @@ function createUserColumn({
       : null;
 
   return {
-    accessor: (row) => row[nameKey],
+    accessor: (row) => row[nameKey] || (row[idKey] != null ? userNameMap[row[idKey]] : null),
     allowsSorting: true,
     cell: (row) => {
-      const name = row[nameKey];
       const id = row[idKey];
+      // Prefer the row's own name, then the fetched-by-id map (DomoStats path
+      // arrives without userName populated and we fill the map via
+      // fetchUserDisplayNames).
+      const name = row[nameKey] || (id != null ? userNameMap[id] : null);
 
       return (
         <div className='flex items-center gap-3'>
@@ -1064,9 +1471,8 @@ function createUserColumn({
     },
     header: 'User',
     id: nameKey,
-    maxWidth: 200,
-    minWidth: 40,
-    width: 50
+    minWidth: 180,
+    width: '2fr'
   };
 }
 
@@ -1109,4 +1515,54 @@ function getActionColor(action) {
   }
 
   return 'accent';
+}
+
+function getShortTimezone() {
+  const parts = new Intl.DateTimeFormat(undefined, {
+    timeZoneName: 'short'
+  }).formatToParts(new Date());
+  return (
+    parts.find((p) => p.type === 'timeZoneName')?.value ??
+    Intl.DateTimeFormat().resolvedOptions().timeZone
+  );
+}
+
+/**
+ * Run an array of thunks (functions returning promises) with limited concurrency.
+ * Returns results in the same order as the input thunks.
+ */
+async function promisePool(taskFns, concurrency = 6) {
+  const results = [];
+  let index = 0;
+  async function runNext() {
+    while (index < taskFns.length) {
+      const i = index++;
+      results[i] = await taskFns[i]();
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, taskFns.length) }, runNext));
+  return results;
+}
+
+/**
+ * Resolve the DomoStats Activity Log dataset ID for a given Domo instance from
+ * `chrome.storage.local.perInstance[<instance>].activityLogDatasetId`.
+ *
+ * Phase 3 (discovery) writes this key automatically; Phase 4 will surface it in
+ * Settings. Until then, the user can populate it via DevTools to test the
+ * dataset path against a real DomoStats Activity Log dataset.
+ */
+async function resolveDatasetId(domoInstance) {
+  if (!domoInstance) {
+    throw new Error('Cannot resolve DomoStats dataset: Domo instance is unknown');
+  }
+  const result = await chrome.storage.local.get(['perInstance']);
+  const datasetId = result.perInstance?.[domoInstance]?.activityLogDatasetId;
+  if (!datasetId) {
+    throw new Error(
+      `No DomoStats Activity Log dataset configured for "${domoInstance}". ` +
+        'Switch to API and click "Use DomoStats" to run discovery again.'
+    );
+  }
+  return datasetId;
 }

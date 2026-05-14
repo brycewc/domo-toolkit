@@ -22,13 +22,13 @@ export class DomoContext {
     // Extract instance from URL and determine if this is a valid Domo page
     try {
       const hostname = new URL(url).hostname;
-      this.instance = hostname.includes('.domo.com')
+      this.instance = hostname.endsWith('.domo.com')
         ? hostname.replace('.domo.com', '')
         : null;
 
       // Check if this is a valid Domo page (not excluded)
       this.isDomoPage =
-        hostname.includes('.domo.com') &&
+        hostname.endsWith('.domo.com') &&
         !EXCLUDED_HOSTNAMES.includes(hostname);
     } catch (error) {
       console.error('Error extracting instance from URL:', error);

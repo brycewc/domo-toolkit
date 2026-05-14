@@ -1,12 +1,10 @@
-import { Button } from '@heroui/react';
-import { IconBinaryTree } from '@tabler/icons-react';
+import { Button, Tooltip } from '@heroui/react';
 
+import IconLineage from '@icons/lineage.svg?react';
 export function ViewLineage({ currentContext, onStatusUpdate }) {
   const isDisabled =
     !currentContext?.domoObject?.id ||
-    !['DATA_SOURCE', 'DATAFLOW_TYPE'].includes(
-      currentContext?.domoObject?.typeId
-    );
+    !['DATA_SOURCE', 'DATAFLOW_TYPE'].includes(currentContext?.domoObject?.typeId);
 
   const handlePress = async () => {
     if (!currentContext?.domoObject) return;
@@ -22,15 +20,12 @@ export function ViewLineage({ currentContext, onStatusUpdate }) {
         lineageTabId: currentContext.tabId
       });
 
-      onStatusUpdate?.(
-        'Opening Lineage',
-        'Loading pipeline lineage visualization...',
-        'success'
-      );
+      onStatusUpdate?.('Opening Lineage', 'Loading pipeline lineage visualization...', 'success');
 
-      // Open in the same window (preserves incognito context)
+      // Open in the same window (preserves incognito context), right after the launching tab
       const tab = await chrome.tabs.get(currentContext.tabId);
       chrome.tabs.create({
+        index: tab.index + 1,
         url: chrome.runtime.getURL('src/options/index.html#lineage'),
         windowId: tab.windowId
       });
@@ -38,24 +33,28 @@ export function ViewLineage({ currentContext, onStatusUpdate }) {
       window.close();
     } catch (err) {
       console.error('Error opening lineage viewer:', err);
-      onStatusUpdate?.(
-        'Error',
-        `Failed to open lineage viewer: ${err.message}`,
-        'danger'
-      );
+      onStatusUpdate?.('Error', `Failed to open lineage viewer: ${err.message}`, 'danger');
     }
   };
 
   return (
-    <Button
-      fullWidth
-      className='min-w-36 flex-1 whitespace-normal'
-      isDisabled={isDisabled}
-      variant='tertiary'
-      onPress={handlePress}
-    >
-      <IconBinaryTree stroke={1.5} />
-      View Lineage
-    </Button>
+    <Tooltip closeDelay={100} delay={600}>
+      <Button
+        fullWidth
+        className='min-w-36 flex-1 whitespace-normal'
+        isDisabled={isDisabled}
+        variant='tertiary'
+        onPress={handlePress}
+      >
+        <IconLineage />
+        View Lineage
+      </Button>
+      <Tooltip.Content
+        className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+        offset={4}
+      >
+        Open lineage visualization for this object
+      </Tooltip.Content>
+    </Tooltip>
   );
 }

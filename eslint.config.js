@@ -108,6 +108,12 @@ export default defineConfig([
           varsIgnorePattern: '^_'
         }
       ],
+      'perfectionist/sort-imports': [
+        'error',
+        {
+          internalPattern: ['^@/.+', '^@icons/.+']
+        }
+      ],
       'perfectionist/sort-jsx-props': [
         'error',
         {

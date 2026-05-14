@@ -19,17 +19,15 @@ import {
   TextField
 } from '@heroui/react';
 import { toast } from '@heroui/react';
-import {
-  IconArrowsShuffle,
-  IconCheck,
-  IconChevronDown,
-  IconDeviceFloppy,
-  IconGripVertical,
-  IconPlus,
-  IconTrash
-} from '@tabler/icons-react';
+import { IconArrowsShuffle } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 
+import IconCheck from '@icons/check.svg?react';
+import IconChevronDown from '@icons/chevron-down.svg?react';
+import IconDragDotsVertical from '@icons/drag-dots-vertical.svg?react';
+import IconPlus from '@icons/plus.svg?react';
+import IconSave from '@icons/save.svg?react';
+import IconTrash from '@icons/trash.svg?react';
 export function FaviconSettings() {
   const [rules, setRules] = useState([]);
   const [originalRules, setOriginalRules] = useState([]);
@@ -178,7 +176,7 @@ export function FaviconSettings() {
       >
         <div className='flex shrink-0 flex-row gap-2'>
           <Button isDisabled={!hasChanges} type='submit'>
-            <IconDeviceFloppy />
+            <IconSave />
             Save Settings
           </Button>
           <Button type='button' variant='secondary' onPress={addRow}>
@@ -213,9 +211,8 @@ export function FaviconSettings() {
                       <span className='text-fg-muted text-sm font-semibold'>
                         {index + 1}
                       </span>
-                      <IconGripVertical
+                      <IconDragDotsVertical
                         className='size-8 text-muted'
-                        stroke={1.5}
                       />
                     </div>
 
@@ -250,7 +247,7 @@ export function FaviconSettings() {
                         <Select.Trigger>
                           <Select.Value />
                           <Select.Indicator>
-                            <IconChevronDown stroke={1} />
+                            <IconChevronDown />
                           </Select.Indicator>
                         </Select.Trigger>
                         <Select.Popover>
@@ -259,7 +256,7 @@ export function FaviconSettings() {
                               instance-logo
                               <ListBox.ItemIndicator>
                                 {({ isSelected }) =>
-                                  isSelected ? <IconCheck stroke={1.5} /> : null
+                                  isSelected ? <IconCheck /> : null
                                 }
                               </ListBox.ItemIndicator>
                             </ListBox.Item>
@@ -267,7 +264,7 @@ export function FaviconSettings() {
                               domo-logo-colored
                               <ListBox.ItemIndicator>
                                 {({ isSelected }) =>
-                                  isSelected ? <IconCheck stroke={1.5} /> : null
+                                  isSelected ? <IconCheck /> : null
                                 }
                               </ListBox.ItemIndicator>
                             </ListBox.Item>
@@ -275,7 +272,7 @@ export function FaviconSettings() {
                               top
                               <ListBox.ItemIndicator>
                                 {({ isSelected }) =>
-                                  isSelected ? <IconCheck stroke={1.5} /> : null
+                                  isSelected ? <IconCheck /> : null
                                 }
                               </ListBox.ItemIndicator>
                             </ListBox.Item>
@@ -283,7 +280,7 @@ export function FaviconSettings() {
                               right
                               <ListBox.ItemIndicator>
                                 {({ isSelected }) =>
-                                  isSelected ? <IconCheck stroke={1.5} /> : null
+                                  isSelected ? <IconCheck /> : null
                                 }
                               </ListBox.ItemIndicator>
                             </ListBox.Item>
@@ -291,7 +288,7 @@ export function FaviconSettings() {
                               bottom
                               <ListBox.ItemIndicator>
                                 {({ isSelected }) =>
-                                  isSelected ? <IconCheck stroke={1.5} /> : null
+                                  isSelected ? <IconCheck /> : null
                                 }
                               </ListBox.ItemIndicator>
                             </ListBox.Item>
@@ -299,7 +296,7 @@ export function FaviconSettings() {
                               left
                               <ListBox.ItemIndicator>
                                 {({ isSelected }) =>
-                                  isSelected ? <IconCheck stroke={1.5} /> : null
+                                  isSelected ? <IconCheck /> : null
                                 }
                               </ListBox.ItemIndicator>
                             </ListBox.Item>
@@ -455,7 +452,7 @@ export function FaviconSettings() {
                           variant='tertiary'
                           onPress={() => removeRow(rule.id)}
                         >
-                          <IconTrash className='text-danger' stroke={1.5} />
+                          <IconTrash className='text-danger' />
                         </Button>
                       </div>
                     )}

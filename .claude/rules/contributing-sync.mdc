@@ -9,7 +9,17 @@ When editing `CONTRIBUTING.md`, verify the following sections are up to date:
 
 ## Tech Stack Table
 
-Read `package.json` and ensure every version in the Tech Stack table matches. Check both `dependencies` and `devDependencies`:
+The table tracks **resolved/installed versions**, not the `^`-prefixed semver ranges in `package.json`. The installed version often drifts above the range as yarn picks up minor/patch updates (e.g., `"react": "^19.2.4"` in `package.json` may have `19.2.5` installed).
+
+Pull the resolved version from `node_modules/<pkg>/package.json` — one lookup per row:
+
+```bash
+node -e "console.log(require('./node_modules/<pkg>/package.json').version)"
+```
+
+(Alternative: grep yarn.lock. The format is `"<name>@<range>":` followed by a `  version "X.Y.Z"` line. Harder because a single package name can have multiple ranges resolving to different versions — stick with `node_modules` unless you need the lockfile for a specific reason.)
+
+Rows currently in the table (keep this list in sync if rows are added/removed):
 
 - React → `react`
 - Vite → `vite`
@@ -17,11 +27,11 @@ Read `package.json` and ensure every version in the Tech Stack table matches. Ch
 - @heroui/react → `@heroui/react`
 - Tailwind CSS → `tailwindcss`
 - @tabler/icons-react → `@tabler/icons-react`
-- @tanstack/react-table → `@tanstack/react-table`
-- @tanstack/react-virtual → `@tanstack/react-virtual`
+- @dagrejs/dagre → `@dagrejs/dagre`
+- ESLint → `eslint`
 - Prettier → `prettier`
 
-Strip the `^` prefix from semver ranges to get the base version.
+When removing a dependency (e.g., `yarn remove <pkg>`), also remove its row from the table and this list. When adding a dependency, add it to both only if it belongs in the "Tech Stack" summary — not every dep needs a row.
 
 ## Project Structure
 

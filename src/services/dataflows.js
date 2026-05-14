@@ -1,4 +1,4 @@
-import { executeInPage } from '@/utils';
+import { executeInPage } from '@/utils/executeInPage';
 
 /**
  * Delete a DataFlow and all its output datasets.
@@ -9,11 +9,7 @@ import { executeInPage } from '@/utils';
  * @param {number} [params.tabId] - Optional Chrome tab ID
  * @returns {Promise<Object>} Result with success/status info
  */
-export async function deleteDataflowAndOutputs({
-  dataflowId,
-  outputs,
-  tabId = null
-}) {
+export async function deleteDataflowAndOutputs({ dataflowId, outputs, tabId = null }) {
   return executeInPage(
     async (dataflowId, outputs) => {
       const outputIds = outputs.map((o) => o.dataSourceId).filter(Boolean);
@@ -21,9 +17,7 @@ export async function deleteDataflowAndOutputs({
       // Step 1: Delete all output datasets
       if (outputIds.length > 0) {
         const results = await Promise.allSettled(
-          outputIds.map((id) =>
-            fetch(`/api/data/v3/datasources/${id}`, { method: 'DELETE' })
-          )
+          outputIds.map((id) => fetch(`/api/data/v3/datasources/${id}`, { method: 'DELETE' }))
         );
 
         const failures = results.filter((r) => r.status === 'rejected' || !r.value?.ok);
@@ -37,10 +31,9 @@ export async function deleteDataflowAndOutputs({
       }
 
       // Step 2: Delete the dataflow
-      const response = await fetch(
-        `/api/dataprocessing/v1/dataflows/${dataflowId}`,
-        { method: 'DELETE' }
-      );
+      const response = await fetch(`/api/dataprocessing/v1/dataflows/${dataflowId}`, {
+        method: 'DELETE'
+      });
 
       if (!response.ok) {
         return {
@@ -69,13 +62,10 @@ export async function deleteDataflowAndOutputs({
 export async function getDataflowDetail(dataflowId, tabId = null) {
   return executeInPage(
     async (dataflowId) => {
-      const response = await fetch(
-        `/api/dataprocessing/v1/dataflows/${dataflowId}`,
-        {
-          credentials: 'include',
-          method: 'GET'
-        }
-      );
+      const response = await fetch(`/api/dataprocessing/v1/dataflows/${dataflowId}`, {
+        credentials: 'include',
+        method: 'GET'
+      });
 
       if (!response.ok) {
         throw new Error(`Failed to fetch dataflow: HTTP ${response.status}`);
@@ -134,14 +124,11 @@ export async function getDataflowForOutputDataset(datasetId, tabId = null) {
 export async function getDataflowPermission(dataflowId, tabId = null) {
   return executeInPage(
     async (dataflowId) => {
-      const response = await fetch(
-        '/api/dataprocessing/v1/dataflows/bulk/flowPermissions',
-        {
-          body: JSON.stringify({ dataFlowIds: [dataflowId] }),
-          headers: { 'Content-Type': 'application/json' },
-          method: 'POST'
-        }
-      );
+      const response = await fetch('/api/dataprocessing/v1/dataflows/bulk/flowPermissions', {
+        body: JSON.stringify({ dataFlowIds: [dataflowId] }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST'
+      });
       if (!response.ok) return null;
       const data = await response.json();
       return data?.permissions?.[0]?.permission || null;
@@ -157,6 +144,97 @@ export async function getDataflowPermission(dataflowId, tabId = null) {
  * @param {Object} updates - Object containing name and/or description
  * @returns {Promise<Object>} - The updated DataFlow object
  */
+/**
+ * Get all dataflows owned by a user.
+ * @param {number} userId - The Domo user ID
+ * @param {number|null} tabId - Optional Chrome tab ID
+ * @returns {Promise<Array<{id: string, name: string}>>}
+ */
+export async function getOwnedDataflows(userId, tabId = null) {
+  return executeInPage(
+    async (userId) => {
+      const allDataflows = [];
+      const count = 100;
+      let moreData = true;
+      let offset = 0;
+
+      while (moreData) {
+        const response = await fetch('/api/search/v1/query', {
+          body: JSON.stringify({
+            count,
+            entities: ['DATAFLOW'],
+            filters: [
+              {
+                field: 'owned_by_id',
+                filterType: 'term',
+                value: userId
+              }
+            ],
+            offset,
+            query: '*'
+          }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+
+        if (data.searchObjects && data.searchObjects.length > 0) {
+          allDataflows.push(
+            ...data.searchObjects.map((d) => ({
+              id: d.databaseId,
+              name: d.winnerText || d.databaseId.toString()
+            }))
+          );
+          offset += count;
+          if (data.searchObjects.length < count) moreData = false;
+        } else {
+          moreData = false;
+        }
+      }
+
+      return allDataflows;
+    },
+    [userId],
+    tabId
+  );
+}
+
+/**
+ * Transfer dataflow ownership to a new user.
+ * @param {string[]} dataflowIds - Array of dataflow IDs to transfer
+ * @param {number} fromUserId - The current owner's user ID
+ * @param {number} toUserId - The new owner's user ID
+ * @param {number|null} tabId - Optional Chrome tab ID
+ * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
+ */
+export async function transferDataflows(dataflowIds, fromUserId, toUserId, tabId = null) {
+  return executeInPage(
+    async (dataflowIds, fromUserId, toUserId) => {
+      try {
+        const response = await fetch('/api/dataprocessing/v1/dataflows/bulk/patch', {
+          body: JSON.stringify({
+            dataFlowIds: dataflowIds,
+            responsibleUserId: toUserId
+          }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'PUT'
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return { errors: [], failed: 0, succeeded: dataflowIds.length };
+      } catch (error) {
+        return {
+          errors: dataflowIds.map((id) => ({ error: error.message, id })),
+          failed: dataflowIds.length,
+          succeeded: 0
+        };
+      }
+    },
+    [dataflowIds, fromUserId, toUserId],
+    tabId
+  );
+}
+
 export async function updateDataflowDetails(dataflowId, updates) {
   const result = await executeInPage(
     async (dataflowId, updates) => {
@@ -171,16 +249,13 @@ export async function updateDataflowDetails(dataflowId, updates) {
         }
 
         // Update the DataFlow using PATCH
-        const updateResponse = await fetch(
-          `/api/dataprocessing/v1/dataflows/${dataflowId}/patch`,
-          {
-            body: JSON.stringify(payload),
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            method: 'PUT'
-          }
-        );
+        const updateResponse = await fetch(`/api/dataprocessing/v1/dataflows/${dataflowId}/patch`, {
+          body: JSON.stringify(payload),
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          method: 'PUT'
+        });
 
         if (!updateResponse.ok) {
           throw new Error(`HTTP ${updateResponse.status}`);

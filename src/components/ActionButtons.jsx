@@ -1,45 +1,41 @@
-import {
-  Button,
-  ButtonGroup,
-  Card,
-  Disclosure,
-  Skeleton,
-  Tooltip
-} from '@heroui/react';
-import {
-  IconChevronDown,
-  IconLayoutSidebarRightExpand,
-  IconSettings
-} from '@tabler/icons-react';
+import { Button, ButtonGroup, Card, Disclosure, Skeleton, Tooltip } from '@heroui/react';
 import { useEffect, useState } from 'react';
 
-import { isSidepanel, openSidepanel } from '@/utils';
-
-import {
-  ActivityLogCurrentObject,
-  CardErrors,
-  ClearCookies,
-  Copy,
-  CopyFilteredUrl,
-  DataRepair,
-  DeleteCurrentObject,
-  DevMenu,
-  Export,
-  GetCardPages,
-  GetCards,
-  GetChildPages,
-  GetDatasets,
-  GetViewInputs,
-  LockCards,
-  NavigateToCopiedObject,
-  RemoveEmptyStringsFromQuickFilters,
-  SetStreamToManual,
-  ShareWithSelf,
-  UpdateCodeEngineVersions,
-  UpdateDataflowDetails,
-  UpdateOwner,
-  ViewLineage
-} from './functions';
+import { ActivityLog } from '@/components/functions/ActivityLog';
+import { ApiErrors } from '@/components/functions/ApiErrors';
+import { CancelStreamExecution } from '@/components/functions/CancelStreamExecution';
+import { ClearCookies } from '@/components/functions/ClearCookies';
+import { Copy } from '@/components/functions/Copy';
+import { CopyColorRules } from '@/components/functions/CopyColorRules';
+import { CopyFilteredUrl } from '@/components/functions/CopyFilteredUrl';
+import { DataRepair } from '@/components/functions/DataRepair';
+import { DeleteObject } from '@/components/functions/DeleteObject';
+import { DevMenu } from '@/components/functions/DevMenu';
+import { DirectSignOn } from '@/components/functions/DirectSignOn';
+import { Duplicate } from '@/components/functions/Duplicate';
+import { Export } from '@/components/functions/Export';
+import { GetCardPages } from '@/components/functions/GetCardPages';
+import { GetCards } from '@/components/functions/GetCards';
+import { GetChildPages } from '@/components/functions/GetChildPages';
+import { GetDatasets } from '@/components/functions/GetDatasets';
+import { GetOwnedObjects } from '@/components/functions/GetOwnedObjects';
+import { GetViewInputs } from '@/components/functions/GetViewInputs';
+import { LockCards } from '@/components/functions/LockCards';
+import { NavigateToCopiedObject } from '@/components/functions/NavigateToCopiedObject';
+import { RemoveEmptyStringsFromQuickFilters } from '@/components/functions/RemoveEmptyStringsFromQuickFilters';
+import { SetStreamToManual } from '@/components/functions/SetStreamToManual';
+import { ShareWithSelf } from '@/components/functions/ShareWithSelf';
+import { SyncJSDocFromSource } from '@/components/functions/SyncJSDocFromSource';
+import { TransferOwnership } from '@/components/functions/TransferOwnership';
+import { UpdateCodeEngineVersions } from '@/components/functions/UpdateCodeEngineVersions';
+import { UpdateDetails } from '@/components/functions/UpdateDetails';
+import { UpdateOwner } from '@/components/functions/UpdateOwner';
+import { ViewLineage } from '@/components/functions/ViewLineage';
+import { getAvailableActions } from '@/utils/availableActions';
+import { isSidepanel, openSidepanel } from '@/utils/sidepanel';
+import IconChevronDown from '@icons/chevron-down.svg?react';
+import IconGear from '@icons/gear.svg?react';
+import IconRightRailFill from '@icons/right-rail-fill.svg?react';
 
 export function ActionButtons({
   collapsable = false,
@@ -57,10 +53,7 @@ export function ActionButtons({
   }, [defaultExpanded]);
 
   const isDomoPage = currentContext?.isDomoPage ?? false;
-  const typeId = currentContext?.domoObject?.typeId;
-  const metadata = currentContext?.domoObject?.metadata;
-  const details = metadata?.details;
-  const availableActions = getAvailableActions(typeId, details, metadata);
+  const availableActions = getAvailableActions(currentContext);
   const hasExpandableActions = availableActions.size > 0;
 
   return (
@@ -94,20 +87,17 @@ export function ActionButtons({
                   isDisabled={!isDomoPage}
                   onStatusUpdate={onStatusUpdate}
                 />
-                <ActivityLogCurrentObject
-                  currentContext={currentContext}
-                  onStatusUpdate={onStatusUpdate}
-                />
+                <ActivityLog currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
                 <NavigateToCopiedObject
                   currentContext={currentContext}
                   onStatusUpdate={onStatusUpdate}
                 />
-                <ClearCookies
+                <DeleteObject
                   currentContext={currentContext}
                   isDisabled={!isDomoPage}
                   onStatusUpdate={onStatusUpdate}
                 />
-                <DeleteCurrentObject
+                <ClearCookies
                   currentContext={currentContext}
                   isDisabled={!isDomoPage}
                   onStatusUpdate={onStatusUpdate}
@@ -118,9 +108,7 @@ export function ActionButtons({
                     isIconOnly
                     variant='tertiary'
                     onPress={async () => {
-                      const optionsUrl = chrome.runtime.getURL(
-                        'src/options/index.html'
-                      );
+                      const optionsUrl = chrome.runtime.getURL('src/options/index.html');
                       const currentWindow = await chrome.windows.getCurrent();
                       const tabs = await chrome.tabs.query({
                         url: `${optionsUrl}*`,
@@ -128,9 +116,7 @@ export function ActionButtons({
                       });
                       const settingsTab = tabs.find((t) => {
                         const hash = new URL(t.url).hash.slice(1);
-                        return (
-                          !hash || hash === 'settings' || hash === 'favicon'
-                        );
+                        return !hash || hash === 'settings' || hash === 'favicon';
                       });
                       if (settingsTab) {
                         await chrome.tabs.update(settingsTab.id, {
@@ -138,7 +124,12 @@ export function ActionButtons({
                           url: `${optionsUrl}#settings`
                         });
                       } else {
+                        const [activeTab] = await chrome.tabs.query({
+                          active: true,
+                          windowId: currentWindow.id
+                        });
                         chrome.tabs.create({
+                          index: activeTab ? activeTab.index + 1 : undefined,
                           url: `${optionsUrl}#settings`,
                           windowId: currentWindow.id
                         });
@@ -146,9 +137,14 @@ export function ActionButtons({
                       if (!isSidepanel()) window.close();
                     }}
                   >
-                    <IconSettings stroke={1.5} />
+                    <IconGear />
                   </Button>
-                  <Tooltip.Content>Extension settings</Tooltip.Content>
+                  <Tooltip.Content
+                    className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+                    offset={4}
+                  >
+                    Extension settings
+                  </Tooltip.Content>
                 </Tooltip>
                 {collapsable ? (
                   <Tooltip closeDelay={0} delay={400}>
@@ -160,23 +156,28 @@ export function ActionButtons({
                       variant='tertiary'
                     >
                       <Disclosure.Indicator>
-                        <IconChevronDown stroke={1.5} />
+                        <IconChevronDown />
                       </Disclosure.Indicator>
                     </Button>
 
-                    <Tooltip.Content>Expand</Tooltip.Content>
+                    <Tooltip.Content
+                      className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+                      offset={4}
+                    >
+                      Expand
+                    </Tooltip.Content>
                   </Tooltip>
                 ) : (
                   <Tooltip closeDelay={0} delay={400}>
-                    <Button
-                      fullWidth
-                      isIconOnly
-                      variant='tertiary'
-                      onPress={openSidepanel}
-                    >
-                      <IconLayoutSidebarRightExpand stroke={1.5} />
+                    <Button fullWidth isIconOnly variant='tertiary' onPress={openSidepanel}>
+                      <IconRightRailFill />
                     </Button>
-                    <Tooltip.Content>Open side panel</Tooltip.Content>
+                    <Tooltip.Content
+                      className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+                      offset={4}
+                    >
+                      Open side panel
+                    </Tooltip.Content>
                   </Tooltip>
                 )}
               </ButtonGroup>
@@ -187,9 +188,7 @@ export function ActionButtons({
                   <GetCards
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
-                    onCollapseActions={
-                      collapsable ? () => setIsExpanded(false) : undefined
-                    }
+                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
@@ -197,9 +196,7 @@ export function ActionButtons({
                   <GetDatasets
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
-                    onCollapseActions={
-                      collapsable ? () => setIsExpanded(false) : undefined
-                    }
+                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
@@ -207,9 +204,7 @@ export function ActionButtons({
                   <GetChildPages
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
-                    onCollapseActions={
-                      collapsable ? () => setIsExpanded(false) : undefined
-                    }
+                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
@@ -217,45 +212,53 @@ export function ActionButtons({
                   <GetCardPages
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
-                    onCollapseActions={
-                      collapsable ? () => setIsExpanded(false) : undefined
-                    }
+                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
                     onStatusUpdate={onStatusUpdate}
-                  />
-                )}
-                {availableActions.has('viewLineage') && (
-                  <ViewLineage
-                    currentContext={currentContext}
-                    onStatusUpdate={onStatusUpdate}
-                  />
-                )}
-                {availableActions.has('dataRepair') && (
-                  <DataRepair
-                    currentContext={currentContext}
-                    isDisabled={!isDomoPage}
                   />
                 )}
                 {availableActions.has('getViewInputs') && (
                   <GetViewInputs
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
-                    onCollapseActions={
-                      collapsable ? () => setIsExpanded(false) : undefined
-                    }
+                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
-                {availableActions.has('updateDataflowDetails') && (
-                  <UpdateDataflowDetails
+                {availableActions.has('viewLineage') && (
+                  <ViewLineage currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
+                )}
+                {availableActions.has('dataRepair') && (
+                  <DataRepair currentContext={currentContext} isDisabled={!isDomoPage} />
+                )}
+                {availableActions.has('updateDetails') && (
+                  <UpdateDetails currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
+                )}
+                {availableActions.has('copyColorRules') && (
+                  <CopyColorRules currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
+                )}
+                {availableActions.has('transferOwnership') && (
+                  <TransferOwnership
                     currentContext={currentContext}
+                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
+                    onStatusUpdate={onStatusUpdate}
+                  />
+                )}
+                {availableActions.has('getOwnedObjects') && (
+                  <GetOwnedObjects
+                    currentContext={currentContext}
+                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
+                    onStatusUpdate={onStatusUpdate}
+                  />
+                )}
+                {availableActions.has('duplicate') && (
+                  <Duplicate
+                    currentContext={currentContext}
+                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
                 {availableActions.has('updateOwner') && (
-                  <UpdateOwner
-                    currentContext={currentContext}
-                    onStatusUpdate={onStatusUpdate}
-                  />
+                  <UpdateOwner currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('lockCards') && (
                   <LockCards
@@ -278,6 +281,9 @@ export function ActionButtons({
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
+                {availableActions.has('cancelStreamExecution') && (
+                  <CancelStreamExecution currentContext={currentContext} isDisabled={!isDomoPage} />
+                )}
                 {availableActions.has('setStreamToManual') && (
                   <SetStreamToManual
                     currentContext={currentContext}
@@ -289,18 +295,22 @@ export function ActionButtons({
                   <UpdateCodeEngineVersions
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
-                    onCollapseActions={
-                      collapsable ? () => setIsExpanded(false) : undefined
-                    }
+                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
-                <CardErrors
+                {availableActions.has('syncJSDocFromSource') && (
+                  <SyncJSDocFromSource
+                    currentContext={currentContext}
+                    isDisabled={!isDomoPage}
+                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
+                    onStatusUpdate={onStatusUpdate}
+                  />
+                )}
+                <ApiErrors
                   currentContext={currentContext}
                   isDisabled={!isDomoPage}
-                  onCollapseActions={
-                    collapsable ? () => setIsExpanded(false) : undefined
-                  }
+                  onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
                   onStatusUpdate={onStatusUpdate}
                 />
                 {availableActions.has('removeEmptyStrings') && (
@@ -308,6 +318,9 @@ export function ActionButtons({
                     currentContext={currentContext}
                     onStatusUpdate={onStatusUpdate}
                   />
+                )}
+                {availableActions.has('directSignOn') && (
+                  <DirectSignOn currentContext={currentContext} isDisabled={!isDomoPage} />
                 )}
                 <DevMenu />
               </div>
@@ -317,111 +330,4 @@ export function ActionButtons({
       </Card.Content>
     </Card>
   );
-}
-
-/**
- * Determine which expandable action buttons are available for the current context.
- * Returns a Set of action keys. Used for both rendering and disabling the expand trigger.
- */
-function getAvailableActions(typeId, details, metadata) {
-  const actions = new Set();
-
-  if (
-    [
-      'DATA_APP_VIEW',
-      'DATA_SOURCE',
-      'DATAFLOW_TYPE',
-      'PAGE',
-      'REPORT_BUILDER_VIEW',
-      'WORKSHEET_VIEW'
-    ].includes(typeId)
-  ) {
-    actions.add('getCards');
-    actions.add('lockCards');
-  }
-
-  if (
-    [
-      'CARD',
-      'DATA_APP_VIEW',
-      'DATA_SOURCE',
-      'DATAFLOW_TYPE',
-      'PAGE',
-      'WORKSHEET_VIEW'
-    ].includes(typeId)
-  ) {
-    actions.add('getDatasets');
-  }
-
-  if (['DATA_APP_VIEW', 'PAGE', 'WORKSHEET_VIEW'].includes(typeId)) {
-    actions.add('getChildPages');
-  }
-
-  if (
-    [
-      'CARD',
-      'DATA_APP_VIEW',
-      'DATA_SOURCE',
-      'DATAFLOW_TYPE',
-      'PAGE',
-      'WORKSHEET_VIEW'
-    ].includes(typeId)
-  ) {
-    actions.add('getCardPages');
-  }
-
-  if (typeId === 'DATA_SOURCE') {
-    actions.add('getViewInputs');
-    actions.add('dataRepair');
-    actions.add('viewLineage');
-    if (
-      details?.streamId &&
-      metadata?.parent?.details?.scheduleState !== 'MANUAL'
-    ) {
-      actions.add('setStreamToManual');
-    }
-  }
-
-  if (['CARD', 'DATA_APP_VIEW', 'PAGE'].includes(typeId)) {
-    actions.add('copyFilteredUrl');
-  }
-
-  if (typeId === 'DATAFLOW_TYPE') {
-    if (metadata?.permission?.mask & 2) {
-      actions.add('updateDataflowDetails');
-    }
-  }
-
-  if (['ALERT', 'WORKFLOW_MODEL'].includes(typeId)) {
-    actions.add('updateOwner');
-  }
-
-  if (
-    typeId === 'WORKFLOW_MODEL_VERSION' &&
-    !details?.deletedAt &&
-    !details?.releasedAt
-  ) {
-    actions.add('updateCodeEngineVersions');
-  }
-
-  if (
-    typeId === 'CODEENGINE_PACKAGE_VERSION' &&
-    metadata?.details?.workflowModelId
-  ) {
-    actions.add('updateCodeEngineVersions');
-  }
-
-  if (
-    ['CARD', 'CODEENGINE_PACKAGE', 'CODEENGINE_PACKAGE_VERSION'].includes(
-      typeId
-    )
-  ) {
-    actions.add('export');
-  }
-
-  if (typeId === 'CARD' && details?.type !== 'domoapp') {
-    actions.add('removeEmptyStrings');
-  }
-
-  return actions;
 }

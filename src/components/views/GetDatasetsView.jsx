@@ -1,20 +1,21 @@
-import { Alert, Button, Card, CloseButton, Spinner } from '@heroui/react';
-import { IconAlertTriangle, IconRefresh } from '@tabler/icons-react';
+import { Alert, Button, Card, Spinner } from '@heroui/react';
 import { useEffect, useRef, useState } from 'react';
 
-import { DataListItem, DomoContext, DomoObject } from '@/models';
-import {
-  getCardDatasets,
-  getDatasetsForApp,
-  getDatasetsForDataflow,
-  getDatasetsForPage,
-  getDependentDatasets
-} from '@/services';
-import { getValidTabForInstance } from '@/utils';
+import { CloseButton } from '@/components/CloseButton';
+import { DataListItem } from '@/models/DataListItem';
+import { DomoContext } from '@/models/DomoContext';
+import { DomoObject } from '@/models/DomoObject';
+import { getCardDatasets } from '@/services/cards';
+import { getDatasetsForApp, getDatasetsForDataflow, getDatasetsForPage, getDependentDatasets } from '@/services/datasets';
+import { getValidTabForInstance } from '@/utils/currentObject';
+import { getSidepanelData } from '@/utils/sidepanel';
+import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
+import IconSync from '@icons/sync.svg?react';
 
 import { DataList } from './DataList';
 
 export function GetDatasetsView({
+  currentContext = null,
   onBackToDefault = null,
   onStatusUpdate = null
 }) {
@@ -50,8 +51,7 @@ export function GetDatasetsView({
 
     try {
       // Get the stored data from session storage
-      const result = await chrome.storage.session.get(['sidepanelDataList']);
-      const data = result.sidepanelDataList;
+      const data = await getSidepanelData();
 
       if (!data || data.type !== 'getDatasets') {
         setError('No dataset data found. Please try again.');
@@ -232,25 +232,16 @@ export function GetDatasetsView({
     return items.length;
   };
 
-  // Build the title section
-  const renderTitle = () => {
-    const totalCount = getTotalCount();
+  const renderTitle = () => (
+    <span>
+      {viewData?.typeLabel} for <span className='font-bold'>{viewData?.objectName}</span>
+    </span>
+  );
 
-    return (
-      <div className='flex flex-col gap-1'>
-        <div className='line-clamp-2 min-w-0'>
-          <span>{viewData?.typeLabel} for</span>{' '}
-          <span className='font-bold'>{viewData?.objectName}</span>
-        </div>
-        {totalCount > 0 && (
-          <div className='flex flex-row items-center gap-1'>
-            <span className='text-sm text-muted'>
-              {totalCount} dataset{totalCount === 1 ? '' : 's'}
-            </span>
-          </div>
-        )}
-      </div>
-    );
+  const renderSubtext = () => {
+    const totalCount = getTotalCount();
+    if (totalCount === 0) return null;
+    return `${totalCount} dataset${totalCount === 1 ? '' : 's'}`;
   };
 
   if (isLoading) {
@@ -275,7 +266,7 @@ export function GetDatasetsView({
     return (
       <Alert className='w-full' status='warning'>
         <Alert.Indicator>
-          <IconAlertTriangle data-slot='alert-default-icon' />
+          <IconExclamationTriangle data-slot='alert-default-icon' />
         </Alert.Indicator>
         <Alert.Content>
           <Alert.Title>Error</Alert.Title>
@@ -285,7 +276,7 @@ export function GetDatasetsView({
               {isRetrying ? (
                 <Spinner color='currentColor' size='sm' />
               ) : (
-                <IconRefresh stroke={1.5} />
+                <IconSync />
               )}
               Retry
             </Button>
@@ -303,7 +294,8 @@ export function GetDatasetsView({
   return (
     <DataList
       closeLabel={`Close ${viewData?.typeLabel} View`}
-      headerActions={['openAll', 'copy', 'refresh']}
+      currentContext={currentContext}
+      headerActions={['openAll', 'copy', 'reload', 'refresh']}
       isRefreshing={isRefreshing}
       itemActions={['copy', 'openAll', 'viewsExplorer', 'lineage']}
       itemLabel='dataset'
@@ -312,7 +304,9 @@ export function GetDatasetsView({
       objectType={viewData?.objectType}
       showActions={true}
       showCounts={true}
+      subtext={renderSubtext()}
       title={renderTitle()}
+      viewType='getDatasets'
       onClose={onBackToDefault}
       onRefresh={handleRefresh}
       onStatusUpdate={onStatusUpdate}

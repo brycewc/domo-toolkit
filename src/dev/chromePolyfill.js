@@ -12,9 +12,16 @@
 const baseUrl = import.meta.env.VITE_DOMO_BASE_URL || '';
 const instance = baseUrl.match(/\/\/([^.]+)\.domo\.com/)?.[1] || '';
 
+const entityId = import.meta.env.VITE_DOMO_ENTITY_ID;
+const entityType = import.meta.env.VITE_DOMO_ENTITY_TYPE;
+
 const sessionData = {
-  lineageEntityId: import.meta.env.VITE_DOMO_ENTITY_ID,
-  lineageEntityType: import.meta.env.VITE_DOMO_ENTITY_TYPE,
+  activityLogInstance: instance,
+  activityLogObjects: entityId && entityType ? [{ id: entityId, type: entityType }] : [],
+  activityLogTabId: 1,
+  activityLogType: 'single-object',
+  lineageEntityId: entityId,
+  lineageEntityType: entityType,
   lineageInstance: instance,
   lineageObjectName: import.meta.env.VITE_DOMO_OBJECT_NAME,
   lineageTabId: 1
@@ -22,6 +29,25 @@ const sessionData = {
 
 globalThis.chrome = {
   storage: {
+    local: (() => {
+      const store = {};
+      const toKeys = (input) =>
+        input == null ? Object.keys(store) : Array.isArray(input) ? input : [input];
+      return {
+        get: async (input) => {
+          const keys = toKeys(input);
+          const result = {};
+          for (const key of keys) if (key in store) result[key] = store[key];
+          return result;
+        },
+        remove: async (input) => {
+          for (const key of toKeys(input)) delete store[key];
+        },
+        set: async (items) => {
+          Object.assign(store, items);
+        }
+      };
+    })(),
     onChanged: {
       addListener: () => {},
       removeListener: () => {}
@@ -37,7 +63,7 @@ globalThis.chrome = {
     },
     sync: {
       get: (keys, callback) => {
-        const data = { themePreference: 'system' };
+        const data = { themePreference: 'light' };
         if (typeof callback === 'function') {
           callback(data);
           return undefined;

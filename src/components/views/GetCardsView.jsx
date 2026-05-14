@@ -1,19 +1,22 @@
-import { Alert, Button, Card, CloseButton, Spinner } from '@heroui/react';
-import { IconAlertTriangle, IconRefresh } from '@tabler/icons-react';
+import { Alert, Button, Card, Spinner } from '@heroui/react';
 import { useEffect, useRef, useState } from 'react';
 
-import { DataListItem, DomoContext, DomoObject } from '@/models';
-import {
-  extractPageContentIds,
-  getCardsForObject,
-  getFormsForPage,
-  getQueuesForPage
-} from '@/services';
-import { getValidTabForInstance, waitForCards } from '@/utils';
+import { CloseButton } from '@/components/CloseButton';
+import { DataListItem } from '@/models/DataListItem';
+import { DomoContext } from '@/models/DomoContext';
+import { DomoObject } from '@/models/DomoObject';
+import { extractPageContentIds, getFormsForPage, getQueuesForPage } from '@/services/appStudio';
+import { getCardsForObject, getCardsForParent } from '@/services/cards';
+import { waitForCards } from '@/utils/cardHelpers';
+import { getValidTabForInstance } from '@/utils/currentObject';
+import { getSidepanelData } from '@/utils/sidepanel';
+import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
+import IconSync from '@icons/sync.svg?react';
 
 import { DataList } from './DataList';
 
 export function GetCardsView({
+  currentContext = null,
   onBackToDefault = null,
   onStatusUpdate = null
 }) {
@@ -52,12 +55,16 @@ export function GetCardsView({
       : null;
 
     try {
-      const result = await chrome.storage.session.get(['sidepanelDataList']);
-      const data = result.sidepanelDataList;
+      const data = await getSidepanelData();
 
       if (!data || data.type !== 'getCards') {
         setError('No card data found. Please try again.');
         setIsLoading(false);
+        return;
+      }
+
+      if (data.scope === 'parent') {
+        await loadParentScopeData(data);
         return;
       }
 
@@ -202,6 +209,69 @@ export function GetCardsView({
     }
   };
 
+  const loadParentScopeData = async (data) => {
+    const context = DomoContext.fromJSON(data.currentContext);
+    const childTypeId = context.domoObject.typeId;
+    const parentTypeId =
+      childTypeId === 'WORKSHEET_VIEW' ? 'WORKSHEET' : 'DATA_APP';
+    const parentId = data.parentId || context.domoObject.parentId;
+    const instance = context.instance;
+    const origin = `https://${instance}.domo.com`;
+
+    if (!parentId) {
+      setError('Could not determine parent ID.');
+      return;
+    }
+
+    const tabId = await getValidTabForInstance(instance);
+    const { parentName, viewGroups } = await getCardsForParent({
+      parentId,
+      tabId
+    });
+
+    const totalCards = viewGroups.reduce((s, v) => s + v.cards.length, 0);
+    const totalForms = viewGroups.reduce((s, v) => s + v.forms.length, 0);
+    const totalQueues = viewGroups.reduce((s, v) => s + v.queues.length, 0);
+
+    setViewData({
+      instance,
+      isParentScope: true,
+      objectId: parentId,
+      objectName: parentName,
+      objectType: parentTypeId,
+      origin,
+      parentId: null,
+      viewCount: viewGroups.length
+    });
+
+    setItemCounts({
+      cards: totalCards,
+      forms: totalForms,
+      queues: totalQueues
+    });
+
+    if (viewGroups.length === 0) {
+      const parentLabel = parentTypeId === 'WORKSHEET' ? 'worksheet' : 'app';
+      onStatusUpdate?.(
+        'No Items Found',
+        `No cards, forms, or queues found across any view on this ${parentLabel}.`,
+        'warning',
+        3000
+      );
+      onBackToDefault?.();
+      return;
+    }
+
+    const transformedItems = transformParentScopeItems(
+      viewGroups,
+      origin,
+      parentId,
+      childTypeId
+    );
+    setError(null);
+    setItems(transformedItems);
+  };
+
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
@@ -231,25 +301,23 @@ export function GetCardsView({
 
   const totalItems = itemCounts.cards + itemCounts.forms + itemCounts.queues;
 
-  const renderTitle = () => {
-    const titlePrefix = hasMultipleTypes ? 'Items for' : 'Cards for';
-    return (
-      <div className='flex flex-col gap-1'>
-        <div className='line-clamp-2 min-w-0'>
-          <span>{titlePrefix}</span>{' '}
-          <span className='font-bold'>{viewData?.objectName}</span>
-        </div>
-        {totalItems > 0 && (
-          <div className='flex flex-row items-center gap-1'>
-            <span className='text-sm text-muted'>
-              {hasMultipleTypes
-                ? `${totalItems} item${totalItems === 1 ? '' : 's'}`
-                : `${itemCounts.cards} card${itemCounts.cards === 1 ? '' : 's'}`}
-            </span>
-          </div>
-        )}
-      </div>
-    );
+  const titlePrefix = hasMultipleTypes ? 'Items for' : 'Cards for';
+  const renderTitle = () => (
+    <span>
+      {titlePrefix} <span className='font-bold'>{viewData?.objectName}</span>
+    </span>
+  );
+
+  const renderSubtext = () => {
+    if (totalItems === 0) return null;
+    const base = hasMultipleTypes
+      ? `${totalItems} item${totalItems === 1 ? '' : 's'}`
+      : `${itemCounts.cards} card${itemCounts.cards === 1 ? '' : 's'}`;
+    if (viewData?.isParentScope && viewData?.viewCount > 0) {
+      const viewLabel = viewData.viewCount === 1 ? 'page' : 'pages';
+      return `${base} across ${viewData.viewCount} ${viewLabel}`;
+    }
+    return base;
   };
 
   if (isLoading) {
@@ -274,7 +342,7 @@ export function GetCardsView({
     return (
       <Alert className='w-full' status='warning'>
         <Alert.Indicator>
-          <IconAlertTriangle data-slot='alert-default-icon' />
+          <IconExclamationTriangle data-slot='alert-default-icon' />
         </Alert.Indicator>
         <Alert.Content>
           <Alert.Title>Error</Alert.Title>
@@ -284,7 +352,7 @@ export function GetCardsView({
               {isRetrying ? (
                 <Spinner color='currentColor' size='sm' />
               ) : (
-                <IconRefresh stroke={1.5} />
+                <IconSync />
               )}
               Retry
             </Button>
@@ -302,7 +370,8 @@ export function GetCardsView({
   return (
     <DataList
       closeLabel='Close Cards View'
-      headerActions={['openAll', 'copy', 'refresh']}
+      currentContext={currentContext}
+      headerActions={['openAll', 'copy', 'reload', 'refresh']}
       isRefreshing={isRefreshing}
       itemActions={['copy', 'openAll']}
       itemLabel={hasMultipleTypes ? 'item' : 'card'}
@@ -311,7 +380,9 @@ export function GetCardsView({
       objectType={viewData?.objectType}
       showActions={true}
       showCounts={true}
+      subtext={renderSubtext()}
       title={renderTitle()}
+      viewType='getCards'
       onClose={onBackToDefault}
       onRefresh={handleRefresh}
       onStatusUpdate={onStatusUpdate}
@@ -500,4 +571,67 @@ function transformPageItems(
   }
 
   return items;
+}
+
+/**
+ * Transform parent-scope view groups into DataListItems.
+ * Each view becomes a navigable parent (clicking opens the view) with its
+ * cards, forms, and queues as children. Same card appearing on multiple
+ * views shows up under each view -- duplication is the point of the grouping.
+ * @param {Array<{viewId: string, viewName: string, cards: Array, forms: Array, queues: Array}>} viewGroups
+ * @param {string} origin - The base URL origin
+ * @param {string|number} parentId - Parent DATA_APP or WORKSHEET ID (for view URLs)
+ * @param {'DATA_APP_VIEW'|'WORKSHEET_VIEW'} childTypeId - Type of each view
+ * @returns {DataListItem[]}
+ */
+function transformParentScopeItems(viewGroups, origin, parentId, childTypeId) {
+  return viewGroups
+    .sort((a, b) => (a.viewName || '').localeCompare(b.viewName || ''))
+    .map((vg) => {
+      const cardChildren = transformCardsToItems(
+        vg.cards,
+        origin,
+        childTypeId,
+        vg.viewId,
+        parentId
+      );
+
+      const formChildren = vg.forms
+        .slice()
+        .sort((a, b) => (a.title || '').localeCompare(b.title || ''))
+        .map((form) => {
+          const domoObject = new DomoObject('ENIGMA_FORM', form.id, origin, {
+            name: form.title
+          });
+          if (form.workflowModelId && form.modelVersion) {
+            domoObject.url = `${origin}/workflows/models/${form.workflowModelId}/${form.modelVersion}?_wfv=view`;
+          }
+          return DataListItem.fromDomoObject(domoObject);
+        });
+
+      const queueChildren = vg.queues
+        .slice()
+        .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+        .map((queue) => {
+          const domoObject = new DomoObject('HOPPER_QUEUE', queue.id, origin, {
+            name: queue.name
+          });
+          return DataListItem.fromDomoObject(domoObject);
+        });
+
+      const allChildren = [...cardChildren, ...formChildren, ...queueChildren];
+
+      const viewDomoObject = new DomoObject(childTypeId, vg.viewId, origin, {
+        name: vg.viewName
+      });
+      // Both DATA_APP_VIEW and WORKSHEET_VIEW use /app-studio/{parent}/pages/{id};
+      // DomoObject can't fill {parent} on its own, so override the URL here.
+      viewDomoObject.url = `${origin}/app-studio/${parentId}/pages/${vg.viewId}`;
+
+      return DataListItem.fromDomoObject(viewDomoObject, {
+        children: allChildren,
+        count: allChildren.length,
+        countLabel: allChildren.length === 1 ? 'item' : 'items'
+      });
+    });
 }

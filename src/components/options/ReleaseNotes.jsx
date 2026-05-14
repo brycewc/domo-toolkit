@@ -1,9 +1,10 @@
 import { Button, Card, Chip, Link } from '@heroui/react';
-import { IconExternalLink, IconX } from '@tabler/icons-react';
 import { motion } from 'motion/react';
 import { useEffect } from 'react';
 
 import { releases } from '@/data';
+import IconArrowSquareOut from '@icons/arrow-square-out.svg?react';
+import IconX from '@icons/x.svg?react';
 
 export function ReleaseNotes() {
   useEffect(() => {
@@ -125,11 +126,11 @@ export function ReleaseNotes() {
       >
         <div className='flex gap-2'>
           <Button fullWidth variant='secondary' onPress={handleNavigate}>
-            <IconExternalLink stroke={1.5} />
+            <IconArrowSquareOut />
             View Full Release Notes
           </Button>
           <Button fullWidth variant='primary' onPress={handleClose}>
-            <IconX stroke={1.5} />
+            <IconX />
             Close
           </Button>
         </div>

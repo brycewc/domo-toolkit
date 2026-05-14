@@ -1,0 +1,10 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Size=32, Style=Regular">
+<g id="Vector">
+<path fill-rule="evenodd" clip-rule="evenodd" d="M8 2C6.89543 2 6 2.89543 6 4V9C6 10.1046 6.89543 11 8 11H12C13.1046 11 14 10.1046 14 9V4C14 2.89543 13.1046 2 12 2H8ZM8 4H12V9H8V4Z" fill="currentColor"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M5 13C3.89543 13 3 13.8954 3 15V28C3 29.1046 3.89543 30 5 30H14C15.1046 30 16 29.1046 16 28V15C16 13.8954 15.1046 13 14 13H5ZM5 15H14V28H5V15Z" fill="currentColor"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M21 27C21 28.1046 21.8954 29 23 29H26C27.1046 29 28 28.1046 28 27V23C28 21.8954 27.1046 21 26 21H23C21.8954 21 21 21.8954 21 23V27ZM26 27H23V23H26V27Z" fill="currentColor"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M20 19C18.8954 19 18 18.1046 18 17V6C18 4.89543 18.8954 4 20 4H27C28.1046 4 29 4.89543 29 6V17C29 18.1046 28.1046 19 27 19H20ZM20 17H27V6H20V17Z" fill="currentColor"/>
+</g>
+</g>
+</svg>

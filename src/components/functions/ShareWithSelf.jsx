@@ -1,10 +1,11 @@
 import { Button, Tooltip } from '@heroui/react';
-import { IconUserPlus } from '@tabler/icons-react';
 import { useState } from 'react';
 
-import { useStatusBar } from '@/hooks';
-import { shareWithSelf } from '@/services';
-import { isSidepanel } from '@/utils';
+import { useStatusBar } from '@/hooks/useStatusBar';
+import { getAccountIdsForDomoObject } from '@/services/accounts';
+import { shareWithSelf } from '@/services/share';
+import { isSidepanel } from '@/utils/sidepanel';
+import IconPersonPlus from '@icons/person-plus.svg?react';
 
 export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
   const [isSharing, setIsSharing] = useState(false);
@@ -34,7 +35,7 @@ export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
     }
 
     if (currentContext.domoObject.typeId === 'DATA_SOURCE') {
-      if (!currentContext.domoObject.metadata?.details?.accountId) {
+      if (getAccountIdsForDomoObject(currentContext.domoObject).length === 0) {
         onStatusUpdate?.(
           'Missing Account Information',
           'DataSet account information not found. Please refresh and try again.',
@@ -46,24 +47,46 @@ export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
 
     setIsSharing(true);
 
-    const label = `${currentContext.domoObject?.typeName === 'DATA_SOURCE' ? 'Account' : currentContext.domoObject?.typeName} ${currentContext.domoObject?.id}`;
+    let label;
+    if (currentContext.domoObject?.typeId === 'DATA_SOURCE') {
+      const accountIds = getAccountIdsForDomoObject(currentContext.domoObject);
+      label =
+        accountIds.length > 1
+          ? `${accountIds.length} accounts (${accountIds.join(', ')})`
+          : `Account ${accountIds[0]}`;
+    } else {
+      label = `${currentContext.domoObject?.typeName} ${currentContext.domoObject?.id}`;
+    }
 
     const promise = shareWithSelf({
       object: currentContext.domoObject,
       tabId: currentContext.tabId,
       userId: currentContext.user?.id
-    }).then((result) => {
+    }).then(async (result) => {
       const tabId = currentContext?.tabId;
-      chrome.tabs.reload(tabId);
-
       if (tabId) {
-        const listener = (updatedTabId, changeInfo) => {
-          if (updatedTabId === tabId && changeInfo.status === 'complete') {
+        // Wait for the reload to complete BEFORE closing the popup or sending
+        // DETECT_CONTEXT. Closing the popup tears down its renderer, which
+        // kills any pending tabs.onUpdated listener registered here and drops
+        // any chrome.runtime messages still in flight from that context. The
+        // background's own onUpdated listener also won't help — it only acts
+        // on `changeInfo.url`, which a same-URL reload doesn't carry.
+        await new Promise((resolve) => {
+          const timeoutId = setTimeout(() => {
             chrome.tabs.onUpdated.removeListener(listener);
-            chrome.runtime.sendMessage({ tabId, type: 'DETECT_CONTEXT' });
-          }
-        };
-        chrome.tabs.onUpdated.addListener(listener);
+            resolve();
+          }, 8000);
+          const listener = (updatedTabId, changeInfo) => {
+            if (updatedTabId === tabId && changeInfo.status === 'complete') {
+              chrome.tabs.onUpdated.removeListener(listener);
+              clearTimeout(timeoutId);
+              resolve();
+            }
+          };
+          chrome.tabs.onUpdated.addListener(listener);
+          chrome.tabs.reload(tabId);
+        });
+        await chrome.runtime.sendMessage({ tabId, type: 'DETECT_CONTEXT' });
       }
 
       const inSidepanel = isSidepanel();
@@ -95,11 +118,9 @@ export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
     contentAdminTypes.includes(currentContext?.domoObject?.typeId) &&
     !userRights.includes('content.admin');
   const needsAccountAdmin =
-    currentContext?.domoObject?.typeId === 'DATA_SOURCE' &&
-    !userRights.includes('account.admin');
+    currentContext?.domoObject?.typeId === 'DATA_SOURCE' && !userRights.includes('account.admin');
   const needsAppAdmin =
-    currentContext?.domoObject?.typeId === 'APP' &&
-    !userRights.includes('app.admin');
+    currentContext?.domoObject?.typeId === 'APP' && !userRights.includes('app.admin');
   const buttonDisabled =
     isDisabled ||
     isSharing ||
@@ -118,23 +139,17 @@ export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
         variant='tertiary'
         onPress={handleShare}
       >
-        <IconUserPlus stroke={1.5} />
+        <IconPersonPlus />
       </Button>
-      <Tooltip.Content>
+      <Tooltip.Content
+        className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+        offset={4}
+      >
         {currentContext?.domoObject?.typeId === 'DATA_SOURCE' &&
-        currentContext?.domoObject?.metadata?.details?.accountId ? (
-          <>
-            Share <span className='font-semibold'>dataset account</span> with
-            yourself
-          </>
+        getAccountIdsForDomoObject(currentContext?.domoObject).length > 0 ? (
+          <>Share dataset account(s) with yourself</>
         ) : (
-          <>
-            Share{' '}
-            <span className='font-semibold lowercase'>
-              {currentContext?.domoObject?.name}
-            </span>{' '}
-            with yourself
-          </>
+          <>Share {currentContext?.domoObject?.typeName.toLowerCase()} with yourself</>
         )}
       </Tooltip.Content>
     </Tooltip>
@@ -158,7 +173,7 @@ function isSupportedForShare(domoObject) {
     return domoObject.metadata?.details?.type === 'domoapp';
   }
   if (domoObject.typeId === 'DATA_SOURCE') {
-    return !!domoObject.metadata?.details?.accountId;
+    return getAccountIdsForDomoObject(domoObject).length > 0;
   }
   return true;
 }

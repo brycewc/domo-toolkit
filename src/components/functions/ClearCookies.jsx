@@ -2,8 +2,9 @@ import { Button, Tooltip } from '@heroui/react';
 import { IconCookieOff } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 
-import { useStatusBar } from '@/hooks';
-import { clearCookies, executeInPage } from '@/utils';
+import { useStatusBar } from '@/hooks/useStatusBar';
+import { clearCookies } from '@/utils/clearCookies';
+import { executeInPage } from '@/utils/executeInPage';
 
 const EXCLUDED_HOSTNAMES = [
   'domo-support.domo.com',
@@ -13,19 +14,23 @@ const EXCLUDED_HOSTNAMES = [
 ];
 
 export function ClearCookies({ currentContext, isDisabled }) {
-  const [cookieClearingMode, setCookieClearingMode] = useState('auto');
+  const [showButton, setShowButton] = useState(false);
+  const [behavior, setBehavior] = useState('preserve');
   const { showPromiseStatus } = useStatusBar();
 
   useEffect(() => {
-    chrome.storage.sync.get(['defaultClearCookiesHandling'], (result) => {
-      setCookieClearingMode(result.defaultClearCookiesHandling || 'auto');
+    chrome.storage.sync.get(['showClearCookiesButton', 'clearCookiesButtonBehavior'], (result) => {
+      setShowButton(result.showClearCookiesButton ?? false);
+      setBehavior(result.clearCookiesButtonBehavior || 'preserve');
     });
 
     const handleStorageChange = (changes, areaName) => {
-      if (areaName === 'sync' && changes.defaultClearCookiesHandling) {
-        setCookieClearingMode(
-          changes.defaultClearCookiesHandling.newValue || 'auto'
-        );
+      if (areaName !== 'sync') return;
+      if (changes.showClearCookiesButton) {
+        setShowButton(changes.showClearCookiesButton.newValue ?? false);
+      }
+      if (changes.clearCookiesButtonBehavior) {
+        setBehavior(changes.clearCookiesButtonBehavior.newValue || 'preserve');
       }
     };
 
@@ -35,7 +40,7 @@ export function ClearCookies({ currentContext, isDisabled }) {
     };
   }, []);
 
-  if (cookieClearingMode === 'auto') {
+  if (!showButton) {
     return null;
   }
 
@@ -43,7 +48,7 @@ export function ClearCookies({ currentContext, isDisabled }) {
     const promise = (async () => {
       let result;
 
-      if (cookieClearingMode === 'all') {
+      if (behavior === 'all') {
         result = await clearCookies({
           domains: null,
           excludeDomains: false,
@@ -81,9 +86,9 @@ export function ClearCookies({ currentContext, isDisabled }) {
   };
 
   const tooltipText =
-    cookieClearingMode === 'all'
+    behavior === 'all'
       ? 'Clear all Domo cookies'
-      : 'Clear cookies (preserve last 2 instances)';
+      : 'Clear Domo cookies and preserve last 2 instances';
 
   return (
     <Tooltip closeDelay={0} delay={400}>
@@ -94,9 +99,14 @@ export function ClearCookies({ currentContext, isDisabled }) {
         variant='tertiary'
         onPress={handleClearCookies}
       >
-        <IconCookieOff className='text-danger' />
+        <IconCookieOff className='text-danger' stroke={1.5} />
       </Button>
-      <Tooltip.Content>{tooltipText}</Tooltip.Content>
+      <Tooltip.Content
+        className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+        offset={4}
+      >
+        {tooltipText}
+      </Tooltip.Content>
     </Tooltip>
   );
 }
@@ -112,9 +122,7 @@ async function getDomainsToPreserve() {
     }
   });
 
-  domoTabs.sort(
-    (a, b) => (b.lastAccessed || b.id) - (a.lastAccessed || a.id)
-  );
+  domoTabs.sort((a, b) => (b.lastAccessed || b.id) - (a.lastAccessed || a.id));
 
   const seenDomains = new Set();
   const recentDomoTabs = [];
@@ -130,21 +138,12 @@ async function getDomainsToPreserve() {
   const daSidsToPreserve = [];
   for (const { tab } of recentDomoTabs) {
     try {
-      const data = await executeInPage(
-        async () => window.bootstrap?.data,
-        [],
-        tab.id
-      );
+      const data = await executeInPage(async () => window.bootstrap?.data, [], tab.id);
       if (data?.environmentId && data?.analytics?.company) {
-        daSidsToPreserve.push(
-          `DA-SID-${data.environmentId}-${data.analytics.company}`
-        );
+        daSidsToPreserve.push(`DA-SID-${data.environmentId}-${data.analytics.company}`);
       }
     } catch (e) {
-      console.warn(
-        `[ClearCookies] Could not get DA-SID for tab ${tab.id}:`,
-        e
-      );
+      console.warn(`[ClearCookies] Could not get DA-SID for tab ${tab.id}:`, e);
     }
   }
 

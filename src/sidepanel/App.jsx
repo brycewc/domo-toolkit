@@ -1,21 +1,28 @@
 import { Card, Spinner } from '@heroui/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-import {
-  ActionButtons,
-  CardErrorsView,
-  ContextFooter,
-  GetCardsView,
-  GetDatasetsView,
-  GetPagesView,
-  GetViewInputsView,
-  LinkPreview,
-  ObjectDetailsView,
-  ToastProvider,
-  UpdateCodeEngineVersionsView
-} from '@/components';
-import { useReleaseNotification, useStatusBar, useTheme } from '@/hooks';
-import { DomoContext } from '@/models';
+import { ActionButtons } from '@/components/ActionButtons';
+import { ContextFooter } from '@/components/ContextFooter';
+import { ToastProvider } from '@/components/ToastProvider';
+import { ApiErrorsView } from '@/components/views/ApiErrorsView';
+import { CopyColorRulesView } from '@/components/views/CopyColorRulesView';
+import { DeleteObjectView } from '@/components/views/DeleteObjectView';
+import { DuplicateView } from '@/components/views/DuplicateView';
+import { GetCardsView } from '@/components/views/GetCardsView';
+import { GetDatasetsView } from '@/components/views/GetDatasetsView';
+import { GetPagesView } from '@/components/views/GetPagesView';
+import { GetViewInputsView } from '@/components/views/GetViewInputsView';
+import { LinkPreview } from '@/components/views/LinkPreview';
+import { ObjectDetailsView } from '@/components/views/ObjectDetailsView';
+import { OwnershipView } from '@/components/views/OwnershipView';
+import { SyncJSDocFromSourceView } from '@/components/views/SyncJSDocFromSourceView';
+import { UpdateCodeEngineVersionsView } from '@/components/views/UpdateCodeEngineVersionsView';
+import { UpdateDetailsView } from '@/components/views/UpdateDetailsView';
+import { useReleaseNotification } from '@/hooks/useReleaseNotification';
+import { useStatusBar } from '@/hooks/useStatusBar';
+import { useTheme } from '@/hooks/useTheme';
+import { DomoContext } from '@/models/DomoContext';
+import { sidepanelStorageKey } from '@/utils/sidepanel';
 
 export default function App() {
   useTheme();
@@ -27,47 +34,29 @@ export default function App() {
   const [currentContext, setCurrentContext] = useState(null);
   const [currentTabId, setCurrentTabId] = useState(null);
   const [isLoadingCurrentContext, setIsLoadingCurrentContext] = useState(true);
+  const windowIdRef = useRef(null);
   const { showStatus } = useStatusBar();
 
-  // Listen for storage changes for sidepanel data
+  // Listen for storage changes for sidepanel data (scoped to this window)
   useEffect(() => {
+    const applyViewData = (data) => {
+      if (!data) {
+        setActiveView('default');
+        return;
+      }
+      if (data.type === 'loading') {
+        setActiveView('loading');
+        setLoadingMessage(data.message || 'Loading...');
+        return;
+      }
+      setActiveView(data.type);
+      setViewKey(data.timestamp || Date.now());
+    };
+
     const handleStorageChange = (changes, areaName) => {
-      if (areaName === 'session' && changes.sidepanelDataList) {
-        const data = changes.sidepanelDataList.newValue;
-        if (!data) {
-          // Data was cleared - return to default view
-          setActiveView('default');
-        } else if (data?.type === 'loading') {
-          setActiveView('loading');
-          setLoadingMessage(data.message || 'Loading...');
-        } else if (data?.type === 'getChildPages') {
-          setActiveView('getChildPages');
-          setViewKey(data.timestamp || Date.now());
-        } else if (data?.type === 'getCardPages') {
-          setActiveView('getCardPages');
-          setViewKey(data.timestamp || Date.now());
-        } else if (data?.type === 'childPagesWarning') {
-          setActiveView('childPagesWarning');
-          setViewKey(data.timestamp || Date.now());
-        } else if (data?.type === 'getCards') {
-          setActiveView('getCards');
-          setViewKey(data.timestamp || Date.now());
-        } else if (data?.type === 'getDatasets') {
-          setActiveView('getDatasets');
-          setViewKey(data.timestamp || Date.now());
-        } else if (data?.type === 'getViewInputs') {
-          setActiveView('getViewInputs');
-          setViewKey(data.timestamp || Date.now());
-        } else if (data?.type === 'viewObjectDetails') {
-          setActiveView('viewObjectDetails');
-          setViewKey(data.timestamp || Date.now());
-        } else if (data?.type === 'cardErrors') {
-          setActiveView('cardErrors');
-          setViewKey(data.timestamp || Date.now());
-        } else if (data?.type === 'updateCodeEngineVersions') {
-          setActiveView('updateCodeEngineVersions');
-          setViewKey(data.timestamp || Date.now());
-        }
+      const key = sidepanelStorageKey(windowIdRef.current);
+      if (areaName === 'session' && changes[key]) {
+        applyViewData(changes[key].newValue);
       }
     };
 
@@ -77,19 +66,29 @@ export default function App() {
     // Uses a generous threshold because the popup writes data before opening the
     // sidepanel, and the cold-start can take several seconds (missing the
     // storage.onChanged event that fires before the listener is registered).
-    chrome.storage.session.get(['sidepanelDataList'], (result) => {
-      if (result.sidepanelDataList) {
-        const age = Date.now() - (result.sidepanelDataList.timestamp || 0);
-        if (age < 10000) {
-          handleStorageChange(
-            {
-              sidepanelDataList: { newValue: result.sidepanelDataList }
-            },
-            'session'
-          );
+    const checkExistingData = () => {
+      const key = sidepanelStorageKey(windowIdRef.current);
+      if (!key || !windowIdRef.current) return;
+      chrome.storage.session.get([key], (result) => {
+        if (result[key]) {
+          const age = Date.now() - (result[key].timestamp || 0);
+          if (age < 10000) {
+            applyViewData(result[key]);
+          }
         }
-      }
-    });
+      });
+    };
+
+    // windowIdRef is set in the mount effect — retry briefly if not yet available
+    if (windowIdRef.current) {
+      checkExistingData();
+    } else {
+      const timer = setTimeout(checkExistingData, 100);
+      return () => {
+        clearTimeout(timer);
+        chrome.storage.onChanged.removeListener(handleStorageChange);
+      };
+    }
 
     return () => {
       chrome.storage.onChanged.removeListener(handleStorageChange);
@@ -100,6 +99,7 @@ export default function App() {
   useEffect(() => {
     // Get current window and request context from service worker
     chrome.windows.getCurrent(async (window) => {
+      windowIdRef.current = window.id;
       try {
         // Request context for active tab in this window
         const response = await chrome.runtime.sendMessage({
@@ -164,22 +164,22 @@ export default function App() {
     };
   }, [currentTabId, showStatus]);
 
-  // Listen for tab activation changes
+  // Listen for tab activation changes (scoped to this window only)
   useEffect(() => {
-    const handleTabActivated = async (activeInfo) => {
+    const fetchContextForTab = async (tabId) => {
       try {
         const response = await chrome.runtime.sendMessage({
-          tabId: activeInfo.tabId,
+          tabId,
           type: 'GET_TAB_CONTEXT'
         });
 
         if (response.success && response.context) {
           const context = DomoContext.fromJSON(response.context);
           setCurrentContext(context);
-          setCurrentTabId(activeInfo.tabId);
+          setCurrentTabId(tabId);
         } else {
           setCurrentContext(null);
-          setCurrentTabId(activeInfo.tabId);
+          setCurrentTabId(tabId);
         }
       } catch (error) {
         console.error('[Sidepanel] Error fetching context:', error);
@@ -187,17 +187,36 @@ export default function App() {
       }
     };
 
+    const handleTabActivated = (activeInfo) => {
+      // Only respond to tab changes within this sidepanel's window
+      if (activeInfo.windowId !== windowIdRef.current) return;
+      fetchContextForTab(activeInfo.tabId);
+    };
+
+    const handleWindowFocused = async (windowId) => {
+      // Ignore when all windows lose focus (e.g., switching to another app)
+      if (windowId === chrome.windows.WINDOW_ID_NONE) return;
+      // Only respond when this sidepanel's window gains focus
+      if (windowId !== windowIdRef.current) return;
+
+      const [tab] = await chrome.tabs.query({ active: true, windowId });
+      if (tab) fetchContextForTab(tab.id);
+    };
+
     chrome.tabs.onActivated.addListener(handleTabActivated);
+    chrome.windows.onFocusChanged.addListener(handleWindowFocused);
 
     return () => {
       chrome.tabs.onActivated.removeListener(handleTabActivated);
+      chrome.windows.onFocusChanged.removeListener(handleWindowFocused);
     };
   }, []);
 
   const handleBackToDefault = () => {
     setActiveView('default');
-    // Clear the sidepanel data
-    chrome.storage.session.remove(['sidepanelDataList']);
+    // Clear this window's sidepanel data
+    const key = sidepanelStorageKey(windowIdRef.current);
+    chrome.storage.session.remove([key]);
   };
 
   return (
@@ -232,6 +251,7 @@ export default function App() {
               activeView === 'getCardPages' ||
               activeView === 'childPagesWarning') && (
               <GetPagesView
+                currentContext={currentContext}
                 key={viewKey}
                 onBackToDefault={handleBackToDefault}
                 onStatusUpdate={showStatus}
@@ -240,6 +260,7 @@ export default function App() {
 
             {activeView === 'getCards' && (
               <GetCardsView
+                currentContext={currentContext}
                 key={viewKey}
                 onBackToDefault={handleBackToDefault}
                 onStatusUpdate={showStatus}
@@ -248,6 +269,7 @@ export default function App() {
 
             {activeView === 'getDatasets' && (
               <GetDatasetsView
+                currentContext={currentContext}
                 key={viewKey}
                 onBackToDefault={handleBackToDefault}
                 onStatusUpdate={showStatus}
@@ -256,6 +278,7 @@ export default function App() {
 
             {activeView === 'getViewInputs' && (
               <GetViewInputsView
+                currentContext={currentContext}
                 key={viewKey}
                 onBackToDefault={handleBackToDefault}
                 onStatusUpdate={showStatus}
@@ -270,8 +293,16 @@ export default function App() {
               />
             )}
 
-            {activeView === 'cardErrors' && (
-              <CardErrorsView
+            {activeView === 'apiErrors' && (
+              <ApiErrorsView
+                key={viewKey}
+                onBackToDefault={handleBackToDefault}
+                onStatusUpdate={showStatus}
+              />
+            )}
+
+            {activeView === 'duplicate' && (
+              <DuplicateView
                 key={viewKey}
                 onBackToDefault={handleBackToDefault}
                 onStatusUpdate={showStatus}
@@ -280,6 +311,47 @@ export default function App() {
 
             {activeView === 'updateCodeEngineVersions' && (
               <UpdateCodeEngineVersionsView
+                key={viewKey}
+                onBackToDefault={handleBackToDefault}
+                onStatusUpdate={showStatus}
+              />
+            )}
+
+            {activeView === 'syncJSDocFromSource' && (
+              <SyncJSDocFromSourceView
+                key={viewKey}
+                onBackToDefault={handleBackToDefault}
+                onStatusUpdate={showStatus}
+              />
+            )}
+
+            {activeView === 'updateDetails' && (
+              <UpdateDetailsView
+                key={viewKey}
+                onBackToDefault={handleBackToDefault}
+                onStatusUpdate={showStatus}
+              />
+            )}
+
+            {activeView === 'copyColorRules' && (
+              <CopyColorRulesView
+                key={viewKey}
+                onBackToDefault={handleBackToDefault}
+                onStatusUpdate={showStatus}
+              />
+            )}
+
+            {activeView === 'deleteObject' && (
+              <DeleteObjectView
+                key={viewKey}
+                onBackToDefault={handleBackToDefault}
+                onStatusUpdate={showStatus}
+              />
+            )}
+
+            {activeView === 'ownership' && (
+              <OwnershipView
+                currentContext={currentContext}
                 key={viewKey}
                 onBackToDefault={handleBackToDefault}
                 onStatusUpdate={showStatus}

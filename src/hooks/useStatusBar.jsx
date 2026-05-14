@@ -2,43 +2,44 @@ import { toast } from '@heroui/react';
 import { useCallback } from 'react';
 
 export function useStatusBar() {
-  const showStatus = useCallback(
-    (title, description, status = 'accent', timeout = 3000) => {
-      toast(title, {
-        description: parseDescription(description),
-        timeout: timeout || 0,
-        variant: status
-      });
-    },
-    []
-  );
+  const showStatus = useCallback((title, description, status = 'accent', timeout) => {
+    const resolvedTimeout = timeout ?? defaultTimeoutFor(status);
+    toast(title, {
+      description: parseDescription(description),
+      timeout: resolvedTimeout || 0,
+      variant: status
+    });
+  }, []);
 
-  const showPromiseStatus = useCallback(
-    (promise, { error, loading, success }) => {
-      const loadingId = toast(parseDescription(loading), {
-        isLoading: true,
-        timeout: 0
-      });
+  const showPromiseStatus = useCallback((promise, { error, loading, success }) => {
+    const loadingId = toast(parseDescription(loading), {
+      isLoading: true,
+      timeout: 0
+    });
 
-      promise.then(
-        (data) => {
-          toast.close(loadingId);
-          const msg = typeof success === 'function' ? success(data) : success;
-          toast.success(parseDescription(msg));
-        },
-        (err) => {
-          toast.close(loadingId);
-          const msg = typeof error === 'function' ? error(err) : error;
-          toast.danger(parseDescription(msg));
-        }
-      );
+    promise.then(
+      (data) => {
+        toast.close(loadingId);
+        const msg = typeof success === 'function' ? success(data) : success;
+        toast.success(parseDescription(msg));
+      },
+      (err) => {
+        toast.close(loadingId);
+        const msg = typeof error === 'function' ? error(err) : error;
+        toast.danger(parseDescription(msg));
+      }
+    );
 
-      return loadingId;
-    },
-    []
-  );
+    return loadingId;
+  }, []);
 
   return { showPromiseStatus, showStatus };
+}
+
+function defaultTimeoutFor(status) {
+  if (status === 'danger') return 7000;
+  if (status === 'warning') return 5000;
+  return 3000;
 }
 
 function parseDescription(text) {

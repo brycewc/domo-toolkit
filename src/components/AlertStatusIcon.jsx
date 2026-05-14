@@ -1,17 +1,15 @@
-import {
-  IconAlertCircle,
-  IconAlertTriangle,
-  IconCircleCheck,
-  IconInfoCircle
-} from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 
+import IconCheckCircle from '@icons/check-circle.svg?react';
+import IconExclamationPointCircle from '@icons/exclamation-point-circle.svg?react';
+import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
+import IconInfoCircle from '@icons/info-circle.svg?react';
 const STATUS_ICONS = {
   accent: IconInfoCircle,
-  danger: IconAlertCircle,
+  danger: IconExclamationPointCircle,
   default: IconInfoCircle,
-  success: IconCircleCheck,
-  warning: IconAlertTriangle
+  success: IconCheckCircle,
+  warning: IconExclamationTriangle
 };
 
 const STATUS_CLASSES = [

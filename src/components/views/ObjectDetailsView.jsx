@@ -4,32 +4,27 @@ import {
   ButtonGroup,
   Card,
   Chip,
-  CloseButton,
   Disclosure,
   Link,
   ScrollShadow,
   Spinner,
   Tooltip
 } from '@heroui/react';
-import {
-  IconAlertTriangle,
-  IconChevronDown,
-  IconClipboard,
-  IconRefresh,
-  IconX
-} from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import JsonView from 'react18-json-view';
 
 import '@/assets/json-view-theme.css';
-import { useGroupLookup, useUserLookup } from '@/hooks';
-import { DomoObject } from '@/models';
-import {
-  formatEpochTimestamp,
-  isDateFieldName,
-  isGroupFieldName,
-  isUserFieldName
-} from '@/utils';
+import { CloseButton } from '@/components/CloseButton';
+import { useGroupLookup } from '@/hooks/useGroupLookup';
+import { useUserLookup } from '@/hooks/useUserLookup';
+import { DomoObject } from '@/models/DomoObject';
+import { formatEpochTimestamp, isDateFieldName, isGroupFieldName, isUserFieldName } from '@/utils/general';
+import { getSidepanelData } from '@/utils/sidepanel';
+import IconChevronDown from '@icons/chevron-down.svg?react';
+import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
+import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
+import IconSync from '@icons/sync.svg?react';
+import IconX from '@icons/x.svg?react';
 
 import { AnimatedCheck } from '../AnimatedCheck';
 import { GroupIdAnnotation } from '../GroupIdAnnotation';
@@ -75,6 +70,12 @@ export function ObjectDetailsView({
   const groupMap = useGroupLookup(domoObject?.metadata?.details);
   const userMap = useUserLookup(domoObject?.metadata?.details);
 
+  // Remount JsonView when lookup maps change — react18-json-view's JsonNode
+  // calls useContext before customizeNode's early return but useState after
+  // it, so switching a node between element/config returns mid-render trips
+  // the Rules of Hooks. Remounting on map changes sidesteps the library bug.
+  const jsonViewKey = `${Object.keys(userMap).sort().join(',')}|${Object.keys(groupMap).sort().join(',')}`;
+
   // Load data on mount
   useEffect(() => {
     loadObjectDetails();
@@ -92,8 +93,7 @@ export function ObjectDetailsView({
     }, 200);
 
     try {
-      const result = await chrome.storage.session.get(['sidepanelDataList']);
-      const data = result.sidepanelDataList;
+      const data = await getSidepanelData();
 
       if (!data || data.type !== 'viewObjectDetails') {
         setError('No object details found. Please try again.');
@@ -156,7 +156,7 @@ export function ObjectDetailsView({
     return (
       <Alert className='w-full' status='warning'>
         <Alert.Indicator>
-          <IconAlertTriangle data-slot='alert-default-icon' />
+          <IconExclamationTriangle data-slot='alert-default-icon' />
         </Alert.Indicator>
         <Alert.Content>
           <Alert.Title>Error</Alert.Title>
@@ -166,7 +166,7 @@ export function ObjectDetailsView({
               {isRetrying ? (
                 <Spinner color='currentColor' size='sm' />
               ) : (
-                <IconRefresh stroke={1.5} />
+                <IconSync />
               )}
               Retry
             </Button>
@@ -210,7 +210,7 @@ export function ObjectDetailsView({
                 variant='ghost'
                 onPress={handleCopyId}
               >
-                <IconClipboard stroke={1.5} />
+                <IconClipboardCopy />
               </Button>
               <Tooltip.Content className='text-xs'>Copy ID</Tooltip.Content>
             </Tooltip>
@@ -223,7 +223,7 @@ export function ObjectDetailsView({
                   variant='ghost'
                   onPress={onBackToDefault}
                 >
-                  <IconX stroke={1.5} />
+                  <IconX />
                 </Button>
                 <Tooltip.Content className='text-xs'>Close</Tooltip.Content>
               </Tooltip>
@@ -267,7 +267,7 @@ export function ObjectDetailsView({
                   >
                     Full JSON
                     <Disclosure.Indicator>
-                      <IconChevronDown stroke={1.5} />
+                      <IconChevronDown />
                     </Disclosure.Indicator>
                   </Button>
                 </Disclosure.Heading>
@@ -279,6 +279,7 @@ export function ObjectDetailsView({
                       collapsed={1}
                       collapseStringMode='word'
                       collapseStringsAfterLength={50}
+                      key={jsonViewKey}
                       matchesURL={false}
                       src={domoObject.metadata?.details}
                       CopiedComponent={({ className, style }) => (
@@ -290,10 +291,9 @@ export function ObjectDetailsView({
                         />
                       )}
                       CopyComponent={({ className, onClick, style }) => (
-                        <IconClipboard
+                        <IconClipboardCopy
                           className={className}
                           size={16}
-                          stroke={1.5}
                           style={style}
                           onClick={onClick}
                         />
@@ -318,7 +318,7 @@ export function ObjectDetailsView({
                         }
                         if (
                           typeof params.node === 'number' &&
-                          isDateFieldName(params.indexOrName)
+                          isDateFieldName(params?.indexOrName)
                         ) {
                           const formatted = formatEpochTimestamp(params.node);
                           if (formatted) {
@@ -338,8 +338,8 @@ export function ObjectDetailsView({
                           const numericValue = Number(params.node);
                           if (
                             userMap[numericValue] &&
-                            (isUserFieldName(params.indexOrName) ||
-                              params.indexOrName === 'id')
+                            (isUserFieldName(params?.indexOrName) ||
+                              params?.indexOrName === 'id')
                           ) {
                             return (
                               <UserIdAnnotation
@@ -357,9 +357,9 @@ export function ObjectDetailsView({
                           const numericValue = Number(params.node);
                           if (
                             groupMap[numericValue] &&
-                            (isGroupFieldName(params.indexOrName) ||
-                              isUserFieldName(params.indexOrName) ||
-                              params.indexOrName === 'id')
+                            (isGroupFieldName(params?.indexOrName) ||
+                              isUserFieldName(params?.indexOrName) ||
+                              params?.indexOrName === 'id')
                           ) {
                             return (
                               <GroupIdAnnotation
@@ -369,7 +369,9 @@ export function ObjectDetailsView({
                             );
                           }
                         }
-                        if (params.indexOrName?.toLowerCase().includes('id')) {
+                        if (
+                          params?.indexOrName?.toLowerCase()?.includes('id')
+                        ) {
                           return { enableClipboard: true };
                         } else if (
                           (typeof params.node === 'number' ||

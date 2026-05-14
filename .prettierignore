@@ -1,1 +1,10 @@
-*.js
+# *.js
+
+# Markdown is formatted by remark (see .remarkrc.mjs), not Prettier.
+# Prettier hardcodes `_` for italic emphasis with no override option, which
+# conflicts with the project's remark-lint preset that expects `*`. Letting
+# remark be the single source of truth for markdown formatting.
+*.md
+
+# Personal scratch list — also exempt from remark lint via .remarkignore.
+docs/TODO.md

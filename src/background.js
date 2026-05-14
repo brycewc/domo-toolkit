@@ -1,27 +1,15 @@
 import { releases } from '@/data';
-import { DomoContext, DomoObject, getObjectType } from '@/models';
-import {
-  extractPageContentIds,
-  fetchObjectDetailsInPage,
-  getCardsForObject,
-  getChildPages,
-  getCurrentUser,
-  getDataflowForOutputDataset,
-  getDataflowPermission,
-  getFormsForPage,
-  getPagesForCards,
-  getQueuesForPage,
-  getSubpageIds,
-  getUserGroups,
-  getVersionDefinition,
-  getWorkflowPermission
-} from '@/services';
-import {
-  clearCookies,
-  detectCurrentObject,
-  EXCLUDED_HOSTNAMES,
-  executeInPage
-} from '@/utils';
+import { DomoContext } from '@/models/DomoContext';
+import { DomoObject } from '@/models/DomoObject';
+import { fetchObjectDetailsInPage, getObjectType } from '@/models/DomoObjectType';
+import { getDataflowForOutputDataset } from '@/services/dataflows';
+import { runEnrichments } from '@/services/enrichments';
+import { checkPageType } from '@/services/pages';
+import { getCurrentUser, getUserGroups } from '@/services/users';
+import { clearCookies } from '@/utils/clearCookies';
+import { EXCLUDED_HOSTNAMES, SECTION_TITLES } from '@/utils/constants';
+import { detectCurrentObject, isDomoUrl } from '@/utils/currentObject';
+import { executeInPage } from '@/utils/executeInPage';
 
 /**
  * Compute whether the current user is an owner of the detected object.
@@ -248,16 +236,16 @@ function invalidateInstanceUser(instance) {
   console.log(`[Background] Invalidated user cache for instance: ${instance}`);
 }
 
-// Per-tab card error storage
-const tabCardErrors = new Map();
-const tabLastCardId = new Map();
+// Per-tab API error storage
+const tabApiErrors = new Map();
+const tabLastContext = new Map();
 const MAX_ERRORS_PER_TAB = 50;
 
-function addCardError(tabId, error) {
-  if (!tabCardErrors.has(tabId)) {
-    tabCardErrors.set(tabId, []);
+function addApiError(tabId, error) {
+  if (!tabApiErrors.has(tabId)) {
+    tabApiErrors.set(tabId, []);
   }
-  const errors = tabCardErrors.get(tabId);
+  const errors = tabApiErrors.get(tabId);
 
   error.id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   errors.push(error);
@@ -267,24 +255,32 @@ function addCardError(tabId, error) {
     errors.splice(0, errors.length - MAX_ERRORS_PER_TAB);
   }
 
-  broadcastCardErrors(tabId);
+  broadcastApiErrors(tabId);
 }
 
-function broadcastCardErrors(tabId) {
-  const errors = getCardErrors(tabId);
+function broadcastApiErrors(tabId) {
+  const errors = getApiErrors(tabId);
   chrome.runtime
     .sendMessage({
       errorCount: errors.length,
       errors,
       tabId,
-      type: 'CARD_ERRORS_UPDATED'
+      type: 'API_ERRORS_UPDATED'
     })
     .catch(() => {});
 }
 
-function clearCardErrors(tabId) {
-  tabCardErrors.delete(tabId);
-  broadcastCardErrors(tabId);
+function buildAllowedTitles(domoObject) {
+  const allowed = [];
+  if (domoObject.metadata?.parent?.name) {
+    allowed.push(`${domoObject.metadata.parent.name} - Domo`);
+  }
+  return allowed;
+}
+
+function clearApiErrors(tabId) {
+  tabApiErrors.delete(tabId);
+  broadcastApiErrors(tabId);
 }
 
 /**
@@ -310,8 +306,8 @@ function evictLRUIfNeeded() {
   }
 }
 
-function getCardErrors(tabId) {
-  return tabCardErrors.get(tabId) || [];
+function getApiErrors(tabId) {
+  return tabApiErrors.get(tabId) || [];
 }
 
 /**
@@ -320,6 +316,52 @@ function getCardErrors(tabId) {
 function getTabContext(tabId) {
   touchTab(tabId);
   return tabContexts.get(tabId) || null;
+}
+
+// One-shot migration from the legacy `defaultClearCookiesHandling` tri-state
+// to three independent settings (auto / button visibility / button behavior).
+async function migrateClearCookiesSetting() {
+  const { defaultClearCookiesHandling } = await chrome.storage.sync.get([
+    'defaultClearCookiesHandling'
+  ]);
+  if (defaultClearCookiesHandling === undefined) return;
+
+  const mapping = {
+    all: {
+      autoClearCookiesOn431: false,
+      clearCookiesButtonBehavior: 'all',
+      showClearCookiesButton: true
+    },
+    auto: {
+      autoClearCookiesOn431: true,
+      clearCookiesButtonBehavior: 'preserve',
+      showClearCookiesButton: false
+    },
+    preserve: {
+      autoClearCookiesOn431: false,
+      clearCookiesButtonBehavior: 'preserve',
+      showClearCookiesButton: true
+    }
+  };
+  const newSettings = mapping[defaultClearCookiesHandling];
+  if (!newSettings) return;
+
+  await chrome.storage.sync.set(newSettings);
+  await chrome.storage.sync.remove('defaultClearCookiesHandling');
+  console.log(
+    '[Background] Migrated cookie clearing setting:',
+    defaultClearCookiesHandling,
+    '→',
+    newSettings
+  );
+}
+
+function pathnameOf(url) {
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return url ?? null;
+  }
 }
 
 /**
@@ -367,6 +409,24 @@ async function restoreFromSession() {
   }
 }
 
+function setSectionTitle(tabId, url) {
+  try {
+    const pathname = new URL(url).pathname;
+    const sortedKeys = Object.keys(SECTION_TITLES).sort(
+      (a, b) => b.length - a.length
+    );
+    const matchedKey = sortedKeys.find((key) => pathname.startsWith(key));
+    if (matchedKey) {
+      setTabTitle(tabId, SECTION_TITLES[matchedKey]);
+    }
+  } catch (error) {
+    console.error(
+      `[Background] Error setting section title for tab ${tabId}:`,
+      error
+    );
+  }
+}
+
 /**
  * Store context for a specific tab and push to content script
  */
@@ -379,7 +439,8 @@ function setTabContext(tabId, context) {
   persistToSession();
 
   if (context?.domoObject?.metadata?.name) {
-    setTabTitle(tabId, context.domoObject.metadata.name);
+    const allowedTitles = buildAllowedTitles(context.domoObject);
+    setTabTitle(tabId, context.domoObject.metadata.name, allowedTitles);
   }
 
   const contextData = context?.toJSON();
@@ -413,12 +474,16 @@ function setTabContext(tabId, context) {
     });
 }
 
-function setTabTitle(tabId, objectName) {
+function setTabTitle(tabId, objectName, allowedTitles = []) {
   try {
     chrome.scripting.executeScript({
-      args: [objectName],
-      func: (objectName) => {
-        if (document.title.trim() !== 'Domo') {
+      args: [objectName, allowedTitles],
+      func: (objectName, allowedTitles) => {
+        const currentTitle = document.title.trim();
+        if (
+          currentTitle !== 'Domo' &&
+          !allowedTitles.includes(currentTitle)
+        ) {
           return;
         }
         document.title = `${objectName} - Domo`;
@@ -438,9 +503,26 @@ function touchTab(tabId) {
   tabAccessTimes.set(tabId, Date.now());
 }
 
+/**
+ * Update the tracked {objectKey, url} for a tab and clear errors only when
+ * BOTH change. Same URL with object toggling (e.g., selecting a tile in a
+ * modal) preserves errors; same object across URLs (e.g., card view ↔ edit)
+ * also preserves them.
+ */
+function updateTabContextKey(tabId, { objectKey, url }) {
+  const urlPath = pathnameOf(url);
+  const prev = tabLastContext.get(tabId);
+  if (prev && prev.objectKey !== objectKey && prev.url !== urlPath) {
+    clearApiErrors(tabId);
+  }
+  tabLastContext.set(tabId, { objectKey, url: urlPath });
+}
+
 // Handle extension installation
 chrome.runtime.onInstalled.addListener((details) => {
   const currentVersion = chrome.runtime.getManifest().version;
+
+  migrateClearCookiesSetting();
 
   if (details.reason === 'install') {
     chrome.tabs.create({
@@ -452,7 +534,10 @@ chrome.runtime.onInstalled.addListener((details) => {
       (r) => compareVersions(r.version, details.previousVersion) > 0
     );
 
-    if (newReleases.length > 0) {
+    if (newReleases.length === 0) {
+      // No release entry for this version — silently update lastSeenVersion
+      chrome.storage.local.set({ lastSeenVersion: currentVersion });
+    } else {
       const hasFullPage = newReleases.some((r) => r.notify === 'fullPage');
       const hasBadge = newReleases.some((r) => r.notify === 'badge');
 
@@ -491,7 +576,7 @@ chrome.runtime.onInstalled.addListener((details) => {
 restoreFromSession();
 
 // 431 error handler function (stored for add/remove)
-// Only active when mode is 'auto' - preserves last 2 instances
+// Only active when autoClearCookiesOn431 is true - preserves last 2 instances
 async function handle431Response(details) {
   if (details.statusCode === 431) {
     try {
@@ -615,15 +700,23 @@ function enable431Listener() {
   }
 }
 
-// Initialize 431 listener based on stored setting
-chrome.storage.sync.get(['defaultClearCookiesHandling'], (result) => {
-  const mode = result.defaultClearCookiesHandling || 'auto';
+// Initialize 431 listener based on stored setting.
+// Reads the new key; falls back to deriving from the legacy key on the first
+// boot after update if the migration hasn't completed yet.
+chrome.storage.sync.get(
+  ['autoClearCookiesOn431', 'defaultClearCookiesHandling'],
+  (result) => {
+    const enabled =
+      result.autoClearCookiesOn431 ??
+      (result.defaultClearCookiesHandling === undefined
+        ? true
+        : result.defaultClearCookiesHandling === 'auto');
 
-  // Only enable 431 auto-clear listener for 'auto' mode
-  if (mode === 'auto') {
-    enable431Listener();
+    if (enabled) {
+      enable431Listener();
+    }
   }
-});
+);
 
 // Clean up when tabs are closed
 chrome.tabs.onRemoved.addListener((tabId) => {
@@ -631,8 +724,8 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   tabContexts.delete(tabId);
   tabAccessTimes.delete(tabId);
   tabDetectionGen.delete(tabId);
-  tabCardErrors.delete(tabId);
-  tabLastCardId.delete(tabId);
+  tabApiErrors.delete(tabId);
+  tabLastContext.delete(tabId);
   persistToSession();
 });
 
@@ -642,7 +735,7 @@ chrome.tabs.onActivated.addListener(async ({ tabId, windowId }) => {
 
   try {
     const tab = await chrome.tabs.get(tabId);
-    if (tab.url && tab.url.includes('domo.com')) {
+    if (tab.url && isDomoUrl(tab.url)) {
       await ensureContentScript(tabId);
 
       if (!tabContexts.has(tabId)) {
@@ -666,7 +759,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   }
 
   // React to URL changes on Domo domains
-  if (changeInfo.url && changeInfo.url.includes('domo.com')) {
+  if (changeInfo.url && isDomoUrl(changeInfo.url)) {
     console.log(
       `[Background] URL changed for tab ${tabId}, triggering detection`
     );
@@ -674,27 +767,29 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     await detectAndStoreContext(tabId);
   }
 
-  // Update title if it's just "Domo" and we have object metadata
-  if (changeInfo.title === 'Domo' && tab.url?.includes('domo.com')) {
+  // Update title when Domo sets it to "Domo" or a stale parent-only title
+  if (changeInfo.title && isDomoUrl(tab.url)) {
     const context = getTabContext(tabId);
-    if (context?.domoObject?.metadata?.name) {
-      console.log(
-        `[Background] Updating title for tab ${tabId} to include object name`
-      );
-      try {
-        await chrome.scripting.executeScript({
-          args: [context.domoObject.metadata.name],
-          func: (name) => {
-            document.title = `${name} - Domo`;
-          },
-          target: { tabId },
-          world: 'MAIN'
-        });
-      } catch (error) {
-        console.error(
-          `[Background] Error updating title for tab ${tabId}:`,
-          error
+    if (changeInfo.title === 'Domo') {
+      // Title reset to "Domo" — apply object name or section title
+      if (context?.domoObject?.metadata?.name) {
+        console.log(
+          `[Background] Updating title for tab ${tabId} to include object name`
         );
+        const allowedTitles = buildAllowedTitles(context.domoObject);
+        setTabTitle(tabId, context.domoObject.metadata.name, allowedTitles);
+      } else if (tab.url) {
+        setSectionTitle(tabId, tab.url);
+      }
+    } else if (context?.domoObject?.metadata?.name) {
+      // Title changed to something other than "Domo" — check if it's a
+      // stale parent-only title we can enrich (e.g., "MyApp - Domo")
+      const allowedTitles = buildAllowedTitles(context.domoObject);
+      if (allowedTitles.includes(changeInfo.title)) {
+        console.log(
+          `[Background] Enriching stale title for tab ${tabId}`
+        );
+        setTabTitle(tabId, context.domoObject.metadata.name, allowedTitles);
       }
     }
   }
@@ -702,7 +797,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 
 // Detect context when history state changes (SPA navigation)
 chrome.webNavigation.onHistoryStateUpdated.addListener(async (details) => {
-  if (details.url && details.url.includes('domo.com')) {
+  if (details.url && isDomoUrl(details.url)) {
     console.log(
       `[Background] History state updated for tab ${details.tabId}, triggering detection`
     );
@@ -712,14 +807,8 @@ chrome.webNavigation.onHistoryStateUpdated.addListener(async (details) => {
 
 // Listen for setting changes
 chrome.storage.onChanged.addListener(async (changes, areaName) => {
-  if (
-    areaName === 'sync' &&
-    changes.defaultClearCookiesHandling !== undefined
-  ) {
-    const mode = changes.defaultClearCookiesHandling.newValue || 'auto';
-
-    // Only enable 431 auto-clear listener for 'auto' mode
-    if (mode === 'auto') {
+  if (areaName === 'sync' && changes.autoClearCookiesOn431 !== undefined) {
+    if (changes.autoClearCookiesOn431.newValue) {
       enable431Listener();
     } else {
       disable431Listener();
@@ -766,11 +855,20 @@ chrome.commands.onCommand.addListener((command) => {
         const context = getTabContext(tab.id);
         if (context?.domoObject?.id) {
           try {
+            const typeModel = getObjectType(context.domoObject.typeId);
+            const primaryConfig = typeModel?.copyConfigs?.find(
+              (c) => c.primary
+            );
+            const copyId = primaryConfig
+              ? primaryConfig.source
+                  .split('.')
+                  .reduce((cur, key) => cur?.[key], context.domoObject)
+              : null;
             await executeInPage(
               async (text) => {
                 await navigator.clipboard.writeText(text);
               },
-              [context.domoObject.id],
+              [copyId || context.domoObject.id],
               tab.id
             );
             chrome.action.setBadgeText({ text: '\u2713' });
@@ -808,7 +906,7 @@ async function detectAndStoreContext(tabId) {
   try {
     // Get tab info for URL
     const tab = await chrome.tabs.get(tabId);
-    if (!tab || !tab?.url?.includes('domo.com')) {
+    if (!tab || !isDomoUrl(tab.url)) {
       // Not a Domo domain - clear any existing context and broadcast the update
       console.log(
         `[Background] Tab ${tabId} is not on a Domo domain, clearing context`
@@ -892,6 +990,10 @@ async function detectAndStoreContext(tabId) {
     if (isStale()) return null;
     if (!detected) {
       console.log(`[Background] No Domo object detected on tab ${tabId}`);
+      if (tab.url) {
+        updateTabContextKey(tabId, { objectKey: null, url: tab.url });
+        setSectionTitle(tabId, tab.url);
+      }
       // During redetection, broadcast the empty context so the UI clears
       // the stale object (e.g., user deselected a workflow node)
       if (isRedetection) {
@@ -899,10 +1001,11 @@ async function detectAndStoreContext(tabId) {
       }
       return null;
     }
-    const typeModel = getObjectType(detected.typeId);
+    let typeModel = getObjectType(detected.typeId);
 
     if (!typeModel) {
       console.warn(`[Background] Unknown object type: ${detected.typeId}`);
+      updateTabContextKey(tabId, { objectKey: null, url: tab.url });
       return null;
     }
 
@@ -924,7 +1027,19 @@ async function detectAndStoreContext(tabId) {
 
     if (!objectId) {
       console.warn(`[Background] Could not extract ID for ${detected.typeId}`);
+      updateTabContextKey(tabId, { objectKey: null, url: tab.url });
       return null;
+    }
+
+    // Check if a detected PAGE is actually a data app view
+    if (detected.typeId === 'PAGE') {
+      const appId = await executeInPage(checkPageType, [objectId], tabId);
+      if (isStale()) return null;
+      if (appId) {
+        detected.typeId = 'DATA_APP_VIEW';
+        detected.parentId = appId;
+        typeModel = getObjectType('DATA_APP_VIEW');
+      }
     }
 
     // Extract parent ID from URL, detection result, or resolveContext
@@ -973,13 +1088,33 @@ async function detectAndStoreContext(tabId) {
     }
 
     domoObject.metadata = enrichedMetadata;
+    domoObject.metadata.context = {};
 
     // Preserve workflow context from CE tile detection within a workflow
     if (detected.workflowModelId) {
-      domoObject.metadata.details = domoObject.metadata.details || {};
-      domoObject.metadata.details.workflowModelId = detected.workflowModelId;
-      domoObject.metadata.details.workflowVersionNumber =
+      domoObject.metadata.context.workflowModelId = detected.workflowModelId;
+      domoObject.metadata.context.workflowVersionNumber =
         detected.workflowVersionNumber;
+    }
+
+    // Preserve page/app context when a card is viewed from a page or app
+    if (detected.pageId) {
+      const appId = await executeInPage(
+        checkPageType,
+        [detected.pageId],
+        tabId
+      );
+      if (isStale()) return null;
+      if (appId) {
+        domoObject.metadata.context.appViewId = detected.pageId;
+        domoObject.metadata.context.appId = appId;
+      } else {
+        domoObject.metadata.context.pageId = detected.pageId;
+      }
+    }
+    if (detected.appViewId) {
+      domoObject.metadata.context.appViewId = detected.appViewId;
+      domoObject.metadata.context.appId = detected.appId;
     }
 
     // Compute isOwner if user and groups are already available
@@ -1057,14 +1192,10 @@ async function detectAndStoreContext(tabId) {
         .replace('{id}', objectId);
     }
 
-    // Clear card errors when navigating to a different card on this tab
-    if (typeModel.id === 'CARD') {
-      const lastCardId = tabLastCardId.get(tabId);
-      if (lastCardId && lastCardId !== objectId) {
-        clearCardErrors(tabId);
-      }
-      tabLastCardId.set(tabId, objectId);
-    }
+    updateTabContextKey(tabId, {
+      objectKey: `${typeModel.id}:${objectId}`,
+      url: tab.url
+    });
 
     // Final stale check before committing context
     if (isStale()) return null;
@@ -1078,482 +1209,18 @@ async function detectAndStoreContext(tabId) {
     );
     setTabContext(tabId, context);
 
-    // For non-DataFlow DATA_SOURCE with a stream, fetch stream details asynchronously
-    if (isStreamParent) {
-      const streamId = String(enrichedMetadata.details.streamId);
-      const streamType = getObjectType('STREAM');
-      executeInPage(
-        fetchObjectDetailsInPage,
-        [
-          {
-            apiConfig: streamType.api,
-            objectId: streamId,
-            typeId: 'STREAM'
-          }
-        ],
-        tabId
-      )
-        .then((streamMetadata) => {
-          if (isStale()) return;
-          if (!streamMetadata?.details) return;
-          const name = streamType.api.nameTemplate.replace(
-            /{([^}]+)}/g,
-            (_, path) =>
-              path === 'id'
-                ? streamId
-                : (path
-                    .split('.')
-                    .reduce(
-                      (o, k) => o?.[k],
-                      streamMetadata.details
-                    ) ?? '')
-          );
-          domoObject.metadata.parent = {
-            details: streamMetadata.details,
-            id: streamId,
-            name,
-            objectType: { id: 'STREAM', name: 'Stream' }
-          };
-          setTabContext(tabId, context);
-        })
-        .catch((err) => {
-          if (isStale()) return;
-          console.warn(
-            `[Background] Could not fetch stream ${streamId}:`,
-            err.message
-          );
-        });
-    }
-
-    // Helper to store child/app pages in context metadata
-    const storeChildPages = (pages, propertyName) => {
-      const currentContext = getTabContext(tabId);
-      if (currentContext?.domoObject?.id === objectId) {
-        if (!currentContext.domoObject?.metadata) {
-          currentContext.domoObject.metadata = {};
-        }
-        if (!currentContext.domoObject.metadata?.details) {
-          currentContext.domoObject.metadata.details = {};
-        }
-        currentContext.domoObject.metadata.details[propertyName] = pages;
-        setTabContext(tabId, currentContext);
-      }
-    };
-
-    // For PAGE type, use fast subpages endpoint as a pre-check
-    if (typeModel.id === 'PAGE') {
-      getSubpageIds({ pageId: parseInt(objectId), tabId })
-        .then((subpageIds) => {
-          if (isStale()) return;
-
-          if (!subpageIds || subpageIds.length === 0) {
-            storeChildPages([], 'childPages');
-            console.log(
-              `[Background] No child pages for PAGE ${objectId} (fast check)`
-            );
-            return;
-          }
-
-          // Subpages exist — fetch full details for names and hierarchy
-          return getChildPages({
-            includeGrandchildren: true,
-            pageId: parseInt(objectId),
-            pageType: 'PAGE',
-            tabId
-          }).then((childPages) => {
-            if (isStale()) return;
-            storeChildPages(childPages, 'childPages');
-            console.log(
-              `[Background] Fetched ${childPages?.length || 0} child pages for PAGE ${objectId}`
-            );
-          });
-        })
-        .catch((error) => {
-          if (isStale()) return;
-          console.error(
-            `[Background] Error fetching child pages for PAGE ${objectId}:`,
-            error
-          );
-          storeChildPages([], 'childPages');
-        });
-    } else if (
-      typeModel.id === 'DATA_APP_VIEW' ||
-      typeModel.id === 'WORKSHEET_VIEW' ||
-      typeModel.id === 'REPORT_BUILDER_VIEW'
-    ) {
-      const appId =
-        typeModel.id === 'DATA_APP_VIEW' && domoObject.parentId
-          ? parseInt(domoObject.parentId)
-          : null;
-
-      getChildPages({
-        appId,
-        pageId: parseInt(objectId),
-        pageType: typeModel.id,
-        tabId
-      })
-        .then((childPages) => {
-          if (isStale()) return;
-          storeChildPages(childPages, 'appPages');
-          console.log(
-            `[Background] Fetched ${childPages?.length || 0} app pages for ${typeModel.id} ${objectId}`
-          );
-        })
-        .catch((error) => {
-          if (isStale()) return;
-          console.error(
-            `[Background] Error fetching app pages for ${typeModel.id} ${objectId}:`,
-            error
-          );
-          storeChildPages([], 'appPages');
-        });
-    } else if (typeModel.id === 'CARD') {
-      // Fetch pages for card in background without blocking
-      getPagesForCards([parseInt(objectId)], tabId)
-        .then((result) => {
-          if (isStale()) return;
-          const currentContext = getTabContext(tabId);
-          if (currentContext?.domoObject?.id === objectId) {
-            if (!currentContext.domoObject?.metadata) {
-              currentContext.domoObject.metadata = {};
-            }
-            if (!currentContext.domoObject.metadata?.details) {
-              currentContext.domoObject.metadata.details = {};
-            }
-            currentContext.domoObject.metadata.details.cardPages =
-              result.pages || [];
-            currentContext.domoObject.metadata.details.cardsByPage =
-              result.cardsByPage || {};
-
-            setTabContext(tabId, currentContext);
-
-            console.log(
-              `[Background] Fetched ${result.pages?.length || 0} card pages for ${typeModel.id} ${objectId}`
-            );
-          }
-        })
-        .catch((error) => {
-          if (isStale()) return;
-          console.error(
-            `[Background] Error fetching card pages for ${typeModel.id} ${objectId}:`,
-            error
-          );
-          const currentContext = getTabContext(tabId);
-          if (currentContext?.domoObject) {
-            if (!currentContext.domoObject?.metadata) {
-              currentContext.domoObject.metadata = {};
-            }
-            if (!currentContext.domoObject.metadata?.details) {
-              currentContext.domoObject.metadata.details = {};
-            }
-            currentContext.domoObject.metadata.details.cardPages = [];
-            setTabContext(tabId, currentContext);
-          }
-        });
-    }
-
-    // Helper: build combined content array for PAGE and DATA_APP_VIEW context footer.
-    // Called after each async enrichment callback; only produces output once all three
-    // (cards, forms, queues) have resolved.
-    function updatePageContent() {
-      if (isStale()) return;
-      const ctx = getTabContext(tabId);
-      const objType = ctx?.domoObject?.typeId;
-      const contentTypes = ['PAGE', 'DATA_APP_VIEW', 'WORKSHEET_VIEW', 'REPORT_BUILDER_VIEW'];
-      if (!contentTypes.includes(objType)) return;
-      const details = ctx?.domoObject?.metadata?.details;
-      if (!details) return;
-      if (details.cards == null || details.forms == null || details.queues == null)
-        return;
-
-      const content = [];
-      for (const card of details.cards) {
-        content.push({ ...card, type: 'CARD' });
-      }
-      for (const form of details.forms) {
-        content.push({ ...form, type: 'ENIGMA_FORM' });
-      }
-      for (const queue of details.queues) {
-        content.push({ ...queue, type: 'HOPPER_QUEUE' });
-      }
-      details.content = content;
-      setTabContext(tabId, ctx);
-    }
-
-    // For PAGE, DATA_APP_VIEW, and DATA_SOURCE types, fetch cards asynchronously (non-blocking)
-    if (
-      typeModel.id === 'PAGE' ||
-      typeModel.id === 'DATA_APP_VIEW' ||
-      typeModel.id === 'DATA_SOURCE' ||
-      typeModel.id === 'WORKSHEET_VIEW' ||
-      typeModel.id === 'REPORT_BUILDER_VIEW'
-    ) {
-      // Fetch cards in background without blocking
-      getCardsForObject({
-        objectId,
-        objectType: typeModel.id,
-        tabId
-      })
-        .then((cards) => {
-          if (isStale()) return;
-          const currentContext = getTabContext(tabId);
-          if (currentContext?.domoObject?.id === objectId) {
-            if (!currentContext.domoObject?.metadata) {
-              currentContext.domoObject.metadata = {};
-            }
-            if (!currentContext.domoObject.metadata?.details) {
-              currentContext.domoObject.metadata.details = {};
-            }
-            currentContext.domoObject.metadata.details.cards = cards;
-
-            setTabContext(tabId, currentContext);
-            updatePageContent();
-          }
-        })
-        .catch((error) => {
-          if (isStale()) return;
-          console.error(
-            `[Background] Error fetching cards for ${typeModel.id} ${objectId}:`,
-            error
-          );
-          const currentContext = getTabContext(tabId);
-          if (currentContext?.domoObject?.id === objectId) {
-            if (!currentContext.domoObject?.metadata) {
-              currentContext.domoObject.metadata = {};
-            }
-            if (!currentContext.domoObject.metadata?.details) {
-              currentContext.domoObject.metadata.details = {};
-            }
-            currentContext.domoObject.metadata.details.cards = [];
-            setTabContext(tabId, currentContext);
-            updatePageContent();
-          }
-        });
-    }
-
-    // For page-like types, extract and enrich forms and queues from page layout
-    if (['DATA_APP_VIEW', 'PAGE', 'REPORT_BUILDER_VIEW', 'WORKSHEET_VIEW'].includes(typeModel.id)) {
-      const { formWidgetIds, queueWidgetIds } = extractPageContentIds(
-        enrichedMetadata.details
-      );
-
-      if (formWidgetIds.length > 0) {
-        getFormsForPage({ formWidgetIds, tabId })
-          .then((forms) => {
-            if (isStale()) return;
-            const currentContext = getTabContext(tabId);
-            if (currentContext?.domoObject?.id === objectId) {
-              if (!currentContext.domoObject?.metadata) {
-                currentContext.domoObject.metadata = {};
-              }
-              if (!currentContext.domoObject.metadata?.details) {
-                currentContext.domoObject.metadata.details = {};
-              }
-              currentContext.domoObject.metadata.details.forms = forms;
-              setTabContext(tabId, currentContext);
-              updatePageContent();
-            }
-          })
-          .catch((error) => {
-            if (isStale()) return;
-            console.error(
-              `[Background] Error fetching forms for ${typeModel.id} ${objectId}:`,
-              error
-            );
-            const currentContext = getTabContext(tabId);
-            if (currentContext?.domoObject?.id === objectId) {
-              if (!currentContext.domoObject?.metadata) {
-                currentContext.domoObject.metadata = {};
-              }
-              if (!currentContext.domoObject.metadata?.details) {
-                currentContext.domoObject.metadata.details = {};
-              }
-              currentContext.domoObject.metadata.details.forms = [];
-              setTabContext(tabId, currentContext);
-              updatePageContent();
-            }
-          });
-      } else {
-        const currentContext = getTabContext(tabId);
-        if (currentContext?.domoObject?.id === objectId) {
-          if (!currentContext.domoObject?.metadata) {
-            currentContext.domoObject.metadata = {};
-          }
-          if (!currentContext.domoObject.metadata?.details) {
-            currentContext.domoObject.metadata.details = {};
-          }
-          currentContext.domoObject.metadata.details.forms = [];
-          setTabContext(tabId, currentContext);
-          updatePageContent();
-        }
-      }
-
-      if (queueWidgetIds.length > 0) {
-        getQueuesForPage({ queueWidgetIds, tabId })
-          .then((queues) => {
-            if (isStale()) return;
-            const currentContext = getTabContext(tabId);
-            if (currentContext?.domoObject?.id === objectId) {
-              if (!currentContext.domoObject?.metadata) {
-                currentContext.domoObject.metadata = {};
-              }
-              if (!currentContext.domoObject.metadata?.details) {
-                currentContext.domoObject.metadata.details = {};
-              }
-              currentContext.domoObject.metadata.details.queues = queues;
-              setTabContext(tabId, currentContext);
-              updatePageContent();
-            }
-          })
-          .catch((error) => {
-            if (isStale()) return;
-            console.error(
-              `[Background] Error fetching queues for ${typeModel.id} ${objectId}:`,
-              error
-            );
-            const currentContext = getTabContext(tabId);
-            if (currentContext?.domoObject?.id === objectId) {
-              if (!currentContext.domoObject?.metadata) {
-                currentContext.domoObject.metadata = {};
-              }
-              if (!currentContext.domoObject.metadata?.details) {
-                currentContext.domoObject.metadata.details = {};
-              }
-              currentContext.domoObject.metadata.details.queues = [];
-              setTabContext(tabId, currentContext);
-              updatePageContent();
-            }
-          });
-      } else {
-        const currentContext = getTabContext(tabId);
-        if (currentContext?.domoObject?.id === objectId) {
-          if (!currentContext.domoObject?.metadata) {
-            currentContext.domoObject.metadata = {};
-          }
-          if (!currentContext.domoObject.metadata?.details) {
-            currentContext.domoObject.metadata.details = {};
-          }
-          currentContext.domoObject.metadata.details.queues = [];
-          setTabContext(tabId, currentContext);
-          updatePageContent();
-        }
-      }
-    }
-
-    // For WORKFLOW_MODEL, fetch permission asynchronously (non-blocking)
-    if (typeModel.id === 'WORKFLOW_MODEL') {
-      const userId = context.user?.id;
-      const fetchPermission = userId
-        ? getWorkflowPermission(objectId, userId, tabId)
-        : Promise.resolve([]);
-
-      fetchPermission
-        .then((values) => {
-          if (isStale()) return;
-          const currentContext = getTabContext(tabId);
-          if (currentContext?.domoObject?.id === objectId) {
-            if (!currentContext.domoObject.metadata) {
-              currentContext.domoObject.metadata = {};
-            }
-            currentContext.domoObject.metadata.permission = { values };
-            setTabContext(tabId, currentContext);
-          }
-        })
-        .catch((error) => {
-          if (isStale()) return;
-          console.warn(
-            `[Background] Could not fetch permission for WORKFLOW_MODEL ${objectId}:`,
-            error.message
-          );
-        });
-    }
-
-    // For WORKFLOW_MODEL_VERSION, fetch definition asynchronously (non-blocking)
-    if (typeModel.id === 'WORKFLOW_MODEL_VERSION') {
-      const modelId = domoObject.parentId;
-      const versionNumber = objectId;
-
-      if (modelId) {
-        getVersionDefinition(modelId, versionNumber, tabId)
-          .then((definition) => {
-            if (isStale()) return;
-            const currentContext = getTabContext(tabId);
-            if (currentContext?.domoObject?.id === objectId) {
-              if (!currentContext.domoObject.metadata) {
-                currentContext.domoObject.metadata = {};
-              }
-              if (!currentContext.domoObject.metadata.details) {
-                currentContext.domoObject.metadata.details = {};
-              }
-              currentContext.domoObject.metadata.details.definition = definition;
-              setTabContext(tabId, currentContext);
-            }
-          })
-          .catch((error) => {
-            if (isStale()) return;
-            console.warn(
-              `[Background] Could not fetch definition for WORKFLOW_MODEL_VERSION ${objectId}:`,
-              error.message
-            );
-          });
-      }
-    }
-
-    // For MAGNUM_COLLECTION, fetch permission asynchronously (non-blocking)
-    if (typeModel.id === 'MAGNUM_COLLECTION') {
-      executeInPage(
-        async (collectionId) => {
-          const res = await fetch(
-            `/api/datastores/v1/collections/${collectionId}/permission`
-          );
-          if (!res.ok) return null;
-          return res.json();
-        },
-        [objectId],
-        tabId
-      )
-        .then((permission) => {
-          if (isStale()) return;
-          const currentContext = getTabContext(tabId);
-          if (currentContext?.domoObject?.id === objectId) {
-            if (!currentContext.domoObject.metadata) {
-              currentContext.domoObject.metadata = {};
-            }
-            currentContext.domoObject.metadata.permission = permission;
-            setTabContext(tabId, currentContext);
-          }
-        })
-        .catch((error) => {
-          if (isStale()) return;
-          console.warn(
-            `[Background] Could not fetch permission for MAGNUM_COLLECTION ${objectId}:`,
-            error.message
-          );
-        });
-    }
-
-    // For DATAFLOW_TYPE, fetch permission asynchronously (non-blocking)
-    if (typeModel.id === 'DATAFLOW_TYPE') {
-      getDataflowPermission(objectId, tabId)
-        .then((permission) => {
-          if (isStale()) return;
-          const currentContext = getTabContext(tabId);
-          if (currentContext?.domoObject?.id === objectId) {
-            if (!currentContext.domoObject.metadata) {
-              currentContext.domoObject.metadata = {};
-            }
-            currentContext.domoObject.metadata.permission = permission;
-            setTabContext(tabId, currentContext);
-          }
-        })
-        .catch((error) => {
-          if (isStale()) return;
-          console.warn(
-            `[Background] Could not fetch permission for DATAFLOW_TYPE ${objectId}:`,
-            error.message
-          );
-        });
-    }
+    // Run all type-specific enrichments asynchronously (non-blocking)
+    runEnrichments({
+      domoObject,
+      enrichedMetadata,
+      getTabContext,
+      isStale,
+      objectId,
+      setTabContext,
+      tabId,
+      typeId: typeModel.id,
+      userId: context.user?.id
+    });
 
     return context;
   } catch (error) {
@@ -1572,17 +1239,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
     try {
       switch (message.type) {
-        case 'CARD_ERROR_DETECTED': {
+        case 'API_ERROR_DETECTED': {
           const sourceTabId = sender.tab?.id;
           if (sourceTabId) {
-            addCardError(sourceTabId, message.error);
+            addApiError(sourceTabId, message.error);
           }
           sendResponse({ success: true });
           break;
         }
 
-        case 'CLEAR_CARD_ERRORS': {
-          clearCardErrors(message.tabId);
+        case 'CLEAR_API_ERRORS': {
+          clearApiErrors(message.tabId);
           sendResponse({ success: true });
           break;
         }
@@ -1599,8 +1266,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
         }
 
-        case 'GET_CARD_ERRORS': {
-          const errors = getCardErrors(message.tabId);
+        case 'GET_API_ERRORS': {
+          const errors = getApiErrors(message.tabId);
           sendResponse({ errors, success: true });
           break;
         }
@@ -1639,7 +1306,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           const activeTabId = tabs[0].id;
           let context = getTabContext(activeTabId);
 
-          if (!context && tabs[0].url && tabs[0].url.includes('domo.com')) {
+          if (!context && tabs[0].url && isDomoUrl(tabs[0].url)) {
             // Trigger detection if not cached
             context = await detectAndStoreContext(activeTabId);
           }
@@ -1662,7 +1329,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         case 'UPDATE_CONTEXT_METADATA': {
           // Update cached context metadata without re-fetching from API
-          const { metadataUpdates, tabId } = message;
+          const { contextUpdates, metadataUpdates, tabId } = message;
           const context = getTabContext(tabId);
 
           if (!context) {
@@ -1670,15 +1337,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             return;
           }
 
-          // Merge updates into metadata.details
           if (context.domoObject?.metadata) {
-            context.domoObject.metadata.details = {
-              ...context.domoObject.metadata.details,
-              ...metadataUpdates
-            };
-            // Also update the top-level name if it was changed
-            if (metadataUpdates.name !== undefined) {
-              context.domoObject.metadata.name = metadataUpdates.name;
+            // API-native field updates go to details
+            if (metadataUpdates) {
+              context.domoObject.metadata.details = {
+                ...context.domoObject.metadata.details,
+                ...metadataUpdates
+              };
+              // Also update the top-level name if it was changed
+              if (metadataUpdates.name !== undefined) {
+                context.domoObject.metadata.name = metadataUpdates.name;
+              }
+            }
+            // Extension-injected updates go to context
+            if (contextUpdates) {
+              context.domoObject.metadata.context = {
+                ...context.domoObject.metadata.context,
+                ...contextUpdates
+              };
             }
           }
 

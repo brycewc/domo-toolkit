@@ -1,4 +1,4 @@
-import { executeInAllFrames, executeInPage } from '@/utils';
+import { executeInAllFrames, executeInPage } from '@/utils/executeInPage';
 
 /**
  * Build a pfilter URL from base URL and filters

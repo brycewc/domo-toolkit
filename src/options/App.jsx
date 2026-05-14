@@ -1,15 +1,14 @@
 import { Button, Link, Spinner, Tabs, Tooltip } from '@heroui/react';
-import { IconBug, IconSparkles } from '@tabler/icons-react';
+import { IconBug } from '@tabler/icons-react';
 import { lazy, Suspense, useEffect, useState } from 'react';
 
-import {
-  FaviconSettings,
-  ReleaseNotes,
-  Settings,
-  ToastProvider,
-  Welcome
-} from '@/components';
-import { useTheme } from '@/hooks';
+import { FaviconSettings } from '@/components/options/FaviconSettings';
+import { ReleaseNotes } from '@/components/options/ReleaseNotes';
+import { Settings } from '@/components/options/Settings';
+import { Welcome } from '@/components/options/Welcome';
+import { ToastProvider } from '@/components/ToastProvider';
+import { useTheme } from '@/hooks/useTheme';
+import IconAiSparkle from '@icons/ai-sparkle.svg?react';
 
 const ActivityLogTable = lazy(() =>
   import('@/activityLog/ActivityLogTable').then((m) => ({
@@ -17,20 +16,12 @@ const ActivityLogTable = lazy(() =>
   }))
 );
 
-const Lineage = lazy(() =>
-  import('@/lineage/Lineage').then((m) => ({ default: m.Lineage }))
-);
+const Lineage = lazy(() => import('@/lineage/Lineage').then((m) => ({ default: m.Lineage })));
 
 const FULL_SCREEN_PAGES = new Map([
-  [
-    'activity-log',
-    { component: ActivityLogTable, fullWidth: true, title: getActivityLogTitle }
-  ],
+  ['activity-log', { component: ActivityLogTable, fullWidth: true, title: getActivityLogTitle }],
   ['lineage', { component: Lineage, fullWidth: true, title: 'Lineage' }],
-  [
-    'release-notes',
-    { component: ReleaseNotes, fullWidth: true, title: 'Release Notes' }
-  ],
+  ['release-notes', { component: ReleaseNotes, fullWidth: true, title: 'Release Notes' }],
   ['welcome', { component: Welcome, fullWidth: true, title: 'Welcome' }]
 ]);
 
@@ -126,9 +117,7 @@ export default function App() {
             >
               <IconBug stroke={1.5} />
             </Button>
-            <Tooltip.Content className='w-fit text-center'>
-              Report Bug
-            </Tooltip.Content>
+            <Tooltip.Content className='w-fit text-center'>Report bug</Tooltip.Content>
           </Tooltip>
           <Tooltip closeDelay={0} delay={400}>
             <Button
@@ -141,11 +130,9 @@ export default function App() {
                 );
               }}
             >
-              <IconSparkles stroke={1.5} />
+              <IconAiSparkle />
             </Button>
-            <Tooltip.Content className='w-fit text-center'>
-              Request Feature
-            </Tooltip.Content>
+            <Tooltip.Content className='w-fit text-center'>Request feature</Tooltip.Content>
           </Tooltip>
         </div>
       </div>
@@ -174,21 +161,16 @@ export default function App() {
           <div className='w-full shrink-0 justify-start'>
             <h3 className='mb-2 text-lg font-semibold'>Favicon Preferences</h3>
             <p className='text-sm text-muted'>
-              Manage your favicon preferences. Patterns will automatically match
-              against [subdomain].domo.com
+              Manage your favicon preferences. Patterns will automatically match against
+              [subdomain].domo.com
             </p>
           </div>
           <FaviconSettings />
         </Tabs.Panel>
-        <Tabs.Panel
-          className='flex h-full max-w-3xl flex-col px-4 pt-16'
-          id='settings'
-        >
+        <Tabs.Panel className='flex h-full max-w-3xl flex-col px-4 pt-16' id='settings'>
           <div className='w-full justify-start'>
             <h3 className='mb-2 text-lg font-semibold'>Settings</h3>
-            <p className='text-sm text-muted'>
-              Configure general extension settings.
-            </p>
+            <p className='text-sm text-muted'>Configure general extension settings.</p>
           </div>
           <Settings />
         </Tabs.Panel>
@@ -200,10 +182,7 @@ export default function App() {
 
 async function getActivityLogTitle() {
   try {
-    const result = await chrome.storage.session.get([
-      'activityLogObjects',
-      'activityLogType'
-    ]);
+    const result = await chrome.storage.session.get(['activityLogObjects', 'activityLogType']);
     const objects = result.activityLogObjects || [];
     const logType = result.activityLogType;
     let label;

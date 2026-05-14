@@ -4,6 +4,7 @@ import react from '@vitejs/plugin-react';
 import path from 'node:path';
 import { visualizer } from 'rollup-plugin-visualizer';
 import { defineConfig, loadEnv } from 'vite';
+import svgr from 'vite-plugin-svgr';
 
 import manifest from './manifest.config.js';
 
@@ -11,7 +12,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd());
 
   // Proxy /api/* to the real Domo instance when env vars are configured.
-  // Only active for the standalone dev-lineage page; the extension's own dev mode is unaffected because it uses chrome-extension:// origins.
+  // Only active for standalone dev pages (dev-lineage, dev-activity-log); the extension's own dev mode is unaffected because it uses chrome-extension:// origins.
   const proxy = env.VITE_DOMO_BASE_URL
     ? {
         '/api': {
@@ -27,14 +28,11 @@ export default defineConfig(({ mode }) => {
   return {
     build: {
       // Extensions load from disk, not network - large chunks are fine
-      chunkSizeWarningLimit: 1100,
+      chunkSizeWarningLimit: 1200,
       rollupOptions: {
-        // Suppress circular chunk warnings caused by shared third-party modules
-        // being split across manual chunks. There are no actual circular imports
-        // between our source modules.
-        onLog(level, log, defaultHandler) {
-          if (log.code === 'CIRCULAR_DEPENDENCY' || log.code === 'CIRCULAR_CHUNK') return;
-          defaultHandler(level, log);
+        treeshake: {
+          manualPureFunctions:
+            mode === 'production' ? ['console.log', 'console.warn'] : []
         },
         output: {
           // Group related modules into the same chunk to avoid cross-chunk circular dependencies
@@ -52,9 +50,12 @@ export default defineConfig(({ mode }) => {
             if (id.includes('/src/components/options/')) {
               return 'options-components';
             }
-            if (id.includes('/src/components/views/')) {
-              return 'sidepanel-components';
-            }
+            // Note: /src/components/views/ intentionally falls through to
+            // the 'components' chunk. Splitting views out produces a
+            // circular chunk dependency because src/components/index.js
+            // does `export * from './views'`, so the components chunk
+            // imports from the views chunk and vice versa — which can
+            // leave React undefined during initialization.
             if (
               id.includes('/src/components/') ||
               id.includes('/src/hooks/')
@@ -74,9 +75,6 @@ export default defineConfig(({ mode }) => {
         }
       },
       sourcemap: false
-    },
-    esbuild: {
-      pure: mode === 'production' ? ['console.log', 'console.warn'] : []
     },
     plugins: [
       // Serve the standalone lineage dev page via middleware so CRXJS
@@ -110,14 +108,45 @@ export default defineConfig(({ mode }) => {
         },
         name: 'dev-lineage-page'
       },
+      {
+        configureServer(server) {
+          server.middlewares.use((req, res, next) => {
+            if (req.url !== '/dev-activity-log') return next();
+            res.setHeader('Content-Type', 'text/html');
+            res.end([
+              '<!doctype html>',
+              '<html lang="en"><head>',
+              '<meta charset="UTF-8" />',
+              '<meta name="viewport" content="width=device-width, initial-scale=1.0" />',
+              '<title>Dev Activity Log - Domo Toolkit</title>',
+              '</head>',
+              '<body class="w-full appearance-none bg-background">',
+              '<div id="root"></div>',
+              '<script type="module" src="/@vite/client"><\/script>',
+              '<script type="module">',
+              'import RefreshRuntime from "/@react-refresh";',
+              'RefreshRuntime.injectIntoGlobalHook(window);',
+              'window.$RefreshReg$ = () => {};',
+              'window.$RefreshSig$ = () => (type) => type;',
+              'window.__vite_plugin_react_preamble_installed__ = true;',
+              '<\/script>',
+              '<script type="module" src="/src/dev/dev-activity-log.jsx"><\/script>',
+              '</body></html>'
+            ].join('\n'));
+          });
+        },
+        name: 'dev-activity-log-page'
+      },
+      svgr({ svgrOptions: { icon: true, titleProp: true } }),
       react(),
       crx({ manifest }),
       tailwindcss(),
-      visualizer({ filename: 'bundle-analysis.html', gzipSize: true })
+      visualizer({ filename: '.visuals/bundle-analysis.html', gzipSize: true })
     ],
     resolve: {
       alias: {
-        '@': `${path.resolve(__dirname, 'src')}`
+        '@': `${path.resolve(__dirname, 'src')}`,
+        '@icons': `${path.resolve(__dirname, 'src/assets/icons')}`
       }
     },
     server: {

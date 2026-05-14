@@ -12,6 +12,15 @@ dist
 release
 dist-ssr
 *.local
+Gemfile.lock
+
+# Yarn Berry — ignore cache/state, allow committed config slots
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
 
 # Editor directories and files
 .vscode/*
@@ -27,13 +36,9 @@ dist-ssr
 # Chrome build keys
 dist.crx
 dist.pem
-.hidden/meeting-prep-bryce.md
-.gitignore
-# Bundle analysis
-bundle-analysis.html
+
+# Generated visuals (bundle analysis, architecture diagrams, etc.)
+.visuals/
 
 # heroui-agents-md
 .heroui-docs/
-
-# bundle analysis
-bundle-analysis.html

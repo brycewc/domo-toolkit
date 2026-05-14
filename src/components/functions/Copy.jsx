@@ -1,8 +1,9 @@
 import { Button, Dropdown, Kbd, Label, Tooltip } from '@heroui/react';
-import { IconClipboard } from '@tabler/icons-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
-import { useLongPress } from '@/hooks';
+import { useLongPress } from '@/hooks/useLongPress';
+import { getObjectType } from '@/models/DomoObjectType';
+import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
 
 import { AnimatedCheck } from '../AnimatedCheck';
 
@@ -10,118 +11,79 @@ export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
   const [isCopied, setIsCopied] = useState(false);
   const { LongPressOverlay, pressProps } = useLongPress();
 
-  const typeId = currentContext?.domoObject?.typeId;
-  const details = currentContext?.domoObject?.metadata?.details;
+  const domoObject = currentContext?.domoObject;
+  const typeModel = domoObject?.typeId ? getObjectType(domoObject.typeId) : null;
+  const primaryConfig = typeModel?.copyConfigs?.find((c) => c.primary);
 
-  let dropdownItems;
-  switch (typeId) {
-    case 'DATA_APP_VIEW':
-      dropdownItems = [{ id: 'data-app', label: 'Copy App ID' }];
-      break;
-    case 'DATA_SOURCE':
-      dropdownItems = [
-        details?.streamId && { id: 'stream', label: 'Copy Stream ID' },
-        details?.accountId && { id: 'account', label: 'Copy Account ID' },
-        details?.type?.toLowerCase() === 'dataflow' && {
-          id: 'dataflow',
-          label: 'Copy Dataflow ID'
-        }
-      ].filter(Boolean);
-      break;
-    case 'WORKSHEET_VIEW':
-      dropdownItems = [{ id: 'worksheet', label: 'Copy Worksheet ID' }];
-      break;
-    default:
-      dropdownItems = [];
-  }
+  // Build dropdown items from copyConfigs, filtering by visibility conditions
+  const dropdownItems = useMemo(() => {
+    if (!typeModel?.copyConfigs || !domoObject) return [];
 
-  const longPressDisabled =
-    isDisabled || !currentContext?.domoObject?.id || dropdownItems.length === 0;
+    const resolve = (source) =>
+      typeof source === 'function'
+        ? source(domoObject)
+        : source.split('.').reduce((cur, key) => cur?.[key], domoObject);
+
+    const isVisible = (config) => {
+      if (!config.when) return !!resolve(config.source);
+      if (typeof config.when === 'function') return !!config.when(domoObject);
+      if (typeof config.when === 'string') return !!resolve(config.when);
+      const val = resolve(config.when.field);
+      if (config.when.length !== undefined) {
+        return Array.isArray(val) && val.length === config.when.length;
+      }
+      return typeof val === 'string' && val.toLowerCase() === config.when.matches.toLowerCase();
+    };
+
+    return typeModel.copyConfigs
+      .filter((c) => !c.primary && isVisible(c))
+      .map((c) => ({
+        id: typeof c.source === 'function' ? c.label : c.source,
+        label: `Copy ${c.label}`,
+        value: resolve(c.source)
+      }));
+  }, [domoObject, primaryConfig, typeModel]);
+
+  const longPressDisabled = isDisabled || !domoObject?.id || dropdownItems.length === 0;
 
   const handlePress = () => {
-    const domoObject = currentContext?.domoObject;
-    const id = domoObject?.id;
+    const resolve = (source) =>
+      typeof source === 'function'
+        ? source(domoObject)
+        : source.split('.').reduce((cur, key) => cur?.[key], domoObject);
+
+    const copyId = primaryConfig ? resolve(primaryConfig.source) : domoObject?.id;
+    const copyLabel = primaryConfig?.label || `${domoObject?.typeName} ID`;
     try {
-      navigator.clipboard.writeText(id);
+      navigator.clipboard.writeText(copyId);
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
       onStatusUpdate?.(
         'Success',
-        `Copied ${domoObject?.typeName} ID **${id}** to clipboard`,
+        `Copied ${copyLabel} **${copyId}** to clipboard`,
         'success',
         2000
       );
     } catch (error) {
       onStatusUpdate?.(
         'Error',
-        `Failed to copy ${domoObject?.typeName?.toLowerCase()} ID to clipboard`,
+        `Failed to copy ${copyLabel.toLowerCase()} to clipboard`,
         'error',
         3000
       );
     }
   };
-  const handleAction = async (key) => {
-    switch (key) {
-      case 'account': {
-        const accountId =
-          currentContext?.domoObject?.metadata?.details?.accountId;
-        navigator.clipboard.writeText(accountId);
-        onStatusUpdate?.(
-          'Success',
-          `Copied Account ID **${accountId}** to clipboard`,
-          'success',
-          2000
-        );
-        break;
-      }
-      case 'data-app': {
-        const appId = currentContext?.domoObject?.parentId;
-        navigator.clipboard.writeText(appId);
-        onStatusUpdate?.(
-          'Success',
-          `Copied App Studio App ID **${appId}** to clipboard`,
-          'success',
-          2000
-        );
-        break;
-      }
-      case 'dataflow': {
-        const dataflowId = currentContext?.domoObject?.parentId;
-        navigator.clipboard.writeText(dataflowId);
-        onStatusUpdate?.(
-          'Success',
-          `Copied Dataflow ID **${dataflowId}** to clipboard`,
-          'success',
-          2000
-        );
-        break;
-      }
-      case 'stream': {
-        const streamId =
-          currentContext?.domoObject?.metadata?.details?.streamId;
-        navigator.clipboard.writeText(streamId);
-        onStatusUpdate?.(
-          'Success',
-          `Copied Stream ID **${streamId}** to clipboard`,
-          'success',
-          2000
-        );
-        break;
-      }
-      case 'worksheet': {
-        const worksheetId = currentContext?.domoObject?.parentId;
-        navigator.clipboard.writeText(worksheetId);
-        onStatusUpdate?.(
-          'Success',
-          `Copied Worksheet ID **${worksheetId}** to clipboard`,
-          'success',
-          2000
-        );
-        break;
-      }
-      default:
-        break;
-    }
+
+  const handleAction = (key) => {
+    const item = dropdownItems.find((i) => i.id === key);
+    if (!item) return;
+    navigator.clipboard.writeText(item.value);
+    onStatusUpdate?.(
+      'Success',
+      `Copied ${item.label.replace('Copy ', '')} **${item.value}** to clipboard`,
+      'success',
+      2000
+    );
   };
 
   return (
@@ -131,29 +93,24 @@ export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
           fullWidth
           isIconOnly
           className='relative overflow-visible'
-          isDisabled={isDisabled || !currentContext?.domoObject?.id}
+          isDisabled={isDisabled || !domoObject?.id}
           variant='tertiary'
           onPress={handlePress}
           {...(longPressDisabled ? {} : pressProps)}
-          {...(longPressDisabled ? {} : pressProps)}
         >
-          {isCopied ? (
-            <AnimatedCheck stroke={1.5} />
-          ) : (
-            <IconClipboard stroke={1.5} />
-          )}
-          <LongPressOverlay />
+          {isCopied ? <AnimatedCheck stroke={1.5} /> : <IconClipboardCopy />}
           <LongPressOverlay />
         </Button>
-        <Tooltip.Content className='flex flex-col items-center'>
+        <Tooltip.Content
+          className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+          offset={4}
+        >
           <div className='flex items-center gap-2'>
-            <span>Copy ID</span>
+            <span>Copy {primaryConfig?.label || 'ID'}</span>
             <Kbd className='text-xs'>
               <Kbd.Abbr
                 keyValue={
-                  (
-                    navigator.userAgentData?.platform ?? navigator.platform
-                  ).includes('Mac')
+                  (navigator.userAgentData?.platform ?? navigator.platform).includes('Mac')
                     ? 'command'
                     : 'ctrl'
                 }
@@ -162,17 +119,14 @@ export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
               <Kbd.Content>1</Kbd.Content>
             </Kbd>
           </div>
-          {!longPressDisabled && (
-            <span className='italic'>Hold for more options</span>
-          )}
+          {!longPressDisabled && <span className='italic'>Hold for more options</span>}
         </Tooltip.Content>
       </Tooltip>
       <Dropdown.Popover className='w-fit min-w-48' placement='bottom left'>
         <Dropdown.Menu onAction={handleAction}>
           {dropdownItems.map((item) => (
             <Dropdown.Item id={item.id} key={item.id} textValue={item.label}>
-              <IconClipboard className='size-5 shrink-0' stroke={1.5} />
-              <IconClipboard className='size-5 shrink-0' stroke={1.5} />
+              <IconClipboardCopy className='size-5 shrink-0' />
               <Label>{item.label}</Label>
             </Dropdown.Item>
           ))}

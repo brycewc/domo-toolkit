@@ -1,14 +1,10 @@
 import { Button, Separator, Spinner, Toolbar } from '@heroui/react';
-import {
-  IconArrowBarToLeft,
-  IconArrowBarToRight,
-  IconArrowLeft,
-  IconArrowRight,
-  IconMinus
-} from '@tabler/icons-react';
 import { Position, NodeToolbar as XYNodeToolbar } from '@xyflow/react';
 import { memo } from 'react';
 
+import IconArrowLeft from '@icons/arrow-left.svg?react';
+import IconArrowRight from '@icons/arrow-right.svg?react';
+import IconMinus from '@icons/minus.svg?react';
 export const LineageNodeToolbar = memo(function LineageNodeToolbar({
   data,
   expandLoading,
@@ -76,7 +72,7 @@ export const LineageNodeToolbar = memo(function LineageNodeToolbar({
 
 const CollapseButton = memo(function CollapseButton({ direction, onClick }) {
   const isUpstream = direction === 'upstream';
-  const Icon = isUpstream ? IconArrowBarToRight : IconArrowBarToLeft;
+  const Icon = isUpstream ? IconArrowRight : IconArrowLeft;
 
   return (
     <Button

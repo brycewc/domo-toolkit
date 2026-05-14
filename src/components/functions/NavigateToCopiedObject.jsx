@@ -1,34 +1,22 @@
-import {
-  Button,
-  Chip,
-  Dropdown,
-  Header,
-  Label,
-  Separator,
-  Spinner,
-  Tooltip
-} from '@heroui/react';
-import {
-  IconAlertTriangle,
-  IconClipboard,
-  IconExternalLink,
-  IconEye,
-  IconLayoutSidebarRightExpand
-} from '@tabler/icons-react';
+import { Button, Chip, Dropdown, Header, Label, Separator, Spinner, Tooltip } from '@heroui/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { DomoObject } from '@/models/DomoObject';
 import {
-  DomoObject,
+  fetchObjectDetailsInPage,
   getAllNavigableObjectTypes,
-  getAllObjectTypesWithApiConfig
-} from '@/models';
-import { fetchObjectDetailsInPage } from '@/services';
-import {
-  executeInPage,
-  isSidepanel,
-  openSidepanel,
-  storeSidepanelData
-} from '@/utils';
+  getAllObjectTypesWithApiConfig,
+  getObjectType
+} from '@/models/DomoObjectType';
+import { executeInPage } from '@/utils/executeInPage';
+import { isSidepanel, openSidepanel, storeSidepanelData } from '@/utils/sidepanel';
+import IconArrowSquareOut from '@icons/arrow-square-out.svg?react';
+import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
+import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
+import IconEye from '@icons/eye.svg?react';
+import IconRightRailFill from '@icons/right-rail-fill.svg?react';
+
+import { ObjectTypeIcon } from '../ObjectTypeIcon';
 
 const TYPE_PRIORITY = [
   'CARD',
@@ -56,7 +44,17 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
   const allTypes = useMemo(() => {
     const seen = new Set();
     return getAllNavigableObjectTypes()
-      .filter((type) => (type.hasUrl() ? !type.requiresParentForUrl() : true))
+      .filter((type) => {
+        // Types whose parent is resolvable from an ID alone (e.g. DATA_APP_VIEW)
+        // are always navigable — `buildObjectUrl` / `fetchObjectMetadata` fill
+        // the placeholder lazily via `DomoObject.getParent`.
+        if (type.canResolveParentFromIdAlone()) return true;
+        // Otherwise include only types that don't need a parent at all:
+        // URL types must not require one in the URL, sidepanel-only types must
+        // not require one in the API endpoint. Without this, manual picks
+        // would route to an empty ObjectDetailsView with no metadata fetched.
+        return type.hasUrl() ? !type.requiresParentForUrl() : !type.requiresParentForApi();
+      })
       .sort((a, b) => a.name.localeCompare(b.name))
       .filter((type) => {
         const key = type.urlPath || type.api?.endpoint;
@@ -69,10 +67,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
   }, []);
 
   const filteredTypes = useMemo(
-    () =>
-      copiedId
-        ? allTypes.filter((type) => type.isValidObjectId(copiedId))
-        : allTypes,
+    () => (copiedId ? allTypes.filter((type) => type.isValidObjectId(copiedId)) : allTypes),
     [allTypes, copiedId]
   );
 
@@ -96,11 +91,41 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
       return currentContext.instance;
     }
     return defaultDomoInstance || null;
-  }, [
-    currentContext?.isDomoPage,
-    currentContext?.instance,
-    defaultDomoInstance
-  ]);
+  }, [currentContext?.isDomoPage, currentContext?.instance, defaultDomoInstance]);
+
+  const fetchObjectMetadata = useCallback(
+    async (typeConfig, objectId, baseUrl) => {
+      const params = {
+        apiConfig: typeConfig.api,
+        baseUrl,
+        objectId,
+        parentId: null,
+        requiresParent: typeConfig.requiresParentForApi(),
+        throwOnError: false,
+        typeId: typeConfig.id
+      };
+
+      if (typeConfig.requiresParentForApi()) {
+        try {
+          const obj = new DomoObject(typeConfig.id, objectId, baseUrl);
+          params.parentId = await obj.getParent(false, null, currentContext?.tabId);
+        } catch {
+          return null;
+        }
+      }
+
+      try {
+        return await executeInPage(
+          fetchObjectDetailsInPage,
+          [params],
+          currentContext?.tabId
+        );
+      } catch {
+        return null;
+      }
+    },
+    [currentContext?.tabId]
+  );
 
   const readAndResolve = useCallback(async () => {
     const instance = getInstance();
@@ -146,66 +171,47 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
     for (const typeConfig of typesToTry) {
       if (abortRef.current !== runId) return;
 
-      try {
-        const params = {
-          apiConfig: typeConfig.api,
-          baseUrl,
-          objectId: text,
-          parentId: null,
-          requiresParent: typeConfig.requiresParentForApi(),
-          throwOnError: false,
-          typeId: typeConfig.id
-        };
+      const metadata = await fetchObjectMetadata(typeConfig, text, baseUrl);
 
-        if (typeConfig.requiresParentForApi()) {
-          try {
-            const obj = new DomoObject(typeConfig.id, text, baseUrl);
-            params.parentId = await obj.getParent(
-              false,
-              null,
-              currentContext?.tabId
-            );
-          } catch {
-            continue;
-          }
-        }
+      if (abortRef.current !== runId) return;
+      if (!metadata?.details) continue;
 
-        const metadata = await executeInPage(
-          fetchObjectDetailsInPage,
-          [params],
-          currentContext?.tabId
-        );
-
-        if (abortRef.current !== runId) return;
-
-        if (metadata?.details) {
-          if (
-            typeConfig.id === 'DATAFLOW_TYPE' &&
-            metadata.details.deleted === true
-          ) {
-            continue;
-          }
-
-          const domoObject = new DomoObject(typeConfig.id, text, baseUrl, {
-            details: metadata.details,
-            name: metadata.name
-          });
-
-          setResolvedObject(domoObject);
-          setError(null);
-          setIsLoading(false);
-          return;
-        }
-      } catch {
+      if (typeConfig.id === 'DATAFLOW_TYPE' && metadata.details.deleted === true) {
         continue;
       }
+      if (typeConfig.id === 'DATA_APP_VIEW' && metadata.details.type !== 'dav') {
+        continue;
+      }
+      if (typeConfig.id === 'PAGE' && metadata.details.type !== 'page') {
+        continue;
+      }
+      // TEMPLATE and CERTIFICATION_PROCESS share the same API endpoint —
+      // discriminate by `details.type`: 'AC' → TEMPLATE, anything else → CERTIFICATION_PROCESS.
+      if (typeConfig.id === 'TEMPLATE' && metadata.details.type !== 'AC') {
+        continue;
+      }
+      if (
+        typeConfig.id === 'CERTIFICATION_PROCESS' &&
+        (!metadata.details.type || metadata.details.type === 'AC')
+      ) {
+        continue;
+      }
+
+      const domoObject = buildResolvedDomoObject(typeConfig, metadata, baseUrl, text);
+      // STREAM without an associated dataset can't redirect — try next type.
+      if (!domoObject) continue;
+
+      setResolvedObject(domoObject);
+      setError(null);
+      setIsLoading(false);
+      return;
     }
 
     if (abortRef.current === runId) {
       setError('Could not determine object type');
       setIsLoading(false);
     }
-  }, [currentContext?.tabId, getInstance]);
+  }, [fetchObjectMetadata, getInstance]);
 
   const handleOpenChange = useCallback(
     (open) => {
@@ -246,19 +252,14 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
           );
         });
       } catch (err) {
-        onStatusUpdate?.(
-          'Error',
-          err.message || 'An error occurred',
-          'danger',
-          4000
-        );
+        onStatusUpdate?.('Error', err.message || 'An error occurred', 'danger', 4000);
       }
     },
     [currentContext, onStatusUpdate]
   );
 
   const handleAction = useCallback(
-    (key) => {
+    async (key) => {
       setIsOpen(false);
 
       if (key === '_resolved' && resolvedObject) {
@@ -272,15 +273,40 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
       const instance = getInstance();
       if (!instance) return;
 
+      const typeConfig = getObjectType(key);
+      if (!typeConfig) return;
+
       const baseUrl = `https://${instance}.domo.com`;
-      const domoObject = new DomoObject(key, copiedId, baseUrl);
+
+      // Sidepanel-bound types (no URL) fetch metadata up front so
+      // ObjectDetailsView renders with data instead of an empty card; STREAM
+      // also fetches because it redirects to its associated dataset.
+      let domoObject;
+      if (!typeConfig.hasUrl() && typeConfig.hasApiConfig()) {
+        const metadata = await fetchObjectMetadata(typeConfig, copiedId, baseUrl);
+        if (metadata?.details) {
+          domoObject = buildResolvedDomoObject(typeConfig, metadata, baseUrl, copiedId);
+        }
+        if (!domoObject && typeConfig.id === 'STREAM') {
+          onStatusUpdate?.(
+            'No DataSet Found',
+            'Could not find a dataset associated with this stream',
+            'warning',
+            4000
+          );
+          return;
+        }
+      }
+
+      if (!domoObject) {
+        domoObject = new DomoObject(key, copiedId, baseUrl);
+      }
       handleNavigate(domoObject);
     },
-    [copiedId, getInstance, handleNavigate, resolvedObject]
+    [copiedId, fetchObjectMetadata, getInstance, handleNavigate, onStatusUpdate, resolvedObject]
   );
 
-  const needsDefaultInstance =
-    !currentContext?.isDomoPage && !defaultDomoInstance;
+  const needsDefaultInstance = !currentContext?.isDomoPage && !defaultDomoInstance;
 
   if (needsDefaultInstance) {
     return (
@@ -292,9 +318,12 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
           variant='tertiary'
           onPress={() => {}}
         >
-          <IconExternalLink stroke={1.5} />
+          <IconArrowSquareOut />
         </Button>
-        <Tooltip.Content placement='top'>
+        <Tooltip.Content
+          className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+          offset={4}
+        >
           Set a default Domo instance in settings
         </Tooltip.Content>
       </Tooltip>
@@ -305,9 +334,12 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
     <Dropdown isOpen={isOpen} onOpenChange={handleOpenChange}>
       <Tooltip closeDelay={0} delay={400}>
         <Button fullWidth isIconOnly variant='tertiary'>
-          <IconExternalLink stroke={1.5} />
+          <IconArrowSquareOut />
         </Button>
-        <Tooltip.Content placement='top'>
+        <Tooltip.Content
+          className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+          offset={4}
+        >
           Navigate to copied object
         </Tooltip.Content>
       </Tooltip>
@@ -316,8 +348,8 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
         placement='bottom'
       >
         {copiedId && (
-          <div className='text-s pointer-events-none flex shrink-0 items-center gap-1 px-4 pt-2 font-mono text-muted select-none'>
-            <IconClipboard size={12} stroke={1.5} />
+          <div className='pointer-events-none flex shrink-0 items-center gap-1 px-2 pt-2 font-mono text-xs text-muted select-none'>
+            <IconClipboardCopy size={12} />
             <p title='Current clipboard value'>{copiedId}</p>
           </div>
         )}
@@ -327,11 +359,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
         >
           <Dropdown.Section>
             <Header>Auto-detected</Header>
-            <Dropdown.Item
-              className={isLoading ? '' : 'hidden'}
-              id='_loading'
-              textValue='Loading'
-            >
+            <Dropdown.Item className={isLoading ? '' : 'hidden'} id='_loading' textValue='Loading'>
               <Spinner color='currentColor' size='sm' />
               <Label>Resolving...</Label>
             </Dropdown.Item>
@@ -340,34 +368,29 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
               id='_error'
               textValue={error || 'Error'}
             >
-              <IconAlertTriangle className='size-5 shrink-0' stroke={1.5} />
+              <IconExclamationTriangle className='size-5 shrink-0' />
               <Label className='text-muted'>{error}</Label>
             </Dropdown.Item>
             <Dropdown.Item
+              className={resolvedObject && !isLoading ? 'items-start' : 'hidden'}
               id='_resolved'
               textValue='Navigate'
-              className={
-                resolvedObject && !isLoading ? 'items-start' : 'hidden'
-              }
             >
-              {resolvedObject?.hasUrl() ? (
-                <IconExternalLink className='size-5 shrink-0' stroke={1.5} />
-              ) : (
-                <IconEye className='size-5 shrink-0' stroke={1.5} />
-              )}
+              <ObjectTypeIcon
+                className='size-5 shrink-0'
+                typeId={resolvedObject?.typeId}
+              />
               <div className='flex flex-col gap-1'>
-                <Chip
-                  className='w-fit lowercase'
-                  color='accent'
-                  size='sm'
-                  variant='soft'
-                >
+                <Chip className='w-fit lowercase' color='accent' size='sm' variant='soft'>
                   {resolvedObject?.typeName}
                 </Chip>
-                <Label className='font-medium'>
-                  {resolvedObject?.metadata?.name || copiedId}
-                </Label>
+                <Label className='font-medium'>{resolvedObject?.metadata?.name || copiedId}</Label>
               </div>
+              {resolvedObject?.hasUrl() ? (
+                <IconArrowSquareOut className='ml-auto size-5 shrink-0' />
+              ) : (
+                <IconEye className='ml-auto size-5 shrink-0' />
+              )}
             </Dropdown.Item>
           </Dropdown.Section>
 
@@ -377,23 +400,14 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
               <Dropdown.Section>
                 <Header>Manual selection</Header>
                 {filteredTypes.map((type) => (
-                  <Dropdown.Item
-                    id={type.id}
-                    key={type.id}
-                    textValue={type.name}
-                  >
-                    {type.hasUrl() ? (
-                      <IconExternalLink
-                        className='size-5 shrink-0'
-                        stroke={1.5}
-                      />
-                    ) : (
-                      <IconLayoutSidebarRightExpand
-                        className='size-5 shrink-0'
-                        stroke={1.5}
-                      />
-                    )}
+                  <Dropdown.Item id={type.id} key={type.id} textValue={type.name}>
+                    <ObjectTypeIcon className='size-5 shrink-0' typeId={type.id} />
                     <Label>{type.name}</Label>
+                    {type.hasUrl() || type.redirectsToType ? (
+                      <IconArrowSquareOut className='ml-auto size-5 shrink-0' />
+                    ) : (
+                      <IconRightRailFill className='ml-auto size-5 shrink-0' />
+                    )}
                   </Dropdown.Item>
                 ))}
               </Dropdown.Section>
@@ -402,6 +416,41 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
         </Dropdown.Menu>
       </Dropdown.Popover>
     </Dropdown>
+  );
+}
+
+function buildDomoMetadata(typeConfig, metadata) {
+  const domoMetadata = {
+    details: metadata.details,
+    name: metadata.name
+  };
+  // CERTIFICATION_PROCESS doesn't go through the page-detection pipeline, so
+  // the clipboard flow has to add the context discriminator itself.
+  if (typeConfig.id === 'CERTIFICATION_PROCESS' && metadata.details?.type) {
+    domoMetadata.context = {
+      certifiedType: metadata.details.type.startsWith('CC:CARD')
+        ? 'certified-cards'
+        : 'certified-datasets'
+    };
+  }
+  return domoMetadata;
+}
+
+function buildResolvedDomoObject(typeConfig, metadata, baseUrl, fallbackId) {
+  // STREAM has no UI of its own in Domo — redirect to its associated dataset.
+  if (typeConfig.id === 'STREAM') {
+    const datasetId = metadata.details?.dataSource?.id;
+    if (!datasetId) return null;
+    return new DomoObject('DATA_SOURCE', datasetId, baseUrl, {
+      details: metadata.details.dataSource,
+      name: metadata.details.dataSource.name
+    });
+  }
+  return new DomoObject(
+    typeConfig.id,
+    fallbackId,
+    baseUrl,
+    buildDomoMetadata(typeConfig, metadata)
   );
 }
 

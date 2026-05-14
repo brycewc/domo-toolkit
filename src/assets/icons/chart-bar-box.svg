@@ -1,0 +1,10 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Card">
+<g id="Vector">
+<path d="M22 18C22 17.4477 21.5523 17 21 17C20.4477 17 20 17.4477 20 18V22C20 22.5523 20.4477 23 21 23C21.5523 23 22 22.5523 22 22V18Z" fill="currentColor"/>
+<path d="M11 13C11.5523 13 12 13.4477 12 14V22C12 22.5523 11.5523 23 11 23C10.4477 23 10 22.5523 10 22V14C10 13.4477 10.4477 13 11 13Z" fill="currentColor"/>
+<path d="M17 10C17 9.44772 16.5523 9 16 9C15.4477 9 15 9.44772 15 10V22C15 22.5523 15.4477 23 16 23C16.5523 23 17 22.5523 17 22V10Z" fill="currentColor"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M6 4C4.89543 4 4 4.89543 4 6V26C4 27.1046 4.89543 28 6 28H26C27.1046 28 28 27.1046 28 26V6C28 4.89543 27.1046 4 26 4H6ZM6 6L26 6V26H6V6Z" fill="currentColor"/>
+</g>
+</g>
+</svg>

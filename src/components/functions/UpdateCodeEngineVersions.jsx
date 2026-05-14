@@ -1,7 +1,7 @@
-import { Button } from '@heroui/react';
-import { IconPackages } from '@tabler/icons-react';
+import { Button, Tooltip } from '@heroui/react';
 
-import { launchView } from '@/utils';
+import { launchView } from '@/utils/sidepanel';
+import IconPackage from '@icons/package.svg?react';
 
 export function UpdateCodeEngineVersions({
   currentContext,
@@ -10,21 +10,29 @@ export function UpdateCodeEngineVersions({
   onStatusUpdate
 }) {
   return (
-    <Button
-      fullWidth
-      className='min-w-36 flex-1 whitespace-normal'
-      isDisabled={isDisabled}
-      variant='tertiary'
-      onPress={() =>
-        launchView({
-          currentContext,
-          onCollapseActions,
-          onStatusUpdate,
-          type: 'updateCodeEngineVersions'
-        })
-      }
-    >
-      <IconPackages stroke={1.5} /> Update Code Engine Versions
-    </Button>
+    <Tooltip closeDelay={100} delay={600}>
+      <Button
+        fullWidth
+        className='min-w-36 flex-1 whitespace-normal'
+        isDisabled={isDisabled}
+        variant='tertiary'
+        onPress={() =>
+          launchView({
+            currentContext,
+            onCollapseActions,
+            onStatusUpdate,
+            type: 'updateCodeEngineVersions'
+          })
+        }
+      >
+        <IconPackage /> Update Code Engine Versions
+      </Button>
+      <Tooltip.Content
+        className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+        offset={4}
+      >
+        Update code engine package versions on cards
+      </Tooltip.Content>
+    </Tooltip>
   );
 }

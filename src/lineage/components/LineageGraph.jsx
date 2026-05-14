@@ -1,6 +1,5 @@
 import dagre from '@dagrejs/dagre';
 import { Spinner, Surface } from '@heroui/react';
-import { IconArrowFork, IconDatabase } from '@tabler/icons-react';
 import {
   Background,
   Controls,
@@ -25,6 +24,8 @@ import {
 } from 'react';
 
 import { useTheme } from '@/hooks/useTheme';
+import IconDatabase from '@icons/database.svg?react';
+import IconDataflow from '@icons/dataflow.svg?react';
 
 import { LineageNodeToolbar } from './LineageNodeToolbar';
 
@@ -32,7 +33,7 @@ const LineageGraphContext = createContext(null);
 
 const NODE_ICONS = {
   DATA_SOURCE: IconDatabase,
-  DATAFLOW: IconArrowFork
+  DATAFLOW: IconDataflow
 };
 
 function formatNumber(n) {
@@ -62,32 +63,24 @@ const LineageNode = memo(function LineageNode({ data, id }) {
   let badge = '';
   if (data.entityType === 'DATA_SOURCE') {
     const parts = [];
-    if (meta?.rowCount != null)
-      parts.push(`${formatNumber(meta.rowCount)} rows`);
-    if (meta?.columnCount != null)
-      parts.push(`${formatNumber(meta.columnCount)} columns`);
+    if (meta?.rowCount != null) parts.push(`${formatNumber(meta.rowCount)} rows`);
+    if (meta?.columnCount != null) parts.push(`${formatNumber(meta.columnCount)} columns`);
     badge = parts.join(' | ');
   }
 
   const dataflowBadge = useMemo(() => {
-    if (data.entityType !== 'DATAFLOW' || !meta?.lastExecution?.endTime)
-      return null;
-    const formatted = new Date(meta.lastExecution.endTime).toLocaleDateString(
-      undefined,
-      {
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-        month: 'short'
-      }
-    );
+    if (data.entityType !== 'DATAFLOW' || !meta?.lastExecution?.endTime) return null;
+    const formatted = new Date(meta.lastExecution.endTime).toLocaleDateString(undefined, {
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      month: 'short'
+    });
     return `Last run ${formatted}`;
   }, [data.entityType, meta]);
 
   const nameContent = hasName ? data.label : data.entityId;
-  const nameTitle = hasName
-    ? `${data.label} (ID: ${data.entityId})`
-    : `ID: ${data.entityId}`;
+  const nameTitle = hasName ? `${data.label} (ID: ${data.entityId})` : `ID: ${data.entityId}`;
 
   const stripe = data.isRoot
     ? 'bg-success'
@@ -105,16 +98,10 @@ const LineageNode = memo(function LineageNode({ data, id }) {
           : ''
       }`}
     >
-      {data.hasIncoming && (
-        <Handle className='size-2' position={Position.Left} type='target' />
-      )}
+      {data.hasIncoming && <Handle className='size-2' position={Position.Left} type='target' />}
 
-      <div
-        className={`flex w-8 shrink-0 items-center justify-center border-none ${stripe}`}
-      >
-        <Icon
-          className={`size-5 text-white ${data.entityType === 'DATAFLOW' ? 'rotate-180' : ''}`}
-        />
+      <div className={`flex w-8 shrink-0 items-center justify-center border-none ${stripe}`}>
+        <Icon className='size-5 text-white' />
       </div>
 
       <div className='flex min-h-20 min-w-0 flex-1 flex-col items-start justify-between gap-2 px-3 py-1.5'>
@@ -130,25 +117,18 @@ const LineageNode = memo(function LineageNode({ data, id }) {
             {nameContent}
           </a>
         ) : (
-          <div
-            className='line-clamp-3 text-sm font-medium wrap-break-word'
-            title={nameTitle}
-          >
+          <div className='line-clamp-3 text-sm font-medium wrap-break-word' title={nameTitle}>
             {nameContent}
           </div>
         )}
         <div className='truncate font-mono text-xs text-muted'>
           {hasName ? data.entityId : data.entityType}
           {badge && <div className='text-xs text-muted'>{badge}</div>}
-          {dataflowBadge && (
-            <div className='text-xs text-muted'>{dataflowBadge}</div>
-          )}
+          {dataflowBadge && <div className='text-xs text-muted'>{dataflowBadge}</div>}
         </div>
       </div>
 
-      {data.hasOutgoing && (
-        <Handle className='size-2' position={Position.Right} type='source' />
-      )}
+      {data.hasOutgoing && <Handle className='size-2' position={Position.Right} type='source' />}
 
       {isSelected && (
         <LineageNodeToolbar
@@ -172,7 +152,12 @@ function estimateNodeHeight() {
 const nodeTypes = { pipeline: LineageNode };
 
 const WORKER_THRESHOLD = 30;
-const DAGRE_OPTIONS = { marginx: 40, marginy: 40, rankdir: 'LR', ranksep: 80 };
+const DAGRE_OPTIONS = {
+  marginx: 40,
+  marginy: 40,
+  rankdir: 'LR',
+  ranksep: 80
+};
 
 const defaultEdgeOptions = {
   animated: false,
@@ -301,14 +286,7 @@ export function LineageGraph({
       onExpandNode,
       selectedNodeId
     }),
-    [
-      expandLoading,
-      highlightedDepth,
-      instance,
-      onCollapseNode,
-      onExpandNode,
-      selectedNodeId
-    ]
+    [expandLoading, highlightedDepth, instance, onCollapseNode, onExpandNode, selectedNodeId]
   );
 
   if (loading) {
@@ -435,10 +413,9 @@ function useLayout(trace) {
       target: e.targetId
     }));
 
-    const worker = new Worker(
-      new URL('../services/layoutWorker.js', import.meta.url),
-      { type: 'module' }
-    );
+    const worker = new Worker(new URL('../services/layoutWorker.js', import.meta.url), {
+      type: 'module'
+    });
 
     worker.onmessage = ({ data: { positions: rawPositions } }) => {
       const positions = new Map(Object.entries(rawPositions));

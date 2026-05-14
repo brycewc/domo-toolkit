@@ -9,33 +9,41 @@ import {
   Tabs,
   Tooltip
 } from '@heroui/react';
-import { IconClipboard } from '@tabler/icons-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import JsonView from 'react18-json-view';
 
-import { useGroupLookup, useUserLookup } from '@/hooks';
-import { getObjectType } from '@/models';
-import { fetchObjectDetailsInPage } from '@/services';
+import { useGroupLookup } from '@/hooks/useGroupLookup';
+import { useUserLookup } from '@/hooks/useUserLookup';
+import { fetchObjectDetailsInPage, getObjectType } from '@/models/DomoObjectType';
+import { getDatasetColumns, getDatasetsForPage } from '@/services/datasets';
+import { executeInPage } from '@/utils/executeInPage';
 import {
-  executeInPage,
   formatEpochTimestamp,
   isDateFieldName,
   isGroupFieldName,
   isUserFieldName
-} from '@/utils';
+} from '@/utils/general';
+import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
+
+// Maps relatedData[].fetcher key → (params) => Promise<Array>. Lives here
+// (not in DomoObjectType.js) so the type model stays import-free of services.
+// Adding a new lazy-array fetcher = one entry here + one `fetcher: '<key>'` on
+// the relatedData entry.
+const LAZY_ARRAY_FETCHERS = {
+  datasetColumns: ({ objectId, tabId }) => getDatasetColumns({ datasetId: objectId, tabId }),
+  datasetsForPage: ({ objectId, tabId }) => getDatasetsForPage({ pageId: objectId, tabId })
+};
 
 import { AlertStatusIcon } from './AlertStatusIcon';
 import { AnimatedCheck } from './AnimatedCheck';
 import { GroupIdAnnotation } from './GroupIdAnnotation';
+import { ObjectTypeIcon } from './ObjectTypeIcon';
 import { TimestampAnnotation } from './TimestampAnnotation';
-import { UserIdAnnotation } from './UserIdAnnotation';
 import '@/assets/json-view-theme.css';
 
-export function ContextFooter({
-  currentContext,
-  isLoading,
-  onStatusUpdate: _onStatusUpdate
-}) {
+import { UserIdAnnotation } from './UserIdAnnotation';
+
+export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onStatusUpdate }) {
   const [developerMode, setDeveloperMode] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [relatedCache, setRelatedCache] = useState({});
@@ -69,9 +77,7 @@ export function ContextFooter({
     if (!typeModel) return [];
 
     // First tab: current object (use 'self' label override if configured)
-    const selfLabel = typeModel.relatedObjects?.find(
-      (r) => r.source === 'self'
-    )?.label;
+    const selfLabel = typeModel.relatedData?.find((r) => r.source === 'self')?.label;
     const result = [
       {
         details: domoObject.metadata?.details || domoObject.metadata,
@@ -82,12 +88,34 @@ export function ContextFooter({
       }
     ];
 
-    // Additional tabs from relatedObjects config
-    if (typeModel.relatedObjects) {
-      for (const related of typeModel.relatedObjects) {
+    // Additional tabs from relatedData config
+    if (typeModel.relatedData) {
+      for (const related of typeModel.relatedData) {
         if (related.source === 'self') continue;
         if (related.isArray) {
-          const arrayData = domoObject.metadata?.details?.[related.field];
+          // Lazy: presence of `fetcher` defers the load until tab activation.
+          // Data lands in relatedCache; count appended at render time.
+          if (related.fetcher) {
+            result.push({
+              fetcher: related.fetcher,
+              id: related.field || related.fetcher,
+              isArray: true,
+              isCurrentObject: false,
+              itemIdField: related.itemIdField,
+              itemTypeField: related.itemTypeField,
+              itemTypeId: related.itemTypeId,
+              label: related.label,
+              parentId: resolveRelatedParentId(related, domoObject)
+            });
+            continue;
+          }
+          const arrayBase =
+            related.fieldSource === 'context'
+              ? domoObject.metadata?.context
+              : related.fieldSource === 'parent'
+                ? domoObject.metadata?.parent?.details
+                : domoObject.metadata?.details;
+          const arrayData = arrayBase?.[related.field];
           if (arrayData?.length > 0) {
             result.push({
               data: arrayData,
@@ -123,9 +151,13 @@ export function ContextFooter({
         if (related.source === 'parentId') {
           relatedId = domoObject.parentId;
         } else {
-          relatedId = related.field
-            .split('.')
-            .reduce((obj, key) => obj?.[key], domoObject.metadata?.details);
+          const fieldBase =
+            related.fieldSource === 'context'
+              ? domoObject.metadata?.context
+              : related.fieldSource === 'parent'
+                ? domoObject.metadata?.parent?.details
+                : domoObject.metadata?.details;
+          relatedId = related.field.split('.').reduce((obj, key) => obj?.[key], fieldBase);
         }
 
         if (relatedId) {
@@ -177,18 +209,14 @@ export function ContextFooter({
   const activeTab = tabs.find((t) => t.id === activeTabId);
   const activeSrc = useMemo(() => {
     if (!activeTab) {
-      return (
-        currentContext?.domoObject?.metadata?.details ||
-        currentContext?.domoObject?.metadata
-      );
+      return currentContext?.domoObject?.metadata?.details || currentContext?.domoObject?.metadata;
     }
     if (activeTab.isCurrentObject) {
-      return (
-        currentContext?.domoObject?.metadata?.details ||
-        currentContext?.domoObject?.metadata
-      );
+      return currentContext?.domoObject?.metadata?.details || currentContext?.domoObject?.metadata;
     }
-    if (activeTab.isArray) return activeTab.data;
+    if (activeTab.isArray) {
+      return activeTab.fetcher ? relatedCache[activeTabId] : activeTab.data;
+    }
     if (activeTab.isFullContext) return currentContext;
     return relatedCache[activeTabId] || null;
   }, [activeTab, activeTabId, currentContext, relatedCache]);
@@ -199,17 +227,13 @@ export function ContextFooter({
   const handleTabChange = async (key) => {
     setActiveTabId(key);
 
-    // Skip if it's the current object tab, an array tab, or already cached/loading
+    // Skip if it's the current object tab or already cached/loading
     const tab = tabs.find((t) => t.id === key);
-    if (
-      !tab ||
-      tab.isCurrentObject ||
-      tab.isArray ||
-      relatedCache[key] ||
-      loadingTabs[key]
-    ) {
+    if (!tab || tab.isCurrentObject || relatedCache[key] || loadingTabs[key]) {
       return;
     }
+    // Eager arrays carry their data on the tab — nothing to fetch
+    if (tab.isArray && !tab.fetcher) return;
 
     // Seed cache from preloaded parent data (no fetch needed)
     if (tab.preloaded) {
@@ -217,35 +241,49 @@ export function ContextFooter({
       return;
     }
 
-    const relatedType = getObjectType(tab.typeId);
-    if (!relatedType?.api) return;
-
     setLoadingTabs((prev) => ({ ...prev, [key]: true }));
 
     try {
-      const params = {
-        apiConfig: relatedType.api,
-        baseUrl: currentContext?.domoObject?.baseUrl,
-        objectId: tab.objectId,
-        parentId: tab.parentId || null,
-        requiresParent: relatedType.requiresParentForApi(),
-        throwOnError: false,
-        typeId: relatedType.id
-      };
-
-      const metadata = await executeInPage(
-        fetchObjectDetailsInPage,
-        [params],
-        currentContext?.tabId
-      );
-
-      if (metadata?.details) {
-        setRelatedCache((prev) => ({ ...prev, [key]: metadata.details }));
+      if (tab.fetcher) {
+        // Lazy array: dispatch to the registered fetcher, store the array in cache.
+        const fetcher = LAZY_ARRAY_FETCHERS[tab.fetcher];
+        if (!fetcher) throw new Error(`Unknown lazy array fetcher: ${tab.fetcher}`);
+        const arr = await fetcher({
+          objectId: currentContext?.domoObject?.id,
+          tabId: currentContext?.tabId
+        });
+        setRelatedCache((prev) => ({ ...prev, [key]: arr ?? [] }));
       } else {
-        setRelatedCache((prev) => ({
-          ...prev,
-          [key]: { error: 'No details available' }
-        }));
+        const relatedType = getObjectType(tab.typeId);
+        if (!relatedType?.api) {
+          setLoadingTabs((prev) => ({ ...prev, [key]: false }));
+          return;
+        }
+
+        const params = {
+          apiConfig: relatedType.api,
+          baseUrl: currentContext?.domoObject?.baseUrl,
+          objectId: tab.objectId,
+          parentId: tab.parentId || null,
+          requiresParent: relatedType.requiresParentForApi(),
+          throwOnError: false,
+          typeId: relatedType.id
+        };
+
+        const metadata = await executeInPage(
+          fetchObjectDetailsInPage,
+          [params],
+          currentContext?.tabId
+        );
+
+        if (metadata?.details) {
+          setRelatedCache((prev) => ({ ...prev, [key]: metadata.details }));
+        } else {
+          setRelatedCache((prev) => ({
+            ...prev,
+            [key]: { error: 'No details available' }
+          }));
+        }
       }
     } catch (error) {
       console.error(`[ContextFooter] Error fetching ${key} details:`, error);
@@ -269,15 +307,28 @@ export function ContextFooter({
           groupMap={groupMap}
           userMap={userMap}
           src={
-            currentContext?.domoObject?.metadata?.details ||
-            currentContext?.domoObject?.metadata
+            currentContext?.domoObject?.metadata?.details || currentContext?.domoObject?.metadata
           }
         />
       );
     }
 
     if (activeTab.isArray) {
-      const src = injectUrls(activeTab.data, {
+      const arrayData = activeTab.fetcher ? relatedCache[activeTabId] : activeTab.data;
+      if (activeTab.fetcher) {
+        if (loadingTabs[activeTabId]) {
+          return (
+            <div className='flex items-center justify-center py-4'>
+              <Spinner size='sm' />
+            </div>
+          );
+        }
+        if (arrayData?.error) {
+          return <p className='p-2 text-xs text-danger'>{arrayData.error}</p>;
+        }
+        if (!Array.isArray(arrayData)) return null;
+      }
+      const src = injectUrls(arrayData, {
         baseUrl,
         isArray: true,
         itemIdField: activeTab.itemIdField,
@@ -285,24 +336,11 @@ export function ContextFooter({
         itemTypeId: activeTab.itemTypeId,
         parentId: activeTab.parentId
       });
-      return (
-        <MetadataJsonView
-          collapsed={2}
-          groupMap={groupMap}
-          src={src}
-          userMap={userMap}
-        />
-      );
+      return <MetadataJsonView collapsed={2} groupMap={groupMap} src={src} userMap={userMap} />;
     }
 
     if (activeTab.isFullContext) {
-      return (
-        <MetadataJsonView
-          groupMap={groupMap}
-          src={currentContext}
-          userMap={userMap}
-        />
-      );
+      return <MetadataJsonView groupMap={groupMap} src={currentContext} userMap={userMap} />;
     }
 
     if (loadingTabs[activeTabId]) {
@@ -320,21 +358,15 @@ export function ContextFooter({
         parentId: activeTab.parentId,
         typeId: activeTab.typeId
       });
-      return (
-        <MetadataJsonView groupMap={groupMap} src={src} userMap={userMap} />
-      );
+      return <MetadataJsonView groupMap={groupMap} src={src} userMap={userMap} />;
     }
 
-    return (
-      <p className='py-2 text-center text-sm text-muted'>
-        Select this tab to load details
-      </p>
-    );
+    return <p className='py-2 text-center text-sm text-muted'>Select this tab to load details</p>;
   };
 
   const alertContent = (
     <Alert
-      className='min-h-20 w-full p-2'
+      className='min-h-22 w-full p-2'
       status={currentContext?.isDomoPage || isLoading ? 'accent' : 'warning'}
     >
       <Alert.Content className='flex flex-col items-start gap-2'>
@@ -342,18 +374,9 @@ export function ContextFooter({
           <div className='skeleton--shimmer relative flex w-full flex-col gap-2 overflow-hidden'>
             <div className='flex w-full items-center justify-between'>
               <div className='flex items-center gap-x-1'>
-                <Skeleton
-                  animationType='none'
-                  className='h-4 w-24 rounded-md'
-                />
-                <Skeleton
-                  animationType='none'
-                  className='h-5 w-12 rounded-2xl'
-                />
-                <Skeleton
-                  animationType='none'
-                  className='h-5 w-12 rounded-2xl'
-                />
+                <Skeleton animationType='none' className='h-4 w-24 rounded-md' />
+                <Skeleton animationType='none' className='h-5 w-12 rounded-2xl' />
+                <Skeleton animationType='none' className='h-5 w-12 rounded-2xl' />
               </div>
               <Skeleton animationType='none' className='h-5 w-5 rounded-full' />
             </div>
@@ -368,43 +391,27 @@ export function ContextFooter({
               data-slot='alert-title'
             >
               {currentContext?.isDomoPage ? (
-                <div className='flex flex-wrap items-center gap-x-1'>
-                  <span className='flex flex-wrap items-center justify-start gap-x-1'>
+                <div className='flex min-w-0 flex-1 items-center gap-x-1'>
+                  <span className='min-w-0 truncate' title='Current Context'>
                     Current Context
                   </span>
                   <Tooltip closeDelay={0} delay={400}>
-                    <Tooltip.Trigger className='flex items-center'>
-                      <Chip
-                        className='w-fit lowercase'
-                        color='accent'
-                        size='sm'
-                        variant='soft'
-                      >
+                    <Tooltip.Trigger className='flex shrink-0 items-center'>
+                      <Chip className='w-fit lowercase' color='accent' size='sm' variant='soft'>
                         {currentContext?.instance}
                       </Chip>
                     </Tooltip.Trigger>
-                    <Tooltip.Content>
-                      Instance: {currentContext?.instance}.domo.com
-                    </Tooltip.Content>
+                    <Tooltip.Content>Instance: {currentContext?.instance}.domo.com</Tooltip.Content>
                   </Tooltip>
                   <Tooltip closeDelay={0} delay={400}>
-                    <Tooltip.Trigger className='flex items-center'>
-                      <Chip
-                        className='w-fit lowercase'
-                        color='accent'
-                        size='sm'
-                        variant='soft'
-                      >
+                    <Tooltip.Trigger className='flex shrink-0 items-center'>
+                      <Chip className='w-fit lowercase' color='accent' size='sm' variant='soft'>
+                        <ObjectTypeIcon typeId={currentContext?.domoObject?.typeId} />
                         {currentContext?.domoObject?.typeName}
                       </Chip>
                     </Tooltip.Trigger>
                     <Tooltip.Content className='flex items-center rounded p-0'>
-                      <Chip
-                        className='w-fit rounded-xl'
-                        color='accent'
-                        size='sm'
-                        variant='soft'
-                      >
+                      <Chip className='w-fit rounded-xl' color='accent' size='sm' variant='soft'>
                         {currentContext?.domoObject?.typeId}
                       </Chip>
                     </Tooltip.Content>
@@ -416,35 +423,39 @@ export function ContextFooter({
               <Tooltip
                 closeDelay={0}
                 delay={400}
-                isDisabled={
-                  !currentContext?.domoObject?.id || !currentContext?.isDomoPage
-                }
+                isDisabled={!currentContext?.domoObject?.id || !currentContext?.isDomoPage}
               >
                 <Tooltip.Trigger>
                   <Alert.Indicator>
                     <AlertStatusIcon />
                   </Alert.Indicator>
                 </Tooltip.Trigger>
-                <Tooltip.Content>
-                  Click to toggle context JSON view
-                </Tooltip.Content>
+                <Tooltip.Content>Click to toggle context JSON view</Tooltip.Content>
               </Tooltip>
             </div>
-            <Alert.Description className='flex h-full flex-col flex-wrap items-start justify-center gap-1'>
-              {currentContext?.isDomoPage ? (
-                !currentContext?.instance || !currentContext?.domoObject?.id ? (
-                  'No object detected on this page'
-                ) : (
-                  <div className='flex flex-wrap items-center justify-start gap-x-1'>
-                    <span className='text-left font-medium'>
-                      {currentContext?.domoObject?.metadata?.name}
+            <Alert.Description className='flex h-full w-full min-w-0 flex-col items-start justify-start gap-1 text-left'>
+              <div className='flex w-full min-w-0 flex-col items-start justify-start text-left'>
+                {currentContext?.isDomoPage ? (
+                  !currentContext?.instance || !currentContext?.domoObject?.id ? (
+                    <span className='w-full truncate text-left font-medium'>
+                      No object detected on this page
                     </span>
-                    <span>ID: {currentContext?.domoObject?.id}</span>
-                  </div>
-                )
-              ) : (
-                'Navigate to an instance to enable most features'
-              )}
+                  ) : (
+                    <>
+                      <span className='w-full truncate text-left font-medium'>
+                        {currentContext?.domoObject?.metadata?.name}
+                      </span>
+                      <span className='w-full truncate text-left'>
+                        ID: {currentContext?.domoObject?.id}
+                      </span>
+                    </>
+                  )
+                ) : (
+                  <span className='w-full truncate text-left font-medium'>
+                    Navigate to an instance to enable most features
+                  </span>
+                )}
+              </div>
             </Alert.Description>
           </>
         )}
@@ -453,11 +464,7 @@ export function ContextFooter({
   );
 
   // No disclosure when not on a Domo page or no object
-  if (
-    !currentContext?.isDomoPage ||
-    isLoading ||
-    !currentContext?.domoObject?.id
-  ) {
+  if (!currentContext?.isDomoPage || isLoading || !currentContext?.domoObject?.id) {
     return alertContent;
   }
 
@@ -469,9 +476,7 @@ export function ContextFooter({
       onExpandedChange={setIsExpanded}
     >
       <Disclosure.Heading>
-        <Disclosure.Trigger className='w-full cursor-pointer'>
-          {alertContent}
-        </Disclosure.Trigger>
+        <Disclosure.Trigger className='w-full cursor-pointer'>{alertContent}</Disclosure.Trigger>
       </Disclosure.Heading>
       <Disclosure.Content
         className={`card flex min-h-0 flex-1 flex-col bg-surface p-0 ${isExpanded ? '' : 'collapse'}`}
@@ -492,25 +497,22 @@ export function ContextFooter({
                   orientation='horizontal'
                   size={40}
                 >
-                  <Tabs.List
-                    aria-label='Object details'
-                    className='w-fit min-w-full flex-nowrap'
-                  >
-                    {tabs.map((tab) => (
-                      <Tabs.Tab
-                        className='min-w-32 flex-1 capitalize'
-                        id={tab.id}
-                        key={tab.id}
-                      >
-                        <span
-                          className='line-clamp-2 text-center'
-                          title={tab.label}
-                        >
-                          {tab.label}
-                        </span>
-                        <Tabs.Indicator />
-                      </Tabs.Tab>
-                    ))}
+                  <Tabs.List aria-label='Object details' className='w-fit min-w-full flex-nowrap'>
+                    {tabs.map((tab) => {
+                      const cached = relatedCache[tab.id];
+                      const lazyCountSuffix = tab.fetcher
+                        ? ` (${Array.isArray(cached) ? cached.length : '...'})`
+                        : '';
+                      const displayLabel = `${tab.label}${lazyCountSuffix}`;
+                      return (
+                        <Tabs.Tab className='min-w-32 flex-1 capitalize' id={tab.id} key={tab.id}>
+                          <span className='line-clamp-2 text-center' title={displayLabel}>
+                            {displayLabel}
+                          </span>
+                          <Tabs.Indicator />
+                        </Tabs.Tab>
+                      );
+                    })}
                   </Tabs.List>
                 </ScrollShadow>
               </Tabs.ListContainer>
@@ -565,6 +567,11 @@ function injectUrls(
 }
 
 function MetadataJsonView({ collapsed = 1, groupMap = {}, src, userMap = {} }) {
+  // Remount when lookup maps change — react18-json-view's JsonNode calls
+  // useContext before customizeNode's early return but useState after it, so
+  // switching a node between element/config return types across renders
+  // breaks the Rules of Hooks. Remounting sidesteps the library bug.
+  const jsonViewKey = `${Object.keys(userMap).sort().join(',')}|${Object.keys(groupMap).sort().join(',')}`;
   return (
     <JsonView
       displaySize
@@ -572,6 +579,7 @@ function MetadataJsonView({ collapsed = 1, groupMap = {}, src, userMap = {} }) {
       collapsed={collapsed}
       collapseStringMode='word'
       collapseStringsAfterLength={150}
+      key={jsonViewKey}
       matchesURL={false}
       src={src}
       CopiedComponent={({ className, style }) => (
@@ -583,27 +591,16 @@ function MetadataJsonView({ collapsed = 1, groupMap = {}, src, userMap = {} }) {
         />
       )}
       CopyComponent={({ className, onClick, style }) => (
-        <IconClipboard
-          className={className}
-          size={16}
-          stroke={1.5}
-          style={style}
-          onClick={onClick}
-        />
+        <IconClipboardCopy className={className} size={16} style={style} onClick={onClick} />
       )}
       customizeCopy={(node) =>
-        typeof node === 'object'
-          ? JSON.stringify(node, null, 2)
-          : String(node)
+        typeof node === 'object' ? JSON.stringify(node, null, 2) : String(node)
       }
       customizeNode={(params) => {
         if (params.node === null || params.node === undefined) {
           return { enableClipboard: false };
         }
-        if (
-          typeof params.node === 'string' &&
-          params.node.startsWith('https://')
-        ) {
+        if (typeof params.node === 'string' && params.node.startsWith('https://')) {
           return (
             <Link
               className='text-sm text-accent no-underline decoration-accent hover:underline'
@@ -614,67 +611,46 @@ function MetadataJsonView({ collapsed = 1, groupMap = {}, src, userMap = {} }) {
             </Link>
           );
         }
-        if (
-          typeof params.node === 'number' &&
-          isDateFieldName(params.indexOrName)
-        ) {
+        if (typeof params.node === 'number' && isDateFieldName(params?.indexOrName)) {
           const formatted = formatEpochTimestamp(params.node);
           if (formatted) {
-            return (
-              <TimestampAnnotation formatted={formatted} value={params.node} />
-            );
+            return <TimestampAnnotation formatted={formatted} value={params.node} />;
           }
         }
         if (
-          (typeof params.node === 'number' ||
-            typeof params.node === 'string') &&
+          (typeof params.node === 'number' || typeof params.node === 'string') &&
           Object.keys(userMap).length > 0
         ) {
           const numericValue = Number(params.node);
           if (
             userMap[numericValue] &&
-            (isUserFieldName(params.indexOrName) || params.indexOrName === 'id')
+            (isUserFieldName(params?.indexOrName) || params?.indexOrName === 'id')
           ) {
-            return (
-              <UserIdAnnotation
-                displayName={userMap[numericValue]}
-                value={params.node}
-              />
-            );
+            return <UserIdAnnotation displayName={userMap[numericValue]} value={params.node} />;
           }
         }
         if (
-          (typeof params.node === 'number' ||
-            typeof params.node === 'string') &&
+          (typeof params.node === 'number' || typeof params.node === 'string') &&
           Object.keys(groupMap).length > 0
         ) {
           const numericValue = Number(params.node);
           if (
             groupMap[numericValue] &&
-            (isGroupFieldName(params.indexOrName) ||
-              isUserFieldName(params.indexOrName) ||
-              params.indexOrName === 'id')
+            (isGroupFieldName(params?.indexOrName) ||
+              isUserFieldName(params?.indexOrName) ||
+              params?.indexOrName === 'id')
           ) {
-            return (
-              <GroupIdAnnotation
-                displayName={groupMap[numericValue]}
-                value={params.node}
-              />
-            );
+            return <GroupIdAnnotation displayName={groupMap[numericValue]} value={params.node} />;
           }
         }
-        if (params.indexOrName?.toLowerCase().includes('id')) {
+        if (params?.indexOrName?.toLowerCase()?.includes('id')) {
           return { enableClipboard: true };
         } else if (
-          (typeof params.node === 'number' ||
-            typeof params.node === 'string') &&
+          (typeof params.node === 'number' || typeof params.node === 'string') &&
           params.node?.toString().length >= 7
         ) {
           return { enableClipboard: true };
-        } else if (
-          typeof params.node === 'object' &&
-          Object.keys(params.node).length > 0
-        ) {
+        } else if (typeof params.node === 'object' && Object.keys(params.node).length > 0) {
           return { enableClipboard: true };
         } else if (Array.isArray(params.node) && params.node.length > 0) {
           return { enableClipboard: true };
@@ -695,9 +671,11 @@ function resolveRelatedParentId(related, domoObject) {
   if (related.parentSource) {
     if (related.parentSource === 'parentId') return domoObject.parentId;
     if (related.parentSource === 'objectId') return domoObject.id;
-    return related.parentSource
-      .split('.')
-      .reduce((obj, key) => obj?.[key], domoObject.metadata?.details);
+    const parentBase =
+      related.parentFieldSource === 'context'
+        ? domoObject.metadata?.context
+        : domoObject.metadata?.details;
+    return related.parentSource.split('.').reduce((obj, key) => obj?.[key], parentBase);
   }
 
   // Auto-resolve: infer from type hierarchy

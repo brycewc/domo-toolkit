@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
-import { fetchUserDisplayNames } from '@/services';
-import { extractUserIds } from '@/utils';
+import { fetchUserDisplayNames } from '@/services/users';
+import { extractUserIds } from '@/utils/general';
 
 export function useUserLookup(src, tabId = null) {
   const [userMap, setUserMap] = useState({});

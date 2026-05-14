@@ -7,7 +7,7 @@
 export async function detectCurrentObject() {
   const url = location.href.toLowerCase();
 
-  if (!location.hostname.includes('domo.com')) {
+  if (location.hostname !== 'domo.com' && !location.hostname.endsWith('.domo.com')) {
     return null;
   }
 
@@ -32,21 +32,38 @@ export async function detectCurrentObject() {
       objectType = 'ALERT';
       break;
 
-    case url.includes('drillviewid='):
+    case parts.includes('drillviewid'):
       objectType = 'DRILL_VIEW';
       break;
 
-    case url.includes('cardid='):
+    case parts.includes('cardid'):
       objectType = 'CARD';
       id = parts[parts.indexOf('cardid') + 1];
+      // Extract page/app context from query params (e.g., analyzer launched from a page or app)
+      if (parts.includes('dataappid')) {
+        return {
+          appId: parts[parts.indexOf('dataappid') + 1],
+          appViewId: parts[parts.indexOf('pageid') + 1],
+          baseUrl: `${location.protocol}//${location.hostname}`,
+          id,
+          typeId: objectType,
+          url
+        };
+      } else if (parts.includes('pageid')) {
+        return {
+          baseUrl: `${location.protocol}//${location.hostname}`,
+          id,
+          pageId: parts[parts.indexOf('pageid') + 1],
+          typeId: objectType,
+          url
+        };
+      }
       break;
 
     case url.includes('kpis/details/'):
       // Prefer Drill Path ID from breadcrumb when on a drill path
       try {
-        const bcSpan = document.querySelector(
-          'ul.breadcrumb li:last-child span[id]'
-        );
+        const bcSpan = document.querySelector('ul.breadcrumb li:last-child span[id]');
         const bcId = bcSpan && (bcSpan.id || bcSpan.getAttribute('id'));
         if (bcId && bcId.indexOf(':') > -1) {
           // Format: dr:<drill_path_id>:<card_id>
@@ -64,6 +81,26 @@ export async function detectCurrentObject() {
       }
       // Fallback: Card ID from URL
       objectType = 'CARD';
+      id = parts[parts.indexOf('details') + 1];
+      // Extract page/app context from URL prefix (card details viewed from a page or app)
+      if (url.includes('app-studio')) {
+        return {
+          appId: parts[parts.indexOf('app-studio') + 1],
+          appViewId: parts[parts.indexOf('pages') + 1],
+          baseUrl: `${location.protocol}//${location.hostname}`,
+          id,
+          typeId: objectType,
+          url
+        };
+      } else if (parts.includes('page')) {
+        return {
+          baseUrl: `${location.protocol}//${location.hostname}`,
+          id,
+          pageId: parts[parts.indexOf('page') + 1],
+          typeId: objectType,
+          url
+        };
+      }
       break;
 
     // App Studio: Prefer Card ID from modal when open; otherwise use Page ID from URL
@@ -73,6 +110,24 @@ export async function detectCurrentObject() {
       if (kpiId) {
         objectType = 'CARD';
         id = kpiId;
+        // Extract page/app context from current URL (card modal on a page or app)
+        if (url.includes('app-studio')) {
+          return {
+            appId: parts[parts.indexOf('app-studio') + 1],
+            appViewId: parts[parts.indexOf('pages') + 1],
+            baseUrl: `${location.protocol}//${location.hostname}`,
+            id,
+            typeId: objectType,
+            url
+          };
+        }
+        return {
+          baseUrl: `${location.protocol}//${location.hostname}`,
+          id,
+          pageId: parts[parts.indexOf('page') + 1],
+          typeId: objectType,
+          url
+        };
       } else {
         if (!url.includes('app-studio')) {
           objectType = 'PAGE';
@@ -112,8 +167,11 @@ export async function detectCurrentObject() {
       objectType = 'BEAST_MODE_FORMULA';
       break;
 
-    case url.includes('datasources/') &&
-      parts[parts.indexOf('datasources') + 1].length > 5:
+    case url.includes('fusion/'):
+      objectType = 'DATA_SOURCE';
+      id = parts[parts.indexOf('fusion') + 1];
+      break;
+    case url.includes('datasources/') && parts[parts.indexOf('datasources') + 1].length > 5:
       objectType = 'DATA_SOURCE';
       break;
 
@@ -138,7 +196,7 @@ export async function detectCurrentObject() {
       objectType = 'ROLE';
       break;
 
-    case url.includes('workflows/user-task-response') && url.includes('id='):
+    case url.includes('workflows/user-task-response') && parts.includes('id'):
       objectType = 'HOPPER_TASK';
       id = parts[parts.indexOf('id') + 1];
       break;
@@ -149,9 +207,7 @@ export async function detectCurrentObject() {
 
     case url.includes('workflows/') && !!parts[parts.indexOf('workflows') + 3]: {
       // Check for a selected nebulaFunction action in the workflow editor
-      const selectedNode = document.querySelector(
-        '.react-flow__node.selected'
-      );
+      const selectedNode = document.querySelector('.react-flow__node.selected');
       if (selectedNode) {
         const nodeId = selectedNode.getAttribute('data-id');
         if (nodeId) {
@@ -165,9 +221,7 @@ export async function detectCurrentObject() {
             );
             if (defResponse.ok) {
               const definition = await defResponse.json();
-              const element = (definition.designElements || []).find(
-                (el) => el.id === nodeId
-              );
+              const element = (definition.designElements || []).find((el) => el.id === nodeId);
 
               if (
                 element?.data?.taskType === 'nebulaFunction' &&
@@ -211,18 +265,14 @@ export async function detectCurrentObject() {
     }
 
     case url.includes('workflows/triggers/'): {
-      const triggerModal = document.querySelector(
-        '[role="dialog"][class*="TimerModal"]'
-      );
+      const triggerModal = document.querySelector('[role="dialog"][class*="TimerModal"]');
       if (!triggerModal) {
         objectType = 'WORKFLOW_MODEL';
         break;
       }
 
       // Extract triggerId from React fiber tree (prop on parent component)
-      const fiberKey = Object.keys(triggerModal).find((k) =>
-        k.startsWith('__reactFiber')
-      );
+      const fiberKey = Object.keys(triggerModal).find((k) => k.startsWith('__reactFiber'));
       let triggerId = null;
       if (fiberKey) {
         let fiber = triggerModal[fiberKey];
@@ -250,12 +300,8 @@ export async function detectCurrentObject() {
 
     case url.includes('codeengine/'): {
       const packageId = parts[parts.indexOf('codeengine') + 1];
-      const ceContainer = document.querySelector(
-        'div[class*="module_packageControls"]'
-      );
-      const ceInput = ceContainer?.querySelector(
-        'input[class*="SelectListInputComponent"]'
-      );
+      const ceContainer = document.querySelector('div[class*="module_packageControls"]');
+      const ceInput = ceContainer?.querySelector('input[class*="SelectListInputComponent"]');
       if (ceInput) {
         const ceMatch = ceInput.value.match(/^Version\s+(\d+\.\d+\.\d+)$/);
         if (ceMatch && packageId) {
@@ -272,13 +318,13 @@ export async function detectCurrentObject() {
       break;
     }
 
-    case url.includes('appDb/'):
+    case url.includes('appdb/'):
       objectType = 'MAGNUM_COLLECTION';
       break;
 
-    case url.includes('assetlibrary?designId='):
+    case url.includes('assetlibrary') && parts.includes('designid'):
       objectType = 'APP';
-      id = parts[parts.indexOf('designId') + 1];
+      id = parts[parts.indexOf('designid') + 1];
       break;
 
     case url.includes('assetlibrary/'):
@@ -296,9 +342,7 @@ export async function detectCurrentObject() {
         objectType = 'FILESET_FILE';
         // Extract file path: everything after /preview/
         const previewIndex = url.indexOf('/preview/');
-        const filePath = url
-          .substring(previewIndex + '/preview/'.length)
-          .split('?')[0];
+        const filePath = url.substring(previewIndex + '/preview/'.length).split('?')[0];
         // Return early with extra context for async ID resolution
         return {
           baseUrl: `${location.protocol}//${location.hostname}`,
@@ -320,7 +364,19 @@ export async function detectCurrentObject() {
       objectType = 'AI_MODEL';
       break;
 
-    case url.includes('taskId='):
+    case url.includes('ai-library/toolkits/domo-provided/'):
+      objectType = 'AI_TOOLKIT_DOMO_PROVIDED';
+      break;
+
+    case url.includes('ai-library/toolkits/'):
+      objectType = 'AI_TOOLKIT';
+      break;
+
+    case url.includes('ai-library/agents/'):
+      objectType = 'AGENT';
+      break;
+
+    case parts.includes('taskid'):
       objectType = 'PROJECT_TASK';
       break;
 
@@ -355,11 +411,11 @@ export async function detectCurrentObject() {
       objectType = 'OBJECTIVE';
       break;
 
-    case url.includes('queues') && url.includes('id='):
+    case url.includes('queues') && parts.includes('id'):
       objectType = 'HOPPER_TASK';
       break;
 
-    case url.includes('queueId='):
+    case url.includes('queueid='):
       objectType = 'HOPPER_QUEUE';
       break;
 
@@ -388,16 +444,15 @@ export async function detectCurrentObject() {
     case url.includes('workspaces/'):
       objectType = 'WORKSPACE';
       break;
+    case url.includes('certifiedcontent') && url.includes('edit-form/'):
+      objectType = 'CERTIFICATION_PROCESS';
+      break;
 
     case url.includes('governance-toolkit'): {
-      const jobElement = document.querySelector(
-        '[class*="job-overview-top"]'
-      );
+      const jobElement = document.querySelector('[class*="job-overview-top"]');
       if (!jobElement) return null;
 
-      const fiberKey = Object.keys(jobElement).find((k) =>
-        k.startsWith('__reactFiber$')
-      );
+      const fiberKey = Object.keys(jobElement).find((k) => k.startsWith('__reactFiber$'));
       if (!fiberKey) return null;
 
       let fiber = jobElement[fiberKey];
@@ -453,9 +508,7 @@ export async function detectCurrentObject() {
       if (!adminConfig) return null;
 
       try {
-        const detailPanel = document.querySelector(
-          '.bulk-item-details-content'
-        );
+        const detailPanel = document.querySelector('.bulk-item-details-content');
         if (!detailPanel) return null;
 
         // angular.element() is available in MAIN world on Domo admin pages
@@ -522,4 +575,18 @@ export async function getValidTabForInstance(instance) {
   throw new Error(
     `No open tab found for ${instance}.domo.com. Please open a tab on that Domo instance and try again.`
   );
+}
+
+/**
+ * Check if a URL belongs to a domo.com domain (exact or any subdomain).
+ * @param {string} url - A full URL string
+ * @returns {boolean}
+ */
+export function isDomoUrl(url) {
+  try {
+    const { hostname } = new URL(url);
+    return hostname === 'domo.com' || hostname.endsWith('.domo.com');
+  } catch {
+    return false;
+  }
 }

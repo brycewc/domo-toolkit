@@ -1,3 +1,5 @@
+import { isDomoUrl } from './currentObject';
+
 /**
  * Execute a function in ALL frames in the page context (MAIN world)
  * Used to access filter state in nested iframes (like Domo embedded apps)
@@ -33,15 +35,15 @@ export async function executeInAllFrames(func, args = [], tabId = null) {
 
     // Verify the tab is on a Domo page
     const tab = await chrome.tabs.get(targetTabId);
-    if (!tab.url || !tab.url.includes('domo.com')) {
+    if (!tab.url || !isDomoUrl(tab.url)) {
       throw new Error('Not on a Domo page');
     }
 
     const allFramesTarget = { allFrames: true, tabId: targetTabId };
     const mainFrameTarget = { tabId: targetTabId };
 
-    // Mark extension-initiated requests so cardErrors.js bypasses interception.
-    // Only target the main frame — cardErrors.js only runs there, and using
+    // Mark extension-initiated requests so apiErrors.js bypasses interception.
+    // Only target the main frame — apiErrors.js only runs there, and using
     // allFrames can fail if an iframe is restricted, leaking the counter.
     await chrome.scripting.executeScript({
       func: () => {
@@ -138,13 +140,13 @@ export async function executeInPage(func, args = [], tabId = null) {
 
     // Verify the tab is on a Domo page
     const tab = await chrome.tabs.get(targetTabId);
-    if (!tab.url || !tab.url.includes('domo.com')) {
+    if (!tab.url || !isDomoUrl(tab.url)) {
       throw new Error('Not on a Domo page');
     }
 
     const target = { tabId: targetTabId };
 
-    // Mark extension-initiated requests so cardErrors.js bypasses interception
+    // Mark extension-initiated requests so apiErrors.js bypasses interception
     await chrome.scripting.executeScript({
       func: () => {
         window.__domoToolkitExtDepth =

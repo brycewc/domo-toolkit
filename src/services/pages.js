@@ -1,4 +1,37 @@
-import { executeInPage, waitForCards } from '@/utils';
+import { waitForCards } from '@/utils/cardHelpers';
+import { executeInPage } from '@/utils/executeInPage';
+import { storeSidepanelData } from '@/utils/sidepanel';
+
+/**
+ * Check if a page is actually a data app view and get its parent app ID.
+ * Uses the stacks API type property to distinguish pages from app views.
+ * This is a page-context function — call via executeInPage.
+ * @param {string} pageId - The page ID to check
+ * @returns {Promise<string|null>} The parent app ID if data app view, null if regular page
+ */
+export async function checkPageType(pageId) {
+  try {
+    const stacksResponse = await fetch(`/api/content/v3/stacks/${pageId}`);
+    if (!stacksResponse.ok) return null;
+    const stacksData = await stacksResponse.json();
+    if (stacksData.type !== 'dav') return null;
+
+    const summaryResponse = await fetch(
+      '/api/content/v1/pages/summary?limit=1&skip=0',
+      {
+        body: JSON.stringify({ pageId }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST'
+      }
+    );
+    if (!summaryResponse.ok) return null;
+    const summaryData = await summaryResponse.json();
+    const appId = summaryData.pages?.[0]?.dataAppId;
+    return appId ? appId.toString() : null;
+  } catch (e) {
+    return null;
+  }
+}
 
 export async function deletePageAndAllCards({
   appId = null,
@@ -29,13 +62,10 @@ export async function deletePageAndAllCards({
         });
 
         if (childPages.length > 0) {
-          await chrome.storage.session.set({
-            sidepanelDataList: {
-              childPages,
-              currentContext: currentContext?.toJSON?.() || currentContext,
-              timestamp: Date.now(),
-              type: 'childPagesWarning'
-            }
+          await storeSidepanelData({
+            childPages,
+            currentContext,
+            type: 'childPagesWarning'
           });
 
           return {
@@ -352,6 +382,60 @@ export async function getChildPages({
 }
 
 /**
+ * Get all pages owned by a user.
+ * @param {number} userId - The Domo user ID
+ * @param {number|null} tabId - Optional Chrome tab ID
+ * @returns {Promise<Array<{id: number, name: string}>>}
+ */
+export async function getOwnedPages(userId, tabId = null) {
+  return executeInPage(
+    async (userId) => {
+      const allPages = [];
+      const limit = 50;
+      let moreData = true;
+      let skip = 0;
+
+      while (moreData) {
+        const response = await fetch(
+          `/api/content/v1/pages/adminsummary?limit=${limit}&skip=${skip}`,
+          {
+            body: JSON.stringify({
+              addPageWithNoOwner: false,
+              ascending: true,
+              groupOwnerIds: [],
+              includePageOwnerClause: 1,
+              orderBy: 'pageTitle',
+              ownerIds: [userId]
+            }),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'POST'
+          }
+        );
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+
+        if (data.pageAdminSummaries && data.pageAdminSummaries.length > 0) {
+          allPages.push(
+            ...data.pageAdminSummaries.map((p) => ({
+              id: p.pageId,
+              name: p.pageTitle || p.pageId.toString()
+            }))
+          );
+          skip += limit;
+          if (data.pageAdminSummaries.length < limit) moreData = false;
+        } else {
+          moreData = false;
+        }
+      }
+
+      return allPages;
+    },
+    [userId],
+    tabId
+  );
+}
+
+/**
  * Get all pages that cards appear on (including regular pages, app studio pages, and report builder pages)
  * @param {Array<number>} cardIds - Array of card IDs
  * @returns {Promise<Object>} Array of page objects with type, id, and name
@@ -362,20 +446,27 @@ export async function getPagesForCards(cardIds, tabId = null) {
     // Execute fetch in page context to use authenticated session
     const result = await executeInPage(
       async (cardIds) => {
-        // Fetch all cards in parallel (one request per card for speed)
+        // Fetch all cards in parallel (one request per card for speed).
+        // Per-fetch `.catch` ensures one network failure (or non-OK response)
+        // doesn't sink the whole Promise.all. With 400+ cards on busy
+        // datasets, a single transient rejection would otherwise null out the
+        // entire result and crash the destructure on the caller side.
         const results = await Promise.all(
           cardIds.map((cardId) =>
-            fetch(`/api/content/v1/cards?urns=${cardId}&parts=adminAllPages`).then((response) => {
-              if (!response.ok) return null;
-              return response.json();
-            })
+            fetch(`/api/content/v1/cards?urns=${cardId}&parts=adminAllPages`)
+              .then((response) => (response.ok ? response.json() : null))
+              .catch(() => null)
           )
         );
 
         const allDetailCards = results.filter(Boolean).flat();
 
+        // Empty result is a legitimate "this card isn't on any pages" case,
+        // not an error. Returning empty here keeps the executeScript bridge
+        // serializable and lets the caller render a friendly "no pages found"
+        // state instead of crashing on a thrown error.
         if (!allDetailCards.length) {
-          throw new Error('No cards found.');
+          return { cardsByPage: {}, pages: [] };
         }
 
         // Build flat lists of all pages, app pages, and report pages from all cards
@@ -535,14 +626,45 @@ export async function getSubpageIds({ pageId, tabId = null }) {
 }
 
 /**
- * Share pages with self
- * @param {Array} pageIds - IDs of the pages to share
- * @param {number} userId - The current user's ID
- * @param {number} tabId - The tab ID to execute in
- * @returns {Promise<void>} Resolves when sharing is complete
- * @throws {Error} If the fetch fails
+ * Get every page ID accessible to a user (including shared-with, not just owned).
+ * Paginates through /access/users/{id}/pages until exhausted.
+ * @param {number|string} userId
+ * @param {number|null} tabId
+ * @returns {Promise<string[]>} Array of page ID strings
  */
-export async function sharePagesWithSelf({ pageIds, tabId, userId }) {
+export async function getUserAccessiblePages(userId, tabId = null) {
+  return executeInPage(
+    async (userId) => {
+      const pageIds = [];
+      const limit = 100;
+      let offset = 0;
+      let more = true;
+
+      while (more) {
+        const response = await fetch(
+          `/api/content/v1/access/users/${userId}/pages?limit=${limit}&offset=${offset}`
+        );
+        if (!response.ok) break;
+        const page = await response.json();
+        const pages = Array.isArray(page) ? page : (page.pages || []);
+
+        for (const p of pages) {
+          const pageId = typeof p === 'object' ? (p.pageId ?? p.id) : p;
+          if (pageId != null) pageIds.push(String(pageId));
+        }
+
+        more = pages.length >= limit;
+        offset += limit;
+      }
+
+      return pageIds;
+    },
+    [userId],
+    tabId
+  );
+}
+
+export async function sharePages({ pageIds, tabId, userId }) {
   const validPageIds = pageIds.filter((id) => id >= 0);
   if (validPageIds.length === 0) {
     throw new Error('No valid pages to share (all page IDs are negative)');
@@ -584,4 +706,64 @@ export async function sharePagesWithSelf({ pageIds, tabId, userId }) {
     console.error('Error sharing pages:', error);
     throw error;
   }
+}
+
+/**
+ * Transfer page ownership to a new user.
+ * @param {number[]} pageIds - Array of page IDs to transfer
+ * @param {number} fromUserId - The current owner's user ID
+ * @param {number} toUserId - The new owner's user ID
+ * @param {number|null} tabId - Optional Chrome tab ID
+ * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
+ */
+export async function transferPages(
+  pageIds,
+  fromUserId,
+  toUserId,
+  tabId = null
+) {
+  return executeInPage(
+    async (pageIds, fromUserId, toUserId) => {
+      try {
+        // Add new owner
+        const addResponse = await fetch(
+          '/api/content/v1/pages/bulk/owners',
+          {
+            body: JSON.stringify({
+              owners: [{ id: toUserId, type: 'USER' }],
+              pageIds
+            }),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'PUT'
+          }
+        );
+        if (!addResponse.ok) throw new Error(`HTTP ${addResponse.status}`);
+
+        // Remove old owner
+        const removeResponse = await fetch(
+          '/api/content/v1/pages/bulk/owners/remove',
+          {
+            body: JSON.stringify({
+              owners: [{ id: parseInt(fromUserId), type: 'USER' }],
+              pageIds
+            }),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'POST'
+          }
+        );
+        if (!removeResponse.ok)
+          throw new Error(`HTTP ${removeResponse.status}`);
+
+        return { errors: [], failed: 0, succeeded: pageIds.length };
+      } catch (error) {
+        return {
+          errors: pageIds.map((id) => ({ error: error.message, id })),
+          failed: pageIds.length,
+          succeeded: 0
+        };
+      }
+    },
+    [pageIds, fromUserId, toUserId],
+    tabId
+  );
 }

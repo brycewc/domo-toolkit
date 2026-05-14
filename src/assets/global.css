@@ -1,6 +1,23 @@
 @import 'tailwindcss';
 @import '@heroui/styles';
 
+/* Force desktop-mode HeroUI styling across the extension.
+   Popup/sidepanel shells never exceed ~500px, so HeroUI's mobile-first
+   breakpoints would otherwise keep every component in its oversized mobile
+   variant. Setting --breakpoint-* to 0 makes sm:/md:/lg:/xl:/2xl: utilities
+   match at all widths, which compiles HeroUI's @apply directives (input.css,
+   button.css, select.css, toast.css, etc.) into their desktop forms. HeroUI
+   uses no max-width queries, so this is a one-way tightening. Toast's one
+   JS-based viewport check (toast.js useMediaQuery) is handled separately by
+   the custom ToastProvider. */
+@theme {
+  --breakpoint-sm: 0px;
+  --breakpoint-md: 0px;
+  --breakpoint-lg: 0px;
+  --breakpoint-xl: 0px;
+  --breakpoint-2xl: 0px;
+}
+
 /* Open Sans variable font — bundled locally */
 @font-face {
   font-family: 'Open Sans';
@@ -98,15 +115,67 @@
 }
 
 @layer components {
-  /* HeroUI uses sm: breakpoints for toast desktop layout. Extension
-   popups/sidepanels never reach the sm (640px) threshold. A custom
-   ToastProvider component handles the JS media query (action button
-   placement). These overrides handle the remaining CSS breakpoints. */
+  /* Toast customizations on top of HeroUI's desktop layout (now always
+     active via the breakpoint override above). self-center and
+     rounded-full/border/bg-overlay are extension-specific tweaks, not
+     HeroUI defaults. The custom ToastProvider still handles Toast's
+     JS-based viewport check for action-button placement. */
   .toast__action {
     @apply mt-0 self-center;
   }
 
   .toast__close-button {
     @apply pointer-events-none -top-1 -right-1 rounded-full border bg-overlay opacity-0;
+  }
+
+  /* HeroUI's desktop toast region pins min-width to --toast-width (460px
+     default), which overflows narrow popup/sidepanel shells. Clamp the
+     min-width to the smaller of --toast-width or the available viewport
+     (minus a 2rem gutter) so toasts retain their desktop presence when
+     space allows but shrink gracefully in narrow shells. */
+  .toast-region {
+    min-width: min(var(--toast-width, 460px), calc(100vw - 2rem));
+    max-width: calc(100vw - 2rem);
+  }
+
+  /* React Aria's Virtualizer wraps the Table.Header in a
+     <div role="presentation" style="z-index: 1; position: sticky;">.
+     Rows get the same z-index:1, so they paint over the header on scroll
+     because body DOM comes after header. Force the header wrapper above. */
+  [role='presentation']:has(> [data-slot='table-header']) {
+    z-index: 10 !important;
+  }
+
+  /* Strip the default `disclosure__body { p-2 }` from disclosures that live
+     inside a DataList CheckboxGroup. When DataList is in selection mode it
+     wraps its items in `<CheckboxGroup>` (display: contents) for state
+     collection — this descendant scope only matches the selection-mode
+     subtree. The 8px padding on the body collides with the row's own `my-1`
+     margins and the selection-placeholder indentation, making disclosed
+     children feel disconnected from their parent header. We can't pass a
+     className to suppress it because HeroUI's Disclosure.Body applies user
+     classNames to an inner wrapper, not the outer padded element. Default
+     (non-selection) mode keeps the standard padding. */
+  [data-slot='checkbox-group'] .disclosure__body {
+    @apply p-0;
+  }
+
+  /* HeroUI 3.0.3 + Virtualizer + Table.LoadMore breakage:
+     The primary variant applies overflow:clip on .table__content and
+     .table__body:not(tbody) for rounded-corner masking. React Aria's
+     Virtualizer additionally wraps the body in a <div role="presentation">
+     with inline overflow:hidden. React Aria's TableLoadMoreItem positions
+     its 1×1 sentinel exactly at the body's bottom edge, so all three
+     clipping layers hide it — the IntersectionObserver never fires and
+     infinite scroll silently breaks. Force overflow:visible on each layer
+     so the sentinel can intersect with the scroll container.
+
+     Visual side-effect: the body/content corners no longer mask content,
+     but the .table__scroll-container still clips at its rounded border, so
+     the visible scroll area still has rounded corners. */
+  .table-root--primary .table__content,
+  .table__body:not(tbody),
+  [role='presentation']:has(> [data-slot='table-body']) {
+    overflow: visible !important;
   }
 }

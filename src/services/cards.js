@@ -1,4 +1,11 @@
-import { executeInPage, EXPORT_FORMATS } from '@/utils';
+import { EXPORT_FORMATS } from '@/utils/constants';
+import { executeInPage } from '@/utils/executeInPage';
+
+import {
+  extractPageContentIds,
+  getFormsForPage,
+  getQueuesForPage
+} from './appStudio';
 
 /**
  * Export a card as a file download, using the card's current view state
@@ -324,6 +331,90 @@ export async function getCardsForObject({
   }
 }
 
+/**
+ * Fetch all content (cards, forms, queues) across every view on a parent
+ * DATA_APP or WORKSHEET, grouped by view. Both types share the same backend
+ * endpoint, so the parent type doesn't need to be passed in.
+ *
+ * @param {Object} params
+ * @param {string} params.parentId - The DATA_APP or WORKSHEET ID
+ * @param {number|null} [params.tabId=null] - Target tab
+ * @returns {Promise<{
+ *   parentName: string,
+ *   viewGroups: Array<{
+ *     viewId: string,
+ *     viewName: string,
+ *     cards: Array,
+ *     forms: Array,
+ *     queues: Array
+ *   }>
+ * }>}
+ */
+export async function getCardsForParent({ parentId, tabId = null }) {
+  // 1. Fetch the parent app/worksheet to get its name and view list.
+  const parentData = await executeInPage(
+    async (parentId) => {
+      const response = await fetch(`/api/content/v1/dataapps/${parentId}`);
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch parent ${parentId}. HTTP status: ${response.status}`
+        );
+      }
+      const data = await response.json();
+      return {
+        name: data.title || data.name || `App ${parentId}`,
+        views: (data.views || []).map((v) => ({
+          viewId: String(v.viewId),
+          viewName: v.title || `View ${v.viewId}`
+        }))
+      };
+    },
+    [parentId],
+    tabId
+  );
+
+  // 2. For each view, fetch details + cards in parallel, then forms/queues
+  //    from widget IDs in the layout. Per-view errors are isolated so one
+  //    failing view doesn't take down the whole result.
+  const viewGroups = await Promise.all(
+    parentData.views.map(async ({ viewId, viewName }) => {
+      try {
+        const [details, cards] = await Promise.all([
+          fetchViewDetails(viewId, tabId),
+          getCardsForObject({
+            objectId: viewId,
+            objectType: 'DATA_APP_VIEW',
+            tabId
+          }).catch(() => [])
+        ]);
+
+        const { formWidgetIds, queueWidgetIds } = extractPageContentIds(details);
+
+        const [forms, queues] = await Promise.all([
+          formWidgetIds.length > 0
+            ? getFormsForPage({ formWidgetIds, tabId }).catch(() => [])
+            : Promise.resolve([]),
+          queueWidgetIds.length > 0
+            ? getQueuesForPage({ queueWidgetIds, tabId }).catch(() => [])
+            : Promise.resolve([])
+        ]);
+
+        return { cards, forms, queues, viewId, viewName };
+      } catch (error) {
+        console.warn(`Error fetching content for view ${viewId}:`, error);
+        return { cards: [], forms: [], queues: [], viewId, viewName };
+      }
+    })
+  );
+
+  // 3. Drop views that ended up with no content -- keeps the grouped list clean.
+  const nonEmpty = viewGroups.filter(
+    (vg) => vg.cards.length > 0 || vg.forms.length > 0 || vg.queues.length > 0
+  );
+
+  return { parentName: parentData.name, viewGroups: nonEmpty };
+}
+
 export async function getDrillParentCardId(
   drillViewId,
   inPageContext = false,
@@ -351,6 +442,65 @@ export async function getDrillParentCardId(
     console.error('Error fetching drill parent card ID:', error);
     throw error;
   }
+}
+
+/**
+ * Get all cards owned by a user.
+ * @param {number} userId - The Domo user ID
+ * @param {number|null} tabId - Optional Chrome tab ID
+ * @returns {Promise<Array<{id: number, name: string}>>}
+ */
+export async function getOwnedCards(userId, tabId = null) {
+  return executeInPage(
+    async (userId) => {
+      const allCards = [];
+      const count = 50;
+      let moreData = true;
+      let offset = 0;
+
+      while (moreData) {
+        const response = await fetch('/api/search/v1/query', {
+          body: JSON.stringify({
+            combineResults: false,
+            count,
+            entityList: [['card']],
+            filters: [
+              {
+                facetType: 'user',
+                field: 'owned_by_id',
+                filterType: 'term',
+                name: 'OWNED_BY_ID',
+                value: `${userId}:USER`
+              }
+            ],
+            offset,
+            query: '*'
+          }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+
+        if (data.searchObjects && data.searchObjects.length > 0) {
+          allCards.push(
+            ...data.searchObjects.map((c) => ({
+              id: c.databaseId,
+              name: c.winnerText || c.databaseId.toString()
+            }))
+          );
+          offset += count;
+          if (data.searchObjects.length < count) moreData = false;
+        } else {
+          moreData = false;
+        }
+      }
+
+      return allCards;
+    },
+    [userId],
+    tabId
+  );
 }
 
 /**
@@ -387,6 +537,48 @@ export async function getPageCards(pageId) {
     console.error(`Failed to fetch cards for page ${pageId}:`, error);
     return [];
   }
+}
+
+/**
+ * Get every card ID accessible to a user (including shared-with, not just owned).
+ * Paginates through /access/users/{id}/cards until exhausted.
+ * @param {number|string} userId
+ * @param {number|null} tabId
+ * @returns {Promise<string[]>} Array of card ID strings
+ */
+export async function getUserAccessibleCards(userId, tabId = null) {
+  return executeInPage(
+    async (userId) => {
+      const cardIds = [];
+      const limit = 100;
+      let offset = 0;
+      let more = true;
+
+      while (more) {
+        const response = await fetch(
+          `/api/content/v1/access/users/${userId}/cards?limit=${limit}&offset=${offset}`
+        );
+        if (!response.ok) break;
+        const page = await response.json();
+        const cards = Array.isArray(page)
+          ? page
+          : (page.cards || page.cardIds || []);
+
+        for (const card of cards) {
+          const cardId =
+            typeof card === 'object' ? (card.id ?? card.cardId) : card;
+          if (cardId != null) cardIds.push(String(cardId));
+        }
+
+        more = cards.length >= limit;
+        offset += limit;
+      }
+
+      return cardIds;
+    },
+    [userId],
+    tabId
+  );
 }
 
 export async function lockCards({ cardIds, tabId = null }) {
@@ -442,6 +634,65 @@ export async function removeCardFromPage({ cardId, pageId, tabId = null }) {
     console.error('Error removing card from page:', error);
     throw error;
   }
+}
+
+/**
+ * Transfer card ownership to a new user.
+ * @param {number[]} cardIds - Array of card IDs to transfer
+ * @param {number} fromUserId - The current owner's user ID
+ * @param {number} toUserId - The new owner's user ID
+ * @param {number|null} tabId - Optional Chrome tab ID
+ * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
+ */
+export async function transferCards(
+  cardIds,
+  fromUserId,
+  toUserId,
+  tabId = null
+) {
+  return executeInPage(
+    async (cardIds, fromUserId, toUserId) => {
+      try {
+        // Add new owner
+        const addResponse = await fetch('/api/content/v1/cards/owners/add', {
+          body: JSON.stringify({
+            cardIds,
+            cardOwners: [{ id: toUserId, type: 'USER' }],
+            note: '',
+            sendEmail: false
+          }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        });
+        if (!addResponse.ok) throw new Error(`HTTP ${addResponse.status}`);
+
+        // Remove old owner
+        const removeResponse = await fetch(
+          '/api/content/v1/cards/owners/remove',
+          {
+            body: JSON.stringify({
+              cardIds,
+              cardOwners: [{ id: fromUserId, type: 'USER' }]
+            }),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'POST'
+          }
+        );
+        if (!removeResponse.ok)
+          throw new Error(`HTTP ${removeResponse.status}`);
+
+        return { errors: [], failed: 0, succeeded: cardIds.length };
+      } catch (error) {
+        return {
+          errors: cardIds.map((id) => ({ error: error.message, id })),
+          failed: cardIds.length,
+          succeeded: 0
+        };
+      }
+    },
+    [cardIds, fromUserId, toUserId],
+    tabId
+  );
 }
 
 export async function updateCardDefinition({
@@ -518,5 +769,25 @@ export async function updateCardDefinition({
   } catch (error) {
     console.error('Error updating card definition:', error);
     throw error;
+  }
+}
+
+/**
+ * Fetch the bare stacks details for a view so we can read pageLayoutV4 and
+ * derive form/queue widget IDs. Returns null on failure rather than throwing.
+ */
+async function fetchViewDetails(viewId, tabId) {
+  try {
+    return await executeInPage(
+      async (viewId) => {
+        const response = await fetch(`/api/content/v3/stacks/${viewId}`);
+        if (!response.ok) return null;
+        return response.json();
+      },
+      [viewId],
+      tabId
+    );
+  } catch {
+    return null;
   }
 }
