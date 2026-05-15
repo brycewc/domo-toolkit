@@ -51,7 +51,7 @@ export function GetCards({ currentContext, isDisabled, onCollapseActions, onStat
       <Tooltip closeDelay={100} delay={600}>
         <Button
           fullWidth
-          className='relative min-w-36 flex-1 overflow-visible whitespace-normal'
+          className='relative h-auto min-h-9 min-w-36 flex-1 overflow-visible py-1.5 whitespace-normal'
           isDisabled={isDisabled}
           isPending={isPending}
           variant='tertiary'

@@ -13,6 +13,7 @@ import { GetDatasetsView } from '@/components/views/GetDatasetsView';
 import { GetPagesView } from '@/components/views/GetPagesView';
 import { GetViewInputsView } from '@/components/views/GetViewInputsView';
 import { LinkPreview } from '@/components/views/LinkPreview';
+import { MigrateDownstreamContentView } from '@/components/views/MigrateDownstreamContentView';
 import { ObjectDetailsView } from '@/components/views/ObjectDetailsView';
 import { OwnershipView } from '@/components/views/OwnershipView';
 import { SyncJSDocFromSourceView } from '@/components/views/SyncJSDocFromSourceView';
@@ -352,6 +353,14 @@ export default function App() {
             {activeView === 'ownership' && (
               <OwnershipView
                 currentContext={currentContext}
+                key={viewKey}
+                onBackToDefault={handleBackToDefault}
+                onStatusUpdate={showStatus}
+              />
+            )}
+
+            {activeView === 'migrateDownstream' && (
+              <MigrateDownstreamContentView
                 key={viewKey}
                 onBackToDefault={handleBackToDefault}
                 onStatusUpdate={showStatus}

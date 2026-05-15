@@ -1,9 +1,9 @@
 import { Button, Tooltip } from '@heroui/react';
 
 import { useLaunchView } from '@/hooks/useLaunchView';
-import IconListBulleted from '@icons/list-bulleted.svg?react';
+import IconArrowRight from '@icons/arrow-right.svg?react';
 
-export function GetOwnedObjects({ currentContext, onCollapseActions, onStatusUpdate }) {
+export function MigrateDownstreamContent({ currentContext, onCollapseActions, onStatusUpdate }) {
   const { isPending, launch } = useLaunchView();
 
   return (
@@ -18,18 +18,15 @@ export function GetOwnedObjects({ currentContext, onCollapseActions, onStatusUpd
             currentContext,
             onCollapseActions,
             onStatusUpdate,
-            type: 'ownership'
+            type: 'migrateDownstream'
           })
         }
       >
-        <IconListBulleted />
-        Get Owned Objects
+        <IconArrowRight />
+        Migrate Downstream Content
       </Button>
-      <Tooltip.Content
-        className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
-        offset={4}
-      >
-        List all objects of all types owned by this user
+      <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+        Migrate cards, dataset views, and dataflows that use this dataset to a new dataset
       </Tooltip.Content>
     </Tooltip>
   );

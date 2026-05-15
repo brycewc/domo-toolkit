@@ -21,6 +21,7 @@ import { GetDatasets } from '@/components/functions/GetDatasets';
 import { GetOwnedObjects } from '@/components/functions/GetOwnedObjects';
 import { GetViewInputs } from '@/components/functions/GetViewInputs';
 import { LockCards } from '@/components/functions/LockCards';
+import { MigrateDownstreamContent } from '@/components/functions/MigrateDownstreamContent';
 import { NavigateToCopiedObject } from '@/components/functions/NavigateToCopiedObject';
 import { RemoveEmptyStringsFromQuickFilters } from '@/components/functions/RemoveEmptyStringsFromQuickFilters';
 import { SetStreamToManual } from '@/components/functions/SetStreamToManual';
@@ -183,7 +184,7 @@ export function ActionButtons({
               </ButtonGroup>
             </Disclosure.Heading>
             <Disclosure.Content className='flex h-full w-full flex-col items-center justify-center gap-1'>
-              <div className='flex w-full flex-wrap place-items-center items-center justify-center gap-1 not-empty:mt-1 empty:hidden'>
+              <div className='flex w-full flex-wrap items-stretch justify-center gap-1 not-empty:mt-1 empty:hidden'>
                 {availableActions.has('getCards') && (
                   <GetCards
                     currentContext={currentContext}
@@ -235,6 +236,13 @@ export function ActionButtons({
                 )}
                 {availableActions.has('copyColorRules') && (
                   <CopyColorRules currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
+                )}
+                {availableActions.has('migrateDownstreamContent') && (
+                  <MigrateDownstreamContent
+                    currentContext={currentContext}
+                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
+                    onStatusUpdate={onStatusUpdate}
+                  />
                 )}
                 {availableActions.has('transferOwnership') && (
                   <TransferOwnership

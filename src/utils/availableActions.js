@@ -54,6 +54,7 @@ export function getAvailableActions(currentContext) {
     if (details?.streamId && metadata?.parent?.details?.currentExecutionState === 'ACTIVE') {
       actions.add('cancelStreamExecution');
     }
+    actions.add('migrateDownstreamContent');
     if (details?.streamId && metadata?.parent?.details?.scheduleState !== 'MANUAL') {
       actions.add('setStreamToManual');
     }
