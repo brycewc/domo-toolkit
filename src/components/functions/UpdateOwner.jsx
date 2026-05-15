@@ -68,7 +68,7 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
       <Tooltip closeDelay={100} delay={600}>
         <Button
           fullWidth
-          className='h-auto min-h-9 min-w-36 flex-1 whitespace-normal py-1.5'
+          className='min-w-36 flex-1 whitespace-normal'
           variant='tertiary'
           isDisabled={
             currentContext?.domoObject.typeId !== 'ALERT' &&

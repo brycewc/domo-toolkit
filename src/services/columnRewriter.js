@@ -14,85 +14,15 @@
  * skipped (untouched columns).
  */
 
-// Keep these lists in sync with columnReferences.js — they describe the
-// same surface area, in the opposite direction.
-//
-// The field set is intentionally wide to cover Magic ETL action variants
-// where the same column-bearing concept appears under different keys
-// across action types (Filter, Group By, Join, Pivot, Rename, etc.).
-const COLUMN_VALUE_FIELDS = new Set([
-  'aggregateColumn',
-  'column',
-  'columnName',
-  'columnNameNew',
-  'columnNameOld',
-  'existingColumnName',
-  'field',
-  'fieldName',
-  'fromColumn',
-  'groupBy',
-  'groupByColumn',
-  'id', // only when nested under known column-list contexts
-  'inputColumn',
-  'inStreamName', // Magic ETL ReplaceString fields[]
-  'keyColumn',
-  'keyField', // Magic ETL Denormaliser (Pivot) — pivot column
-  'leftColumn',
-  'leftField', // Magic ETL Filter — filterList[].leftField
-  'name', // only when nested under known column-list contexts
-  'newColumnName',
-  'outputColumn',
-  'pivotColumn',
-  'rightColumn',
-  'rightField', // Magic ETL Filter — filterList[].rightField (when comparing two columns)
-  'sortColumn',
-  'source', // Magic ETL GroupBy — fields[].source (the input column being aggregated)
-  'sourceColumn',
-  'sourceField', // Magic ETL Normalizer (Unpivot) — fields[].sourceField
-  'targetColumn',
-  'toColumn',
-  'valueColumn'
-]);
-
-const COLUMN_LIST_FIELDS = new Set([
-  'aggregationColumns',
-  'columns',
-  'fields', // Magic ETL — SelectValues, ReplaceString, TextFormatting
-  'fixedColumns',
-  'group', // Magic ETL Denormaliser (Pivot) — row identifier list, items: {name: "<col>"}
-  'groupBy',
-  'groupByColumns',
-  'groups', // Magic ETL GroupBy — group columns, items: {name: "<col>"}
-  'inputColumns',
-  'keys1', // Magic ETL MergeJoin
-  'keys2', // Magic ETL MergeJoin
-  'leftJoinColumns',
-  'orderBy',
-  'orderByColumns',
-  'outputColumns',
-  'partitionBy',
-  'partitionByColumns',
-  'rightJoinColumns',
-  'schemaModification1', // Magic ETL MergeJoin — items have `name` (input ref)
-  'schemaModification2',
-  'selectedColumns',
-  'sort',
-  'sortColumns',
-  'sourceColumns',
-  'unpivotColumns'
-]);
-
-const COLUMN_KEYED_FIELDS = new Set(['columnFormats']);
-
-const EXPRESSION_FIELDS = new Set([
-  'expression',
-  'formattedExpression',
-  'formula',
-  'having',
-  'sqlExpression',
-  'value', // card columns[].value carries beast-mode expression with backtick refs
-  'where'
-]);
+import {
+  BACKTICK_REF_RE,
+  COLUMN_KEYED_FIELDS,
+  COLUMN_LIST_FIELDS,
+  COLUMN_VALUE_FIELDS,
+  EXPRESSION_FIELDS,
+  isColumnListParent,
+  stripBackticks
+} from './columnFields';
 
 /**
  * Returns true if the columnMap has at least one effective rename
@@ -284,20 +214,6 @@ function findOriginAliases(viewDefinition, originId) {
   return aliases;
 }
 
-/**
- * Whether the parent key signals "this object is an entry in a column-list" —
- * which is when bare `name`/`id` should be treated as a column reference.
- * Excludes parents like `additions` (Magic ETL SplitColumnAction) where the
- * child `name` is a NEW output column declaration, not an input ref.
- */
-function isColumnListParent(parentKey) {
-  if (parentKey === 'columns') return true;
-  if (parentKey === 'fields') return true;
-  if (parentKey === 'group' || parentKey === 'groups') return true;
-  if (parentKey === 'schemaModification1' || parentKey === 'schemaModification2') return true;
-  return false;
-}
-
 function isSimpleSqlIdentifier(name) {
   return typeof name === 'string' && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name);
 }
@@ -448,7 +364,7 @@ function rewriteColumnName(name, columnMap, options = {}) {
  */
 function rewriteExpressionString(expr, columnMap) {
   if (typeof expr !== 'string') return expr;
-  return expr.replace(/`([^`]+)`/g, (match, colName) => {
+  return expr.replace(BACKTICK_REF_RE, (match, colName) => {
     const next = columnMap[colName];
     if (next == null || next === colName) return match;
     return `\`${next}\``;
@@ -481,12 +397,6 @@ function rewriteScopedExpressionString(expr, columnMap, originAliases) {
     if (next == null || next === first) return match;
     return `\`${next}\``;
   });
-}
-
-function stripBackticks(s) {
-  if (typeof s !== 'string') return s;
-  if (s.length >= 2 && s.startsWith('`') && s.endsWith('`')) return s.slice(1, -1);
-  return s;
 }
 
 /**

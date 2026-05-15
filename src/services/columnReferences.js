@@ -22,95 +22,15 @@
 import { executeInPage } from '@/utils/executeInPage';
 
 import { getCardDefinition } from './cards';
-
-// ---------------------------------------------------------------------------
-// Configuration: known fields and key-paths where column references live.
-// Keep these conservative; widen as we learn from real payloads.
-// ---------------------------------------------------------------------------
-
-/** Field names whose string value is itself a column name. */
-const COLUMN_VALUE_FIELDS = new Set([
-  'aggregateColumn',
-  'column',
-  'columnName',
-  'columnNameNew',
-  'columnNameOld',
-  'existingColumnName',
-  'field',
-  'fieldName',
-  'fromColumn',
-  'groupBy',
-  'groupByColumn',
-  'id', // only when nested under known column-list contexts (see below)
-  'inputColumn',
-  'inStreamName',
-  'keyColumn',
-  'keyField', // Magic ETL Pivot — pivot column
-  'leftColumn',
-  'leftField', // Magic ETL Filter — filterList[].leftField
-  'name', // only when nested under known column-list contexts (see below)
-  'newColumnName',
-  'outputColumn',
-  'pivotColumn',
-  'rightColumn',
-  'rightField', // Magic ETL Filter — filterList[].rightField
-  'sortColumn',
-  'source', // Magic ETL GroupBy — fields[].source
-  'sourceColumn',
-  'sourceField', // Magic ETL Unpivot — fields[].sourceField
-  'targetColumn',
-  'toColumn',
-  'valueColumn'
-]);
-
-/**
- * Field names whose value is an array of column references — either an array
- * of strings (each a column name) OR an array of `{column}` / `{name}` /
- * `{columnName}` objects.
- */
-const COLUMN_LIST_FIELDS = new Set([
-  'aggregationColumns',
-  'columns',
-  'fields',
-  'fixedColumns',
-  'group', // Magic ETL Pivot — row identifier list
-  'groupBy',
-  'groupByColumns',
-  'groups', // Magic ETL GroupBy — group columns
-  'inputColumns',
-  'keys1',
-  'keys2',
-  'leftJoinColumns',
-  'orderBy',
-  'orderByColumns',
-  'outputColumns',
-  'partitionBy',
-  'partitionByColumns',
-  'rightJoinColumns',
-  'schemaModification1',
-  'schemaModification2',
-  'selectedColumns',
-  'sort',
-  'sortColumns',
-  'sourceColumns',
-  'unpivotColumns'
-]);
-
-/** Object keys that are themselves keyed by column name. */
-const COLUMN_KEYED_FIELDS = new Set(['columnFormats']);
-
-/** Field names whose string value is an expression (search for backtick refs). */
-const EXPRESSION_FIELDS = new Set([
-  'expression',
-  'formattedExpression',
-  'formula',
-  'having',
-  'sqlExpression',
-  'value',
-  'where'
-]);
-
-const BACKTICK_REF_RE = /`([^`]+)`/g;
+import {
+  BACKTICK_REF_RE,
+  COLUMN_KEYED_FIELDS,
+  COLUMN_LIST_FIELDS,
+  COLUMN_VALUE_FIELDS,
+  EXPRESSION_FIELDS,
+  isColumnListParent,
+  stripBackticks
+} from './columnFields';
 
 /**
  * @param {Object} cardDefinition
@@ -359,14 +279,6 @@ async function fetchDatasetViewDefinition(viewId, tabId) {
   );
 }
 
-function isColumnListParent(parentKey) {
-  if (parentKey === 'columns') return true;
-  if (parentKey === 'fields') return true;
-  if (parentKey === 'group' || parentKey === 'groups') return true;
-  if (parentKey === 'schemaModification1' || parentKey === 'schemaModification2') return true;
-  return false;
-}
-
 // ---------------------------------------------------------------------------
 // Orchestrator: scan every selected item for column refs, in parallel.
 //
@@ -379,14 +291,6 @@ function isColumnListParent(parentKey) {
 //
 // `definition` is cached so the rewrite phase doesn't re-fetch.
 // ---------------------------------------------------------------------------
-
-function stripBackticks(name) {
-  if (typeof name !== 'string') return name;
-  if (name.length >= 2 && name.startsWith('`') && name.endsWith('`')) {
-    return name.slice(1, -1);
-  }
-  return name;
-}
 
 function walkDatasetViewForRefs(node, onColumnRef) {
   if (node == null) return;

@@ -3,6 +3,7 @@
 ## UI Improvements
 
 - Removed pulsing effect on Copy Filters button, as it was distracting more than it added value
+- Fixed action buttons growing vertically when their label wrapped onto two lines — buttons now stay at a consistent height and the label wraps inside
 
 ## New Features
 

@@ -48,7 +48,7 @@ export function GetCardPages({ currentContext, isDisabled, onCollapseActions, on
       <Tooltip closeDelay={100} delay={600}>
         <Button
           fullWidth
-          className='relative h-auto min-h-9 min-w-36 flex-1 overflow-visible py-1.5 whitespace-normal'
+          className='relative min-w-36 flex-1 overflow-visible whitespace-normal'
           isDisabled={isDisabled}
           isPending={isPending}
           variant='tertiary'
