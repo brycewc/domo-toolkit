@@ -76,7 +76,7 @@ export function Welcome() {
     {
       icon: IconLightningBolt,
       id: 'context',
-      label: 'Actions and information appears when relevant, and disappears when not'
+      label: 'Actions and information appear when relevant, and disappear when not'
     },
     {
       icon: IconCookieOff,

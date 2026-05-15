@@ -1366,13 +1366,16 @@ function createSourceColumn({
       const type = row[typeKey];
       const id = row[idKey];
       const tooltip = id ? `${name || '-'} (${id})` : name || '-';
+      const chipColor = getSourceTypeColor(type);
 
       return (
         <div className='flex flex-col gap-1'>
           <span className='truncate text-sm font-medium' title={tooltip}>
             {name || '-'}
           </span>
-          {type && <span className='chip chip--accent chip--soft chip--sm w-fit'>{type}</span>}
+          {type && (
+            <span className={`chip chip--${chipColor} chip--soft chip--sm w-fit`}>{type}</span>
+          )}
         </div>
       );
     },
@@ -1382,6 +1385,11 @@ function createSourceColumn({
     width: '2fr'
   };
 }
+
+// Soft chip palette for unknown source types. USER/GROUP are reserved to
+// accent/success so they aren't reused here — anything else hashes to one of
+// these deterministically so the same type lands on the same color every row.
+const SOURCE_TYPE_FALLBACK_COLORS = ['warning', 'danger', 'primary', 'secondary', 'tertiary'];
 
 /**
  * Helper function to create a timestamp column with formatted date/time
@@ -1525,6 +1533,25 @@ function getShortTimezone() {
     parts.find((p) => p.type === 'timeZoneName')?.value ??
     Intl.DateTimeFormat().resolvedOptions().timeZone
   );
+}
+
+/**
+ * Map a DomoStats source type to a chip color. USER and GROUP are pinned
+ * (accent/success) so the common cases are visually anchored; everything else
+ * is hashed to a stable color from SOURCE_TYPE_FALLBACK_COLORS.
+ */
+function getSourceTypeColor(type) {
+  if (!type) return 'default';
+  const normalized = String(type).toUpperCase();
+  if (normalized === 'USER') return 'accent';
+  if (normalized === 'GROUP') return 'success';
+
+  let hash = 0;
+  for (let i = 0; i < normalized.length; i++) {
+    hash = (hash * 31 + normalized.charCodeAt(i)) | 0;
+  }
+  const index = Math.abs(hash) % SOURCE_TYPE_FALLBACK_COLORS.length;
+  return SOURCE_TYPE_FALLBACK_COLORS[index];
 }
 
 /**
