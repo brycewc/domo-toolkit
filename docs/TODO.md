@@ -6,3 +6,4 @@
 - [ ] I am bad at committing often and with better commit messages. Write a skill to have Claude prompt me to commit and auto-generate messages.
 - [ ] Add back icon color changing options.
 - [ ] Add option to open activity log for an app when on app studio page
+- [ ] Adjust migrant downstream content to show toast warning when there is no downstream content instead of showing blank view

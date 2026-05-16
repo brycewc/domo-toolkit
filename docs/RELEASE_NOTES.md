@@ -5,6 +5,7 @@
 - Removed pulsing effect on Copy Filters button, as it was distracting more than it added value
 - Fixed action buttons growing vertically when their label wrapped onto two lines — buttons now stay at a consistent height and the label wraps inside
 - Activity Log Source column (DomoStats path): `USER` chips stay accent and `GROUP` chips are now success-green; any other source type (`SYSTEM`, `ETL`, etc.) hashes to a stable color so each type is visually distinct but consistent across rows
+- DataList header title and subtext now show their full value in a HeroUI Tooltip on hover (replacing the previous native `title`-attribute approach), so truncated headings like "Downstream Content of {long dataset name}" and long subtext counts/status messages are readable regardless of whether the caller passed a string or JSX
 
 ## New Features
 

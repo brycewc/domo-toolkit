@@ -78,7 +78,7 @@ import { ObjectTypeIcon } from '../ObjectTypeIcon';
  * @param {Function} [props.isSelectable] - `(item) => boolean` filter. When `selectionMode` is true, only items returning true get a checkbox-wrapped label; others get an empty 16px placeholder to preserve column alignment. Defaults to `() => true`.
  * @param {React.ReactNode} [props.selectionToolbar] - Selection-mode-only content rendered as a third header row directly under the action buttons. Use for "Select all"/"Deselect all" or other bulk-selection controls. Ignored when `selectionMode` is false.
  * @param {React.ReactNode} [props.footer] - Content rendered inside the Card below the items list, separated from the scroll area by a `<Separator>`. Use for a primary action that should sit pinned beneath the list (e.g. a full-width "Transfer ownership to…" button in selection mode). Consumers decide visibility — pass `null`/`false` to omit.
- * @param {React.ReactNode} [props.subtext] - Secondary content rendered on the second header row (typically counts, status text, or a breadcrumb). Truncates with `title`-attribute hover-overflow if it can't fit alongside header actions.
+ * @param {React.ReactNode} [props.subtext] - Secondary content rendered on the second header row (typically counts, status text, or a breadcrumb). Truncates when buttons claim their share of width; the same content is mirrored into a HeroUI `<Tooltip>` so the full value is readable on hover regardless of whether it's a string or JSX.
  * @param {Array<{ key: string, icon: React.ReactNode, tooltipText: string, onPress: () => void, isDisabled?: boolean, isActive?: boolean, ariaLabel?: string }>} [props.customHeaderActions] - View-specific header buttons rendered inline after the built-in `headerActions`. Use this for actions that don't fit the preset enum (Transfer Ownership, Selection toggle, etc.).
  * @param {string} [props.viewType] - The action key for this view (e.g. `'getCards'`, `'getDatasets'`). Required when `'reload'` is in `headerActions`. Used as the `type` passed to `launchView` and as the key looked up against `getAvailableActions(currentContext)` to decide if reload is enabled.
  * @param {Object} [props.currentContext] - Live `DomoContext` for the user's currently-active object. Required when `'reload'` is in `headerActions`. Drives whether reload is enabled (current object differs from original AND supports the view).
@@ -323,16 +323,20 @@ export function DataList({
         // with right padding to clear the close icon. Subtext + action buttons
         // live on a second row inside Card.Header. Actions render inline — no
         // IconDotsHorizontal Popover collapse — so primary actions like Refresh are one
-        // click instead of two. Subtext truncates first when buttons take their
-        // share of width; a `title` attribute surfaces the full text on hover.
+        // click instead of two. Both the title and the subtext are wrapped in
+        // a HeroUI `<Tooltip>` whose content mirrors the trigger JSX, so a
+        // truncated title or subtext can be read in full on hover regardless
+        // of whether the caller passed a string or a JSX node.
         <Card.Header className='gap-1'>
           {title && (
-            <Card.Title
-              className='line-clamp-1 min-w-0 pr-8'
-              title={typeof title === 'string' ? title : undefined}
-            >
-              {title}
-            </Card.Title>
+            <Tooltip closeDelay={0} delay={700}>
+              <Tooltip.Trigger className='min-w-0 pr-8'>
+                <Card.Title className='line-clamp-1'>{title}</Card.Title>
+              </Tooltip.Trigger>
+              <Tooltip.Content className='w-full font-normal! break-normal'>
+                {title}
+              </Tooltip.Content>
+            </Tooltip>
           )}
           {onClose && (
             <Tooltip closeDelay={0} delay={400}>
@@ -346,17 +350,23 @@ export function DataList({
               >
                 <IconX />
               </Button>
-              <Tooltip.Content className='text-xs'>{closeLabel}</Tooltip.Content>
+              <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+                {closeLabel}
+              </Tooltip.Content>
             </Tooltip>
           )}
           {(subtext || hasInlineActions) && (
             <div className='flex min-w-0 items-center justify-between gap-2'>
-              <div
-                className='min-w-0 flex-1 truncate text-xs text-muted'
-                title={typeof subtext === 'string' ? subtext : undefined}
-              >
-                {subtext}
-              </div>
+              {subtext ? (
+                <Tooltip closeDelay={0} delay={400}>
+                  <Tooltip.Trigger className='min-w-0 flex-1'>
+                    <div className='truncate text-xs text-muted'>{subtext}</div>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content>{subtext}</Tooltip.Content>
+                </Tooltip>
+              ) : (
+                <div className='min-w-0 flex-1' />
+              )}
               {hasInlineActions && (
                 <ButtonGroup hideSeparator className='flex shrink-0' size='sm' variant='ghost'>
                   {customHeaderActions?.map((action) => (
@@ -372,7 +382,7 @@ export function DataList({
                       >
                         {action.icon}
                       </Button>
-                      <Tooltip.Content className='text-xs'>{action.tooltipText}</Tooltip.Content>
+                      <Tooltip.Content>{action.tooltipText}</Tooltip.Content>
                     </Tooltip>
                   ))}
                   {headerActions.includes('openAll') && (
