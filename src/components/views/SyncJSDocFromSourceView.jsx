@@ -13,7 +13,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { DomoContext } from '@/models/DomoContext';
-import { getCodeEngineEditorSource, getCodeEnginePackageDefinition, postCodeEnginePackageVersion, setCodeEngineEditorSource } from '@/services/codeEngine';
+import { getCodeEngineEditorSource, getCodeEnginePackageVersion, getCodeEnginePackageVersions, postCodeEnginePackageVersion, setCodeEngineEditorSource } from '@/services/codeEngine';
 import { computeStructuralDiff, findCurrentVersionInfo, findVersionForBaseline, parseSourceToManifest, preparePackagePayload, resolveTargetVersion } from '@/utils/jsdocToPackage';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconCheckCircle from '@icons/check-circle.svg?react';
@@ -26,9 +26,11 @@ import IconX from '@icons/x.svg?react';
 
 export function SyncJSDocFromSourceView({ onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentContext, setCurrentContext] = useState(null);
   const [packageDef, setPackageDef] = useState(null);
+  const [baseVersionDef, setBaseVersionDef] = useState(null);
   const [sourceRead, setSourceRead] = useState(null);
   const [error, setError] = useState(null);
   const mountedRef = useRef(true);
@@ -67,15 +69,18 @@ export function SyncJSDocFromSourceView({ onBackToDefault = null, onStatusUpdate
 
       setCurrentContext(context);
 
-      const [defResult, srcResult] = await Promise.allSettled([
-        getCodeEnginePackageDefinition(packageId, tabId),
+      // Stage 1: package envelope (versions + configuration) and live editor source
+      // in parallel. The envelope tells us which versions exist so we can pick a
+      // baseline; the editor source is what we'll diff *from*.
+      const [envelopeResult, srcResult] = await Promise.allSettled([
+        getCodeEnginePackageVersions(packageId, tabId),
         getCodeEngineEditorSource({ packageId, tabId })
       ]);
 
       if (!mountedRef.current) return;
 
-      if (defResult.status === 'rejected') {
-        setError(defResult.reason?.message || 'Failed to load package definition');
+      if (envelopeResult.status === 'rejected') {
+        setError(envelopeResult.reason?.message || 'Failed to load package versions');
         return;
       }
       if (srcResult.status === 'rejected') {
@@ -83,13 +88,43 @@ export function SyncJSDocFromSourceView({ onBackToDefault = null, onStatusUpdate
         return;
       }
 
-      setPackageDef(defResult.value);
+      const envelope = envelopeResult.value;
+
+      // Stage 2: fetch the specific baseline version's manifest. We can only pick
+      // the baseline once we know what versions exist (envelope), which is why
+      // this is sequential. For brand-new packages with no versions, baseline is
+      // null and we skip — the diff will show every function as "added".
+      const targetForLoad = resolveTargetVersion({ versions: envelope?.versions });
+      const baseline = findVersionForBaseline(envelope?.versions, targetForLoad.version);
+      let versionDef = null;
+      if (baseline?.version) {
+        try {
+          versionDef = await getCodeEnginePackageVersion(packageId, baseline.version, tabId);
+        } catch (err) {
+          console.warn('[SyncJSDocFromSourceView] Baseline version fetch failed:', err);
+        }
+      }
+
+      if (!mountedRef.current) return;
+
+      setPackageDef(envelope);
+      setBaseVersionDef(versionDef);
       setSourceRead(srcResult.value);
+      setError(null);
     } catch (err) {
       console.error('[SyncJSDocFromSourceView] Error loading data:', err);
       if (mountedRef.current) setError(err.message || 'Failed to load data');
     } finally {
       if (mountedRef.current) setIsLoading(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await loadData();
+    } finally {
+      if (mountedRef.current) setIsRefreshing(false);
     }
   };
 
@@ -111,10 +146,11 @@ export function SyncJSDocFromSourceView({ onBackToDefault = null, onStatusUpdate
     [packageDef]
   );
 
-  const baseVersion = useMemo(
-    () => (packageDef ? findVersionForBaseline(packageDef.versions, target.version) : null),
-    [packageDef, target]
-  );
+  // baseVersionDef is fetched in loadData via the version-specific endpoint, so
+  // it carries the actual function manifest and code for the baseline version.
+  // We expose it under the `baseVersion` name preserved from the prior shape so
+  // downstream consumers (preparePackagePayload, the parser) read the same field.
+  const baseVersion = baseVersionDef;
 
   const parsed = useMemo(() => {
     if (!sourceRead || !packageDef) return null;
@@ -161,6 +197,7 @@ export function SyncJSDocFromSourceView({ onBackToDefault = null, onStatusUpdate
         }
       }
       await postCodeEnginePackageVersion(definition, tabId);
+      chrome.tabs.reload(tabId);
       return target;
     })();
 
@@ -202,7 +239,13 @@ export function SyncJSDocFromSourceView({ onBackToDefault = null, onStatusUpdate
   if (error) {
     return (
       <Card className='flex h-full w-full flex-col p-2'>
-        <ViewHeader subtitle={null} title='Sync JSDoc' onBackToDefault={onBackToDefault} />
+        <ViewHeader
+          isRefreshing={isRefreshing}
+          subtitle={null}
+          title='Sync JSDoc'
+          onBackToDefault={onBackToDefault}
+          onRefresh={handleRefresh}
+        />
         <Separator />
         <Card.Content className='flex flex-col items-center gap-2 py-8'>
           <IconExclamationTriangle className='text-danger' />
@@ -215,9 +258,11 @@ export function SyncJSDocFromSourceView({ onBackToDefault = null, onStatusUpdate
   return (
     <Card className='flex min-h-0 w-full flex-1 flex-col p-2'>
       <ViewHeader
+        isRefreshing={isRefreshing}
         subtitle={packageDef?.name ? `Package: ${packageDef.name}` : null}
         title='Sync JSDoc to Package'
         onBackToDefault={onBackToDefault}
+        onRefresh={handleRefresh}
       />
       <Separator />
       <ScrollShadow
@@ -575,23 +620,45 @@ function TargetPill({ target }) {
   );
 }
 
-function ViewHeader({ onBackToDefault, subtitle, title }) {
+function ViewHeader({ isRefreshing, onBackToDefault, onRefresh, subtitle, title }) {
   return (
-    <Card.Header>
-      <Card.Title className='flex items-start justify-between'>
-        <div className='flex flex-col gap-1'>
-          <div className='line-clamp-2 min-w-0'>{title}</div>
-          {subtitle && <span className='truncate text-xs text-muted'>{subtitle}</span>}
+    <Card.Header className='gap-1'>
+      <Card.Title className='line-clamp-2 min-w-0 pr-8'>{title}</Card.Title>
+      {onBackToDefault && (
+        <Tooltip closeDelay={0} delay={400}>
+          <Button
+            isIconOnly
+            aria-label='Close'
+            className='absolute top-1 right-2'
+            size='sm'
+            variant='ghost'
+            onPress={onBackToDefault}
+          >
+            <IconX />
+          </Button>
+          <Tooltip.Content className='text-xs'>Close</Tooltip.Content>
+        </Tooltip>
+      )}
+      {(subtitle || onRefresh) && (
+        <div className='flex min-w-0 items-center justify-between gap-2'>
+          <div className='min-w-0 flex-1 truncate text-xs text-muted'>{subtitle}</div>
+          {onRefresh && (
+            <Tooltip closeDelay={0} delay={400}>
+              <Button
+                isIconOnly
+                aria-label='Refresh'
+                isDisabled={isRefreshing}
+                size='sm'
+                variant='ghost'
+                onPress={onRefresh}
+              >
+                <IconSync className={isRefreshing ? 'animate-spin' : ''} />
+              </Button>
+              <Tooltip.Content className='text-xs'>Refresh</Tooltip.Content>
+            </Tooltip>
+          )}
         </div>
-        {onBackToDefault && (
-          <Tooltip closeDelay={0} delay={400}>
-            <Button isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
-              <IconX />
-            </Button>
-            <Tooltip.Content className='text-xs'>Close</Tooltip.Content>
-          </Tooltip>
-        )}
-      </Card.Title>
+      )}
     </Card.Header>
   );
 }

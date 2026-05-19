@@ -131,11 +131,7 @@ export function GetViewInputsView({
     }
   };
 
-  const renderTitle = () => (
-    <span>
-      DataSets Used in View for <span className='font-bold'>{viewData?.objectName}</span>
-    </span>
-  );
+  const renderTitle = () => `DataSets Used in View for **${viewData?.objectName}**`;
 
   const renderSubtext = () => {
     const totalCount = items.length;

@@ -302,11 +302,7 @@ export function GetCardsView({
   const totalItems = itemCounts.cards + itemCounts.forms + itemCounts.queues;
 
   const titlePrefix = hasMultipleTypes ? 'Items for' : 'Cards for';
-  const renderTitle = () => (
-    <span>
-      {titlePrefix} <span className='font-bold'>{viewData?.objectName}</span>
-    </span>
-  );
+  const renderTitle = () => `${titlePrefix} **${viewData?.objectName}**`;
 
   const renderSubtext = () => {
     if (totalItems === 0) return null;

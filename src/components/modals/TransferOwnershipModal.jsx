@@ -9,30 +9,30 @@ import {
   TextField,
   Tooltip
 } from '@heroui/react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { UserComboBox } from '@/components/UserComboBox';
-import { countOwned } from '@/services/transferOwnership';
 import { getFullUserDetails, getUserDetails } from '@/services/users';
 import IconPerson from '@icons/person.svg?react';
 import IconX from '@icons/x.svg?react';
 
 /**
  * Modal that collects the destination user, email/delete preferences, and
- * a confirmation submit. Operates on a parent-owned `selectedTypeKeys` set;
- * the modal does not edit selection. On submit, the modal closes immediately
- * and hands form data to the parent's `onSubmit` — the parent runs the
- * transfer pipeline (transferAllOwnership + email-new-owner + delete-user)
- * and threads progress into DataList rows via the parent's transferStatus
- * state.
+ * a confirmation submit. The parent owns the per-leaf selection state and
+ * passes pre-computed summary counts (`selectedTypeCount`,
+ * `selectedObjectCount`) so the modal stays leaf-id agnostic. On submit, the
+ * modal closes immediately and hands form data to the parent's `onSubmit` —
+ * the parent runs the transfer pipeline (transferAllOwnership +
+ * email-new-owner + delete-user) and threads progress into DataList rows via
+ * the parent's transferStatus state.
  *
  * @param {Object} props
  * @param {Object} props.currentContext - Active DomoContext (carries baseUrl, tabId, user.metadata.USER_RIGHTS, and the source user's reportsTo).
  * @param {boolean} props.isOpen
  * @param {(open: boolean) => void} props.onOpenChange
  * @param {(formData: { toUserId: number, toUserDisplayName: string|null, emailNewOwner: boolean, deleteAfterTransfer: boolean, targetUser: { displayName: string|null, email: string|null }|null }) => void} props.onSubmit
- * @param {Object} props.results - useParallelFetches results, used to count selected objects for the summary.
- * @param {Set<string>} props.selectedTypeKeys
+ * @param {number} props.selectedObjectCount - Number of individual leaves currently selected, summed across types. Drives the confirmation summary line.
+ * @param {number} props.selectedTypeCount - Number of types with ≥1 leaf selected. Drives the summary line AND gates submit (0 ⇒ disabled).
  * @param {{ id: number|string, name: string }} props.sourceUser
  */
 export function TransferOwnershipModal({
@@ -40,8 +40,8 @@ export function TransferOwnershipModal({
   isOpen,
   onOpenChange,
   onSubmit,
-  results,
-  selectedTypeKeys,
+  selectedObjectCount,
+  selectedTypeCount,
   sourceUser
 }) {
   const [selectedUserId, setSelectedUserId] = useState(null);
@@ -117,19 +117,6 @@ export function TransferOwnershipModal({
 
   const userRights = currentContext?.user?.metadata?.USER_RIGHTS || [];
   const canDeleteUsers = userRights.includes('user.edit');
-
-  const selectedTypeCount = selectedTypeKeys?.size ?? 0;
-  const selectedObjectCount = useMemo(() => {
-    if (!selectedTypeKeys || !results) return 0;
-    let total = 0;
-    for (const key of selectedTypeKeys) {
-      const result = results[key];
-      if (result?.status === 'loaded' && result.items) {
-        total += countOwned(key, result.items);
-      }
-    }
-    return total;
-  }, [selectedTypeKeys, results]);
 
   const handleSubmit = (e) => {
     if (e) e.preventDefault();

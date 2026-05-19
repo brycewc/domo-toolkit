@@ -16,6 +16,7 @@ import {
   rewriteDataflowColumns,
   rewriteDatasetViewColumns
 } from './columnRewriter';
+import { getDataflowDetail } from './dataflows';
 
 // ===========================================================================
 // DISCOVERY
@@ -133,7 +134,7 @@ export async function getDownstreamContent(datasetId, tabId = null) {
  * @returns {Promise<{ datasetViews: Array<{id: string, name: string}>, dataflows: Array<{id: any, name: string}> }>}
  */
 export async function getDownstreamLineage(datasetId, tabId = null) {
-  return executeInPage(
+  const lineage = await executeInPage(
     async (datasetId) => {
       const url = `/api/data/v1/lineage/DATA_SOURCE/${datasetId}?traverseUp=false&maxDepth=4&requestEntities=DATA_SOURCE,DATAFLOW`;
       const response = await fetch(url, { credentials: 'include' });
@@ -164,11 +165,9 @@ export async function getDownstreamLineage(datasetId, tabId = null) {
         } else if (child.type === 'DATAFLOW') {
           if (seenDataflows.has(child.id)) continue;
           seenDataflows.add(child.id);
-          const entry = lineage[`DATAFLOW${child.id}`];
-          dataflows.push({
-            id: child.id,
-            name: entry?.name || child.name || `Dataflow ${child.id}`
-          });
+          // Lineage payload doesn't carry dataflow names — caller hydrates
+          // these via getDataflowDetail after this returns.
+          dataflows.push({ id: child.id });
         }
       }
 
@@ -205,6 +204,22 @@ export async function getDownstreamLineage(datasetId, tabId = null) {
     [datasetId],
     tabId
   );
+
+  // Hydrate dataflow names — the lineage endpoint returns IDs only.
+  // Best-effort: a failed detail fetch falls back to the ID-based label
+  // rather than blocking the whole migration picker.
+  const dataflowsWithNames = await Promise.all(
+    lineage.dataflows.map(async (df) => {
+      try {
+        const detail = await getDataflowDetail(df.id, tabId);
+        return { id: df.id, name: detail?.name || `Dataflow ${df.id}` };
+      } catch {
+        return { id: df.id, name: `Dataflow ${df.id}` };
+      }
+    })
+  );
+
+  return { dataflows: dataflowsWithNames, datasetViews: lineage.datasetViews };
 }
 
 const DATASET_SEARCH_PAGE_SIZE = 50;

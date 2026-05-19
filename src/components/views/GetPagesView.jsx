@@ -1,4 +1,4 @@
-import { Alert, Button, Card, Separator, Spinner } from '@heroui/react';
+import { Alert, Button, Card, Spinner } from '@heroui/react';
 import { useEffect, useRef, useState } from 'react';
 
 import { CloseButton } from '@/components/CloseButton';
@@ -630,13 +630,8 @@ export function GetPagesView({
     }
   };
 
-  const renderTitle = () => (
-    <span>
-      {pageTypeLabel}
-      {pageTypeLabel.endsWith('on') ? '' : ' for'}{' '}
-      <span className='font-bold'>{pageData?.objectName}</span>
-    </span>
-  );
+  const renderTitle = () =>
+    `${pageTypeLabel}${pageTypeLabel.endsWith('on') ? '' : ' for'} **${pageData?.objectName}**`;
 
   const renderSubtext = () => {
     if (items.length === undefined) return null;
@@ -663,43 +658,23 @@ export function GetPagesView({
       const pages = tally(items);
       const cards = cardIds.size;
       if (!pages) return null;
-      return (
-        <span className='inline-flex items-center gap-1'>
-          <span>
-            {pages} page{pages === 1 ? '' : 's'}
-          </span>
-          {cards > 0 && (
-            <>
-              <Separator className='mx-1 h-3' orientation='vertical' size='sm' />
-              <span>
-                {cards} card{cards === 1 ? '' : 's'}
-              </span>
-            </>
-          )}
-        </span>
-      );
+      let text = `${pages} page${pages === 1 ? '' : 's'}`;
+      if (cards > 0) {
+        text += ` • ${cards} card${cards === 1 ? '' : 's'}`;
+      }
+      return text;
     }
 
     const grandchildCount = items.reduce(
       (total, item) => total + (item.children?.length || 0),
       0
     );
-    return (
-      <span className='inline-flex items-center gap-1'>
-        <span>
-          {items.length} {pageData?.objectType === 'PAGE' ? 'child page' : 'page'}
-          {items.length === 1 ? '' : 's'}
-        </span>
-        {grandchildCount > 0 && (
-          <>
-            <Separator className='mx-1 h-3' orientation='vertical' size='sm' />
-            <span>
-              {grandchildCount} grandchild {grandchildCount === 1 ? 'page' : 'pages'}
-            </span>
-          </>
-        )}
-      </span>
-    );
+    const pageLabel = pageData?.objectType === 'PAGE' ? 'child page' : 'page';
+    let text = `${items.length} ${pageLabel}${items.length === 1 ? '' : 's'}`;
+    if (grandchildCount > 0) {
+      text += ` • ${grandchildCount} grandchild ${grandchildCount === 1 ? 'page' : 'pages'}`;
+    }
+    return text;
   };
   if (isLoading) {
     if (!showSpinner) return null;

@@ -1,7 +1,7 @@
 import { Button, Tooltip } from '@heroui/react';
 
 import { launchView } from '@/utils/sidepanel';
-import IconCodeTags from '@icons/code-tags.svg?react';
+import IconSync from '@icons/sync.svg?react';
 
 export function SyncJSDocFromSource({
   currentContext,
@@ -25,7 +25,7 @@ export function SyncJSDocFromSource({
           })
         }
       >
-        <IconCodeTags /> Sync JSDoc to Package
+        <IconSync /> Sync JSDoc to Package
       </Button>
       <Tooltip.Content
         className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'

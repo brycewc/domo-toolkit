@@ -327,6 +327,12 @@ export function flattenOwned(typeKey, owned) {
  *
  * @param {Object} params
  * @param {Set<string>} params.enabledTypes - Set of type keys to transfer
+ * @param {Map<string, Set<string|number>>} [params.enabledItemIds] - Optional
+ *   per-type allow-list of item IDs to transfer. When present for a type, the
+ *   listed `owned` array is filtered to only those items before the transfer
+ *   call. When absent for a type (or absent entirely), the whole type is
+ *   transferred — preserves the original all-or-nothing semantics for callers
+ *   that don't expose per-item selection.
  * @param {number} params.fromUserId - Source user ID
  * @param {Function} params.onTypeProgress - Callback: ({ typeKey, status, count, result }) => void
  * @param {Object} [params.seededOwnedObjects] - Optional pre-fetched owned map
@@ -339,6 +345,7 @@ export function flattenOwned(typeKey, owned) {
  * @returns {Promise<Map<string, {count: number, errors: Array, failed: number, succeeded: number}>>}
  */
 export async function transferAllOwnership({
+  enabledItemIds,
   enabledTypes,
   fromUserId,
   onTypeProgress,
@@ -367,6 +374,15 @@ export async function transferAllOwnership({
           });
           const listOwned = type.getOwnedForTransfer || type.getOwned;
           owned = await listOwned(fromUserId, tabId);
+        }
+
+        // Apply the per-item selection filter (if any) AFTER listing so it
+        // works in both seeded and re-fetch paths. Items the user didn't pick
+        // get dropped; items the user picked that aren't in the listed result
+        // are silently skipped (no canonical owner record to operate on).
+        const itemFilter = enabledItemIds?.get(type.key);
+        if (itemFilter) {
+          owned = filterOwnedToSelection(type.key, owned, itemFilter);
         }
 
         const count = countOwned(type.key, owned);
@@ -447,4 +463,31 @@ export async function transferAllOwnership({
   await Promise.allSettled(transferPromises);
 
   return results;
+}
+
+/**
+ * Filter a raw owned-objects result down to the items selected by the user.
+ * Applied after Phase 1 (listing) so per-item selection works in both seeded
+ * and getOwnedForTransfer paths.
+ *
+ * For projectsAndTasks, `selectedIds` carries composite keys
+ * (`project-<id>` / `task-<id>`) so we can preserve the {projects, tasks}
+ * shape the transfer functions expect. For other types, `selectedIds` carries
+ * raw item IDs (numeric or string) and the result is a simple Array.filter.
+ *
+ * @param {string} typeKey
+ * @param {*} owned - Raw result from getOwned / getOwnedForTransfer
+ * @param {Set<string|number>} selectedIds
+ * @returns {*} Same shape as input, filtered to selected items only
+ */
+function filterOwnedToSelection(typeKey, owned, selectedIds) {
+  if (!owned) return owned;
+  if (typeKey === 'projectsAndTasks') {
+    return {
+      projects: (owned.projects || []).filter((p) => selectedIds.has(`project-${p.id}`)),
+      tasks: (owned.tasks || []).filter((t) => selectedIds.has(`task-${t.id}`))
+    };
+  }
+  if (!Array.isArray(owned)) return owned;
+  return owned.filter((o) => selectedIds.has(o.id));
 }

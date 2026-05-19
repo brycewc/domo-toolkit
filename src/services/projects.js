@@ -29,7 +29,13 @@ export async function getOwnedProjectsAndTasks(userId, tabId = null) {
             if (project.assignedTo == userId) {
               allProjects.push({
                 id: project.id,
-                name: project.name || project.id.toString()
+                // Domo's project payloads carry the display name in
+                // `projectName` (matches the `pathToName: 'projectName'`
+                // setting on the PROJECT DomoObjectType). Falling back to
+                // plain `.name` covers any callsite that has already
+                // normalized the field, and finally the stringified id as
+                // a last resort.
+                name: project.projectName || project.name || project.id.toString()
               });
             }
           }

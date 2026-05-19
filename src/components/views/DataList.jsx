@@ -18,6 +18,7 @@ import { memo, useCallback, useMemo, useRef, useState } from 'react';
 
 import { getAvailableActions } from '@/utils/availableActions';
 import { getValidTabForInstance } from '@/utils/currentObject';
+import { parseMarkdownBold, stripMarkdownBold } from '@/utils/markdown';
 import { launchView } from '@/utils/sidepanel';
 import IconArrowSquareOut from '@icons/arrow-square-out.svg?react';
 import IconCancel from '@icons/cancel.svg?react';
@@ -53,7 +54,7 @@ import { ObjectTypeIcon } from '../ObjectTypeIcon';
  *
  * @param {Object} props
  * @param {Array} props.items - Array of list items with optional children
- * @param {React.ReactNode} props.title - Title/stats section to display in header
+ * @param {string} props.title - Plain-text header title. Supports inline `**bold**` markdown for emphasis (parsed via `parseMarkdownBold`). The tooltip mirrors the same text with bold markers stripped so the overlay reads as unstyled prose.
  * @param {HeaderActionType[]} props.headerActions - Array of action types to show in header
  * @param {Function} props.onClose - Callback when close button is clicked (shows close button if provided)
  * @param {string} props.closeLabel - Label for close button tooltip
@@ -78,7 +79,7 @@ import { ObjectTypeIcon } from '../ObjectTypeIcon';
  * @param {Function} [props.isSelectable] - `(item) => boolean` filter. When `selectionMode` is true, only items returning true get a checkbox-wrapped label; others get an empty 16px placeholder to preserve column alignment. Defaults to `() => true`.
  * @param {React.ReactNode} [props.selectionToolbar] - Selection-mode-only content rendered as a third header row directly under the action buttons. Use for "Select all"/"Deselect all" or other bulk-selection controls. Ignored when `selectionMode` is false.
  * @param {React.ReactNode} [props.footer] - Content rendered inside the Card below the items list, separated from the scroll area by a `<Separator>`. Use for a primary action that should sit pinned beneath the list (e.g. a full-width "Transfer ownership to…" button in selection mode). Consumers decide visibility — pass `null`/`false` to omit.
- * @param {React.ReactNode} [props.subtext] - Secondary content rendered on the second header row (typically counts, status text, or a breadcrumb). Truncates when buttons claim their share of width; the same content is mirrored into a HeroUI `<Tooltip>` so the full value is readable on hover regardless of whether it's a string or JSX.
+ * @param {string} [props.subtext] - Plain-text secondary content for the second header row (typically counts, status text, or a breadcrumb). Supports inline `**bold**` markdown the same way `title` does. Truncates if it can't fit alongside header actions, but does NOT get a hover tooltip — every subtext we render is a short, bounded count/status string and a tooltip mirroring already-visible text felt redundant.
  * @param {Array<{ key: string, icon: React.ReactNode, tooltipText: string, onPress: () => void, isDisabled?: boolean, isActive?: boolean, ariaLabel?: string }>} [props.customHeaderActions] - View-specific header buttons rendered inline after the built-in `headerActions`. Use this for actions that don't fit the preset enum (Transfer Ownership, Selection toggle, etc.).
  * @param {string} [props.viewType] - The action key for this view (e.g. `'getCards'`, `'getDatasets'`). Required when `'reload'` is in `headerActions`. Used as the `type` passed to `launchView` and as the key looked up against `getAvailableActions(currentContext)` to decide if reload is enabled.
  * @param {Object} [props.currentContext] - Live `DomoContext` for the user's currently-active object. Required when `'reload'` is in `headerActions`. Drives whether reload is enabled (current object differs from original AND supports the view).
@@ -323,19 +324,19 @@ export function DataList({
         // with right padding to clear the close icon. Subtext + action buttons
         // live on a second row inside Card.Header. Actions render inline — no
         // IconDotsHorizontal Popover collapse — so primary actions like Refresh are one
-        // click instead of two. Both the title and the subtext are wrapped in
-        // a HeroUI `<Tooltip>` whose content mirrors the trigger JSX, so a
-        // truncated title or subtext can be read in full on hover regardless
-        // of whether the caller passed a string or a JSX node.
+        // click instead of two. Title and subtext are plain strings with optional
+        // `**bold**` markdown rendered via `parseMarkdownBold`. Only the title
+        // gets a HeroUI Tooltip (`stripMarkdownBold` flattens it for the
+        // overlay so the hover text reads as unstyled prose) — subtext is
+        // always a bounded short count/status string, so a tooltip mirroring
+        // already-visible content would be redundant.
         <Card.Header className='gap-1'>
           {title && (
             <Tooltip closeDelay={0} delay={700}>
               <Tooltip.Trigger className='min-w-0 pr-8'>
-                <Card.Title className='line-clamp-1'>{title}</Card.Title>
+                <Card.Title className='line-clamp-1'>{parseMarkdownBold(title)}</Card.Title>
               </Tooltip.Trigger>
-              <Tooltip.Content className='w-full font-normal! break-normal'>
-                {title}
-              </Tooltip.Content>
+              <Tooltip.Content>{stripMarkdownBold(title)}</Tooltip.Content>
             </Tooltip>
           )}
           {onClose && (
@@ -357,16 +358,9 @@ export function DataList({
           )}
           {(subtext || hasInlineActions) && (
             <div className='flex min-w-0 items-center justify-between gap-2'>
-              {subtext ? (
-                <Tooltip closeDelay={0} delay={400}>
-                  <Tooltip.Trigger className='min-w-0 flex-1'>
-                    <div className='truncate text-xs text-muted'>{subtext}</div>
-                  </Tooltip.Trigger>
-                  <Tooltip.Content>{subtext}</Tooltip.Content>
-                </Tooltip>
-              ) : (
-                <div className='min-w-0 flex-1' />
-              )}
+              <div className='min-w-0 flex-1 truncate text-xs text-muted'>
+                {parseMarkdownBold(subtext)}
+              </div>
               {hasInlineActions && (
                 <ButtonGroup hideSeparator className='flex shrink-0' size='sm' variant='ghost'>
                   {customHeaderActions?.map((action) => (
@@ -737,6 +731,19 @@ function arePropsEqualForRow(prev, next) {
   const prevSelected = prev.selectedIds?.has(prev.item.id) ?? false;
   const nextSelected = next.selectedIds?.has(next.item.id) ?? false;
   if (prevSelected !== nextSelected) return false;
+  // Parent rows additionally need to re-render when any of their children's
+  // selection state changes — that's what drives the indeterminate visual on
+  // the parent checkbox. Leaf rows (no children) skip this loop. The cost is
+  // bounded: only parent rows pay it, and only by their own child count.
+  const children = prev.item.children;
+  if (Array.isArray(children) && children.length > 0) {
+    for (const child of children) {
+      const childId = String(child.id);
+      const prevChildSelected = prev.selectedIds?.has(childId) ?? false;
+      const nextChildSelected = next.selectedIds?.has(childId) ?? false;
+      if (prevChildSelected !== nextChildSelected) return false;
+    }
+  }
   return true;
 }
 
@@ -827,6 +834,39 @@ function DataListItemImpl({
     selectionMode && (typeof isSelectable === 'function' ? isSelectable(item) : true);
   const selectionPlaceholder =
     selectionMode && !isItemSelectableInMode ? <div className='h-9 w-4 shrink-0' /> : null;
+
+  // Visual indentation per nesting level so children read as descendants
+  // rather than as siblings of their parent. Applied on the row's outer
+  // container (Disclosure.Heading or the flat row's wrapper div) — NOT on
+  // the whole <Disclosure>, because the Disclosure body holds the next
+  // level of children, and each child already computes its own depth-based
+  // padding via `depth + 1` in childRenderProps. Padding the whole
+  // Disclosure would compound and over-indent. Inline style (rather than a
+  // Tailwind class) because `depth` is runtime — Tailwind's JIT can't emit
+  // a class whose name doesn't appear as a static substring of the source.
+  const indentStyle = depth > 0 ? { paddingLeft: `${depth * 16}px` } : undefined;
+
+  // Indeterminate state for parent rows: when *some but not all* of the row's
+  // selectable children are in `selectedIds`, the parent checkbox should paint
+  // the dash icon. Checked-state still comes from the parent's own membership
+  // in the CheckboxGroup value (consumer's onChange propagates parent↔children
+  // so all-children-selected ⇒ parent in set ⇒ checkbox checked). We filter
+  // children by `isSelectable` first so rows whose children are non-selectable
+  // (e.g. OwnershipView type rows) never go indeterminate, only the parents
+  // in MigrateDownstreamContent-style trees where children are independently
+  // selectable.
+  const isParentIndeterminate = (() => {
+    if (!isItemSelectableInMode || !hasChildren) return false;
+    const selectableChildren = item.children.filter((child) =>
+      typeof isSelectable === 'function' ? isSelectable(child) : true
+    );
+    if (selectableChildren.length === 0) return false;
+    let selectedCount = 0;
+    for (const child of selectableChildren) {
+      if (selectedIds?.has(String(child.id))) selectedCount++;
+    }
+    return selectedCount > 0 && selectedCount < selectableChildren.length;
+  })();
 
   const handleAction = useCallback(
     async (actionType) => {
@@ -1051,7 +1091,12 @@ function DataListItemImpl({
   // `flex-1`) keeps the label content-sized so the count sits adjacent to it
   // instead of getting shoved to the right edge by an expanding label.
   const itemLabel = item?.isVirtualParent ? (
-    <p className='min-w-0 truncate text-sm font-medium'>{item.label}</p>
+    // Virtual parents share the same `labelInner` (icon + label) as regular
+    // items so the row's leading icon stays consistent between collapsed
+    // group headers and their expanded leaves. ObjectTypeIcon returns null
+    // when item.typeId is unset, so synthetic group rows (no typeId) render
+    // identically to before.
+    <p className='min-w-0 truncate text-sm font-medium'>{labelInner}</p>
   ) : item.url ? (
     // `min-w-0` (without `flex-1`) lets the Link be content-sized when text
     // is short and shrink/truncate when long — but never grow into empty
@@ -1071,7 +1116,7 @@ function DataListItemImpl({
       <Tooltip className='flex-1' closeDelay={0} delay={200}>
         <Tooltip.Trigger className='block truncate'>{labelInner}</Tooltip.Trigger>
         <Tooltip.Content offset={4} placement='top left'>
-          ID: {item.id}
+          ID: {item.originalId ?? item.id}
         </Tooltip.Content>
       </Tooltip>
     </span>
@@ -1127,6 +1172,7 @@ function DataListItemImpl({
       <div className='w-full'>
         <div
           className={`my-1 flex min-h-9 w-full flex-row items-center justify-between gap-2 ${isMutedEmpty ? 'text-muted' : ''}`}
+          style={indentStyle}
         >
           {/* Selectable: Checkbox is control-only with `aria-label` for screen
               readers — toggling selection requires clicking the actual
@@ -1179,7 +1225,10 @@ function DataListItemImpl({
       isExpanded={isOpen}
       onExpandedChange={(open) => onToggleExpanded?.(item.id, open)}
     >
-      <Disclosure.Heading className='my-1 flex min-h-9 w-full flex-row items-center justify-between gap-2'>
+      <Disclosure.Heading
+        className='my-1 flex min-h-9 w-full flex-row items-center justify-between gap-2'
+        style={indentStyle}
+      >
         {isItemSelectableInMode ? (
           // Selection mode + selectable: the Checkbox is the control alone
           // (no label content), with an `aria-label` for screen readers.
@@ -1208,6 +1257,7 @@ function DataListItemImpl({
             <Checkbox
               aria-label={typeof item.label === 'string' ? item.label : `Select ${item.id}`}
               className='mt-0! shrink-0'
+              isIndeterminate={isParentIndeterminate}
               value={String(item.id)}
             >
               <Checkbox.Control>
@@ -1219,7 +1269,7 @@ function DataListItemImpl({
               className='flex min-w-0 flex-1 flex-row items-center gap-2 self-stretch'
               variant='tertiary'
             >
-              <p className='min-w-0 truncate text-left text-sm font-medium'>{item.label}</p>
+              <p className='min-w-0 truncate text-left text-sm font-medium'>{labelInner}</p>
               {statusIndicator
                 ? statusIndicator
                 : showCounts &&
@@ -1249,7 +1299,7 @@ function DataListItemImpl({
               className='flex min-w-0 flex-1 basis-4/5 flex-row items-center gap-2'
               variant='tertiary'
             >
-              <p className='min-w-0 truncate text-left text-sm font-medium'>{item.label}</p>
+              <p className='min-w-0 truncate text-left text-sm font-medium'>{labelInner}</p>
               {statusIndicator
                 ? statusIndicator
                 : showCounts &&

@@ -232,11 +232,7 @@ export function GetDatasetsView({
     return items.length;
   };
 
-  const renderTitle = () => (
-    <span>
-      {viewData?.typeLabel} for <span className='font-bold'>{viewData?.objectName}</span>
-    </span>
-  );
+  const renderTitle = () => `${viewData?.typeLabel} for **${viewData?.objectName}**`;
 
   const renderSubtext = () => {
     const totalCount = getTotalCount();

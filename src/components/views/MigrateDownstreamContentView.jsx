@@ -15,7 +15,7 @@ import {
   migrateAllDownstreamContent
 } from '@/services/migrateDownstreamContent';
 import { getSidepanelData } from '@/utils/sidepanel';
-import IconArrowRight from '@icons/arrow-right.svg?react';
+import IconArrowsHorizontalBox from '@icons/arrows-horizontal-box.svg?react';
 
 const TYPE_KEY_TO_DOMO_TYPE = {
   cards: 'CARD',
@@ -172,7 +172,8 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
     return counts;
   }, [results, selectedIds]);
 
-  const totalSelected = selectedCounts.cards + selectedCounts.datasetViews + selectedCounts.dataflows;
+  const totalSelected =
+    selectedCounts.cards + selectedCounts.datasetViews + selectedCounts.dataflows;
 
   // Full selected items array per type — passed to the modal so it can scan
   // each item's definition for column references when a schema mismatch is
@@ -223,7 +224,10 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
           id: t.key,
           isVirtualParent: true,
           label: t.label,
-          status
+          status,
+          // typeId drives the leading ObjectTypeIcon on the parent row,
+          // matching the icon already shown on each leaf inside the group.
+          typeId: TYPE_KEY_TO_DOMO_TYPE[t.key]
         });
       }),
     [results, transferStatus, origin]
@@ -270,9 +274,7 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
         const r = results[typeKey];
         const items = r?.status === 'loaded' ? r.items?.items || [] : [];
         if (items.length === 0) return;
-        const allSelected = items.every((item) =>
-          next.has(leafSelectionId(typeKey, item.id))
-        );
+        const allSelected = items.every((item) => next.has(leafSelectionId(typeKey, item.id)));
         if (allSelected) next.add(typeKey);
         else next.delete(typeKey);
       };
@@ -299,39 +301,23 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
 
   const subtextNode = useMemo(() => {
     if (isTransferring) {
-      const inFlight = Object.values(transferStatus).filter((x) => x.status === 'transferring')
-        .length;
+      const inFlight = Object.values(transferStatus).filter(
+        (x) => x.status === 'transferring'
+      ).length;
       const done = Object.values(transferStatus).filter(
         (x) => x.status === 'transferred' || x.status === 'failed'
       ).length;
       const total = inFlight + done;
-      return (
-        <>
-          Migrating… <span className='font-medium text-foreground'>{done}</span>/{total}
-        </>
-      );
+      return `Migrating… **${done}**/${total}`;
     }
     if (!isFullyLoaded) {
-      return (
-        <>
-          Searching downstream content… ({MIGRATE_TYPES.length - loadingCount}/
-          {MIGRATE_TYPES.length})
-        </>
-      );
+      return `Searching downstream content… (${MIGRATE_TYPES.length - loadingCount}/${MIGRATE_TYPES.length})`;
     }
-    return (
-      <>
-        <span className='font-medium text-foreground'>{totalSelected}</span> of{' '}
-        <span className='font-medium text-foreground'>{totalAvailable}</span> selected
-        {errorCount > 0 && (
-          <span>
-            {' ('}
-            <span className='text-danger'>{errorCount} failed to load</span>
-            {')'}
-          </span>
-        )}
-      </>
-    );
+    let text = `**${totalSelected}** of **${totalAvailable}** selected`;
+    if (errorCount > 0) {
+      text += ` (${errorCount} failed to load)`;
+    }
+    return text;
   }, [
     isTransferring,
     transferStatus,
@@ -431,7 +417,7 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
   const customHeaderActions = useMemo(
     () => [
       {
-        icon: <IconArrowRight />,
+        icon: <IconArrowsHorizontalBox />,
         isDisabled: !isFullyLoaded || totalSelected === 0 || isTransferring,
         key: 'migrate',
         onPress: handleOpenModal,
@@ -468,15 +454,11 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
         showActions={true}
         showCounts={true}
         subtext={subtextNode}
+        title={`Downstream Content of **${datasetName}**`}
         onClose={onBackToDefault}
         onRefresh={refreshFetches}
         onSelectionChange={handleSelectionChange}
         onStatusUpdate={onStatusUpdate}
-        title={
-          <>
-            <span>Downstream Content of</span> <span className='font-bold'>{datasetName}</span>
-          </>
-        }
       />
       <MigrateDownstreamModal
         currentContext={currentContext}

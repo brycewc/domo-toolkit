@@ -30,8 +30,23 @@ export function isVersionReleased(versionInfo) {
   return versionInfo?.released != null;
 }
 
-const COMPARED_FIELDS = ['displayName', 'description', 'isPrivate', 'inputs', 'output'];
-const OUTPUT_STRUCTURAL_FIELDS = ['type', 'value', 'nullable', 'isList', 'children', 'entitySubType'];
+const COMPARED_FIELDS = [
+  'displayName',
+  'description',
+  'isPrivate',
+  'inputs',
+  'output',
+  'hasReturn'
+];
+const OUTPUT_STRUCTURAL_FIELDS = [
+  'type',
+  'value',
+  'nullable',
+  'isList',
+  'children',
+  'entitySubType',
+  'defaultValues'
+];
 
 export function computeStructuralDiff(before, after) {
   const out = [];
@@ -56,7 +71,7 @@ export function diffFunctions(derived, existing, meta = {}) {
 export function mergeManifestFunctions({ derivedFunctions, existingFunctions, perFunctionMeta }) {
   const existingByName = new Map();
   for (const fn of existingFunctions || []) {
-    if (fn?.name) existingByName.set(fn.name, fn);
+    if (fn?.name) existingByName.set(fn.name, normalizeExistingFunction(fn));
   }
   const derivedByName = new Map();
   for (const fn of derivedFunctions || []) {
@@ -74,8 +89,8 @@ export function mergeManifestFunctions({ derivedFunctions, existingFunctions, pe
       continue;
     }
     const meta = perFunctionMeta?.[fn.name] || {};
-    const diffFields = diffFunctions(fn, existing, meta);
     const finalFn = preserveCuratedFields(fn, existing, meta);
+    const diffFields = diffFunctions(finalFn, existing, meta);
     decisions.push({
       action: diffFields.length === 0 ? 'unchanged' : 'updated',
       derived: finalFn,
@@ -111,6 +126,12 @@ export function resolveTargetVersion({ versions }) {
     return { mode: 'create', version: incrementPatch(latest.version) };
   }
   return { mode: 'create', version: '1.0.0' };
+}
+
+function addMissingDefaultValues(entry) {
+  if (!entry || typeof entry !== 'object') return entry;
+  if ('defaultValues' in entry) return entry;
+  return { ...entry, defaultValues: entry.value ?? null };
 }
 
 function compareSemverDesc(a, b) {
@@ -150,6 +171,17 @@ function isNamedItem(x) {
   return x && typeof x === 'object' && !Array.isArray(x) && typeof x.name === 'string';
 }
 
+function normalizeExistingFunction(fn) {
+  if (!fn || typeof fn !== 'object') return fn;
+  return {
+    ...fn,
+    hasReturn: fn.hasReturn ?? fn.output != null,
+    inputs: Array.isArray(fn.inputs) ? fn.inputs.map(addMissingDefaultValues) : fn.inputs,
+    output:
+      fn.output && typeof fn.output === 'object' ? addMissingDefaultValues(fn.output) : fn.output
+  };
+}
+
 function outputsEqualIgnoringName(a, b) {
   if (a == null && b == null) return true;
   if (a == null || b == null) return false;
@@ -165,12 +197,52 @@ function preserveCuratedFields(derived, existing, meta = {}) {
   if (existing.example && existing.example !== '') {
     out.example = existing.example;
   }
+  if (existing.editorStartIndex != null) {
+    out.editorStartIndex = existing.editorStartIndex;
+  }
   if (meta.explicitOutputName === false && existing.output && derived.output) {
     out.output = {
       ...derived.output,
       displayName: existing.output.displayName,
       name: existing.output.name
     };
+  }
+  if (Array.isArray(out.inputs)) {
+    out.inputs = preserveNullableInEntries(out.inputs, existing.inputs);
+  }
+  if (Array.isArray(out.variables)) {
+    out.variables = preserveNullableInEntries(out.variables, existing.variables);
+  }
+  if (out.output && existing.output) {
+    out.output = preserveNullableInEntry(out.output, existing.output);
+  }
+  return out;
+}
+
+function preserveNullableInEntries(derivedEntries, existingEntries) {
+  const existingByName = new Map();
+  if (Array.isArray(existingEntries)) {
+    for (const e of existingEntries) {
+      if (e?.name) existingByName.set(e.name, e);
+    }
+  }
+  return derivedEntries.map((d) => preserveNullableInEntry(d, existingByName.get(d?.name)));
+}
+
+function preserveNullableInEntry(derived, existing) {
+  if (!derived || typeof derived !== 'object') return derived;
+  const out = { ...derived };
+  // derived.nullable === false means "no default was found in JSDoc" — the build
+  // step only sets nullable=true when a real default exists. In that case defer to
+  // whatever the user has set in Domo's UI rather than overwriting with our derived
+  // default-of-false. When derived nullable is true, JSDoc carries authoritative
+  // signal (a default value) and wins.
+  if (existing && derived.nullable === false && typeof existing.nullable === 'boolean') {
+    out.nullable = existing.nullable;
+  }
+  if (Array.isArray(derived.children)) {
+    const existingChildren = Array.isArray(existing?.children) ? existing.children : [];
+    out.children = preserveNullableInEntries(derived.children, existingChildren);
   }
   return out;
 }
