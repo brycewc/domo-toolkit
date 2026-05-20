@@ -232,7 +232,7 @@ function preserveNullableInEntries(derivedEntries, existingEntries) {
 function preserveNullableInEntry(derived, existing) {
   if (!derived || typeof derived !== 'object') return derived;
   const out = { ...derived };
-  // derived.nullable === false means "no default was found in JSDoc" — the build
+  // derived.nullable === false means "no default was found in JSDoc". The build
   // step only sets nullable=true when a real default exists. In that case defer to
   // whatever the user has set in Domo's UI rather than overwriting with our derived
   // default-of-false. When derived nullable is true, JSDoc carries authoritative
@@ -344,7 +344,7 @@ export function preparePackagePayload({
   const payload = {
     code,
     environment: existingDefinition?.environment || 'LAMBDA',
-    id: '',
+    id: packageId,
     language: existingDefinition?.language || 'JAVASCRIPT',
     manifest: {
       configuration: baseConfiguration,

@@ -62,7 +62,7 @@ function buildOutput(doc, typedefs, warnings) {
   if (typeInfo.isUnknown) {
     warnings.push({
       functionName: doc.functionName,
-      message: '@returns has no type — falling back to text.',
+      message: '@returns has no type, falling back to text.',
       severity: 'warning'
     });
   }
@@ -72,7 +72,7 @@ function buildOutput(doc, typedefs, warnings) {
     if (!typedef) {
       warnings.push({
         functionName: doc.functionName,
-        message: `@returns references unknown typedef \`${typeInfo.type}\` — emitting empty children.`,
+        message: `@returns references unknown typedef \`${typeInfo.type}\`, emitting empty children.`,
         severity: 'warning'
       });
       return primitiveOutputEntry({ isList: typeInfo.isList, name, type: 'object' });
@@ -177,7 +177,7 @@ function buildVariableEntry({ depth, doc, node, typedefs, warnings }) {
   if (typeInfo.isUnknown) {
     warnings.push({
       functionName: doc.functionName,
-      message: `Param \`${docParam.rawName}\` has no type — falling back to text.`,
+      message: `Param \`${docParam.rawName}\` has no type, falling back to text.`,
       paramName: docParam.rawName,
       severity: 'warning'
     });
@@ -197,7 +197,7 @@ function buildVariableEntry({ depth, doc, node, typedefs, warnings }) {
     } else {
       warnings.push({
         functionName: doc.functionName,
-        message: `Param \`${docParam.rawName}\` references unknown typedef \`${typeInfo.type}\` — emitting empty children.`,
+        message: `Param \`${docParam.rawName}\` references unknown typedef \`${typeInfo.type}\`, emitting empty children.`,
         paramName: docParam.rawName,
         severity: 'warning'
       });

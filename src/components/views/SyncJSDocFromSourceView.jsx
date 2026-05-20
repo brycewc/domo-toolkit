@@ -13,8 +13,21 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { DomoContext } from '@/models/DomoContext';
-import { getCodeEngineEditorSource, getCodeEnginePackageVersion, getCodeEnginePackageVersions, postCodeEnginePackageVersion, setCodeEngineEditorSource } from '@/services/codeEngine';
-import { computeStructuralDiff, findCurrentVersionInfo, findVersionForBaseline, parseSourceToManifest, preparePackagePayload, resolveTargetVersion } from '@/utils/jsdocToPackage';
+import {
+  getCodeEngineEditorSource,
+  getCodeEnginePackageVersion,
+  getCodeEnginePackageVersions,
+  postCodeEnginePackageVersion,
+  setCodeEngineEditorSource
+} from '@/services/codeEngine';
+import {
+  computeStructuralDiff,
+  findCurrentVersionInfo,
+  findVersionForBaseline,
+  parseSourceToManifest,
+  preparePackagePayload,
+  resolveTargetVersion
+} from '@/utils/jsdocToPackage';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconCheckCircle from '@icons/check-circle.svg?react';
 import IconChevronDown from '@icons/chevron-down.svg?react';
@@ -34,6 +47,7 @@ export function SyncJSDocFromSourceView({ onBackToDefault = null, onStatusUpdate
   const [sourceRead, setSourceRead] = useState(null);
   const [error, setError] = useState(null);
   const mountedRef = useRef(true);
+  const bailedRef = useRef(false);
   const { showPromiseStatus } = useStatusBar();
 
   useEffect(() => {
@@ -93,7 +107,7 @@ export function SyncJSDocFromSourceView({ onBackToDefault = null, onStatusUpdate
       // Stage 2: fetch the specific baseline version's manifest. We can only pick
       // the baseline once we know what versions exist (envelope), which is why
       // this is sequential. For brand-new packages with no versions, baseline is
-      // null and we skip — the diff will show every function as "added".
+      // null and we skip; the diff will show every function as "added".
       const targetForLoad = resolveTargetVersion({ versions: envelope?.versions });
       const baseline = findVersionForBaseline(envelope?.versions, targetForLoad.version);
       let versionDef = null;
@@ -170,6 +184,42 @@ export function SyncJSDocFromSourceView({ onBackToDefault = null, onStatusUpdate
   const unchangedFunctionCount =
     parsed?.decisions?.filter((d) => d.action === 'unchanged').length || 0;
 
+  // If parsing completes and there's literally nothing to sync (no added,
+  // updated, or JSDoc-rewrite changes) we bail straight back to the default
+  // view with a warning toast. Opening a full diff card just to say "27
+  // unchanged" wastes the user's click. Skip when errors are present so the
+  // user can still see what's wrong.
+  useEffect(() => {
+    if (bailedRef.current) return;
+    if (isLoading || isRefreshing || isSubmitting) return;
+    if (!parsed || parsed.error) return;
+    if (cannotSync) return;
+    const nothingToDo = newFunctionCount === 0 && updatedFunctionCount === 0 && !hasJSDocRewrites;
+    if (!nothingToDo) return;
+    bailedRef.current = true;
+    onStatusUpdate?.(
+      'Already up to date',
+      packageDef?.name
+        ? `Package **${packageDef.name}** matches the JSDoc, no sync needed`
+        : 'Package matches the JSDoc, no sync needed',
+      'warning',
+      3000
+    );
+    onBackToDefault?.();
+  }, [
+    cannotSync,
+    hasJSDocRewrites,
+    isLoading,
+    isRefreshing,
+    isSubmitting,
+    newFunctionCount,
+    onBackToDefault,
+    onStatusUpdate,
+    packageDef,
+    parsed,
+    updatedFunctionCount
+  ]);
+
   const handleSync = async () => {
     if (!parsed || cannotSync) return;
     const packageId = currentContext.domoObject.parentId || currentContext.domoObject.id;
@@ -210,7 +260,7 @@ export function SyncJSDocFromSourceView({ onBackToDefault = null, onStatusUpdate
       success: (t) =>
         t.mode === 'overwrite'
           ? `Saved to **${t.version}** (unreleased)`
-          : `Created **${t.version}** (unreleased — release in Domo when ready)`
+          : `Created **${t.version}** (unreleased, release in Domo when ready)`
     });
 
     promise
@@ -225,7 +275,23 @@ export function SyncJSDocFromSourceView({ onBackToDefault = null, onStatusUpdate
       });
   };
 
-  if (isLoading) {
+  // Synchronous render-path version of the bail predicate. The effect above
+  // fires *after* render commits, which is too late to prevent a one-frame
+  // flash of the diff view between "load finished" and "navigate away." By
+  // checking the same condition here and short-circuiting to the loading card,
+  // the diff never paints, so the user sees spinner, then toast, then default view.
+  const willBail =
+    !isLoading &&
+    !isRefreshing &&
+    !isSubmitting &&
+    parsed != null &&
+    !parsed.error &&
+    !cannotSync &&
+    newFunctionCount === 0 &&
+    updatedFunctionCount === 0 &&
+    !hasJSDocRewrites;
+
+  if (isLoading || willBail) {
     return (
       <Card className='flex h-full w-full items-center justify-center'>
         <Card.Content className='flex flex-col items-center gap-2 py-8'>
@@ -559,7 +625,7 @@ function SourcePill({ currentVersionInfo, sourceRead }) {
         Saved version{fallbackVersion ? ` v${fallbackVersion}` : ''}
       </Chip>
       <Tooltip.Content className='text-wrap'>
-        Couldn&apos;t reach the IDE editor — using the latest saved version instead.
+        Couldn&apos;t reach the IDE editor, using the latest saved version instead.
       </Tooltip.Content>
     </Tooltip>
   );
@@ -608,8 +674,8 @@ function TargetPill({ target }) {
   if (!target) return null;
   const tip =
     target.mode === 'overwrite'
-      ? `v${target.version} is the current draft — saving directly to it (no release).`
-      : `No unreleased draft found — creating new v${target.version} (no release).`;
+      ? `v${target.version} is the current draft, saving directly to it (no release).`
+      : `No unreleased draft found, creating new v${target.version} (no release).`;
   return (
     <Tooltip closeDelay={0} delay={400}>
       <Chip color={target.mode === 'overwrite' ? 'success' : 'accent'} size='sm' variant='soft'>

@@ -46,8 +46,8 @@ export async function getCodeEngineCode({ packageId, tabId, version }) {
  *
  * The Code Engine IDE uses CodeMirror 6, which exposes its EditorView via a private
  * `cmView.view` property on the `.cm-content` element. The page has multiple CM6
- * instances — the main code editor plus markdown editors for each function's description
- * and example — so a naked `.cm-content` selector grabs the first one in DOM order,
+ * instances (the main code editor plus markdown editors for each function's description
+ * and example), so a naked `.cm-content` selector grabs the first one in DOM order,
  * which is often a short markdown editor whose `###` heading would make acorn choke.
  * We pick the editor with the longest document since the main code editor is reliably
  * the largest by orders of magnitude.
@@ -136,7 +136,7 @@ export async function getCodeEnginePackageInfo(packageId, tabId = null) {
 }
 
 /**
- * GET /api/codeengine/v2/packages/{packageId}/versions/{version} — fetches the
+ * GET /api/codeengine/v2/packages/{packageId}/versions/{version}, which fetches the
  * function manifest and saved code for ONE specific version. Use this for diffing
  * a sync against the actual baseline rather than against whatever happens to be
  * the latest version's snapshot at the package level.
@@ -162,7 +162,7 @@ export async function getCodeEnginePackageVersion(packageId, version, tabId = nu
 
 /**
  * GET /api/codeengine/v2/packages/{packageId} with the parts needed to *choose* a
- * baseline version — the versions list (with per-version metadata like released/
+ * baseline version: the versions list (with per-version metadata like released/
  * unreleased status) plus the package-level configuration. Deliberately excludes
  * `functions`, since the function manifest is version-specific and should be
  * fetched via {@link getCodeEnginePackageVersion} after the baseline version is
@@ -244,7 +244,7 @@ export async function getOwnedCodeEnginePackages(userId, tabId = null) {
 }
 
 /**
- * POST /api/codeengine/v2/packages — creates a new version of an existing package.
+ * POST /api/codeengine/v2/packages, which creates a new version of an existing package.
  * @param {Object} definition - Package payload with `manifest` envelope
  * @param {number|null} tabId - Optional Chrome tab ID
  * @returns {Promise<Object>} Server response with new version info
