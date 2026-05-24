@@ -205,13 +205,14 @@ function getInstanceUser(instance, tabId) {
     const user = await getCurrentUser(tabId);
     let userGroups = [];
     if (user?.id) {
-      userGroups = await getUserGroups(user.id, tabId).catch((error) => {
+      const richGroups = await getUserGroups(user.id, tabId).catch((error) => {
         console.warn(
           `[Background] Could not fetch user groups for ${instance}:`,
           error.message
         );
         return [];
       });
+      userGroups = richGroups.map((g) => g.groupId);
     }
     const entry = { promise: null, user, userGroups };
     instanceUserCache.set(instance, entry);

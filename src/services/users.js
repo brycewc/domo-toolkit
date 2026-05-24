@@ -235,10 +235,12 @@ export async function getUserDetails(userId, tabId = null) {
 }
 
 /**
- * Get the group IDs the given user belongs to.
+ * Get the groups the given user belongs to, with type and name information.
+ * Type values seen from Domo: 'closed', 'open', 'adhoc', 'dynamic', 'system'.
+ * Callers that only need the ID list should map: `.map((g) => g.groupId)`.
  * @param {number|string} userId - The user ID
  * @param {number|null} tabId - The tab ID to execute in (optional)
- * @returns {Promise<string[]>} Array of group ID strings
+ * @returns {Promise<Array<{groupId: string, groupType: string|null, name: string}>>}
  */
 export async function getUserGroups(userId, tabId = null) {
   return executeInPage(
@@ -248,7 +250,11 @@ export async function getUserGroups(userId, tabId = null) {
       );
       if (!response.ok) return [];
       const data = await response.json();
-      return (data || []).map((g) => String(g.groupId));
+      return (data || []).map((g) => ({
+        groupId: String(g.groupId),
+        groupType: g.groupType ?? null,
+        name: g.name ?? `Group ${g.groupId}`
+      }));
     },
     [userId],
     tabId
