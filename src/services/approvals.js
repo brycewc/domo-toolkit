@@ -14,8 +14,7 @@ export async function deleteApprovalTemplate({ tabId = null, templateId }) {
       const response = await fetch('/api/synapse/approval/graphql', {
         body: JSON.stringify({
           operationName: 'archiveTemplate',
-          query:
-            'mutation archiveTemplate($id: ID!) {\n  success: deleteTemplate(id: $id)\n}',
+          query: 'mutation archiveTemplate($id: ID!) {\n  success: deleteTemplate(id: $id)\n}',
           variables: { id: templateId }
         }),
         headers: { 'Content-Type': 'application/json' },
@@ -127,6 +126,89 @@ export async function getOwnedApprovalTemplates(userId, tabId = null) {
 }
 
 /**
+ * Get every active approval request created from a given approval template.
+ * Mirrors getOwnedApprovals but filters the workflow search by templateId
+ * instead of approverId, so it returns the template's requests regardless of
+ * who the approver is or what status they are in. Walks the cursor-paginated
+ * workflowSearch (the API returns roughly 30 edges per page) until there are
+ * no more pages, and returns the richer per-approval field set the Approval
+ * Center UI itself reads (template title, status, timestamps, current pending
+ * approver, submitter) so the related-data tab can surface more than just the
+ * id and title.
+ * @param {string} templateId - The approval template ID
+ * @param {number|null} tabId - Optional Chrome tab ID
+ * @returns {Promise<Array<{approvalChainIdx: number, id: string,
+ *   modifiedTime: string, submittedTime: string, pendingApprover: Object|null, providerName: string,
+ *   status: string, submitter: Object|null, templateTitle: string,
+ *   title: string, version: number}>>}
+ */
+export async function getTemplateApprovals(templateId, tabId = null) {
+  return executeInPage(
+    async (templateId) => {
+      const url = '/api/synapse/approval/graphql';
+      const queryString =
+        'query getFilteredRequests($query: QueryRequest!, $after: ID, $reverseSort: Boolean) {\n  workflowSearch(query: $query, type: "AC", after: $after, reverseSort: $reverseSort) {\n    edges {\n      cursor\n      node {\n        approval {\n          id\n          title\n          templateTitle\n          status\n          modifiedTime\n          submittedTime\n          version\n          providerName\n          approvalChainIdx\n          pendingApprover: pendingApproverEx {\n            id\n            type\n            displayName\n            ... on User {\n              title\n              avatarKey\n              __typename\n            }\n            ... on Group {\n              isDeleted\n              __typename\n            }\n            __typename\n          }\n          submitter {\n            id\n            type\n            displayName\n            avatarKey\n            isCurrentUser\n            __typename\n          }\n          __typename\n        }\n        __typename\n      }\n      __typename\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n      __typename\n    }\n    __typename\n  }\n}\n';
+
+      const approvals = [];
+      let after = null;
+      // Page guard is a hard stop in case the API never flips hasNextPage;
+      // 200 pages of ~30 edges covers far more requests than any one template
+      // realistically has.
+      for (let page = 0; page < 200; page++) {
+        const response = await fetch(url, {
+          body: JSON.stringify({
+            operationName: 'getFilteredRequests',
+            query: queryString,
+            variables: {
+              after,
+              query: {
+                active: true,
+                approverId: null,
+                lastModifiedBefore: null,
+                submitterId: null,
+                templateId,
+                title: null
+              },
+              reverseSort: false
+            }
+          }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+
+        const search = data?.data?.workflowSearch;
+        for (const edge of search?.edges || []) {
+          const approval = edge.node?.approval;
+          if (!approval) continue;
+          approvals.push({
+            approvalChainIdx: approval.approvalChainIdx,
+            id: approval.id,
+            modifiedTime: approval.modifiedTime,
+            pendingApprover: approval.pendingApprover ?? null,
+            providerName: approval.providerName,
+            status: approval.status,
+            submitter: approval.submitter ?? null,
+            templateTitle: approval.templateTitle,
+            title: approval.title || approval.id,
+            version: approval.version
+          });
+        }
+
+        const pageInfo = search?.pageInfo;
+        if (!pageInfo?.hasNextPage || !pageInfo?.endCursor) break;
+        after = pageInfo.endCursor;
+      }
+
+      return approvals;
+    },
+    [templateId],
+    tabId
+  );
+}
+
+/**
  * Transfer pending approvals to a new approver.
  * @param {Array<{id: string, version: number}>} approvals - Approvals to transfer
  * @param {number} fromUserId - The current approver's user ID
@@ -134,12 +216,7 @@ export async function getOwnedApprovalTemplates(userId, tabId = null) {
  * @param {number|null} tabId - Optional Chrome tab ID
  * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
  */
-export async function transferApprovals(
-  approvals,
-  fromUserId,
-  toUserId,
-  tabId = null
-) {
+export async function transferApprovals(approvals, fromUserId, toUserId, tabId = null) {
   return executeInPage(
     async (approvals, fromUserId, toUserId) => {
       const url = '/api/synapse/approval/graphql';
@@ -179,9 +256,7 @@ export async function transferApprovals(
                 query:
                   'mutation replaceApprovers($actedOnApprovals: [ActedOnApprovalInput!]!, $newApproverId: ID!, $newApproverType: ApproverType) {\n  bulkReplaceApprover(actedOnApprovals: $actedOnApprovals, newApproverId: $newApproverId, newApproverType: $newApproverType) {\n    id\n    __typename\n  }\n}\n',
                 variables: {
-                  actedOnApprovals: [
-                    { id: approval.id, version: approval.version }
-                  ],
+                  actedOnApprovals: [{ id: approval.id, version: approval.version }],
                   newApproverId: toUserId,
                   newApproverType: 'PERSON'
                 }
@@ -216,12 +291,7 @@ export async function transferApprovals(
  * @param {number|null} tabId - Optional Chrome tab ID
  * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
  */
-export async function transferApprovalTemplates(
-  templateIds,
-  fromUserId,
-  toUserId,
-  tabId = null
-) {
+export async function transferApprovalTemplates(templateIds, fromUserId, toUserId, tabId = null) {
   return executeInPage(
     async (templateIds, fromUserId, toUserId) => {
       const url = '/api/synapse/approval/graphql';
@@ -274,8 +344,7 @@ export async function transferApprovalTemplates(
           // Deduplicate approvers
           approvers = approvers.filter(
             (v, i, self) =>
-              !v.approverId ||
-              i === self.findIndex((a) => a.approverId === v.approverId)
+              !v.approverId || i === self.findIndex((a) => a.approverId === v.approverId)
           );
           if (approvers.length === 0) {
             approvers.push({
@@ -291,12 +360,9 @@ export async function transferApprovalTemplates(
             .map((o) => ({
               id: o.id == fromUserId ? toUserId : o.id,
               type: o.type,
-              ...(o.type === 'Group' &&
-                o.userCount !== undefined && { userCount: o.userCount })
+              ...(o.type === 'Group' && o.userCount !== undefined && { userCount: o.userCount })
             }));
-          observers = observers.filter(
-            (v, i, self) => i === self.findIndex((o) => o.id === v.id)
-          );
+          observers = observers.filter((v, i, self) => i === self.findIndex((o) => o.id === v.id));
 
           // Build clean template
           const cleanTemplate = {
@@ -346,9 +412,7 @@ export async function transferApprovalTemplates(
             };
             if (raw.workflowIntegration.parameterMapping) {
               cleanTemplate.workflowIntegration.parameterMapping = {
-                fields: (
-                  raw.workflowIntegration.parameterMapping.fields || []
-                ).map((f) => ({
+                fields: (raw.workflowIntegration.parameterMapping.fields || []).map((f) => ({
                   field: f.field,
                   parameter: f.parameter,
                   required: f.required,

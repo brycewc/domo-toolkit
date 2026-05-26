@@ -7,7 +7,7 @@ export function TransferOwnership({ currentContext, onCollapseActions, onStatusU
   const { isPending, launch } = useLaunchView();
 
   return (
-    <Tooltip closeDelay={100} delay={600}>
+    <Tooltip closeDelay={100} delay={800}>
       <Button
         fullWidth
         className='min-w-36 flex-1 whitespace-normal'

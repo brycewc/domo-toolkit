@@ -441,7 +441,6 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
   return (
     <>
       <DataList
-        closeLabel='Close Migrate Downstream Content'
         customHeaderActions={customHeaderActions}
         headerActions={['refresh']}
         isRefreshing={loadingCount > 0}

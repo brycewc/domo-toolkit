@@ -202,7 +202,12 @@ export function Lineage() {
             <Button isIconOnly size='sm' variant='tertiary' onPress={handleRefresh}>
               <IconSync />
             </Button>
-            <Tooltip.Content placement='left'>Refresh</Tooltip.Content>
+            <Tooltip.Content
+              className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+              placement='left'
+            >
+              Refresh
+            </Tooltip.Content>
           </Tooltip>
         </div>
       </div>

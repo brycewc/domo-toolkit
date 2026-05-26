@@ -8,7 +8,7 @@ export function CopyColorRules({ currentContext, onStatusUpdate }) {
   const { isPending, launch } = useLaunchView();
 
   return (
-    <Tooltip closeDelay={100} delay={600}>
+    <Tooltip closeDelay={100} delay={800}>
       <Button
         fullWidth
         className='min-w-36 flex-1 whitespace-normal'
@@ -19,10 +19,7 @@ export function CopyColorRules({ currentContext, onStatusUpdate }) {
             currentContext,
             onStatusUpdate,
             preCheck: async () => {
-              const rules = await getColorRules(
-                currentContext.domoObject.id,
-                currentContext.tabId
-              );
+              const rules = await getColorRules(currentContext.domoObject.id, currentContext.tabId);
               return rules.length === 0
                 ? {
                     empty: true,

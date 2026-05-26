@@ -721,7 +721,6 @@ export function GetPagesView({
 
   return (
     <DataList
-      closeLabel={`Close ${pageTypeLabel} View`}
       currentContext={currentContext}
       isRefreshing={isRefreshing}
       itemLabel='page'

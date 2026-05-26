@@ -129,7 +129,7 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
 
   return (
     <Dropdown isDisabled={longPressDisabled} trigger='longPress'>
-      <Tooltip closeDelay={100} delay={600}>
+      <Tooltip closeDelay={100} delay={800}>
         <Button
           fullWidth
           className='min-w-36 flex-1 whitespace-normal'
@@ -138,13 +138,7 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
           onPress={handleCopyFilteredUrl}
           {...(longPressDisabled ? {} : pressProps)}
         >
-          {isFailed ? (
-            <AnimatedX />
-          ) : isCopied ? (
-            <AnimatedCheck />
-          ) : (
-            <IconFunnel />
-          )}
+          {isFailed ? <AnimatedX /> : isCopied ? <AnimatedCheck /> : <IconFunnel />}
           Copy Filters
           {filterCount > 0 && (
             <Chip

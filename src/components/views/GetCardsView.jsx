@@ -365,7 +365,6 @@ export function GetCardsView({
 
   return (
     <DataList
-      closeLabel='Close Cards View'
       currentContext={currentContext}
       headerActions={['openAll', 'copy', 'reload', 'refresh']}
       isRefreshing={isRefreshing}

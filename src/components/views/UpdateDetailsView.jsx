@@ -225,7 +225,9 @@ export function UpdateDetailsView({ onBackToDefault = null, onStatusUpdate = nul
               <Button isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
                 <IconX />
               </Button>
-              <Tooltip.Content className='text-xs'>Close</Tooltip.Content>
+              <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+                Close
+              </Tooltip.Content>
             </Tooltip>
           )}
         </Card.Title>
@@ -364,7 +366,7 @@ function FieldRow({
               >
                 <IconArrowCurvedBack />
               </Button>
-              <Tooltip.Content className='text-xs'>
+              <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
                 {originalValue
                   ? 'Reset — clears userDefinedType and restores displayType to dataProviderType'
                   : 'Nothing to reset'}

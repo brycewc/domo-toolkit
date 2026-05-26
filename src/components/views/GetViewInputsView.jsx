@@ -188,7 +188,6 @@ export function GetViewInputsView({
 
   return (
     <DataList
-      closeLabel='Close DataSets Used in View'
       currentContext={currentContext}
       headerActions={['openAll', 'copy', 'reload', 'refresh']}
       isRefreshing={isRefreshing}

@@ -24,8 +24,7 @@ export function GetCards({ currentContext, isDisabled, onCollapseActions, onStat
     dropdownItems = [{ id: 'getParentCards', label: 'Get Worksheet Cards' }];
   }
 
-  const longPressDisabled =
-    isDisabled || !domoObject?.id || dropdownItems.length === 0;
+  const longPressDisabled = isDisabled || !domoObject?.id || dropdownItems.length === 0;
 
   const handleAction = async (key) => {
     if (key !== 'getParentCards') return;
@@ -48,7 +47,7 @@ export function GetCards({ currentContext, isDisabled, onCollapseActions, onStat
 
   return (
     <Dropdown isDisabled={longPressDisabled} trigger='longPress'>
-      <Tooltip closeDelay={100} delay={600}>
+      <Tooltip closeDelay={100} delay={800}>
         <Button
           fullWidth
           className='relative min-w-36 flex-1 overflow-visible whitespace-normal'
@@ -69,7 +68,8 @@ export function GetCards({ currentContext, isDisabled, onCollapseActions, onStat
                       result.forms?.length === 0 &&
                       result.queues?.length === 0
                     ) {
-                      const typeName = currentContext.domoObject.typeName?.toLowerCase() || 'object';
+                      const typeName =
+                        currentContext.domoObject.typeName?.toLowerCase() || 'object';
                       const hasFormsAndQueues = FORMS_AND_QUEUES_TYPES.includes(objectType);
                       return {
                         empty: true,

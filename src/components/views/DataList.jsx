@@ -57,7 +57,6 @@ import { ObjectTypeIcon } from '../ObjectTypeIcon';
  * @param {string} props.title - Plain-text header title. Supports inline `**bold**` markdown for emphasis (parsed via `parseMarkdownBold`). The tooltip mirrors the same text with bold markers stripped so the overlay reads as unstyled prose.
  * @param {HeaderActionType[]} props.headerActions - Array of action types to show in header
  * @param {Function} props.onClose - Callback when close button is clicked (shows close button if provided)
- * @param {string} props.closeLabel - Label for close button tooltip
  * @param {boolean} props.isRefreshing - Whether refresh action is in progress
  * @param {string|number} props.objectId - Object ID for header copy action
  * @param {Function} props.onRefresh - Callback for refresh action
@@ -85,7 +84,6 @@ import { ObjectTypeIcon } from '../ObjectTypeIcon';
  * @param {Object} [props.currentContext] - Live `DomoContext` for the user's currently-active object. Required when `'reload'` is in `headerActions`. Drives whether reload is enabled (current object differs from original AND supports the view).
  */
 export function DataList({
-  closeLabel = 'Close',
   currentContext,
   customHeaderActions,
   footer,
@@ -332,18 +330,20 @@ export function DataList({
         // already-visible content would be redundant.
         <Card.Header className='gap-1'>
           {title && (
-            <Tooltip closeDelay={0} delay={700}>
+            <Tooltip closeDelay={0} delay={800}>
               <Tooltip.Trigger className='min-w-0 pr-8'>
                 <Card.Title className='line-clamp-1'>{parseMarkdownBold(title)}</Card.Title>
               </Tooltip.Trigger>
-              <Tooltip.Content>{stripMarkdownBold(title)}</Tooltip.Content>
+              <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+                {stripMarkdownBold(title)}
+              </Tooltip.Content>
             </Tooltip>
           )}
           {onClose && (
             <Tooltip closeDelay={0} delay={400}>
               <Button
                 isIconOnly
-                aria-label={closeLabel}
+                aria-label='Close view'
                 className='absolute top-1 right-2'
                 size='sm'
                 variant='ghost'
@@ -352,7 +352,7 @@ export function DataList({
                 <IconX />
               </Button>
               <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
-                {closeLabel}
+                Close view
               </Tooltip.Content>
             </Tooltip>
           )}
@@ -376,7 +376,12 @@ export function DataList({
                       >
                         {action.icon}
                       </Button>
-                      <Tooltip.Content>{action.tooltipText}</Tooltip.Content>
+                      <Tooltip.Content
+                        className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+                        placement='bottom'
+                      >
+                        {action.tooltipText}
+                      </Tooltip.Content>
                     </Tooltip>
                   ))}
                   {headerActions.includes('openAll') && (
@@ -390,7 +395,12 @@ export function DataList({
                       >
                         <IconArrowSquareOut />
                       </Button>
-                      <Tooltip.Content className='text-xs'>Open all in new tabs</Tooltip.Content>
+                      <Tooltip.Content
+                        className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+                        placement='bottom'
+                      >
+                        Open all in new tabs
+                      </Tooltip.Content>
                     </Tooltip>
                   )}
                   {headerActions.includes('shareAll') && (
@@ -404,7 +414,10 @@ export function DataList({
                       >
                         {isHeaderShared ? <AnimatedCheck stroke={1.5} /> : <IconPeoplePlus />}
                       </Button>
-                      <Tooltip.Content className='text-xs'>
+                      <Tooltip.Content
+                        className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+                        placement='bottom'
+                      >
                         {isHeaderShared ? 'Shared!' : 'Share all with yourself'}
                       </Tooltip.Content>
                     </Tooltip>
@@ -420,7 +433,10 @@ export function DataList({
                       >
                         {isCopied ? <AnimatedCheck stroke={1.5} /> : <IconClipboardCopy />}
                       </Button>
-                      <Tooltip.Content className='text-xs'>
+                      <Tooltip.Content
+                        className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+                        placement='bottom'
+                      >
                         {isCopied ? 'Copied!' : 'Copy ID'}
                       </Tooltip.Content>
                     </Tooltip>
@@ -463,7 +479,12 @@ export function DataList({
                           >
                             <IconReset />
                           </Button>
-                          <Tooltip.Content className='text-xs'>{tooltipText}</Tooltip.Content>
+                          <Tooltip.Content
+                            className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+                            placement='bottom'
+                          >
+                            {tooltipText}
+                          </Tooltip.Content>
                         </Tooltip>
                       );
                     })()}
@@ -479,7 +500,12 @@ export function DataList({
                       >
                         <IconSync className={isRefreshing ? 'animate-spin' : ''} />
                       </Button>
-                      <Tooltip.Content className='text-xs'>Refresh</Tooltip.Content>
+                      <Tooltip.Content
+                        className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+                        placement='bottom'
+                      >
+                        Refresh
+                      </Tooltip.Content>
                     </Tooltip>
                   )}
                 </ButtonGroup>
@@ -911,7 +937,7 @@ function DataListItemImpl({
         >
           <IconCancel className='text-danger' />
         </Button>
-        <Tooltip.Content className='text-xs'>
+        <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
           Remove{' '}
           <span className='lowercase'>
             {objectType} from {item?.domoObject?.typeName || item?.typeId}
@@ -932,7 +958,9 @@ function DataListItemImpl({
         >
           <IconArrowSquareOut />
         </Button>
-        <Tooltip.Content className='text-xs'>Open all in new tabs</Tooltip.Content>
+        <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+          Open all in new tabs
+        </Tooltip.Content>
       </Tooltip>
     );
 
@@ -948,7 +976,9 @@ function DataListItemImpl({
         >
           {isCopied ? <AnimatedCheck stroke={1.5} /> : <IconClipboardCopy />}
         </Button>
-        <Tooltip.Content className='text-xs'>{isCopied ? 'Copied!' : 'Copy ID'}</Tooltip.Content>
+        <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+          {isCopied ? 'Copied!' : 'Copy ID'}
+        </Tooltip.Content>
       </Tooltip>
     );
 
@@ -964,7 +994,7 @@ function DataListItemImpl({
         >
           {isShared ? <AnimatedCheck stroke={1.5} /> : <IconPeoplePlus />}
         </Button>
-        <Tooltip.Content className='text-xs'>
+        <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
           {isShared ? 'Shared!' : 'Share all with yourself'}
         </Tooltip.Content>
       </Tooltip>
@@ -982,7 +1012,7 @@ function DataListItemImpl({
         >
           {isShared ? <AnimatedCheck stroke={1.5} /> : <IconPersonPlus />}
         </Button>
-        <Tooltip.Content className='text-xs'>
+        <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
           {isShared ? 'Shared!' : 'Share with yourself'}
         </Tooltip.Content>
       </Tooltip>
@@ -1000,7 +1030,9 @@ function DataListItemImpl({
         >
           <IconCompass />
         </Button>
-        <Tooltip.Content className='text-xs'>Open in Views Explorer</Tooltip.Content>
+        <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+          Open in Views Explorer
+        </Tooltip.Content>
       </Tooltip>
     );
 
@@ -1016,7 +1048,9 @@ function DataListItemImpl({
         >
           <IconLineage />
         </Button>
-        <Tooltip.Content className='text-xs'>View Lineage</Tooltip.Content>
+        <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+          View Lineage
+        </Tooltip.Content>
       </Tooltip>
     );
 
@@ -1115,7 +1149,11 @@ function DataListItemImpl({
     <span className='text-sm'>
       <Tooltip className='flex-1' closeDelay={0} delay={200}>
         <Tooltip.Trigger className='block truncate'>{labelInner}</Tooltip.Trigger>
-        <Tooltip.Content offset={4} placement='top left'>
+        <Tooltip.Content
+          className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+          offset={4}
+          placement='top left'
+        >
           ID: {item.originalId ?? item.id}
         </Tooltip.Content>
       </Tooltip>

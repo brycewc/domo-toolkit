@@ -17,10 +17,7 @@ import { useStatusBar } from '@/hooks/useStatusBar';
 import { DataListItem } from '@/models/DataListItem';
 import { DomoContext } from '@/models/DomoContext';
 import { duplicateUser, fetchDuplicationPreview } from '@/services/duplicate';
-import {
-  exportToExcel,
-  generateExportFilename
-} from '@/utils/exportData';
+import { exportToExcel, generateExportFilename } from '@/utils/exportData';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconCheck from '@icons/check.svg?react';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
@@ -51,8 +48,7 @@ const LOG_COLUMNS = [
  */
 const duplicatorsByType = {
   USER: {
-    fetchPreview: ({ sourceUserId, tabId }) =>
-      fetchDuplicationPreview({ sourceUserId, tabId }),
+    fetchPreview: ({ sourceUserId, tabId }) => fetchDuplicationPreview({ sourceUserId, tabId }),
     fields: [
       { key: 'newDisplayName', label: 'Full Name', required: true },
       { key: 'newEmail', label: 'Email', required: true, type: 'email' }
@@ -73,8 +69,7 @@ const duplicatorsByType = {
 const buildInitialStepStates = (steps) =>
   Object.fromEntries(steps.map((s) => [s.key, { status: 'idle' }]));
 
-const buildInitialValues = (fields) =>
-  Object.fromEntries(fields.map((f) => [f.key, '']));
+const buildInitialValues = (fields) => Object.fromEntries(fields.map((f) => [f.key, '']));
 
 export function DuplicateView({ onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
@@ -109,9 +104,7 @@ export function DuplicateView({ onBackToDefault = null, onStatusUpdate = null })
         onBackToDefault?.();
         return;
       }
-      const context = data.currentContext
-        ? DomoContext.fromJSON(data.currentContext)
-        : null;
+      const context = data.currentContext ? DomoContext.fromJSON(data.currentContext) : null;
       if (!context) {
         onStatusUpdate?.('Error', 'No context available', 'danger');
         onBackToDefault?.();
@@ -120,11 +113,7 @@ export function DuplicateView({ onBackToDefault = null, onStatusUpdate = null })
       const typeId = context.domoObject?.typeId;
       const typeConfig = duplicatorsByType[typeId];
       if (!typeConfig) {
-        onStatusUpdate?.(
-          'Error',
-          `Duplication is not supported for ${typeId}`,
-          'danger'
-        );
+        onStatusUpdate?.('Error', `Duplication is not supported for ${typeId}`, 'danger');
         onBackToDefault?.();
         return;
       }
@@ -194,15 +183,9 @@ export function DuplicateView({ onBackToDefault = null, onStatusUpdate = null })
     setStepStates(buildInitialStepStates(config.steps));
 
     try {
-      const selectedCards = preview.cards.filter((c) =>
-        selectedCardIds.has(String(c.id))
-      );
-      const selectedPages = preview.pages.filter((p) =>
-        selectedPageIds.has(String(p.id))
-      );
-      const selectedApps = preview.customApps.filter((a) =>
-        selectedAppIds.has(String(a.id))
-      );
+      const selectedCards = preview.cards.filter((c) => selectedCardIds.has(String(c.id)));
+      const selectedPages = preview.pages.filter((p) => selectedPageIds.has(String(p.id)));
+      const selectedApps = preview.customApps.filter((a) => selectedAppIds.has(String(a.id)));
 
       const result = await duplicateUser({
         cards: selectedCards.map((c) => ({ id: c.id, name: c.name })),
@@ -229,8 +212,10 @@ export function DuplicateView({ onBackToDefault = null, onStatusUpdate = null })
 
       await downloadAuditLog({ result, sourceUser });
 
-      const sharedCardCount = result.cardResults.attempted.length - result.cardResults.errors.length;
-      const sharedPageCount = result.pageResults.attempted.length - result.pageResults.errors.length;
+      const sharedCardCount =
+        result.cardResults.attempted.length - result.cardResults.errors.length;
+      const sharedPageCount =
+        result.pageResults.attempted.length - result.pageResults.errors.length;
       const appsSkipped = result.appResults.attempted.length;
 
       if (result.success) {
@@ -297,9 +282,7 @@ export function DuplicateView({ onBackToDefault = null, onStatusUpdate = null })
           <div className='min-w-0 flex-1 pt-1'>
             <div className='truncate'>{config?.title || 'Duplicate'}</div>
             {sourceUser && (
-              <div className='truncate text-xs font-normal text-muted'>
-                from {sourceUser.name}
-              </div>
+              <div className='truncate text-xs font-normal text-muted'>from {sourceUser.name}</div>
             )}
           </div>
           {onBackToDefault && (
@@ -307,7 +290,9 @@ export function DuplicateView({ onBackToDefault = null, onStatusUpdate = null })
               <Button isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
                 <IconX />
               </Button>
-              <Tooltip.Content className='text-xs'>Close</Tooltip.Content>
+              <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+                Close
+              </Tooltip.Content>
             </Tooltip>
           )}
         </Card.Title>
@@ -406,9 +391,7 @@ function AggregateRow({ emptyText, items, label }) {
     return (
       <div className='flex items-start justify-between gap-2 py-1'>
         <span className='text-sm'>{label}</span>
-        <span className='min-w-0 shrink-0 text-right text-xs text-muted'>
-          {items.join(', ')}
-        </span>
+        <span className='min-w-0 shrink-0 text-right text-xs text-muted'>{items.join(', ')}</span>
       </div>
     );
   }
@@ -550,9 +533,7 @@ function buildDuplicationLogRows({ result, sourceUser }) {
   }
 
   // CARDS
-  const cardErrorsById = new Map(
-    (result.cardResults.errors || []).map((e) => [e.id, e.error])
-  );
+  const cardErrorsById = new Map((result.cardResults.errors || []).map((e) => [e.id, e.error]));
   for (const c of result.cardResults.attempted) {
     const err = cardErrorsById.get(c.id) ?? cardErrorsById.get('all');
     rows.push(
@@ -567,9 +548,7 @@ function buildDuplicationLogRows({ result, sourceUser }) {
   }
 
   // PAGES
-  const pageErrorsById = new Map(
-    (result.pageResults.errors || []).map((e) => [e.id, e.error])
-  );
+  const pageErrorsById = new Map((result.pageResults.errors || []).map((e) => [e.id, e.error]));
   for (const p of result.pageResults.attempted) {
     const err = pageErrorsById.get(p.id) ?? pageErrorsById.get('all');
     rows.push(
@@ -584,9 +563,7 @@ function buildDuplicationLogRows({ result, sourceUser }) {
   }
 
   // CUSTOM APPS (audit-only)
-  const appErrorsById = new Map(
-    (result.appResults.errors || []).map((e) => [e.id, e.error])
-  );
+  const appErrorsById = new Map((result.appResults.errors || []).map((e) => [e.id, e.error]));
   for (const a of result.appResults.attempted) {
     const err = appErrorsById.get(a.id) ?? appErrorsById.get('all');
     rows.push(
@@ -737,8 +714,7 @@ function SelectableSection({
     );
   }
 
-  const selectAll = () =>
-    setSelectedIds(new Set(items.map((it) => String(it.id))));
+  const selectAll = () => setSelectedIds(new Set(items.map((it) => String(it.id))));
   const deselectAll = () => setSelectedIds(new Set());
 
   return (
@@ -758,9 +734,9 @@ function SelectableSection({
       </Disclosure.Heading>
       <Disclosure.Content>
         <Disclosure.Body className='pt-0 pb-1 pl-2'>
-          <p className='mb-1 text-xs italic text-muted'>
-            Deselecting a row only skips its direct share. The new user may
-            still see it through inherited group or Workspace access.
+          <p className='mb-1 text-xs text-muted italic'>
+            Deselecting a row only skips its direct share. The new user may still see it through
+            inherited group or Workspace access.
             {helperText ? ` ${helperText}` : ''}
           </p>
           <DataList

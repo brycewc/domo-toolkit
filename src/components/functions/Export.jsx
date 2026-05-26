@@ -78,7 +78,7 @@ export function Export({ currentContext, isDisabled }) {
     };
 
     return (
-      <Tooltip closeDelay={100} delay={600}>
+      <Tooltip closeDelay={100} delay={800}>
         <Button
           fullWidth
           className='min-w-36 flex-1 whitespace-normal'
@@ -122,7 +122,7 @@ export function Export({ currentContext, isDisabled }) {
 
   return (
     <Dropdown isDisabled={isDisabled}>
-      <Tooltip closeDelay={100} delay={600}>
+      <Tooltip closeDelay={100} delay={800}>
         <Button
           fullWidth
           className='min-w-36 flex-1 whitespace-normal'

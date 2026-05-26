@@ -124,7 +124,9 @@ export async function getCodeEngineEditorSource({ packageId, tabId }) {
 export async function getCodeEnginePackageInfo(packageId, tabId = null) {
   return executeInPage(
     async (packageId) => {
-      const response = await fetch(`/api/codeengine/v2/packages/${packageId}?parts=versions`);
+      const response = await fetch(
+        `/api/codeengine/v2/packages/${packageId}?parts=versions,functions,configuration,privateFunctions`
+      );
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
@@ -226,9 +228,7 @@ export async function getOwnedCodeEnginePackages(userId, tabId = null) {
 
         const packages = data.searchResultsMap?.package || [];
         if (packages.length > 0) {
-          allPackages.push(
-            ...packages.map((p) => ({ id: p.uuid, name: p.winnerText || p.uuid }))
-          );
+          allPackages.push(...packages.map((p) => ({ id: p.uuid, name: p.winnerText || p.uuid })));
           offset += count;
           if (packages.length < count) moreData = false;
         } else {

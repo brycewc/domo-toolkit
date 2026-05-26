@@ -15,6 +15,7 @@ import JsonView from 'react18-json-view';
 import { useGroupLookup } from '@/hooks/useGroupLookup';
 import { useUserLookup } from '@/hooks/useUserLookup';
 import { fetchObjectDetailsInPage, getObjectType } from '@/models/DomoObjectType';
+import { getTemplateApprovals } from '@/services/approvals';
 import { getDatasetColumns, getDatasetsForPage } from '@/services/datasets';
 import { executeInPage } from '@/utils/executeInPage';
 import {
@@ -31,7 +32,8 @@ import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
 // the relatedData entry.
 const LAZY_ARRAY_FETCHERS = {
   datasetColumns: ({ objectId, tabId }) => getDatasetColumns({ datasetId: objectId, tabId }),
-  datasetsForPage: ({ objectId, tabId }) => getDatasetsForPage({ pageId: objectId, tabId })
+  datasetsForPage: ({ objectId, tabId }) => getDatasetsForPage({ pageId: objectId, tabId }),
+  templateApprovals: ({ objectId, tabId }) => getTemplateApprovals(objectId, tabId)
 };
 
 import { AlertStatusIcon } from './AlertStatusIcon';
@@ -42,6 +44,16 @@ import { TimestampAnnotation } from './TimestampAnnotation';
 import '@/assets/json-view-theme.css';
 
 import { UserIdAnnotation } from './UserIdAnnotation';
+
+// Module-level cache for fetched related-tab data so it survives ContextFooter
+// remounts and Chrome-tab switches while the sidepanel stays open. Keyed by
+// Chrome tab id: switching Chrome tabs keeps each tab's data intact. Each
+// Chrome-tab entry records the objectId it was cached against, so navigating to
+// a different object in the same Chrome tab invalidates that tab's cache.
+// Entries older than the TTL are treated as misses since related data (pending
+// approvals and the like) goes stale as people act on it.
+const RELATED_CACHE_TTL_MS = 300 * 1000; // 300 seconds
+const relatedDataCache = new Map(); // chromeTabId -> { objectId, entries: Map<tabKey, { data, timestamp }> }
 
 export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onStatusUpdate }) {
   const [developerMode, setDeveloperMode] = useState(false);
@@ -66,6 +78,16 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
 
     chrome.storage.onChanged.addListener(handleStorageChange);
     return () => chrome.storage.onChanged.removeListener(handleStorageChange);
+  }, []);
+
+  // Drop a Chrome tab's cached related data when the tab closes, so the
+  // module-level cache doesn't accumulate entries for tabs gone for the session.
+  useEffect(() => {
+    const handleTabRemoved = (closedTabId) => {
+      relatedDataCache.delete(closedTabId);
+    };
+    chrome.tabs.onRemoved.addListener(handleTabRemoved);
+    return () => chrome.tabs.onRemoved.removeListener(handleTabRemoved);
   }, []);
 
   // Compute available tabs: current object + related objects
@@ -191,13 +213,19 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
     developerMode
   ]);
 
-  // Reset related cache and active tab when the detected object changes
+  // Reset related cache and active tab when the detected object changes. Seed
+  // from the module-level cache so data cached for this Chrome tab and object
+  // (within the TTL) survives Chrome-tab switches and footer remounts;
+  // navigating to a different object in the same Chrome tab invalidates it.
   const objectId = currentContext?.domoObject?.id;
+  const chromeTabId = currentContext?.tabId;
+  const contextKeyRef = useRef(null);
   useEffect(() => {
-    setRelatedCache({});
+    contextKeyRef.current = `${chromeTabId ?? ''}::${objectId ?? ''}`;
+    setRelatedCache(readFreshRelatedCache(chromeTabId, objectId));
     setLoadingTabs({});
     setActiveTabId(tabs[0]?.id ?? null);
-  }, [objectId]);
+  }, [objectId, chromeTabId]);
 
   // Default activeTabId to first tab when tabs change
   useEffect(() => {
@@ -227,13 +255,19 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
   const handleTabChange = async (key) => {
     setActiveTabId(key);
 
-    // Skip if it's the current object tab or already cached/loading
+    // Skip the current-object tab and anything already in flight.
     const tab = tabs.find((t) => t.id === key);
-    if (!tab || tab.isCurrentObject || relatedCache[key] || loadingTabs[key]) {
-      return;
-    }
+    if (!tab || tab.isCurrentObject || loadingTabs[key]) return;
     // Eager arrays carry their data on the tab — nothing to fetch
     if (tab.isArray && !tab.fetcher) return;
+
+    // Fresh module-cache hit for this Chrome tab + object: mirror it into
+    // render state without refetching.
+    const cached = getFreshRelatedEntry(chromeTabId, objectId, key);
+    if (cached !== undefined) {
+      setRelatedCache((prev) => (key in prev ? prev : { ...prev, [key]: cached }));
+      return;
+    }
 
     // Seed cache from preloaded parent data (no fetch needed)
     if (tab.preloaded) {
@@ -241,6 +275,10 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
       return;
     }
 
+    // Pin the context this fetch was issued for. A response that lands after
+    // the user navigated to another object/Chrome tab still updates the cache
+    // (keyed by the issuing context) but must not overwrite the current view.
+    const reqKey = `${chromeTabId ?? ''}::${objectId ?? ''}`;
     setLoadingTabs((prev) => ({ ...prev, [key]: true }));
 
     try {
@@ -248,11 +286,12 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
         // Lazy array: dispatch to the registered fetcher, store the array in cache.
         const fetcher = LAZY_ARRAY_FETCHERS[tab.fetcher];
         if (!fetcher) throw new Error(`Unknown lazy array fetcher: ${tab.fetcher}`);
-        const arr = await fetcher({
-          objectId: currentContext?.domoObject?.id,
-          tabId: currentContext?.tabId
-        });
-        setRelatedCache((prev) => ({ ...prev, [key]: arr ?? [] }));
+        const arr = await fetcher({ objectId, tabId: chromeTabId });
+        const data = arr ?? [];
+        writeRelatedCache(chromeTabId, objectId, key, data);
+        if (contextKeyRef.current === reqKey) {
+          setRelatedCache((prev) => ({ ...prev, [key]: data }));
+        }
       } else {
         const relatedType = getObjectType(tab.typeId);
         if (!relatedType?.api) {
@@ -270,15 +309,14 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
           typeId: relatedType.id
         };
 
-        const metadata = await executeInPage(
-          fetchObjectDetailsInPage,
-          [params],
-          currentContext?.tabId
-        );
+        const metadata = await executeInPage(fetchObjectDetailsInPage, [params], chromeTabId);
 
         if (metadata?.details) {
-          setRelatedCache((prev) => ({ ...prev, [key]: metadata.details }));
-        } else {
+          writeRelatedCache(chromeTabId, objectId, key, metadata.details);
+          if (contextKeyRef.current === reqKey) {
+            setRelatedCache((prev) => ({ ...prev, [key]: metadata.details }));
+          }
+        } else if (contextKeyRef.current === reqKey) {
           setRelatedCache((prev) => ({
             ...prev,
             [key]: { error: 'No details available' }
@@ -287,10 +325,12 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
       }
     } catch (error) {
       console.error(`[ContextFooter] Error fetching ${key} details:`, error);
-      setRelatedCache((prev) => ({
-        ...prev,
-        [key]: { error: error.message }
-      }));
+      if (contextKeyRef.current === reqKey) {
+        setRelatedCache((prev) => ({
+          ...prev,
+          [key]: { error: error.message }
+        }));
+      }
     } finally {
       setLoadingTabs((prev) => ({ ...prev, [key]: false }));
     }
@@ -541,6 +581,19 @@ function buildSimpleUrl(baseUrl, typeId, objectId, parentId) {
   return `${baseUrl}${path}`;
 }
 
+function getFreshRelatedEntry(chromeTabId, objectId, key) {
+  if (chromeTabId == null) return undefined;
+  const tabCache = relatedDataCache.get(chromeTabId);
+  if (!tabCache || tabCache.objectId !== objectId) return undefined;
+  const entry = tabCache.entries.get(key);
+  if (!entry) return undefined;
+  if (Date.now() - entry.timestamp >= RELATED_CACHE_TTL_MS) {
+    tabCache.entries.delete(key);
+    return undefined;
+  }
+  return entry.data;
+}
+
 function injectUrls(
   src,
   { baseUrl, isArray, itemIdField, itemTypeField, itemTypeId, objectId, parentId, typeId }
@@ -662,6 +715,30 @@ function MetadataJsonView({ collapsed = 1, groupMap = {}, src, userMap = {} }) {
   );
 }
 
+// Seed value for the reset effect: a plain { [tabKey]: data } of the Chrome
+// tab's non-expired entries, but only when they were cached for this same
+// object. Drops the whole tab entry on an object mismatch and prunes expired
+// entries as a side effect.
+function readFreshRelatedCache(chromeTabId, objectId) {
+  if (chromeTabId == null) return {};
+  const tabCache = relatedDataCache.get(chromeTabId);
+  if (!tabCache) return {};
+  if (tabCache.objectId !== objectId) {
+    relatedDataCache.delete(chromeTabId);
+    return {};
+  }
+  const now = Date.now();
+  const fresh = {};
+  for (const [key, entry] of tabCache.entries) {
+    if (now - entry.timestamp < RELATED_CACHE_TTL_MS) {
+      fresh[key] = entry.data;
+    } else {
+      tabCache.entries.delete(key);
+    }
+  }
+  return fresh;
+}
+
 /**
  * Resolve the parent ID that a related object needs for its API call.
  * Uses explicit parentSource config when provided, otherwise auto-resolves
@@ -691,4 +768,14 @@ function resolveRelatedParentId(related, domoObject) {
   }
 
   return null;
+}
+
+function writeRelatedCache(chromeTabId, objectId, key, data) {
+  if (chromeTabId == null) return;
+  let tabCache = relatedDataCache.get(chromeTabId);
+  if (!tabCache || tabCache.objectId !== objectId) {
+    tabCache = { entries: new Map(), objectId };
+    relatedDataCache.set(chromeTabId, tabCache);
+  }
+  tabCache.entries.set(key, { data, timestamp: Date.now() });
 }

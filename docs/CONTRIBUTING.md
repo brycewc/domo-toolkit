@@ -1,4 +1,5 @@
 ---
+title: Contributing
 ---
 
 # Contributing to Domo Toolkit
@@ -29,6 +30,7 @@ Describe the problem you're trying to solve, not just the solution you have in m
 ### Getting Started
 
 1. Fork the repository
+
 2. Clone your fork and create a branch from `main`:
 
    ```bash
@@ -101,7 +103,7 @@ All PRs are reviewed before merging. You may be asked to make changes -- this is
 
 ## Project Structure
 
-```
+```text
 src/
 ├── assets/             # Static assets and CSS
 ├── components/         # Shared React components
@@ -131,20 +133,18 @@ The extension has five main execution contexts:
 4. **Content Script** - Injected into Domo pages; detects objects, applies favicons
 5. **Background Service Worker** - Handles message passing, maintains tab context cache
 
-### Data Flow
+### Flow
 
-```
 Content Script (detects page context)
-  → Background Service Worker (message relay, caches context)
-  → Popup/Sidepanel (receives context via chrome.runtime messages)
-  → User triggers action → Services execute via content script
-```
+→ Background Service Worker (message relay, caches context)
+→ Popup/Sidepanel (receives context via chrome.runtime messages)
+→ User triggers action → Services execute via content script
 
 ### Core Models
 
 - **DomoContext** - Represents a tab's context (instance, URL, detected object)
 - **DomoObject** - Represents a Domo object (Card, Page, Dataset, etc.) with ID and type
-- **DomoObjectType** - Registry of ~100+ supported object types with URL patterns, ID validation, and API configs
+- **DomoObjectType** - Registry of \~100+ supported object types with URL patterns, ID validation, and API configs
 
 ## Development Setup
 

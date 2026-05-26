@@ -289,7 +289,6 @@ export function GetDatasetsView({
 
   return (
     <DataList
-      closeLabel={`Close ${viewData?.typeLabel} View`}
       currentContext={currentContext}
       headerActions={['openAll', 'copy', 'reload', 'refresh']}
       isRefreshing={isRefreshing}

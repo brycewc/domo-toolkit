@@ -401,7 +401,7 @@ export const ObjectTypeRegistry = {
     icon: { component: 'ApprovalCenter' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     parents: ['TEMPLATE'],
-    relatedData: [{ label: 'ApprovalCenter', source: 'parentId', typeId: 'TEMPLATE' }],
+    relatedData: [{ label: 'Template', source: 'parentId', typeId: 'TEMPLATE' }],
     urlPath: '/approval/request-details/{id}'
   }),
   AUTHORITY: new DomoObjectType('AUTHORITY', 'Grant', { idPattern: /.*/ }),
@@ -498,7 +498,7 @@ export const ObjectTypeRegistry = {
   CODEENGINE_PACKAGE: new DomoObjectType('CODEENGINE_PACKAGE', 'Code Engine Package', {
     aliases: ['PACKAGE'],
     api: {
-      endpoint: '/codeengine/v2/packages/{id}?parts=functions',
+      endpoint: '/codeengine/v2/packages/{id}?parts=functions,versions,privateFunctions',
       pathToName: 'name'
     },
     extractConfig: { keyword: 'codeengine' },
@@ -512,7 +512,7 @@ export const ObjectTypeRegistry = {
     {
       api: {
         displayName: '{parent.name} - {id}',
-        endpoint: '/codeengine/v2/packages/{parent}/versions/{id}',
+        endpoint: '/codeengine/v2/packages/{parent}/versions/{id}?parts=functions,privateFunctions',
         pathToName: 'version'
       },
       copyConfigs: [
@@ -524,7 +524,7 @@ export const ObjectTypeRegistry = {
       parents: ['CODEENGINE_PACKAGE'],
       relatedData: [
         { label: 'Package Version', source: 'self' },
-        { label: 'Code', source: 'parentId', typeId: 'CODEENGINE_PACKAGE' },
+        { label: 'Code Engine', source: 'parentId', typeId: 'CODEENGINE_PACKAGE' },
         {
           field: 'workflowVersionNumber',
           label: 'Workflow Version',
@@ -1077,7 +1077,7 @@ export const ObjectTypeRegistry = {
       bodyTemplate: {
         operationName: 'getTemplateForEdit',
         query:
-          'query getTemplateForEdit($id: ID!) {\n template(id: $id) {\n id\n title\n titleName\n titlePlaceholder\n acknowledgment\n instructions\n description\n providerName\n isPublic\n chainIsLocked\n type\n isPublished\n observers {\n id\n type\n displayName\n avatarKey\n title\n ... on Group {\n userCount\n __typename\n }\n __typename\n }\n categories {\n id\n name\n __typename\n }\n owner {\n id\n displayName\n avatarKey\n __typename\n }\n fields {\n key\n type\n name\n data\n placeholder\n required\n isPrivate\n ... on SelectField {\n option\n multiselect\n datasource\n column\n order\n __typename\n }\n __typename\n }\n approvers {\n type\n originalType: type\n key\n ... on ApproverPerson {\n id: approverId\n approverId\n userDetails {\n id\n displayName\n title\n avatarKey\n isDeleted\n __typename\n }\n __typename\n }\n ... on ApproverGroup {\n id: approverId\n approverId\n groupDetails {\n id\n displayName\n userCount\n isDeleted\n __typename\n }\n __typename\n }\n ... on ApproverPlaceholder {\n placeholderText\n __typename\n }\n __typename\n }\n workflowIntegration {\n modelId\n modelVersion\n startName\n modelName\n parameterMapping {\n fields {\n field\n parameter\n required\n type\n __typename\n }\n __typename\n }\n __typename\n }\n __typename\n }\n}',
+          'query getTemplateForEdit($id: ID!) {\n template(id: $id) {\n datasetId \n id\n title\n titleName\n titlePlaceholder\n acknowledgment\n instructions\n description\n providerName\n isPublic\n chainIsLocked\n type\n isPublished\n observers {\n id\n type\n displayName\n avatarKey\n title\n ... on Group {\n userCount\n __typename\n }\n __typename\n }\n categories {\n id\n name\n __typename\n }\n owner {\n id\n displayName\n avatarKey\n __typename\n }\n fields {\n key\n type\n name\n data\n placeholder\n required\n isPrivate\n ... on SelectField {\n option\n multiselect\n datasource\n column\n order\n __typename\n }\n __typename\n }\n approvers {\n type\n originalType: type\n key\n ... on ApproverPerson {\n id: approverId\n approverId\n userDetails {\n id\n displayName\n title\n avatarKey\n isDeleted\n __typename\n }\n __typename\n }\n ... on ApproverGroup {\n id: approverId\n approverId\n groupDetails {\n id\n displayName\n userCount\n isDeleted\n __typename\n }\n __typename\n }\n ... on ApproverPlaceholder {\n placeholderText\n __typename\n }\n __typename\n }\n workflowIntegration {\n modelId\n modelVersion\n startName\n modelName\n parameterMapping {\n fields {\n field\n parameter\n required\n type\n __typename\n }\n __typename\n }\n __typename\n }\n __typename\n }\n}',
         variables: { id: '{id}' }
       },
       endpoint: '/synapse/approval/graphql',
@@ -1088,6 +1088,20 @@ export const ObjectTypeRegistry = {
     extractConfig: { keyword: 'edit-request-form' },
     icon: { component: 'ApprovalCenter' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    relatedData: [
+      {
+        field: 'datasetId',
+        label: 'DataSet',
+        typeId: 'DATA_SOURCE'
+      },
+      {
+        fetcher: 'templateApprovals',
+        isArray: true,
+        itemIdField: 'id',
+        itemTypeId: 'APPROVAL',
+        label: 'Approvals'
+      }
+    ],
     urlPath: '/approval/edit-request-form/{id}'
   }),
   TOKEN: new DomoObjectType('TOKEN', 'API Client', {

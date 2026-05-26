@@ -997,7 +997,6 @@ export function OwnershipView({
   return (
     <>
       <DataList
-        closeLabel='Close Ownership View'
         currentContext={currentContext}
         customHeaderActions={customHeaderActions}
         footer={selectionFooter}

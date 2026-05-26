@@ -4,7 +4,12 @@ import { useEffect, useRef, useState } from 'react';
 import { DatasetComboBox } from '@/components/DatasetComboBox';
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { DomoContext } from '@/models/DomoContext';
-import { getColorRules, getDatasetBeastModes, getDatasetColumns, setColorRules } from '@/services/datasets';
+import {
+  getColorRules,
+  getDatasetBeastModes,
+  getDatasetColumns,
+  setColorRules
+} from '@/services/datasets';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconCheckCircle from '@icons/check-circle.svg?react';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
@@ -174,7 +179,9 @@ export function CopyColorRulesView({ onBackToDefault = null, onStatusUpdate = nu
               <Button isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
                 <IconX />
               </Button>
-              <Tooltip.Content className='text-xs'>Close</Tooltip.Content>
+              <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+                Close
+              </Tooltip.Content>
             </Tooltip>
           )}
         </Card.Title>
