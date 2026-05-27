@@ -53,11 +53,11 @@
     "preview": "vite preview",
     "test-docs": "cd docs && bundle exec jekyll serve"
   },
-  "packageManager": "yarn@4.14.1",
+  "packageManager": "yarn@4.15.0",
   "dependencies": {
     "@dagrejs/dagre": "^3.0.0",
-    "@heroui/react": "^3.0.3",
-    "@heroui/styles": "^3.0.3",
+    "@heroui/react": "^3.1.0",
+    "@heroui/styles": "^3.1.0",
     "@tabler/icons-react": "^3.41.1",
     "@tailwindcss/vite": "^4.2.2",
     "@tanstack/react-virtual": "^3.13.24",
@@ -87,6 +87,7 @@
     "prettier-plugin-tailwindcss": "^0.8.0",
     "remark-frontmatter": "^5.0.0",
     "remark-gfm": "^4.0.1",
+    "remark-lint-list-item-indent": "^4.0.1",
     "remark-lint-list-item-spacing": "^5.0.1",
     "remark-lint-maximum-heading-length": "^4.1.1",
     "remark-lint-maximum-line-length": "^4.1.1",

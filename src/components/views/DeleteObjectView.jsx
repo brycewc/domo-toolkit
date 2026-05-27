@@ -301,12 +301,19 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
         <Card.Header className='gap-2'>
           <Card.Title className='flex items-start justify-between'>
             <div className='flex min-w-0 flex-1 items-center gap-2 pt-1'>
-              <ObjectTypeIcon size={20} typeId={domoObject.typeId} />
+              <ObjectTypeIcon size={30} typeId={domoObject.typeId} />
               <div className='min-w-0'>
                 <div className='truncate'>Delete {domoObject.typeName || config.typeName}</div>
-                <div className='truncate text-xs font-normal text-muted'>
-                  {objectName} (ID: {domoObject.id})
-                </div>
+                <Tooltip closeDelay={0} delay={800}>
+                  <Tooltip.Trigger className='block w-full min-w-0 pr-8'>
+                    <div className='truncate text-xs font-normal text-muted'>
+                      {objectName} (ID: {domoObject.id})
+                    </div>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content className='flex flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+                    {objectName} (ID: {domoObject.id})
+                  </Tooltip.Content>
+                </Tooltip>
               </div>
             </div>
             {onBackToDefault && (

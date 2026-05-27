@@ -317,7 +317,9 @@ function FieldRow({
   }
 
   if (field.kind === 'combo') {
-    const items = (options || []).map((key) => ({ id: key, name: key }));
+    const items = [...(options || [])]
+      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+      .map((key) => ({ id: key, name: key }));
     const showResetButton = field.resettable && onReset;
     const isResetDisabled = isDisabled || !originalValue;
     return (
@@ -343,12 +345,12 @@ function FieldRow({
                 <IconChevronDown />
               </ComboBox.Trigger>
             </ComboBox.InputGroup>
-            <ComboBox.Popover placement='bottom start'>
-              <Virtualizer layout={ListLayout} layoutOptions={{ rowHeight: 32 }}>
-                <ListBox className='max-h-60 overflow-y-auto' items={items}>
+            <ComboBox.Popover className='max-w-9/10' placement='bottom start'>
+              <Virtualizer layout={ListLayout} layoutOptions={{ estimatedRowHeight: 32 }}>
+                <ListBox className='max-h-100 overflow-y-auto' items={items}>
                   {(item) => (
-                    <ListBox.Item id={item.id} textValue={item.name}>
-                      {item.name}
+                    <ListBox.Item className='h-fit' id={item.id} textValue={item.name}>
+                      <span className='line-clamp-2 break-all'>{item.name}</span>
                     </ListBox.Item>
                   )}
                 </ListBox>

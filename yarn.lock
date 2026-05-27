@@ -2,7 +2,7 @@
 # Manual changes might be lost - proceed with caution!
 
 __metadata:
-  version: 9
+  version: 10
   cacheKey: 10c0
 
 "@adobe/react-spectrum-ui@npm:1.2.1":
@@ -427,11 +427,11 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@heroui/react@npm:^3.0.3":
-  version: 3.0.3
-  resolution: "@heroui/react@npm:3.0.3"
+"@heroui/react@npm:^3.1.0":
+  version: 3.1.0
+  resolution: "@heroui/react@npm:3.1.0"
   dependencies:
-    "@heroui/styles": "npm:3.0.3"
+    "@heroui/styles": "npm:3.1.0"
     "@radix-ui/react-avatar": "npm:1.1.11"
     "@react-aria/i18n": "npm:3.13.0"
     "@react-aria/ssr": "npm:3.10.0"
@@ -447,19 +447,19 @@ __metadata:
     react: ">=19.0.0"
     react-dom: ">=19.0.0"
     tailwindcss: ">=4.0.0"
-  checksum: 10c0/8a507bed757a71c742b5d48232402dc69a9a3a73d4860fcc5f30d6a11c63b66e590320dc4f2456979c4ba4179a15b72598c2fc16e7b556b47ab29c3a06915520
+  checksum: 10c0/7a2ed4479d69f1778ce1122fe52b329ab1be4a32c258a3d7622213f234fa616acfda42f52d3545eda91756e1220a8fd4096c0269c313cb613340f0b6d5b4fa79
   languageName: node
   linkType: hard
 
-"@heroui/styles@npm:3.0.3, @heroui/styles@npm:^3.0.3":
-  version: 3.0.3
-  resolution: "@heroui/styles@npm:3.0.3"
+"@heroui/styles@npm:3.1.0, @heroui/styles@npm:^3.1.0":
+  version: 3.1.0
+  resolution: "@heroui/styles@npm:3.1.0"
   dependencies:
     tailwind-variants: "npm:3.2.2"
     tw-animate-css: "npm:1.4.0"
   peerDependencies:
     tailwindcss: ">=4.0.0"
-  checksum: 10c0/3717fad9626c3c0cd95b142aa04e89f8d717cfe521b097fee0791f76d642e29908d7776753cf986fe0579945ed3d34c8ab3061514177cbcdc302ed329ad9c876
+  checksum: 10c0/766fc4e2ad1724ee3e4246f981fcdda7d84801907b9b028d702f50a8605a1a03d1a9ac52fc01b1eee36cf1a5bc0f776ddec2f1809fc2383d98c50d75cd187c2b
   languageName: node
   linkType: hard
 
@@ -2570,8 +2570,8 @@ __metadata:
     "@crxjs/vite-plugin": "npm:^2.0.3"
     "@dagrejs/dagre": "npm:^3.0.0"
     "@eslint/js": "npm:^10.0.1"
-    "@heroui/react": "npm:^3.0.3"
-    "@heroui/styles": "npm:^3.0.3"
+    "@heroui/react": "npm:^3.1.0"
+    "@heroui/styles": "npm:^3.1.0"
     "@stylistic/eslint-plugin": "npm:^5.10.0"
     "@tabler/icons-react": "npm:^3.41.1"
     "@tailwindcss/vite": "npm:^4.2.2"
@@ -2594,6 +2594,7 @@ __metadata:
     react18-json-view: "npm:^0.2.10"
     remark-frontmatter: "npm:^5.0.0"
     remark-gfm: "npm:^4.0.1"
+    remark-lint-list-item-indent: "npm:^4.0.1"
     remark-lint-list-item-spacing: "npm:^5.0.1"
     remark-lint-maximum-heading-length: "npm:^4.1.1"
     remark-lint-maximum-line-length: "npm:^4.1.1"
@@ -5457,7 +5458,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"remark-lint-list-item-indent@npm:^4.0.0":
+"remark-lint-list-item-indent@npm:^4.0.0, remark-lint-list-item-indent@npm:^4.0.1":
   version: 4.0.1
   resolution: "remark-lint-list-item-indent@npm:4.0.1"
   dependencies:

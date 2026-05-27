@@ -1,7 +1,7 @@
 import { Button, Tooltip } from '@heroui/react';
 
-import { ObjectTypeIcon } from '@/components/ObjectTypeIcon';
 import { useLaunchView } from '@/hooks/useLaunchView';
+import IconPencil from '@icons/pencil.svg?react';
 
 // Per-type tooltip describing what fields the Update Details view edits.
 // Falls back to a generic message for any type without an entry here.
@@ -32,7 +32,7 @@ export function UpdateDetails({ currentContext, onStatusUpdate }) {
           })
         }
       >
-        <ObjectTypeIcon typeId={typeId} />
+        <IconPencil />
         {label}
       </Button>
       <Tooltip.Content

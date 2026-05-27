@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 import dictionaryEn from 'dictionary-en';
 import remarkFrontmatter from 'remark-frontmatter';
+import remarkLintListItemIndent from 'remark-lint-list-item-indent';
 import remarkLintListItemSpacing from 'remark-lint-list-item-spacing';
 import remarkLintMaximumHeadingLength from 'remark-lint-maximum-heading-length';
 import remarkLintMaximumLineLength from 'remark-lint-maximum-line-length';
@@ -72,6 +73,11 @@ const config = {
     [remarkLintMaximumHeadingLength, false],
     [remarkLintNoDuplicateHeadings, false],
     [remarkLintListItemSpacing, false],
+    // The style-guide preset sets this to `mixed`, which uses `tab` indentation
+    // for loose lists (items with blank lines), forcing 2 spaces after a `1.`
+    // marker. Pin to `one` so every list, tight or loose, uses a single space
+    // and agrees with `settings.listItemIndent: 'one'` above.
+    [remarkLintListItemIndent, 'one'],
     // Disabled because Jekyll requires `_config.yml` / `_includes` / `_sass`
     // (leading underscores) and existing assets use snake_case names.
     [remarkLintNoFileNameIrregularCharacters, false],
