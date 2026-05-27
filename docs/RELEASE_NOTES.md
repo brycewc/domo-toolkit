@@ -31,6 +31,7 @@ title: Release Notes
 - Drill cards on each parent card are also migrated when their content uses the in-scope dataset: discovered via the bulk `parts=drillPath,drillPathURNs` endpoint, fetched with their own datasource metadata, and rewired alongside the parent so drill-down paths don't break after the swap
 - Downstream dataflows now show their real names instead of `Dataflow {id}` — the lineage endpoint doesn't return names, so we hydrate them in parallel via `getDataflowDetail` after the lineage fetch
 - Parent group checkboxes (Cards / Dataset Views / Dataflows) in selection mode now show the indeterminate dash icon when only some of their children are selected, instead of reading as unchecked. Implemented in `DataList` as a general affordance so any future view with parent-and-child selectable rows gets the same behavior; OwnershipView's existing "Select all" toolbar checkbox already follows the same pattern
+- When a dataset has no downstream content (all three lineage fetches settle with zero cards, dataset views, and dataflows), the view fires a "Nothing to migrate" warning toast and returns to the default view instead of painting an empty list. Skips the bail when any fetch errored so the failure stays visible and the user can retry via refresh
 
 ### Transfer Ownership (per-item selection)
 

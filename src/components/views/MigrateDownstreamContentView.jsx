@@ -39,6 +39,7 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
   const [isTransferring, setIsTransferring] = useState(false);
 
   const mountedRef = useRef(true);
+  const bailedRef = useRef(false);
   const { showStatus } = useStatusBar();
 
   useEffect(() => {
@@ -118,6 +119,7 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
   const {
     errorCount,
     isFullyLoaded,
+    loadedCount,
     loadingCount,
     refresh: refreshFetches,
     results
@@ -157,6 +159,36 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
     () => Object.values(totalsByType).reduce((a, b) => a + b, 0),
     [totalsByType]
   );
+
+  // All three lineage fetches settled with zero downstream content: there's
+  // nothing to migrate. Bail straight back to the default view with a warning
+  // toast rather than painting an empty DataList (three "(0)" groups with no
+  // selectable rows and a disabled migrate button). Gated on loadedCount, not
+  // isFullyLoaded, because isFullyLoaded is also true in the pre-fetch window
+  // when specs is empty. Skips when any fetch errored (loadedCount < total) so
+  // the user can still see the failure and retry via refresh; a 0 total there
+  // may just mean a fetch never returned.
+  const nothingToMigrate =
+    !isLoading &&
+    !isTransferring &&
+    loadedCount === MIGRATE_TYPES.length &&
+    totalAvailable === 0;
+
+  // The render path short-circuits to the spinner on `nothingToMigrate` to
+  // prevent a one-frame flash of the empty list before this effect navigates
+  // away. The bailedRef guards against double-firing if a refresh re-settles
+  // to another empty result.
+  useEffect(() => {
+    if (bailedRef.current) return;
+    if (!nothingToMigrate) return;
+    bailedRef.current = true;
+    onStatusUpdate?.(
+      'Nothing to migrate',
+      `**${datasetName}** has no downstream content to migrate`,
+      'warning'
+    );
+    onBackToDefault?.();
+  }, [nothingToMigrate, datasetName, onStatusUpdate, onBackToDefault]);
 
   const selectedCounts = useMemo(() => {
     const counts = { cards: 0, dataflows: 0, datasetViews: 0 };
@@ -427,7 +459,7 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
     [handleOpenModal, isFullyLoaded, isTransferring, totalSelected]
   );
 
-  if (isLoading) {
+  if (isLoading || nothingToMigrate) {
     return (
       <Card className='flex h-full w-full items-center justify-center'>
         <Card.Content className='flex flex-col items-center gap-2 py-8'>

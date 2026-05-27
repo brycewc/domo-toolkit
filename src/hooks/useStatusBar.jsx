@@ -39,7 +39,7 @@ export function useStatusBar() {
 }
 
 function defaultTimeoutFor(status) {
-  if (status === 'danger') return 7000;
-  if (status === 'warning') return 5000;
+  if (status === 'danger') return 10000;
+  if (status === 'warning') return 8000;
   return 3000;
 }
