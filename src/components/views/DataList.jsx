@@ -1196,11 +1196,16 @@ function DataListItemImpl({
     //
     // Outer div carries border-t; inner div carries `my-1 min-h-9`. This
     // mirrors the Disclosure structure so flat rows and Disclosure-heading
-    // rows have identical vertical metrics — without the 8px gap that
+    // rows have identical vertical metrics, without the 8px gap that
     // appears when a flat row only has `py-1` while the Disclosure row has
     // `my-1` on its heading.
+    //
+    // A leaf row also shows a `(count countLabel)` badge when it sets `count`
+    // (e.g. a related dataset showing its downstream dependency count), so the
+    // count is no longer gated to virtual parents. The muted-empty treatment
+    // stays virtual-parent-only.
     const isMutedEmpty = item.isVirtualParent && item.count === 0;
-    const flatCount = showCounts && item.isVirtualParent && item.count !== undefined && (
+    const flatCount = showCounts && item.count !== undefined && (
       <p className='shrink-0 text-sm whitespace-nowrap text-muted'>
         ({item.count}
         {item.countLabel ? ` ${item.countLabel}` : ''})

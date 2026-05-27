@@ -3,7 +3,7 @@ import { mapJSDocType } from './typeMap';
 
 const EMPTY_TYPE = '';
 
-export function buildManifestFunctions({ reconciledDocs, typedefs }) {
+export function buildManifestFunctions({ editorStartIndices = {}, reconciledDocs, typedefs }) {
   const functions = [];
   const warnings = [];
   const perFunctionMeta = {};
@@ -16,7 +16,11 @@ export function buildManifestFunctions({ reconciledDocs, typedefs }) {
     const fn = {
       description: doc.description || '',
       displayName: doc.displayName || deriveDisplayName(doc.functionName),
-      editorStartIndex: 0,
+      // Domo binds each manifest function to its code definition by this
+      // parse-tree node index, recovered from the live editor. Falling back to 0
+      // (the old hardcoded value) collapses every binding onto one node, which is
+      // why workflows reported the function as nonexistent after a sync.
+      editorStartIndex: editorStartIndices?.[doc.functionName] ?? 0,
       example: buildExampleStub(inputs, output),
       hasReturn: output != null,
       inputs,

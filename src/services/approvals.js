@@ -126,6 +126,54 @@ export async function getOwnedApprovalTemplates(userId, tabId = null) {
 }
 
 /**
+ * Count the approval requests created from a template, without paging through
+ * every request. Selects only the `workflowSearch` connection `totalCount`,
+ * filtered by `templateIds` the same way getTemplateApprovals does. Used to show
+ * a tally in the delete view's dependency check.
+ * @param {string} templateId - The approval template ID
+ * @param {number|null} tabId - Optional Chrome tab ID
+ * @returns {Promise<number|null>} The request count, or null if unavailable
+ */
+export async function getTemplateApprovalCount(templateId, tabId = null) {
+  // Cheap path: read the connection's total instead of paging edges. If an
+  // instance does not expose `totalCount` on workflowSearch (comes back null or
+  // the query errors), fall back to counting the full, paged request list.
+  const total = await executeInPage(
+    async (templateId) => {
+      const response = await fetch('/api/synapse/approval/graphql', {
+        body: JSON.stringify({
+          operationName: 'getRequestCount',
+          query:
+            'query getRequestCount($query: QueryRequest!) {\n  workflowSearch(query: $query, type: "AC") {\n    totalCount\n  }\n}',
+          variables: {
+            query: {
+              active: null,
+              approverId: null,
+              lastModifiedBefore: null,
+              submitterId: null,
+              templateIds: [templateId],
+              title: null
+            }
+          }
+        }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST'
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      return data?.data?.workflowSearch?.totalCount ?? null;
+    },
+    [templateId],
+    tabId
+  ).catch(() => null);
+
+  if (typeof total === 'number') return total;
+
+  const approvals = await getTemplateApprovals(templateId, tabId);
+  return approvals.length;
+}
+
+/**
  * Get every active approval request created from a given approval template.
  * Mirrors getOwnedApprovals but filters the workflow search by templateIds
  * instead of approverId, so it returns the template's requests regardless of

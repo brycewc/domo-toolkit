@@ -84,7 +84,13 @@ export function mergeManifestFunctions({ derivedFunctions, existingFunctions, pe
   for (const fn of derivedFunctions) {
     const existing = existingByName.get(fn.name);
     if (!existing) {
-      decisions.push({ action: 'added', derived: fn, diffFields: [], existing: null, name: fn.name });
+      decisions.push({
+        action: 'added',
+        derived: fn,
+        diffFields: [],
+        existing: null,
+        name: fn.name
+      });
       merged.push(fn);
       continue;
     }
@@ -336,9 +342,7 @@ export function preparePackagePayload({
 }) {
   const baseConfiguration = baseVersion?.configuration ||
     existingDefinition?.configuration || {
-      accountsMapping: [],
-      externalPackageMapping: {},
-      mlModel: []
+      accountsMapping: []
     };
 
   const payload = {
@@ -351,7 +355,6 @@ export function preparePackagePayload({
       functions: manifestFunctions
     },
     name: existingDefinition?.name || '',
-    packageId,
     version: newVersion
   };
 

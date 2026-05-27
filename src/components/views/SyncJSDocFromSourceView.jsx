@@ -24,10 +24,11 @@ import {
   computeStructuralDiff,
   findCurrentVersionInfo,
   findVersionForBaseline,
-  parseSourceToManifest,
   preparePackagePayload,
   resolveTargetVersion
-} from '@/utils/jsdocToPackage';
+} from '@/utils/jsdocToPackage/mergeManifest';
+import { appendModuleExports } from '@/utils/jsdocToPackage/moduleExports';
+import { parseSourceToManifest } from '@/utils/jsdocToPackage/parseSourceToManifest';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconCheckCircle from '@icons/check-circle.svg?react';
 import IconChevronDown from '@icons/chevron-down.svg?react';
@@ -169,7 +170,11 @@ export function SyncJSDocFromSourceView({ onBackToDefault = null, onStatusUpdate
   const parsed = useMemo(() => {
     if (!sourceRead || !packageDef) return null;
     try {
-      return parseSourceToManifest(sourceRead.code, baseVersion?.functions || []);
+      return parseSourceToManifest(
+        sourceRead.code,
+        baseVersion?.functions || [],
+        sourceRead.editorStartIndices
+      );
     } catch (err) {
       console.error('[SyncJSDocFromSourceView] Parse error:', err);
       return { error: err.message || 'Parser threw an error' };
@@ -177,7 +182,14 @@ export function SyncJSDocFromSourceView({ onBackToDefault = null, onStatusUpdate
   }, [sourceRead, packageDef, baseVersion]);
 
   const errorWarnings = parsed?.warnings?.filter((w) => w.severity === 'error') || [];
-  const cannotSync = !parsed || parsed.error || errorWarnings.length > 0;
+  // The live editor tree gives us both the module.exports function list and each
+  // function's editorStartIndex. It's null when the tree couldn't be read and
+  // absent on the API fallback. We refuse to sync without it: a version saved
+  // without the regenerated module.exports block makes Workflow runs fail with
+  // "function not found in package".
+  const editorDataUnavailable =
+    !!sourceRead && (!sourceRead.functionNames || !sourceRead.editorStartIndices);
+  const cannotSync = !parsed || parsed.error || errorWarnings.length > 0 || editorDataUnavailable;
   const hasJSDocRewrites = (parsed?.jsdocRewrites?.length || 0) > 0;
   const newFunctionCount = parsed?.decisions?.filter((d) => d.action === 'added').length || 0;
   const updatedFunctionCount = parsed?.decisions?.filter((d) => d.action === 'updated').length || 0;
@@ -229,7 +241,10 @@ export function SyncJSDocFromSourceView({ onBackToDefault = null, onStatusUpdate
 
     const definition = preparePackagePayload({
       baseVersion,
-      code: parsed.reconciledSource,
+      // Domo's IDE regenerates the trailing module.exports block on save; the
+      // editor source we read has it stripped, so we reattach it before POSTing.
+      // Without it the runtime can't resolve any function for a Workflow.
+      code: appendModuleExports(parsed.reconciledSource, sourceRead.functionNames),
       existingDefinition: packageDef,
       manifestFunctions: parsed.mergedFunctions,
       newVersion: target.version,
@@ -342,6 +357,17 @@ export function SyncJSDocFromSourceView({ onBackToDefault = null, onStatusUpdate
             <SourcePill currentVersionInfo={currentVersionInfo} sourceRead={sourceRead} />
             <TargetPill target={target} />
           </div>
+
+          {editorDataUnavailable && (
+            <div className='flex items-center gap-2 rounded-md bg-danger-soft p-2 text-sm text-danger'>
+              <IconExclamationTriangle />
+              <span>
+                Could not read the function list from the live editor. Open the Code Engine
+                editor for this package and try again. Syncing without it would omit the
+                module.exports block and break Workflow runs.
+              </span>
+            </div>
+          )}
 
           {parsed?.error && (
             <div className='flex items-center gap-2 rounded-md bg-danger-soft p-2 text-sm text-danger'>

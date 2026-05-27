@@ -6,8 +6,10 @@ import { useStatusBar } from '@/hooks/useStatusBar';
 import { DataListItem } from '@/models/DataListItem';
 import { DomoContext } from '@/models/DomoContext';
 import { DomoObject } from '@/models/DomoObject';
+import { deleteApprovalTemplate } from '@/services/approvals';
 import { deleteAppAndAllContent } from '@/services/customApps';
 import { deleteDataflowAndOutputs } from '@/services/dataflows';
+import { deleteDataset } from '@/services/datasets';
 import { deleteObject } from '@/services/deleteObject';
 import { getDependenciesForDelete } from '@/services/dependencies';
 import { deletePageAndAllCards } from '@/services/pages';
@@ -41,10 +43,19 @@ const deletersByType = {
     cascadeButtons: [
       {
         available: ({ context }) => !!context.domoObject?.parentId,
+        buildContext: ({ context }) => {
+          const appLabel =
+            context.domoObject?.typeId === 'WORKSHEET_VIEW' ? 'Worksheet' : 'App';
+          return {
+            appLabel,
+            appName:
+              context.domoObject.metadata?.parent?.name ||
+              `${appLabel} ${context.domoObject.parentId}`,
+            parentId: context.domoObject.parentId
+          };
+        },
         confirmText: ({ appLabel, appName, parentId }) =>
           `Delete entire ${appLabel.toLowerCase()} ${appName} (ID: ${parentId}), all its pages, and all cards on those pages permanently?`,
-        getKind: ({ context }) =>
-          context.domoObject?.typeId === 'WORKSHEET_VIEW' ? 'Worksheet' : 'App',
         label: ({ appLabel }) => `Delete ${appLabel} and All Cards`,
         loadingMessage: ({ appName }) => `Deleting **${appName}** and all its cards…`,
         run: async ({ context }) => {
@@ -56,8 +67,10 @@ const deletersByType = {
             tabId: context.tabId
           });
         },
-        successMessage: ({ appName, result }) =>
-          `**${appName}** and ${result.cardCount} card${result.cardCount !== 1 ? 's' : ''} deleted`
+        successMessage: ({ appName }, result) =>
+          `**${appName}** and ${result.cardCount} card${result.cardCount !== 1 ? 's' : ''} deleted`,
+        tooltip: ({ appLabel }) =>
+          `Deletes the entire ${appLabel.toLowerCase()} instead of just this page`
       }
     ],
     confirmSuffix: ' and all its cards',
@@ -106,6 +119,36 @@ const deletersByType = {
     typeName: 'Page'
   },
   TEMPLATE: {
+    cascadeButtons: [
+      {
+        available: ({ deps }) => !!findRelatedDataset(deps),
+        blockedReason: ({ dependentCount }) =>
+          `The related dataset feeds ${dependentCount} other object${dependentCount !== 1 ? 's' : ''}. Delete or repoint ${dependentCount !== 1 ? 'them' : 'it'} before deleting the dataset.`,
+        buildContext: ({ context, deps }) => {
+          const ds = findRelatedDataset(deps)?.items?.[0];
+          return {
+            datasetId: ds?.id,
+            datasetName: ds?.label || ds?.id,
+            dependentCount: ds?.count ?? 0,
+            templateName: context.domoObject.metadata?.name || context.domoObject.id
+          };
+        },
+        confirmText: ({ datasetId, datasetName, templateName }) =>
+          `Delete the approval template ${templateName} and its related dataset ${datasetName} (ID: ${datasetId}) permanently? This cannot be undone.`,
+        isBlocked: ({ dependentCount }) => dependentCount > 0,
+        label: () => 'Delete Template and DataSet',
+        loadingMessage: ({ datasetName, templateName }) =>
+          `Deleting **${templateName}** and dataset **${datasetName}**…`,
+        run: ({ context, deps }) =>
+          runTemplateAndDatasetDelete({
+            context,
+            datasetId: findRelatedDataset(deps)?.items?.[0]?.id
+          }),
+        successMessage: ({ datasetName, templateName }) =>
+          `**${templateName}** and dataset **${datasetName}** deleted`,
+        tooltip: () => 'Also deletes the related dataset, not just the template'
+      }
+    ],
     confirmSuffix: '',
     primaryLabel: 'Delete Template',
     run: ({ context }) => deleteObject({ object: context.domoObject, tabId: context.tabId }),
@@ -218,31 +261,20 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
     const objectName = currentContext.domoObject.metadata?.name || currentContext.domoObject.id;
     const isCascade = !!action.cascade;
     const cascade = isCascade ? action.cascade : null;
-
-    const cascadeContext = isCascade
-      ? {
-          appLabel: cascade.getKind({ context: currentContext }),
-          appName:
-            currentContext.domoObject.metadata?.parent?.name ||
-            `${cascade.getKind({ context: currentContext })} ${currentContext.domoObject.parentId}`,
-          parentId: currentContext.domoObject.parentId
-        }
-      : null;
+    const cascadeCtx = isCascade ? cascade.buildContext({ context: currentContext, deps }) : null;
 
     const promise = isCascade
-      ? Promise.resolve().then(() => cascade.run({ context: currentContext }))
+      ? Promise.resolve().then(() => cascade.run({ context: currentContext, deps }))
       : Promise.resolve().then(() => config.run({ context: currentContext }));
 
     showPromiseStatus(promise, {
-      error: (err) =>
-        err.message ||
-        `Failed to delete ${(isCascade ? cascadeContext.appLabel : config.typeName).toLowerCase()}`,
+      error: (err) => err.message || `Failed to delete ${config.typeName.toLowerCase()}`,
       loading: isCascade
-        ? cascade.loadingMessage(cascadeContext)
+        ? cascade.loadingMessage(cascadeCtx)
         : `Deleting **${objectName}**${resolveSuffix(config, currentContext)}…`,
       success: (result) => {
         if (isCascade) {
-          return cascade.successMessage({ ...cascadeContext, result });
+          return cascade.successMessage(cascadeCtx, result);
         }
         if (config.successMessage) {
           return config.successMessage({
@@ -285,6 +317,9 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
   const objectName = domoObject.metadata?.name || domoObject.id;
   const isBlocked = !!deps?.blockingCount && deps.blockingCount > 0;
   const outputCount = domoObject.metadata?.details?.outputs?.length || 0;
+  const deletedCount = (deps?.groups || [])
+    .filter((g) => g.deleted)
+    .reduce((n, g) => n + g.items.length, 0);
 
   const primaryLabel =
     typeof config.primaryLabel === 'function'
@@ -292,7 +327,7 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
       : config.primaryLabel;
 
   const availableCascades = (config.cascadeButtons || []).filter((c) =>
-    c.available({ context: currentContext })
+    c.available({ context: currentContext, deps })
   );
 
   return (
@@ -351,13 +386,14 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
 
         <div className='flex shrink-0 flex-col gap-2'>
           {availableCascades.map((cascade, idx) => {
-            const appLabel = cascade.getKind({ context: currentContext });
-            const cascadeLabel = cascade.label({ appLabel });
+            const ctx = cascade.buildContext({ context: currentContext, deps });
+            const cascadeLabel = cascade.label(ctx);
+            const blocked = cascade.isBlocked?.(ctx) ?? false;
             return (
               <Tooltip closeDelay={0} delay={400} key={idx}>
                 <Button
                   fullWidth
-                  isDisabled={isDeleting}
+                  isDisabled={isDeleting || blocked}
                   variant='tertiary'
                   onPress={() =>
                     setPendingAction({
@@ -371,7 +407,7 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
                   {cascadeLabel}
                 </Button>
                 <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
-                  Deletes the entire {appLabel.toLowerCase()} instead of just this page
+                  {blocked ? cascade.blockedReason(ctx) : cascade.tooltip(ctx)}
                 </Tooltip.Content>
               </Tooltip>
             );
@@ -412,13 +448,9 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
               </AlertDialog.Header>
               <AlertDialog.Body>
                 {pendingAction?.kind === 'cascade' && pendingAction.cascade ? (
-                  pendingAction.cascade.confirmText({
-                    appLabel: pendingAction.cascade.getKind({ context: currentContext }),
-                    appName:
-                      currentContext.domoObject.metadata?.parent?.name ||
-                      `${pendingAction.cascade.getKind({ context: currentContext })} ${currentContext.domoObject.parentId}`,
-                    parentId: currentContext.domoObject.parentId
-                  })
+                  pendingAction.cascade.confirmText(
+                    pendingAction.cascade.buildContext({ context: currentContext, deps })
+                  )
                 ) : (
                   <>
                     Are you sure you want to delete the{' '}
@@ -430,10 +462,10 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
                       <span className='italic'> {resolveSuffix(config, currentContext)}</span>
                     ) : null}{' '}
                     permanently?
-                    {deps?.totalCount > 0 && (
+                    {deletedCount > 0 && (
                       <div className='mt-2 text-xs text-muted'>
-                        {deps.totalCount} dependenc{deps.totalCount === 1 ? 'y' : 'ies'} shown will
-                        be affected.
+                        {deletedCount} dependenc{deletedCount === 1 ? 'y' : 'ies'} shown will be
+                        deleted with it.
                       </div>
                     )}
                   </>
@@ -513,9 +545,24 @@ function DependencySection({ baseUrl, deps, error, isLoading, onRetry, onStatusU
   }
 
   const buildItems = (groups, idPrefix) =>
-    groups.map((group, idx) => {
+    groups.flatMap((group, idx) => {
+      // Count-only summary group (e.g. "Approvals"): a childless virtual parent
+      // renders as a flat "(N requests)" row, showing the tally without listing
+      // each item.
+      if ((!group.items || group.items.length === 0) && group.count !== undefined) {
+        return new DataListItem({
+          count: group.count,
+          countLabel: group.countLabel,
+          id: `${idPrefix}-${idx}`,
+          isVirtualParent: true,
+          label: group.label,
+          typeId: group.summaryTypeId ?? null
+        });
+      }
       const children = group.items.map((item) => {
         const dli = new DataListItem({
+          count: item.count,
+          countLabel: item.countLabel,
           domoObject: baseUrl ? new DomoObject(item.typeId, item.id, baseUrl) : null,
           id: item.id,
           label: item.label,
@@ -525,12 +572,15 @@ function DependencySection({ baseUrl, deps, error, isLoading, onRetry, onStatusU
         if (item.unshareable) dli.unshareable = true;
         return dli;
       });
-      const groupItem = DataListItem.createGroup({
+      // Flat group (a 1:1 related object): render its item(s) as leaf rows
+      // directly, so the row keeps its type icon and inline actions instead of
+      // sitting under an icon-less disclosure header.
+      if (group.flat) return children;
+      return DataListItem.createGroup({
         children,
         id: `${idPrefix}-${idx}`,
         label: group.label
       });
-      return groupItem;
     });
 
   const deletedGroups = deps.groups.filter((g) => g.deleted);
@@ -574,6 +624,10 @@ function DependencySection({ baseUrl, deps, error, isLoading, onRetry, onStatusU
   );
 }
 
+function findRelatedDataset(deps) {
+  return deps?.groups?.find((g) => g.key === 'relatedDataset') || null;
+}
+
 function resolveSuffix(config, context) {
   if (typeof config.confirmSuffix === 'function') {
     return config.confirmSuffix({
@@ -596,4 +650,17 @@ async function runPageDelete({ context, parentAppId = null }) {
     throw new Error(result.statusDescription || 'Failed to delete page');
   }
   return result;
+}
+
+async function runTemplateAndDatasetDelete({ context, datasetId }) {
+  await deleteApprovalTemplate({ tabId: context.tabId, templateId: context.domoObject.id });
+  try {
+    await deleteDataset({ datasetId, tabId: context.tabId });
+  } catch (err) {
+    throw new Error(
+      `Template deleted, but the dataset could not be removed (${err.message}). Delete it manually.`,
+      { cause: err }
+    );
+  }
+  return { datasetId };
 }

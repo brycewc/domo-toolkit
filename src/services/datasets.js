@@ -27,6 +27,26 @@ export async function cancelStreamExecution({ executionId, streamId, tabId }) {
 }
 
 /**
+ * Permanently delete a dataset.
+ * @param {Object} params
+ * @param {string} params.datasetId - The datasource ID
+ * @param {number|null} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<void>} Resolves on success, throws on HTTP failure
+ */
+export async function deleteDataset({ datasetId, tabId = null }) {
+  return executeInPage(
+    async (datasetId) => {
+      const response = await fetch(`/api/data/v3/datasources/${datasetId}`, {
+        method: 'DELETE'
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    },
+    [datasetId],
+    tabId
+  );
+}
+
+/**
  * Get the conditional-format ("color") rules for a dataset.
  * @param {string} datasetId - The dataset UUID
  * @param {number|null} [tabId] - Optional Chrome tab ID
@@ -95,6 +115,36 @@ export async function getDatasetColumns({ datasetId, tabId }) {
       }
       const schema = await response.json();
       return schema.tables?.[0]?.columns || [];
+    },
+    [datasetId],
+    tabId
+  );
+}
+
+/**
+ * Count the objects downstream of a dataset, used to decide whether deleting it
+ * is safe. Reads Domo's precomputed impact endpoint, which already rolls up the
+ * full downstream blast radius, and sums the impact counts (every dataflow,
+ * dataset, card, and alert that ultimately depends on this dataset). The
+ * `impact*` fields are the transitive totals; the unprefixed counts are direct
+ * children only.
+ * @param {Object} params
+ * @param {string} params.datasetId - The datasource ID
+ * @param {number|null} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<number>} Total downstream impact (dataflows + datasets + cards + alerts)
+ */
+export async function getDatasetDependentCount({ datasetId, tabId = null }) {
+  return executeInPage(
+    async (datasetId) => {
+      const response = await fetch(`/api/data/v1/impacts/DATA_SOURCE/${datasetId}`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const impact = await response.json();
+      return (
+        (impact.impactCardCount || 0) +
+        (impact.impactDataFlowCount || 0) +
+        (impact.impactDataSourceCount || 0) +
+        (impact.impactAlertCount || 0)
+      );
     },
     [datasetId],
     tabId

@@ -52,23 +52,91 @@ export async function getCodeEngineCode({ packageId, tabId, version }) {
  * We pick the editor with the longest document since the main code editor is reliably
  * the largest by orders of magnitude.
  *
+ * On the editor path we also walk the live Lezer syntax tree to return, from the
+ * same parse Domo uses, `editorStartIndices` (function name -> parse-tree node
+ * index) and `functionNames` (top-level functions in declaration order). The
+ * indices let a sync match Domo's per-function editorStartIndex; the names let it
+ * regenerate the `module.exports = {...}` block Domo appends on save (without
+ * which the runtime reports every function as not found). Both are `null` if the
+ * tree can't be read and absent on the API fallback, so callers must refuse to
+ * sync without them.
+ *
  * @param {Object} params
  * @param {string} params.packageId - Code Engine package UUID
  * @param {number} [params.tabId] - Optional Chrome tab ID
- * @returns {Promise<{ code: string, source: 'editor'|'api', version?: string }>}
+ * @returns {Promise<{ code: string, editorStartIndices?: Object<string, number>|null, functionNames?: string[]|null, source: 'editor'|'api', version?: string }>}
  */
 export async function getCodeEngineEditorSource({ packageId, tabId }) {
   return executeInPage(
     async (packageId) => {
+      // Walk the live CodeMirror 6 Lezer tree, the same parse Domo uses, to
+      // recover two things the GET API and the editor display both omit:
+      //  - editorStartIndex per function (the parse-tree node index Domo uses to
+      //    bind a manifest function to its code definition), and
+      //  - the ordered list of top-level function names, used to regenerate the
+      //    `module.exports = {...}` block Domo appends on save. Without that
+      //    block the runtime reports every function as "not found in package".
+      // Both are only reproducible from the live tree: a fresh offline parse
+      // chunks the tree differently and yields different node indices.
+      function extractEditorFunctionData(state) {
+        let tree = null;
+        for (const value of state.values || []) {
+          if (value && value.tree && typeof value.tree.cursor === 'function') {
+            tree = value.tree;
+            break;
+          }
+        }
+        if (!tree) return null;
+        const doc = state.doc;
+        const functionTypes = ['ArrowFunction', 'FunctionDeclaration'];
+        const nodes = [];
+        const cursor = tree.cursor();
+        do {
+          if (functionTypes.includes(cursor.type?.name)) nodes.push(cursor.node);
+        } while (cursor.next());
+        // Drop functions nested inside another collected function (closures,
+        // callbacks) so only top-level package functions remain.
+        const topLevel = nodes.filter((node, index, all) => {
+          for (let i = 0; i < all.length; i++) {
+            if (i === index) continue;
+            const other = all[i];
+            if (node.from > other.from && node.from < other.to) return false;
+          }
+          return true;
+        });
+        const editorStartIndices = {};
+        const functionNames = [];
+        for (const node of topLevel) {
+          const nameNode =
+            node.type.name === 'ArrowFunction'
+              ? node.parent?.getChild('VariableDefinition')
+              : node.getChild('VariableDefinition');
+          if (!nameNode) continue;
+          const name = doc.sliceString(nameNode.from, nameNode.to);
+          if (name) {
+            editorStartIndices[name] = node.index;
+            functionNames.push(name);
+          }
+        }
+        return { editorStartIndices, functionNames };
+      }
+
       for (let attempt = 0; attempt < 3; attempt++) {
         const editors = Array.from(document.querySelectorAll('.cm-content'))
           .map((el) => el?.cmView?.view)
           .filter((view) => view?.state?.doc);
         if (editors.length > 0) {
           editors.sort((a, b) => b.state.doc.length - a.state.doc.length);
-          const code = editors[0].state.doc.toString();
+          const view = editors[0];
+          const code = view.state.doc.toString();
           if (typeof code === 'string' && code.length > 0) {
-            return { code, source: 'editor' };
+            const data = extractEditorFunctionData(view.state);
+            return {
+              code,
+              editorStartIndices: data?.editorStartIndices ?? null,
+              functionNames: data?.functionNames ?? null,
+              source: 'editor'
+            };
           }
         }
         if (attempt < 2) await new Promise((r) => setTimeout(r, 500));
