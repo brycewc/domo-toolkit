@@ -544,8 +544,15 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
                         ? ` (${Array.isArray(cached) ? cached.length : '...'})`
                         : '';
                       const displayLabel = `${tab.label}${lazyCountSuffix}`;
+                      // h-12! overrides HeroUI's fixed 32px tab height so a
+                      // line-clamp-2 label that wraps to two lines fits inside
+                      // the tab instead of spilling past its border.
                       return (
-                        <Tabs.Tab className='min-w-32 flex-1 capitalize' id={tab.id} key={tab.id}>
+                        <Tabs.Tab
+                          className='h-10! min-w-32 flex-1 capitalize'
+                          id={tab.id}
+                          key={tab.id}
+                        >
                           <span className='line-clamp-2 text-center' title={displayLabel}>
                             {displayLabel}
                           </span>

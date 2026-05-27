@@ -127,9 +127,12 @@ export async function getOwnedApprovalTemplates(userId, tabId = null) {
 
 /**
  * Get every active approval request created from a given approval template.
- * Mirrors getOwnedApprovals but filters the workflow search by templateId
+ * Mirrors getOwnedApprovals but filters the workflow search by templateIds
  * instead of approverId, so it returns the template's requests regardless of
- * who the approver is or what status they are in. Walks the cursor-paginated
+ * who the approver is or what status they are in. The QueryRequest input field
+ * is the array `templateIds: [ID!]`, NOT the singular `templateId` that Domo's
+ * UI sends, which the server silently ignores (returning every template's
+ * requests); confirmed via schema introspection. Walks the cursor-paginated
  * workflowSearch (the API returns roughly 30 edges per page) until there are
  * no more pages, and returns the richer per-approval field set the Approval
  * Center UI itself reads (template title, status, timestamps, current pending
@@ -162,11 +165,11 @@ export async function getTemplateApprovals(templateId, tabId = null) {
             variables: {
               after,
               query: {
-                active: true,
+                active: null,
                 approverId: null,
                 lastModifiedBefore: null,
                 submitterId: null,
-                templateId,
+                templateIds: [templateId],
                 title: null
               },
               reverseSort: false
