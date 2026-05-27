@@ -38,13 +38,9 @@ export function ReleaseNotes() {
         initial={{ opacity: 0, y: -20 }}
         transition={{ duration: 0.3 }}
       >
-        <img
-          alt='Domo Toolkit Logo'
-          className='h-16 w-16'
-          src='/toolkit-512.png'
-        />
+        <img alt='Domo Toolkit Logo' className='h-16 w-16' src='/toolkit-512.png' />
         <h1 className='text-xl font-semibold text-foreground'>
-          What's New in v{latest.version}
+          Domo Toolkit Release Notes v{latest.version}
         </h1>
         <p className='text-sm text-muted'>{latest.summary}</p>
       </motion.div>
@@ -55,9 +51,7 @@ export function ReleaseNotes() {
         initial={{ opacity: 0 }}
         transition={{ delay: 0.1, duration: 0.3 }}
       >
-        <p className='text-sm font-medium tracking-wide uppercase'>
-          Highlights
-        </p>
+        <p className='text-sm font-medium tracking-wide uppercase'>Highlights</p>
         <div className='grid grid-cols-1 gap-2'>
           {latest.highlights.map((highlight, index) => (
             <motion.div
@@ -92,9 +86,7 @@ export function ReleaseNotes() {
           initial={{ opacity: 0 }}
           transition={{ delay: 0.2, duration: 0.3 }}
         >
-          <p className='text-sm font-medium tracking-wide uppercase'>
-            Previous Releases
-          </p>
+          <p className='text-sm font-medium tracking-wide uppercase'>Previous Releases</p>
           <div className='flex flex-wrap gap-4'>
             {releases.slice(1).map((release) => (
               <Link
