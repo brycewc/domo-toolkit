@@ -7,9 +7,13 @@ import IconDataflow from '@icons/dataflow.svg?react';
 import IconInfoCircle from '@icons/info-circle.svg?react';
 import IconSync from '@icons/sync.svg?react';
 
-import { DataflowInspector, DataPreviewPanel, LevelToolbar, LineageGraph } from './components';
-import { useGraphVisibility, useLineageCache } from './hooks';
-import { toLineageType, toNodeId } from './services';
+import { DataflowInspector } from './components/DataflowInspector';
+import { DataPreviewPanel } from './components/DataPreviewPanel';
+import { LevelToolbar } from './components/LevelToolbar';
+import { LineageGraph } from './components/LineageGraph';
+import { useGraphVisibility } from './hooks/useGraphVisibility';
+import { useLineageCache } from './hooks/useLineageCache';
+import { toLineageType, toNodeId } from './services/lineage';
 
 export function Lineage() {
   const [params, setParams] = useState(null);

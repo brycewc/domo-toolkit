@@ -1,4 +1,4 @@
-import { releases } from '@/data';
+import { releases } from '@/data/releases';
 import { DomoContext } from '@/models/DomoContext';
 import { DomoObject } from '@/models/DomoObject';
 import { fetchObjectDetailsInPage, getObjectType } from '@/models/DomoObjectType';

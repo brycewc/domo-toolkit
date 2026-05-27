@@ -1,7 +1,7 @@
 import { toast } from '@heroui/react';
 import { useEffect } from 'react';
 
-import { releases } from '@/data';
+import { releases } from '@/data/releases';
 
 export function showReleaseToast() {
   const currentVersion = chrome.runtime.getManifest().version;

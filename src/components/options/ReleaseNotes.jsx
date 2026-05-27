@@ -2,7 +2,7 @@ import { Button, Card, Chip, Link } from '@heroui/react';
 import { motion } from 'motion/react';
 import { useEffect } from 'react';
 
-import { releases } from '@/data';
+import { releases } from '@/data/releases';
 import IconArrowSquareOut from '@icons/arrow-square-out.svg?react';
 import IconX from '@icons/x.svg?react';
 

@@ -68,7 +68,7 @@ import IconVector from '@icons/vector.svg?react';
 import IconWrench from '@icons/wrench.svg?react';
 import IconX from '@icons/x.svg?react';
 
-import { parseDataflow, searchTiles } from '../services';
+import { parseDataflow, searchTiles } from '../services/dataflowParser';
 
 const CATEGORY_COLORS = {
   'Aggregate': { bg: 'bg-pink-500', text: 'text-pink-500' },

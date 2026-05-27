@@ -94,4 +94,5 @@ title: Release Notes
 
 ## Refactoring
 
-- Removed the `src/utils/jsdocToPackage/index.js` barrel, per the no-barrel-files convention. `parseSourceToManifest` moved into its own file (`parseSourceToManifest.js`), and the two consumers (`ceContractDiff.js`, `SyncJSDocFromSourceView.jsx`) now import directly from `mergeManifest`, `moduleExports`, and `parseSourceToManifest`. _(A few `index.js` barrels still remain under `src/data/` and `src/lineage/` if we want to finish the sweep.)_
+- Removed the `src/utils/jsdocToPackage/index.js` barrel, per the no-barrel-files convention. `parseSourceToManifest` moved into its own file (`parseSourceToManifest.js`), and the two consumers (`ceContractDiff.js`, `SyncJSDocFromSourceView.jsx`) now import directly from `mergeManifest`, `moduleExports`, and `parseSourceToManifest`.
+- Finished the barrel sweep: removed the last four barrels (`src/data/index.js` and `src/lineage/services|hooks|components/index.js`) and rewired their consumers (`background.js`, `useReleaseNotification`, `ReleaseNotes`, `Lineage`, `useLineageCache`, `DataflowInspector`) to import directly from source. The codebase now has no barrel or re-export `index` files.

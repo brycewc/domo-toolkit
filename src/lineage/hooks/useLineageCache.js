@@ -7,7 +7,7 @@ import {
   enrichMetadata,
   getLineage,
   toMapKey
-} from '../services';
+} from '../services/lineage';
 
 const INITIAL_DEPTH = 4;
 const EXPAND_DEPTH = 4;
