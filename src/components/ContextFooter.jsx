@@ -432,25 +432,32 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
             >
               {currentContext?.isDomoPage ? (
                 <div className='flex min-w-0 flex-1 items-center gap-x-1'>
-                  <span className='min-w-0 truncate' title='Current Context'>
-                    Current Context
-                  </span>
-                  <Tooltip closeDelay={0} delay={400}>
+                  <Tooltip closeDelay={0} delay={800}>
+                    <Tooltip.Trigger>
+                      <span className='min-w-0 truncate'>Current Context</span>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+                      Current Context
+                    </Tooltip.Content>
+                  </Tooltip>
+                  <Tooltip closeDelay={0} delay={600}>
                     <Tooltip.Trigger className='flex shrink-0 items-center'>
                       <Chip className='w-fit lowercase' color='accent' size='sm' variant='soft'>
                         {currentContext?.instance}
                       </Chip>
                     </Tooltip.Trigger>
-                    <Tooltip.Content>Instance: {currentContext?.instance}.domo.com</Tooltip.Content>
+                    <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+                      Instance: {currentContext?.instance}.domo.com
+                    </Tooltip.Content>
                   </Tooltip>
-                  <Tooltip closeDelay={0} delay={400}>
+                  <Tooltip closeDelay={0} delay={600}>
                     <Tooltip.Trigger className='flex shrink-0 items-center'>
                       <Chip className='w-fit lowercase' color='accent' size='sm' variant='soft'>
                         <ObjectTypeIcon typeId={currentContext?.domoObject?.typeId} />
                         {currentContext?.domoObject?.typeName}
                       </Chip>
                     </Tooltip.Trigger>
-                    <Tooltip.Content className='flex items-center rounded p-0'>
+                    <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center rounded p-0 text-center text-wrap break-normal'>
                       <Chip className='w-fit rounded-xl' color='accent' size='sm' variant='soft'>
                         {currentContext?.domoObject?.typeId}
                       </Chip>
@@ -470,7 +477,9 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
                     <AlertStatusIcon />
                   </Alert.Indicator>
                 </Tooltip.Trigger>
-                <Tooltip.Content>Click to toggle context JSON view</Tooltip.Content>
+                <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+                  Click to toggle context JSON view
+                </Tooltip.Content>
               </Tooltip>
             </div>
             <Alert.Description className='flex h-full w-full min-w-0 flex-col items-start justify-start gap-1 text-left'>
