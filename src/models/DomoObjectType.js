@@ -680,7 +680,7 @@ export const ObjectTypeRegistry = {
       { label: 'DataFlow', source: 'parent', typeId: 'DATAFLOW_TYPE' },
       { fetcher: 'datasetColumns', isArray: true, label: 'Columns' }
     ],
-    urlPath: '/datasources/{id}/details/data/table'
+    urlPath: '/datasources/{id}/details/overview'
   }),
   DATAFLOW_TYPE: new DomoObjectType('DATAFLOW_TYPE', 'DataFlow', {
     api: { endpoint: '/dataprocessing/v2/dataflows/{id}', pathToName: 'name' },

@@ -13,6 +13,7 @@ import { deleteDataset } from '@/services/datasets';
 import { deleteObject } from '@/services/deleteObject';
 import { getDependenciesForDelete } from '@/services/dependencies';
 import { deletePageAndAllCards } from '@/services/pages';
+import { parseMarkdownBold } from '@/utils/markdown';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
 import IconTrash from '@icons/trash.svg?react';
@@ -43,25 +44,30 @@ const deletersByType = {
     cascadeButtons: [
       {
         available: ({ context }) => !!context.domoObject?.parentId,
-        buildContext: ({ context }) => {
-          const appLabel =
-            context.domoObject?.typeId === 'WORKSHEET_VIEW' ? 'Worksheet' : 'App';
+        buildContext: ({ context, deps }) => {
+          const appLabel = context.domoObject?.typeId === 'WORKSHEET_VIEW' ? 'Worksheet' : 'App';
           return {
             appLabel,
             appName:
               context.domoObject.metadata?.parent?.name ||
               `${appLabel} ${context.domoObject.parentId}`,
+            cardCount: deps?.appSummary?.cardCount ?? null,
+            pageCount: deps?.appSummary?.pageCount ?? null,
             parentId: context.domoObject.parentId
           };
         },
-        confirmText: ({ appLabel, appName, parentId }) =>
-          `Delete entire ${appLabel.toLowerCase()} ${appName} (ID: ${parentId}), all its pages, and all cards on those pages permanently?`,
+        confirmText: ({ appLabel, appName, cardCount, pageCount, parentId }) => {
+          const pages = pageCount != null ? ` (${pageCount})` : '';
+          const cards = cardCount != null ? ` (${cardCount})` : '';
+          return `Delete entire ${appLabel.toLowerCase()} **${appName} (ID: ${parentId})**, all its pages${pages}, and all cards on those pages${cards} permanently?`;
+        },
         label: ({ appLabel }) => `Delete ${appLabel} and All Cards`,
         loadingMessage: ({ appName }) => `Deleting **${appName}** and all its cards…`,
-        run: async ({ context }) => {
+        run: async ({ context, deps }) => {
           const appId = context.domoObject.parentId;
           return deleteAppAndAllContent({
             appId,
+            cardIds: deps?.appSummary?.cardIds ?? null,
             currentPageId: context.domoObject.id,
             currentPageType: context.domoObject.typeId,
             tabId: context.tabId
@@ -130,11 +136,12 @@ const deletersByType = {
             datasetId: ds?.id,
             datasetName: ds?.label || ds?.id,
             dependentCount: ds?.count ?? 0,
+            templateId: context.domoObject.id,
             templateName: context.domoObject.metadata?.name || context.domoObject.id
           };
         },
-        confirmText: ({ datasetId, datasetName, templateName }) =>
-          `Delete the approval template ${templateName} and its related dataset ${datasetName} (ID: ${datasetId}) permanently? This cannot be undone.`,
+        confirmText: ({ datasetId, datasetName, templateId, templateName }) =>
+          `Delete the approval template **${templateName} (ID: ${templateId})** and its related dataset **${datasetName} (ID: ${datasetId})** permanently? This cannot be undone.`,
         isBlocked: ({ dependentCount }) => dependentCount > 0,
         label: () => 'Delete Template and DataSet',
         loadingMessage: ({ datasetName, templateName }) =>
@@ -448,8 +455,10 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
               </AlertDialog.Header>
               <AlertDialog.Body>
                 {pendingAction?.kind === 'cascade' && pendingAction.cascade ? (
-                  pendingAction.cascade.confirmText(
-                    pendingAction.cascade.buildContext({ context: currentContext, deps })
+                  parseMarkdownBold(
+                    pendingAction.cascade.confirmText(
+                      pendingAction.cascade.buildContext({ context: currentContext, deps })
+                    )
                   )
                 ) : (
                   <>
@@ -590,7 +599,7 @@ function DependencySection({ baseUrl, deps, error, isLoading, onRetry, onStatusU
     <div className='flex min-h-0 flex-1 flex-col gap-1 overflow-hidden'>
       {deletedGroups.length > 0 && (
         <>
-          <p className='shrink-0 px-2 pt-1 text-xs font-medium text-muted uppercase'>
+          <p className='shrink-0 px-2 pt-1 text-xs font-bold text-muted uppercase'>
             Will be deleted
           </p>
           <DataList
@@ -606,7 +615,7 @@ function DependencySection({ baseUrl, deps, error, isLoading, onRetry, onStatusU
       )}
       {otherGroups.length > 0 && (
         <>
-          <p className='shrink-0 px-2 pt-1 text-xs font-medium text-muted uppercase'>
+          <p className='shrink-0 px-2 pt-1 text-xs font-bold text-muted uppercase'>
             Other dependencies
           </p>
           <DataList

@@ -155,6 +155,27 @@
     z-index: 10 !important;
   }
 
+  /* Tighten the vertical gap between a disclosed parent and its children in
+     DataList. HeroUI's default `.disclosure__body { p-2 }` puts 8px above the
+     first child, which stacks with the parent heading's `my-1` (4px) and the
+     child row's `my-1` (4px) for a ~16px parent->child gap. That's double the
+     ~8px sibling->sibling gap (just the two `my-1` margins, no body padding
+     between siblings), so the children read as disconnected from their header.
+     Drop the body's vertical padding to 0 so parent->child matches the sibling
+     rhythm at ~8px, while KEEPING the horizontal `px-2` that supplies ~8px of
+     indentation per nesting level (see the `indentStyle` comment in
+     DataList.jsx). Higher specificity (0,0,2,0) than HeroUI's base
+     `.disclosure__body` (0,0,1,0), so it wins regardless of import order.
+     Scoped to `.datalist-root` so the standalone disclosures elsewhere
+     (ApiErrorsView, DataflowInspector, etc.) keep HeroUI's default padding.
+     Placed before the `[data-slot='checkbox-group']` rule below so that, in
+     selection mode (a body matches both selectors at equal specificity), the
+     later `p-0` rule wins and also strips the horizontal padding -- selection
+     mode supplies its own explicit `paddingLeft` indentation instead. */
+  .datalist-root .disclosure__body {
+    @apply px-2 py-0;
+  }
+
   /* Strip the default `disclosure__body { p-2 }` from disclosures that live
      inside a DataList CheckboxGroup. When DataList is in selection mode it
      wraps its items in `<CheckboxGroup>` (display: contents) for state

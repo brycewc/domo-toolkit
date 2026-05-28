@@ -1,5 +1,6 @@
 import { getTemplateApprovalCount } from './approvals';
 import { getCardsForObject } from './cards';
+import { getAppContentSummary } from './customApps';
 import { getDatasetDependentCount, searchDatasets } from './datasets';
 import { getChildPages } from './pages';
 
@@ -40,6 +41,7 @@ import { getChildPages } from './pages';
 async function fetchAppPageDependencies({ id, instance, parentId, typeId }, tabId) {
   const origin = `https://${instance}.domo.com`;
   const groups = [];
+  let appSummary = null;
 
   const cards = await getCardsForObject({
     objectId: id,
@@ -80,9 +82,19 @@ async function fetchAppPageDependencies({ id, instance, parentId, typeId }, tabI
         label: 'Other pages in this app'
       });
     }
+
+    // App-wide page/card totals for the cascade ("Delete App and All Cards"):
+    // one admin-summary call covers every page, and its card IDs are reused at
+    // delete time so the delete doesn't re-walk each page. Best-effort, so a
+    // worksheet whose admin summary isn't available (or any failed call) just
+    // omits the counts and the delete falls back to a per-page walk.
+    appSummary = await getAppContentSummary({
+      appId: parseInt(parentId),
+      tabId
+    }).catch(() => null);
   }
 
-  return groups;
+  return { appSummary, groups };
 }
 
 const FETCHERS = {
@@ -241,7 +253,8 @@ const FETCHERS = {
  *   totalCount: number,
  *   blockingCount: number,
  *   blockingReason: string|null,
- *   supported: boolean
+ *   supported: boolean,
+ *   appSummary: {cardCount: number, cardIds: number[], pageCount: number}|null
  * }>}
  */
 export async function getDependenciesForDelete({
@@ -252,6 +265,7 @@ export async function getDependenciesForDelete({
   const fetcher = FETCHERS[object.typeId];
   if (!fetcher) {
     return {
+      appSummary: null,
       blockingCount: 0,
       blockingReason: null,
       groups: [],
@@ -260,7 +274,7 @@ export async function getDependenciesForDelete({
     };
   }
 
-  const allGroups = await fetcher(
+  const fetched = await fetcher(
     {
       id: object.id,
       instance,
@@ -270,6 +284,11 @@ export async function getDependenciesForDelete({
     },
     tabId
   );
+
+  // Fetchers return either a bare groups array or `{ groups, appSummary }` when
+  // they carry extra data the cascade delete reads (app-wide page/card totals).
+  const allGroups = Array.isArray(fetched) ? fetched : fetched.groups;
+  const appSummary = Array.isArray(fetched) ? null : (fetched.appSummary ?? null);
 
   const groups = allGroups.filter((g) => g.items.length > 0 || (g.count ?? 0) > 0);
 
@@ -285,6 +304,7 @@ export async function getDependenciesForDelete({
   }
 
   return {
+    appSummary,
     blockingCount,
     blockingReason,
     groups,

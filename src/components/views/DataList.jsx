@@ -315,7 +315,10 @@ export function DataList({
   const sortedItems = useMemo(() => sortItemsByLabel(items), [items]);
 
   return (
-    <Card className='flex max-h-fit min-h-0 w-full flex-1 flex-col gap-0 p-2' variant={variant}>
+    <Card
+      className='datalist-root flex max-h-fit min-h-0 w-full flex-1 flex-col gap-0 p-2'
+      variant={variant}
+    >
       {hasHeader && (
         // HeroUI canonical header pattern: close button is an absolute-positioned
         // sibling of Card.Title (NOT inside Card.Title). Card.Title is one line
@@ -862,15 +865,22 @@ function DataListItemImpl({
     selectionMode && !isItemSelectableInMode ? <div className='h-9 w-4 shrink-0' /> : null;
 
   // Visual indentation per nesting level so children read as descendants
-  // rather than as siblings of their parent. Applied on the row's outer
-  // container (Disclosure.Heading or the flat row's wrapper div) — NOT on
-  // the whole <Disclosure>, because the Disclosure body holds the next
-  // level of children, and each child already computes its own depth-based
-  // padding via `depth + 1` in childRenderProps. Padding the whole
-  // Disclosure would compound and over-indent. Inline style (rather than a
-  // Tailwind class) because `depth` is runtime — Tailwind's JIT can't emit
-  // a class whose name doesn't appear as a static substring of the source.
-  const indentStyle = depth > 0 ? { paddingLeft: `${depth * 16}px` } : undefined;
+  // rather than as siblings of their parent. Scoped to selection mode on
+  // purpose: in default mode each nesting level already sits inside its own
+  // `disclosure__body` (HeroUI's `p-2`), which gives ~8px of natural indent
+  // per level, so adding an explicit indent here would double up and over-pad
+  // the rows. In selection mode that body padding is stripped to `p-0` (see
+  // the `[data-slot='checkbox-group'] .disclosure__body` rule in global.css),
+  // so without this the nested leaf rows would sit flush against their parent
+  // group header. Applied on the row's outer container (Disclosure.Heading or
+  // the flat row's wrapper div), NOT on the whole <Disclosure>, because the
+  // Disclosure body holds the next level of children and each child already
+  // computes its own depth-based padding via `depth + 1` in childRenderProps;
+  // padding the whole Disclosure would compound and over-indent. Inline style
+  // (rather than a Tailwind class) because `depth` is runtime, so Tailwind's
+  // JIT can't emit a class whose name doesn't appear as a static substring of
+  // the source.
+  const indentStyle = selectionMode && depth > 0 ? { paddingLeft: `${depth * 8}px` } : undefined;
 
   // Indeterminate state for parent rows: when *some but not all* of the row's
   // selectable children are in `selectedIds`, the parent checkbox should paint
