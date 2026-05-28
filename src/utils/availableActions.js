@@ -95,9 +95,22 @@ export function getAvailableActions(currentContext) {
   }
 
   if (
-    ['CODEENGINE_PACKAGE', 'CODEENGINE_PACKAGE_VERSION', 'MAGNUM_COLLECTION'].includes(typeId)
+    ['CODEENGINE_PACKAGE', 'CODEENGINE_PACKAGE_VERSION'].includes(typeId) &&
+    !metadata?.context?.workflowModelId &&
+    (
+      metadata?.details?.language ||
+      metadata?.parent?.details?.language ||
+      'JAVASCRIPT'
+    ).toUpperCase() !== 'PYTHON'
   ) {
-    actions.add('syncJSDocFromSource');
+    actions.add('generate');
+  }
+
+  if (typeId === 'MAGNUM_COLLECTION') {
+    actions.add('generate');
+    if (details?.syncEnabled === true) {
+      actions.add('sync');
+    }
   }
 
   if (typeId === 'CARD' && details?.type !== 'domoapp') {

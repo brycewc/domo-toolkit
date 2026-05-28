@@ -124,6 +124,65 @@ export async function getOwnedAppDbCollections(userId, tabId = null) {
 }
 
 /**
+ * Query documents from an AppDB collection. Returns up to the 100 most-recent
+ * documents (`orderby=createdOn+descending`) so the sample is biased toward
+ * the document shape currently in use, even if older docs in the collection
+ * still carry deprecated keys.
+ * @param {Object} params
+ * @param {string} params.collectionId - The AppDB collection ID
+ * @param {number|null} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<Array<Object>>} Array of document objects, or [] if none
+ */
+export async function queryAppDbCollectionDocuments({ collectionId, tabId = null }) {
+  return executeInPage(
+    async (collectionId) => {
+      const response = await fetch(
+        `/api/datastores/v2/collections/${collectionId}/documents/query?limit=100&offset=0&orderby=createdOn+descending`,
+        {
+          body: '{}',
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        }
+      );
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      return Array.isArray(data) ? data : [];
+    },
+    [collectionId],
+    tabId
+  );
+}
+
+/**
+ * Turn sync-on-write on or off for an AppDB collection. Sent as its own PUT
+ * (instead of bundled with the schema PUT), since the schema endpoint does
+ * not honor `syncEnabled` when both are sent together.
+ * @param {Object} params
+ * @param {string} params.collectionId - The AppDB collection ID
+ * @param {boolean} params.syncEnabled - Target state for the flag
+ * @param {number|null} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<void>} Resolves on success, throws on HTTP failure
+ */
+export async function setAppDbCollectionSyncEnabled({
+  collectionId,
+  syncEnabled,
+  tabId = null
+}) {
+  return executeInPage(
+    async (collectionId, syncEnabled) => {
+      const response = await fetch(`/api/datastores/v1/collections/${collectionId}`, {
+        body: JSON.stringify({ id: collectionId, syncEnabled }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'PUT'
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    },
+    [collectionId, syncEnabled],
+    tabId
+  );
+}
+
+/**
  * Grant a user a permission set on an AppDB collection. Uses `overwrite=true`
  * so the call replaces any existing permission for that user on this
  * collection.
@@ -214,6 +273,31 @@ export async function transferAppDbCollections(
       return { errors, failed: errors.length, succeeded };
     },
     [collectionIds, fromUserId, toUserId],
+    tabId
+  );
+}
+
+/**
+ * Replace the schema on an AppDB collection. Sends the column list as part of
+ * a PUT to the collection, which is the same call Domo's UI fires when an
+ * operator edits the schema by hand.
+ * @param {Object} params
+ * @param {string} params.collectionId - The AppDB collection ID
+ * @param {Array<{name: string, type: string}>} params.columns - Ordered columns
+ * @param {number|null} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<void>} Resolves on success, throws on HTTP failure
+ */
+export async function updateAppDbCollectionSchema({ collectionId, columns, tabId = null }) {
+  return executeInPage(
+    async (collectionId, columns) => {
+      const response = await fetch(`/api/datastores/v1/collections/${collectionId}`, {
+        body: JSON.stringify({ id: collectionId, schema: { columns } }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'PUT'
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    },
+    [collectionId, columns],
     tabId
   );
 }

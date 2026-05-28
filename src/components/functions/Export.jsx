@@ -4,10 +4,8 @@ import { useStatusBar } from '@/hooks/useStatusBar';
 import { exportCard } from '@/services/cards';
 import { getCodeEngineCode } from '@/services/codeEngine';
 import IconCsv from '@icons/csv.svg?react';
-import IconCurlyBrackets from '@icons/curly-brackets.svg?react';
 import IconDownload from '@icons/download.svg?react';
 import IconExcel from '@icons/excel.svg?react';
-import IconPython from '@icons/python.svg?react';
 
 const NON_EXPORTABLE_CARD_TYPES = new Set(['domoapp', 'text']);
 
@@ -86,8 +84,8 @@ export function Export({ currentContext, isDisabled }) {
           variant='tertiary'
           onPress={handleCodeExport}
         >
-          {isPython ? <IconPython /> : <IconCurlyBrackets />}
-          Download Version
+          <IconDownload />
+          Download Code
         </Button>
         <Tooltip.Content
           className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'

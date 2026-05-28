@@ -8,6 +8,8 @@ import { ApiErrorsView } from '@/components/views/ApiErrorsView';
 import { CopyColorRulesView } from '@/components/views/CopyColorRulesView';
 import { DeleteObjectView } from '@/components/views/DeleteObjectView';
 import { DuplicateView } from '@/components/views/DuplicateView';
+import { GeneratePackageDefinitionFromJSDocView } from '@/components/views/GeneratePackageDefinitionFromJSDocView';
+import { GenerateSchemaView } from '@/components/views/GenerateSchemaView';
 import { GetCardsView } from '@/components/views/GetCardsView';
 import { GetDatasetsView } from '@/components/views/GetDatasetsView';
 import { GetPagesView } from '@/components/views/GetPagesView';
@@ -16,7 +18,6 @@ import { LinkPreview } from '@/components/views/LinkPreview';
 import { MigrateDownstreamContentView } from '@/components/views/MigrateDownstreamContentView';
 import { ObjectDetailsView } from '@/components/views/ObjectDetailsView';
 import { OwnershipView } from '@/components/views/OwnershipView';
-import { SyncJSDocFromSourceView } from '@/components/views/SyncJSDocFromSourceView';
 import { UpdateCodeEngineVersionsView } from '@/components/views/UpdateCodeEngineVersionsView';
 import { UpdateDetailsView } from '@/components/views/UpdateDetailsView';
 import { useReleaseNotification } from '@/hooks/useReleaseNotification';
@@ -318,8 +319,16 @@ export default function App() {
               />
             )}
 
-            {activeView === 'syncJSDocFromSource' && (
-              <SyncJSDocFromSourceView
+            {activeView === 'generatePackageDefinitionFromJSDoc' && (
+              <GeneratePackageDefinitionFromJSDocView
+                key={viewKey}
+                onBackToDefault={handleBackToDefault}
+                onStatusUpdate={showStatus}
+              />
+            )}
+
+            {activeView === 'generateSchema' && (
+              <GenerateSchemaView
                 key={viewKey}
                 onBackToDefault={handleBackToDefault}
                 onStatusUpdate={showStatus}

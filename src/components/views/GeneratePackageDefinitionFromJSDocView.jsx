@@ -38,7 +38,7 @@ import IconPlusCircle from '@icons/plus-circle.svg?react';
 import IconSync from '@icons/sync.svg?react';
 import IconX from '@icons/x.svg?react';
 
-export function SyncJSDocFromSourceView({ onBackToDefault = null, onStatusUpdate = null }) {
+export function GeneratePackageDefinitionFromJSDocView({ onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -62,7 +62,7 @@ export function SyncJSDocFromSourceView({ onBackToDefault = null, onStatusUpdate
   const loadData = async () => {
     try {
       const data = await getSidepanelData();
-      if (!data || data.type !== 'syncJSDocFromSource') {
+      if (!data || data.type !== 'generatePackageDefinitionFromJSDoc') {
         onBackToDefault?.();
         return;
       }
@@ -116,7 +116,7 @@ export function SyncJSDocFromSourceView({ onBackToDefault = null, onStatusUpdate
         try {
           versionDef = await getCodeEnginePackageVersion(packageId, baseline.version, tabId);
         } catch (err) {
-          console.warn('[SyncJSDocFromSourceView] Baseline version fetch failed:', err);
+          console.warn('[GeneratePackageDefinitionFromJSDocView] Baseline version fetch failed:', err);
         }
       }
 
@@ -127,7 +127,7 @@ export function SyncJSDocFromSourceView({ onBackToDefault = null, onStatusUpdate
       setSourceRead(srcResult.value);
       setError(null);
     } catch (err) {
-      console.error('[SyncJSDocFromSourceView] Error loading data:', err);
+      console.error('[GeneratePackageDefinitionFromJSDocView] Error loading data:', err);
       if (mountedRef.current) setError(err.message || 'Failed to load data');
     } finally {
       if (mountedRef.current) setIsLoading(false);
@@ -176,7 +176,7 @@ export function SyncJSDocFromSourceView({ onBackToDefault = null, onStatusUpdate
         sourceRead.editorStartIndices
       );
     } catch (err) {
-      console.error('[SyncJSDocFromSourceView] Parse error:', err);
+      console.error('[GeneratePackageDefinitionFromJSDocView] Parse error:', err);
       return { error: err.message || 'Parser threw an error' };
     }
   }, [sourceRead, packageDef, baseVersion]);
@@ -258,7 +258,7 @@ export function SyncJSDocFromSourceView({ onBackToDefault = null, onStatusUpdate
           tabId
         });
         if (!writeResult.ok) {
-          console.warn('[SyncJSDocFromSourceView] Editor write failed:', writeResult.reason);
+          console.warn('[GeneratePackageDefinitionFromJSDocView] Editor write failed:', writeResult.reason);
         }
       }
       await postCodeEnginePackageVersion(definition, tabId);
@@ -283,7 +283,7 @@ export function SyncJSDocFromSourceView({ onBackToDefault = null, onStatusUpdate
         onBackToDefault?.();
       })
       .catch((err) => {
-        console.error('[SyncJSDocFromSourceView] Sync failed:', err);
+        console.error('[GeneratePackageDefinitionFromJSDocView] Sync failed:', err);
       })
       .finally(() => {
         if (mountedRef.current) setIsSubmitting(false);
@@ -323,7 +323,7 @@ export function SyncJSDocFromSourceView({ onBackToDefault = null, onStatusUpdate
         <ViewHeader
           isRefreshing={isRefreshing}
           subtitle={null}
-          title='Sync JSDoc'
+          title='Generate Definition from JSDoc'
           onBackToDefault={onBackToDefault}
           onRefresh={handleRefresh}
         />
@@ -341,7 +341,7 @@ export function SyncJSDocFromSourceView({ onBackToDefault = null, onStatusUpdate
       <ViewHeader
         isRefreshing={isRefreshing}
         subtitle={packageDef?.name ? `Package: ${packageDef.name}` : null}
-        title='Sync JSDoc to Package'
+        title='Generate Definition from JSDoc'
         onBackToDefault={onBackToDefault}
         onRefresh={handleRefresh}
       />

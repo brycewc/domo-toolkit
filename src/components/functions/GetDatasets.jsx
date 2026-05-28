@@ -39,23 +39,23 @@ export function GetDatasets({ currentContext, isDisabled, onCollapseActions, onS
   };
 
   let buttonText;
-  let label;
+  let tooltipText;
   switch (objectType) {
     case 'CARD':
       buttonText = 'Get Card DataSets';
-      label = 'List datasets powering this card';
+      tooltipText = 'List datasets powering this card';
       break;
     case 'DATA_SOURCE':
       buttonText = 'Get Dependent Views';
-      label = 'List dataset views dependent on this dataset';
+      tooltipText = 'List dataset views built on this dataset';
       break;
     case 'DATAFLOW_TYPE':
       buttonText = 'Get DataFlow DataSets';
-      label = 'List dataset inputs and outputs for this dataflow';
+      tooltipText = 'List dataset inputs and outputs for this dataflow';
       break;
     default:
       buttonText = 'Get DataSets';
-      label = 'List datasets for this object';
+      tooltipText = 'List datasets for this object';
   }
 
   return (
@@ -92,7 +92,7 @@ export function GetDatasets({ currentContext, isDisabled, onCollapseActions, onS
           className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
           offset={4}
         >
-          <span>{label}</span>
+          <span>{tooltipText}</span>
           {!longPressDisabled && <span className='italic'>Hold for more options</span>}
         </Tooltip.Content>
       </Tooltip>
