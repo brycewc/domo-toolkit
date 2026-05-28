@@ -56,6 +56,8 @@ title: Release Notes
 
 - Added DataSet to related objects for Approval Templates.
 - Added an Approvals tab to the related objects for Approval Templates. It lazily fetches every active approval request derived from the template when the tab is opened, paging through Domo's cursor-based workflow search so the full set is returned instead of just the first 30. Each row carries the richer fields the Approval Center UI reads (status, last-modified time, version, current pending approver, and submitter) so the request is one click away with context, not just an id and title.
+- AppDB Collection now auto-resolves its parent DataStore id from the collection details response (`datastoreId`), so the "DataStore" related-object tab populates without needing the parent id to be pre-supplied at detection time.
+- New "Sync Datastore" action button on AppDB collections. Posts to `/api/datastores/v1/export/{datastoreId}` (no body) using the collection's parent datastore id, kicking off the same manual sync Domo's UI fires. Surfaces a toast for in-flight, success, and failure states. The action shares its source file with the existing "Sync JSDoc to Package" button (Code Engine) since both pivot on the same Sync concept; the file branches on object type so Code Engine keeps launching its diff view while AppDB Collection fires the API directly with no view.
 
 ### Delete Approval Template (related dataset + combined delete)
 

@@ -155,6 +155,27 @@ export async function shareAppDbCollection({
 }
 
 /**
+ * Trigger an export/sync of an AppDB datastore. Posts to the datastores export
+ * endpoint with no body, which kicks off the same sync the Domo UI invokes.
+ * @param {Object} params
+ * @param {string} params.datastoreId - The AppDB datastore ID
+ * @param {number|null} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<void>} Resolves on success, throws on HTTP failure
+ */
+export async function syncAppDbDatastore({ datastoreId, tabId = null }) {
+  return executeInPage(
+    async (datastoreId) => {
+      const response = await fetch(`/api/datastores/v1/export/${datastoreId}`, {
+        method: 'POST'
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    },
+    [datastoreId],
+    tabId
+  );
+}
+
+/**
  * Transfer AppDB collection ownership to a new user.
  * @param {string[]} collectionIds - Array of collection IDs to transfer
  * @param {number} fromUserId - The current owner's user ID

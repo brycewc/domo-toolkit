@@ -26,7 +26,7 @@ import { NavigateToCopiedObject } from '@/components/functions/NavigateToCopiedO
 import { RemoveEmptyStringsFromQuickFilters } from '@/components/functions/RemoveEmptyStringsFromQuickFilters';
 import { SetStreamToManual } from '@/components/functions/SetStreamToManual';
 import { ShareWithSelf } from '@/components/functions/ShareWithSelf';
-import { SyncJSDocFromSource } from '@/components/functions/SyncJSDocFromSource';
+import { Sync } from '@/components/functions/Sync';
 import { TransferOwnership } from '@/components/functions/TransferOwnership';
 import { UpdateCodeEngineVersions } from '@/components/functions/UpdateCodeEngineVersions';
 import { UpdateDetails } from '@/components/functions/UpdateDetails';
@@ -308,7 +308,7 @@ export function ActionButtons({
                   />
                 )}
                 {availableActions.has('syncJSDocFromSource') && (
-                  <SyncJSDocFromSource
+                  <Sync
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
                     onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}

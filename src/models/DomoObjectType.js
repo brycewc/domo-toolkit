@@ -887,7 +887,11 @@ export const ObjectTypeRegistry = {
     idPattern: /.*/
   }),
   MAGNUM_COLLECTION: new DomoObjectType('MAGNUM_COLLECTION', 'AppDB Collection', {
-    api: { endpoint: '/datastores/v1/collections/{id}', pathToName: 'name' },
+    api: {
+      endpoint: '/datastores/v1/collections/{id}',
+      pathToName: 'name',
+      pathToParentId: 'datastoreId'
+    },
     extractConfig: { keyword: 'appDb' },
     icon: { component: 'DataCollection' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,

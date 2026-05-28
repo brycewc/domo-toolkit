@@ -94,7 +94,9 @@ export function getAvailableActions(currentContext) {
     actions.add('export');
   }
 
-  if (['CODEENGINE_PACKAGE', 'CODEENGINE_PACKAGE_VERSION'].includes(typeId)) {
+  if (
+    ['CODEENGINE_PACKAGE', 'CODEENGINE_PACKAGE_VERSION', 'MAGNUM_COLLECTION'].includes(typeId)
+  ) {
     actions.add('syncJSDocFromSource');
   }
 
