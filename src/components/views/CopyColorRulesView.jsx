@@ -10,6 +10,7 @@ import {
   getDatasetColumns,
   setColorRules
 } from '@/services/datasets';
+import { parseMarkdownBold, stripMarkdownBold } from '@/utils/markdown';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconCheckCircle from '@icons/check-circle.svg?react';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
@@ -169,34 +170,44 @@ export function CopyColorRulesView({ onBackToDefault = null, onStatusUpdate = nu
     !isSubmitting &&
     sourceRules.length > 0;
 
+  const headerTitle = `Copy Color Rules from **${sourceName}**`;
+  const headerSubtext = `${sourceRules.length} color rule${sourceRules.length === 1 ? '' : 's'}`;
+
   return (
     <Card className='flex min-h-0 w-full flex-1 flex-col p-2'>
-      <Card.Header className='gap-2'>
-        <Card.Title className='flex items-start justify-between'>
-          <div className='min-w-0 flex-1 pt-1'>Copy Color Rules</div>
-          {onBackToDefault && (
-            <Tooltip closeDelay={0} delay={400}>
-              <Button isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
-                <IconX />
-              </Button>
-              <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
-                Close
-              </Tooltip.Content>
-            </Tooltip>
-          )}
-        </Card.Title>
-        <Separator />
+      <Card.Header className='gap-1'>
+        <Tooltip closeDelay={0} delay={800}>
+          <Tooltip.Trigger className='min-w-0 pr-8'>
+            <Card.Title className='line-clamp-1'>{parseMarkdownBold(headerTitle)}</Card.Title>
+          </Tooltip.Trigger>
+          <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+            {stripMarkdownBold(headerTitle)}
+          </Tooltip.Content>
+        </Tooltip>
+        {onBackToDefault && (
+          <Tooltip closeDelay={0} delay={400}>
+            <Button
+              isIconOnly
+              aria-label='Close view'
+              className='absolute top-1 right-2'
+              size='sm'
+              variant='ghost'
+              onPress={onBackToDefault}
+            >
+              <IconX />
+            </Button>
+            <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+              Close view
+            </Tooltip.Content>
+          </Tooltip>
+        )}
+        <div className='min-w-0 truncate text-xs text-muted'>
+          {parseMarkdownBold(headerSubtext)}
+        </div>
+        <Separator className='mt-1.5' />
       </Card.Header>
 
-      <div className='flex flex-col gap-3'>
-        <div className='flex flex-col gap-1'>
-          <span className='text-xs text-muted'>Source</span>
-          <span className='font-medium'>{sourceName}</span>
-          <span className='text-xs text-muted'>
-            {sourceRules.length} color rule{sourceRules.length === 1 ? '' : 's'}
-          </span>
-        </div>
-
+      <div className='flex flex-col gap-3 pt-3'>
         <DatasetComboBox
           aria-label='Destination dataset'
           instanceBaseUrl={currentContext.domoObject?.baseUrl}

@@ -214,12 +214,26 @@ export function UpdateDetailsView({ onBackToDefault = null, onStatusUpdate = nul
   if (!config) return null;
 
   const hasResettableValue = config.fields.some((f) => f.resettable && originalValues[f.key]);
+  const objectId = currentContext.domoObject.id;
+  const objectName = currentContext.domoObject.metadata?.name || objectId;
 
   return (
     <Card className='flex min-h-0 w-full flex-1 flex-col p-2'>
       <Card.Header className='gap-2'>
         <Card.Title className='flex items-start justify-between'>
-          <div className='min-w-0 flex-1 pt-1'>{config.title}</div>
+          <div className='min-w-0 flex-1 pt-1'>
+            <div className='truncate'>{config.title}</div>
+            <Tooltip closeDelay={0} delay={800}>
+              <Tooltip.Trigger className='block w-full min-w-0 pr-8'>
+                <div className='truncate text-xs font-normal text-muted'>
+                  {objectName} (ID: {objectId})
+                </div>
+              </Tooltip.Trigger>
+              <Tooltip.Content className='flex flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+                {objectName} (ID: {objectId})
+              </Tooltip.Content>
+            </Tooltip>
+          </div>
           {onBackToDefault && (
             <Tooltip closeDelay={0} delay={400}>
               <Button isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>

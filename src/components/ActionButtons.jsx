@@ -230,11 +230,28 @@ export function ActionButtons({
                 {availableActions.has('viewLineage') && (
                   <ViewLineage currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
                 )}
-                {availableActions.has('dataRepair') && (
-                  <DataRepair currentContext={currentContext} isDisabled={!isDomoPage} />
+                {availableActions.has('updateOwner') && (
+                  <UpdateOwner currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('updateDetails') && (
                   <UpdateDetails currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
+                )}
+                {availableActions.has('copyFilteredUrl') && (
+                  <CopyFilteredUrl
+                    currentContext={currentContext}
+                    isDisabled={!isDomoPage}
+                    onStatusUpdate={onStatusUpdate}
+                  />
+                )}
+                {availableActions.has('lockCards') && (
+                  <LockCards
+                    currentContext={currentContext}
+                    isDisabled={!isDomoPage}
+                    onStatusUpdate={onStatusUpdate}
+                  />
+                )}
+                {availableActions.has('dataRepair') && (
+                  <DataRepair currentContext={currentContext} isDisabled={!isDomoPage} />
                 )}
                 {availableActions.has('copyColorRules') && (
                   <CopyColorRules currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
@@ -264,23 +281,6 @@ export function ActionButtons({
                   <Duplicate
                     currentContext={currentContext}
                     onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
-                    onStatusUpdate={onStatusUpdate}
-                  />
-                )}
-                {availableActions.has('updateOwner') && (
-                  <UpdateOwner currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
-                )}
-                {availableActions.has('lockCards') && (
-                  <LockCards
-                    currentContext={currentContext}
-                    isDisabled={!isDomoPage}
-                    onStatusUpdate={onStatusUpdate}
-                  />
-                )}
-                {availableActions.has('copyFilteredUrl') && (
-                  <CopyFilteredUrl
-                    currentContext={currentContext}
-                    isDisabled={!isDomoPage}
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}

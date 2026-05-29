@@ -193,12 +193,13 @@ export function DatasetComboBox({
           <Collection items={datasets}>
             {(dataset) => (
               <ListBox.Item
+                className='min-h-14'
                 id={dataset.id}
                 key={dataset.id}
                 textValue={dataset.name}
                 title={dataset.name}
               >
-                <div className='size-10 shrink-0 overflow-hidden rounded-sm bg-surface-secondary'>
+                <div className='size-8 shrink-0 overflow-hidden rounded-sm bg-surface-secondary'>
                   {dataset.dataProviderType && instanceBaseUrl ? (
                     <img
                       alt=''
