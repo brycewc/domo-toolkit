@@ -71,6 +71,12 @@ title: Release Notes
 
 ## Bug Fixes
 
+### Update Owner: user search no longer clears the selected owner on blur
+
+- Fixed the Update Owner (Alert/Workflow) user picker dropping the selected user's name from the search box the moment you clicked out (onto Save or elsewhere), reverting to the empty/required state and blocking submit until you re-searched for the same user and clicked out a second time. Root cause: the modal controlled the ComboBox's `inputValue` but left its `selectedKey` uncontrolled. React Aria's blur-commit (`useComboBoxState.commitSelection`) handles a half-controlled ComboBox by resetting the visible input to the selected item's text looked up in the *current* list, and picking a user refetches page 0 of all users (so the just-picked user is usually no longer in that list), leaving no text to restore. The native `required` on the now-empty input then blocked Save, while the underlying selection survived (which is why re-searching showed the checkmark and a second blur recovered)
+- Fix mirrors the already-working Transfer Ownership picker: UpdateOwner now fully controls the ComboBox via a `selectedOwnerId` state (`selectedKey` + `onSelectionChange`) and submits from that state instead of harvesting the form, which routes blur through the safe commit path that leaves the input untouched. Removed the dead form plumbing (`name`, `formValue`, `form`, `defaultInputValue`) and a stray `console.log`
+- Also gated the Save button on having a real selection (matching Transfer Ownership) and reset the picked owner each time the modal opens so a stale pick can't leak into the next session
+
 ### Duplicate User: scoped sharing, itemized preview, audit-log download
 
 - Fixed Duplicate User over-sharing where the new user ended up with explicit shares on cards and pages the source user only saw indirectly. Root cause: the previous flow fetched from `/api/content/v1/access/users/{id}/cards|pages`, which conflates direct individual grants with content reachable through group membership, PDP rules, dataset-derived visibility, org-wide content, and Workspace membership. Every visibility path was then re-granted as a direct share on the new user, so the per-resource "Shared with" panels filled up with the new user even when the source user had never been there as a direct grantee. The new user's effective access is unchanged because step 5 still copies group memberships (and inherited Workspace access flows from those groups). Only the *direct-share* list per resource gets tidied up

@@ -13,3 +13,5 @@ published: false
 - [ ] Adjust migrant downstream content to show toast warning when there is no downstream content instead of showing blank view
 - [ ] Update sidepanel to show animated check for copy when using the keyboard shortcut
 - [ ] Validate keyboard shortcut for copy works when focus is in the sidepanel
+- [ ] Set user avatar component to fully rounded
+- [ ] Set switch component to fully rounded
