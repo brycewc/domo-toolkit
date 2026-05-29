@@ -105,6 +105,19 @@ title: Release Notes
 - Removed/renamed inputs that carried a binding get a dropdown to map that binding onto a new input or drop it. Type changes surface a warning naming the bound variable and every other tile that shares it, with an opt-in to update the variable's type. Removed outputs whose variable still feeds downstream tiles warn which tiles would break
 - The only hard block is a function that no longer exists in the target version: that one action is skipped (with a clear warning) while the rest still apply. Everything else warns but lets the user proceed
 
+### Objects Owned view: the "Share all with yourself" button on type groups did nothing
+
+- On the Objects Owned by {user} view (the Transfer Ownership browse view), each type group row (Pages, Datasets, Apps, Worksheets) showed a "Share all with yourself" button that silently did nothing when clicked: no API request, no error, no feedback. DataList rendered the button on any group with shareable children without checking that the host view had wired a share handler, and this view never wired one (shipped this way in v1.3.0)
+- The Pages group's button now works: it shares every page owned by that user with you (the same `sharePages` flow the Get Pages view uses), with a "N pages shared with yourself" confirmation
+- The button is removed from the other type groups (Datasets, Apps, Worksheets), where share-all isn't supported
+- Hardening so this class of dead button can't recur: DataList now renders the item-level share and share-all buttons only when the host view actually provides the matching handler. This also retired the same latent dead button on the Migrate Downstream Content and Delete views
+
+### Copy ID shortcut: now works when the sidepanel or popup has focus
+
+- The Copy-ID keyboard shortcut (Ctrl/Cmd+Shift+1) silently did nothing when the sidepanel or popup was focused, even though the badge still flashed its checkmark. The background ran the clipboard write by injecting `navigator.clipboard.writeText` into the Domo page, but that API only succeeds in a focused document. With the sidepanel/popup focused, the page wasn't focused, so the write no-opped while the rest of the handler (badge) still ran. The Copy button was unaffected because it writes from the focused extension UI directly
+- The shortcut now asks any open extension UI to perform the copy first. Only the surface that currently has focus responds (gated on `document.hasFocus()`), so it writes from a focused document using the same modern `navigator.clipboard` path the button uses. When no extension UI is focused (the Domo page itself has focus), it falls back to the existing in-page write, which works because the page is focused. The two paths are mutually exclusive by construction, so there's no double copy
+- Extracted the primary copy-value resolution (a type's `primary` copyConfig, else the object's own ID) into a shared `resolvePrimaryCopy` helper, replacing the logic that was duplicated between the Copy button and the background shortcut handler
+
 ## Refactoring
 
 - Removed the `src/utils/jsdocToPackage/index.js` barrel, per the no-barrel-files convention. `parseSourceToManifest` moved into its own file (`parseSourceToManifest.js`), and the two consumers (`ceContractDiff.js`, `SyncJSDocFromSourceView.jsx`) now import directly from `mergeManifest`, `moduleExports`, and `parseSourceToManifest`.

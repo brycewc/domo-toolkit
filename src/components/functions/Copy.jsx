@@ -2,7 +2,7 @@ import { Button, Dropdown, Kbd, Label, Tooltip } from '@heroui/react';
 import { useMemo, useState } from 'react';
 
 import { useLongPress } from '@/hooks/useLongPress';
-import { getObjectType } from '@/models/DomoObjectType';
+import { getObjectType, resolvePrimaryCopy } from '@/models/DomoObjectType';
 import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
 
 import { AnimatedCheck } from '../AnimatedCheck';
@@ -47,27 +47,22 @@ export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
   const longPressDisabled = isDisabled || !domoObject?.id || dropdownItems.length === 0;
 
   const handlePress = () => {
-    const resolve = (source) =>
-      typeof source === 'function'
-        ? source(domoObject)
-        : source.split('.').reduce((cur, key) => cur?.[key], domoObject);
-
-    const copyId = primaryConfig ? resolve(primaryConfig.source) : domoObject?.id;
-    const copyLabel = primaryConfig?.label || `${domoObject?.typeName} ID`;
+    const copy = resolvePrimaryCopy(domoObject);
+    if (!copy) return;
     try {
-      navigator.clipboard.writeText(copyId);
+      navigator.clipboard.writeText(copy.value);
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
       onStatusUpdate?.(
         'Success',
-        `Copied ${copyLabel} **${copyId}** to clipboard`,
+        `Copied ${copy.label} **${copy.value}** to clipboard`,
         'success',
         2000
       );
     } catch (error) {
       onStatusUpdate?.(
         'Error',
-        `Failed to copy ${copyLabel.toLowerCase()} to clipboard`,
+        `Failed to copy ${copy.label.toLowerCase()} to clipboard`,
         'error',
         3000
       );

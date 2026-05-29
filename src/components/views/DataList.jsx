@@ -406,7 +406,7 @@ export function DataList({
                       </Tooltip.Content>
                     </Tooltip>
                   )}
-                  {headerActions.includes('shareAll') && (
+                  {onShareAll && headerActions.includes('shareAll') && (
                     <Tooltip closeDelay={0} delay={400}>
                       <Button
                         isIconOnly
@@ -534,6 +534,8 @@ export function DataList({
                   items={sortedItems}
                   renderItem={(item) => (
                     <DataListItem
+                      canShare={!!onItemShare}
+                      canShareAll={!!onItemShareAll}
                       expandedIds={expandedIds}
                       isSelectable={isSelectable}
                       item={item}
@@ -563,6 +565,8 @@ export function DataList({
                 <DisclosureGroup className='flex w-full flex-col divide-y divide-border'>
                   {sortedItems.map((item, index) => (
                     <DataListItem
+                      canShare={!!onItemShare}
+                      canShareAll={!!onItemShareAll}
                       expandedIds={expandedIds}
                       isSelectable={isSelectable}
                       item={item}
@@ -743,6 +747,8 @@ const SHAREABLE_TYPES = new Set(['APP', 'DATA_APP', 'DATA_SOURCE', 'PAGE', 'WORK
  * than 1 level deep — revisit if that changes.
  */
 function arePropsEqualForRow(prev, next) {
+  if (prev.canShare !== next.canShare) return false;
+  if (prev.canShareAll !== next.canShareAll) return false;
   if (prev.item !== next.item) return false;
   if (prev.itemActions !== next.itemActions) return false;
   if (prev.objectType !== next.objectType) return false;
@@ -798,6 +804,8 @@ function arePropsEqualForRow(prev, next) {
  * @param {Number} props.virtualThreshold - Children array length above which children virtualize. Threaded recursively from DataList.
  */
 function DataListItemImpl({
+  canShare = false,
+  canShareAll = false,
   depth = 0,
   expandedIds,
   isSelectable,
@@ -1069,7 +1077,7 @@ function DataListItemImpl({
       const actions = [];
       if (item.id !== 'REPORT_BUILDER_group') {
         actions.push(openAllButton);
-        if (hasShareableChildren(item)) actions.push(shareAllButton);
+        if (canShareAll && hasShareableChildren(item)) actions.push(shareAllButton);
       }
       return actions;
     }
@@ -1077,9 +1085,10 @@ function DataListItemImpl({
     if (itemActions) {
       const actions = [];
       if (itemActions.includes('openAll') && hasChildren) actions.push(openAllButton);
-      if (itemActions.includes('shareAll') && hasShareableChildren(item))
+      if (canShareAll && itemActions.includes('shareAll') && hasShareableChildren(item))
         actions.push(shareAllButton);
-      if (itemActions.includes('share') && isItemShareable(item)) actions.push(shareButton);
+      if (canShare && itemActions.includes('share') && isItemShareable(item))
+        actions.push(shareButton);
       if (
         itemActions.includes('lineage') &&
         (item.typeId === 'DATA_SOURCE' || item.typeId === 'DATAFLOW_TYPE')
@@ -1096,7 +1105,7 @@ function DataListItemImpl({
     if (hasChildren && item.typeId !== 'DATA_APP') {
       actions.push(openAllButton);
     }
-    if (hasShareableChildren(item)) {
+    if (canShareAll && hasShareableChildren(item)) {
       actions.push(shareAllButton);
     }
 
@@ -1108,10 +1117,21 @@ function DataListItemImpl({
       actions.push(removeButton);
     }
 
-    if (isItemShareable(item)) actions.push(shareButton);
+    if (canShare && isItemShareable(item)) actions.push(shareButton);
     actions.push(copyButton);
     return actions;
-  }, [hasChildren, handleAction, isCopied, isShared, item, itemActions, objectType, showActions]);
+  }, [
+    canShare,
+    canShareAll,
+    hasChildren,
+    handleAction,
+    isCopied,
+    isShared,
+    item,
+    itemActions,
+    objectType,
+    showActions
+  ]);
 
   const labelInner = (
     <>
@@ -1257,6 +1277,8 @@ function DataListItemImpl({
   }
 
   const childRenderProps = (child) => ({
+    canShare,
+    canShareAll,
     depth: depth + 1,
     expandedIds,
     isSelectable,
@@ -1457,6 +1479,7 @@ function DataListItemImpl({
 const DataListItem = memo(DataListItemImpl, arePropsEqualForRow);
 
 function hasShareableChildren(item) {
+  if (item?.unshareable === true) return false;
   if (!item?.children?.length) return false;
   return item.children.some((c) => isItemShareable(c) || hasShareableChildren(c));
 }

@@ -1,7 +1,11 @@
 import { releases } from '@/data/releases';
 import { DomoContext } from '@/models/DomoContext';
 import { DomoObject } from '@/models/DomoObject';
-import { fetchObjectDetailsInPage, getObjectType } from '@/models/DomoObjectType';
+import {
+  fetchObjectDetailsInPage,
+  getObjectType,
+  resolvePrimaryCopy
+} from '@/models/DomoObjectType';
 import { getDataflowForOutputDataset } from '@/services/dataflows';
 import { runEnrichments } from '@/services/enrichments';
 import { checkPageType } from '@/services/pages';
@@ -883,55 +887,27 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
 chrome.commands.onCommand.addListener((command) => {
   if (command === 'copy_id') {
     console.log('[Background] Keyboard command triggered: copy_id');
-    // Get the active tab
-    chrome.tabs.query(
-      { active: true, currentWindow: true, windowType: 'normal' },
-      async (tabs) => {
-        if (tabs.length === 0) {
-          console.log('[Background] No active tab found for copy_id command');
-          return;
-        }
-        const tab = tabs[0];
-        const context = getTabContext(tab.id);
-        if (context?.domoObject?.id) {
-          try {
-            const typeModel = getObjectType(context.domoObject.typeId);
-            const primaryConfig = typeModel?.copyConfigs?.find(
-              (c) => c.primary
-            );
-            const copyId = primaryConfig
-              ? primaryConfig.source
-                  .split('.')
-                  .reduce((cur, key) => cur?.[key], context.domoObject)
-              : null;
-            await executeInPage(
-              async (text) => {
-                await navigator.clipboard.writeText(text);
-              },
-              [copyId || context.domoObject.id],
-              tab.id
-            );
-            chrome.action.setBadgeText({ text: '\u2713' });
-            chrome.action.setBadgeBackgroundColor({ color: '#22c55e' });
-            restoreBadgeAfterDelay();
-          } catch (error) {
-            console.error(
-              '[Background] Failed to copy ID to clipboard:',
-              error
-            );
-            chrome.action.setBadgeText({ text: '!' });
-            chrome.action.setBadgeBackgroundColor({ color: '#ef4444' });
-            restoreBadgeAfterDelay();
-          }
-        } else {
-          console.log(
-            '[Background] No Domo object ID found in context for copy_id command'
-          );
-        }
-      }
-    );
+    handleCopyIdCommand();
   }
 });
+
+/**
+ * Ask any open extension UI (sidepanel/popup) to copy its current object's
+ * primary ID. Only the surface that currently has focus performs the write and
+ * responds; the others stay silent. Resolves true when a focused surface
+ * copied, false otherwise (no UI open, or none focused).
+ */
+async function copyViaFocusedUi() {
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: 'COPY_ID_SHORTCUT'
+    });
+    return response?.copied === true;
+  } catch {
+    // "Receiving end does not exist" when no extension UI is open to receive it.
+    return false;
+  }
+}
 
 /**
  * Detect and store context for a specific tab
@@ -1270,6 +1246,67 @@ async function detectAndStoreContext(tabId) {
     );
     return null;
   }
+}
+
+/**
+ * Handle the copy_id keyboard shortcut.
+ *
+ * navigator.clipboard.writeText only succeeds in a focused document. When the
+ * sidepanel or popup has focus, the Domo page document does not, so injecting
+ * the write into the page silently no-ops. We therefore ask any open extension
+ * UI to perform the copy first; only the focused surface responds. If none is
+ * focused (the Domo page itself has focus), we fall back to the in-page write.
+ */
+async function handleCopyIdCommand() {
+  if (await copyViaFocusedUi()) {
+    showCopyBadge(true);
+    return;
+  }
+
+  const [tab] = await chrome.tabs.query({
+    active: true,
+    currentWindow: true,
+    windowType: 'normal'
+  });
+  if (!tab) {
+    console.log('[Background] No active tab found for copy_id command');
+    return;
+  }
+
+  const context = getTabContext(tab.id);
+  const copy = resolvePrimaryCopy(context?.domoObject);
+  if (!copy) {
+    console.log(
+      '[Background] No Domo object ID found in context for copy_id command'
+    );
+    return;
+  }
+
+  try {
+    await executeInPage(
+      async (text) => {
+        await navigator.clipboard.writeText(text);
+      },
+      [copy.value],
+      tab.id
+    );
+    showCopyBadge(true);
+  } catch (error) {
+    console.error('[Background] Failed to copy ID to clipboard:', error);
+    showCopyBadge(false);
+  }
+}
+
+/**
+ * Flash the action badge to confirm (or report failure of) a shortcut copy,
+ * then restore the badge to its prior state.
+ */
+function showCopyBadge(success) {
+  chrome.action.setBadgeText({ text: success ? '\u2713' : '!' });
+  chrome.action.setBadgeBackgroundColor({
+    color: success ? '#22c55e' : '#ef4444'
+  });
+  restoreBadgeAfterDelay();
 }
 
 /**

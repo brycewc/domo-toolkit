@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { ActionButtons } from '@/components/ActionButtons';
 import { ContextFooter } from '@/components/ContextFooter';
@@ -7,6 +7,7 @@ import { useReleaseNotification } from '@/hooks/useReleaseNotification';
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { useTheme } from '@/hooks/useTheme';
 import { DomoContext } from '@/models/DomoContext';
+import { resolvePrimaryCopy } from '@/models/DomoObjectType';
 
 export default function App() {
   useTheme();
@@ -15,7 +16,14 @@ export default function App() {
   const [currentContext, setCurrentContext] = useState(null);
   const [isLoadingCurrentContext, setIsLoadingCurrentContext] = useState(true);
   const [currentTabId, setCurrentTabId] = useState(null);
+  // Mirror current context into a ref so the message listener can read the
+  // latest value without re-subscribing on every change.
+  const currentContextRef = useRef(currentContext);
   const { showStatus } = useStatusBar();
+
+  useEffect(() => {
+    currentContextRef.current = currentContext;
+  }, [currentContext]);
 
   // Get context from service worker
   useEffect(() => {
@@ -56,6 +64,31 @@ export default function App() {
         }
         sendResponse({ received: true });
         return true;
+      } else if (message.type === 'COPY_ID_SHORTCUT') {
+        // Only the focused surface copies: navigator.clipboard needs focus.
+        // Staying silent when unfocused lets the focused surface (or the
+        // background's in-page fallback) handle the shortcut instead.
+        if (!document.hasFocus()) return false;
+        (async () => {
+          const copy = resolvePrimaryCopy(currentContextRef.current?.domoObject);
+          if (!copy) {
+            sendResponse({ copied: false });
+            return;
+          }
+          try {
+            await navigator.clipboard.writeText(copy.value);
+            showStatus(
+              'Success',
+              `Copied ${copy.label} **${copy.value}** to clipboard`,
+              'success',
+              2000
+            );
+            sendResponse({ copied: true });
+          } catch {
+            sendResponse({ copied: false });
+          }
+        })();
+        return true;
       }
       return false;
     };
@@ -64,7 +97,7 @@ export default function App() {
     return () => {
       chrome.runtime.onMessage.removeListener(handleMessage);
     };
-  }, [currentTabId]);
+  }, [currentTabId, showStatus]);
 
   return (
     <div className='flex h-full max-h-[600px] max-w-[800px] min-w-100 flex-col items-start justify-start space-y-1 overflow-hidden overscroll-contain p-1'>

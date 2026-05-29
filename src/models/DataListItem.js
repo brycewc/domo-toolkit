@@ -28,6 +28,11 @@ export class DataListItem {
    *   copy when `id` has been namespaced for uniqueness (e.g.
    *   `project-123`/`task-123` to avoid cross-namespace collisions). When
    *   absent, copy actions use `id` directly.
+   * @param {boolean} [config.unshareable] - When true, DataList suppresses the
+   *   share and share-all affordances for this item. On a virtual-parent group
+   *   this hides the group's "Share all with yourself" button (via
+   *   `hasShareableChildren`), so a view can expose share-all for some groups
+   *   but not others.
    */
   constructor({
     children = undefined,
@@ -42,6 +47,7 @@ export class DataListItem {
     originalId = undefined,
     status = undefined,
     typeId = null,
+    unshareable = false,
     url = null
   }) {
     this.id = id;
@@ -57,6 +63,7 @@ export class DataListItem {
     this.status = status;
     this.error = error;
     this.originalId = originalId;
+    this.unshareable = unshareable;
   }
 
   /**
@@ -139,6 +146,7 @@ export class DataListItem {
       originalId: data.originalId,
       status: data.status,
       typeId: data.typeId,
+      unshareable: data.unshareable || false,
       url: data.url
     });
   }
@@ -179,6 +187,7 @@ export class DataListItem {
       originalId: this.originalId,
       status: this.status,
       typeId: this.typeId,
+      unshareable: this.unshareable,
       url: this.url
     };
   }

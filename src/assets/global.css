@@ -208,4 +208,35 @@
   [role='presentation']:has(> [data-slot='table-body']) {
     overflow: visible !important;
   }
+
+  /* Domo parity: fully round avatars and switches. HeroUI v3 derives every
+     component's corner radius from the global --radius, which we set very low
+     (3px) to match Domo's tight corners. That low value leaves circular UI
+     (profile avatars, toggle switches) looking boxy, but Domo renders both
+     fully rounded. Force just these components back to a full circle/pill,
+     independent of --radius, so the rest of the extension keeps its tight
+     corners.
+
+     The size-variant selectors are listed explicitly so each override matches
+     the specificity of the HeroUI rule it replaces. HeroUI sets the sm/lg
+     control and thumb radii with two-class selectors like
+     `.switch--sm .switch__control` (specificity 0,0,2,0), so a bare
+     `.switch__control` (0,0,1,0) would lose to them. Matching the selector
+     shape, plus our later source order within the shared `components` layer,
+     wins the cascade at every size. (Avatars only need the single-class form,
+     but we keep all three parallel for clarity and future-proofing.) */
+  .avatar,
+  .avatar--sm,
+  .avatar--lg {
+    @apply rounded-full;
+  }
+
+  .switch__control,
+  .switch--sm .switch__control,
+  .switch--lg .switch__control,
+  .switch__thumb,
+  .switch--sm .switch__thumb,
+  .switch--lg .switch__thumb {
+    @apply rounded-full;
+  }
 }

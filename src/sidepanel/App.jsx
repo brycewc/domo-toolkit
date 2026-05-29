@@ -24,6 +24,7 @@ import { useReleaseNotification } from '@/hooks/useReleaseNotification';
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { useTheme } from '@/hooks/useTheme';
 import { DomoContext } from '@/models/DomoContext';
+import { resolvePrimaryCopy } from '@/models/DomoObjectType';
 import { sidepanelStorageKey } from '@/utils/sidepanel';
 
 export default function App() {
@@ -37,7 +38,14 @@ export default function App() {
   const [currentTabId, setCurrentTabId] = useState(null);
   const [isLoadingCurrentContext, setIsLoadingCurrentContext] = useState(true);
   const windowIdRef = useRef(null);
+  // Mirror current context into a ref so the (rarely re-registered) message
+  // listener can read the latest value without re-subscribing on every change.
+  const currentContextRef = useRef(currentContext);
   const { showStatus } = useStatusBar();
+
+  useEffect(() => {
+    currentContextRef.current = currentContext;
+  }, [currentContext]);
 
   // Listen for storage changes for sidepanel data (scoped to this window)
   useEffect(() => {
@@ -153,6 +161,31 @@ export default function App() {
           message.timeout !== undefined ? message.timeout : 3000
         );
         sendResponse({ received: true });
+        return true;
+      } else if (message.type === 'COPY_ID_SHORTCUT') {
+        // Only the focused surface copies: navigator.clipboard needs focus.
+        // Staying silent when unfocused lets the focused surface (or the
+        // background's in-page fallback) handle the shortcut instead.
+        if (!document.hasFocus()) return false;
+        (async () => {
+          const copy = resolvePrimaryCopy(currentContextRef.current?.domoObject);
+          if (!copy) {
+            sendResponse({ copied: false });
+            return;
+          }
+          try {
+            await navigator.clipboard.writeText(copy.value);
+            showStatus(
+              'Success',
+              `Copied ${copy.label} **${copy.value}** to clipboard`,
+              'success',
+              2000
+            );
+            sendResponse({ copied: true });
+          } catch {
+            sendResponse({ copied: false });
+          }
+        })();
         return true;
       }
 

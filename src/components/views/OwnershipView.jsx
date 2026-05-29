@@ -10,6 +10,7 @@ import { DomoContext } from '@/models/DomoContext';
 import { DomoObject } from '@/models/DomoObject';
 import { uploadDataFile } from '@/services/files';
 import { sendEmail } from '@/services/messages';
+import { sharePages } from '@/services/pages';
 import {
   countOwned,
   flattenOwned,
@@ -394,7 +395,13 @@ export function OwnershipView({
           // back to undefined for keys not in the map (e.g. projectsAndTasks,
           // which is intentionally null in TYPE_KEY_TO_DOMO_TYPE) — DataList
           // skips the icon render in that case.
-          typeId: TYPE_KEY_TO_DOMO_TYPE[t.key] || undefined
+          typeId: TYPE_KEY_TO_DOMO_TYPE[t.key] || undefined,
+          // Share-all is page-specific here: the only share service we use is
+          // `sharePages`, and pages are the only type this view exposes
+          // share-all for. Flag every other group `unshareable` so DataList's
+          // hasShareableChildren returns false for them and the "Share all with
+          // yourself" button renders only on the Pages group.
+          unshareable: t.key !== 'pages'
         });
       }),
     [results, transferStatus, forbidden, origin, tasksByProject]
@@ -605,6 +612,37 @@ export function OwnershipView({
   const clearSelection = useCallback(() => {
     setSelectedIds(new Set());
   }, []);
+
+  // Share-all handler for the Pages group. Mirrors GetPagesView's
+  // share-with-yourself flow via `sharePages`, scoped to pages (every other
+  // group is flagged `unshareable` in dataListItems, so DataList never renders
+  // the button on them). The recipient is the toolkit user running the
+  // extension (launchContext.user, i.e. yourself), not the source user whose
+  // owned objects are being browsed.
+  const handleItemShareAll = useCallback(
+    async (actionType, item) => {
+      if (item.id !== 'pages' || !item.children?.length) return;
+      try {
+        // Leaf React ids are namespaced (`pages:<id>`); the canonical page id
+        // lives on `originalId`. Drop any synthetic/negative ids defensively.
+        const pageIds = item.children
+          .map((child) => child.originalId ?? child.id)
+          .filter((id) => Number(id) >= 0);
+        if (!pageIds.length) return;
+        await sharePages({ pageIds, tabId, userId: launchContext?.user?.id });
+        showStatus(
+          'Shared',
+          `**${pageIds.length}** page${pageIds.length !== 1 ? 's' : ''} shared with yourself`,
+          'success',
+          2000
+        );
+      } catch (err) {
+        console.error('[OwnershipView] Error in shareAll action:', err);
+        showStatus('Error', err.message || 'Failed to share', 'danger', 3000);
+      }
+    },
+    [launchContext, showStatus, tabId]
+  );
 
   // Submit handler invoked by the modal. Runs transferAllOwnership, threading
   // per-type progress into transferStatus (which feeds DataList rows). Then
@@ -1017,6 +1055,7 @@ export function OwnershipView({
         title={`Objects Owned by **${userName}**`}
         viewType='ownership'
         onClose={onBackToDefault}
+        onItemShareAll={handleItemShareAll}
         onRefresh={refreshFetches}
         onSelectionChange={handleSelectionChange}
         onStatusUpdate={onStatusUpdate}

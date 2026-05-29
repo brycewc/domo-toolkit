@@ -1465,3 +1465,28 @@ const ALIAS_LOOKUP = (() => {
 export function getObjectType(type) {
   return ObjectTypeRegistry[type] || ALIAS_LOOKUP[type] || null;
 }
+
+/**
+ * Resolve the primary copy value and label for a Domo object — the value the
+ * Copy button (and the copy keyboard shortcut) places on the clipboard. Mirrors
+ * the Copy button's precedence: a type's `primary` copyConfig overrides the
+ * default object ID; otherwise the object's own ID is used.
+ * @param {Object} domoObject - The DomoObject (or plain object with id/typeId/typeName)
+ * @returns {{ label: string, value: string }|null} Copy value and human label, or null if there is nothing to copy
+ */
+export function resolvePrimaryCopy(domoObject) {
+  if (!domoObject) return null;
+
+  const typeModel = domoObject.typeId ? getObjectType(domoObject.typeId) : null;
+  const primaryConfig = typeModel?.copyConfigs?.find((c) => c.primary);
+  const resolve = (source) =>
+    typeof source === 'function'
+      ? source(domoObject)
+      : source.split('.').reduce((cur, key) => cur?.[key], domoObject);
+
+  const value = primaryConfig ? resolve(primaryConfig.source) : domoObject.id;
+  if (value == null) return null;
+
+  const label = primaryConfig?.label || `${domoObject.typeName} ID`;
+  return { label, value };
+}
