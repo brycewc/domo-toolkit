@@ -1106,6 +1106,22 @@ async function detectAndStoreContext(tabId) {
     domoObject.metadata = enrichedMetadata;
     domoObject.metadata.context = {};
 
+    // Beast Modes and Variables share the same URL (/datacenter/beastmode?id=)
+    // and the same function-template endpoint, so URL detection can't tell them
+    // apart. The enriched details carry a `global` flag that is true only for
+    // Variables; anything else (false or absent) is a Beast Mode. Refine the
+    // type here, after enrichment, since `global` isn't known at URL-detection
+    // time. Both types share `urlPath`, so the already-built URL stays valid;
+    // we only need to swap the type model (which drives icon, label, parents).
+    if (
+      detected.typeId === 'BEAST_MODE_FORMULA' &&
+      enrichedMetadata.details?.global === true
+    ) {
+      detected.typeId = 'VARIABLE';
+      typeModel = getObjectType('VARIABLE');
+      domoObject.objectType = typeModel;
+    }
+
     // Preserve workflow context from CE tile detection within a workflow
     if (detected.workflowModelId) {
       domoObject.metadata.context.workflowModelId = detected.workflowModelId;

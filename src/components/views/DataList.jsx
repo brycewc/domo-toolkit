@@ -224,6 +224,7 @@ export function DataList({
               const tab = await chrome.tabs.get(tabId);
               chrome.tabs.create({
                 index: tab.index + 1,
+                openerTabId: tab.id,
                 url: chrome.runtime.getURL('src/options/index.html#lineage'),
                 windowId: tab.windowId
               });

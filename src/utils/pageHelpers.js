@@ -77,8 +77,10 @@ export async function waitForCardPages(currentContext, maxAttempts = 50) {
 export async function waitForChildPages(currentContext, maxAttempts = 50) {
   try {
   const objectType = currentContext.domoObject?.typeId;
-  const propertyName =
-    objectType === 'DATA_APP_VIEW' ? 'appPages' : 'childPages';
+  // Only PAGE enriches its children into context.childPages. The app-view family
+  // (DATA_APP_VIEW, WORKSHEET_VIEW, REPORT_BUILDER_VIEW) all enrich into
+  // context.appPages, so anything that is not a PAGE reads from there.
+  const propertyName = objectType === 'PAGE' ? 'childPages' : 'appPages';
 
   let childPages = currentContext.domoObject.metadata?.context?.[propertyName];
 
@@ -108,7 +110,7 @@ export async function waitForChildPages(currentContext, maxAttempts = 50) {
         response?.context?.domoObject?.metadata?.context?.[propertyName] !==
           undefined
       ) {
-        childPages = response.context.domoObject.metadata.details[propertyName];
+        childPages = response.context.domoObject.metadata.context[propertyName];
         console.log(
           `[pageHelpers] ${propertyName} loaded:`,
           childPages?.length || 0
@@ -121,7 +123,7 @@ export async function waitForChildPages(currentContext, maxAttempts = 50) {
       console.log(`[pageHelpers] Timeout waiting for ${propertyName}`);
       return {
         childPages: null,
-        error: `Timeout while checking for ${objectType === 'DATA_APP_VIEW' ? 'app pages' : 'child pages'}. Please try again.`,
+        error: `Timeout while checking for ${objectType === 'PAGE' ? 'child pages' : 'pages'}. Please try again.`,
         success: false
       };
     }

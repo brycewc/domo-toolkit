@@ -1098,7 +1098,14 @@ function buildLeafItems(typeKey, owned, origin, tasksByProject) {
     // collisions (a dataset 123 and a card 123 would otherwise share an ID).
     // `originalId` keeps the canonical item id available for the row's
     // Copy-ID action so the user always sees the un-namespaced value.
-    const domoTypeId = TYPE_KEY_TO_DOMO_TYPE[typeKey];
+    // The `functions` category returns Beast Modes and Variables together; the
+    // per-item `global` flag (true only for Variables) is the only thing that
+    // distinguishes them, so resolve the leaf type per item rather than using
+    // the category default.
+    const domoTypeId =
+      typeKey === 'functions' && item.global
+        ? 'VARIABLE'
+        : TYPE_KEY_TO_DOMO_TYPE[typeKey];
     let url = null;
     if (domoTypeId) {
       try {
@@ -1224,6 +1231,11 @@ function buildTransferLogRows({ fromUserId, fromUserName, results, toUserId, toU
     const wholeBatchError = failedById.get('all');
     for (const item of result.attempted ?? []) {
       const isFailure = wholeBatchError !== undefined || failedById.has(item.id);
+      // The `functions` category mixes Beast Modes and Variables; the per-item
+      // `global` flag (true only for Variables) overrides the category log type
+      // so the audit row reports the correct object type.
+      const itemLogType =
+        typeKey === 'functions' && item.global ? 'VARIABLE' : logType;
       rows.push({
         'Date': date,
         'New Owner ID': toUserId,
@@ -1233,7 +1245,7 @@ function buildTransferLogRows({ fromUserId, fromUserName, results, toUserId, toU
         'Object Name': item.name,
         'Object Type': item.subType
           ? item.subType.toUpperCase()
-          : (logType ?? typeDef?.label ?? typeKey),
+          : (itemLogType ?? typeDef?.label ?? typeKey),
         'Previous Owner ID': fromUserId,
         'Previous Owner Name': fromUserName,
         'Status': isFailure ? 'FAILED' : 'TRANSFERRED'

@@ -189,6 +189,8 @@ async function getActivityLogTitle() {
 
     if (logType === 'single-object' && objects[0]) {
       label = objects[0].name || `${objects[0].type} ${objects[0].id}`;
+    } else if (logType === 'object-and-parent' && objects[0]) {
+      label = objects[0].name || `${objects[0].type} ${objects[0].id}`;
     } else if (logType === 'child-cards') {
       label = `${objects.length} ${objects.length === 1 ? 'Card' : 'Cards'}`;
     } else if (logType === 'child-pages') {

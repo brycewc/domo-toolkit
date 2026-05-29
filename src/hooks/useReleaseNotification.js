@@ -27,6 +27,7 @@ export function showReleaseToast() {
         });
         chrome.tabs.create({
           index: activeTab ? activeTab.index + 1 : undefined,
+          openerTabId: activeTab?.id,
           url: chrome.runtime.getURL('src/options/index.html#release-notes'),
           windowId: currentWindow.id
         });

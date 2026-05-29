@@ -1,9 +1,23 @@
 import { executeInPage } from '@/utils/executeInPage';
 
-export async function deleteFunction(functionId) {
-  await fetch(`/api/query/v1/functions/template/${functionId}`, {
-    method: 'DELETE'
-  });
+/**
+ * Delete a function template (Beast Mode or Variable).
+ * @param {Object} params
+ * @param {string} params.functionId - The function template ID
+ * @param {number|null} [params.tabId] - Optional Chrome tab ID
+ */
+export async function deleteFunction({ functionId, tabId = null }) {
+  return executeInPage(
+    async (functionId) => {
+      const response = await fetch(
+        `/api/query/v1/functions/template/${functionId}`,
+        { method: 'DELETE' }
+      );
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    },
+    [functionId],
+    tabId
+  );
 }
 
 /**

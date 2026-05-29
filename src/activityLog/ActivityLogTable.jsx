@@ -1084,6 +1084,13 @@ export function ActivityLogTable() {
                 <span className='text-accent'>{objects[0]?.name} </span>
                 <span> (ID: {objects[0].id})</span>
               </>
+            ) : activityLogType === 'object-and-parent' ? (
+              <>
+                <span>{objects[0]?.type}</span>
+                <span className='text-accent'>{objects[0]?.name} </span>
+                <span> and its parent {objects[1]?.type} </span>
+                <span className='text-accent'>{objects[1]?.name}</span>
+              </>
             ) : (
               ` ${objects.length} ${
                 activityLogType === 'child-cards'

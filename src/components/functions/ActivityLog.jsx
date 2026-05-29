@@ -1,7 +1,9 @@
 import { Button, Description, Dropdown, Label, Tooltip } from '@heroui/react';
 import { useState } from 'react';
 
+import { ObjectTypeIcon } from '@/components/ObjectTypeIcon';
 import { useLongPress } from '@/hooks/useLongPress';
+import { getObjectType } from '@/models/DomoObjectType';
 import { getCardsForObject } from '@/services/cards';
 import { getPagesForCards, getSubpageIds } from '@/services/pages';
 import { waitForChildPages } from '@/utils/pageHelpers';
@@ -18,8 +20,17 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
   const isDisabled = !currentContext?.domoObject?.id || isLoading || !userRights.includes('audit');
   const typeId = currentContext?.domoObject?.typeId;
   const longPressEnabled =
-    !isDisabled && ['DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE'].includes(typeId);
-  const hasChildPages = ['DATA_APP_VIEW', 'PAGE'].includes(typeId);
+    !isDisabled &&
+    ['DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE', 'WORKSHEET_VIEW'].includes(typeId);
+  const hasChildPages = ['DATA_APP_VIEW', 'PAGE', 'WORKSHEET_VIEW'].includes(typeId);
+  // App pages and worksheet views hang off a parent Studio App / Worksheet, whose
+  // activity log is frequently what the user actually wants. Detection already
+  // resolves the parent ID and name onto the context via getParent, so the
+  // parent option needs no extra fetch. The parent type comes straight from the
+  // registry so the two view types stay in sync with their declared parents.
+  const hasParent = ['DATA_APP_VIEW', 'WORKSHEET_VIEW'].includes(typeId);
+  const parentTypeId = hasParent ? getObjectType(typeId)?.parents?.[0] : null;
+  const parentTypeName = parentTypeId ? getObjectType(parentTypeId)?.name : null;
 
   const handleClick = async (key = null) => {
     if (
@@ -118,7 +129,6 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
             type: 'CARD'
           }));
           activityLogType = 'cards';
-          activityLogType = 'cards';
           message = `Navigating to activity log for ${cards.length} cards on ${objectName}`;
           break;
         }
@@ -164,17 +174,72 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
           message = `Navigating to activity log for ${activityLogObjects.length} child pages`;
           break;
         }
-        default:
+        case 'parent': {
+          const parentId =
+            currentContext?.domoObject?.parentId ??
+            currentContext?.domoObject?.metadata?.parent?.id;
+
+          if (!parentId) {
+            onStatusUpdate?.(
+              'No Parent Found',
+              `Could not determine the parent ${parentTypeName?.toLowerCase() || 'object'} for ${objectName}`,
+              'warning',
+              5000
+            );
+            setIsLoading(false);
+            return;
+          }
+
+          const parentName = currentContext?.domoObject?.metadata?.parent?.name;
           activityLogObjects = [
             {
-              id: currentContext?.domoObject.id,
-              name: currentContext?.domoObject.metadata?.name || '',
-              type: currentContext?.domoObject.typeId
+              id: String(parentId),
+              name: parentName || '',
+              type: parentTypeId
             }
           ];
           activityLogType = 'single-object';
-          message = `Navigating to activity log for ${currentContext?.domoObject.typeName} ${currentContext?.domoObject.id}`;
+          message = `Navigating to activity log for ${parentTypeName} ${
+            parentName ? `"${parentName}"` : parentId
+          }`;
           break;
+        }
+        default: {
+          // App pages and worksheet views default (single-click) to a combined log
+          // covering both the view and its parent Studio App / Worksheet. There is
+          // intentionally no view-only option: the parent rows can be filtered out by
+          // object type in the log itself. Every other type keeps a plain single-object
+          // log. parentId is resolved at detection time, so no extra lookup is needed.
+          const parentId =
+            hasParent &&
+            (currentContext?.domoObject?.parentId ??
+              currentContext?.domoObject?.metadata?.parent?.id);
+
+          const self = {
+            id: currentContext?.domoObject.id,
+            name: currentContext?.domoObject.metadata?.name || '',
+            type: currentContext?.domoObject.typeId
+          };
+
+          if (parentId) {
+            const parentName = currentContext?.domoObject?.metadata?.parent?.name;
+            activityLogObjects = [
+              self,
+              {
+                id: String(parentId),
+                name: parentName || '',
+                type: parentTypeId
+              }
+            ];
+            activityLogType = 'object-and-parent';
+            message = `Navigating to activity log for ${currentContext?.domoObject.typeName} ${currentContext?.domoObject.id} and its parent ${parentTypeName}`;
+          } else {
+            activityLogObjects = [self];
+            activityLogType = 'single-object';
+            message = `Navigating to activity log for ${currentContext?.domoObject.typeName} ${currentContext?.domoObject.id}`;
+          }
+          break;
+        }
       }
 
       await chrome.storage.session.set({
@@ -190,6 +255,7 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
       const tab = await chrome.tabs.get(currentContext.tabId);
       chrome.tabs.create({
         index: tab.index + 1,
+        openerTabId: tab.id,
         url: chrome.runtime.getURL('src/options/index.html#activity-log'),
         windowId: tab.windowId
       });
@@ -212,10 +278,8 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
           variant='tertiary'
           onPress={() => handleClick()}
           {...(longPressEnabled ? pressProps : {})}
-          {...(longPressEnabled ? pressProps : {})}
         >
           <IconListSearch />
-          <LongPressOverlay />
           <LongPressOverlay />
         </Button>
         <Tooltip.Content
@@ -228,6 +292,20 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
       </Tooltip>
       <Dropdown.Popover className='min-w-90' placement='bottom'>
         <Dropdown.Menu onAction={handleClick}>
+          {hasParent && (
+            <Dropdown.Item id='parent' textValue={parentTypeName || 'Parent'}>
+              <div className='flex h-fit items-start justify-start gap-2'>
+                <ObjectTypeIcon className='size-5 shrink-0' typeId={parentTypeId} />
+                <div className='flex flex-col'>
+                  <Label>{parentTypeName}</Label>
+                  <Description className='text-xs'>
+                    View activity log for the parent {parentTypeName?.toLowerCase()} this{' '}
+                    {currentContext?.domoObject?.typeName?.toLowerCase() || 'page'} belongs to
+                  </Description>
+                </div>
+              </div>
+            </Dropdown.Item>
+          )}
           <Dropdown.Item id='cards' textValue='Cards'>
             <div className='flex h-fit items-start justify-start gap-2'>
               <IconChartBarBox className='size-5 shrink-0' />

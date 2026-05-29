@@ -132,6 +132,7 @@ export function ActionButtons({
                         });
                         chrome.tabs.create({
                           index: activeTab ? activeTab.index + 1 : undefined,
+                          openerTabId: activeTab?.id,
                           url: `${optionsUrl}#settings`,
                           windowId: currentWindow.id
                         });

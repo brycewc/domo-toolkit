@@ -26,6 +26,7 @@ export function ViewLineage({ currentContext, onStatusUpdate }) {
       const tab = await chrome.tabs.get(currentContext.tabId);
       chrome.tabs.create({
         index: tab.index + 1,
+        openerTabId: tab.id,
         url: chrome.runtime.getURL('src/options/index.html#lineage'),
         windowId: tab.windowId
       });

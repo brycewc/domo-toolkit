@@ -14,8 +14,10 @@ title: Release Notes
 - The close (X) button on every DataList view now shows a uniform "Close view" tooltip instead of a per-view label (e.g. "Close Cards View", "Close Ownership View"). The label is hardcoded in DataList, so views no longer pass a `closeLabel` prop
 - Context footer related-data tabs (related objects, dataset columns, template approvals, etc.) are now cached in a module-level store keyed by Chrome tab, so switching Chrome tabs and coming back no longer refetches the data while the sidepanel stays open. Each Chrome tab's cache is tied to the object that was detected on it, so navigating to a different object in the same Chrome tab still clears and reloads. Cached entries expire after 300 seconds so data that goes stale (like pending approvals) gets refreshed on the next open, and a tab's cache is dropped when that Chrome tab is closed
 - Confirmation dialogs for the secondary delete actions (like "Delete App and All Cards" on a page) now bold the object name and ID in the dialog body, matching the primary delete confirmation. Done by wrapping the names in `**bold**` markers inside each cascade's `confirmText` and rendering through the shared `parseMarkdownBold` util, instead of dropping a raw string into the dialog
+- The delete success toast now bolds the deleted object's ID (e.g. "Deleted beast mode **12345**"), matching the bolded IDs already shown in the delete confirmation dialogs. Applies to every delete type since the message comes from the shared `deleteObject` success path
 - The "Delete App and All Cards" confirmation now shows the page and card counts in parentheses (e.g. "all its pages (4), and all cards on those pages (37)") so the blast radius is clear before confirming. The counts come from a single app admin-summary call (`/api/content/v1/dataapps/{appId}/adminsummary`) made during the dependency check on view load, and those same card IDs are reused for the delete instead of re-walking every page's cards at delete time. Worksheets and any failed summary call degrade gracefully: counts are omitted and the delete falls back to the per-page walk
 - Tightened the vertical gap between a disclosed parent row and its children in DataList. HeroUI's default `disclosure__body` padding (8px) stacked on top of the parent heading's and first child's `my-1` margins (4px each), making the parent-to-child gap ~16px, double the ~8px sibling-to-sibling gap (which has no body padding between rows). The expanded children read as disconnected from their header as a result. Dropping just the body's vertical padding to 0 (while keeping its horizontal `px-2`, which supplies the ~8px-per-level indentation) brings the parent-to-child gap in line with the sibling rhythm. Scoped via a `.datalist-root` class so the standalone disclosures elsewhere (API Errors, Dataflow Inspector, etc.) keep HeroUI's default padding, and ordered before the selection-mode `disclosure__body` rule so selection mode still strips the padding entirely for its own explicit `paddingLeft` indentation
+- Closing an extension-opened tab (Activity Log, Lineage, Settings, the release-notes page) now returns focus to the tab you launched it from instead of jumping to the tab on its right. Chrome only restores the launching tab on close when the new tab carries an opener relationship, and `chrome.tabs.create()` does not set that automatically the way a `target="_blank"` link does, so each of these calls now passes `openerTabId` for the launching tab (guaranteed to be in the same window, as the API requires)
 
 ## New Features
 
@@ -54,6 +56,7 @@ title: Release Notes
 
 ### Supported Types
 
+- Variables are now detected as their own type instead of being treated as Beast Modes. Variables and Beast Modes share the same Domo URL (`/datacenter/beastmode?id=`) and function-template endpoint, so they were previously indistinguishable; detection now refines the type after enrichment using the `global` flag on the details (true only for Variables). Variables get their own icon and "Variable" label, and the Objects Owned and Transfer Ownership views (plus the transfer audit log) now label each function row as a Variable or Beast Mode per item rather than lumping the whole category under Beast Mode.
 - Added DataSet to related objects for Approval Templates.
 - Added an Approvals tab to the related objects for Approval Templates. It lazily fetches every active approval request derived from the template when the tab is opened, paging through Domo's cursor-based workflow search so the full set is returned instead of just the first 30. Each row carries the richer fields the Approval Center UI reads (status, last-modified time, version, current pending approver, and submitter) so the request is one click away with context, not just an id and title.
 - AppDB Collection now auto-resolves its parent DataStore id from the collection details response (`datastoreId`), so the "DataStore" related-object tab populates without needing the parent id to be pre-supplied at detection time.
@@ -69,7 +72,22 @@ title: Release Notes
 - The related dataset's id is read from the template details already enriched at detection (no extra fetch); its name is resolved via dataset search, its dependents via Domo's precomputed impact-count endpoint (summing the downstream dataflows, datasets, cards, and alerts it rolls up), and the approval count via a lightweight workflow-search total that falls back to a full count if an instance does not expose it.
 - The Delete view's cascade-button mechanism was generalized so each secondary action supplies its own label, tooltip, confirmation copy, run logic, and optional blocked state (data app and worksheet deletes keep their existing behavior). The primary-delete confirmation now counts only the dependencies that delete actually removes, so a template's confirmation no longer implies the related dataset will be touched.
 
+### Activity Log: app pages and worksheet views now include their parent
+
+- Clicking Activity Log on an app page or worksheet view now opens a combined log covering both the view and its parent Studio App / Worksheet, so app-level events show up next to the page's. The two object types can be split apart with the log's object-type filter when you only want one. The parent id and name are resolved onto the page at detection time, so this needs no extra lookup.
+- The long-press dropdown also gains a dedicated "Studio App" / "Worksheet" option that opens just the parent's log on its own.
+- Worksheet views now get the full long-press Activity Log dropdown (Cards, Card Pages, Child Pages, and the new parent option), matching app pages. Previously worksheet views had no Activity Log dropdown at all.
+
 ## Bug Fixes
+
+### Delete Beast Mode / Variable: actually deletes now (and reports real failures)
+
+- Deleting a Beast Mode (or Variable) never reached Domo. `deleteFunction` ran its `DELETE /api/query/v1/functions/template/{id}` fetch in the extension's background service worker instead of the page, so the relative URL resolved against the `chrome-extension://` origin with no Domo session and the request silently went nowhere. It also never checked the response, so the toast always reported success. It now runs in the page via `executeInPage` (like every other delete) and throws on a non-ok response, so deletes take effect and genuine failures surface as an error toast instead of a false success.
+
+### Get Worksheet Pages: no longer times out with no results
+
+- Fixed "Get Worksheet Pages" (and the worksheet Child Pages path generally) hanging and then erroring instead of listing the worksheet's pages. `waitForChildPages` routed only `DATA_APP_VIEW` to the `context.appPages` slot and sent worksheet views to the empty `context.childPages` slot where their pages are never stored, so the helper polled until it timed out. It now routes everything that is not a plain `PAGE` to `appPages`, where the whole app-view family (app pages, worksheet views, report builder views) actually enriches.
+- Also fixed the poll-retry branch reading the freshly loaded list from `metadata.details[...]` instead of `metadata.context[...]`, so a page list that only arrived mid-poll (clicking right after navigating to the page) was never picked up, even for app pages.
 
 ### Update Owner: user search no longer clears the selected owner on blur
 
