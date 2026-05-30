@@ -115,11 +115,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
       }
 
       try {
-        return await executeInPage(
-          fetchObjectDetailsInPage,
-          [params],
-          currentContext?.tabId
-        );
+        return await executeInPage(fetchObjectDetailsInPage, [params], currentContext?.tabId);
       } catch {
         return null;
       }
@@ -332,7 +328,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
 
   return (
     <Dropdown isOpen={isOpen} onOpenChange={handleOpenChange}>
-      <Tooltip closeDelay={0} delay={400}>
+      <Tooltip closeDelay={0} delay={800}>
         <Button fullWidth isIconOnly variant='tertiary'>
           <IconArrowSquareOut />
         </Button>
@@ -376,10 +372,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
               id='_resolved'
               textValue='Navigate'
             >
-              <ObjectTypeIcon
-                className='size-5 shrink-0'
-                typeId={resolvedObject?.typeId}
-              />
+              <ObjectTypeIcon className='size-5 shrink-0' typeId={resolvedObject?.typeId} />
               <div className='flex flex-col gap-1'>
                 <Chip className='w-fit lowercase' color='accent' size='sm' variant='soft'>
                   {resolvedObject?.typeName}

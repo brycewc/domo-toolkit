@@ -286,7 +286,7 @@ export function DuplicateView({ onBackToDefault = null, onStatusUpdate = null })
             )}
           </div>
           {onBackToDefault && (
-            <Tooltip closeDelay={0} delay={400}>
+            <Tooltip closeDelay={0} delay={800}>
               <Button isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
                 <IconX />
               </Button>

@@ -185,7 +185,7 @@ export function CopyColorRulesView({ onBackToDefault = null, onStatusUpdate = nu
           </Tooltip.Content>
         </Tooltip>
         {onBackToDefault && (
-          <Tooltip closeDelay={0} delay={400}>
+          <Tooltip closeDelay={0} delay={800}>
             <Button
               isIconOnly
               aria-label='Close view'

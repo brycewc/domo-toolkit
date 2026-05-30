@@ -469,7 +469,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
               )}
               <Tooltip
                 closeDelay={0}
-                delay={400}
+                delay={800}
                 isDisabled={!currentContext?.domoObject?.id || !currentContext?.isDomoPage}
               >
                 <Tooltip.Trigger>

@@ -104,7 +104,7 @@ export default function App() {
       {VersionLink}
       <div className='fixed top-4 right-4 z-10'>
         <div className='flex gap-1'>
-          <Tooltip closeDelay={0} delay={400}>
+          <Tooltip closeDelay={0} delay={800}>
             <Button
               isIconOnly
               variant='secondary'
@@ -119,7 +119,7 @@ export default function App() {
             </Button>
             <Tooltip.Content className='w-fit text-center'>Report bug</Tooltip.Content>
           </Tooltip>
-          <Tooltip closeDelay={0} delay={400}>
+          <Tooltip closeDelay={0} delay={800}>
             <Button
               isIconOnly
               variant='secondary'

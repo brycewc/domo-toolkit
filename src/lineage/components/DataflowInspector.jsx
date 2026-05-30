@@ -237,7 +237,7 @@ export function DataflowInspector({ cacheRef, dataflowId, onClose, resolveTabId 
       <Card className='border-divider h-full rounded-none border-l p-0 shadow-none'>
         <Card.Header className='border-divider flex-row items-center justify-between border-b px-4 py-3'>
           <span className='font-semibold'>Loading ETL...</span>
-          <Tooltip closeDelay={0} delay={400}>
+          <Tooltip closeDelay={0} delay={800}>
             <Button isIconOnly size='sm' variant='tertiary' onPress={onClose}>
               <IconX />
             </Button>
@@ -256,7 +256,7 @@ export function DataflowInspector({ cacheRef, dataflowId, onClose, resolveTabId 
       <Card className='border-divider h-full rounded-none border-l p-0 shadow-none'>
         <Card.Header className='border-divider flex-row items-center justify-between border-b px-4 py-3'>
           <span className='font-semibold'>ETL Inspector</span>
-          <Tooltip closeDelay={0} delay={400}>
+          <Tooltip closeDelay={0} delay={800}>
             <Button isIconOnly size='sm' variant='tertiary' onPress={onClose}>
               <IconX />
             </Button>
@@ -283,7 +283,7 @@ export function DataflowInspector({ cacheRef, dataflowId, onClose, resolveTabId 
               {dataflow.name}
             </span>
           </div>
-          <Tooltip closeDelay={0} delay={400}>
+          <Tooltip closeDelay={0} delay={800}>
             <Button isIconOnly size='sm' variant='tertiary' onPress={onClose}>
               <IconX />
             </Button>

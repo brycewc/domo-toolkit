@@ -104,7 +104,7 @@ export function ActionButtons({
                   isDisabled={!isDomoPage}
                   onStatusUpdate={onStatusUpdate}
                 />
-                <Tooltip closeDelay={0} delay={400}>
+                <Tooltip closeDelay={0} delay={800}>
                   <Button
                     fullWidth
                     isIconOnly
@@ -150,7 +150,7 @@ export function ActionButtons({
                   </Tooltip.Content>
                 </Tooltip>
                 {collapsable ? (
-                  <Tooltip closeDelay={0} delay={400}>
+                  <Tooltip closeDelay={0} delay={800}>
                     <Button
                       fullWidth
                       isIconOnly
@@ -171,7 +171,7 @@ export function ActionButtons({
                     </Tooltip.Content>
                   </Tooltip>
                 ) : (
-                  <Tooltip closeDelay={0} delay={400}>
+                  <Tooltip closeDelay={0} delay={800}>
                     <Button fullWidth isIconOnly variant='tertiary' onPress={openSidepanel}>
                       <IconRightRailFill />
                     </Button>

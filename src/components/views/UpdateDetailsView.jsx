@@ -235,7 +235,7 @@ export function UpdateDetailsView({ onBackToDefault = null, onStatusUpdate = nul
             </Tooltip>
           </div>
           {onBackToDefault && (
-            <Tooltip closeDelay={0} delay={400}>
+            <Tooltip closeDelay={0} delay={800}>
               <Button isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
                 <IconX />
               </Button>
@@ -372,7 +372,7 @@ function FieldRow({
             </ComboBox.Popover>
           </ComboBox>
           {showResetButton && (
-            <Tooltip closeDelay={0} delay={400}>
+            <Tooltip closeDelay={0} delay={800}>
               <Button
                 isIconOnly
                 isDisabled={isResetDisabled}

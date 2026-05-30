@@ -359,7 +359,7 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
               </div>
             </div>
             {onBackToDefault && (
-              <Tooltip closeDelay={0} delay={400}>
+              <Tooltip closeDelay={0} delay={800}>
                 <Button isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
                   <IconX />
                 </Button>
@@ -397,7 +397,7 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
             const cascadeLabel = cascade.label(ctx);
             const blocked = cascade.isBlocked?.(ctx) ?? false;
             return (
-              <Tooltip closeDelay={0} delay={400} key={idx}>
+              <Tooltip closeDelay={0} delay={800} key={idx}>
                 <Button
                   fullWidth
                   isDisabled={isDeleting || blocked}
@@ -419,7 +419,7 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
               </Tooltip>
             );
           })}
-          <Tooltip closeDelay={0} delay={400} isDisabled={!isBlocked}>
+          <Tooltip closeDelay={0} delay={800} isDisabled={!isBlocked}>
             <Button
               fullWidth
               isDisabled={isDeleting || isBlocked}

@@ -71,7 +71,7 @@ export function DeleteObject({ currentContext, isDisabled, onStatusUpdate }) {
         : '';
 
   return (
-    <Tooltip closeDelay={0} delay={400} isDisabled={isDeleteDisabled}>
+    <Tooltip closeDelay={0} delay={800} isDisabled={isDeleteDisabled}>
       <Button
         fullWidth
         isIconOnly

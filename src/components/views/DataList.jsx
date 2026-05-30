@@ -344,7 +344,7 @@ export function DataList({
             </Tooltip>
           )}
           {onClose && (
-            <Tooltip closeDelay={0} delay={400}>
+            <Tooltip closeDelay={0} delay={800}>
               <Button
                 isIconOnly
                 aria-label='Close view'
@@ -368,7 +368,7 @@ export function DataList({
               {hasInlineActions && (
                 <ButtonGroup hideSeparator className='flex shrink-0' size='sm' variant='ghost'>
                   {customHeaderActions?.map((action) => (
-                    <Tooltip closeDelay={0} delay={400} key={action.key}>
+                    <Tooltip closeDelay={0} delay={800} key={action.key}>
                       <Button
                         isIconOnly
                         aria-label={action.ariaLabel ?? action.tooltipText}
@@ -389,7 +389,7 @@ export function DataList({
                     </Tooltip>
                   ))}
                   {headerActions.includes('openAll') && (
-                    <Tooltip closeDelay={0} delay={400}>
+                    <Tooltip closeDelay={0} delay={800}>
                       <Button
                         isIconOnly
                         aria-label='Open All'
@@ -408,7 +408,7 @@ export function DataList({
                     </Tooltip>
                   )}
                   {onShareAll && headerActions.includes('shareAll') && (
-                    <Tooltip closeDelay={0} delay={400}>
+                    <Tooltip closeDelay={0} delay={800}>
                       <Button
                         isIconOnly
                         aria-label='Share All'
@@ -427,7 +427,7 @@ export function DataList({
                     </Tooltip>
                   )}
                   {headerActions.includes('copy') && (
-                    <Tooltip closeDelay={0} delay={400}>
+                    <Tooltip closeDelay={0} delay={800}>
                       <Button
                         isIconOnly
                         aria-label='Copy'
@@ -466,7 +466,7 @@ export function DataList({
                       const isReloadDisabled = reloadDisabledReason !== null;
                       const tooltipText = reloadDisabledReason ?? 'Reload for current object';
                       return (
-                        <Tooltip closeDelay={0} delay={400}>
+                        <Tooltip closeDelay={0} delay={800}>
                           <Button
                             isIconOnly
                             aria-disabled={isReloadDisabled}
@@ -493,7 +493,7 @@ export function DataList({
                       );
                     })()}
                   {headerActions.includes('refresh') && (
-                    <Tooltip closeDelay={0} delay={400}>
+                    <Tooltip closeDelay={0} delay={800}>
                       <Button
                         isIconOnly
                         aria-label='Refresh'
@@ -685,7 +685,13 @@ function VirtualizedItems({ bounded = false, items, renderItem }) {
       style={containerStyle}
       className={
         bounded
-          ? 'w-full overflow-y-auto overscroll-contain'
+          ? // `overscroll-auto` (not `contain`) lets a bounded child list chain
+            // its scroll to the parent once it hits its top/bottom edge — so
+            // scrolling inside an expanded group keeps scrolling the whole
+            // DataList instead of dead-stopping at the group's boundary. The
+            // unbounded top-level container keeps `overscroll-y-contain` so the
+            // sidepanel/page itself never bounce-scrolls past the list.
+            'w-full overflow-y-auto overscroll-auto'
           : 'min-h-0 w-full flex-1 overflow-y-auto overscroll-x-none overscroll-y-contain'
       }
     >
@@ -945,7 +951,7 @@ function DataListItemImpl({
     if (!showActions) return [];
 
     const removeButton = (
-      <Tooltip closeDelay={0} delay={400} key='remove'>
+      <Tooltip closeDelay={0} delay={800} key='remove'>
         <Button
           fullWidth
           isIconOnly
@@ -966,7 +972,7 @@ function DataListItemImpl({
     );
 
     const openAllButton = (
-      <Tooltip closeDelay={0} delay={400} key='openAll'>
+      <Tooltip closeDelay={0} delay={800} key='openAll'>
         <Button
           fullWidth
           isIconOnly
@@ -984,7 +990,7 @@ function DataListItemImpl({
     );
 
     const copyButton = (
-      <Tooltip closeDelay={0} delay={400} key='copy'>
+      <Tooltip closeDelay={0} delay={800} key='copy'>
         <Button
           fullWidth
           isIconOnly
@@ -1002,7 +1008,7 @@ function DataListItemImpl({
     );
 
     const shareAllButton = (
-      <Tooltip closeDelay={0} delay={400} key='shareAll'>
+      <Tooltip closeDelay={0} delay={800} key='shareAll'>
         <Button
           fullWidth
           isIconOnly
@@ -1020,7 +1026,7 @@ function DataListItemImpl({
     );
 
     const shareButton = (
-      <Tooltip closeDelay={0} delay={400} key='share'>
+      <Tooltip closeDelay={0} delay={800} key='share'>
         <Button
           fullWidth
           isIconOnly
@@ -1038,7 +1044,7 @@ function DataListItemImpl({
     );
 
     const viewsExplorerButton = (
-      <Tooltip closeDelay={0} delay={400} key='viewsExplorer'>
+      <Tooltip closeDelay={0} delay={800} key='viewsExplorer'>
         <Button
           fullWidth
           isIconOnly
@@ -1056,7 +1062,7 @@ function DataListItemImpl({
     );
 
     const lineageButton = (
-      <Tooltip closeDelay={0} delay={400} key='lineage'>
+      <Tooltip closeDelay={0} delay={800} key='lineage'>
         <Button
           fullWidth
           isIconOnly
@@ -1457,7 +1463,7 @@ function DataListItemImpl({
                 // move from `DisclosureGroup` onto this wrapper since the
                 // group now has a single child.
                 <div
-                  className='w-full divide-y divide-border overflow-y-auto overscroll-contain'
+                  className='w-full divide-y divide-border overflow-y-auto overscroll-auto'
                   style={{ height: MAX_VISIBLE_CHILDREN_ROWS * ROW_HEIGHT }}
                 >
                   {item.children.map((child, index) => (

@@ -131,7 +131,7 @@ export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
     needsAppAdmin;
 
   return (
-    <Tooltip closeDelay={0} delay={400} disabled={!buttonDisabled}>
+    <Tooltip closeDelay={0} delay={800} disabled={!buttonDisabled}>
       <Button
         fullWidth
         isIconOnly

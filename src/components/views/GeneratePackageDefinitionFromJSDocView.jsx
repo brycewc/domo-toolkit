@@ -38,7 +38,10 @@ import IconPlusCircle from '@icons/plus-circle.svg?react';
 import IconSync from '@icons/sync.svg?react';
 import IconX from '@icons/x.svg?react';
 
-export function GeneratePackageDefinitionFromJSDocView({ onBackToDefault = null, onStatusUpdate = null }) {
+export function GeneratePackageDefinitionFromJSDocView({
+  onBackToDefault = null,
+  onStatusUpdate = null
+}) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -116,7 +119,10 @@ export function GeneratePackageDefinitionFromJSDocView({ onBackToDefault = null,
         try {
           versionDef = await getCodeEnginePackageVersion(packageId, baseline.version, tabId);
         } catch (err) {
-          console.warn('[GeneratePackageDefinitionFromJSDocView] Baseline version fetch failed:', err);
+          console.warn(
+            '[GeneratePackageDefinitionFromJSDocView] Baseline version fetch failed:',
+            err
+          );
         }
       }
 
@@ -258,7 +264,10 @@ export function GeneratePackageDefinitionFromJSDocView({ onBackToDefault = null,
           tabId
         });
         if (!writeResult.ok) {
-          console.warn('[GeneratePackageDefinitionFromJSDocView] Editor write failed:', writeResult.reason);
+          console.warn(
+            '[GeneratePackageDefinitionFromJSDocView] Editor write failed:',
+            writeResult.reason
+          );
         }
       }
       await postCodeEnginePackageVersion(definition, tabId);
@@ -362,9 +371,9 @@ export function GeneratePackageDefinitionFromJSDocView({ onBackToDefault = null,
             <div className='flex items-center gap-2 rounded-md bg-danger-soft p-2 text-sm text-danger'>
               <IconExclamationTriangle />
               <span>
-                Could not read the function list from the live editor. Open the Code Engine
-                editor for this package and try again. Syncing without it would omit the
-                module.exports block and break Workflow runs.
+                Could not read the function list from the live editor. Open the Code Engine editor
+                for this package and try again. Syncing without it would omit the module.exports
+                block and break Workflow runs.
               </span>
             </div>
           )}
@@ -646,7 +655,7 @@ function SourcePill({ currentVersionInfo, sourceRead }) {
   }
   const fallbackVersion = sourceRead.version || currentVersionInfo?.version || null;
   return (
-    <Tooltip closeDelay={0} delay={400}>
+    <Tooltip closeDelay={0} delay={800}>
       <Chip color='warning' size='sm' variant='soft'>
         Saved version{fallbackVersion ? ` v${fallbackVersion}` : ''}
       </Chip>
@@ -703,7 +712,7 @@ function TargetPill({ target }) {
       ? `v${target.version} is the current draft, saving directly to it (no release).`
       : `No unreleased draft found, creating new v${target.version} (no release).`;
   return (
-    <Tooltip closeDelay={0} delay={400}>
+    <Tooltip closeDelay={0} delay={800}>
       <Chip color={target.mode === 'overwrite' ? 'success' : 'accent'} size='sm' variant='soft'>
         {target.mode === 'overwrite' ? `Save to v${target.version}` : `New v${target.version}`}
       </Chip>
@@ -717,7 +726,7 @@ function ViewHeader({ isRefreshing, onBackToDefault, onRefresh, subtitle, title 
     <Card.Header className='gap-1'>
       <Card.Title className='line-clamp-2 min-w-0 pr-8'>{title}</Card.Title>
       {onBackToDefault && (
-        <Tooltip closeDelay={0} delay={400}>
+        <Tooltip closeDelay={0} delay={800}>
           <Button
             isIconOnly
             aria-label='Close'
@@ -737,7 +746,7 @@ function ViewHeader({ isRefreshing, onBackToDefault, onRefresh, subtitle, title 
         <div className='flex min-w-0 items-center justify-between gap-2'>
           <div className='min-w-0 flex-1 truncate text-xs text-muted'>{subtitle}</div>
           {onRefresh && (
-            <Tooltip closeDelay={0} delay={400}>
+            <Tooltip closeDelay={0} delay={800}>
               <Button
                 isIconOnly
                 aria-label='Refresh'

@@ -97,9 +97,7 @@ export function GenerateSchemaView({ onBackToDefault = null, onStatusUpdate = nu
       }
 
       setCurrentContext(context);
-      setCollectionName(
-        context.domoObject.metadata?.name || `Collection ${context.domoObject.id}`
-      );
+      setCollectionName(context.domoObject.metadata?.name || `Collection ${context.domoObject.id}`);
       setColumns(inferred.map((col) => ({ id: allocateId(), ...col })));
       setError(null);
     } catch (err) {
@@ -240,11 +238,7 @@ export function GenerateSchemaView({ onBackToDefault = null, onStatusUpdate = nu
   if (error) {
     return (
       <Card className='flex h-full w-full flex-col p-2'>
-        <ViewHeader
-          subtitle={null}
-          title='Generate Schema'
-          onBackToDefault={onBackToDefault}
-        />
+        <ViewHeader subtitle={null} title='Generate Schema' onBackToDefault={onBackToDefault} />
         <Separator />
         <Card.Content className='flex flex-col items-center gap-2 py-8'>
           <IconExclamationTriangle className='text-danger' />
@@ -296,7 +290,7 @@ export function GenerateSchemaView({ onBackToDefault = null, onStatusUpdate = nu
       </ScrollShadow>
 
       <div className='flex shrink-0 flex-col gap-2 border-t border-border px-3 py-2'>
-        <Tooltip closeDelay={0} delay={400} isDisabled={validation.isValid}>
+        <Tooltip closeDelay={0} delay={800} isDisabled={validation.isValid}>
           <Button
             fullWidth
             isDisabled={isSubmitting || !validation.isValid}
@@ -309,7 +303,7 @@ export function GenerateSchemaView({ onBackToDefault = null, onStatusUpdate = nu
             {validation.reason}
           </Tooltip.Content>
         </Tooltip>
-        <Tooltip closeDelay={0} delay={400} isDisabled={validation.isValid}>
+        <Tooltip closeDelay={0} delay={800} isDisabled={validation.isValid}>
           <Button
             fullWidth
             isDisabled={isSubmitting || !validation.isValid}
@@ -385,7 +379,7 @@ function ColumnRow({ column, isDisabled, onChangeName, onChangeType, onRemove })
           </Select.Popover>
         </Select>
       </div>
-      <Tooltip closeDelay={0} delay={400}>
+      <Tooltip closeDelay={0} delay={800}>
         <Button
           isIconOnly
           aria-label='Remove column'
@@ -441,7 +435,7 @@ function ViewHeader({ onBackToDefault, subtitle, title }) {
     <Card.Header className='gap-1'>
       <Card.Title className='line-clamp-2 min-w-0 pr-8'>{title}</Card.Title>
       {onBackToDefault && (
-        <Tooltip closeDelay={0} delay={400}>
+        <Tooltip closeDelay={0} delay={800}>
           <Button
             isIconOnly
             aria-label='Close'
@@ -457,9 +451,7 @@ function ViewHeader({ onBackToDefault, subtitle, title }) {
           </Tooltip.Content>
         </Tooltip>
       )}
-      {subtitle && (
-        <div className='min-w-0 flex-1 truncate text-xs text-muted'>{subtitle}</div>
-      )}
+      {subtitle && <div className='min-w-0 flex-1 truncate text-xs text-muted'>{subtitle}</div>}
     </Card.Header>
   );
 }

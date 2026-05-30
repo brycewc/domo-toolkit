@@ -301,7 +301,11 @@ export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusU
 
   const handleRemapInput = (elementId, oldName, target) => {
     setReconciliations((prev) => {
-      const current = prev[elementId] || { addOutputs: [], inputRemap: {}, updateVariableTypes: {} };
+      const current = prev[elementId] || {
+        addOutputs: [],
+        inputRemap: {},
+        updateVariableTypes: {}
+      };
       return {
         ...prev,
         [elementId]: { ...current, inputRemap: { ...current.inputRemap, [oldName]: target } }
@@ -311,7 +315,11 @@ export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusU
 
   const handleToggleOutput = (elementId, outputName, selected) => {
     setReconciliations((prev) => {
-      const current = prev[elementId] || { addOutputs: [], inputRemap: {}, updateVariableTypes: {} };
+      const current = prev[elementId] || {
+        addOutputs: [],
+        inputRemap: {},
+        updateVariableTypes: {}
+      };
       const set = new Set(current.addOutputs);
       if (selected) set.add(outputName);
       else set.delete(outputName);
@@ -321,7 +329,11 @@ export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusU
 
   const handleToggleVariableType = (elementId, variableId, selected) => {
     setReconciliations((prev) => {
-      const current = prev[elementId] || { addOutputs: [], inputRemap: {}, updateVariableTypes: {} };
+      const current = prev[elementId] || {
+        addOutputs: [],
+        inputRemap: {},
+        updateVariableTypes: {}
+      };
       return {
         ...prev,
         [elementId]: {
@@ -337,7 +349,9 @@ export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusU
   );
   const applicableChanges = changes.filter((c) => !blockedElementIds.has(c.elementId));
   const hasChanges = applicableChanges.length > 0;
-  const reviewCount = applicableChanges.filter((c) => actionNeedsReview(contractDiffs[c.elementId])).length;
+  const reviewCount = applicableChanges.filter((c) =>
+    actionNeedsReview(contractDiffs[c.elementId])
+  ).length;
 
   const handleSubmit = async () => {
     if (applicableChanges.length === 0) {
@@ -491,7 +505,7 @@ export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusU
             </div>
           </div>
           {onBackToDefault && (
-            <Tooltip closeDelay={0} delay={400}>
+            <Tooltip closeDelay={0} delay={800}>
               <Button isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
                 <IconX />
               </Button>
@@ -725,7 +739,10 @@ function ActionReconciliation({
   const needsReview = actionNeedsReview(info);
 
   return (
-    <Disclosure className='mt-1 w-full rounded-md border border-border' defaultExpanded={needsReview}>
+    <Disclosure
+      className='mt-1 w-full rounded-md border border-border'
+      defaultExpanded={needsReview}
+    >
       <Disclosure.Heading>
         <Button
           fullWidth
@@ -760,7 +777,8 @@ function ActionReconciliation({
           {info.removedBoundInputs.map((ri) => (
             <div className='flex flex-col gap-0.5' key={`rm-${ri.paramName}`}>
               <span>
-                Input <span className='font-mono'>{ri.paramName}</span> was removed (was {ri.binding}
+                Input <span className='font-mono'>{ri.paramName}</span> was removed (was{' '}
+                {ri.binding}
                 ). Map its binding to:
               </span>
               <Select
@@ -906,7 +924,10 @@ function buildActionContractInfo({ change, definition, newFn, oldFn }) {
 
   const removedBoundInputs = classified.inputs.removed
     .filter((e) => hasBinding(inputParams.get(e.name)))
-    .map((e) => ({ binding: describeBinding(inputParams.get(e.name), varById), paramName: e.name }));
+    .map((e) => ({
+      binding: describeBinding(inputParams.get(e.name), varById),
+      paramName: e.name
+    }));
 
   // Every type change, paired with the tile param that carries the binding.
   const typeChanged = [
