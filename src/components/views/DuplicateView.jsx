@@ -66,8 +66,7 @@ const duplicatorsByType = {
   }
 };
 
-const buildInitialStepStates = (steps) =>
-  Object.fromEntries(steps.map((s) => [s.key, { status: 'idle' }]));
+const buildInitialStepStates = (steps) => Object.fromEntries(steps.map((s) => [s.key, { status: 'idle' }]));
 
 const buildInitialValues = (fields) => Object.fromEntries(fields.map((f) => [f.key, '']));
 
@@ -122,10 +121,7 @@ export function DuplicateView({ onBackToDefault = null, onStatusUpdate = null })
       setValues(buildInitialValues(typeConfig.fields));
       setStepStates(buildInitialStepStates(typeConfig.steps));
       const userId = context.domoObject?.id;
-      const userName =
-        context.domoObject?.metadata?.name ||
-        context.domoObject?.metadata?.displayName ||
-        `User ${userId}`;
+      const userName = context.domoObject?.metadata?.name || context.domoObject?.metadata?.displayName || `User ${userId}`;
       if (userId) setSourceUser({ id: userId, name: userName });
     } catch (error) {
       console.error('[DuplicateView] Error loading data:', error);
@@ -172,8 +168,7 @@ export function DuplicateView({ onBackToDefault = null, onStatusUpdate = null })
     return { ok: !field.required || !!trimmed };
   };
 
-  const canSubmit =
-    !!config && !!preview && !isSubmitting && config.fields.every((f) => fieldValidity(f).ok);
+  const canSubmit = !!config && !!preview && !isSubmitting && config.fields.every((f) => fieldValidity(f).ok);
   const hasStarted = Object.values(stepStates).some((s) => s.status !== 'idle');
 
   const handleSubmit = async () => {
@@ -212,10 +207,8 @@ export function DuplicateView({ onBackToDefault = null, onStatusUpdate = null })
 
       await downloadAuditLog({ result, sourceUser });
 
-      const sharedCardCount =
-        result.cardResults.attempted.length - result.cardResults.errors.length;
-      const sharedPageCount =
-        result.pageResults.attempted.length - result.pageResults.errors.length;
+      const sharedCardCount = result.cardResults.attempted.length - result.cardResults.errors.length;
+      const sharedPageCount = result.pageResults.attempted.length - result.pageResults.errors.length;
       const appsSkipped = result.appResults.attempted.length;
 
       if (result.success) {
@@ -234,12 +227,7 @@ export function DuplicateView({ onBackToDefault = null, onStatusUpdate = null })
           7000
         );
       } else {
-        showStatus(
-          'Duplication Failed',
-          result.errors[0]?.message || 'Unable to create new user',
-          'danger',
-          5000
-        );
+        showStatus('Duplication Failed', result.errors[0]?.message || 'Unable to create new user', 'danger', 5000);
       }
     } catch (error) {
       showStatus('Duplication Failed', error.message || 'An error occurred', 'danger', 5000);
@@ -253,12 +241,7 @@ export function DuplicateView({ onBackToDefault = null, onStatusUpdate = null })
     try {
       const rows = buildDuplicationLogRows({ result, sourceUser });
       if (rows.length === 0) return;
-      await exportToExcel(
-        rows,
-        LOG_COLUMNS,
-        generateExportFilename('duplicated-user'),
-        'Duplication Log'
-      );
+      await exportToExcel(rows, LOG_COLUMNS, generateExportFilename('duplicated-user'), 'Duplication Log');
     } catch (err) {
       console.error('[DuplicateView] Failed to write audit log:', err);
     }
@@ -281,9 +264,7 @@ export function DuplicateView({ onBackToDefault = null, onStatusUpdate = null })
         <Card.Title className='flex items-start justify-between'>
           <div className='min-w-0 flex-1 pt-1'>
             <div className='truncate'>{config?.title || 'Duplicate'}</div>
-            {sourceUser && (
-              <div className='truncate text-xs font-normal text-muted'>from {sourceUser.name}</div>
-            )}
+            {sourceUser && <div className='truncate text-xs font-normal text-muted'>from {sourceUser.name}</div>}
           </div>
           {onBackToDefault && (
             <Tooltip closeDelay={0} delay={800}>
@@ -310,26 +291,15 @@ export function DuplicateView({ onBackToDefault = null, onStatusUpdate = null })
             variant='secondary'
           >
             <Label>{field.label}</Label>
-            <Input
-              className='h-8'
-              value={values[field.key] ?? ''}
-              onChange={(e) => setValue(field.key, e.target.value)}
-            />
-            <FieldError className='text-xs text-danger'>
-              Invalid {field.label.toLowerCase()}
-            </FieldError>
+            <Input className='h-8' value={values[field.key] ?? ''} onChange={(e) => setValue(field.key, e.target.value)} />
+            <FieldError className='text-xs text-danger'>Invalid {field.label.toLowerCase()}</FieldError>
           </TextField>
         ))}
 
         <Separator className='mt-1' />
       </div>
 
-      <ScrollShadow
-        hideScrollBar
-        className='min-h-0 flex-1 overflow-y-auto px-1 py-2'
-        offset={5}
-        orientation='vertical'
-      >
+      <ScrollShadow hideScrollBar className='min-h-0 flex-1 overflow-y-auto px-1 py-2' offset={5} orientation='vertical'>
         <PreviewPanel
           error={previewError}
           isLoading={isPreviewLoading}
@@ -357,20 +327,8 @@ export function DuplicateView({ onBackToDefault = null, onStatusUpdate = null })
       <Separator />
 
       <div className='flex shrink-0 flex-col gap-2'>
-        <Button
-          fullWidth
-          isDisabled={!canSubmit}
-          isPending={isSubmitting}
-          variant='primary'
-          onPress={handleSubmit}
-        >
-          {isSubmitting ? (
-            <Spinner color='currentColor' size='sm' />
-          ) : completedResult?.success ? (
-            'Duplicated'
-          ) : (
-            'Duplicate'
-          )}
+        <Button fullWidth isDisabled={!canSubmit} isPending={isSubmitting} variant='primary' onPress={handleSubmit}>
+          {isSubmitting ? <Spinner color='currentColor' size='sm' /> : completedResult?.success ? 'Duplicated' : 'Duplicate'}
         </Button>
       </div>
     </Card>
@@ -398,11 +356,7 @@ function AggregateRow({ emptyText, items, label }) {
   return (
     <Disclosure>
       <Disclosure.Heading>
-        <Button
-          className='h-auto w-full justify-between px-0 py-1 font-normal'
-          slot='trigger'
-          variant='ghost'
-        >
+        <Button className='h-auto w-full justify-between px-0 py-1 font-normal' slot='trigger' variant='ghost'>
           <span className='text-sm'>{label}</span>
           <span className='flex items-center gap-1 text-xs text-muted'>
             {count}
@@ -418,9 +372,7 @@ function AggregateRow({ emptyText, items, label }) {
                 {item}
               </li>
             ))}
-            {items.length > 20 && (
-              <li className='text-xs text-muted'>...and {items.length - 20} more</li>
-            )}
+            {items.length > 20 && <li className='text-xs text-muted'>...and {items.length - 20} more</li>}
           </ul>
         </Disclosure.Body>
       </Disclosure.Content>
@@ -639,16 +591,8 @@ function PreviewPanel({
         items={preview.profileFields.map((f) => `${f.key}: ${f.value}`)}
         label='Profile fields'
       />
-      <AggregateRow
-        emptyText='Not set'
-        items={preview.locale ? [preview.locale] : []}
-        label='Locale'
-      />
-      <AggregateRow
-        emptyText='None'
-        items={preview.groups.map((g) => g.groupName)}
-        label='Group memberships'
-      />
+      <AggregateRow emptyText='Not set' items={preview.locale ? [preview.locale] : []} label='Locale' />
+      <AggregateRow emptyText='None' items={preview.groups.map((g) => g.groupName)} label='Group memberships' />
 
       <SelectableSection
         emptyText='None'
@@ -682,16 +626,7 @@ function PreviewPanel({
   );
 }
 
-function SelectableSection({
-  emptyText,
-  helperText,
-  items,
-  itemTypeId,
-  label,
-  nameField,
-  selectedIds,
-  setSelectedIds
-}) {
+function SelectableSection({ emptyText, helperText, items, itemTypeId, label, nameField, selectedIds, setSelectedIds }) {
   const dataListItems = useMemo(
     () =>
       items.map(
@@ -720,11 +655,7 @@ function SelectableSection({
   return (
     <Disclosure>
       <Disclosure.Heading>
-        <Button
-          className='h-auto w-full justify-between px-0 py-1 font-normal'
-          slot='trigger'
-          variant='ghost'
-        >
+        <Button className='h-auto w-full justify-between px-0 py-1 font-normal' slot='trigger' variant='ghost'>
           <span className='text-sm'>{label}</span>
           <span className='flex items-center gap-1 text-xs text-muted'>
             {selectedIds.size} of {items.length}
@@ -735,8 +666,8 @@ function SelectableSection({
       <Disclosure.Content>
         <Disclosure.Body className='pt-0 pb-1 pl-2'>
           <p className='mb-1 text-xs text-muted italic'>
-            Deselecting a row only skips its direct share. The new user may still see it through
-            inherited group or Workspace access.
+            Deselecting a row only skips its direct share. The new user may still see it through inherited group or Workspace
+            access.
             {helperText ? ` ${helperText}` : ''}
           </p>
           <DataList

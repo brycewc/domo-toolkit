@@ -21,9 +21,7 @@ export async function getCodeEngineCode({ packageId, tabId, version }) {
           throw new Error('Could not determine package version');
         }
 
-        const response = await fetch(
-          `/api/codeengine/v2/packages/${packageId}/versions/${version}?parts=code`
-        );
+        const response = await fetch(`/api/codeengine/v2/packages/${packageId}/versions/${version}?parts=code`);
         if (!response.ok) {
           throw new Error(`Failed to fetch package code. HTTP status: ${response.status}`);
         }
@@ -167,9 +165,7 @@ export async function getCodeEngineEditorSource({ packageId, tabId }) {
       }
       if (!version) throw new Error('Could not determine package version for fallback');
 
-      const codeResp = await fetch(
-        `/api/codeengine/v2/packages/${packageId}/versions/${version}?parts=code`
-      );
+      const codeResp = await fetch(`/api/codeengine/v2/packages/${packageId}/versions/${version}?parts=code`);
       if (!codeResp.ok) throw new Error(`HTTP ${codeResp.status} fetching saved code`);
       const data = await codeResp.json();
       return { code: data.code || '', source: 'api', version };
@@ -246,9 +242,7 @@ export async function getCodeEnginePackageVersion(packageId, version, tabId = nu
 export async function getCodeEnginePackageVersions(packageId, tabId = null) {
   return executeInPage(
     async (packageId) => {
-      const response = await fetch(
-        `/api/codeengine/v2/packages/${packageId}?parts=versions,configuration`
-      );
+      const response = await fetch(`/api/codeengine/v2/packages/${packageId}?parts=versions,configuration`);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       return response.json();
     },
@@ -347,10 +341,9 @@ export async function postCodeEnginePackageVersion(definition, tabId = null) {
 export async function releaseCodeEnginePackageVersion(packageId, version, tabId = null) {
   return executeInPage(
     async (packageId, version) => {
-      const response = await fetch(
-        `/api/codeengine/v2/packages/${packageId}/versions/${version}/release`,
-        { method: 'POST' }
-      );
+      const response = await fetch(`/api/codeengine/v2/packages/${packageId}/versions/${version}/release`, {
+        method: 'POST'
+      });
       if (!response.ok) {
         const text = await response.text().catch(() => '');
         throw new Error(`HTTP ${response.status}${text ? `: ${text}` : ''}`);

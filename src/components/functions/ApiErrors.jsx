@@ -52,12 +52,7 @@ export function ApiErrors({ currentContext, isDisabled, onCollapseActions, onSta
         }
       >
         <IconExclamationTriangle /> View Errors
-        <Chip
-          className='h-5 w-5 items-center justify-center rounded-full'
-          color='danger'
-          size='sm'
-          variant='soft'
-        >
+        <Chip className='h-5 w-5 items-center justify-center rounded-full' color='danger' size='sm' variant='soft'>
           {errorCount}
         </Chip>
       </Button>

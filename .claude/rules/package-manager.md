@@ -1,6 +1,5 @@
 ---
 description: Use yarn as the package manager instead of npm
-alwaysApply: true
 ---
 
 # Package Manager

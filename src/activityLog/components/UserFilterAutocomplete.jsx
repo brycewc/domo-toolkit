@@ -22,13 +22,7 @@ const MAX_VISIBLE_TAGS = 5;
  * UserFilterAutocomplete Component
  * Multi-select autocomplete with async user fetching
  */
-export function UserFilterAutocomplete({
-  domoInstance,
-  onChange,
-  placeholder = 'Filter by users...',
-  tabId,
-  value = []
-}) {
+export function UserFilterAutocomplete({ domoInstance, onChange, placeholder = 'Filter by users...', tabId, value = [] }) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [users, setUsers] = useState([]);
@@ -139,11 +133,7 @@ export function UserFilterAutocomplete({
 
     setIsLoadingMore(true);
     try {
-      const { totalCount, users: fetchedUsers } = await searchUsers(
-        searchText,
-        tabId,
-        searchOffset
-      );
+      const { totalCount, users: fetchedUsers } = await searchUsers(searchText, tabId, searchOffset);
       const newUsers = [...users, ...fetchedUsers];
       setUsers(newUsers);
       setHasMore(totalCount !== null && newUsers.length < totalCount);
@@ -246,9 +236,7 @@ export function UserFilterAutocomplete({
                     </Tag>
                   ))}
                 </TagGroup.List>
-                {overflowCount > 0 && (
-                  <span className='shrink-0 text-xs text-muted'>+{overflowCount} more</span>
-                )}
+                {overflowCount > 0 && <span className='shrink-0 text-xs text-muted'>+{overflowCount} more</span>}
               </TagGroup>
             );
           }}
@@ -262,12 +250,7 @@ export function UserFilterAutocomplete({
         placement='bottom left'
       >
         <Autocomplete.Filter inputValue={searchText} onInputChange={setSearchText}>
-          <SearchField
-            autoFocus
-            aria-label='Search user filter field'
-            name='user-search'
-            variant='secondary'
-          >
+          <SearchField autoFocus aria-label='Search user filter field' name='user-search' variant='secondary'>
             <SearchField.Group>
               <SearchField.SearchIcon />
               <SearchField.Input aria-label='Search users' placeholder='Search users...' />

@@ -92,12 +92,7 @@ export function rewriteDataflowColumns(dataflowDefinition, columnMap) {
  * @param {Record<string, string>} [targetColumnTypes] - Map of NEW column name → target type.
  * @returns {Object} new view definition (input is not mutated)
  */
-export function rewriteDatasetViewColumns(
-  viewDefinition,
-  columnMap,
-  originId,
-  targetColumnTypes = null
-) {
+export function rewriteDatasetViewColumns(viewDefinition, columnMap, originId, targetColumnTypes = null) {
   const next = deepClone(viewDefinition);
   const originAliases = findOriginAliases(next, originId);
   walkDatasetViewConservative(next, columnMap, originAliases);
@@ -123,11 +118,7 @@ function alignOneUnion(setOp, originAliases, targetColumnTypes) {
 
   const originSelects = setOp.selects[originBranchIdx]?.selectItems || [];
   for (let pos = 0; pos < originSelects.length; pos++) {
-    const newType = newTypeForOriginPositionExpression(
-      originSelects[pos]?.expression,
-      originAliases,
-      targetColumnTypes
-    );
+    const newType = newTypeForOriginPositionExpression(originSelects[pos]?.expression, originAliases, targetColumnTypes);
     if (!newType) continue;
 
     for (let bi = 0; bi < setOp.selects.length; bi++) {
@@ -428,12 +419,7 @@ function walkAndRewriteColumns(node, columnMap, parentKey = null) {
 
   for (const [key, value] of Object.entries(node)) {
     // 1. Column-keyed objects — rename keys.
-    if (
-      COLUMN_KEYED_FIELDS.has(key) &&
-      value &&
-      typeof value === 'object' &&
-      !Array.isArray(value)
-    ) {
+    if (COLUMN_KEYED_FIELDS.has(key) && value && typeof value === 'object' && !Array.isArray(value)) {
       const renamed = {};
       for (const [k, v] of Object.entries(value)) {
         const nextKey = rewriteColumnName(k, columnMap);
@@ -456,14 +442,7 @@ function walkAndRewriteColumns(node, columnMap, parentKey = null) {
           value[i] = rewriteColumnName(item, columnMap);
         } else if (item && typeof item === 'object') {
           // Pick the first column-bearing field present on the item.
-          for (const fieldName of [
-            'column',
-            'columnName',
-            'inStreamName',
-            'name',
-            'field',
-            'id'
-          ]) {
+          for (const fieldName of ['column', 'columnName', 'inStreamName', 'name', 'field', 'id']) {
             if (typeof item[fieldName] === 'string') {
               item[fieldName] = rewriteColumnName(item[fieldName], columnMap);
               break;
@@ -509,8 +488,7 @@ function walkDatasetViewConservative(node, columnMap, originAliases) {
   // decide whether to rewrite its `columnName`. Pre-resolve here so the
   // string-handler below can see it without rewalking siblings.
   const siblingTableName = stripBackticks(node?.table?.name);
-  const isOriginQualified =
-    typeof siblingTableName === 'string' && originAliases.has(siblingTableName);
+  const isOriginQualified = typeof siblingTableName === 'string' && originAliases.has(siblingTableName);
 
   for (const [key, value] of Object.entries(node)) {
     if (typeof value === 'string') {

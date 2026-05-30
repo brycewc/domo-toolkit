@@ -1,15 +1,4 @@
-import {
-  Alert,
-  Button,
-  ButtonGroup,
-  Card,
-  Chip,
-  Disclosure,
-  Link,
-  ScrollShadow,
-  Spinner,
-  Tooltip
-} from '@heroui/react';
+import { Alert, Button, ButtonGroup, Card, Chip, Disclosure, Link, ScrollShadow, Spinner, Tooltip } from '@heroui/react';
 import { useEffect, useState } from 'react';
 import JsonView from 'react18-json-view';
 
@@ -18,12 +7,7 @@ import { CloseButton } from '@/components/CloseButton';
 import { useGroupLookup } from '@/hooks/useGroupLookup';
 import { useUserLookup } from '@/hooks/useUserLookup';
 import { DomoObject } from '@/models/DomoObject';
-import {
-  formatEpochTimestamp,
-  isDateFieldName,
-  isGroupFieldName,
-  isUserFieldName
-} from '@/utils/general';
+import { formatEpochTimestamp, isDateFieldName, isGroupFieldName, isUserFieldName } from '@/utils/general';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconChevronDown from '@icons/chevron-down.svg?react';
 import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
@@ -231,11 +215,7 @@ export function ObjectDetailsView({ onBackToDefault = null, onStatusUpdate = nul
           {domoObject.metadata?.details && domoObject.metadata?.details !== '{}' && (
             <Disclosure className='w-full'>
               <Disclosure.Heading>
-                <Button
-                  className='flex w-full items-center justify-between'
-                  slot='trigger'
-                  variant='ghost'
-                >
+                <Button className='flex w-full items-center justify-between' slot='trigger' variant='ghost'>
                   Full JSON
                   <Disclosure.Indicator>
                     <IconChevronDown />
@@ -257,12 +237,7 @@ export function ObjectDetailsView({ onBackToDefault = null, onStatusUpdate = nul
                       <AnimatedCheck className={className} size={16} stroke={1.5} style={style} />
                     )}
                     CopyComponent={({ className, onClick, style }) => (
-                      <IconClipboardCopy
-                        className={className}
-                        size={16}
-                        style={style}
-                        onClick={onClick}
-                      />
+                      <IconClipboardCopy className={className} size={16} style={style} onClick={onClick} />
                     )}
                     customizeNode={(params) => {
                       if (params.node === null || params.node === undefined) {
@@ -294,12 +269,7 @@ export function ObjectDetailsView({ onBackToDefault = null, onStatusUpdate = nul
                           userMap[numericValue] &&
                           (isUserFieldName(params?.indexOrName) || params?.indexOrName === 'id')
                         ) {
-                          return (
-                            <UserIdAnnotation
-                              displayName={userMap[numericValue]}
-                              value={params.node}
-                            />
-                          );
+                          return <UserIdAnnotation displayName={userMap[numericValue]} value={params.node} />;
                         }
                       }
                       if (
@@ -313,12 +283,7 @@ export function ObjectDetailsView({ onBackToDefault = null, onStatusUpdate = nul
                             isUserFieldName(params?.indexOrName) ||
                             params?.indexOrName === 'id')
                         ) {
-                          return (
-                            <GroupIdAnnotation
-                              displayName={groupMap[numericValue]}
-                              value={params.node}
-                            />
-                          );
+                          return <GroupIdAnnotation displayName={groupMap[numericValue]} value={params.node} />;
                         }
                       }
                       if (params?.indexOrName?.toLowerCase()?.includes('id')) {
@@ -328,10 +293,7 @@ export function ObjectDetailsView({ onBackToDefault = null, onStatusUpdate = nul
                         params.node?.toString().length >= 7
                       ) {
                         return { enableClipboard: true };
-                      } else if (
-                        typeof params.node === 'object' &&
-                        Object.keys(params.node).length > 0
-                      ) {
+                      } else if (typeof params.node === 'object' && Object.keys(params.node).length > 0) {
                         return { enableClipboard: true };
                       } else if (Array.isArray(params.node) && params.node.length > 0) {
                         return { enableClipboard: true };
@@ -383,8 +345,7 @@ function formatValue(value, format) {
       return value ? 'Yes' : 'No';
     case 'date': {
       // Detect epoch timestamps in seconds (10 digits) vs milliseconds (13 digits)
-      const timestamp =
-        typeof value === 'number' && value > 0 && value < 1e11 ? value * 1000 : value;
+      const timestamp = typeof value === 'number' && value > 0 && value < 1e11 ? value * 1000 : value;
       const date = new Date(timestamp);
       if (isNaN(date.getTime())) return String(value);
       return date.toLocaleString();

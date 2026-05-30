@@ -16,14 +16,11 @@ export async function checkPageType(pageId) {
     const stacksData = await stacksResponse.json();
     if (stacksData.type !== 'dav') return null;
 
-    const summaryResponse = await fetch(
-      '/api/content/v1/pages/summary?limit=1&skip=0',
-      {
-        body: JSON.stringify({ pageId }),
-        headers: { 'Content-Type': 'application/json' },
-        method: 'POST'
-      }
-    );
+    const summaryResponse = await fetch('/api/content/v1/pages/summary?limit=1&skip=0', {
+      body: JSON.stringify({ pageId }),
+      headers: { 'Content-Type': 'application/json' },
+      method: 'POST'
+    });
     if (!summaryResponse.ok) return null;
     const summaryData = await summaryResponse.json();
     const appId = summaryData.pages?.[0]?.dataAppId;
@@ -100,28 +97,21 @@ export async function deletePageAndAllCards({
     const result = await executeInPage(
       async (pageId, pageType, appId, cardIds) => {
         try {
-        // Delete all cards if there are any
+          // Delete all cards if there are any
           if (cardIds.length > 0) {
             const cardIdsString = cardIds.join(',');
-            const deleteCardsResponse = await fetch(
-              `/api/content/v1/cards/bulk?cardIds=${cardIdsString}`,
-              {
-                method: 'DELETE'
-              }
-            );
+            const deleteCardsResponse = await fetch(`/api/content/v1/cards/bulk?cardIds=${cardIdsString}`, {
+              method: 'DELETE'
+            });
 
             if (!deleteCardsResponse.ok) {
-              throw new Error(
-                `Failed to delete cards for page ${pageId}. HTTP status: ${deleteCardsResponse.status}`
-              );
+              throw new Error(`Failed to delete cards for page ${pageId}. HTTP status: ${deleteCardsResponse.status}`);
             }
           }
 
           // Delete the page
           const pageDeleteUrl =
-            pageType === 'PAGE'
-              ? `/api/content/v1/pages/${pageId}`
-              : `/api/content/v1/dataapps/${appId}/views/${pageId}`;
+            pageType === 'PAGE' ? `/api/content/v1/pages/${pageId}` : `/api/content/v1/dataapps/${appId}/views/${pageId}`;
 
           const deletePageResponse = await fetch(pageDeleteUrl, {
             method: 'DELETE'
@@ -208,31 +198,22 @@ export async function deletePageAndAllCards({
  * @returns {Promise<string>} The App ID
  * @throws {Error} If the parent cannot be fetched
  */
-export async function getAppStudioPageParent(
-  appPageId,
-  inPageContext = false,
-  tabId = null
-) {
+export async function getAppStudioPageParent(appPageId, inPageContext = false, tabId = null) {
   console.log(inPageContext, 'inPageContext');
   const fetchLogic = async (appPageId) => {
     // Use the page summary endpoint to get the parent App ID
-    const response = await fetch(
-      '/api/content/v1/pages/summary?limit=1&skip=0',
-      {
-        body: JSON.stringify({
-          pageId: appPageId
-        }),
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        method: 'POST'
-      }
-    );
+    const response = await fetch('/api/content/v1/pages/summary?limit=1&skip=0', {
+      body: JSON.stringify({
+        pageId: appPageId
+      }),
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      method: 'POST'
+    });
 
     if (!response.ok) {
-      throw new Error(
-        `Failed to fetch App Studio Page ${appPageId}. HTTP status: ${response.status}`
-      );
+      throw new Error(`Failed to fetch App Studio Page ${appPageId}. HTTP status: ${response.status}`);
     }
 
     const data = await response.json();
@@ -252,9 +233,7 @@ export async function getAppStudioPageParent(
 
   try {
     // If already in page context, execute directly; otherwise use executeInPage
-    const result = inPageContext
-      ? await fetchLogic(appPageId)
-      : await executeInPage(fetchLogic, [appPageId], tabId);
+    const result = inPageContext ? await fetchLogic(appPageId) : await executeInPage(fetchLogic, [appPageId], tabId);
 
     return result;
   } catch (error) {
@@ -273,13 +252,7 @@ export async function getAppStudioPageParent(
  * @returns {Promise<Array>} Array of page objects (includes both children and grandchildren if requested)
  * @throws {Error} If the fetch fails
  */
-export async function getChildPages({
-  appId = null,
-  includeGrandchildren = false,
-  pageId,
-  pageType,
-  tabId = null
-}) {
+export async function getChildPages({ appId = null, includeGrandchildren = false, pageId, pageType, tabId = null }) {
   try {
     // Execute fetch in page context to use authenticated session
     const result = await executeInPage(
@@ -296,17 +269,14 @@ export async function getChildPages({
           body.parentPageIds = [pageId];
 
           // Make API call to fetch pages with relative URL
-          const response = await fetch(
-            '/api/content/v1/pages/adminsummary?limit=100&skip=0',
-            {
-              body: JSON.stringify(body),
-              headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json'
-              },
-              method: 'POST'
-            }
-          );
+          const response = await fetch('/api/content/v1/pages/adminsummary?limit=100&skip=0', {
+            body: JSON.stringify(body),
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json'
+            },
+            method: 'POST'
+          });
 
           if (!response.ok) {
             throw new Error(`Failed to fetch pages (HTTP ${response.status})`);
@@ -326,22 +296,17 @@ export async function getChildPages({
               parentPageIds: grandchildPageIds
             };
 
-            const grandchildrenResponse = await fetch(
-              '/api/content/v1/pages/adminsummary?limit=100&skip=0',
-              {
-                body: JSON.stringify(grandchildrenBody),
-                headers: {
-                  'Accept': 'application/json',
-                  'Content-Type': 'application/json'
-                },
-                method: 'POST'
-              }
-            );
+            const grandchildrenResponse = await fetch('/api/content/v1/pages/adminsummary?limit=100&skip=0', {
+              body: JSON.stringify(grandchildrenBody),
+              headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+              },
+              method: 'POST'
+            });
 
             if (!grandchildrenResponse.ok) {
-              console.warn(
-                `Failed to fetch grandchildren pages (HTTP ${grandchildrenResponse.status})`
-              );
+              console.warn(`Failed to fetch grandchildren pages (HTTP ${grandchildrenResponse.status})`);
               return childPages;
             }
 
@@ -355,9 +320,7 @@ export async function getChildPages({
           const appResponse = await fetch(`/api/content/v1/dataapps/${appId}`);
 
           if (!appResponse.ok) {
-            throw new Error(
-              `Failed to fetch app studio app ${appId} (HTTP ${appResponse.status})`
-            );
+            throw new Error(`Failed to fetch app studio app ${appId} (HTTP ${appResponse.status})`);
           }
 
           const appData = await appResponse.json();
@@ -396,21 +359,18 @@ export async function getOwnedPages(userId, tabId = null) {
       let skip = 0;
 
       while (moreData) {
-        const response = await fetch(
-          `/api/content/v1/pages/adminsummary?limit=${limit}&skip=${skip}`,
-          {
-            body: JSON.stringify({
-              addPageWithNoOwner: false,
-              ascending: true,
-              groupOwnerIds: [],
-              includePageOwnerClause: 1,
-              orderBy: 'pageTitle',
-              ownerIds: [userId]
-            }),
-            headers: { 'Content-Type': 'application/json' },
-            method: 'POST'
-          }
-        );
+        const response = await fetch(`/api/content/v1/pages/adminsummary?limit=${limit}&skip=${skip}`, {
+          body: JSON.stringify({
+            addPageWithNoOwner: false,
+            ascending: true,
+            groupOwnerIds: [],
+            includePageOwnerClause: 1,
+            orderBy: 'pageTitle',
+            ownerIds: [userId]
+          }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
 
@@ -514,8 +474,7 @@ export async function getPagesForCards(cardIds, tabId = null) {
                     appId: page.appId,
                     appName: page.appTitle || `App ${page.appId}`,
                     id: page.appPageId,
-                    name:
-                      page.appPageTitle || `Worksheet View ${page.appPageId}`
+                    name: page.appPageTitle || `Worksheet View ${page.appPageId}`
                   });
                 } else {
                   allAppPages.push({
@@ -535,8 +494,7 @@ export async function getPagesForCards(cardIds, tabId = null) {
               if (page && page.reportPageId) {
                 allReportPages.push({
                   id: page.reportPageId,
-                  name:
-                    page.reportPageTitle || `Report Page ${page.reportPageId}`
+                  name: page.reportPageTitle || `Report Page ${page.reportPageId}`
                 });
                 addCardToPage(page.reportPageId, card);
               }
@@ -612,9 +570,7 @@ export async function getPagesForCards(cardIds, tabId = null) {
 export async function getSubpageIds({ pageId, tabId = null }) {
   return executeInPage(
     async (pageId) => {
-      const response = await fetch(
-        `/api/content/v1/pages/${pageId}/subpages`
-      );
+      const response = await fetch(`/api/content/v1/pages/${pageId}/subpages`);
       if (!response.ok) {
         throw new Error(`Failed to fetch subpages (HTTP ${response.status})`);
       }
@@ -677,43 +633,31 @@ export async function sharePages({ pageIds, tabId, userId }) {
  * @param {number|null} tabId - Optional Chrome tab ID
  * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
  */
-export async function transferPages(
-  pageIds,
-  fromUserId,
-  toUserId,
-  tabId = null
-) {
+export async function transferPages(pageIds, fromUserId, toUserId, tabId = null) {
   return executeInPage(
     async (pageIds, fromUserId, toUserId) => {
       try {
         // Add new owner
-        const addResponse = await fetch(
-          '/api/content/v1/pages/bulk/owners',
-          {
-            body: JSON.stringify({
-              owners: [{ id: toUserId, type: 'USER' }],
-              pageIds
-            }),
-            headers: { 'Content-Type': 'application/json' },
-            method: 'PUT'
-          }
-        );
+        const addResponse = await fetch('/api/content/v1/pages/bulk/owners', {
+          body: JSON.stringify({
+            owners: [{ id: toUserId, type: 'USER' }],
+            pageIds
+          }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'PUT'
+        });
         if (!addResponse.ok) throw new Error(`HTTP ${addResponse.status}`);
 
         // Remove old owner
-        const removeResponse = await fetch(
-          '/api/content/v1/pages/bulk/owners/remove',
-          {
-            body: JSON.stringify({
-              owners: [{ id: parseInt(fromUserId), type: 'USER' }],
-              pageIds
-            }),
-            headers: { 'Content-Type': 'application/json' },
-            method: 'POST'
-          }
-        );
-        if (!removeResponse.ok)
-          throw new Error(`HTTP ${removeResponse.status}`);
+        const removeResponse = await fetch('/api/content/v1/pages/bulk/owners/remove', {
+          body: JSON.stringify({
+            owners: [{ id: parseInt(fromUserId), type: 'USER' }],
+            pageIds
+          }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        });
+        if (!removeResponse.ok) throw new Error(`HTTP ${removeResponse.status}`);
 
         return { errors: [], failed: 0, succeeded: pageIds.length };
       } catch (error) {

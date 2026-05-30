@@ -26,14 +26,7 @@ const ISO_DATETIME_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/;
  * @param {Function} [props.resolveTabId] - Async function that resolves a valid tab ID
  * @param {Function} props.onClose - Close handler
  */
-export function DataPreviewPanel({
-  cacheRef,
-  datasetId,
-  datasetName,
-  heightRef,
-  onClose,
-  resolveTabId
-}) {
+export function DataPreviewPanel({ cacheRef, datasetId, datasetName, heightRef, onClose, resolveTabId }) {
   const cached = cacheRef?.current?.get(datasetId);
   const [preview, setPreview] = useState(cached ?? null);
   const [loading, setLoading] = useState(!cached);
@@ -124,10 +117,7 @@ export function DataPreviewPanel({
       variant='default'
     >
       {/* Resize handle */}
-      <div
-        className='flex h-1.5 shrink-0 cursor-ns-resize items-center justify-center'
-        onPointerDown={handlePointerDown}
-      >
+      <div className='flex h-1.5 shrink-0 cursor-ns-resize items-center justify-center' onPointerDown={handlePointerDown}>
         <div className='h-0.5 w-8 rounded-full bg-surface' />
       </div>
 
@@ -284,10 +274,7 @@ function VirtualTable({ datasetName, headers, rows }) {
                   <Table.Collection items={columns}>
                     {(column) => (
                       <Table.Cell className='border-divider flex h-full items-center border-b border-l p-1'>
-                        <span
-                          className='truncate font-mono text-xs'
-                          title={String(item.row[column.index] ?? 'null')}
-                        >
+                        <span className='truncate font-mono text-xs' title={String(item.row[column.index] ?? 'null')}>
                           {formatCell(item.row[column.index])}
                         </span>
                       </Table.Cell>

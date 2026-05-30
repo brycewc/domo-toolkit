@@ -9,10 +9,7 @@ import { executeInPage } from '@/utils/executeInPage';
 export async function deleteFunction({ functionId, tabId = null }) {
   return executeInPage(
     async (functionId) => {
-      const response = await fetch(
-        `/api/query/v1/functions/template/${functionId}`,
-        { method: 'DELETE' }
-      );
+      const response = await fetch(`/api/query/v1/functions/template/${functionId}`, { method: 'DELETE' });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
     },
     [functionId],
@@ -79,12 +76,7 @@ export async function getOwnedFunctions(userId, tabId = null) {
  * @param {number|null} tabId - Optional Chrome tab ID
  * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
  */
-export async function transferFunctions(
-  functionIds,
-  fromUserId,
-  toUserId,
-  tabId = null
-) {
+export async function transferFunctions(functionIds, fromUserId, toUserId, tabId = null) {
   return executeInPage(
     async (functionIds, fromUserId, toUserId) => {
       const errors = [];
@@ -94,9 +86,7 @@ export async function transferFunctions(
 
       for (const id of functionIds) {
         try {
-          const response = await fetch(
-            `/api/query/v1/functions/template/${id}?hidden=true`
-          );
+          const response = await fetch(`/api/query/v1/functions/template/${id}?hidden=true`);
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           const func = await response.json();
 
@@ -123,9 +113,7 @@ export async function transferFunctions(
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           succeeded += chunk.length;
         } catch (error) {
-          chunk.forEach((f) =>
-            errors.push({ error: error.message, id: f.id })
-          );
+          chunk.forEach((f) => errors.push({ error: error.message, id: f.id }));
         }
       }
 

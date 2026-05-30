@@ -1,7 +1,9 @@
 ---
 description: Release checklist for version bumps and publishing
-globs: package.json,src/data/releases.js,docs/RELEASE_NOTES.md
-alwaysApply: false
+paths:
+  - 'package.json'
+  - 'src/data/releases.js'
+  - 'docs/RELEASE_NOTES.md'
 ---
 
 # Release Process
@@ -56,6 +58,7 @@ When scanning `git log` for release notes, for each "fix" commit ask:
 - **Unsure** → Add the bullet with an italic uncertainty marker (e.g., `_(verify this shipped in v{prior} before including)_`) and resolve during the polish pass.
 
 Examples:
+
 - "Fixed subscriptions not fetching for transfer ownership" during a version that **adds** Transfer Ownership → skip (iteration).
 - "Fixed subscriptions not fetching for Get Card Pages" during a version after Get Card Pages has shipped → include (real bug fix).
 - "Fixed side panel state not syncing across windows" → include (side panel shipped long ago).
@@ -63,11 +66,11 @@ Examples:
 
 ### Changes whose baseline never shipped
 
-"Commits are save/sync points" above is one instance of a broader rule: **release notes describe only the net delta between the last released version and the next one.** The litmus is not limited to commits with "fix" in the title. For *any* change, ask whether the state it moves away from was ever in users' hands.
+"Commits are save/sync points" above is one instance of a broader rule: **release notes describe only the net delta between the last released version and the next one.** The litmus is not limited to commits with "fix" in the title. For _any_ change, ask whether the state it moves away from was ever in users' hands.
 
-The case most likely to fool you is a **dependency or library upgrade performed on the current branch.** Bumping HeroUI, React, Tailwind, etc. can change default styling or behavior with no intent on your part. Reacting to that, whether by restoring the prior look or by adapting to new APIs, is invisible to users who never ran the intermediate version, so none of that adaptation work is a release-note item. What *is* loggable is any net, intentional difference the upgrade leaves between the last release and the next (for example, a genuinely new component capability you chose to expose).
+The case most likely to fool you is a **dependency or library upgrade performed on the current branch.** Bumping HeroUI, React, Tailwind, etc. can change default styling or behavior with no intent on your part. Reacting to that, whether by restoring the prior look or by adapting to new APIs, is invisible to users who never ran the intermediate version, so none of that adaptation work is a release-note item. What _is_ loggable is any net, intentional difference the upgrade leaves between the last release and the next (for example, a genuinely new component capability you chose to expose).
 
-Worked example: on the unreleased 1.3.1 branch, HeroUI v3 began deriving every component's corner radius from the global `--radius`. Under this project's deliberately low `--radius`, avatars and switches that were fully rounded started rendering boxy, so they were forced back to fully rounded. That work restores the *pre-upgrade* appearance, meaning a user updating from the last release sees no change in those components. It must NOT appear in the release notes, even though in isolation it reads like a tidy "UI improvement." The same logic covers a regression both introduced and fixed within one unreleased branch: net zero for users, so skip it.
+Worked example: on the unreleased 1.3.1 branch, HeroUI v3 began deriving every component's corner radius from the global `--radius`. Under this project's deliberately low `--radius`, avatars and switches that were fully rounded started rendering boxy, so they were forced back to fully rounded. That work restores the _pre-upgrade_ appearance, meaning a user updating from the last release sees no change in those components. It must NOT appear in the release notes, even though in isolation it reads like a tidy "UI improvement." The same logic covers a regression both introduced and fixed within one unreleased branch: net zero for users, so skip it.
 
 ### Version bump signaling
 
@@ -103,6 +106,7 @@ Add a new object to the **beginning** of the `releases` array (newest-first). Fi
 ```
 
 **`notify` values:**
+
 - `'fullPage'`: Auto-opens release notes in new tab. Use for minor/major releases.
 - `'badge'`: Shows "NEW" badge on icon + toast in popup/sidepanel. Use for notable patches. Clears when user visits `#release-notes`.
 - `'silent'`: No notification. Use for trivial patches. Updates `lastSeenVersion` automatically.

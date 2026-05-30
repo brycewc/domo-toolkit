@@ -20,9 +20,7 @@ export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
     if (!typeModel?.copyConfigs || !domoObject) return [];
 
     const resolve = (source) =>
-      typeof source === 'function'
-        ? source(domoObject)
-        : source.split('.').reduce((cur, key) => cur?.[key], domoObject);
+      typeof source === 'function' ? source(domoObject) : source.split('.').reduce((cur, key) => cur?.[key], domoObject);
 
     const isVisible = (config) => {
       if (!config.when) return !!resolve(config.source);
@@ -53,19 +51,9 @@ export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
       navigator.clipboard.writeText(copy.value);
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
-      onStatusUpdate?.(
-        'Success',
-        `Copied ${copy.label} **${copy.value}** to clipboard`,
-        'success',
-        2000
-      );
+      onStatusUpdate?.('Success', `Copied ${copy.label} **${copy.value}** to clipboard`, 'success', 2000);
     } catch (error) {
-      onStatusUpdate?.(
-        'Error',
-        `Failed to copy ${copy.label.toLowerCase()} to clipboard`,
-        'error',
-        3000
-      );
+      onStatusUpdate?.('Error', `Failed to copy ${copy.label.toLowerCase()} to clipboard`, 'error', 3000);
     }
   };
 
@@ -73,12 +61,7 @@ export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
     const item = dropdownItems.find((i) => i.id === key);
     if (!item) return;
     navigator.clipboard.writeText(item.value);
-    onStatusUpdate?.(
-      'Success',
-      `Copied ${item.label.replace('Copy ', '')} **${item.value}** to clipboard`,
-      'success',
-      2000
-    );
+    onStatusUpdate?.('Success', `Copied ${item.label.replace('Copy ', '')} **${item.value}** to clipboard`, 'success', 2000);
   };
 
   return (
@@ -104,11 +87,7 @@ export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
             <span>Copy {primaryConfig?.label || 'ID'}</span>
             <Kbd className='text-xs'>
               <Kbd.Abbr
-                keyValue={
-                  (navigator.userAgentData?.platform ?? navigator.platform).includes('Mac')
-                    ? 'command'
-                    : 'ctrl'
-                }
+                keyValue={(navigator.userAgentData?.platform ?? navigator.platform).includes('Mac') ? 'command' : 'ctrl'}
               />
               <Kbd.Abbr keyValue='shift' />
               <Kbd.Content>1</Kbd.Content>

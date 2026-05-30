@@ -67,8 +67,7 @@ export const EXPORT_FORMATS = {
     extension: 'xlsx'
   },
   powerpoint: {
-    accept:
-      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    accept: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     extension: 'pptx'
   }
 };

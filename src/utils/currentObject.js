@@ -135,9 +135,7 @@ export async function detectCurrentObject() {
           // console.log('Fetching App Studio object type...');
           // Need to fetch to determine if Worksheet or Data App
           try {
-            const response = await fetch(
-              `/api/content/v1/dataapps/${parts[parts.indexOf('app-studio') + 1]}`
-            );
+            const response = await fetch(`/api/content/v1/dataapps/${parts[parts.indexOf('app-studio') + 1]}`);
             // console.log('Fetch response received:', response);
             if (response.ok) {
               const data = await response.json();
@@ -216,17 +214,12 @@ export async function detectCurrentObject() {
             const modelId = parts[workflowsIdx + 2];
             const version = parts[workflowsIdx + 3];
 
-            const defResponse = await fetch(
-              `/api/workflow/v2/models/${modelId}/versions/${version}/definition`
-            );
+            const defResponse = await fetch(`/api/workflow/v2/models/${modelId}/versions/${version}/definition`);
             if (defResponse.ok) {
               const definition = await defResponse.json();
               const element = (definition.designElements || []).find((el) => el.id === nodeId);
 
-              if (
-                element?.data?.taskType === 'nebulaFunction' &&
-                element.data.metadata?.packageId
-              ) {
+              if (element?.data?.taskType === 'nebulaFunction' && element.data.metadata?.packageId) {
                 if (element.data.metadata.version) {
                   return {
                     baseUrl: `${location.protocol}//${location.hostname}`,
@@ -572,9 +565,7 @@ export async function getValidTabForInstance(instance) {
     return matchingTabs[0].id;
   }
 
-  throw new Error(
-    `No open tab found for ${instance}.domo.com. Please open a tab on that Domo instance and try again.`
-  );
+  throw new Error(`No open tab found for ${instance}.domo.com. Please open a tab on that Domo instance and try again.`);
 }
 
 /**

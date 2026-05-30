@@ -72,17 +72,14 @@ export async function getOwnedTaskCenterTasks(userId, tabId = null) {
       let offset = 0;
 
       while (moreData) {
-        const response = await fetch(
-          `/api/queues/v1/tasks/list?limit=${limit}&offset=${offset}`,
-          {
-            body: JSON.stringify({
-              assignedTo: [userId],
-              status: ['OPEN']
-            }),
-            headers: { 'Content-Type': 'application/json' },
-            method: 'POST'
-          }
-        );
+        const response = await fetch(`/api/queues/v1/tasks/list?limit=${limit}&offset=${offset}`, {
+          body: JSON.stringify({
+            assignedTo: [userId],
+            status: ['OPEN']
+          }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
 
@@ -116,12 +113,7 @@ export async function getOwnedTaskCenterTasks(userId, tabId = null) {
  * @param {number|null} tabId - Optional Chrome tab ID
  * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
  */
-export async function transferTaskCenterQueues(
-  queueIds,
-  fromUserId,
-  toUserId,
-  tabId = null
-) {
+export async function transferTaskCenterQueues(queueIds, fromUserId, toUserId, tabId = null) {
   return executeInPage(
     async (queueIds, fromUserId, toUserId) => {
       const errors = [];
@@ -129,13 +121,10 @@ export async function transferTaskCenterQueues(
 
       for (const id of queueIds) {
         try {
-          const response = await fetch(
-            `/api/queues/v1/${id}/owner/${toUserId}`,
-            {
-              headers: { 'Content-Type': 'application/json' },
-              method: 'PUT'
-            }
-          );
+          const response = await fetch(`/api/queues/v1/${id}/owner/${toUserId}`, {
+            headers: { 'Content-Type': 'application/json' },
+            method: 'PUT'
+          });
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           succeeded++;
         } catch (error) {
@@ -158,12 +147,7 @@ export async function transferTaskCenterQueues(
  * @param {number|null} tabId - Optional Chrome tab ID
  * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
  */
-export async function transferTaskCenterTasks(
-  tasks,
-  fromUserId,
-  toUserId,
-  tabId = null
-) {
+export async function transferTaskCenterTasks(tasks, fromUserId, toUserId, tabId = null) {
   return executeInPage(
     async (tasks, fromUserId, toUserId) => {
       const errors = [];
@@ -175,18 +159,15 @@ export async function transferTaskCenterTasks(
           continue;
         }
         try {
-          const response = await fetch(
-            `/api/queues/v1/${task.queueId}/tasks/${task.id}/assign`,
-            {
-              body: JSON.stringify({
-                taskIds: [task.id],
-                type: 'USER',
-                userId: toUserId
-              }),
-              headers: { 'Content-Type': 'application/json' },
-              method: 'PUT'
-            }
-          );
+          const response = await fetch(`/api/queues/v1/${task.queueId}/tasks/${task.id}/assign`, {
+            body: JSON.stringify({
+              taskIds: [task.id],
+              type: 'USER',
+              userId: toUserId
+            }),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'PUT'
+          });
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           succeeded++;
         } catch (error) {

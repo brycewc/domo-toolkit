@@ -25,8 +25,7 @@ export async function waitForCards(currentContext, maxAttempts = 50) {
   // 3. [...]: Has items
 
   const isSet = (v) => v !== undefined && v !== null;
-  const allResolved = () =>
-    isSet(cards) && (!hasFormsAndQueues || (isSet(forms) && isSet(queues)));
+  const allResolved = () => isSet(cards) && (!hasFormsAndQueues || (isSet(forms) && isSet(queues)));
 
   if (!allResolved()) {
     console.log('[cardHelpers] Page items not yet loaded, waiting...');

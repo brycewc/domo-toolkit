@@ -190,9 +190,7 @@ const FETCHERS = {
 
     const [datasetInfo, dependentCount, approvalCount] = await Promise.all([
       datasetId ? searchDatasets(datasetId, tabId) : Promise.resolve(null),
-      datasetId
-        ? getDatasetDependentCount({ datasetId, tabId }).catch(() => 0)
-        : Promise.resolve(0),
+      datasetId ? getDatasetDependentCount({ datasetId, tabId }).catch(() => 0) : Promise.resolve(0),
       getTemplateApprovalCount(id, tabId).catch(() => null)
     ]);
 
@@ -257,11 +255,7 @@ const FETCHERS = {
  *   appSummary: {cardCount: number, cardIds: number[], pageCount: number}|null
  * }>}
  */
-export async function getDependenciesForDelete({
-  instance,
-  object,
-  tabId = null
-}) {
+export async function getDependenciesForDelete({ instance, object, tabId = null }) {
   const fetcher = FETCHERS[object.typeId];
   if (!fetcher) {
     return {

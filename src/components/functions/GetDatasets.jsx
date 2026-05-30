@@ -17,8 +17,7 @@ export function GetDatasets({ currentContext, isDisabled, onCollapseActions, onS
     dropdownItems = [{ id: 'getAppDatasets', label: 'Get Worksheet DataSets' }];
   }
 
-  const longPressDisabled =
-    isDisabled || !currentContext?.domoObject?.id || dropdownItems.length === 0;
+  const longPressDisabled = isDisabled || !currentContext?.domoObject?.id || dropdownItems.length === 0;
 
   const handleAction = async (key) => {
     if (key !== 'getAppDatasets') return;

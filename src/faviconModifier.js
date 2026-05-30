@@ -95,11 +95,7 @@ export async function applyFaviconRules(rules) {
   } else if (matchingRule.effect === 'domo-logo-colored') {
     faviconDataUrl = await applyDomoLogoColored(favicon, matchingRule.color);
   } else {
-    faviconDataUrl = await applyColorEffect(
-      favicon,
-      matchingRule.effect,
-      matchingRule.color
-    );
+    faviconDataUrl = await applyColorEffect(favicon, matchingRule.effect, matchingRule.color);
   }
 
   // Cache the result (except for instance-logo)

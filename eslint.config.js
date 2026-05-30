@@ -9,10 +9,7 @@ export default defineConfig([
     ignores: ['**', '!src/**']
   },
   {
-    extends: [
-      js.configs.recommended,
-      perfectionist.configs['recommended-alphabetical']
-    ],
+    extends: [js.configs.recommended, perfectionist.configs['recommended-alphabetical']],
     files: ['**/*.{js,jsx}'],
     languageOptions: {
       globals: {
@@ -46,10 +43,7 @@ export default defineConfig([
       '@stylistic/jsx-equals-spacing': ['error', 'never'],
       '@stylistic/jsx-first-prop-new-line': ['error', 'multiline'],
       '@stylistic/jsx-indent-props': ['error', 2],
-      '@stylistic/jsx-max-props-per-line': [
-        'error',
-        { maximum: 1, when: 'multiline' }
-      ],
+      '@stylistic/jsx-max-props-per-line': ['error', { maximum: 1, when: 'multiline' }],
       '@stylistic/jsx-quotes': ['error', 'prefer-single'],
       '@stylistic/jsx-tag-spacing': [
         'error',
@@ -61,10 +55,7 @@ export default defineConfig([
         }
       ],
       '@stylistic/jsx-wrap-multilines': 'off',
-      '@stylistic/key-spacing': [
-        'error',
-        { afterColon: true, beforeColon: false }
-      ],
+      '@stylistic/key-spacing': ['error', { afterColon: true, beforeColon: false }],
       '@stylistic/keyword-spacing': ['error', { after: true, before: true }],
       '@stylistic/linebreak-style': ['error', 'unix'],
       '@stylistic/new-parens': ['error', 'always'],
@@ -75,10 +66,7 @@ export default defineConfig([
       '@stylistic/no-trailing-spaces': 'error',
       '@stylistic/object-curly-newline': ['error', { consistent: true }],
       '@stylistic/object-curly-spacing': ['error', 'always'],
-      '@stylistic/object-property-newline': [
-        'error',
-        { allowAllPropertiesOnSameLine: true }
-      ],
+      '@stylistic/object-property-newline': ['error', { allowAllPropertiesOnSameLine: true }],
       '@stylistic/padded-blocks': ['error', 'never'],
       '@stylistic/quote-props': ['error', 'consistent'],
       '@stylistic/quotes': ['error', 'single', { avoidEscape: true }],
@@ -86,17 +74,11 @@ export default defineConfig([
       '@stylistic/semi': ['error', 'always'],
       '@stylistic/semi-spacing': ['error', { after: true, before: false }],
       '@stylistic/space-before-blocks': ['error', 'always'],
-      '@stylistic/space-before-function-paren': [
-        'error',
-        { anonymous: 'never', asyncArrow: 'always', named: 'never' }
-      ],
+      '@stylistic/space-before-function-paren': ['error', { anonymous: 'never', asyncArrow: 'always', named: 'never' }],
       '@stylistic/space-in-parens': ['error', 'never'],
       '@stylistic/space-infix-ops': 'error',
       '@stylistic/spaced-comment': ['error', 'always'],
-      '@stylistic/switch-colon-spacing': [
-        'error',
-        { after: true, before: false }
-      ],
+      '@stylistic/switch-colon-spacing': ['error', { after: true, before: false }],
       '@stylistic/template-curly-spacing': ['error', 'never'],
       '@stylistic/template-tag-spacing': ['error', 'never'],
       'no-unused-vars': [

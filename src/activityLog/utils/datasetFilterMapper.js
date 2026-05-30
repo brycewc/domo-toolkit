@@ -43,13 +43,7 @@ export function buildWhere({ actions, dateRange, objectIds, objectTypes, userIds
   if (actions?.length > 0) predicates.push(expr.in('Action', actions));
   if (userIds?.length > 0) predicates.push(expr.in('Source_ID', userIds));
   if (dateRange?.start && dateRange?.end) {
-    predicates.push(
-      expr.between(
-        'Event_Time',
-        formatEventTimeBound(dateRange.start),
-        formatEventTimeBound(dateRange.end)
-      )
-    );
+    predicates.push(expr.between('Event_Time', formatEventTimeBound(dateRange.start), formatEventTimeBound(dateRange.end)));
   }
 
   if (predicates.length === 0) return null;

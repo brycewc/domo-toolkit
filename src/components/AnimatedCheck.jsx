@@ -10,11 +10,7 @@ import { motion } from 'motion/react';
  * @param {number} [props.stroke=1.5] - Stroke width
  * @param {string} [props.className] - Additional CSS classes
  */
-export function AnimatedCheck({
-  className = 'text-success',
-  stroke = 1.5,
-  ...props
-}) {
+export function AnimatedCheck({ className = 'text-success', stroke = 1.5, ...props }) {
   return (
     <motion.svg
       className={className}

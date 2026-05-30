@@ -80,24 +80,18 @@ export async function bulkUpdateUsers(users, tabId = null) {
  * @param {number|null} [tabId]
  * @returns {Promise<{id: number, displayName: string, email: string}|null>}
  */
-export async function createUser(
-  { displayName, email, roleId, sendInvite = true },
-  tabId = null
-) {
+export async function createUser({ displayName, email, roleId, sendInvite = true }, tabId = null) {
   return executeInPage(
     async (displayName, email, roleId, sendInvite) => {
-      const response = await fetch(
-        `/api/content/v3/users?sendInvite=${sendInvite}`,
-        {
-          body: JSON.stringify({
-            detail: { email },
-            displayName,
-            roleId
-          }),
-          headers: { 'Content-Type': 'application/json' },
-          method: 'POST'
-        }
-      );
+      const response = await fetch(`/api/content/v3/users?sendInvite=${sendInvite}`, {
+        body: JSON.stringify({
+          detail: { email },
+          displayName,
+          roleId
+        }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST'
+      });
       if (!response.ok) return null;
       const data = await response.json();
       const id = data?.id ?? data?.userId ?? null;
@@ -133,9 +127,7 @@ export async function deleteUser(userId, tabId = null) {
 export async function fetchUserDisplayNames(userIds, tabId = null) {
   return executeInPage(
     async (ids) => {
-      const response = await fetch(
-        `/api/content/v3/users?id=${ids.join(',')}`
-      );
+      const response = await fetch(`/api/content/v3/users?id=${ids.join(',')}`);
       if (!response.ok) return {};
       const users = await response.json();
       const map = {};
@@ -162,9 +154,7 @@ export async function getCustomAvatarUserIds(userIds, tabId = null) {
     async (userIds) => {
       if (!window.__domoDefaultAvatarSize) {
         try {
-          const res = await fetch(
-            '/api/content/v1/avatar/USER/0?size=100'
-          );
+          const res = await fetch('/api/content/v1/avatar/USER/0?size=100');
           const blob = await res.blob();
           window.__domoDefaultAvatarSize = blob.size;
         } catch {
@@ -199,9 +189,7 @@ export async function getCustomAvatarUserIds(userIds, tabId = null) {
 export async function getFullUserDetails(userId, tabId = null) {
   return executeInPage(
     async (userId) => {
-      const response = await fetch(
-        `/api/identity/v1/users/${userId}?parts=DETAILED`
-      );
+      const response = await fetch(`/api/identity/v1/users/${userId}?parts=DETAILED`);
       if (!response.ok) return null;
       const data = await response.json();
       return data?.users?.[0] ?? data ?? null;
@@ -289,9 +277,7 @@ export async function getUserName(userId, tabId = null) {
 export async function getUserReportsTo(userId, tabId = null) {
   return executeInPage(
     async (userId) => {
-      const response = await fetch(
-        `/api/content/v2/users/${userId}/teams`
-      );
+      const response = await fetch(`/api/content/v2/users/${userId}/teams`);
       if (!response.ok) return null;
       const data = await response.json();
       return data.reportsTo?.[0]?.userId ?? null;

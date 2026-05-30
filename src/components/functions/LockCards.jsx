@@ -5,13 +5,7 @@ import { getCardsForObject, lockCards } from '@/services/cards';
 import { waitForCards } from '@/utils/cardHelpers';
 import IconLockClosed from '@icons/lock-closed.svg?react';
 
-const VALID_TYPES = [
-  'DATA_APP_VIEW',
-  'DATA_SOURCE',
-  'PAGE',
-  'REPORT_BUILDER_VIEW',
-  'WORKSHEET_VIEW'
-];
+const VALID_TYPES = ['DATA_APP_VIEW', 'DATA_SOURCE', 'PAGE', 'REPORT_BUILDER_VIEW', 'WORKSHEET_VIEW'];
 
 const PRE_FETCHED_TYPES = ['DATA_APP_VIEW', 'DATA_SOURCE', 'PAGE', 'WORKSHEET_VIEW'];
 
@@ -27,11 +21,7 @@ export function LockCards({ currentContext, isDisabled }) {
     const objectType = currentContext.domoObject.typeId;
 
     if (!VALID_TYPES.includes(objectType)) {
-      showStatus(
-        'Invalid Object Type',
-        `This function does not support ${currentContext.domoObject.typeName}.`,
-        'danger'
-      );
+      showStatus('Invalid Object Type', `This function does not support ${currentContext.domoObject.typeName}.`, 'danger');
       return;
     }
 

@@ -102,10 +102,9 @@ export class DomoObjectType {
           try {
             parentId = await domoObject.getParent(false, null, tabId);
           } catch (error) {
-            throw new Error(
-              `Parent ID is required for ${this.id} and could not be fetched: ${error.message}`,
-              { cause: error }
-            );
+            throw new Error(`Parent ID is required for ${this.id} and could not be fetched: ${error.message}`, {
+              cause: error
+            });
           }
         } else {
           throw new Error(`Parent ID is required for ${this.id}`);
@@ -291,20 +290,12 @@ export const ObjectTypeRegistry = {
   ADC_COLUMN_POLICY: new DomoObjectType('ADC_COLUMN_POLICY', 'Column PDP Policy', {
     idPattern: /^\d+$/
   }),
-  ADC_COLUMN_POLICY_GROUP: new DomoObjectType(
-    'ADC_COLUMN_POLICY_GROUP',
-    'Column PDP Policy Group',
-    {
-      idPattern: /^\d+$/
-    }
-  ),
-  ADC_COLUMN_POLICY_MAPPING: new DomoObjectType(
-    'ADC_COLUMN_POLICY_MAPPING',
-    'Column PDP Policy Mapping',
-    {
-      idPattern: /.*/
-    }
-  ),
+  ADC_COLUMN_POLICY_GROUP: new DomoObjectType('ADC_COLUMN_POLICY_GROUP', 'Column PDP Policy Group', {
+    idPattern: /^\d+$/
+  }),
+  ADC_COLUMN_POLICY_MAPPING: new DomoObjectType('ADC_COLUMN_POLICY_MAPPING', 'Column PDP Policy Mapping', {
+    idPattern: /.*/
+  }),
   ADC_FILTER: new DomoObjectType('ADC_FILTER', 'PDP Filter', {
     idPattern: /^\d+$/
   }),
@@ -418,8 +409,7 @@ export const ObjectTypeRegistry = {
   }),
   CARD: new DomoObjectType('CARD', 'Card', {
     api: {
-      endpoint:
-        '/content/v1/cards?urns={id}&includeFiltered=true&parts=metadata,datasources,domoapp,owners',
+      endpoint: '/content/v1/cards?urns={id}&includeFiltered=true&parts=metadata,datasources,domoapp,owners',
       pathToDetails: '[0]',
       pathToName: '[0].title'
     },
@@ -506,39 +496,35 @@ export const ObjectTypeRegistry = {
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     urlPath: '/codeengine/{id}'
   }),
-  CODEENGINE_PACKAGE_VERSION: new DomoObjectType(
-    'CODEENGINE_PACKAGE_VERSION',
-    'Code Engine Package Version',
-    {
-      api: {
-        displayName: '{parent.name} - {id}',
-        endpoint: '/codeengine/v2/packages/{parent}/versions/{id}?parts=functions,privateFunctions',
-        pathToName: 'version'
+  CODEENGINE_PACKAGE_VERSION: new DomoObjectType('CODEENGINE_PACKAGE_VERSION', 'Code Engine Package Version', {
+    api: {
+      displayName: '{parent.name} - {id}',
+      endpoint: '/codeengine/v2/packages/{parent}/versions/{id}?parts=functions,privateFunctions',
+      pathToName: 'version'
+    },
+    copyConfigs: [
+      { label: 'Package ID', primary: true, source: 'parentId' },
+      { label: 'Version Number', source: 'id' }
+    ],
+    icon: { component: 'Code' },
+    idPattern: /^[0-9]+\.[0-9]+\.[0-9]+$/,
+    parents: ['CODEENGINE_PACKAGE'],
+    relatedData: [
+      { label: 'Package Version', source: 'self' },
+      { label: 'Code Engine', source: 'parentId', typeId: 'CODEENGINE_PACKAGE' },
+      {
+        field: 'workflowVersionNumber',
+        label: 'Workflow Version',
+        parentSource: 'workflowModelId',
+        typeId: 'WORKFLOW_MODEL_VERSION'
       },
-      copyConfigs: [
-        { label: 'Package ID', primary: true, source: 'parentId' },
-        { label: 'Version Number', source: 'id' }
-      ],
-      icon: { component: 'Code' },
-      idPattern: /^[0-9]+\.[0-9]+\.[0-9]+$/,
-      parents: ['CODEENGINE_PACKAGE'],
-      relatedData: [
-        { label: 'Package Version', source: 'self' },
-        { label: 'Code Engine', source: 'parentId', typeId: 'CODEENGINE_PACKAGE' },
-        {
-          field: 'workflowVersionNumber',
-          label: 'Workflow Version',
-          parentSource: 'workflowModelId',
-          typeId: 'WORKFLOW_MODEL_VERSION'
-        },
-        {
-          field: 'workflowModelId',
-          label: 'Workflow',
-          typeId: 'WORKFLOW_MODEL'
-        }
-      ]
-    }
-  ),
+      {
+        field: 'workflowModelId',
+        label: 'Workflow',
+        typeId: 'WORKFLOW_MODEL'
+      }
+    ]
+  }),
   COLLECTION: new DomoObjectType('COLLECTION', 'Collection', {
     icon: { component: 'Folder' },
     idPattern: /.*/
@@ -546,13 +532,9 @@ export const ObjectTypeRegistry = {
   CONFIG_APP: new DomoObjectType('CONFIG_APP', 'Config App', {
     idPattern: /.*/
   }),
-  CONFIG_APP_CONFIGURATION: new DomoObjectType(
-    'CONFIG_APP_CONFIGURATION',
-    'Config App Configuration',
-    {
-      idPattern: /.*/
-    }
-  ),
+  CONFIG_APP_CONFIGURATION: new DomoObjectType('CONFIG_APP_CONFIGURATION', 'Config App Configuration', {
+    idPattern: /.*/
+  }),
   CONNECTOR: new DomoObjectType('CONNECTOR', 'Connector', {
     icon: { component: 'Connector' },
     idPattern: /.*/
@@ -561,11 +543,7 @@ export const ObjectTypeRegistry = {
     idPattern: /.*/
   }),
   CUSTOMER: new DomoObjectType('CUSTOMER', 'Customer', { idPattern: /.*/ }),
-  CUSTOMER_LANDING_ENTITY: new DomoObjectType(
-    'CUSTOMER_LANDING_ENTITY',
-    'Customer Landing Entity',
-    { idPattern: /.*/ }
-  ),
+  CUSTOMER_LANDING_ENTITY: new DomoObjectType('CUSTOMER_LANDING_ENTITY', 'Customer Landing Entity', { idPattern: /.*/ }),
   CUSTOMER_STATE: new DomoObjectType('CUSTOMER_STATE', 'Customer State', {
     api: { endpoint: '/content/v1/customer-states/{id}', pathToName: 'name' },
     icon: { component: 'Building' },
@@ -735,15 +713,11 @@ export const ObjectTypeRegistry = {
     parents: ['ENIGMA_FORM'],
     relatedData: [{ label: 'Form', source: 'parentId', typeId: 'ENIGMA_FORM' }]
   }),
-  EXECUTOR_APPLICATION: new DomoObjectType(
-    'EXECUTOR_APPLICATION',
-    'Governance Toolkit Application',
-    {
-      api: { endpoint: '/executor/v1/applications/{id}', pathToName: 'name' },
-      icon: { component: 'Toolbox' },
-      idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    }
-  ),
+  EXECUTOR_APPLICATION: new DomoObjectType('EXECUTOR_APPLICATION', 'Governance Toolkit Application', {
+    api: { endpoint: '/executor/v1/applications/{id}', pathToName: 'name' },
+    icon: { component: 'Toolbox' },
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  }),
   EXECUTOR_JOB: new DomoObjectType('EXECUTOR_JOB', 'Governance Toolkit Job', {
     api: {
       endpoint: '/executor/v1/applications/{parent}/jobs/{id}',
@@ -915,14 +889,10 @@ export const ObjectTypeRegistry = {
     icon: { component: 'Pin' },
     idPattern: /^\d+$/
   }),
-  OAUTH2_CLIENT_CREDENTIALS: new DomoObjectType(
-    'OAUTH2_CLIENT_CREDENTIALS',
-    'Oauth 2.0 Client Credentials',
-    {
-      icon: { component: 'Key' },
-      idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    }
-  ),
+  OAUTH2_CLIENT_CREDENTIALS: new DomoObjectType('OAUTH2_CLIENT_CREDENTIALS', 'Oauth 2.0 Client Credentials', {
+    icon: { component: 'Key' },
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  }),
   PAGE: new DomoObjectType('PAGE', 'Page', {
     aliases: ['PAGE_ANALYZER', 'STORY'],
     api: { endpoint: '/content/v3/stacks/{id}', pathToName: 'title' },
@@ -1030,13 +1000,9 @@ export const ObjectTypeRegistry = {
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     urlPath: '/admin/sandbox/repositories/{id}'
   }),
-  REPOSITORY_AUTHORIZATION: new DomoObjectType(
-    'REPOSITORY_AUTHORIZATION',
-    'Repository Authorization',
-    {
-      idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    }
-  ),
+  REPOSITORY_AUTHORIZATION: new DomoObjectType('REPOSITORY_AUTHORIZATION', 'Repository Authorization', {
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  }),
   ROLE: new DomoObjectType('ROLE', 'Role', {
     api: { endpoint: '/authorization/v1/roles/{id}', pathToName: 'name' },
     extractConfig: { keyword: 'roles' },
@@ -1307,14 +1273,7 @@ export const ObjectTypeRegistry = {
  * @returns {Promise<Object>} Metadata object {details, name}
  */
 export async function fetchObjectDetailsInPage(params) {
-  const {
-    apiConfig,
-    objectId,
-    parentId: providedParentId,
-    requiresParent,
-    throwOnError = true,
-    typeId
-  } = params;
+  const { apiConfig, objectId, parentId: providedParentId, requiresParent, throwOnError = true, typeId } = params;
 
   const {
     bodyTemplate = null,
@@ -1333,9 +1292,7 @@ export async function fetchObjectDetailsInPage(params) {
     // Build the endpoint URL
     if (requiresParent) {
       if (!parentId) {
-        const error = new Error(
-          `Cannot fetch details for ${typeId} ${objectId} because parent ID is required`
-        );
+        const error = new Error(`Cannot fetch details for ${typeId} ${objectId} because parent ID is required`);
         if (throwOnError) throw error;
         console.warn(error.message);
         return { details: null, name: null };
@@ -1366,9 +1323,7 @@ export async function fetchObjectDetailsInPage(params) {
     const response = await fetch(url, options);
 
     if (!response.ok) {
-      const error = new Error(
-        `Failed to fetch details for ${typeId} ${objectId}: HTTP ${response.status}`
-      );
+      const error = new Error(`Failed to fetch details for ${typeId} ${objectId}: HTTP ${response.status}`);
       if (throwOnError) throw error;
       console.warn(error.message);
       return { details: null, name: null };
@@ -1386,13 +1341,10 @@ export async function fetchObjectDetailsInPage(params) {
       }
     }
 
-    const resolvePath = (path) =>
-      (path.match(/[^.[\]]+/g) || []).reduce((current, prop) => current?.[prop], data);
+    const resolvePath = (path) => (path.match(/[^.[\]]+/g) || []).reduce((current, prop) => current?.[prop], data);
     const details = pathToDetails ? resolvePath(pathToDetails) : data;
     const name = nameTemplate
-      ? nameTemplate.replace(/{([^}]+)}/g, (_, path) =>
-          path === 'id' ? objectId : (resolvePath(path) ?? '')
-        )
+      ? nameTemplate.replace(/{([^}]+)}/g, (_, path) => (path === 'id' ? objectId : (resolvePath(path) ?? '')))
       : resolvePath(pathToName);
     const extractedParentId = pathToParentId ? resolvePath(pathToParentId) : undefined;
 
@@ -1480,9 +1432,7 @@ export function resolvePrimaryCopy(domoObject) {
   const typeModel = domoObject.typeId ? getObjectType(domoObject.typeId) : null;
   const primaryConfig = typeModel?.copyConfigs?.find((c) => c.primary);
   const resolve = (source) =>
-    typeof source === 'function'
-      ? source(domoObject)
-      : source.split('.').reduce((cur, key) => cur?.[key], domoObject);
+    typeof source === 'function' ? source(domoObject) : source.split('.').reduce((cur, key) => cur?.[key], domoObject);
 
   const value = primaryConfig ? resolve(primaryConfig.source) : domoObject.id;
   if (value == null) return null;

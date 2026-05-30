@@ -22,10 +22,7 @@
   // ---- Error emission ----
 
   function emitApiError(errorData) {
-    window.postMessage(
-      { error: errorData, source: 'domo-toolkit-api-error' },
-      '*'
-    );
+    window.postMessage({ error: errorData, source: 'domo-toolkit-api-error' }, '*');
   }
 
   // ---- Fetch interception ----
@@ -69,8 +66,7 @@
             .json()
             .then((data) => {
               if (data && data.exceptions) {
-                var details =
-                  data.exceptions.main && data.exceptions.main.details;
+                var details = data.exceptions.main && data.exceptions.main.details;
                 var innerStatus = details && details.status;
                 emitApiError({
                   method: method,
@@ -101,12 +97,12 @@
 
   // ---- XHR interception ----
 
-  XMLHttpRequest.prototype.open = function(method, url) {
+  XMLHttpRequest.prototype.open = function (method, url) {
     this._domoToolkitMonitor = { method: method, url: url };
     return originalXHROpen.apply(this, arguments);
   };
 
-  XMLHttpRequest.prototype.send = function() {
+  XMLHttpRequest.prototype.send = function () {
     var monitor = this._domoToolkitMonitor;
 
     if (!monitor || !isApiEndpoint(monitor.url)) {
@@ -133,11 +129,7 @@
           timestamp: new Date().toLocaleTimeString(),
           url: monitor.url
         });
-      } else if (
-        xhr.status >= 200 &&
-        xhr.status < 300 &&
-        KPI_RENDER_PATTERN.test(monitor.url)
-      ) {
+      } else if (xhr.status >= 200 && xhr.status < 300 && KPI_RENDER_PATTERN.test(monitor.url)) {
         try {
           var data = JSON.parse(xhr.responseText);
           if (data && data.exceptions) {

@@ -3,8 +3,7 @@ import { Button, Tooltip } from '@heroui/react';
 import IconLineage from '@icons/lineage.svg?react';
 export function ViewLineage({ currentContext, onStatusUpdate }) {
   const isDisabled =
-    !currentContext?.domoObject?.id ||
-    !['DATA_SOURCE', 'DATAFLOW_TYPE'].includes(currentContext?.domoObject?.typeId);
+    !currentContext?.domoObject?.id || !['DATA_SOURCE', 'DATAFLOW_TYPE'].includes(currentContext?.domoObject?.typeId);
 
   const handlePress = async () => {
     if (!currentContext?.domoObject) return;

@@ -173,9 +173,7 @@ export class DataListItem {
    */
   toJSON() {
     return {
-      children: this.children?.map((child) =>
-        child instanceof DataListItem ? child.toJSON() : child
-      ),
+      children: this.children?.map((child) => (child instanceof DataListItem ? child.toJSON() : child)),
       count: this.count,
       countLabel: this.countLabel,
       domoObject: this.domoObject?.toJSON() || null,

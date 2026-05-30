@@ -1,14 +1,4 @@
-import {
-  Button,
-  Card,
-  Chip,
-  Disclosure,
-  DisclosureGroup,
-  ScrollShadow,
-  Separator,
-  Spinner,
-  Tooltip
-} from '@heroui/react';
+import { Button, Card, Chip, Disclosure, DisclosureGroup, ScrollShadow, Separator, Spinner, Tooltip } from '@heroui/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useStatusBar } from '@/hooks/useStatusBar';
@@ -38,10 +28,7 @@ import IconPlusCircle from '@icons/plus-circle.svg?react';
 import IconSync from '@icons/sync.svg?react';
 import IconX from '@icons/x.svg?react';
 
-export function GeneratePackageDefinitionFromJSDocView({
-  onBackToDefault = null,
-  onStatusUpdate = null
-}) {
+export function GeneratePackageDefinitionFromJSDocView({ onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -119,10 +106,7 @@ export function GeneratePackageDefinitionFromJSDocView({
         try {
           versionDef = await getCodeEnginePackageVersion(packageId, baseline.version, tabId);
         } catch (err) {
-          console.warn(
-            '[GeneratePackageDefinitionFromJSDocView] Baseline version fetch failed:',
-            err
-          );
+          console.warn('[GeneratePackageDefinitionFromJSDocView] Baseline version fetch failed:', err);
         }
       }
 
@@ -150,9 +134,7 @@ export function GeneratePackageDefinitionFromJSDocView({
   };
 
   const currentVersionId =
-    currentContext?.domoObject?.typeId === 'CODEENGINE_PACKAGE_VERSION'
-      ? currentContext?.domoObject?.id
-      : null;
+    currentContext?.domoObject?.typeId === 'CODEENGINE_PACKAGE_VERSION' ? currentContext?.domoObject?.id : null;
 
   const currentVersionInfo = useMemo(
     () => (packageDef ? findCurrentVersionInfo(packageDef.versions, currentVersionId) : null),
@@ -160,10 +142,7 @@ export function GeneratePackageDefinitionFromJSDocView({
   );
 
   const target = useMemo(
-    () =>
-      packageDef
-        ? resolveTargetVersion({ versions: packageDef.versions })
-        : { mode: 'create', version: '1.0.0' },
+    () => (packageDef ? resolveTargetVersion({ versions: packageDef.versions }) : { mode: 'create', version: '1.0.0' }),
     [packageDef]
   );
 
@@ -176,11 +155,7 @@ export function GeneratePackageDefinitionFromJSDocView({
   const parsed = useMemo(() => {
     if (!sourceRead || !packageDef) return null;
     try {
-      return parseSourceToManifest(
-        sourceRead.code,
-        baseVersion?.functions || [],
-        sourceRead.editorStartIndices
-      );
+      return parseSourceToManifest(sourceRead.code, baseVersion?.functions || [], sourceRead.editorStartIndices);
     } catch (err) {
       console.error('[GeneratePackageDefinitionFromJSDocView] Parse error:', err);
       return { error: err.message || 'Parser threw an error' };
@@ -193,14 +168,12 @@ export function GeneratePackageDefinitionFromJSDocView({
   // absent on the API fallback. We refuse to sync without it: a version saved
   // without the regenerated module.exports block makes Workflow runs fail with
   // "function not found in package".
-  const editorDataUnavailable =
-    !!sourceRead && (!sourceRead.functionNames || !sourceRead.editorStartIndices);
+  const editorDataUnavailable = !!sourceRead && (!sourceRead.functionNames || !sourceRead.editorStartIndices);
   const cannotSync = !parsed || parsed.error || errorWarnings.length > 0 || editorDataUnavailable;
   const hasJSDocRewrites = (parsed?.jsdocRewrites?.length || 0) > 0;
   const newFunctionCount = parsed?.decisions?.filter((d) => d.action === 'added').length || 0;
   const updatedFunctionCount = parsed?.decisions?.filter((d) => d.action === 'updated').length || 0;
-  const unchangedFunctionCount =
-    parsed?.decisions?.filter((d) => d.action === 'unchanged').length || 0;
+  const unchangedFunctionCount = parsed?.decisions?.filter((d) => d.action === 'unchanged').length || 0;
 
   // If parsing completes and there's literally nothing to sync (no added,
   // updated, or JSDoc-rewrite changes) we bail straight back to the default
@@ -264,10 +237,7 @@ export function GeneratePackageDefinitionFromJSDocView({
           tabId
         });
         if (!writeResult.ok) {
-          console.warn(
-            '[GeneratePackageDefinitionFromJSDocView] Editor write failed:',
-            writeResult.reason
-          );
+          console.warn('[GeneratePackageDefinitionFromJSDocView] Editor write failed:', writeResult.reason);
         }
       }
       await postCodeEnginePackageVersion(definition, tabId);
@@ -277,10 +247,7 @@ export function GeneratePackageDefinitionFromJSDocView({
 
     showPromiseStatus(promise, {
       error: (err) => err?.message || 'Sync failed',
-      loading:
-        target.mode === 'overwrite'
-          ? `Saving to **${target.version}**…`
-          : `Creating **${target.version}**…`,
+      loading: target.mode === 'overwrite' ? `Saving to **${target.version}**…` : `Creating **${target.version}**…`,
       success: (t) =>
         t.mode === 'overwrite'
           ? `Saved to **${t.version}** (unreleased)`
@@ -355,12 +322,7 @@ export function GeneratePackageDefinitionFromJSDocView({
         onRefresh={handleRefresh}
       />
       <Separator />
-      <ScrollShadow
-        hideScrollBar
-        className='min-h-0 flex-1 overflow-y-auto'
-        offset={5}
-        orientation='vertical'
-      >
+      <ScrollShadow hideScrollBar className='min-h-0 flex-1 overflow-y-auto' offset={5} orientation='vertical'>
         <Card.Content className='flex flex-col gap-2 py-2'>
           <div className='flex flex-wrap items-center gap-1'>
             <SourcePill currentVersionInfo={currentVersionInfo} sourceRead={sourceRead} />
@@ -371,9 +333,8 @@ export function GeneratePackageDefinitionFromJSDocView({
             <div className='flex items-center gap-2 rounded-md bg-danger-soft p-2 text-sm text-danger'>
               <IconExclamationTriangle />
               <span>
-                Could not read the function list from the live editor. Open the Code Engine editor
-                for this package and try again. Syncing without it would omit the module.exports
-                block and break Workflow runs.
+                Could not read the function list from the live editor. Open the Code Engine editor for this package and try
+                again. Syncing without it would omit the module.exports block and break Workflow runs.
               </span>
             </div>
           )}
@@ -417,10 +378,7 @@ export function GeneratePackageDefinitionFromJSDocView({
             <Spinner color='currentColor' size='sm' />
           ) : (
             <>
-              <IconSync />{' '}
-              {target.mode === 'overwrite'
-                ? `Save to ${target.version}`
-                : `Save as new ${target.version}`}
+              <IconSync /> {target.mode === 'overwrite' ? `Save to ${target.version}` : `Save as new ${target.version}`}
             </>
           )}
         </Button>
@@ -463,20 +421,13 @@ function DecisionRow({ decision }) {
   return (
     <Disclosure className='w-full' id={decision.name} isDisabled={!hasDiff}>
       <Disclosure.Heading>
-        <Button
-          fullWidth
-          className='items-center justify-between gap-1 px-1 py-0.5 text-xs'
-          slot='trigger'
-          variant='ghost'
-        >
+        <Button fullWidth className='items-center justify-between gap-1 px-1 py-0.5 text-xs' slot='trigger' variant='ghost'>
           <span className='flex min-w-0 items-center gap-1'>
             <Disclosure.Indicator>
               <IconChevronDown size={12} />
             </Disclosure.Indicator>
             <span className='font-mono'>{decision.name}</span>
-            {hasDiff && (
-              <span className='truncate text-muted'>({decision.diffFields.join(', ')})</span>
-            )}
+            {hasDiff && <span className='truncate text-muted'>({decision.diffFields.join(', ')})</span>}
           </span>
           <DecisionPill action={decision.action} />
         </Button>
@@ -677,8 +628,7 @@ function SummaryRow({
   return (
     <div className='flex flex-wrap items-center gap-1 text-xs text-muted'>
       <span>
-        +{newFunctionCount} added, {updatedFunctionCount} updated, {unchangedFunctionCount}{' '}
-        unchanged
+        +{newFunctionCount} added, {updatedFunctionCount} updated, {unchangedFunctionCount} unchanged
       </span>
       {jsdocRewriteCount > 0 && (
         <>
@@ -790,10 +740,7 @@ function WarningsSection({ warnings }) {
       <Disclosure.Content>
         <div className='flex flex-col gap-1 pt-1 pl-1 text-xs'>
           {warnings.map((w, idx) => (
-            <div
-              className={`flex items-start gap-1 ${w.severity === 'error' ? 'text-danger' : 'text-warning'}`}
-              key={idx}
-            >
+            <div className={`flex items-start gap-1 ${w.severity === 'error' ? 'text-danger' : 'text-warning'}`} key={idx}>
               <IconExclamationTriangle className='mt-0.5 shrink-0' size={12} />
               <div className='flex flex-col gap-0.5'>
                 {w.functionName && <span className='font-mono text-muted'>{w.functionName}</span>}

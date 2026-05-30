@@ -48,9 +48,7 @@ const deletersByType = {
           const appLabel = context.domoObject?.typeId === 'WORKSHEET_VIEW' ? 'Worksheet' : 'App';
           return {
             appLabel,
-            appName:
-              context.domoObject.metadata?.parent?.name ||
-              `${appLabel} ${context.domoObject.parentId}`,
+            appName: context.domoObject.metadata?.parent?.name || `${appLabel} ${context.domoObject.parentId}`,
             cardCount: deps?.appSummary?.cardCount ?? null,
             pageCount: deps?.appSummary?.pageCount ?? null,
             parentId: context.domoObject.parentId
@@ -75,8 +73,7 @@ const deletersByType = {
         },
         successMessage: ({ appName }, result) =>
           `**${appName}** and ${result.cardCount} card${result.cardCount !== 1 ? 's' : ''} deleted`,
-        tooltip: ({ appLabel }) =>
-          `Deletes the entire ${appLabel.toLowerCase()} instead of just this page`
+        tooltip: ({ appLabel }) => `Deletes the entire ${appLabel.toLowerCase()} instead of just this page`
       }
     ],
     confirmSuffix: ' and all its cards',
@@ -87,8 +84,7 @@ const deletersByType = {
   DATAFLOW_TYPE: {
     confirmSuffix: ({ outputCount }) =>
       outputCount > 0 ? ` and ${outputCount} output dataset${outputCount !== 1 ? 's' : ''}` : '',
-    primaryLabel: ({ outputCount }) =>
-      outputCount > 0 ? 'Delete DataFlow and All Outputs' : 'Delete DataFlow',
+    primaryLabel: ({ outputCount }) => (outputCount > 0 ? 'Delete DataFlow and All Outputs' : 'Delete DataFlow'),
     run: async ({ context }) => {
       const outputs = context.domoObject.metadata?.details?.outputs || [];
       const result = await deleteDataflowAndOutputs({
@@ -102,9 +98,7 @@ const deletersByType = {
             `Failed to delete ${result.datasetsFailed} of ${result.datasetsFailed + result.datasetsDeleted} output dataset${result.datasetsFailed + result.datasetsDeleted !== 1 ? 's' : ''}. Dataflow was not deleted.`
           );
         }
-        throw new Error(
-          `Output datasets deleted, but dataflow deletion failed (HTTP ${result.statusCode}).`
-        );
+        throw new Error(`Output datasets deleted, but dataflow deletion failed (HTTP ${result.statusCode}).`);
       }
       return result;
     },
@@ -144,15 +138,13 @@ const deletersByType = {
           `Delete the approval template **${templateName} (ID: ${templateId})** and its related dataset **${datasetName} (ID: ${datasetId})** permanently? This cannot be undone.`,
         isBlocked: ({ dependentCount }) => dependentCount > 0,
         label: () => 'Delete Template and DataSet',
-        loadingMessage: ({ datasetName, templateName }) =>
-          `Deleting **${templateName}** and dataset **${datasetName}**…`,
+        loadingMessage: ({ datasetName, templateName }) => `Deleting **${templateName}** and dataset **${datasetName}**…`,
         run: ({ context, deps }) =>
           runTemplateAndDatasetDelete({
             context,
             datasetId: findRelatedDataset(deps)?.items?.[0]?.id
           }),
-        successMessage: ({ datasetName, templateName }) =>
-          `**${templateName}** and dataset **${datasetName}** deleted`,
+        successMessage: ({ datasetName, templateName }) => `**${templateName}** and dataset **${datasetName}** deleted`,
         tooltip: () => 'Also deletes the related dataset, not just the template'
       }
     ],
@@ -324,18 +316,12 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
   const objectName = domoObject.metadata?.name || domoObject.id;
   const isBlocked = !!deps?.blockingCount && deps.blockingCount > 0;
   const outputCount = domoObject.metadata?.details?.outputs?.length || 0;
-  const deletedCount = (deps?.groups || [])
-    .filter((g) => g.deleted)
-    .reduce((n, g) => n + g.items.length, 0);
+  const deletedCount = (deps?.groups || []).filter((g) => g.deleted).reduce((n, g) => n + g.items.length, 0);
 
   const primaryLabel =
-    typeof config.primaryLabel === 'function'
-      ? config.primaryLabel({ outputCount })
-      : config.primaryLabel;
+    typeof config.primaryLabel === 'function' ? config.primaryLabel({ outputCount }) : config.primaryLabel;
 
-  const availableCascades = (config.cascadeButtons || []).filter((c) =>
-    c.available({ context: currentContext, deps })
-  );
+  const availableCascades = (config.cascadeButtons || []).filter((c) => c.available({ context: currentContext, deps }));
 
   return (
     <>
@@ -456,14 +442,11 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
               <AlertDialog.Body>
                 {pendingAction?.kind === 'cascade' && pendingAction.cascade ? (
                   parseMarkdownBold(
-                    pendingAction.cascade.confirmText(
-                      pendingAction.cascade.buildContext({ context: currentContext, deps })
-                    )
+                    pendingAction.cascade.confirmText(pendingAction.cascade.buildContext({ context: currentContext, deps }))
                   )
                 ) : (
                   <>
-                    Are you sure you want to delete the{' '}
-                    <span className='lowercase'>{typeName}</span>{' '}
+                    Are you sure you want to delete the <span className='lowercase'>{typeName}</span>{' '}
                     <span className='font-bold'>
                       {objectName} (ID: {domoObject.id})
                     </span>
@@ -473,8 +456,7 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
                     permanently?
                     {deletedCount > 0 && (
                       <div className='mt-2 text-xs text-muted'>
-                        {deletedCount} dependenc{deletedCount === 1 ? 'y' : 'ies'} shown will be
-                        deleted with it.
+                        {deletedCount} dependenc{deletedCount === 1 ? 'y' : 'ies'} shown will be deleted with it.
                       </div>
                     )}
                   </>
@@ -484,12 +466,7 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
                 <Button isDisabled={isDeleting} size='sm' slot='close' variant='tertiary'>
                   Cancel
                 </Button>
-                <Button
-                  isDisabled={isDeleting}
-                  size='sm'
-                  variant='danger'
-                  onPress={() => performDelete(pendingAction)}
-                >
+                <Button isDisabled={isDeleting} size='sm' variant='danger' onPress={() => performDelete(pendingAction)}>
                   {pendingAction?.label}
                 </Button>
               </AlertDialog.Footer>
@@ -534,8 +511,7 @@ function DependencySection({ baseUrl, deps, error, isLoading, onRetry, onStatusU
         <Alert.Indicator />
         <Alert.Content>
           <Alert.Description className='text-foreground'>
-            Dependency check is not available for this object type. Verify dependencies manually
-            before deleting.
+            Dependency check is not available for this object type. Verify dependencies manually before deleting.
           </Alert.Description>
         </Alert.Content>
       </Alert>
@@ -599,9 +575,7 @@ function DependencySection({ baseUrl, deps, error, isLoading, onRetry, onStatusU
     <div className='flex min-h-0 flex-1 flex-col gap-1 overflow-hidden'>
       {deletedGroups.length > 0 && (
         <>
-          <p className='shrink-0 px-2 pt-1 text-xs font-bold text-muted uppercase'>
-            Will be deleted
-          </p>
+          <p className='shrink-0 px-2 pt-1 text-xs font-bold text-muted uppercase'>Will be deleted</p>
           <DataList
             itemActions={['copy', 'lineage', 'viewsExplorer']}
             itemLabel='dependency'
@@ -615,9 +589,7 @@ function DependencySection({ baseUrl, deps, error, isLoading, onRetry, onStatusU
       )}
       {otherGroups.length > 0 && (
         <>
-          <p className='shrink-0 px-2 pt-1 text-xs font-bold text-muted uppercase'>
-            Other dependencies
-          </p>
+          <p className='shrink-0 px-2 pt-1 text-xs font-bold text-muted uppercase'>Other dependencies</p>
           <DataList
             itemActions={['copy', 'lineage', 'viewsExplorer']}
             itemLabel='dependency'
@@ -666,10 +638,9 @@ async function runTemplateAndDatasetDelete({ context, datasetId }) {
   try {
     await deleteDataset({ datasetId, tabId: context.tabId });
   } catch (err) {
-    throw new Error(
-      `Template deleted, but the dataset could not be removed (${err.message}). Delete it manually.`,
-      { cause: err }
-    );
+    throw new Error(`Template deleted, but the dataset could not be removed (${err.message}). Delete it manually.`, {
+      cause: err
+    });
   }
   return { datasetId };
 }

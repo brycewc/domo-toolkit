@@ -2,12 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 
 import { useResolveTabId } from '@/hooks/useResolveTabId';
 
-import {
-  convertToGraph,
-  enrichMetadata,
-  getLineage,
-  toMapKey
-} from '../services/lineage';
+import { convertToGraph, enrichMetadata, getLineage, toMapKey } from '../services/lineage';
 
 const INITIAL_DEPTH = 4;
 const EXPAND_DEPTH = 4;
@@ -32,25 +27,28 @@ export function useLineageCache() {
     return newGraph;
   }, []);
 
-  const init = useCallback(async (entityType, entityId, initTabId, initInstance) => {
-    rootRef.current = { entityId, entityType };
-    rawCacheRef.current = {};
-    inflightRef.current.clear();
-    setLoading(true);
+  const init = useCallback(
+    async (entityType, entityId, initTabId, initInstance) => {
+      rootRef.current = { entityId, entityType };
+      rawCacheRef.current = {};
+      inflightRef.current.clear();
+      setLoading(true);
 
-    try {
-      // Overrides seed the hook's refs for subsequent calls without overrides
-      const resolvedTabId = await resolveTabId(initTabId, initInstance);
-      const response = await getLineage(entityType, entityId, INITIAL_DEPTH, resolvedTabId);
-      if (!response) throw new Error('Empty lineage response');
+      try {
+        // Overrides seed the hook's refs for subsequent calls without overrides
+        const resolvedTabId = await resolveTabId(initTabId, initInstance);
+        const response = await getLineage(entityType, entityId, INITIAL_DEPTH, resolvedTabId);
+        if (!response) throw new Error('Empty lineage response');
 
-      rawCacheRef.current = response;
-      await enrichMetadata(response, resolvedTabId);
-      rebuildGraph();
-    } finally {
-      setLoading(false);
-    }
-  }, [rebuildGraph, resolveTabId]);
+        rawCacheRef.current = response;
+        await enrichMetadata(response, resolvedTabId);
+        rebuildGraph();
+      } finally {
+        setLoading(false);
+      }
+    },
+    [rebuildGraph, resolveTabId]
+  );
 
   const isNeighborCached = useCallback((nodeId, direction) => {
     const [type, ...rest] = nodeId.split(':');
@@ -59,9 +57,7 @@ export function useLineageCache() {
     const entity = rawCacheRef.current[key];
     if (!entity) return false;
 
-    const neighbors = direction === 'upstream'
-      ? (entity.parents || [])
-      : (entity.children || []);
+    const neighbors = direction === 'upstream' ? entity.parents || [] : entity.children || [];
 
     if (neighbors.length === 0) return true;
 
@@ -71,58 +67,67 @@ export function useLineageCache() {
     });
   }, []);
 
-  const fetchAndMerge = useCallback(async (entityType, entityId) => {
-    const key = toMapKey(entityType, entityId);
+  const fetchAndMerge = useCallback(
+    async (entityType, entityId) => {
+      const key = toMapKey(entityType, entityId);
 
-    if (inflightRef.current.has(key)) {
-      return inflightRef.current.get(key);
-    }
+      if (inflightRef.current.has(key)) {
+        return inflightRef.current.get(key);
+      }
 
-    const promise = (async () => {
-      const resolvedTabId = await resolveTabId();
-      const existingKeys = new Set(Object.keys(rawCacheRef.current));
+      const promise = (async () => {
+        const resolvedTabId = await resolveTabId();
+        const existingKeys = new Set(Object.keys(rawCacheRef.current));
 
-      const response = await getLineage(entityType, entityId, EXPAND_DEPTH, resolvedTabId);
-      if (!response) return;
+        const response = await getLineage(entityType, entityId, EXPAND_DEPTH, resolvedTabId);
+        if (!response) return;
 
-      Object.assign(rawCacheRef.current, response);
-      await enrichMetadata(rawCacheRef.current, resolvedTabId, existingKeys);
-      rebuildGraph();
-    })();
+        Object.assign(rawCacheRef.current, response);
+        await enrichMetadata(rawCacheRef.current, resolvedTabId, existingKeys);
+        rebuildGraph();
+      })();
 
-    inflightRef.current.set(key, promise);
-    try {
-      await promise;
-    } finally {
-      inflightRef.current.delete(key);
-    }
-  }, [rebuildGraph, resolveTabId]);
+      inflightRef.current.set(key, promise);
+      try {
+        await promise;
+      } finally {
+        inflightRef.current.delete(key);
+      }
+    },
+    [rebuildGraph, resolveTabId]
+  );
 
-  const expandFetch = useCallback(async (nodeId, entityType, entityId) => {
-    setExpandLoading((prev) => {
-      const next = new Set(prev);
-      next.add(nodeId);
-      return next;
-    });
-
-    try {
-      await fetchAndMerge(entityType, entityId);
-    } finally {
+  const expandFetch = useCallback(
+    async (nodeId, entityType, entityId) => {
       setExpandLoading((prev) => {
         const next = new Set(prev);
-        next.delete(nodeId);
+        next.add(nodeId);
         return next;
       });
-    }
-  }, [fetchAndMerge]);
 
-  const prefetch = useCallback(async (entityType, entityId) => {
-    try {
-      await fetchAndMerge(entityType, entityId);
-    } catch {
-      // Prefetch failures are non-critical
-    }
-  }, [fetchAndMerge]);
+      try {
+        await fetchAndMerge(entityType, entityId);
+      } finally {
+        setExpandLoading((prev) => {
+          const next = new Set(prev);
+          next.delete(nodeId);
+          return next;
+        });
+      }
+    },
+    [fetchAndMerge]
+  );
+
+  const prefetch = useCallback(
+    async (entityType, entityId) => {
+      try {
+        await fetchAndMerge(entityType, entityId);
+      } catch {
+        // Prefetch failures are non-critical
+      }
+    },
+    [fetchAndMerge]
+  );
 
   return {
     expandFetch,

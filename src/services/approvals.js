@@ -375,9 +375,7 @@ export async function transferApprovalTemplates(templateIds, fromUserId, toUserI
           // Filter active approvers and replace user
           let approvers = (raw.approvers || [])
             .filter(
-              (a) =>
-                !(a.type === 'PERSON' && a.userDetails?.isDeleted) &&
-                !(a.type === 'GROUP' && a.groupDetails?.isDeleted)
+              (a) => !(a.type === 'PERSON' && a.userDetails?.isDeleted) && !(a.type === 'GROUP' && a.groupDetails?.isDeleted)
             )
             .map((a) =>
               a.type === 'PERSON' && a.approverId == fromUserId
@@ -394,8 +392,7 @@ export async function transferApprovalTemplates(templateIds, fromUserId, toUserI
 
           // Deduplicate approvers
           approvers = approvers.filter(
-            (v, i, self) =>
-              !v.approverId || i === self.findIndex((a) => a.approverId === v.approverId)
+            (v, i, self) => !v.approverId || i === self.findIndex((a) => a.approverId === v.approverId)
           );
           if (approvers.length === 0) {
             approvers.push({

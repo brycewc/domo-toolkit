@@ -130,10 +130,7 @@ export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusU
               .map((v) => v.version)
               .sort((a, b) => compareSemver(b, a));
           } catch (error) {
-            console.warn(
-              `[UpdateCEVersions] Failed to fetch package info for ${packageId}:`,
-              error
-            );
+            console.warn(`[UpdateCEVersions] Failed to fetch package info for ${packageId}:`, error);
           }
 
           const uniqueVersions = Array.from(versions);
@@ -145,9 +142,7 @@ export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusU
           // downgrades or intermediate versions.
           if (isDomoBuiltin) {
             availableVersions =
-              latestVersion && (!isSingleVersion || currentVersion !== latestVersion)
-                ? [latestVersion]
-                : [];
+              latestVersion && (!isSingleVersion || currentVersion !== latestVersion) ? [latestVersion] : [];
           }
 
           // Default: latest if single version and not already on latest, otherwise no-change
@@ -279,9 +274,7 @@ export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusU
   }, [changeSignature, definition, currentContext]);
 
   const handlePackageVersionChange = (packageId, version) => {
-    setPackages((prev) =>
-      prev.map((pkg) => (pkg.packageId === packageId ? { ...pkg, selectedVersion: version } : pkg))
-    );
+    setPackages((prev) => prev.map((pkg) => (pkg.packageId === packageId ? { ...pkg, selectedVersion: version } : pkg)));
   };
 
   const handleActionVersionChange = (packageId, elementId, version) => {
@@ -290,9 +283,7 @@ export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusU
         pkg.packageId === packageId
           ? {
               ...pkg,
-              actions: pkg.actions.map((a) =>
-                a.elementId === elementId ? { ...a, selectedVersion: version } : a
-              )
+              actions: pkg.actions.map((a) => (a.elementId === elementId ? { ...a, selectedVersion: version } : a))
             }
           : pkg
       )
@@ -349,9 +340,7 @@ export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusU
   );
   const applicableChanges = changes.filter((c) => !blockedElementIds.has(c.elementId));
   const hasChanges = applicableChanges.length > 0;
-  const reviewCount = applicableChanges.filter((c) =>
-    actionNeedsReview(contractDiffs[c.elementId])
-  ).length;
+  const reviewCount = applicableChanges.filter((c) => actionNeedsReview(contractDiffs[c.elementId])).length;
 
   const handleSubmit = async () => {
     if (applicableChanges.length === 0) {
@@ -457,9 +446,7 @@ export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusU
               textValue={isActionLevel ? 'Inherit' : 'No Change'}
             >
               <Label>{isActionLevel ? 'Inherit' : 'No Change'}</Label>
-              <ListBox.ItemIndicator>
-                {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
-              </ListBox.ItemIndicator>
+              <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
             </ListBox.Item>
             {availableVersions.map((v) => (
               <ListBox.Item
@@ -469,9 +456,7 @@ export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusU
                 textValue={v === latestVersion ? `Latest - ${v}` : v}
               >
                 <Label>{v === latestVersion ? `Latest - ${v}` : v}</Label>
-                <ListBox.ItemIndicator>
-                  {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
-                </ListBox.ItemIndicator>
+                <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
               </ListBox.Item>
             ))}
           </ListBox>
@@ -517,18 +502,10 @@ export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusU
         </Card.Title>
       </Card.Header>
       <Separator />
-      <ScrollShadow
-        hideScrollBar
-        className='min-h-0 flex-1 overflow-y-auto'
-        offset={5}
-        orientation='vertical'
-      >
+      <ScrollShadow hideScrollBar className='min-h-0 flex-1 overflow-y-auto' offset={5} orientation='vertical'>
         <Card.Content>
           {packages.map((pkg, index) => (
-            <div
-              className={index > 0 ? 'w-full border-t border-border pt-2 pb-1' : 'pb-1'}
-              key={pkg.packageId}
-            >
+            <div className={index > 0 ? 'w-full border-t border-border pt-2 pb-1' : 'pb-1'} key={pkg.packageId}>
               <div className='flex w-full flex-col gap-1'>
                 <div className='flex w-full items-center justify-between gap-2'>
                   <div className='flex min-w-0 flex-1 items-center gap-1.5'>
@@ -554,15 +531,9 @@ export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusU
                 <div className='flex w-full items-center justify-between gap-2'>
                   <Chip
                     className='h-9'
+                    color={pkg.latestVersion === pkg.currentVersion ? 'success' : pkg.isSingleVersion ? 'warning' : 'danger'}
                     size='lg'
                     variant='soft'
-                    color={
-                      pkg.latestVersion === pkg.currentVersion
-                        ? 'success'
-                        : pkg.isSingleVersion
-                          ? 'warning'
-                          : 'danger'
-                    }
                   >
                     {pkg.isSingleVersion ? pkg.currentVersion : 'Multiple Versions'}
                   </Chip>
@@ -582,13 +553,7 @@ export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusU
                 {!pkg.isSingleVersion && (
                   <Disclosure className='w-full'>
                     <Disclosure.Heading>
-                      <Button
-                        fullWidth
-                        className='justify-between'
-                        size='sm'
-                        slot='trigger'
-                        variant='ghost'
-                      >
+                      <Button fullWidth className='justify-between' size='sm' slot='trigger' variant='ghost'>
                         Per-action overrides
                         <Disclosure.Indicator>
                           <IconChevronDown />
@@ -715,21 +680,14 @@ function actionNeedsReview(info) {
   );
 }
 
-function ActionReconciliation({
-  action,
-  info,
-  onRemapInput,
-  onToggleOutput,
-  onToggleVariableType,
-  reconciliation
-}) {
+function ActionReconciliation({ action, info, onRemapInput, onToggleOutput, onToggleVariableType, reconciliation }) {
   if (info.functionDeleted) {
     return (
       <div className='mt-1 flex items-start gap-2 rounded-md bg-danger-soft p-2 text-xs text-danger'>
         <IconExclamationTriangle className='mt-0.5 shrink-0' size={12} />
         <span>
-          <span className='font-mono'>{action.functionName}</span> no longer exists in the selected
-          version. This action will be skipped so it does not break the workflow.
+          <span className='font-mono'>{action.functionName}</span> no longer exists in the selected version. This action will
+          be skipped so it does not break the workflow.
         </span>
       </div>
     );
@@ -739,17 +697,9 @@ function ActionReconciliation({
   const needsReview = actionNeedsReview(info);
 
   return (
-    <Disclosure
-      className='mt-1 w-full rounded-md border border-border'
-      defaultExpanded={needsReview}
-    >
+    <Disclosure className='mt-1 w-full rounded-md border border-border' defaultExpanded={needsReview}>
       <Disclosure.Heading>
-        <Button
-          fullWidth
-          className='items-center justify-between gap-1 px-2 py-1 text-xs'
-          slot='trigger'
-          variant='ghost'
-        >
+        <Button fullWidth className='items-center justify-between gap-1 px-2 py-1 text-xs' slot='trigger' variant='ghost'>
           <span className='flex min-w-0 items-center gap-1'>
             <Disclosure.Indicator>
               <IconChevronDown size={12} />
@@ -777,8 +727,7 @@ function ActionReconciliation({
           {info.removedBoundInputs.map((ri) => (
             <div className='flex flex-col gap-0.5' key={`rm-${ri.paramName}`}>
               <span>
-                Input <span className='font-mono'>{ri.paramName}</span> was removed (was{' '}
-                {ri.binding}
+                Input <span className='font-mono'>{ri.paramName}</span> was removed (was {ri.binding}
                 ). Map its binding to:
               </span>
               <Select
@@ -821,9 +770,8 @@ function ActionReconciliation({
               <IconExclamationTriangle className='mt-0.5 shrink-0' size={12} />
               <span>
                 New required input{info.addedRequiredInputs.length === 1 ? '' : 's'}{' '}
-                <span className='font-mono'>{info.addedRequiredInputs.join(', ')}</span> will be
-                unset. Set {info.addedRequiredInputs.length === 1 ? 'it' : 'them'} in Domo after
-                updating.
+                <span className='font-mono'>{info.addedRequiredInputs.join(', ')}</span> will be unset. Set{' '}
+                {info.addedRequiredInputs.length === 1 ? 'it' : 'them'} in Domo after updating.
               </span>
             </div>
           )}
@@ -864,9 +812,7 @@ function ActionReconciliation({
               </span>
               <Checkbox
                 isSelected={!!choices.updateVariableTypes?.[impact.variableId]}
-                onChange={(selected) =>
-                  onToggleVariableType(action.elementId, impact.variableId, selected)
-                }
+                onChange={(selected) => onToggleVariableType(action.elementId, impact.variableId, selected)}
               >
                 <Checkbox.Control>
                   <Checkbox.Indicator />
@@ -889,8 +835,8 @@ function ActionReconciliation({
               <IconExclamationTriangle className='mt-0.5 shrink-0' size={12} />
               <span>
                 Output <span className='font-mono'>{impact.paramName}</span> was removed. Variable{' '}
-                <span className='font-mono'>{impact.variableName}</span> loses its writer and will
-                break {impact.consumers.map((c) => c.title || c.paramName).join(', ')}.
+                <span className='font-mono'>{impact.variableName}</span> loses its writer and will break{' '}
+                {impact.consumers.map((c) => c.title || c.paramName).join(', ')}.
               </span>
             </div>
           ))}
@@ -918,9 +864,7 @@ function buildActionContractInfo({ change, definition, newFn, oldFn }) {
 
   const addedInputNames = classified.inputs.added.map((e) => e.name);
   const addedOutputs = classified.outputs.added.map((e) => e.name);
-  const addedRequiredInputs = classified.inputs.added
-    .filter((e) => e.nullable === false)
-    .map((e) => e.name);
+  const addedRequiredInputs = classified.inputs.added.filter((e) => e.nullable === false).map((e) => e.name);
 
   const removedBoundInputs = classified.inputs.removed
     .filter((e) => hasBinding(inputParams.get(e.name)))

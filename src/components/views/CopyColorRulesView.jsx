@@ -4,12 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { DatasetComboBox } from '@/components/DatasetComboBox';
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { DomoContext } from '@/models/DomoContext';
-import {
-  getColorRules,
-  getDatasetBeastModes,
-  getDatasetColumns,
-  setColorRules
-} from '@/services/datasets';
+import { getColorRules, getDatasetBeastModes, getDatasetColumns, setColorRules } from '@/services/datasets';
 import { parseMarkdownBold, stripMarkdownBold } from '@/utils/markdown';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconCheckCircle from '@icons/check-circle.svg?react';
@@ -146,8 +141,7 @@ export function CopyColorRulesView({ onBackToDefault = null, onStatusUpdate = nu
 
   const sourceId = currentContext.domoObject.id;
   const sourceName = currentContext.domoObject.metadata?.name || sourceId;
-  const sourceBeastModes =
-    currentContext.domoObject.metadata?.details?.properties?.formulas?.formulas || {};
+  const sourceBeastModes = currentContext.domoObject.metadata?.details?.properties?.formulas?.formulas || {};
   const sameDataset = destinationId && destinationId === sourceId;
   const { missingColumns, swap: beastModeIdSwap } =
     destinationColumns && sourceRules.length > 0
@@ -157,18 +151,9 @@ export function CopyColorRulesView({ onBackToDefault = null, onStatusUpdate = nu
     (rule) => rule?.condition?.column && beastModeIdSwap[rule.condition.column]
   ).length;
   const schemaResolved =
-    !!destinationColumns &&
-    !sameDataset &&
-    !isLoadingDestination &&
-    sourceRules.length > 0 &&
-    missingColumns.length === 0;
+    !!destinationColumns && !sameDataset && !isLoadingDestination && sourceRules.length > 0 && missingColumns.length === 0;
   const destinationHasRules = (destinationExistingRules?.length ?? 0) > 0;
-  const canSubmit =
-    !!destinationId &&
-    !sameDataset &&
-    !isLoadingDestination &&
-    !isSubmitting &&
-    sourceRules.length > 0;
+  const canSubmit = !!destinationId && !sameDataset && !isLoadingDestination && !isSubmitting && sourceRules.length > 0;
 
   const headerTitle = `Copy Color Rules from **${sourceName}**`;
   const headerSubtext = `${sourceRules.length} color rule${sourceRules.length === 1 ? '' : 's'}`;
@@ -201,9 +186,7 @@ export function CopyColorRulesView({ onBackToDefault = null, onStatusUpdate = nu
             </Tooltip.Content>
           </Tooltip>
         )}
-        <div className='min-w-0 truncate text-xs text-muted'>
-          {parseMarkdownBold(headerSubtext)}
-        </div>
+        <div className='min-w-0 truncate text-xs text-muted'>{parseMarkdownBold(headerSubtext)}</div>
         <Separator className='mt-1.5' />
       </Card.Header>
 
@@ -276,12 +259,11 @@ export function CopyColorRulesView({ onBackToDefault = null, onStatusUpdate = nu
             </Alert.Indicator>
             <Alert.Content>
               <Alert.Title>
-                {missingColumns.length} column{missingColumns.length === 1 ? '' : 's'} not on
-                destination
+                {missingColumns.length} column{missingColumns.length === 1 ? '' : 's'} not on destination
               </Alert.Title>
               <Alert.Description>
-                Rules referencing {missingColumns.join(', ')} will be copied as-is and may not
-                render until those columns exist.
+                Rules referencing {missingColumns.join(', ')} will be copied as-is and may not render until those columns
+                exist.
               </Alert.Description>
             </Alert.Content>
           </Alert>
@@ -289,13 +271,7 @@ export function CopyColorRulesView({ onBackToDefault = null, onStatusUpdate = nu
       </div>
 
       <div className='flex shrink-0 flex-col gap-2 pt-2'>
-        <Button
-          fullWidth
-          isDisabled={!canSubmit}
-          isPending={isSubmitting}
-          variant='primary'
-          onPress={handleSubmit}
-        >
+        <Button fullWidth isDisabled={!canSubmit} isPending={isSubmitting} variant='primary' onPress={handleSubmit}>
           Copy Color Rules
         </Button>
       </div>

@@ -66,9 +66,7 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
 
       setDatasetId(context.domoObject.id);
       setDatasetName(
-        context.domoObject?.metadata?.name ||
-          context.domoObject?.metadata?.displayName ||
-          `Dataset ${context.domoObject.id}`
+        context.domoObject?.metadata?.name || context.domoObject?.metadata?.displayName || `Dataset ${context.domoObject.id}`
       );
       setOrigin(context.domoObject?.baseUrl || '');
       setTabId(context.tabId);
@@ -155,10 +153,7 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
     return totals;
   }, [results]);
 
-  const totalAvailable = useMemo(
-    () => Object.values(totalsByType).reduce((a, b) => a + b, 0),
-    [totalsByType]
-  );
+  const totalAvailable = useMemo(() => Object.values(totalsByType).reduce((a, b) => a + b, 0), [totalsByType]);
 
   // All three lineage fetches settled with zero downstream content: there's
   // nothing to migrate. Bail straight back to the default view with a warning
@@ -168,11 +163,7 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
   // when specs is empty. Skips when any fetch errored (loadedCount < total) so
   // the user can still see the failure and retry via refresh; a 0 total there
   // may just mean a fetch never returned.
-  const nothingToMigrate =
-    !isLoading &&
-    !isTransferring &&
-    loadedCount === MIGRATE_TYPES.length &&
-    totalAvailable === 0;
+  const nothingToMigrate = !isLoading && !isTransferring && loadedCount === MIGRATE_TYPES.length && totalAvailable === 0;
 
   // The render path short-circuits to the spinner on `nothingToMigrate` to
   // prevent a one-frame flash of the empty list before this effect navigates
@@ -182,11 +173,7 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
     if (bailedRef.current) return;
     if (!nothingToMigrate) return;
     bailedRef.current = true;
-    onStatusUpdate?.(
-      'Nothing to migrate',
-      `**${datasetName}** has no downstream content to migrate`,
-      'warning'
-    );
+    onStatusUpdate?.('Nothing to migrate', `**${datasetName}** has no downstream content to migrate`, 'warning');
     onBackToDefault?.();
   }, [nothingToMigrate, datasetName, onStatusUpdate, onBackToDefault]);
 
@@ -204,8 +191,7 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
     return counts;
   }, [results, selectedIds]);
 
-  const totalSelected =
-    selectedCounts.cards + selectedCounts.datasetViews + selectedCounts.dataflows;
+  const totalSelected = selectedCounts.cards + selectedCounts.datasetViews + selectedCounts.dataflows;
 
   // Full selected items array per type — passed to the modal so it can scan
   // each item's definition for column references when a schema mismatch is
@@ -333,12 +319,8 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
 
   const subtextNode = useMemo(() => {
     if (isTransferring) {
-      const inFlight = Object.values(transferStatus).filter(
-        (x) => x.status === 'transferring'
-      ).length;
-      const done = Object.values(transferStatus).filter(
-        (x) => x.status === 'transferred' || x.status === 'failed'
-      ).length;
+      const inFlight = Object.values(transferStatus).filter((x) => x.status === 'transferring').length;
+      const done = Object.values(transferStatus).filter((x) => x.status === 'transferred' || x.status === 'failed').length;
       const total = inFlight + done;
       return `Migrating… **${done}**/${total}`;
     }
@@ -350,27 +332,12 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
       text += ` (${errorCount} failed to load)`;
     }
     return text;
-  }, [
-    isTransferring,
-    transferStatus,
-    isFullyLoaded,
-    loadingCount,
-    totalAvailable,
-    totalSelected,
-    errorCount
-  ]);
+  }, [isTransferring, transferStatus, isFullyLoaded, loadingCount, totalAvailable, totalSelected, errorCount]);
 
   const handleOpenModal = useCallback(() => setTransferModalOpen(true), []);
 
   const handleSubmit = useCallback(
-    async ({
-      columnMap,
-      definitionsByItemKey,
-      targetColumnTypes,
-      targetId,
-      targetName,
-      useFullPath
-    }) => {
+    async ({ columnMap, definitionsByItemKey, targetColumnTypes, targetId, targetName, useFullPath }) => {
       const selectedItems = selectedItemsByType;
 
       const initialStatus = {};

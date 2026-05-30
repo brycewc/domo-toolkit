@@ -10,13 +10,7 @@
 import { addUsersToGroups } from './groups';
 import { shareContent } from './share';
 import { getIndividualSharesForUser } from './userIndividualShares';
-import {
-  bulkUpdateUsers,
-  createUser,
-  getFullUserDetails,
-  getUserGroups,
-  setUserAttributes
-} from './users';
+import { bulkUpdateUsers, createUser, getFullUserDetails, getUserGroups, setUserAttributes } from './users';
 
 const USER_PROFILE_FIELDS = [
   'department',
@@ -132,8 +126,7 @@ export async function duplicateUser({
       copied,
       errors: [
         {
-          message:
-            'Failed to create new user, role may be invalid or email already in use',
+          message: 'Failed to create new user, role may be invalid or email already in use',
           step: 'createUser'
         }
       ],
@@ -150,12 +143,7 @@ export async function duplicateUser({
   try {
     const payloadFields = {};
     for (const { key, value } of profileFields) {
-      if (
-        USER_PROFILE_FIELDS.includes(key) &&
-        value !== undefined &&
-        value !== null &&
-        value !== ''
-      ) {
+      if (USER_PROFILE_FIELDS.includes(key) && value !== undefined && value !== null && value !== '') {
         payloadFields[key] = value;
       }
     }
@@ -184,11 +172,7 @@ export async function duplicateUser({
   report('copyLocale', 'running');
   try {
     if (locale) {
-      const ok = await setUserAttributes(
-        newUserId,
-        [{ key: 'locale', values: [locale] }],
-        tabId
-      );
+      const ok = await setUserAttributes(newUserId, [{ key: 'locale', values: [locale] }], tabId);
       if (!ok) throw new Error('Locale patch returned a non-OK status');
       copied.locale = locale;
     }
@@ -328,13 +312,7 @@ async function fallbackFetchGroups(userId, tabId) {
   return toAssignableGroups(rich);
 }
 
-async function shareBatched({
-  attemptedRecords,
-  items,
-  newUserId,
-  resourceType,
-  tabId
-}) {
+async function shareBatched({ attemptedRecords, items, newUserId, resourceType, tabId }) {
   for (let i = 0; i < items.length; i += SHARE_BATCH_SIZE) {
     const batch = items.slice(i, i + SHARE_BATCH_SIZE);
     const ok = await shareContent(

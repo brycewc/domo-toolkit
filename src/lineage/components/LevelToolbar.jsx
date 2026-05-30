@@ -33,9 +33,7 @@ const LevelPill = memo(function LevelPill({
         variant='tertiary'
         onMouseEnter={() => onHover(level.depth)}
         onMouseLeave={onHoverEnd}
-        onPress={() =>
-          level.allExpanded ? onCollapse(direction, level.depth) : onExpand(direction, level.depth)
-        }
+        onPress={() => (level.allExpanded ? onCollapse(direction, level.depth) : onExpand(direction, level.depth))}
       >
         {level.allExpanded ? <IconMinus /> : <IconPlus />}
         {label}
@@ -99,11 +97,7 @@ export const LevelToolbar = memo(function LevelToolbar({
 
   return (
     <Toolbar className='rounded-xl bg-surface px-3 py-2 shadow-md'>
-      <FrontierPill
-        count={frontierCounts?.upstream || 0}
-        direction='upstream'
-        onExpand={handleUpstreamExpand}
-      />
+      <FrontierPill count={frontierCounts?.upstream || 0} direction='upstream' onExpand={handleUpstreamExpand} />
 
       {reversedUpstream.map((level, i) => (
         <div className='flex items-center gap-1' key={level.depth}>
@@ -142,11 +136,7 @@ export const LevelToolbar = memo(function LevelToolbar({
       ))}
 
       {downstreamLevels?.length > 0 && frontierCounts?.downstream > 0 && <Connector />}
-      <FrontierPill
-        count={frontierCounts?.downstream || 0}
-        direction='downstream'
-        onExpand={handleDownstreamExpand}
-      />
+      <FrontierPill count={frontierCounts?.downstream || 0} direction='downstream' onExpand={handleDownstreamExpand} />
     </Toolbar>
   );
 });

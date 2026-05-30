@@ -76,11 +76,7 @@ export function UserComboBox({
     async function fetchUsers() {
       setOffset(0);
       try {
-        const { totalCount, users: fetchedUsers } = await searchUsers(
-          searchQuery,
-          tabId,
-          0
-        );
+        const { totalCount, users: fetchedUsers } = await searchUsers(searchQuery, tabId, 0);
         if (!controller.signal.aborted && gen === searchGenRef.current) {
           setUsers(fetchedUsers);
           setHasMore(totalCount !== null && fetchedUsers.length < totalCount);
@@ -103,11 +99,7 @@ export function UserComboBox({
     setIsLoadingMore(true);
     const gen = searchGenRef.current;
     try {
-      const { totalCount, users: fetchedUsers } = await searchUsers(
-        searchQuery,
-        tabId,
-        offset
-      );
+      const { totalCount, users: fetchedUsers } = await searchUsers(searchQuery, tabId, offset);
       // Discard if a new search started while this was in flight
       if (gen !== searchGenRef.current) return;
       const newUsers = [...users, ...fetchedUsers];
@@ -197,22 +189,12 @@ export function UserComboBox({
         >
           <Collection items={users}>
             {(user) => (
-              <ListBox.Item
-                id={user.id}
-                key={user.id}
-                textValue={user.displayName}
-              >
+              <ListBox.Item id={user.id} key={user.id} textValue={user.displayName}>
                 <Avatar size='sm'>
                   <Avatar.Image
-                    src={
-                      avatarBaseUrl
-                        ? `${avatarBaseUrl}/api/content/v1/avatar/USER/${user.id}?size=100`
-                        : undefined
-                    }
+                    src={avatarBaseUrl ? `${avatarBaseUrl}/api/content/v1/avatar/USER/${user.id}?size=100` : undefined}
                   />
-                  <Avatar.Fallback>
-                    {getInitials(user.displayName)}
-                  </Avatar.Fallback>
+                  <Avatar.Fallback>{getInitials(user.displayName)}</Avatar.Fallback>
                 </Avatar>
                 <div className='flex flex-col'>
                   <Label>{user.displayName}</Label>
@@ -223,10 +205,7 @@ export function UserComboBox({
             )}
           </Collection>
           {hasMore && (
-            <ListBoxLoadMoreItem
-              isLoading={isLoadingMore}
-              onLoadMore={loadMore}
-            >
+            <ListBoxLoadMoreItem isLoading={isLoadingMore} onLoadMore={loadMore}>
               <div className='flex items-center justify-center gap-2 py-2'>
                 <Spinner size='sm' />
                 <span className='text-sm text-muted'>Loading more...</span>

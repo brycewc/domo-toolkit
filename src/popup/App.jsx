@@ -77,12 +77,7 @@ export default function App() {
           }
           try {
             await navigator.clipboard.writeText(copy.value);
-            showStatus(
-              'Success',
-              `Copied ${copy.label} **${copy.value}** to clipboard`,
-              'success',
-              2000
-            );
+            showStatus('Success', `Copied ${copy.label} **${copy.value}** to clipboard`, 'success', 2000);
             sendResponse({ copied: true });
           } catch {
             sendResponse({ copied: false });
@@ -107,11 +102,7 @@ export default function App() {
         isLoading={isLoadingCurrentContext}
         onStatusUpdate={showStatus}
       />
-      <ContextFooter
-        currentContext={currentContext}
-        isLoading={isLoadingCurrentContext}
-        onStatusUpdate={showStatus}
-      />
+      <ContextFooter currentContext={currentContext} isLoading={isLoadingCurrentContext} onStatusUpdate={showStatus} />
       <ToastProvider className='right-2 bottom-2' placement='bottom' />
     </div>
   );

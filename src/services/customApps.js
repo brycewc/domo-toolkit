@@ -40,9 +40,7 @@ export async function deleteAppAndAllContent({
           })
         : [];
     const collected = new Set();
-    const pageIds = [currentPageId, ...pages.map((p) => p.pageId)].filter(
-      (pageId) => pageId != null
-    );
+    const pageIds = [currentPageId, ...pages.map((p) => p.pageId)].filter((pageId) => pageId != null);
     for (const pageId of pageIds) {
       const cards = await getCardsForObject({
         objectId: pageId,
@@ -217,22 +215,14 @@ export async function getOwnedCustomApps(userId, tabId = null) {
  * @param {number|null} [params.tabId] - Optional Chrome tab ID
  * @returns {Promise<void>} Resolves on success, throws on HTTP failure
  */
-export async function shareCustomAppDesign({
-  designId,
-  permission = 'ADMIN',
-  tabId = null,
-  userId
-}) {
+export async function shareCustomAppDesign({ designId, permission = 'ADMIN', tabId = null, userId }) {
   return executeInPage(
     async (designId, permission, userId) => {
-      const response = await fetch(
-        `/api/apps/v1/designs/${designId}/permissions/${permission}`,
-        {
-          body: JSON.stringify([userId]),
-          headers: { 'Content-Type': 'application/json' },
-          method: 'POST'
-        }
-      );
+      const response = await fetch(`/api/apps/v1/designs/${designId}/permissions/${permission}`, {
+        body: JSON.stringify([userId]),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST'
+      });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
     },
     [designId, permission, userId],
@@ -248,12 +238,7 @@ export async function shareCustomAppDesign({
  * @param {number|null} tabId - Optional Chrome tab ID
  * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
  */
-export async function transferCustomApps(
-  appIds,
-  fromUserId,
-  toUserId,
-  tabId = null
-) {
+export async function transferCustomApps(appIds, fromUserId, toUserId, tabId = null) {
   return executeInPage(
     async (appIds, fromUserId, toUserId) => {
       const errors = [];
@@ -261,14 +246,11 @@ export async function transferCustomApps(
 
       for (const id of appIds) {
         try {
-          const response = await fetch(
-            `/api/apps/v1/designs/${id}/permissions/ADMIN`,
-            {
-              body: JSON.stringify([toUserId]),
-              headers: { 'Content-Type': 'application/json' },
-              method: 'POST'
-            }
-          );
+          const response = await fetch(`/api/apps/v1/designs/${id}/permissions/ADMIN`, {
+            body: JSON.stringify([toUserId]),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'POST'
+          });
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           succeeded++;
         } catch (error) {

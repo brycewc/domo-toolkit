@@ -14,11 +14,7 @@ import IconSync from '@icons/sync.svg?react';
 
 import { DataList } from './DataList';
 
-export function GetDatasetsView({
-  currentContext = null,
-  onBackToDefault = null,
-  onStatusUpdate = null
-}) {
+export function GetDatasetsView({ currentContext = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
@@ -165,13 +161,7 @@ export function GetDatasetsView({
   /**
    * Fetch fresh datasets from API
    */
-  const fetchFreshDatasets = async ({
-    appId,
-    details,
-    instance,
-    objectId,
-    objectType
-  }) => {
+  const fetchFreshDatasets = async ({ appId, details, instance, objectId, objectType }) => {
     if (appId) {
       const tabId = await getValidTabForInstance(instance);
       return getDatasetsForApp({ appId, tabId });
@@ -184,11 +174,7 @@ export function GetDatasetsView({
       return getCardDatasets({ cardId: objectId, tabId });
     }
     const tabId = await getValidTabForInstance(instance);
-    if (
-      objectType === 'PAGE' ||
-      objectType === 'DATA_APP_VIEW' ||
-      objectType === 'WORKSHEET_VIEW'
-    ) {
+    if (objectType === 'PAGE' || objectType === 'DATA_APP_VIEW' || objectType === 'WORKSHEET_VIEW') {
       return getDatasetsForPage({ pageId: objectId, tabId });
     } else if (objectType === 'DATAFLOW_TYPE') {
       return getDatasetsForDataflow({ details });
@@ -203,19 +189,9 @@ export function GetDatasetsView({
     setIsRefreshing(true);
     try {
       await loadDatasetsData(true);
-      onStatusUpdate?.(
-        'Refreshed',
-        'Dataset data updated successfully',
-        'success',
-        2000
-      );
+      onStatusUpdate?.('Refreshed', 'Dataset data updated successfully', 'success', 2000);
     } catch (err) {
-      onStatusUpdate?.(
-        'Refresh Failed',
-        err.message || 'Failed to refresh data',
-        'danger',
-        3000
-      );
+      onStatusUpdate?.('Refresh Failed', err.message || 'Failed to refresh data', 'danger', 3000);
     } finally {
       setIsRefreshing(false);
     }
@@ -224,10 +200,7 @@ export function GetDatasetsView({
   // Calculate total count (including nested items for dataflows)
   const getTotalCount = () => {
     if (viewData?.objectType === 'DATAFLOW_TYPE') {
-      return items.reduce(
-        (total, group) => total + (group.children?.length || 0),
-        0
-      );
+      return items.reduce((total, group) => total + (group.children?.length || 0), 0);
     }
     return items.length;
   };
@@ -269,20 +242,12 @@ export function GetDatasetsView({
           <div className='flex flex-col items-start justify-center gap-2'>
             <Alert.Description>{error}</Alert.Description>
             <Button isPending={isRetrying} size='sm' onPress={handleRetry}>
-              {isRetrying ? (
-                <Spinner color='currentColor' size='sm' />
-              ) : (
-                <IconSync />
-              )}
+              {isRetrying ? <Spinner color='currentColor' size='sm' /> : <IconSync />}
               Retry
             </Button>
           </div>
         </Alert.Content>
-        <CloseButton
-          className='rounded-full'
-          variant='ghost'
-          onPress={() => onBackToDefault?.()}
-        />
+        <CloseButton className='rounded-full' variant='ghost' onPress={() => onBackToDefault?.()} />
       </Alert>
     );
   }

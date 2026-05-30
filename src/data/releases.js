@@ -13,8 +13,7 @@ export const releases = [
       "Replaced Tabler icons with Domo's official icon set for visual consistency across the extension"
     ],
     notify: 'fullPage',
-    summary:
-      'Major release with improvements to activity log, delete, cookie clearing, extension icons, and overall UI.',
+    summary: 'Major release with improvements to activity log, delete, cookie clearing, extension icons, and overall UI.',
     version: '1.3.0'
   },
   {
@@ -49,8 +48,7 @@ export const releases = [
       'User and group data cached per instance for the session, improving performance'
     ],
     notify: 'fullPage',
-    summary:
-      'Enhanced dataflow support, permission-based action gating, and performance improvements.',
+    summary: 'Enhanced dataflow support, permission-based action gating, and performance improvements.',
     version: '1.1.0'
   },
   {

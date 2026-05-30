@@ -60,12 +60,7 @@ export async function getOwnedMetrics(userId, tabId = null) {
  * @param {number|null} tabId - Optional Chrome tab ID
  * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
  */
-export async function transferMetrics(
-  metricIds,
-  fromUserId,
-  toUserId,
-  tabId = null
-) {
+export async function transferMetrics(metricIds, fromUserId, toUserId, tabId = null) {
   return executeInPage(
     async (metricIds, fromUserId, toUserId) => {
       const errors = [];
@@ -73,10 +68,7 @@ export async function transferMetrics(
 
       for (const id of metricIds) {
         try {
-          const response = await fetch(
-            `/api/content/v1/metrics/${id}/owner/${toUserId}`,
-            { method: 'POST' }
-          );
+          const response = await fetch(`/api/content/v1/metrics/${id}/owner/${toUserId}`, { method: 'POST' });
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           succeeded++;
         } catch (error) {

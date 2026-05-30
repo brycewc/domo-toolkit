@@ -27,13 +27,9 @@ export function Lineage() {
   const inspectorCacheRef = useRef(new Map());
   const resolveTabId = useResolveTabId(params?.tabId, params?.instance);
 
-  const { expandFetch, expandLoading, graph, init, isNeighborCached, loading, prefetch } =
-    useLineageCache();
+  const { expandFetch, expandLoading, graph, init, isNeighborCached, loading, prefetch } = useLineageCache();
 
-  const rootNodeId = useMemo(
-    () => (params ? toNodeId(toLineageType(params.entityType), params.entityId) : null),
-    [params]
-  );
+  const rootNodeId = useMemo(() => (params ? toNodeId(toLineageType(params.entityType), params.entityId) : null), [params]);
 
   const {
     clearHighlight,
@@ -56,13 +52,7 @@ export function Lineage() {
 
   useEffect(() => {
     chrome.storage.session
-      .get([
-        'lineageEntityId',
-        'lineageEntityType',
-        'lineageInstance',
-        'lineageObjectName',
-        'lineageTabId'
-      ])
+      .get(['lineageEntityId', 'lineageEntityType', 'lineageInstance', 'lineageObjectName', 'lineageTabId'])
       .then((result) => {
         if (result.lineageEntityId && result.lineageEntityType) {
           setParams({

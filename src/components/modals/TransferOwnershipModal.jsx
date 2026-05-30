@@ -1,14 +1,4 @@
-import {
-  Button,
-  Description,
-  Form,
-  Input,
-  Label,
-  Modal,
-  Switch,
-  TextField,
-  Tooltip
-} from '@heroui/react';
+import { Button, Description, Form, Input, Label, Modal, Switch, TextField, Tooltip } from '@heroui/react';
 import { useEffect, useState } from 'react';
 
 import { UserComboBox } from '@/components/UserComboBox';
@@ -240,12 +230,7 @@ export function TransferOwnershipModal({
                 <Button size='sm' slot='close' variant='tertiary'>
                   Cancel
                 </Button>
-                <Button
-                  isDisabled={!selectedUserId || selectedTypeCount === 0}
-                  size='sm'
-                  type='submit'
-                  variant='primary'
-                >
+                <Button isDisabled={!selectedUserId || selectedTypeCount === 0} size='sm' type='submit' variant='primary'>
                   Transfer
                 </Button>
               </Modal.Footer>

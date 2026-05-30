@@ -8,12 +8,7 @@ import { executeInPage } from './executeInPage.js';
  * @returns {Promise<any>} - The result from the executed function
  */
 
-export async function clearCookies({
-  daSidsToPreserve = [],
-  domains = null,
-  excludeDomains = false,
-  tabId = null
-}) {
+export async function clearCookies({ daSidsToPreserve = [], domains = null, excludeDomains = false, tabId = null }) {
   try {
     // Get all cookies for domo.com and subdomains (doesn't get other domains because of host permissions)
     const domoCookies = await chrome.cookies.getAll({});
@@ -42,15 +37,12 @@ export async function clearCookies({
     const removePromises = [];
 
     for (const cookie of domoCookies) {
-      const cookieDomain = cookie.domain.startsWith('.')
-        ? cookie.domain.substring(1)
-        : cookie.domain;
+      const cookieDomain = cookie.domain.startsWith('.') ? cookie.domain.substring(1) : cookie.domain;
       const protocol = cookie.secure ? 'https:' : 'http:';
       const url = `${protocol}//${cookieDomain}${cookie.path}`;
 
       // Determine if this cookie matches any of the specified domains
-      const matchesDomains =
-        domains && domains.some((domain) => cookieDomain.endsWith(domain));
+      const matchesDomains = domains && domains.some((domain) => cookieDomain.endsWith(domain));
 
       // Determine if cookie should be cleared based on excludeDomains flag
       let shouldClear = false;
@@ -77,9 +69,7 @@ export async function clearCookies({
       }
 
       if (shouldClear) {
-        console.log(
-          `[ClearCookies] Removing cookie: ${cookie.name} from ${url}`
-        );
+        console.log(`[ClearCookies] Removing cookie: ${cookie.name} from ${url}`);
         removePromises.push(
           chrome.cookies
             .remove({
@@ -128,9 +118,7 @@ export async function clearCookies({
     } else {
       console.error('Errors while clearing cookies:', errors);
       return {
-        description: `Cleared ${removedCount} Domo cookie${
-          removedCount !== 1 ? 's' : ''
-        }, but ${errors.length} error${
+        description: `Cleared ${removedCount} Domo cookie${removedCount !== 1 ? 's' : ''}, but ${errors.length} error${
           errors.length !== 1 ? 's' : ''
         } occurred`,
         status: 'warning',

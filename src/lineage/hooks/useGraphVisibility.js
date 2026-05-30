@@ -1,11 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-export function useGraphVisibility({
-  expandFetch,
-  graph,
-  isNeighborCached,
-  rootNodeId
-}) {
+export function useGraphVisibility({ expandFetch, graph, isNeighborCached, rootNodeId }) {
   const [expandedNodes, setExpandedNodes] = useState(new Map());
   const [highlightedDepth, setHighlightedDepth] = useState(null);
   const initializedForRef = useRef(null);
@@ -112,9 +107,7 @@ export function useGraphVisibility({
         expanded: effectiveExpanded.get(n.id)
       }));
 
-    const visibleEdges = graph.edges.filter(
-      (e) => visible.has(e.sourceId) && visible.has(e.targetId)
-    );
+    const visibleEdges = graph.edges.filter((e) => visible.has(e.sourceId) && visible.has(e.targetId));
 
     return { edges: visibleEdges, nodes: visibleNodes };
   }, [graph, rootNodeId, effectiveExpanded, adjacency]);
@@ -173,8 +166,7 @@ export function useGraphVisibility({
             // Has cached neighbors not yet visible
             if (neighbors.some((id) => !visibleIds.has(id))) return true;
             // Has uncached neighbors (would trigger a fetch)
-            const totalCount =
-              sign > 0 ? n.downstreamCount : n.upstreamCount;
+            const totalCount = sign > 0 ? n.downstreamCount : n.upstreamCount;
             return totalCount > neighbors.length;
           });
           if (!canRevealMore) continue;
@@ -214,9 +206,7 @@ export function useGraphVisibility({
         return (adj.get(rootNodeId) || []).length;
       }
 
-      const nodesAtDepth = visibleTrace.nodes.filter(
-        (n) => n.depth === deepest.depth
-      );
+      const nodesAtDepth = visibleTrace.nodes.filter((n) => n.depth === deepest.depth);
       return nodesAtDepth.filter((n) => {
         const adj = sign > 0 ? adjacency.downstream : adjacency.upstream;
         const neighbors = adj.get(n.id) || [];
@@ -266,12 +256,9 @@ export function useGraphVisibility({
       // This keeps L1 visible so the LevelToolbar and frontier stay functional.
       if (nodeId === rootNodeId) {
         setExpandedNodes((prev) => {
-          const adj =
-            dirKey === 'down' ? adjacency.downstream : adjacency.upstream;
+          const adj = dirKey === 'down' ? adjacency.downstream : adjacency.upstream;
           const children = adj.get(nodeId) || [];
-          const hasExpandedChild = children.some(
-            (childId) => prev.get(childId)?.[dirKey]
-          );
+          const hasExpandedChild = children.some((childId) => prev.get(childId)?.[dirKey]);
 
           if (hasExpandedChild) {
             const next = new Map(prev);
@@ -337,9 +324,7 @@ export function useGraphVisibility({
 
       for (const node of nodesAtDepth) {
         if (!isNeighborCached(node.id, direction)) {
-          fetchPromises.push(
-            expandFetch(node.id, node.entityType, node.entityId)
-          );
+          fetchPromises.push(expandFetch(node.id, node.entityType, node.entityId));
         }
       }
 
@@ -376,10 +361,7 @@ export function useGraphVisibility({
         let changed = false;
         const next = new Map(prev);
         for (const node of graph.nodes) {
-          if (
-            (direction === 'downstream' && node.depth >= depth) ||
-            (direction === 'upstream' && node.depth <= depth)
-          ) {
+          if ((direction === 'downstream' && node.depth >= depth) || (direction === 'upstream' && node.depth <= depth)) {
             const existing = next.get(node.id);
             if (existing?.[dirKey]) {
               next.set(node.id, { ...existing, [dirKey]: false });

@@ -1,12 +1,4 @@
-import {
-  Button,
-  ButtonGroup,
-  Card,
-  Disclosure,
-  DisclosureGroup,
-  Separator,
-  Tooltip
-} from '@heroui/react';
+import { Button, ButtonGroup, Card, Disclosure, DisclosureGroup, Separator, Tooltip } from '@heroui/react';
 import { useEffect, useRef, useState } from 'react';
 import JsonView from 'react18-json-view';
 
@@ -123,10 +115,7 @@ export function ApiErrorsView({ onBackToDefault = null, onStatusUpdate = null })
             const path = stripDomain(error.url);
 
             return (
-              <Disclosure
-                className='overflow-hidden rounded-lg border border-border'
-                key={error.id}
-              >
+              <Disclosure className='overflow-hidden rounded-lg border border-border' key={error.id}>
                 <Disclosure.Heading>
                   <Disclosure.Trigger className='flex w-full items-center justify-between p-2 text-left text-xs'>
                     <div className='flex min-w-0 flex-1 flex-col gap-1'>
@@ -165,26 +154,14 @@ export function ApiErrorsView({ onBackToDefault = null, onStatusUpdate = null })
                         matchesURL={false}
                         src={parsed}
                         CopiedComponent={({ className, style }) => (
-                          <AnimatedCheck
-                            className={className + ' text-success'}
-                            size={16}
-                            stroke={1.5}
-                            style={style}
-                          />
+                          <AnimatedCheck className={className + ' text-success'} size={16} stroke={1.5} style={style} />
                         )}
                         CopyComponent={({ className, onClick, style }) => (
-                          <IconClipboardCopy
-                            className={className}
-                            size={16}
-                            style={style}
-                            onClick={onClick}
-                          />
+                          <IconClipboardCopy className={className} size={16} style={style} onClick={onClick} />
                         )}
                       />
                     ) : error.response ? (
-                      <pre className='text-sm break-normal whitespace-pre-wrap'>
-                        {error.response}
-                      </pre>
+                      <pre className='text-sm break-normal whitespace-pre-wrap'>{error.response}</pre>
                     ) : (
                       <span className='text-sm text-muted italic'>No response body</span>
                     )}

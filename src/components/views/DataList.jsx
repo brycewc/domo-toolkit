@@ -264,11 +264,7 @@ export function DataList({
           case 'viewsExplorer': {
             const baseUrl = item.domoObject?.baseUrl;
             if (baseUrl && item.id) {
-              window.open(
-                `${baseUrl}/datasources/${item.id}/view/create`,
-                '_blank',
-                'noopener,noreferrer'
-              );
+              window.open(`${baseUrl}/datasources/${item.id}/view/create`, '_blank', 'noopener,noreferrer');
             }
             break;
           }
@@ -284,8 +280,7 @@ export function DataList({
     [itemLabel, onItemRemove, onItemShare, onItemShareAll, onStatusUpdate]
   );
 
-  const hasInlineActions =
-    headerActions.length > 0 || (customHeaderActions && customHeaderActions.length > 0);
+  const hasInlineActions = headerActions.length > 0 || (customHeaderActions && customHeaderActions.length > 0);
   const hasSelectionToolbar = selectionMode && Boolean(selectionToolbar);
   const hasHeader = title || subtext || hasInlineActions || onClose || hasSelectionToolbar;
 
@@ -316,10 +311,7 @@ export function DataList({
   const sortedItems = useMemo(() => sortItemsByLabel(items), [items]);
 
   return (
-    <Card
-      className='datalist-root flex max-h-fit min-h-0 w-full flex-1 flex-col gap-0 p-2'
-      variant={variant}
-    >
+    <Card className='datalist-root flex max-h-fit min-h-0 w-full flex-1 flex-col gap-0 p-2' variant={variant}>
       {hasHeader && (
         // HeroUI canonical header pattern: close button is an absolute-positioned
         // sibling of Card.Title (NOT inside Card.Title). Card.Title is one line
@@ -362,9 +354,7 @@ export function DataList({
           )}
           {(subtext || hasInlineActions) && (
             <div className='flex min-w-0 items-center justify-between gap-2'>
-              <div className='min-w-0 flex-1 truncate text-xs text-muted'>
-                {parseMarkdownBold(subtext)}
-              </div>
+              <div className='min-w-0 flex-1 truncate text-xs text-muted'>{parseMarkdownBold(subtext)}</div>
               {hasInlineActions && (
                 <ButtonGroup hideSeparator className='flex shrink-0' size='sm' variant='ghost'>
                   {customHeaderActions?.map((action) => (
@@ -459,8 +449,7 @@ export function DataList({
                         ? 'Navigate to a Domo object to reload'
                         : !getAvailableActions(currentContext).has(viewType)
                           ? "Current object doesn't support this view"
-                          : currentContext.domoObject.id === objectId &&
-                              currentTypeId === objectType
+                          : currentContext.domoObject.id === objectId && currentTypeId === objectType
                             ? 'Already showing data for the current object'
                             : null;
                       const isReloadDisabled = reloadDisabledReason !== null;
@@ -471,15 +460,13 @@ export function DataList({
                             isIconOnly
                             aria-disabled={isReloadDisabled}
                             aria-label='Reload'
+                            className={isReloadDisabled ? 'cursor-not-allowed opacity-50' : undefined}
                             size='sm'
                             variant='ghost'
                             onPress={() => {
                               if (isReloadDisabled) return;
                               handleHeaderAction('reload');
                             }}
-                            className={
-                              isReloadDisabled ? 'cursor-not-allowed opacity-50' : undefined
-                            }
                           >
                             <IconReset />
                           </Button>
@@ -516,9 +503,7 @@ export function DataList({
               )}
             </div>
           )}
-          {selectionMode && selectionToolbar && (
-            <div className='flex min-w-0 items-center'>{selectionToolbar}</div>
-          )}
+          {selectionMode && selectionToolbar && <div className='flex min-w-0 items-center'>{selectionToolbar}</div>}
         </Card.Header>
       )}
       <Separator className='mt-1.5' />
@@ -836,10 +821,8 @@ function DataListItemImpl({
   // DataListItem spans both fetch and transfer phases; the count slot swaps
   // to a spinner or X icon to mirror the row's lifecycle without changing
   // its layout. See useParallelFetches for the producing hook.
-  const isLoadingState =
-    item.isVirtualParent && (item.status === 'loading' || item.status === 'transferring');
-  const isErrorState =
-    item.isVirtualParent && (item.status === 'error' || item.status === 'failed');
+  const isLoadingState = item.isVirtualParent && (item.status === 'loading' || item.status === 'transferring');
+  const isErrorState = item.isVirtualParent && (item.status === 'error' || item.status === 'failed');
   const showsErrorBody = isErrorState && item.error;
   const statusIndicator = isLoadingState ? (
     <Spinner
@@ -874,10 +857,8 @@ function DataListItemImpl({
   // descendant selector has specificity (0,0,2,0), which beats a plain `mt-0`
   // utility (0,0,1,0), so the `!` important modifier is needed to flip the
   // cascade.
-  const isItemSelectableInMode =
-    selectionMode && (typeof isSelectable === 'function' ? isSelectable(item) : true);
-  const selectionPlaceholder =
-    selectionMode && !isItemSelectableInMode ? <div className='h-9 w-4 shrink-0' /> : null;
+  const isItemSelectableInMode = selectionMode && (typeof isSelectable === 'function' ? isSelectable(item) : true);
+  const selectionPlaceholder = selectionMode && !isItemSelectableInMode ? <div className='h-9 w-4 shrink-0' /> : null;
 
   // Visual indentation per nesting level so children read as descendants
   // rather than as siblings of their parent. Scoped to selection mode on
@@ -952,14 +933,7 @@ function DataListItemImpl({
 
     const removeButton = (
       <Tooltip closeDelay={0} delay={800} key='remove'>
-        <Button
-          fullWidth
-          isIconOnly
-          aria-label='Remove'
-          size='sm'
-          variant='ghost'
-          onPress={() => handleAction('remove')}
-        >
+        <Button fullWidth isIconOnly aria-label='Remove' size='sm' variant='ghost' onPress={() => handleAction('remove')}>
           <IconCancel className='text-danger' />
         </Button>
         <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
@@ -973,14 +947,7 @@ function DataListItemImpl({
 
     const openAllButton = (
       <Tooltip closeDelay={0} delay={800} key='openAll'>
-        <Button
-          fullWidth
-          isIconOnly
-          aria-label='Open All'
-          size='sm'
-          variant='ghost'
-          onPress={() => handleAction('openAll')}
-        >
+        <Button fullWidth isIconOnly aria-label='Open All' size='sm' variant='ghost' onPress={() => handleAction('openAll')}>
           <IconArrowSquareOut />
         </Button>
         <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
@@ -991,14 +958,7 @@ function DataListItemImpl({
 
     const copyButton = (
       <Tooltip closeDelay={0} delay={800} key='copy'>
-        <Button
-          fullWidth
-          isIconOnly
-          aria-label='Copy'
-          size='sm'
-          variant='ghost'
-          onPress={() => handleAction('copy')}
-        >
+        <Button fullWidth isIconOnly aria-label='Copy' size='sm' variant='ghost' onPress={() => handleAction('copy')}>
           {isCopied ? <AnimatedCheck stroke={1.5} /> : <IconClipboardCopy />}
         </Button>
         <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
@@ -1027,14 +987,7 @@ function DataListItemImpl({
 
     const shareButton = (
       <Tooltip closeDelay={0} delay={800} key='share'>
-        <Button
-          fullWidth
-          isIconOnly
-          aria-label='Share'
-          size='sm'
-          variant='ghost'
-          onPress={() => handleAction('share')}
-        >
+        <Button fullWidth isIconOnly aria-label='Share' size='sm' variant='ghost' onPress={() => handleAction('share')}>
           {isShared ? <AnimatedCheck stroke={1.5} /> : <IconPersonPlus />}
         </Button>
         <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
@@ -1092,17 +1045,11 @@ function DataListItemImpl({
     if (itemActions) {
       const actions = [];
       if (itemActions.includes('openAll') && hasChildren) actions.push(openAllButton);
-      if (canShareAll && itemActions.includes('shareAll') && hasShareableChildren(item))
-        actions.push(shareAllButton);
-      if (canShare && itemActions.includes('share') && isItemShareable(item))
-        actions.push(shareButton);
-      if (
-        itemActions.includes('lineage') &&
-        (item.typeId === 'DATA_SOURCE' || item.typeId === 'DATAFLOW_TYPE')
-      )
+      if (canShareAll && itemActions.includes('shareAll') && hasShareableChildren(item)) actions.push(shareAllButton);
+      if (canShare && itemActions.includes('share') && isItemShareable(item)) actions.push(shareButton);
+      if (itemActions.includes('lineage') && (item.typeId === 'DATA_SOURCE' || item.typeId === 'DATAFLOW_TYPE'))
         actions.push(lineageButton);
-      if (itemActions.includes('viewsExplorer') && item.typeId === 'DATA_SOURCE')
-        actions.push(viewsExplorerButton);
+      if (itemActions.includes('viewsExplorer') && item.typeId === 'DATA_SOURCE') actions.push(viewsExplorerButton);
       if (itemActions.includes('copy')) actions.push(copyButton);
       return actions;
     }
@@ -1127,26 +1074,11 @@ function DataListItemImpl({
     if (canShare && isItemShareable(item)) actions.push(shareButton);
     actions.push(copyButton);
     return actions;
-  }, [
-    canShare,
-    canShareAll,
-    hasChildren,
-    handleAction,
-    isCopied,
-    isShared,
-    item,
-    itemActions,
-    objectType,
-    showActions
-  ]);
+  }, [canShare, canShareAll, hasChildren, handleAction, isCopied, isShared, item, itemActions, objectType, showActions]);
 
   const labelInner = (
     <>
-      <ObjectTypeIcon
-        className='mr-1 inline-block shrink-0 align-[-3px]'
-        size={16}
-        typeId={item.typeId}
-      />
+      <ObjectTypeIcon className='mr-1 inline-block shrink-0 align-[-3px]' size={16} typeId={item.typeId} />
       {item.label}
     </>
   );
@@ -1207,12 +1139,7 @@ function DataListItemImpl({
             </Button>
             <Popover.Content offset={4} placement='left'>
               <Popover.Dialog className='p-0'>
-                <ButtonGroup
-                  fullWidth
-                  className='flex max-w-xs justify-end'
-                  size='sm'
-                  variant='ghost'
-                >
+                <ButtonGroup fullWidth className='flex max-w-xs justify-end' size='sm' variant='ghost'>
                   {applicableActions}
                 </ButtonGroup>
               </Popover.Dialog>
@@ -1417,11 +1344,7 @@ function DataListItemImpl({
             {selectionPlaceholder}
             <div className='flex w-full min-w-0 flex-1 basis-4/5 items-center gap-2'>
               {itemLabel}
-              <Disclosure.Trigger
-                aria-label='Toggle'
-                className='flex flex-1 flex-row items-center gap-2'
-                variant='tertiary'
-              >
+              <Disclosure.Trigger aria-label='Toggle' className='flex flex-1 flex-row items-center gap-2' variant='tertiary'>
                 {showCounts && item.count !== undefined && (
                   <p className='shrink-0 text-sm whitespace-nowrap text-muted'>
                     ({item.count}
@@ -1471,9 +1394,7 @@ function DataListItemImpl({
                   ))}
                 </div>
               ) : (
-                item.children.map((child, index) => (
-                  <DataListItem key={child.id || index} {...childRenderProps(child)} />
-                ))
+                item.children.map((child, index) => <DataListItem key={child.id || index} {...childRenderProps(child)} />)
               )}
             </DisclosureGroup>
           )}

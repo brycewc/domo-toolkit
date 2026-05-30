@@ -41,21 +41,13 @@ export function RemoveEmptyStringsFromQuickFilters({ currentContext, onStatusUpd
   const handleClick = () => {
     const definition = definitionRef.current;
     if (!definition) {
-      onStatusUpdate?.(
-        'No Definition Found',
-        `No definition found for card **${cardId}**`,
-        'warning'
-      );
+      onStatusUpdate?.('No Definition Found', `No definition found for card **${cardId}**`, 'warning');
       return;
     }
 
     let removed = 0;
     definition.definition.controls.forEach((control) => {
-      if (
-        Array.isArray(control.values) &&
-        control.values.length === 1 &&
-        control.values[0] === ''
-      ) {
+      if (Array.isArray(control.values) && control.values.length === 1 && control.values[0] === '') {
         control.values = [];
         removed++;
       }
@@ -71,8 +63,7 @@ export function RemoveEmptyStringsFromQuickFilters({ currentContext, onStatusUpd
     showPromiseStatus(promise, {
       error: () => `Failed to remove empty strings from card **${cardId}** quick filters`,
       loading: `Removing empty strings from card **${cardId}**…`,
-      success: (count) =>
-        `Removed ${count} empty string quick filter${count === 1 ? '' : 's'} from card **${cardId}**`
+      success: (count) => `Removed ${count} empty string quick filter${count === 1 ? '' : 's'} from card **${cardId}**`
     });
   };
 
@@ -92,8 +83,8 @@ export function RemoveEmptyStringsFromQuickFilters({ currentContext, onStatusUpd
         className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
         offset={4}
       >
-        Sets the default of contains quick filters to nothing instead of an empty string, so that
-        null values will show instead of being filtered out. Currently affects {emptyCount} filter
+        Sets the default of contains quick filters to nothing instead of an empty string, so that null values will show
+        instead of being filtered out. Currently affects {emptyCount} filter
         {emptyCount === 1 ? '' : 's'} on this card.
       </Tooltip.Content>
     </Tooltip>
@@ -103,7 +94,6 @@ export function RemoveEmptyStringsFromQuickFilters({ currentContext, onStatusUpd
 function countEmptyStringFilters(definition) {
   if (!Array.isArray(definition?.definition?.controls)) return 0;
   return definition.definition.controls.filter(
-    (control) =>
-      Array.isArray(control.values) && control.values.length === 1 && control.values[0] === ''
+    (control) => Array.isArray(control.values) && control.values.length === 1 && control.values[0] === ''
   ).length;
 }

@@ -84,11 +84,7 @@ const TYPE_KEY_TO_DOMO_TYPE = {
   workspaces: 'WORKSPACE'
 };
 
-export function OwnershipView({
-  currentContext = null,
-  onBackToDefault = null,
-  onStatusUpdate = null
-}) {
+export function OwnershipView({ currentContext = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   const [userName, setUserName] = useState('');
   const [userId, setUserId] = useState(null);
@@ -146,10 +142,7 @@ export function OwnershipView({
       }
 
       const uid = context.domoObject?.id;
-      const name =
-        context.domoObject?.metadata?.name ||
-        context.domoObject?.metadata?.displayName ||
-        `User ${uid}`;
+      const name = context.domoObject?.metadata?.name || context.domoObject?.metadata?.displayName || `User ${uid}`;
       const baseUrl = context.domoObject?.baseUrl || '';
 
       setUserId(uid);
@@ -201,13 +194,7 @@ export function OwnershipView({
     [userId, tabId]
   );
 
-  const {
-    errorCount,
-    isFullyLoaded,
-    loadingCount,
-    refresh: refreshFetches,
-    results
-  } = useParallelFetches(specs);
+  const { errorCount, isFullyLoaded, loadingCount, refresh: refreshFetches, results } = useParallelFetches(specs);
 
   // Forbidden types: source user lacks the required authority. Calculated from
   // the toolkit user's USER_RIGHTS (the user running the extension), not the
@@ -215,9 +202,7 @@ export function OwnershipView({
   const forbidden = useMemo(() => {
     const userRights = launchContext?.user?.metadata?.USER_RIGHTS || [];
     return new Set(
-      TRANSFER_TYPES.filter(
-        (t) => t.requiredAuthority && !userRights.includes(t.requiredAuthority)
-      ).map((t) => t.key)
+      TRANSFER_TYPES.filter((t) => t.requiredAuthority && !userRights.includes(t.requiredAuthority)).map((t) => t.key)
     );
   }, [launchContext]);
 
@@ -480,9 +465,7 @@ export function OwnershipView({
       const reconcileTaskProject = (projectId) => {
         const tasks = tasksByProject.get(projectId) || [];
         if (tasks.length === 0) return;
-        const allSelected = tasks.every((t) =>
-          next.has(leafIdForItem('projectsAndTasks', { ...t, subType: 'Task' }))
-        );
+        const allSelected = tasks.every((t) => next.has(leafIdForItem('projectsAndTasks', { ...t, subType: 'Task' })));
         const projectLeafId = `projectsAndTasks:project-${projectId}`;
         if (allSelected) next.add(projectLeafId);
         else next.delete(projectLeafId);
@@ -625,9 +608,7 @@ export function OwnershipView({
       try {
         // Leaf React ids are namespaced (`pages:<id>`); the canonical page id
         // lives on `originalId`. Drop any synthetic/negative ids defensively.
-        const pageIds = item.children
-          .map((child) => child.originalId ?? child.id)
-          .filter((id) => Number(id) >= 0);
+        const pageIds = item.children.map((child) => child.originalId ?? child.id).filter((id) => Number(id) >= 0);
         if (!pageIds.length) return;
         await sharePages({ pageIds, tabId, userId: launchContext?.user?.id });
         showStatus(
@@ -651,8 +632,7 @@ export function OwnershipView({
   // message — same UX as the old TransferOwnership view's failure-disclosure.
   const handleTransferSubmit = useCallback(
     async (formData) => {
-      const { deleteAfterTransfer, emailNewOwner, targetUser, toUserDisplayName, toUserId } =
-        formData;
+      const { deleteAfterTransfer, emailNewOwner, targetUser, toUserDisplayName, toUserId } = formData;
 
       // A type is "enabled for transfer" iff at least one of its leaves is
       // selected — bare type-key membership in `selectedIds` isn't sufficient
@@ -775,12 +755,7 @@ export function OwnershipView({
               tabId
             );
           } catch (err) {
-            showStatus(
-              'Email Not Sent',
-              err.message || 'Failed to email new owner',
-              'warning',
-              5000
-            );
+            showStatus('Email Not Sent', err.message || 'Failed to email new owner', 'warning', 5000);
           }
         }
 
@@ -831,25 +806,13 @@ export function OwnershipView({
         }
       }
     },
-    [
-      onBackToDefault,
-      results,
-      selectedItemsByType,
-      showStatus,
-      tabId,
-      userId,
-      userName
-    ]
+    [onBackToDefault, results, selectedItemsByType, showStatus, tabId, userId, userName]
   );
 
   const subtextNode = useMemo(() => {
     if (isTransferring) {
-      const inFlight = Object.values(transferStatus).filter(
-        (x) => x.status === 'transferring'
-      ).length;
-      const done = Object.values(transferStatus).filter(
-        (x) => x.status === 'transferred' || x.status === 'failed'
-      ).length;
+      const inFlight = Object.values(transferStatus).filter((x) => x.status === 'transferring').length;
+      const done = Object.values(transferStatus).filter((x) => x.status === 'transferred' || x.status === 'failed').length;
       const total = inFlight + done;
       return `Transferring… **${done}**/${total}`;
     }
@@ -916,15 +879,7 @@ export function OwnershipView({
       });
     }
     return actions;
-  }, [
-    exitSelectionMode,
-    hasAnyTransferable,
-    isFullyLoaded,
-    isTransferring,
-    isUserSource,
-    selectAllEligible,
-    selectionMode
-  ]);
+  }, [exitSelectionMode, hasAnyTransferable, isFullyLoaded, isTransferring, isUserSource, selectAllEligible, selectionMode]);
 
   // Toolbar rendered just under the header action row when selection mode is
   // engaged. The "Select all" Checkbox shows three states:
@@ -957,19 +912,12 @@ export function OwnershipView({
       <Checkbox
         aria-label='Select all eligible objects'
         isDisabled={isHydrating || totalEligibleObjects === 0 || isTransferring}
+        isIndeterminate={!isHydrating && selectedObjectCount > 0 && selectedObjectCount < totalEligibleObjects}
+        isSelected={isHydrating || (totalEligibleObjects > 0 && selectedObjectCount === totalEligibleObjects)}
         onChange={(isSelected) => {
           if (isSelected) selectAllEligible();
           else clearSelection();
         }}
-        isIndeterminate={
-          !isHydrating &&
-          selectedObjectCount > 0 &&
-          selectedObjectCount < totalEligibleObjects
-        }
-        isSelected={
-          isHydrating ||
-          (totalEligibleObjects > 0 && selectedObjectCount === totalEligibleObjects)
-        }
       >
         <Checkbox.Control>
           <Checkbox.Indicator />
@@ -1001,25 +949,16 @@ export function OwnershipView({
     return (
       <Button
         fullWidth
+        isDisabled={selectedObjectCount === 0 || isTransferring || !isFullyLoaded || !hasAnyTransferable}
         size='sm'
         startContent={<IconArrowsHorizontalBox />}
         variant='primary'
         onPress={handleOpenTransferModal}
-        isDisabled={
-          selectedObjectCount === 0 || isTransferring || !isFullyLoaded || !hasAnyTransferable
-        }
       >
         Transfer ownership to…
       </Button>
     );
-  }, [
-    handleOpenTransferModal,
-    hasAnyTransferable,
-    isFullyLoaded,
-    isTransferring,
-    selectedObjectCount,
-    selectionMode
-  ]);
+  }, [handleOpenTransferModal, hasAnyTransferable, isFullyLoaded, isTransferring, selectedObjectCount, selectionMode]);
 
   if (isLoading) {
     return (
@@ -1102,21 +1041,12 @@ function buildLeafItems(typeKey, owned, origin, tasksByProject) {
     // per-item `global` flag (true only for Variables) is the only thing that
     // distinguishes them, so resolve the leaf type per item rather than using
     // the category default.
-    const domoTypeId =
-      typeKey === 'functions' && item.global
-        ? 'VARIABLE'
-        : TYPE_KEY_TO_DOMO_TYPE[typeKey];
+    const domoTypeId = typeKey === 'functions' && item.global ? 'VARIABLE' : TYPE_KEY_TO_DOMO_TYPE[typeKey];
     let url = null;
     if (domoTypeId) {
       try {
-        url = new DomoObject(
-          domoTypeId,
-          item.id,
-          origin,
-          { name: item.name },
-          null,
-          item.queueId || item.parentId || null
-        ).url;
+        url = new DomoObject(domoTypeId, item.id, origin, { name: item.name }, null, item.queueId || item.parentId || null)
+          .url;
       } catch {
         url = null;
       }
@@ -1165,14 +1095,7 @@ function buildProjectsAndTasksItems(owned, tasksByProject, origin) {
     let url = null;
     if (origin) {
       try {
-        url = new DomoObject(
-          'PROJECT_TASK',
-          task.id,
-          origin,
-          { name: task.name },
-          null,
-          task.projectId ?? null
-        ).url;
+        url = new DomoObject('PROJECT_TASK', task.id, origin, { name: task.name }, null, task.projectId ?? null).url;
       } catch {
         url = null;
       }
@@ -1234,8 +1157,7 @@ function buildTransferLogRows({ fromUserId, fromUserName, results, toUserId, toU
       // The `functions` category mixes Beast Modes and Variables; the per-item
       // `global` flag (true only for Variables) overrides the category log type
       // so the audit row reports the correct object type.
-      const itemLogType =
-        typeKey === 'functions' && item.global ? 'VARIABLE' : logType;
+      const itemLogType = typeKey === 'functions' && item.global ? 'VARIABLE' : logType;
       rows.push({
         'Date': date,
         'New Owner ID': toUserId,
@@ -1243,9 +1165,7 @@ function buildTransferLogRows({ fromUserId, fromUserName, results, toUserId, toU
         'Notes': isFailure ? (wholeBatchError ?? failedById.get(item.id)) : '',
         'Object ID': item.id,
         'Object Name': item.name,
-        'Object Type': item.subType
-          ? item.subType.toUpperCase()
-          : (itemLogType ?? typeDef?.label ?? typeKey),
+        'Object Type': item.subType ? item.subType.toUpperCase() : (itemLogType ?? typeDef?.label ?? typeKey),
         'Previous Owner ID': fromUserId,
         'Previous Owner Name': fromUserName,
         'Status': isFailure ? 'FAILED' : 'TRANSFERRED'

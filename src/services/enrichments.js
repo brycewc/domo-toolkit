@@ -2,11 +2,7 @@ import { fetchObjectDetailsInPage, getObjectType } from '@/models/DomoObjectType
 import { executeInPage } from '@/utils/executeInPage';
 
 import { getAppDbCollectionPermission } from './appDb';
-import {
-  extractPageContentIds,
-  getFormsForPage,
-  getQueuesForPage
-} from './appStudio';
+import { extractPageContentIds, getFormsForPage, getQueuesForPage } from './appStudio';
 import { getCardsForObject } from './cards';
 import { getDataflowPermission } from './dataflows';
 import { getChildPages, getPagesForCards, getSubpageIds } from './pages';
@@ -37,8 +33,7 @@ const ENRICHMENTS = [
     fallback: undefined,
     fetch: async ({ enrichedMetadata, tabId }) => {
       const streamId = enrichedMetadata.details?.streamId;
-      const isDataflow =
-        enrichedMetadata.details?.type?.toLowerCase() === 'dataflow';
+      const isDataflow = enrichedMetadata.details?.type?.toLowerCase() === 'dataflow';
       if (!streamId || isDataflow) return undefined;
 
       const streamType = getObjectType('STREAM');
@@ -55,14 +50,8 @@ const ENRICHMENTS = [
       );
       if (!streamMetadata?.details) return undefined;
 
-      const name = streamType.api.nameTemplate.replace(
-        /{([^}]+)}/g,
-        (_, path) =>
-          path === 'id'
-            ? String(streamId)
-            : (path
-                .split('.')
-                .reduce((o, k) => o?.[k], streamMetadata.details) ?? '')
+      const name = streamType.api.nameTemplate.replace(/{([^}]+)}/g, (_, path) =>
+        path === 'id' ? String(streamId) : (path.split('.').reduce((o, k) => o?.[k], streamMetadata.details) ?? '')
       );
       return {
         details: streamMetadata.details,
@@ -101,10 +90,7 @@ const ENRICHMENTS = [
   {
     fallback: [],
     fetch: ({ domoObject, objectId, tabId, typeId }) => {
-      const appId =
-        typeId === 'DATA_APP_VIEW' && domoObject.parentId
-          ? parseInt(domoObject.parentId)
-          : null;
+      const appId = typeId === 'DATA_APP_VIEW' && domoObject.parentId ? parseInt(domoObject.parentId) : null;
       return getChildPages({
         appId,
         pageId: parseInt(objectId),
@@ -139,17 +125,10 @@ const ENRICHMENTS = [
   {
     contentGroup: 'cards',
     fallback: [],
-    fetch: ({ objectId, tabId, typeId }) =>
-      getCardsForObject({ objectId, objectType: typeId, tabId }),
+    fetch: ({ objectId, tabId, typeId }) => getCardsForObject({ objectId, objectType: typeId, tabId }),
     id: 'page-cards',
     storePath: 'context.cards',
-    types: [
-      'PAGE',
-      'DATA_APP_VIEW',
-      'DATA_SOURCE',
-      'WORKSHEET_VIEW',
-      'REPORT_BUILDER_VIEW'
-    ]
+    types: ['PAGE', 'DATA_APP_VIEW', 'DATA_SOURCE', 'WORKSHEET_VIEW', 'REPORT_BUILDER_VIEW']
   },
 
   // Forms for page-like types
@@ -157,20 +136,13 @@ const ENRICHMENTS = [
     contentGroup: 'forms',
     fallback: [],
     fetch: ({ enrichedMetadata, tabId }) => {
-      const { formWidgetIds } = extractPageContentIds(
-        enrichedMetadata.details
-      );
+      const { formWidgetIds } = extractPageContentIds(enrichedMetadata.details);
       if (formWidgetIds.length === 0) return [];
       return getFormsForPage({ formWidgetIds, tabId });
     },
     id: 'page-forms',
     storePath: 'context.forms',
-    types: [
-      'DATA_APP_VIEW',
-      'PAGE',
-      'REPORT_BUILDER_VIEW',
-      'WORKSHEET_VIEW'
-    ]
+    types: ['DATA_APP_VIEW', 'PAGE', 'REPORT_BUILDER_VIEW', 'WORKSHEET_VIEW']
   },
 
   // Queues for page-like types
@@ -178,20 +150,13 @@ const ENRICHMENTS = [
     contentGroup: 'queues',
     fallback: [],
     fetch: ({ enrichedMetadata, tabId }) => {
-      const { queueWidgetIds } = extractPageContentIds(
-        enrichedMetadata.details
-      );
+      const { queueWidgetIds } = extractPageContentIds(enrichedMetadata.details);
       if (queueWidgetIds.length === 0) return [];
       return getQueuesForPage({ queueWidgetIds, tabId });
     },
     id: 'page-queues',
     storePath: 'context.queues',
-    types: [
-      'DATA_APP_VIEW',
-      'PAGE',
-      'REPORT_BUILDER_VIEW',
-      'WORKSHEET_VIEW'
-    ]
+    types: ['DATA_APP_VIEW', 'PAGE', 'REPORT_BUILDER_VIEW', 'WORKSHEET_VIEW']
   },
 
   // Workflow permission
@@ -220,8 +185,7 @@ const ENRICHMENTS = [
 
   // AppDB collection permission
   {
-    fetch: ({ objectId, tabId }) =>
-      getAppDbCollectionPermission(objectId, tabId),
+    fetch: ({ objectId, tabId }) => getAppDbCollectionPermission(objectId, tabId),
     id: 'appdb-permission',
     storePath: 'permission',
     types: ['MAGNUM_COLLECTION']
@@ -262,12 +226,7 @@ const ENRICHMENTS = [
  * When all three groups (cards, forms, queues) have resolved for a page-like type,
  * the orchestrator builds a combined content array.
  */
-const PAGE_CONTENT_TYPES = new Set([
-  'DATA_APP_VIEW',
-  'PAGE',
-  'REPORT_BUILDER_VIEW',
-  'WORKSHEET_VIEW'
-]);
+const PAGE_CONTENT_TYPES = new Set(['DATA_APP_VIEW', 'PAGE', 'REPORT_BUILDER_VIEW', 'WORKSHEET_VIEW']);
 
 /**
  * Run all enrichments that match the given object type.
@@ -285,8 +244,7 @@ const PAGE_CONTENT_TYPES = new Set([
  * @param {Function} ctx.setTabContext - Stores updated tab context and broadcasts
  */
 export function runEnrichments(ctx) {
-  const { getTabContext, isStale, objectId, setTabContext, tabId, typeId } =
-    ctx;
+  const { getTabContext, isStale, objectId, setTabContext, tabId, typeId } = ctx;
 
   const matching = ENRICHMENTS.filter((e) => e.types.includes(typeId));
   if (matching.length === 0) return;
@@ -300,20 +258,14 @@ export function runEnrichments(ctx) {
     const currentCtx = getTabContext(tabId);
     const ctxMeta = currentCtx?.domoObject?.metadata?.context;
     if (!ctxMeta) return;
-    if (
-      ctxMeta.cards == null ||
-      ctxMeta.forms == null ||
-      ctxMeta.queues == null
-    ) {
+    if (ctxMeta.cards == null || ctxMeta.forms == null || ctxMeta.queues == null) {
       return;
     }
 
     const content = [];
     for (const card of ctxMeta.cards) content.push({ ...card, type: 'CARD' });
-    for (const form of ctxMeta.forms)
-      content.push({ ...form, type: 'ENIGMA_FORM' });
-    for (const queue of ctxMeta.queues)
-      content.push({ ...queue, type: 'HOPPER_QUEUE' });
+    for (const form of ctxMeta.forms) content.push({ ...form, type: 'ENIGMA_FORM' });
+    for (const queue of ctxMeta.queues) content.push({ ...queue, type: 'HOPPER_QUEUE' });
     ctxMeta.content = content;
     setTabContext(tabId, currentCtx);
   }
@@ -350,10 +302,7 @@ export function runEnrichments(ctx) {
       })
       .catch((error) => {
         if (isStale()) return;
-        console.warn(
-          `[Enrichment:${enrichment.id}] Error for ${typeId} ${objectId}:`,
-          error.message
-        );
+        console.warn(`[Enrichment:${enrichment.id}] Error for ${typeId} ${objectId}:`, error.message);
 
         if (enrichment.fallback !== undefined) {
           commitResult(enrichment, enrichment.fallback);

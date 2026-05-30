@@ -48,8 +48,7 @@ export function DeleteObject({ currentContext, isDisabled, onStatusUpdate }) {
       const userPerms = (currentContext?.domoObject?.metadata?.permission?.USER || []).find(
         (u) => String(u.id) === String(userId)
       );
-      const hasDeletePerm =
-        userPerms?.permissions?.includes('ADMIN') || userPerms?.permissions?.includes('DELETE');
+      const hasDeletePerm = userPerms?.permissions?.includes('ADMIN') || userPerms?.permissions?.includes('DELETE');
       return !isOwner && !hasDeletePerm && !userRights.includes('datastore.admin');
     }
     return false;
@@ -59,8 +58,7 @@ export function DeleteObject({ currentContext, isDisabled, onStatusUpdate }) {
     isDisabled ||
     !currentContext?.domoObject ||
     !SUPPORTED_TYPES.includes(typeId) ||
-    (typeId === 'DATAFLOW_TYPE' &&
-      currentContext?.domoObject?.metadata?.details?.deleted === true) ||
+    (typeId === 'DATAFLOW_TYPE' && currentContext?.domoObject?.metadata?.details?.deleted === true) ||
     isDeleteForbidden;
 
   const tooltipSuffix =
@@ -86,9 +84,7 @@ export function DeleteObject({ currentContext, isDisabled, onStatusUpdate }) {
           })
         }
       >
-        {({ isDisabled: btnDisabled }) => (
-          <IconTrash className={btnDisabled ? '' : 'text-danger'} />
-        )}
+        {({ isDisabled: btnDisabled }) => <IconTrash className={btnDisabled ? '' : 'text-danger'} />}
       </Button>
       <Tooltip.Content
         className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'

@@ -22,14 +22,10 @@ export class DomoContext {
     // Extract instance from URL and determine if this is a valid Domo page
     try {
       const hostname = new URL(url).hostname;
-      this.instance = hostname.endsWith('.domo.com')
-        ? hostname.replace('.domo.com', '')
-        : null;
+      this.instance = hostname.endsWith('.domo.com') ? hostname.replace('.domo.com', '') : null;
 
       // Check if this is a valid Domo page (not excluded)
-      this.isDomoPage =
-        hostname.endsWith('.domo.com') &&
-        !EXCLUDED_HOSTNAMES.includes(hostname);
+      this.isDomoPage = hostname.endsWith('.domo.com') && !EXCLUDED_HOSTNAMES.includes(hostname);
     } catch (error) {
       console.error('Error extracting instance from URL:', error);
       this.instance = null;
@@ -41,12 +37,7 @@ export class DomoContext {
     this.userGroups = null;
 
     // Fetch tab object if not provided but tabId is available
-    if (
-      !this.tab &&
-      this.tabId &&
-      typeof chrome !== 'undefined' &&
-      chrome.tabs
-    ) {
+    if (!this.tab && this.tabId && typeof chrome !== 'undefined' && chrome.tabs) {
       chrome.tabs
         .get(this.tabId)
         .then((fetchedTab) => {
@@ -65,17 +56,9 @@ export class DomoContext {
    */
   static fromJSON(data) {
     // Use DomoObject.fromJSON to properly reconstruct the DomoObject instance
-    const domoObject = data.domoObject
-      ? DomoObject.fromJSON(data.domoObject)
-      : null;
+    const domoObject = data.domoObject ? DomoObject.fromJSON(data.domoObject) : null;
 
-    const context = new DomoContext(
-      data.tabId,
-      data.url,
-      domoObject,
-      data.tab || null,
-      data.user || null
-    );
+    const context = new DomoContext(data.tabId, data.url, domoObject, data.tab || null, data.user || null);
 
     context.userGroups = data.userGroups || null;
 

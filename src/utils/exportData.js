@@ -8,9 +8,7 @@
  */
 export async function buildExcelBlob(data, columns, sheetName = 'Data') {
   const exportData = transformDataForExport(data || [], columns);
-  const headers = columns.map((col) =>
-    typeof col.header === 'string' ? col.header : col.accessorKey || col.id
-  );
+  const headers = columns.map((col) => (typeof col.header === 'string' ? col.header : col.accessorKey || col.id));
 
   // Create worksheet data with headers
   const wsData = [headers];
@@ -58,17 +56,13 @@ export function exportToCSV(data, columns, filename = 'export') {
   }
 
   const exportData = transformDataForExport(data, columns);
-  const headers = columns.map((col) =>
-    typeof col.header === 'string' ? col.header : col.accessorKey || col.id
-  );
+  const headers = columns.map((col) => (typeof col.header === 'string' ? col.header : col.accessorKey || col.id));
 
   // Build CSV content
   const csvRows = [];
 
   // Header row
-  csvRows.push(
-    headers.map((h) => `"${String(h).replace(/"/g, '""')}"`).join(',')
-  );
+  csvRows.push(headers.map((h) => `"${String(h).replace(/"/g, '""')}"`).join(','));
 
   // Data rows
   exportData.forEach((row) => {
@@ -94,12 +88,7 @@ export function exportToCSV(data, columns, filename = 'export') {
  * @param {string} filename - Filename without extension
  * @param {string} sheetName - Name of the Excel sheet
  */
-export async function exportToExcel(
-  data,
-  columns,
-  filename = 'export',
-  sheetName = 'Data'
-) {
+export async function exportToExcel(data, columns, filename = 'export', sheetName = 'Data') {
   if (!data || data.length === 0) {
     console.warn('No data to export');
     return;
@@ -116,11 +105,7 @@ export async function exportToExcel(
  */
 export function generateExportFilename(prefix = 'export') {
   const now = new Date();
-  const timestamp = now
-    .toISOString()
-    .slice(0, 19)
-    .replace(/[:-]/g, '')
-    .replace('T', '_');
+  const timestamp = now.toISOString().slice(0, 19).replace(/[:-]/g, '').replace('T', '_');
   return `${prefix}_${timestamp}`;
 }
 
@@ -193,8 +178,7 @@ function transformDataForExport(data, columns) {
   return data.map((row) => {
     const exportRow = {};
     columns.forEach((col) => {
-      const header =
-        typeof col.header === 'string' ? col.header : col.accessorKey || col.id;
+      const header = typeof col.header === 'string' ? col.header : col.accessorKey || col.id;
       const accessorKey = col.accessorKey || col.id;
 
       // Get value from row using accessor

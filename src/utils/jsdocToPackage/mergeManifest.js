@@ -13,9 +13,7 @@ export function findLatestVersion(versions) {
 
 export function findLatestVersionInfo(versions) {
   if (!Array.isArray(versions) || versions.length === 0) return null;
-  const sorted = [...versions]
-    .filter((v) => v?.version)
-    .sort((a, b) => compareSemverDesc(a.version, b.version));
+  const sorted = [...versions].filter((v) => v?.version).sort((a, b) => compareSemverDesc(a.version, b.version));
   return sorted[0] || null;
 }
 
@@ -30,23 +28,8 @@ export function isVersionReleased(versionInfo) {
   return versionInfo?.released != null;
 }
 
-const COMPARED_FIELDS = [
-  'displayName',
-  'description',
-  'isPrivate',
-  'inputs',
-  'output',
-  'hasReturn'
-];
-const OUTPUT_STRUCTURAL_FIELDS = [
-  'type',
-  'value',
-  'nullable',
-  'isList',
-  'children',
-  'entitySubType',
-  'defaultValues'
-];
+const COMPARED_FIELDS = ['displayName', 'description', 'isPrivate', 'inputs', 'output', 'hasReturn'];
+const OUTPUT_STRUCTURAL_FIELDS = ['type', 'value', 'nullable', 'isList', 'children', 'entitySubType', 'defaultValues'];
 
 export function computeStructuralDiff(before, after) {
   const out = [];
@@ -183,8 +166,7 @@ function normalizeExistingFunction(fn) {
     ...fn,
     hasReturn: fn.hasReturn ?? fn.output != null,
     inputs: Array.isArray(fn.inputs) ? fn.inputs.map(addMissingDefaultValues) : fn.inputs,
-    output:
-      fn.output && typeof fn.output === 'object' ? addMissingDefaultValues(fn.output) : fn.output
+    output: fn.output && typeof fn.output === 'object' ? addMissingDefaultValues(fn.output) : fn.output
   };
 }
 
@@ -332,14 +314,7 @@ export function findVersionForBaseline(versions, targetVersionId) {
   return findLatestVersionInfo(versions);
 }
 
-export function preparePackagePayload({
-  baseVersion,
-  code,
-  existingDefinition,
-  manifestFunctions,
-  newVersion,
-  packageId
-}) {
+export function preparePackagePayload({ baseVersion, code, existingDefinition, manifestFunctions, newVersion, packageId }) {
   const baseConfiguration = baseVersion?.configuration ||
     existingDefinition?.configuration || {
       accountsMapping: []

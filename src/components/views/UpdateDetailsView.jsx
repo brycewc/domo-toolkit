@@ -267,13 +267,7 @@ export function UpdateDetailsView({ onBackToDefault = null, onStatusUpdate = nul
       </div>
 
       <div className='flex shrink-0 flex-col gap-2'>
-        <Button
-          fullWidth
-          isDisabled={isSubmitting}
-          isPending={isSubmitting}
-          variant='primary'
-          onPress={handleSubmit}
-        >
+        <Button fullWidth isDisabled={isSubmitting} isPending={isSubmitting} variant='primary' onPress={handleSubmit}>
           Save
         </Button>
       </div>
@@ -295,19 +289,9 @@ function FieldRow({
 }) {
   if (field.kind === 'text') {
     return (
-      <TextField
-        id={`update-${field.key}`}
-        isRequired={field.required}
-        name={field.key}
-        variant='secondary'
-      >
+      <TextField id={`update-${field.key}`} isRequired={field.required} name={field.key} variant='secondary'>
         <Label>{field.label}</Label>
-        <Input
-          className='h-8'
-          isDisabled={isDisabled}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-        />
+        <Input className='h-8' isDisabled={isDisabled} value={value} onChange={(e) => onChange(e.target.value)} />
       </TextField>
     );
   }
@@ -352,9 +336,7 @@ function FieldRow({
           >
             <Label>{field.label}</Label>
             <ComboBox.InputGroup>
-              <Input
-                placeholder={isLoadingOptions ? 'Loading providers…' : 'Type or pick a value…'}
-              />
+              <Input placeholder={isLoadingOptions ? 'Loading providers…' : 'Type or pick a value…'} />
               <ComboBox.Trigger>
                 <IconChevronDown />
               </ComboBox.Trigger>
@@ -373,13 +355,7 @@ function FieldRow({
           </ComboBox>
           {showResetButton && (
             <Tooltip closeDelay={0} delay={800}>
-              <Button
-                isIconOnly
-                isDisabled={isResetDisabled}
-                size='md'
-                variant='tertiary'
-                onPress={onReset}
-              >
+              <Button isIconOnly isDisabled={isResetDisabled} size='md' variant='tertiary' onPress={onReset}>
                 <IconArrowCurvedBack />
               </Button>
               <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>

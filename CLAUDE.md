@@ -17,7 +17,7 @@ Concrete example: when designing UpdateDetails for datasets, `name` and `descrip
 
 ## Working with Claude
 
-This project is maintained by a solo developer who frequently switches between a laptop and desktop. **All durable AI guidance must live in git-tracked files**, primarily this `CLAUDE.md`, plus the `.claude/rules/*.mdc` rules listed in [Rules & Skills Directory](#rules--skills-directory). Machine-local stores (Claude Code's auto-memory at `~/.claude/projects/.../memory/`, IDE-local configs, untracked notes) will not follow the user to the other device, so they are not reliable for project guidance. If the user gives you guidance worth remembering across sessions, capture it here.
+This project is maintained by a solo developer who frequently switches between a laptop and desktop. **All durable AI guidance must live in git-tracked files**, primarily this `CLAUDE.md`, plus the `.claude/rules/*.md` rules listed in [Rules & Skills Directory](#rules--skills-directory). Machine-local stores (Claude Code's auto-memory at `~/.claude/projects/.../memory/`, IDE-local configs, untracked notes) will not follow the user to the other device, so they are not reliable for project guidance. If the user gives you guidance worth remembering across sessions, capture it here.
 
 ### Behavioral overrides
 
@@ -52,19 +52,19 @@ Load unpacked from `dist/` at `chrome://extensions` with developer mode enabled.
 
 ## Rules & Skills Directory
 
-Rules load automatically when their glob/trigger matches. Read them when working in their domain.
+Claude Code auto-loads every `.md` in `.claude/rules/`. Rules with a `paths:` frontmatter load only when you touch matching files; the rest load every session.
 
-| Rule                       | Trigger                | What it covers                                                                                               |
-| -------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `code-style.mdc`           | `.js`/`.jsx` files     | ESLint + Prettier sorting/formatting spec. **Always run `npx eslint --no-warn-ignored <file>` after edits.** |
-| `architecture.mdc`         | Core source files      | Extension contexts, message flow, core models, `executeInPage()`, services pattern, detection flow           |
-| `release-process.mdc`      | Release files          | Full release checklist: version bump, releases.js, release notes, build, CI/CD                               |
-| `wip-release-notes.mdc`    | Always                 | Auto-update `docs/RELEASE_NOTES.md` WIP list after every notable change without being asked                  |
-| `local-testing.mdc`        | Always                 | Localhost dev routes (`/dev-activity-log`, `/dev-lineage`) for testing UI changes before claiming success    |
-| `domo-apis.mdc`            | Always                 | Use Postman MCP to look up Domo API endpoints before writing API calls                                       |
-| `package-manager.mdc`      | Always                 | Use `yarn` not `npm`                                                                                         |
-| `contributing-sync.mdc`    | `docs/CONTRIBUTING.md` | Keep contributor guide in sync with codebase                                                                 |
-| `domo-debug-utilities.mdc` | On demand              | Browser console scripts for reverse-engineering Domo pages                                                   |
+| Rule                      | Trigger                | What it covers                                                                                               |
+| ------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `code-style.md`           | `.js`/`.jsx` files     | ESLint + Prettier sorting/formatting spec. **Always run `npx eslint --no-warn-ignored <file>` after edits.** |
+| `architecture.md`         | Core source files      | Extension contexts, message flow, core models, `executeInPage()`, services pattern, detection flow           |
+| `release-process.md`      | Release files          | Full release checklist: version bump, releases.js, release notes, build, CI/CD                               |
+| `wip-release-notes.md`    | Always                 | Auto-update `docs/RELEASE_NOTES.md` WIP list after every notable change without being asked                  |
+| `local-testing.md`        | Always                 | Localhost dev routes (`/dev-activity-log`, `/dev-lineage`) for testing UI changes before claiming success    |
+| `domo-apis.md`            | Always                 | Use Postman MCP to look up Domo API endpoints before writing API calls                                       |
+| `package-manager.md`      | Always                 | Use `yarn` not `npm`                                                                                         |
+| `contributing-sync.md`    | `docs/CONTRIBUTING.md` | Keep contributor guide in sync with codebase                                                                 |
+| `domo-debug-utilities.md` | Always                 | Browser console scripts for reverse-engineering Domo pages                                                   |
 
 | Skill          | What it covers                             |
 | -------------- | ------------------------------------------ |
@@ -82,4 +82,4 @@ Rules load automatically when their glob/trigger matches. Read them when working
 - ES6 model classes must implement `toJSON()` and `static fromJSON()` for message passing
 - OKLch colors via CSS variables: use `var(--color-*)` in DOM, only resolve in JS when needed for canvas/math
 - Custom hooks in `src/hooks/`
-- See `code-style.mdc` for full formatting spec
+- See `code-style.md` for full formatting spec

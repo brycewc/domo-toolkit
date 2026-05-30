@@ -51,10 +51,7 @@ export async function getDownstreamCards(datasetId, tabId = null) {
       const cards = (await response.json()) || [];
       return cards
         .map((c) => ({
-          id:
-            c.id ||
-            c.kpiId ||
-            (typeof c.urn === 'string' ? parseInt(c.urn.split(':').pop(), 10) : null),
+          id: c.id || c.kpiId || (typeof c.urn === 'string' ? parseInt(c.urn.split(':').pop(), 10) : null),
           name: c.title || c.name || `Card ${c.id || c.kpiId || ''}`
         }))
         .filter((c) => Number.isFinite(c.id));
@@ -67,7 +64,10 @@ export async function getDownstreamCards(datasetId, tabId = null) {
 
   // Discover drills via the bulk parts=drillPath,drillPathURNs endpoint.
   // Drill discovery is best-effort — if it fails we still migrate parents.
-  const drillRefs = await getDrillsForCards(parents.map((p) => p.id), tabId).catch(() => []);
+  const drillRefs = await getDrillsForCards(
+    parents.map((p) => p.id),
+    tabId
+  ).catch(() => []);
   if (drillRefs.length === 0) return parents;
 
   // Fetch each drill's metadata so we can (a) get its title for display and
@@ -111,10 +111,7 @@ export async function getDownstreamCards(datasetId, tabId = null) {
  * @returns {Promise<{ cards: any[], dataflows: any[], datasetViews: any[] }>}
  */
 export async function getDownstreamContent(datasetId, tabId = null) {
-  const [cards, lineage] = await Promise.all([
-    getDownstreamCards(datasetId, tabId),
-    getDownstreamLineage(datasetId, tabId)
-  ]);
+  const [cards, lineage] = await Promise.all([getDownstreamCards(datasetId, tabId), getDownstreamLineage(datasetId, tabId)]);
   return {
     cards,
     dataflows: lineage.dataflows,
@@ -176,15 +173,12 @@ export async function getDownstreamLineage(datasetId, tabId = null) {
       // surface as 'dataset-view' or 'datafusion'.
       let datasetViews = [];
       if (datasetIds.length > 0) {
-        const bulkResponse = await fetch(
-          '/api/data/v3/datasources/bulk?includePrivate=true&part=core',
-          {
-            body: JSON.stringify(datasetIds),
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            method: 'POST'
-          }
-        );
+        const bulkResponse = await fetch('/api/data/v3/datasources/bulk?includePrivate=true&part=core', {
+          body: JSON.stringify(datasetIds),
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        });
         if (bulkResponse.ok) {
           const bulk = await bulkResponse.json();
           for (const ds of bulk.dataSources || []) {
@@ -250,10 +244,7 @@ export async function compareDatasetSchemas(originId, targetId, tabId = null) {
         return data?.schema?.columns || [];
       };
 
-      const [originCols, targetCols] = await Promise.all([
-        fetchSchema(originId),
-        fetchSchema(targetId)
-      ]);
+      const [originCols, targetCols] = await Promise.all([fetchSchema(originId), fetchSchema(targetId)]);
       const targetByName = new Map(targetCols.map((c) => [c.name, c.type]));
       const missing = [];
       for (const col of originCols) {
@@ -326,8 +317,7 @@ export async function searchDatasets(text, tabId = null, offset = 0) {
           owner: b.ownerName || b.ownedByName || null
         });
       }
-      const totalCount =
-        typeof data.totalResultCount === 'number' ? data.totalResultCount : null;
+      const totalCount = typeof data.totalResultCount === 'number' ? data.totalResultCount : null;
       return { datasets, totalCount };
     },
     [text, offset, DATASET_SEARCH_PAGE_SIZE],
@@ -390,8 +380,7 @@ export async function swapCardInput({
   }
   try {
     const fetchUrn = urn || cardId;
-    const definition =
-      cachedDefinition || (await getCardDefinition({ cardId: fetchUrn, tabId }));
+    const definition = cachedDefinition || (await getCardDefinition({ cardId: fetchUrn, tabId }));
     let rewritten = hasEffectiveMapping(columnMap)
       ? rewriteCardColumns(definition, columnMap)
       : JSON.parse(JSON.stringify(definition));
@@ -425,14 +414,7 @@ export async function swapCardInput({
  * @param {number|null} [params.tabId]
  * @returns {Promise<{success: boolean, error?: string}>}
  */
-export async function swapDataflowInput({
-  cachedDefinition,
-  columnMap,
-  dataflowId,
-  originId,
-  tabId = null,
-  targetId
-}) {
+export async function swapDataflowInput({ cachedDefinition, columnMap, dataflowId, originId, tabId = null, targetId }) {
   try {
     let definition = cachedDefinition;
     if (!definition) {
@@ -478,12 +460,7 @@ export async function swapDatasetViewInput({
       definition = await fetchDatasetViewDefinitionInPage(viewId, tabId);
     }
     if (hasEffectiveMapping(columnMap)) {
-      definition = rewriteDatasetViewColumns(
-        definition,
-        columnMap,
-        originId,
-        targetColumnTypes
-      );
+      definition = rewriteDatasetViewColumns(definition, columnMap, originId, targetColumnTypes);
     }
     return await putDatasetViewInPage(viewId, definition, originId, targetId, tabId);
   } catch (err) {
@@ -539,12 +516,7 @@ async function fetchDatasetViewDefinitionInPage(viewId, tabId) {
  * dataProvider.dataSourceId from columns[0].sourceId, transforms
  * conditionalFormats from array to {card, datasource}.
  */
-async function putCardForMigration(
-  cardId,
-  definition,
-  tabId,
-  { isDrill = false, urn = null } = {}
-) {
+async function putCardForMigration(cardId, definition, tabId, { isDrill = false, urn = null } = {}) {
   const datasetId = definition?.columns?.[0]?.sourceId;
 
   // Strip internal-only fields the v3 PUT endpoint doesn't accept.
@@ -562,9 +534,7 @@ async function putCardForMigration(
   definition.dataProvider = { dataSourceId: datasetId || null };
   definition.variables = true;
 
-  const allFormulas = Array.isArray(definition?.definition?.formulas)
-    ? definition.definition.formulas
-    : [];
+  const allFormulas = Array.isArray(definition?.definition?.formulas) ? definition.definition.formulas : [];
   definition.definition.formulas = {
     card: allFormulas.filter((f) => f && f.persistedOnDataSource === false),
     dsDeleted: [],
@@ -697,13 +667,11 @@ async function putDatasetViewInPage(viewId, viewDefinition, originId, targetId, 
           if (!viewTemplate?.fromItemInfo) return;
           const oldStr = cleanId(oldId);
           const newStr = cleanId(newId);
-          const replaceId = (value) =>
-            typeof value !== 'string' ? value : value.replaceAll(oldStr, newStr);
+          const replaceId = (value) => (typeof value !== 'string' ? value : value.replaceAll(oldStr, newStr));
           Object.values(viewTemplate.fromItemInfo).forEach((section) => {
             if (!section?.columnInfo) return;
             Object.values(section.columnInfo).forEach((col) => {
-              if (col.formattedExpression)
-                col.formattedExpression = replaceId(col.formattedExpression);
+              if (col.formattedExpression) col.formattedExpression = replaceId(col.formattedExpression);
             });
           });
         };
@@ -744,15 +712,12 @@ async function swapCardInputFast(cardId, originId, targetId, tabId) {
   return executeInPage(
     async (cardId, originId, targetId) => {
       try {
-        const response = await fetch(
-          `/api/content/v1/cards/${cardId}/datasource/${targetId}?currentDsId=${originId}`,
-          {
-            body: '{}',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            method: 'PUT'
-          }
-        );
+        const response = await fetch(`/api/content/v1/cards/${cardId}/datasource/${targetId}?currentDsId=${originId}`, {
+          body: '{}',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          method: 'PUT'
+        });
         if (!response.ok) {
           const text = await response.text().catch(() => '');
           return { error: `HTTP ${response.status}: ${text}`.trim(), success: false };

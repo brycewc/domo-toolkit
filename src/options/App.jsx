@@ -109,10 +109,7 @@ export default function App() {
               isIconOnly
               variant='secondary'
               onPress={() => {
-                window.open(
-                  'https://github.com/brycewc/domo-toolkit/issues/new?template=bug-report.md',
-                  '_blank'
-                );
+                window.open('https://github.com/brycewc/domo-toolkit/issues/new?template=bug-report.md', '_blank');
               }}
             >
               <IconBug stroke={1.5} />
@@ -124,10 +121,7 @@ export default function App() {
               isIconOnly
               variant='secondary'
               onPress={() => {
-                window.open(
-                  'https://github.com/brycewc/domo-toolkit/issues/new?template=feature-request.md',
-                  '_blank'
-                );
+                window.open('https://github.com/brycewc/domo-toolkit/issues/new?template=feature-request.md', '_blank');
               }}
             >
               <IconAiSparkle />
@@ -154,15 +148,11 @@ export default function App() {
             </Tabs.Tab>
           </Tabs.List>
         </Tabs.ListContainer>
-        <Tabs.Panel
-          className='flex h-full max-w-3xl flex-col overflow-hidden px-4 pt-16'
-          id='favicon'
-        >
+        <Tabs.Panel className='flex h-full max-w-3xl flex-col overflow-hidden px-4 pt-16' id='favicon'>
           <div className='w-full shrink-0 justify-start'>
             <h3 className='mb-2 text-lg font-semibold'>Favicon Preferences</h3>
             <p className='text-sm text-muted'>
-              Manage your favicon preferences. Patterns will automatically match against
-              [subdomain].domo.com
+              Manage your favicon preferences. Patterns will automatically match against [subdomain].domo.com
             </p>
           </div>
           <FaviconSettings />

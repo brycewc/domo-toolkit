@@ -34,11 +34,7 @@ export function Welcome() {
           Copy IDs with a click or keyboard shortcut{' '}
           <Kbd>
             <Kbd.Abbr
-              keyValue={
-                (navigator.userAgentData?.platform ?? navigator.platform).includes('Mac')
-                  ? 'command'
-                  : 'ctrl'
-              }
+              keyValue={(navigator.userAgentData?.platform ?? navigator.platform).includes('Mac') ? 'command' : 'ctrl'}
             />
             <Kbd.Abbr keyValue='shift' />
             <Kbd.Content>1</Kbd.Content>
@@ -83,8 +79,7 @@ export function Welcome() {
       id: 'cookies',
       label: (
         <p>
-          431 "request headers too large" errors resolve themselves and your current session stays
-          logged in{' '}
+          431 "request headers too large" errors resolve themselves and your current session stays logged in{' '}
           <Link
             className='text-sm font-normal no-underline decoration-accent hover:text-accent hover:underline'
             href='#settings'
@@ -102,17 +97,15 @@ export function Welcome() {
 
   const quickStartGuide = [
     <p className='flex flex-row items-end justify-start gap-1'>
-      Pin the extension: click{' '}
-      <IconPuzzle className='inline-block shrink-0 align-middle' size={18} stroke={1.5} /> in your
-      browser toolbar, then click{' '}
-      <IconCrossPin className='inline-block shrink-0 align-middle' size={18} /> next to the
+      Pin the extension: click <IconPuzzle className='inline-block shrink-0 align-middle' size={18} stroke={1.5} /> in your
+      browser toolbar, then click <IconCrossPin className='inline-block shrink-0 align-middle' size={18} /> next to the
       extension icon
     </p>,
     'Navigate to an object in Domo',
     <p>
       Click the extension icon to use the popup (then click{' '}
-      <IconRightRailFill className='inline-block shrink-0 align-middle' size={18} /> to use the side
-      panel instead if preferred)
+      <IconRightRailFill className='inline-block shrink-0 align-middle' size={18} /> to use the side panel instead if
+      preferred)
     </p>,
     'Use the icon-only action buttons to copy, share, audit, navigate, and delete (tooltip text available on hover)',
     'Try navigating to different objects and observe the various available action buttons',
@@ -162,9 +155,7 @@ export function Welcome() {
       >
         <img alt='Domo Toolkit Logo' className='h-16 w-16' src='/toolkit-512.png' />
         <h1 className='text-xl font-semibold text-foreground'>Welcome to Domo Toolkit</h1>
-        <p className='text-sm'>
-          All the tools you need for working faster in Domo, no setup required
-        </p>
+        <p className='text-sm'>All the tools you need for working faster in Domo, no setup required</p>
       </motion.div>
 
       {/* Action Features */}
@@ -240,11 +231,7 @@ export function Welcome() {
             <ol className='space-y-2 text-sm'>
               {quickStartGuide.map((step, index) => (
                 <li className='flex items-center gap-2'>
-                  <Chip
-                    className='size-6 items-center justify-center rounded-full'
-                    color='accent'
-                    variant='soft'
-                  >
+                  <Chip className='size-6 items-center justify-center rounded-full' color='accent' variant='soft'>
                     {index + 1}
                   </Chip>
                   {step}

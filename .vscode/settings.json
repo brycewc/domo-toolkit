@@ -1,0 +1,12 @@
+{
+	"npm.packageManager": "yarn",
+	"files.watcherExclude": {
+		"**/node_modules/**": true,
+		"**/dist/**": true,
+		"**/.git/objects/**": true
+	},
+	"search.exclude": {
+		"**/node_modules": true,
+		"**/dist": true
+	}
+}

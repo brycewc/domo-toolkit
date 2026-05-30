@@ -18,22 +18,7 @@ const SMALL_WORDS = new Set([
   'with'
 ]);
 
-const ACRONYMS = new Set([
-  'API',
-  'CSS',
-  'CSV',
-  'HTML',
-  'ID',
-  'IP',
-  'JSON',
-  'PDF',
-  'SQL',
-  'UI',
-  'URL',
-  'UUID',
-  'UX',
-  'XML'
-]);
+const ACRONYMS = new Set(['API', 'CSS', 'CSV', 'HTML', 'ID', 'IP', 'JSON', 'PDF', 'SQL', 'UI', 'URL', 'UUID', 'UX', 'XML']);
 
 const COMPOUND_OVERRIDES = {
   appdb: 'AppDB',
@@ -48,9 +33,7 @@ export function deriveDisplayName(functionName) {
   const spaced = functionName.replace(/([a-z\d])([A-Z])/g, '$1 $2').replace(/_+/g, ' ');
   const words = spaced.split(/\s+/).filter(Boolean);
   if (words.length === 0) return functionName;
-  return words
-    .map((word, index) => formatWord(word, index === 0 || index === words.length - 1))
-    .join(' ');
+  return words.map((word, index) => formatWord(word, index === 0 || index === words.length - 1)).join(' ');
 }
 
 function formatWord(word, isFirstOrLast) {

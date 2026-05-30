@@ -12,10 +12,8 @@ const DELETE_HANDLERS = {
   APP: ({ id, tabId }) => deleteCustomApp({ designId: id, tabId }),
   BEAST_MODE_FORMULA: ({ id, tabId }) => deleteFunction({ functionId: id, tabId }),
   FUNCTION_TEMPLATE: ({ id, tabId }) => deleteFunction({ functionId: id, tabId }),
-  MAGNUM_COLLECTION: ({ id, tabId }) =>
-    deleteAppDbCollection({ collectionId: id, tabId }),
-  TEMPLATE: ({ id, tabId }) =>
-    deleteApprovalTemplate({ tabId, templateId: id }),
+  MAGNUM_COLLECTION: ({ id, tabId }) => deleteAppDbCollection({ collectionId: id, tabId }),
+  TEMPLATE: ({ id, tabId }) => deleteApprovalTemplate({ tabId, templateId: id }),
   VARIABLE: ({ id, tabId }) => deleteFunction({ functionId: id, tabId }),
   WORKFLOW_MODEL: ({ id, tabId }) => deleteWorkflow({ modelId: id, tabId })
 };

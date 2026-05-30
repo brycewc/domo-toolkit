@@ -146,9 +146,7 @@ export default function App() {
     const handleMessage = (message, sender, sendResponse) => {
       if (message.type === 'TAB_CONTEXT_UPDATED') {
         if (message.tabId === currentTabId) {
-          const context = message.context
-            ? DomoContext.fromJSON(message.context)
-            : null;
+          const context = message.context ? DomoContext.fromJSON(message.context) : null;
           setCurrentContext(context);
         }
         sendResponse({ received: true });
@@ -175,12 +173,7 @@ export default function App() {
           }
           try {
             await navigator.clipboard.writeText(copy.value);
-            showStatus(
-              'Success',
-              `Copied ${copy.label} **${copy.value}** to clipboard`,
-              'success',
-              2000
-            );
+            showStatus('Success', `Copied ${copy.label} **${copy.value}** to clipboard`, 'success', 2000);
             sendResponse({ copied: true });
           } catch {
             sendResponse({ copied: false });
@@ -265,11 +258,7 @@ export default function App() {
           onStatusUpdate={showStatus}
         />
 
-        <ContextFooter
-          currentContext={currentContext}
-          isLoading={isLoadingCurrentContext}
-          onStatusUpdate={showStatus}
-        />
+        <ContextFooter currentContext={currentContext} isLoading={isLoadingCurrentContext} onStatusUpdate={showStatus} />
 
         {activeView === 'loading' && (
           <Card className='h-full w-full'>
@@ -282,9 +271,7 @@ export default function App() {
 
         {activeView !== 'default' && activeView !== 'loading' && (
           <div className='flex min-h-0 w-full flex-1 flex-col'>
-            {(activeView === 'getChildPages' ||
-              activeView === 'getCardPages' ||
-              activeView === 'childPagesWarning') && (
+            {(activeView === 'getChildPages' || activeView === 'getCardPages' || activeView === 'childPagesWarning') && (
               <GetPagesView
                 currentContext={currentContext}
                 key={viewKey}
@@ -321,27 +308,15 @@ export default function App() {
             )}
 
             {activeView === 'viewObjectDetails' && (
-              <ObjectDetailsView
-                key={viewKey}
-                onBackToDefault={handleBackToDefault}
-                onStatusUpdate={showStatus}
-              />
+              <ObjectDetailsView key={viewKey} onBackToDefault={handleBackToDefault} onStatusUpdate={showStatus} />
             )}
 
             {activeView === 'apiErrors' && (
-              <ApiErrorsView
-                key={viewKey}
-                onBackToDefault={handleBackToDefault}
-                onStatusUpdate={showStatus}
-              />
+              <ApiErrorsView key={viewKey} onBackToDefault={handleBackToDefault} onStatusUpdate={showStatus} />
             )}
 
             {activeView === 'duplicate' && (
-              <DuplicateView
-                key={viewKey}
-                onBackToDefault={handleBackToDefault}
-                onStatusUpdate={showStatus}
-              />
+              <DuplicateView key={viewKey} onBackToDefault={handleBackToDefault} onStatusUpdate={showStatus} />
             )}
 
             {activeView === 'updateCodeEngineVersions' && (
@@ -361,35 +336,19 @@ export default function App() {
             )}
 
             {activeView === 'generateSchema' && (
-              <GenerateSchemaView
-                key={viewKey}
-                onBackToDefault={handleBackToDefault}
-                onStatusUpdate={showStatus}
-              />
+              <GenerateSchemaView key={viewKey} onBackToDefault={handleBackToDefault} onStatusUpdate={showStatus} />
             )}
 
             {activeView === 'updateDetails' && (
-              <UpdateDetailsView
-                key={viewKey}
-                onBackToDefault={handleBackToDefault}
-                onStatusUpdate={showStatus}
-              />
+              <UpdateDetailsView key={viewKey} onBackToDefault={handleBackToDefault} onStatusUpdate={showStatus} />
             )}
 
             {activeView === 'copyColorRules' && (
-              <CopyColorRulesView
-                key={viewKey}
-                onBackToDefault={handleBackToDefault}
-                onStatusUpdate={showStatus}
-              />
+              <CopyColorRulesView key={viewKey} onBackToDefault={handleBackToDefault} onStatusUpdate={showStatus} />
             )}
 
             {activeView === 'deleteObject' && (
-              <DeleteObjectView
-                key={viewKey}
-                onBackToDefault={handleBackToDefault}
-                onStatusUpdate={showStatus}
-              />
+              <DeleteObjectView key={viewKey} onBackToDefault={handleBackToDefault} onStatusUpdate={showStatus} />
             )}
 
             {activeView === 'ownership' && (

@@ -108,8 +108,7 @@ export function ActivityLogTable() {
   // Refetch trigger for dataset source when the user toggles time-sort
   // direction. Empty string for api source (no server-side sort) or when the
   // active sort isn't time (other columns are local-only).
-  const datasetSortKey =
-    source === 'dataset' && sortDescriptor?.column === 'time' ? sortDescriptor.direction : '';
+  const datasetSortKey = source === 'dataset' && sortDescriptor?.column === 'time' ? sortDescriptor.direction : '';
   // Mirror source/domoInstance/objects into refs so fetchMoreEvents can read
   // current values without listing them as useCallback deps. Stable callback
   // identity matters here — HeroUI's Table.LoadMore wires its intersection
@@ -197,9 +196,7 @@ export function ActivityLogTable() {
     resolveTabId()
       .then((resolvedTabId) => {
         if (!resolvedTabId) return;
-        return Promise.all(
-          uniqueTypes.map((type) => getEventTypesForObjectType(type, resolvedTabId).catch(() => []))
-        );
+        return Promise.all(uniqueTypes.map((type) => getEventTypesForObjectType(type, resolvedTabId).catch(() => [])));
       })
       .then((results) => {
         if (!results) return;
@@ -252,9 +249,7 @@ export function ActivityLogTable() {
   // ref tracks already-fetched ids so each id is requested at most once.
   useEffect(() => {
     if (!tabId || events.length === 0) return;
-    const idsWithoutName = [
-      ...new Set(events.filter((e) => e.userId && !e.userName).map((e) => String(e.userId)))
-    ];
+    const idsWithoutName = [...new Set(events.filter((e) => e.userId && !e.userName).map((e) => String(e.userId)))];
     const unfetched = idsWithoutName.filter((id) => !fetchedUserNameIdsRef.current.has(id));
     if (unfetched.length === 0) return;
     unfetched.forEach((id) => fetchedUserNameIdsRef.current.add(id));
@@ -360,9 +355,7 @@ export function ActivityLogTable() {
   // no description field but does carry actor info the API doesn't expose.
   const columns = useMemo(() => {
     const baseUrl = domoInstance ? `https://${domoInstance}.domo.com` : null;
-    const actionTranslations = Object.fromEntries(
-      actionOptions.map((a) => [a.type, a.translation])
-    );
+    const actionTranslations = Object.fromEntries(actionOptions.map((a) => [a.type, a.translation]));
     const isDataset = source === 'dataset';
     return [
       createTimestampColumn({ manualSort: isDataset }),
@@ -428,10 +421,7 @@ export function ActivityLogTable() {
             }),
             limit: pageSize,
             offset: 0,
-            sortDirection:
-              sortDescriptorRef.current?.column === 'time'
-                ? sortDescriptorRef.current.direction
-                : 'descending',
+            sortDirection: sortDescriptorRef.current?.column === 'time' ? sortDescriptorRef.current.direction : 'descending',
             tabId: resolvedTabId
           });
           const events = result?.events ?? [];
@@ -523,16 +513,7 @@ export function ActivityLogTable() {
     fetchEvents();
     // datasetSortKey collapses to '' when irrelevant (api source, or non-time
     // active sort) so toggling User/Action sort doesn't trigger refetch.
-  }, [
-    objects,
-    tabId,
-    refreshKey,
-    userFilterKey,
-    dateRangeEpoch,
-    source,
-    domoInstance,
-    datasetSortKey
-  ]);
+  }, [objects, tabId, refreshKey, userFilterKey, dateRangeEpoch, source, domoInstance, datasetSortKey]);
 
   const total = useMemo(() => {
     if (source === 'dataset') return datasetState.total;
@@ -576,10 +557,7 @@ export function ActivityLogTable() {
           }),
           limit: pageSize,
           offset: currentDatasetState.offset,
-          sortDirection:
-            sortDescriptorRef.current?.column === 'time'
-              ? sortDescriptorRef.current.direction
-              : 'descending',
+          sortDirection: sortDescriptorRef.current?.column === 'time' ? sortDescriptorRef.current.direction : 'descending',
           tabId: resolvedTabId
         });
         const newEvents = result?.events ?? [];
@@ -797,9 +775,7 @@ export function ActivityLogTable() {
     allEvents.sort((a, b) => new Date(b.time) - new Date(a.time));
 
     if (objectTypeFilter.size > 0) {
-      return allEvents.filter(
-        (event) => event.objectType && objectTypeFilter.has(event.objectType)
-      );
+      return allEvents.filter((event) => event.objectType && objectTypeFilter.has(event.objectType));
     }
 
     return allEvents;
@@ -823,17 +799,11 @@ export function ActivityLogTable() {
           onChange={setDateRange}
         >
           <DateField.Group variant='secondary'>
-            <DateField.Input slot='start'>
-              {(segment) => <DateField.Segment segment={segment} />}
-            </DateField.Input>
+            <DateField.Input slot='start'>{(segment) => <DateField.Segment segment={segment} />}</DateField.Input>
             <DateRangePicker.RangeSeparator />
-            <DateField.Input slot='end'>
-              {(segment) => <DateField.Segment segment={segment} />}
-            </DateField.Input>
+            <DateField.Input slot='end'>{(segment) => <DateField.Segment segment={segment} />}</DateField.Input>
             <DateField.Suffix>
-              {dateRange && (
-                <CloseButton size='sm' variant='ghost' onPress={() => setDateRange(null)} />
-              )}
+              {dateRange && <CloseButton size='sm' variant='ghost' onPress={() => setDateRange(null)} />}
               <DateRangePicker.Trigger>
                 <DateRangePicker.TriggerIndicator>
                   <IconCalendar className='text-foreground' />
@@ -859,9 +829,7 @@ export function ActivityLogTable() {
                 <RangeCalendar.GridHeader>
                   {(day) => <RangeCalendar.HeaderCell>{day}</RangeCalendar.HeaderCell>}
                 </RangeCalendar.GridHeader>
-                <RangeCalendar.GridBody>
-                  {(date) => <RangeCalendar.Cell date={date} />}
-                </RangeCalendar.GridBody>
+                <RangeCalendar.GridBody>{(date) => <RangeCalendar.Cell date={date} />}</RangeCalendar.GridBody>
               </RangeCalendar.Grid>
               <RangeCalendar.YearPickerGrid>
                 <RangeCalendar.YearPickerGridBody>
@@ -874,12 +842,7 @@ export function ActivityLogTable() {
         <ButtonGroup className='w-72' variant='tertiary'>
           {/* Action Filter */}
           <Dropdown>
-            <Button
-              fullWidth
-              className='min-w-0 flex-1'
-              isDisabled={actionOptions.length === 0}
-              variant='tertiary'
-            >
+            <Button fullWidth className='min-w-0 flex-1' isDisabled={actionOptions.length === 0} variant='tertiary'>
               <IconFunnel />
               Action
             </Button>
@@ -892,11 +855,7 @@ export function ActivityLogTable() {
                 {actionOptions.map((action) => {
                   const color = getActionColor(action.type);
                   return (
-                    <Dropdown.Item
-                      id={action.type}
-                      key={action.type}
-                      textValue={action.translation}
-                    >
+                    <Dropdown.Item id={action.type} key={action.type} textValue={action.translation}>
                       <Dropdown.ItemIndicator>
                         {({ isSelected }) => (
                           <AnimatePresence>
@@ -919,12 +878,7 @@ export function ActivityLogTable() {
           {/* Object Type Filter — only shown for multi-object activity logs */}
           {activityLogType !== 'single-object' && (
             <Dropdown>
-              <Button
-                fullWidth
-                className='min-w-0 flex-1'
-                isDisabled={objectTypeOptions.length === 0}
-                variant='tertiary'
-              >
+              <Button fullWidth className='min-w-0 flex-1' isDisabled={objectTypeOptions.length === 0} variant='tertiary'>
                 <IconFunnel />
                 Object Type
               </Button>
@@ -951,12 +905,7 @@ export function ActivityLogTable() {
             </Dropdown>
           )}
         </ButtonGroup>
-        <UserFilterAutocomplete
-          domoInstance={domoInstance}
-          tabId={tabId}
-          value={userFilter}
-          onChange={setUserFilter}
-        />
+        <UserFilterAutocomplete domoInstance={domoInstance} tabId={tabId} value={userFilter} onChange={setUserFilter} />
       </div>
     ),
     [
@@ -994,12 +943,10 @@ export function ActivityLogTable() {
             <Alert.Content>
               <Alert.Title>Activity Log API only retains the past year</Alert.Title>
               <Alert.Description>
-                For older history, switch to the DomoStats Activity Log dataset (preserves history
-                from the day you connected it in Domo).
+                For older history, switch to the DomoStats Activity Log dataset (preserves history from the day you connected
+                it in Domo).
               </Alert.Description>
-              {discoveryError && (
-                <Alert.Description className='mt-1 text-danger'>{discoveryError}</Alert.Description>
-              )}
+              {discoveryError && <Alert.Description className='mt-1 text-danger'>{discoveryError}</Alert.Description>}
             </Alert.Content>
             <Button
               isDisabled={isDiscovering}
@@ -1026,9 +973,7 @@ export function ActivityLogTable() {
               <Switch
                 isSelected={!!perInstanceSettings[domoInstance]?.preferActivityLogDataset}
                 size='sm'
-                onChange={(v) =>
-                  domoInstance && updatePerInstance(domoInstance, 'preferActivityLogDataset', v)
-                }
+                onChange={(v) => domoInstance && updatePerInstance(domoInstance, 'preferActivityLogDataset', v)}
               >
                 <Switch.Control>
                   <Switch.Thumb />
@@ -1052,8 +997,8 @@ export function ActivityLogTable() {
               <Alert.Title>Couldn&apos;t load from the DomoStats dataset</Alert.Title>
               <Alert.Description>{datasetFetchError}</Alert.Description>
               <Alert.Description className='mt-1 text-xs'>
-                The cached dataset may have been deleted or you may have lost access. Re-run
-                discovery to find a fresh one, or switch back to the API source.
+                The cached dataset may have been deleted or you may have lost access. Re-run discovery to find a fresh one,
+                or switch back to the API source.
               </Alert.Description>
               <div className='mt-2 flex flex-wrap gap-2'>
                 <Button
@@ -1073,10 +1018,7 @@ export function ActivityLogTable() {
           </Alert>
         )}
         <div className='flex flex-wrap items-center justify-between'>
-          <span
-            className='flex items-center justify-center gap-1 font-semibold'
-            style={{ fontSize: '18px' }}
-          >
+          <span className='flex items-center justify-center gap-1 font-semibold' style={{ fontSize: '18px' }}>
             Activity Log for{' '}
             {activityLogType === 'single-object' ? (
               <>
@@ -1111,8 +1053,8 @@ export function ActivityLogTable() {
             <p className='text-base text-muted'>
               {filteredEvents.length !== events.length ? (
                 <>
-                  Showing {filteredEvents.length.toLocaleString()} filtered of{' '}
-                  {events.length.toLocaleString()} fetched ({total.toLocaleString()} total)
+                  Showing {filteredEvents.length.toLocaleString()} filtered of {events.length.toLocaleString()} fetched (
+                  {total.toLocaleString()} total)
                 </>
               ) : (
                 <>
@@ -1189,11 +1131,7 @@ export function ActivityLogTable() {
           <Skeleton animationType='none' className='h-10 w-full shrink-0 rounded-lg' />
           <div className='flex flex-1 flex-col gap-1 overflow-hidden'>
             {Array.from({ length: 15 }).map((_, i) => (
-              <Skeleton
-                animationType='none'
-                className='h-13.25 w-full shrink-0 rounded-lg'
-                key={i}
-              />
+              <Skeleton animationType='none' className='h-13.25 w-full shrink-0 rounded-lg' key={i} />
             ))}
           </div>
         </div>
@@ -1208,6 +1146,7 @@ export function ActivityLogTable() {
       data={filteredEvents}
       entityName='events'
       exportConfig={exportConfig}
+      getRowId={(row, i) => `${row.objectType}:${row.objectId}:${row.time}:${row.actionType}:${row.userId}:${i}`}
       hasMore={hasMore}
       header={header}
       initialColumnVisibility={initialColumnVisibility}
@@ -1216,9 +1155,6 @@ export function ActivityLogTable() {
       onLoadMore={fetchMoreEvents}
       onRefresh={handleRefresh}
       onSortChange={setSortDescriptor}
-      getRowId={(row, i) =>
-        `${row.objectType}:${row.objectId}:${row.time}:${row.actionType}:${row.userId}:${i}`
-      }
     />
   );
 }
@@ -1234,9 +1170,7 @@ function buildDatasetFilters({ actionFilter, dateRangeEpoch, objects, userFilter
   const actions = actionFilter && actionFilter.size > 0 ? [...actionFilter] : [];
   const userIds = Array.isArray(userFilter) ? userFilter : [];
   const dateRange =
-    dateRangeEpoch?.start && dateRangeEpoch?.end
-      ? { end: dateRangeEpoch.end, start: dateRangeEpoch.start }
-      : null;
+    dateRangeEpoch?.start && dateRangeEpoch?.end ? { end: dateRangeEpoch.end, start: dateRangeEpoch.start } : null;
   return { actions, dateRange, objectIds, objectTypes, userIds };
 }
 
@@ -1313,12 +1247,7 @@ function createAdditionalCommentColumn({ key = 'additionalComment' } = {}) {
 /**
  * Helper function to create an object column with type and name
  */
-function createObjectColumn({
-  idKey = 'objectId',
-  nameKey = 'objectName',
-  objectUrlMap = {},
-  typeKey = 'objectType'
-} = {}) {
+function createObjectColumn({ idKey = 'objectId', nameKey = 'objectName', objectUrlMap = {}, typeKey = 'objectType' } = {}) {
   return {
     accessor: (row) => row[nameKey],
     allowsSorting: true,
@@ -1360,11 +1289,7 @@ function createObjectColumn({
  * id is exposed via a `title` tooltip rather than an extra line so the row
  * height stays in lockstep with the rest of the table.
  */
-function createSourceColumn({
-  idKey = 'sourceId',
-  nameKey = 'sourceName',
-  typeKey = 'sourceType'
-} = {}) {
+function createSourceColumn({ idKey = 'sourceId', nameKey = 'sourceName', typeKey = 'sourceType' } = {}) {
   return {
     accessor: (row) => row[nameKey],
     allowsSorting: true,
@@ -1380,9 +1305,7 @@ function createSourceColumn({
           <span className='truncate text-sm font-medium' title={tooltip}>
             {name || '-'}
           </span>
-          {type && (
-            <span className={`chip chip--${chipColor} chip--soft chip--sm w-fit`}>{type}</span>
-          )}
+          {type && <span className={`chip chip--${chipColor} chip--soft chip--sm w-fit`}>{type}</span>}
         </div>
       );
     },
@@ -1439,9 +1362,7 @@ function createUserColumn({
   userNameMap = {}
 } = {}) {
   const getAvatarUrl = (userId) =>
-    domoInstance
-      ? `https://${domoInstance}.domo.com/api/content/v1/avatar/USER/${userId}?size=100`
-      : null;
+    domoInstance ? `https://${domoInstance}.domo.com/api/content/v1/avatar/USER/${userId}?size=100` : null;
 
   return {
     accessor: (row) => row[nameKey] || (row[idKey] != null ? userNameMap[row[idKey]] : null),
@@ -1536,10 +1457,7 @@ function getShortTimezone() {
   const parts = new Intl.DateTimeFormat(undefined, {
     timeZoneName: 'short'
   }).formatToParts(new Date());
-  return (
-    parts.find((p) => p.type === 'timeZoneName')?.value ??
-    Intl.DateTimeFormat().resolvedOptions().timeZone
-  );
+  return parts.find((p) => p.type === 'timeZoneName')?.value ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
 }
 
 /**

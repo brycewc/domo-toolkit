@@ -19,21 +19,16 @@ export async function deleteWorkflow({ modelId, tabId = null }) {
       const versions = await versionsRes.json();
       const activeVersions = versions.filter((v) => v.active);
       for (const ver of activeVersions) {
-        const deactivateRes = await fetch(
-          `/api/workflow/v2/models/${modelId}/versions/${ver.version}`,
-          {
-            body: JSON.stringify({
-              active: false,
-              description: ver.description
-            }),
-            headers: { 'Content-Type': 'application/json' },
-            method: 'PUT'
-          }
-        );
+        const deactivateRes = await fetch(`/api/workflow/v2/models/${modelId}/versions/${ver.version}`, {
+          body: JSON.stringify({
+            active: false,
+            description: ver.description
+          }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'PUT'
+        });
         if (!deactivateRes.ok) {
-          throw new Error(
-            `Failed to deactivate version ${ver.version}: HTTP ${deactivateRes.status}`
-          );
+          throw new Error(`Failed to deactivate version ${ver.version}: HTTP ${deactivateRes.status}`);
         }
       }
 
@@ -107,10 +102,9 @@ export async function getOwnedWorkflows(userId, tabId = null) {
 export async function getVersionDefinition(modelId, versionNumber, tabId = null) {
   return executeInPage(
     async (modelId, versionNumber) => {
-      const response = await fetch(
-        `/api/workflow/v2/models/${modelId}/versions/${versionNumber}/definition`,
-        { headers: { 'Content-Type': 'application/json;charset=utf-8' } }
-      );
+      const response = await fetch(`/api/workflow/v2/models/${modelId}/versions/${versionNumber}/definition`, {
+        headers: { 'Content-Type': 'application/json;charset=utf-8' }
+      });
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
@@ -180,14 +174,11 @@ export async function transferWorkflows(workflowIds, fromUserId, toUserId, tabId
 export async function updateVersionDefinition(modelId, versionNumber, definition, tabId = null) {
   return executeInPage(
     async (modelId, versionNumber, definition) => {
-      const response = await fetch(
-        `/api/workflow/v2/models/${modelId}/versions/${versionNumber}/definition`,
-        {
-          body: JSON.stringify(definition),
-          headers: { 'Content-Type': 'application/json;charset=utf-8' },
-          method: 'PUT'
-        }
-      );
+      const response = await fetch(`/api/workflow/v2/models/${modelId}/versions/${versionNumber}/definition`, {
+        body: JSON.stringify(definition),
+        headers: { 'Content-Type': 'application/json;charset=utf-8' },
+        method: 'PUT'
+      });
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }

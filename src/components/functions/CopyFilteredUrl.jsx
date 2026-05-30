@@ -141,12 +141,7 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
           {isFailed ? <AnimatedX /> : isCopied ? <AnimatedCheck /> : <IconFunnel />}
           Copy Filters
           {filterCount > 0 && (
-            <Chip
-              className='h-5 w-5 items-center justify-center rounded-full'
-              color='accent'
-              size='sm'
-              variant='soft'
-            >
+            <Chip className='h-5 w-5 items-center justify-center rounded-full' color='accent' size='sm' variant='soft'>
               {filterCount}
             </Chip>
           )}
@@ -173,11 +168,7 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
 }
 
 function resolveCurrentUrl(currentContext, typeId, objectId) {
-  if (
-    typeId === 'CARD' &&
-    currentContext.url.includes('page/') &&
-    !currentContext.url.includes('kpis')
-  ) {
+  if (typeId === 'CARD' && currentContext.url.includes('page/') && !currentContext.url.includes('kpis')) {
     return currentContext.url + '/kpis/details/' + objectId;
   }
   if (currentContext.url.includes('app-studio')) {

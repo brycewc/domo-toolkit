@@ -1,8 +1,5 @@
 {
-  "plugins": [
-    "prettier-plugin-tailwindcss",
-    "unified-prettier"
-  ],
+  "plugins": ["prettier-plugin-tailwindcss"],
   "tailwindStylesheet": "./src/assets/global.css",
   "trailingComma": "none",
   "tabWidth": 2,
@@ -14,5 +11,5 @@
   "bracketSpacing": true,
   "bracketSameLine": false,
   "endOfLine": "lf",
-  "printWidth": 100
+  "printWidth": 125
 }

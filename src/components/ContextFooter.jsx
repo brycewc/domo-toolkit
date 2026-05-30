@@ -1,14 +1,4 @@
-import {
-  Alert,
-  Chip,
-  Disclosure,
-  Link,
-  ScrollShadow,
-  Skeleton,
-  Spinner,
-  Tabs,
-  Tooltip
-} from '@heroui/react';
+import { Alert, Chip, Disclosure, Link, ScrollShadow, Skeleton, Spinner, Tabs, Tooltip } from '@heroui/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import JsonView from 'react18-json-view';
 
@@ -18,12 +8,7 @@ import { fetchObjectDetailsInPage, getObjectType } from '@/models/DomoObjectType
 import { getTemplateApprovals } from '@/services/approvals';
 import { getDatasetColumns, getDatasetsForPage } from '@/services/datasets';
 import { executeInPage } from '@/utils/executeInPage';
-import {
-  formatEpochTimestamp,
-  isDateFieldName,
-  isGroupFieldName,
-  isUserFieldName
-} from '@/utils/general';
+import { formatEpochTimestamp, isDateFieldName, isGroupFieldName, isUserFieldName } from '@/utils/general';
 import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
 
 // Maps relatedData[].fetcher key → (params) => Promise<Array>. Lives here
@@ -345,10 +330,8 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
       return (
         <MetadataJsonView
           groupMap={groupMap}
+          src={currentContext?.domoObject?.metadata?.details || currentContext?.domoObject?.metadata}
           userMap={userMap}
-          src={
-            currentContext?.domoObject?.metadata?.details || currentContext?.domoObject?.metadata
-          }
         />
       );
     }
@@ -405,10 +388,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
   };
 
   const alertContent = (
-    <Alert
-      className='min-h-22 w-full p-2'
-      status={currentContext?.isDomoPage || isLoading ? 'accent' : 'warning'}
-    >
+    <Alert className='min-h-22 w-full p-2' status={currentContext?.isDomoPage || isLoading ? 'accent' : 'warning'}>
       <Alert.Content className='flex flex-col items-start gap-2'>
         {isLoading ? (
           <div className='skeleton--shimmer relative flex w-full flex-col gap-2 overflow-hidden'>
@@ -426,10 +406,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
           </div>
         ) : (
           <>
-            <div
-              className='alert__title flex w-full items-start justify-between'
-              data-slot='alert-title'
-            >
+            <div className='alert__title flex w-full items-start justify-between' data-slot='alert-title'>
               {currentContext?.isDomoPage ? (
                 <div className='flex min-w-0 flex-1 items-center gap-x-1'>
                   <Tooltip closeDelay={0} delay={800}>
@@ -486,17 +463,13 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
               <div className='flex w-full min-w-0 flex-col items-start justify-start text-left'>
                 {currentContext?.isDomoPage ? (
                   !currentContext?.instance || !currentContext?.domoObject?.id ? (
-                    <span className='w-full truncate text-left font-medium'>
-                      No object detected on this page
-                    </span>
+                    <span className='w-full truncate text-left font-medium'>No object detected on this page</span>
                   ) : (
                     <>
                       <span className='w-full truncate text-left font-medium'>
                         {currentContext?.domoObject?.metadata?.name}
                       </span>
-                      <span className='w-full truncate text-left'>
-                        ID: {currentContext?.domoObject?.id}
-                      </span>
+                      <span className='w-full truncate text-left'>ID: {currentContext?.domoObject?.id}</span>
                     </>
                   )
                 ) : (
@@ -527,9 +500,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
       <Disclosure.Heading>
         <Disclosure.Trigger className='w-full cursor-pointer'>{alertContent}</Disclosure.Trigger>
       </Disclosure.Heading>
-      <Disclosure.Content
-        className={`card flex min-h-0 flex-1 flex-col bg-surface p-0 ${isExpanded ? '' : 'collapse'}`}
-      >
+      <Disclosure.Content className={`card flex min-h-0 flex-1 flex-col bg-surface p-0 ${isExpanded ? '' : 'collapse'}`}>
         <div className='card__content flex min-h-0 w-full flex-1 flex-col gap-2 p-2'>
           {tabs.length > 1 && (
             <Tabs
@@ -539,29 +510,17 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
               onSelectionChange={handleTabChange}
             >
               <Tabs.ListContainer>
-                <ScrollShadow
-                  hideScrollBar
-                  className='w-full flex-1'
-                  offset={2}
-                  orientation='horizontal'
-                  size={40}
-                >
+                <ScrollShadow hideScrollBar className='w-full flex-1' offset={2} orientation='horizontal' size={40}>
                   <Tabs.List aria-label='Object details' className='w-fit min-w-full flex-nowrap'>
                     {tabs.map((tab) => {
                       const cached = relatedCache[tab.id];
-                      const lazyCountSuffix = tab.fetcher
-                        ? ` (${Array.isArray(cached) ? cached.length : '...'})`
-                        : '';
+                      const lazyCountSuffix = tab.fetcher ? ` (${Array.isArray(cached) ? cached.length : '...'})` : '';
                       const displayLabel = `${tab.label}${lazyCountSuffix}`;
                       // h-12! overrides HeroUI's fixed 32px tab height so a
                       // line-clamp-2 label that wraps to two lines fits inside
                       // the tab instead of spilling past its border.
                       return (
-                        <Tabs.Tab
-                          className='h-10! min-w-32 flex-1 capitalize'
-                          id={tab.id}
-                          key={tab.id}
-                        >
+                        <Tabs.Tab className='h-10! min-w-32 flex-1 capitalize' id={tab.id} key={tab.id}>
                           <span className='line-clamp-2 text-center' title={displayLabel}>
                             {displayLabel}
                           </span>
@@ -610,10 +569,7 @@ function getFreshRelatedEntry(chromeTabId, objectId, key) {
   return entry.data;
 }
 
-function injectUrls(
-  src,
-  { baseUrl, isArray, itemIdField, itemTypeField, itemTypeId, objectId, parentId, typeId }
-) {
+function injectUrls(src, { baseUrl, isArray, itemIdField, itemTypeField, itemTypeId, objectId, parentId, typeId }) {
   if (!src || !baseUrl) return src;
 
   if (isArray && Array.isArray(src)) {
@@ -648,23 +604,16 @@ function MetadataJsonView({ collapsed = 1, groupMap = {}, src, userMap = {} }) {
       collapsed={collapsed}
       collapseStringMode='word'
       collapseStringsAfterLength={150}
+      customizeCopy={(node) => (typeof node === 'object' ? JSON.stringify(node, null, 2) : String(node))}
       key={jsonViewKey}
       matchesURL={false}
       src={src}
       CopiedComponent={({ className, style }) => (
-        <AnimatedCheck
-          className={className + ' text-success'}
-          size={16}
-          stroke={1.5}
-          style={style}
-        />
+        <AnimatedCheck className={className + ' text-success'} size={16} stroke={1.5} style={style} />
       )}
       CopyComponent={({ className, onClick, style }) => (
         <IconClipboardCopy className={className} size={16} style={style} onClick={onClick} />
       )}
-      customizeCopy={(node) =>
-        typeof node === 'object' ? JSON.stringify(node, null, 2) : String(node)
-      }
       customizeNode={(params) => {
         if (params.node === null || params.node === undefined) {
           return { enableClipboard: false };
@@ -686,28 +635,17 @@ function MetadataJsonView({ collapsed = 1, groupMap = {}, src, userMap = {} }) {
             return <TimestampAnnotation formatted={formatted} value={params.node} />;
           }
         }
-        if (
-          (typeof params.node === 'number' || typeof params.node === 'string') &&
-          Object.keys(userMap).length > 0
-        ) {
+        if ((typeof params.node === 'number' || typeof params.node === 'string') && Object.keys(userMap).length > 0) {
           const numericValue = Number(params.node);
-          if (
-            userMap[numericValue] &&
-            (isUserFieldName(params?.indexOrName) || params?.indexOrName === 'id')
-          ) {
+          if (userMap[numericValue] && (isUserFieldName(params?.indexOrName) || params?.indexOrName === 'id')) {
             return <UserIdAnnotation displayName={userMap[numericValue]} value={params.node} />;
           }
         }
-        if (
-          (typeof params.node === 'number' || typeof params.node === 'string') &&
-          Object.keys(groupMap).length > 0
-        ) {
+        if ((typeof params.node === 'number' || typeof params.node === 'string') && Object.keys(groupMap).length > 0) {
           const numericValue = Number(params.node);
           if (
             groupMap[numericValue] &&
-            (isGroupFieldName(params?.indexOrName) ||
-              isUserFieldName(params?.indexOrName) ||
-              params?.indexOrName === 'id')
+            (isGroupFieldName(params?.indexOrName) || isUserFieldName(params?.indexOrName) || params?.indexOrName === 'id')
           ) {
             return <GroupIdAnnotation displayName={groupMap[numericValue]} value={params.node} />;
           }
@@ -764,10 +702,7 @@ function resolveRelatedParentId(related, domoObject) {
   if (related.parentSource) {
     if (related.parentSource === 'parentId') return domoObject.parentId;
     if (related.parentSource === 'objectId') return domoObject.id;
-    const parentBase =
-      related.parentFieldSource === 'context'
-        ? domoObject.metadata?.context
-        : domoObject.metadata?.details;
+    const parentBase = related.parentFieldSource === 'context' ? domoObject.metadata?.context : domoObject.metadata?.details;
     return related.parentSource.split('.').reduce((obj, key) => obj?.[key], parentBase);
   }
 

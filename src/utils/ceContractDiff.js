@@ -28,17 +28,10 @@ export function classifyContractChanges(oldFn, newFn) {
   }
 
   const inputs = classifyEntries(oldFn?.inputs, newFn?.inputs);
-  const outputs = classifyEntries(
-    oldFn?.output ? [oldFn.output] : [],
-    newFn?.output ? [newFn.output] : []
-  );
+  const outputs = classifyEntries(oldFn?.output ? [oldFn.output] : [], newFn?.output ? [newFn.output] : []);
 
   const hasChanges = [inputs, outputs].some(
-    (c) =>
-      c.added.length > 0 ||
-      c.removed.length > 0 ||
-      c.renamed.length > 0 ||
-      c.typeChanged.length > 0
+    (c) => c.added.length > 0 || c.removed.length > 0 || c.renamed.length > 0 || c.typeChanged.length > 0
   );
 
   return { functionDeleted: false, hasChanges, inputs, outputs };

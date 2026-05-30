@@ -6,12 +6,7 @@ import { useStatusBar } from '@/hooks/useStatusBar';
 import { clearCookies } from '@/utils/clearCookies';
 import { executeInPage } from '@/utils/executeInPage';
 
-const EXCLUDED_HOSTNAMES = [
-  'domo-support.domo.com',
-  'developer.domo.com',
-  'www.domo.com',
-  'domo.com'
-];
+const EXCLUDED_HOSTNAMES = ['domo-support.domo.com', 'developer.domo.com', 'www.domo.com', 'domo.com'];
 
 export function ClearCookies({ currentContext, isDisabled }) {
   const [showButton, setShowButton] = useState(false);
@@ -85,20 +80,11 @@ export function ClearCookies({ currentContext, isDisabled }) {
     });
   };
 
-  const tooltipText =
-    behavior === 'all'
-      ? 'Clear all Domo cookies'
-      : 'Clear Domo cookies and preserve last 2 instances';
+  const tooltipText = behavior === 'all' ? 'Clear all Domo cookies' : 'Clear Domo cookies and preserve last 2 instances';
 
   return (
     <Tooltip closeDelay={0} delay={800}>
-      <Button
-        fullWidth
-        isIconOnly
-        isDisabled={isDisabled}
-        variant='tertiary'
-        onPress={handleClearCookies}
-      >
+      <Button fullWidth isIconOnly isDisabled={isDisabled} variant='tertiary' onPress={handleClearCookies}>
         <IconCookieOff className='text-danger' stroke={1.5} />
       </Button>
       <Tooltip.Content

@@ -200,9 +200,7 @@ export class DomoObject {
               };
             }
 
-            console.log(
-              `[getParent:fetchParentDetails] Fetching ${method} ${url}, hasBody=${!!options.body}`
-            );
+            console.log(`[getParent:fetchParentDetails] Fetching ${method} ${url}, hasBody=${!!options.body}`);
 
             const response = await fetch(url, options);
 
@@ -215,20 +213,13 @@ export class DomoObject {
             const data = await response.json();
             console.log('[getParent:fetchParentDetails] Response data keys:', Object.keys(data));
 
-            const details = pathToDetails
-              ? pathToDetails.split('.').reduce((current, prop) => current?.[prop], data)
-              : data;
-            const resolvePath = (path) =>
-              path.split('.').reduce((current, prop) => current?.[prop], data);
+            const details = pathToDetails ? pathToDetails.split('.').reduce((current, prop) => current?.[prop], data) : data;
+            const resolvePath = (path) => path.split('.').reduce((current, prop) => current?.[prop], data);
             const name = nameTemplate
-              ? nameTemplate.replace(/{([^}]+)}/g, (_, path) =>
-                  path === 'id' ? parentId : (resolvePath(path) ?? '')
-                )
+              ? nameTemplate.replace(/{([^}]+)}/g, (_, path) => (path === 'id' ? parentId : (resolvePath(path) ?? '')))
               : resolvePath(pathToName);
 
-            console.log(
-              `[getParent:fetchParentDetails] Extracted name=${name}, hasDetails=${!!details}`
-            );
+            console.log(`[getParent:fetchParentDetails] Extracted name=${name}, hasDetails=${!!details}`);
 
             return {
               details: details,
@@ -305,9 +296,7 @@ export class DomoObject {
    */
   async navigateTo(tabId = null) {
     if (!this.hasUrl()) {
-      throw new Error(
-        `Cannot navigate to ${this.objectType.name}: this object type does not have a navigable URL`
-      );
+      throw new Error(`Cannot navigate to ${this.objectType.name}: this object type does not have a navigable URL`);
     }
     const url = this.url || (await this.buildUrl(this.baseUrl, tabId));
     window.open(url, '_blank', 'noopener,noreferrer');

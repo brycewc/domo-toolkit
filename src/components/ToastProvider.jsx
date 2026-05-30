@@ -14,14 +14,7 @@ export function ToastProvider(props) {
   return (
     <Toast.Provider {...props}>
       {({ toast: toastItem }) => {
-        const {
-          actionProps,
-          description,
-          indicator,
-          isLoading,
-          title,
-          variant
-        } = toastItem.content ?? {};
+        const { actionProps, description, indicator, isLoading, title, variant } = toastItem.content ?? {};
 
         return (
           <Toast toast={toastItem} variant={variant}>
@@ -33,16 +26,10 @@ export function ToastProvider(props) {
             <ToastContent>
               {!!title && <ToastTitle>{title}</ToastTitle>}
               {!!description && (
-                <ToastDescription className='line-clamp-4 max-h-25 overflow-hidden'>
-                  {description}
-                </ToastDescription>
+                <ToastDescription className='line-clamp-4 max-h-25 overflow-hidden'>{description}</ToastDescription>
               )}
             </ToastContent>
-            {actionProps?.children && (
-              <ToastActionButton {...actionProps}>
-                {actionProps.children}
-              </ToastActionButton>
-            )}
+            {actionProps?.children && <ToastActionButton {...actionProps}>{actionProps.children}</ToastActionButton>}
             <ToastCloseButton>
               <IconX />
             </ToastCloseButton>

@@ -1,7 +1,14 @@
 ---
 description: Extension architecture, execution contexts, message flow, and core patterns
-globs: src/background.js,src/contentScript.js,src/sidepanel/**,src/popup/**,src/options/**,src/services/**,src/models/**,src/utils/executeInPage.js
-alwaysApply: false
+paths:
+  - 'src/background.js'
+  - 'src/contentScript.js'
+  - 'src/sidepanel/**'
+  - 'src/popup/**'
+  - 'src/options/**'
+  - 'src/services/**'
+  - 'src/models/**'
+  - 'src/utils/executeInPage.js'
 ---
 
 # Extension Architecture
@@ -52,6 +59,7 @@ const result = await executeInPage(
 ```
 
 **Rules:**
+
 - Functions are serialized — no closure variables allowed
 - Pass all needed data as arguments
 - Import from `@/utils`, not `@/utils/executeInPage`

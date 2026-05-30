@@ -47,8 +47,7 @@ export async function executeInAllFrames(func, args = [], tabId = null) {
     // allFrames can fail if an iframe is restricted, leaking the counter.
     await chrome.scripting.executeScript({
       func: () => {
-        window.__domoToolkitExtDepth =
-          (window.__domoToolkitExtDepth || 0) + 1;
+        window.__domoToolkitExtDepth = (window.__domoToolkitExtDepth || 0) + 1;
       },
       target: mainFrameTarget,
       world: 'MAIN'
@@ -67,11 +66,7 @@ export async function executeInAllFrames(func, args = [], tabId = null) {
       const validResults = [];
       if (results && Array.isArray(results)) {
         results.forEach((frameResult) => {
-          if (
-            frameResult &&
-            frameResult.result !== undefined &&
-            frameResult.result !== null
-          ) {
+          if (frameResult && frameResult.result !== undefined && frameResult.result !== null) {
             // For array results, only include non-empty arrays
             if (Array.isArray(frameResult.result)) {
               if (frameResult.result.length > 0) {
@@ -89,10 +84,7 @@ export async function executeInAllFrames(func, args = [], tabId = null) {
       try {
         await chrome.scripting.executeScript({
           func: () => {
-            window.__domoToolkitExtDepth = Math.max(
-              0,
-              (window.__domoToolkitExtDepth || 0) - 1
-            );
+            window.__domoToolkitExtDepth = Math.max(0, (window.__domoToolkitExtDepth || 0) - 1);
           },
           target: mainFrameTarget,
           world: 'MAIN'
@@ -149,8 +141,7 @@ export async function executeInPage(func, args = [], tabId = null) {
     // Mark extension-initiated requests so apiErrors.js bypasses interception
     await chrome.scripting.executeScript({
       func: () => {
-        window.__domoToolkitExtDepth =
-          (window.__domoToolkitExtDepth || 0) + 1;
+        window.__domoToolkitExtDepth = (window.__domoToolkitExtDepth || 0) + 1;
       },
       target,
       world: 'MAIN'
@@ -174,10 +165,7 @@ export async function executeInPage(func, args = [], tabId = null) {
       try {
         await chrome.scripting.executeScript({
           func: () => {
-            window.__domoToolkitExtDepth = Math.max(
-              0,
-              (window.__domoToolkitExtDepth || 0) - 1
-            );
+            window.__domoToolkitExtDepth = Math.max(0, (window.__domoToolkitExtDepth || 0) - 1);
           },
           target,
           world: 'MAIN'

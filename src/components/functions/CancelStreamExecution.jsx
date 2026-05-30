@@ -13,8 +13,7 @@ export function CancelStreamExecution({ currentContext, isDisabled }) {
     const executionId = stream?.currentExecution?.executionId;
     if (!streamId || !executionId) return;
 
-    const datasetName =
-      currentContext.domoObject.metadata?.name || `Dataset ${currentContext.domoObject.id}`;
+    const datasetName = currentContext.domoObject.metadata?.name || `Dataset ${currentContext.domoObject.id}`;
 
     showPromiseStatus(
       cancelStreamExecution({

@@ -1,14 +1,4 @@
-import {
-  Button,
-  Chip,
-  Dropdown,
-  Label,
-  Spinner,
-  Table,
-  TableLayout,
-  Tooltip,
-  Virtualizer
-} from '@heroui/react';
+import { Button, Chip, Dropdown, Label, Spinner, Table, TableLayout, Tooltip, Virtualizer } from '@heroui/react';
 import { AnimatePresence } from 'motion/react';
 import { useMemo, useState } from 'react';
 
@@ -101,10 +91,7 @@ export function DataTable({
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
-  const visibleColumns = useMemo(
-    () => columns.filter((c) => !hiddenColumns.has(c.id)),
-    [columns, hiddenColumns]
-  );
+  const visibleColumns = useMemo(() => columns.filter((c) => !hiddenColumns.has(c.id)), [columns, hiddenColumns]);
 
   const toggleableColumns = useMemo(() => columns.filter((c) => c.canHide !== false), [columns]);
 
@@ -182,23 +169,16 @@ export function DataTable({
               <IconAddColumn />
               Columns
               <Chip color='accent' size='sm' variant='soft'>
-                {toggleableColumns.filter((c) => !hiddenColumns.has(c.id)).length}/
-                {toggleableColumns.length}
+                {toggleableColumns.filter((c) => !hiddenColumns.has(c.id)).length}/{toggleableColumns.length}
               </Chip>
             </Button>
             <Dropdown.Popover>
               <Dropdown.Menu
+                selectedKeys={new Set(toggleableColumns.filter((c) => !hiddenColumns.has(c.id)).map((c) => c.id))}
                 selectionMode='multiple'
                 onSelectionChange={(keys) => {
-                  setHiddenColumns(
-                    new Set(toggleableColumns.filter((c) => !keys.has(c.id)).map((c) => c.id))
-                  );
+                  setHiddenColumns(new Set(toggleableColumns.filter((c) => !keys.has(c.id)).map((c) => c.id)));
                 }}
-                selectedKeys={
-                  new Set(
-                    toggleableColumns.filter((c) => !hiddenColumns.has(c.id)).map((c) => c.id)
-                  )
-                }
               >
                 {toggleableColumns.map((col) => (
                   <Dropdown.Item id={col.id} key={col.id} textValue={col.header}>
@@ -220,15 +200,8 @@ export function DataTable({
           {exportConfig?.enabled && (
             <Tooltip closeDelay={0} delay={800}>
               <Dropdown>
-                <Button
-                  isIconOnly
-                  isDisabled={isExporting || data.length === 0}
-                  isPending={isExporting}
-                  variant='tertiary'
-                >
-                  {({ isPending }) =>
-                    isPending ? <Spinner color='currentColor' size='sm' /> : <IconDownload />
-                  }
+                <Button isIconOnly isDisabled={isExporting || data.length === 0} isPending={isExporting} variant='tertiary'>
+                  {({ isPending }) => (isPending ? <Spinner color='currentColor' size='sm' /> : <IconDownload />)}
                 </Button>
                 <Dropdown.Popover>
                   <Dropdown.Menu onAction={(key) => handleExport(key)}>
@@ -250,16 +223,8 @@ export function DataTable({
           {/* Refresh Button */}
           {onRefresh && (
             <Tooltip closeDelay={0} delay={800}>
-              <Button
-                isIconOnly
-                isDisabled={isRefreshing}
-                isPending={isRefreshing}
-                variant='tertiary'
-                onPress={onRefresh}
-              >
-                {({ isPending }) =>
-                  isPending ? <Spinner color='currentColor' size='sm' /> : <IconSync />
-                }
+              <Button isIconOnly isDisabled={isRefreshing} isPending={isRefreshing} variant='tertiary' onPress={onRefresh}>
+                {({ isPending }) => (isPending ? <Spinner color='currentColor' size='sm' /> : <IconSync />)}
               </Button>
               <Tooltip.Content>Refresh</Tooltip.Content>
             </Tooltip>
@@ -286,11 +251,7 @@ export function DataTable({
         >
           <Table className='h-full'>
             <Table.ScrollContainer className='overflow-auto overscroll-y-contain'>
-              <Table.Content
-                aria-label={entityName}
-                sortDescriptor={sortDescriptor}
-                onSortChange={setSortDescriptor}
-              >
+              <Table.Content aria-label={entityName} sortDescriptor={sortDescriptor} onSortChange={setSortDescriptor}>
                 <Table.Header className='h-full w-full' columns={visibleColumns}>
                   {(column) => (
                     <Table.Column
@@ -303,9 +264,7 @@ export function DataTable({
                     >
                       {column.allowsSorting
                         ? ({ sortDirection }) => (
-                            <SortableHeader sortDirection={sortDirection}>
-                              {column.header}
-                            </SortableHeader>
+                            <SortableHeader sortDirection={sortDirection}>{column.header}</SortableHeader>
                           )
                         : column.header}
                     </Table.Column>
@@ -315,11 +274,7 @@ export function DataTable({
                   <Table.Collection dependencies={[visibleColumns]} items={items}>
                     {(item) => (
                       <Table.Row columns={visibleColumns} dependencies={[visibleColumns]}>
-                        {(column) => (
-                          <Table.Cell className='flex h-full items-center'>
-                            {column.cell(item.row)}
-                          </Table.Cell>
-                        )}
+                        {(column) => <Table.Cell className='flex h-full items-center'>{column.cell(item.row)}</Table.Cell>}
                       </Table.Row>
                     )}
                   </Table.Collection>
@@ -351,9 +306,7 @@ function SortableHeader({ children, sortDirection }) {
       {children}
       {sortDirection && (
         <IconChevronDown
-          className={`size-3 transition-transform duration-100 ${
-            sortDirection === 'ascending' ? 'rotate-180' : ''
-          }`}
+          className={`size-3 transition-transform duration-100 ${sortDirection === 'ascending' ? 'rotate-180' : ''}`}
         />
       )}
     </span>

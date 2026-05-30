@@ -31,8 +31,7 @@ globalThis.chrome = {
   storage: {
     local: (() => {
       const store = {};
-      const toKeys = (input) =>
-        input == null ? Object.keys(store) : Array.isArray(input) ? input : [input];
+      const toKeys = (input) => (input == null ? Object.keys(store) : Array.isArray(input) ? input : [input]);
       return {
         get: async (input) => {
           const keys = toKeys(input);

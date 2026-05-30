@@ -1,15 +1,4 @@
-import {
-  Button,
-  Description,
-  Form,
-  Input,
-  Label,
-  ListBox,
-  Modal,
-  Select,
-  Spinner,
-  TextField
-} from '@heroui/react';
+import { Button, Description, Form, Input, Label, ListBox, Modal, Select, Spinner, TextField } from '@heroui/react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { DatasetComboBox } from '@/components/DatasetComboBox';
@@ -145,15 +134,10 @@ export function MigrateDownstreamModal({
     };
   }, [comparison, selectedDatasetId, selectedItems, sourceDataset?.id, currentContext?.tabId]);
 
-  const excludeIds = useMemo(
-    () => (sourceDataset?.id ? new Set([sourceDataset.id]) : null),
-    [sourceDataset?.id]
-  );
+  const excludeIds = useMemo(() => (sourceDataset?.id ? new Set([sourceDataset.id]) : null), [sourceDataset?.id]);
 
   const totalSelected =
-    (selectedCounts?.cards || 0) +
-    (selectedCounts?.datasetViews || 0) +
-    (selectedCounts?.dataflows || 0);
+    (selectedCounts?.cards || 0) + (selectedCounts?.datasetViews || 0) + (selectedCounts?.dataflows || 0);
 
   const hasMismatches = comparison && !comparison.compatible;
 
@@ -175,12 +159,7 @@ export function MigrateDownstreamModal({
   }, [hasMismatches, scanResult, comparison]);
 
   const submitDisabled =
-    !selectedDatasetId ||
-    isComparing ||
-    isScanning ||
-    totalSelected === 0 ||
-    comparisonError !== null ||
-    scanError !== null;
+    !selectedDatasetId || isComparing || isScanning || totalSelected === 0 || comparisonError !== null || scanError !== null;
 
   const buttonLabel = useMemo(() => {
     if (!hasMismatches) return 'Migrate';
@@ -244,10 +223,7 @@ export function MigrateDownstreamModal({
               <Modal.Body className='flex flex-col gap-2'>
                 <TextField isReadOnly className='pointer-events-none'>
                   <Label>From Dataset</Label>
-                  <Input
-                    value={sourceDataset?.name || sourceDataset?.id || ''}
-                    variant='secondary'
-                  />
+                  <Input value={sourceDataset?.name || sourceDataset?.id || ''} variant='secondary' />
                 </TextField>
 
                 <DatasetComboBox
@@ -291,9 +267,9 @@ export function MigrateDownstreamModal({
                       </span>
                     </div>
                     <Description className='text-foreground'>
-                      Best practice is to align schemas BEFORE migrating content. Proceeding here
-                      is your responsibility — broken column references can cause cards to render
-                      blank, dataflows to fail, and views to error. Validate every result.
+                      Best practice is to align schemas BEFORE migrating content. Proceeding here is your responsibility —
+                      broken column references can cause cards to render blank, dataflows to fail, and views to error.
+                      Validate every result.
                     </Description>
                     <ul className='ml-4 list-disc text-foreground'>
                       {comparison.missing.slice(0, 8).map((m) => (
@@ -309,16 +285,12 @@ export function MigrateDownstreamModal({
                           )}
                         </li>
                       ))}
-                      {comparison.missing.length > 8 && (
-                        <li>and {comparison.missing.length - 8} more…</li>
-                      )}
+                      {comparison.missing.length > 8 && <li>and {comparison.missing.length - 8} more…</li>}
                     </ul>
                   </div>
                 )}
 
-                {comparison?.compatible && (
-                  <div className='text-xs text-success'>Schemas are compatible.</div>
-                )}
+                {comparison?.compatible && <div className='text-xs text-success'>Schemas are compatible.</div>}
 
                 {hasMismatches && isScanning && (
                   <div className='flex items-center gap-2 text-xs text-muted'>
@@ -341,9 +313,8 @@ export function MigrateDownstreamModal({
                   <div className='flex flex-col gap-1 rounded border border-default p-2'>
                     <Label className='text-sm font-medium'>Column Remap</Label>
                     <Description className='text-xs'>
-                      Map each origin column to a column on the target dataset, or leave it
-                      unmapped (you'll need to fix references manually). Only columns actually
-                      referenced by the selected content are shown.
+                      Map each origin column to a column on the target dataset, or leave it unmapped (you'll need to fix
+                      references manually). Only columns actually referenced by the selected content are shown.
                     </Description>
                     <div className='flex max-h-72 flex-col gap-1 overflow-y-auto pr-1'>
                       {usedUnmappedColumns.map(({ items, name }) => (
@@ -361,39 +332,27 @@ export function MigrateDownstreamModal({
                   </div>
                 )}
 
-                {hasMismatches &&
-                  !isScanning &&
-                  scanResult &&
-                  usedUnmappedColumns.length === 0 && (
-                    <div className='text-xs text-muted'>
-                      None of the mismatched columns are referenced by the selected content. Safe
-                      to proceed without remapping, but data may still be missing in the target.
-                    </div>
-                  )}
+                {hasMismatches && !isScanning && scanResult && usedUnmappedColumns.length === 0 && (
+                  <div className='text-xs text-muted'>
+                    None of the mismatched columns are referenced by the selected content. Safe to proceed without remapping,
+                    but data may still be missing in the target.
+                  </div>
+                )}
 
                 <p className='text-xs text-muted'>
-                  <span className='font-medium text-foreground'>{selectedCounts?.cards || 0}</span>{' '}
-                  card{selectedCounts?.cards === 1 ? '' : 's'},{' '}
-                  <span className='font-medium text-foreground'>
-                    {selectedCounts?.datasetViews || 0}
-                  </span>{' '}
-                  dataset view{selectedCounts?.datasetViews === 1 ? '' : 's'},{' '}
-                  <span className='font-medium text-foreground'>
-                    {selectedCounts?.dataflows || 0}
-                  </span>{' '}
-                  dataflow{selectedCounts?.dataflows === 1 ? '' : 's'} selected
+                  <span className='font-medium text-foreground'>{selectedCounts?.cards || 0}</span> card
+                  {selectedCounts?.cards === 1 ? '' : 's'},{' '}
+                  <span className='font-medium text-foreground'>{selectedCounts?.datasetViews || 0}</span> dataset view
+                  {selectedCounts?.datasetViews === 1 ? '' : 's'},{' '}
+                  <span className='font-medium text-foreground'>{selectedCounts?.dataflows || 0}</span> dataflow
+                  {selectedCounts?.dataflows === 1 ? '' : 's'} selected
                 </p>
               </Modal.Body>
               <Modal.Footer className='flex justify-end gap-2'>
                 <Button size='sm' slot='close' variant='tertiary'>
                   Cancel
                 </Button>
-                <Button
-                  isDisabled={submitDisabled}
-                  size='sm'
-                  type='submit'
-                  variant={hasMismatches ? 'danger' : 'primary'}
-                >
+                <Button isDisabled={submitDisabled} size='sm' type='submit' variant={hasMismatches ? 'danger' : 'primary'}>
                   <IconArrowRight />
                   {buttonLabel}
                 </Button>
@@ -449,10 +408,8 @@ function ColumnMapRow({ collisions, itemsCount, mappedTo, onChange, originName, 
           <Select.Popover>
             <ListBox className='max-h-60 overflow-y-auto'>
               <ListBox.Item id={UNMAPPED} textValue='Leave unmapped'>
-                <span className='italic text-muted'>Leave unmapped</span>
-                <ListBox.ItemIndicator>
-                  {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
-                </ListBox.ItemIndicator>
+                <span className='text-muted italic'>Leave unmapped</span>
+                <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
               </ListBox.Item>
               {targetColumns.map((col) => (
                 <ListBox.Item id={col.name} key={col.name} textValue={col.name}>
@@ -460,9 +417,7 @@ function ColumnMapRow({ collisions, itemsCount, mappedTo, onChange, originName, 
                     <span className='truncate font-mono text-xs'>{col.name}</span>
                     {col.type && <span className='text-[10px] text-muted'>{col.type}</span>}
                   </div>
-                  <ListBox.ItemIndicator>
-                    {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
-                  </ListBox.ItemIndicator>
+                  <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
                 </ListBox.Item>
               ))}
             </ListBox>
@@ -480,13 +435,11 @@ function ColumnMapRow({ collisions, itemsCount, mappedTo, onChange, originName, 
                 : `other inputs of ${collisionByDataflow.length} dataflows`}
             </span>
             <span>
-              Remapping will rewrite every reference to{' '}
-              <span className='font-mono'>{originName}</span> in the affected dataflow
+              Remapping will rewrite every reference to <span className='font-mono'>{originName}</span> in the affected
+              dataflow
               {collisionByDataflow.length === 1 ? '' : 's'}, including refs that came from{' '}
-              {collisionByDataflow.length === 1
-                ? collisionByDataflow[0].otherInputs.join(', ')
-                : 'other inputs'}
-              . Consider leaving this unmapped and fixing the dataflow manually.
+              {collisionByDataflow.length === 1 ? collisionByDataflow[0].otherInputs.join(', ') : 'other inputs'}. Consider
+              leaving this unmapped and fixing the dataflow manually.
             </span>
           </div>
         </div>

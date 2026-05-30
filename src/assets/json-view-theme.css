@@ -91,8 +91,7 @@
   text-decoration-line: line-through;
 }
 
-:is(.json-view:hover, .json-view--pair:hover)
-  > :is(.json-view--copy, .json-view--edit),
+:is(.json-view:hover, .json-view--pair:hover) > :is(.json-view--copy, .json-view--edit),
 :is(.json-view:hover, .json-view--pair:hover) > .json-view--link svg {
   display: inline-block;
 }

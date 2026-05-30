@@ -39,9 +39,7 @@ export function ReleaseNotes() {
         transition={{ duration: 0.3 }}
       >
         <img alt='Domo Toolkit Logo' className='h-16 w-16' src='/toolkit-512.png' />
-        <h1 className='text-xl font-semibold text-foreground'>
-          Domo Toolkit Release Notes v{latest.version}
-        </h1>
+        <h1 className='text-xl font-semibold text-foreground'>Domo Toolkit Release Notes v{latest.version}</h1>
         <p className='text-sm text-muted'>{latest.summary}</p>
       </motion.div>
 
@@ -63,11 +61,7 @@ export function ReleaseNotes() {
               <Card>
                 <Card.Header>
                   <Card.Description className='flex flex-row items-center justify-start gap-2 text-foreground'>
-                    <Chip
-                      className='size-6 shrink-0 items-center justify-center rounded-full'
-                      color='accent'
-                      variant='soft'
-                    >
+                    <Chip className='size-6 shrink-0 items-center justify-center rounded-full' color='accent' variant='soft'>
                       {index + 1}
                     </Chip>
                     {highlight}
@@ -89,19 +83,8 @@ export function ReleaseNotes() {
           <p className='text-sm font-medium tracking-wide uppercase'>Previous Releases</p>
           <div className='flex flex-wrap gap-4'>
             {releases.slice(1).map((release) => (
-              <Link
-                className='no-underline'
-                href={release.githubUrl}
-                key={release.version}
-                target='_blank'
-              >
-                <Chip
-                  className='w-20 justify-center'
-                  color='accent'
-                  key={release.version}
-                  size='lg'
-                  variant='soft'
-                >
+              <Link className='no-underline' href={release.githubUrl} key={release.version} target='_blank'>
+                <Chip className='w-20 justify-center' color='accent' key={release.version} size='lg' variant='soft'>
                   <Chip.Label>v{release.version}</Chip.Label>
                 </Chip>
               </Link>

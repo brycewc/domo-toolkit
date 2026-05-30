@@ -15,25 +15,22 @@ export async function getOwnedFilesets(userId, tabId = null) {
       let offset = 0;
 
       while (moreData) {
-        const response = await fetch(
-          `/api/files/v1/filesets/search?limit=${limit}&offset=${offset}`,
-          {
-            body: JSON.stringify({
-              dateFilters: [],
-              fieldSort: [{ field: 'updated', order: 'DESC' }],
-              filters: [
-                {
-                  field: 'owner',
-                  not: false,
-                  operator: 'EQUALS',
-                  value: [userId]
-                }
-              ]
-            }),
-            headers: { 'Content-Type': 'application/json' },
-            method: 'POST'
-          }
-        );
+        const response = await fetch(`/api/files/v1/filesets/search?limit=${limit}&offset=${offset}`, {
+          body: JSON.stringify({
+            dateFilters: [],
+            fieldSort: [{ field: 'updated', order: 'DESC' }],
+            filters: [
+              {
+                field: 'owner',
+                not: false,
+                operator: 'EQUALS',
+                value: [userId]
+              }
+            ]
+          }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
 
@@ -66,12 +63,7 @@ export async function getOwnedFilesets(userId, tabId = null) {
  * @param {number|null} tabId - Optional Chrome tab ID
  * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
  */
-export async function transferFilesets(
-  filesetIds,
-  fromUserId,
-  toUserId,
-  tabId = null
-) {
+export async function transferFilesets(filesetIds, fromUserId, toUserId, tabId = null) {
   return executeInPage(
     async (filesetIds, fromUserId, toUserId) => {
       const errors = [];
@@ -79,14 +71,11 @@ export async function transferFilesets(
 
       for (const id of filesetIds) {
         try {
-          const response = await fetch(
-            `/api/files/v1/filesets/${id}/ownership`,
-            {
-              body: JSON.stringify({ userId: parseInt(toUserId) }),
-              headers: { 'Content-Type': 'application/json' },
-              method: 'POST'
-            }
-          );
+          const response = await fetch(`/api/files/v1/filesets/${id}/ownership`, {
+            body: JSON.stringify({ userId: parseInt(toUserId) }),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'POST'
+          });
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           succeeded++;
         } catch (error) {

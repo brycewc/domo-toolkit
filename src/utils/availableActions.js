@@ -11,27 +11,14 @@ export function getAvailableActions(currentContext) {
   const details = metadata?.details;
   const url = currentContext?.url;
   const userRights = currentContext?.user?.metadata?.USER_RIGHTS || [];
-  if (
-    [
-      'DATA_APP_VIEW',
-      'DATA_SOURCE',
-      'DATAFLOW_TYPE',
-      'PAGE',
-      'REPORT_BUILDER_VIEW',
-      'WORKSHEET_VIEW'
-    ].includes(typeId)
-  ) {
+  if (['DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE', 'REPORT_BUILDER_VIEW', 'WORKSHEET_VIEW'].includes(typeId)) {
     actions.add('getCards');
     if (userRights.includes('content.admin')) {
       actions.add('lockCards');
     }
   }
 
-  if (
-    ['CARD', 'DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE', 'WORKSHEET_VIEW'].includes(
-      typeId
-    )
-  ) {
+  if (['CARD', 'DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE', 'WORKSHEET_VIEW'].includes(typeId)) {
     actions.add('getDatasets');
   }
 
@@ -39,11 +26,7 @@ export function getAvailableActions(currentContext) {
     actions.add('getChildPages');
   }
 
-  if (
-    ['CARD', 'DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE', 'WORKSHEET_VIEW'].includes(
-      typeId
-    )
-  ) {
+  if (['CARD', 'DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE', 'WORKSHEET_VIEW'].includes(typeId)) {
     actions.add('getCardPages');
   }
 
@@ -97,11 +80,7 @@ export function getAvailableActions(currentContext) {
   if (
     ['CODEENGINE_PACKAGE', 'CODEENGINE_PACKAGE_VERSION'].includes(typeId) &&
     !metadata?.context?.workflowModelId &&
-    (
-      metadata?.details?.language ||
-      metadata?.parent?.details?.language ||
-      'JAVASCRIPT'
-    ).toUpperCase() !== 'PYTHON'
+    (metadata?.details?.language || metadata?.parent?.details?.language || 'JAVASCRIPT').toUpperCase() !== 'PYTHON'
   ) {
     actions.add('generate');
   }

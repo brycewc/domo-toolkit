@@ -62,12 +62,7 @@ export async function getOwnedRepositories(userId, tabId = null) {
  * @param {number|null} tabId - Optional Chrome tab ID
  * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
  */
-export async function transferRepositories(
-  repoIds,
-  fromUserId,
-  toUserId,
-  tabId = null
-) {
+export async function transferRepositories(repoIds, fromUserId, toUserId, tabId = null) {
   return executeInPage(
     async (repoIds, fromUserId, toUserId) => {
       const errors = [];
@@ -75,19 +70,16 @@ export async function transferRepositories(
 
       for (const id of repoIds) {
         try {
-          const response = await fetch(
-            `/api/version/v1/repositories/${id}/permissions`,
-            {
-              body: JSON.stringify({
-                repositoryPermissionUpdates: [
-                  { permission: 'OWNER', userId: toUserId },
-                  { permission: 'NONE', userId: fromUserId }
-                ]
-              }),
-              headers: { 'Content-Type': 'application/json' },
-              method: 'POST'
-            }
-          );
+          const response = await fetch(`/api/version/v1/repositories/${id}/permissions`, {
+            body: JSON.stringify({
+              repositoryPermissionUpdates: [
+                { permission: 'OWNER', userId: toUserId },
+                { permission: 'NONE', userId: fromUserId }
+              ]
+            }),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'POST'
+          });
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           succeeded++;
         } catch (error) {

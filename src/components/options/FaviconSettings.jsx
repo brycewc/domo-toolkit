@@ -33,24 +33,14 @@ export function FaviconSettings() {
   const [originalRules, setOriginalRules] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [draggedIndex, setDraggedIndex] = useState(null);
-  const colorPresets = [
-    '#F43F5EFF',
-    '#D946EFFF',
-    '#8B5CF6FF',
-    '#3B82F6FF',
-    '#06B6D4FF',
-    '#10B981FF',
-    '#84CC16FF'
-  ];
+  const colorPresets = ['#F43F5EFF', '#D946EFFF', '#8B5CF6FF', '#3B82F6FF', '#06B6D4FF', '#10B981FF', '#84CC16FF'];
   const nextPresetIndex = useRef(0);
   const shuffleColor = (ruleId) => {
     const randomHue = Math.floor(Math.random() * 360);
     const randomSaturation = 50 + Math.floor(Math.random() * 50); // 50-100%
     const randomLightness = 40 + Math.floor(Math.random() * 30); // 40-70%
     const randomAlpha = 0.5 + Math.random() * 0.5; // 0.5-1.0
-    const newColor = parseColor(
-      `hsla(${randomHue}, ${randomSaturation}%, ${randomLightness}%, ${randomAlpha})`
-    );
+    const newColor = parseColor(`hsla(${randomHue}, ${randomSaturation}%, ${randomLightness}%, ${randomAlpha})`);
     updateRule(ruleId, 'color', newColor.toString('hexa'));
   };
 
@@ -90,12 +80,7 @@ export function FaviconSettings() {
   // Check if rules have changed from original
   const hasChanges = JSON.stringify(rules) !== JSON.stringify(originalRules);
 
-  const showStatus = (
-    title,
-    description,
-    status = 'accent',
-    timeout = 3000
-  ) => {
+  const showStatus = (title, description, status = 'accent', timeout = 3000) => {
     toast(title, { description, timeout: timeout || 0, variant: status });
   };
 
@@ -136,9 +121,7 @@ export function FaviconSettings() {
   };
 
   const updateRule = (id, field, value) => {
-    setRules(
-      rules.map((rule) => (rule.id === id ? { ...rule, [field]: value } : rule))
-    );
+    setRules(rules.map((rule) => (rule.id === id ? { ...rule, [field]: value } : rule)));
   };
 
   const handleDragStart = (index) => {
@@ -170,10 +153,7 @@ export function FaviconSettings() {
 
   return (
     <div className='flex min-h-0 w-full flex-1 flex-col pt-4'>
-      <Form
-        className='flex min-h-0 w-full flex-1 flex-col gap-2'
-        onSubmit={onSave}
-      >
+      <Form className='flex min-h-0 w-full flex-1 flex-col gap-2' onSubmit={onSave}>
         <div className='flex shrink-0 flex-row gap-2'>
           <Button isDisabled={!hasChanges} type='submit'>
             <IconSave />
@@ -197,23 +177,17 @@ export function FaviconSettings() {
               rules.map((rule, index) => (
                 <Card
                   draggable
+                  className={`cursor-move transition-opacity ${draggedIndex === index ? 'opacity-50' : ''}`}
                   key={rule.id}
                   onDragEnd={handleDragEnd}
                   onDragOver={(e) => handleDragOver(e, index)}
                   onDragStart={() => handleDragStart(index)}
                   onDrop={(e) => handleDrop(e, index)}
-                  className={`cursor-move transition-opacity ${
-                    draggedIndex === index ? 'opacity-50' : ''
-                  }`}
                 >
                   <Card.Content className='flex flex-row items-end justify-start gap-2'>
                     <div className='flex flex-col items-center justify-end gap-2'>
-                      <span className='text-fg-muted text-sm font-semibold'>
-                        {index + 1}
-                      </span>
-                      <IconDragDotsVertical
-                        className='size-8 text-muted'
-                      />
+                      <span className='text-fg-muted text-sm font-semibold'>{index + 1}</span>
+                      <IconDragDotsVertical className='size-8 text-muted' />
                     </div>
 
                     <div className='min-w-0 flex-1'>
@@ -223,9 +197,7 @@ export function FaviconSettings() {
                         name='pattern'
                         value={rule.pattern}
                         variant='secondary'
-                        onChange={(value) =>
-                          updateRule(rule.id, 'pattern', value)
-                        }
+                        onChange={(value) => updateRule(rule.id, 'pattern', value)}
                       >
                         <Label>Subdomain Pattern</Label>
                         <Input />
@@ -239,9 +211,7 @@ export function FaviconSettings() {
                         className='w-full'
                         value={rule.effect}
                         variant='secondary'
-                        onChange={(value) =>
-                          updateRule(rule.id, 'effect', value)
-                        }
+                        onChange={(value) => updateRule(rule.id, 'effect', value)}
                       >
                         <Label className='sr-only'>Effect</Label>
                         <Select.Trigger>
@@ -255,49 +225,37 @@ export function FaviconSettings() {
                             <ListBox.Item id='instance-logo'>
                               instance-logo
                               <ListBox.ItemIndicator>
-                                {({ isSelected }) =>
-                                  isSelected ? <IconCheck /> : null
-                                }
+                                {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
                               </ListBox.ItemIndicator>
                             </ListBox.Item>
                             <ListBox.Item id='domo-logo-colored'>
                               domo-logo-colored
                               <ListBox.ItemIndicator>
-                                {({ isSelected }) =>
-                                  isSelected ? <IconCheck /> : null
-                                }
+                                {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
                               </ListBox.ItemIndicator>
                             </ListBox.Item>
                             <ListBox.Item id='top'>
                               top
                               <ListBox.ItemIndicator>
-                                {({ isSelected }) =>
-                                  isSelected ? <IconCheck /> : null
-                                }
+                                {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
                               </ListBox.ItemIndicator>
                             </ListBox.Item>
                             <ListBox.Item id='right'>
                               right
                               <ListBox.ItemIndicator>
-                                {({ isSelected }) =>
-                                  isSelected ? <IconCheck /> : null
-                                }
+                                {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
                               </ListBox.ItemIndicator>
                             </ListBox.Item>
                             <ListBox.Item id='bottom'>
                               bottom
                               <ListBox.ItemIndicator>
-                                {({ isSelected }) =>
-                                  isSelected ? <IconCheck /> : null
-                                }
+                                {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
                               </ListBox.ItemIndicator>
                             </ListBox.Item>
                             <ListBox.Item id='left'>
                               left
                               <ListBox.ItemIndicator>
-                                {({ isSelected }) =>
-                                  isSelected ? <IconCheck /> : null
-                                }
+                                {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
                               </ListBox.ItemIndicator>
                             </ListBox.Item>
                           </ListBox>
@@ -308,23 +266,10 @@ export function FaviconSettings() {
                     <div className='flex w-25 flex-col gap-1'>
                       <ColorPicker
                         className='flex flex-col items-start justify-start gap-1'
-                        onChange={(newColor) =>
-                          updateRule(
-                            rule.id,
-                            'color',
-                            newColor.toString('hexa')
-                          )
-                        }
-                        value={
-                          rule.effect === 'instance-logo'
-                            ? '#00000000'
-                            : parseColor(rule.color)
-                        }
+                        value={rule.effect === 'instance-logo' ? '#00000000' : parseColor(rule.color)}
+                        onChange={(newColor) => updateRule(rule.id, 'color', newColor.toString('hexa'))}
                       >
-                        <Label
-                          aria-label='Color picker label'
-                          htmlFor='color-picker-trigger'
-                        >
+                        <Label aria-label='Color picker label' htmlFor='color-picker-trigger'>
                           Color
                         </Label>
                         <ColorPicker.Trigger
@@ -332,31 +277,19 @@ export function FaviconSettings() {
                           id='color-picker-trigger'
                           isDisabled={rule.effect === 'instance-logo'}
                         >
-                          <ColorSwatch
-                            className='w-25 rounded-3xl'
-                            shape='square'
-                            size='lg'
-                          />
+                          <ColorSwatch className='w-25 rounded-3xl' shape='square' size='lg' />
                         </ColorPicker.Trigger>
-                        <ColorPicker.Popover
-                          className='w-65 gap-2'
-                          placement='right'
-                        >
+                        <ColorPicker.Popover className='w-65 gap-2' placement='right'>
                           <ColorSwatchPicker
                             aria-label='Color swatch picker'
                             className='justify-center gap-0.5'
                             variant='square'
                           >
                             {colorPresets.map((preset) => (
-                              <ColorSwatchPicker.Item
-                                color={preset}
-                                key={preset}
-                              >
+                              <ColorSwatchPicker.Item color={preset} key={preset}>
                                 <ColorSwatchPicker.Swatch />
                                 <ColorSwatchPicker.Indicator>
-                                  {({ isSelected }) =>
-                                    isSelected ? <IconCheck /> : null
-                                  }
+                                  {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
                                 </ColorSwatchPicker.Indicator>
                               </ColorSwatchPicker.Item>
                             ))}
@@ -371,23 +304,13 @@ export function FaviconSettings() {
                             <ColorArea.Thumb />
                           </ColorArea>
                           <div className='flex flex-col justify-center gap-1'>
-                            <ColorSlider
-                              aria-label='Hue slider'
-                              channel='hue'
-                              className='flex-1'
-                              colorSpace='hsl'
-                            >
+                            <ColorSlider aria-label='Hue slider' channel='hue' className='flex-1' colorSpace='hsl'>
                               <Label>Hue</Label>
                               <ColorSlider.Track>
                                 <ColorSlider.Thumb />
                               </ColorSlider.Track>
                             </ColorSlider>
-                            <ColorSlider
-                              aria-label='Alpha slider'
-                              channel='alpha'
-                              className='flex-1'
-                              colorSpace='hsl'
-                            >
+                            <ColorSlider aria-label='Alpha slider' channel='alpha' className='flex-1' colorSpace='hsl'>
                               <Label>Opacity</Label>
                               <ColorSlider.Output className='text-muted' />
                               <ColorSlider.Track>
@@ -396,34 +319,21 @@ export function FaviconSettings() {
                             </ColorSlider>
                           </div>
                           <div className='flex w-full flex-row items-center justify-start gap-1'>
-                            <ColorField
-                              aria-label='Color field'
-                              className=''
-                              colorSpace='hsl'
-                            >
-                              <ColorField.Group
-                                aria-label='Color input group'
-                                variant='secondary'
-                              >
+                            <ColorField aria-label='Color field' className='' colorSpace='hsl'>
+                              <ColorField.Group aria-label='Color input group' variant='secondary'>
                                 <ColorField.Prefix>
                                   <ColorSwatch shape='square' size='xs' />
                                 </ColorField.Prefix>
                                 <ColorField.Input
                                   aria-label='Color input'
                                   onPaste={(e) => {
-                                    let text = e.clipboardData
-                                      .getData('text')
-                                      .trim();
+                                    let text = e.clipboardData.getData('text').trim();
                                     if (/^[0-9a-f]{6,8}$/i.test(text)) {
                                       text = '#' + text;
                                     }
                                     try {
                                       const parsed = parseColor(text);
-                                      updateRule(
-                                        rule.id,
-                                        'color',
-                                        parsed.toString('hexa')
-                                      );
+                                      updateRule(rule.id, 'color', parsed.toString('hexa'));
                                     } catch {
                                       // Not a valid color string, let default paste proceed
                                     }
@@ -447,11 +357,7 @@ export function FaviconSettings() {
 
                     {rules.length > 1 && (
                       <div className='flex items-center'>
-                        <Button
-                          isIconOnly
-                          variant='tertiary'
-                          onPress={() => removeRow(rule.id)}
-                        >
+                        <Button isIconOnly variant='tertiary' onPress={() => removeRow(rule.id)}>
                           <IconTrash className='text-danger' />
                         </Button>
                       </div>
@@ -477,14 +383,12 @@ export function FaviconSettings() {
           <Accordion.Panel>
             <Accordion.Body>
               <p>
-                <strong>Rule Priority:</strong> Rules are applied in order from
-                top to bottom. The first matching rule for a domain will be
-                used, and all lower rules will be ignored.
+                <strong>Rule Priority:</strong> Rules are applied in order from top to bottom. The first matching rule for a
+                domain will be used, and all lower rules will be ignored.
               </p>
               <p className='mt-2'>
-                <strong>Reordering:</strong> Drag and drop rules using the grip
-                icon (⋮⋮) to reorder them. Higher priority rules should be
-                placed at the top.
+                <strong>Reordering:</strong> Drag and drop rules using the grip icon (⋮⋮) to reorder them. Higher priority
+                rules should be placed at the top.
               </p>
             </Accordion.Body>
           </Accordion.Panel>
@@ -503,28 +407,24 @@ export function FaviconSettings() {
               Effects are the way the favicon gets modified:
               <ul className='list-inside list-disc space-y-1 pl-4'>
                 <li>
-                  <strong>instance-logo:</strong> uses the Domo instance logo
-                  instead of a color (no color picker for this one)
+                  <strong>instance-logo:</strong> uses the Domo instance logo instead of a color (no color picker for this
+                  one)
                 </li>
                 <li>
-                  <strong>domo-logo-colored:</strong> Domo logo with colored
-                  background (color picker selects background color)
+                  <strong>domo-logo-colored:</strong> Domo logo with colored background (color picker selects background
+                  color)
                 </li>
                 <li>
-                  <strong>top:</strong> puts a colored stripe over the top
-                  quarter
+                  <strong>top:</strong> puts a colored stripe over the top quarter
                 </li>
                 <li>
-                  <strong>right:</strong> puts a colored stripe over the right
-                  quarter
+                  <strong>right:</strong> puts a colored stripe over the right quarter
                 </li>
                 <li>
-                  <strong>bottom:</strong> puts a colored stripe over the bottom
-                  quarter
+                  <strong>bottom:</strong> puts a colored stripe over the bottom quarter
                 </li>
                 <li>
-                  <strong>left:</strong> puts a colored stripe over the left
-                  quarter
+                  <strong>left:</strong> puts a colored stripe over the left quarter
                 </li>
               </ul>
             </Accordion.Body>
@@ -542,9 +442,8 @@ export function FaviconSettings() {
           <Accordion.Panel>
             <Accordion.Body>
               <p>
-                Use regular expressions to match Domo instance subdomains. The
-                pattern will be tested against the subdomain/instance only
-                (i.e., before .domo.com).
+                Use regular expressions to match Domo instance subdomains. The pattern will be tested against the
+                subdomain/instance only (i.e., before .domo.com).
               </p>
               <p>
                 Examples:
@@ -556,12 +455,10 @@ export function FaviconSettings() {
                     <strong>^company$</strong> - matches only company.domo.com
                   </li>
                   <li>
-                    <strong>.*-dev</strong> - matches any Domo instance ending
-                    with -dev (e.g., company-dev.domo.com)
+                    <strong>.*-dev</strong> - matches any Domo instance ending with -dev (e.g., company-dev.domo.com)
                   </li>
                   <li>
-                    <strong>(qa|test)</strong> - matches qa.domo.com or
-                    test.domo.com
+                    <strong>(qa|test)</strong> - matches qa.domo.com or test.domo.com
                   </li>
                 </ul>
               </p>
@@ -579,9 +476,7 @@ export function FaviconSettings() {
 async function clearFaviconCache() {
   try {
     const storage = await chrome.storage.local.get(null);
-    const faviconKeys = Object.keys(storage).filter((key) =>
-      key.startsWith('favicon_')
-    );
+    const faviconKeys = Object.keys(storage).filter((key) => key.startsWith('favicon_'));
 
     if (faviconKeys.length > 0) {
       await chrome.storage.local.remove(faviconKeys);

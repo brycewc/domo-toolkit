@@ -9,11 +9,7 @@ export function GetChildPages({ currentContext, isDisabled, onCollapseActions, o
 
   const typeId = currentContext?.domoObject?.typeId;
   const label =
-    typeId === 'DATA_APP_VIEW'
-      ? 'Get App Pages'
-      : typeId === 'WORKSHEET_VIEW'
-        ? 'Get Worksheet Pages'
-        : 'Get Child Pages';
+    typeId === 'DATA_APP_VIEW' ? 'Get App Pages' : typeId === 'WORKSHEET_VIEW' ? 'Get Worksheet Pages' : 'Get Child Pages';
 
   return (
     <Tooltip closeDelay={100} delay={800}>

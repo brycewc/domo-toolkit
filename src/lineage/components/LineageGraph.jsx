@@ -12,16 +12,7 @@ import {
   useNodesState
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import {
-  createContext,
-  memo,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState
-} from 'react';
+import { createContext, memo, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useTheme } from '@/hooks/useTheme';
 import IconDatabase from '@icons/database.svg?react';
@@ -53,10 +44,8 @@ const LineageNode = memo(function LineageNode({ data, id }) {
   const nodeUrl = useMemo(() => {
     if (!ctx?.instance) return null;
     const base = `https://${ctx.instance}.domo.com`;
-    if (data.entityType === 'DATA_SOURCE')
-      return `${base}/datasources/${data.entityId}/details/overview`;
-    if (data.entityType === 'DATAFLOW')
-      return `${base}/datacenter/dataflows/${data.entityId}/details`;
+    if (data.entityType === 'DATA_SOURCE') return `${base}/datasources/${data.entityId}/details/overview`;
+    if (data.entityType === 'DATAFLOW') return `${base}/datacenter/dataflows/${data.entityId}/details`;
     return null;
   }, [ctx?.instance, data.entityType, data.entityId]);
 
@@ -82,20 +71,14 @@ const LineageNode = memo(function LineageNode({ data, id }) {
   const nameContent = hasName ? data.label : data.entityId;
   const nameTitle = hasName ? `${data.label} (ID: ${data.entityId})` : `ID: ${data.entityId}`;
 
-  const stripe = data.isRoot
-    ? 'bg-success'
-    : data.entityType === 'DATAFLOW'
-      ? 'bg-warning'
-      : 'bg-accent';
+  const stripe = data.isRoot ? 'bg-success' : data.entityType === 'DATAFLOW' ? 'bg-warning' : 'bg-accent';
 
   return (
     <Surface
       className={`flex w-75 overflow-hidden rounded-2xl shadow-md ${
         data.isRoot ? 'inset-ring-4 inset-ring-success' : ''
       } ${isSelected ? 'ring-2 ring-accent' : ''} ${
-        ctx?.highlightedDepth !== null && data.depth === ctx?.highlightedDepth
-          ? 'ring-2 ring-accent'
-          : ''
+        ctx?.highlightedDepth !== null && data.depth === ctx?.highlightedDepth ? 'ring-2 ring-accent' : ''
       }`}
     >
       {data.hasIncoming && <Handle className='size-2' position={Position.Left} type='target' />}
@@ -385,9 +368,7 @@ function useLayout(trace) {
     }
 
     const nodeSet = new Set(trace.nodes.map((n) => n.id));
-    const validEdges = (trace.edges || []).filter(
-      (e) => nodeSet.has(e.sourceId) && nodeSet.has(e.targetId)
-    );
+    const validEdges = (trace.edges || []).filter((e) => nodeSet.has(e.sourceId) && nodeSet.has(e.targetId));
     const nodesWithIncoming = new Set(validEdges.map((e) => e.targetId));
     const nodesWithOutgoing = new Set(validEdges.map((e) => e.sourceId));
 

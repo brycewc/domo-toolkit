@@ -39,13 +39,7 @@ import IconChevronDown from '@icons/chevron-down.svg?react';
 import IconGear from '@icons/gear.svg?react';
 import IconRightRailFill from '@icons/right-rail-fill.svg?react';
 
-export function ActionButtons({
-  collapsable = false,
-  currentContext,
-  defaultExpanded,
-  isLoading,
-  onStatusUpdate
-}) {
+export function ActionButtons({ collapsable = false, currentContext, defaultExpanded, isLoading, onStatusUpdate }) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded ?? !collapsable);
 
   useEffect(() => {
@@ -72,38 +66,15 @@ export function ActionButtons({
             ))}
           </div>
         ) : (
-          <Disclosure
-            className='flex w-full flex-col'
-            isExpanded={isExpanded}
-            onExpandedChange={setIsExpanded}
-          >
+          <Disclosure className='flex w-full flex-col' isExpanded={isExpanded} onExpandedChange={setIsExpanded}>
             <Disclosure.Heading className='w-full'>
               <ButtonGroup fullWidth>
-                <Copy
-                  currentContext={currentContext}
-                  isDisabled={!isDomoPage}
-                  onStatusUpdate={onStatusUpdate}
-                />
-                <ShareWithSelf
-                  currentContext={currentContext}
-                  isDisabled={!isDomoPage}
-                  onStatusUpdate={onStatusUpdate}
-                />
+                <Copy currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
+                <ShareWithSelf currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
                 <ActivityLog currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
-                <NavigateToCopiedObject
-                  currentContext={currentContext}
-                  onStatusUpdate={onStatusUpdate}
-                />
-                <DeleteObject
-                  currentContext={currentContext}
-                  isDisabled={!isDomoPage}
-                  onStatusUpdate={onStatusUpdate}
-                />
-                <ClearCookies
-                  currentContext={currentContext}
-                  isDisabled={!isDomoPage}
-                  onStatusUpdate={onStatusUpdate}
-                />
+                <NavigateToCopiedObject currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
+                <DeleteObject currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
+                <ClearCookies currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
                 <Tooltip closeDelay={0} delay={800}>
                   <Button
                     fullWidth
@@ -151,13 +122,7 @@ export function ActionButtons({
                 </Tooltip>
                 {collapsable ? (
                   <Tooltip closeDelay={0} delay={800}>
-                    <Button
-                      fullWidth
-                      isIconOnly
-                      isDisabled={!hasExpandableActions}
-                      slot='trigger'
-                      variant='tertiary'
-                    >
+                    <Button fullWidth isIconOnly isDisabled={!hasExpandableActions} slot='trigger' variant='tertiary'>
                       <Disclosure.Indicator>
                         <IconChevronDown />
                       </Disclosure.Indicator>
@@ -244,11 +209,7 @@ export function ActionButtons({
                   />
                 )}
                 {availableActions.has('lockCards') && (
-                  <LockCards
-                    currentContext={currentContext}
-                    isDisabled={!isDomoPage}
-                    onStatusUpdate={onStatusUpdate}
-                  />
+                  <LockCards currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('dataRepair') && (
                   <DataRepair currentContext={currentContext} isDisabled={!isDomoPage} />
@@ -285,11 +246,7 @@ export function ActionButtons({
                   />
                 )}
                 {availableActions.has('export') && (
-                  <Export
-                    currentContext={currentContext}
-                    isDisabled={!isDomoPage}
-                    onStatusUpdate={onStatusUpdate}
-                  />
+                  <Export currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('cancelStreamExecution') && (
                   <CancelStreamExecution currentContext={currentContext} isDisabled={!isDomoPage} />
@@ -332,10 +289,7 @@ export function ActionButtons({
                   onStatusUpdate={onStatusUpdate}
                 />
                 {availableActions.has('removeEmptyStrings') && (
-                  <RemoveEmptyStringsFromQuickFilters
-                    currentContext={currentContext}
-                    onStatusUpdate={onStatusUpdate}
-                  />
+                  <RemoveEmptyStringsFromQuickFilters currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('directSignOn') && (
                   <DirectSignOn currentContext={currentContext} isDisabled={!isDomoPage} />

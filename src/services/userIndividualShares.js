@@ -49,9 +49,7 @@ export async function getIndividualSharesForUser(userId, tabId = null) {
   // All group types contribute to Workspace-derived access (system/dynamic
   // groups can be Workspace members too), so we deliberately do NOT filter
   // by groupType here — only the "add to groups" step filters.
-  const userGroupIds = new Set(
-    (userGroupsRich || []).map((g) => Number(g.groupId))
-  );
+  const userGroupIds = new Set((userGroupsRich || []).map((g) => Number(g.groupId)));
 
   const candidates = (accessInfo?.accessRecords || []).filter((r) => {
     const noGroup = r.groupId == null || r.groupId === 0;
@@ -80,11 +78,7 @@ export async function getIndividualSharesForUser(userId, tabId = null) {
       } catch (err) {
         // Fail-open per candidate: keep the record so the operator can review
         // and deselect it manually, rather than dropping it silently.
-        console.warn(
-          '[userIndividualShares] Per-record processing failed, keeping candidate',
-          record,
-          err
-        );
+        console.warn('[userIndividualShares] Per-record processing failed, keeping candidate', record, err);
         const key = recordKey(record);
         if (key && !survivorsByKey.has(key)) survivorsByKey.set(key, record);
       }
@@ -97,15 +91,10 @@ export async function getIndividualSharesForUser(userId, tabId = null) {
 async function cachedWorkspacesByEntity(entityType, entityId, tabId, cache) {
   const key = `${entityType}:${entityId}`;
   if (!cache.has(key)) {
-    const promise = fetchWorkspacesByEntity(entityType, entityId, tabId).catch(
-      (err) => {
-        console.warn(
-          `[userIndividualShares] workspacesByEntity failed for ${entityType}:${entityId}`,
-          err
-        );
-        return [];
-      }
-    );
+    const promise = fetchWorkspacesByEntity(entityType, entityId, tabId).catch((err) => {
+      console.warn(`[userIndividualShares] workspacesByEntity failed for ${entityType}:${entityId}`, err);
+      return [];
+    });
     cache.set(key, promise);
   }
   const result = await cache.get(key);
@@ -116,14 +105,11 @@ async function fetchPageParentAppId(pageId, tabId) {
   return executeInPage(
     async (pageId) => {
       try {
-        const response = await fetch(
-          '/api/content/v1/pages/summary?limit=1&skip=0',
-          {
-            body: JSON.stringify({ pageId }),
-            headers: { 'Content-Type': 'application/json' },
-            method: 'POST'
-          }
-        );
+        const response = await fetch('/api/content/v1/pages/summary?limit=1&skip=0', {
+          body: JSON.stringify({ pageId }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        });
         if (!response.ok) return null;
         const data = await response.json();
         const appId = data?.pages?.[0]?.dataAppId;
@@ -142,9 +128,7 @@ async function fetchUserAccess(userId, tabId) {
     async (userId) => {
       const response = await fetch(`/api/content/v1/access/users/${userId}`);
       if (!response.ok) {
-        throw new Error(
-          `Failed to fetch access info for user ${userId} (HTTP ${response.status})`
-        );
+        throw new Error(`Failed to fetch access info for user ${userId} (HTTP ${response.status})`);
       }
       return response.json();
     },
@@ -158,9 +142,7 @@ async function fetchWorkspaceMembers(guid, tabId) {
     async (guid) => {
       const response = await fetch(`/api/nav/v1/workspaces/${guid}/members`);
       if (!response.ok) {
-        throw new Error(
-          `getWorkspaceMembers ${guid} returned HTTP ${response.status}`
-        );
+        throw new Error(`getWorkspaceMembers ${guid} returned HTTP ${response.status}`);
       }
       const data = await response.json();
       return Array.isArray(data) ? data : [];
@@ -178,9 +160,7 @@ async function fetchWorkspacesByEntity(entityType, entityId, tabId) {
       );
       if (response.status === 404) return [];
       if (!response.ok) {
-        throw new Error(
-          `workspacesByEntity ${entityType}/${entityId} returned HTTP ${response.status}`
-        );
+        throw new Error(`workspacesByEntity ${entityType}/${entityId} returned HTTP ${response.status}`);
       }
       const data = await response.json();
       return Array.isArray(data?.results) ? data.results : [];
@@ -224,15 +204,10 @@ async function getWorkspaceMembersCached(workspace, tabId, cache) {
     if (Array.isArray(workspace.members) && workspace.members.length > 0) {
       cache.set(key, Promise.resolve(workspace.members));
     } else {
-      const promise = fetchWorkspaceMembers(workspace.guid, tabId).catch(
-        (err) => {
-          console.warn(
-            `[userIndividualShares] getWorkspaceMembers failed for ${workspace.guid}`,
-            err
-          );
-          return [];
-        }
-      );
+      const promise = fetchWorkspaceMembers(workspace.guid, tabId).catch((err) => {
+        console.warn(`[userIndividualShares] getWorkspaceMembers failed for ${workspace.guid}`, err);
+        return [];
+      });
       cache.set(key, promise);
     }
   }
@@ -241,9 +216,7 @@ async function getWorkspaceMembersCached(workspace, tabId, cache) {
 }
 
 function hydrateSurvivors(survivors, accessInfo) {
-  const cardsById = new Map(
-    (accessInfo?.cards || []).map((c) => [Number(c.id), c])
-  );
+  const cardsById = new Map((accessInfo?.cards || []).map((c) => [Number(c.id), c]));
   const pagesMap = accessInfo?.pages || {};
 
   const cards = [];
@@ -286,23 +259,12 @@ function hydrateSurvivors(survivors, accessInfo) {
   return { cards, customApps, pages };
 }
 
-async function isCandidateWorkspaceDerived({
-  membersCache,
-  record,
-  tabId,
-  userGroupIds,
-  userId,
-  workspacesCache
-}) {
+async function isCandidateWorkspaceDerived({ membersCache, record, tabId, userGroupIds, userId, workspacesCache }) {
   let workspaces;
   try {
     workspaces = await getContainingWorkspaces(record, tabId, workspacesCache);
   } catch (err) {
-    console.warn(
-      '[userIndividualShares] getContainingWorkspaces threw, keeping candidate',
-      record,
-      err
-    );
+    console.warn('[userIndividualShares] getContainingWorkspaces threw, keeping candidate', record, err);
     return false;
   }
   if (!Array.isArray(workspaces) || workspaces.length === 0) return false;
@@ -312,10 +274,7 @@ async function isCandidateWorkspaceDerived({
     try {
       members = await getWorkspaceMembersCached(ws, tabId, membersCache);
     } catch (err) {
-      console.warn(
-        `[userIndividualShares] Member lookup failed for ${ws.guid}`,
-        err
-      );
+      console.warn(`[userIndividualShares] Member lookup failed for ${ws.guid}`, err);
       continue;
     }
     if (memberMatches(members, userId, userGroupIds)) return true;

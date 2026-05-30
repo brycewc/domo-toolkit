@@ -76,22 +76,14 @@ export function GenerateSchemaView({ onBackToDefault = null, onStatusUpdate = nu
       if (!mountedRef.current) return;
 
       if (!docs || docs.length === 0) {
-        showStatus(
-          'Nothing to infer',
-          'No documents found in this collection, cannot infer a schema',
-          'warning'
-        );
+        showStatus('Nothing to infer', 'No documents found in this collection, cannot infer a schema', 'warning');
         onBackToDefault?.();
         return;
       }
 
       const inferred = inferColumnsFromDocuments(docs);
       if (inferred.length === 0) {
-        showStatus(
-          'Nothing to infer',
-          'Documents were found but none have content keys to infer from',
-          'warning'
-        );
+        showStatus('Nothing to infer', 'Documents were found but none have content keys to infer from', 'warning');
         onBackToDefault?.();
         return;
       }
@@ -143,8 +135,7 @@ export function GenerateSchemaView({ onBackToDefault = null, onStatusUpdate = nu
     return { isValid: true, reason: null };
   }, [columns]);
 
-  const buildSchemaPayload = () =>
-    columns.map((col) => ({ name: col.name.trim(), type: col.type }));
+  const buildSchemaPayload = () => columns.map((col) => ({ name: col.name.trim(), type: col.type }));
 
   const handleApply = () => {
     if (!validation.isValid || !currentContext) return;
@@ -163,9 +154,7 @@ export function GenerateSchemaView({ onBackToDefault = null, onStatusUpdate = nu
       error: (err) => `Failed to save schema for **${collectionName}**: ${err.message}`,
       loading: `Saving schema for **${collectionName}**...`,
       success: () =>
-        `Schema saved for **${collectionName}** (${payload.length} ${
-          payload.length === 1 ? 'column' : 'columns'
-        })`
+        `Schema saved for **${collectionName}** (${payload.length} ${payload.length === 1 ? 'column' : 'columns'})`
     });
 
     promise
@@ -186,11 +175,7 @@ export function GenerateSchemaView({ onBackToDefault = null, onStatusUpdate = nu
     const payload = buildSchemaPayload();
 
     if (!datastoreId) {
-      onStatusUpdate?.(
-        'Cannot sync',
-        'Parent datastore id is missing on this collection',
-        'danger'
-      );
+      onStatusUpdate?.('Cannot sync', 'Parent datastore id is missing on this collection', 'danger');
       return;
     }
 
@@ -256,16 +241,10 @@ export function GenerateSchemaView({ onBackToDefault = null, onStatusUpdate = nu
         onBackToDefault={onBackToDefault}
       />
       <Separator />
-      <ScrollShadow
-        hideScrollBar
-        className='min-h-0 flex-1 overflow-y-auto'
-        offset={5}
-        orientation='vertical'
-      >
+      <ScrollShadow hideScrollBar className='min-h-0 flex-1 overflow-y-auto' offset={5} orientation='vertical'>
         <Card.Content className='flex flex-col gap-2 py-2'>
           <p className='text-xs text-muted'>
-            Inferred from the 100 most recent documents. Rename, retype, add, or remove columns
-            before saving.
+            Inferred from the 100 most recent documents. Rename, retype, add, or remove columns before saving.
           </p>
           {columns.map((col) => (
             <ColumnRow
@@ -277,13 +256,7 @@ export function GenerateSchemaView({ onBackToDefault = null, onStatusUpdate = nu
               onRemove={() => removeColumn(col.id)}
             />
           ))}
-          <Button
-            className='self-start'
-            isDisabled={isSubmitting}
-            size='sm'
-            variant='tertiary'
-            onPress={addColumn}
-          >
+          <Button className='self-start' isDisabled={isSubmitting} size='sm' variant='tertiary' onPress={addColumn}>
             <IconPlus /> Add column
           </Button>
         </Card.Content>
@@ -291,12 +264,7 @@ export function GenerateSchemaView({ onBackToDefault = null, onStatusUpdate = nu
 
       <div className='flex shrink-0 flex-col gap-2 border-t border-border px-3 py-2'>
         <Tooltip closeDelay={0} delay={800} isDisabled={validation.isValid}>
-          <Button
-            fullWidth
-            isDisabled={isSubmitting || !validation.isValid}
-            variant='tertiary'
-            onPress={handleApply}
-          >
+          <Button fullWidth isDisabled={isSubmitting || !validation.isValid} variant='tertiary' onPress={handleApply}>
             <IconCheck /> Apply Schema
           </Button>
           <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
@@ -336,19 +304,9 @@ function classifyValue(value) {
 function ColumnRow({ column, isDisabled, onChangeName, onChangeType, onRemove }) {
   return (
     <div className='flex items-end gap-1'>
-      <TextField
-        className='min-w-0 flex-1'
-        id={`col-name-${column.id}`}
-        name='columnName'
-        variant='secondary'
-      >
+      <TextField className='min-w-0 flex-1' id={`col-name-${column.id}`} name='columnName' variant='secondary'>
         <Label className='text-xs'>Name</Label>
-        <Input
-          className='h-8'
-          isDisabled={isDisabled}
-          value={column.name}
-          onChange={(e) => onChangeName(e.target.value)}
-        />
+        <Input className='h-8' isDisabled={isDisabled} value={column.name} onChange={(e) => onChangeName(e.target.value)} />
       </TextField>
       <div className='flex w-32 flex-col gap-1'>
         <Label className='text-xs'>Type</Label>
@@ -370,9 +328,7 @@ function ColumnRow({ column, isDisabled, onChangeName, onChangeType, onRemove })
               {TYPE_OPTIONS.map((opt) => (
                 <ListBox.Item id={opt} key={opt} textValue={opt}>
                   <Label>{opt}</Label>
-                  <ListBox.ItemIndicator>
-                    {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
-                  </ListBox.ItemIndicator>
+                  <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
                 </ListBox.Item>
               ))}
             </ListBox>
@@ -380,14 +336,7 @@ function ColumnRow({ column, isDisabled, onChangeName, onChangeType, onRemove })
         </Select>
       </div>
       <Tooltip closeDelay={0} delay={800}>
-        <Button
-          isIconOnly
-          aria-label='Remove column'
-          isDisabled={isDisabled}
-          size='sm'
-          variant='ghost'
-          onPress={onRemove}
-        >
+        <Button isIconOnly aria-label='Remove column' isDisabled={isDisabled} size='sm' variant='ghost' onPress={onRemove}>
           <IconTrash className='text-danger' />
         </Button>
         <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>

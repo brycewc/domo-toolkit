@@ -186,10 +186,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
       if (typeConfig.id === 'TEMPLATE' && metadata.details.type !== 'AC') {
         continue;
       }
-      if (
-        typeConfig.id === 'CERTIFICATION_PROCESS' &&
-        (!metadata.details.type || metadata.details.type === 'AC')
-      ) {
+      if (typeConfig.id === 'CERTIFICATION_PROCESS' && (!metadata.details.type || metadata.details.type === 'AC')) {
         continue;
       }
 
@@ -240,12 +237,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
         }
 
         domoObject.navigateTo(currentContext?.tabId).catch((err) => {
-          onStatusUpdate?.(
-            'Navigation Failed',
-            err.message || 'Error navigating to object',
-            'danger',
-            4000
-          );
+          onStatusUpdate?.('Navigation Failed', err.message || 'Error navigating to object', 'danger', 4000);
         });
       } catch (err) {
         onStatusUpdate?.('Error', err.message || 'An error occurred', 'danger', 4000);
@@ -284,12 +276,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
           domoObject = buildResolvedDomoObject(typeConfig, metadata, baseUrl, copiedId);
         }
         if (!domoObject && typeConfig.id === 'STREAM') {
-          onStatusUpdate?.(
-            'No DataSet Found',
-            'Could not find a dataset associated with this stream',
-            'warning',
-            4000
-          );
+          onStatusUpdate?.('No DataSet Found', 'Could not find a dataset associated with this stream', 'warning', 4000);
           return;
         }
       }
@@ -307,13 +294,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
   if (needsDefaultInstance) {
     return (
       <Tooltip className='h-fit' closeDelay={0} delay={200}>
-        <Button
-          fullWidth
-          isIconOnly
-          className='cursor-not-allowed opacity-50'
-          variant='tertiary'
-          onPress={() => {}}
-        >
+        <Button fullWidth isIconOnly className='cursor-not-allowed opacity-50' variant='tertiary' onPress={() => {}}>
           <IconArrowSquareOut />
         </Button>
         <Tooltip.Content
@@ -339,20 +320,14 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
           Navigate to copied object
         </Tooltip.Content>
       </Tooltip>
-      <Dropdown.Popover
-        className='flex max-h-80 w-80 min-w-80 flex-col overflow-hidden'
-        placement='bottom'
-      >
+      <Dropdown.Popover className='flex max-h-80 w-80 min-w-80 flex-col overflow-hidden' placement='bottom'>
         {copiedId && (
           <div className='pointer-events-none flex shrink-0 items-center gap-1 px-2 pt-2 font-mono text-xs text-muted select-none'>
             <IconClipboardCopy size={12} />
             <p title='Current clipboard value'>{copiedId}</p>
           </div>
         )}
-        <Dropdown.Menu
-          className='min-h-0 flex-1 overflow-auto overscroll-contain'
-          onAction={handleAction}
-        >
+        <Dropdown.Menu className='min-h-0 flex-1 overflow-auto overscroll-contain' onAction={handleAction}>
           <Dropdown.Section>
             <Header>Auto-detected</Header>
             <Dropdown.Item className={isLoading ? '' : 'hidden'} id='_loading' textValue='Loading'>
@@ -421,9 +396,7 @@ function buildDomoMetadata(typeConfig, metadata) {
   // the clipboard flow has to add the context discriminator itself.
   if (typeConfig.id === 'CERTIFICATION_PROCESS' && metadata.details?.type) {
     domoMetadata.context = {
-      certifiedType: metadata.details.type.startsWith('CC:CARD')
-        ? 'certified-cards'
-        : 'certified-datasets'
+      certifiedType: metadata.details.type.startsWith('CC:CARD') ? 'certified-cards' : 'certified-datasets'
     };
   }
   return domoMetadata;
@@ -439,17 +412,9 @@ function buildResolvedDomoObject(typeConfig, metadata, baseUrl, fallbackId) {
       name: metadata.details.dataSource.name
     });
   }
-  return new DomoObject(
-    typeConfig.id,
-    fallbackId,
-    baseUrl,
-    buildDomoMetadata(typeConfig, metadata)
-  );
+  return new DomoObject(typeConfig.id, fallbackId, baseUrl, buildDomoMetadata(typeConfig, metadata));
 }
 
 function isValidDomoId(text) {
-  return (
-    /^-?\d+$/.test(text) ||
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(text)
-  );
+  return /^-?\d+$/.test(text) || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(text);
 }

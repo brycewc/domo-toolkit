@@ -1,9 +1,8 @@
 ---
 description: How to test UI changes against the localhost dev server before claiming success
-alwaysApply: true
 ---
 
-# Local Testing — Dev Server
+# Local Testing: Dev Server
 
 **Do not claim a UI change is "untestable" without checking this file first.** This project ships with localhost dev routes that mount specific components in a real browser environment, plus a Chrome-API polyfill so extension code runs without being loaded as an extension.
 
@@ -11,12 +10,12 @@ alwaysApply: true
 
 `yarn dev` starts a Vite dev server at `http://localhost:5173` with HMR. Two custom middleware routes mount individual components for fast iteration:
 
-| Route                              | Mounts                                | Use for                                       |
-| ---------------------------------- | ------------------------------------- | --------------------------------------------- |
-| `/dev-activity-log`                | `<ActivityLogTable />`                | Any change in `src/activityLog/`              |
-| `/dev-lineage`                     | Lineage view                          | Any change in `src/lineage/`                  |
+| Route               | Mounts                 | Use for                          |
+| ------------------- | ---------------------- | -------------------------------- |
+| `/dev-activity-log` | `<ActivityLogTable />` | Any change in `src/activityLog/` |
+| `/dev-lineage`      | Lineage view           | Any change in `src/lineage/`     |
 
-These are real React pages — full HMR, real network calls (proxied via Vite to a real Domo instance using a dev token), and the actual production component tree. Not a snapshot, not a Storybook stub.
+These are real React pages, with full HMR, real network calls (proxied via Vite to a real Domo instance using a dev token), and the actual production component tree. Not a snapshot, not a Storybook stub.
 
 ## Required env
 
@@ -34,11 +33,11 @@ Vite proxies `/api/*` to `VITE_DOMO_BASE_URL` and injects `X-Domo-Developer-Toke
 
 ## Three layers of verification (use what fits)
 
-1. **Compile / HMR check** — Start `yarn dev` in the background (Bash with `run_in_background: true`) and tail its output. Any syntax error, bad import, or invalid JSX surfaces here within ~1s of saving the file. Use this for every UI change as a baseline.
+1. **Compile / HMR check**: Start `yarn dev` in the background (Bash with `run_in_background: true`) and tail its output. Any syntax error, bad import, or invalid JSX surfaces here within ~1s of saving the file. Use this for every UI change as a baseline.
 
-2. **Route smoke check** — `curl -s -o /dev/null -w "%{http_code}\n" http://localhost:5173/dev-activity-log` should return `200`. Confirms the middleware and entry file resolved without a 500.
+2. **Route smoke check**: `curl -s -o /dev/null -w "%{http_code}\n" http://localhost:5173/dev-activity-log` should return `200`. Confirms the middleware and entry file resolved without a 500.
 
-3. **Visual verification via Playwriter** — Use the `playwriter` skill to drive the user's actual Chrome to `http://localhost:5173/dev-activity-log` (or `/dev-lineage`) and screenshot. This is the real visual test for layout, colors, responsive breakpoints, and interactions. Run before claiming a visual change "looks right." Before starting `yarn dev`, check `ss -tln | grep 5173` — the user often has it already running, and a duplicate just lands on 5174.
+3. **Visual verification via Playwriter**: Use the `playwriter` skill to drive the user's actual Chrome to `http://localhost:5173/dev-activity-log` (or `/dev-lineage`) and screenshot. This is the real visual test for layout, colors, responsive breakpoints, and interactions. Run before claiming a visual change "looks right." Before starting `yarn dev`, check `ss -tln | grep 5173` — the user often has it already running, and a duplicate just lands on 5174.
 
 ## What's NOT covered by dev routes
 
@@ -64,5 +63,5 @@ For those, be explicit: "I haven't loaded the unpacked extension — please veri
 3. Watch Vite output for compile errors
 4. `curl` the relevant `/dev-*` route — confirm 200
 5. Playwriter screenshot the relevant route — confirm the change looks right
-6. Run `npx eslint --no-warn-ignored <file>` per `code-style.mdc`
-7. Update `docs/RELEASE_NOTES.md` per `wip-release-notes.mdc`
+6. Run `npx eslint --no-warn-ignored <file>` per `code-style.md`
+7. Update `docs/RELEASE_NOTES.md` per `wip-release-notes.md`

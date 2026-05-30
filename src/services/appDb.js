@@ -10,10 +10,7 @@ import { executeInPage } from '@/utils/executeInPage';
 export async function deleteAppDbCollection({ collectionId, tabId = null }) {
   return executeInPage(
     async (collectionId) => {
-      const response = await fetch(
-        `/api/datastores/v1/collections/${collectionId}`,
-        { method: 'DELETE' }
-      );
+      const response = await fetch(`/api/datastores/v1/collections/${collectionId}`, { method: 'DELETE' });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
     },
     [collectionId],
@@ -27,15 +24,10 @@ export async function deleteAppDbCollection({ collectionId, tabId = null }) {
  * @param {number|null} tabId - Optional Chrome tab ID
  * @returns {Promise<Object|null>} Permission object or null
  */
-export async function getAppDbCollectionPermission(
-  collectionId,
-  tabId = null
-) {
+export async function getAppDbCollectionPermission(collectionId, tabId = null) {
   return executeInPage(
     async (collectionId) => {
-      const res = await fetch(
-        `/api/datastores/v1/collections/${collectionId}/permission`
-      );
+      const res = await fetch(`/api/datastores/v1/collections/${collectionId}/permission`);
       if (!res.ok) return null;
       return res.json();
     },
@@ -51,15 +43,10 @@ export async function getAppDbCollectionPermission(
  * @param {number|null} [params.tabId] - Optional Chrome tab ID
  * @returns {Promise<Array<Object>>} Raw collection objects, or [] if none
  */
-export async function getAppInstanceCollections({
-  appInstanceId,
-  tabId = null
-}) {
+export async function getAppInstanceCollections({ appInstanceId, tabId = null }) {
   return executeInPage(
     async (appInstanceId) => {
-      const response = await fetch(
-        `/api/datastores/v1/${appInstanceId}/collections`
-      );
+      const response = await fetch(`/api/datastores/v1/${appInstanceId}/collections`);
       if (!response.ok) return [];
       const data = await response.json();
       return Array.isArray(data) ? data : [];
@@ -163,11 +150,7 @@ export async function queryAppDbCollectionDocuments({ collectionId, tabId = null
  * @param {number|null} [params.tabId] - Optional Chrome tab ID
  * @returns {Promise<void>} Resolves on success, throws on HTTP failure
  */
-export async function setAppDbCollectionSyncEnabled({
-  collectionId,
-  syncEnabled,
-  tabId = null
-}) {
+export async function setAppDbCollectionSyncEnabled({ collectionId, syncEnabled, tabId = null }) {
   return executeInPage(
     async (collectionId, syncEnabled) => {
       const response = await fetch(`/api/datastores/v1/collections/${collectionId}`, {
@@ -194,12 +177,7 @@ export async function setAppDbCollectionSyncEnabled({
  * @param {number|null} [params.tabId] - Optional Chrome tab ID
  * @returns {Promise<void>} Resolves on success, throws on HTTP failure
  */
-export async function shareAppDbCollection({
-  collectionId,
-  permissions,
-  tabId = null,
-  userId
-}) {
+export async function shareAppDbCollection({ collectionId, permissions, tabId = null, userId }) {
   return executeInPage(
     async (collectionId, userId, permissions) => {
       const response = await fetch(
@@ -242,12 +220,7 @@ export async function syncAppDbDatastore({ datastoreId, tabId = null }) {
  * @param {number|null} tabId - Optional Chrome tab ID
  * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
  */
-export async function transferAppDbCollections(
-  collectionIds,
-  fromUserId,
-  toUserId,
-  tabId = null
-) {
+export async function transferAppDbCollections(collectionIds, fromUserId, toUserId, tabId = null) {
   return executeInPage(
     async (collectionIds, fromUserId, toUserId) => {
       const errors = [];
@@ -255,14 +228,11 @@ export async function transferAppDbCollections(
 
       for (const id of collectionIds) {
         try {
-          const response = await fetch(
-            `/api/datastores/v1/collections/${id}`,
-            {
-              body: JSON.stringify({ id, owner: toUserId }),
-              headers: { 'Content-Type': 'application/json' },
-              method: 'PUT'
-            }
-          );
+          const response = await fetch(`/api/datastores/v1/collections/${id}`, {
+            body: JSON.stringify({ id, owner: toUserId }),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'PUT'
+          });
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           succeeded++;
         } catch (error) {

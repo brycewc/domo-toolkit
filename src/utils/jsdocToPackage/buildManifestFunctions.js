@@ -81,9 +81,7 @@ function buildOutput(doc, typedefs, warnings) {
       });
       return primitiveOutputEntry({ isList: typeInfo.isList, name, type: 'object' });
     }
-    const children = typedef.properties.map((prop) =>
-      buildOutputPropertyEntry(prop, typedefs)
-    );
+    const children = typedef.properties.map((prop) => buildOutputPropertyEntry(prop, typedefs));
     return {
       children,
       defaultValues: null,
@@ -110,9 +108,7 @@ function buildOutputPropertyEntry(prop, typedefs) {
     const typedef = typedefs[typeInfo.type];
     if (typedef) {
       resolvedType = 'object';
-      resolvedChildren = typedef.properties.map((nested) =>
-        buildOutputPropertyEntry(nested, typedefs)
-      );
+      resolvedChildren = typedef.properties.map((nested) => buildOutputPropertyEntry(nested, typedefs));
     } else {
       resolvedType = 'object';
       resolvedChildren = null;
@@ -195,9 +191,7 @@ function buildVariableEntry({ depth, doc, node, typedefs, warnings }) {
     const typedef = typedefs[typeInfo.type];
     if (typedef) {
       resolvedType = 'object';
-      resolvedChildren = typedef.properties.map((prop) =>
-        buildVariablePropertyEntry(prop, typedefs)
-      );
+      resolvedChildren = typedef.properties.map((prop) => buildVariablePropertyEntry(prop, typedefs));
     } else {
       warnings.push({
         functionName: doc.functionName,
@@ -246,9 +240,7 @@ function buildVariablePropertyEntry(prop, typedefs) {
     const typedef = typedefs[typeInfo.type];
     if (typedef) {
       resolvedType = 'object';
-      resolvedChildren = typedef.properties.map((nested) =>
-        buildVariablePropertyEntry(nested, typedefs)
-      );
+      resolvedChildren = typedef.properties.map((nested) => buildVariablePropertyEntry(nested, typedefs));
     } else {
       resolvedType = 'object';
       resolvedChildren = null;
@@ -270,9 +262,7 @@ function buildVariablePropertyEntry(prop, typedefs) {
 function buildVariables(doc, typedefs, warnings) {
   const usableParams = doc.params.filter((p) => p && !p.excludeFromManifest);
   const tree = buildPathTree(usableParams);
-  return tree.children.map((node) =>
-    buildVariableEntry({ depth: 0, doc, node, typedefs, warnings })
-  );
+  return tree.children.map((node) => buildVariableEntry({ depth: 0, doc, node, typedefs, warnings }));
 }
 
 function camelLower(name) {

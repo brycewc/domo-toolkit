@@ -3,12 +3,7 @@ import { Button, Tooltip } from '@heroui/react';
 import { launchView } from '@/utils/sidepanel';
 import IconPackage from '@icons/package.svg?react';
 
-export function UpdateCodeEngineVersions({
-  currentContext,
-  isDisabled,
-  onCollapseActions,
-  onStatusUpdate
-}) {
+export function UpdateCodeEngineVersions({ currentContext, isDisabled, onCollapseActions, onStatusUpdate }) {
   return (
     <Tooltip closeDelay={100} delay={800}>
       <Button

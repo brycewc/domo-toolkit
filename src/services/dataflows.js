@@ -93,9 +93,7 @@ export async function getDataflowForOutputDataset(datasetId, tabId = null) {
     );
 
     if (!response.ok) {
-      throw new Error(
-        `Failed to fetch DataFlow for DataSet ${datasetId}. HTTP status: ${response.status}`
-      );
+      throw new Error(`Failed to fetch DataFlow for DataSet ${datasetId}. HTTP status: ${response.status}`);
     }
 
     const data = await response.json();

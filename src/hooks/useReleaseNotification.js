@@ -11,9 +11,7 @@ export function showReleaseToast() {
   let toastKey;
 
   const clearBadge = () => {
-    chrome.runtime
-      .sendMessage({ type: 'RELEASE_NOTES_SEEN' })
-      .catch(() => {});
+    chrome.runtime.sendMessage({ type: 'RELEASE_NOTES_SEEN' }).catch(() => {});
   };
 
   toastKey = toast.info(`New Version ${currentVersion}`, {

@@ -1,6 +1,5 @@
 ---
 description: Use Postman MCP for Domo API reference
-alwaysApply: true
 ---
 
 # Domo API Reference

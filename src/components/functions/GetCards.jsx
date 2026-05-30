@@ -63,13 +63,8 @@ export function GetCards({ currentContext, isDisabled, onCollapseActions, onStat
                 ? async () => {
                     const result = await waitForCards(currentContext);
                     if (!result.success) return null;
-                    if (
-                      result.cards?.length === 0 &&
-                      result.forms?.length === 0 &&
-                      result.queues?.length === 0
-                    ) {
-                      const typeName =
-                        currentContext.domoObject.typeName?.toLowerCase() || 'object';
+                    if (result.cards?.length === 0 && result.forms?.length === 0 && result.queues?.length === 0) {
+                      const typeName = currentContext.domoObject.typeName?.toLowerCase() || 'object';
                       const hasFormsAndQueues = FORMS_AND_QUEUES_TYPES.includes(objectType);
                       return {
                         empty: true,

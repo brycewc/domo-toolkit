@@ -20,8 +20,7 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
   const isDisabled = !currentContext?.domoObject?.id || isLoading || !userRights.includes('audit');
   const typeId = currentContext?.domoObject?.typeId;
   const longPressEnabled =
-    !isDisabled &&
-    ['DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE', 'WORKSHEET_VIEW'].includes(typeId);
+    !isDisabled && ['DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE', 'WORKSHEET_VIEW'].includes(typeId);
   const hasChildPages = ['DATA_APP_VIEW', 'PAGE', 'WORKSHEET_VIEW'].includes(typeId);
   // App pages and worksheet views hang off a parent Studio App / Worksheet, whose
   // activity log is frequently what the user actually wants. Detection already
@@ -33,16 +32,8 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
   const parentTypeName = parentTypeId ? getObjectType(parentTypeId)?.name : null;
 
   const handleClick = async (key = null) => {
-    if (
-      !currentContext?.domoObject ||
-      !currentContext?.domoObject.id ||
-      !currentContext?.domoObject.objectType
-    ) {
-      onStatusUpdate?.(
-        'No Object Detected',
-        'Navigate to a Domo object page to use this feature',
-        'warning'
-      );
+    if (!currentContext?.domoObject || !currentContext?.domoObject.id || !currentContext?.domoObject.objectType) {
+      onStatusUpdate?.('No Object Detected', 'Navigate to a Domo object page to use this feature', 'warning');
       return;
     }
 
@@ -54,8 +45,7 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
     let activityLogType;
     let message;
     const objectName =
-      currentContext?.domoObject.metadata?.name ??
-      `${currentContext?.domoObject.typeName} ${currentContext?.domoObject.id}`;
+      currentContext?.domoObject.metadata?.name ?? `${currentContext?.domoObject.typeName} ${currentContext?.domoObject.id}`;
 
     try {
       switch (key) {
@@ -151,9 +141,7 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
               return;
             }
 
-            childPageIds = (result.childPages || [])
-              .filter((p) => Number(p.pageId) >= 0)
-              .map((p) => Number(p.pageId));
+            childPageIds = (result.childPages || []).filter((p) => Number(p.pageId) >= 0).map((p) => Number(p.pageId));
           }
 
           if (childPageIds.length === 0) {
@@ -175,9 +163,7 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
           break;
         }
         case 'parent': {
-          const parentId =
-            currentContext?.domoObject?.parentId ??
-            currentContext?.domoObject?.metadata?.parent?.id;
+          const parentId = currentContext?.domoObject?.parentId ?? currentContext?.domoObject?.metadata?.parent?.id;
 
           if (!parentId) {
             onStatusUpdate?.(
@@ -199,9 +185,7 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
             }
           ];
           activityLogType = 'single-object';
-          message = `Navigating to activity log for ${parentTypeName} ${
-            parentName ? `"${parentName}"` : parentId
-          }`;
+          message = `Navigating to activity log for ${parentTypeName} ${parentName ? `"${parentName}"` : parentId}`;
           break;
         }
         default: {
@@ -211,9 +195,7 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
           // object type in the log itself. Every other type keeps a plain single-object
           // log. parentId is resolved at detection time, so no extra lookup is needed.
           const parentId =
-            hasParent &&
-            (currentContext?.domoObject?.parentId ??
-              currentContext?.domoObject?.metadata?.parent?.id);
+            hasParent && (currentContext?.domoObject?.parentId ?? currentContext?.domoObject?.metadata?.parent?.id);
 
           const self = {
             id: currentContext?.domoObject.id,
@@ -312,8 +294,7 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
               <div className='flex flex-col'>
                 <Label>Cards</Label>
                 <Description className='text-xs'>
-                  View activity log for all cards on this{' '}
-                  {currentContext?.domoObject?.typeName?.toLowerCase() || 'object'}
+                  View activity log for all cards on this {currentContext?.domoObject?.typeName?.toLowerCase() || 'object'}
                 </Description>
               </div>
             </div>
@@ -336,9 +317,7 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
                 <IconTree className='size-5 shrink-0' />
                 <div className='flex flex-col'>
                   <Label>Child Pages</Label>
-                  <Description className='text-xs'>
-                    View activity log for hierarchical child pages
-                  </Description>
+                  <Description className='text-xs'>View activity log for hierarchical child pages</Description>
                 </div>
               </div>
             </Dropdown.Item>

@@ -16,22 +16,11 @@ export function GroupIdAnnotation({ displayName, value }) {
 
   return (
     <>
-      <span className={isString ? 'json-view--string' : 'json-view--number'}>
-        {isString ? `"${value}"` : String(value)}
-      </span>
+      <span className={isString ? 'json-view--string' : 'json-view--number'}>{isString ? `"${value}"` : String(value)}</span>
       {copied ? (
-        <AnimatedCheck
-          className='json-view--copy text-success'
-          size={16}
-          stroke={1.5}
-          style={{ display: 'inline-block' }}
-        />
+        <AnimatedCheck className='json-view--copy text-success' size={16} stroke={1.5} style={{ display: 'inline-block' }} />
       ) : (
-        <IconClipboardCopy
-          className='json-view--copy'
-          size={16}
-          onClick={handleCopy}
-        />
+        <IconClipboardCopy className='json-view--copy' size={16} onClick={handleCopy} />
       )}
       <span className='json-view--annotation'>{displayName} (group)</span>
     </>

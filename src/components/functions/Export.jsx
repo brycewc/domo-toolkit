@@ -36,9 +36,7 @@ export function Export({ currentContext, isDisabled }) {
     const isPython = language === 'PYTHON';
 
     const handleCodeExport = () => {
-      const packageId = isCEVersion
-        ? currentContext?.domoObject?.parentId
-        : currentContext?.domoObject?.id;
+      const packageId = isCEVersion ? currentContext?.domoObject?.parentId : currentContext?.domoObject?.id;
       if (!packageId) return;
 
       const name = currentContext.domoObject.metadata?.name || 'code-engine-package';
@@ -121,12 +119,7 @@ export function Export({ currentContext, isDisabled }) {
   return (
     <Dropdown isDisabled={isDisabled}>
       <Tooltip closeDelay={100} delay={800}>
-        <Button
-          fullWidth
-          className='min-w-36 flex-1 whitespace-normal'
-          isDisabled={isDisabled}
-          variant='tertiary'
-        >
+        <Button fullWidth className='min-w-36 flex-1 whitespace-normal' isDisabled={isDisabled} variant='tertiary'>
           <IconDownload />
           Export
         </Button>

@@ -349,14 +349,7 @@ function walkForColumnRefs(node, onColumnRef, parentKey = null) {
           onColumnRef(stripBackticks(item));
         } else if (item && typeof item === 'object') {
           // Pick the first present known column-bearing field.
-          for (const fieldName of [
-            'column',
-            'columnName',
-            'inStreamName',
-            'name',
-            'field',
-            'id'
-          ]) {
+          for (const fieldName of ['column', 'columnName', 'inStreamName', 'name', 'field', 'id']) {
             if (typeof item[fieldName] === 'string') {
               onColumnRef(stripBackticks(item[fieldName]));
               break;
