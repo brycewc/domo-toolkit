@@ -1,16 +1,21 @@
 import {
   Alert,
   AlertDialog,
+  Autocomplete,
   Button,
   Card,
   Description,
+  EmptyState,
   Label,
+  Link,
   ListBox,
+  Modal,
   ScrollShadow,
-  Select,
+  SearchField,
   Separator,
   Spinner,
-  Tooltip
+  Tooltip,
+  useFilter
 } from '@heroui/react';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -36,10 +41,10 @@ import { getSidepanelData } from '@/utils/sidepanel';
 import IconArrowsHorizontalBox from '@icons/arrows-horizontal-box.svg?react';
 import IconCheckCircle from '@icons/check-circle.svg?react';
 import IconCheck from '@icons/check.svg?react';
-import IconChevronDown from '@icons/chevron-down.svg?react';
 import IconExclamationPointCircle from '@icons/exclamation-point-circle.svg?react';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
 import IconInfoCircle from '@icons/info-circle.svg?react';
+import IconWand from '@icons/wand.svg?react';
 import IconX from '@icons/x.svg?react';
 
 const TYPE_KEY_TO_DOMO_TYPE = {
@@ -78,6 +83,7 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
   const [isScanning, setIsScanning] = useState(false);
   const [scanError, setScanError] = useState(null);
   const [columnMap, setColumnMap] = useState({});
+  const [autoMapConfirmOpen, setAutoMapConfirmOpen] = useState(false);
 
   const mountedRef = useRef(true);
   const bailedRef = useRef(false);
@@ -304,7 +310,7 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
     ])
       .then(([cols, scan]) => {
         if (cancelled) return;
-        setTargetColumns(cols || []);
+        setTargetColumns(cols ? [...cols].sort((a, b) => (a.name || '').localeCompare(b.name || '')) : []);
         setScanResult(scan);
       })
       .catch((err) => {
@@ -326,12 +332,16 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
   // anything outside it is either irrelevant or already compatible.
   const usedUnmappedColumns = useMemo(() => {
     if (!hasMismatches || !scanResult) return [];
-    const mismatchedNames = new Set((comparison?.missing || []).map((m) => m.name));
+    const missing = comparison?.missing || [];
+    const mismatchedNames = new Set(missing.map((m) => m.name));
+    // expectedType is the origin column's own type — surfaced so the user knows
+    // the existing type when choosing a target column to remap onto.
+    const typeByName = new Map(missing.map((m) => [m.name, m.expectedType]));
     const referenced = scanResult.byColumn || new Map();
     const out = [];
     for (const [colName, items] of referenced.entries()) {
       if (mismatchedNames.has(colName)) {
-        out.push({ items, name: colName });
+        out.push({ items, name: colName, type: typeByName.get(colName) ?? null });
       }
     }
     out.sort((a, b) => a.name.localeCompare(b.name));
@@ -494,6 +504,35 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
     });
   }, []);
 
+  // Auto-map each origin column to the target column whose name matches once
+  // both are normalized (lowercased, with spaces/hyphens/underscores stripped).
+  // No normalized match leaves the column unmapped. This OVERWRITES every
+  // existing choice, which is why handleAutoMapClick gates on a confirm dialog
+  // when anything is already mapped.
+  const runAutoMap = useCallback(() => {
+    const normalize = (s) => (s || '').toLowerCase().replace(/[\s\-_]/g, '');
+    const targetByNormalized = new Map();
+    for (const col of targetColumns) {
+      const key = normalize(col.name);
+      // First match wins; targetColumns is sorted, so this is deterministic.
+      if (key && !targetByNormalized.has(key)) targetByNormalized.set(key, col.name);
+    }
+    const next = {};
+    for (const { name } of usedUnmappedColumns) {
+      next[name] = targetByNormalized.get(normalize(name)) ?? null;
+    }
+    setColumnMap(next);
+  }, [targetColumns, usedUnmappedColumns]);
+
+  const handleAutoMapClick = useCallback(() => {
+    const alreadyMapped = Object.values(columnMap).some((to) => to != null);
+    if (alreadyMapped) {
+      setAutoMapConfirmOpen(true);
+    } else {
+      runAutoMap();
+    }
+  }, [columnMap, runAutoMap]);
+
   // Confirmed migrate. Assembles the same payload the old modal submitted, then
   // drives migrateAllDownstreamContent and threads per-type progress into the
   // DataList rows (unchanged from the prior flow).
@@ -621,6 +660,7 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
         showCounts={true}
         subtext={subtextNode}
         title={`Migrate Content of **${datasetName}**`}
+        titleLineClamp={2}
         onClose={onBackToDefault}
         onRefresh={refreshFetches}
         onSelectionChange={handleSelectionChange}
@@ -652,7 +692,7 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
       <Card className='flex min-h-0 w-full flex-1 flex-col p-2'>
         <Card.Header className='gap-1'>
           <Card.Title className='line-clamp-2 min-w-0 pr-8'>
-            Migrate Content of <span className='font-medium'>{datasetName}</span>
+            Migrate Content of <strong>{datasetName}</strong>
           </Card.Title>
           <Tooltip closeDelay={0} delay={800}>
             <Button
@@ -759,20 +799,34 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
 
             {hasMismatches && !isScanning && scanResult && usedUnmappedColumns.length > 0 && (
               <div className='flex flex-col gap-1'>
-                <Label className='text-sm font-medium'>Column Remap</Label>
+                <div className='flex items-center justify-between gap-2'>
+                  <Label className='text-sm font-medium'>Column Remap</Label>
+                  <Tooltip closeDelay={0} delay={800}>
+                    <Button size='sm' startContent={<IconWand />} variant='secondary' onPress={handleAutoMapClick}>
+                      Auto Map
+                    </Button>
+                    <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+                      Fills each column with the closest target column once names are normalized (case, spaces, hyphens, and
+                      underscores). Columns with no match are left unmapped. Review before migrating.
+                    </Tooltip.Content>
+                  </Tooltip>
+                </div>
                 <Description className='text-xs'>
                   Map each origin column to a column on the target dataset, or leave it unmapped (you'll need to fix
                   references manually). Only columns actually referenced by the selected content are shown.
                 </Description>
                 <div className='flex flex-col divide-y divide-border'>
-                  {usedUnmappedColumns.map(({ items, name }) => (
+                  {usedUnmappedColumns.map(({ items, name, type }) => (
                     <ColumnMapRow
                       collisions={scanResult?.dataflowCollisions?.get?.(name) || null}
-                      itemsCount={items.length}
+                      items={items}
                       key={name}
                       mappedTo={columnMap[name] ?? UNMAPPED}
+                      origin={origin}
                       originName={name}
+                      originType={type}
                       targetColumns={targetColumns}
+                      totalSelected={totalSelected}
                       onChange={(choice) => handleColumnChoice(name, choice)}
                     />
                   ))}
@@ -872,32 +926,96 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
           </AlertDialog.Container>
         </AlertDialog.Backdrop>
       </AlertDialog>
+      <AlertDialog
+        isOpen={autoMapConfirmOpen}
+        onOpenChange={(open) => {
+          if (!open) setAutoMapConfirmOpen(false);
+        }}
+      >
+        <AlertDialog.Backdrop>
+          <AlertDialog.Container className='p-1'>
+            <AlertDialog.Dialog className='p-2 pt-3'>
+              <div className='absolute top-0 left-0 h-1.25 w-full bg-warning' />
+              <AlertDialog.CloseTrigger className='absolute top-3 right-2' variant='ghost'>
+                <IconX />
+              </AlertDialog.CloseTrigger>
+              <AlertDialog.Header>
+                <AlertDialog.Heading className='flex items-center gap-2'>
+                  <IconExclamationTriangle className='text-warning' />
+                  Overwrite existing mappings?
+                </AlertDialog.Heading>
+              </AlertDialog.Header>
+              <AlertDialog.Body className='text-sm'>
+                <p>
+                  Auto Map replaces every column you've already mapped with its closest normalized match and clears any
+                  column it can't match. Mappings you've set manually will be overwritten.
+                </p>
+              </AlertDialog.Body>
+              <AlertDialog.Footer>
+                <Button size='sm' slot='close' variant='tertiary'>
+                  Cancel
+                </Button>
+                <Button
+                  size='sm'
+                  startContent={<IconWand />}
+                  variant='primary'
+                  onPress={() => {
+                    runAutoMap();
+                    setAutoMapConfirmOpen(false);
+                  }}
+                >
+                  Auto Map
+                </Button>
+              </AlertDialog.Footer>
+            </AlertDialog.Dialog>
+          </AlertDialog.Container>
+        </AlertDialog.Backdrop>
+      </AlertDialog>
     </>
   );
 }
 
 function buildLeafItems(typeKey, items, origin) {
-  return items.map((item) => {
-    const domoTypeId = TYPE_KEY_TO_DOMO_TYPE[typeKey];
-    let url = null;
-    if (domoTypeId && origin) {
-      try {
-        url = new DomoObject(domoTypeId, item.id, origin, { name: item.name }).url;
-      } catch {
-        url = null;
-      }
-    }
-    return new DataListItem({
-      id: leafSelectionId(typeKey, item.id),
-      label: item.name || String(item.id),
-      originalId: item.id,
-      typeId: domoTypeId,
-      url
-    });
-  });
+  return items.map(
+    (item) =>
+      new DataListItem({
+        id: leafSelectionId(typeKey, item.id),
+        label: item.name || String(item.id),
+        originalId: item.id,
+        typeId: TYPE_KEY_TO_DOMO_TYPE[typeKey],
+        url: buildObjectUrl(typeKey, item, origin)
+      })
+  );
 }
 
-function ColumnMapRow({ collisions, itemsCount, mappedTo, onChange, originName, targetColumns }) {
+// Best-effort Domo object URL for a scanned content item. Mirrors the leaf-row
+// link building so both the type groups and the usages modal point at the same
+// place. Returns null when the type/origin is unknown or the URL can't be built.
+function buildObjectUrl(typeKey, item, origin) {
+  const domoTypeId = TYPE_KEY_TO_DOMO_TYPE[typeKey];
+  if (!domoTypeId || !origin) return null;
+  try {
+    return new DomoObject(domoTypeId, item.id, origin, { name: item.name }).url;
+  } catch {
+    return null;
+  }
+}
+
+function ColumnMapRow({
+  collisions,
+  items,
+  mappedTo,
+  onChange,
+  origin,
+  originName,
+  originType,
+  targetColumns,
+  totalSelected
+}) {
+  // Case-insensitive "contains" match for the Autocomplete's local filter, so
+  // the user can type to narrow a long target-column list.
+  const { contains } = useFilter({ sensitivity: 'base' });
+
   // Aggregate collisions by dataflow. Many other-inputs may share the same
   // column name; the user mostly cares which dataflows are affected.
   const collisionByDataflow = useMemo(() => {
@@ -918,44 +1036,6 @@ function ColumnMapRow({ collisions, itemsCount, mappedTo, onChange, originName, 
 
   return (
     <div className='flex flex-col gap-1 py-1.5'>
-      <div className='flex items-center gap-2'>
-        <div className='flex min-w-0 flex-1 flex-col'>
-          <span className='truncate font-mono text-xs'>{originName}</span>
-          <span className='text-[10px] text-muted'>
-            Used by {itemsCount} item{itemsCount === 1 ? '' : 's'}
-          </span>
-        </div>
-        <Select
-          aria-label={`Map ${originName} to`}
-          className='w-44'
-          selectedKey={mappedTo}
-          onSelectionChange={(key) => onChange(key)}
-        >
-          <Select.Trigger>
-            <Select.Value />
-            <Select.Indicator>
-              <IconChevronDown />
-            </Select.Indicator>
-          </Select.Trigger>
-          <Select.Popover>
-            <ListBox className='max-h-60 overflow-y-auto'>
-              <ListBox.Item id={UNMAPPED} textValue='Leave unmapped'>
-                <span className='text-muted italic'>Leave unmapped</span>
-                <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
-              </ListBox.Item>
-              {targetColumns.map((col) => (
-                <ListBox.Item id={col.name} key={col.name} textValue={col.name}>
-                  <div className='flex min-w-0 flex-col'>
-                    <span className='truncate font-mono text-xs'>{col.name}</span>
-                    {col.type && <span className='text-[10px] text-muted'>{col.type}</span>}
-                  </div>
-                  <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
-                </ListBox.Item>
-              ))}
-            </ListBox>
-          </Select.Popover>
-        </Select>
-      </div>
       {collisionByDataflow.length > 0 && (
         <Alert className='w-full border border-border bg-transparent' status='warning'>
           <Alert.Indicator>
@@ -963,7 +1043,7 @@ function ColumnMapRow({ collisions, itemsCount, mappedTo, onChange, originName, 
           </Alert.Indicator>
           <Alert.Content>
             <Alert.Title>
-              Cross-input collision: this column also exists on{' '}
+              Cross-input collision: <span className='font-mono font-bold'>{originName}</span> also exists on{' '}
               {collisionByDataflow.length === 1 ? (
                 <>
                   another input of{' '}
@@ -976,7 +1056,7 @@ function ColumnMapRow({ collisions, itemsCount, mappedTo, onChange, originName, 
                 `other inputs of ${collisionByDataflow.length} dataflows`
               )}
             </Alert.Title>
-            <Alert.Description className='text-foreground'>
+            <Alert.Description>
               Remapping will rewrite every reference to <span className='font-mono font-medium'>{originName}</span> in the
               affected dataflow
               {collisionByDataflow.length === 1 ? '' : 's'}, including refs that came from{' '}
@@ -996,7 +1076,164 @@ function ColumnMapRow({ collisions, itemsCount, mappedTo, onChange, originName, 
           </Alert.Content>
         </Alert>
       )}
+      <div className='flex items-center gap-2'>
+        <div className='flex min-w-0 flex-1 flex-col'>
+          <span className='truncate font-mono text-xs' title={originName}>
+            {originName}
+          </span>
+          <span className='flex items-center gap-1 text-[10px] text-muted'>
+            {originType && (
+              <>
+                <span className='font-mono'>{originType}</span>
+                <span aria-hidden='true'>·</span>
+              </>
+            )}
+            <span>
+              {items.length} use{items.length === 1 ? '' : 's'}
+            </span>
+            <ColumnUsagesModal items={items} origin={origin} originName={originName} totalSelected={totalSelected} />
+          </span>
+        </div>
+        <Autocomplete
+          aria-label={`Map ${originName} to`}
+          className='w-44'
+          selectionMode='single'
+          value={mappedTo}
+          onChange={(key) => onChange(key)}
+        >
+          <Autocomplete.Trigger>
+            {/* Render only the column name (not its type) so the selected value stays one
+                line and the trigger doesn't grow taller than the "Leave unmapped" state. */}
+            <Autocomplete.Value>
+              {() =>
+                mappedTo === UNMAPPED ? (
+                  <span className='text-muted italic'>Leave unmapped</span>
+                ) : (
+                  <span className='truncate font-mono text-xs'>{mappedTo}</span>
+                )
+              }
+            </Autocomplete.Value>
+            <Autocomplete.ClearButton />
+            <Autocomplete.Indicator />
+          </Autocomplete.Trigger>
+          <Autocomplete.Popover className='w-9/10' placement='bottom end'>
+            <Autocomplete.Filter filter={contains}>
+              <SearchField
+                autoFocus
+                aria-label={`Search columns for ${originName}`}
+                name='column-search'
+                variant='secondary'
+              >
+                <SearchField.Group>
+                  <SearchField.SearchIcon />
+                  <SearchField.Input placeholder='Search columns...' />
+                  <SearchField.ClearButton />
+                </SearchField.Group>
+              </SearchField>
+              <ListBox
+                className='max-h-80 overflow-y-auto'
+                renderEmptyState={() => <EmptyState>No columns found</EmptyState>}
+              >
+                <ListBox.Item id={UNMAPPED} textValue='Leave unmapped'>
+                  <span className='text-muted italic'>Leave unmapped</span>
+                  <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
+                </ListBox.Item>
+                {targetColumns.map((col) => (
+                  <ListBox.Item id={col.name} key={col.name} textValue={col.name}>
+                    <div className='flex min-w-0 flex-col'>
+                      <span className='truncate font-mono text-xs' title={col.name}>
+                        {col.name}
+                      </span>
+                      {col.type && <span className='text-[10px] text-muted'>{col.type}</span>}
+                    </div>
+                    <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
+                  </ListBox.Item>
+                ))}
+              </ListBox>
+            </Autocomplete.Filter>
+          </Autocomplete.Popover>
+        </Autocomplete>
+      </div>
     </div>
+  );
+}
+
+// Info-icon modal listing every selected piece of content that references the
+// origin column, sectioned by content type. The info icon itself is the modal
+// trigger (React Aria wires onPress through the Modal's DialogTrigger).
+function ColumnUsagesModal({ items, origin, originName, totalSelected }) {
+  return (
+    <Modal>
+      <Button
+        isIconOnly
+        aria-label={`Show where ${originName} is used`}
+        className='size-4 min-h-0 p-0 text-muted hover:text-foreground'
+        size='sm'
+        variant='ghost'
+      >
+        <IconInfoCircle className='size-3.5' />
+      </Button>
+      <Modal.Backdrop>
+        <Modal.Container className='p-1' placement='center' scroll='outside'>
+          <Modal.Dialog className='p-2 pt-3'>
+            <Modal.CloseTrigger className='absolute top-2 right-2' variant='ghost'>
+              <IconX />
+            </Modal.CloseTrigger>
+            <Modal.Header>
+              <Modal.Heading className='flex flex-col gap-1 truncate pr-6'>
+                <span className='font-mono'>{originName}</span>
+                <Description>
+                  Referenced by {items.length} of {totalSelected} selected item{totalSelected === 1 ? '' : 's'}.
+                </Description>
+              </Modal.Heading>
+            </Modal.Header>
+            <Modal.Body className='flex max-h-[60vh] flex-col gap-3 overflow-y-auto text-foreground'>
+              {MIGRATE_TYPES.map((t) => {
+                const typeItems = items
+                  .filter((it) => it.type === t.key)
+                  .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                if (typeItems.length === 0) return null;
+                return (
+                  <div className='flex min-w-0 flex-col gap-1' key={t.key}>
+                    <div className='flex items-center gap-1.5'>
+                      <ObjectTypeIcon className='size-4 shrink-0' typeId={TYPE_KEY_TO_DOMO_TYPE[t.key]} />
+                      <span className='font-bold'>{t.label}</span>
+                      <span className='text-xs text-muted'>({typeItems.length})</span>
+                    </div>
+                    <ul className='flex min-w-0 flex-col gap-0.5 pl-1.5'>
+                      {typeItems.map((it) => {
+                        const url = buildObjectUrl(t.key, it, origin);
+                        return (
+                          <li className='flex min-w-0 items-baseline gap-1.5' key={`${it.type}:${it.id}`}>
+                            <span aria-hidden='true' className='shrink-0 text-sm text-muted'>
+                              •
+                            </span>
+                            {url ? (
+                              <Link
+                                className='min-w-0 truncate text-sm no-underline decoration-accent hover:text-accent hover:underline'
+                                href={url}
+                                target='_blank'
+                                title={it.name}
+                              >
+                                {it.name}
+                              </Link>
+                            ) : (
+                              <span className='min-w-0 truncate text-sm' title={it.name}>
+                                {it.name}
+                              </span>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                );
+              })}
+            </Modal.Body>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
+    </Modal>
   );
 }
 

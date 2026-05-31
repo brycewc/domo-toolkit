@@ -55,6 +55,7 @@ import { ObjectTypeIcon } from '../ObjectTypeIcon';
  * @param {Object} props
  * @param {Array} props.items - Array of list items with optional children
  * @param {string} props.title - Plain-text header title. Supports inline `**bold**` markdown for emphasis (parsed via `parseMarkdownBold`). The tooltip mirrors the same text with bold markers stripped so the overlay reads as unstyled prose.
+ * @param {1|2} [props.titleLineClamp=1] - Max lines the header title clamps to before truncating. Defaults to 1; pass 2 for long titles (e.g. a bolded object name) that read better across two lines.
  * @param {HeaderActionType[]} props.headerActions - Array of action types to show in header
  * @param {Function} props.onClose - Callback when close button is clicked (shows close button if provided)
  * @param {boolean} props.isRefreshing - Whether refresh action is in progress
@@ -112,6 +113,7 @@ export function DataList({
   showCounts = true,
   subtext,
   title,
+  titleLineClamp = 1,
   variant,
   viewType,
   virtualThreshold = 50
@@ -333,7 +335,9 @@ export function DataList({
           {title && (
             <Tooltip closeDelay={0} delay={800}>
               <Tooltip.Trigger className='min-w-0 pr-8'>
-                <Card.Title className='line-clamp-1'>{parseMarkdownBold(title)}</Card.Title>
+                <Card.Title className={titleLineClamp === 2 ? 'line-clamp-2' : 'line-clamp-1'}>
+                  {parseMarkdownBold(title)}
+                </Card.Title>
               </Tooltip.Trigger>
               <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
                 {stripMarkdownBold(title)}
