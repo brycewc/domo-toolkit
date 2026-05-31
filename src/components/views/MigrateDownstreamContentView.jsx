@@ -1,14 +1,32 @@
-import { Card, Spinner } from '@heroui/react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Alert,
+  AlertDialog,
+  Button,
+  Card,
+  Description,
+  Label,
+  ListBox,
+  ScrollShadow,
+  Select,
+  Separator,
+  Spinner,
+  Tooltip
+} from '@heroui/react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { MigrateDownstreamModal } from '@/components/modals/MigrateDownstreamModal';
+import { DatasetComboBox } from '@/components/DatasetComboBox';
+import { ObjectTypeIcon } from '@/components/ObjectTypeIcon';
 import { DataList } from '@/components/views/DataList';
 import { useParallelFetches } from '@/hooks/useParallelFetches';
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { DataListItem } from '@/models/DataListItem';
 import { DomoContext } from '@/models/DomoContext';
 import { DomoObject } from '@/models/DomoObject';
+import { scanContentForColumns } from '@/services/columnReferences';
+import { hasEffectiveMapping } from '@/services/columnRewriter';
+import { getDatasetColumns } from '@/services/datasets';
 import {
+  compareDatasetSchemas,
   getDownstreamCards,
   getDownstreamLineage,
   MIGRATE_TYPES,
@@ -16,6 +34,13 @@ import {
 } from '@/services/migrateDownstreamContent';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconArrowsHorizontalBox from '@icons/arrows-horizontal-box.svg?react';
+import IconCheckCircle from '@icons/check-circle.svg?react';
+import IconCheck from '@icons/check.svg?react';
+import IconChevronDown from '@icons/chevron-down.svg?react';
+import IconExclamationPointCircle from '@icons/exclamation-point-circle.svg?react';
+import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
+import IconInfoCircle from '@icons/info-circle.svg?react';
+import IconX from '@icons/x.svg?react';
 
 const TYPE_KEY_TO_DOMO_TYPE = {
   cards: 'CARD',
@@ -23,20 +48,36 @@ const TYPE_KEY_TO_DOMO_TYPE = {
   datasetViews: 'DATA_SOURCE'
 };
 
+const UNMAPPED = '__unmapped__';
+
 export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   const [datasetId, setDatasetId] = useState(null);
   const [datasetName, setDatasetName] = useState('');
   const [origin, setOrigin] = useState('');
   const [tabId, setTabId] = useState(null);
-  const [currentContext, setCurrentContext] = useState(null);
 
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [pendingSelectAll, setPendingSelectAll] = useState(true);
-  const [transferModalOpen, setTransferModalOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  // 'select' = pick what content to migrate; 'target' = pick the target dataset, remap, migrate.
+  const [page, setPage] = useState('select');
   // { [typeKey]: { status, error?, succeeded?, failed?, count? } }
   const [transferStatus, setTransferStatus] = useState({});
   const [isTransferring, setIsTransferring] = useState(false);
+
+  // Target-dataset selection + schema reconciliation state. Formerly lived in
+  // MigrateDownstreamModal; now inline in the view (below the type groups).
+  const [selectedDatasetId, setSelectedDatasetId] = useState(null);
+  const [selectedDatasetName, setSelectedDatasetName] = useState(null);
+  const [comparison, setComparison] = useState(null);
+  const [isComparing, setIsComparing] = useState(false);
+  const [comparisonError, setComparisonError] = useState(null);
+  const [targetColumns, setTargetColumns] = useState([]);
+  const [scanResult, setScanResult] = useState(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanError, setScanError] = useState(null);
+  const [columnMap, setColumnMap] = useState({});
 
   const mountedRef = useRef(true);
   const bailedRef = useRef(false);
@@ -70,7 +111,6 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
       );
       setOrigin(context.domoObject?.baseUrl || '');
       setTabId(context.tabId);
-      setCurrentContext(context);
     } catch (error) {
       console.error('[MigrateDownstreamContentView] Error loading data:', error);
       onStatusUpdate?.('Error', error.message || 'Failed to load context', 'danger');
@@ -193,10 +233,9 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
 
   const totalSelected = selectedCounts.cards + selectedCounts.datasetViews + selectedCounts.dataflows;
 
-  // Full selected items array per type — passed to the modal so it can scan
-  // each item's definition for column references when a schema mismatch is
-  // detected. Distinct from `selectedCounts` (numbers) and `selectedIds`
-  // (flat key Set).
+  // Full selected items array per type, used to scan each item's definition
+  // for column references when a schema mismatch is detected. Distinct from
+  // `selectedCounts` (numbers) and `selectedIds` (flat key Set).
   const selectedItemsByType = useMemo(() => {
     const acc = { cards: [], dataflows: [], datasetViews: [] };
     for (const t of MIGRATE_TYPES) {
@@ -210,6 +249,94 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
     }
     return acc;
   }, [results, selectedIds]);
+
+  const excludeIds = useMemo(() => (datasetId ? new Set([datasetId]) : null), [datasetId]);
+
+  // Run the schema check whenever a target dataset is picked. Clears any prior
+  // comparison/scan/remap so stale results never leak across target changes.
+  useEffect(() => {
+    if (!selectedDatasetId || !datasetId) {
+      setComparison(null);
+      setComparisonError(null);
+      return;
+    }
+    let cancelled = false;
+    setIsComparing(true);
+    setComparison(null);
+    setComparisonError(null);
+    setScanResult(null);
+    setScanError(null);
+    setColumnMap({});
+    compareDatasetSchemas(datasetId, selectedDatasetId, tabId)
+      .then((result) => {
+        if (cancelled) return;
+        setComparison(result);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setComparisonError(err?.message || 'Schema comparison failed');
+      })
+      .finally(() => {
+        if (!cancelled) setIsComparing(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [datasetId, selectedDatasetId, tabId]);
+
+  // On schema mismatch, fetch the target's columns and scan the selected
+  // content for column references in parallel. Both feed the remap UI.
+  // Keyed on `page` (not selectedItemsByType) so it re-runs each time the user
+  // lands on page 2, picking up any content-selection change made back on page
+  // 1, while never firing during page-1 toggling (which would flash the remap).
+  // handleMigrate still operates on the live selection regardless.
+  useEffect(() => {
+    if (page !== 'target') return;
+    if (!comparison || comparison.compatible) return;
+    if (!selectedDatasetId) return;
+    let cancelled = false;
+    setIsScanning(true);
+    setScanError(null);
+
+    Promise.all([
+      getDatasetColumns({ datasetId: selectedDatasetId, tabId }),
+      scanContentForColumns({ originId: datasetId, selectedItems: selectedItemsByType, tabId })
+    ])
+      .then(([cols, scan]) => {
+        if (cancelled) return;
+        setTargetColumns(cols || []);
+        setScanResult(scan);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setScanError(err?.message || 'Failed to scan content for column references');
+      })
+      .finally(() => {
+        if (!cancelled) setIsScanning(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [comparison, datasetId, page, selectedDatasetId, tabId]);
+
+  const hasMismatches = comparison && !comparison.compatible;
+
+  // Columns that are BOTH used by selected content AND missing/changed in the
+  // target schema. The intersection is what the user has to decide about;
+  // anything outside it is either irrelevant or already compatible.
+  const usedUnmappedColumns = useMemo(() => {
+    if (!hasMismatches || !scanResult) return [];
+    const mismatchedNames = new Set((comparison?.missing || []).map((m) => m.name));
+    const referenced = scanResult.byColumn || new Map();
+    const out = [];
+    for (const [colName, items] of referenced.entries()) {
+      if (mismatchedNames.has(colName)) {
+        out.push({ items, name: colName });
+      }
+    }
+    out.sort((a, b) => a.name.localeCompare(b.name));
+    return out;
+  }, [comparison, hasMismatches, scanResult]);
 
   const dataListItems = useMemo(
     () =>
@@ -334,97 +461,136 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
     return text;
   }, [isTransferring, transferStatus, isFullyLoaded, loadingCount, totalAvailable, totalSelected, errorCount]);
 
-  const handleOpenModal = useCallback(() => setTransferModalOpen(true), []);
+  // The footer Migrate button stays disabled until: every fetch settled, at
+  // least one item is selected, a target is chosen, and the schema check +
+  // any content scan have finished without error. Mismatches do NOT disable
+  // it (the user may knowingly proceed without a full remap).
+  const migrateDisabled =
+    !isFullyLoaded ||
+    isTransferring ||
+    totalSelected === 0 ||
+    !selectedDatasetId ||
+    isComparing ||
+    isScanning ||
+    comparisonError !== null ||
+    scanError !== null;
 
-  const handleSubmit = useCallback(
-    async ({ columnMap, definitionsByItemKey, targetColumnTypes, targetId, targetName, useFullPath }) => {
-      const selectedItems = selectedItemsByType;
+  // CTA wording reflects the schema state: a clean migrate, a migrate that
+  // will apply the user's column remap, or an explicit proceed-despite-mismatch.
+  const migrateLabel = useMemo(() => {
+    if (!hasMismatches) return 'Migrate';
+    return hasEffectiveMapping(columnMap) ? 'Migrate with Remap' : 'Proceed Anyway';
+  }, [columnMap, hasMismatches]);
 
-      const initialStatus = {};
-      for (const t of MIGRATE_TYPES) {
-        if (selectedItems[t.key].length > 0) {
-          initialStatus[t.key] = { count: selectedItems[t.key].length, status: 'transferring' };
-        }
+  const handleColumnChoice = useCallback((originName, choice) => {
+    setColumnMap((prev) => {
+      const next = { ...prev };
+      if (choice === UNMAPPED || choice == null) {
+        next[originName] = null;
+      } else {
+        next[originName] = choice;
       }
-      setTransferStatus(initialStatus);
-      setIsTransferring(true);
+      return next;
+    });
+  }, []);
 
-      try {
-        const transferResults = await migrateAllDownstreamContent({
-          columnMap,
-          definitionsByItemKey,
-          onProgress: ({ count, result, status, typeKey }) => {
-            if (!mountedRef.current) return;
-            setTransferStatus((prev) => {
-              const next = { ...prev };
-              if (status === 'transferring') {
-                next[typeKey] = { count, status: 'transferring' };
-              } else if (status === 'done') {
-                const failed = result?.failed ?? 0;
-                const succeeded = result?.succeeded ?? 0;
-                next[typeKey] = {
-                  count: count ?? succeeded + failed,
-                  error: failed > 0 ? formatErrors(result) : null,
-                  failed,
-                  status: failed > 0 ? 'failed' : 'transferred',
-                  succeeded
-                };
-              }
-              return next;
-            });
-          },
-          originId: datasetId,
-          selectedItems,
-          tabId,
-          targetColumnTypes,
-          targetId,
-          useFullPath
-        });
+  // Confirmed migrate. Assembles the same payload the old modal submitted, then
+  // drives migrateAllDownstreamContent and threads per-type progress into the
+  // DataList rows (unchanged from the prior flow).
+  const handleMigrate = useCallback(async () => {
+    setConfirmOpen(false);
 
-        let totalSucceeded = 0;
-        let totalFailed = 0;
-        for (const [, r] of transferResults) {
-          totalSucceeded += r.succeeded || 0;
-          totalFailed += r.failed || 0;
-        }
+    const targetColumnTypes = {};
+    for (const col of targetColumns) {
+      if (col?.name && col?.type) targetColumnTypes[col.name] = col.type;
+    }
+    const definitionsByItemKey = scanResult?.byItem || new Map();
+    const useFullPath = Boolean(hasMismatches);
+    const targetId = selectedDatasetId;
+    const targetName = selectedDatasetName;
+    const selectedItems = selectedItemsByType;
 
-        const targetLabel = targetName ? `**${targetName}**` : `**${targetId}**`;
-        if (totalFailed > 0) {
-          showStatus(
-            'Migration Partially Complete',
-            `**${totalSucceeded}** succeeded, **${totalFailed}** failed migrating to ${targetLabel}`,
-            'warning',
-            7000
-          );
-        } else {
-          showStatus(
-            'Migration Complete',
-            `Migrated **${totalSucceeded}** item${totalSucceeded !== 1 ? 's' : ''} to ${targetLabel}`,
-            'success',
-            7000
-          );
-        }
-      } catch (err) {
-        showStatus('Migration Failed', err.message || 'An error occurred', 'danger', 7000);
-      } finally {
-        if (mountedRef.current) setIsTransferring(false);
+    const initialStatus = {};
+    for (const t of MIGRATE_TYPES) {
+      if (selectedItems[t.key].length > 0) {
+        initialStatus[t.key] = { count: selectedItems[t.key].length, status: 'transferring' };
       }
-    },
-    [datasetId, selectedItemsByType, showStatus, tabId]
-  );
+    }
+    setTransferStatus(initialStatus);
+    setIsTransferring(true);
 
-  const customHeaderActions = useMemo(
-    () => [
-      {
-        icon: <IconArrowsHorizontalBox />,
-        isDisabled: !isFullyLoaded || totalSelected === 0 || isTransferring,
-        key: 'migrate',
-        onPress: handleOpenModal,
-        tooltipText: 'Migrate selected content to another dataset'
+    try {
+      const transferResults = await migrateAllDownstreamContent({
+        columnMap,
+        definitionsByItemKey,
+        onProgress: ({ count, result, status, typeKey }) => {
+          if (!mountedRef.current) return;
+          setTransferStatus((prev) => {
+            const next = { ...prev };
+            if (status === 'transferring') {
+              next[typeKey] = { count, status: 'transferring' };
+            } else if (status === 'done') {
+              const failed = result?.failed ?? 0;
+              const succeeded = result?.succeeded ?? 0;
+              next[typeKey] = {
+                count: count ?? succeeded + failed,
+                error: failed > 0 ? formatErrors(result) : null,
+                failed,
+                status: failed > 0 ? 'failed' : 'transferred',
+                succeeded
+              };
+            }
+            return next;
+          });
+        },
+        originId: datasetId,
+        selectedItems,
+        tabId,
+        targetColumnTypes,
+        targetId,
+        useFullPath
+      });
+
+      let totalSucceeded = 0;
+      let totalFailed = 0;
+      for (const [, r] of transferResults) {
+        totalSucceeded += r.succeeded || 0;
+        totalFailed += r.failed || 0;
       }
-    ],
-    [handleOpenModal, isFullyLoaded, isTransferring, totalSelected]
-  );
+
+      const targetLabel = targetName ? `**${targetName}**` : `**${targetId}**`;
+      if (totalFailed > 0) {
+        showStatus(
+          'Migration Partially Complete',
+          `**${totalSucceeded}** succeeded, **${totalFailed}** failed migrating to ${targetLabel}`,
+          'warning',
+          7000
+        );
+      } else {
+        showStatus(
+          'Migration Complete',
+          `Migrated **${totalSucceeded}** item${totalSucceeded !== 1 ? 's' : ''} to ${targetLabel}`,
+          'success',
+          7000
+        );
+      }
+    } catch (err) {
+      showStatus('Migration Failed', err.message || 'An error occurred', 'danger', 7000);
+    } finally {
+      if (mountedRef.current) setIsTransferring(false);
+    }
+  }, [
+    columnMap,
+    datasetId,
+    hasMismatches,
+    scanResult,
+    selectedDatasetId,
+    selectedDatasetName,
+    selectedItemsByType,
+    showStatus,
+    tabId,
+    targetColumns
+  ]);
 
   if (isLoading || nothingToMigrate) {
     return (
@@ -437,10 +603,12 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
     );
   }
 
-  return (
-    <>
+  // Page 1: choose what downstream content to migrate. The type groups live in
+  // the DataList; the only footer action is Next, which advances to page 2.
+  if (page === 'select') {
+    return (
       <DataList
-        customHeaderActions={customHeaderActions}
+        fillHeight={true}
         headerActions={['refresh']}
         isRefreshing={loadingCount > 0}
         isSelectable={isSelectable}
@@ -452,21 +620,258 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
         showActions={true}
         showCounts={true}
         subtext={subtextNode}
-        title={`Downstream Content of **${datasetName}**`}
+        title={`Migrate Content of **${datasetName}**`}
         onClose={onBackToDefault}
         onRefresh={refreshFetches}
         onSelectionChange={handleSelectionChange}
         onStatusUpdate={onStatusUpdate}
+        footer={
+          <Button
+            fullWidth
+            isDisabled={!isFullyLoaded || isTransferring || totalSelected === 0}
+            size='sm'
+            variant='primary'
+            onPress={() => setPage('target')}
+          >
+            Next
+          </Button>
+        }
       />
-      <MigrateDownstreamModal
-        currentContext={currentContext}
-        isOpen={transferModalOpen}
-        selectedCounts={selectedCounts}
-        selectedItems={selectedItemsByType}
-        sourceDataset={{ id: datasetId, name: datasetName }}
-        onOpenChange={setTransferModalOpen}
-        onSubmit={handleSubmit}
-      />
+    );
+  }
+
+  // Page 2: pick the target dataset, reconcile schema (warn + remap), migrate.
+  // Aggregate transfer progress, since the per-type rows live on page 1.
+  const migratedDone = Object.values(transferStatus).filter(
+    (x) => x.status === 'transferred' || x.status === 'failed'
+  ).length;
+  const migratedTotal = Object.values(transferStatus).length;
+
+  return (
+    <>
+      <Card className='flex min-h-0 w-full flex-1 flex-col p-2'>
+        <Card.Header className='gap-1'>
+          <Card.Title className='line-clamp-2 min-w-0 pr-8'>
+            Migrate Content of <span className='font-medium'>{datasetName}</span>
+          </Card.Title>
+          <Tooltip closeDelay={0} delay={800}>
+            <Button
+              isIconOnly
+              aria-label='Close'
+              className='absolute top-1 right-2'
+              size='sm'
+              variant='ghost'
+              onPress={onBackToDefault}
+            >
+              <IconX />
+            </Button>
+            <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+              Close
+            </Tooltip.Content>
+          </Tooltip>
+        </Card.Header>
+        <Separator />
+        <ScrollShadow hideScrollBar className='min-h-0 flex-1 overflow-y-auto' offset={5} orientation='vertical'>
+          <Card.Content className='flex flex-col gap-2 py-2'>
+            <DatasetComboBox
+              className='min-w-0'
+              excludeIds={excludeIds}
+              instanceBaseUrl={origin}
+              label='To Dataset'
+              maxListHeight='max-h-120'
+              selectedDisplayName={selectedDatasetName}
+              selectedKey={selectedDatasetId}
+              tabId={tabId}
+              onSelectionChange={(key, name) => {
+                setSelectedDatasetId(key);
+                setSelectedDatasetName(name ?? null);
+              }}
+            />
+
+            {isComparing && (
+              <div className='flex items-center gap-2 text-xs text-muted'>
+                <Spinner size='sm' />
+                <span>Comparing schemas…</span>
+              </div>
+            )}
+
+            {comparisonError && (
+              <Alert className='w-full border border-border bg-transparent' status='danger'>
+                <Alert.Indicator>
+                  <IconExclamationPointCircle data-slot='alert-default-icon' />
+                </Alert.Indicator>
+                <Alert.Content>
+                  <Alert.Title>Schema check failed</Alert.Title>
+                  <Alert.Description>{comparisonError}</Alert.Description>
+                </Alert.Content>
+              </Alert>
+            )}
+
+            {hasMismatches && (
+              <Alert className='w-full border border-border bg-transparent' status='warning'>
+                <Alert.Indicator>
+                  <IconExclamationTriangle data-slot='alert-default-icon' />
+                </Alert.Indicator>
+                <Alert.Content>
+                  <Alert.Title>
+                    {comparison.missing.length === 1
+                      ? "1 column doesn't match"
+                      : `${comparison.missing.length} columns don't match`}
+                  </Alert.Title>
+                  <Alert.Description>
+                    Best practice is to align schemas before migrating content. Proceeding here is your responsibility;
+                    broken column references can cause cards to render blank, dataflows to fail, and views to error. Validate
+                    every result.
+                  </Alert.Description>
+                </Alert.Content>
+              </Alert>
+            )}
+
+            {comparison?.compatible && (
+              <Alert className='w-full border border-border bg-transparent' status='success'>
+                <Alert.Indicator>
+                  <IconCheckCircle data-slot='alert-default-icon' />
+                </Alert.Indicator>
+                <Alert.Content>
+                  <Alert.Title>Schemas are compatible</Alert.Title>
+                </Alert.Content>
+              </Alert>
+            )}
+
+            {hasMismatches && isScanning && (
+              <div className='flex items-center gap-2 text-xs text-muted'>
+                <Spinner size='sm' />
+                <span>Scanning content for column references…</span>
+              </div>
+            )}
+
+            {hasMismatches && scanError && (
+              <Alert className='w-full border border-border bg-transparent' status='danger'>
+                <Alert.Indicator>
+                  <IconExclamationPointCircle data-slot='alert-default-icon' />
+                </Alert.Indicator>
+                <Alert.Content>
+                  <Alert.Title>Column scan failed</Alert.Title>
+                  <Alert.Description>{scanError}</Alert.Description>
+                </Alert.Content>
+              </Alert>
+            )}
+
+            {hasMismatches && !isScanning && scanResult && usedUnmappedColumns.length > 0 && (
+              <div className='flex flex-col gap-1'>
+                <Label className='text-sm font-medium'>Column Remap</Label>
+                <Description className='text-xs'>
+                  Map each origin column to a column on the target dataset, or leave it unmapped (you'll need to fix
+                  references manually). Only columns actually referenced by the selected content are shown.
+                </Description>
+                <div className='flex flex-col divide-y divide-border'>
+                  {usedUnmappedColumns.map(({ items, name }) => (
+                    <ColumnMapRow
+                      collisions={scanResult?.dataflowCollisions?.get?.(name) || null}
+                      itemsCount={items.length}
+                      key={name}
+                      mappedTo={columnMap[name] ?? UNMAPPED}
+                      originName={name}
+                      targetColumns={targetColumns}
+                      onChange={(choice) => handleColumnChoice(name, choice)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {hasMismatches && !isScanning && scanResult && usedUnmappedColumns.length === 0 && (
+              <Alert className='w-full border border-border bg-transparent' status='default'>
+                <Alert.Indicator>
+                  <IconInfoCircle data-slot='alert-default-icon' />
+                </Alert.Indicator>
+                <Alert.Content>
+                  <Alert.Description>
+                    None of the mismatched columns are referenced by the selected content. Safe to proceed without remapping,
+                    but data may still be missing in the target.
+                  </Alert.Description>
+                </Alert.Content>
+              </Alert>
+            )}
+
+            {isTransferring && (
+              <div className='flex items-center gap-2 text-xs text-muted'>
+                <Spinner size='sm' />
+                <span>
+                  Migrating… <span className='font-medium text-foreground'>{migratedDone}</span>/{migratedTotal}
+                </span>
+              </div>
+            )}
+          </Card.Content>
+        </ScrollShadow>
+        <Separator className='mt-1.5' />
+        <div className='flex shrink-0 gap-2 pt-2'>
+          <Button isDisabled={isTransferring} size='sm' variant='tertiary' onPress={() => setPage('select')}>
+            Back
+          </Button>
+          <Button
+            fullWidth
+            isDisabled={migrateDisabled}
+            size='sm'
+            startContent={<IconArrowsHorizontalBox />}
+            variant='primary'
+            onPress={() => setConfirmOpen(true)}
+          >
+            {migrateLabel}
+          </Button>
+        </div>
+      </Card>
+      <AlertDialog
+        isOpen={confirmOpen}
+        onOpenChange={(open) => {
+          if (!open) setConfirmOpen(false);
+        }}
+      >
+        <AlertDialog.Backdrop>
+          <AlertDialog.Container className='p-1'>
+            <AlertDialog.Dialog className='p-2 pt-3'>
+              <div className='absolute top-0 left-0 h-1.25 w-full bg-warning' />
+              <AlertDialog.CloseTrigger className='absolute top-3 right-2' variant='ghost'>
+                <IconX />
+              </AlertDialog.CloseTrigger>
+              <AlertDialog.Header>
+                <AlertDialog.Heading className='flex items-center gap-2'>
+                  <IconExclamationTriangle className='text-warning' />
+                  Migrate downstream content?
+                </AlertDialog.Heading>
+              </AlertDialog.Header>
+              <AlertDialog.Body className='flex flex-col gap-2 text-sm'>
+                <p>
+                  This repoints <span className='font-medium'>{totalSelected}</span> downstream item
+                  {totalSelected === 1 ? '' : 's'} from <span className='font-medium'>{datasetName}</span> onto the selected
+                  dataset.
+                </p>
+                {hasMismatches && (
+                  <p className='text-warning'>
+                    The schemas don't fully match
+                    {hasEffectiveMapping(columnMap) ? ' and your remap will be applied' : ''}. Unmapped column references can
+                    break cards, dataflows, and views. Validate every result.
+                  </p>
+                )}
+              </AlertDialog.Body>
+              <AlertDialog.Footer>
+                <Button isDisabled={isTransferring} size='sm' slot='close' variant='tertiary'>
+                  Cancel
+                </Button>
+                <Button
+                  className='bg-warning text-warning-foreground hover:bg-warning-hover'
+                  isDisabled={isTransferring}
+                  size='sm'
+                  variant='primary'
+                  onPress={handleMigrate}
+                >
+                  {migrateLabel}
+                </Button>
+              </AlertDialog.Footer>
+            </AlertDialog.Dialog>
+          </AlertDialog.Container>
+        </AlertDialog.Backdrop>
+      </AlertDialog>
     </>
   );
 }
@@ -490,6 +895,109 @@ function buildLeafItems(typeKey, items, origin) {
       url
     });
   });
+}
+
+function ColumnMapRow({ collisions, itemsCount, mappedTo, onChange, originName, targetColumns }) {
+  // Aggregate collisions by dataflow. Many other-inputs may share the same
+  // column name; the user mostly cares which dataflows are affected.
+  const collisionByDataflow = useMemo(() => {
+    if (!collisions || collisions.length === 0) return [];
+    const m = new Map();
+    for (const c of collisions) {
+      if (!m.has(c.dataflowId)) {
+        m.set(c.dataflowId, { dataflowName: c.dataflowName, otherInputs: new Set() });
+      }
+      m.get(c.dataflowId).otherInputs.add(c.otherInputName);
+    }
+    return [...m.entries()].map(([id, v]) => ({
+      dataflowId: id,
+      dataflowName: v.dataflowName,
+      otherInputs: [...v.otherInputs]
+    }));
+  }, [collisions]);
+
+  return (
+    <div className='flex flex-col gap-1 py-1.5'>
+      <div className='flex items-center gap-2'>
+        <div className='flex min-w-0 flex-1 flex-col'>
+          <span className='truncate font-mono text-xs'>{originName}</span>
+          <span className='text-[10px] text-muted'>
+            Used by {itemsCount} item{itemsCount === 1 ? '' : 's'}
+          </span>
+        </div>
+        <Select
+          aria-label={`Map ${originName} to`}
+          className='w-44'
+          selectedKey={mappedTo}
+          onSelectionChange={(key) => onChange(key)}
+        >
+          <Select.Trigger>
+            <Select.Value />
+            <Select.Indicator>
+              <IconChevronDown />
+            </Select.Indicator>
+          </Select.Trigger>
+          <Select.Popover>
+            <ListBox className='max-h-60 overflow-y-auto'>
+              <ListBox.Item id={UNMAPPED} textValue='Leave unmapped'>
+                <span className='text-muted italic'>Leave unmapped</span>
+                <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
+              </ListBox.Item>
+              {targetColumns.map((col) => (
+                <ListBox.Item id={col.name} key={col.name} textValue={col.name}>
+                  <div className='flex min-w-0 flex-col'>
+                    <span className='truncate font-mono text-xs'>{col.name}</span>
+                    {col.type && <span className='text-[10px] text-muted'>{col.type}</span>}
+                  </div>
+                  <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
+                </ListBox.Item>
+              ))}
+            </ListBox>
+          </Select.Popover>
+        </Select>
+      </div>
+      {collisionByDataflow.length > 0 && (
+        <Alert className='w-full border border-border bg-transparent' status='warning'>
+          <Alert.Indicator>
+            <IconExclamationTriangle data-slot='alert-default-icon' />
+          </Alert.Indicator>
+          <Alert.Content>
+            <Alert.Title>
+              Cross-input collision: this column also exists on{' '}
+              {collisionByDataflow.length === 1 ? (
+                <>
+                  another input of{' '}
+                  <span className='inline-flex items-center gap-0.5 align-text-bottom'>
+                    <ObjectTypeIcon className='size-3.5 shrink-0' typeId='DATAFLOW_TYPE' />
+                    {collisionByDataflow[0].dataflowName}
+                  </span>
+                </>
+              ) : (
+                `other inputs of ${collisionByDataflow.length} dataflows`
+              )}
+            </Alert.Title>
+            <Alert.Description className='text-foreground'>
+              Remapping will rewrite every reference to <span className='font-mono font-medium'>{originName}</span> in the
+              affected dataflow
+              {collisionByDataflow.length === 1 ? '' : 's'}, including refs that came from{' '}
+              {collisionByDataflow.length === 1
+                ? collisionByDataflow[0].otherInputs.map((name, i) => (
+                    <Fragment key={name}>
+                      {i > 0 ? ', ' : ''}
+                      <span className='inline-flex items-center gap-0.5 align-text-bottom'>
+                        <ObjectTypeIcon className='size-3.5 shrink-0' typeId='DATA_SOURCE' />
+                        <span className='font-medium'>{name}</span>
+                      </span>
+                    </Fragment>
+                  ))
+                : 'other inputs'}
+              . Consider leaving this unmapped and fixing the dataflow manually.
+            </Alert.Description>
+          </Alert.Content>
+        </Alert>
+      )}
+    </div>
+  );
 }
 
 function formatErrors(result) {

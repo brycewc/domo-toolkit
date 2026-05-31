@@ -208,9 +208,6 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
-                {availableActions.has('lockCards') && (
-                  <LockCards currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
-                )}
                 {availableActions.has('dataRepair') && (
                   <DataRepair currentContext={currentContext} isDisabled={!isDomoPage} />
                 )}
@@ -293,6 +290,9 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                 )}
                 {availableActions.has('directSignOn') && (
                   <DirectSignOn currentContext={currentContext} isDisabled={!isDomoPage} />
+                )}
+                {availableActions.has('lockCards') && (
+                  <LockCards currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
                 )}
                 <DevMenu />
               </div>

@@ -741,8 +741,8 @@ async function swapCardInputFast(cardId, originId, targetId, tabId) {
  */
 export const MIGRATE_TYPES = [
   { key: 'cards', label: 'Cards' },
-  { key: 'datasetViews', label: 'Dataset Views' },
-  { key: 'dataflows', label: 'Dataflows' }
+  { key: 'dataflows', label: 'Dataflows' },
+  { key: 'datasetViews', label: 'Dataset Views' }
 ];
 
 /**

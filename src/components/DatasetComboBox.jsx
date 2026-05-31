@@ -136,11 +136,11 @@ export function DatasetComboBox({
   const { onSelectionChange, ...restComboBoxProps } = comboBoxProps;
   const handleSelectionChange = (key) => {
     clearTimeout(debounceRef.current);
+    const selectedDataset = key != null ? datasets.find((d) => d.id === key) : null;
     if (key != null) {
-      const selected = datasets.find((d) => d.id === key);
-      if (selected) {
-        setSelectedName(selected.name);
-        setInputValue(selected.name);
+      if (selectedDataset) {
+        setSelectedName(selectedDataset.name);
+        setInputValue(selectedDataset.name);
       }
     } else if (selectedName && !isOpenRef.current) {
       setInputValue(selectedName);
@@ -151,16 +151,23 @@ export function DatasetComboBox({
       setInputValue('');
     }
     setSearchQuery('');
-    onSelectionChange?.(key);
+    // Forward the resolved name too, so a parent can persist it and re-seed
+    // `selectedDisplayName` after the picker unmounts and remounts.
+    onSelectionChange?.(key, selectedDataset?.name ?? null);
   };
 
   const listHeight = maxListHeight || (isSidepanel() ? 'max-h-60' : 'max-h-30');
 
+  // Results are filtered server-side by searchDatasets (by name OR id), so
+  // disable the ComboBox's built-in client filter (a "contains" match against
+  // each item's textValue, the dataset name). Without this, pasting an id hides
+  // the server-matched result because the id isn't a substring of the name.
   return (
     <ComboBox
       allowsEmptyCollection
       isRequired
       className={className}
+      defaultFilter={() => true}
       inputValue={inputValue}
       menuTrigger={menuTrigger}
       variant='secondary'

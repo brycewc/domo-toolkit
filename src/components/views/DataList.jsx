@@ -77,7 +77,8 @@ import { ObjectTypeIcon } from '../ObjectTypeIcon';
  * @param {Function} [props.onSelectionChange] - `(newSelectedIds: Set<string>) => void` callback fired when the selection set changes. Required when `selectionMode` is true. Receives the full new Set after any add/remove from the wrapping `CheckboxGroup`'s `onChange`.
  * @param {Function} [props.isSelectable] - `(item) => boolean` filter. When `selectionMode` is true, only items returning true get a checkbox-wrapped label; others get an empty 16px placeholder to preserve column alignment. Defaults to `() => true`.
  * @param {React.ReactNode} [props.selectionToolbar] - Selection-mode-only content rendered as a third header row directly under the action buttons. Use for "Select all"/"Deselect all" or other bulk-selection controls. Ignored when `selectionMode` is false.
- * @param {React.ReactNode} [props.footer] - Content rendered inside the Card below the items list, separated from the scroll area by a `<Separator>`. Use for a primary action that should sit pinned beneath the list (e.g. a full-width "Transfer ownership to…" button in selection mode). Consumers decide visibility — pass `null`/`false` to omit.
+ * @param {Boolean} [props.fillHeight] - When true, the root Card fills its parent's available height (`h-full`) instead of being content-sized (`max-h-fit`), so the items list scrolls internally and the footer stays pinned at the bottom. Requires a parent that provides a constrained height (a flex/grid column). Default false preserves content-sizing.
+ * @param {React.ReactNode} [props.footer] - Content rendered inside the Card below the items list, separated from the scroll area by a `<Separator>`. Use for a primary action that should sit pinned beneath the list (e.g. a full-width "Transfer ownership to…" button in selection mode). Consumers decide visibility; pass `null`/`false` to omit.
  * @param {string} [props.subtext] - Plain-text secondary content for the second header row (typically counts, status text, or a breadcrumb). Supports inline `**bold**` markdown the same way `title` does. Truncates if it can't fit alongside header actions, but does NOT get a hover tooltip — every subtext we render is a short, bounded count/status string and a tooltip mirroring already-visible text felt redundant.
  * @param {Array<{ key: string, icon: React.ReactNode, tooltipText: string, onPress: () => void, isDisabled?: boolean, isActive?: boolean, ariaLabel?: string }>} [props.customHeaderActions] - View-specific header buttons rendered inline after the built-in `headerActions`. Use this for actions that don't fit the preset enum (Transfer Ownership, Selection toggle, etc.).
  * @param {string} [props.viewType] - The action key for this view (e.g. `'getCards'`, `'getDatasets'`). Required when `'reload'` is in `headerActions`. Used as the `type` passed to `launchView` and as the key looked up against `getAvailableActions(currentContext)` to decide if reload is enabled.
@@ -86,6 +87,7 @@ import { ObjectTypeIcon } from '../ObjectTypeIcon';
 export function DataList({
   currentContext,
   customHeaderActions,
+  fillHeight = false,
   footer,
   headerActions = [],
   isRefreshing = false,
@@ -311,7 +313,10 @@ export function DataList({
   const sortedItems = useMemo(() => sortItemsByLabel(items), [items]);
 
   return (
-    <Card className='datalist-root flex max-h-fit min-h-0 w-full flex-1 flex-col gap-0 p-2' variant={variant}>
+    <Card
+      className={`datalist-root flex min-h-0 w-full flex-1 flex-col gap-0 p-2 ${fillHeight ? 'h-full' : 'max-h-fit'}`}
+      variant={variant}
+    >
       {hasHeader && (
         // HeroUI canonical header pattern: close button is an absolute-positioned
         // sibling of Card.Title (NOT inside Card.Title). Card.Title is one line

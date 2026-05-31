@@ -548,8 +548,13 @@ export function isViewType(details) {
  * @returns {Promise<{totalCount: number|null, datasets: Array<Object>}>}
  */
 export async function searchDatasets(text, tabId = null, offset = 0) {
-  const isId = !!text && getObjectType('DATA_SOURCE').isValidObjectId(text);
-  const filters = isId ? [{ field: 'databaseId', filterType: 'term', value: text }] : [];
+  // Trim first: a pasted dataset ID is usually copied with surrounding
+  // whitespace, which would otherwise fail the anchored UUID pattern.
+  const trimmed = text?.trim() || '';
+  const isId = !!trimmed && getObjectType('DATA_SOURCE').isValidObjectId(trimmed);
+
+  // A valid dataset ID narrows the search to that one dataset via databaseId.
+  const filters = isId ? [{ field: 'databaseId', filterType: 'term', value: trimmed }] : [];
 
   return executeInPage(
     async (filters, query, offset, count) => {
@@ -578,7 +583,7 @@ export async function searchDatasets(text, tabId = null, offset = 0) {
         totalCount: data._metaData?.totalCount ?? null
       };
     },
-    [filters, isId ? '*' : text || '*', offset, DATASETS_PAGE_SIZE],
+    [filters, isId ? '*' : trimmed || '*', offset, DATASETS_PAGE_SIZE],
     tabId
   );
 }
