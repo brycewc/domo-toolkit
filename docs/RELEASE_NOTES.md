@@ -82,6 +82,10 @@
 
 ## Bug Fixes
 
+### Activity Log header: title now wraps as one sentence instead of staggering
+
+* Fixed the Activity Log header title rendering as staggered, independently-wrapping blocks on narrow widths (side panel). The title was a flex row whose fragments (type, name, ID) each wrapped their own text, so they ended up vertically misaligned. It now flows as one continuous wrapping sentence that breaks word-by-word like normal prose, so the full object name (and the parent object name, in the combined app-and-page view) stays visible at any width. _(verify wording at release: the object-and-parent variant is new to 1.3.1; the single-object and count variants shipped in 1.3.0, so the narrow-width staggering was a visible regression there.)_
+
 ### Delete Beast Mode / Variable: actually deletes now (and reports real failures)
 
 * Deleting a Beast Mode (or Variable) never reached Domo. `deleteFunction` ran its `DELETE /api/query/v1/functions/template/{id}` fetch in the extension's background service worker instead of the page, so the relative URL resolved against the `chrome-extension://` origin with no Domo session and the request silently went nowhere. It also never checked the response, so the toast always reported success. It now runs in the page via `executeInPage` (like every other delete) and throws on a non-ok response, so deletes take effect and genuine failures surface as an error toast instead of a false success.

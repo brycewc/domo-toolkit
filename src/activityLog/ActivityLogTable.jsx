@@ -1017,19 +1017,19 @@ export function ActivityLogTable() {
             </Alert.Content>
           </Alert>
         )}
-        <div className='flex flex-wrap items-center justify-between'>
-          <span className='flex items-center justify-center gap-1 font-semibold' style={{ fontSize: '18px' }}>
+        <div className='flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1'>
+          <span className='min-w-0 grow text-lg leading-snug font-semibold break-words'>
             Activity Log for{' '}
             {activityLogType === 'single-object' ? (
               <>
-                <span>{objects[0]?.type}</span>
-                <span className='text-accent'>{objects[0]?.name} </span>
+                <span>{objects[0]?.type} </span>
+                <span className='text-accent'>{objects[0]?.name}</span>
                 <span> (ID: {objects[0].id})</span>
               </>
             ) : activityLogType === 'object-and-parent' ? (
               <>
-                <span>{objects[0]?.type}</span>
-                <span className='text-accent'>{objects[0]?.name} </span>
+                <span>{objects[0]?.type} </span>
+                <span className='text-accent'>{objects[0]?.name}</span>
                 <span> and its parent {objects[1]?.type} </span>
                 <span className='text-accent'>{objects[1]?.name}</span>
               </>
