@@ -389,7 +389,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
 
   const alertContent = (
     <Alert className='min-h-22 w-full p-2' status={currentContext?.isDomoPage || isLoading ? 'accent' : 'warning'}>
-      <Alert.Content className='flex flex-col items-start gap-2'>
+      <Alert.Content className='flex min-w-0 flex-col items-start gap-2'>
         {isLoading ? (
           <div className='skeleton--shimmer relative flex w-full flex-col gap-2 overflow-hidden'>
             <div className='flex w-full items-center justify-between'>
