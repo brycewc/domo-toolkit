@@ -3,7 +3,7 @@ Prepare a new release for Domo Toolkit. Follow the "Releasing a New Version" sec
 1. Determine the version bump type (patch, minor, or major) based on the changes since the last release. Check `git log` against the latest entry in `src/data/releases.js`.
 2. Bump `version` in `package.json`.
 3. Add a new entry to the **beginning** of the `releases` array in `src/data/releases.js`.
-4. Replace `docs/RELEASE_NOTES.md` with detailed notes for this version.
+4. Replace `docs/RELEASE_NOTES.md` with detailed notes for this version. Write them in user-facing language: no endpoint paths, function or component names, file paths, or framework internals. See "Voice: write for the user" in `.claude/rules/wip-release-notes.md` and the finalize step in `.claude/rules/release-process.md`.
 5. Run `yarn release` to build and verify the zips are created.
 6. Present a summary of all changes for review before committing.
 

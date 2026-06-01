@@ -16,6 +16,35 @@ If the "before" state your change moves away from never shipped, the answer is n
 
 **Easy-to-miss trap: a dependency or library upgrade on this branch.** Upgrading HeroUI, React, Tailwind, etc. can change default styling or behavior. Re-establishing the prior look, or adapting to the new version, is invisible to users who never saw the intermediate state, so it is not loggable; only a net difference from the last release counts. Real example: HeroUI v3 made avatars and switches radius-derived instead of fully rounded (which looked boxy under our low `--radius`); restoring them to fully rounded on the same unreleased branch is NOT a note item, because users only ever saw the rounded version. Full reasoning: `release-process.md` → "Changes whose baseline never shipped."
 
+## Voice: write for the user, not the extension's developer
+
+Release notes are read by the people who _use_ the extension (Domo power users and admins), at every phase, WIP included. They are not a developer changelog: the code and git history are the developer record, the notes are not. Write each bullet for someone who only ever sees the extension's buttons and panels and never the source.
+
+**The test for every bullet:** would this sentence mean anything to a user who has never read the code? If a phrase only lands for someone who has, cut it or rewrite it as the behavior the user sees.
+
+**Never put these in the notes (they are the "how," not the "what"):**
+
+- API endpoints, paths, or HTTP verbs ("Posts to `/api/datastores/v1/export/{id}`", "the cards endpoint")
+- Function, hook, or component names (`waitForChildPages`, `transferAllOwnership`, `DataList`)
+- File or module paths (`Sync.jsx`, `services/transferOwnership.js`)
+- Variable, prop, state, or response-field names (`context.appPages`, `selectedKey`, `details.active`, `projectName`, the `depth` prop)
+- Framework or library internals (React Aria commit-on-blur, CodeMirror's parse tree, HeroUI radius derivation)
+- Internal architecture vocabulary (background service worker, in-page injection, message passing), unless restated purely as something the user observes
+
+**Translate, do not transcribe.** State the user-observable result and stop; the mechanism that makes it work stays in the commit message. The implementation detail explains why the change works, but the note says only what the user gets.
+
+Worked example, from a real WIP bullet for the worksheet-pages fix:
+
+- Too developer-focused: "`waitForChildPages` routed only `DATA_APP_VIEW` to the `context.appPages` slot and sent worksheet views to the empty `context.childPages` slot, so the helper polled until it timed out."
+- User-facing: "Get Worksheet Pages now lists the worksheet's pages instead of spinning and then erroring out."
+
+Two more, translating phrasings already in this file:
+
+- "Posts to `/api/datastores/v1/export/{datastoreId}`" becomes "starts a datastore sync"
+- "Service now reads `projectName` first, with `name` ... as fallbacks" becomes "project rows show their names instead of numeric IDs"
+
+If a technical fact feels too important to drop, it belongs in the commit message, not the note. The only thing that stays inline is a `_(...)_` or `TODO:` marker about the _note itself_ (for example, whether the bug ever shipped), never implementation detail.
+
 ## Trigger after (each still subject to the gate above)
 
 - New features
@@ -27,7 +56,7 @@ If the "before" state your change moves away from never shipped, the answer is n
 
 ## Skip for
 
-- Pure internal refactors (or jot under a "Refactoring" reminder section at the bottom of the WIP file, then decide at release time whether it is user-visible)
+- Pure internal refactors. They are never user-facing, so they never go in the notes at any phase, and there is no "Refactoring" holding-pen section at the bottom. This is a solo project: git history is the complete record of internal changes, so the notes do not need to mirror it. If a refactor happens to change something a user sees, that effect is logged in the relevant user-facing section, described the way the user experiences it, never as a "refactor" entry.
 - Dev-only tooling, DevMenu, debug scripts
 - Iteration on **this version's** not-yet-shipped features. Even when the commit says "fixed," that is part of the feature's initial delivery, not a bug fix.
 - **Anything whose "before" state never shipped** (the gate above, restated as a skip rule): same-branch regressions fixed before release, and changes that only counter an unshipped dependency or library upgrade, such as restoring a look the upgrade changed.
@@ -36,7 +65,7 @@ If the "before" state your change moves away from never shipped, the answer is n
 ## How
 
 - Use the existing section structure in the WIP file (New Features, Newly Supported Object Types, UI/UX Changes, Bug Fixes, etc.). Add a section if needed.
-- Keep the bullet short, just enough to remember what was done. The user expands at release time.
+- Keep the bullet short: just enough to remember the user-facing change. Phrase it the way the user would notice it (see "Voice" above), not the way it was built. The user expands it at release time.
 - Preserve uncertainty inline with `_(...)_` or `TODO:` rather than silently asserting or dropping.
 - Mention the WIP update briefly in the end-of-turn summary so the user sees it happened.
 - Full guidance and section taxonomy live in `release-process.md` under "Maintaining WIP release notes."

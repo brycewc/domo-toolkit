@@ -17,7 +17,7 @@ paths:
 
 Because this project ships slowly with many changes per release, the user keeps `docs/RELEASE_NOTES.md` as a running WIP list during development so nothing is forgotten when it's time to compile the final notes.
 
-**Update the WIP list automatically after every change worth noting; do not wait for the user to ask.** Trigger after any user-facing change: new feature, bug fix to a previously shipped behavior, UI/UX adjustment, newly supported object type, performance improvement, etc. Skip for pure internal refactors (or jot under a "Refactoring" reminder section at the bottom), dev-only tooling, and iteration on this version's not-yet-shipped features (see "Commits are save/sync points, not atomic features" below). Mention the WIP update briefly in the end-of-turn summary so the user sees it happened.
+**Update the WIP list automatically after every change worth noting; do not wait for the user to ask.** Trigger after any user-facing change: new feature, bug fix to a previously shipped behavior, UI/UX adjustment, newly supported object type, performance improvement, etc. Skip pure internal refactors entirely (they never go in the notes at all; git history is their record on this solo project), dev-only tooling, and iteration on this version's not-yet-shipped features (see "Commits are save/sync points, not atomic features" below). Mention the WIP update briefly in the end-of-turn summary so the user sees it happened.
 
 ### After a release ships
 
@@ -26,8 +26,9 @@ Wipe `docs/RELEASE_NOTES.md` and start a fresh WIP list for the next version. Ti
 ### Adding items to the WIP list
 
 - Use the same section structure as prior final releases (New Features, Newly Supported Object Types, UI/UX Changes, Bug Fixes, etc.) so the final polish pass is just fleshing out bullets, not restructuring.
-- Keep bullets short. The user will expand them at release time. Just enough detail to remember what was done.
-- Don't include internal refactoring in user-facing sections. A short "Refactoring" note at the bottom is fine as a reminder to decide at release time whether to mention it.
+- Keep bullets short. The user will expand them at release time. Just enough detail to remember the user-facing change.
+- Write every bullet in user-facing language from the start, even in the WIP draft: no endpoint paths, function or component names, file paths, response-field names, or framework internals. Describe what the user sees, not how it was built. Full guidance, exclusion list, and worked examples live in `wip-release-notes.md` under "Voice: write for the user."
+- Don't log internal refactors at all, not even in a "Refactoring" section at the bottom. They are never user-facing, and git history is their record on this solo project. If a refactor produces a user-visible effect, log that effect in the relevant user-facing section under its user-facing description, not as a refactor.
 
 ### Working from voice-transcribed rambles
 
@@ -105,6 +106,8 @@ Add a new object to the **beginning** of the `releases` array (newest-first). Fi
 }
 ```
 
+`highlights` and `summary` show up in the in-extension release notification users see on update, so they follow the same user-facing voice as the notes themselves: plain descriptions of what changed, never function names, endpoints, or internals.
+
 **`notify` values:**
 
 - `'fullPage'`: Auto-opens release notes in new tab. Use for minor/major releases.
@@ -125,9 +128,9 @@ Add a new object to the **beginning** of the `releases` array (newest-first). Fi
 At this point the file already exists as a WIP list accumulated during development (see "Maintaining WIP release notes" above). Polish it for publication:
 
 - Remove the `(WIP)` suffix from the title
-- Flesh out short bullets into user-facing descriptions (the end result, not development history)
+- Flesh out short bullets into user-facing descriptions: the end result a user sees, not the development history or the implementation
+- Strip any developer detail that leaked into the WIP draft, since this file becomes the published GitHub Release body. A reader should never hit a symbol that exists only in the source: no endpoint paths, function or component names, file paths, response-field names, or framework internals. The "Voice" section in `wip-release-notes.md` has the full exclusion list and translation examples
 - Resolve all inline `TODO` and `_(may have...)_` uncertainties; verify against `git log` and either confirm, correct, or remove
-- Drop the internal "Refactoring" note unless a refactor is genuinely user-visible
 - Only include this version's notes (not accumulated across versions). GitHub Release workflow uses this file as the release body.
 
 ## 5. Build and package locally

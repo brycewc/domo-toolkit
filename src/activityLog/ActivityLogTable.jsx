@@ -1063,7 +1063,7 @@ export function ActivityLogTable() {
           </Alert>
         )}
         <div className='flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1'>
-          <span className='min-w-0 grow text-lg leading-snug font-semibold break-words'>
+          <span className='min-w-0 grow text-lg leading-snug font-semibold break-normal'>
             Activity Log for{' '}
             {activityLogType === 'single-object' ? (
               <>

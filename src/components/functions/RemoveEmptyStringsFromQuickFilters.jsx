@@ -77,7 +77,7 @@ export function RemoveEmptyStringsFromQuickFilters({ currentContext, onStatusUpd
         onPress={handleClick}
       >
         <IconCancel />
-        Fix Empty String Filters
+        Remove Empty String Filters
       </Button>
       <Tooltip.Content
         className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
