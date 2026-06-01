@@ -39,6 +39,10 @@
 * `transferAllOwnership` in `services/transferOwnership.js` gained an optional `enabledItemIds: Map<typeKey, Set<itemId>>` parameter that post-filters the listed `owned` array per type before the transfer call. Preserves all existing callers (filter is opt-in); works correctly for types with a dedicated `getOwnedForTransfer` (filter applies to the re-fetched canonical list) and for `projectsAndTasks` (filters projects/tasks separately by `project-<id>` / `task-<id>` composites)
 * `TransferOwnershipModal` no longer derives object counts from a `selectedTypeKeys` Set + `results` map. The parent now hands it pre-computed `selectedTypeCount` / `selectedObjectCount` numbers, so the modal stays leaf-id agnostic
 
+### Inactive User Indicator (Activity Log)
+
+* Deleted (inactive) users in the Activity Log table now get the same grey/white diagonally-striped avatar treatment Domo applies in its own people list, so it's clear at a glance when an event was performed by a user who no longer exists. Inactive status is detected per user via a batched lookup (`detail.active`) and the overlay is rendered through a reusable `InactiveUserOverlay` component so the same effect can be reused anywhere we show a profile picture.
+
 ### Supported Types
 
 * Variables are now detected as their own type instead of being treated as Beast Modes. Variables and Beast Modes share the same Domo URL (`/datacenter/beastmode?id=`) and function-template endpoint, so they were previously indistinguishable; detection now refines the type after enrichment using the `global` flag on the details (true only for Variables). Variables get their own icon and "Variable" label, and the Objects Owned and Transfer Ownership views (plus the transfer audit log) now label each function row as a Variable or Beast Mode per item rather than lumping the whole category under Beast Mode.

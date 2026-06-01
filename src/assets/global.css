@@ -229,6 +229,44 @@
     @apply rounded-full;
   }
 
+  /* Domo parity: inactive (deleted) user treatment. Domo never bakes this into
+     the avatar image (the API returns a clean photo); it overlays it on the
+     frontend. This is the exact overlay Domo uses on its people-list table
+     avatars (`AvatarImage...deletedOverlay`): a 45deg grey/white striped
+     gradient. The color stops are PERCENTAGES, not pixels, so the band count is
+     size-invariant -- roughly five grey + five white bands appear whether the
+     avatar is 24px in a table row or 130px on a profile, instead of collapsing
+     to a single band when shrunk (which a fixed-pixel band does). Drop this as
+     an `absolute inset-0` child of any positioned, clipped container; a HeroUI
+     Avatar root already supplies `relative` + `overflow-hidden` + our forced
+     `rounded-full`, so the stripes clip to the circle for free. The
+     <InactiveUserOverlay> component is the intended consumer. */
+  .inactive-user-overlay {
+    @apply pointer-events-none absolute inset-0;
+    background-image: linear-gradient(
+      45deg,
+      rgba(128, 128, 128, 0.75) 10%,
+      rgba(255, 255, 255, 0.5) 10%,
+      rgba(255, 255, 255, 0.5) 20%,
+      rgba(128, 128, 128, 0.75) 20%,
+      rgba(128, 128, 128, 0.75) 30%,
+      rgba(255, 255, 255, 0.5) 30%,
+      rgba(255, 255, 255, 0.5) 40%,
+      rgba(128, 128, 128, 0.75) 40%,
+      rgba(128, 128, 128, 0.75) 50%,
+      rgba(255, 255, 255, 0.5) 50%,
+      rgba(255, 255, 255, 0.5) 60%,
+      rgba(128, 128, 128, 0.75) 60%,
+      rgba(128, 128, 128, 0.75) 70%,
+      rgba(255, 255, 255, 0.5) 70%,
+      rgba(255, 255, 255, 0.5) 80%,
+      rgba(128, 128, 128, 0.75) 80%,
+      rgba(128, 128, 128, 0.75) 90%,
+      rgba(255, 255, 255, 0.5) 90%,
+      rgba(255, 255, 255, 0.5) 100%
+    );
+  }
+
   .switch__control,
   .switch--sm .switch__control,
   .switch--lg .switch__control,

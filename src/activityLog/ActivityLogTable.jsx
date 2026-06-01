@@ -20,10 +20,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { AnimatedCheck } from '@/components/AnimatedCheck';
 import { CloseButton } from '@/components/CloseButton';
+import { InactiveUserOverlay } from '@/components/InactiveUserOverlay';
 import { usePerInstanceSettings } from '@/hooks/usePerInstanceSettings';
 import { useResolveTabId } from '@/hooks/useResolveTabId';
 import { DomoObject } from '@/models/DomoObject';
-import { fetchUserDisplayNames, getCustomAvatarUserIds } from '@/services/users';
+import { fetchUserDisplayNames, getCustomAvatarUserIds, getInactiveUserIds } from '@/services/users';
 import { ACTION_COLOR_PATTERNS } from '@/utils/constants';
 import { getInitials } from '@/utils/general';
 import IconCalendar from '@icons/calendar.svg?react';
@@ -127,6 +128,8 @@ export function ActivityLogTable() {
 
   const [customAvatarIds, setCustomAvatarIds] = useState(new Set());
   const checkedAvatarIdsRef = useRef(new Set());
+  const [inactiveUserIds, setInactiveUserIds] = useState(new Set());
+  const checkedInactiveIdsRef = useRef(new Set());
   // userId → displayName map populated lazily for events that arrive without
   // a userName (DomoStats dataset rows store User_ID separately from
   // Source.Name, so we look up the user's display name ourselves).
@@ -244,6 +247,39 @@ export function ActivityLogTable() {
       .catch(() => {});
   }, [events, tabId]);
 
+  // Check which users are inactive/deleted (non-blocking, incremental). Domo
+  // dims deleted users' avatars on its own frontend; we mirror that via the
+  // InactiveUserOverlay rendered in the user column below. Same incremental
+  // shape as the custom-avatar check: each id is looked up at most once.
+  useEffect(() => {
+    if (!tabId || events.length === 0) return;
+
+    const uniqueIds = [...new Set(events.map((e) => e.userId).filter(Boolean))];
+    const uncheckedIds = uniqueIds.filter((id) => !checkedInactiveIdsRef.current.has(id));
+
+    if (uncheckedIds.length === 0) return;
+
+    uncheckedIds.forEach((id) => checkedInactiveIdsRef.current.add(id));
+
+    resolveTabId()
+      .then((resolvedTabId) => getInactiveUserIds(uncheckedIds, resolvedTabId))
+      .then((inactiveIds) => {
+        if (inactiveIds.length === 0) return;
+        setInactiveUserIds((prev) => {
+          const next = new Set(prev);
+          let changed = false;
+          for (const id of inactiveIds) {
+            if (!prev.has(id)) {
+              next.add(id);
+              changed = true;
+            }
+          }
+          return changed ? next : prev;
+        });
+      })
+      .catch(() => {});
+  }, [events, tabId]);
+
   // Look up display names for any event that arrives with a userId but no
   // userName (DomoStats path). Fires incrementally as new ids appear; the
   // ref tracks already-fetched ids so each id is requested at most once.
@@ -304,21 +340,30 @@ export function ActivityLogTable() {
       const pending = [];
 
       for (const event of events) {
-        const { objectId, objectType } = event;
-        if (!objectType || !objectId) continue;
-        const key = `${objectType}:${objectId}`;
-        if (resolvedUrlKeysRef.current.has(key)) continue;
-        resolvedUrlKeysRef.current.add(key);
+        // Resolve URLs for both the object (Object column) and the source
+        // (Source column on the dataset path). Both are real Domo object types
+        // keyed the same `${type}:${id}` way, so they share one map.
+        const targets = [
+          { id: event.objectId, type: event.objectType },
+          { id: event.sourceId, type: event.sourceType }
+        ];
 
-        const obj = new DomoObject(objectType, objectId, baseUrl);
-        if (!obj.hasUrl()) continue;
+        for (const { id, type } of targets) {
+          if (!type || !id) continue;
+          const key = `${type}:${id}`;
+          if (resolvedUrlKeysRef.current.has(key)) continue;
+          resolvedUrlKeysRef.current.add(key);
 
-        pending.push(
-          obj
-            .buildUrl(baseUrl, resolvedTabId)
-            .then((url) => ({ key, url }))
-            .catch(() => null)
-        );
+          const obj = new DomoObject(type, id, baseUrl);
+          if (!obj.hasUrl()) continue;
+
+          pending.push(
+            obj
+              .buildUrl(baseUrl, resolvedTabId)
+              .then((url) => ({ key, url }))
+              .catch(() => null)
+          );
+        }
       }
 
       if (pending.length === 0) return;
@@ -359,12 +404,12 @@ export function ActivityLogTable() {
     const isDataset = source === 'dataset';
     return [
       createTimestampColumn({ manualSort: isDataset }),
-      createUserColumn({ customAvatarIds, domoInstance, userNameMap }),
+      createUserColumn({ customAvatarIds, domoInstance, inactiveUserIds, userNameMap }),
       createActionColumn({ actionTranslations }),
       createObjectColumn({ baseUrl, objectUrlMap }),
-      isDataset ? createSourceColumn() : createAdditionalCommentColumn()
+      isDataset ? createSourceColumn({ objectUrlMap }) : createAdditionalCommentColumn()
     ];
-  }, [domoInstance, tabId, actionOptions, customAvatarIds, objectUrlMap, source, userNameMap]);
+  }, [domoInstance, tabId, actionOptions, customAvatarIds, inactiveUserIds, objectUrlMap, source, userNameMap]);
 
   // Set initial column visibility based on number of objects
   const initialColumnVisibility = useMemo(
@@ -1285,11 +1330,13 @@ function createObjectColumn({ idKey = 'objectId', nameKey = 'objectName', object
 /**
  * Helper function to create a source column for the DomoStats dataset path.
  * The dataset's Source_ID/Name/Type identifies the actor (user, system job,
- * ETL, etc.). Renders name + type chip in the same shape as the Object column;
- * id is exposed via a `title` tooltip rather than an extra line so the row
- * height stays in lockstep with the rest of the table.
+ * ETL, etc.). Renders name + type chip in the same shape as the Object column,
+ * and links the name to the source's native Domo page when one exists (reusing
+ * the same precomputed objectUrlMap the Object column reads). id is exposed via
+ * a `title` tooltip rather than an extra line so the row height stays in
+ * lockstep with the rest of the table.
  */
-function createSourceColumn({ idKey = 'sourceId', nameKey = 'sourceName', typeKey = 'sourceType' } = {}) {
+function createSourceColumn({ idKey = 'sourceId', nameKey = 'sourceName', objectUrlMap = {}, typeKey = 'sourceType' } = {}) {
   return {
     accessor: (row) => row[nameKey],
     allowsSorting: true,
@@ -1299,12 +1346,25 @@ function createSourceColumn({ idKey = 'sourceId', nameKey = 'sourceName', typeKe
       const id = row[idKey];
       const tooltip = id ? `${name || '-'} (${id})` : name || '-';
       const chipColor = getSourceTypeColor(type);
+      const url = objectUrlMap[`${type}:${id}`];
 
       return (
         <div className='flex flex-col gap-1'>
-          <span className='truncate text-sm font-medium' title={tooltip}>
-            {name || '-'}
-          </span>
+          {url ? (
+            <a
+              className='truncate text-sm font-medium text-foreground no-underline decoration-accent/80 hover:text-accent/80 hover:underline'
+              href={url}
+              rel='noopener noreferrer'
+              target='_blank'
+              title={tooltip}
+            >
+              {name || '-'}
+            </a>
+          ) : (
+            <span className='truncate text-sm font-medium' title={tooltip}>
+              {name || '-'}
+            </span>
+          )}
           {type && <span className={`chip chip--${chipColor} chip--soft chip--sm w-fit`}>{type}</span>}
         </div>
       );
@@ -1316,10 +1376,16 @@ function createSourceColumn({ idKey = 'sourceId', nameKey = 'sourceName', typeKe
   };
 }
 
-// Soft chip palette for unknown source types. USER/GROUP are reserved to
-// accent/success so they aren't reused here — anything else hashes to one of
-// these deterministically so the same type lands on the same color every row.
-const SOURCE_TYPE_FALLBACK_COLORS = ['warning', 'danger', 'primary', 'secondary', 'tertiary'];
+// Soft chip palette for unknown source types. These must be real HeroUI chip
+// COLORS, not variant names. HeroUI v3 splits chips into a color axis
+// (accent/success/warning/danger/default) and a variant axis
+// (primary/secondary/tertiary/soft); `chip--tertiary` sets a transparent
+// background and `chip--secondary` has no rule at all, so feeding those as
+// "colors" produced invisible or unstyled chips (DATA_SOURCE hashed to tertiary
+// and rendered as bare text). USER/GROUP reserve accent/success, leaving these
+// three visible soft colors. Each type hashes deterministically so the same
+// type lands on the same color every row.
+const SOURCE_TYPE_FALLBACK_COLORS = ['warning', 'danger', 'default'];
 
 /**
  * Helper function to create a timestamp column with formatted date/time
@@ -1358,6 +1424,7 @@ function createUserColumn({
   customAvatarIds = new Set(),
   domoInstance = null,
   idKey = 'userId',
+  inactiveUserIds = new Set(),
   nameKey = 'userName',
   userNameMap = {}
 } = {}) {
@@ -1379,6 +1446,7 @@ function createUserColumn({
           <Avatar size='xs'>
             {customAvatarIds.has(id) && <AvatarImage src={getAvatarUrl(id)} />}
             <AvatarFallback>{getInitials(name)}</AvatarFallback>
+            {inactiveUserIds.has(id) && <InactiveUserOverlay />}
           </Avatar>
           <div className='flex flex-col'>
             {id && domoInstance ? (

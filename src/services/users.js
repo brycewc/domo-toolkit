@@ -200,6 +200,43 @@ export async function getFullUserDetails(userId, tabId = null) {
 }
 
 /**
+ * Returns user IDs from the given list that are inactive (deleted) in Domo.
+ * A single batch call to the content/v3 users endpoint with includeDetails
+ * exposes `detail.active` per user; we collect the IDs where it is explicitly
+ * false. IDs the endpoint omits or that lack a detail block are treated as
+ * active (not flagged), so a partial response never paints a live user as
+ * deleted. Mirrors getCustomAvatarUserIds so the Activity Log can populate an
+ * inactive-id Set incrementally.
+ *
+ * The returned values are the matching members of the input `userIds`, not the
+ * `id`s from the response. That preserves the caller's original id type: the
+ * DomoStats activity-log path supplies string ids (from a dataset column) while
+ * the API path supplies numbers, and the consumer does a `Set.has(id)` lookup
+ * against the row's own id. Returning the API's numeric `id` would silently miss
+ * on the string-id path (a number never `.has()`-matches a string).
+ * @param {Array<number|string>} userIds
+ * @param {number|null} tabId
+ * @returns {Promise<Array<number|string>>} The subset of userIds whose account is inactive
+ */
+export async function getInactiveUserIds(userIds, tabId = null) {
+  return executeInPage(
+    async (userIds) => {
+      if (!userIds.length) return [];
+      const response = await fetch(`/api/content/v3/users?id=${userIds.join(',')}&includeDetails=true`);
+      if (!response.ok) return [];
+      const users = await response.json();
+      if (!Array.isArray(users)) return [];
+      const inactiveIds = new Set(
+        users.filter((user) => user?.detail?.active === false).map((user) => String(user.id))
+      );
+      return userIds.filter((id) => inactiveIds.has(String(id)));
+    },
+    [userIds],
+    tabId
+  );
+}
+
+/**
  * Get basic details for a user by ID.
  * @param {number} userId - The Domo user ID
  * @param {number|null} tabId - Optional Chrome tab ID
