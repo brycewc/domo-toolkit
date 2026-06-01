@@ -50,7 +50,7 @@ The dev pages only mount Activity Log and Lineage. The following still require l
 - Background service worker behavior (`src/background.js`)
 - Anything that depends on `chrome.scripting`, `chrome.runtime.onInstalled`, or other APIs the polyfill intentionally omits
 
-For those, be explicit: "I haven't loaded the unpacked extension — please verify in browser." Don't claim the change works just because ESLint passes.
+For those, do not claim the change works just because ESLint passes. But also **do not tack on a standing caveat** explaining that these contexts lack a localhost dev route and therefore can't be tested here (e.g. "this lives in the popup/sidepanel/background, which the dev routes don't cover, so please verify in browser"). The maintainer already knows which surfaces have dev routes and which don't; repeating it every turn is noise. Just do the verification a dev route enables when one exists, run ESLint, and stop. Surface a "please verify in browser" note only when there is something genuinely non-obvious to check (an untested assumption, a response shape you couldn't confirm, a risky edge case), not as boilerplate about where the code runs.
 
 ## Polyfill caveats
 

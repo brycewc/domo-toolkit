@@ -173,6 +173,10 @@ export async function detectCurrentObject() {
       objectType = 'DATA_SOURCE';
       break;
 
+    case url.includes('dataflows/') && /^\d+$/.test(parts[parts.indexOf('details') + 1] || ''):
+      objectType = 'DATAFLOW_TYPE_EXECUTION';
+      break;
+
     case url.includes('dataflows/'):
       objectType = 'DATAFLOW_TYPE';
       break;

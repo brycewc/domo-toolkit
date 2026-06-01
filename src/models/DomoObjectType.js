@@ -681,6 +681,28 @@ export const ObjectTypeRegistry = {
     ],
     urlPath: '/datacenter/dataflows/{id}/details'
   }),
+  DATAFLOW_TYPE_EXECUTION: new DomoObjectType('DATAFLOW_TYPE_EXECUTION', 'DataFlow Execution', {
+    api: {
+      displayName: 'Run of {parent.name} - {name}',
+      endpoint: '/dataprocessing/v1/dataflows/{parent}/executions/{id}',
+      nameFormat: 'timestamp',
+      pathToName: 'beginTime'
+    },
+    copyConfigs: [{ label: 'DataFlow ID', source: 'parentId' }],
+    extractConfig: {
+      keyword: 'details',
+      offset: 1,
+      parentExtract: { keyword: 'dataflows', offset: 1 }
+    },
+    icon: { component: 'Play' },
+    idPattern: /^\d+$/,
+    parents: ['DATAFLOW_TYPE'],
+    relatedData: [
+      { label: 'Execution', source: 'self' },
+      { label: 'DataFlow', source: 'parentId', typeId: 'DATAFLOW_TYPE' }
+    ],
+    urlPath: '/datacenter/dataflows/{parent}/details/{id}'
+  }),
   DEPLOYMENT: new DomoObjectType('DEPLOYMENT', 'Repository Deployment', {
     icon: { component: 'Package' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -1280,6 +1302,7 @@ export async function fetchObjectDetailsInPage(params) {
     endpoint,
     filterByIdField = null,
     method = 'GET',
+    nameFormat = null,
     nameTemplate = null,
     pathToDetails = null,
     pathToName,
@@ -1343,9 +1366,27 @@ export async function fetchObjectDetailsInPage(params) {
 
     const resolvePath = (path) => (path.match(/[^.[\]]+/g) || []).reduce((current, prop) => current?.[prop], data);
     const details = pathToDetails ? resolvePath(pathToDetails) : data;
-    const name = nameTemplate
+    // Inline epoch->locale formatter, kept self-contained because this function is serialized and
+    // run in the page via executeInPage (no imports/closures). Mirrors formatEpochTimestamp in
+    // utils/general.js; falls back to the object id when the value is not a usable timestamp.
+    const formatEpochName = (value) => {
+      const num = Number(value);
+      if (!Number.isFinite(num) || num <= 0) return String(objectId);
+      let ms;
+      if (num >= 1e12 && num < 1e14) {
+        ms = num;
+      } else if (num >= 1e9 && num < 1e11) {
+        ms = num * 1000;
+      } else {
+        return String(objectId);
+      }
+      const date = new Date(ms);
+      return isNaN(date.getTime()) ? String(objectId) : date.toLocaleString();
+    };
+    const rawName = nameTemplate
       ? nameTemplate.replace(/{([^}]+)}/g, (_, path) => (path === 'id' ? objectId : (resolvePath(path) ?? '')))
       : resolvePath(pathToName);
+    const name = nameFormat === 'timestamp' ? formatEpochName(rawName) : rawName;
     const extractedParentId = pathToParentId ? resolvePath(pathToParentId) : undefined;
 
     return { details, name, parentId: extractedParentId };
