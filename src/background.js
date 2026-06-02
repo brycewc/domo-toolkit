@@ -932,6 +932,12 @@ async function detectAndStoreContext(tabId) {
     if (!typeModel) {
       console.warn(`[Background] Unknown object type: ${detected.typeId}`);
       updateTabContextKey(tabId, { objectKey: null, url: tab.url });
+      setSectionTitle(tabId, tab.url);
+      // During redetection, broadcast the empty context so the UI clears the
+      // stale object instead of leaving the previous one on screen
+      if (isRedetection) {
+        setTabContext(tabId, context);
+      }
       return null;
     }
 
@@ -950,6 +956,14 @@ async function detectAndStoreContext(tabId) {
     if (!objectId) {
       console.warn(`[Background] Could not extract ID for ${detected.typeId}`);
       updateTabContextKey(tabId, { objectKey: null, url: tab.url });
+      setSectionTitle(tabId, tab.url);
+      // The URL matched a type by path (e.g. /cloud-integrations/) but carries
+      // no object ID, such as a Cloud Integration's engine manage list. During
+      // redetection, broadcast the empty context so the UI clears the stale
+      // object rather than keeping the one we navigated away from.
+      if (isRedetection) {
+        setTabContext(tabId, context);
+      }
       return null;
     }
 

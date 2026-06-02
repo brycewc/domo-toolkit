@@ -26,7 +26,7 @@ Wipe `docs/RELEASE_NOTES.md` and start a fresh WIP list for the next version. Ti
 ### Adding items to the WIP list
 
 - Use the same section structure as prior final releases (New Features, Newly Supported Object Types, UI/UX Changes, Bug Fixes, etc.) so the final polish pass is just fleshing out bullets, not restructuring.
-- Keep bullets short. The user will expand them at release time. Just enough detail to remember the user-facing change.
+- Keep each bullet to one sentence: a headline, not a paragraph. The user will expand the few that warrant it at release time. Full guidance and a before/after calibration live in `wip-release-notes.md` under "Length: one sentence per bullet."
 - Write every bullet in user-facing language from the start, even in the WIP draft: no endpoint paths, function or component names, file paths, response-field names, or framework internals. Describe what the user sees, not how it was built. Full guidance, exclusion list, and worked examples live in `wip-release-notes.md` under "Voice: write for the user."
 - Don't log internal refactors at all, not even in a "Refactoring" section at the bottom. They are never user-facing, and git history is their record on this solo project. If a refactor produces a user-visible effect, log that effect in the relevant user-facing section under its user-facing description, not as a refactor.
 

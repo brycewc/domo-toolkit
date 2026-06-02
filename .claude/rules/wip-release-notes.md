@@ -45,6 +45,30 @@ Two more, translating phrasings already in this file:
 
 If a technical fact feels too important to drop, it belongs in the commit message, not the note. The only thing that stays inline is a `_(...)_` or `TODO:` marker about the _note itself_ (for example, whether the bug ever shipped), never implementation detail.
 
+## Length: one sentence per bullet
+
+A WIP bullet is a headline, not a paragraph. Write the single user-facing change in one sentence and stop. The user expands the few that warrant it at release time, so detail added now is mostly detail someone cuts later.
+
+By default, cut:
+
+- The why or how, in any form: a parenthetical aside, a trailing "because" / "since" / "so" clause, or a "what made it possible" note. Both "...because Domo gives them the same URL" and "(it generates the definition rather than syncing)" tell the user nothing. State what changed, not why it changed. A reason hidden in parentheses is still a reason.
+- Before-state beyond the minimal contrast the headline needs to make sense.
+- Consequences that follow from the headline: "recognized as its own type" already implies its own icon and label, so don't spell those out.
+- Lists of every screen the change touches: name the feature, not each surface.
+- Trailing "instead of X" / "rather than Y" / "so that Z" clauses, unless the change is meaningless without them.
+
+Calibration (a real bullet, before and after):
+
+- Too long: "Variables are now recognized as their own type instead of being treated as Beast Modes. The two were previously indistinguishable because Domo gives them the same URL, so they shared the Beast Mode label and icon. Variables now get their own icon and "Variable" label, and the Objects Owned and Transfer Ownership views (and the transfer audit log) label each item as a Variable or Beast Mode individually rather than lumping them all under Beast Mode."
+- Right: "Variables are now recognized as their own type instead of being treated as Beast Modes."
+
+And a parenthetical reason, the easiest kind to leave in by accident:
+
+- Too long: "Renamed the "Sync JSDoc to Package" button to "Generate Definition from JSDoc" (it generates the definition rather than syncing)."
+- Right: "Renamed the "Sync JSDoc to Package" button to "Generate Definition from JSDoc"."
+
+When one feature has several genuinely distinct user-facing changes, give each its own one-sentence bullet rather than packing them into a paragraph.
+
 ## Trigger after (each still subject to the gate above)
 
 - New features
@@ -65,7 +89,7 @@ If a technical fact feels too important to drop, it belongs in the commit messag
 ## How
 
 - Use the existing section structure in the WIP file (New Features, Newly Supported Object Types, UI/UX Changes, Bug Fixes, etc.). Add a section if needed.
-- Keep the bullet short: just enough to remember the user-facing change. Phrase it the way the user would notice it (see "Voice" above), not the way it was built. The user expands it at release time.
+- Keep each bullet to one sentence (see "Length" above): just enough to remember the user-facing change, phrased the way the user would notice it (see "Voice"), not the way it was built. The user expands it at release time.
 - Preserve uncertainty inline with `_(...)_` or `TODO:` rather than silently asserting or dropping.
 - Mention the WIP update briefly in the end-of-turn summary so the user sees it happened.
 - Full guidance and section taxonomy live in `release-process.md` under "Maintaining WIP release notes."
