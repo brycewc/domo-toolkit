@@ -3,11 +3,12 @@
  *
  * Filter shape (all optional):
  *   {
- *     objectIds:   string[]   → IN over Object_ID
- *     objectTypes: string[]   → IN over Object_Type
- *     actions:     string[]   → IN over Action
- *     userIds:     string[]   → IN over Source_ID
- *     dateRange:   { start: epochMs, end: epochMs } → BETWEEN over Event_Time
+ *     objectIds:      string[]   → IN over Object_ID
+ *     objectTypes:    string[]   → IN over Object_Type
+ *     actions:        string[]   → IN over Action
+ *     userIds:        string[]   → IN over User_ID
+ *     excludeUserIds: string[]   → NOT IN over User_ID
+ *     dateRange:      { start: epochMs, end: epochMs } → BETWEEN over Event_Time
  *   }
  *
  * Multiple filters compose as a left-folded AND tree, matching the Domo
@@ -27,21 +28,25 @@ const expr = {
     leftExpr: expr.column(column)
   }),
   column: (name) => ({ column: name, exprType: 'COLUMN' }),
-  in: (column, values) => ({
+  in: (column, values, not = false) => ({
     exprType: 'IN',
     leftExpr: expr.column(column),
-    not: false,
+    not,
     selectSet: values.map((v) => expr.string(String(v)))
   }),
   string: (value) => ({ exprType: 'STRING_VALUE', value })
 };
 
-export function buildWhere({ actions, dateRange, objectIds, objectTypes, userIds } = {}) {
+export function buildWhere({ actions, dateRange, excludeUserIds, objectIds, objectTypes, userIds } = {}) {
   const predicates = [];
   if (objectIds?.length > 0) predicates.push(expr.in('Object_ID', objectIds));
   if (objectTypes?.length > 0) predicates.push(expr.in('Object_Type', objectTypes));
   if (actions?.length > 0) predicates.push(expr.in('Action', actions));
-  if (userIds?.length > 0) predicates.push(expr.in('Source_ID', userIds));
+  // Filter on User_ID (the canonical user), not Source_ID (the actor, which can
+  // be a SYSTEM/ETL source). User_ID matches the autocomplete's IDs and the
+  // audit-API path's userId; for user-initiated events the two columns are equal.
+  if (userIds?.length > 0) predicates.push(expr.in('User_ID', userIds));
+  if (excludeUserIds?.length > 0) predicates.push(expr.in('User_ID', excludeUserIds, true));
   if (dateRange?.start && dateRange?.end) {
     predicates.push(expr.between('Event_Time', formatEventTimeBound(dateRange.start), formatEventTimeBound(dateRange.end)));
   }

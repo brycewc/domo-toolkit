@@ -41,6 +41,10 @@
 
 - Deleted (inactive) users in the Activity Log now get the grey-and-white striped avatar Domo uses elsewhere, so it's clear at a glance the actor no longer exists.
 
+### Exclude Users (Activity Log)
+
+- The Activity Log user filter now has an "in / not in" toggle, so you can exclude specific users, not just filter to them.
+
 ### Supported Types
 
 - Variables are now recognized as their own type instead of being treated as Beast Modes.
@@ -83,6 +87,18 @@
 ### Activity Log header: title now wraps as one sentence instead of staggering
 
 - Fixed the Activity Log header title wrapping as staggered, misaligned blocks on narrow widths (the side panel); it now wraps as one continuous sentence. _(verify wording at release: the object-and-parent variant is new to 1.3.1; the single-object and count variants shipped in 1.3.0, so the staggering was a visible regression there.)_
+
+### Activity Log: filtering to a user on the DomoStats source now returns all their activity
+
+- On the DomoStats Activity Log dataset source, filtering to a user now returns all of that user's activity, including events like file downloads that were previously left out.
+
+### Activity Log: long names truncate instead of overflowing into the next column
+
+- Long names in the Activity Log table now truncate with a tooltip showing the full name, instead of overflowing into the next column.
+
+### Activity Log: instances set to always use DomoStats now load cleanly
+
+- Fixed the Activity Log flickering to broken values, with the count disappearing and infinite scroll stalling, on instances set to always use the DomoStats dataset.
 
 ### Delete Beast Mode / Variable: actually deletes now (and reports real failures)
 

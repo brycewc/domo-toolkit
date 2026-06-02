@@ -151,29 +151,25 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
     return [
       {
         fetch: async () => ({ items: await getDatasetFunctions(datasetId, tabId) }),
-        key: 'beastModes',
-        label: 'Beast Modes'
+        key: 'beastModes'
       },
       {
         fetch: async () => ({ items: await getDownstreamCards(datasetId, tabId) }),
-        key: 'cards',
-        label: 'Cards'
+        key: 'cards'
       },
       {
         fetch: async () => {
           const { datasets } = await lineage();
           return { items: datasets };
         },
-        key: 'datasets',
-        label: 'Datasets'
+        key: 'datasets'
       },
       {
         fetch: async () => {
           const { dataflows } = await lineage();
           return { items: dataflows };
         },
-        key: 'dataflows',
-        label: 'Dataflows'
+        key: 'dataflows'
       }
     ];
   }, [datasetId, tabId]);
@@ -499,7 +495,7 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
           error,
           id: t.key,
           isVirtualParent: true,
-          label: t.label,
+          label: typeGroupLabel(t.key),
           status,
           // typeId drives the leading ObjectTypeIcon on the parent row,
           // matching the icon already shown on each leaf inside the group.
@@ -1282,6 +1278,11 @@ function ColumnMapRow({
     }));
   }, [collisions]);
 
+  const singleCollision = collisionByDataflow.length === 1 ? collisionByDataflow[0] : null;
+  const singleCollisionUrl = singleCollision
+    ? buildObjectUrl('dataflows', { id: singleCollision.dataflowId, name: singleCollision.dataflowName }, origin)
+    : null;
+
   return (
     <div className='flex flex-col gap-1 py-1.5'>
       {collisionByDataflow.length > 0 && (
@@ -1292,16 +1293,32 @@ function ColumnMapRow({
           <Alert.Content>
             <Alert.Title>
               Cross-input collision: <span className='font-mono font-bold'>{originName}</span> also exists on{' '}
-              {collisionByDataflow.length === 1 ? (
+              {singleCollision ? (
                 <>
                   another input of{' '}
                   <span className='inline-flex items-center gap-0.5 align-text-bottom'>
                     <ObjectTypeIcon className='size-3.5 shrink-0' typeId='DATAFLOW_TYPE' />
-                    {collisionByDataflow[0].dataflowName}
+                    {singleCollisionUrl ? (
+                      <Link
+                        className='no-underline decoration-accent hover:text-accent hover:underline'
+                        href={singleCollisionUrl}
+                        target='_blank'
+                        title={singleCollision.dataflowName}
+                      >
+                        {singleCollision.dataflowName}
+                      </Link>
+                    ) : (
+                      singleCollision.dataflowName
+                    )}
                   </span>
                 </>
               ) : (
-                `other inputs of ${collisionByDataflow.length} dataflows`
+                <>
+                  other inputs of {collisionByDataflow.length} dataflows{' '}
+                  <span className='inline-flex align-text-bottom'>
+                    <DataflowCollisionModal dataflows={collisionByDataflow} origin={origin} originName={originName} />
+                  </span>
+                </>
               )}
             </Alert.Title>
             <Alert.Description>
@@ -1445,7 +1462,7 @@ function ColumnUsagesModal({ items, origin, originName, totalSelected }) {
                   <div className='flex min-w-0 flex-col gap-1' key={t.key}>
                     <div className='flex items-center gap-1.5'>
                       <ObjectTypeIcon className='size-4 shrink-0' typeId={TYPE_KEY_TO_DOMO_TYPE[t.key]} />
-                      <span className='font-bold'>{t.label}</span>
+                      <span className='font-bold'>{typeGroupLabel(t.key)}</span>
                       <span className='text-xs text-muted'>({typeItems.length})</span>
                     </div>
                     <ul className='flex min-w-0 flex-col gap-0.5 pl-1.5'>
@@ -1485,6 +1502,71 @@ function ColumnUsagesModal({ items, origin, originName, totalSelected }) {
   );
 }
 
+// Info-icon modal listing the dataflows whose other inputs collide on the
+// origin column name, each linking to the dataflow. Mirrors ColumnUsagesModal,
+// shown when the collision spans more than one dataflow (a single one links
+// inline).
+function DataflowCollisionModal({ dataflows, origin, originName }) {
+  return (
+    <Modal>
+      <Button
+        isIconOnly
+        aria-label={`Show dataflows where ${originName} collides`}
+        className='size-4 min-h-0 p-0 text-current hover:opacity-70'
+        size='sm'
+        variant='ghost'
+      >
+        <IconInfoCircle className='size-3.5' />
+      </Button>
+      <Modal.Backdrop>
+        <Modal.Container className='p-1' placement='center' scroll='outside'>
+          <Modal.Dialog className='p-2 pt-3'>
+            <Modal.CloseTrigger className='absolute top-2 right-2' variant='ghost'>
+              <IconX />
+            </Modal.CloseTrigger>
+            <Modal.Header>
+              <Modal.Heading className='flex flex-col gap-1 truncate pr-6'>
+                <span className='font-mono'>{originName}</span>
+                <Description>
+                  Also on another input of {dataflows.length} dataflow{dataflows.length === 1 ? '' : 's'}.
+                </Description>
+              </Modal.Heading>
+            </Modal.Header>
+            <Modal.Body className='flex max-h-[60vh] flex-col gap-3 overflow-y-auto text-foreground'>
+              <ul className='flex min-w-0 flex-col gap-1'>
+                {[...dataflows]
+                  .sort((a, b) => (a.dataflowName || '').localeCompare(b.dataflowName || ''))
+                  .map((df) => {
+                    const url = buildObjectUrl('dataflows', { id: df.dataflowId, name: df.dataflowName }, origin);
+                    return (
+                      <li className='flex min-w-0 items-center gap-1.5' key={df.dataflowId}>
+                        <ObjectTypeIcon className='size-4 shrink-0' typeId='DATAFLOW_TYPE' />
+                        {url ? (
+                          <Link
+                            className='min-w-0 truncate text-sm no-underline decoration-accent hover:text-accent hover:underline'
+                            href={url}
+                            target='_blank'
+                            title={df.dataflowName}
+                          >
+                            {df.dataflowName}
+                          </Link>
+                        ) : (
+                          <span className='min-w-0 truncate text-sm' title={df.dataflowName}>
+                            {df.dataflowName}
+                          </span>
+                        )}
+                      </li>
+                    );
+                  })}
+              </ul>
+            </Modal.Body>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
+    </Modal>
+  );
+}
+
 function formatErrors(result) {
   if (!result?.errors?.length) return null;
   if (result.errors.length === 1) {
@@ -1510,4 +1592,12 @@ function parseLeafTypeKey(id) {
   if (idx === -1) return null;
   const candidate = id.slice(0, idx);
   return MIGRATE_TYPES.some((t) => t.key === candidate) ? candidate : null;
+}
+
+// Plural group label for a migrate type, taken from the object type model so the
+// casing matches everywhere it's shown (e.g. "DataFlows", "DataSets"). None of
+// these types pluralize irregularly, so a trailing "s" is enough.
+function typeGroupLabel(typeKey) {
+  const name = getObjectType(TYPE_KEY_TO_DOMO_TYPE[typeKey])?.name || typeKey;
+  return `${name}s`;
 }

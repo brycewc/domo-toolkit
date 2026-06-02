@@ -9,7 +9,9 @@ import {
   SearchField,
   Spinner,
   Tag,
-  TagGroup
+  TagGroup,
+  ToggleButton,
+  ToggleButtonGroup
 } from '@heroui/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -22,7 +24,15 @@ const MAX_VISIBLE_TAGS = 5;
  * UserFilterAutocomplete Component
  * Multi-select autocomplete with async user fetching
  */
-export function UserFilterAutocomplete({ domoInstance, onChange, placeholder = 'Filter by users...', tabId, value = [] }) {
+export function UserFilterAutocomplete({
+  domoInstance,
+  mode = 'include',
+  onChange,
+  onModeChange,
+  placeholder = 'Filter by users...',
+  tabId,
+  value = []
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [users, setUsers] = useState([]);
@@ -202,6 +212,16 @@ export function UserFilterAutocomplete({ domoInstance, onChange, placeholder = '
     [users]
   );
 
+  // Toggle between include ('in') and exclude ('not in') filter modes. Single
+  // selection + disallowEmptySelection means the Set always has exactly one key.
+  const handleModeChange = useCallback(
+    (keys) => {
+      const next = [...keys][0];
+      if (next) onModeChange?.(next);
+    },
+    [onModeChange]
+  );
+
   return (
     <Autocomplete
       aria-label='User'
@@ -223,21 +243,24 @@ export function UserFilterAutocomplete({ domoInstance, onChange, placeholder = '
             const visibleKeys = value.slice(0, MAX_VISIBLE_TAGS);
             const overflowCount = value.length - visibleKeys.length;
             return (
-              <TagGroup
-                className='flex min-w-0 flex-row items-center gap-1'
-                size='sm'
-                variant='surface'
-                onRemove={handleRemoveTags}
-              >
-                <TagGroup.List className='flex-nowrap'>
-                  {visibleKeys.map((key) => (
-                    <Tag id={key} key={key}>
-                      <span className='truncate text-xs'>{getUserName(key)}</span>
-                    </Tag>
-                  ))}
-                </TagGroup.List>
-                {overflowCount > 0 && <span className='shrink-0 text-xs text-muted'>+{overflowCount} more</span>}
-              </TagGroup>
+              <div className='flex min-w-0 flex-row items-center gap-1'>
+                <span className='shrink-0 text-xs font-medium text-muted'>{mode === 'exclude' ? 'not in' : 'in'}</span>
+                <TagGroup
+                  className='flex min-w-0 flex-row items-center gap-1'
+                  size='sm'
+                  variant='surface'
+                  onRemove={handleRemoveTags}
+                >
+                  <TagGroup.List className='flex-nowrap'>
+                    {visibleKeys.map((key) => (
+                      <Tag id={key} key={key}>
+                        <span className='truncate text-xs'>{getUserName(key)}</span>
+                      </Tag>
+                    ))}
+                  </TagGroup.List>
+                  {overflowCount > 0 && <span className='shrink-0 text-xs text-muted'>+{overflowCount} more</span>}
+                </TagGroup>
+              </div>
             );
           }}
         </Autocomplete.Value>
@@ -250,6 +273,22 @@ export function UserFilterAutocomplete({ domoInstance, onChange, placeholder = '
         placement='bottom left'
       >
         <Autocomplete.Filter inputValue={searchText} onInputChange={setSearchText}>
+          <ToggleButtonGroup
+            disallowEmptySelection
+            aria-label='User filter mode'
+            className='my-2 mb-2 w-full'
+            selectedKeys={new Set([mode])}
+            selectionMode='single'
+            size='sm'
+            onSelectionChange={handleModeChange}
+          >
+            <ToggleButton className='flex-1' id='include'>
+              in
+            </ToggleButton>
+            <ToggleButton className='flex-1' id='exclude'>
+              not in
+            </ToggleButton>
+          </ToggleButtonGroup>
           <SearchField autoFocus aria-label='Search user filter field' name='user-search' variant='secondary'>
             <SearchField.Group>
               <SearchField.SearchIcon />

@@ -54,9 +54,17 @@ export function ActivityLogTable() {
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [error, setError] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [source, setSource] = useState('api');
+  // Starts null (unresolved) and is set once we know whether this instance is
+  // configured to always use the DomoStats dataset, so the audit-API event fetch
+  // never fires before that preference is known (it would race and clobber the
+  // dataset results). See the source-resolution effect below.
+  const [source, setSource] = useState(null);
+  // True once the activity-log config (objects/instance) has been read from
+  // storage, so source resolution waits until domoInstance is settled.
+  const [configLoaded, setConfigLoaded] = useState(false);
   const [dateRange, setDateRange] = useState(null);
   const [userFilter, setUserFilter] = useState([]);
+  const [userFilterMode, setUserFilterMode] = useState('include');
   const [actionFilter, setActionFilter] = useState(new Set());
   const actionFilterRef = useRef(new Set());
   const [objectTypeFilter, setObjectTypeFilter] = useState(new Set());
@@ -83,6 +91,13 @@ export function ActivityLogTable() {
     update: updatePerInstance
   } = usePerInstanceSettings();
   const initialSourceCheckRef = useRef(false);
+  // Whether this instance is configured to always use the DomoStats Activity Log
+  // dataset; drives the initial source resolution.
+  const prefersDataset = !!(
+    domoInstance &&
+    perInstanceSettings[domoInstance]?.preferActivityLogDataset &&
+    perInstanceSettings[domoInstance]?.activityLogDatasetId
+  );
 
   const dateRangeEpoch = useMemo(() => {
     if (!dateRange) return {};
@@ -102,10 +117,14 @@ export function ActivityLogTable() {
   datasetStateRef.current = datasetState;
   const dateRangeEpochRef = useRef(dateRangeEpoch);
   dateRangeEpochRef.current = dateRangeEpoch;
-  // Stable string key for userFilter array to avoid unnecessary effect re-runs
-  const userFilterKey = userFilter.slice().sort().join(',');
+  // Stable string key for the user filter (mode + selected IDs) so the fetch
+  // effect re-runs when either changes. Mode is folded in only when a selection
+  // exists, so toggling in/not in with nothing selected doesn't trigger a refetch.
+  const userFilterKey = userFilter.length ? `${userFilterMode}:${userFilter.slice().sort().join(',')}` : '';
   const userFilterRef = useRef(userFilter);
   userFilterRef.current = userFilter;
+  const userFilterModeRef = useRef(userFilterMode);
+  userFilterModeRef.current = userFilterMode;
   // Refetch trigger for dataset source when the user toggles time-sort
   // direction. Empty string for api source (no server-side sort) or when the
   // active sort isn't time (other columns are local-only).
@@ -138,20 +157,17 @@ export function ActivityLogTable() {
 
   const pageSize = 100; // Fetch in chunks per object
 
-  // Pre-select the dataset source on first mount when this instance has the
-  // "Always use DomoStats Activity Log dataset" preference set. Runs once,
-  // gated by both the per-instance settings finishing their initial load and
-  // domoInstance being known.
+  // Resolve the initial source exactly once, after the per-instance settings have
+  // loaded and the activity-log config has been read (so domoInstance is settled).
+  // Until this runs `source` stays null and no fetch happens, so an instance set
+  // to always use DomoStats never fires an audit-API event fetch that would later
+  // resolve and clobber the dataset results.
   useEffect(() => {
     if (initialSourceCheckRef.current) return;
-    if (perInstanceLoading) return;
-    if (!domoInstance) return;
+    if (perInstanceLoading || !configLoaded) return;
     initialSourceCheckRef.current = true;
-    const instanceSettings = perInstanceSettings[domoInstance];
-    if (instanceSettings?.preferActivityLogDataset && instanceSettings?.activityLogDatasetId) {
-      setSource('dataset');
-    }
-  }, [perInstanceLoading, perInstanceSettings, domoInstance]);
+    setSource(prefersDataset ? 'dataset' : 'api');
+  }, [configLoaded, perInstanceLoading, prefersDataset]);
 
   // Load objects from storage on mount
   useEffect(() => {
@@ -182,6 +198,8 @@ export function ActivityLogTable() {
       } catch (err) {
         console.error('Error loading objects from storage:', err);
         setError('Failed to load activity log configuration');
+      } finally {
+        setConfigLoaded(true);
       }
     };
 
@@ -320,10 +338,21 @@ export function ActivityLogTable() {
 
   // Filter events locally (object type is client-side only)
   const filteredEvents = useMemo(() => {
-    if (objectTypeFilter.size === 0) return events;
-
-    return events.filter((event) => event.objectType && objectTypeFilter.has(event.objectType));
-  }, [events, objectTypeFilter]);
+    let result = events;
+    // On the API source, exclude-mode user filtering is applied client-side (the
+    // audit API has no NOT-IN). The dataset source already excludes server-side,
+    // so only strip here when source === 'api' to avoid double-filtering.
+    if (source === 'api' && userFilterMode === 'exclude' && userFilter.length > 0) {
+      // userFilter IDs come from the user-search API as numbers; event.userId is
+      // a string. Normalize both sides so the membership check matches.
+      const excluded = new Set(userFilter.map(String));
+      result = result.filter((event) => !excluded.has(String(event.userId)));
+    }
+    if (objectTypeFilter.size > 0) {
+      result = result.filter((event) => event.objectType && objectTypeFilter.has(event.objectType));
+    }
+    return result;
+  }, [events, objectTypeFilter, source, userFilter, userFilterMode]);
 
   // Pre-compute object URLs so the cell renderer is synchronous
   const [objectUrlMap, setObjectUrlMap] = useState({});
@@ -425,6 +454,12 @@ export function ActivityLogTable() {
   // Fetch activity log events from all objects (re-runs when userFilter changes)
   useEffect(() => {
     const fetchEvents = async () => {
+      // Source preference not resolved yet (null): keep the skeleton up and don't
+      // fetch. Fetching now would hit the audit API before we know whether this
+      // instance is set to always use DomoStats, and that response could land
+      // after the dataset's and clobber it (zeroing the count, breaking scroll).
+      if (!source) return;
+
       if (!tabId || objects.length === 0) {
         setIsInitialLoad(false);
         return;
@@ -461,6 +496,7 @@ export function ActivityLogTable() {
             filters: buildDatasetFilters({
               actionFilter: actionFilterRef.current,
               dateRangeEpoch,
+              mode: userFilterModeRef.current,
               objects,
               userFilter: userFilterRef.current
             }),
@@ -480,7 +516,10 @@ export function ActivityLogTable() {
           setObjectStates({});
           setEvents(events);
         } else {
-          const tasks = buildFetchTasks(objects, userFilterRef.current, actionFilterRef.current);
+          // In exclude mode the audit API can't negate, so don't fan out per user;
+          // fetch unfiltered and strip the excluded users client-side (see filteredEvents).
+          const excludeMode = userFilterModeRef.current === 'exclude';
+          const tasks = buildFetchTasks(objects, excludeMode ? [] : userFilterRef.current, actionFilterRef.current);
 
           const fetchThunks = tasks.map(
             (task) => () =>
@@ -597,6 +636,7 @@ export function ActivityLogTable() {
           filters: buildDatasetFilters({
             actionFilter: actionFilterRef.current,
             dateRangeEpoch: dateRangeEpochRef.current,
+            mode: userFilterModeRef.current,
             objects: objectsRef.current,
             userFilter: userFilterRef.current
           }),
@@ -783,7 +823,10 @@ export function ActivityLogTable() {
 
     const allEvents = [];
     const exportPageSize = 1000;
-    const tasks = buildFetchTasks(objects, userFilterRef.current, actionFilterRef.current);
+    // In exclude mode the audit API can't negate, so don't fan out per user;
+    // fetch unfiltered and strip the excluded users client-side (see filteredEvents).
+    const excludeMode = userFilterModeRef.current === 'exclude';
+    const tasks = buildFetchTasks(objects, excludeMode ? [] : userFilterRef.current, actionFilterRef.current);
 
     for (const task of tasks) {
       let offset = 0;
@@ -819,11 +862,17 @@ export function ActivityLogTable() {
 
     allEvents.sort((a, b) => new Date(b.time) - new Date(a.time));
 
-    if (objectTypeFilter.size > 0) {
-      return allEvents.filter((event) => event.objectType && objectTypeFilter.has(event.objectType));
+    let result = allEvents;
+    // Exclude mode is fetched unfiltered (see buildFetchTasks above), so strip
+    // the excluded users here, mirroring the live table's client-side filter.
+    if (userFilterModeRef.current === 'exclude' && userFilterRef.current.length > 0) {
+      const excluded = new Set(userFilterRef.current.map(String));
+      result = result.filter((event) => !excluded.has(String(event.userId)));
     }
-
-    return allEvents;
+    if (objectTypeFilter.size > 0) {
+      result = result.filter((event) => event.objectType && objectTypeFilter.has(event.objectType));
+    }
+    return result;
   }, [resolveTabId, objects, filteredEvents, userFilterKey, dateRangeEpoch, objectTypeFilter]);
 
   // Memoize filter toolbar so it doesn't re-render during event fetches
@@ -950,7 +999,14 @@ export function ActivityLogTable() {
             </Dropdown>
           )}
         </ButtonGroup>
-        <UserFilterAutocomplete domoInstance={domoInstance} tabId={tabId} value={userFilter} onChange={setUserFilter} />
+        <UserFilterAutocomplete
+          domoInstance={domoInstance}
+          mode={userFilterMode}
+          tabId={tabId}
+          value={userFilter}
+          onChange={setUserFilter}
+          onModeChange={setUserFilterMode}
+        />
       </div>
     ),
     [
@@ -962,7 +1018,8 @@ export function ActivityLogTable() {
       objectTypeFilter,
       domoInstance,
       tabId,
-      userFilter
+      userFilter,
+      userFilterMode
     ]
   );
 
@@ -1209,14 +1266,17 @@ export function ActivityLogTable() {
  * expects. Multi-object/multi-action/multi-user filters become `IN(...)` clauses
  * in the dataset query (no fan-out, unlike the audit-API path).
  */
-function buildDatasetFilters({ actionFilter, dateRangeEpoch, objects, userFilter }) {
+function buildDatasetFilters({ actionFilter, dateRangeEpoch, mode = 'include', objects, userFilter }) {
   const objectIds = objects.map((o) => String(o.id));
   const objectTypes = [...new Set(objects.map((o) => o.type))];
   const actions = actionFilter && actionFilter.size > 0 ? [...actionFilter] : [];
-  const userIds = Array.isArray(userFilter) ? userFilter : [];
+  const selectedUserIds = Array.isArray(userFilter) ? userFilter : [];
+  // Exclude mode negates server-side via NOT IN; include mode uses IN.
+  const userIds = mode === 'exclude' ? [] : selectedUserIds;
+  const excludeUserIds = mode === 'exclude' ? selectedUserIds : [];
   const dateRange =
     dateRangeEpoch?.start && dateRangeEpoch?.end ? { end: dateRangeEpoch.end, start: dateRangeEpoch.start } : null;
-  return { actions, dateRange, objectIds, objectTypes, userIds };
+  return { actions, dateRange, excludeUserIds, objectIds, objectTypes, userIds };
 }
 
 /**
@@ -1303,18 +1363,21 @@ function createObjectColumn({ idKey = 'objectId', nameKey = 'objectName', object
       const url = objectUrlMap[`${type}:${id}`];
 
       return (
-        <div className='flex flex-col gap-1'>
+        <div className='flex min-w-0 flex-col gap-1'>
           {url ? (
             <a
               className='truncate text-sm font-medium text-foreground no-underline decoration-accent/80 hover:text-accent/80 hover:underline'
               href={url}
               rel='noopener noreferrer'
               target='_blank'
+              title={name || '-'}
             >
               {name || '-'}
             </a>
           ) : (
-            <span className='truncate text-sm font-medium'>{name || '-'}</span>
+            <span className='truncate text-sm font-medium' title={name || '-'}>
+              {name || '-'}
+            </span>
           )}
           {type && <span className='chip chip--accent chip--soft chip--sm w-fit'>{type}</span>}
         </div>
@@ -1349,7 +1412,7 @@ function createSourceColumn({ idKey = 'sourceId', nameKey = 'sourceName', object
       const url = objectUrlMap[`${type}:${id}`];
 
       return (
-        <div className='flex flex-col gap-1'>
+        <div className='flex min-w-0 flex-col gap-1'>
           {url ? (
             <a
               className='truncate text-sm font-medium text-foreground no-underline decoration-accent/80 hover:text-accent/80 hover:underline'
@@ -1442,13 +1505,13 @@ function createUserColumn({
       const name = row[nameKey] || (id != null ? userNameMap[id] : null);
 
       return (
-        <div className='flex items-center gap-3'>
-          <Avatar size='xs'>
+        <div className='flex min-w-0 items-center gap-3'>
+          <Avatar className='shrink-0' size='xs'>
             {customAvatarIds.has(id) && <AvatarImage src={getAvatarUrl(id)} />}
             <AvatarFallback>{getInitials(name)}</AvatarFallback>
             {inactiveUserIds.has(id) && <InactiveUserOverlay />}
           </Avatar>
-          <div className='flex flex-col'>
+          <div className='flex min-w-0 flex-col'>
             {id && domoInstance ? (
               <a
                 className='truncate text-sm font-medium text-foreground no-underline decoration-accent/80 hover:text-accent/80 hover:underline'

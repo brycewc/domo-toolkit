@@ -1131,7 +1131,7 @@ function DataListItemImpl({
     // space. The Trigger (below) takes flex-1 so the empty space between the
     // link text and the count is part of the disclosure-toggle hit area.
     <Link
-      className='block min-w-0 truncate text-sm font-normal no-underline decoration-accent hover:text-accent hover:underline'
+      className='block min-w-0 truncate text-sm font-normal decoration-accent hover:text-accent'
       href={item.url}
       isDisabled={!item.url}
       target='_blank'

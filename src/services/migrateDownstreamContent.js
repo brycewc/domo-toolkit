@@ -750,13 +750,15 @@ async function swapCardInputFast(cardId, originId, targetId, tabId) {
 // ===========================================================================
 
 /**
- * Type registry for the migration view. Sorted by the order we want them rendered.
+ * Type registry for the migration view, in render order. Display labels are
+ * derived from the object type model (see `typeGroupLabel` in the view), not
+ * stored here, so they stay correct (e.g. "DataFlow"/"DataSet" casing).
  */
 export const MIGRATE_TYPES = [
-  { key: 'beastModes', label: 'Beast Modes' },
-  { key: 'cards', label: 'Cards' },
-  { key: 'dataflows', label: 'Dataflows' },
-  { key: 'datasets', label: 'Datasets' }
+  { key: 'beastModes' },
+  { key: 'cards' },
+  { key: 'dataflows' },
+  { key: 'datasets' }
 ];
 
 /**
