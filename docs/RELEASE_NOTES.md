@@ -76,6 +76,10 @@
 
 ## Bug Fixes
 
+### Side panel: action buttons re-expand when you close a view
+
+- The action buttons at the top of the side panel now re-expand when you close a view, instead of staying collapsed.
+
 ### Activity Log header: title now wraps as one sentence instead of staggering
 
 - Fixed the Activity Log header title wrapping as staggered, misaligned blocks on narrow widths (the side panel); it now wraps as one continuous sentence. _(verify wording at release: the object-and-parent variant is new to 1.3.1; the single-object and count variants shipped in 1.3.0, so the staggering was a visible regression there.)_

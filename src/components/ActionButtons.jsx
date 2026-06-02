@@ -43,8 +43,8 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
   const [isExpanded, setIsExpanded] = useState(defaultExpanded ?? !collapsable);
 
   useEffect(() => {
-    if (defaultExpanded === false) {
-      setIsExpanded(false);
+    if (defaultExpanded !== undefined) {
+      setIsExpanded(defaultExpanded);
     }
   }, [defaultExpanded]);
 
