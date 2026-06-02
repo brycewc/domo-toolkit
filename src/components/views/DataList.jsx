@@ -77,6 +77,7 @@ import { ObjectTypeIcon } from '../ObjectTypeIcon';
  * @param {Set} [props.selectedIds] - Controlled set of currently-selected item ids. Required when `selectionMode` is true.
  * @param {Function} [props.onSelectionChange] - `(newSelectedIds: Set<string>) => void` callback fired when the selection set changes. Required when `selectionMode` is true. Receives the full new Set after any add/remove from the wrapping `CheckboxGroup`'s `onChange`.
  * @param {Function} [props.isSelectable] - `(item) => boolean` filter. When `selectionMode` is true, only items returning true get a checkbox-wrapped label; others get an empty 16px placeholder to preserve column alignment. Defaults to `() => true`.
+ * @param {Function} [props.getItemLock] - `(item) => { locked: boolean, tooltip: string } | null`. When it returns `locked`, the item's checkbox renders read-only (kept checked, can't be unchecked) and muted, wrapped in a tooltip showing `tooltip`. Uses `aria-disabled` rather than `isDisabled` so the tooltip still fires and the row's label link stays clickable. The consumer must also keep the id in `selectedIds` (e.g. re-add it in `onSelectionChange`) so the lock holds. Leaf rows only.
  * @param {React.ReactNode} [props.selectionToolbar] - Selection-mode-only content rendered as a third header row directly under the action buttons. Use for "Select all"/"Deselect all" or other bulk-selection controls. Ignored when `selectionMode` is false.
  * @param {Boolean} [props.fillHeight] - When true, the root Card fills its parent's available height (`h-full`) instead of being content-sized (`max-h-fit`), so the items list scrolls internally and the footer stays pinned at the bottom. Requires a parent that provides a constrained height (a flex/grid column). Default false preserves content-sizing.
  * @param {React.ReactNode} [props.footer] - Content rendered inside the Card below the items list, separated from the scroll area by a `<Separator>`. Use for a primary action that should sit pinned beneath the list (e.g. a full-width "Transfer ownership to…" button in selection mode). Consumers decide visibility; pass `null`/`false` to omit.
@@ -90,6 +91,7 @@ export function DataList({
   customHeaderActions,
   fillHeight = false,
   footer,
+  getItemLock,
   headerActions = [],
   isRefreshing = false,
   isSelectable,
@@ -532,6 +534,7 @@ export function DataList({
                       canShare={!!onItemShare}
                       canShareAll={!!onItemShareAll}
                       expandedIds={expandedIds}
+                      getItemLock={getItemLock}
                       isSelectable={isSelectable}
                       item={item}
                       itemActions={itemActions}
@@ -563,6 +566,7 @@ export function DataList({
                       canShare={!!onItemShare}
                       canShareAll={!!onItemShareAll}
                       expandedIds={expandedIds}
+                      getItemLock={getItemLock}
                       isSelectable={isSelectable}
                       item={item}
                       itemActions={itemActions}
@@ -767,6 +771,13 @@ function arePropsEqualForRow(prev, next) {
   const prevSelected = prev.selectedIds?.has(prev.item.id) ?? false;
   const nextSelected = next.selectedIds?.has(next.item.id) ?? false;
   if (prevSelected !== nextSelected) return false;
+  // A row's lock can change without its own selection changing (a Beast Mode's
+  // lock depends on which CARDS are selected). getItemLock's identity changes
+  // when that upstream selection changes, so resolve and compare the lock here.
+  const prevLock = prev.getItemLock?.(prev.item) || null;
+  const nextLock = next.getItemLock?.(next.item) || null;
+  if ((prevLock?.locked ?? false) !== (nextLock?.locked ?? false)) return false;
+  if ((prevLock?.tooltip ?? '') !== (nextLock?.tooltip ?? '')) return false;
   // Parent rows additionally need to re-render when any of their children's
   // selection state changes — that's what drives the indeterminate visual on
   // the parent checkbox. Leaf rows (no children) skip this loop. The cost is
@@ -809,6 +820,7 @@ function DataListItemImpl({
   canShareAll = false,
   depth = 0,
   expandedIds,
+  getItemLock,
   isSelectable,
   item,
   itemActions,
@@ -868,6 +880,10 @@ function DataListItemImpl({
   // cascade.
   const isItemSelectableInMode = selectionMode && (typeof isSelectable === 'function' ? isSelectable(item) : true);
   const selectionPlaceholder = selectionMode && !isItemSelectableInMode ? <div className='h-9 w-4 shrink-0' /> : null;
+  // Lock state for this row (leaf rows only). When locked, the checkbox is
+  // read-only + muted and wrapped in a tooltip; the consumer keeps it selected.
+  const itemLock = isItemSelectableInMode && typeof getItemLock === 'function' ? getItemLock(item) : null;
+  const isLocked = Boolean(itemLock?.locked);
 
   // Visual indentation per nesting level so children read as descendants
   // rather than as siblings of their parent. Scoped to selection mode on
@@ -1197,15 +1213,39 @@ function DataListItemImpl({
               so its click semantics (Link navigation / tooltip ID surfacing)
               stay independent of the selection control. */}
           {isItemSelectableInMode ? (
-            <Checkbox
-              aria-label={typeof item.label === 'string' ? item.label : `Select ${item.id}`}
-              className='mt-0! shrink-0'
-              value={String(item.id)}
-            >
-              <Checkbox.Control>
-                <Checkbox.Indicator />
-              </Checkbox.Control>
-            </Checkbox>
+            isLocked ? (
+              // Locked: read-only (can't be unchecked) + muted, wrapped in a
+              // tooltip. `aria-disabled` (not `isDisabled`) keeps pointer events
+              // alive so the tooltip fires; the consumer keeps the id selected.
+              <Tooltip closeDelay={0} delay={300}>
+                <Tooltip.Trigger className='shrink-0'>
+                  <Checkbox
+                    aria-disabled
+                    isReadOnly
+                    aria-label={typeof item.label === 'string' ? item.label : `Select ${item.id}`}
+                    className='mt-0! shrink-0 opacity-60'
+                    value={String(item.id)}
+                  >
+                    <Checkbox.Control>
+                      <Checkbox.Indicator />
+                    </Checkbox.Control>
+                  </Checkbox>
+                </Tooltip.Trigger>
+                <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+                  {itemLock.tooltip}
+                </Tooltip.Content>
+              </Tooltip>
+            ) : (
+              <Checkbox
+                aria-label={typeof item.label === 'string' ? item.label : `Select ${item.id}`}
+                className='mt-0! shrink-0'
+                value={String(item.id)}
+              >
+                <Checkbox.Control>
+                  <Checkbox.Indicator />
+                </Checkbox.Control>
+              </Checkbox>
+            )
           ) : (
             selectionPlaceholder
           )}
@@ -1224,6 +1264,7 @@ function DataListItemImpl({
     canShareAll,
     depth: depth + 1,
     expandedIds,
+    getItemLock,
     isSelectable,
     item: child,
     itemActions,

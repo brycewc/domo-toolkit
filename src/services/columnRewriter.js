@@ -37,6 +37,21 @@ export function hasEffectiveMapping(columnMap) {
 }
 
 /**
+ * Rewrite the column refs in a Beast Mode (function) template. Walks the same
+ * field registry as the card/dataflow rewriters, so it covers the template's
+ * `expression` (backticked refs) and `columnPositions[].columnName`.
+ *
+ * @param {Object} beastModeTemplate
+ * @param {Record<string, string|null>} columnMap
+ * @returns {Object} new template (input is not mutated)
+ */
+export function rewriteBeastModeColumns(beastModeTemplate, columnMap) {
+  const next = deepClone(beastModeTemplate);
+  walkAndRewriteColumns(next, columnMap);
+  return next;
+}
+
+/**
  * @param {Object} cardDefinition
  * @param {Record<string, string|null>} columnMap
  * @returns {Object} new card definition (input is not mutated)

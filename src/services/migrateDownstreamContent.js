@@ -1,5 +1,5 @@
 /**
- * Migrate downstream content (cards, dataset views, dataflows) from one
+ * Migrate downstream content (cards, datasets, dataflows) from one
  * dataset to another. Adapted from a standalone CLI tool — the recursive
  * dataset-view swap helpers are ported verbatim because they are the only
  * reliable way to handle joins, set operations, column references, and
@@ -12,11 +12,13 @@ import { getCardDefinition, getDrillCardMetadata, getDrillsForCards } from './ca
 import { makeItemKey } from './columnReferences';
 import {
   hasEffectiveMapping,
+  rewriteBeastModeColumns,
   rewriteCardColumns,
   rewriteDataflowColumns,
   rewriteDatasetViewColumns
 } from './columnRewriter';
 import { getDataflowDetail } from './dataflows';
+import { createDatasetFunctions, getDatasetFunctions, getFunctionTemplate, updateDatasetFunctions } from './functions';
 
 // ===========================================================================
 // DISCOVERY
@@ -102,33 +104,32 @@ export async function getDownstreamCards(datasetId, tabId = null) {
 }
 
 /**
- * Fetch downstream cards, dataset views, and dataflows that consume this
- * dataset as an input. Cards come from the dataset → cards endpoint.
- * Dataset views and dataflows come from the lineage API (downstream only).
+ * Fetch downstream cards, datasets, and dataflows that consume this dataset as
+ * an input. Cards come from the dataset → cards endpoint. Downstream datasets
+ * and dataflows come from the lineage API (downstream only).
  *
  * @param {string} datasetId
  * @param {number|null} tabId
- * @returns {Promise<{ cards: any[], dataflows: any[], datasetViews: any[] }>}
+ * @returns {Promise<{ cards: any[], dataflows: any[], datasets: any[] }>}
  */
 export async function getDownstreamContent(datasetId, tabId = null) {
   const [cards, lineage] = await Promise.all([getDownstreamCards(datasetId, tabId), getDownstreamLineage(datasetId, tabId)]);
   return {
     cards,
     dataflows: lineage.dataflows,
-    datasetViews: lineage.datasetViews
+    datasets: lineage.datasets
   };
 }
 
 /**
  * Walk the lineage graph downstream from this dataset. Returns separate
- * arrays for derived dataset views and dataflows that take this dataset as
- * an input. We post-filter dataset-view candidates by re-fetching the
- * dataset metadata (`isViewType`) because the lineage payload doesn't always
- * differentiate views from regular datasets.
+ * arrays for the derived datasets and dataflows that take this dataset as an
+ * input. Dataset names aren't in the lineage payload, so we bulk-fetch their
+ * metadata to label them.
  *
  * @param {string} datasetId
  * @param {number|null} tabId
- * @returns {Promise<{ datasetViews: Array<{id: string, name: string}>, dataflows: Array<{id: any, name: string}> }>}
+ * @returns {Promise<{ datasets: Array<{id: string, name: string}>, dataflows: Array<{id: any, name: string}> }>}
  */
 export async function getDownstreamLineage(datasetId, tabId = null) {
   const lineage = await executeInPage(
@@ -168,10 +169,11 @@ export async function getDownstreamLineage(datasetId, tabId = null) {
         }
       }
 
-      // Filter the downstream DATA_SOURCE children to only views — bulk fetch
-      // their metadata and check dataProviderType / displayType. Views typically
-      // surface as 'dataset-view' or 'datafusion'.
-      let datasetViews = [];
+      // Downstream DATA_SOURCE children of a dataset are always derived
+      // datasets (views / data-fusions) — a plain dataset can't sit downstream
+      // of another. So there's nothing to filter; we only bulk-fetch to pick up
+      // their names (the lineage payload carries ids/types but no names).
+      let datasets = [];
       if (datasetIds.length > 0) {
         const bulkResponse = await fetch('/api/data/v3/datasources/bulk?includePrivate=true&part=core', {
           body: JSON.stringify(datasetIds),
@@ -181,19 +183,14 @@ export async function getDownstreamLineage(datasetId, tabId = null) {
         });
         if (bulkResponse.ok) {
           const bulk = await bulkResponse.json();
-          for (const ds of bulk.dataSources || []) {
-            const provider = ds.dataProviderType || ds.displayType || ds.type;
-            if (provider === 'dataset-view' || provider === 'datafusion') {
-              datasetViews.push({ id: ds.id, name: ds.name || `Dataset View ${ds.id}` });
-            }
-          }
+          datasets = (bulk.dataSources || []).map((ds) => ({ id: ds.id, name: ds.name || `Dataset ${ds.id}` }));
         } else {
-          // Bulk failed — surface every downstream DATA_SOURCE; user can deselect.
-          datasetViews = datasetIds.map((id) => ({ id, name: `Dataset ${id}` }));
+          // Bulk failed — fall back to id-based labels; the user can still pick.
+          datasets = datasetIds.map((id) => ({ id, name: `Dataset ${id}` }));
         }
       }
 
-      return { dataflows, datasetViews };
+      return { dataflows, datasets };
     },
     [datasetId],
     tabId
@@ -213,7 +210,7 @@ export async function getDownstreamLineage(datasetId, tabId = null) {
     })
   );
 
-  return { dataflows: dataflowsWithNames, datasetViews: lineage.datasetViews };
+  return { dataflows: dataflowsWithNames, datasets: lineage.datasets };
 }
 
 const DATASET_SEARCH_PAGE_SIZE = 50;
@@ -361,6 +358,7 @@ export async function searchDatasets(text, tabId = null, offset = 0) {
  * @returns {Promise<{success: boolean, error?: string}>}
  */
 export async function swapCardInput({
+  beastModeIdRemap,
   cachedDefinition,
   cardId,
   columnMap,
@@ -370,12 +368,16 @@ export async function swapCardInput({
   urn,
   useFullPath = false
 }) {
+  // A non-empty Beast Mode remap forces the full-PUT path: the lightweight
+  // shortcut can't repoint a card's references to its dataset's Beast Modes,
+  // which now live on the target under new ids.
+  const hasBeastModeRemap = beastModeIdRemap && Object.keys(beastModeIdRemap).length > 0;
   // Drill cards (urn = `dr:<drillId>:<rootId>`) always go through the full-PUT
   // path: the lightweight `/datasource/{id}` shortcut is for plain kpi cards
   // and likely won't recognize the drill, and we need to preserve the drill's
   // `drillpath` array (parent linkage) on PUT.
   const isDrill = typeof urn === 'string' && urn.startsWith('dr:');
-  if (!isDrill && !useFullPath && !hasEffectiveMapping(columnMap)) {
+  if (!isDrill && !useFullPath && !hasEffectiveMapping(columnMap) && !hasBeastModeRemap) {
     return swapCardInputFast(cardId, originId, targetId, tabId);
   }
   try {
@@ -390,6 +392,16 @@ export async function swapCardInput({
       }
     }
     rewritten = JSON.parse(JSON.stringify(rewritten).replaceAll(originId, targetId));
+    // Repoint references to the origin dataset's Beast Modes onto the ones now
+    // on the target. Keys are origin legacyIds (`calculation_<uuid>`), which
+    // are collision-safe for a string sweep (unlike short numeric ids).
+    if (hasBeastModeRemap) {
+      let json = JSON.stringify(rewritten);
+      for (const [from, to] of Object.entries(beastModeIdRemap)) {
+        if (from && to && from !== to) json = json.replaceAll(from, to);
+      }
+      rewritten = JSON.parse(json);
+    }
     return await putCardForMigration(cardId, rewritten, tabId, { isDrill, urn });
   } catch (err) {
     console.error('[swapCardInput] full-path failed:', err);
@@ -535,15 +547,16 @@ async function putCardForMigration(cardId, definition, tabId, { isDrill = false,
   definition.variables = true;
 
   const allFormulas = Array.isArray(definition?.definition?.formulas) ? definition.definition.formulas : [];
+  // Only card-level Beast Modes ride with the card. Dataset-persisted ones
+  // migrate as their own Beast Mode type, created on the target with their
+  // column refs already rewritten; the card just references them by id, which
+  // the Beast Mode id remap repoints during the card swap. Sending them in
+  // dsUpdated would re-write the same Beast Mode once per card that uses it and
+  // risk Domo auto-migrating stale refs, so dsUpdated/dsDeleted stay empty.
   definition.definition.formulas = {
     card: allFormulas.filter((f) => f && f.persistedOnDataSource === false),
     dsDeleted: [],
-    // Persisted formulas keep their flag intact and ride in dsUpdated. Domo
-    // applies these as updates to formulas on the card's CURRENT dataset
-    // (which is now the target after our dataset-id swap), with our
-    // already-rewritten formula text — preventing Domo's auto-migrate-from-
-    // origin behavior from clobbering our rewrites.
-    dsUpdated: allFormulas.filter((f) => f && f.persistedOnDataSource === true)
+    dsUpdated: []
   };
   definition.definition.annotations = { deleted: [], modified: [], new: [] };
 
@@ -740,9 +753,10 @@ async function swapCardInputFast(cardId, originId, targetId, tabId) {
  * Type registry for the migration view. Sorted by the order we want them rendered.
  */
 export const MIGRATE_TYPES = [
+  { key: 'beastModes', label: 'Beast Modes' },
   { key: 'cards', label: 'Cards' },
   { key: 'dataflows', label: 'Dataflows' },
-  { key: 'datasetViews', label: 'Dataset Views' }
+  { key: 'datasets', label: 'Datasets' }
 ];
 
 /**
@@ -750,10 +764,16 @@ export const MIGRATE_TYPES = [
  * `onProgress` per type with `{typeKey, status, count, result}` so the
  * view can drive its DataList rows the same way OwnershipView does.
  *
+ * Beast Modes migrate FIRST: cards reference their dataset's Beast Modes by id,
+ * so the Beast Modes must exist on the target (with their new ids known) before
+ * the cards swap repoints those references.
+ *
  * @param {Object} params
  * @param {string} params.originId
  * @param {string} params.targetId
- * @param {{ cards: Array<{id: any, name?: string}>, datasetViews: Array<{id: string, name?: string}>, dataflows: Array<{id: any, name?: string}> }} params.selectedItems
+ * @param {{ beastModes?: Array<{id: any, name?: string, legacyId?: string}>, cards: Array<{id: any, name?: string}>, datasets: Array<{id: string, name?: string}>, dataflows: Array<{id: any, name?: string}> }} params.selectedItems
+ * @param {Record<string, {disposition: 'create'|'rename'|'keep'|'overwrite', newName?: string}>} [params.beastModeChoices] - Per origin Beast Mode id, the conflict resolution chosen on the target.
+ * @param {Array<{id: any, name: string, legacyId?: string}>} [params.targetBeastModes] - The target dataset's existing Beast Modes (for keep/overwrite).
  * @param {Record<string, string|null>} [params.columnMap] - Origin → target column-name map. Null targets and no-op entries are skipped.
  * @param {Map<string, { definition: Object }>} [params.definitionsByItemKey] - Cached content definitions from the column-reference scan, keyed by `${typeKey}:${itemId}`. Reused so we don't re-fetch.
  * @param {Function} [params.onProgress]
@@ -761,20 +781,56 @@ export const MIGRATE_TYPES = [
  * @returns {Promise<Map<string, {attempted: Array, count: number, errors: Array, failed: number, succeeded: number}>>}
  */
 export async function migrateAllDownstreamContent({
+  beastModeChoices,
   columnMap,
   definitionsByItemKey,
   onProgress,
   originId,
   selectedItems,
   tabId,
+  targetBeastModes,
   targetColumnTypes,
   targetId,
   useFullPath = false
 }) {
   const results = new Map();
 
+  // Phase 1: Beast Modes. Produces the origin → target id remap the card swap
+  // consumes; nothing else depends on it, so it must complete before phase 2.
+  const beastModeItems = selectedItems?.beastModes || [];
+  let beastModeIdRemap = {};
+  const beastModeAttempted = beastModeItems.map((i) => ({ id: i.id, name: i.name || String(i.id) }));
+  if (beastModeItems.length === 0) {
+    const result = { attempted: [], count: 0, errors: [], failed: 0, succeeded: 0 };
+    results.set('beastModes', result);
+    onProgress?.({ count: 0, result, status: 'done', typeKey: 'beastModes' });
+  } else {
+    onProgress?.({ count: beastModeItems.length, status: 'transferring', typeKey: 'beastModes' });
+    const bm = await migrateBeastModes({
+      beastModeChoices,
+      columnMap,
+      definitionsByItemKey,
+      originId,
+      selectedBeastModes: beastModeItems,
+      tabId,
+      targetBeastModes,
+      targetId
+    });
+    beastModeIdRemap = bm.idRemap;
+    const result = {
+      attempted: beastModeAttempted,
+      count: beastModeItems.length,
+      errors: bm.errors,
+      failed: bm.errors.length,
+      succeeded: bm.succeeded
+    };
+    results.set('beastModes', result);
+    onProgress?.({ count: beastModeItems.length, result, status: 'done', typeKey: 'beastModes' });
+  }
+
+  // Phase 2: cards / datasets / dataflows. Cards consume `beastModeIdRemap`.
   await Promise.allSettled(
-    MIGRATE_TYPES.map(async (type) => {
+    MIGRATE_TYPES.filter((type) => type.key !== 'beastModes').map(async (type) => {
       const items = selectedItems?.[type.key] || [];
       const attempted = items.map((i) => ({ id: i.id, name: i.name || String(i.id) }));
 
@@ -792,6 +848,7 @@ export async function migrateAllDownstreamContent({
       for (const item of items) {
         const cached = definitionsByItemKey?.get?.(makeItemKey(type.key, item.id))?.definition;
         const resp = await dispatchSwap(type.key, item, {
+          beastModeIdRemap,
           cachedDefinition: cached,
           columnMap,
           originId,
@@ -822,9 +879,25 @@ export async function migrateAllDownstreamContent({
   return results;
 }
 
+/**
+ * Build a Beast Mode create/update entry from a (column-rewritten) origin
+ * template: sweep origin-dataset-id references onto the target (catches the
+ * `DATA_SOURCE` link and any embedded ids, same approach as the card/view
+ * swaps), drop server-managed timestamps, and set the name. Callers handle
+ * `id`/`legacyId` (deleted for create, set to the target's for overwrite).
+ */
+function buildBeastModeEntry(template, { name, originId, targetId }) {
+  const entry = JSON.parse(JSON.stringify(template).replaceAll(originId, targetId));
+  delete entry.created;
+  delete entry.lastModified;
+  entry.name = name;
+  return entry;
+}
+
 async function dispatchSwap(typeKey, item, options) {
   if (typeKey === 'cards') {
     return swapCardInput({
+      beastModeIdRemap: options.beastModeIdRemap,
       cachedDefinition: options.cachedDefinition,
       cardId: item.id,
       columnMap: options.columnMap,
@@ -835,7 +908,9 @@ async function dispatchSwap(typeKey, item, options) {
       useFullPath: options.useFullPath
     });
   }
-  if (typeKey === 'datasetViews') {
+  if (typeKey === 'datasets') {
+    // Downstream datasets are always views/data-fusions, so the view-definition
+    // swap (recursive selectBody, joins, column refs) is the right path.
     return swapDatasetViewInput({
       cachedDefinition: options.cachedDefinition,
       columnMap: options.columnMap,
@@ -857,4 +932,118 @@ async function dispatchSwap(typeKey, item, options) {
     });
   }
   return { error: `Unknown migrate type ${typeKey}`, success: false };
+}
+
+/**
+ * Migrate dataset-saved Beast Modes onto the target, returning an id remap
+ * (origin legacyId → target legacyId) the card swap uses to repoint references.
+ *
+ * Per Beast Mode, the user's choice (from `beastModeChoices`, keyed by origin
+ * id) decides the disposition:
+ *   - keep:      reuse the same-named Beast Mode already on the target.
+ *   - overwrite: replace that target Beast Mode's definition with this one.
+ *   - create / rename (default): create a new Beast Mode on the target.
+ * Column refs are rewritten via `columnMap` before any write. New legacyIds are
+ * resolved by re-reading the target's Beast Modes and matching on name, so the
+ * create response shape isn't relied on.
+ */
+async function migrateBeastModes({
+  beastModeChoices,
+  columnMap,
+  definitionsByItemKey,
+  originId,
+  selectedBeastModes,
+  tabId,
+  targetBeastModes,
+  targetId
+}) {
+  const errors = [];
+  const idRemap = {};
+  const targetByName = new Map((targetBeastModes || []).map((b) => [b.name, b]));
+  const applyRemap = hasEffectiveMapping(columnMap);
+  const toCreate = [];
+  const toUpdate = [];
+  let succeeded = 0;
+
+  const mapLegacyId = (origin, target) => {
+    if (origin?.legacyId && target?.legacyId) idRemap[origin.legacyId] = target.legacyId;
+  };
+
+  for (const bm of selectedBeastModes) {
+    try {
+      const cached = definitionsByItemKey?.get?.(makeItemKey('beastModes', bm.id))?.definition;
+      const template = cached || (await getFunctionTemplate(bm.id, tabId));
+      const rewritten = applyRemap ? rewriteBeastModeColumns(template, columnMap) : template;
+      const choice = beastModeChoices?.[bm.id] || {};
+      const disposition = choice.disposition || 'create';
+
+      if (disposition === 'keep') {
+        const existing = targetByName.get(bm.name);
+        if (existing) {
+          mapLegacyId(bm, existing);
+          succeeded++;
+        } else {
+          errors.push({ error: `No Beast Mode named "${bm.name}" on the target to keep`, id: bm.id });
+        }
+        continue;
+      }
+
+      if (disposition === 'overwrite') {
+        const existing = targetByName.get(bm.name);
+        if (!existing) {
+          errors.push({ error: `No Beast Mode named "${bm.name}" on the target to overwrite`, id: bm.id });
+          continue;
+        }
+        const entry = buildBeastModeEntry(rewritten, { name: bm.name, originId, targetId });
+        entry.id = existing.id;
+        entry.legacyId = existing.legacyId;
+        toUpdate.push({ entry, origin: bm, target: existing });
+        continue;
+      }
+
+      // create (default) or rename
+      const name = disposition === 'rename' && choice.newName ? choice.newName : bm.name;
+      const entry = buildBeastModeEntry(rewritten, { name, originId, targetId });
+      delete entry.id;
+      delete entry.legacyId;
+      toCreate.push({ entry, name, origin: bm });
+    } catch (err) {
+      errors.push({ error: err?.message || String(err), id: bm.id });
+    }
+  }
+
+  if (toUpdate.length > 0) {
+    try {
+      await updateDatasetFunctions({ functions: toUpdate.map((u) => u.entry), tabId });
+      for (const u of toUpdate) {
+        mapLegacyId(u.origin, u.target);
+        succeeded++;
+      }
+    } catch (err) {
+      for (const u of toUpdate) errors.push({ error: err?.message || String(err), id: u.origin.id });
+    }
+  }
+
+  if (toCreate.length > 0) {
+    try {
+      await createDatasetFunctions({ functions: toCreate.map((c) => c.entry), tabId });
+      // Re-read the target's Beast Modes and match newly created ones by name
+      // to resolve their legacyIds (the create response shape isn't relied on).
+      const refreshed = await getDatasetFunctions(targetId, tabId);
+      const refByName = new Map(refreshed.map((b) => [b.name, b]));
+      for (const c of toCreate) {
+        const created = refByName.get(c.name);
+        if (created) {
+          mapLegacyId(c.origin, created);
+          succeeded++;
+        } else {
+          errors.push({ error: `Created Beast Mode "${c.name}" not found on the target`, id: c.origin.id });
+        }
+      }
+    } catch (err) {
+      for (const c of toCreate) errors.push({ error: err?.message || String(err), id: c.origin.id });
+    }
+  }
+
+  return { errors, idRemap, succeeded };
 }

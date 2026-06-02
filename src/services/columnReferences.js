@@ -31,14 +31,51 @@ import {
   isColumnListParent,
   stripBackticks
 } from './columnFields';
+import { getFunctionTemplate } from './functions';
 
 /**
- * @param {Object} cardDefinition
+ * Scan a Beast Mode (function) template for the column names it references.
+ * Mirrors the rewriter (`rewriteBeastModeColumns`) field-for-field: the
+ * template's `expression` (backticked refs) and `columnPositions[].columnName`.
+ *
+ * @param {Object} beastModeTemplate
  * @returns {Set<string>}
  */
-export function extractCardColumnRefs(cardDefinition) {
+export function extractBeastModeColumnRefs(beastModeTemplate) {
   const refs = new Set();
-  walkForColumnRefs(cardDefinition, (name) => refs.add(name));
+  walkForColumnRefs(beastModeTemplate, (name) => refs.add(name));
+  return refs;
+}
+
+/**
+ * Scans a card's column references from the kpi/definition response. We walk
+ * only the inner `definition` object, NOT the full response: the response's
+ * top-level `columns` array is the card's complete dataset schema (every
+ * column the card could touch), so walking it would report every column as
+ * "used". The genuine refs (beast-mode expressions, chart bindings, filters,
+ * column formats) all live under `definition`. Falls back to the whole object
+ * if `definition` is absent so a future shape change degrades to over-reporting
+ * rather than missing everything.
+ *
+ * Dataset-persisted Beast Modes are excluded from the walk: `definition.formulas`
+ * carries every Beast Mode on the dataset and card (used or not), but the
+ * dataset-persisted ones (`persistedOnDataSource === true`) migrate as their own
+ * Beast Mode type, not with the card, so their column refs belong to that scan,
+ * not the card's. Only card-level formulas (`persistedOnDataSource === false`)
+ * ride with the card. We swap in a filtered `formulas` array via a shallow
+ * spread (the walk is read-only, so the rest of the definition is shared).
+ *
+ * @param {Object} cardResponse - The full kpi/definition response.
+ * @returns {Set<string>}
+ */
+export function extractCardColumnRefs(cardResponse) {
+  const refs = new Set();
+  const inner = cardResponse?.definition ?? cardResponse;
+  const scanTarget =
+    inner && Array.isArray(inner.formulas)
+      ? { ...inner, formulas: inner.formulas.filter((f) => f && f.persistedOnDataSource === false) }
+      : inner;
+  walkForColumnRefs(scanTarget, (name) => refs.add(name));
   return refs;
 }
 
@@ -81,7 +118,7 @@ export function makeItemKey(typeKey, itemId) {
 
 /**
  * @param {Object} params
- * @param {{ cards: Array<{id: any, name?: string}>, datasetViews: Array<{id: string, name?: string}>, dataflows: Array<{id: any, name?: string}> }} params.selectedItems
+ * @param {{ cards: Array<{id: any, name?: string}>, datasets: Array<{id: string, name?: string}>, dataflows: Array<{id: any, name?: string}> }} params.selectedItems
  * @param {string} [params.originId] - The migration's origin dataset ID. Used to identify "other inputs" on dataflows for cross-input collision detection.
  * @param {number|null} [params.tabId]
  * @returns {Promise<{
@@ -112,7 +149,13 @@ export async function scanContentForColumns({ originId, selectedItems, tabId = n
         // the body key, and a drill's bare id returns an unrelated payload.
         definition = await getCardDefinition({ cardId: item.urn || item.id, tabId });
         used = extractCardColumnRefs(definition);
-      } else if (typeKey === 'datasetViews') {
+      } else if (typeKey === 'beastModes') {
+        // The search list lacks the expression; hydrate the full template so
+        // we can scan its refs (and the orchestrator reuses this cached
+        // template to clone the Beast Mode onto the target).
+        definition = await getFunctionTemplate(item.id, tabId);
+        used = extractBeastModeColumnRefs(definition);
+      } else if (typeKey === 'datasets') {
         definition = await fetchDatasetViewDefinition(item.id, tabId);
         used = extractDatasetViewColumnRefs(definition);
       } else if (typeKey === 'dataflows') {
@@ -137,7 +180,8 @@ export async function scanContentForColumns({ originId, selectedItems, tabId = n
 
   const queue = [];
   for (const card of selectedItems?.cards || []) queue.push(['cards', card]);
-  for (const view of selectedItems?.datasetViews || []) queue.push(['datasetViews', view]);
+  for (const bm of selectedItems?.beastModes || []) queue.push(['beastModes', bm]);
+  for (const ds of selectedItems?.datasets || []) queue.push(['datasets', ds]);
   for (const df of selectedItems?.dataflows || []) queue.push(['dataflows', df]);
 
   // Bounded concurrency — each fetchAndScan goes through executeInPage

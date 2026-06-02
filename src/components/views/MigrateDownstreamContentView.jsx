@@ -6,14 +6,17 @@ import {
   Card,
   Description,
   EmptyState,
+  Input,
   Label,
   Link,
   ListBox,
   Modal,
   ScrollShadow,
   SearchField,
+  Select,
   Separator,
   Spinner,
+  TextField,
   Tooltip,
   useFilter
 } from '@heroui/react';
@@ -27,9 +30,11 @@ import { useStatusBar } from '@/hooks/useStatusBar';
 import { DataListItem } from '@/models/DataListItem';
 import { DomoContext } from '@/models/DomoContext';
 import { DomoObject } from '@/models/DomoObject';
+import { getObjectType } from '@/models/DomoObjectType';
 import { scanContentForColumns } from '@/services/columnReferences';
 import { hasEffectiveMapping } from '@/services/columnRewriter';
 import { getDatasetColumns } from '@/services/datasets';
+import { getDatasetFunctions } from '@/services/functions';
 import {
   compareDatasetSchemas,
   getDownstreamCards,
@@ -41,6 +46,7 @@ import { getSidepanelData } from '@/utils/sidepanel';
 import IconArrowsHorizontalBox from '@icons/arrows-horizontal-box.svg?react';
 import IconCheckCircle from '@icons/check-circle.svg?react';
 import IconCheck from '@icons/check.svg?react';
+import IconChevronDown from '@icons/chevron-down.svg?react';
 import IconExclamationPointCircle from '@icons/exclamation-point-circle.svg?react';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
 import IconInfoCircle from '@icons/info-circle.svg?react';
@@ -48,9 +54,10 @@ import IconWand from '@icons/wand.svg?react';
 import IconX from '@icons/x.svg?react';
 
 const TYPE_KEY_TO_DOMO_TYPE = {
+  beastModes: 'BEAST_MODE_FORMULA',
   cards: 'CARD',
   dataflows: 'DATAFLOW_TYPE',
-  datasetViews: 'DATA_SOURCE'
+  datasets: 'DATA_SOURCE'
 };
 
 const UNMAPPED = '__unmapped__';
@@ -84,6 +91,12 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
   const [scanError, setScanError] = useState(null);
   const [columnMap, setColumnMap] = useState({});
   const [autoMapConfirmOpen, setAutoMapConfirmOpen] = useState(false);
+
+  // Beast Modes already on the target dataset, used to detect name collisions
+  // with the selected origin Beast Modes. `beastModeChoices` holds the user's
+  // per-collision resolution (keyed by origin Beast Mode id).
+  const [targetBeastModes, setTargetBeastModes] = useState([]);
+  const [beastModeChoices, setBeastModeChoices] = useState({});
 
   const mountedRef = useRef(true);
   const bailedRef = useRef(false);
@@ -127,9 +140,9 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
 
   const specs = useMemo(() => {
     if (!datasetId) return [];
-    // datasetViews and dataflows both come from the same lineage call. Share
-    // one in-flight Promise so the API isn't hit twice. Re-created with the
-    // specs array so a refresh refetches.
+    // datasets and dataflows both come from the same lineage call. Share one
+    // in-flight Promise so the API isn't hit twice. Re-created with the specs
+    // array so a refresh refetches.
     let lineagePromise = null;
     const lineage = () => {
       if (!lineagePromise) lineagePromise = getDownstreamLineage(datasetId, tabId);
@@ -137,17 +150,22 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
     };
     return [
       {
+        fetch: async () => ({ items: await getDatasetFunctions(datasetId, tabId) }),
+        key: 'beastModes',
+        label: 'Beast Modes'
+      },
+      {
         fetch: async () => ({ items: await getDownstreamCards(datasetId, tabId) }),
         key: 'cards',
         label: 'Cards'
       },
       {
         fetch: async () => {
-          const { datasetViews } = await lineage();
-          return { items: datasetViews };
+          const { datasets } = await lineage();
+          return { items: datasets };
         },
-        key: 'datasetViews',
-        label: 'Dataset Views'
+        key: 'datasets',
+        label: 'Datasets'
       },
       {
         fetch: async () => {
@@ -224,7 +242,7 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
   }, [nothingToMigrate, datasetName, onStatusUpdate, onBackToDefault]);
 
   const selectedCounts = useMemo(() => {
-    const counts = { cards: 0, dataflows: 0, datasetViews: 0 };
+    const counts = { beastModes: 0, cards: 0, dataflows: 0, datasets: 0 };
     for (const t of MIGRATE_TYPES) {
       const r = results[t.key];
       const items = r?.status === 'loaded' ? r.items?.items || [] : [];
@@ -237,13 +255,29 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
     return counts;
   }, [results, selectedIds]);
 
-  const totalSelected = selectedCounts.cards + selectedCounts.datasetViews + selectedCounts.dataflows;
+  const totalSelected =
+    selectedCounts.beastModes + selectedCounts.cards + selectedCounts.datasets + selectedCounts.dataflows;
+
+  // Non-zero selected counts as `{ key, n, noun }` parts, in MIGRATE_TYPES
+  // order, for the confirmation's "N beast modes, 1 card, …" breakdown. The
+  // singular noun is the object type's own name (lowercased); plural just adds
+  // an "s" (none of these types pluralize irregularly).
+  const selectionParts = useMemo(() => {
+    const parts = [];
+    for (const t of MIGRATE_TYPES) {
+      const n = selectedCounts[t.key] || 0;
+      if (n === 0) continue;
+      const singular = (getObjectType(TYPE_KEY_TO_DOMO_TYPE[t.key])?.name || t.key).toLowerCase();
+      parts.push({ key: t.key, n, noun: n === 1 ? singular : `${singular}s` });
+    }
+    return parts;
+  }, [selectedCounts]);
 
   // Full selected items array per type, used to scan each item's definition
   // for column references when a schema mismatch is detected. Distinct from
   // `selectedCounts` (numbers) and `selectedIds` (flat key Set).
   const selectedItemsByType = useMemo(() => {
-    const acc = { cards: [], dataflows: [], datasetViews: [] };
+    const acc = { beastModes: [], cards: [], dataflows: [], datasets: [] };
     for (const t of MIGRATE_TYPES) {
       const r = results[t.key];
       const items = r?.status === 'loaded' ? r.items?.items || [] : [];
@@ -257,6 +291,39 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
   }, [results, selectedIds]);
 
   const excludeIds = useMemo(() => (datasetId ? new Set([datasetId]) : null), [datasetId]);
+
+  // Card ids each dataset Beast Mode is actively used by (from the search's
+  // activeLinks), keyed by Beast Mode id. Drives the selection lock.
+  const beastModeCardLinks = useMemo(() => {
+    const m = new Map();
+    const r = results.beastModes;
+    const items = r?.status === 'loaded' ? r.items?.items || [] : [];
+    for (const bm of items) m.set(String(bm.id), bm.activeCardIds || []);
+    return m;
+  }, [results]);
+
+  const selectedCardIdSet = useMemo(
+    () => new Set(selectedItemsByType.cards.map((c) => String(c.id))),
+    [selectedItemsByType]
+  );
+
+  // A Beast Mode leaf is locked (kept checked, can't be unchecked) while any
+  // card that uses it is selected: dropping it would break those cards on the
+  // target. Returns null for every other row.
+  const getItemLock = useCallback(
+    (item) => {
+      if (item?.typeId !== 'BEAST_MODE_FORMULA') return null;
+      const fnId = item?.originalId != null ? String(item.originalId) : null;
+      if (!fnId) return null;
+      const usingCount = (beastModeCardLinks.get(fnId) || []).filter((id) => selectedCardIdSet.has(String(id))).length;
+      if (usingCount === 0) return null;
+      return {
+        locked: true,
+        tooltip: `Used by ${usingCount} selected card${usingCount === 1 ? '' : 's'}; it has to migrate too or those cards break`
+      };
+    },
+    [beastModeCardLinks, selectedCardIdSet]
+  );
 
   // Run the schema check whenever a target dataset is picked. Clears any prior
   // comparison/scan/remap so stale results never leak across target changes.
@@ -324,6 +391,60 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
       cancelled = true;
     };
   }, [comparison, datasetId, page, selectedDatasetId, tabId]);
+
+  // Fetch the target's Beast Modes when a target is chosen so we can flag name
+  // collisions with the selected origin Beast Modes (independent of schema
+  // compatibility — a collision matters even when the columns line up).
+  useEffect(() => {
+    if (page !== 'target' || !selectedDatasetId) {
+      setTargetBeastModes([]);
+      return;
+    }
+    let cancelled = false;
+    getDatasetFunctions(selectedDatasetId, tabId)
+      .then((bms) => {
+        if (!cancelled) setTargetBeastModes(bms || []);
+      })
+      .catch(() => {
+        if (!cancelled) setTargetBeastModes([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [page, selectedDatasetId, tabId]);
+
+  // Selected origin Beast Modes whose name already exists on the target. These
+  // are the ones the user has to resolve (keep / overwrite / rename).
+  const beastModeConflicts = useMemo(() => {
+    const selected = selectedItemsByType.beastModes || [];
+    if (selected.length === 0 || targetBeastModes.length === 0) return [];
+    const targetNames = new Set(targetBeastModes.map((b) => b.name));
+    return selected.filter((bm) => targetNames.has(bm.name)).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }, [selectedItemsByType, targetBeastModes]);
+
+  const targetBeastModeNames = useMemo(() => new Set(targetBeastModes.map((b) => b.name)), [targetBeastModes]);
+
+  // Default every conflict to "keep" (reuse the target's existing Beast Mode)
+  // and drop choices for Beast Modes that are no longer in conflict.
+  useEffect(() => {
+    setBeastModeChoices((prev) => {
+      const next = {};
+      let changed = false;
+      for (const bm of beastModeConflicts) {
+        next[bm.id] = prev[bm.id] || { disposition: 'keep' };
+        if (!prev[bm.id]) changed = true;
+      }
+      if (!changed && Object.keys(prev).length === Object.keys(next).length) return prev;
+      return next;
+    });
+  }, [beastModeConflicts]);
+
+  const handleBeastModeChoice = useCallback((bmId, disposition, newName) => {
+    setBeastModeChoices((prev) => ({
+      ...prev,
+      [bmId]: disposition === 'rename' ? { disposition, newName: newName ?? '' } : { disposition }
+    }));
+  }, []);
 
   const hasMismatches = comparison && !comparison.compatible;
 
@@ -449,6 +570,25 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
       }
       for (const typeKey of touchedTypes) reconcileLeafParent(typeKey);
 
+      // Enforce Beast Mode locks against the resulting card selection: any
+      // Beast Mode used by a still-selected card stays checked, even if a
+      // parent cascade or deselect-all just tried to drop it. (The read-only
+      // checkbox blocks unchecking it directly; this covers the group paths.)
+      const cardsResult = results.cards;
+      const cardItems = cardsResult?.status === 'loaded' ? cardsResult.items?.items || [] : [];
+      const selectedCardIds = new Set();
+      for (const card of cardItems) {
+        if (next.has(leafSelectionId('cards', card.id))) selectedCardIds.add(String(card.id));
+      }
+      const bmResult = results.beastModes;
+      const bmItems = bmResult?.status === 'loaded' ? bmResult.items?.items || [] : [];
+      for (const bm of bmItems) {
+        if ((bm.activeCardIds || []).some((id) => selectedCardIds.has(String(id)))) {
+          next.add(leafSelectionId('beastModes', bm.id));
+        }
+      }
+      reconcileLeafParent('beastModes');
+
       setSelectedIds(next);
     },
     [selectedIds, results]
@@ -471,6 +611,18 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
     return text;
   }, [isTransferring, transferStatus, isFullyLoaded, loadingCount, totalAvailable, totalSelected, errorCount]);
 
+  // A rename choice with an empty or already-taken name can't be migrated.
+  const beastModeChoiceInvalid = useMemo(() => {
+    for (const bm of beastModeConflicts) {
+      const c = beastModeChoices[bm.id];
+      if (c?.disposition === 'rename') {
+        const trimmed = (c.newName || '').trim();
+        if (trimmed === '' || targetBeastModeNames.has(trimmed)) return true;
+      }
+    }
+    return false;
+  }, [beastModeConflicts, beastModeChoices, targetBeastModeNames]);
+
   // The footer Migrate button stays disabled until: every fetch settled, at
   // least one item is selected, a target is chosen, and the schema check +
   // any content scan have finished without error. Mismatches do NOT disable
@@ -483,7 +635,8 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
     isComparing ||
     isScanning ||
     comparisonError !== null ||
-    scanError !== null;
+    scanError !== null ||
+    beastModeChoiceInvalid;
 
   // CTA wording reflects the schema state: a clean migrate, a migrate that
   // will apply the user's column remap, or an explicit proceed-despite-mismatch.
@@ -560,6 +713,7 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
 
     try {
       const transferResults = await migrateAllDownstreamContent({
+        beastModeChoices,
         columnMap,
         definitionsByItemKey,
         onProgress: ({ count, result, status, typeKey }) => {
@@ -585,6 +739,7 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
         originId: datasetId,
         selectedItems,
         tabId,
+        targetBeastModes,
         targetColumnTypes,
         targetId,
         useFullPath
@@ -619,6 +774,7 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
       if (mountedRef.current) setIsTransferring(false);
     }
   }, [
+    beastModeChoices,
     columnMap,
     datasetId,
     hasMismatches,
@@ -628,6 +784,7 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
     selectedItemsByType,
     showStatus,
     tabId,
+    targetBeastModes,
     targetColumns
   ]);
 
@@ -648,6 +805,7 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
     return (
       <DataList
         fillHeight={true}
+        getItemLock={getItemLock}
         headerActions={['refresh']}
         isRefreshing={loadingCount > 0}
         isSelectable={isSelectable}
@@ -747,16 +905,16 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
               </Alert>
             )}
 
-            {hasMismatches && (
+            {hasMismatches && !isScanning && scanResult && usedUnmappedColumns.length > 0 && (
               <Alert className='w-full border border-border bg-transparent' status='warning'>
                 <Alert.Indicator>
                   <IconExclamationTriangle data-slot='alert-default-icon' />
                 </Alert.Indicator>
                 <Alert.Content>
                   <Alert.Title>
-                    {comparison.missing.length === 1
-                      ? "1 column doesn't match"
-                      : `${comparison.missing.length} columns don't match`}
+                    {usedUnmappedColumns.length === 1
+                      ? "1 column the content uses doesn't match"
+                      : `${usedUnmappedColumns.length} columns the content uses don't match`}
                   </Alert.Title>
                   <Alert.Description>
                     Best practice is to align schemas before migrating content. Proceeding here is your responsibility;
@@ -848,6 +1006,27 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
               </Alert>
             )}
 
+            {beastModeConflicts.length > 0 && (
+              <div className='flex flex-col gap-1'>
+                <Label className='text-sm font-medium'>Beast Mode Conflicts</Label>
+                <Description className='text-xs'>
+                  The target already has a Beast Mode with each of these names. Keep the target's, overwrite it with the
+                  incoming one, or rename the incoming so both exist. Cards that use it are repointed either way.
+                </Description>
+                <div className='flex flex-col divide-y divide-border'>
+                  {beastModeConflicts.map((bm) => (
+                    <BeastModeConflictRow
+                      choice={beastModeChoices[bm.id]}
+                      key={bm.id}
+                      originName={bm.name}
+                      targetNames={targetBeastModeNames}
+                      onChange={(disposition, newName) => handleBeastModeChoice(bm.id, disposition, newName)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
             {isTransferring && (
               <div className='flex items-center gap-2 text-xs text-muted'>
                 <Spinner size='sm' />
@@ -891,20 +1070,27 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
               <AlertDialog.Header>
                 <AlertDialog.Heading className='flex items-center gap-2'>
                   <IconExclamationTriangle className='text-warning' />
-                  Migrate downstream content?
+                  Migrate Content
                 </AlertDialog.Heading>
               </AlertDialog.Header>
               <AlertDialog.Body className='flex flex-col gap-2 text-sm'>
                 <p>
-                  This repoints <span className='font-medium'>{totalSelected}</span> downstream item
-                  {totalSelected === 1 ? '' : 's'} from <span className='font-medium'>{datasetName}</span> onto the selected
-                  dataset.
+                  This migrates{' '}
+                  {selectionParts.map((p, i) => (
+                    <Fragment key={p.key}>
+                      {i === 0 ? '' : i === selectionParts.length - 1 ? (selectionParts.length > 2 ? ', and ' : ' and ') : ', '}
+                      <span className='font-medium'>{p.n}</span> {p.noun}
+                    </Fragment>
+                  ))}{' '}
+                  from <span className='font-medium'>{datasetName}</span> to{' '}
+                  <span className='font-medium'>{selectedDatasetName || selectedDatasetId}</span>.
                 </p>
                 {hasMismatches && (
                   <p className='text-warning'>
                     The schemas don't fully match
-                    {hasEffectiveMapping(columnMap) ? ' and your remap will be applied' : ''}. Unmapped column references can
-                    break cards, dataflows, and views. Validate every result.
+                    {hasEffectiveMapping(columnMap) ? ', so your column remap will be applied' : ''}. Unmapped or incorrectly
+                    mapped column references can cause cards to render blank, dataflows to fail, and views to error. Validate
+                    every result.
                   </p>
                 )}
               </AlertDialog.Body>
@@ -972,6 +1158,68 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
         </AlertDialog.Backdrop>
       </AlertDialog>
     </>
+  );
+}
+
+// One row of the Beast Mode conflict resolver: the origin Beast Mode's name
+// plus a keep / overwrite / rename choice, with an inline name field (and
+// validation) when renaming.
+function BeastModeConflictRow({ choice, onChange, originName, targetNames }) {
+  const disposition = choice?.disposition || 'keep';
+  const newName = choice?.newName ?? '';
+  const trimmed = newName.trim();
+  const renameEmpty = disposition === 'rename' && trimmed === '';
+  const renameCollides = disposition === 'rename' && trimmed !== '' && targetNames.has(trimmed);
+  return (
+    <div className='flex flex-col gap-1 py-1.5'>
+      <div className='flex items-center gap-2'>
+        <span className='min-w-0 flex-1 truncate font-mono text-xs' title={originName}>
+          {originName}
+        </span>
+        <Select
+          aria-label={`Resolve ${originName}`}
+          className='w-36'
+          value={disposition}
+          variant='secondary'
+          onChange={(value) => onChange(value, newName)}
+        >
+          <Select.Trigger>
+            <Select.Value />
+            <Select.Indicator>
+              <IconChevronDown />
+            </Select.Indicator>
+          </Select.Trigger>
+          <Select.Popover>
+            <ListBox>
+              <ListBox.Item id='keep'>
+                Keep existing
+                <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
+              </ListBox.Item>
+              <ListBox.Item id='overwrite'>
+                Overwrite
+                <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
+              </ListBox.Item>
+              <ListBox.Item id='rename'>
+                Rename new
+                <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
+              </ListBox.Item>
+            </ListBox>
+          </Select.Popover>
+        </Select>
+      </div>
+      {disposition === 'rename' && (
+        <TextField aria-label={`New name for ${originName}`} className='w-full' variant='secondary'>
+          <Input
+            className='h-8 font-mono text-xs'
+            placeholder='New Beast Mode name…'
+            value={newName}
+            onChange={(e) => onChange('rename', e.target.value)}
+          />
+        </TextField>
+      )}
+      {renameEmpty && <p className='text-xs text-warning'>Enter a name for the new Beast Mode.</p>}
+      {renameCollides && <p className='text-xs text-warning'>That name also exists on the target.</p>}
+    </div>
   );
 }
 
