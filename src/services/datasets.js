@@ -1,6 +1,8 @@
 import { getObjectType } from '@/models/DomoObjectType';
 import { executeInPage } from '@/utils/executeInPage';
 
+import { getUserName } from './users';
+
 const DATASETS_PAGE_SIZE = 50;
 
 export async function cancelStreamExecution({ executionId, streamId, tabId }) {
@@ -662,8 +664,11 @@ export async function setStreamScheduleToManual({ streamId, tabId }) {
  * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
  */
 export async function transferDatasets(datasetIds, fromUserId, toUserId, tabId = null) {
+  // Resolve the source user's name for the tag, but never let that lookup block
+  // the transfer: on failure we proceed untagged rather than aborting ownership.
+  const fromUserName = await getUserName(fromUserId, tabId).catch(() => null);
   return executeInPage(
-    async (datasetIds, fromUserId, toUserId) => {
+    async (datasetIds, toUserId, fromUserName) => {
       const errors = [];
       let succeeded = 0;
       const batchSize = 50;
@@ -681,6 +686,27 @@ export async function transferDatasets(datasetIds, fromUserId, toUserId, tabId =
             method: 'POST'
           });
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+          // Tag each reassigned dataset with its previous owner so the new owner
+          // can see where it came from. Best-effort: ownership has already moved,
+          // so a failed tag call must not flip the batch to failed (which would
+          // wrongly report a successful transfer as failed and invite a retry).
+          if (fromUserName) {
+            try {
+              const tagResponse = await fetch('/api/data/v1/ui/bulk/tag', {
+                body: JSON.stringify({
+                  bulkItems: { ids: chunk, type: 'DATA_SOURCE' },
+                  tags: [`From ${fromUserName}`]
+                }),
+                headers: { 'Content-Type': 'application/json' },
+                method: 'POST'
+              });
+              if (!tagResponse.ok) throw new Error(`HTTP ${tagResponse.status}`);
+            } catch {
+              // Best-effort tagging; the ownership transfer already succeeded.
+            }
+          }
+
           succeeded += chunk.length;
         } catch (error) {
           chunk.forEach((id) => errors.push({ error: error.message, id }));
@@ -689,7 +715,7 @@ export async function transferDatasets(datasetIds, fromUserId, toUserId, tabId =
 
       return { errors, failed: errors.length, succeeded };
     },
-    [datasetIds, fromUserId, toUserId],
+    [datasetIds, toUserId, fromUserName],
     tabId
   );
 }

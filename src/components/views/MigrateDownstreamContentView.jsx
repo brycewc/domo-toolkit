@@ -4,6 +4,7 @@ import {
   Autocomplete,
   Button,
   Card,
+  Chip,
   Description,
   EmptyState,
   Input,
@@ -756,6 +757,9 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
           'warning',
           7000
         );
+        // Some items failed: drop back to the list, where each per-type row
+        // shows its own failure message, instead of closing.
+        if (mountedRef.current) setPage('select');
       } else {
         showStatus(
           'Migration Complete',
@@ -763,9 +767,29 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
           'success',
           7000
         );
+        // Fully succeeded: close the view back to default. The toast lives in
+        // the App-level ToastProvider, so it survives this unmount. Only a
+        // clean run closes; any failure instead drops back to the list (above
+        // and in catch) so the failed per-type rows stay visible.
+        onBackToDefault?.();
       }
     } catch (err) {
       showStatus('Migration Failed', err.message || 'An error occurred', 'danger', 7000);
+      // The run threw before finishing, so some rows are still mid-flight. Mark
+      // those failed (otherwise the list shows a frozen spinner) and return to
+      // the list so the failure is visible on the per-type rows.
+      if (mountedRef.current) {
+        setTransferStatus((prev) => {
+          const next = { ...prev };
+          for (const key of Object.keys(next)) {
+            if (next[key].status === 'transferring') {
+              next[key] = { ...next[key], error: err.message || 'Migration failed', status: 'failed' };
+            }
+          }
+          return next;
+        });
+        setPage('select');
+      }
     } finally {
       if (mountedRef.current) setIsTransferring(false);
     }
@@ -774,6 +798,7 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
     columnMap,
     datasetId,
     hasMismatches,
+    onBackToDefault,
     scanResult,
     selectedDatasetId,
     selectedDatasetName,
@@ -795,6 +820,14 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
     );
   }
 
+  // Shown in the subheader of both pages. This migration flow is new and may
+  // not handle every case yet, so it's flagged Beta to set expectations.
+  const betaChip = (
+    <Chip className='shrink-0' color='accent' size='sm' variant='soft'>
+      Beta
+    </Chip>
+  );
+
   // Page 1: choose what downstream content to migrate. The type groups live in
   // the DataList; the only footer action is Next, which advances to page 2.
   if (page === 'select') {
@@ -813,6 +846,7 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
         showActions={true}
         showCounts={true}
         subtext={subtextNode}
+        subtextStartContent={betaChip}
         title={`Migrate Content of **${datasetName}**`}
         titleLineClamp={2}
         onClose={onBackToDefault}
@@ -848,6 +882,7 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
           <Card.Title className='line-clamp-2 min-w-0 pr-8'>
             Migrate Content of <strong>{datasetName}</strong>
           </Card.Title>
+          <div className='flex'>{betaChip}</div>
           <Tooltip closeDelay={0} delay={800}>
             <Button
               isIconOnly
@@ -909,8 +944,8 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
                 <Alert.Content>
                   <Alert.Title>
                     {usedUnmappedColumns.length === 1
-                      ? "1 column the content uses doesn't match"
-                      : `${usedUnmappedColumns.length} columns the content uses don't match`}
+                      ? "1 used column doesn't match"
+                      : `${usedUnmappedColumns.length} used columns don't match`}
                   </Alert.Title>
                   <Alert.Description>
                     Best practice is to align schemas before migrating content. Proceeding here is your responsibility;
@@ -1074,7 +1109,13 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
                   This migrates{' '}
                   {selectionParts.map((p, i) => (
                     <Fragment key={p.key}>
-                      {i === 0 ? '' : i === selectionParts.length - 1 ? (selectionParts.length > 2 ? ', and ' : ' and ') : ', '}
+                      {i === 0
+                        ? ''
+                        : i === selectionParts.length - 1
+                          ? selectionParts.length > 2
+                            ? ', and '
+                            : ' and '
+                          : ', '}
                       <span className='font-medium'>{p.n}</span> {p.noun}
                     </Fragment>
                   ))}{' '}

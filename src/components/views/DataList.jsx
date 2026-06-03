@@ -81,7 +81,8 @@ import { ObjectTypeIcon } from '../ObjectTypeIcon';
  * @param {React.ReactNode} [props.selectionToolbar] - Selection-mode-only content rendered as a third header row directly under the action buttons. Use for "Select all"/"Deselect all" or other bulk-selection controls. Ignored when `selectionMode` is false.
  * @param {Boolean} [props.fillHeight] - When true, the root Card fills its parent's available height (`h-full`) instead of being content-sized (`max-h-fit`), so the items list scrolls internally and the footer stays pinned at the bottom. Requires a parent that provides a constrained height (a flex/grid column). Default false preserves content-sizing.
  * @param {React.ReactNode} [props.footer] - Content rendered inside the Card below the items list, separated from the scroll area by a `<Separator>`. Use for a primary action that should sit pinned beneath the list (e.g. a full-width "Transfer ownership to…" button in selection mode). Consumers decide visibility; pass `null`/`false` to omit.
- * @param {string} [props.subtext] - Plain-text secondary content for the second header row (typically counts, status text, or a breadcrumb). Supports inline `**bold**` markdown the same way `title` does. Truncates if it can't fit alongside header actions, but does NOT get a hover tooltip — every subtext we render is a short, bounded count/status string and a tooltip mirroring already-visible text felt redundant.
+ * @param {string} [props.subtext] - Plain-text secondary content for the second header row (typically counts, status text, or a breadcrumb). Supports inline `**bold**` markdown the same way `title` does. Truncates if it can't fit alongside header actions, but does NOT get a hover tooltip; every subtext we render is a short, bounded count/status string and a tooltip mirroring already-visible text felt redundant.
+ * @param {React.ReactNode} [props.subtextStartContent] - Node rendered inline at the start of the second header (subtext) row, before the subtext text (e.g. a status `Chip` such as "Beta"). Pass it `shrink-0` so the subtext truncates after it rather than the chip. Omit for no adornment.
  * @param {Array<{ key: string, icon: React.ReactNode, tooltipText: string, onPress: () => void, isDisabled?: boolean, isActive?: boolean, ariaLabel?: string }>} [props.customHeaderActions] - View-specific header buttons rendered inline after the built-in `headerActions`. Use this for actions that don't fit the preset enum (Transfer Ownership, Selection toggle, etc.).
  * @param {string} [props.viewType] - The action key for this view (e.g. `'getCards'`, `'getDatasets'`). Required when `'reload'` is in `headerActions`. Used as the `type` passed to `launchView` and as the key looked up against `getAvailableActions(currentContext)` to decide if reload is enabled.
  * @param {Object} [props.currentContext] - Live `DomoContext` for the user's currently-active object. Required when `'reload'` is in `headerActions`. Drives whether reload is enabled (current object differs from original AND supports the view).
@@ -114,6 +115,7 @@ export function DataList({
   showActions = true,
   showCounts = true,
   subtext,
+  subtextStartContent,
   title,
   titleLineClamp = 1,
   variant,
@@ -288,7 +290,7 @@ export function DataList({
 
   const hasInlineActions = headerActions.length > 0 || (customHeaderActions && customHeaderActions.length > 0);
   const hasSelectionToolbar = selectionMode && Boolean(selectionToolbar);
-  const hasHeader = title || subtext || hasInlineActions || onClose || hasSelectionToolbar;
+  const hasHeader = title || subtext || subtextStartContent || hasInlineActions || onClose || hasSelectionToolbar;
 
   // In selection mode, wrap the rendered items in a HeroUI CheckboxGroup so
   // each row's `<Checkbox value={item.id}>` is driven by group context. The
@@ -363,8 +365,9 @@ export function DataList({
               </Tooltip.Content>
             </Tooltip>
           )}
-          {(subtext || hasInlineActions) && (
+          {(subtext || subtextStartContent || hasInlineActions) && (
             <div className='flex min-w-0 items-center justify-between gap-2'>
+              {subtextStartContent}
               <div className='min-w-0 flex-1 truncate text-xs text-muted'>{parseMarkdownBold(subtext)}</div>
               {hasInlineActions && (
                 <ButtonGroup hideSeparator className='flex shrink-0' size='sm' variant='ghost'>

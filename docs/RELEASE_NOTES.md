@@ -6,7 +6,7 @@
 
 ## New Features
 
-### Migrate Downstream Content (Datasets)
+### Migrate Downstream Content (Datasets, Beta)
 
 - New "Migrate Downstream Content" action button on datasets: repoints every card, dataset view, and dataflow that uses a dataset to a different dataset in one pass.
 - Finding downstream content needs no DomoStats or other setup.
@@ -36,6 +36,7 @@
 - Row tooltips now show the clean object ID instead of an internal composite identifier (most noticeable on the Projects & Tasks tree).
 - Nested rows now indent per nesting level when selecting items, so children read as belonging under their parent (most visible on the Projects & Tasks tree).
 - Project and Task rows are now clickable links to their Domo pages, instead of plain text.
+- Transferring datasets or dataflows now adds a "From [previous owner]" tag to each transferred object.
 
 ### Inactive User Indicator (Activity Log)
 
@@ -103,6 +104,10 @@
 ### Activity Log: instances set to always use DomoStats now load cleanly
 
 - Fixed the Activity Log flickering to broken values, with the count disappearing and infinite scroll stalling, on instances set to always use the DomoStats dataset.
+
+### Activity Log: users without a profile picture now show their initials
+
+- Users who don't have a profile picture in the Activity Log now show their initials, instead of a generic grey placeholder.
 
 ### Delete Beast Mode / Variable: actually deletes now (and reports real failures)
 

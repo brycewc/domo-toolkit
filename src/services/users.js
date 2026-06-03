@@ -152,16 +152,23 @@ export async function fetchUserDisplayNames(userIds, tabId = null) {
 
 /**
  * Returns user IDs from the given list that have a custom (non-default) avatar.
- * Compares each avatar's blob size against the default avatar fetched for
- * a non-existent user (ID 0). The default size is cached on window for the
- * lifetime of the page so only one extra fetch is needed per session.
+ * Compares each avatar's blob size against the placeholder Domo serves for
+ * users without a picture. That placeholder is byte-identical for every such
+ * user, so a size comparison cleanly separates "has a photo" from "doesn't."
+ *
+ * The baseline is fetched from a very large user ID that cannot exist
+ * (max signed 32-bit int). Domo returns the real no-picture placeholder for
+ * any non-existent user EXCEPT ID 0, which maps to a distinct system entity
+ * with its own avatar, so ID 0 must not be used as the baseline. The size is
+ * cached on window for the lifetime of the page so only one extra fetch is
+ * needed per session.
  */
 export async function getCustomAvatarUserIds(userIds, tabId = null) {
   return executeInPage(
     async (userIds) => {
       if (!window.__domoDefaultAvatarSize) {
         try {
-          const res = await fetch('/api/content/v1/avatar/USER/0?size=100');
+          const res = await fetch('/api/content/v1/avatar/USER/2147483647?size=100');
           const blob = await res.blob();
           window.__domoDefaultAvatarSize = blob.size;
         } catch {
