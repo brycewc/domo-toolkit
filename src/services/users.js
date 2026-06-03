@@ -13,18 +13,25 @@ import { executeInPage } from '@/utils/executeInPage';
 export async function getCurrentUser(tabId = null) {
   const result = await executeInPage(
     async () => {
-      for (let i = 0; i < 3; i++) {
-        if (window.bootstrap?.currentUser?.USER_ID) {
+      // Some instances hydrate window.bootstrap well after first paint (USER_ID
+      // and data.authorities have been observed arriving ~2.8s in), so poll
+      // generously over several seconds. Wait for BOTH the user id and the
+      // authorities array: rights live on data.authorities, not currentUser, so
+      // returning as soon as USER_ID exists yields an empty-rights user that
+      // then gets cached and silently strips audit-gated features from a full
+      // admin. Array.isArray distinguishes "not hydrated yet" from a genuinely
+      // empty rights list.
+      for (let i = 0; i < 30; i++) {
+        const authorities = window.bootstrap?.data?.authorities;
+        if (window.bootstrap?.currentUser?.USER_ID && Array.isArray(authorities)) {
           // eslint-disable-next-line no-unused-vars
           const { USER_ID, USER_RIGHTS, ...metadata } = window.bootstrap.currentUser;
-          metadata.USER_RIGHTS = window.bootstrap?.data?.authorities || [];
+          metadata.USER_RIGHTS = authorities;
           return { id: USER_ID, metadata };
         }
-        if (i < 2) {
-          await new Promise((resolve) => setTimeout(resolve, 500));
-        }
+        await new Promise((resolve) => setTimeout(resolve, 250));
       }
-      throw new Error('window.bootstrap not available after 3 attempts');
+      throw new Error('window.bootstrap user data not available after polling');
     },
     [],
     tabId

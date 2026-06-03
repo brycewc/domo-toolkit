@@ -1,6 +1,6 @@
 ---
-
 ## title: Release Notes
+---
 
 # Domo Toolkit v1.3.1 Release Notes (WIP)
 
@@ -79,6 +79,10 @@
 - Closing a tab the extension opened now returns you to the tab you launched it from, instead of the tab on its right.
 
 ## Bug Fixes
+
+### Activity Log button: no longer stays greyed out for users who have access
+
+- Fixed the Activity Log button staying disabled for users who do have access, on instances or page loads where it took a few seconds for your account to finish loading.
 
 ### Side panel: action buttons re-expand when you close a view
 

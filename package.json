@@ -53,7 +53,7 @@
     "preview": "vite preview",
     "test-docs": "cd docs && bundle exec jekyll serve"
   },
-  "packageManager": "yarn@4.15.0",
+  "packageManager": "yarn@4.16.0",
   "dependencies": {
     "@dagrejs/dagre": "^3.0.0",
     "@heroui/react": "^3.1.0",

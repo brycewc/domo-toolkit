@@ -194,7 +194,7 @@ const instanceUserCache = new Map();
  */
 function getInstanceUser(instance, tabId) {
   const cached = instanceUserCache.get(instance);
-  if (cached?.user) {
+  if (cached?.user?.metadata?.USER_RIGHTS?.length) {
     return Promise.resolve({ user: cached.user, userGroups: cached.userGroups });
   }
   if (cached?.promise) return cached.promise;
@@ -209,8 +209,15 @@ function getInstanceUser(instance, tabId) {
       });
       userGroups = richGroups.map((g) => g.groupId);
     }
-    const entry = { promise: null, user, userGroups };
-    instanceUserCache.set(instance, entry);
+    // Only cache a user that actually carries its rights. Empty USER_RIGHTS means
+    // bootstrap wasn't fully hydrated when we read it; caching that hollow user
+    // would serve it to every later detection and disable audit-gated features
+    // for a full admin until logout. Dropping it lets the next detection retry.
+    if (user?.metadata?.USER_RIGHTS?.length) {
+      instanceUserCache.set(instance, { promise: null, user, userGroups });
+    } else {
+      instanceUserCache.delete(instance);
+    }
     return { user, userGroups };
   })();
 
