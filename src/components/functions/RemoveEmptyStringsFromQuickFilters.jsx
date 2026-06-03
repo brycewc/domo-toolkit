@@ -80,7 +80,7 @@ export function RemoveEmptyStringsFromQuickFilters({ currentContext, onStatusUpd
         Remove Empty String Filters
       </Button>
       <Tooltip.Content
-        className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+        className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'
         offset={4}
       >
         Sets the default of contains quick filters to nothing instead of an empty string, so that null values will show

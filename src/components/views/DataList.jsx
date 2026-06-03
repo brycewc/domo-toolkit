@@ -343,7 +343,7 @@ export function DataList({
                   {parseMarkdownBold(title)}
                 </Card.Title>
               </Tooltip.Trigger>
-              <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+              <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'>
                 {stripMarkdownBold(title)}
               </Tooltip.Content>
             </Tooltip>
@@ -360,7 +360,7 @@ export function DataList({
               >
                 <IconX />
               </Button>
-              <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+              <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'>
                 Close view
               </Tooltip.Content>
             </Tooltip>
@@ -385,7 +385,7 @@ export function DataList({
                         {action.icon}
                       </Button>
                       <Tooltip.Content
-                        className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+                        className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'
                         placement='bottom'
                       >
                         {action.tooltipText}
@@ -404,7 +404,7 @@ export function DataList({
                         <IconArrowSquareOut />
                       </Button>
                       <Tooltip.Content
-                        className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+                        className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'
                         placement='bottom'
                       >
                         Open all in new tabs
@@ -423,7 +423,7 @@ export function DataList({
                         {isHeaderShared ? <AnimatedCheck stroke={1.5} /> : <IconPeoplePlus />}
                       </Button>
                       <Tooltip.Content
-                        className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+                        className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'
                         placement='bottom'
                       >
                         {isHeaderShared ? 'Shared!' : 'Share all with yourself'}
@@ -442,7 +442,7 @@ export function DataList({
                         {isCopied ? <AnimatedCheck stroke={1.5} /> : <IconClipboardCopy />}
                       </Button>
                       <Tooltip.Content
-                        className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+                        className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'
                         placement='bottom'
                       >
                         {isCopied ? 'Copied!' : 'Copy ID'}
@@ -485,7 +485,7 @@ export function DataList({
                             <IconReset />
                           </Button>
                           <Tooltip.Content
-                            className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+                            className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'
                             placement='bottom'
                           >
                             {tooltipText}
@@ -506,7 +506,7 @@ export function DataList({
                         <IconSync className={isRefreshing ? 'animate-spin' : ''} />
                       </Button>
                       <Tooltip.Content
-                        className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+                        className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'
                         placement='bottom'
                       >
                         Refresh
@@ -964,7 +964,7 @@ function DataListItemImpl({
         <Button fullWidth isIconOnly aria-label='Remove' size='sm' variant='ghost' onPress={() => handleAction('remove')}>
           <IconCancel className='text-danger' />
         </Button>
-        <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+        <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'>
           Remove{' '}
           <span className='lowercase'>
             {objectType} from {item?.domoObject?.typeName || item?.typeId}
@@ -978,7 +978,7 @@ function DataListItemImpl({
         <Button fullWidth isIconOnly aria-label='Open All' size='sm' variant='ghost' onPress={() => handleAction('openAll')}>
           <IconArrowSquareOut />
         </Button>
-        <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+        <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'>
           Open all in new tabs
         </Tooltip.Content>
       </Tooltip>
@@ -989,7 +989,7 @@ function DataListItemImpl({
         <Button fullWidth isIconOnly aria-label='Copy' size='sm' variant='ghost' onPress={() => handleAction('copy')}>
           {isCopied ? <AnimatedCheck stroke={1.5} /> : <IconClipboardCopy />}
         </Button>
-        <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+        <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'>
           {isCopied ? 'Copied!' : 'Copy ID'}
         </Tooltip.Content>
       </Tooltip>
@@ -1007,7 +1007,7 @@ function DataListItemImpl({
         >
           {isShared ? <AnimatedCheck stroke={1.5} /> : <IconPeoplePlus />}
         </Button>
-        <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+        <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'>
           {isShared ? 'Shared!' : 'Share all with yourself'}
         </Tooltip.Content>
       </Tooltip>
@@ -1018,7 +1018,7 @@ function DataListItemImpl({
         <Button fullWidth isIconOnly aria-label='Share' size='sm' variant='ghost' onPress={() => handleAction('share')}>
           {isShared ? <AnimatedCheck stroke={1.5} /> : <IconPersonPlus />}
         </Button>
-        <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+        <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'>
           {isShared ? 'Shared!' : 'Share with yourself'}
         </Tooltip.Content>
       </Tooltip>
@@ -1036,7 +1036,7 @@ function DataListItemImpl({
         >
           <IconCompass />
         </Button>
-        <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+        <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'>
           Open in Views Explorer
         </Tooltip.Content>
       </Tooltip>
@@ -1054,7 +1054,7 @@ function DataListItemImpl({
         >
           <IconLineage />
         </Button>
-        <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+        <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'>
           View Lineage
         </Tooltip.Content>
       </Tooltip>
@@ -1147,7 +1147,7 @@ function DataListItemImpl({
       <Tooltip className='flex-1' closeDelay={0} delay={200}>
         <Tooltip.Trigger className='block truncate'>{labelInner}</Tooltip.Trigger>
         <Tooltip.Content
-          className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+          className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'
           offset={4}
           placement='top left'
         >
@@ -1234,7 +1234,7 @@ function DataListItemImpl({
                     </Checkbox.Control>
                   </Checkbox>
                 </Tooltip.Trigger>
-                <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+                <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'>
                   {itemLock.tooltip}
                 </Tooltip.Content>
               </Tooltip>

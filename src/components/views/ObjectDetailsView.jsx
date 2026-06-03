@@ -176,7 +176,7 @@ export function ObjectDetailsView({ onBackToDefault = null, onStatusUpdate = nul
               <Button fullWidth isIconOnly size='sm' variant='ghost' onPress={handleCopyId}>
                 <IconClipboardCopy />
               </Button>
-              <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+              <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'>
                 Copy ID
               </Tooltip.Content>
             </Tooltip>
@@ -185,7 +185,7 @@ export function ObjectDetailsView({ onBackToDefault = null, onStatusUpdate = nul
                 <Button fullWidth isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
                   <IconX />
                 </Button>
-                <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+                <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'>
                   Close
                 </Tooltip.Content>
               </Tooltip>

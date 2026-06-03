@@ -32,6 +32,7 @@ import {
   stripBackticks
 } from './columnFields';
 import { getFunctionTemplate } from './functions';
+import { extractDataflowSqlColumnRefs, getDataflowEngine } from './sqlColumns';
 
 /**
  * Scan a Beast Mode (function) template for the column names it references.
@@ -125,12 +126,14 @@ export function makeItemKey(typeKey, itemId) {
  *   byColumn: Map<string, Array<{type: string, id: any, name: string}>>,
  *   byItem: Map<string, {definition: Object|null, usedColumns: Set<string>, error?: string}>,
  *   errors: Array<{type: string, id: any, error: string}>,
- *   dataflowCollisions: Map<string, Array<{dataflowId: any, dataflowName: string, otherInputId: string, otherInputName: string}>>
+ *   dataflowCollisions: Map<string, Array<{dataflowId: any, dataflowName: string, otherInputId: string, otherInputName: string}>>,
+ *   dataflowSqlWarnings: Array<{engine: string, id: any, name: string}>
  * }>}
  */
 export async function scanContentForColumns({ originId, selectedItems, tabId = null }) {
   const byColumn = new Map();
   const byItem = new Map();
+  const dataflowSqlWarnings = [];
   const errors = [];
 
   const addRef = (typeKey, item, columnName) => {
@@ -160,7 +163,23 @@ export async function scanContentForColumns({ originId, selectedItems, tabId = n
         used = extractDatasetViewColumnRefs(definition);
       } else if (typeKey === 'dataflows') {
         definition = await fetchDataflowDefinition(item.id, tabId);
-        used = extractDataflowColumnRefs(definition);
+        // Magic ETL keeps column refs in structured fields (existing walker).
+        // Redshift/MySQL bury them in raw SQL, scanned dialect-aware and scoped
+        // to the origin alias. Unknown non-Magic engines can't be analyzed at
+        // all, so they get flagged for manual review rather than a false clear.
+        const engine = getDataflowEngine(definition);
+        if (engine === 'mysql' || engine === 'redshift') {
+          const sqlScan = extractDataflowSqlColumnRefs(definition, originId);
+          used = sqlScan.refs;
+          if (sqlScan.unsafe) {
+            dataflowSqlWarnings.push({ engine, id: item.id, name: item.name || String(item.id) });
+          }
+        } else if (engine === 'unknown') {
+          used = new Set();
+          dataflowSqlWarnings.push({ engine, id: item.id, name: item.name || String(item.id) });
+        } else {
+          used = extractDataflowColumnRefs(definition);
+        }
       } else {
         return;
       }
@@ -213,7 +232,7 @@ export async function scanContentForColumns({ originId, selectedItems, tabId = n
     tabId
   });
 
-  return { byColumn, byItem, dataflowCollisions, errors };
+  return { byColumn, byItem, dataflowCollisions, dataflowSqlWarnings, errors };
 }
 
 async function collectDataflowCollisions({ byItem, originId, selectedDataflows, tabId }) {

@@ -156,7 +156,7 @@ export function DataTable({
   };
 
   return (
-    <div className='flex min-h-0 w-full flex-1 flex-col gap-2 p-4'>
+    <div className='flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2 p-4'>
       <div className='p-1'>{header}</div>
       <div className='items-between flex w-full flex-col justify-center gap-1 sm:flex-row sm:items-center sm:justify-between'>
         <div className='flex w-full items-center gap-1 sm:justify-between'>
@@ -241,7 +241,12 @@ export function DataTable({
         )}
       </div>
 
-      <div className='relative flex h-0 min-h-0 flex-1 flex-col'>
+      {/* min-w-0 lets this flex item shrink to its parent's width instead of growing to the
+          table's intrinsic content width; overflow-hidden clips the brief bleed during the
+          Virtualizer's first layout pass, before it pins the scroll container's pixel width.
+          Together they keep table overflow inside the scroll container and off the document,
+          so the page-level scroll bars never flash in during load. */}
+      <div className='relative flex h-0 min-h-0 min-w-0 flex-1 flex-col overflow-hidden'>
         <Virtualizer
           layout={TableLayout}
           layoutOptions={{

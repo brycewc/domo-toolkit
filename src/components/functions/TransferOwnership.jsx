@@ -27,7 +27,7 @@ export function TransferOwnership({ currentContext, onCollapseActions, onStatusU
         Transfer Ownership
       </Button>
       <Tooltip.Content
-        className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+        className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'
         offset={4}
       >
         Transfer objects owned by this user to another user

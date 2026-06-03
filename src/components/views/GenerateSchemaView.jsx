@@ -267,7 +267,7 @@ export function GenerateSchemaView({ onBackToDefault = null, onStatusUpdate = nu
           <Button fullWidth isDisabled={isSubmitting || !validation.isValid} variant='tertiary' onPress={handleApply}>
             <IconCheck /> Apply Schema
           </Button>
-          <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+          <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'>
             {validation.reason}
           </Tooltip.Content>
         </Tooltip>
@@ -281,7 +281,7 @@ export function GenerateSchemaView({ onBackToDefault = null, onStatusUpdate = nu
           >
             <IconSync /> Apply Schema and Sync
           </Button>
-          <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+          <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'>
             {validation.reason}
           </Tooltip.Content>
         </Tooltip>
@@ -339,7 +339,7 @@ function ColumnRow({ column, isDisabled, onChangeName, onChangeType, onRemove })
         <Button isIconOnly aria-label='Remove column' isDisabled={isDisabled} size='sm' variant='ghost' onPress={onRemove}>
           <IconTrash className='text-danger' />
         </Button>
-        <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+        <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'>
           Remove column
         </Tooltip.Content>
       </Tooltip>
@@ -395,7 +395,7 @@ function ViewHeader({ onBackToDefault, subtitle, title }) {
           >
             <IconX />
           </Button>
-          <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+          <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'>
             Close
           </Tooltip.Content>
         </Tooltip>

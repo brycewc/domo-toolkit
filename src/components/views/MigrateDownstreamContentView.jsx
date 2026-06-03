@@ -445,6 +445,11 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
 
   const hasMismatches = comparison && !comparison.compatible;
 
+  // SQL dataflows (Redshift/MySQL) whose SQL references origin in a shape we
+  // can't auto-remap (origin SELECT *, an unsupported engine). These get an
+  // honest "review manually" note instead of the old false "all clear".
+  const sqlDataflowWarnings = scanResult?.dataflowSqlWarnings || [];
+
   // Columns that are BOTH used by selected content AND missing/changed in the
   // target schema. The intersection is what the user has to decide about;
   // anything outside it is either irrelevant or already compatible.
@@ -734,32 +739,53 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
           });
         },
         originId: datasetId,
+        originName: datasetName,
         selectedItems,
         tabId,
         targetBeastModes,
         targetColumnTypes,
         targetId,
+        targetName,
         useFullPath
       });
 
       let totalSucceeded = 0;
       let totalFailed = 0;
+      let totalManualReview = 0;
       for (const [, r] of transferResults) {
         totalSucceeded += r.succeeded || 0;
         totalFailed += r.failed || 0;
+        totalManualReview += r.manualReview?.length || 0;
       }
+
+      // SQL dataflows whose input repointed but whose SQL we couldn't safely
+      // rewrite (origin SELECT *, etc.) still need a hand edit; call it out.
+      const reviewNote =
+        totalManualReview > 0
+          ? ` ${totalManualReview} SQL dataflow${totalManualReview !== 1 ? 's' : ''} flagged for manual review.`
+          : '';
 
       const targetLabel = targetName ? `**${targetName}**` : `**${targetId}**`;
       if (totalFailed > 0) {
         showStatus(
           'Migration Partially Complete',
-          `**${totalSucceeded}** succeeded, **${totalFailed}** failed migrating to ${targetLabel}`,
+          `**${totalSucceeded}** succeeded, **${totalFailed}** failed migrating to ${targetLabel}.${reviewNote}`,
           'warning',
           7000
         );
         // Some items failed: drop back to the list, where each per-type row
         // shows its own failure message, instead of closing.
         if (mountedRef.current) setPage('select');
+      } else if (totalManualReview > 0) {
+        showStatus(
+          'Migration Complete',
+          `Migrated **${totalSucceeded}** item${totalSucceeded !== 1 ? 's' : ''} to ${targetLabel}.${reviewNote}`,
+          'warning',
+          9000
+        );
+        // Inputs repointed cleanly, but some SQL needs a hand edit. The toast
+        // persists past unmount, so closing is fine.
+        onBackToDefault?.();
       } else {
         showStatus(
           'Migration Complete',
@@ -797,6 +823,7 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
     beastModeChoices,
     columnMap,
     datasetId,
+    datasetName,
     hasMismatches,
     onBackToDefault,
     scanResult,
@@ -1023,19 +1050,42 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
               </div>
             )}
 
-            {hasMismatches && !isScanning && scanResult && usedUnmappedColumns.length === 0 && (
-              <Alert className='w-full border border-border bg-transparent' status='default'>
+            {hasMismatches && !isScanning && scanResult && sqlDataflowWarnings.length > 0 && (
+              <Alert className='w-full border border-border bg-transparent' status='warning'>
                 <Alert.Indicator>
-                  <IconInfoCircle data-slot='alert-default-icon' />
+                  <IconExclamationTriangle data-slot='alert-default-icon' />
                 </Alert.Indicator>
                 <Alert.Content>
+                  <Alert.Title>
+                    {sqlDataflowWarnings.length === 1
+                      ? '1 SQL dataflow needs manual review'
+                      : `${sqlDataflowWarnings.length} SQL dataflows need manual review`}
+                  </Alert.Title>
                   <Alert.Description>
-                    None of the mismatched columns are referenced by the selected content. Safe to proceed without remapping,
-                    but data may still be missing in the target.
+                    {sqlDataflowWarnings.map((w) => w.name).join(', ')} reference this dataset in SQL that can't be remapped
+                    automatically. The input is repointed on migrate, but you'll need to update the SQL by hand.
                   </Alert.Description>
                 </Alert.Content>
               </Alert>
             )}
+
+            {hasMismatches &&
+              !isScanning &&
+              scanResult &&
+              usedUnmappedColumns.length === 0 &&
+              sqlDataflowWarnings.length === 0 && (
+                <Alert className='w-full border border-border bg-transparent' status='default'>
+                  <Alert.Indicator>
+                    <IconInfoCircle data-slot='alert-default-icon' />
+                  </Alert.Indicator>
+                  <Alert.Content>
+                    <Alert.Description>
+                      None of the mismatched columns are referenced by the selected content. Safe to proceed without
+                      remapping, but data may still be missing in the target.
+                    </Alert.Description>
+                  </Alert.Content>
+                </Alert>
+              )}
 
             {beastModeConflicts.length > 0 && (
               <div className='flex flex-col gap-1'>
@@ -1324,6 +1374,12 @@ function ColumnMapRow({
     ? buildObjectUrl('dataflows', { id: singleCollision.dataflowId, name: singleCollision.dataflowName }, origin)
     : null;
 
+  // After a target is picked, flag when its data type differs from the origin
+  // column's. A silent type change can break a dataflow (e.g. an integer column
+  // dropped into a UNION of text values), so surface it on the row.
+  const selectedTargetType = mappedTo && mappedTo !== UNMAPPED ? targetColumns.find((c) => c.name === mappedTo)?.type : null;
+  const typeMismatch = Boolean(originType && selectedTargetType && originType !== selectedTargetType);
+
   return (
     <div className='flex flex-col gap-1 py-1.5'>
       {collisionByDataflow.length > 0 && (
@@ -1400,6 +1456,17 @@ function ColumnMapRow({
             <ColumnUsagesModal items={items} origin={origin} originName={originName} totalSelected={totalSelected} />
           </span>
         </div>
+        {typeMismatch && (
+          <Tooltip closeDelay={0} delay={300}>
+            <Button isIconOnly aria-label='Data type mismatch' className='shrink-0 text-warning' size='sm' variant='ghost'>
+              <IconExclamationTriangle />
+            </Button>
+            <Tooltip.Content className='w-fit max-w-60 px-1 py-0.5 text-center text-balance break-normal'>
+              Selected column's type <span className='font-mono text-muted'>{selectedTargetType}</span> doesn't match the
+              original <span className='font-mono text-muted'>{originType}</span>
+            </Tooltip.Content>
+          </Tooltip>
+        )}
         <Autocomplete
           aria-label={`Map ${originName} to`}
           className='w-44'

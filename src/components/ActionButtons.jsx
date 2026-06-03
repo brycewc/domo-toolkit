@@ -114,7 +114,7 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                     <IconGear />
                   </Button>
                   <Tooltip.Content
-                    className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+                    className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'
                     offset={4}
                   >
                     Extension settings
@@ -129,7 +129,7 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                     </Button>
 
                     <Tooltip.Content
-                      className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+                      className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'
                       offset={4}
                     >
                       Expand
@@ -141,7 +141,7 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                       <IconRightRailFill />
                     </Button>
                     <Tooltip.Content
-                      className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+                      className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'
                       offset={4}
                     >
                       Open side panel

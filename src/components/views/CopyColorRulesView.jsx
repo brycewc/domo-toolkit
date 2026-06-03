@@ -165,7 +165,7 @@ export function CopyColorRulesView({ onBackToDefault = null, onStatusUpdate = nu
           <Tooltip.Trigger className='min-w-0 pr-8'>
             <Card.Title className='line-clamp-1'>{parseMarkdownBold(headerTitle)}</Card.Title>
           </Tooltip.Trigger>
-          <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+          <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'>
             {stripMarkdownBold(headerTitle)}
           </Tooltip.Content>
         </Tooltip>
@@ -181,7 +181,7 @@ export function CopyColorRulesView({ onBackToDefault = null, onStatusUpdate = nu
             >
               <IconX />
             </Button>
-            <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+            <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'>
               Close view
             </Tooltip.Content>
           </Tooltip>

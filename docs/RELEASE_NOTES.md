@@ -109,6 +109,10 @@
 
 - Users who don't have a profile picture in the Activity Log now show their initials, instead of a generic grey placeholder.
 
+### Activity Log: page scroll bars no longer flash in while the table loads
+
+- The whole page's horizontal and vertical scroll bars no longer flicker in while the Activity Log loads; scrolling stays on the table.
+
 ### Delete Beast Mode / Variable: actually deletes now (and reports real failures)
 
 - Deleting a Beast Mode or Variable now actually takes effect (it previously did nothing while reporting success), and real failures surface as errors.

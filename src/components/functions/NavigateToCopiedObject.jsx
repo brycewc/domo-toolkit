@@ -298,7 +298,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
           <IconArrowSquareOut />
         </Button>
         <Tooltip.Content
-          className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+          className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'
           offset={4}
         >
           Set a default Domo instance in settings
@@ -314,7 +314,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
           <IconArrowSquareOut />
         </Button>
         <Tooltip.Content
-          className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
+          className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'
           offset={4}
         >
           Navigate to copied object

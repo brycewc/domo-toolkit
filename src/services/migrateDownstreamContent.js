@@ -9,7 +9,7 @@
 import { executeInPage } from '@/utils/executeInPage';
 
 import { getCardDefinition, getDrillCardMetadata, getDrillsForCards } from './cards';
-import { makeItemKey } from './columnReferences';
+import { extractDataflowColumnRefs, makeItemKey } from './columnReferences';
 import {
   hasEffectiveMapping,
   rewriteBeastModeColumns,
@@ -19,6 +19,7 @@ import {
 } from './columnRewriter';
 import { getDataflowDetail } from './dataflows';
 import { createDatasetFunctions, getDatasetFunctions, getFunctionTemplate, updateDatasetFunctions } from './functions';
+import { extractDataflowSqlColumnRefs, getDataflowEngine, rewriteDataflowSqlColumns } from './sqlColumns';
 
 // ===========================================================================
 // DISCOVERY
@@ -412,10 +413,11 @@ export async function swapCardInput({
 /**
  * Swap a dataflow's input dataset, optionally rewriting column references.
  *
- * Column rewrites are applied in the extension context (via `columnRewriter`)
- * BEFORE we hand the payload to the page for the dataset-id sweep + PUT. The
- * dataset-id sweep is left as a JSON-string replacement because dataflow IDs
- * are UUIDs (collision-safe).
+ * Magic ETL column rewrites run via the structured `columnRewriter`; Redshift
+ * and MySQL rewrite column refs inside their SQL (dialect-aware, scoped to the
+ * origin alias). The dataset-id repoint is a JSON-string sweep on the UUID
+ * (collision-safe). A version-history comment naming the swap is recorded on
+ * the new dataflow version so the change is auditable in Domo.
  *
  * @param {Object} params
  * @param {any} params.dataflowId
@@ -423,19 +425,52 @@ export async function swapCardInput({
  * @param {string} params.targetId
  * @param {Record<string, string|null>} [params.columnMap]
  * @param {Object} [params.cachedDefinition]
+ * @param {string} [params.originName] - Origin dataset name, for the version comment.
+ * @param {string} [params.targetName] - Target dataset name, for the version comment.
  * @param {number|null} [params.tabId]
- * @returns {Promise<{success: boolean, error?: string}>}
+ * @returns {Promise<{success: boolean, error?: string, unhandled?: Array<{actionId: any, field: string, index?: number}>}>}
  */
-export async function swapDataflowInput({ cachedDefinition, columnMap, dataflowId, originId, tabId = null, targetId }) {
+export async function swapDataflowInput({
+  cachedDefinition,
+  columnMap,
+  dataflowId,
+  originId,
+  originName,
+  tabId = null,
+  targetId,
+  targetName
+}) {
   try {
     let definition = cachedDefinition;
     if (!definition) {
       definition = await fetchDataflowDefinitionInPage(dataflowId, tabId);
     }
+    const engine = getDataflowEngine(definition);
+    // Magic ETL rewrites column refs in structured fields; Redshift/MySQL
+    // rewrite them inside SQL, scoped to the origin alias. `unhandled` lists
+    // SQL statements left verbatim (origin SELECT *, etc.) for manual review.
+    let unhandled = [];
+    let remappedColumnCount = 0;
     if (hasEffectiveMapping(columnMap)) {
-      definition = rewriteDataflowColumns(definition, columnMap);
+      // Count before rewriting (the rewriters clone, so `definition` still has
+      // origin's original column names here).
+      remappedColumnCount = countRemappedColumns(definition, columnMap, originId, engine);
+      if (engine === 'mysql' || engine === 'redshift') {
+        const result = rewriteDataflowSqlColumns(definition, columnMap, originId);
+        definition = result.definition;
+        unhandled = result.unhandled;
+      } else if (engine === 'magic') {
+        definition = rewriteDataflowColumns(definition, columnMap);
+      }
+      // Unknown non-Magic engines: repoint the input only. The column scan
+      // already flagged them for manual review, and blindly running the
+      // structured rewriter could corrupt an unfamiliar definition shape.
     }
-    return await putDataflowInPage(dataflowId, definition, originId, targetId, tabId);
+    // Record a version-history comment on the new dataflow version so the
+    // change is auditable in Domo. Set it even for a pure repoint (count 0).
+    setDataflowVersionDescription(definition, originName, targetName, remappedColumnCount);
+    const putResult = await putDataflowInPage(dataflowId, definition, originId, targetId, tabId);
+    return putResult.success && unhandled.length > 0 ? { ...putResult, unhandled } : putResult;
   } catch (err) {
     return { error: err?.message || String(err), success: false };
   }
@@ -772,7 +807,9 @@ export const MIGRATE_TYPES = [
  *
  * @param {Object} params
  * @param {string} params.originId
+ * @param {string} [params.originName] - Origin dataset name, for the dataflow version-history comment.
  * @param {string} params.targetId
+ * @param {string} [params.targetName] - Target dataset name, for the dataflow version-history comment.
  * @param {{ beastModes?: Array<{id: any, name?: string, legacyId?: string}>, cards: Array<{id: any, name?: string}>, datasets: Array<{id: string, name?: string}>, dataflows: Array<{id: any, name?: string}> }} params.selectedItems
  * @param {Record<string, {disposition: 'create'|'rename'|'keep'|'overwrite', newName?: string}>} [params.beastModeChoices] - Per origin Beast Mode id, the conflict resolution chosen on the target.
  * @param {Array<{id: any, name: string, legacyId?: string}>} [params.targetBeastModes] - The target dataset's existing Beast Modes (for keep/overwrite).
@@ -780,7 +817,7 @@ export const MIGRATE_TYPES = [
  * @param {Map<string, { definition: Object }>} [params.definitionsByItemKey] - Cached content definitions from the column-reference scan, keyed by `${typeKey}:${itemId}`. Reused so we don't re-fetch.
  * @param {Function} [params.onProgress]
  * @param {number|null} [params.tabId]
- * @returns {Promise<Map<string, {attempted: Array, count: number, errors: Array, failed: number, succeeded: number}>>}
+ * @returns {Promise<Map<string, {attempted: Array, count: number, errors: Array, failed: number, manualReview: Array<{id: any, name: string}>, succeeded: number}>>}
  */
 export async function migrateAllDownstreamContent({
   beastModeChoices,
@@ -788,11 +825,13 @@ export async function migrateAllDownstreamContent({
   definitionsByItemKey,
   onProgress,
   originId,
+  originName,
   selectedItems,
   tabId,
   targetBeastModes,
   targetColumnTypes,
   targetId,
+  targetName,
   useFullPath = false
 }) {
   const results = new Map();
@@ -837,7 +876,7 @@ export async function migrateAllDownstreamContent({
       const attempted = items.map((i) => ({ id: i.id, name: i.name || String(i.id) }));
 
       if (items.length === 0) {
-        const result = { attempted: [], count: 0, errors: [], failed: 0, succeeded: 0 };
+        const result = { attempted: [], count: 0, errors: [], failed: 0, manualReview: [], succeeded: 0 };
         results.set(type.key, result);
         onProgress?.({ count: 0, result, status: 'done', typeKey: type.key });
         return;
@@ -846,6 +885,7 @@ export async function migrateAllDownstreamContent({
       onProgress?.({ count: items.length, status: 'transferring', typeKey: type.key });
 
       const errors = [];
+      const manualReview = [];
       let succeeded = 0;
       for (const item of items) {
         const cached = definitionsByItemKey?.get?.(makeItemKey(type.key, item.id))?.definition;
@@ -854,13 +894,20 @@ export async function migrateAllDownstreamContent({
           cachedDefinition: cached,
           columnMap,
           originId,
+          originName,
           tabId,
           targetColumnTypes,
           targetId,
+          targetName,
           useFullPath
         });
         if (resp?.success) {
           succeeded++;
+          // SQL dataflow statements we couldn't safely rewrite (origin SELECT *,
+          // etc.). The input still repointed; the user must fix these by hand.
+          if (Array.isArray(resp.unhandled) && resp.unhandled.length > 0) {
+            manualReview.push({ id: item.id, name: item.name || String(item.id) });
+          }
         } else {
           errors.push({ error: resp?.error || 'Unknown error', id: item.id });
         }
@@ -871,6 +918,7 @@ export async function migrateAllDownstreamContent({
         count: items.length,
         errors,
         failed: errors.length,
+        manualReview,
         succeeded
       };
       results.set(type.key, result);
@@ -894,6 +942,49 @@ function buildBeastModeEntry(template, { name, originId, targetId }) {
   delete entry.lastModified;
   entry.name = name;
   return entry;
+}
+
+/**
+ * Build the dataflow version-history comment, capped at Domo's 253-char limit.
+ * Drops the target name first, then the origin name, to stay under the cap.
+ */
+function buildDataflowVersionDescription(originName, targetName, count) {
+  const max = 253;
+  const refs = `${count} column reference${count === 1 ? '' : 's'}`;
+  const candidates = [];
+  if (originName && targetName) {
+    candidates.push(`Remapped ${originName} to ${targetName}, including ${refs} via Domo Toolkit`);
+  }
+  if (originName) {
+    candidates.push(`Remapped ${originName}, including ${refs} via Domo Toolkit`);
+  }
+  candidates.push(`Remapped the input, including ${refs} via Domo Toolkit`);
+  for (const candidate of candidates) {
+    if (candidate.length <= max) return candidate;
+  }
+  return candidates[candidates.length - 1].slice(0, max);
+}
+
+/**
+ * Count the distinct origin columns this dataflow references that have an
+ * effective remap. Read from the original definition (before any rewrite).
+ * Unknown engines aren't column-rewritten, so they report 0.
+ */
+function countRemappedColumns(definition, columnMap, originId, engine) {
+  let referenced;
+  if (engine === 'mysql' || engine === 'redshift') {
+    referenced = extractDataflowSqlColumnRefs(definition, originId).refs;
+  } else if (engine === 'magic') {
+    referenced = extractDataflowColumnRefs(definition);
+  } else {
+    return 0;
+  }
+  let count = 0;
+  for (const name of referenced) {
+    const to = columnMap?.[name];
+    if (to != null && to !== name) count++;
+  }
+  return count;
 }
 
 async function dispatchSwap(typeKey, item, options) {
@@ -929,8 +1020,10 @@ async function dispatchSwap(typeKey, item, options) {
       columnMap: options.columnMap,
       dataflowId: item.id,
       originId: options.originId,
+      originName: options.originName,
       tabId: options.tabId,
-      targetId: options.targetId
+      targetId: options.targetId,
+      targetName: options.targetName
     });
   }
   return { error: `Unknown migrate type ${typeKey}`, success: false };
@@ -1048,4 +1141,11 @@ async function migrateBeastModes({
   }
 
   return { errors, idRemap, succeeded };
+}
+
+/** Set the auditable version-history comment on the dataflow's new version. */
+function setDataflowVersionDescription(definition, originName, targetName, count) {
+  if (!definition || typeof definition !== 'object') return;
+  const description = buildDataflowVersionDescription(originName, targetName, count);
+  definition.onboardFlowVersion = { ...(definition.onboardFlowVersion || {}), description };
 }

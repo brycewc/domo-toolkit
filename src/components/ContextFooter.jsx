@@ -413,7 +413,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
                     <Tooltip.Trigger>
                       <span className='min-w-0 truncate'>Current Context</span>
                     </Tooltip.Trigger>
-                    <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+                    <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'>
                       Current Context
                     </Tooltip.Content>
                   </Tooltip>
@@ -423,7 +423,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
                         {currentContext?.instance}
                       </Chip>
                     </Tooltip.Trigger>
-                    <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+                    <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'>
                       Instance: {currentContext?.instance}.domo.com
                     </Tooltip.Content>
                   </Tooltip>
@@ -454,7 +454,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
                     <AlertStatusIcon />
                   </Alert.Indicator>
                 </Tooltip.Trigger>
-                <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+                <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'>
                   Click to toggle context JSON view
                 </Tooltip.Content>
               </Tooltip>
