@@ -20,10 +20,8 @@ export async function createDatasetFunctions({ functions, tabId = null }) {
     async (functions) => {
       const response = await fetch('/api/query/v1/functions/bulk/template', {
         body: JSON.stringify({
-          copyDependencies: true,
           create: functions,
           links: {},
-          replaceLinks: true,
           strict: false
         }),
         credentials: 'include',
@@ -63,7 +61,9 @@ export async function deleteFunction({ functionId, tabId = null }) {
  *
  * Excludes Variables (`variable: true`) — those are a separate type. The
  * search response carries `activeLinks.CARD` (the cards actively using each
- * Beast Mode), which drives the migration dependency lock. It does NOT include
+ * Beast Mode), which drives the migration dependency lock; drill links arrive
+ * as `dr:<drillId>:<rootId>` URNs and are normalized here to the bare drill card
+ * id so they line up with the rest of the app's card ids. It does NOT include
  * the expression; hydrate that per-template via `getFunctionTemplate` when
  * scanning column refs or cloning for create.
  *
@@ -96,7 +96,14 @@ export async function getDatasetFunctions(datasetId, tabId = null) {
         for (const f of results) {
           if (f?.variable === true) continue;
           all.push({
-            activeCardIds: (f?.activeLinks?.CARD || []).map((id) => String(id)),
+            // A drill's link comes back as a `dr:<drillId>:<rootId>` URN, not a
+            // bare card id. Normalize to the drillId (middle segment) so these
+            // match the bare drill card ids the rest of the app uses; bare card
+            // ids pass through unchanged.
+            activeCardIds: (f?.activeLinks?.CARD || []).map((id) => {
+              const s = String(id);
+              return s.startsWith('dr:') ? s.split(':')[1] || s : s;
+            }),
             dataType: f.dataType || null,
             id: f.id,
             legacyId: f.legacyId || null,
@@ -260,9 +267,7 @@ export async function updateDatasetFunctions({ functions, tabId = null }) {
     async (functions) => {
       const response = await fetch('/api/query/v1/functions/bulk/template', {
         body: JSON.stringify({
-          copyDependencies: true,
           links: {},
-          replaceLinks: true,
           strict: false,
           update: functions
         }),

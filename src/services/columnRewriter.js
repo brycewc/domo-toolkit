@@ -37,6 +37,31 @@ export function hasEffectiveMapping(columnMap) {
 }
 
 /**
+ * Remove every reference to the given columns from a card definition. Backs the
+ * "drop column" migration choice, which is offered only when a column is
+ * referenced solely by `badge_table` cards/drills — so deleting it from the
+ * column-list fields (e.g. `subscriptions.main.columns`, sorts) and any
+ * column-keyed maps (formats) cleanly drops it from the table.
+ *
+ * Mirrors the rename walker's field registry, but DELETES matches instead of
+ * renaming: list entries whose column-bearing field names a dropped column are
+ * filtered out, and dropped keys are deleted from column-keyed maps.
+ * Expression/scalar fields are left alone (a badge_table card holds its columns
+ * in list fields, not formulas).
+ *
+ * @param {Object} cardDefinition
+ * @param {string[]|Set<string>} droppedColumns - Origin column names to remove.
+ * @returns {Object} new card definition (input is not mutated)
+ */
+export function removeCardColumns(cardDefinition, droppedColumns) {
+  const drop = droppedColumns instanceof Set ? droppedColumns : new Set(droppedColumns || []);
+  if (drop.size === 0) return cardDefinition;
+  const next = deepClone(cardDefinition);
+  walkAndRemoveColumns(next, drop);
+  return next;
+}
+
+/**
  * Rewrite the column refs in a Beast Mode (function) template. Walks the same
  * field registry as the card/dataflow rewriters, so it covers the template's
  * `expression` (backticked refs) and `columnPositions[].columnName`.
@@ -415,6 +440,49 @@ function updateCastDataType(node, newDataType) {
   if (node['@type'] !== 'CAST' && node['@type'] !== 'TRY_CAST') return;
   if (node.type && typeof node.type === 'object' && typeof node.type.dataType === 'string') {
     node.type.dataType = newDataType;
+  }
+}
+
+/**
+ * Recursive in-place removal of dropped-column references. Mirrors
+ * `walkAndRewriteColumns`' field registry: filters column-list entries whose
+ * column-bearing field names a dropped column, and deletes dropped keys from
+ * column-keyed maps. The caller deep-clones once at the entry point.
+ */
+function walkAndRemoveColumns(node, drop) {
+  if (node == null || typeof node !== 'object') return;
+
+  if (Array.isArray(node)) {
+    for (const item of node) walkAndRemoveColumns(item, drop);
+    return;
+  }
+
+  for (const [key, value] of Object.entries(node)) {
+    // 1. Column-keyed objects — delete dropped keys, recurse into the rest.
+    if (COLUMN_KEYED_FIELDS.has(key) && value && typeof value === 'object' && !Array.isArray(value)) {
+      for (const k of Object.keys(value)) {
+        if (drop.has(stripBackticks(k))) delete value[k];
+        else walkAndRemoveColumns(value[k], drop);
+      }
+      continue;
+    }
+
+    // 2. Column-list fields — drop entries that reference a dropped column.
+    if (COLUMN_LIST_FIELDS.has(key) && Array.isArray(value)) {
+      node[key] = value.filter((item) => {
+        if (typeof item === 'string') return !drop.has(stripBackticks(item));
+        if (item && typeof item === 'object') {
+          for (const fieldName of ['column', 'columnName', 'inStreamName', 'name', 'field', 'id']) {
+            if (typeof item[fieldName] === 'string') return !drop.has(stripBackticks(item[fieldName]));
+          }
+        }
+        return true;
+      });
+      for (const item of node[key]) walkAndRemoveColumns(item, drop);
+      continue;
+    }
+
+    walkAndRemoveColumns(value, drop);
   }
 }
 

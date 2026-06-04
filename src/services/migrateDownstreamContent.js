@@ -8,10 +8,11 @@
 
 import { executeInPage } from '@/utils/executeInPage';
 
-import { getCardDefinition, getDrillCardMetadata, getDrillsForCards } from './cards';
+import { getCardDefinition } from './cards';
 import { extractDataflowColumnRefs, makeItemKey } from './columnReferences';
 import {
   hasEffectiveMapping,
+  removeCardColumns,
   rewriteBeastModeColumns,
   rewriteCardColumns,
   rewriteDataflowColumns,
@@ -20,86 +21,78 @@ import {
 import { getDataflowDetail } from './dataflows';
 import { createDatasetFunctions, getDatasetFunctions, getFunctionTemplate, updateDatasetFunctions } from './functions';
 import { extractDataflowSqlColumnRefs, getDataflowEngine, rewriteDataflowSqlColumns } from './sqlColumns';
+import { getCurrentUserId } from './users';
 
 // ===========================================================================
 // DISCOVERY
 // ===========================================================================
 
 /**
- * Cards (and drill_view cards) that have this dataset as their primary
- * datasource.
+ * Cards and drill views sourced from this dataset.
  *
- * The dataset → cards endpoint only returns parent (kpi) cards. Drill cards
- * aren't surfaced there; we discover them by asking each parent for its
- * `drillPathURNs`, then fetching drill metadata to filter to drills whose
- * own datasource matches `datasetId`.
+ * `?drill=true` makes the dataset → cards endpoint return BOTH cards whose own
+ * datasource is this dataset AND cards that touch it only through a drill, and
+ * it nests each card's drills under a `drills[]` array (so no separate drill-
+ * discovery call is needed). A parent (kpi) card is included only when its own
+ * `datasourceId` matches; otherwise the card surfaced solely because a drill
+ * under it uses the dataset, so we migrate that drill, not the parent. Drills
+ * are filtered the same way: included only when their own `datasourceId` matches.
  *
- * Drill cards in the result set carry `isDrill: true`, the drill's `urn`
- * (the `dr:<drillId>:<rootId>` form), and `parentId`. Regular cards have
- * just `{id, name}`.
+ * Every card carries its `chartType` (used to gate the "drop column" choice to
+ * `badge_table` cards). Drill cards additionally carry `isDrill: true`, the
+ * drill's `urn` (the `dr:<drillId>:<rootId>` form), `parentId`, and `parentName`
+ * (so the UI can label the parent even when it isn't migrating). Regular cards
+ * have just `{chartType, id, name}`.
  *
  * @param {string} datasetId
  * @param {number|null} tabId
- * @returns {Promise<Array<{id: number, name: string, urn?: string, isDrill?: boolean, parentId?: number}>>}
+ * @returns {Promise<Array<{id: number, name: string, chartType: string|null, urn?: string, isDrill?: boolean, parentId?: number, parentName?: string}>>}
  */
 export async function getDownstreamCards(datasetId, tabId = null) {
-  const parents = await executeInPage(
+  return executeInPage(
     async (datasetId) => {
-      const response = await fetch(`/api/content/v1/datasources/${datasetId}/cards`, {
+      const response = await fetch(`/api/content/v1/datasources/${datasetId}/cards?drill=true`, {
         credentials: 'include'
       });
       if (!response.ok) {
         throw new Error(`Failed to fetch cards for dataset ${datasetId}: HTTP ${response.status}`);
       }
       const cards = (await response.json()) || [];
-      return cards
-        .map((c) => ({
-          id: c.id || c.kpiId || (typeof c.urn === 'string' ? parseInt(c.urn.split(':').pop(), 10) : null),
-          name: c.title || c.name || `Card ${c.id || c.kpiId || ''}`
-        }))
-        .filter((c) => Number.isFinite(c.id));
+      const matchesDataset = (id) => id != null && String(id) === String(datasetId);
+      const out = [];
+      const seenDrills = new Set();
+      for (const card of cards) {
+        const cardId =
+          card.id || card.kpiId || (typeof card.urn === 'string' ? parseInt(card.urn.split(':').pop(), 10) : null);
+        // Parent migrates only when it uses this dataset directly; otherwise it's
+        // here purely as the container for a drill that does.
+        if (matchesDataset(card.datasourceId) && Number.isFinite(cardId)) {
+          out.push({ chartType: card.chartType || null, id: cardId, name: card.title || card.name || `Card ${cardId}` });
+        }
+        for (const drill of Array.isArray(card.drills) ? card.drills : []) {
+          if (!matchesDataset(drill?.datasourceId)) continue;
+          const drillId = drill.id ?? (typeof drill.urn === 'string' ? parseInt(drill.urn.split(':')[1], 10) : null);
+          if (!Number.isFinite(drillId) || seenDrills.has(drillId)) continue;
+          seenDrills.add(drillId);
+          out.push({
+            chartType: drill.chartType || null,
+            id: drillId,
+            isDrill: true,
+            name: drill.title || `Drill ${drillId}`,
+            parentId: Number.isFinite(cardId) ? cardId : null,
+            // The parent's name, carried so the UI can label it even when the
+            // parent itself isn't migrating (it doesn't use this dataset) and so
+            // isn't in the cards list to resolve the name from.
+            parentName: card.title || card.name || (Number.isFinite(cardId) ? `Card ${cardId}` : null),
+            urn: drill.urn
+          });
+        }
+      }
+      return out;
     },
     [datasetId],
     tabId
   );
-
-  if (parents.length === 0) return parents;
-
-  // Discover drills via the bulk parts=drillPath,drillPathURNs endpoint.
-  // Drill discovery is best-effort — if it fails we still migrate parents.
-  const drillRefs = await getDrillsForCards(
-    parents.map((p) => p.id),
-    tabId
-  ).catch(() => []);
-  if (drillRefs.length === 0) return parents;
-
-  // Fetch each drill's metadata so we can (a) get its title for display and
-  // (b) confirm its dataset matches `datasetId` — drills attached to a
-  // parent migrate as part of THIS dataset's flow only when the drill is
-  // also sourced from this dataset.
-  const drillMetas = await getDrillCardMetadata(
-    drillRefs.map((d) => d.urn),
-    tabId
-  ).catch(() => []);
-  const metaByUrn = new Map(drillMetas.map((m) => [m.urn, m]));
-
-  const seen = new Set();
-  const drills = [];
-  for (const ref of drillRefs) {
-    if (seen.has(ref.drillId)) continue;
-    seen.add(ref.drillId);
-    const meta = metaByUrn.get(ref.urn);
-    if (meta && meta.datasourceId && meta.datasourceId !== datasetId) continue;
-    drills.push({
-      id: ref.drillId,
-      isDrill: true,
-      name: meta?.title || `Drill ${ref.drillId}`,
-      parentId: ref.parentId,
-      urn: ref.urn
-    });
-  }
-
-  return [...parents, ...drills];
 }
 
 /**
@@ -361,6 +354,7 @@ export async function swapCardInput({
   cachedDefinition,
   cardId,
   columnMap,
+  droppedColumns,
   originId,
   tabId = null,
   targetId,
@@ -371,12 +365,15 @@ export async function swapCardInput({
   // shortcut can't repoint a card's references to its dataset's Beast Modes,
   // which now live on the target under new ids.
   const hasBeastModeRemap = beastModeIdRemap && Object.keys(beastModeIdRemap).length > 0;
+  // Dropping columns also forces the full-PUT path: the lightweight shortcut
+  // can't strip a column's references from the definition.
+  const hasDroppedColumns = Array.isArray(droppedColumns) && droppedColumns.length > 0;
   // Drill cards (urn = `dr:<drillId>:<rootId>`) always go through the full-PUT
   // path: the lightweight `/datasource/{id}` shortcut is for plain kpi cards
   // and likely won't recognize the drill, and we need to preserve the drill's
   // `drillpath` array (parent linkage) on PUT.
   const isDrill = typeof urn === 'string' && urn.startsWith('dr:');
-  if (!isDrill && !useFullPath && !hasEffectiveMapping(columnMap) && !hasBeastModeRemap) {
+  if (!isDrill && !useFullPath && !hasEffectiveMapping(columnMap) && !hasBeastModeRemap && !hasDroppedColumns) {
     return swapCardInputFast(cardId, originId, targetId, tabId);
   }
   try {
@@ -400,6 +397,19 @@ export async function swapCardInput({
         if (from && to && from !== to) json = json.replaceAll(from, to);
       }
       rewritten = JSON.parse(json);
+    }
+    // Drop columns the user chose to remove (offered only for badge_table
+    // cards/drills): strip every reference so they disappear from the table.
+    if (hasDroppedColumns) {
+      rewritten = removeCardColumns(rewritten, droppedColumns);
+    }
+    // Filter unused columns: some chart types list every column even when not
+    // used. Keep only columns with a 'mapping' key (the presence of the key
+    // signals the column is actually referenced by the chart).
+    if (rewritten?.subscriptions?.main?.columns && Array.isArray(rewritten.subscriptions.main.columns)) {
+      rewritten.subscriptions.main.columns = rewritten.subscriptions.main.columns.filter(
+        (col) => col && Object.prototype.hasOwnProperty.call(col, 'mapping')
+      );
     }
     return await putCardForMigration(cardId, rewritten, tabId, { isDrill, urn });
   } catch (err) {
@@ -787,12 +797,7 @@ async function swapCardInputFast(cardId, originId, targetId, tabId) {
  * derived from the object type model (see `typeGroupLabel` in the view), not
  * stored here, so they stay correct (e.g. "DataFlow"/"DataSet" casing).
  */
-export const MIGRATE_TYPES = [
-  { key: 'beastModes' },
-  { key: 'cards' },
-  { key: 'dataflows' },
-  { key: 'datasets' }
-];
+export const MIGRATE_TYPES = [{ key: 'beastModes' }, { key: 'cards' }, { key: 'dataflows' }, { key: 'datasets' }];
 
 /**
  * Migrate every selected item from `originId` to `targetId`. Calls
@@ -812,6 +817,7 @@ export const MIGRATE_TYPES = [
  * @param {Record<string, {disposition: 'create'|'rename'|'keep'|'overwrite', newName?: string}>} [params.beastModeChoices] - Per origin Beast Mode id, the conflict resolution chosen on the target.
  * @param {Array<{id: any, name: string, legacyId?: string}>} [params.targetBeastModes] - The target dataset's existing Beast Modes (for keep/overwrite).
  * @param {Record<string, string|null>} [params.columnMap] - Origin → target column-name map. Null targets and no-op entries are skipped.
+ * @param {string[]} [params.droppedColumns] - Origin column names to remove entirely from card definitions (the "drop column" choice; cards only).
  * @param {Map<string, { definition: Object }>} [params.definitionsByItemKey] - Cached content definitions from the column-reference scan, keyed by `${typeKey}:${itemId}`. Reused so we don't re-fetch.
  * @param {Function} [params.onProgress]
  * @param {number|null} [params.tabId]
@@ -821,6 +827,7 @@ export async function migrateAllDownstreamContent({
   beastModeChoices,
   columnMap,
   definitionsByItemKey,
+  droppedColumns,
   onProgress,
   originId,
   originName,
@@ -891,6 +898,7 @@ export async function migrateAllDownstreamContent({
           beastModeIdRemap,
           cachedDefinition: cached,
           columnMap,
+          droppedColumns,
           originId,
           originName,
           tabId,
@@ -931,14 +939,16 @@ export async function migrateAllDownstreamContent({
  * Build a Beast Mode create/update entry from a (column-rewritten) origin
  * template: sweep origin-dataset-id references onto the target (catches the
  * `DATA_SOURCE` link and any embedded ids, same approach as the card/view
- * swaps), drop server-managed timestamps, and set the name. Callers handle
- * `id`/`legacyId` (deleted for create, set to the target's for overwrite).
+ * swaps), drop server-managed timestamps, set the name, and set the owner
+ * to the current user. Callers handle `id`/`legacyId` (deleted for create,
+ * set to the target's for overwrite).
  */
-function buildBeastModeEntry(template, { name, originId, targetId }) {
+function buildBeastModeEntry(template, { currentUserId, name, originId, targetId }) {
   const entry = JSON.parse(JSON.stringify(template).replaceAll(originId, targetId));
   delete entry.created;
   delete entry.lastModified;
   entry.name = name;
+  entry.owner = currentUserId;
   return entry;
 }
 
@@ -992,6 +1002,7 @@ async function dispatchSwap(typeKey, item, options) {
       cachedDefinition: options.cachedDefinition,
       cardId: item.id,
       columnMap: options.columnMap,
+      droppedColumns: options.droppedColumns,
       originId: options.originId,
       tabId: options.tabId,
       targetId: options.targetId,
@@ -1058,6 +1069,13 @@ async function migrateBeastModes({
   const toUpdate = [];
   let succeeded = 0;
 
+  // Fetch the current user's ID so we can set it as the owner on created Beast Modes.
+  // The API rejects creates with owner set to another user.
+  const currentUserId = await getCurrentUserId(tabId);
+  if (!currentUserId) {
+    return { errors: [{ error: 'Could not determine current user ID', id: 'all' }], idRemap: {}, succeeded: 0 };
+  }
+
   const mapLegacyId = (origin, target) => {
     if (origin?.legacyId && target?.legacyId) idRemap[origin.legacyId] = target.legacyId;
   };
@@ -1087,7 +1105,7 @@ async function migrateBeastModes({
           errors.push({ error: `No Beast Mode named "${bm.name}" on the target to overwrite`, id: bm.id });
           continue;
         }
-        const entry = buildBeastModeEntry(rewritten, { name: bm.name, originId, targetId });
+        const entry = buildBeastModeEntry(rewritten, { currentUserId, name: bm.name, originId, targetId });
         entry.id = existing.id;
         entry.legacyId = existing.legacyId;
         toUpdate.push({ entry, origin: bm, target: existing });
@@ -1096,7 +1114,7 @@ async function migrateBeastModes({
 
       // create (default) or rename
       const name = disposition === 'rename' && choice.newName ? choice.newName : bm.name;
-      const entry = buildBeastModeEntry(rewritten, { name, originId, targetId });
+      const entry = buildBeastModeEntry(rewritten, { currentUserId, name, originId, targetId });
       delete entry.id;
       delete entry.legacyId;
       toCreate.push({ entry, name, origin: bm });

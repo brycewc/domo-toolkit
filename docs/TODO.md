@@ -15,5 +15,5 @@ published: false
 - [ ] Adjust activity log object type chips to match context footer (icon and hover for key).
 - [ ] Should sidepanel views be tab specific?
 - [ ] Implement a check for page access, so we populate the page name from that endpoint instead if they don't have access (/api/content/v1/pages/{id}/access) and can turn off share if they do (or maybe change it to a remove)
-- [ ] Consolidate Beast Modes function
+- [ ] Consolidate Beast Modes functions that are saved on a card but have the same name and formula
 - [ ] Related data approval template for an approvals dataset

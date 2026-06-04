@@ -63,8 +63,11 @@ export function extractBeastModeColumnRefs(beastModeTemplate) {
  * dataset-persisted ones (`persistedOnDataSource === true`) migrate as their own
  * Beast Mode type, not with the card, so their column refs belong to that scan,
  * not the card's. Only card-level formulas (`persistedOnDataSource === false`)
- * ride with the card. We swap in a filtered `formulas` array via a shallow
- * spread (the walk is read-only, so the rest of the definition is shared).
+ * ride with the card.
+ *
+ * Unused columns in `subscriptions.main.columns[]` are also excluded: some
+ * chart types list every column even when not used, and only those with a
+ * `mapping` key are actually referenced by the chart.
  *
  * @param {Object} cardResponse - The full kpi/definition response.
  * @returns {Set<string>}
@@ -72,10 +75,32 @@ export function extractBeastModeColumnRefs(beastModeTemplate) {
 export function extractCardColumnRefs(cardResponse) {
   const refs = new Set();
   const inner = cardResponse?.definition ?? cardResponse;
-  const scanTarget =
-    inner && Array.isArray(inner.formulas)
-      ? { ...inner, formulas: inner.formulas.filter((f) => f && f.persistedOnDataSource === false) }
-      : inner;
+
+  let scanTarget = inner;
+
+  const needsFormulaFilter = inner && Array.isArray(inner.formulas);
+  const needsColumnFilter = inner?.subscriptions?.main?.columns && Array.isArray(inner.subscriptions.main.columns);
+
+  if (needsFormulaFilter || needsColumnFilter) {
+    scanTarget = { ...inner };
+
+    if (needsFormulaFilter) {
+      scanTarget.formulas = inner.formulas.filter((f) => f && f.persistedOnDataSource === false);
+    }
+
+    if (needsColumnFilter) {
+      scanTarget.subscriptions = {
+        ...inner.subscriptions,
+        main: {
+          ...inner.subscriptions.main,
+          columns: inner.subscriptions.main.columns.filter(
+            (col) => col && Object.prototype.hasOwnProperty.call(col, 'mapping')
+          )
+        }
+      };
+    }
+  }
+
   walkForColumnRefs(scanTarget, (name) => refs.add(name));
   return refs;
 }

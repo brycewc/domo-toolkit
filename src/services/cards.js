@@ -368,36 +368,6 @@ export async function getCardsForParent({ parentId, tabId = null }) {
   return { parentName: parentData.name, viewGroups: nonEmpty };
 }
 
-/**
- * Fetch metadata (title, datasource) for a list of drill cards via their
- * dr: URNs. Each drill's URN must include the parent: `dr:<drillId>:<rootId>`.
- *
- * @param {Array<string>} drillUrns
- * @param {number|null} [tabId]
- * @returns {Promise<Array<{id: number, urn: string, title: string|null, datasourceId: string|null}>>}
- */
-export async function getDrillCardMetadata(drillUrns, tabId = null) {
-  if (!Array.isArray(drillUrns) || drillUrns.length === 0) return [];
-  return executeInPage(
-    async (drillUrns) => {
-      const response = await fetch(
-        `/api/content/v1/cards?urns=${drillUrns.join(',')}&parts=datasources&includeFiltered=true`,
-        { credentials: 'include' }
-      );
-      if (!response.ok) return [];
-      const cards = await response.json();
-      return (cards || []).map((c) => ({
-        datasourceId: c?.datasources?.[0]?.dataSourceId || null,
-        id: c?.id ?? null,
-        title: c?.title || null,
-        urn: c?.urn || null
-      }));
-    },
-    [drillUrns],
-    tabId
-  );
-}
-
 export async function getDrillParentCardId(drillViewId, inPageContext = false, tabId = null) {
   const fetchLogic = async (drillViewId) => {
     const response = await fetch(`/api/content/v1/cards/${drillViewId}/urn`);
@@ -417,49 +387,6 @@ export async function getDrillParentCardId(drillViewId, inPageContext = false, t
     console.error('Error fetching drill parent card ID:', error);
     throw error;
   }
-}
-
-/**
- * For a list of parent card IDs, fetch the drill paths attached to each one.
- * Uses the bulk endpoint with `parts=drillPath,drillPathURNs` (capital P
- * matters — `parts=drillpath` returns null).
- *
- * Domo's discovery surface for drills is one-way: parent → drills only via
- * this endpoint. Drills aren't returned by `/api/content/v1/datasources/{id}/cards`,
- * so we have to fetch parents first, then ask for their drill paths.
- *
- * @param {Array<number|string>} cardIds
- * @param {number|null} [tabId]
- * @returns {Promise<Array<{drillId: number, parentId: number, urn: string, parentTitle: string}>>}
- */
-export async function getDrillsForCards(cardIds, tabId = null) {
-  if (!Array.isArray(cardIds) || cardIds.length === 0) return [];
-  return executeInPage(
-    async (cardIds) => {
-      const response = await fetch(
-        `/api/content/v1/cards?urns=${cardIds.join(',')}&parts=drillPath,drillPathURNs&includeFiltered=true`,
-        { credentials: 'include' }
-      );
-      if (!response.ok) return [];
-      const cards = await response.json();
-      const out = [];
-      for (const card of cards || []) {
-        const urns = card?.drillPathURNs || [];
-        for (const urn of urns) {
-          // dr:<drillId>:<rootId>
-          const parts = String(urn).split(':');
-          if (parts.length < 3 || parts[0] !== 'dr') continue;
-          const drillId = parseInt(parts[1], 10);
-          const parentId = parseInt(parts[parts.length - 1], 10);
-          if (!Number.isFinite(drillId) || !Number.isFinite(parentId)) continue;
-          out.push({ drillId, parentId, parentTitle: card.title || null, urn });
-        }
-      }
-      return out;
-    },
-    [cardIds],
-    tabId
-  );
 }
 
 /**

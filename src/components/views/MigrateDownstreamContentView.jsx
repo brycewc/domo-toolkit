@@ -7,6 +7,7 @@ import {
   Chip,
   Description,
   EmptyState,
+  Header,
   Input,
   Label,
   Link,
@@ -62,6 +63,9 @@ const TYPE_KEY_TO_DOMO_TYPE = {
 };
 
 const UNMAPPED = '__unmapped__';
+// Sentinel for the "drop column" remap choice: remove the column's references
+// from the (badge_table) cards/drills that use it instead of mapping it.
+const DROP = '__drop__';
 
 export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
@@ -301,7 +305,10 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
   }, [results]);
 
   // Card ids each dataset Beast Mode is actively used by (from the search's
-  // activeLinks), keyed by Beast Mode id. Drives the selection lock.
+  // activeLinks), keyed by Beast Mode id. Drives the selection lock. Drill links
+  // come back as `dr:<drillId>:<rootId>` URNs from the search but are normalized
+  // to the bare drill card id in getDatasetFunctions, so they match the selection
+  // set (which holds bare drill ids) exactly like parent card ids do.
   const beastModeCardLinks = useMemo(() => {
     const m = new Map();
     const r = results.beastModes;
@@ -506,6 +513,33 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
     out.sort((a, b) => a.name.localeCompare(b.name));
     return out;
   }, [comparison, hasMismatches, scanResult]);
+
+  // Names of used-unmapped columns whose every usage is a card or drill (type
+  // 'cards'). These are the columns whose references live only in card
+  // definitions, so they're the ones we can rewrite to a target Beast Mode id
+  // (and the precondition for dropping). A column also used by a dataflow/view
+  // can't take either action.
+  const cardOnlyColumnNames = useMemo(() => {
+    const names = new Set();
+    for (const { items, name } of usedUnmappedColumns) {
+      if (items.length > 0 && items.every((it) => it.type === 'cards')) names.add(name);
+    }
+    return names;
+  }, [usedUnmappedColumns]);
+
+  // Of the card-only columns, those whose using cards/drills are ALL badge_table
+  // — the ones eligible for the "drop column" choice (removing the column from a
+  // table is safe; other chart types aren't). Also used to filter the user's
+  // drop choices at migrate time so a stale choice can't slip through.
+  const droppableColumnNames = useMemo(() => {
+    const names = new Set();
+    for (const { items, name } of usedUnmappedColumns) {
+      if (cardOnlyColumnNames.has(name) && items.every((it) => cardsById.get(String(it.id))?.chartType === 'badge_table')) {
+        names.add(name);
+      }
+    }
+    return names;
+  }, [cardOnlyColumnNames, cardsById, usedUnmappedColumns]);
 
   const dataListItems = useMemo(
     () =>
@@ -781,6 +815,29 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
     const targetName = selectedDatasetName;
     const selectedItems = selectedItemsByType;
 
+    // Split the remap state into renames and drops. The DROP sentinel never
+    // reaches the rewriters; drops travel separately. Beast Mode mappings store
+    // the target Beast Mode's legacyId as the value — the card rewriter renames
+    // the column reference to that id (the same id form a card uses to reference
+    // a dataset Beast Mode), so they ride along in the rename map. Both drops and
+    // Beast Mode mappings are re-checked against their eligible set so a stale
+    // choice (e.g. after a selection change) can't slip through to a dataflow or
+    // view that the rewrite would corrupt.
+    const beastModeLegacyIds = new Set((targetBeastModes || []).map((b) => b.legacyId).filter(Boolean));
+    const renameMap = {};
+    const droppedColumns = [];
+    for (const [name, choice] of Object.entries(columnMap)) {
+      if (choice === DROP) {
+        if (droppableColumnNames.has(name)) droppedColumns.push(name);
+      } else if (choice != null) {
+        if (beastModeLegacyIds.has(choice)) {
+          if (cardOnlyColumnNames.has(name)) renameMap[name] = choice;
+        } else {
+          renameMap[name] = choice;
+        }
+      }
+    }
+
     const initialStatus = {};
     for (const t of MIGRATE_TYPES) {
       if (selectedItems[t.key].length > 0) {
@@ -793,8 +850,9 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
     try {
       const transferResults = await migrateAllDownstreamContent({
         beastModeChoices,
-        columnMap,
+        columnMap: renameMap,
         definitionsByItemKey,
+        droppedColumns,
         onProgress: ({ count, result, status, typeKey }) => {
           if (!mountedRef.current) return;
           setTransferStatus((prev) => {
@@ -898,9 +956,11 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
     }
   }, [
     beastModeChoices,
+    cardOnlyColumnNames,
     columnMap,
     datasetId,
     datasetName,
+    droppableColumnNames,
     hasMismatches,
     onBackToDefault,
     scanResult,
@@ -1111,6 +1171,8 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
                 <div className='flex flex-col divide-y divide-border'>
                   {usedUnmappedColumns.map(({ items, name, type }) => (
                     <ColumnMapRow
+                      canDrop={droppableColumnNames.has(name)}
+                      canMapBeastMode={cardOnlyColumnNames.has(name)}
                       cardsById={cardsById}
                       collisions={scanResult?.dataflowCollisions?.get?.(name) || null}
                       items={items}
@@ -1119,6 +1181,7 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
                       origin={origin}
                       originName={name}
                       originType={type}
+                      targetBeastModes={targetBeastModes}
                       targetColumns={targetColumns}
                       totalSelected={totalSelected}
                       onChange={(choice) => handleColumnChoice(name, choice)}
@@ -1449,8 +1512,15 @@ function buildCardUsageGroups(cardItems, cardsById) {
     }
     const key = String(meta.parentId);
     if (!groups.has(key)) {
+      // Prefer a parent that's in the list; otherwise use the name the drill
+      // carries (the parent isn't migrating, so it isn't in cardsById).
       const parent = cardsById?.get(key);
-      groups.set(key, { drills: [], id: meta.parentId, name: parent?.name || `Card ${meta.parentId}`, usesColumn: false });
+      groups.set(key, {
+        drills: [],
+        id: meta.parentId,
+        name: parent?.name || meta.parentName || `Card ${meta.parentId}`,
+        usesColumn: false
+      });
     }
     groups.get(key).drills.push(it);
   }
@@ -1575,6 +1645,8 @@ function buildObjectUrl(typeKey, item, origin) {
 }
 
 function ColumnMapRow({
+  canDrop = false,
+  canMapBeastMode = false,
   cardsById,
   collisions,
   items,
@@ -1583,12 +1655,31 @@ function ColumnMapRow({
   origin,
   originName,
   originType,
+  targetBeastModes,
   targetColumns,
   totalSelected
 }) {
   // Case-insensitive "contains" match for the Autocomplete's local filter, so
   // the user can type to narrow a long target-column list.
   const { contains } = useFilter({ sensitivity: 'base' });
+
+  // Target Beast Modes offered as mapping targets — only those with a legacyId
+  // (the id a card references them by; without it we couldn't rewrite the ref).
+  // Shown only for card-only columns. Sorted by name to match the column list.
+  const mappableBeastModes = useMemo(() => {
+    if (!canMapBeastMode) return [];
+    return (targetBeastModes || [])
+      .filter((b) => b?.legacyId)
+      .slice()
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }, [canMapBeastMode, targetBeastModes]);
+
+  // When the current choice is a Beast Mode (its legacyId), resolve it for the
+  // trigger so it shows the Beast Mode's name rather than the raw id.
+  const selectedBeastMode = useMemo(
+    () => mappableBeastModes.find((b) => b.legacyId === mappedTo) || null,
+    [mappableBeastModes, mappedTo]
+  );
 
   // Aggregate collisions by dataflow. Many other-inputs may share the same
   // column name; the user mostly cares which dataflows are affected.
@@ -1717,6 +1808,7 @@ function ColumnMapRow({
           className='w-44'
           selectionMode='single'
           value={mappedTo}
+          variant='secondary'
           onChange={(key) => onChange(key)}
         >
           <Autocomplete.Trigger>
@@ -1726,6 +1818,13 @@ function ColumnMapRow({
               {() =>
                 mappedTo === UNMAPPED ? (
                   <span className='text-muted italic'>Leave unmapped</span>
+                ) : mappedTo === DROP ? (
+                  <span className='text-danger italic'>Drop column</span>
+                ) : selectedBeastMode ? (
+                  <span className='inline-flex min-w-0 items-center gap-1 truncate text-xs'>
+                    <ObjectTypeIcon className='size-3.5 shrink-0' typeId='BEAST_MODE_FORMULA' />
+                    <span className='truncate'>{selectedBeastMode.name}</span>
+                  </span>
                 ) : (
                   <span className='truncate font-mono text-xs'>{mappedTo}</span>
                 )
@@ -1756,17 +1855,42 @@ function ColumnMapRow({
                   <span className='text-muted italic'>Leave unmapped</span>
                   <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
                 </ListBox.Item>
-                {targetColumns.map((col) => (
-                  <ListBox.Item id={col.name} key={col.name} textValue={col.name}>
-                    <div className='flex min-w-0 flex-col'>
-                      <span className='truncate font-mono text-xs' title={col.name}>
-                        {col.name}
-                      </span>
-                      {col.type && <span className='text-[10px] text-muted'>{col.type}</span>}
-                    </div>
+                {canDrop && (
+                  <ListBox.Item id={DROP} textValue='Drop column'>
+                    <span className='text-danger italic'>Drop column</span>
                     <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
                   </ListBox.Item>
-                ))}
+                )}
+                <ListBox.Section>
+                  <Header>Columns</Header>
+                  {targetColumns.map((col) => (
+                    <ListBox.Item id={col.name} key={col.name} textValue={col.name}>
+                      <div className='flex min-w-0 flex-col'>
+                        <span className='truncate font-mono text-xs' title={col.name}>
+                          {col.name}
+                        </span>
+                        {col.type && <span className='text-[10px] text-muted'>{col.type}</span>}
+                      </div>
+                      <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
+                    </ListBox.Item>
+                  ))}
+                </ListBox.Section>
+                {mappableBeastModes.length > 0 && (
+                  <ListBox.Section>
+                    <Header>Beast Modes</Header>
+                    {mappableBeastModes.map((bm) => (
+                      <ListBox.Item id={bm.legacyId} key={bm.legacyId} textValue={bm.name}>
+                        <span className='flex min-w-0 items-center gap-1'>
+                          <ObjectTypeIcon className='size-3.5 shrink-0' typeId='BEAST_MODE_FORMULA' />
+                          <span className='truncate text-xs' title={bm.name}>
+                            {bm.name}
+                          </span>
+                        </span>
+                        <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
+                      </ListBox.Item>
+                    ))}
+                  </ListBox.Section>
+                )}
               </ListBox>
             </Autocomplete.Filter>
           </Autocomplete.Popover>
@@ -1853,7 +1977,7 @@ function DataflowCollisionModal({ dataflows, origin, originName }) {
       >
         <IconInfoCircle className='size-3.5' />
       </Button>
-      <Modal.Backdrop>
+      <Modal.Backdrop isDissmissable>
         <Modal.Container className='p-1' placement='center' scroll='outside'>
           <Modal.Dialog className='p-2 pt-3'>
             <Modal.CloseTrigger className='absolute top-2 right-2' variant='ghost'>
