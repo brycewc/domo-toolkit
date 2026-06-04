@@ -1106,7 +1106,7 @@ function DataListItemImpl({
 
   const labelInner = (
     <>
-      <ObjectTypeIcon className='mr-1 inline-block shrink-0 align-[-3px]' size={16} typeId={item.typeId} />
+      <ObjectTypeIcon className='mr-1 inline-block shrink-0 align-text-bottom' size={16} typeId={item.typeId} />
       {item.label}
     </>
   );

@@ -31,7 +31,7 @@ export function Welcome() {
       icon: IconClipboardCopy,
       label: (
         <p>
-          Copy IDs with a click or keyboard shortcut{' '}
+          Copy IDs with a click or the keyboard shortcut{' '}
           <Kbd>
             <Kbd.Abbr
               keyValue={(navigator.userAgentData?.platform ?? navigator.platform).includes('Mac') ? 'command' : 'ctrl'}
@@ -61,7 +61,7 @@ export function Welcome() {
             href='#favicon'
           >
             (customizable
-            <Link.Icon className='size-3'>
+            <Link.Icon className='size-3 opacity-100!'>
               <IconArrowUpRight />
             </Link.Icon>
             )
@@ -85,7 +85,7 @@ export function Welcome() {
             href='#settings'
           >
             (adjustable
-            <Link.Icon className='size-3'>
+            <Link.Icon className='size-3 opacity-100!'>
               <IconArrowUpRight />
             </Link.Icon>
             )
@@ -96,22 +96,33 @@ export function Welcome() {
   ];
 
   const quickStartGuide = [
-    <p className='flex flex-row items-end justify-start gap-1'>
-      Pin the extension: click <IconPuzzle className='inline-block shrink-0 align-middle' size={18} stroke={1.5} /> in your
-      browser toolbar, then click <IconCrossPin className='inline-block shrink-0 align-middle' size={18} /> next to the
-      extension icon
+    <p>
+      Pin the extension: click{' '}
+      <span className='inline-flex align-text-bottom'>
+        <IconPuzzle className='shrink-0' size={18} stroke={1.5} />
+      </span>{' '}
+      in your browser toolbar, then click{' '}
+      <span className='inline-flex align-text-bottom'>
+        <IconCrossPin className='shrink-0' size={18} />
+      </span>{' '}
+      next to the extension icon
     </p>,
     'Navigate to an object in Domo',
     <p>
       Click the extension icon to use the popup (then click{' '}
-      <IconRightRailFill className='inline-block shrink-0 align-middle' size={18} /> to use the side panel instead if
-      preferred)
+      <span className='inline-flex align-text-bottom'>
+        <IconRightRailFill className='shrink-0' size={18} />
+      </span>{' '}
+      to use the side panel instead if preferred)
     </p>,
     'Use the icon-only action buttons to copy, share, audit, navigate, and delete (tooltip text available on hover)',
     'Try navigating to different objects and observe the various available action buttons',
     <p>
       Adjust your settings and set your favicon preferences (click{' '}
-      <IconGear className='inline-block shrink-0 align-middle' size={18} />)
+      <span className='inline-flex align-text-bottom'>
+        <IconGear className='shrink-0' size={18} />
+      </span>
+      )
     </p>,
     'Advanced: click the current context card to access the JSON definition for the current object'
   ];
