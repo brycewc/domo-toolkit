@@ -289,6 +289,17 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
 
   const excludeIds = useMemo(() => (datasetId ? new Set([datasetId]) : null), [datasetId]);
 
+  // All downstream cards keyed by id (parents and drills), so the column-usages
+  // modal can resolve a drill's parent and a parent's name even when the parent
+  // itself doesn't reference the column being mapped.
+  const cardsById = useMemo(() => {
+    const m = new Map();
+    const r = results.cards;
+    const cardItems = r?.status === 'loaded' ? r.items?.items || [] : [];
+    for (const c of cardItems) m.set(String(c.id), c);
+    return m;
+  }, [results]);
+
   // Card ids each dataset Beast Mode is actively used by (from the search's
   // activeLinks), keyed by Beast Mode id. Drives the selection lock.
   const beastModeCardLinks = useMemo(() => {
@@ -1100,6 +1111,7 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
                 <div className='flex flex-col divide-y divide-border'>
                   {usedUnmappedColumns.map(({ items, name, type }) => (
                     <ColumnMapRow
+                      cardsById={cardsById}
                       collisions={scanResult?.dataflowCollisions?.get?.(name) || null}
                       items={items}
                       key={name}
@@ -1416,6 +1428,105 @@ function buildCardItems(items, origin) {
   return rows;
 }
 
+// Groups card-type column usages so drills nest under their parent card. Uses
+// the full card map to resolve each drill's parent and to name a parent that
+// only appears because a drill under it uses the column (`usesColumn: false`).
+// `orphanDrills` holds drills with no known parent (shouldn't happen) so none
+// are dropped.
+function buildCardUsageGroups(cardItems, cardsById) {
+  const groups = new Map();
+  for (const it of cardItems) {
+    if (cardsById?.get(String(it.id))?.isDrill) continue;
+    groups.set(String(it.id), { drills: [], id: it.id, name: it.name, usesColumn: true });
+  }
+  const orphanDrills = [];
+  for (const it of cardItems) {
+    const meta = cardsById?.get(String(it.id));
+    if (!meta?.isDrill) continue;
+    if (meta.parentId == null) {
+      orphanDrills.push(it);
+      continue;
+    }
+    const key = String(meta.parentId);
+    if (!groups.has(key)) {
+      const parent = cardsById?.get(key);
+      groups.set(key, { drills: [], id: meta.parentId, name: parent?.name || `Card ${meta.parentId}`, usesColumn: false });
+    }
+    groups.get(key).drills.push(it);
+  }
+  const byName = (a, b) => (a.name || '').localeCompare(b.name || '');
+  return {
+    groups: [...groups.values()].map((g) => ({ ...g, drills: [...g.drills].sort(byName) })).sort(byName),
+    orphanDrills: orphanDrills.sort(byName)
+  };
+}
+
+// Builds the DataList tree for the column-usages modal: a virtual-parent group
+// per content type, with card-type usages nested (drills under their parent
+// card, plus a muted phantom parent when only a drill uses the column). Also
+// returns the ids to expand by default so the modal shows every usage at once.
+function buildColumnUsageTree(items, cardsById, origin) {
+  const expandedIds = [];
+  const drillItem = (d, parentId) =>
+    new DataListItem({
+      id: `cards:${d.id}`,
+      label: d.name,
+      originalId: d.id,
+      typeId: 'DRILL_VIEW',
+      url: buildDrillViewUrl({ id: d.id, name: d.name, parentId }, origin)
+    });
+  const treeItems = MIGRATE_TYPES.map((t) => {
+    const typeItems = items.filter((it) => it.type === t.key);
+    if (typeItems.length === 0) return null;
+    let children;
+    let count = typeItems.length;
+    let countLabel = null;
+    if (t.key === 'cards') {
+      const { groups, orphanDrills } = buildCardUsageGroups(typeItems, cardsById);
+      // Call out drills separately in the group count, matching the main list:
+      // "{parent-card usages} + {drill usages} drills".
+      const drillUsages = typeItems.filter((it) => cardsById?.get(String(it.id))?.isDrill).length;
+      count = typeItems.length - drillUsages;
+      if (drillUsages > 0) countLabel = `+ ${drillUsages} drill${drillUsages === 1 ? '' : 's'}`;
+      children = groups.map((g) => {
+        const drills = g.drills.map((d) => drillItem(d, g.id));
+        if (drills.length > 0) expandedIds.push(`cards:${g.id}`);
+        return new DataListItem({
+          children: drills.length > 0 ? drills : undefined,
+          id: `cards:${g.id}`,
+          label: g.usesColumn ? g.name : `${g.name} (column not used here)`,
+          originalId: g.id,
+          typeId: TYPE_KEY_TO_DOMO_TYPE.cards,
+          url: g.usesColumn ? buildObjectUrl('cards', { id: g.id, name: g.name }, origin) : null
+        });
+      });
+      for (const d of orphanDrills) children.push(drillItem(d, cardsById?.get(String(d.id))?.parentId));
+    } else {
+      children = typeItems.map(
+        (it) =>
+          new DataListItem({
+            id: `${t.key}:${it.id}`,
+            label: it.name,
+            originalId: it.id,
+            typeId: TYPE_KEY_TO_DOMO_TYPE[t.key],
+            url: buildObjectUrl(t.key, it, origin)
+          })
+      );
+    }
+    expandedIds.push(t.key);
+    return new DataListItem({
+      children,
+      count,
+      countLabel,
+      id: t.key,
+      isVirtualParent: true,
+      label: typeGroupLabel(t.key),
+      typeId: TYPE_KEY_TO_DOMO_TYPE[t.key]
+    });
+  }).filter(Boolean);
+  return { expandedIds, items: treeItems };
+}
+
 // Drill cards open in the analyzer alongside their parent card, so the URL needs
 // the parent card id the drill carries. Built as a DRILL_VIEW object so the path
 // stays defined by the type registry.
@@ -1455,6 +1566,7 @@ function buildObjectUrl(typeKey, item, origin) {
 }
 
 function ColumnMapRow({
+  cardsById,
   collisions,
   items,
   mappedTo,
@@ -1571,7 +1683,13 @@ function ColumnMapRow({
             <span>
               {items.length} use{items.length === 1 ? '' : 's'}
             </span>
-            <ColumnUsagesModal items={items} origin={origin} originName={originName} totalSelected={totalSelected} />
+            <ColumnUsagesModal
+              cardsById={cardsById}
+              items={items}
+              origin={origin}
+              originName={originName}
+              totalSelected={totalSelected}
+            />
           </span>
         </div>
         {typeMismatch && (
@@ -1650,9 +1768,15 @@ function ColumnMapRow({
 }
 
 // Info-icon modal listing every selected piece of content that references the
-// origin column, sectioned by content type. The info icon itself is the modal
-// trigger (React Aria wires onPress through the Modal's DialogTrigger).
-function ColumnUsagesModal({ items, origin, originName, totalSelected }) {
+// origin column, grouped by type via a read-only DataList. Cards nest their
+// drills (with the drill icon); a card shown only because a drill under it uses
+// the column is muted and flagged. The info icon itself is the modal trigger
+// (React Aria wires onPress through the Modal's DialogTrigger).
+function ColumnUsagesModal({ cardsById, items, origin, originName, totalSelected }) {
+  const { expandedIds, items: usageItems } = useMemo(
+    () => buildColumnUsageTree(items, cardsById, origin),
+    [cardsById, items, origin]
+  );
   return (
     <Modal>
       <Button
@@ -1678,48 +1802,14 @@ function ColumnUsagesModal({ items, origin, originName, totalSelected }) {
                 </Description>
               </Modal.Heading>
             </Modal.Header>
-            <Modal.Body className='flex max-h-[60vh] flex-col gap-3 overflow-y-auto text-foreground'>
-              {MIGRATE_TYPES.map((t) => {
-                const typeItems = items
-                  .filter((it) => it.type === t.key)
-                  .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-                if (typeItems.length === 0) return null;
-                return (
-                  <div className='flex min-w-0 flex-col gap-1' key={t.key}>
-                    <div className='flex items-center gap-1.5'>
-                      <ObjectTypeIcon className='size-4 shrink-0' typeId={TYPE_KEY_TO_DOMO_TYPE[t.key]} />
-                      <span className='font-bold'>{typeGroupLabel(t.key)}</span>
-                      <span className='text-xs text-muted'>({typeItems.length})</span>
-                    </div>
-                    <ul className='flex min-w-0 flex-col gap-0.5 pl-1.5'>
-                      {typeItems.map((it) => {
-                        const url = buildObjectUrl(t.key, it, origin);
-                        return (
-                          <li className='flex min-w-0 items-baseline gap-1.5' key={`${it.type}:${it.id}`}>
-                            <span aria-hidden='true' className='shrink-0 text-sm text-muted'>
-                              •
-                            </span>
-                            {url ? (
-                              <Link
-                                className='min-w-0 truncate text-sm no-underline decoration-accent hover:text-accent hover:underline'
-                                href={url}
-                                target='_blank'
-                                title={it.name}
-                              >
-                                {it.name}
-                              </Link>
-                            ) : (
-                              <span className='min-w-0 truncate text-sm' title={it.name}>
-                                {it.name}
-                              </span>
-                            )}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                );
-              })}
+            <Modal.Body className='max-h-[60vh] overflow-y-auto text-foreground'>
+              <DataList
+                allowsMultipleExpanded
+                defaultExpandedIds={expandedIds}
+                items={usageItems}
+                showActions={false}
+                variant='transparent'
+              />
             </Modal.Body>
           </Modal.Dialog>
         </Modal.Container>

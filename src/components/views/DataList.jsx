@@ -86,10 +86,14 @@ import { ObjectTypeIcon } from '../ObjectTypeIcon';
  * @param {Array<{ key: string, icon: React.ReactNode, tooltipText: string, onPress: () => void, isDisabled?: boolean, isActive?: boolean, ariaLabel?: string }>} [props.customHeaderActions] - View-specific header buttons rendered inline after the built-in `headerActions`. Use this for actions that don't fit the preset enum (Transfer Ownership, Selection toggle, etc.).
  * @param {string} [props.viewType] - The action key for this view (e.g. `'getCards'`, `'getDatasets'`). Required when `'reload'` is in `headerActions`. Used as the `type` passed to `launchView` and as the key looked up against `getAvailableActions(currentContext)` to decide if reload is enabled.
  * @param {Object} [props.currentContext] - Live `DomoContext` for the user's currently-active object. Required when `'reload'` is in `headerActions`. Drives whether reload is enabled (current object differs from original AND supports the view).
+ * @param {Boolean} [props.allowsMultipleExpanded=false] - When true, multiple rows can be expanded at once. Defaults to false (single-expansion: opening one collapses its siblings). Pair with `defaultExpandedIds` to render a tree fully expanded.
+ * @param {Array|Set} [props.defaultExpandedIds] - Item ids to start expanded. Seeds each DisclosureGroup's initial (uncontrolled) expansion plus the shadow expansion state once on mount, so a consumer can render a tree fully expanded by default (e.g. a read-only list inside a modal). Omit for all-collapsed.
  */
 export function DataList({
+  allowsMultipleExpanded = false,
   currentContext,
   customHeaderActions,
+  defaultExpandedIds,
   fillHeight = false,
   footer,
   getItemLock,
@@ -126,7 +130,7 @@ export function DataList({
   const [isHeaderShared, setIsHeaderShared] = useState(false);
   // Centralized expansion state, keyed by item.id, survives unmount/remount
   // when items virtualize. See `VirtualizedItems` below.
-  const [expandedIds, setExpandedIds] = useState(() => new Set());
+  const [expandedIds, setExpandedIds] = useState(() => new Set(defaultExpandedIds || []));
   const onToggleExpanded = useCallback((id, isOpen) => {
     setExpandedIds((prev) => {
       const next = new Set(prev);
@@ -529,13 +533,19 @@ export function DataList({
           // more than the visual flourish.
           withSelectionGroup(
             <Card.Content className='flex min-h-0 w-full flex-1 flex-col p-0'>
-              <DisclosureGroup className='flex min-h-0 w-full flex-1 flex-col divide-y divide-border'>
+              <DisclosureGroup
+                allowsMultipleExpanded={allowsMultipleExpanded}
+                className='flex min-h-0 w-full flex-1 flex-col divide-y divide-border'
+                defaultExpandedKeys={defaultExpandedIds}
+              >
                 <VirtualizedItems
                   items={sortedItems}
                   renderItem={(item) => (
                     <DataListItem
+                      allowsMultipleExpanded={allowsMultipleExpanded}
                       canShare={!!onItemShare}
                       canShareAll={!!onItemShareAll}
+                      defaultExpandedIds={defaultExpandedIds}
                       expandedIds={expandedIds}
                       getItemLock={getItemLock}
                       isSelectable={isSelectable}
@@ -563,11 +573,17 @@ export function DataList({
               orientation='vertical'
             >
               <Card.Content>
-                <DisclosureGroup className='flex w-full flex-col divide-y divide-border'>
+                <DisclosureGroup
+                  allowsMultipleExpanded={allowsMultipleExpanded}
+                  className='flex w-full flex-col divide-y divide-border'
+                  defaultExpandedKeys={defaultExpandedIds}
+                >
                   {sortedItems.map((item, index) => (
                     <DataListItem
+                      allowsMultipleExpanded={allowsMultipleExpanded}
                       canShare={!!onItemShare}
                       canShareAll={!!onItemShareAll}
+                      defaultExpandedIds={defaultExpandedIds}
                       expandedIds={expandedIds}
                       getItemLock={getItemLock}
                       isSelectable={isSelectable}
@@ -815,8 +831,10 @@ function arePropsEqualForRow(prev, next) {
  * @param {Number} props.virtualThreshold - Children array length above which children virtualize. Threaded recursively from DataList.
  */
 function DataListItemImpl({
+  allowsMultipleExpanded = false,
   canShare = false,
   canShareAll = false,
+  defaultExpandedIds,
   depth = 0,
   expandedIds,
   getItemLock,
@@ -1259,8 +1277,10 @@ function DataListItemImpl({
   }
 
   const childRenderProps = (child) => ({
+    allowsMultipleExpanded,
     canShare,
     canShareAll,
+    defaultExpandedIds,
     depth: depth + 1,
     expandedIds,
     getItemLock,
@@ -1280,6 +1300,7 @@ function DataListItemImpl({
   return (
     <Disclosure
       className='space-0 w-full'
+      id={item.id}
       isExpanded={isOpen}
       onExpandedChange={(open) => onToggleExpanded?.(item.id, open)}
     >
@@ -1409,20 +1430,14 @@ function DataListItemImpl({
               )}
             </Disclosure.Trigger>
           </>
-        ) : (
-          // Regular items: label stays outside the Trigger so the <Link> /
-          // tooltip-wrapped span retains its own click semantics (navigate /
-          // surface ID). The count moves INTO the Trigger as its first child
-          // so the trigger's min-content size is `count + gap + chevron`
-          // rather than just the chevron — otherwise a long, truncating label
-          // would collapse the trigger to a 16px hit area next to a 100px+
-          // count that did nothing on click. The Trigger keeps flex-1 to
-          // claim any remaining empty space between the count and the
-          // chevron, so clicking that empty space also toggles disclosure.
-          // HeroUI's `.disclosure__indicator` has `margin-inline-start: auto`,
-          // which pushes the chevron to the trigger's right edge inside its
-          // flex context — so the count visually sits adjacent to the label
-          // (left side of trigger) and the chevron stays pinned right.
+        ) : item.url ? (
+          // Regular LINK items: the label stays OUTSIDE the Trigger so the
+          // <Link> keeps its own click semantics (navigate). The count moves
+          // INTO the Trigger as its first child so the trigger's min-content
+          // size is count + chevron, and the Trigger keeps flex-1 to claim the
+          // empty space so clicking it (or the chevron) toggles. HeroUI's
+          // `.disclosure__indicator` has `margin-inline-start: auto`, pinning
+          // the chevron to the trigger's right edge.
           <>
             {selectionPlaceholder}
             <div className='flex w-full min-w-0 flex-1 basis-4/5 items-center gap-2'>
@@ -1440,6 +1455,31 @@ function DataListItemImpl({
               </Disclosure.Trigger>
             </div>
           </>
+        ) : (
+          // Regular NON-LINK items: there's no <Link> to preserve, so the label
+          // goes INSIDE the Trigger (like a virtual parent). A long label then
+          // truncates within the trigger instead of overflowing and pushing the
+          // chevron off-screen, and the whole row toggles.
+          <>
+            {selectionPlaceholder}
+            <Disclosure.Trigger
+              aria-label='Toggle'
+              className='flex min-w-0 flex-1 basis-4/5 flex-row items-center gap-2'
+              variant='tertiary'
+            >
+              <p className='min-w-0 truncate text-left text-sm'>{labelInner}</p>
+              {showCounts && item.count !== undefined && (
+                <p className='shrink-0 text-sm whitespace-nowrap text-muted'>
+                  ({item.count}
+                  {item.countLabel ? ` ${item.countLabel}` : ''})
+                </p>
+              )}
+              <span aria-hidden='true' className='flex-1' />
+              <Disclosure.Indicator>
+                <IconChevronDown />
+              </Disclosure.Indicator>
+            </Disclosure.Trigger>
+          </>
         )}
         {selectionMode ? null : actions}
       </Disclosure.Heading>
@@ -1448,12 +1488,17 @@ function DataListItemImpl({
           {showsErrorBody && <p className='px-2 py-1 text-xs text-danger'>{item.error}</p>}
           {hasChildren && (
             // Each nesting level needs its own DisclosureGroup so React Aria
-            // scopes single-expansion coordination to siblings at that level
-            // only. Without this, nested Disclosures inherit the outer
-            // group's context and expanding a child would collapse its
-            // parent. This wrapper recurses naturally via DataListItemImpl,
-            // so arbitrary depth is handled.
-            <DisclosureGroup className='flex w-full flex-col divide-y divide-border'>
+            // scopes expansion coordination to siblings at that level only.
+            // Without this, nested Disclosures inherit the outer group's context
+            // and expanding a child would collapse its parent. This wrapper
+            // recurses naturally via DataListItemImpl, so arbitrary depth is
+            // handled. `allowsMultipleExpanded`/`defaultExpandedKeys` flow down
+            // so a consumer can render every level expanded at once.
+            <DisclosureGroup
+              allowsMultipleExpanded={allowsMultipleExpanded}
+              className='flex w-full flex-col divide-y divide-border'
+              defaultExpandedKeys={defaultExpandedIds}
+            >
               {item.children.length > virtualThreshold ? (
                 <VirtualizedItems
                   bounded
