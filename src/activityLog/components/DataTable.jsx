@@ -198,7 +198,7 @@ export function DataTable({
 
           {/* Export Dropdown */}
           {exportConfig?.enabled && (
-            <Tooltip closeDelay={0} delay={800}>
+            <Tooltip closeDelay={50} delay={800}>
               <Dropdown>
                 <Button isIconOnly isDisabled={isExporting || data.length === 0} isPending={isExporting} variant='tertiary'>
                   {({ isPending }) => (isPending ? <Spinner color='currentColor' size='sm' /> : <IconDownload />)}
@@ -222,7 +222,7 @@ export function DataTable({
 
           {/* Refresh Button */}
           {onRefresh && (
-            <Tooltip closeDelay={0} delay={800}>
+            <Tooltip closeDelay={50} delay={800}>
               <Button isIconOnly isDisabled={isRefreshing} isPending={isRefreshing} variant='tertiary' onPress={onRefresh}>
                 {({ isPending }) => (isPending ? <Spinner color='currentColor' size='sm' /> : <IconSync />)}
               </Button>

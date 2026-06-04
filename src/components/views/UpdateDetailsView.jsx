@@ -223,7 +223,7 @@ export function UpdateDetailsView({ onBackToDefault = null, onStatusUpdate = nul
         <Card.Title className='flex items-start justify-between'>
           <div className='min-w-0 flex-1 pt-1'>
             <div className='truncate'>{config.title}</div>
-            <Tooltip closeDelay={0} delay={800}>
+            <Tooltip closeDelay={50} delay={800}>
               <Tooltip.Trigger className='block w-full min-w-0 pr-8'>
                 <div className='truncate text-xs font-normal text-muted'>
                   {objectName} (ID: {objectId})
@@ -235,7 +235,7 @@ export function UpdateDetailsView({ onBackToDefault = null, onStatusUpdate = nul
             </Tooltip>
           </div>
           {onBackToDefault && (
-            <Tooltip closeDelay={0} delay={800}>
+            <Tooltip closeDelay={50} delay={800}>
               <Button isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
                 <IconX />
               </Button>
@@ -354,7 +354,7 @@ function FieldRow({
             </ComboBox.Popover>
           </ComboBox>
           {showResetButton && (
-            <Tooltip closeDelay={0} delay={800}>
+            <Tooltip closeDelay={50} delay={800}>
               <Button isIconOnly isDisabled={isResetDisabled} size='md' variant='tertiary' onPress={onReset}>
                 <IconArrowCurvedBack />
               </Button>

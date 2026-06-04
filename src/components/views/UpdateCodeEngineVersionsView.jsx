@@ -490,7 +490,7 @@ export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusU
             </div>
           </div>
           {onBackToDefault && (
-            <Tooltip closeDelay={0} delay={800}>
+            <Tooltip closeDelay={50} delay={800}>
               <Button isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
                 <IconX />
               </Button>

@@ -267,7 +267,7 @@ export function DuplicateView({ onBackToDefault = null, onStatusUpdate = null })
             {sourceUser && <div className='truncate text-xs font-normal text-muted'>from {sourceUser.name}</div>}
           </div>
           {onBackToDefault && (
-            <Tooltip closeDelay={0} delay={800}>
+            <Tooltip closeDelay={50} delay={800}>
               <Button isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
                 <IconX />
               </Button>

@@ -70,7 +70,7 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
 
   return (
     <Modal isOpen={isOpen} onOpenChange={setIsOpen}>
-      <Tooltip closeDelay={100} delay={800}>
+      <Tooltip closeDelay={50} delay={800}>
         <Button
           fullWidth
           className='min-w-36 flex-1 whitespace-normal'
@@ -115,7 +115,7 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
                 />
               </Modal.Body>
               <Modal.Footer className='flex items-center justify-between'>
-                <Tooltip closeDelay={0} delay={200}>
+                <Tooltip closeDelay={50} delay={200}>
                   <Button
                     isIconOnly
                     isDisabled={isSubmitting || !currentUserId}

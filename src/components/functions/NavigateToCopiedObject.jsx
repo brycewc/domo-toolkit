@@ -293,7 +293,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
 
   if (needsDefaultInstance) {
     return (
-      <Tooltip className='h-fit' closeDelay={0} delay={200}>
+      <Tooltip className='h-fit' closeDelay={50} delay={200}>
         <Button fullWidth isIconOnly className='cursor-not-allowed opacity-50' variant='tertiary' onPress={() => {}}>
           <IconArrowSquareOut />
         </Button>
@@ -309,7 +309,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
 
   return (
     <Dropdown isOpen={isOpen} onOpenChange={handleOpenChange}>
-      <Tooltip closeDelay={0} delay={800}>
+      <Tooltip closeDelay={50} delay={800}>
         <Button fullWidth isIconOnly variant='tertiary'>
           <IconArrowSquareOut />
         </Button>

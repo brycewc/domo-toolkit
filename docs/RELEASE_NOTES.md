@@ -164,3 +164,7 @@
 ### Cloud Integrations: toolkit clears the old account when you go back to the list
 
 - Returning from a Cloud Integration to its account list now clears the detected object, instead of still showing the integration you left. _(verify this shipped in v1.3.0 before including; Cloud Integration support did.)_
+
+### Drill view links no longer point to a broken URL
+
+- Fixed links to a card's drill-down view (drill path) building a broken address; they now open the correct page. _(typo shipped since v1.0.0; verify which pre-1.3.1 surface actually exposed a clickable drill-view link before keeping this)_

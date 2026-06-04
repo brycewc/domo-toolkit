@@ -719,7 +719,7 @@ export const ObjectTypeRegistry = {
     icon: { component: 'Drill' },
     idPattern: /^\d+$/,
     parents: ['CARD'],
-    urlPath: '/analyzer?cardid=${parent}&drillviewid=${id}'
+    urlPath: '/analyzer?cardid={parent}&drillviewid={id}'
   }),
   ENIGMA_FORM: new DomoObjectType('ENIGMA_FORM', 'Form', {
     api: { endpoint: '/forms/v2/{id}', pathToName: 'name' },

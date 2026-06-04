@@ -75,7 +75,7 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                 <NavigateToCopiedObject currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
                 <DeleteObject currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
                 <ClearCookies currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
-                <Tooltip closeDelay={0} delay={800}>
+                <Tooltip closeDelay={50} delay={800}>
                   <Button
                     fullWidth
                     isIconOnly
@@ -121,7 +121,7 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                   </Tooltip.Content>
                 </Tooltip>
                 {collapsable ? (
-                  <Tooltip closeDelay={0} delay={800}>
+                  <Tooltip closeDelay={50} delay={800}>
                     <Button fullWidth isIconOnly isDisabled={!hasExpandableActions} slot='trigger' variant='tertiary'>
                       <Disclosure.Indicator>
                         <IconChevronDown />
@@ -136,7 +136,7 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                     </Tooltip.Content>
                   </Tooltip>
                 ) : (
-                  <Tooltip closeDelay={0} delay={800}>
+                  <Tooltip closeDelay={50} delay={800}>
                     <Button fullWidth isIconOnly variant='tertiary' onPress={openSidepanel}>
                       <IconRightRailFill />
                     </Button>

@@ -66,7 +66,7 @@ export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
 
   return (
     <Dropdown isDisabled={longPressDisabled} trigger='longPress'>
-      <Tooltip closeDelay={0} delay={800}>
+      <Tooltip closeDelay={50} delay={800}>
         <Button
           fullWidth
           isIconOnly

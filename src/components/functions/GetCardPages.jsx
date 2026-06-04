@@ -45,7 +45,7 @@ export function GetCardPages({ currentContext, isDisabled, onCollapseActions, on
 
   return (
     <Dropdown isDisabled={longPressDisabled} trigger='longPress'>
-      <Tooltip closeDelay={100} delay={800}>
+      <Tooltip closeDelay={50} delay={800}>
         <Button
           fullWidth
           className='relative min-w-36 flex-1 overflow-visible whitespace-normal'
@@ -97,8 +97,8 @@ export function GetCardPages({ currentContext, isDisabled, onCollapseActions, on
         >
           <span>
             {isPageLike
-              ? 'List other pages/apps/worksheets where these cards appear'
-              : 'List pages/apps/worksheets where this card appears'}
+              ? 'List other pages (app studio, dashboard, and worksheet) where these cards appear'
+              : 'List pages (app studio, dashboard, and worksheet) where this card appears'}
           </span>
           {!longPressDisabled && <span className='italic'>Hold for more options</span>}
         </Tooltip.Content>

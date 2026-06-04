@@ -27,7 +27,7 @@ const LevelPill = memo(function LevelPill({
   const label = `L${index}`;
 
   return (
-    <Tooltip closeDelay={0} delay={800}>
+    <Tooltip closeDelay={50} delay={800}>
       <Button
         size='sm'
         variant='tertiary'
@@ -51,7 +51,7 @@ const FrontierPill = memo(function FrontierPill({ count, direction, onExpand }) 
   const Icon = isUpstream ? IconChevronLeft : IconChevronRight;
 
   return (
-    <Tooltip closeDelay={0} delay={800}>
+    <Tooltip closeDelay={50} delay={800}>
       <Button size='sm' variant='tertiary' onPress={onExpand}>
         <Icon />+{count}
       </Button>

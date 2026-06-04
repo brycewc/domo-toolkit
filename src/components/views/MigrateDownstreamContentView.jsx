@@ -304,12 +304,37 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
     [selectedItemsByType]
   );
 
+  // True when every Beast Mode is used by at least one selected card, i.e. every
+  // Beast Mode leaf is individually locked. Drives locking the parent "Beast
+  // Modes" group checkbox, since at that point its toggle can't change anything.
+  const allBeastModesLocked = useMemo(() => {
+    const r = results.beastModes;
+    const items = r?.status === 'loaded' ? r.items?.items || [] : [];
+    if (items.length === 0) return false;
+    return items.every((bm) => {
+      const fnId = bm.id != null ? String(bm.id) : null;
+      if (!fnId) return false;
+      return (beastModeCardLinks.get(fnId) || []).some((cardId) => selectedCardIdSet.has(String(cardId)));
+    });
+  }, [beastModeCardLinks, results, selectedCardIdSet]);
+
   // A Beast Mode leaf is locked (kept checked, can't be unchecked) while any
   // card that uses it is selected: dropping it would break those cards on the
-  // target. Returns null for every other row.
+  // target. The parent group row locks too once every leaf under it is locked.
+  // Returns null for every other row.
   const getItemLock = useCallback(
     (item) => {
       if (item?.typeId !== 'BEAST_MODE_FORMULA') return null;
+      // Parent "Beast Modes" group row (no originalId): lock it only when every
+      // Beast Mode under it is itself locked, since then the parent toggle has
+      // nothing left to change.
+      if (item?.isVirtualParent) {
+        if (!allBeastModesLocked) return null;
+        return {
+          locked: true,
+          tooltip: 'Every Beast Mode here is used by a selected card, so they all have to migrate'
+        };
+      }
       const fnId = item?.originalId != null ? String(item.originalId) : null;
       if (!fnId) return null;
       const usingCount = (beastModeCardLinks.get(fnId) || []).filter((id) => selectedCardIdSet.has(String(id))).length;
@@ -319,7 +344,7 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
         tooltip: `Used by ${usingCount} selected card${usingCount === 1 ? '' : 's'}; it has to migrate too or those cards break`
       };
     },
-    [beastModeCardLinks, selectedCardIdSet]
+    [allBeastModesLocked, beastModeCardLinks, selectedCardIdSet]
   );
 
   // Run the schema check whenever a target dataset is picked. Clears any prior
@@ -479,13 +504,23 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
         const status = xfer?.status ?? result?.status ?? 'loading';
 
         let count;
+        let countLabel = null;
         let error = null;
         let children;
 
         if (result?.status === 'loaded' && result.items?.items) {
           const items = result.items.items;
-          count = items.length;
-          children = buildLeafItems(t.key, items, origin);
+          if (t.key === 'cards') {
+            // Drills nest under their parent card, so the group's own count is
+            // the parent cards; the drill total rides along as "+ N drills".
+            const drillsCount = items.filter((c) => c.isDrill).length;
+            count = items.length - drillsCount;
+            if (drillsCount > 0) countLabel = `+ ${drillsCount} drill${drillsCount === 1 ? '' : 's'}`;
+            children = buildCardItems(items, origin);
+          } else {
+            count = items.length;
+            children = buildLeafItems(t.key, items, origin);
+          }
         } else if (result?.status === 'error') {
           error = result.error;
         }
@@ -493,11 +528,14 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
         if (xfer) {
           if (xfer.error) error = xfer.error;
           if (xfer.count !== undefined) count = xfer.count;
+          // Transfer progress shows a plain count, not the "+ N drills" tally.
+          countLabel = null;
         }
 
         return new DataListItem({
           children,
           count,
+          countLabel,
           error,
           id: t.key,
           isVirtualParent: true,
@@ -538,6 +576,18 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
 
       const next = new Set(incoming);
 
+      // Drill leaves grouped by their parent card's leaf id, so toggling a card
+      // cascades to its nested drills.
+      const cardsForDrills = results.cards;
+      const allCardItems = cardsForDrills?.status === 'loaded' ? cardsForDrills.items?.items || [] : [];
+      const drillLeavesByParentLeaf = new Map();
+      for (const c of allCardItems) {
+        if (!c.isDrill || c.parentId == null) continue;
+        const parentLeaf = leafSelectionId('cards', c.parentId);
+        if (!drillLeavesByParentLeaf.has(parentLeaf)) drillLeavesByParentLeaf.set(parentLeaf, []);
+        drillLeavesByParentLeaf.get(parentLeaf).push(leafSelectionId('cards', c.id));
+      }
+
       const propagateParent = (typeKey, isAdding) => {
         const r = results[typeKey];
         const items = r?.status === 'loaded' ? r.items?.items || [] : [];
@@ -550,7 +600,10 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
 
       const reconcileLeafParent = (typeKey) => {
         const r = results[typeKey];
-        const items = r?.status === 'loaded' ? r.items?.items || [] : [];
+        let items = r?.status === 'loaded' ? r.items?.items || [] : [];
+        // For cards, only the parent (non-drill) cards are direct children of
+        // the group; nested drills don't gate the group's own checked state.
+        if (typeKey === 'cards') items = items.filter((c) => !c.isDrill);
         if (items.length === 0) return;
         const allSelected = items.every((item) => next.has(leafSelectionId(typeKey, item.id)));
         if (allSelected) next.add(typeKey);
@@ -563,6 +616,19 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
       }
       for (const id of removed) {
         if (isParentKey(id)) propagateParent(id, false);
+      }
+      // A parent card toggling cascades to its nested drills. Drills stay
+      // independently toggleable, so unchecking one just leaves the card
+      // partially selected rather than dropping the card itself.
+      for (const id of added) {
+        for (const leaf of drillLeavesByParentLeaf.get(id) || []) {
+          next.add(leaf);
+        }
+      }
+      for (const id of removed) {
+        for (const leaf of drillLeavesByParentLeaf.get(id) || []) {
+          next.delete(leaf);
+        }
       }
       // Leaf toggles reconcile parent.
       const touchedTypes = new Set();
@@ -910,7 +976,7 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
             Migrate Content of <strong>{datasetName}</strong>
           </Card.Title>
           <div className='flex'>{betaChip}</div>
-          <Tooltip closeDelay={0} delay={800}>
+          <Tooltip closeDelay={50} delay={800}>
             <Button
               isIconOnly
               aria-label='Close'
@@ -1017,7 +1083,7 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
               <div className='flex flex-col gap-1'>
                 <div className='flex items-center justify-between gap-2'>
                   <Label className='text-sm font-medium'>Column Remap</Label>
-                  <Tooltip closeDelay={0} delay={800}>
+                  <Tooltip closeDelay={50} delay={800}>
                     <Button size='sm' startContent={<IconWand />} variant='secondary' onPress={handleAutoMapClick}>
                       Auto Map
                     </Button>
@@ -1310,6 +1376,58 @@ function BeastModeConflictRow({ choice, onChange, originName, targetNames }) {
   );
 }
 
+// Cards group builder: nests each drill card under its parent card so the
+// hierarchy is visible, instead of listing drills as flat siblings. Parent
+// cards with no drills stay plain leaves. Any drill whose parent isn't in the
+// list (shouldn't happen) falls back to a top-level row so none are dropped.
+function buildCardItems(items, origin) {
+  const makeItem = (item, children) =>
+    new DataListItem({
+      children,
+      id: leafSelectionId('cards', item.id),
+      label: item.name || String(item.id),
+      originalId: item.id,
+      // Drills carry the DRILL_VIEW type (drill icon) and link to the drill in
+      // the analyzer; parent and standalone cards keep the card type and URL.
+      typeId: item.isDrill ? 'DRILL_VIEW' : TYPE_KEY_TO_DOMO_TYPE.cards,
+      url: item.isDrill ? buildDrillViewUrl(item, origin) : buildObjectUrl('cards', item, origin)
+    });
+  const drillsByParent = new Map();
+  for (const item of items) {
+    if (!item.isDrill || item.parentId == null) continue;
+    const key = String(item.parentId);
+    if (!drillsByParent.has(key)) drillsByParent.set(key, []);
+    drillsByParent.get(key).push(item);
+  }
+  const claimed = new Set();
+  const rows = [];
+  for (const item of items) {
+    if (item.isDrill) continue;
+    const drills = drillsByParent.get(String(item.id));
+    const children = drills?.length ? drills.map((d) => makeItem(d, undefined)) : undefined;
+    if (children) claimed.add(String(item.id));
+    rows.push(makeItem(item, children));
+  }
+  // Orphan drills (parent card absent from the list) become top-level rows.
+  for (const [key, drills] of drillsByParent) {
+    if (claimed.has(key)) continue;
+    for (const d of drills) rows.push(makeItem(d, undefined));
+  }
+  return rows;
+}
+
+// Drill cards open in the analyzer alongside their parent card, so the URL needs
+// the parent card id the drill carries. Built as a DRILL_VIEW object so the path
+// stays defined by the type registry.
+function buildDrillViewUrl(item, origin) {
+  if (!origin || item.parentId == null) return null;
+  try {
+    return new DomoObject('DRILL_VIEW', item.id, origin, { name: item.name }, null, item.parentId).url;
+  } catch {
+    return null;
+  }
+}
+
 function buildLeafItems(typeKey, items, origin) {
   return items.map(
     (item) =>
@@ -1457,7 +1575,7 @@ function ColumnMapRow({
           </span>
         </div>
         {typeMismatch && (
-          <Tooltip closeDelay={0} delay={300}>
+          <Tooltip closeDelay={50} delay={300}>
             <Button isIconOnly aria-label='Data type mismatch' className='shrink-0 text-warning' size='sm' variant='ghost'>
               <IconExclamationTriangle />
             </Button>

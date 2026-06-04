@@ -57,7 +57,7 @@ export function LockCards({ currentContext, isDisabled }) {
   };
 
   return (
-    <Tooltip closeDelay={100} delay={800}>
+    <Tooltip closeDelay={50} delay={800}>
       <Button
         fullWidth
         className='min-w-36 flex-1 whitespace-normal'
@@ -69,7 +69,7 @@ export function LockCards({ currentContext, isDisabled }) {
         Lock Cards
       </Button>
       <Tooltip.Content
-        className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'
+        className='flex max-w-40 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'
         offset={4}
       >
         Lock all cards on this object from being edited

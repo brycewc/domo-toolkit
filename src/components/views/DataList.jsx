@@ -77,7 +77,7 @@ import { ObjectTypeIcon } from '../ObjectTypeIcon';
  * @param {Set} [props.selectedIds] - Controlled set of currently-selected item ids. Required when `selectionMode` is true.
  * @param {Function} [props.onSelectionChange] - `(newSelectedIds: Set<string>) => void` callback fired when the selection set changes. Required when `selectionMode` is true. Receives the full new Set after any add/remove from the wrapping `CheckboxGroup`'s `onChange`.
  * @param {Function} [props.isSelectable] - `(item) => boolean` filter. When `selectionMode` is true, only items returning true get a checkbox-wrapped label; others get an empty 16px placeholder to preserve column alignment. Defaults to `() => true`.
- * @param {Function} [props.getItemLock] - `(item) => { locked: boolean, tooltip: string } | null`. When it returns `locked`, the item's checkbox renders read-only (kept checked, can't be unchecked) and muted, wrapped in a tooltip showing `tooltip`. Uses `aria-disabled` rather than `isDisabled` so the tooltip still fires and the row's label link stays clickable. The consumer must also keep the id in `selectedIds` (e.g. re-add it in `onSelectionChange`) so the lock holds. Leaf rows only.
+ * @param {Function} [props.getItemLock] - `(item) => { locked: boolean, tooltip: string } | null`. When it returns `locked`, the item's checkbox renders read-only (kept checked, can't be unchecked) and muted, wrapped in a tooltip showing `tooltip`. Uses `aria-disabled` rather than `isDisabled` so the tooltip still fires and the row's label link stays clickable. The consumer must also keep the id in `selectedIds` (e.g. re-add it in `onSelectionChange`) so the lock holds. Applies to both leaf rows and parent (group-header) rows; a locked parent gets the same read-only + muted checkbox while its disclosure toggle stays interactive.
  * @param {React.ReactNode} [props.selectionToolbar] - Selection-mode-only content rendered as a third header row directly under the action buttons. Use for "Select all"/"Deselect all" or other bulk-selection controls. Ignored when `selectionMode` is false.
  * @param {Boolean} [props.fillHeight] - When true, the root Card fills its parent's available height (`h-full`) instead of being content-sized (`max-h-fit`), so the items list scrolls internally and the footer stays pinned at the bottom. Requires a parent that provides a constrained height (a flex/grid column). Default false preserves content-sizing.
  * @param {React.ReactNode} [props.footer] - Content rendered inside the Card below the items list, separated from the scroll area by a `<Separator>`. Use for a primary action that should sit pinned beneath the list (e.g. a full-width "Transfer ownership to…" button in selection mode). Consumers decide visibility; pass `null`/`false` to omit.
@@ -337,7 +337,7 @@ export function DataList({
         // already-visible content would be redundant.
         <Card.Header className='gap-1'>
           {title && (
-            <Tooltip closeDelay={0} delay={800}>
+            <Tooltip closeDelay={50} delay={800}>
               <Tooltip.Trigger className='min-w-0 pr-8'>
                 <Card.Title className={titleLineClamp === 2 ? 'line-clamp-2' : 'line-clamp-1'}>
                   {parseMarkdownBold(title)}
@@ -349,7 +349,7 @@ export function DataList({
             </Tooltip>
           )}
           {onClose && (
-            <Tooltip closeDelay={0} delay={800}>
+            <Tooltip closeDelay={50} delay={800}>
               <Button
                 isIconOnly
                 aria-label='Close view'
@@ -372,7 +372,7 @@ export function DataList({
               {hasInlineActions && (
                 <ButtonGroup hideSeparator className='flex shrink-0' size='sm' variant='ghost'>
                   {customHeaderActions?.map((action) => (
-                    <Tooltip closeDelay={0} delay={800} key={action.key}>
+                    <Tooltip closeDelay={50} delay={800} key={action.key}>
                       <Button
                         isIconOnly
                         aria-label={action.ariaLabel ?? action.tooltipText}
@@ -393,7 +393,7 @@ export function DataList({
                     </Tooltip>
                   ))}
                   {headerActions.includes('openAll') && (
-                    <Tooltip closeDelay={0} delay={800}>
+                    <Tooltip closeDelay={50} delay={800}>
                       <Button
                         isIconOnly
                         aria-label='Open All'
@@ -412,7 +412,7 @@ export function DataList({
                     </Tooltip>
                   )}
                   {onShareAll && headerActions.includes('shareAll') && (
-                    <Tooltip closeDelay={0} delay={800}>
+                    <Tooltip closeDelay={50} delay={800}>
                       <Button
                         isIconOnly
                         aria-label='Share All'
@@ -431,7 +431,7 @@ export function DataList({
                     </Tooltip>
                   )}
                   {headerActions.includes('copy') && (
-                    <Tooltip closeDelay={0} delay={800}>
+                    <Tooltip closeDelay={50} delay={800}>
                       <Button
                         isIconOnly
                         aria-label='Copy'
@@ -469,7 +469,7 @@ export function DataList({
                       const isReloadDisabled = reloadDisabledReason !== null;
                       const tooltipText = reloadDisabledReason ?? 'Reload for current object';
                       return (
-                        <Tooltip closeDelay={0} delay={800}>
+                        <Tooltip closeDelay={50} delay={800}>
                           <Button
                             isIconOnly
                             aria-disabled={isReloadDisabled}
@@ -494,7 +494,7 @@ export function DataList({
                       );
                     })()}
                   {headerActions.includes('refresh') && (
-                    <Tooltip closeDelay={0} delay={800}>
+                    <Tooltip closeDelay={50} delay={800}>
                       <Button
                         isIconOnly
                         aria-label='Refresh'
@@ -748,11 +748,11 @@ const SHAREABLE_TYPES = new Set(['APP', 'DATA_APP', 'DATA_SOURCE', 'PAGE', 'WORK
  * Result: when one Disclosure toggles, only the toggled row re-renders;
  * sibling rows skip. Big win for the Get Card Pages case (130+ groups).
  *
- * Caveat: this assumes a row's children are leaves (no nested Disclosures
- * deeper than 1 level). If a deeply-nested Disclosure ever toggles, its
- * ancestor would skip re-render and the descendant would not see the new
- * `expandedIds` reference. Today no DataList consumer nests Disclosures more
- * than 1 level deep — revisit if that changes.
+ * Nested Disclosures: a row also re-renders when one of its direct children's
+ * own expansion toggles (see the child-open check below), so that child gets
+ * the fresh `expandedIds` reference and can open/close. This covers one level
+ * of nested Disclosures (e.g. drill cards under a parent card). A grandchild
+ * Disclosure would still need a recursive check; no consumer nests that deep.
  */
 function arePropsEqualForRow(prev, next) {
   if (prev.canShare !== next.canShare) return false;
@@ -781,18 +781,14 @@ function arePropsEqualForRow(prev, next) {
   const nextLock = next.getItemLock?.(next.item) || null;
   if ((prevLock?.locked ?? false) !== (nextLock?.locked ?? false)) return false;
   if ((prevLock?.tooltip ?? '') !== (nextLock?.tooltip ?? '')) return false;
-  // Parent rows additionally need to re-render when any of their children's
-  // selection state changes — that's what drives the indeterminate visual on
-  // the parent checkbox. Leaf rows (no children) skip this loop. The cost is
-  // bounded: only parent rows pay it, and only by their own child count.
-  const children = prev.item.children;
-  if (Array.isArray(children) && children.length > 0) {
-    for (const child of children) {
-      const childId = String(child.id);
-      const prevChildSelected = prev.selectedIds?.has(childId) ?? false;
-      const nextChildSelected = next.selectedIds?.has(childId) ?? false;
-      if (prevChildSelected !== nextChildSelected) return false;
-    }
+  // Parent rows must re-render when any DESCENDANT's selection or expansion
+  // changes: a descendant's selection drives this row's indeterminate visual,
+  // and a descendant Disclosure needs the fresh `expandedIds` reference to
+  // open/close. Recurses the whole subtree, so it holds at any nesting depth
+  // (e.g. drills nested under a card under the Cards group). Leaf rows return
+  // immediately; cost is O(subtree) and only parent rows pay it.
+  if (subtreeStateChanged(prev.item, prev.selectedIds, next.selectedIds, prev.expandedIds, next.expandedIds)) {
+    return false;
   }
   return true;
 }
@@ -960,7 +956,7 @@ function DataListItemImpl({
     if (!showActions) return [];
 
     const removeButton = (
-      <Tooltip closeDelay={0} delay={800} key='remove'>
+      <Tooltip closeDelay={50} delay={800} key='remove'>
         <Button fullWidth isIconOnly aria-label='Remove' size='sm' variant='ghost' onPress={() => handleAction('remove')}>
           <IconCancel className='text-danger' />
         </Button>
@@ -974,7 +970,7 @@ function DataListItemImpl({
     );
 
     const openAllButton = (
-      <Tooltip closeDelay={0} delay={800} key='openAll'>
+      <Tooltip closeDelay={50} delay={800} key='openAll'>
         <Button fullWidth isIconOnly aria-label='Open All' size='sm' variant='ghost' onPress={() => handleAction('openAll')}>
           <IconArrowSquareOut />
         </Button>
@@ -985,7 +981,7 @@ function DataListItemImpl({
     );
 
     const copyButton = (
-      <Tooltip closeDelay={0} delay={800} key='copy'>
+      <Tooltip closeDelay={50} delay={800} key='copy'>
         <Button fullWidth isIconOnly aria-label='Copy' size='sm' variant='ghost' onPress={() => handleAction('copy')}>
           {isCopied ? <AnimatedCheck stroke={1.5} /> : <IconClipboardCopy />}
         </Button>
@@ -996,7 +992,7 @@ function DataListItemImpl({
     );
 
     const shareAllButton = (
-      <Tooltip closeDelay={0} delay={800} key='shareAll'>
+      <Tooltip closeDelay={50} delay={800} key='shareAll'>
         <Button
           fullWidth
           isIconOnly
@@ -1014,7 +1010,7 @@ function DataListItemImpl({
     );
 
     const shareButton = (
-      <Tooltip closeDelay={0} delay={800} key='share'>
+      <Tooltip closeDelay={50} delay={800} key='share'>
         <Button fullWidth isIconOnly aria-label='Share' size='sm' variant='ghost' onPress={() => handleAction('share')}>
           {isShared ? <AnimatedCheck stroke={1.5} /> : <IconPersonPlus />}
         </Button>
@@ -1025,7 +1021,7 @@ function DataListItemImpl({
     );
 
     const viewsExplorerButton = (
-      <Tooltip closeDelay={0} delay={800} key='viewsExplorer'>
+      <Tooltip closeDelay={50} delay={800} key='viewsExplorer'>
         <Button
           fullWidth
           isIconOnly
@@ -1043,7 +1039,7 @@ function DataListItemImpl({
     );
 
     const lineageButton = (
-      <Tooltip closeDelay={0} delay={800} key='lineage'>
+      <Tooltip closeDelay={50} delay={800} key='lineage'>
         <Button
           fullWidth
           isIconOnly
@@ -1144,7 +1140,7 @@ function DataListItemImpl({
     </Link>
   ) : (
     <span className='text-sm'>
-      <Tooltip className='flex-1' closeDelay={0} delay={200}>
+      <Tooltip className='flex-1' closeDelay={50} delay={400}>
         <Tooltip.Trigger className='block truncate'>{labelInner}</Tooltip.Trigger>
         <Tooltip.Content
           className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'
@@ -1220,13 +1216,13 @@ function DataListItemImpl({
               // Locked: read-only (can't be unchecked) + muted, wrapped in a
               // tooltip. `aria-disabled` (not `isDisabled`) keeps pointer events
               // alive so the tooltip fires; the consumer keeps the id selected.
-              <Tooltip closeDelay={0} delay={300}>
-                <Tooltip.Trigger className='shrink-0'>
+              <Tooltip closeDelay={50} delay={300}>
+                <Tooltip.Trigger className='shrink-0 cursor-not-allowed!'>
                   <Checkbox
                     aria-disabled
                     isReadOnly
                     aria-label={typeof item.label === 'string' ? item.label : `Select ${item.id}`}
-                    className='mt-0! shrink-0 opacity-60'
+                    className='mt-0! shrink-0 opacity-60 [--cursor-interactive:var(--cursor-disabled)]'
                     value={String(item.id)}
                   >
                     <Checkbox.Control>
@@ -1316,37 +1312,71 @@ function DataListItemImpl({
           // would otherwise inflate the row to ~52px (descendant selector
           // wins over a plain `mt-0` utility on specificity).
           <>
-            <Checkbox
-              aria-label={typeof item.label === 'string' ? item.label : `Select ${item.id}`}
-              className='mt-0! shrink-0'
-              isIndeterminate={isParentIndeterminate}
-              value={String(item.id)}
-            >
-              <Checkbox.Control>
-                <Checkbox.Indicator />
-              </Checkbox.Control>
-            </Checkbox>
-            <Disclosure.Trigger
-              aria-label='Toggle'
-              className='flex min-w-0 flex-1 flex-row items-center gap-2 self-stretch'
-              variant='tertiary'
-            >
-              <p className='min-w-0 truncate text-left text-sm font-medium'>{labelInner}</p>
-              {statusIndicator
-                ? statusIndicator
-                : showCounts &&
-                  item.count !== undefined && (
-                    <p className='shrink-0 text-sm whitespace-nowrap text-muted'>
-                      ({item.count}
-                      {item.countLabel ? ` ${item.countLabel}` : ''})
-                    </p>
-                  )}
-              {!isLoadingState && (
-                <Disclosure.Indicator>
-                  <IconChevronDown />
-                </Disclosure.Indicator>
-              )}
-            </Disclosure.Trigger>
+            {isLocked ? (
+              // Locked parent: every selectable child under it is itself locked,
+              // so the parent toggle can't change anything. Render it read-only +
+              // muted with an explanatory tooltip, mirroring the locked leaf rows.
+              // `aria-disabled` (not `isDisabled`) keeps the tooltip firing.
+              <Tooltip closeDelay={50} delay={300}>
+                <Tooltip.Trigger className='shrink-0 cursor-not-allowed!'>
+                  <Checkbox
+                    aria-disabled
+                    isReadOnly
+                    aria-label={typeof item.label === 'string' ? item.label : `Select ${item.id}`}
+                    className='mt-0! shrink-0 opacity-60 [--cursor-interactive:var(--cursor-disabled)]'
+                    isIndeterminate={isParentIndeterminate}
+                    value={String(item.id)}
+                  >
+                    <Checkbox.Control>
+                      <Checkbox.Indicator />
+                    </Checkbox.Control>
+                  </Checkbox>
+                </Tooltip.Trigger>
+                <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'>
+                  {itemLock.tooltip}
+                </Tooltip.Content>
+              </Tooltip>
+            ) : (
+              <Checkbox
+                aria-label={typeof item.label === 'string' ? item.label : `Select ${item.id}`}
+                className='mt-0! shrink-0'
+                isIndeterminate={isParentIndeterminate}
+                value={String(item.id)}
+              >
+                <Checkbox.Control>
+                  <Checkbox.Indicator />
+                </Checkbox.Control>
+              </Checkbox>
+            )}
+            {/* Label stays OUTSIDE the Trigger so a selectable parent that is
+                also a real object (e.g. a card with drill children) keeps its
+                <Link> navigation. The Trigger holds only the count + chevron and
+                claims the remaining width, so clicking the empty space or the
+                chevron toggles, while the label navigates and the checkbox
+                selects. */}
+            <div className='flex w-full min-w-0 flex-1 basis-4/5 items-center gap-2'>
+              {itemLabel}
+              <Disclosure.Trigger
+                aria-label='Toggle'
+                className='flex flex-1 flex-row items-center gap-2 self-stretch'
+                variant='tertiary'
+              >
+                {statusIndicator
+                  ? statusIndicator
+                  : showCounts &&
+                    item.count !== undefined && (
+                      <p className='shrink-0 text-sm whitespace-nowrap text-muted'>
+                        ({item.count}
+                        {item.countLabel ? ` ${item.countLabel}` : ''})
+                      </p>
+                    )}
+                {!isLoadingState && (
+                  <Disclosure.Indicator>
+                    <IconChevronDown />
+                  </Disclosure.Indicator>
+                )}
+              </Disclosure.Trigger>
+            </div>
           </>
         ) : item.isVirtualParent ? (
           // Virtual parents: the entire label area IS the Trigger so clicking
@@ -1455,6 +1485,22 @@ function DataListItemImpl({
       </Disclosure.Content>
     </Disclosure>
   );
+}
+
+// Recursively reports whether any descendant of `item` changed selection or
+// expansion between renders. Lets arePropsEqualForRow re-render a parent row
+// when a nested child toggles, keeping indeterminate state and nested
+// Disclosure open/close in sync at any nesting depth.
+function subtreeStateChanged(item, prevSelected, nextSelected, prevExpanded, nextExpanded) {
+  const children = item?.children;
+  if (!Array.isArray(children) || children.length === 0) return false;
+  for (const child of children) {
+    const id = String(child.id);
+    if ((prevSelected?.has(id) ?? false) !== (nextSelected?.has(id) ?? false)) return true;
+    if ((prevExpanded?.has(child.id) ?? false) !== (nextExpanded?.has(child.id) ?? false)) return true;
+    if (subtreeStateChanged(child, prevSelected, nextSelected, prevExpanded, nextExpanded)) return true;
+  }
+  return false;
 }
 
 const DataListItem = memo(DataListItemImpl, arePropsEqualForRow);

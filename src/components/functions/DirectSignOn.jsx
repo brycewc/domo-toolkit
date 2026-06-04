@@ -10,7 +10,7 @@ export function DirectSignOn({ currentContext, isDisabled }) {
   };
 
   return (
-    <Tooltip closeDelay={100} delay={800}>
+    <Tooltip closeDelay={50} delay={800}>
       <Button
         fullWidth
         className='min-w-36 flex-1 whitespace-normal'

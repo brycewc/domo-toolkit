@@ -93,9 +93,7 @@ export async function getDownstreamCards(datasetId, tabId = null) {
     drills.push({
       id: ref.drillId,
       isDrill: true,
-      name: meta?.title
-        ? `↳ ${meta.title}${ref.parentTitle ? ` (drill of ${ref.parentTitle})` : ''}`
-        : `Drill ${ref.drillId}`,
+      name: meta?.title || `Drill ${ref.drillId}`,
       parentId: ref.parentId,
       urn: ref.urn
     });

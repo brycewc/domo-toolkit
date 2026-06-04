@@ -263,7 +263,7 @@ export function GenerateSchemaView({ onBackToDefault = null, onStatusUpdate = nu
       </ScrollShadow>
 
       <div className='flex shrink-0 flex-col gap-2 border-t border-border px-3 py-2'>
-        <Tooltip closeDelay={0} delay={800} isDisabled={validation.isValid}>
+        <Tooltip closeDelay={50} delay={800} isDisabled={validation.isValid}>
           <Button fullWidth isDisabled={isSubmitting || !validation.isValid} variant='tertiary' onPress={handleApply}>
             <IconCheck /> Apply Schema
           </Button>
@@ -271,7 +271,7 @@ export function GenerateSchemaView({ onBackToDefault = null, onStatusUpdate = nu
             {validation.reason}
           </Tooltip.Content>
         </Tooltip>
-        <Tooltip closeDelay={0} delay={800} isDisabled={validation.isValid}>
+        <Tooltip closeDelay={50} delay={800} isDisabled={validation.isValid}>
           <Button
             fullWidth
             isDisabled={isSubmitting || !validation.isValid}
@@ -335,7 +335,7 @@ function ColumnRow({ column, isDisabled, onChangeName, onChangeType, onRemove })
           </Select.Popover>
         </Select>
       </div>
-      <Tooltip closeDelay={0} delay={800}>
+      <Tooltip closeDelay={50} delay={800}>
         <Button isIconOnly aria-label='Remove column' isDisabled={isDisabled} size='sm' variant='ghost' onPress={onRemove}>
           <IconTrash className='text-danger' />
         </Button>
@@ -384,7 +384,7 @@ function ViewHeader({ onBackToDefault, subtitle, title }) {
     <Card.Header className='gap-1'>
       <Card.Title className='line-clamp-2 min-w-0 pr-8'>{title}</Card.Title>
       {onBackToDefault && (
-        <Tooltip closeDelay={0} delay={800}>
+        <Tooltip closeDelay={50} delay={800}>
           <Button
             isIconOnly
             aria-label='Close'
