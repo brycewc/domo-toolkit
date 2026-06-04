@@ -1463,10 +1463,13 @@ function buildCardUsageGroups(cardItems, cardsById) {
 
 // Builds the DataList tree for the column-usages modal: a virtual-parent group
 // per content type, with card-type usages nested (drills under their parent
-// card, plus a muted phantom parent when only a drill uses the column). Also
-// returns the ids to expand by default so the modal shows every usage at once.
+// card). A card present only because a drill under it uses the column carries an
+// asterisk marker (and stays a non-link); `hasIndirectCards` flags whether any
+// exist so the modal can show the matching legend. Also returns the ids to
+// expand by default so the modal shows every usage at once.
 function buildColumnUsageTree(items, cardsById, origin) {
   const expandedIds = [];
+  let hasIndirectCards = false;
   const drillItem = (d, parentId) =>
     new DataListItem({
       id: `cards:${d.id}`,
@@ -1491,10 +1494,16 @@ function buildColumnUsageTree(items, cardsById, origin) {
       children = groups.map((g) => {
         const drills = g.drills.map((d) => drillItem(d, g.id));
         if (drills.length > 0) expandedIds.push(`cards:${g.id}`);
+        // A card that doesn't itself reference the column (it's here only
+        // because a drill under it does) gets the asterisk marker and stays a
+        // non-link, so it reads as a container rather than a direct match.
+        if (!g.usesColumn) hasIndirectCards = true;
         return new DataListItem({
+          annotation: g.usesColumn ? null : "This card doesn't use the column directly; one of its drill views does.",
           children: drills.length > 0 ? drills : undefined,
           id: `cards:${g.id}`,
-          label: g.usesColumn ? g.name : `${g.name} (column not used here)`,
+          label: g.name,
+          muted: !g.usesColumn,
           originalId: g.id,
           typeId: TYPE_KEY_TO_DOMO_TYPE.cards,
           url: g.usesColumn ? buildObjectUrl('cards', { id: g.id, name: g.name }, origin) : null
@@ -1524,7 +1533,7 @@ function buildColumnUsageTree(items, cardsById, origin) {
       typeId: TYPE_KEY_TO_DOMO_TYPE[t.key]
     });
   }).filter(Boolean);
-  return { expandedIds, items: treeItems };
+  return { expandedIds, hasIndirectCards, items: treeItems };
 }
 
 // Drill cards open in the analyzer alongside their parent card, so the URL needs
@@ -1770,13 +1779,15 @@ function ColumnMapRow({
 // Info-icon modal listing every selected piece of content that references the
 // origin column, grouped by type via a read-only DataList. Cards nest their
 // drills (with the drill icon); a card shown only because a drill under it uses
-// the column is muted and flagged. The info icon itself is the modal trigger
-// (React Aria wires onPress through the Modal's DialogTrigger).
+// the column is marked with a leading asterisk (explained by a legend at the
+// top of the modal). The info icon itself is the modal trigger (React Aria
+// wires onPress through the Modal's DialogTrigger).
 function ColumnUsagesModal({ cardsById, items, origin, originName, totalSelected }) {
-  const { expandedIds, items: usageItems } = useMemo(
-    () => buildColumnUsageTree(items, cardsById, origin),
-    [cardsById, items, origin]
-  );
+  const {
+    expandedIds,
+    hasIndirectCards,
+    items: usageItems
+  } = useMemo(() => buildColumnUsageTree(items, cardsById, origin), [cardsById, items, origin]);
   return (
     <Modal>
       <Button
@@ -1803,6 +1814,14 @@ function ColumnUsagesModal({ cardsById, items, origin, originName, totalSelected
               </Modal.Heading>
             </Modal.Header>
             <Modal.Body className='max-h-[60vh] overflow-y-auto text-foreground'>
+              {hasIndirectCards && (
+                <p className='mb-2 text-xs text-muted'>
+                  <span className='mr-1 inline-flex align-text-bottom text-accent'>
+                    <IconInfoCircle className='size-3.5 shrink-0' />
+                  </span>
+                  This card doesn't use the column directly; one of its drill views does.
+                </p>
+              )}
               <DataList
                 allowsMultipleExpanded
                 defaultExpandedIds={expandedIds}

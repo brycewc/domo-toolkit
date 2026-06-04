@@ -26,6 +26,7 @@ import IconChevronDown from '@icons/chevron-down.svg?react';
 import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
 import IconCompass from '@icons/compass.svg?react';
 import IconDotsHorizontal from '@icons/dots-horizontal.svg?react';
+import IconInfoCircle from '@icons/info-circle.svg?react';
 import IconLineage from '@icons/lineage.svg?react';
 import IconPeoplePlus from '@icons/people-plus.svg?react';
 import IconPersonPlus from '@icons/person-plus.svg?react';
@@ -568,7 +569,17 @@ export function DataList({
         : withSelectionGroup(
             <ScrollShadow
               hideScrollBar
-              className='min-h-0 flex-1 overflow-y-auto overscroll-x-none overscroll-y-contain'
+              // `overscroll-y-contain` only when the DataList owns its scroll
+              // viewport (`fillHeight`, bounded by a flex parent). When content-
+              // sized (e.g. inside a modal body that owns the scroll), this
+              // container isn't actually scrollable, and `contain` would still
+              // block wheel events from chaining to the ancestor scroller — so
+              // scrolling over the rows would do nothing while the margins and
+              // scrollbar worked. `overscroll-y-auto` there lets the wheel reach
+              // the real scroller. In the bounded case this stays scrollable, so
+              // `auto` only matters at the edge, where it chains to the
+              // overflow-hidden shell (a no-op): no regression.
+              className={`min-h-0 flex-1 overflow-y-auto overscroll-x-none ${fillHeight ? 'overscroll-y-contain' : 'overscroll-y-auto'}`}
               offset={2}
               orientation='vertical'
             >
@@ -1118,12 +1129,43 @@ function DataListItemImpl({
     return actions;
   }, [canShare, canShareAll, hasChildren, handleAction, isCopied, isShared, item, itemActions, objectType, showActions]);
 
+  // Optional leading info-icon marker rendered between the icon and the label
+  // text. A plain `<span title>` rather than a React Aria Tooltip so it never
+  // nests an interactive element inside the row's disclosure-toggle button, and
+  // because it sits at the START of the label it survives the label's
+  // `truncate`. The pointed-to explanation also appears as a legend near the
+  // list, so the hover is a convenience, not the only path to it.
+  // Match the marker icon to the adjacent ObjectTypeIcon's 16px box so the two
+  // icons share an identical bottom-line; a smaller icon bottom-aligned next to
+  // a 16px one reads as vertically staggered (its optical center sits higher).
+  const annotationMarker = item.annotation ? (
+    <span className='mr-1 inline-flex cursor-help align-text-bottom text-accent' title={item.annotation}>
+      <IconInfoCircle className='size-4 shrink-0' />
+    </span>
+  ) : null;
+
   const labelInner = (
     <>
       <ObjectTypeIcon className='mr-1 inline-block shrink-0 align-text-bottom' size={16} typeId={item.typeId} />
+      {annotationMarker}
       {item.label}
     </>
   );
+
+  // Full label for the native `title` on truncating non-link rows (virtual
+  // parents and non-link disclosure headings render the label inside a
+  // `truncate` <p> with no <Link> to surface it). A long label (e.g. a card
+  // flagged "(column not used here)") would otherwise truncate with nothing on
+  // hover. Mirrors the link rows' native-title approach; only set when the
+  // label is a plain string.
+  const labelTitle = typeof item.label === 'string' ? item.label : undefined;
+
+  // Muted rows read as secondary/container entries rather than direct results
+  // (e.g. a card that only appears because a drill under it uses a column). The
+  // class lands on the label wrapper, so the name and the `currentColor`-driven
+  // ObjectTypeIcon both mute, while the annotation marker keeps its own
+  // `text-accent` and stays prominent.
+  const labelMutedClass = item.muted ? ' text-muted' : '';
 
   // Link items: native `title` shows the full URL on hover. Lighter than
   // React Aria Tooltip (no portal, no delay state machine, no extra DOM) and
@@ -1141,7 +1183,9 @@ function DataListItemImpl({
     // group headers and their expanded leaves. ObjectTypeIcon returns null
     // when item.typeId is unset, so synthetic group rows (no typeId) render
     // identically to before.
-    <p className='min-w-0 truncate text-sm font-medium'>{labelInner}</p>
+    <p className={`min-w-0 truncate text-sm font-medium${labelMutedClass}`} title={labelTitle}>
+      {labelInner}
+    </p>
   ) : item.url ? (
     // `min-w-0` (without `flex-1`) lets the Link be content-sized when text
     // is short and shrink/truncate when long — but never grow into empty
@@ -1157,7 +1201,7 @@ function DataListItemImpl({
       {labelInner}
     </Link>
   ) : (
-    <span className='text-sm'>
+    <span className={`text-sm${labelMutedClass}`}>
       <Tooltip className='flex-1' closeDelay={50} delay={400}>
         <Tooltip.Trigger className='block truncate'>{labelInner}</Tooltip.Trigger>
         <Tooltip.Content
@@ -1412,7 +1456,9 @@ function DataListItemImpl({
               className='flex min-w-0 flex-1 basis-4/5 flex-row items-center gap-2'
               variant='tertiary'
             >
-              <p className='min-w-0 truncate text-left text-sm font-medium'>{labelInner}</p>
+              <p className={`min-w-0 truncate text-left text-sm font-medium${labelMutedClass}`} title={labelTitle}>
+                {labelInner}
+              </p>
               {statusIndicator
                 ? statusIndicator
                 : showCounts &&
@@ -1467,7 +1513,9 @@ function DataListItemImpl({
               className='flex min-w-0 flex-1 basis-4/5 flex-row items-center gap-2'
               variant='tertiary'
             >
-              <p className='min-w-0 truncate text-left text-sm'>{labelInner}</p>
+              <p className={`min-w-0 truncate text-left text-sm${labelMutedClass}`} title={labelTitle}>
+                {labelInner}
+              </p>
               {showCounts && item.count !== undefined && (
                 <p className='shrink-0 text-sm whitespace-nowrap text-muted'>
                   ({item.count}
