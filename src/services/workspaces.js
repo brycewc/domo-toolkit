@@ -99,12 +99,8 @@ export async function transferWorkspaces(workspaceIds, fromUserId, toUserId, tab
           const payload = await listRes.json();
           const members = Array.isArray(payload) ? payload : payload.members || [];
 
-          const destMember = members.find(
-            (m) => m.memberType === 'USER' && m.memberId === toUserId
-          );
-          const sourceMember = members.find(
-            (m) => m.memberType === 'USER' && m.memberId === fromUserId
-          );
+          const destMember = members.find((m) => m.memberType === 'USER' && m.memberId === toUserId);
+          const sourceMember = members.find((m) => m.memberType === 'USER' && m.memberId === fromUserId);
 
           // Step 2: ensure destination is OWNER
           if (destMember) {

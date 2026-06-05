@@ -33,9 +33,7 @@ export async function getOwnedAiProjects(userId, tabId = null) {
         const data = await response.json();
 
         if (data.projects && data.projects.length > 0) {
-          allProjects.push(
-            ...data.projects.map((p) => ({ id: p.id, name: p.name || p.id }))
-          );
+          allProjects.push(...data.projects.map((p) => ({ id: p.id, name: p.name || p.id })));
           offset += limit;
           if (data.projects.length < limit) moreData = false;
         } else {
@@ -58,12 +56,7 @@ export async function getOwnedAiProjects(userId, tabId = null) {
  * @param {number|null} tabId - Optional Chrome tab ID
  * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
  */
-export async function transferAiProjects(
-  projectIds,
-  fromUserId,
-  toUserId,
-  tabId = null
-) {
+export async function transferAiProjects(projectIds, fromUserId, toUserId, tabId = null) {
   return executeInPage(
     async (projectIds, fromUserId, toUserId) => {
       const errors = [];
@@ -71,14 +64,11 @@ export async function transferAiProjects(
 
       for (const id of projectIds) {
         try {
-          const response = await fetch(
-            `/api/datascience/ml/v1/projects/${id}/ownership`,
-            {
-              body: JSON.stringify({ userId: toUserId }),
-              headers: { 'Content-Type': 'application/json' },
-              method: 'POST'
-            }
-          );
+          const response = await fetch(`/api/datascience/ml/v1/projects/${id}/ownership`, {
+            body: JSON.stringify({ userId: toUserId }),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'POST'
+          });
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           succeeded++;
         } catch (error) {

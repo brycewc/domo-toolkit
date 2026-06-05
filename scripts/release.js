@@ -41,9 +41,7 @@ function createZip(outFileName, files, transformFile) {
     archive.pipe(output);
 
     for (const file of files) {
-      const content = transformFile
-        ? transformFile(file.relativePath, file.fullPath)
-        : null;
+      const content = transformFile ? transformFile(file.relativePath, file.fullPath) : null;
 
       if (content !== null && content !== undefined) {
         archive.append(content, { name: file.relativePath });

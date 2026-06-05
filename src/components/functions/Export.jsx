@@ -4,10 +4,8 @@ import { useStatusBar } from '@/hooks/useStatusBar';
 import { exportCard } from '@/services/cards';
 import { getCodeEngineCode } from '@/services/codeEngine';
 import IconCsv from '@icons/csv.svg?react';
-import IconCurlyBrackets from '@icons/curly-brackets.svg?react';
 import IconDownload from '@icons/download.svg?react';
 import IconExcel from '@icons/excel.svg?react';
-import IconPython from '@icons/python.svg?react';
 
 const NON_EXPORTABLE_CARD_TYPES = new Set(['domoapp', 'text']);
 
@@ -38,9 +36,7 @@ export function Export({ currentContext, isDisabled }) {
     const isPython = language === 'PYTHON';
 
     const handleCodeExport = () => {
-      const packageId = isCEVersion
-        ? currentContext?.domoObject?.parentId
-        : currentContext?.domoObject?.id;
+      const packageId = isCEVersion ? currentContext?.domoObject?.parentId : currentContext?.domoObject?.id;
       if (!packageId) return;
 
       const name = currentContext.domoObject.metadata?.name || 'code-engine-package';
@@ -78,7 +74,7 @@ export function Export({ currentContext, isDisabled }) {
     };
 
     return (
-      <Tooltip closeDelay={100} delay={600}>
+      <Tooltip>
         <Button
           fullWidth
           className='min-w-36 flex-1 whitespace-normal'
@@ -86,13 +82,10 @@ export function Export({ currentContext, isDisabled }) {
           variant='tertiary'
           onPress={handleCodeExport}
         >
-          {isPython ? <IconPython /> : <IconCurlyBrackets />}
-          Download Version
+          <IconDownload />
+          Download Code
         </Button>
-        <Tooltip.Content
-          className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
-          offset={4}
-        >
+        <Tooltip.Content className='max-w-60' offset={4}>
           Download code engine package version code as a {isPython ? '.py' : '.js'} file
         </Tooltip.Content>
       </Tooltip>
@@ -122,20 +115,12 @@ export function Export({ currentContext, isDisabled }) {
 
   return (
     <Dropdown isDisabled={isDisabled}>
-      <Tooltip closeDelay={100} delay={600}>
-        <Button
-          fullWidth
-          className='min-w-36 flex-1 whitespace-normal'
-          isDisabled={isDisabled}
-          variant='tertiary'
-        >
+      <Tooltip>
+        <Button fullWidth className='min-w-36 flex-1 whitespace-normal' isDisabled={isDisabled} variant='tertiary'>
           <IconDownload />
           Export
         </Button>
-        <Tooltip.Content
-          className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
-          offset={4}
-        >
+        <Tooltip.Content className='max-w-60' offset={4}>
           Quick export card data as Excel or CSV
         </Tooltip.Content>
       </Tooltip>

@@ -7,7 +7,7 @@ export function Duplicate({ currentContext, onCollapseActions, onStatusUpdate })
   const { isPending, launch } = useLaunchView();
 
   return (
-    <Tooltip closeDelay={100} delay={600}>
+    <Tooltip>
       <Button
         fullWidth
         className='min-w-36 flex-1 whitespace-normal'
@@ -25,11 +25,8 @@ export function Duplicate({ currentContext, onCollapseActions, onStatusUpdate })
         <IconPersonPlus />
         Duplicate User
       </Button>
-      <Tooltip.Content
-        className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
-        offset={4}
-      >
-        Clone this user's role, profile, groups, and shared content
+      <Tooltip.Content className='max-w-60' offset={4}>
+        Clone this user's role, profile, groups, and individually-shared content
       </Tooltip.Content>
     </Tooltip>
   );

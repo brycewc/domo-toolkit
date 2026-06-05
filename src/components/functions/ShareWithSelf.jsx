@@ -1,6 +1,7 @@
 import { Button, Tooltip } from '@heroui/react';
 import { useState } from 'react';
 
+import { DisabledTooltip } from '@/components/DisabledTooltip';
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { getAccountIdsForDomoObject } from '@/services/accounts';
 import { shareWithSelf } from '@/services/share';
@@ -12,16 +13,8 @@ export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
   const { showPromiseStatus } = useStatusBar();
 
   const handleShare = () => {
-    if (
-      !currentContext?.domoObject ||
-      !currentContext.domoObject.id ||
-      !currentContext.domoObject.typeId
-    ) {
-      onStatusUpdate?.(
-        'No Object Detected',
-        'Please navigate to a valid Domo object and try again',
-        'danger'
-      );
+    if (!currentContext?.domoObject || !currentContext.domoObject.id || !currentContext.domoObject.typeId) {
+      onStatusUpdate?.('No Object Detected', 'Please navigate to a valid Domo object and try again', 'danger');
       return;
     }
 
@@ -51,9 +44,7 @@ export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
     if (currentContext.domoObject?.typeId === 'DATA_SOURCE') {
       const accountIds = getAccountIdsForDomoObject(currentContext.domoObject);
       label =
-        accountIds.length > 1
-          ? `${accountIds.length} accounts (${accountIds.join(', ')})`
-          : `Account ${accountIds[0]}`;
+        accountIds.length > 1 ? `${accountIds.length} accounts (${accountIds.join(', ')})` : `Account ${accountIds[0]}`;
     } else {
       label = `${currentContext.domoObject?.typeName} ${currentContext.domoObject?.id}`;
     }
@@ -105,68 +96,56 @@ export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
   };
 
   const isSupportedType = isSupportedForShare(currentContext?.domoObject);
-  const contentAdminTypes = [
-    'CARD',
-    'DATA_APP',
-    'DATA_APP_VIEW',
-    'PAGE',
-    'WORKSHEET',
-    'WORKSHEET_VIEW'
-  ];
+  const contentAdminTypes = ['CARD', 'DATA_APP', 'DATA_APP_VIEW', 'PAGE', 'WORKSHEET', 'WORKSHEET_VIEW'];
   const userRights = currentContext?.user?.metadata?.USER_RIGHTS || [];
   const needsContentAdmin =
-    contentAdminTypes.includes(currentContext?.domoObject?.typeId) &&
-    !userRights.includes('content.admin');
-  const needsAccountAdmin =
-    currentContext?.domoObject?.typeId === 'DATA_SOURCE' && !userRights.includes('account.admin');
-  const needsAppAdmin =
-    currentContext?.domoObject?.typeId === 'APP' && !userRights.includes('app.admin');
-  const buttonDisabled =
-    isDisabled ||
-    isSharing ||
-    !currentContext?.domoObject ||
-    !isSupportedType ||
-    needsContentAdmin ||
-    needsAccountAdmin ||
-    needsAppAdmin;
+    contentAdminTypes.includes(currentContext?.domoObject?.typeId) && !userRights.includes('content.admin');
+  const needsAccountAdmin = currentContext?.domoObject?.typeId === 'DATA_SOURCE' && !userRights.includes('account.admin');
+  const needsAppAdmin = currentContext?.domoObject?.typeId === 'APP' && !userRights.includes('app.admin');
+  const typeName = currentContext?.domoObject?.typeName;
+  const isDataSource = currentContext?.domoObject?.typeId === 'DATA_SOURCE';
+  const hasAccounts = isDataSource && getAccountIdsForDomoObject(currentContext.domoObject).length > 0;
+  // Persistent reasons the action is unavailable (sharing-in-progress is
+  // transient, the button disables itself while the share runs, so it is excluded).
+  const disabledReason =
+    isDisabled || !currentContext?.domoObject
+      ? 'Navigate to a Domo object use share with self'
+      : isDataSource && !hasAccounts
+        ? 'This dataset has no connected account to share'
+        : !isSupportedType
+          ? `Share with self isn't supported for ${typeName?.toLowerCase()}s`
+          : needsContentAdmin
+            ? `You need the Content Admin permission to share this ${typeName?.toLowerCase()}`
+            : needsAccountAdmin
+              ? "You need the Account Admin permission to share this dataset's account(s)"
+              : needsAppAdmin
+                ? 'You need the App Admin permission to share this app'
+                : null;
+
+  if (disabledReason) {
+    return (
+      <DisabledTooltip content={disabledReason}>
+        <Button fullWidth isIconOnly variant='tertiary'>
+          <IconPersonPlus />
+        </Button>
+      </DisabledTooltip>
+    );
+  }
 
   return (
-    <Tooltip closeDelay={0} delay={400} disabled={!buttonDisabled}>
-      <Button
-        fullWidth
-        isIconOnly
-        isDisabled={buttonDisabled}
-        variant='tertiary'
-        onPress={handleShare}
-      >
+    <Tooltip delay={200}>
+      <Button fullWidth isIconOnly isDisabled={isSharing} variant='tertiary' onPress={handleShare}>
         <IconPersonPlus />
       </Button>
-      <Tooltip.Content
-        className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
-        offset={4}
-      >
-        {currentContext?.domoObject?.typeId === 'DATA_SOURCE' &&
-        getAccountIdsForDomoObject(currentContext?.domoObject).length > 0 ? (
-          <>Share dataset account(s) with yourself</>
-        ) : (
-          <>Share {currentContext?.domoObject?.typeName.toLowerCase()} with yourself</>
-        )}
+      <Tooltip.Content className='max-w-60' offset={4}>
+        {isDataSource ? <>Share dataset account(s) with yourself</> : <>Share {typeName?.toLowerCase()} with yourself</>}
       </Tooltip.Content>
     </Tooltip>
   );
 }
 
 function isSupportedForShare(domoObject) {
-  const SUPPORTED_TYPES = [
-    'APP',
-    'CARD',
-    'DATA_APP',
-    'DATA_APP_VIEW',
-    'DATA_SOURCE',
-    'PAGE',
-    'WORKSHEET',
-    'WORKSHEET_VIEW'
-  ];
+  const SUPPORTED_TYPES = ['APP', 'CARD', 'DATA_APP', 'DATA_APP_VIEW', 'DATA_SOURCE', 'PAGE', 'WORKSHEET', 'WORKSHEET_VIEW'];
   if (!domoObject?.typeId) return false;
   if (!SUPPORTED_TYPES.includes(domoObject.typeId)) return false;
   if (domoObject.typeId === 'CARD') {

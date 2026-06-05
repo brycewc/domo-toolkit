@@ -1,10 +1,28 @@
-# *.js
+# Build output and generated artifacts (mirrors .gitignore so `prettier .` is safe)
+dist/
+dist-ssr/
+release/
+.yarn/
+.visuals/
+.heroui-docs/
 
-# Markdown is formatted by remark (see .remarkrc.mjs), not Prettier.
-# Prettier hardcodes `_` for italic emphasis with no override option, which
-# conflicts with the project's remark-lint preset that expects `*`. Letting
-# remark be the single source of truth for markdown formatting.
-*.md
+# YAML is left to its own tooling (Yarn, Jekyll); not Prettier-formatted.
+*.yml
+*.yaml
 
-# Personal scratch list — also exempt from remark lint via .remarkignore.
+# Jekyll docs site: generated output (_site) plus the vendored minima theme.
+# These are regenerated/third-party, not hand-edited source.
+docs/_site/
+docs/_sass/
+docs/_includes/
+docs/_layouts/
+docs/assets/
+
+# Machine-local Claude settings (untracked).
+.claude/settings.local.json
+
+# Vendored skill definitions, left as-is to avoid churn when skills update.
+.agents/
+
+# Personal scratch list, left unformatted.
 docs/TODO.md

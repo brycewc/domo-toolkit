@@ -28,8 +28,7 @@ export default defineManifest({
   ],
   host_permissions: ['*://*.domo.com/*'],
   content_security_policy: {
-    extension_pages:
-      "script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none';"
+    extension_pages: "script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none';"
   },
   action: {
     default_icon: {
@@ -70,11 +69,7 @@ export default defineManifest({
   },
   web_accessible_resources: [
     {
-      resources: [
-        'public/apiErrors.js',
-        'public/domo-logo-no-background.png',
-        'public/domo-logo.png'
-      ],
+      resources: ['public/apiErrors.js', 'public/domo-logo-no-background.png', 'public/domo-logo.png'],
       matches: ['https://*.domo.com/*']
     }
   ]

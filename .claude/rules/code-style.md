@@ -1,11 +1,12 @@
 ---
-globs: .js,.jsx
-alwaysApply: false
+paths:
+  - '**/*.js'
+  - '**/*.jsx'
 ---
 
 # Code Style (ESLint + Prettier)
 
-This project enforces strict sorting and formatting via `eslint-plugin-perfectionist`, `@stylistic/eslint-plugin`, and Prettier. All generated code **must** conform to these rules. After writing or editing any `.js` or `.jsx` file, run `npx eslint --no-warn-ignored <file>` to verify — fix any errors before finishing.
+This project enforces strict sorting and formatting via `eslint-plugin-perfectionist`, `@stylistic/eslint-plugin`, and Prettier. All generated code **must** conform to these rules. After writing or editing any `.js` or `.jsx` file, run `npx eslint --no-warn-ignored <file>` to verify, then fix any errors before finishing.
 
 ## Sorting (perfectionist recommended-alphabetical)
 
@@ -31,7 +32,7 @@ import { useEffect, useState } from 'react';
 import { FaviconSettings, Settings } from '@/components';
 import { useTheme } from '@/hooks';
 
-// WRONG — unsorted named imports, missing blank line before internal group
+// WRONG: unsorted named imports, missing blank line before internal group
 import { Card, Button, Link } from '@heroui/react';
 import { useTheme } from '@/hooks';
 import { IconEye, IconBolt } from '@tabler/icons-react';
@@ -82,7 +83,7 @@ Sort JSX props in this group order, alphabetically within each group:
   }}
 />
 
-// WRONG — callback before regular props, shorthand not first
+// WRONG: callback before regular props, shorthand not first
 <Select
   className='w-40'
   onChange={handleChange}
@@ -101,10 +102,10 @@ Within a file, order top-level declarations by kind:
 
 Exported functions must come **before** non-exported functions. Use function declarations (hoisted) for helpers referenced by module-level consts above the export.
 
-**Within each kind, sort alphabetically by declaration name** (case-insensitive). This applies to exported functions, non-exported functions, exported consts, and classes. When adding a new function to an existing file, find its alphabetical home — do not append to the bottom.
+**Within each kind, sort alphabetically by declaration name** (case-insensitive). This applies to exported functions, non-exported functions, exported consts, and classes. When adding a new function to an existing file, find its alphabetical home rather than appending to the bottom.
 
 ```javascript
-// CORRECT — exported functions alphabetized, non-exported last
+// CORRECT: exported functions alphabetized, non-exported last
 export function fetchObjectDetailsInPage(...) { ... }
 export function getObjectType(...) { ... }
 export function shareContent(...) { ... }
@@ -112,7 +113,7 @@ export function shareWithSelf(...) { ... }
 
 async function shareForType(...) { ... }  // non-exported helper, goes after all exports
 
-// WRONG — shareContent appended after shareWithSelf instead of alphabetized before it,
+// WRONG: shareContent appended after shareWithSelf instead of alphabetized before it,
 // and non-exported shareForType interleaved with exports
 export function shareWithSelf(...) { ... }
 async function shareForType(...) { ... }
@@ -135,6 +136,7 @@ Sort members/elements alphabetically when the collection is a declaration (not w
 | Trailing commas             | **None**                                                 |
 | Semicolons                  | Always                                                   |
 | Indentation                 | 2 spaces (no tabs)                                       |
+| Print width                 | 125                                                      |
 | Arrow parens                | Always: `(x) => x`                                       |
 | Brace style                 | `1tbs` (opening brace on same line)                      |
 | Bracket spacing             | `{ foo }` not `{foo}`                                    |
@@ -144,6 +146,16 @@ Sort members/elements alphabetically when the collection is a declaration (not w
 | No trailing spaces          | Enforced                                                 |
 | Padded blocks               | Never (no blank lines after `{` or before `}`)           |
 | Space before function paren | Named: no, Anonymous: no, Async arrow: yes               |
+
+## Prettier scope
+
+Prettier owns formatting for every file type in the repo, **including Markdown** (`.md`). The old remark/retext Markdown toolchain was removed, so Prettier is the single formatter. Specifics:
+
+- **Embedded code in Markdown is reformatted** to project JS style (e.g. JavaScript inside fenced code blocks in `.claude/commands/*.md`).
+- **YAML is not formatted**: `*.yml` / `*.yaml` are in `.prettierignore`, since Yarn and Jekyll config own their own formatting.
+- **Build, generated, and vendored paths are ignored**: `dist/`, `release/`, `.yarn/`, `docs/_site/`, the vendored minima theme (`docs/_sass`, `docs/_includes`), and `.agents/`.
+
+`npx prettier --write .` is safe to run repo-wide.
 
 ## Unused Variables
 
@@ -158,4 +170,4 @@ After creating or editing `.js`/`.jsx` files, **always** run:
 npx eslint --no-warn-ignored <file-paths>
 ```
 
-Fix all errors before considering the task complete. The most commonly missed rules are **import sorting**, **JSX prop ordering**, **object key sorting**, **module-level function sorting** (alphabetize within a file — don't just append), and **trailing commas** (must be none).
+Fix all errors before considering the task complete. The most commonly missed rules are **import sorting**, **JSX prop ordering**, **object key sorting**, **module-level function sorting** (alphabetize within a file, don't just append), and **trailing commas** (must be none).

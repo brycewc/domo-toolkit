@@ -5,6 +5,7 @@ import { DatasetComboBox } from '@/components/DatasetComboBox';
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { DomoContext } from '@/models/DomoContext';
 import { getColorRules, getDatasetBeastModes, getDatasetColumns, setColorRules } from '@/services/datasets';
+import { parseMarkdownBold, stripMarkdownBold } from '@/utils/markdown';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconCheckCircle from '@icons/check-circle.svg?react';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
@@ -140,8 +141,7 @@ export function CopyColorRulesView({ onBackToDefault = null, onStatusUpdate = nu
 
   const sourceId = currentContext.domoObject.id;
   const sourceName = currentContext.domoObject.metadata?.name || sourceId;
-  const sourceBeastModes =
-    currentContext.domoObject.metadata?.details?.properties?.formulas?.formulas || {};
+  const sourceBeastModes = currentContext.domoObject.metadata?.details?.properties?.formulas?.formulas || {};
   const sameDataset = destinationId && destinationId === sourceId;
   const { missingColumns, swap: beastModeIdSwap } =
     destinationColumns && sourceRules.length > 0
@@ -151,45 +151,42 @@ export function CopyColorRulesView({ onBackToDefault = null, onStatusUpdate = nu
     (rule) => rule?.condition?.column && beastModeIdSwap[rule.condition.column]
   ).length;
   const schemaResolved =
-    !!destinationColumns &&
-    !sameDataset &&
-    !isLoadingDestination &&
-    sourceRules.length > 0 &&
-    missingColumns.length === 0;
+    !!destinationColumns && !sameDataset && !isLoadingDestination && sourceRules.length > 0 && missingColumns.length === 0;
   const destinationHasRules = (destinationExistingRules?.length ?? 0) > 0;
-  const canSubmit =
-    !!destinationId &&
-    !sameDataset &&
-    !isLoadingDestination &&
-    !isSubmitting &&
-    sourceRules.length > 0;
+  const canSubmit = !!destinationId && !sameDataset && !isLoadingDestination && !isSubmitting && sourceRules.length > 0;
+
+  const headerTitle = `Copy Color Rules from **${sourceName}**`;
+  const headerSubtext = `${sourceRules.length} color rule${sourceRules.length === 1 ? '' : 's'}`;
 
   return (
     <Card className='flex min-h-0 w-full flex-1 flex-col p-2'>
-      <Card.Header className='gap-2'>
-        <Card.Title className='flex items-start justify-between'>
-          <div className='min-w-0 flex-1 pt-1'>Copy Color Rules</div>
-          {onBackToDefault && (
-            <Tooltip closeDelay={0} delay={400}>
-              <Button isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
-                <IconX />
-              </Button>
-              <Tooltip.Content className='text-xs'>Close</Tooltip.Content>
-            </Tooltip>
-          )}
-        </Card.Title>
-        <Separator />
+      <Card.Header className='gap-1'>
+        <Tooltip>
+          <Tooltip.Trigger className='min-w-0 pr-8'>
+            <Card.Title className='line-clamp-1'>{parseMarkdownBold(headerTitle)}</Card.Title>
+          </Tooltip.Trigger>
+          <Tooltip.Content className='max-w-60'>{stripMarkdownBold(headerTitle)}</Tooltip.Content>
+        </Tooltip>
+        {onBackToDefault && (
+          <Tooltip>
+            <Button
+              isIconOnly
+              aria-label='Close view'
+              className='absolute top-1 right-2'
+              size='sm'
+              variant='ghost'
+              onPress={onBackToDefault}
+            >
+              <IconX />
+            </Button>
+            <Tooltip.Content className='max-w-60'>Close view</Tooltip.Content>
+          </Tooltip>
+        )}
+        <div className='min-w-0 truncate text-xs text-muted'>{parseMarkdownBold(headerSubtext)}</div>
+        <Separator className='mt-1.5' />
       </Card.Header>
 
-      <div className='flex flex-col gap-3'>
-        <div className='flex flex-col gap-1'>
-          <span className='text-xs text-muted'>Source</span>
-          <span className='font-medium'>{sourceName}</span>
-          <span className='text-xs text-muted'>
-            {sourceRules.length} color rule{sourceRules.length === 1 ? '' : 's'}
-          </span>
-        </div>
-
+      <div className='flex flex-col gap-3 pt-3'>
         <DatasetComboBox
           aria-label='Destination dataset'
           instanceBaseUrl={currentContext.domoObject?.baseUrl}
@@ -258,12 +255,11 @@ export function CopyColorRulesView({ onBackToDefault = null, onStatusUpdate = nu
             </Alert.Indicator>
             <Alert.Content>
               <Alert.Title>
-                {missingColumns.length} column{missingColumns.length === 1 ? '' : 's'} not on
-                destination
+                {missingColumns.length} column{missingColumns.length === 1 ? '' : 's'} not on destination
               </Alert.Title>
               <Alert.Description>
-                Rules referencing {missingColumns.join(', ')} will be copied as-is and may not
-                render until those columns exist.
+                Rules referencing {missingColumns.join(', ')} will be copied as-is and may not render until those columns
+                exist.
               </Alert.Description>
             </Alert.Content>
           </Alert>
@@ -271,13 +267,7 @@ export function CopyColorRulesView({ onBackToDefault = null, onStatusUpdate = nu
       </div>
 
       <div className='flex shrink-0 flex-col gap-2 pt-2'>
-        <Button
-          fullWidth
-          isDisabled={!canSubmit}
-          isPending={isSubmitting}
-          variant='primary'
-          onPress={handleSubmit}
-        >
+        <Button fullWidth isDisabled={!canSubmit} isPending={isSubmitting} variant='primary' onPress={handleSubmit}>
           Copy Color Rules
         </Button>
       </div>

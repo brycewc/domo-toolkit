@@ -11,8 +11,7 @@ export function SetStreamToManual({ currentContext, isDisabled }) {
     const streamId = currentContext?.domoObject?.metadata?.details?.streamId;
     if (!streamId) return;
 
-    const datasetName =
-      currentContext.domoObject.metadata?.name || `Dataset ${currentContext.domoObject.id}`;
+    const datasetName = currentContext.domoObject.metadata?.name || `Dataset ${currentContext.domoObject.id}`;
 
     showPromiseStatus(
       setStreamScheduleToManual({
@@ -28,7 +27,7 @@ export function SetStreamToManual({ currentContext, isDisabled }) {
   };
 
   return (
-    <Tooltip closeDelay={100} delay={600}>
+    <Tooltip>
       <Button
         fullWidth
         className='min-w-36 flex-1 whitespace-normal'
@@ -39,10 +38,7 @@ export function SetStreamToManual({ currentContext, isDisabled }) {
         <IconCalendarSimple />
         Set to Manual
       </Button>
-      <Tooltip.Content
-        className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
-        offset={4}
-      >
+      <Tooltip.Content className='max-w-60' offset={4}>
         Set dataset stream schedule to manual (not scheduled)
       </Tooltip.Content>
     </Tooltip>

@@ -1,15 +1,4 @@
-import {
-  Alert,
-  Button,
-  ButtonGroup,
-  Card,
-  Chip,
-  Disclosure,
-  Link,
-  ScrollShadow,
-  Spinner,
-  Tooltip
-} from '@heroui/react';
+import { Alert, Button, ButtonGroup, Card, Chip, Disclosure, Link, ScrollShadow, Spinner, Tooltip } from '@heroui/react';
 import { useEffect, useState } from 'react';
 import JsonView from 'react18-json-view';
 
@@ -56,10 +45,7 @@ const KNOWN_FIELDS = [
   { format: 'number', key: 'columnCount', label: 'Column Count' }
 ];
 
-export function ObjectDetailsView({
-  onBackToDefault = null,
-  onStatusUpdate = null
-}) {
+export function ObjectDetailsView({ onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRetrying, setIsRetrying] = useState(false);
   const [showSpinner, setShowSpinner] = useState(false);
@@ -123,12 +109,7 @@ export function ObjectDetailsView({
     if (!domoObject?.id) return;
     try {
       await navigator.clipboard.writeText(domoObject.id.toString());
-      onStatusUpdate?.(
-        'Copied',
-        `ID **${domoObject.id}** copied to clipboard`,
-        'success',
-        2000
-      );
+      onStatusUpdate?.('Copied', `ID **${domoObject.id}** copied to clipboard`, 'success', 2000);
     } catch (err) {
       onStatusUpdate?.('Error', 'Failed to copy ID', 'danger', 3000);
     }
@@ -163,20 +144,12 @@ export function ObjectDetailsView({
           <div className='flex flex-col items-start justify-center gap-2'>
             <Alert.Description>{error}</Alert.Description>
             <Button isPending={isRetrying} size='sm' onPress={handleRetry}>
-              {isRetrying ? (
-                <Spinner color='currentColor' size='sm' />
-              ) : (
-                <IconSync />
-              )}
+              {isRetrying ? <Spinner color='currentColor' size='sm' /> : <IconSync />}
               Retry
             </Button>
           </div>
         </Alert.Content>
-        <CloseButton
-          className='rounded-full'
-          variant='ghost'
-          onPress={() => onBackToDefault?.()}
-        />
+        <CloseButton className='rounded-full' variant='ghost' onPress={() => onBackToDefault?.()} />
       </Alert>
     );
   }
@@ -194,49 +167,30 @@ export function ObjectDetailsView({
                 {domoObject.typeName}
               </Chip>
             </div>
-            {domoObject.id &&
-              !(
-                domoObject.metadata?.name || domoObject.typeId === 'STREAM'
-              ) && (
-                <span className='text-sm text-muted'>ID: {domoObject.id}</span>
-              )}
+            {domoObject.id && !(domoObject.metadata?.name || domoObject.typeId === 'STREAM') && (
+              <span className='text-sm text-muted'>ID: {domoObject.id}</span>
+            )}
           </div>
           <ButtonGroup hideSeparator className='shrink-0'>
-            <Tooltip closeDelay={0} delay={400}>
-              <Button
-                fullWidth
-                isIconOnly
-                size='sm'
-                variant='ghost'
-                onPress={handleCopyId}
-              >
+            <Tooltip>
+              <Button fullWidth isIconOnly size='sm' variant='ghost' onPress={handleCopyId}>
                 <IconClipboardCopy />
               </Button>
-              <Tooltip.Content className='text-xs'>Copy ID</Tooltip.Content>
+              <Tooltip.Content className='max-w-60'>Copy ID</Tooltip.Content>
             </Tooltip>
             {onBackToDefault && (
-              <Tooltip closeDelay={0} delay={400}>
-                <Button
-                  fullWidth
-                  isIconOnly
-                  size='sm'
-                  variant='ghost'
-                  onPress={onBackToDefault}
-                >
+              <Tooltip>
+                <Button fullWidth isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
                   <IconX />
                 </Button>
-                <Tooltip.Content className='text-xs'>Close</Tooltip.Content>
+                <Tooltip.Content className='max-w-60'>Close</Tooltip.Content>
               </Tooltip>
             )}
           </ButtonGroup>
         </Card.Title>
       </Card.Header>
 
-      <ScrollShadow
-        hideScrollBar
-        className='min-h-0 flex-1 overflow-y-auto'
-        orientation='vertical'
-      >
+      <ScrollShadow hideScrollBar className='min-h-0 flex-1 overflow-y-auto' orientation='vertical'>
         <Card.Content className='flex flex-col gap-3'>
           {/* Key Fields */}
           {keyFields.length > 0 && (
@@ -246,9 +200,7 @@ export function ObjectDetailsView({
                   className='flex flex-row items-start justify-between gap-2 border-b border-border py-1.5 last:border-b-0'
                   key={label}
                 >
-                  <span className='shrink-0 text-xs font-medium text-muted'>
-                    {label}
-                  </span>
+                  <span className='shrink-0 text-xs font-medium text-muted'>{label}</span>
                   <span className='text-xs break-all'>{value}</span>
                 </div>
               ))}
@@ -256,148 +208,100 @@ export function ObjectDetailsView({
           )}
 
           {/* Full JSON */}
-          {domoObject.metadata?.details &&
-            domoObject.metadata?.details !== '{}' && (
-              <Disclosure className='w-full'>
-                <Disclosure.Heading>
-                  <Button
-                    className='flex w-full items-center justify-between'
-                    slot='trigger'
-                    variant='ghost'
-                  >
-                    Full JSON
-                    <Disclosure.Indicator>
-                      <IconChevronDown />
-                    </Disclosure.Indicator>
-                  </Button>
-                </Disclosure.Heading>
-                <Disclosure.Content>
-                  <Disclosure.Body>
-                    <JsonView
-                      displaySize
-                      className='min-h-0 flex-1 text-sm'
-                      collapsed={1}
-                      collapseStringMode='word'
-                      collapseStringsAfterLength={50}
-                      key={jsonViewKey}
-                      matchesURL={false}
-                      src={domoObject.metadata?.details}
-                      CopiedComponent={({ className, style }) => (
-                        <AnimatedCheck
-                          className={className}
-                          size={16}
-                          stroke={1.5}
-                          style={style}
-                        />
-                      )}
-                      CopyComponent={({ className, onClick, style }) => (
-                        <IconClipboardCopy
-                          className={className}
-                          size={16}
-                          style={style}
-                          onClick={onClick}
-                        />
-                      )}
-                      customizeNode={(params) => {
-                        if (params.node === null || params.node === undefined) {
-                          return { enableClipboard: false };
+          {domoObject.metadata?.details && domoObject.metadata?.details !== '{}' && (
+            <Disclosure className='w-full'>
+              <Disclosure.Heading>
+                <Button className='flex w-full items-center justify-between' slot='trigger' variant='ghost'>
+                  Full JSON
+                  <Disclosure.Indicator>
+                    <IconChevronDown />
+                  </Disclosure.Indicator>
+                </Button>
+              </Disclosure.Heading>
+              <Disclosure.Content>
+                <Disclosure.Body>
+                  <JsonView
+                    displaySize
+                    className='min-h-0 flex-1 text-sm'
+                    collapsed={1}
+                    collapseStringMode='word'
+                    collapseStringsAfterLength={50}
+                    key={jsonViewKey}
+                    matchesURL={false}
+                    src={domoObject.metadata?.details}
+                    CopiedComponent={({ className, style }) => (
+                      <AnimatedCheck className={className} size={16} stroke={1.5} style={style} />
+                    )}
+                    CopyComponent={({ className, onClick, style }) => (
+                      <IconClipboardCopy className={className} size={16} style={style} onClick={onClick} />
+                    )}
+                    customizeNode={(params) => {
+                      if (params.node === null || params.node === undefined) {
+                        return { enableClipboard: false };
+                      }
+                      if (typeof params.node === 'string' && params.node.startsWith('https://')) {
+                        return (
+                          <Link
+                            className='text-sm text-accent no-underline decoration-accent hover:underline'
+                            href={params.node}
+                            target='_blank'
+                          >
+                            {params.node}
+                          </Link>
+                        );
+                      }
+                      if (typeof params.node === 'number' && isDateFieldName(params?.indexOrName)) {
+                        const formatted = formatEpochTimestamp(params.node);
+                        if (formatted) {
+                          return <TimestampAnnotation formatted={formatted} value={params.node} />;
                         }
+                      }
+                      if (
+                        (typeof params.node === 'number' || typeof params.node === 'string') &&
+                        Object.keys(userMap).length > 0
+                      ) {
+                        const numericValue = Number(params.node);
                         if (
-                          typeof params.node === 'string' &&
-                          params.node.startsWith('https://')
+                          userMap[numericValue] &&
+                          (isUserFieldName(params?.indexOrName) || params?.indexOrName === 'id')
                         ) {
-                          return (
-                            <Link
-                              className='text-sm text-accent no-underline decoration-accent hover:underline'
-                              href={params.node}
-                              target='_blank'
-                            >
-                              {params.node}
-                            </Link>
-                          );
+                          return <UserIdAnnotation displayName={userMap[numericValue]} value={params.node} />;
                         }
+                      }
+                      if (
+                        (typeof params.node === 'number' || typeof params.node === 'string') &&
+                        Object.keys(groupMap).length > 0
+                      ) {
+                        const numericValue = Number(params.node);
                         if (
-                          typeof params.node === 'number' &&
-                          isDateFieldName(params?.indexOrName)
+                          groupMap[numericValue] &&
+                          (isGroupFieldName(params?.indexOrName) ||
+                            isUserFieldName(params?.indexOrName) ||
+                            params?.indexOrName === 'id')
                         ) {
-                          const formatted = formatEpochTimestamp(params.node);
-                          if (formatted) {
-                            return (
-                              <TimestampAnnotation
-                                formatted={formatted}
-                                value={params.node}
-                              />
-                            );
-                          }
+                          return <GroupIdAnnotation displayName={groupMap[numericValue]} value={params.node} />;
                         }
-                        if (
-                          (typeof params.node === 'number' ||
-                            typeof params.node === 'string') &&
-                          Object.keys(userMap).length > 0
-                        ) {
-                          const numericValue = Number(params.node);
-                          if (
-                            userMap[numericValue] &&
-                            (isUserFieldName(params?.indexOrName) ||
-                              params?.indexOrName === 'id')
-                          ) {
-                            return (
-                              <UserIdAnnotation
-                                displayName={userMap[numericValue]}
-                                value={params.node}
-                              />
-                            );
-                          }
-                        }
-                        if (
-                          (typeof params.node === 'number' ||
-                            typeof params.node === 'string') &&
-                          Object.keys(groupMap).length > 0
-                        ) {
-                          const numericValue = Number(params.node);
-                          if (
-                            groupMap[numericValue] &&
-                            (isGroupFieldName(params?.indexOrName) ||
-                              isUserFieldName(params?.indexOrName) ||
-                              params?.indexOrName === 'id')
-                          ) {
-                            return (
-                              <GroupIdAnnotation
-                                displayName={groupMap[numericValue]}
-                                value={params.node}
-                              />
-                            );
-                          }
-                        }
-                        if (
-                          params?.indexOrName?.toLowerCase()?.includes('id')
-                        ) {
-                          return { enableClipboard: true };
-                        } else if (
-                          (typeof params.node === 'number' ||
-                            typeof params.node === 'string') &&
-                          params.node?.toString().length >= 7
-                        ) {
-                          return { enableClipboard: true };
-                        } else if (
-                          typeof params.node === 'object' &&
-                          Object.keys(params.node).length > 0
-                        ) {
-                          return { enableClipboard: true };
-                        } else if (
-                          Array.isArray(params.node) &&
-                          params.node.length > 0
-                        ) {
-                          return { enableClipboard: true };
-                        } else {
-                          return { enableClipboard: false };
-                        }
-                      }}
-                    />
-                  </Disclosure.Body>
-                </Disclosure.Content>
-              </Disclosure>
-            )}
+                      }
+                      if (params?.indexOrName?.toLowerCase()?.includes('id')) {
+                        return { enableClipboard: true };
+                      } else if (
+                        (typeof params.node === 'number' || typeof params.node === 'string') &&
+                        params.node?.toString().length >= 7
+                      ) {
+                        return { enableClipboard: true };
+                      } else if (typeof params.node === 'object' && Object.keys(params.node).length > 0) {
+                        return { enableClipboard: true };
+                      } else if (Array.isArray(params.node) && params.node.length > 0) {
+                        return { enableClipboard: true };
+                      } else {
+                        return { enableClipboard: false };
+                      }
+                    }}
+                  />
+                </Disclosure.Body>
+              </Disclosure.Content>
+            </Disclosure>
+          )}
         </Card.Content>
       </ScrollShadow>
     </Card>
@@ -437,10 +341,7 @@ function formatValue(value, format) {
       return value ? 'Yes' : 'No';
     case 'date': {
       // Detect epoch timestamps in seconds (10 digits) vs milliseconds (13 digits)
-      const timestamp =
-        typeof value === 'number' && value > 0 && value < 1e11
-          ? value * 1000
-          : value;
+      const timestamp = typeof value === 'number' && value > 0 && value < 1e11 ? value * 1000 : value;
       const date = new Date(timestamp);
       if (isNaN(date.getTime())) return String(value);
       return date.toLocaleString();

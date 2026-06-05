@@ -20,7 +20,7 @@ const DEV_ACTIONS = [
   {
     icon: IconEnvelope,
     id: 'testTransferEmail',
-    label: 'Test Transfer Email (self)'
+    label: 'Test Transfer Email'
   }
 ];
 
@@ -77,19 +77,14 @@ export function DevMenu() {
 
   return (
     <Dropdown>
-      <Tooltip closeDelay={100} delay={600}>
+      <Tooltip>
         <Button fullWidth className='min-w-36 flex-1 whitespace-normal' variant='tertiary'>
           <IconCodeTags />
           Dev
         </Button>
-        <Tooltip.Content
-          className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
-          offset={4}
-        >
-          Developer testing utilities
-        </Tooltip.Content>
+        <Tooltip.Content offset={4}>Developer testing utilities</Tooltip.Content>
       </Tooltip>
-      <Dropdown.Popover className='w-fit min-w-40' placement='bottom'>
+      <Dropdown.Popover className='w-fit min-w-60' placement='bottom'>
         <Dropdown.Menu onAction={handleAction}>
           {DEV_ACTIONS.map((action) => (
             <Dropdown.Item id={action.id} key={action.id} textValue={action.label}>

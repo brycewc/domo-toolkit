@@ -1,10 +1,6 @@
 import { motion } from 'motion/react';
 
-export function AnimatedX({
-  className = 'text-danger',
-  stroke = 1.5,
-  ...props
-}) {
+export function AnimatedX({ className = 'text-danger', stroke = 1.5, ...props }) {
   return (
     <motion.svg
       className={className}

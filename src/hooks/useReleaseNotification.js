@@ -1,7 +1,7 @@
 import { toast } from '@heroui/react';
 import { useEffect } from 'react';
 
-import { releases } from '@/data';
+import { releases } from '@/data/releases';
 
 export function showReleaseToast() {
   const currentVersion = chrome.runtime.getManifest().version;
@@ -11,9 +11,7 @@ export function showReleaseToast() {
   let toastKey;
 
   const clearBadge = () => {
-    chrome.runtime
-      .sendMessage({ type: 'RELEASE_NOTES_SEEN' })
-      .catch(() => {});
+    chrome.runtime.sendMessage({ type: 'RELEASE_NOTES_SEEN' }).catch(() => {});
   };
 
   toastKey = toast.info(`New Version ${currentVersion}`, {
@@ -27,6 +25,7 @@ export function showReleaseToast() {
         });
         chrome.tabs.create({
           index: activeTab ? activeTab.index + 1 : undefined,
+          openerTabId: activeTab?.id,
           url: chrome.runtime.getURL('src/options/index.html#release-notes'),
           windowId: currentWindow.id
         });

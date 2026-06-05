@@ -20,10 +20,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { AnimatedCheck } from '@/components/AnimatedCheck';
 import { CloseButton } from '@/components/CloseButton';
+import { InactiveUserOverlay } from '@/components/InactiveUserOverlay';
 import { usePerInstanceSettings } from '@/hooks/usePerInstanceSettings';
 import { useResolveTabId } from '@/hooks/useResolveTabId';
 import { DomoObject } from '@/models/DomoObject';
-import { fetchUserDisplayNames, getCustomAvatarUserIds } from '@/services/users';
+import { fetchUserDisplayNames, getCustomAvatarUserIds, getInactiveUserIds } from '@/services/users';
 import { ACTION_COLOR_PATTERNS } from '@/utils/constants';
 import { getInitials } from '@/utils/general';
 import IconCalendar from '@icons/calendar.svg?react';
@@ -53,9 +54,17 @@ export function ActivityLogTable() {
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [error, setError] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [source, setSource] = useState('api');
+  // Starts null (unresolved) and is set once we know whether this instance is
+  // configured to always use the DomoStats dataset, so the audit-API event fetch
+  // never fires before that preference is known (it would race and clobber the
+  // dataset results). See the source-resolution effect below.
+  const [source, setSource] = useState(null);
+  // True once the activity-log config (objects/instance) has been read from
+  // storage, so source resolution waits until domoInstance is settled.
+  const [configLoaded, setConfigLoaded] = useState(false);
   const [dateRange, setDateRange] = useState(null);
   const [userFilter, setUserFilter] = useState([]);
+  const [userFilterMode, setUserFilterMode] = useState('include');
   const [actionFilter, setActionFilter] = useState(new Set());
   const actionFilterRef = useRef(new Set());
   const [objectTypeFilter, setObjectTypeFilter] = useState(new Set());
@@ -82,6 +91,13 @@ export function ActivityLogTable() {
     update: updatePerInstance
   } = usePerInstanceSettings();
   const initialSourceCheckRef = useRef(false);
+  // Whether this instance is configured to always use the DomoStats Activity Log
+  // dataset; drives the initial source resolution.
+  const prefersDataset = !!(
+    domoInstance &&
+    perInstanceSettings[domoInstance]?.preferActivityLogDataset &&
+    perInstanceSettings[domoInstance]?.activityLogDatasetId
+  );
 
   const dateRangeEpoch = useMemo(() => {
     if (!dateRange) return {};
@@ -101,15 +117,18 @@ export function ActivityLogTable() {
   datasetStateRef.current = datasetState;
   const dateRangeEpochRef = useRef(dateRangeEpoch);
   dateRangeEpochRef.current = dateRangeEpoch;
-  // Stable string key for userFilter array to avoid unnecessary effect re-runs
-  const userFilterKey = userFilter.slice().sort().join(',');
+  // Stable string key for the user filter (mode + selected IDs) so the fetch
+  // effect re-runs when either changes. Mode is folded in only when a selection
+  // exists, so toggling in/not in with nothing selected doesn't trigger a refetch.
+  const userFilterKey = userFilter.length ? `${userFilterMode}:${userFilter.slice().sort().join(',')}` : '';
   const userFilterRef = useRef(userFilter);
   userFilterRef.current = userFilter;
+  const userFilterModeRef = useRef(userFilterMode);
+  userFilterModeRef.current = userFilterMode;
   // Refetch trigger for dataset source when the user toggles time-sort
   // direction. Empty string for api source (no server-side sort) or when the
   // active sort isn't time (other columns are local-only).
-  const datasetSortKey =
-    source === 'dataset' && sortDescriptor?.column === 'time' ? sortDescriptor.direction : '';
+  const datasetSortKey = source === 'dataset' && sortDescriptor?.column === 'time' ? sortDescriptor.direction : '';
   // Mirror source/domoInstance/objects into refs so fetchMoreEvents can read
   // current values without listing them as useCallback deps. Stable callback
   // identity matters here — HeroUI's Table.LoadMore wires its intersection
@@ -128,6 +147,8 @@ export function ActivityLogTable() {
 
   const [customAvatarIds, setCustomAvatarIds] = useState(new Set());
   const checkedAvatarIdsRef = useRef(new Set());
+  const [inactiveUserIds, setInactiveUserIds] = useState(new Set());
+  const checkedInactiveIdsRef = useRef(new Set());
   // userId → displayName map populated lazily for events that arrive without
   // a userName (DomoStats dataset rows store User_ID separately from
   // Source.Name, so we look up the user's display name ourselves).
@@ -136,20 +157,17 @@ export function ActivityLogTable() {
 
   const pageSize = 100; // Fetch in chunks per object
 
-  // Pre-select the dataset source on first mount when this instance has the
-  // "Always use DomoStats Activity Log dataset" preference set. Runs once,
-  // gated by both the per-instance settings finishing their initial load and
-  // domoInstance being known.
+  // Resolve the initial source exactly once, after the per-instance settings have
+  // loaded and the activity-log config has been read (so domoInstance is settled).
+  // Until this runs `source` stays null and no fetch happens, so an instance set
+  // to always use DomoStats never fires an audit-API event fetch that would later
+  // resolve and clobber the dataset results.
   useEffect(() => {
     if (initialSourceCheckRef.current) return;
-    if (perInstanceLoading) return;
-    if (!domoInstance) return;
+    if (perInstanceLoading || !configLoaded) return;
     initialSourceCheckRef.current = true;
-    const instanceSettings = perInstanceSettings[domoInstance];
-    if (instanceSettings?.preferActivityLogDataset && instanceSettings?.activityLogDatasetId) {
-      setSource('dataset');
-    }
-  }, [perInstanceLoading, perInstanceSettings, domoInstance]);
+    setSource(prefersDataset ? 'dataset' : 'api');
+  }, [configLoaded, perInstanceLoading, prefersDataset]);
 
   // Load objects from storage on mount
   useEffect(() => {
@@ -180,6 +198,8 @@ export function ActivityLogTable() {
       } catch (err) {
         console.error('Error loading objects from storage:', err);
         setError('Failed to load activity log configuration');
+      } finally {
+        setConfigLoaded(true);
       }
     };
 
@@ -197,9 +217,7 @@ export function ActivityLogTable() {
     resolveTabId()
       .then((resolvedTabId) => {
         if (!resolvedTabId) return;
-        return Promise.all(
-          uniqueTypes.map((type) => getEventTypesForObjectType(type, resolvedTabId).catch(() => []))
-        );
+        return Promise.all(uniqueTypes.map((type) => getEventTypesForObjectType(type, resolvedTabId).catch(() => [])));
       })
       .then((results) => {
         if (!results) return;
@@ -247,14 +265,45 @@ export function ActivityLogTable() {
       .catch(() => {});
   }, [events, tabId]);
 
+  // Check which users are inactive/deleted (non-blocking, incremental). Domo
+  // dims deleted users' avatars on its own frontend; we mirror that via the
+  // InactiveUserOverlay rendered in the user column below. Same incremental
+  // shape as the custom-avatar check: each id is looked up at most once.
+  useEffect(() => {
+    if (!tabId || events.length === 0) return;
+
+    const uniqueIds = [...new Set(events.map((e) => e.userId).filter(Boolean))];
+    const uncheckedIds = uniqueIds.filter((id) => !checkedInactiveIdsRef.current.has(id));
+
+    if (uncheckedIds.length === 0) return;
+
+    uncheckedIds.forEach((id) => checkedInactiveIdsRef.current.add(id));
+
+    resolveTabId()
+      .then((resolvedTabId) => getInactiveUserIds(uncheckedIds, resolvedTabId))
+      .then((inactiveIds) => {
+        if (inactiveIds.length === 0) return;
+        setInactiveUserIds((prev) => {
+          const next = new Set(prev);
+          let changed = false;
+          for (const id of inactiveIds) {
+            if (!prev.has(id)) {
+              next.add(id);
+              changed = true;
+            }
+          }
+          return changed ? next : prev;
+        });
+      })
+      .catch(() => {});
+  }, [events, tabId]);
+
   // Look up display names for any event that arrives with a userId but no
   // userName (DomoStats path). Fires incrementally as new ids appear; the
   // ref tracks already-fetched ids so each id is requested at most once.
   useEffect(() => {
     if (!tabId || events.length === 0) return;
-    const idsWithoutName = [
-      ...new Set(events.filter((e) => e.userId && !e.userName).map((e) => String(e.userId)))
-    ];
+    const idsWithoutName = [...new Set(events.filter((e) => e.userId && !e.userName).map((e) => String(e.userId)))];
     const unfetched = idsWithoutName.filter((id) => !fetchedUserNameIdsRef.current.has(id));
     if (unfetched.length === 0) return;
     unfetched.forEach((id) => fetchedUserNameIdsRef.current.add(id));
@@ -289,10 +338,21 @@ export function ActivityLogTable() {
 
   // Filter events locally (object type is client-side only)
   const filteredEvents = useMemo(() => {
-    if (objectTypeFilter.size === 0) return events;
-
-    return events.filter((event) => event.objectType && objectTypeFilter.has(event.objectType));
-  }, [events, objectTypeFilter]);
+    let result = events;
+    // On the API source, exclude-mode user filtering is applied client-side (the
+    // audit API has no NOT-IN). The dataset source already excludes server-side,
+    // so only strip here when source === 'api' to avoid double-filtering.
+    if (source === 'api' && userFilterMode === 'exclude' && userFilter.length > 0) {
+      // userFilter IDs come from the user-search API as numbers; event.userId is
+      // a string. Normalize both sides so the membership check matches.
+      const excluded = new Set(userFilter.map(String));
+      result = result.filter((event) => !excluded.has(String(event.userId)));
+    }
+    if (objectTypeFilter.size > 0) {
+      result = result.filter((event) => event.objectType && objectTypeFilter.has(event.objectType));
+    }
+    return result;
+  }, [events, objectTypeFilter, source, userFilter, userFilterMode]);
 
   // Pre-compute object URLs so the cell renderer is synchronous
   const [objectUrlMap, setObjectUrlMap] = useState({});
@@ -309,21 +369,30 @@ export function ActivityLogTable() {
       const pending = [];
 
       for (const event of events) {
-        const { objectId, objectType } = event;
-        if (!objectType || !objectId) continue;
-        const key = `${objectType}:${objectId}`;
-        if (resolvedUrlKeysRef.current.has(key)) continue;
-        resolvedUrlKeysRef.current.add(key);
+        // Resolve URLs for both the object (Object column) and the source
+        // (Source column on the dataset path). Both are real Domo object types
+        // keyed the same `${type}:${id}` way, so they share one map.
+        const targets = [
+          { id: event.objectId, type: event.objectType },
+          { id: event.sourceId, type: event.sourceType }
+        ];
 
-        const obj = new DomoObject(objectType, objectId, baseUrl);
-        if (!obj.hasUrl()) continue;
+        for (const { id, type } of targets) {
+          if (!type || !id) continue;
+          const key = `${type}:${id}`;
+          if (resolvedUrlKeysRef.current.has(key)) continue;
+          resolvedUrlKeysRef.current.add(key);
 
-        pending.push(
-          obj
-            .buildUrl(baseUrl, resolvedTabId)
-            .then((url) => ({ key, url }))
-            .catch(() => null)
-        );
+          const obj = new DomoObject(type, id, baseUrl);
+          if (!obj.hasUrl()) continue;
+
+          pending.push(
+            obj
+              .buildUrl(baseUrl, resolvedTabId)
+              .then((url) => ({ key, url }))
+              .catch(() => null)
+          );
+        }
       }
 
       if (pending.length === 0) return;
@@ -360,18 +429,16 @@ export function ActivityLogTable() {
   // no description field but does carry actor info the API doesn't expose.
   const columns = useMemo(() => {
     const baseUrl = domoInstance ? `https://${domoInstance}.domo.com` : null;
-    const actionTranslations = Object.fromEntries(
-      actionOptions.map((a) => [a.type, a.translation])
-    );
+    const actionTranslations = Object.fromEntries(actionOptions.map((a) => [a.type, a.translation]));
     const isDataset = source === 'dataset';
     return [
       createTimestampColumn({ manualSort: isDataset }),
-      createUserColumn({ customAvatarIds, domoInstance, userNameMap }),
+      createUserColumn({ customAvatarIds, domoInstance, inactiveUserIds, userNameMap }),
       createActionColumn({ actionTranslations }),
       createObjectColumn({ baseUrl, objectUrlMap }),
-      isDataset ? createSourceColumn() : createAdditionalCommentColumn()
+      isDataset ? createSourceColumn({ objectUrlMap }) : createAdditionalCommentColumn()
     ];
-  }, [domoInstance, tabId, actionOptions, customAvatarIds, objectUrlMap, source, userNameMap]);
+  }, [domoInstance, tabId, actionOptions, customAvatarIds, inactiveUserIds, objectUrlMap, source, userNameMap]);
 
   // Set initial column visibility based on number of objects
   const initialColumnVisibility = useMemo(
@@ -387,6 +454,12 @@ export function ActivityLogTable() {
   // Fetch activity log events from all objects (re-runs when userFilter changes)
   useEffect(() => {
     const fetchEvents = async () => {
+      // Source preference not resolved yet (null): keep the skeleton up and don't
+      // fetch. Fetching now would hit the audit API before we know whether this
+      // instance is set to always use DomoStats, and that response could land
+      // after the dataset's and clobber it (zeroing the count, breaking scroll).
+      if (!source) return;
+
       if (!tabId || objects.length === 0) {
         setIsInitialLoad(false);
         return;
@@ -423,15 +496,13 @@ export function ActivityLogTable() {
             filters: buildDatasetFilters({
               actionFilter: actionFilterRef.current,
               dateRangeEpoch,
+              mode: userFilterModeRef.current,
               objects,
               userFilter: userFilterRef.current
             }),
             limit: pageSize,
             offset: 0,
-            sortDirection:
-              sortDescriptorRef.current?.column === 'time'
-                ? sortDescriptorRef.current.direction
-                : 'descending',
+            sortDirection: sortDescriptorRef.current?.column === 'time' ? sortDescriptorRef.current.direction : 'descending',
             tabId: resolvedTabId
           });
           const events = result?.events ?? [];
@@ -445,7 +516,10 @@ export function ActivityLogTable() {
           setObjectStates({});
           setEvents(events);
         } else {
-          const tasks = buildFetchTasks(objects, userFilterRef.current, actionFilterRef.current);
+          // In exclude mode the audit API can't negate, so don't fan out per user;
+          // fetch unfiltered and strip the excluded users client-side (see filteredEvents).
+          const excludeMode = userFilterModeRef.current === 'exclude';
+          const tasks = buildFetchTasks(objects, excludeMode ? [] : userFilterRef.current, actionFilterRef.current);
 
           const fetchThunks = tasks.map(
             (task) => () =>
@@ -523,16 +597,7 @@ export function ActivityLogTable() {
     fetchEvents();
     // datasetSortKey collapses to '' when irrelevant (api source, or non-time
     // active sort) so toggling User/Action sort doesn't trigger refetch.
-  }, [
-    objects,
-    tabId,
-    refreshKey,
-    userFilterKey,
-    dateRangeEpoch,
-    source,
-    domoInstance,
-    datasetSortKey
-  ]);
+  }, [objects, tabId, refreshKey, userFilterKey, dateRangeEpoch, source, domoInstance, datasetSortKey]);
 
   const total = useMemo(() => {
     if (source === 'dataset') return datasetState.total;
@@ -571,15 +636,13 @@ export function ActivityLogTable() {
           filters: buildDatasetFilters({
             actionFilter: actionFilterRef.current,
             dateRangeEpoch: dateRangeEpochRef.current,
+            mode: userFilterModeRef.current,
             objects: objectsRef.current,
             userFilter: userFilterRef.current
           }),
           limit: pageSize,
           offset: currentDatasetState.offset,
-          sortDirection:
-            sortDescriptorRef.current?.column === 'time'
-              ? sortDescriptorRef.current.direction
-              : 'descending',
+          sortDirection: sortDescriptorRef.current?.column === 'time' ? sortDescriptorRef.current.direction : 'descending',
           tabId: resolvedTabId
         });
         const newEvents = result?.events ?? [];
@@ -760,7 +823,10 @@ export function ActivityLogTable() {
 
     const allEvents = [];
     const exportPageSize = 1000;
-    const tasks = buildFetchTasks(objects, userFilterRef.current, actionFilterRef.current);
+    // In exclude mode the audit API can't negate, so don't fan out per user;
+    // fetch unfiltered and strip the excluded users client-side (see filteredEvents).
+    const excludeMode = userFilterModeRef.current === 'exclude';
+    const tasks = buildFetchTasks(objects, excludeMode ? [] : userFilterRef.current, actionFilterRef.current);
 
     for (const task of tasks) {
       let offset = 0;
@@ -796,13 +862,17 @@ export function ActivityLogTable() {
 
     allEvents.sort((a, b) => new Date(b.time) - new Date(a.time));
 
-    if (objectTypeFilter.size > 0) {
-      return allEvents.filter(
-        (event) => event.objectType && objectTypeFilter.has(event.objectType)
-      );
+    let result = allEvents;
+    // Exclude mode is fetched unfiltered (see buildFetchTasks above), so strip
+    // the excluded users here, mirroring the live table's client-side filter.
+    if (userFilterModeRef.current === 'exclude' && userFilterRef.current.length > 0) {
+      const excluded = new Set(userFilterRef.current.map(String));
+      result = result.filter((event) => !excluded.has(String(event.userId)));
     }
-
-    return allEvents;
+    if (objectTypeFilter.size > 0) {
+      result = result.filter((event) => event.objectType && objectTypeFilter.has(event.objectType));
+    }
+    return result;
   }, [resolveTabId, objects, filteredEvents, userFilterKey, dateRangeEpoch, objectTypeFilter]);
 
   // Memoize filter toolbar so it doesn't re-render during event fetches
@@ -823,17 +893,11 @@ export function ActivityLogTable() {
           onChange={setDateRange}
         >
           <DateField.Group variant='secondary'>
-            <DateField.Input slot='start'>
-              {(segment) => <DateField.Segment segment={segment} />}
-            </DateField.Input>
+            <DateField.Input slot='start'>{(segment) => <DateField.Segment segment={segment} />}</DateField.Input>
             <DateRangePicker.RangeSeparator />
-            <DateField.Input slot='end'>
-              {(segment) => <DateField.Segment segment={segment} />}
-            </DateField.Input>
+            <DateField.Input slot='end'>{(segment) => <DateField.Segment segment={segment} />}</DateField.Input>
             <DateField.Suffix>
-              {dateRange && (
-                <CloseButton size='sm' variant='ghost' onPress={() => setDateRange(null)} />
-              )}
+              {dateRange && <CloseButton size='sm' variant='ghost' onPress={() => setDateRange(null)} />}
               <DateRangePicker.Trigger>
                 <DateRangePicker.TriggerIndicator>
                   <IconCalendar className='text-foreground' />
@@ -859,9 +923,7 @@ export function ActivityLogTable() {
                 <RangeCalendar.GridHeader>
                   {(day) => <RangeCalendar.HeaderCell>{day}</RangeCalendar.HeaderCell>}
                 </RangeCalendar.GridHeader>
-                <RangeCalendar.GridBody>
-                  {(date) => <RangeCalendar.Cell date={date} />}
-                </RangeCalendar.GridBody>
+                <RangeCalendar.GridBody>{(date) => <RangeCalendar.Cell date={date} />}</RangeCalendar.GridBody>
               </RangeCalendar.Grid>
               <RangeCalendar.YearPickerGrid>
                 <RangeCalendar.YearPickerGridBody>
@@ -874,12 +936,7 @@ export function ActivityLogTable() {
         <ButtonGroup className='w-72' variant='tertiary'>
           {/* Action Filter */}
           <Dropdown>
-            <Button
-              fullWidth
-              className='min-w-0 flex-1'
-              isDisabled={actionOptions.length === 0}
-              variant='tertiary'
-            >
+            <Button fullWidth className='min-w-0 flex-1' isDisabled={actionOptions.length === 0} variant='tertiary'>
               <IconFunnel />
               Action
             </Button>
@@ -892,11 +949,7 @@ export function ActivityLogTable() {
                 {actionOptions.map((action) => {
                   const color = getActionColor(action.type);
                   return (
-                    <Dropdown.Item
-                      id={action.type}
-                      key={action.type}
-                      textValue={action.translation}
-                    >
+                    <Dropdown.Item id={action.type} key={action.type} textValue={action.translation}>
                       <Dropdown.ItemIndicator>
                         {({ isSelected }) => (
                           <AnimatePresence>
@@ -919,12 +972,7 @@ export function ActivityLogTable() {
           {/* Object Type Filter — only shown for multi-object activity logs */}
           {activityLogType !== 'single-object' && (
             <Dropdown>
-              <Button
-                fullWidth
-                className='min-w-0 flex-1'
-                isDisabled={objectTypeOptions.length === 0}
-                variant='tertiary'
-              >
+              <Button fullWidth className='min-w-0 flex-1' isDisabled={objectTypeOptions.length === 0} variant='tertiary'>
                 <IconFunnel />
                 Object Type
               </Button>
@@ -953,9 +1001,11 @@ export function ActivityLogTable() {
         </ButtonGroup>
         <UserFilterAutocomplete
           domoInstance={domoInstance}
+          mode={userFilterMode}
           tabId={tabId}
           value={userFilter}
           onChange={setUserFilter}
+          onModeChange={setUserFilterMode}
         />
       </div>
     ),
@@ -968,7 +1018,8 @@ export function ActivityLogTable() {
       objectTypeFilter,
       domoInstance,
       tabId,
-      userFilter
+      userFilter,
+      userFilterMode
     ]
   );
 
@@ -994,12 +1045,10 @@ export function ActivityLogTable() {
             <Alert.Content>
               <Alert.Title>Activity Log API only retains the past year</Alert.Title>
               <Alert.Description>
-                For older history, switch to the DomoStats Activity Log dataset (preserves history
-                from the day you connected it in Domo).
+                For older history, switch to the DomoStats Activity Log dataset (preserves history from the day you connected
+                it in Domo).
               </Alert.Description>
-              {discoveryError && (
-                <Alert.Description className='mt-1 text-danger'>{discoveryError}</Alert.Description>
-              )}
+              {discoveryError && <Alert.Description className='mt-1 text-danger'>{discoveryError}</Alert.Description>}
             </Alert.Content>
             <Button
               isDisabled={isDiscovering}
@@ -1026,9 +1075,7 @@ export function ActivityLogTable() {
               <Switch
                 isSelected={!!perInstanceSettings[domoInstance]?.preferActivityLogDataset}
                 size='sm'
-                onChange={(v) =>
-                  domoInstance && updatePerInstance(domoInstance, 'preferActivityLogDataset', v)
-                }
+                onChange={(v) => domoInstance && updatePerInstance(domoInstance, 'preferActivityLogDataset', v)}
               >
                 <Switch.Control>
                   <Switch.Thumb />
@@ -1052,8 +1099,8 @@ export function ActivityLogTable() {
               <Alert.Title>Couldn&apos;t load from the DomoStats dataset</Alert.Title>
               <Alert.Description>{datasetFetchError}</Alert.Description>
               <Alert.Description className='mt-1 text-xs'>
-                The cached dataset may have been deleted or you may have lost access. Re-run
-                discovery to find a fresh one, or switch back to the API source.
+                The cached dataset may have been deleted or you may have lost access. Re-run discovery to find a fresh one,
+                or switch back to the API source.
               </Alert.Description>
               <div className='mt-2 flex flex-wrap gap-2'>
                 <Button
@@ -1072,17 +1119,21 @@ export function ActivityLogTable() {
             </Alert.Content>
           </Alert>
         )}
-        <div className='flex flex-wrap items-center justify-between'>
-          <span
-            className='flex items-center justify-center gap-1 font-semibold'
-            style={{ fontSize: '18px' }}
-          >
+        <div className='flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1'>
+          <span className='min-w-0 grow text-lg leading-snug font-semibold break-normal'>
             Activity Log for{' '}
             {activityLogType === 'single-object' ? (
               <>
-                <span>{objects[0]?.type}</span>
-                <span className='text-accent'>{objects[0]?.name} </span>
+                <span>{objects[0]?.type} </span>
+                <span className='text-accent'>{objects[0]?.name}</span>
                 <span> (ID: {objects[0].id})</span>
+              </>
+            ) : activityLogType === 'object-and-parent' ? (
+              <>
+                <span>{objects[0]?.type} </span>
+                <span className='text-accent'>{objects[0]?.name}</span>
+                <span> and its parent {objects[1]?.type} </span>
+                <span className='text-accent'>{objects[1]?.name}</span>
               </>
             ) : (
               ` ${objects.length} ${
@@ -1104,8 +1155,8 @@ export function ActivityLogTable() {
             <p className='text-base text-muted'>
               {filteredEvents.length !== events.length ? (
                 <>
-                  Showing {filteredEvents.length.toLocaleString()} filtered of{' '}
-                  {events.length.toLocaleString()} fetched ({total.toLocaleString()} total)
+                  Showing {filteredEvents.length.toLocaleString()} filtered of {events.length.toLocaleString()} fetched (
+                  {total.toLocaleString()} total)
                 </>
               ) : (
                 <>
@@ -1182,11 +1233,7 @@ export function ActivityLogTable() {
           <Skeleton animationType='none' className='h-10 w-full shrink-0 rounded-lg' />
           <div className='flex flex-1 flex-col gap-1 overflow-hidden'>
             {Array.from({ length: 15 }).map((_, i) => (
-              <Skeleton
-                animationType='none'
-                className='h-13.25 w-full shrink-0 rounded-lg'
-                key={i}
-              />
+              <Skeleton animationType='none' className='h-13.25 w-full shrink-0 rounded-lg' key={i} />
             ))}
           </div>
         </div>
@@ -1201,6 +1248,7 @@ export function ActivityLogTable() {
       data={filteredEvents}
       entityName='events'
       exportConfig={exportConfig}
+      getRowId={(row, i) => `${row.objectType}:${row.objectId}:${row.time}:${row.actionType}:${row.userId}:${i}`}
       hasMore={hasMore}
       header={header}
       initialColumnVisibility={initialColumnVisibility}
@@ -1209,9 +1257,6 @@ export function ActivityLogTable() {
       onLoadMore={fetchMoreEvents}
       onRefresh={handleRefresh}
       onSortChange={setSortDescriptor}
-      getRowId={(row, i) =>
-        `${row.objectType}:${row.objectId}:${row.time}:${row.actionType}:${row.userId}:${i}`
-      }
     />
   );
 }
@@ -1221,16 +1266,17 @@ export function ActivityLogTable() {
  * expects. Multi-object/multi-action/multi-user filters become `IN(...)` clauses
  * in the dataset query (no fan-out, unlike the audit-API path).
  */
-function buildDatasetFilters({ actionFilter, dateRangeEpoch, objects, userFilter }) {
+function buildDatasetFilters({ actionFilter, dateRangeEpoch, mode = 'include', objects, userFilter }) {
   const objectIds = objects.map((o) => String(o.id));
   const objectTypes = [...new Set(objects.map((o) => o.type))];
   const actions = actionFilter && actionFilter.size > 0 ? [...actionFilter] : [];
-  const userIds = Array.isArray(userFilter) ? userFilter : [];
+  const selectedUserIds = Array.isArray(userFilter) ? userFilter : [];
+  // Exclude mode negates server-side via NOT IN; include mode uses IN.
+  const userIds = mode === 'exclude' ? [] : selectedUserIds;
+  const excludeUserIds = mode === 'exclude' ? selectedUserIds : [];
   const dateRange =
-    dateRangeEpoch?.start && dateRangeEpoch?.end
-      ? { end: dateRangeEpoch.end, start: dateRangeEpoch.start }
-      : null;
-  return { actions, dateRange, objectIds, objectTypes, userIds };
+    dateRangeEpoch?.start && dateRangeEpoch?.end ? { end: dateRangeEpoch.end, start: dateRangeEpoch.start } : null;
+  return { actions, dateRange, excludeUserIds, objectIds, objectTypes, userIds };
 }
 
 /**
@@ -1306,12 +1352,7 @@ function createAdditionalCommentColumn({ key = 'additionalComment' } = {}) {
 /**
  * Helper function to create an object column with type and name
  */
-function createObjectColumn({
-  idKey = 'objectId',
-  nameKey = 'objectName',
-  objectUrlMap = {},
-  typeKey = 'objectType'
-} = {}) {
+function createObjectColumn({ idKey = 'objectId', nameKey = 'objectName', objectUrlMap = {}, typeKey = 'objectType' } = {}) {
   return {
     accessor: (row) => row[nameKey],
     allowsSorting: true,
@@ -1322,18 +1363,21 @@ function createObjectColumn({
       const url = objectUrlMap[`${type}:${id}`];
 
       return (
-        <div className='flex flex-col gap-1'>
+        <div className='flex min-w-0 flex-col gap-1'>
           {url ? (
             <a
               className='truncate text-sm font-medium text-foreground no-underline decoration-accent/80 hover:text-accent/80 hover:underline'
               href={url}
               rel='noopener noreferrer'
               target='_blank'
+              title={name || '-'}
             >
               {name || '-'}
             </a>
           ) : (
-            <span className='truncate text-sm font-medium'>{name || '-'}</span>
+            <span className='truncate text-sm font-medium' title={name || '-'}>
+              {name || '-'}
+            </span>
           )}
           {type && <span className='chip chip--accent chip--soft chip--sm w-fit'>{type}</span>}
         </div>
@@ -1349,15 +1393,13 @@ function createObjectColumn({
 /**
  * Helper function to create a source column for the DomoStats dataset path.
  * The dataset's Source_ID/Name/Type identifies the actor (user, system job,
- * ETL, etc.). Renders name + type chip in the same shape as the Object column;
- * id is exposed via a `title` tooltip rather than an extra line so the row
- * height stays in lockstep with the rest of the table.
+ * ETL, etc.). Renders name + type chip in the same shape as the Object column,
+ * and links the name to the source's native Domo page when one exists (reusing
+ * the same precomputed objectUrlMap the Object column reads). id is exposed via
+ * a `title` tooltip rather than an extra line so the row height stays in
+ * lockstep with the rest of the table.
  */
-function createSourceColumn({
-  idKey = 'sourceId',
-  nameKey = 'sourceName',
-  typeKey = 'sourceType'
-} = {}) {
+function createSourceColumn({ idKey = 'sourceId', nameKey = 'sourceName', objectUrlMap = {}, typeKey = 'sourceType' } = {}) {
   return {
     accessor: (row) => row[nameKey],
     allowsSorting: true,
@@ -1366,13 +1408,27 @@ function createSourceColumn({
       const type = row[typeKey];
       const id = row[idKey];
       const tooltip = id ? `${name || '-'} (${id})` : name || '-';
+      const chipColor = getSourceTypeColor(type);
+      const url = objectUrlMap[`${type}:${id}`];
 
       return (
-        <div className='flex flex-col gap-1'>
-          <span className='truncate text-sm font-medium' title={tooltip}>
-            {name || '-'}
-          </span>
-          {type && <span className='chip chip--accent chip--soft chip--sm w-fit'>{type}</span>}
+        <div className='flex min-w-0 flex-col gap-1'>
+          {url ? (
+            <a
+              className='truncate text-sm font-medium text-foreground no-underline decoration-accent/80 hover:text-accent/80 hover:underline'
+              href={url}
+              rel='noopener noreferrer'
+              target='_blank'
+              title={tooltip}
+            >
+              {name || '-'}
+            </a>
+          ) : (
+            <span className='truncate text-sm font-medium' title={tooltip}>
+              {name || '-'}
+            </span>
+          )}
+          {type && <span className={`chip chip--${chipColor} chip--soft chip--sm w-fit`}>{type}</span>}
         </div>
       );
     },
@@ -1382,6 +1438,17 @@ function createSourceColumn({
     width: '2fr'
   };
 }
+
+// Soft chip palette for unknown source types. These must be real HeroUI chip
+// COLORS, not variant names. HeroUI v3 splits chips into a color axis
+// (accent/success/warning/danger/default) and a variant axis
+// (primary/secondary/tertiary/soft); `chip--tertiary` sets a transparent
+// background and `chip--secondary` has no rule at all, so feeding those as
+// "colors" produced invisible or unstyled chips (DATA_SOURCE hashed to tertiary
+// and rendered as bare text). USER/GROUP reserve accent/success, leaving these
+// three visible soft colors. Each type hashes deterministically so the same
+// type lands on the same color every row.
+const SOURCE_TYPE_FALLBACK_COLORS = ['warning', 'danger', 'default'];
 
 /**
  * Helper function to create a timestamp column with formatted date/time
@@ -1420,13 +1487,12 @@ function createUserColumn({
   customAvatarIds = new Set(),
   domoInstance = null,
   idKey = 'userId',
+  inactiveUserIds = new Set(),
   nameKey = 'userName',
   userNameMap = {}
 } = {}) {
   const getAvatarUrl = (userId) =>
-    domoInstance
-      ? `https://${domoInstance}.domo.com/api/content/v1/avatar/USER/${userId}?size=100`
-      : null;
+    domoInstance ? `https://${domoInstance}.domo.com/api/content/v1/avatar/USER/${userId}?size=100` : null;
 
   return {
     accessor: (row) => row[nameKey] || (row[idKey] != null ? userNameMap[row[idKey]] : null),
@@ -1439,12 +1505,13 @@ function createUserColumn({
       const name = row[nameKey] || (id != null ? userNameMap[id] : null);
 
       return (
-        <div className='flex items-center gap-3'>
-          <Avatar size='xs'>
+        <div className='flex min-w-0 items-center gap-3'>
+          <Avatar className='shrink-0' size='xs'>
             {customAvatarIds.has(id) && <AvatarImage src={getAvatarUrl(id)} />}
             <AvatarFallback>{getInitials(name)}</AvatarFallback>
+            {inactiveUserIds.has(id) && <InactiveUserOverlay />}
           </Avatar>
-          <div className='flex flex-col'>
+          <div className='flex min-w-0 flex-col'>
             {id && domoInstance ? (
               <a
                 className='truncate text-sm font-medium text-foreground no-underline decoration-accent/80 hover:text-accent/80 hover:underline'
@@ -1521,10 +1588,26 @@ function getShortTimezone() {
   const parts = new Intl.DateTimeFormat(undefined, {
     timeZoneName: 'short'
   }).formatToParts(new Date());
-  return (
-    parts.find((p) => p.type === 'timeZoneName')?.value ??
-    Intl.DateTimeFormat().resolvedOptions().timeZone
-  );
+  return parts.find((p) => p.type === 'timeZoneName')?.value ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
+/**
+ * Map a DomoStats source type to a chip color. USER and GROUP are pinned
+ * (accent/success) so the common cases are visually anchored; everything else
+ * is hashed to a stable color from SOURCE_TYPE_FALLBACK_COLORS.
+ */
+function getSourceTypeColor(type) {
+  if (!type) return 'default';
+  const normalized = String(type).toUpperCase();
+  if (normalized === 'USER') return 'accent';
+  if (normalized === 'GROUP') return 'success';
+
+  let hash = 0;
+  for (let i = 0; i < normalized.length; i++) {
+    hash = (hash * 31 + normalized.charCodeAt(i)) | 0;
+  }
+  const index = Math.abs(hash) % SOURCE_TYPE_FALLBACK_COLORS.length;
+  return SOURCE_TYPE_FALLBACK_COLORS[index];
 }
 
 /**

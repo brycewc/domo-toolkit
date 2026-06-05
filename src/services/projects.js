@@ -17,9 +17,7 @@ export async function getOwnedProjectsAndTasks(userId, tabId = null) {
 
       // Get projects owned by user
       while (moreData) {
-        const response = await fetch(
-          `/api/content/v2/users/${userId}/projects?limit=${limit}&offset=${offset}`
-        );
+        const response = await fetch(`/api/content/v2/users/${userId}/projects?limit=${limit}&offset=${offset}`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         const projects = Array.isArray(data) ? data : data?.projects || [];
@@ -29,7 +27,13 @@ export async function getOwnedProjectsAndTasks(userId, tabId = null) {
             if (project.assignedTo == userId) {
               allProjects.push({
                 id: project.id,
-                name: project.name || project.id.toString()
+                // Domo's project payloads carry the display name in
+                // `projectName` (matches the `pathToName: 'projectName'`
+                // setting on the PROJECT DomoObjectType). Falling back to
+                // plain `.name` covers any callsite that has already
+                // normalized the field, and finally the stringified id as
+                // a last resort.
+                name: project.projectName || project.name || project.id.toString()
               });
             }
           }
@@ -43,9 +47,7 @@ export async function getOwnedProjectsAndTasks(userId, tabId = null) {
       // Get tasks for each project assigned to user
       for (const project of allProjects) {
         try {
-          const taskResponse = await fetch(
-            `/api/content/v1/projects/${project.id}/tasks?assignedToOwnerId=${userId}`
-          );
+          const taskResponse = await fetch(`/api/content/v1/projects/${project.id}/tasks?assignedToOwnerId=${userId}`);
           if (!taskResponse.ok) continue;
           const tasks = await taskResponse.json();
 
@@ -78,12 +80,7 @@ export async function getOwnedProjectsAndTasks(userId, tabId = null) {
  * @param {number|null} tabId - Optional Chrome tab ID
  * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
  */
-export async function transferProjectsAndTasks(
-  items,
-  fromUserId,
-  toUserId,
-  tabId = null
-) {
+export async function transferProjectsAndTasks(items, fromUserId, toUserId, tabId = null) {
   return executeInPage(
     async (items, fromUserId, toUserId) => {
       const errors = [];
@@ -93,32 +90,21 @@ export async function transferProjectsAndTasks(
       for (const task of items.tasks || []) {
         try {
           // Fetch full task object
-          const getResponse = await fetch(
-            `/api/content/v1/tasks/${task.id}`
-          );
+          const getResponse = await fetch(`/api/content/v1/tasks/${task.id}`);
           if (!getResponse.ok) throw new Error(`HTTP ${getResponse.status}`);
           const taskData = await getResponse.json();
 
           if (taskData.primaryTaskOwner == fromUserId) {
             taskData.primaryTaskOwner = toUserId;
           }
-          taskData.contributors = [
-            ...(taskData.contributors || []),
-            { assignedBy: fromUserId, assignedTo: toUserId }
-          ];
-          taskData.owners = [
-            ...(taskData.owners || []),
-            { assignedBy: fromUserId, assignedTo: toUserId }
-          ];
+          taskData.contributors = [...(taskData.contributors || []), { assignedBy: fromUserId, assignedTo: toUserId }];
+          taskData.owners = [...(taskData.owners || []), { assignedBy: fromUserId, assignedTo: toUserId }];
 
-          const response = await fetch(
-            `/api/content/v1/tasks/${task.id}`,
-            {
-              body: JSON.stringify(taskData),
-              headers: { 'Content-Type': 'application/json' },
-              method: 'PUT'
-            }
-          );
+          const response = await fetch(`/api/content/v1/tasks/${task.id}`, {
+            body: JSON.stringify(taskData),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'PUT'
+          });
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           succeeded++;
         } catch (error) {
@@ -129,17 +115,14 @@ export async function transferProjectsAndTasks(
       // Transfer projects
       for (const project of items.projects || []) {
         try {
-          const response = await fetch(
-            `/api/content/v1/projects/${project.id}`,
-            {
-              body: JSON.stringify({
-                creator: toUserId,
-                id: project.id
-              }),
-              headers: { 'Content-Type': 'application/json' },
-              method: 'PUT'
-            }
-          );
+          const response = await fetch(`/api/content/v1/projects/${project.id}`, {
+            body: JSON.stringify({
+              creator: toUserId,
+              id: project.id
+            }),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'PUT'
+          });
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           succeeded++;
         } catch (error) {

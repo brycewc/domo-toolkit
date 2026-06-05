@@ -8,20 +8,23 @@ import { ApiErrorsView } from '@/components/views/ApiErrorsView';
 import { CopyColorRulesView } from '@/components/views/CopyColorRulesView';
 import { DeleteObjectView } from '@/components/views/DeleteObjectView';
 import { DuplicateView } from '@/components/views/DuplicateView';
+import { GeneratePackageDefinitionFromJSDocView } from '@/components/views/GeneratePackageDefinitionFromJSDocView';
+import { GenerateSchemaView } from '@/components/views/GenerateSchemaView';
 import { GetCardsView } from '@/components/views/GetCardsView';
 import { GetDatasetsView } from '@/components/views/GetDatasetsView';
 import { GetPagesView } from '@/components/views/GetPagesView';
 import { GetViewInputsView } from '@/components/views/GetViewInputsView';
 import { LinkPreview } from '@/components/views/LinkPreview';
+import { MigrateDownstreamContentView } from '@/components/views/MigrateDownstreamContentView';
 import { ObjectDetailsView } from '@/components/views/ObjectDetailsView';
 import { OwnershipView } from '@/components/views/OwnershipView';
-import { SyncJSDocFromSourceView } from '@/components/views/SyncJSDocFromSourceView';
 import { UpdateCodeEngineVersionsView } from '@/components/views/UpdateCodeEngineVersionsView';
 import { UpdateDetailsView } from '@/components/views/UpdateDetailsView';
 import { useReleaseNotification } from '@/hooks/useReleaseNotification';
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { useTheme } from '@/hooks/useTheme';
 import { DomoContext } from '@/models/DomoContext';
+import { resolvePrimaryCopy } from '@/models/DomoObjectType';
 import { sidepanelStorageKey } from '@/utils/sidepanel';
 
 export default function App() {
@@ -35,7 +38,14 @@ export default function App() {
   const [currentTabId, setCurrentTabId] = useState(null);
   const [isLoadingCurrentContext, setIsLoadingCurrentContext] = useState(true);
   const windowIdRef = useRef(null);
+  // Mirror current context into a ref so the (rarely re-registered) message
+  // listener can read the latest value without re-subscribing on every change.
+  const currentContextRef = useRef(currentContext);
   const { showStatus } = useStatusBar();
+
+  useEffect(() => {
+    currentContextRef.current = currentContext;
+  }, [currentContext]);
 
   // Listen for storage changes for sidepanel data (scoped to this window)
   useEffect(() => {
@@ -136,9 +146,7 @@ export default function App() {
     const handleMessage = (message, sender, sendResponse) => {
       if (message.type === 'TAB_CONTEXT_UPDATED') {
         if (message.tabId === currentTabId) {
-          const context = message.context
-            ? DomoContext.fromJSON(message.context)
-            : null;
+          const context = message.context ? DomoContext.fromJSON(message.context) : null;
           setCurrentContext(context);
         }
         sendResponse({ received: true });
@@ -151,6 +159,26 @@ export default function App() {
           message.timeout !== undefined ? message.timeout : 3000
         );
         sendResponse({ received: true });
+        return true;
+      } else if (message.type === 'COPY_ID_SHORTCUT') {
+        // Only the focused surface copies: navigator.clipboard needs focus.
+        // Staying silent when unfocused lets the focused surface (or the
+        // background's in-page fallback) handle the shortcut instead.
+        if (!document.hasFocus()) return false;
+        (async () => {
+          const copy = resolvePrimaryCopy(currentContextRef.current?.domoObject);
+          if (!copy) {
+            sendResponse({ copied: false });
+            return;
+          }
+          try {
+            await navigator.clipboard.writeText(copy.value);
+            showStatus('Success', `Copied ${copy.label} **${copy.value}** to clipboard`, 'success', 2000);
+            sendResponse({ copied: true });
+          } catch {
+            sendResponse({ copied: false });
+          }
+        })();
         return true;
       }
 
@@ -230,11 +258,7 @@ export default function App() {
           onStatusUpdate={showStatus}
         />
 
-        <ContextFooter
-          currentContext={currentContext}
-          isLoading={isLoadingCurrentContext}
-          onStatusUpdate={showStatus}
-        />
+        <ContextFooter currentContext={currentContext} isLoading={isLoadingCurrentContext} onStatusUpdate={showStatus} />
 
         {activeView === 'loading' && (
           <Card className='h-full w-full'>
@@ -247,9 +271,7 @@ export default function App() {
 
         {activeView !== 'default' && activeView !== 'loading' && (
           <div className='flex min-h-0 w-full flex-1 flex-col'>
-            {(activeView === 'getChildPages' ||
-              activeView === 'getCardPages' ||
-              activeView === 'childPagesWarning') && (
+            {(activeView === 'getChildPages' || activeView === 'getCardPages' || activeView === 'childPagesWarning') && (
               <GetPagesView
                 currentContext={currentContext}
                 key={viewKey}
@@ -286,27 +308,15 @@ export default function App() {
             )}
 
             {activeView === 'viewObjectDetails' && (
-              <ObjectDetailsView
-                key={viewKey}
-                onBackToDefault={handleBackToDefault}
-                onStatusUpdate={showStatus}
-              />
+              <ObjectDetailsView key={viewKey} onBackToDefault={handleBackToDefault} onStatusUpdate={showStatus} />
             )}
 
             {activeView === 'apiErrors' && (
-              <ApiErrorsView
-                key={viewKey}
-                onBackToDefault={handleBackToDefault}
-                onStatusUpdate={showStatus}
-              />
+              <ApiErrorsView key={viewKey} onBackToDefault={handleBackToDefault} onStatusUpdate={showStatus} />
             )}
 
             {activeView === 'duplicate' && (
-              <DuplicateView
-                key={viewKey}
-                onBackToDefault={handleBackToDefault}
-                onStatusUpdate={showStatus}
-              />
+              <DuplicateView key={viewKey} onBackToDefault={handleBackToDefault} onStatusUpdate={showStatus} />
             )}
 
             {activeView === 'updateCodeEngineVersions' && (
@@ -317,41 +327,41 @@ export default function App() {
               />
             )}
 
-            {activeView === 'syncJSDocFromSource' && (
-              <SyncJSDocFromSourceView
+            {activeView === 'generatePackageDefinitionFromJSDoc' && (
+              <GeneratePackageDefinitionFromJSDocView
                 key={viewKey}
                 onBackToDefault={handleBackToDefault}
                 onStatusUpdate={showStatus}
               />
+            )}
+
+            {activeView === 'generateSchema' && (
+              <GenerateSchemaView key={viewKey} onBackToDefault={handleBackToDefault} onStatusUpdate={showStatus} />
             )}
 
             {activeView === 'updateDetails' && (
-              <UpdateDetailsView
-                key={viewKey}
-                onBackToDefault={handleBackToDefault}
-                onStatusUpdate={showStatus}
-              />
+              <UpdateDetailsView key={viewKey} onBackToDefault={handleBackToDefault} onStatusUpdate={showStatus} />
             )}
 
             {activeView === 'copyColorRules' && (
-              <CopyColorRulesView
-                key={viewKey}
-                onBackToDefault={handleBackToDefault}
-                onStatusUpdate={showStatus}
-              />
+              <CopyColorRulesView key={viewKey} onBackToDefault={handleBackToDefault} onStatusUpdate={showStatus} />
             )}
 
             {activeView === 'deleteObject' && (
-              <DeleteObjectView
-                key={viewKey}
-                onBackToDefault={handleBackToDefault}
-                onStatusUpdate={showStatus}
-              />
+              <DeleteObjectView key={viewKey} onBackToDefault={handleBackToDefault} onStatusUpdate={showStatus} />
             )}
 
             {activeView === 'ownership' && (
               <OwnershipView
                 currentContext={currentContext}
+                key={viewKey}
+                onBackToDefault={handleBackToDefault}
+                onStatusUpdate={showStatus}
+              />
+            )}
+
+            {activeView === 'migrateDownstream' && (
+              <MigrateDownstreamContentView
                 key={viewKey}
                 onBackToDefault={handleBackToDefault}
                 onStatusUpdate={showStatus}

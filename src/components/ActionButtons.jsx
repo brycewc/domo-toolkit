@@ -1,5 +1,5 @@
 import { Button, ButtonGroup, Card, Disclosure, Skeleton, Tooltip } from '@heroui/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import { ActivityLog } from '@/components/functions/ActivityLog';
 import { ApiErrors } from '@/components/functions/ApiErrors';
@@ -14,6 +14,7 @@ import { DevMenu } from '@/components/functions/DevMenu';
 import { DirectSignOn } from '@/components/functions/DirectSignOn';
 import { Duplicate } from '@/components/functions/Duplicate';
 import { Export } from '@/components/functions/Export';
+import { Generate } from '@/components/functions/Generate';
 import { GetCardPages } from '@/components/functions/GetCardPages';
 import { GetCards } from '@/components/functions/GetCards';
 import { GetChildPages } from '@/components/functions/GetChildPages';
@@ -21,11 +22,12 @@ import { GetDatasets } from '@/components/functions/GetDatasets';
 import { GetOwnedObjects } from '@/components/functions/GetOwnedObjects';
 import { GetViewInputs } from '@/components/functions/GetViewInputs';
 import { LockCards } from '@/components/functions/LockCards';
+import { MigrateDownstreamContent } from '@/components/functions/MigrateDownstreamContent';
 import { NavigateToCopiedObject } from '@/components/functions/NavigateToCopiedObject';
 import { RemoveEmptyStringsFromQuickFilters } from '@/components/functions/RemoveEmptyStringsFromQuickFilters';
 import { SetStreamToManual } from '@/components/functions/SetStreamToManual';
 import { ShareWithSelf } from '@/components/functions/ShareWithSelf';
-import { SyncJSDocFromSource } from '@/components/functions/SyncJSDocFromSource';
+import { Sync } from '@/components/functions/Sync';
 import { TransferOwnership } from '@/components/functions/TransferOwnership';
 import { UpdateCodeEngineVersions } from '@/components/functions/UpdateCodeEngineVersions';
 import { UpdateDetails } from '@/components/functions/UpdateDetails';
@@ -37,24 +39,34 @@ import IconChevronDown from '@icons/chevron-down.svg?react';
 import IconGear from '@icons/gear.svg?react';
 import IconRightRailFill from '@icons/right-rail-fill.svg?react';
 
-export function ActionButtons({
-  collapsable = false,
-  currentContext,
-  defaultExpanded,
-  isLoading,
-  onStatusUpdate
-}) {
+export function ActionButtons({ collapsable = false, currentContext, defaultExpanded, isLoading, onStatusUpdate }) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded ?? !collapsable);
+  const [hasExpandableActions, setHasExpandableActions] = useState(false);
+  const contentRef = useRef(null);
 
   useEffect(() => {
-    if (defaultExpanded === false) {
-      setIsExpanded(false);
+    if (defaultExpanded !== undefined) {
+      setIsExpanded(defaultExpanded);
     }
   }, [defaultExpanded]);
 
+  // Whether the panel has anything to show is measured from the rendered DOM,
+  // not from getAvailableActions alone: ApiErrors and DevMenu render
+  // unconditionally and manage their own visibility without re-rendering this
+  // component, so the count would otherwise miss them and leave the expand
+  // toggle disabled when one of them is the only available action.
+  useLayoutEffect(() => {
+    const node = contentRef.current;
+    if (!node) return;
+    const update = () => setHasExpandableActions(node.childElementCount > 0);
+    update();
+    const observer = new MutationObserver(update);
+    observer.observe(node, { childList: true });
+    return () => observer.disconnect();
+  }, [isLoading]);
+
   const isDomoPage = currentContext?.isDomoPage ?? false;
   const availableActions = getAvailableActions(currentContext);
-  const hasExpandableActions = availableActions.size > 0;
 
   return (
     <Card className='w-full shrink-0 p-0'>
@@ -70,39 +82,16 @@ export function ActionButtons({
             ))}
           </div>
         ) : (
-          <Disclosure
-            className='flex w-full flex-col'
-            isExpanded={isExpanded}
-            onExpandedChange={setIsExpanded}
-          >
+          <Disclosure className='flex w-full flex-col' isExpanded={isExpanded} onExpandedChange={setIsExpanded}>
             <Disclosure.Heading className='w-full'>
               <ButtonGroup fullWidth>
-                <Copy
-                  currentContext={currentContext}
-                  isDisabled={!isDomoPage}
-                  onStatusUpdate={onStatusUpdate}
-                />
-                <ShareWithSelf
-                  currentContext={currentContext}
-                  isDisabled={!isDomoPage}
-                  onStatusUpdate={onStatusUpdate}
-                />
+                <Copy currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
+                <ShareWithSelf currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
                 <ActivityLog currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
-                <NavigateToCopiedObject
-                  currentContext={currentContext}
-                  onStatusUpdate={onStatusUpdate}
-                />
-                <DeleteObject
-                  currentContext={currentContext}
-                  isDisabled={!isDomoPage}
-                  onStatusUpdate={onStatusUpdate}
-                />
-                <ClearCookies
-                  currentContext={currentContext}
-                  isDisabled={!isDomoPage}
-                  onStatusUpdate={onStatusUpdate}
-                />
-                <Tooltip closeDelay={0} delay={400}>
+                <NavigateToCopiedObject currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
+                <DeleteObject currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
+                <ClearCookies currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
+                <Tooltip delay={200}>
                   <Button
                     fullWidth
                     isIconOnly
@@ -130,6 +119,7 @@ export function ActionButtons({
                         });
                         chrome.tabs.create({
                           index: activeTab ? activeTab.index + 1 : undefined,
+                          openerTabId: activeTab?.id,
                           url: `${optionsUrl}#settings`,
                           windowId: currentWindow.id
                         });
@@ -139,43 +129,28 @@ export function ActionButtons({
                   >
                     <IconGear />
                   </Button>
-                  <Tooltip.Content
-                    className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
-                    offset={4}
-                  >
+                  <Tooltip.Content className='max-w-60' offset={4}>
                     Extension settings
                   </Tooltip.Content>
                 </Tooltip>
                 {collapsable ? (
-                  <Tooltip closeDelay={0} delay={400}>
-                    <Button
-                      fullWidth
-                      isIconOnly
-                      isDisabled={!hasExpandableActions}
-                      slot='trigger'
-                      variant='tertiary'
-                    >
+                  <Tooltip delay={200}>
+                    <Button fullWidth isIconOnly isDisabled={!hasExpandableActions} slot='trigger' variant='tertiary'>
                       <Disclosure.Indicator>
                         <IconChevronDown />
                       </Disclosure.Indicator>
                     </Button>
 
-                    <Tooltip.Content
-                      className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
-                      offset={4}
-                    >
+                    <Tooltip.Content className='max-w-60' offset={4}>
                       Expand
                     </Tooltip.Content>
                   </Tooltip>
                 ) : (
-                  <Tooltip closeDelay={0} delay={400}>
+                  <Tooltip delay={200}>
                     <Button fullWidth isIconOnly variant='tertiary' onPress={openSidepanel}>
                       <IconRightRailFill />
                     </Button>
-                    <Tooltip.Content
-                      className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
-                      offset={4}
-                    >
+                    <Tooltip.Content className='max-w-60' offset={4}>
                       Open side panel
                     </Tooltip.Content>
                   </Tooltip>
@@ -183,7 +158,10 @@ export function ActionButtons({
               </ButtonGroup>
             </Disclosure.Heading>
             <Disclosure.Content className='flex h-full w-full flex-col items-center justify-center gap-1'>
-              <div className='flex w-full flex-wrap place-items-center items-center justify-center gap-1 not-empty:mt-1 empty:hidden'>
+              <div
+                className='flex w-full flex-wrap place-items-center items-center justify-center gap-1 not-empty:mt-1 empty:hidden'
+                ref={contentRef}
+              >
                 {availableActions.has('getCards') && (
                   <GetCards
                     currentContext={currentContext}
@@ -227,14 +205,31 @@ export function ActionButtons({
                 {availableActions.has('viewLineage') && (
                   <ViewLineage currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
                 )}
-                {availableActions.has('dataRepair') && (
-                  <DataRepair currentContext={currentContext} isDisabled={!isDomoPage} />
+                {availableActions.has('updateOwner') && (
+                  <UpdateOwner currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('updateDetails') && (
                   <UpdateDetails currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
                 )}
+                {availableActions.has('copyFilteredUrl') && (
+                  <CopyFilteredUrl
+                    currentContext={currentContext}
+                    isDisabled={!isDomoPage}
+                    onStatusUpdate={onStatusUpdate}
+                  />
+                )}
+                {availableActions.has('dataRepair') && (
+                  <DataRepair currentContext={currentContext} isDisabled={!isDomoPage} />
+                )}
                 {availableActions.has('copyColorRules') && (
                   <CopyColorRules currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
+                )}
+                {availableActions.has('migrateDownstreamContent') && (
+                  <MigrateDownstreamContent
+                    currentContext={currentContext}
+                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
+                    onStatusUpdate={onStatusUpdate}
+                  />
                 )}
                 {availableActions.has('transferOwnership') && (
                   <TransferOwnership
@@ -257,29 +252,8 @@ export function ActionButtons({
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
-                {availableActions.has('updateOwner') && (
-                  <UpdateOwner currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
-                )}
-                {availableActions.has('lockCards') && (
-                  <LockCards
-                    currentContext={currentContext}
-                    isDisabled={!isDomoPage}
-                    onStatusUpdate={onStatusUpdate}
-                  />
-                )}
-                {availableActions.has('copyFilteredUrl') && (
-                  <CopyFilteredUrl
-                    currentContext={currentContext}
-                    isDisabled={!isDomoPage}
-                    onStatusUpdate={onStatusUpdate}
-                  />
-                )}
                 {availableActions.has('export') && (
-                  <Export
-                    currentContext={currentContext}
-                    isDisabled={!isDomoPage}
-                    onStatusUpdate={onStatusUpdate}
-                  />
+                  <Export currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('cancelStreamExecution') && (
                   <CancelStreamExecution currentContext={currentContext} isDisabled={!isDomoPage} />
@@ -299,8 +273,16 @@ export function ActionButtons({
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
-                {availableActions.has('syncJSDocFromSource') && (
-                  <SyncJSDocFromSource
+                {availableActions.has('generate') && (
+                  <Generate
+                    currentContext={currentContext}
+                    isDisabled={!isDomoPage}
+                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
+                    onStatusUpdate={onStatusUpdate}
+                  />
+                )}
+                {availableActions.has('sync') && (
+                  <Sync
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
                     onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
@@ -314,13 +296,13 @@ export function ActionButtons({
                   onStatusUpdate={onStatusUpdate}
                 />
                 {availableActions.has('removeEmptyStrings') && (
-                  <RemoveEmptyStringsFromQuickFilters
-                    currentContext={currentContext}
-                    onStatusUpdate={onStatusUpdate}
-                  />
+                  <RemoveEmptyStringsFromQuickFilters currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('directSignOn') && (
                   <DirectSignOn currentContext={currentContext} isDisabled={!isDomoPage} />
+                )}
+                {availableActions.has('lockCards') && (
+                  <LockCards currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
                 )}
                 <DevMenu />
               </div>

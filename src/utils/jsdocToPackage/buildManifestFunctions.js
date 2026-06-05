@@ -1,23 +1,34 @@
 import { deriveDisplayName } from './displayName';
 import { mapJSDocType } from './typeMap';
 
-export function buildManifestFunctions({ reconciledDocs, typedefs }) {
+const EMPTY_TYPE = '';
+
+export function buildManifestFunctions({ editorStartIndices = {}, reconciledDocs, typedefs }) {
   const functions = [];
   const warnings = [];
   const perFunctionMeta = {};
 
   for (const doc of reconciledDocs) {
-    const inputs = buildInputs(doc, typedefs, warnings);
+    const variables = buildVariables(doc, typedefs, warnings);
+    const inputs = deriveInputsFromVariables(variables);
     const output = doc.returns ? buildOutput(doc, typedefs, warnings) : null;
+
     const fn = {
       description: doc.description || '',
       displayName: doc.displayName || deriveDisplayName(doc.functionName),
+      // Domo binds each manifest function to its code definition by this
+      // parse-tree node index, recovered from the live editor. Falling back to 0
+      // (the old hardcoded value) collapses every binding onto one node, which is
+      // why workflows reported the function as nonexistent after a sync.
+      editorStartIndex: editorStartIndices?.[doc.functionName] ?? 0,
       example: buildExampleStub(inputs, output),
+      hasReturn: output != null,
       inputs,
       isPrivate: !!doc.isPrivate,
-      name: doc.functionName
+      name: doc.functionName,
+      output,
+      variables
     };
-    if (output) fn.output = output;
     functions.push(fn);
     perFunctionMeta[doc.functionName] = {
       explicitOutputName: !!doc.returns?.explicitName
@@ -27,92 +38,13 @@ export function buildManifestFunctions({ reconciledDocs, typedefs }) {
   return { functions, perFunctionMeta, warnings };
 }
 
-function applyDescendantChildrenRule(entries) {
-  return entries.map((entry) => {
-    const next = { ...entry };
-    if (next.type !== 'object') {
-      next.children = null;
-    } else if (next.children == null) {
-      next.children = [];
-    }
-    next.displayName = null;
-    return next;
-  });
-}
-
-function buildEntry({ depth, doc, node, typedefs, warnings }) {
-  const docParam = node.docParam;
-  const isTopLevel = depth === 0;
-
-  if (!docParam) {
-    const children = node.children.map((child) =>
-      buildEntry({ depth: depth + 1, doc, node: child, typedefs, warnings })
-    );
-    return {
-      children: applyDescendantChildrenRule(children, true),
-      displayName: isTopLevel ? node.name : null,
-      entitySubType: null,
-      isList: !!node.segIsList,
-      name: node.name,
-      nullable: false,
-      type: 'object',
-      value: null
-    };
-  }
-
-  const typeInfo = mapJSDocType(docParam.rawType);
-
-  if (typeInfo.isUnknown) {
-    warnings.push({
-      functionName: doc.functionName,
-      message: `Param \`${docParam.rawName}\` has no type — falling back to text.`,
-      paramName: docParam.rawName,
-      severity: 'warning'
-    });
-  }
-
-  let resolvedType = typeInfo.type;
-  let resolvedChildren = null;
-  const isList = typeInfo.isList || !!node.segIsList;
-
-  if (typeInfo.isTypedef) {
-    const typedef = typedefs[typeInfo.type];
-    if (typedef) {
-      resolvedType = 'object';
-      resolvedChildren = typedef.properties.map((prop) =>
-        buildPropertyEntry(prop, typedefs, warnings, doc)
-      );
-    } else {
-      warnings.push({
-        functionName: doc.functionName,
-        message: `Param \`${docParam.rawName}\` references unknown typedef \`${typeInfo.type}\` — emitting empty children.`,
-        paramName: docParam.rawName,
-        severity: 'warning'
-      });
-      resolvedType = 'object';
-      resolvedChildren = [];
-    }
-  } else if (resolvedType === 'object') {
-    resolvedChildren = node.children.map((child) =>
-      buildEntry({ depth: depth + 1, doc, node: child, typedefs, warnings })
-    );
-  }
-
-  const childrenForOutput = resolvedChildren
-    ? applyDescendantChildrenRule(resolvedChildren, true)
-    : isTopLevel
-      ? []
-      : null;
-
+function applyLTransform(entry) {
   return {
-    children: childrenForOutput,
-    displayName: isTopLevel ? docParam.rawName.split('.').pop() : null,
-    entitySubType: null,
-    isList,
-    name: docParam.rawName.split('.').pop().replace(/\[\]$/, ''),
-    nullable: !!docParam.optional || docParam.defaultSource === 'signature',
-    type: resolvedType,
-    value: docParam.defaultEvaluated ?? null
+    ...entry,
+    displayName: entry.name,
+    nullable: entry.nullable ?? false,
+    type: entry.type || EMPTY_TYPE,
+    value: entry.value ?? entry.defaultValues
   };
 }
 
@@ -126,23 +58,15 @@ function buildExampleStub(inputs, output) {
   return lines.join('\n');
 }
 
-function buildInputs(doc, typedefs, warnings) {
-  const usableParams = doc.params.filter((p) => p && !p.excludeFromManifest);
-  const tree = buildPathTree(usableParams);
-  return tree.children.map((node) =>
-    buildEntry({ depth: 0, doc, node, typedefs, warnings })
-  );
-}
-
 function buildOutput(doc, typedefs, warnings) {
   const ret = doc.returns;
   const typeInfo = mapJSDocType(ret.rawType);
-  const name = ret.name || defaultOutputName(typeInfo, ret.rawType);
+  const name = ret.name || defaultOutputName(typeInfo);
 
   if (typeInfo.isUnknown) {
     warnings.push({
       functionName: doc.functionName,
-      message: '@returns has no type — falling back to text.',
+      message: '@returns has no type, falling back to text.',
       severity: 'warning'
     });
   }
@@ -152,14 +76,15 @@ function buildOutput(doc, typedefs, warnings) {
     if (!typedef) {
       warnings.push({
         functionName: doc.functionName,
-        message: `@returns references unknown typedef \`${typeInfo.type}\` — emitting empty children.`,
+        message: `@returns references unknown typedef \`${typeInfo.type}\`, emitting empty children.`,
         severity: 'warning'
       });
       return primitiveOutputEntry({ isList: typeInfo.isList, name, type: 'object' });
     }
-    const children = typedef.properties.map((prop) => buildPropertyEntry(prop, typedefs, warnings, doc));
+    const children = typedef.properties.map((prop) => buildOutputPropertyEntry(prop, typedefs));
     return {
       children,
+      defaultValues: null,
       displayName: name,
       entitySubType: null,
       isList: typeInfo.isList,
@@ -171,6 +96,35 @@ function buildOutput(doc, typedefs, warnings) {
   }
 
   return primitiveOutputEntry({ isList: typeInfo.isList, name, type: typeInfo.type });
+}
+
+function buildOutputPropertyEntry(prop, typedefs) {
+  const typeInfo = mapJSDocType(prop.rawType);
+  const baseName = prop.rawName.split('.').pop().replace(/\[\]$/, '');
+  let resolvedType = typeInfo.type;
+  let resolvedChildren = null;
+
+  if (typeInfo.isTypedef) {
+    const typedef = typedefs[typeInfo.type];
+    if (typedef) {
+      resolvedType = 'object';
+      resolvedChildren = typedef.properties.map((nested) => buildOutputPropertyEntry(nested, typedefs));
+    } else {
+      resolvedType = 'object';
+      resolvedChildren = null;
+    }
+  }
+
+  return {
+    children: resolvedChildren,
+    displayName: null,
+    entitySubType: null,
+    isList: typeInfo.isList,
+    name: baseName,
+    nullable: !!prop.optional,
+    type: resolvedType,
+    value: null
+  };
 }
 
 function buildPathTree(params) {
@@ -196,58 +150,119 @@ function buildPathTree(params) {
   return root;
 }
 
-function buildPropertyEntry(prop, typedefs, warnings, doc) {
-  const typeInfo = mapJSDocType(prop.rawType);
-  const baseName = prop.rawName.split('.').pop().replace(/\[\]$/, '');
-  if (typeInfo.isTypedef) {
-    const typedef = typedefs[typeInfo.type];
-    if (typedef) {
-      return {
-        children: typedef.properties.map((nested) =>
-          buildPropertyEntry(nested, typedefs, warnings, doc)
-        ),
-        displayName: null,
-        entitySubType: null,
-        isList: typeInfo.isList,
-        name: baseName,
-        nullable: !!prop.optional,
-        type: 'object',
-        value: prop.defaultEvaluated ?? null
-      };
-    }
-    return {
-      children: [],
-      displayName: null,
+function buildVariableEntry({ depth, doc, node, typedefs, warnings }) {
+  const docParam = node.docParam;
+  const isTopLevel = depth === 0;
+
+  if (!docParam) {
+    const children = node.children.map((child) =>
+      buildVariableEntry({ depth: depth + 1, doc, node: child, typedefs, warnings })
+    );
+    const entry = {
+      children,
+      displayName: node.name,
       entitySubType: null,
-      isList: typeInfo.isList,
-      name: baseName,
-      nullable: !!prop.optional,
+      isList: !!node.segIsList,
+      name: node.name,
+      nullable: false,
       type: 'object',
       value: null
     };
+    if (isTopLevel) entry.defaultValues = null;
+    return entry;
   }
-  if (typeInfo.type === 'object') {
-    return {
-      children: [],
-      displayName: null,
-      entitySubType: null,
-      isList: typeInfo.isList,
-      name: baseName,
-      nullable: !!prop.optional,
-      type: 'object',
-      value: prop.defaultEvaluated ?? null
-    };
+
+  const typeInfo = mapJSDocType(docParam.rawType);
+
+  if (typeInfo.isUnknown) {
+    warnings.push({
+      functionName: doc.functionName,
+      message: `Param \`${docParam.rawName}\` has no type, falling back to text.`,
+      paramName: docParam.rawName,
+      severity: 'warning'
+    });
   }
+
+  let resolvedType = typeInfo.type;
+  let resolvedChildren = null;
+  const isList = typeInfo.isList || !!node.segIsList;
+
+  if (typeInfo.isTypedef) {
+    const typedef = typedefs[typeInfo.type];
+    if (typedef) {
+      resolvedType = 'object';
+      resolvedChildren = typedef.properties.map((prop) => buildVariablePropertyEntry(prop, typedefs));
+    } else {
+      warnings.push({
+        functionName: doc.functionName,
+        message: `Param \`${docParam.rawName}\` references unknown typedef \`${typeInfo.type}\`, emitting empty children.`,
+        paramName: docParam.rawName,
+        severity: 'warning'
+      });
+      resolvedType = 'object';
+      resolvedChildren = [];
+    }
+  } else if (resolvedType === 'object') {
+    resolvedChildren = node.children.map((child) =>
+      buildVariableEntry({ depth: depth + 1, doc, node: child, typedefs, warnings })
+    );
+  }
+
+  const baseName = docParam.rawName.split('.').pop().replace(/\[\]$/, '');
+  const children = resolvedChildren ?? (isTopLevel ? [] : null);
+  // Domo stores nested list-primitive children with value=[] (matching the
+  // type's "empty list" sentinel) even when no explicit default is provided,
+  // while top-level entries use null. Mirror that asymmetry so the GET-vs-derived
+  // comparator doesn't flag every nested list child as needing a value change.
+  const value = docParam.defaultEvaluated ?? (!isTopLevel && isList ? [] : null);
+
+  const entry = {
+    children,
+    displayName: baseName,
+    entitySubType: null,
+    isList,
+    name: baseName,
+    nullable: docParam.defaultRaw != null,
+    type: resolvedType,
+    value
+  };
+  if (isTopLevel) entry.defaultValues = value;
+  return entry;
+}
+
+function buildVariablePropertyEntry(prop, typedefs) {
+  const typeInfo = mapJSDocType(prop.rawType);
+  const baseName = prop.rawName.split('.').pop().replace(/\[\]$/, '');
+  let resolvedType = typeInfo.type;
+  let resolvedChildren = null;
+
+  if (typeInfo.isTypedef) {
+    const typedef = typedefs[typeInfo.type];
+    if (typedef) {
+      resolvedType = 'object';
+      resolvedChildren = typedef.properties.map((nested) => buildVariablePropertyEntry(nested, typedefs));
+    } else {
+      resolvedType = 'object';
+      resolvedChildren = null;
+    }
+  }
+
   return {
-    children: null,
-    displayName: null,
+    children: resolvedChildren,
+    displayName: baseName,
     entitySubType: null,
     isList: typeInfo.isList,
     name: baseName,
     nullable: !!prop.optional,
-    type: typeInfo.type,
-    value: prop.defaultEvaluated ?? null
+    type: resolvedType,
+    value: typeInfo.isList ? [] : null
   };
+}
+
+function buildVariables(doc, typedefs, warnings) {
+  const usableParams = doc.params.filter((p) => p && !p.excludeFromManifest);
+  const tree = buildPathTree(usableParams);
+  return tree.children.map((node) => buildVariableEntry({ depth: 0, doc, node, typedefs, warnings }));
 }
 
 function camelLower(name) {
@@ -261,9 +276,17 @@ function defaultOutputName(typeInfo) {
   return 'result';
 }
 
+function deriveInputsFromVariables(variables) {
+  return variables.map(({ children, ...rest }) => ({
+    ...applyLTransform(rest),
+    children: children == null ? children : children.map(applyLTransform)
+  }));
+}
+
 function primitiveOutputEntry({ isList, name, type }) {
   return {
-    children: type === 'object' ? [] : [],
+    children: [],
+    defaultValues: null,
     displayName: name,
     entitySubType: null,
     isList,

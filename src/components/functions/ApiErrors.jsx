@@ -35,7 +35,7 @@ export function ApiErrors({ currentContext, isDisabled, onCollapseActions, onSta
   if (errorCount === 0) return null;
 
   return (
-    <Tooltip closeDelay={100} delay={600}>
+    <Tooltip>
       <Button
         fullWidth
         className='min-w-36 flex-1 whitespace-normal'
@@ -52,20 +52,12 @@ export function ApiErrors({ currentContext, isDisabled, onCollapseActions, onSta
         }
       >
         <IconExclamationTriangle /> View Errors
-        <Chip
-          className='h-5 w-5 items-center justify-center rounded-full'
-          color='danger'
-          size='sm'
-          variant='soft'
-        >
+        <Chip className='h-5 w-5 items-center justify-center rounded-full' color='danger' size='sm' variant='soft'>
           {errorCount}
         </Chip>
       </Button>
-      <Tooltip.Content
-        className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
-        offset={4}
-      >
-        List API errors captured on this page
+      <Tooltip.Content className='max-w-60' offset={4}>
+        List API errors captured on this webpage
       </Tooltip.Content>
     </Tooltip>
   );

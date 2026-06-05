@@ -1,152 +1,100 @@
-# Domo Toolkit v1.3.0 Release Notes
+---
+## title: Release Notes
+---
 
-## New Features
+# Domo Toolkit v1.4.0 Release Notes
 
-### Icon Update
+## New Features and Imrovements
 
-- Replaced Tabler icons with Domo's official icon set across the entire extension for visual consistency with the Domo platform
+### Migrate DataSet Content (Beta)
 
-### Custom Toolbar Icon Color (restored)
+- New "Migrate DataSet Content" action button: repoints every beast mode, card, drill path, dataflow, and dataset view that uses a dataset to a different dataset in one pass.
+- Every found item has checkboxes on both type groups and individual items, so you can deselect a category or cherry-pick.
+- Picking a target runs a schema-compatibility check that flags missing or type-mismatched columns, and allows you to remap them before applying the migration.
+- Column remapping reaches references inside formulas and SQL expressions, not just top-level fields, so renamed columns don't break cards, views, or dataflows.
 
-- Added a Settings dropdown to choose between Domo Blue, Black, or White for the toolbar icon. Useful when a custom browser theme makes the default icon hard to see (e.g., blue Chrome theme on blue Domo icon)
-- Restores a feature removed in v1.2.0 (previously offered Light/Dark variants with backgrounds); adapted to preserve the v1.2.0 transparent-icon design and add a black and white option
+### Transfer Ownership (Beta)
 
-### Off-boarding: Transfer Ownership
+- Transfer Ownership now has a checkbox on every individual item, so you can transfer a subset within a type instead of all-or-nothing per type.
+- The selection summary now counts actual items ("**N** types, **M** objects selected"), and the transfer button enables as soon as one item is selected.
+- Group headers now show the type's icon next to the label, matching the items inside.
+- Tasks now nest under their parent project in the "Projects & Tasks" group instead of a flat list, with project checkboxes cascading to their tasks.
+- Transferring datasets or dataflows now adds a "From [previous owner]" tag to each transferred object.
 
-- Transfer ownership of all object types from one user to another
-- Select which object types to include in the transfer
-- Preview what needs to be (or can be) transferred beforehand, with object counts shown on mount
-- Option to delete the user after a successful transfer
-- Option to email the recipient with an Excel attachment listing everything transferred (types + IDs)
-- Quick button to transfer ownership to the user's manager (uses `reportsTo` from user context)
+### Activity Log
 
-### View Ownership by User
+- Deleted (inactive) users in the Activity Log now get the grey-and-white striped avatar that matches Domo.
+- The Activity Log user filter now has an "in / not in" toggle, so you can exclude specific users, not just filter to them.
+- Clicking Activity Log on an app page or worksheet view now opens a combined log of both the view and its parent Studio App or Worksheet.
+- The long-press dropdown gains a "Studio App" / "Worksheet" option that opens just the parent's log.
+- Worksheet views now get the full long-press Activity Log dropdown, matching app pages (i.e., cards, card pages).
 
-- View everything a given user owns, grouped by object type
-- Shares much of its functionality with Transfer Ownership
-- Virtualized list for fast rendering of large ownership results
+### AppDB
 
-### Duplicate (Clone) User
+- On an AppDB Collection, the "DataStore" related-object tab now populates automatically.
+- New "Sync Datastore" action button on AppDB collections.
+- New "Generate Schema" action button on AppDB collections that infers a column schema from the collection's recent documents, lets you edit it, and applies it (optionally turning on sync to produce a DataSet in one step).
 
-- Clone an existing user — copies all access, group membership, and user configuration
-- Just change the name and email; everything else carries over
+### Approval Templates
 
-### Direct Sign-On
+- Deleting an approval template now shows a dependency check: its related dataset (with a downstream-object count) and a tally of its existing approval requests.
+- Added a "Delete Template and DataSet" option that deletes the template and its backing dataset in one pass.
 
-- New Direct Sign-On button makes it easy to jump to the manual password sign-in when it has been hidden
+### Duplicate User
 
-### Update DataSet Details
+- The preview now lists every individually-shared card, page, and app by name with per-item checkboxes and select-all, so you choose exactly what to re-share.
+- Every duplication now auto-downloads an Excel audit log with one row per attempted item (user, profile fields, groups, shares, apps) and its result.
+- Fixed Duplicate User over-sharing the new user with content the source user only reached indirectly (through groups, PDP, org-wide content, or Workspaces); now only directly-shared content is re-shared.
 
-- Update a dataset's user defined type
+### Supported Types
 
-### Delete Object Improvements
+- Variables are now recognized as their own type instead of being treated as Beast Modes.
+- Drill Paths are now properly recognized and have context filled.
+- Added DataSet to the related objects for Approval Templates.
+- Added an Approvals tab to Approval Templates' related objects, listing every active approval request from the template.
+- Renamed the Code Engine "Sync JSDoc to Package" button to "Generate Definition from JSDoc", limited it to JavaScript packages, and moved to beta.
+- DataFlow Executions are now recognized as their own type instead of just a DataFlow.
 
-- Interface moved from a modal to a view, consistent with Update Object Details
-- Lists the object's dependencies (child pages, output datasets, downstream cards) before confirming the delete — collapsible groups so even objects with many dependents stay scannable
-- Dependencies are grouped into a "Will be deleted" section (items the primary delete also removes) and an "Other dependencies" section (items affected but not deleted) so the relationship is clear
-- All page types (regular pages, app pages, worksheet pages) list the cards that will be deleted with them; app and worksheet pages also list their sibling pages (deleted only via the cascade button) so the user can see the full impact of either path
-- Dataflow deletes list output datasets and cards built on those datasets
-- Pages with child pages are now hard-blocked from deletion (with the reason shown inline) instead of just warning after the fact
-- Worksheet pages are now deletable (previously the primary delete button was disabled for them)
-- The "Delete app and all cards" cascade option for app pages is now a visible button inside the view (previously hidden behind a long-press on the trigger)
+## UI Improvements
 
-### Object Details: New Related-Data Tabs
+- The action buttons at the top of the side panel now re-expand when you close a view, instead of staying collapsed.
+- Removed pulsing effect on Copy Filters button.
+- In the Activity Log Source column, "GROUP" chips are now green and other source types each get their own stable color.
+- The "Delete App and All Cards" confirmation now shows the page and card counts (e.g. "all its pages (4), and all cards on those pages (37)").
+- The related-objects tabs now scroll sideways with a normal vertical mouse wheel while hovering them, not just a horizontal scroll wheel.
+- Closing a tab the extension opened now returns you to the tab you launched it from, instead of the tab on its right.
+- Tooltips no longer pop up instantly when you move between nearby buttons; each one now waits the normal hover delay.
+- The Activity Log, Share with Self, and Delete buttons now show a tooltip explaining why they're unavailable when disabled.
+- The Get Owned Objects, Update Code Engine Versions, and Generate Definition from JSDoc views now show a "Beta" label.
+- Pop-up notifications now use Domo-style status icons, matching the rest of the extension.
+- In Get Child Pages, child pages with no nested pages no longer show a stray "(0)", and the rest label the count "(N pages)" so it isn't mistaken for a card count.
 
-- Context footer for page, app studio page, and worksheet page objects now includes a "Datasets" tab — loads on tab click, shows the raw `dataSources` API response for inspection and copy, with each dataset linked to its details page
-- DataSet objects now include a "Columns" tab — lazy-loads the dataset's column schema (id, name, type, etc.) for inspection and copy
+## Bug Fixes
 
-### Activity Log: DomoStats Dataset Source
+### Activity Log
 
-- Activity Log can now pull records from a DomoStats Activity Log dataset, showing data beyond the audit API's \~1-year retention window
-- Retention warning banner at the top of the Activity Log page communicates the API's retention limit and offers the DomoStats option inline
-- "Use DomoStats" button auto-discovers the right dataset (queries all `dataProviderType=domostats` datasets, then bulk-checks stream configs for `report=audit`); the dataset ID is cached locally per instance so subsequent uses skip discovery
-- Per-instance "Always use DomoStats Activity Log dataset" toggle in the source banner and the Settings page — when enabled, Activity Log opens in DomoStats mode by default for that instance
-- New "Per-Instance Settings" section on the Settings page to view, manage, and clear stored per-Domo-instance values (currently just Activity Log dataset configuration)
+- Fixed the Activity Log button staying disabled for users who do have access, on instances or page loads where it took a few seconds for your account to finish loading.
+- Long names in the Activity Log table now truncate with a tooltip showing the full name, instead of overflowing into the next column.
+- Fixed the Activity Log flickering to broken values, with the count disappearing and infinite scroll stalling, on instances set to always use the DomoStats dataset.
+- Users who don't have a profile picture in the Activity Log now show their initials, instead of a generic grey placeholder.
+- The whole page's horizontal and vertical scroll bars no longer flicker in while the Activity Log loads; scrolling stays on the table.
 
-### Activity Log: Multiple Users Filter (Issue #70)
+### Update Code Engine Versions (Beta)
 
-- New multi-select user filter in the Activity Log. Select multiple users to see their combined activity in one view
-- Thank you dlc3-personal for the suggestion
+- Bumping a Code Engine function version now reconciles the tile's inputs and outputs to the new version, instead of leaving them stale and silently breaking the tile.
+- Renamed inputs and outputs are automatically re-pointed to the same workflow variable, so downstream tiles keep working.
+- New outputs are added and mapped to a new variable by default; new required inputs are flagged for you to set.
+- Removed or renamed inputs with a binding get a remap dropdown, and type changes or removed outputs warn which variables and downstream tiles are affected.
 
-### Copy Color Rules (Conditional Formats)
+### Other Fixes
 
-- New action button on datasets — copy a dataset's color rules to another dataset in one click
-- Per-rule column references are validated against the destination's schema; missing columns show as a warning but the user can still proceed
-- Beast Mode (calculated column) references are name-matched between source and destination — when both datasets have a Beast Mode with the same name, the rule's `calculation_<uuid>` reference is rewritten to the destination's id at copy time so rules keep working across datasets that have equivalent calculations
-- If the destination already has color rules, a warning callout makes it clear the existing rules will be replaced (PUT semantics)
-- Saves the back-and-forth of recreating identical rule sets across datasets, which Domo's UI offers no copy path for
-
-### Cancel Stuck Stream Update
-
-- New "Cancel Run" action button on datasets — appears whenever the dataset's stream has an execution in `ACTIVE` state
-- Fills a gap where Domo's UI shows the "Storing…" indicator indefinitely with no recovery affordance — previously a stuck connector run blocked every subsequent scheduled update with "there is already an update running", forcing a support ticket
-
-### Sync JSDoc to Code Engine Package
-
-- New action button on Code Engine packages: derives the package manifest (function names, parameter names, types, descriptions) from JSDoc in the source and updates the package definition to match
-- Shows a structural diff against the current manifest before updating, so added, changed, and removed functions/parameters are explicit before you confirm
-- Saves the manual work of keeping the manifest in sync with JSDoc — previously authors had to edit both surfaces and keep them aligned by hand
-- Also serves as a quick way to update the package definition to match the code after edits, without needing to do all the tedious manual edits in the UI
-
-### Cookie Clearing Settings
-
-- Split the single cookie clearing behavior setting into three independent controls: auto-clear on 431 errors (on/off), show manual cookie button (on/off), and manual button behavior (preserve last 2 instances/clear all)
-- Previously the three options were coupled, so users had to choose between automatic clearing OR a manual button — never both. Auto-clearing occasionally fails, and some users want to clear cookies when no 431 has occurred; both pain points are addressed by letting the auto behavior and the manual button coexist
-- Existing users are migrated to settings that exactly preserve their prior behavior (Auto → auto on, button hidden; Preserve → auto off, button on, behavior preserve; All → auto off, button on, behavior all)
-
-## Newly Supported Object Types
-
-- Certification Processes
-- AI Toolkits and AI Agents in the AI Library
-
-## API Error Tracking Expansion
-
-- Expanded from just cards to all API errors
-
-## Behavior Changes
-
-- Code Engine Package Version: default copy action now copies the parent Code Engine Package ID
-- Card: long-press Copy menu now offers a "Copy DataSet ID" action when the card is powered by exactly one dataset
-- Get Cards: long-press menu on app/worksheet pages now offers a "Get App Cards" / "Get Worksheet Cards" alternate action — lists every card, form, and queue across all views on the parent app/worksheet, grouped by page so the same card appearing on multiple pages shows under each
-- Get Card Pages: long-press menu on app/worksheet pages now offers a "Get App Card Pages" / "Get Worksheet Card Pages" alternate action — aggregates every card across all views on the parent and lists the other pages those cards live on (pages inside the same app/worksheet are excluded since "other" is the point)
-- Update Code Engine Versions: built-in Domo packages restricted to upgrade-to-latest only (no downgrades or intermediate versions); built-ins are labeled with a "Built-in" chip
-- Tabs opened from the popup or side panel (Activity Log, Lineage, Settings, Release Notes "View Details") now open immediately to the right of the launching tab instead of at the end of the tab strip
-- Navigate to Copied Object: a copied stream ID now resolves to (and navigates to) its associated dataset
-- Share with Self (dataset): now shares all accounts wired to the dataset's stream in a single click (Domo recently added multi-account support to streams); falls back to the legacy single `accountId` on the dataset for unmigrated streams
-- Copy → Account ID (dataset): prefers the stream's accounts list (single-account case only) with fallback to the dataset's legacy `accountId`; hidden when the stream pulls from more than one account (multi-account IDs are still inspectable via the JSON context footer)
-- Dataset context footer: the "Account" related-data tab lists all accounts wired to the stream when present, otherwise renders the legacy single account from the dataset
-
-## UI Changes
-
-- Dropped mobile breakpoints for the extension UI — buttons are smaller with less padding, overall more desktop-sized (side panel and popup inherited mobile styles before because their screen size is too small for desktop style breakpoints)
-- Added an object icon next to each item in data discovery views for visual object-type identification
-- Copy Filtered Url: count moved next to the label; button relabeled "Copy Filters"
-- Toast messages now truncate at max-height (was growing unbounded for long text)
-- Tooltips added to all action buttons
-- Current context header truncates when chips are too large
-- Data discovery view header redesigned to surface primary actions inline instead of behind a three-dots popover
-- Get Pages (card → other pages) view now shows a subtext row with the total number of pages and the total number of distinct cards (from the source object) appearing on them
-- Navigate to Copied Object's "Manual selection" list no longer shows "Goal" twice — the old `OBJECTIVE` type alias is now merged into `GOAL`
-- Navigate to Copied Object dropdown items: each entry now leads with the object-type icon, and the action icon (external-link or sidepanel) is right-aligned after the label
-- Data discovery disclosure groups (e.g. View Ownership by User) now scroll inside the group when expanded with more than 12 children, instead of growing tall enough to push the rest of the list down.
-
-## Bug Fixes and Improvements
-
-- Removed duplicate icon in the alternate/additional actions menu for Copy
-- Fixed side panel state not syncing when two separate browser windows were open (windows didn't share focus, so state wouldn't update on one and would overwrite on the other)
-- Fixed detection issues caused by the URL-lowercasing change:
-  - Code Engine route with capitalized "Engine" broke some detection logic
-  - Card ID detection broke when "I" was capitalized
-  - AppDb collection detection broke when "D" was capitalized
-- Fixed Navigate to Copied Object incorrectly identifying Pages as App Studio apps
-- Fixed Share with Self not refreshing the popup/side panel context after the share — the popup was closing before the tab reload finished, killing the listener that triggers the context refresh
-- ID validation added to current object detection
-- Navigate to Copied Object: templates and certification processes (which share an API endpoint) are no longer mistaken for each other — discriminated by the response's `type` field (`AC` → Template, otherwise → Certification Process)
-- Navigate to Copied Object: manually picking a sidepanel-only type from the "Manual selection" list now fetches its details before opening the sidepanel, so the view actually shows data instead of an empty card
-- Navigate to Copied Object: the "Manual selection" list now hides types whose parent ID we can't resolve from the copied ID alone (PROJECT\_LIST, CODEENGINE\_PACKAGE\_VERSION, EXECUTOR\_JOB, FILE\_REVISION, FILESET\_FILE) — previously they appeared in the list but silently routed to an empty ObjectDetailsView.
-- Various internal refactors for extensibility and code quality (not user-facing)
-
-## Docs / GitHub Pages Site
-
-- Local development setup for the docs site
-- Dark mode support on the GitHub Pages site
+- Deleting a Beast Mode or Variable now actually takes effect (it previously did nothing while reporting success), and real failures surface as errors.
+- Fixed "Get Worksheet Pages" hanging and then erroring instead of listing the worksheet's pages.
+- Fixed the Update Owner (Alert/Workflow) user picker clearing your selected user when you clicked out, which blocked Save until you re-selected.
+- In "Copy Color Rules", clicking into the destination dataset search and then clicking away without choosing a different dataset no longer wipes your selected dataset.
+- Fixed Generate Package Definition from JSDoc producing package versions whose functions Domo Workflows reported as missing at run time.
+- Fixed on the Objects Owned view, the type-group "Share all with yourself" button silently doing nothing when clicked.
+- Fixed the Copy-ID shortcut (Ctrl/Cmd+Shift+1) silently doing nothing when the sidepanel or popup had focus.
+- Returning from a Cloud Integration to its account list now clears the detected object, instead of still showing the integration you left.
+- Long instance and object-type names in the Current Context header now shorten to fit instead of overlapping the info icon.
+- Fixed the side panel's expand button staying disabled when viewing captured API errors was the only available action, which kept those errors out of reach.

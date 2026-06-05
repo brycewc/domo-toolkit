@@ -1,11 +1,7 @@
 import { EXPORT_FORMATS } from '@/utils/constants';
 import { executeInPage } from '@/utils/executeInPage';
 
-import {
-  extractPageContentIds,
-  getFormsForPage,
-  getQueuesForPage
-} from './appStudio';
+import { extractPageContentIds, getFormsForPage, getQueuesForPage } from './appStudio';
 
 /**
  * Export a card as a file download, using the card's current view state
@@ -21,12 +17,7 @@ import {
  * @param {number|null} [params.tabId=null] - Target tab
  * @returns {Promise<{ success: boolean, fileName: string }>}
  */
-export async function exportCard({
-  cardId,
-  cardTitle,
-  format = 'excel',
-  tabId = null
-}) {
+export async function exportCard({ cardId, cardTitle, format = 'excel', tabId = null }) {
   const fmt = EXPORT_FORMATS[format];
   if (!fmt) throw new Error(`Unsupported export format: ${format}`);
 
@@ -35,8 +26,7 @@ export async function exportCard({
   return executeInPage(
     async (cardId, fileName, accept) => {
       let exportBody = null;
-      const hasAngular =
-        typeof angular !== 'undefined' && !!document.querySelector('.ng-scope');
+      const hasAngular = typeof angular !== 'undefined' && !!document.querySelector('.ng-scope');
 
       // ── Helper: collect page/card filters from the filter builder ──
       function collectFilterBuilderFilters() {
@@ -85,19 +75,14 @@ export async function exportCard({
       // ── 1. Try the full Angular services path ──
       try {
         if (hasAngular) {
-          const inj = angular
-            .element(document.querySelector('.ng-scope'))
-            .injector();
+          const inj = angular.element(document.querySelector('.ng-scope')).injector();
           const svc = inj.get('cdExportService');
           const stateSvc = inj.get('cdExportStateService');
           const chartViewState = stateSvc.getChartViewState();
           const kpiModel = findKpiModel();
 
           if (kpiModel && chartViewState) {
-            const exportReq = svc.createExportRequestFromState(
-              kpiModel,
-              chartViewState
-            );
+            const exportReq = svc.createExportRequestFromState(kpiModel, chartViewState);
             const cardExportReq = svc.convertToCardExportRequest(exportReq);
 
             exportBody = {
@@ -181,13 +166,9 @@ export async function getCardDatasets({ cardId, tabId = null }) {
   try {
     return await executeInPage(
       async (cardId) => {
-        const response = await fetch(
-          `/api/content/v1/cards?urns=${cardId}&includeFiltered=true&parts=datasources`
-        );
+        const response = await fetch(`/api/content/v1/cards?urns=${cardId}&includeFiltered=true&parts=datasources`);
         if (!response.ok) {
-          throw new Error(
-            `Failed to fetch card datasets for ${cardId}. HTTP status: ${response.status}`
-          );
+          throw new Error(`Failed to fetch card datasets for ${cardId}. HTTP status: ${response.status}`);
         }
         const cards = await response.json();
         return [].concat(cards).flatMap((c) => c.datasources || []);
@@ -218,9 +199,7 @@ export async function getCardDefinition({ cardId, tabId = null }) {
           method: 'PUT'
         });
         if (!response.ok) {
-          throw new Error(
-            `Failed to fetch card definition for ${cardId}. HTTP status: ${response.status}`
-          );
+          throw new Error(`Failed to fetch card definition for ${cardId}. HTTP status: ${response.status}`);
         }
         return response.json();
       },
@@ -243,12 +222,7 @@ export async function getCardDefinition({ cardId, tabId = null }) {
  * @returns {Promise<Array>} Array of card objects with details
  * @throws {Error} If the fetch fails
  */
-export async function getCardsForObject({
-  metadata,
-  objectId,
-  objectType,
-  tabId = null
-}) {
+export async function getCardsForObject({ metadata, objectId, objectType, tabId = null }) {
   if (objectType === 'DATAFLOW_TYPE') {
     const outputs = metadata?.details?.outputs || [];
     if (outputs.length === 0) return [];
@@ -280,13 +254,9 @@ export async function getCardsForObject({
           case 'PAGE':
           case 'REPORT_BUILDER_VIEW':
           case 'WORKSHEET_VIEW': {
-            const response = await fetch(
-              `/api/content/v3/stacks/${objectId}/cards`
-            );
+            const response = await fetch(`/api/content/v3/stacks/${objectId}/cards`);
             if (!response.ok) {
-              throw new Error(
-                `Failed to fetch cards for ${objectType} ${objectId}. HTTP status: ${response.status}`
-              );
+              throw new Error(`Failed to fetch cards for ${objectType} ${objectId}. HTTP status: ${response.status}`);
             }
             const page = await response.json();
             const cards = page.cards || [];
@@ -294,25 +264,16 @@ export async function getCardsForObject({
           }
 
           case 'DATA_SOURCE': {
-            const response = await fetch(
-              `/api/content/v1/datasources/${objectId}/cards`
-            );
+            const response = await fetch(`/api/content/v1/datasources/${objectId}/cards`);
             if (!response.ok) {
-              throw new Error(
-                `Failed to fetch cards for DataSet ${objectId}. HTTP status: ${response.status}`
-              );
+              throw new Error(`Failed to fetch cards for DataSet ${objectId}. HTTP status: ${response.status}`);
             }
             const cards = await response.json();
             if (!cards.length) return [];
             // Normalize cards to have id property
             return cards.map((card) => ({
               ...card,
-              id:
-                card.id ||
-                card.kpiId ||
-                (typeof card.urn === 'string'
-                  ? parseInt(card.urn.split(':').pop(), 10)
-                  : null)
+              id: card.id || card.kpiId || (typeof card.urn === 'string' ? parseInt(card.urn.split(':').pop(), 10) : null)
             }));
           }
 
@@ -356,9 +317,7 @@ export async function getCardsForParent({ parentId, tabId = null }) {
     async (parentId) => {
       const response = await fetch(`/api/content/v1/dataapps/${parentId}`);
       if (!response.ok) {
-        throw new Error(
-          `Failed to fetch parent ${parentId}. HTTP status: ${response.status}`
-        );
+        throw new Error(`Failed to fetch parent ${parentId}. HTTP status: ${response.status}`);
       }
       const data = await response.json();
       return {
@@ -391,12 +350,8 @@ export async function getCardsForParent({ parentId, tabId = null }) {
         const { formWidgetIds, queueWidgetIds } = extractPageContentIds(details);
 
         const [forms, queues] = await Promise.all([
-          formWidgetIds.length > 0
-            ? getFormsForPage({ formWidgetIds, tabId }).catch(() => [])
-            : Promise.resolve([]),
-          queueWidgetIds.length > 0
-            ? getQueuesForPage({ queueWidgetIds, tabId }).catch(() => [])
-            : Promise.resolve([])
+          formWidgetIds.length > 0 ? getFormsForPage({ formWidgetIds, tabId }).catch(() => []) : Promise.resolve([]),
+          queueWidgetIds.length > 0 ? getQueuesForPage({ queueWidgetIds, tabId }).catch(() => []) : Promise.resolve([])
         ]);
 
         return { cards, forms, queues, viewId, viewName };
@@ -408,24 +363,16 @@ export async function getCardsForParent({ parentId, tabId = null }) {
   );
 
   // 3. Drop views that ended up with no content -- keeps the grouped list clean.
-  const nonEmpty = viewGroups.filter(
-    (vg) => vg.cards.length > 0 || vg.forms.length > 0 || vg.queues.length > 0
-  );
+  const nonEmpty = viewGroups.filter((vg) => vg.cards.length > 0 || vg.forms.length > 0 || vg.queues.length > 0);
 
   return { parentName: parentData.name, viewGroups: nonEmpty };
 }
 
-export async function getDrillParentCardId(
-  drillViewId,
-  inPageContext = false,
-  tabId = null
-) {
+export async function getDrillParentCardId(drillViewId, inPageContext = false, tabId = null) {
   const fetchLogic = async (drillViewId) => {
     const response = await fetch(`/api/content/v1/cards/${drillViewId}/urn`);
     if (!response.ok) {
-      throw new Error(
-        `Failed to fetch Drill Path ${drillViewId}. HTTP status: ${response.status}`
-      );
+      throw new Error(`Failed to fetch Drill Path ${drillViewId}. HTTP status: ${response.status}`);
     }
     const card = await response.json();
     return card.rootId;
@@ -433,9 +380,7 @@ export async function getDrillParentCardId(
 
   try {
     // If already in page context, execute directly; otherwise use executeInPage
-    const result = inPageContext
-      ? await fetchLogic(drillViewId)
-      : await executeInPage(fetchLogic, [drillViewId], tabId);
+    const result = inPageContext ? await fetchLogic(drillViewId) : await executeInPage(fetchLogic, [drillViewId], tabId);
 
     return result;
   } catch (error) {
@@ -513,14 +458,11 @@ export async function getPageCards(pageId) {
     // Execute fetch in page context to use authenticated session
     const result = await executeInPage(
       async (pageId) => {
-        const response = await fetch(
-          `/api/content/v1/pages/${pageId}/cards?parts=metadata&showAllCards=true`,
-          {
-            headers: {
-              Accept: 'application/json'
-            }
+        const response = await fetch(`/api/content/v1/pages/${pageId}/cards?parts=metadata&showAllCards=true`, {
+          headers: {
+            Accept: 'application/json'
           }
-        );
+        });
 
         if (response.ok) {
           const pageData = await response.json();
@@ -539,48 +481,6 @@ export async function getPageCards(pageId) {
   }
 }
 
-/**
- * Get every card ID accessible to a user (including shared-with, not just owned).
- * Paginates through /access/users/{id}/cards until exhausted.
- * @param {number|string} userId
- * @param {number|null} tabId
- * @returns {Promise<string[]>} Array of card ID strings
- */
-export async function getUserAccessibleCards(userId, tabId = null) {
-  return executeInPage(
-    async (userId) => {
-      const cardIds = [];
-      const limit = 100;
-      let offset = 0;
-      let more = true;
-
-      while (more) {
-        const response = await fetch(
-          `/api/content/v1/access/users/${userId}/cards?limit=${limit}&offset=${offset}`
-        );
-        if (!response.ok) break;
-        const page = await response.json();
-        const cards = Array.isArray(page)
-          ? page
-          : (page.cards || page.cardIds || []);
-
-        for (const card of cards) {
-          const cardId =
-            typeof card === 'object' ? (card.id ?? card.cardId) : card;
-          if (cardId != null) cardIds.push(String(cardId));
-        }
-
-        more = cards.length >= limit;
-        offset += limit;
-      }
-
-      return cardIds;
-    },
-    [userId],
-    tabId
-  );
-}
-
 export async function lockCards({ cardIds, tabId = null }) {
   const LOCK_BATCH_SIZE = 50;
   const batches = [];
@@ -597,9 +497,7 @@ export async function lockCards({ cardIds, tabId = null }) {
           method: 'PUT'
         });
         if (!response.ok) {
-          throw new Error(
-            `Failed to lock cards. HTTP status: ${response.status}`
-          );
+          throw new Error(`Failed to lock cards. HTTP status: ${response.status}`);
         }
       },
       [batch],
@@ -612,16 +510,11 @@ export async function removeCardFromPage({ cardId, pageId, tabId = null }) {
   try {
     const result = await executeInPage(
       async (pageId, cardId) => {
-        const response = await fetch(
-          `/kpis/${cardId}/remove?pageid=${pageId}`,
-          {
-            method: 'POST'
-          }
-        );
+        const response = await fetch(`/kpis/${cardId}/remove?pageid=${pageId}`, {
+          method: 'POST'
+        });
         if (!response.ok) {
-          throw new Error(
-            `Failed to remove card ${cardId} from page ${pageId}. HTTP status: ${response.status}`
-          );
+          throw new Error(`Failed to remove card ${cardId} from page ${pageId}. HTTP status: ${response.status}`);
         }
         return response.json();
       },
@@ -644,12 +537,7 @@ export async function removeCardFromPage({ cardId, pageId, tabId = null }) {
  * @param {number|null} tabId - Optional Chrome tab ID
  * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
  */
-export async function transferCards(
-  cardIds,
-  fromUserId,
-  toUserId,
-  tabId = null
-) {
+export async function transferCards(cardIds, fromUserId, toUserId, tabId = null) {
   return executeInPage(
     async (cardIds, fromUserId, toUserId) => {
       try {
@@ -667,19 +555,15 @@ export async function transferCards(
         if (!addResponse.ok) throw new Error(`HTTP ${addResponse.status}`);
 
         // Remove old owner
-        const removeResponse = await fetch(
-          '/api/content/v1/cards/owners/remove',
-          {
-            body: JSON.stringify({
-              cardIds,
-              cardOwners: [{ id: fromUserId, type: 'USER' }]
-            }),
-            headers: { 'Content-Type': 'application/json' },
-            method: 'POST'
-          }
-        );
-        if (!removeResponse.ok)
-          throw new Error(`HTTP ${removeResponse.status}`);
+        const removeResponse = await fetch('/api/content/v1/cards/owners/remove', {
+          body: JSON.stringify({
+            cardIds,
+            cardOwners: [{ id: fromUserId, type: 'USER' }]
+          }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        });
+        if (!removeResponse.ok) throw new Error(`HTTP ${removeResponse.status}`);
 
         return { errors: [], failed: 0, succeeded: cardIds.length };
       } catch (error) {
@@ -695,11 +579,7 @@ export async function transferCards(
   );
 }
 
-export async function updateCardDefinition({
-  cardId,
-  definition,
-  tabId = null
-}) {
+export async function updateCardDefinition({ cardId, definition, tabId = null }) {
   try {
     const datasetId = definition?.columns?.[0]?.sourceId;
 
@@ -716,9 +596,7 @@ export async function updateCardDefinition({
     definition.variables = true;
 
     definition.definition.formulas = {
-      card: (definition.definition.formulas || []).filter(
-        (f) => f.persistedOnDataSource === false
-      ),
+      card: (definition.definition.formulas || []).filter((f) => f.persistedOnDataSource === false),
       dsDeleted: [],
       dsUpdated: []
     };
@@ -756,9 +634,15 @@ export async function updateCardDefinition({
           method: 'PUT'
         });
         if (!response.ok) {
-          throw new Error(
-            `Failed to update card ${cardId}. HTTP status: ${response.status}`
-          );
+          // Include the response body so callers can surface why the
+          // update was rejected (Domo returns helpful detail in JSON body).
+          let bodyText = '';
+          try {
+            bodyText = await response.text();
+          } catch {
+            // body unreadable — fall through with empty
+          }
+          throw new Error(`Failed to update card ${cardId}. HTTP ${response.status}: ${bodyText}`.trim());
         }
         return response.json();
       },

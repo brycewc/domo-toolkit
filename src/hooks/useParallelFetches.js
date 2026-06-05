@@ -101,7 +101,5 @@ export function useParallelFetches(specs, { autoFetch = true } = {}) {
 }
 
 function buildInitial(specs) {
-  return Object.fromEntries(
-    specs.map((s) => [s.key, { error: null, items: null, status: 'loading' }])
-  );
+  return Object.fromEntries(specs.map((s) => [s.key, { error: null, items: null, status: 'loading' }]));
 }

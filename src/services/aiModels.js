@@ -33,9 +33,7 @@ export async function getOwnedAiModels(userId, tabId = null) {
         const data = await response.json();
 
         if (data.models && data.models.length > 0) {
-          allModels.push(
-            ...data.models.map((m) => ({ id: m.id, name: m.name || m.id }))
-          );
+          allModels.push(...data.models.map((m) => ({ id: m.id, name: m.name || m.id })));
           offset += limit;
           if (data.models.length < limit) moreData = false;
         } else {
@@ -58,12 +56,7 @@ export async function getOwnedAiModels(userId, tabId = null) {
  * @param {number|null} tabId - Optional Chrome tab ID
  * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
  */
-export async function transferAiModels(
-  modelIds,
-  fromUserId,
-  toUserId,
-  tabId = null
-) {
+export async function transferAiModels(modelIds, fromUserId, toUserId, tabId = null) {
   return executeInPage(
     async (modelIds, fromUserId, toUserId) => {
       const errors = [];
@@ -71,14 +64,11 @@ export async function transferAiModels(
 
       for (const id of modelIds) {
         try {
-          const response = await fetch(
-            `/api/datascience/ml/v1/models/${id}/ownership`,
-            {
-              body: JSON.stringify({ userId: toUserId }),
-              headers: { 'Content-Type': 'application/json' },
-              method: 'POST'
-            }
-          );
+          const response = await fetch(`/api/datascience/ml/v1/models/${id}/ownership`, {
+            body: JSON.stringify({ userId: toUserId }),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'POST'
+          });
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           succeeded++;
         } catch (error) {

@@ -70,21 +70,12 @@ export async function getAllFilters({ pageId, tabId = null }) {
 
   // Try AngularJS scope filters (for pages using Angular filter components)
   let angularFilters = [];
-  if (
-    pageFilters.length === 0 &&
-    appStudioFilters.length === 0 &&
-    variableControlFilters.length === 0
-  ) {
+  if (pageFilters.length === 0 && appStudioFilters.length === 0 && variableControlFilters.length === 0) {
     angularFilters = await getAngularScopeFilters(tabId);
   }
 
   // If still no filters on non-App Studio pages, try App Studio detection as fallback
-  if (
-    !isAppStudio &&
-    pageFilters.length === 0 &&
-    variableControlFilters.length === 0 &&
-    angularFilters.length === 0
-  ) {
+  if (!isAppStudio && pageFilters.length === 0 && variableControlFilters.length === 0 && angularFilters.length === 0) {
     appStudioFilters = await getAppStudioFilters(tabId);
   }
 
@@ -117,10 +108,7 @@ export async function getAllFilters({ pageId, tabId = null }) {
   );
 
   if (allFilters.length > 0) {
-    console.log(
-      `[Domo] Captured ${allFilters.length} filter(s):`,
-      allFilters.map((f) => f.column).join(', ')
-    );
+    console.log(`[Domo] Captured ${allFilters.length} filter(s):`, allFilters.map((f) => f.column).join(', '));
   }
 
   return {
@@ -184,11 +172,7 @@ export async function getAngularScopeFilters(tabId = null) {
                           filters.push({
                             column: f.column,
                             dataSetId: f.dataSourceId || f.dataSetId,
-                            operand: (
-                              f.operand ||
-                              f.operator ||
-                              'IN'
-                            ).toUpperCase(),
+                            operand: (f.operand || f.operator || 'IN').toUpperCase(),
                             values: f.values
                           });
                         }
@@ -243,11 +227,7 @@ export async function getAngularScopeFilters(tabId = null) {
                             filters.push({
                               column: f.column,
                               dataSetId: f.dataSourceId || f.dataSetId,
-                              operand: (
-                                f.operand ||
-                                f.operator ||
-                                'IN'
-                              ).toUpperCase(),
+                              operand: (f.operand || f.operator || 'IN').toUpperCase(),
                               values: f.values
                             });
                           }
@@ -347,11 +327,7 @@ export async function getAppStudioFilters(tabId = null) {
                   }
 
                   // Look for selected values in variable controls
-                  if (
-                    obj.selectedValues &&
-                    Array.isArray(obj.selectedValues) &&
-                    obj.column
-                  ) {
+                  if (obj.selectedValues && Array.isArray(obj.selectedValues) && obj.column) {
                     filters.push({
                       column: obj.column,
                       operand: 'IN',
@@ -376,13 +352,7 @@ export async function getAppStudioFilters(tabId = null) {
               const $rootScope = injector.get('$rootScope');
               if ($rootScope) {
                 // Check for filter-related properties on $rootScope
-                const filterProps = [
-                  'activeFilters',
-                  'cardFilters',
-                  'pageFilters',
-                  'filterState',
-                  'variableControlState'
-                ];
+                const filterProps = ['activeFilters', 'cardFilters', 'pageFilters', 'filterState', 'variableControlState'];
 
                 for (const prop of filterProps) {
                   if ($rootScope[prop] && Array.isArray($rootScope[prop])) {
@@ -407,13 +377,7 @@ export async function getAppStudioFilters(tabId = null) {
         }
 
         // Method 3: Check for App Studio specific global state
-        const appStudioStateKeys = [
-          '__APP_STUDIO_STATE__',
-          '__APP_STATE__',
-          'appStudioState',
-          'appState',
-          '__CARD_STATE__'
-        ];
+        const appStudioStateKeys = ['__APP_STUDIO_STATE__', '__APP_STATE__', 'appStudioState', 'appState', '__CARD_STATE__'];
 
         for (const key of appStudioStateKeys) {
           if (window[key]) {
@@ -430,11 +394,7 @@ export async function getAppStudioFilters(tabId = null) {
             for (const f of filterPaths) {
               if (Array.isArray(f) && f.length > 0) {
                 f.forEach((filter) => {
-                  if (
-                    filter.column &&
-                    filter.values &&
-                    filter.values.length > 0
-                  ) {
+                  if (filter.column && filter.values && filter.values.length > 0) {
                     filters.push({
                       column: filter.column,
                       operand: (filter.operand || 'IN').toUpperCase(),
@@ -456,12 +416,8 @@ export async function getAppStudioFilters(tabId = null) {
             const scope = window.angular?.element?.(dropdown).scope?.();
             if (scope) {
               // Look for selected value and column info in scope
-              const columnName =
-                scope.column || scope.columnName || scope.$ctrl?.column;
-              const selectedValue =
-                scope.selectedValue ||
-                scope.value ||
-                scope.$ctrl?.selectedValue;
+              const columnName = scope.column || scope.columnName || scope.$ctrl?.column;
+              const selectedValue = scope.selectedValue || scope.value || scope.$ctrl?.selectedValue;
 
               if (columnName && selectedValue) {
                 filters.push({
@@ -512,10 +468,7 @@ export async function getAppStudioFilters(tabId = null) {
                 });
               }
               // Check card.filters if available
-              if (
-                scope.$ctrl.card?.filters &&
-                Array.isArray(scope.$ctrl.card.filters)
-              ) {
+              if (scope.$ctrl.card?.filters && Array.isArray(scope.$ctrl.card.filters)) {
                 scope.$ctrl.card.filters.forEach((f) => {
                   if (f.column && f.values && f.values.length > 0) {
                     filters.push({
@@ -555,12 +508,7 @@ export async function getAppStudioFilters(tabId = null) {
                 // Check direct scope and $ctrl
                 const targets = [scope, scope.$ctrl].filter(Boolean);
                 targets.forEach((t) => {
-                  const fSources = [
-                    t.cardFilters,
-                    t.filters,
-                    t.pageFilters,
-                    t.pfilters
-                  ];
+                  const fSources = [t.cardFilters, t.filters, t.pageFilters, t.pfilters];
                   fSources.forEach((source) => {
                     if (Array.isArray(source) && source.length > 0) {
                       source.forEach((f) => {
@@ -568,11 +516,7 @@ export async function getAppStudioFilters(tabId = null) {
                           filters.push({
                             column: f.column,
                             dataSetId: f.dataSourceId || f.dataSetId,
-                            operand: (
-                              f.operand ||
-                              f.operator ||
-                              'IN'
-                            ).toUpperCase(),
+                            operand: (f.operand || f.operator || 'IN').toUpperCase(),
                             values: f.values
                           });
                         }
@@ -590,15 +534,10 @@ export async function getAppStudioFilters(tabId = null) {
         // Method 7: Deep search scopes if we still have nothing (last resort)
         if (filters.length === 0 && window.angular) {
           try {
-            const allWithScope = document.querySelectorAll(
-              '.ng-scope, .ng-isolated-scope'
-            );
+            const allWithScope = document.querySelectorAll('.ng-scope, .ng-isolated-scope');
             allWithScope.forEach((el) => {
               const scope = window.angular.element(el).scope?.();
-              if (
-                scope?.$ctrl?.cardFilters &&
-                Array.isArray(scope.$ctrl.cardFilters)
-              ) {
+              if (scope?.$ctrl?.cardFilters && Array.isArray(scope.$ctrl.cardFilters)) {
                 scope.$ctrl.cardFilters.forEach((f) => {
                   if (f.column && f.values) {
                     filters.push({
@@ -648,10 +587,7 @@ export async function getClientSideFilters(tabId = null) {
         const filters = [];
 
         // Method 1: Check for domoFilterService
-        if (
-          window.domoFilterService &&
-          typeof window.domoFilterService.getCurrentFilters === 'function'
-        ) {
+        if (window.domoFilterService && typeof window.domoFilterService.getCurrentFilters === 'function') {
           const serviceFilters = window.domoFilterService.getCurrentFilters();
           if (Array.isArray(serviceFilters) && serviceFilters.length > 0) {
             return serviceFilters;
@@ -730,10 +666,7 @@ export async function getClientSideFilters(tabId = null) {
         // Method 7: Check Redux/MobX stores
         const storeKeys = ['__REDUX_STORE__', 'store', '__store'];
         for (const storeKey of storeKeys) {
-          if (
-            window[storeKey] &&
-            typeof window[storeKey].getState === 'function'
-          ) {
+          if (window[storeKey] && typeof window[storeKey].getState === 'function') {
             try {
               const state = window[storeKey].getState();
               if (state && state.filters) {
@@ -755,10 +688,7 @@ export async function getClientSideFilters(tabId = null) {
             if (apolloCache && apolloCache.data && apolloCache.data.data) {
               const cacheData = apolloCache.data.data;
               for (const key of Object.keys(cacheData)) {
-                if (
-                  key.toLowerCase().includes('filter') ||
-                  key.toLowerCase().includes('pfilter')
-                ) {
+                if (key.toLowerCase().includes('filter') || key.toLowerCase().includes('pfilter')) {
                   if (cacheData[key] && Array.isArray(cacheData[key].filters)) {
                     return cacheData[key].filters;
                   }
@@ -773,8 +703,7 @@ export async function getClientSideFilters(tabId = null) {
         // Method 9: Check TanStack Query client
         if (window.DOMO_TANSTACK_QUERY_CLIENT) {
           try {
-            const queryCache =
-              window.DOMO_TANSTACK_QUERY_CLIENT.getQueryCache?.();
+            const queryCache = window.DOMO_TANSTACK_QUERY_CLIENT.getQueryCache?.();
             if (queryCache) {
               const queries = queryCache.getAll?.() || [];
               for (const query of queries) {
@@ -818,12 +747,7 @@ export async function getClientSideFilters(tabId = null) {
 
         // Method 11: Check sessionStorage and localStorage
         try {
-          const storageKeys = [
-            'filters',
-            'pageFilters',
-            'domoFilters',
-            'filterState'
-          ];
+          const storageKeys = ['filters', 'pageFilters', 'domoFilters', 'filterState'];
           for (const key of storageKeys) {
             for (const storage of [sessionStorage, localStorage]) {
               const val = storage.getItem(key);
@@ -872,9 +796,7 @@ export async function getClientSideFilters(tabId = null) {
           '[data-pfilters], [data-filters], .card-embed, .domo-card, [data-card-id]'
         );
         cardContainers.forEach((container) => {
-          const pfiltersAttr =
-            container.getAttribute('data-pfilters') ||
-            container.getAttribute('data-filters');
+          const pfiltersAttr = container.getAttribute('data-pfilters') || container.getAttribute('data-filters');
           if (pfiltersAttr) {
             try {
               const parsed = JSON.parse(pfiltersAttr);
@@ -939,10 +861,7 @@ export async function getFiltersFromAllFrames(tabId = null) {
         };
 
         // Check for domoFilterService (Domo SDK filter callback storage)
-        if (
-          window.domoFilterService &&
-          typeof window.domoFilterService.getCurrentFilters === 'function'
-        ) {
+        if (window.domoFilterService && typeof window.domoFilterService.getCurrentFilters === 'function') {
           const filters = window.domoFilterService.getCurrentFilters();
           if (Array.isArray(filters) && filters.length > 0) {
             frameInfo.filters = filters;
@@ -991,14 +910,8 @@ export async function getFiltersFromAllFrames(tabId = null) {
               seen.add(key);
               filters.push({
                 column: filter.column,
-                operand: (
-                  filter.operand ||
-                  filter.operator ||
-                  'IN'
-                ).toUpperCase(),
-                values: Array.isArray(filter.values)
-                  ? filter.values
-                  : [filter.values]
+                operand: (filter.operand || filter.operator || 'IN').toUpperCase(),
+                values: Array.isArray(filter.values) ? filter.values : [filter.values]
               });
             }
           }
@@ -1132,9 +1045,7 @@ export async function getVariableControlFilters(pageId, tabId = null) {
         const filters = [];
 
         // First, get all cards on the page
-        const cardsResponse = await fetch(
-          `/api/content/v1/pages/${pageId}/cards`
-        );
+        const cardsResponse = await fetch(`/api/content/v1/pages/${pageId}/cards`);
 
         if (!cardsResponse.ok) {
           return [];
@@ -1157,15 +1068,12 @@ export async function getVariableControlFilters(pageId, tabId = null) {
         );
 
         // If no obvious filter cards, try all cards (some may have controls)
-        const cardsToCheck =
-          potentialFilterCards.length > 0 ? potentialFilterCards : cards;
+        const cardsToCheck = potentialFilterCards.length > 0 ? potentialFilterCards : cards;
 
         // For each card, try to get its variable controls
         const controlPromises = cardsToCheck.map(async (card) => {
           try {
-            const controlsResponse = await fetch(
-              `/api/content/v1/cards/${card.id}/variable/controls`
-            );
+            const controlsResponse = await fetch(`/api/content/v1/cards/${card.id}/variable/controls`);
 
             if (controlsResponse.ok) {
               const controls = await controlsResponse.json();
@@ -1241,9 +1149,7 @@ export function mergeFilters(...filterArrays) {
       // A bare version exists for this column — skip the dataSetId variant
       return;
     }
-    const key = filter.dataSetId
-      ? `${filter.column}:${filter.dataSetId}`
-      : filter.column;
+    const key = filter.dataSetId ? `${filter.column}:${filter.dataSetId}` : filter.column;
     filterMap.set(key, filter);
   });
 
@@ -1282,10 +1188,7 @@ async function isAppStudioPage(tabId = null) {
       }
     }
 
-    if (
-      currentUrl.includes('/app-studio/') ||
-      currentUrl.includes('/appstudio/')
-    ) {
+    if (currentUrl.includes('/app-studio/') || currentUrl.includes('/appstudio/')) {
       return true;
     }
 
@@ -1299,8 +1202,7 @@ async function isAppStudioPage(tabId = null) {
 
         // Check 1: URL patterns (inside page just in case)
         const url = window.location.href;
-        const urlMatch =
-          url.includes('/app-studio/') || url.includes('/appstudio/');
+        const urlMatch = url.includes('/app-studio/') || url.includes('/appstudio/');
         detection.checks.urlMatch = urlMatch;
         if (urlMatch) {
           detection.isAppStudio = true;
@@ -1341,9 +1243,7 @@ async function isAppStudioPage(tabId = null) {
         }
 
         // Check 3: cd-control-menu elements (App Studio has many of these)
-        const controlMenus = document.querySelectorAll(
-          '[class*="cd-control-menu"]'
-        );
+        const controlMenus = document.querySelectorAll('[class*="cd-control-menu"]');
         detection.checks.controlMenuCount = controlMenus.length;
         if (controlMenus.length > 5) {
           // Lowered threshold slightly
@@ -1355,13 +1255,10 @@ async function isAppStudioPage(tabId = null) {
         // Check 4: Angular with $ctrl pattern and specific App Studio markers
         if (window.angular) {
           const hasAppStudioAngular =
-            !!document.querySelector('.app-canvas') ||
-            !!document.querySelector('[ng-controller*="AppStudio" i]');
+            !!document.querySelector('.app-canvas') || !!document.querySelector('[ng-controller*="AppStudio" i]');
           detection.checks.hasAppStudioAngular = hasAppStudioAngular;
 
-          const filterIndicators = document.querySelectorAll(
-            '[class*="filterIndicator"]'
-          );
+          const filterIndicators = document.querySelectorAll('[class*="filterIndicator"]');
           detection.checks.filterIndicatorCount = filterIndicators.length;
 
           if (hasAppStudioAngular || filterIndicators.length > 0) {

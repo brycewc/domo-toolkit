@@ -8,11 +8,21 @@ import { DomoObject } from './DomoObject';
 export class DataListItem {
   /**
    * @param {Object} config - Configuration object
+   * @param {{ tooltip: string }} [config.annotation] - Optional leading info
+   *   icon rendered before the label, with `tooltip` surfaced via the icon's
+   *   native `title` on hover. Because the icon sits at the start of the label,
+   *   it survives label truncation. Best suited to non-link rows; the
+   *   explanatory text it points to typically also appears as a legend near the
+   *   list (see ColumnUsagesModal).
    * @param {string|number} config.id - Unique identifier for the item
    * @param {string} config.label - Display label for the item
    * @param {string} [config.url] - Optional URL for navigation
    * @param {string} [config.typeId] - Object type identifier (e.g., 'PAGE', 'DATA_APP_VIEW')
    * @param {string} [config.metadata] - Optional metadata string for display (e.g., "ID: 123")
+   * @param {boolean} [config.muted] - When true, DataList renders the row's
+   *   label (name + `currentColor` icon) muted, marking it as a secondary or
+   *   container entry rather than a direct result. Any annotation marker keeps
+   *   its own color.
    * @param {number} [config.count] - Optional count for children or related items
    * @param {string} [config.countLabel] - Optional label for count display (e.g., 'cards', 'pages')
    * @param {DataListItem[]} [config.children] - Optional nested child items
@@ -28,8 +38,14 @@ export class DataListItem {
    *   copy when `id` has been namespaced for uniqueness (e.g.
    *   `project-123`/`task-123` to avoid cross-namespace collisions). When
    *   absent, copy actions use `id` directly.
+   * @param {boolean} [config.unshareable] - When true, DataList suppresses the
+   *   share and share-all affordances for this item. On a virtual-parent group
+   *   this hides the group's "Share all with yourself" button (via
+   *   `hasShareableChildren`), so a view can expose share-all for some groups
+   *   but not others.
    */
   constructor({
+    annotation = null,
     children = undefined,
     count = undefined,
     countLabel = null,
@@ -39,9 +55,11 @@ export class DataListItem {
     isVirtualParent = false,
     label,
     metadata = null,
+    muted = false,
     originalId = undefined,
     status = undefined,
     typeId = null,
+    unshareable = false,
     url = null
   }) {
     this.id = id;
@@ -57,6 +75,9 @@ export class DataListItem {
     this.status = status;
     this.error = error;
     this.originalId = originalId;
+    this.unshareable = unshareable;
+    this.annotation = annotation;
+    this.muted = muted;
   }
 
   /**
@@ -127,6 +148,7 @@ export class DataListItem {
     if (!data) return null;
 
     return new DataListItem({
+      annotation: data.annotation || null,
       children: data.children?.map((child) => DataListItem.fromJSON(child)),
       count: data.count,
       countLabel: data.countLabel || null,
@@ -136,9 +158,11 @@ export class DataListItem {
       isVirtualParent: data.isVirtualParent || false,
       label: data.label,
       metadata: data.metadata,
+      muted: data.muted || false,
       originalId: data.originalId,
       status: data.status,
       typeId: data.typeId,
+      unshareable: data.unshareable || false,
       url: data.url
     });
   }
@@ -165,9 +189,8 @@ export class DataListItem {
    */
   toJSON() {
     return {
-      children: this.children?.map((child) =>
-        child instanceof DataListItem ? child.toJSON() : child
-      ),
+      annotation: this.annotation,
+      children: this.children?.map((child) => (child instanceof DataListItem ? child.toJSON() : child)),
       count: this.count,
       countLabel: this.countLabel,
       domoObject: this.domoObject?.toJSON() || null,
@@ -176,9 +199,11 @@ export class DataListItem {
       isVirtualParent: this.isVirtualParent,
       label: this.label,
       metadata: this.metadata,
+      muted: this.muted,
       originalId: this.originalId,
       status: this.status,
       typeId: this.typeId,
+      unshareable: this.unshareable,
       url: this.url
     };
   }

@@ -214,18 +214,32 @@ export function UpdateDetailsView({ onBackToDefault = null, onStatusUpdate = nul
   if (!config) return null;
 
   const hasResettableValue = config.fields.some((f) => f.resettable && originalValues[f.key]);
+  const objectId = currentContext.domoObject.id;
+  const objectName = currentContext.domoObject.metadata?.name || objectId;
 
   return (
     <Card className='flex min-h-0 w-full flex-1 flex-col p-2'>
       <Card.Header className='gap-2'>
         <Card.Title className='flex items-start justify-between'>
-          <div className='min-w-0 flex-1 pt-1'>{config.title}</div>
+          <div className='min-w-0 flex-1 pt-1'>
+            <div className='truncate'>{config.title}</div>
+            <Tooltip>
+              <Tooltip.Trigger className='block w-full min-w-0 pr-8'>
+                <div className='truncate text-xs font-normal text-muted'>
+                  {objectName} (ID: {objectId})
+                </div>
+              </Tooltip.Trigger>
+              <Tooltip.Content className='text-wrap'>
+                {objectName} (ID: {objectId})
+              </Tooltip.Content>
+            </Tooltip>
+          </div>
           {onBackToDefault && (
-            <Tooltip closeDelay={0} delay={400}>
+            <Tooltip>
               <Button isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
                 <IconX />
               </Button>
-              <Tooltip.Content className='text-xs'>Close</Tooltip.Content>
+              <Tooltip.Content className='max-w-60'>Close</Tooltip.Content>
             </Tooltip>
           )}
         </Card.Title>
@@ -251,13 +265,7 @@ export function UpdateDetailsView({ onBackToDefault = null, onStatusUpdate = nul
       </div>
 
       <div className='flex shrink-0 flex-col gap-2'>
-        <Button
-          fullWidth
-          isDisabled={isSubmitting}
-          isPending={isSubmitting}
-          variant='primary'
-          onPress={handleSubmit}
-        >
+        <Button fullWidth isDisabled={isSubmitting} isPending={isSubmitting} variant='primary' onPress={handleSubmit}>
           Save
         </Button>
       </div>
@@ -279,19 +287,9 @@ function FieldRow({
 }) {
   if (field.kind === 'text') {
     return (
-      <TextField
-        id={`update-${field.key}`}
-        isRequired={field.required}
-        name={field.key}
-        variant='secondary'
-      >
+      <TextField id={`update-${field.key}`} isRequired={field.required} name={field.key} variant='secondary'>
         <Label>{field.label}</Label>
-        <Input
-          className='h-8'
-          isDisabled={isDisabled}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-        />
+        <Input className='h-8' isDisabled={isDisabled} value={value} onChange={(e) => onChange(e.target.value)} />
       </TextField>
     );
   }
@@ -315,7 +313,9 @@ function FieldRow({
   }
 
   if (field.kind === 'combo') {
-    const items = (options || []).map((key) => ({ id: key, name: key }));
+    const items = [...(options || [])]
+      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+      .map((key) => ({ id: key, name: key }));
     const showResetButton = field.resettable && onReset;
     const isResetDisabled = isDisabled || !originalValue;
     return (
@@ -334,19 +334,17 @@ function FieldRow({
           >
             <Label>{field.label}</Label>
             <ComboBox.InputGroup>
-              <Input
-                placeholder={isLoadingOptions ? 'Loading providers…' : 'Type or pick a value…'}
-              />
+              <Input placeholder={isLoadingOptions ? 'Loading providers…' : 'Type or pick a value…'} />
               <ComboBox.Trigger>
                 <IconChevronDown />
               </ComboBox.Trigger>
             </ComboBox.InputGroup>
-            <ComboBox.Popover placement='bottom start'>
-              <Virtualizer layout={ListLayout} layoutOptions={{ rowHeight: 32 }}>
-                <ListBox className='max-h-60 overflow-y-auto' items={items}>
+            <ComboBox.Popover className='max-w-9/10' placement='bottom start'>
+              <Virtualizer layout={ListLayout} layoutOptions={{ estimatedRowHeight: 32 }}>
+                <ListBox className='max-h-100 overflow-y-auto' items={items}>
                   {(item) => (
-                    <ListBox.Item id={item.id} textValue={item.name}>
-                      {item.name}
+                    <ListBox.Item className='h-fit' id={item.id} textValue={item.name}>
+                      <span className='line-clamp-2 break-all'>{item.name}</span>
                     </ListBox.Item>
                   )}
                 </ListBox>
@@ -354,17 +352,11 @@ function FieldRow({
             </ComboBox.Popover>
           </ComboBox>
           {showResetButton && (
-            <Tooltip closeDelay={0} delay={400}>
-              <Button
-                isIconOnly
-                isDisabled={isResetDisabled}
-                size='md'
-                variant='tertiary'
-                onPress={onReset}
-              >
+            <Tooltip>
+              <Button isIconOnly isDisabled={isResetDisabled} size='md' variant='tertiary' onPress={onReset}>
                 <IconArrowCurvedBack />
               </Button>
-              <Tooltip.Content className='text-xs'>
+              <Tooltip.Content className='max-w-60'>
                 {originalValue
                   ? 'Reset — clears userDefinedType and restores displayType to dataProviderType'
                   : 'Nothing to reset'}

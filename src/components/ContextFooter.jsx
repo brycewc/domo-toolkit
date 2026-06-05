@@ -1,28 +1,15 @@
-import {
-  Alert,
-  Chip,
-  Disclosure,
-  Link,
-  ScrollShadow,
-  Skeleton,
-  Spinner,
-  Tabs,
-  Tooltip
-} from '@heroui/react';
+import { Alert, Chip, Disclosure, Link, ScrollShadow, Skeleton, Spinner, Tabs, Tooltip } from '@heroui/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import JsonView from 'react18-json-view';
 
 import { useGroupLookup } from '@/hooks/useGroupLookup';
 import { useUserLookup } from '@/hooks/useUserLookup';
+import { useWheelHorizontalScroll } from '@/hooks/useWheelHorizontalScroll';
 import { fetchObjectDetailsInPage, getObjectType } from '@/models/DomoObjectType';
+import { getTemplateApprovals } from '@/services/approvals';
 import { getDatasetColumns, getDatasetsForPage } from '@/services/datasets';
 import { executeInPage } from '@/utils/executeInPage';
-import {
-  formatEpochTimestamp,
-  isDateFieldName,
-  isGroupFieldName,
-  isUserFieldName
-} from '@/utils/general';
+import { formatEpochTimestamp, isDateFieldName, isGroupFieldName, isUserFieldName } from '@/utils/general';
 import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
 
 // Maps relatedData[].fetcher key → (params) => Promise<Array>. Lives here
@@ -31,7 +18,8 @@ import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
 // the relatedData entry.
 const LAZY_ARRAY_FETCHERS = {
   datasetColumns: ({ objectId, tabId }) => getDatasetColumns({ datasetId: objectId, tabId }),
-  datasetsForPage: ({ objectId, tabId }) => getDatasetsForPage({ pageId: objectId, tabId })
+  datasetsForPage: ({ objectId, tabId }) => getDatasetsForPage({ pageId: objectId, tabId }),
+  templateApprovals: ({ objectId, tabId }) => getTemplateApprovals(objectId, tabId)
 };
 
 import { AlertStatusIcon } from './AlertStatusIcon';
@@ -42,6 +30,16 @@ import { TimestampAnnotation } from './TimestampAnnotation';
 import '@/assets/json-view-theme.css';
 
 import { UserIdAnnotation } from './UserIdAnnotation';
+
+// Module-level cache for fetched related-tab data so it survives ContextFooter
+// remounts and Chrome-tab switches while the sidepanel stays open. Keyed by
+// Chrome tab id: switching Chrome tabs keeps each tab's data intact. Each
+// Chrome-tab entry records the objectId it was cached against, so navigating to
+// a different object in the same Chrome tab invalidates that tab's cache.
+// Entries older than the TTL are treated as misses since related data (pending
+// approvals and the like) goes stale as people act on it.
+const RELATED_CACHE_TTL_MS = 300 * 1000; // 300 seconds
+const relatedDataCache = new Map(); // chromeTabId -> { objectId, entries: Map<tabKey, { data, timestamp }> }
 
 export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onStatusUpdate }) {
   const [developerMode, setDeveloperMode] = useState(false);
@@ -66,6 +64,16 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
 
     chrome.storage.onChanged.addListener(handleStorageChange);
     return () => chrome.storage.onChanged.removeListener(handleStorageChange);
+  }, []);
+
+  // Drop a Chrome tab's cached related data when the tab closes, so the
+  // module-level cache doesn't accumulate entries for tabs gone for the session.
+  useEffect(() => {
+    const handleTabRemoved = (closedTabId) => {
+      relatedDataCache.delete(closedTabId);
+    };
+    chrome.tabs.onRemoved.addListener(handleTabRemoved);
+    return () => chrome.tabs.onRemoved.removeListener(handleTabRemoved);
   }, []);
 
   // Compute available tabs: current object + related objects
@@ -191,13 +199,19 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
     developerMode
   ]);
 
-  // Reset related cache and active tab when the detected object changes
+  // Reset related cache and active tab when the detected object changes. Seed
+  // from the module-level cache so data cached for this Chrome tab and object
+  // (within the TTL) survives Chrome-tab switches and footer remounts;
+  // navigating to a different object in the same Chrome tab invalidates it.
   const objectId = currentContext?.domoObject?.id;
+  const chromeTabId = currentContext?.tabId;
+  const contextKeyRef = useRef(null);
   useEffect(() => {
-    setRelatedCache({});
+    contextKeyRef.current = `${chromeTabId ?? ''}::${objectId ?? ''}`;
+    setRelatedCache(readFreshRelatedCache(chromeTabId, objectId));
     setLoadingTabs({});
     setActiveTabId(tabs[0]?.id ?? null);
-  }, [objectId]);
+  }, [objectId, chromeTabId]);
 
   // Default activeTabId to first tab when tabs change
   useEffect(() => {
@@ -222,18 +236,25 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
   }, [activeTab, activeTabId, currentContext, relatedCache]);
   const groupMap = useGroupLookup(activeSrc, currentContext?.tabId);
   const userMap = useUserLookup(activeSrc, currentContext?.tabId);
+  const tabScrollRef = useWheelHorizontalScroll();
 
   // Lazy-load related object details when a tab is selected
   const handleTabChange = async (key) => {
     setActiveTabId(key);
 
-    // Skip if it's the current object tab or already cached/loading
+    // Skip the current-object tab and anything already in flight.
     const tab = tabs.find((t) => t.id === key);
-    if (!tab || tab.isCurrentObject || relatedCache[key] || loadingTabs[key]) {
-      return;
-    }
+    if (!tab || tab.isCurrentObject || loadingTabs[key]) return;
     // Eager arrays carry their data on the tab — nothing to fetch
     if (tab.isArray && !tab.fetcher) return;
+
+    // Fresh module-cache hit for this Chrome tab + object: mirror it into
+    // render state without refetching.
+    const cached = getFreshRelatedEntry(chromeTabId, objectId, key);
+    if (cached !== undefined) {
+      setRelatedCache((prev) => (key in prev ? prev : { ...prev, [key]: cached }));
+      return;
+    }
 
     // Seed cache from preloaded parent data (no fetch needed)
     if (tab.preloaded) {
@@ -241,6 +262,10 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
       return;
     }
 
+    // Pin the context this fetch was issued for. A response that lands after
+    // the user navigated to another object/Chrome tab still updates the cache
+    // (keyed by the issuing context) but must not overwrite the current view.
+    const reqKey = `${chromeTabId ?? ''}::${objectId ?? ''}`;
     setLoadingTabs((prev) => ({ ...prev, [key]: true }));
 
     try {
@@ -248,11 +273,12 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
         // Lazy array: dispatch to the registered fetcher, store the array in cache.
         const fetcher = LAZY_ARRAY_FETCHERS[tab.fetcher];
         if (!fetcher) throw new Error(`Unknown lazy array fetcher: ${tab.fetcher}`);
-        const arr = await fetcher({
-          objectId: currentContext?.domoObject?.id,
-          tabId: currentContext?.tabId
-        });
-        setRelatedCache((prev) => ({ ...prev, [key]: arr ?? [] }));
+        const arr = await fetcher({ objectId, tabId: chromeTabId });
+        const data = arr ?? [];
+        writeRelatedCache(chromeTabId, objectId, key, data);
+        if (contextKeyRef.current === reqKey) {
+          setRelatedCache((prev) => ({ ...prev, [key]: data }));
+        }
       } else {
         const relatedType = getObjectType(tab.typeId);
         if (!relatedType?.api) {
@@ -270,15 +296,14 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
           typeId: relatedType.id
         };
 
-        const metadata = await executeInPage(
-          fetchObjectDetailsInPage,
-          [params],
-          currentContext?.tabId
-        );
+        const metadata = await executeInPage(fetchObjectDetailsInPage, [params], chromeTabId);
 
         if (metadata?.details) {
-          setRelatedCache((prev) => ({ ...prev, [key]: metadata.details }));
-        } else {
+          writeRelatedCache(chromeTabId, objectId, key, metadata.details);
+          if (contextKeyRef.current === reqKey) {
+            setRelatedCache((prev) => ({ ...prev, [key]: metadata.details }));
+          }
+        } else if (contextKeyRef.current === reqKey) {
           setRelatedCache((prev) => ({
             ...prev,
             [key]: { error: 'No details available' }
@@ -287,10 +312,12 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
       }
     } catch (error) {
       console.error(`[ContextFooter] Error fetching ${key} details:`, error);
-      setRelatedCache((prev) => ({
-        ...prev,
-        [key]: { error: error.message }
-      }));
+      if (contextKeyRef.current === reqKey) {
+        setRelatedCache((prev) => ({
+          ...prev,
+          [key]: { error: error.message }
+        }));
+      }
     } finally {
       setLoadingTabs((prev) => ({ ...prev, [key]: false }));
     }
@@ -305,10 +332,8 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
       return (
         <MetadataJsonView
           groupMap={groupMap}
+          src={currentContext?.domoObject?.metadata?.details || currentContext?.domoObject?.metadata}
           userMap={userMap}
-          src={
-            currentContext?.domoObject?.metadata?.details || currentContext?.domoObject?.metadata
-          }
         />
       );
     }
@@ -365,11 +390,8 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
   };
 
   const alertContent = (
-    <Alert
-      className='min-h-22 w-full p-2'
-      status={currentContext?.isDomoPage || isLoading ? 'accent' : 'warning'}
-    >
-      <Alert.Content className='flex flex-col items-start gap-2'>
+    <Alert className='min-h-22 w-full p-2' status={currentContext?.isDomoPage || isLoading ? 'accent' : 'warning'}>
+      <Alert.Content className='flex min-w-0 flex-col items-start gap-2'>
         {isLoading ? (
           <div className='skeleton--shimmer relative flex w-full flex-col gap-2 overflow-hidden'>
             <div className='flex w-full items-center justify-between'>
@@ -386,31 +408,35 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
           </div>
         ) : (
           <>
-            <div
-              className='alert__title flex w-full items-start justify-between'
-              data-slot='alert-title'
-            >
+            <div className='alert__title flex w-full items-start justify-between gap-x-1' data-slot='alert-title'>
               {currentContext?.isDomoPage ? (
                 <div className='flex min-w-0 flex-1 items-center gap-x-1'>
-                  <span className='min-w-0 truncate' title='Current Context'>
-                    Current Context
-                  </span>
-                  <Tooltip closeDelay={0} delay={400}>
-                    <Tooltip.Trigger className='flex shrink-0 items-center'>
-                      <Chip className='w-fit lowercase' color='accent' size='sm' variant='soft'>
-                        {currentContext?.instance}
-                      </Chip>
+                  {/* Items truncate in priority order as the panel narrows so they never
+                      collide with the status icon: the "Current Context" label gives up
+                      space first (largest shrink), then the instance chip, then the
+                      object-type chip. The icon stays shrink-0 and fully visible. */}
+                  <Tooltip delay={700}>
+                    <Tooltip.Trigger className='min-w-0 shrink-9999'>
+                      <span className='block truncate'>Current Context</span>
                     </Tooltip.Trigger>
-                    <Tooltip.Content>Instance: {currentContext?.instance}.domo.com</Tooltip.Content>
+                    <Tooltip.Content className='max-w-60'>Current Context</Tooltip.Content>
                   </Tooltip>
-                  <Tooltip closeDelay={0} delay={400}>
-                    <Tooltip.Trigger className='flex shrink-0 items-center'>
-                      <Chip className='w-fit lowercase' color='accent' size='sm' variant='soft'>
-                        <ObjectTypeIcon typeId={currentContext?.domoObject?.typeId} />
-                        {currentContext?.domoObject?.typeName}
+                  <Tooltip>
+                    <Tooltip.Trigger className='flex min-w-0 shrink-100 items-center'>
+                      <Chip className='min-w-0 shrink lowercase' color='accent' size='sm' variant='soft'>
+                        <Chip.Label className='min-w-0 truncate'>{currentContext?.instance}</Chip.Label>
                       </Chip>
                     </Tooltip.Trigger>
-                    <Tooltip.Content className='flex items-center rounded p-0'>
+                    <Tooltip.Content className='max-w-60'>Instance: {currentContext?.instance}.domo.com</Tooltip.Content>
+                  </Tooltip>
+                  <Tooltip>
+                    <Tooltip.Trigger className='flex min-w-0 shrink items-center'>
+                      <Chip className='min-w-0 shrink lowercase' color='accent' size='sm' variant='soft'>
+                        <ObjectTypeIcon className='shrink-0' typeId={currentContext?.domoObject?.typeId} />
+                        <span className='min-w-0 truncate'>{currentContext?.domoObject?.typeName}</span>
+                      </Chip>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content className='max-w-60 rounded p-0 text-wrap'>
                       <Chip className='w-fit rounded-xl' color='accent' size='sm' variant='soft'>
                         {currentContext?.domoObject?.typeId}
                       </Chip>
@@ -420,34 +446,26 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
               ) : (
                 'Not a Domo Instance'
               )}
-              <Tooltip
-                closeDelay={0}
-                delay={400}
-                isDisabled={!currentContext?.domoObject?.id || !currentContext?.isDomoPage}
-              >
-                <Tooltip.Trigger>
+              <Tooltip delay={300} isDisabled={!currentContext?.domoObject?.id || !currentContext?.isDomoPage}>
+                <Tooltip.Trigger className='shrink-0'>
                   <Alert.Indicator>
                     <AlertStatusIcon />
                   </Alert.Indicator>
                 </Tooltip.Trigger>
-                <Tooltip.Content>Click to toggle context JSON view</Tooltip.Content>
+                <Tooltip.Content className='max-w-60'>Click to toggle context JSON view</Tooltip.Content>
               </Tooltip>
             </div>
             <Alert.Description className='flex h-full w-full min-w-0 flex-col items-start justify-start gap-1 text-left'>
               <div className='flex w-full min-w-0 flex-col items-start justify-start text-left'>
                 {currentContext?.isDomoPage ? (
                   !currentContext?.instance || !currentContext?.domoObject?.id ? (
-                    <span className='w-full truncate text-left font-medium'>
-                      No object detected on this page
-                    </span>
+                    <span className='w-full truncate text-left font-medium'>No object detected on this page</span>
                   ) : (
                     <>
                       <span className='w-full truncate text-left font-medium'>
                         {currentContext?.domoObject?.metadata?.name}
                       </span>
-                      <span className='w-full truncate text-left'>
-                        ID: {currentContext?.domoObject?.id}
-                      </span>
+                      <span className='w-full truncate text-left'>ID: {currentContext?.domoObject?.id}</span>
                     </>
                   )
                 ) : (
@@ -478,9 +496,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
       <Disclosure.Heading>
         <Disclosure.Trigger className='w-full cursor-pointer'>{alertContent}</Disclosure.Trigger>
       </Disclosure.Heading>
-      <Disclosure.Content
-        className={`card flex min-h-0 flex-1 flex-col bg-surface p-0 ${isExpanded ? '' : 'collapse'}`}
-      >
+      <Disclosure.Content className={`card flex min-h-0 flex-1 flex-col bg-surface p-0 ${isExpanded ? '' : 'collapse'}`}>
         <div className='card__content flex min-h-0 w-full flex-1 flex-col gap-2 p-2'>
           {tabs.length > 1 && (
             <Tabs
@@ -495,17 +511,19 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
                   className='w-full flex-1'
                   offset={2}
                   orientation='horizontal'
+                  ref={tabScrollRef}
                   size={40}
                 >
                   <Tabs.List aria-label='Object details' className='w-fit min-w-full flex-nowrap'>
                     {tabs.map((tab) => {
                       const cached = relatedCache[tab.id];
-                      const lazyCountSuffix = tab.fetcher
-                        ? ` (${Array.isArray(cached) ? cached.length : '...'})`
-                        : '';
+                      const lazyCountSuffix = tab.fetcher ? ` (${Array.isArray(cached) ? cached.length : '...'})` : '';
                       const displayLabel = `${tab.label}${lazyCountSuffix}`;
+                      // h-12! overrides HeroUI's fixed 32px tab height so a
+                      // line-clamp-2 label that wraps to two lines fits inside
+                      // the tab instead of spilling past its border.
                       return (
-                        <Tabs.Tab className='min-w-32 flex-1 capitalize' id={tab.id} key={tab.id}>
+                        <Tabs.Tab className='h-10! min-w-32 flex-1 capitalize' id={tab.id} key={tab.id}>
                           <span className='line-clamp-2 text-center' title={displayLabel}>
                             {displayLabel}
                           </span>
@@ -541,10 +559,20 @@ function buildSimpleUrl(baseUrl, typeId, objectId, parentId) {
   return `${baseUrl}${path}`;
 }
 
-function injectUrls(
-  src,
-  { baseUrl, isArray, itemIdField, itemTypeField, itemTypeId, objectId, parentId, typeId }
-) {
+function getFreshRelatedEntry(chromeTabId, objectId, key) {
+  if (chromeTabId == null) return undefined;
+  const tabCache = relatedDataCache.get(chromeTabId);
+  if (!tabCache || tabCache.objectId !== objectId) return undefined;
+  const entry = tabCache.entries.get(key);
+  if (!entry) return undefined;
+  if (Date.now() - entry.timestamp >= RELATED_CACHE_TTL_MS) {
+    tabCache.entries.delete(key);
+    return undefined;
+  }
+  return entry.data;
+}
+
+function injectUrls(src, { baseUrl, isArray, itemIdField, itemTypeField, itemTypeId, objectId, parentId, typeId }) {
   if (!src || !baseUrl) return src;
 
   if (isArray && Array.isArray(src)) {
@@ -579,23 +607,16 @@ function MetadataJsonView({ collapsed = 1, groupMap = {}, src, userMap = {} }) {
       collapsed={collapsed}
       collapseStringMode='word'
       collapseStringsAfterLength={150}
+      customizeCopy={(node) => (typeof node === 'object' ? JSON.stringify(node, null, 2) : String(node))}
       key={jsonViewKey}
       matchesURL={false}
       src={src}
       CopiedComponent={({ className, style }) => (
-        <AnimatedCheck
-          className={className + ' text-success'}
-          size={16}
-          stroke={1.5}
-          style={style}
-        />
+        <AnimatedCheck className={className + ' text-success'} size={16} stroke={1.5} style={style} />
       )}
       CopyComponent={({ className, onClick, style }) => (
         <IconClipboardCopy className={className} size={16} style={style} onClick={onClick} />
       )}
-      customizeCopy={(node) =>
-        typeof node === 'object' ? JSON.stringify(node, null, 2) : String(node)
-      }
       customizeNode={(params) => {
         if (params.node === null || params.node === undefined) {
           return { enableClipboard: false };
@@ -617,28 +638,17 @@ function MetadataJsonView({ collapsed = 1, groupMap = {}, src, userMap = {} }) {
             return <TimestampAnnotation formatted={formatted} value={params.node} />;
           }
         }
-        if (
-          (typeof params.node === 'number' || typeof params.node === 'string') &&
-          Object.keys(userMap).length > 0
-        ) {
+        if ((typeof params.node === 'number' || typeof params.node === 'string') && Object.keys(userMap).length > 0) {
           const numericValue = Number(params.node);
-          if (
-            userMap[numericValue] &&
-            (isUserFieldName(params?.indexOrName) || params?.indexOrName === 'id')
-          ) {
+          if (userMap[numericValue] && (isUserFieldName(params?.indexOrName) || params?.indexOrName === 'id')) {
             return <UserIdAnnotation displayName={userMap[numericValue]} value={params.node} />;
           }
         }
-        if (
-          (typeof params.node === 'number' || typeof params.node === 'string') &&
-          Object.keys(groupMap).length > 0
-        ) {
+        if ((typeof params.node === 'number' || typeof params.node === 'string') && Object.keys(groupMap).length > 0) {
           const numericValue = Number(params.node);
           if (
             groupMap[numericValue] &&
-            (isGroupFieldName(params?.indexOrName) ||
-              isUserFieldName(params?.indexOrName) ||
-              params?.indexOrName === 'id')
+            (isGroupFieldName(params?.indexOrName) || isUserFieldName(params?.indexOrName) || params?.indexOrName === 'id')
           ) {
             return <GroupIdAnnotation displayName={groupMap[numericValue]} value={params.node} />;
           }
@@ -662,6 +672,30 @@ function MetadataJsonView({ collapsed = 1, groupMap = {}, src, userMap = {} }) {
   );
 }
 
+// Seed value for the reset effect: a plain { [tabKey]: data } of the Chrome
+// tab's non-expired entries, but only when they were cached for this same
+// object. Drops the whole tab entry on an object mismatch and prunes expired
+// entries as a side effect.
+function readFreshRelatedCache(chromeTabId, objectId) {
+  if (chromeTabId == null) return {};
+  const tabCache = relatedDataCache.get(chromeTabId);
+  if (!tabCache) return {};
+  if (tabCache.objectId !== objectId) {
+    relatedDataCache.delete(chromeTabId);
+    return {};
+  }
+  const now = Date.now();
+  const fresh = {};
+  for (const [key, entry] of tabCache.entries) {
+    if (now - entry.timestamp < RELATED_CACHE_TTL_MS) {
+      fresh[key] = entry.data;
+    } else {
+      tabCache.entries.delete(key);
+    }
+  }
+  return fresh;
+}
+
 /**
  * Resolve the parent ID that a related object needs for its API call.
  * Uses explicit parentSource config when provided, otherwise auto-resolves
@@ -671,10 +705,7 @@ function resolveRelatedParentId(related, domoObject) {
   if (related.parentSource) {
     if (related.parentSource === 'parentId') return domoObject.parentId;
     if (related.parentSource === 'objectId') return domoObject.id;
-    const parentBase =
-      related.parentFieldSource === 'context'
-        ? domoObject.metadata?.context
-        : domoObject.metadata?.details;
+    const parentBase = related.parentFieldSource === 'context' ? domoObject.metadata?.context : domoObject.metadata?.details;
     return related.parentSource.split('.').reduce((obj, key) => obj?.[key], parentBase);
   }
 
@@ -691,4 +722,14 @@ function resolveRelatedParentId(related, domoObject) {
   }
 
   return null;
+}
+
+function writeRelatedCache(chromeTabId, objectId, key, data) {
+  if (chromeTabId == null) return;
+  let tabCache = relatedDataCache.get(chromeTabId);
+  if (!tabCache || tabCache.objectId !== objectId) {
+    tabCache = { entries: new Map(), objectId };
+    relatedDataCache.set(chromeTabId, tabCache);
+  }
+  tabCache.entries.set(key, { data, timestamp: Date.now() });
 }

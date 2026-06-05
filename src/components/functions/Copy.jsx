@@ -2,7 +2,7 @@ import { Button, Dropdown, Kbd, Label, Tooltip } from '@heroui/react';
 import { useMemo, useState } from 'react';
 
 import { useLongPress } from '@/hooks/useLongPress';
-import { getObjectType } from '@/models/DomoObjectType';
+import { getObjectType, resolvePrimaryCopy } from '@/models/DomoObjectType';
 import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
 
 import { AnimatedCheck } from '../AnimatedCheck';
@@ -20,9 +20,7 @@ export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
     if (!typeModel?.copyConfigs || !domoObject) return [];
 
     const resolve = (source) =>
-      typeof source === 'function'
-        ? source(domoObject)
-        : source.split('.').reduce((cur, key) => cur?.[key], domoObject);
+      typeof source === 'function' ? source(domoObject) : source.split('.').reduce((cur, key) => cur?.[key], domoObject);
 
     const isVisible = (config) => {
       if (!config.when) return !!resolve(config.source);
@@ -47,30 +45,15 @@ export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
   const longPressDisabled = isDisabled || !domoObject?.id || dropdownItems.length === 0;
 
   const handlePress = () => {
-    const resolve = (source) =>
-      typeof source === 'function'
-        ? source(domoObject)
-        : source.split('.').reduce((cur, key) => cur?.[key], domoObject);
-
-    const copyId = primaryConfig ? resolve(primaryConfig.source) : domoObject?.id;
-    const copyLabel = primaryConfig?.label || `${domoObject?.typeName} ID`;
+    const copy = resolvePrimaryCopy(domoObject);
+    if (!copy) return;
     try {
-      navigator.clipboard.writeText(copyId);
+      navigator.clipboard.writeText(copy.value);
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
-      onStatusUpdate?.(
-        'Success',
-        `Copied ${copyLabel} **${copyId}** to clipboard`,
-        'success',
-        2000
-      );
+      onStatusUpdate?.('Success', `Copied ${copy.label} **${copy.value}** to clipboard`, 'success', 2000);
     } catch (error) {
-      onStatusUpdate?.(
-        'Error',
-        `Failed to copy ${copyLabel.toLowerCase()} to clipboard`,
-        'error',
-        3000
-      );
+      onStatusUpdate?.('Error', `Failed to copy ${copy.label.toLowerCase()} to clipboard`, 'error', 3000);
     }
   };
 
@@ -78,17 +61,12 @@ export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
     const item = dropdownItems.find((i) => i.id === key);
     if (!item) return;
     navigator.clipboard.writeText(item.value);
-    onStatusUpdate?.(
-      'Success',
-      `Copied ${item.label.replace('Copy ', '')} **${item.value}** to clipboard`,
-      'success',
-      2000
-    );
+    onStatusUpdate?.('Success', `Copied ${item.label.replace('Copy ', '')} **${item.value}** to clipboard`, 'success', 2000);
   };
 
   return (
     <Dropdown isDisabled={longPressDisabled} trigger='longPress'>
-      <Tooltip closeDelay={0} delay={400}>
+      <Tooltip delay={200}>
         <Button
           fullWidth
           isIconOnly
@@ -101,19 +79,12 @@ export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
           {isCopied ? <AnimatedCheck stroke={1.5} /> : <IconClipboardCopy />}
           <LongPressOverlay />
         </Button>
-        <Tooltip.Content
-          className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
-          offset={4}
-        >
+        <Tooltip.Content className='max-w-60' offset={4}>
           <div className='flex items-center gap-2'>
             <span>Copy {primaryConfig?.label || 'ID'}</span>
             <Kbd className='text-xs'>
               <Kbd.Abbr
-                keyValue={
-                  (navigator.userAgentData?.platform ?? navigator.platform).includes('Mac')
-                    ? 'command'
-                    : 'ctrl'
-                }
+                keyValue={(navigator.userAgentData?.platform ?? navigator.platform).includes('Mac') ? 'command' : 'ctrl'}
               />
               <Kbd.Abbr keyValue='shift' />
               <Kbd.Content>1</Kbd.Content>

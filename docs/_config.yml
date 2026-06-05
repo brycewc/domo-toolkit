@@ -29,6 +29,14 @@ url: 'https://domotoolkit.com' # the base hostname & protocol for your site, e.g
 github_username: brycewc
 show_excerpts: True
 
+header_pages:
+  - README.md
+  - PRIVACY_POLICY.md
+  - RELEASE_NOTES.md
+  - CONTRIBUTING.md
+
+titles_from_headings:
+  strip_title: true
 # Build settings
 theme: minima
 # remote_theme: jekyll/minima@3cdd14d

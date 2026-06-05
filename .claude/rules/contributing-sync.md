@@ -1,6 +1,6 @@
 ---
-globs: docs/CONTRIBUTING.md
-alwaysApply: false
+paths:
+  - 'docs/CONTRIBUTING.md'
 ---
 
 # CONTRIBUTING.md Sync

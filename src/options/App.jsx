@@ -104,35 +104,29 @@ export default function App() {
       {VersionLink}
       <div className='fixed top-4 right-4 z-10'>
         <div className='flex gap-1'>
-          <Tooltip closeDelay={0} delay={400}>
+          <Tooltip>
             <Button
               isIconOnly
               variant='secondary'
               onPress={() => {
-                window.open(
-                  'https://github.com/brycewc/domo-toolkit/issues/new?template=bug-report.md',
-                  '_blank'
-                );
+                window.open('https://github.com/brycewc/domo-toolkit/issues/new?template=bug-report.md', '_blank');
               }}
             >
               <IconBug stroke={1.5} />
             </Button>
-            <Tooltip.Content className='w-fit text-center'>Report bug</Tooltip.Content>
+            <Tooltip.Content className='w-fit'>Report bug</Tooltip.Content>
           </Tooltip>
-          <Tooltip closeDelay={0} delay={400}>
+          <Tooltip>
             <Button
               isIconOnly
               variant='secondary'
               onPress={() => {
-                window.open(
-                  'https://github.com/brycewc/domo-toolkit/issues/new?template=feature-request.md',
-                  '_blank'
-                );
+                window.open('https://github.com/brycewc/domo-toolkit/issues/new?template=feature-request.md', '_blank');
               }}
             >
               <IconAiSparkle />
             </Button>
-            <Tooltip.Content className='w-fit text-center'>Request feature</Tooltip.Content>
+            <Tooltip.Content className='w-fit'>Request feature</Tooltip.Content>
           </Tooltip>
         </div>
       </div>
@@ -154,15 +148,11 @@ export default function App() {
             </Tabs.Tab>
           </Tabs.List>
         </Tabs.ListContainer>
-        <Tabs.Panel
-          className='flex h-full max-w-3xl flex-col overflow-hidden px-4 pt-16'
-          id='favicon'
-        >
+        <Tabs.Panel className='flex h-full max-w-3xl flex-col overflow-hidden px-4 pt-16' id='favicon'>
           <div className='w-full shrink-0 justify-start'>
             <h3 className='mb-2 text-lg font-semibold'>Favicon Preferences</h3>
             <p className='text-sm text-muted'>
-              Manage your favicon preferences. Patterns will automatically match against
-              [subdomain].domo.com
+              Manage your favicon preferences. Patterns will automatically match against [subdomain].domo.com
             </p>
           </div>
           <FaviconSettings />
@@ -188,6 +178,8 @@ async function getActivityLogTitle() {
     let label;
 
     if (logType === 'single-object' && objects[0]) {
+      label = objects[0].name || `${objects[0].type} ${objects[0].id}`;
+    } else if (logType === 'object-and-parent' && objects[0]) {
       label = objects[0].name || `${objects[0].type} ${objects[0].id}`;
     } else if (logType === 'child-cards') {
       label = `${objects.length} ${objects.length === 1 ? 'Card' : 'Cards'}`;

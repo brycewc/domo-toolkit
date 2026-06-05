@@ -15,11 +15,9 @@ export const LineageNodeToolbar = memo(function LineageNodeToolbar({
   const { direction, downstreamCount, expanded, upstreamCount } = data;
   const isLoading = expandLoading?.has(nodeId);
 
-  const showUpstream =
-    upstreamCount > 0 && (direction === 'root' || direction === 'upstream');
+  const showUpstream = upstreamCount > 0 && (direction === 'root' || direction === 'upstream');
 
-  const showDownstream =
-    downstreamCount > 0 && (direction === 'root' || direction === 'downstream');
+  const showDownstream = downstreamCount > 0 && (direction === 'root' || direction === 'downstream');
 
   if (!showUpstream && !showDownstream) return null;
 
@@ -29,10 +27,7 @@ export const LineageNodeToolbar = memo(function LineageNodeToolbar({
         {showUpstream && (
           <>
             {expanded?.up ? (
-              <CollapseButton
-                direction='upstream'
-                onClick={() => onCollapseNode(nodeId, 'upstream')}
-              />
+              <CollapseButton direction='upstream' onClick={() => onCollapseNode(nodeId, 'upstream')} />
             ) : (
               <ExpandButton
                 count={upstreamCount}
@@ -44,17 +39,12 @@ export const LineageNodeToolbar = memo(function LineageNodeToolbar({
           </>
         )}
 
-        {showUpstream && showDownstream && (
-          <Separator className='mx-0.5 h-4' orientation='vertical' />
-        )}
+        {showUpstream && showDownstream && <Separator className='mx-0.5 h-4' orientation='vertical' />}
 
         {showDownstream && (
           <>
             {expanded?.down ? (
-              <CollapseButton
-                direction='downstream'
-                onClick={() => onCollapseNode(nodeId, 'downstream')}
-              />
+              <CollapseButton direction='downstream' onClick={() => onCollapseNode(nodeId, 'downstream')} />
             ) : (
               <ExpandButton
                 count={downstreamCount}
@@ -75,40 +65,20 @@ const CollapseButton = memo(function CollapseButton({ direction, onClick }) {
   const Icon = isUpstream ? IconArrowRight : IconArrowLeft;
 
   return (
-    <Button
-      className='h-7 min-w-0 gap-1 px-2 text-xs'
-      size='sm'
-      variant='flat'
-      onPress={onClick}
-    >
+    <Button className='h-7 min-w-0 gap-1 px-2 text-xs' size='sm' variant='flat' onPress={onClick}>
       <Icon className='size-3' />
       <IconMinus className='size-3' />
     </Button>
   );
 });
 
-const ExpandButton = memo(function ExpandButton({
-  count,
-  direction,
-  isLoading,
-  onClick
-}) {
+const ExpandButton = memo(function ExpandButton({ count, direction, isLoading, onClick }) {
   const isUpstream = direction === 'upstream';
   const Icon = isUpstream ? IconArrowLeft : IconArrowRight;
 
   return (
-    <Button
-      className='h-7 min-w-0 gap-1 px-2 text-xs'
-      isDisabled={isLoading}
-      size='sm'
-      variant='flat'
-      onPress={onClick}
-    >
-      {isLoading ? (
-        <Spinner className='size-3' size='sm' />
-      ) : (
-        <Icon className='size-3' stroke={2} />
-      )}
+    <Button className='h-7 min-w-0 gap-1 px-2 text-xs' isDisabled={isLoading} size='sm' variant='flat' onPress={onClick}>
+      {isLoading ? <Spinner className='size-3' size='sm' /> : <Icon className='size-3' stroke={2} />}
       <span>{count}</span>
     </Button>
   );

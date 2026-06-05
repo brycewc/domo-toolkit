@@ -13,11 +13,7 @@ import IconSync from '@icons/sync.svg?react';
 
 import { DataList } from './DataList';
 
-export function GetViewInputsView({
-  currentContext = null,
-  onBackToDefault = null,
-  onStatusUpdate = null
-}) {
+export function GetViewInputsView({ currentContext = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
@@ -80,12 +76,7 @@ export function GetViewInputsView({
       setError(null);
 
       if (!datasets || !Array.isArray(datasets) || datasets.length === 0) {
-        onStatusUpdate?.(
-          'No DataSets Found',
-          'No underlying datasets found in this view.',
-          'warning',
-          3000
-        );
+        onStatusUpdate?.('No DataSets Found', 'No underlying datasets found in this view.', 'warning', 3000);
         onBackToDefault?.();
         return;
       }
@@ -113,29 +104,15 @@ export function GetViewInputsView({
     setIsRefreshing(true);
     try {
       await loadData(true);
-      onStatusUpdate?.(
-        'Refreshed',
-        'Dataset data updated successfully',
-        'success',
-        2000
-      );
+      onStatusUpdate?.('Refreshed', 'Dataset data updated successfully', 'success', 2000);
     } catch (err) {
-      onStatusUpdate?.(
-        'Refresh Failed',
-        err.message || 'Failed to refresh data',
-        'danger',
-        3000
-      );
+      onStatusUpdate?.('Refresh Failed', err.message || 'Failed to refresh data', 'danger', 3000);
     } finally {
       setIsRefreshing(false);
     }
   };
 
-  const renderTitle = () => (
-    <span>
-      DataSets Used in View for <span className='font-bold'>{viewData?.objectName}</span>
-    </span>
-  );
+  const renderTitle = () => `DataSets Used in View for **${viewData?.objectName}**`;
 
   const renderSubtext = () => {
     const totalCount = items.length;
@@ -172,27 +149,18 @@ export function GetViewInputsView({
           <div className='flex flex-col items-start justify-center gap-2'>
             <Alert.Description>{error}</Alert.Description>
             <Button isPending={isRetrying} size='sm' onPress={handleRetry}>
-              {isRetrying ? (
-                <Spinner color='currentColor' size='sm' />
-              ) : (
-                <IconSync />
-              )}
+              {isRetrying ? <Spinner color='currentColor' size='sm' /> : <IconSync />}
               Retry
             </Button>
           </div>
         </Alert.Content>
-        <CloseButton
-          className='rounded-full'
-          variant='ghost'
-          onPress={() => onBackToDefault?.()}
-        />
+        <CloseButton className='rounded-full' variant='ghost' onPress={() => onBackToDefault?.()} />
       </Alert>
     );
   }
 
   return (
     <DataList
-      closeLabel='Close DataSets Used in View'
       currentContext={currentContext}
       headerActions={['openAll', 'copy', 'reload', 'refresh']}
       isRefreshing={isRefreshing}

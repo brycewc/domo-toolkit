@@ -1,4 +1,5 @@
 ---
+title: Contributing
 ---
 
 # Contributing to Domo Toolkit
@@ -29,6 +30,7 @@ Describe the problem you're trying to solve, not just the solution you have in m
 ### Getting Started
 
 1. Fork the repository
+
 2. Clone your fork and create a branch from `main`:
 
    ```bash
@@ -83,9 +85,9 @@ Avoid:
 
 All PRs are reviewed before merging. You may be asked to make changes -- this is normal and part of the process. Keep an eye on your PR for comments and requested changes.
 
-# Helpful Developer Information
+## Helpful Developer Information
 
-## Tech Stack
+### Tech Stack
 
 | Category             | Technology          | Version |
 | -------------------- | ------------------- | ------- |
@@ -99,9 +101,9 @@ All PRs are reviewed before merging. You may be asked to make changes -- this is
 | **Linter**           | ESLint              | 10.2.1  |
 | **Formatter**        | Prettier            | 3.8.3   |
 
-## Project Structure
+### Project Structure
 
-```
+```text
 src/
 ├── assets/             # Static assets and CSS
 ├── components/         # Shared React components
@@ -121,7 +123,7 @@ src/
 └── contentScript.js    # Content script (injected into Domo pages)
 ```
 
-## Architecture
+### Architecture
 
 The extension has five main execution contexts:
 
@@ -131,22 +133,20 @@ The extension has five main execution contexts:
 4. **Content Script** - Injected into Domo pages; detects objects, applies favicons
 5. **Background Service Worker** - Handles message passing, maintains tab context cache
 
-### Data Flow
+#### Flow
 
-```
 Content Script (detects page context)
-  → Background Service Worker (message relay, caches context)
-  → Popup/Sidepanel (receives context via chrome.runtime messages)
-  → User triggers action → Services execute via content script
-```
+→ Background Service Worker (message relay, caches context)
+→ Popup/Sidepanel (receives context via chrome.runtime messages)
+→ User triggers action → Services execute via content script
 
-### Core Models
+#### Core Models
 
 - **DomoContext** - Represents a tab's context (instance, URL, detected object)
 - **DomoObject** - Represents a Domo object (Card, Page, Dataset, etc.) with ID and type
-- **DomoObjectType** - Registry of ~100+ supported object types with URL patterns, ID validation, and API configs
+- **DomoObjectType** - Registry of \~100+ supported object types with URL patterns, ID validation, and API configs
 
-## Development Setup
+### Development Setup
 
 ```bash
 # Clone the repository (or your fork)
@@ -172,9 +172,9 @@ Load the extension in Chrome or Edge:
 2. Enable "Developer mode"
 3. Click "Load unpacked" and select the `dist` directory
 
-## Code Conventions
+### Code Conventions
 
-### Linting (via ESLint)
+#### Linting (via ESLint)
 
 The project uses ESLint with three plugin layers configured in `eslint.config.js`:
 
@@ -198,7 +198,7 @@ Run ESLint to check files:
 npx eslint --no-warn-ignored <file-paths>
 ```
 
-### Formatting (via Prettier)
+#### Formatting (via Prettier)
 
 - Single quotes for strings and JSX attributes
 - No trailing commas
@@ -206,33 +206,33 @@ npx eslint --no-warn-ignored <file-paths>
 - Semicolons required
 - Tailwind classes auto-sorted via `prettier-plugin-tailwindcss`
 
-### File Organization
+#### File Organization
 
 - **Path alias:** `@/` maps to `src/` (e.g., `import { Copy } from '@/components'`)
 - **Barrel exports:** Index files re-export from directories
 - **Named exports only** (no default exports for components)
 
-### React Patterns
+#### React Patterns
 
 - Functional components only (no class components)
 - Custom hooks for reusable logic (see `src/hooks/`)
 - Props destructuring in function signatures
 - React 19 - no `forwardRef` needed
 
-### Model Classes
+#### Model Classes
 
 - ES6 classes with `toJSON()` and `static fromJSON()` for serialization (required for message passing between extension contexts)
 
-### Styling
+#### Styling
 
 - Tailwind CSS utility classes only (no inline styles)
 - HeroUI components for complex UI elements
 - Dark mode support via `data-theme` attribute on document root
 - OKLch color space for theme colors (see `src/assets/global.css`)
 
-## Key Patterns
+### Key Patterns
 
-### Executing Code in Page Context
+#### Executing Code in Page Context
 
 Services need to inherit user session, authentication, and permissions by running in the page context:
 
@@ -249,7 +249,7 @@ const result = await executeInPage(
 );
 ```
 
-### Message Passing
+#### Message Passing
 
 Popup and sidepanel listen for context updates from the background service worker. Messages are filtered by `currentTabId` so each view only responds to updates for the tab it's displaying:
 
@@ -272,7 +272,7 @@ useEffect(() => {
 }, [currentTabId]);
 ```
 
-### Status Bar Pattern
+#### Status Bar Pattern
 
 Status messages are managed by the `useStatusBar` hook in the parent App component (popup or sidepanel). Child components receive an `onStatusUpdate` callback prop and call it to display transient alerts:
 
@@ -303,7 +303,7 @@ Inside action components, call the callback to show a status message:
 onStatusUpdate('Copied', 'Object ID copied to clipboard', 'success', 3000);
 ```
 
-## Extension Permissions
+### Extension Permissions
 
 | Permission            | Purpose                                    |
 | --------------------- | ------------------------------------------ |
@@ -318,7 +318,7 @@ onStatusUpdate('Copied', 'Object ID copied to clipboard', 'success', 3000);
 
 Host permission: `*://*.domo.com/*`
 
-## Configuration Files
+### Configuration Files
 
 | File                 | Purpose                                                           |
 | -------------------- | ----------------------------------------------------------------- |
@@ -327,7 +327,7 @@ Host permission: `*://*.domo.com/*`
 | `eslint.config.js`   | ESLint config with perfectionist sorting and stylistic rules      |
 | `.prettierrc`        | Prettier formatting rules                                         |
 
-## Documentation
+### Documentation
 
 - [React Documentation](https://react.dev/reference/react)
 - [Vite Documentation](https://vite.dev/guide/)

@@ -17,8 +17,7 @@ export function GetDatasets({ currentContext, isDisabled, onCollapseActions, onS
     dropdownItems = [{ id: 'getAppDatasets', label: 'Get Worksheet DataSets' }];
   }
 
-  const longPressDisabled =
-    isDisabled || !currentContext?.domoObject?.id || dropdownItems.length === 0;
+  const longPressDisabled = isDisabled || !currentContext?.domoObject?.id || dropdownItems.length === 0;
 
   const handleAction = async (key) => {
     if (key !== 'getAppDatasets') return;
@@ -39,28 +38,28 @@ export function GetDatasets({ currentContext, isDisabled, onCollapseActions, onS
   };
 
   let buttonText;
-  let label;
+  let tooltipText;
   switch (objectType) {
     case 'CARD':
       buttonText = 'Get Card DataSets';
-      label = 'List datasets powering this card';
+      tooltipText = 'List datasets powering this card';
       break;
     case 'DATA_SOURCE':
       buttonText = 'Get Dependent Views';
-      label = 'List dataset views dependent on this dataset';
+      tooltipText = 'List dataset views built on this dataset';
       break;
     case 'DATAFLOW_TYPE':
       buttonText = 'Get DataFlow DataSets';
-      label = 'List dataset inputs and outputs for this dataflow';
+      tooltipText = 'List dataset inputs and outputs for this dataflow';
       break;
     default:
       buttonText = 'Get DataSets';
-      label = 'List datasets for this object';
+      tooltipText = 'List datasets for this object';
   }
 
   return (
     <Dropdown isDisabled={longPressDisabled} trigger='longPress'>
-      <Tooltip closeDelay={100} delay={600}>
+      <Tooltip>
         <Button
           fullWidth
           className='relative min-w-36 flex-1 overflow-visible whitespace-normal'
@@ -88,11 +87,8 @@ export function GetDatasets({ currentContext, isDisabled, onCollapseActions, onS
             )
           }
         </Button>
-        <Tooltip.Content
-          className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
-          offset={4}
-        >
-          <span>{label}</span>
+        <Tooltip.Content className='max-w-60' offset={4}>
+          <span>{tooltipText}</span>
           {!longPressDisabled && <span className='italic'>Hold for more options</span>}
         </Tooltip.Content>
       </Tooltip>

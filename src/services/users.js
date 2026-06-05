@@ -13,18 +13,25 @@ import { executeInPage } from '@/utils/executeInPage';
 export async function getCurrentUser(tabId = null) {
   const result = await executeInPage(
     async () => {
-      for (let i = 0; i < 3; i++) {
-        if (window.bootstrap?.currentUser?.USER_ID) {
+      // Some instances hydrate window.bootstrap well after first paint (USER_ID
+      // and data.authorities have been observed arriving ~2.8s in), so poll
+      // generously over several seconds. Wait for BOTH the user id and the
+      // authorities array: rights live on data.authorities, not currentUser, so
+      // returning as soon as USER_ID exists yields an empty-rights user that
+      // then gets cached and silently strips audit-gated features from a full
+      // admin. Array.isArray distinguishes "not hydrated yet" from a genuinely
+      // empty rights list.
+      for (let i = 0; i < 30; i++) {
+        const authorities = window.bootstrap?.data?.authorities;
+        if (window.bootstrap?.currentUser?.USER_ID && Array.isArray(authorities)) {
           // eslint-disable-next-line no-unused-vars
           const { USER_ID, USER_RIGHTS, ...metadata } = window.bootstrap.currentUser;
-          metadata.USER_RIGHTS = window.bootstrap?.data?.authorities || [];
+          metadata.USER_RIGHTS = authorities;
           return { id: USER_ID, metadata };
         }
-        if (i < 2) {
-          await new Promise((resolve) => setTimeout(resolve, 500));
-        }
+        await new Promise((resolve) => setTimeout(resolve, 250));
       }
-      throw new Error('window.bootstrap not available after 3 attempts');
+      throw new Error('window.bootstrap user data not available after polling');
     },
     [],
     tabId
@@ -80,24 +87,18 @@ export async function bulkUpdateUsers(users, tabId = null) {
  * @param {number|null} [tabId]
  * @returns {Promise<{id: number, displayName: string, email: string}|null>}
  */
-export async function createUser(
-  { displayName, email, roleId, sendInvite = true },
-  tabId = null
-) {
+export async function createUser({ displayName, email, roleId, sendInvite = true }, tabId = null) {
   return executeInPage(
     async (displayName, email, roleId, sendInvite) => {
-      const response = await fetch(
-        `/api/content/v3/users?sendInvite=${sendInvite}`,
-        {
-          body: JSON.stringify({
-            detail: { email },
-            displayName,
-            roleId
-          }),
-          headers: { 'Content-Type': 'application/json' },
-          method: 'POST'
-        }
-      );
+      const response = await fetch(`/api/content/v3/users?sendInvite=${sendInvite}`, {
+        body: JSON.stringify({
+          detail: { email },
+          displayName,
+          roleId
+        }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST'
+      });
       if (!response.ok) return null;
       const data = await response.json();
       const id = data?.id ?? data?.userId ?? null;
@@ -133,9 +134,7 @@ export async function deleteUser(userId, tabId = null) {
 export async function fetchUserDisplayNames(userIds, tabId = null) {
   return executeInPage(
     async (ids) => {
-      const response = await fetch(
-        `/api/content/v3/users?id=${ids.join(',')}`
-      );
+      const response = await fetch(`/api/content/v3/users?id=${ids.join(',')}`);
       if (!response.ok) return {};
       const users = await response.json();
       const map = {};
@@ -153,18 +152,23 @@ export async function fetchUserDisplayNames(userIds, tabId = null) {
 
 /**
  * Returns user IDs from the given list that have a custom (non-default) avatar.
- * Compares each avatar's blob size against the default avatar fetched for
- * a non-existent user (ID 0). The default size is cached on window for the
- * lifetime of the page so only one extra fetch is needed per session.
+ * Compares each avatar's blob size against the placeholder Domo serves for
+ * users without a picture. That placeholder is byte-identical for every such
+ * user, so a size comparison cleanly separates "has a photo" from "doesn't."
+ *
+ * The baseline is fetched from a very large user ID that cannot exist
+ * (max signed 32-bit int). Domo returns the real no-picture placeholder for
+ * any non-existent user EXCEPT ID 0, which maps to a distinct system entity
+ * with its own avatar, so ID 0 must not be used as the baseline. The size is
+ * cached on window for the lifetime of the page so only one extra fetch is
+ * needed per session.
  */
 export async function getCustomAvatarUserIds(userIds, tabId = null) {
   return executeInPage(
     async (userIds) => {
       if (!window.__domoDefaultAvatarSize) {
         try {
-          const res = await fetch(
-            '/api/content/v1/avatar/USER/0?size=100'
-          );
+          const res = await fetch('/api/content/v1/avatar/USER/2147483647?size=100');
           const blob = await res.blob();
           window.__domoDefaultAvatarSize = blob.size;
         } catch {
@@ -199,14 +203,49 @@ export async function getCustomAvatarUserIds(userIds, tabId = null) {
 export async function getFullUserDetails(userId, tabId = null) {
   return executeInPage(
     async (userId) => {
-      const response = await fetch(
-        `/api/identity/v1/users/${userId}?parts=DETAILED`
-      );
+      const response = await fetch(`/api/identity/v1/users/${userId}?parts=DETAILED`);
       if (!response.ok) return null;
       const data = await response.json();
       return data?.users?.[0] ?? data ?? null;
     },
     [userId],
+    tabId
+  );
+}
+
+/**
+ * Returns user IDs from the given list that are inactive (deleted) in Domo.
+ * A single batch call to the content/v3 users endpoint with includeDetails
+ * exposes `detail.active` per user; we collect the IDs where it is explicitly
+ * false. IDs the endpoint omits or that lack a detail block are treated as
+ * active (not flagged), so a partial response never paints a live user as
+ * deleted. Mirrors getCustomAvatarUserIds so the Activity Log can populate an
+ * inactive-id Set incrementally.
+ *
+ * The returned values are the matching members of the input `userIds`, not the
+ * `id`s from the response. That preserves the caller's original id type: the
+ * DomoStats activity-log path supplies string ids (from a dataset column) while
+ * the API path supplies numbers, and the consumer does a `Set.has(id)` lookup
+ * against the row's own id. Returning the API's numeric `id` would silently miss
+ * on the string-id path (a number never `.has()`-matches a string).
+ * @param {Array<number|string>} userIds
+ * @param {number|null} tabId
+ * @returns {Promise<Array<number|string>>} The subset of userIds whose account is inactive
+ */
+export async function getInactiveUserIds(userIds, tabId = null) {
+  return executeInPage(
+    async (userIds) => {
+      if (!userIds.length) return [];
+      const response = await fetch(`/api/content/v3/users?id=${userIds.join(',')}&includeDetails=true`);
+      if (!response.ok) return [];
+      const users = await response.json();
+      if (!Array.isArray(users)) return [];
+      const inactiveIds = new Set(
+        users.filter((user) => user?.detail?.active === false).map((user) => String(user.id))
+      );
+      return userIds.filter((id) => inactiveIds.has(String(id)));
+    },
+    [userIds],
     tabId
   );
 }
@@ -235,10 +274,12 @@ export async function getUserDetails(userId, tabId = null) {
 }
 
 /**
- * Get the group IDs the given user belongs to.
+ * Get the groups the given user belongs to, with type and name information.
+ * Type values seen from Domo: 'closed', 'open', 'adhoc', 'dynamic', 'system'.
+ * Callers that only need the ID list should map: `.map((g) => g.groupId)`.
  * @param {number|string} userId - The user ID
  * @param {number|null} tabId - The tab ID to execute in (optional)
- * @returns {Promise<string[]>} Array of group ID strings
+ * @returns {Promise<Array<{groupId: string, groupType: string|null, name: string}>>}
  */
 export async function getUserGroups(userId, tabId = null) {
   return executeInPage(
@@ -248,7 +289,11 @@ export async function getUserGroups(userId, tabId = null) {
       );
       if (!response.ok) return [];
       const data = await response.json();
-      return (data || []).map((g) => String(g.groupId));
+      return (data || []).map((g) => ({
+        groupId: String(g.groupId),
+        groupType: g.groupType ?? null,
+        name: g.name ?? `Group ${g.groupId}`
+      }));
     },
     [userId],
     tabId
@@ -283,9 +328,7 @@ export async function getUserName(userId, tabId = null) {
 export async function getUserReportsTo(userId, tabId = null) {
   return executeInPage(
     async (userId) => {
-      const response = await fetch(
-        `/api/content/v2/users/${userId}/teams`
-      );
+      const response = await fetch(`/api/content/v2/users/${userId}/teams`);
       if (!response.ok) return null;
       const data = await response.json();
       return data.reportsTo?.[0]?.userId ?? null;

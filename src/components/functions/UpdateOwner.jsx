@@ -15,6 +15,13 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
   const { showPromiseStatus } = useStatusBar();
   const [currentUserId, setCurrentUserId] = useState(null);
   const [isOpen, setIsOpen] = useState(false);
+  const [selectedOwnerId, setSelectedOwnerId] = useState(null);
+
+  // Clear the picked owner each time the modal opens so a stale selection from
+  // a previous session can't leak into the next attempt.
+  useEffect(() => {
+    if (isOpen) setSelectedOwnerId(null);
+  }, [isOpen]);
 
   // Set current user ID from context when modal opens
   useEffect(() => {
@@ -54,9 +61,7 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    console.log('Submitted value:', formData.get('owner')); // Will be the selected owner ID
-    await submitOwnerUpdate(formData.get('owner'));
+    await submitOwnerUpdate(selectedOwnerId);
   };
 
   const handleSetToSelf = async () => {
@@ -65,23 +70,19 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
 
   return (
     <Modal isOpen={isOpen} onOpenChange={setIsOpen}>
-      <Tooltip closeDelay={100} delay={600}>
+      <Tooltip>
         <Button
           fullWidth
           className='min-w-36 flex-1 whitespace-normal'
           variant='tertiary'
           isDisabled={
-            currentContext?.domoObject.typeId !== 'ALERT' &&
-            currentContext?.domoObject.typeId !== 'WORKFLOW_MODEL'
+            currentContext?.domoObject.typeId !== 'ALERT' && currentContext?.domoObject.typeId !== 'WORKFLOW_MODEL'
           }
         >
           <IconPencilBox />
           Update Owner
         </Button>
-        <Tooltip.Content
-          className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
-          offset={4}
-        >
+        <Tooltip.Content className='max-w-60' offset={4}>
           Update {currentContext?.domoObject.typeName} owner
         </Tooltip.Content>
       </Tooltip>
@@ -93,9 +94,7 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
             </Modal.CloseTrigger>
             <Form id='update-owner-form' onSubmit={handleSubmit}>
               <Modal.Header>
-                <Modal.Heading>
-                  {/* Update {currentContext?.domoObject.typeName} Owner */}
-                </Modal.Heading>
+                <Modal.Heading>{/* Update {currentContext?.domoObject.typeName} Owner */}</Modal.Heading>
               </Modal.Header>
               <Modal.Body className='flex justify-center'>
                 <UserComboBox
@@ -103,19 +102,17 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
                   isRequired
                   avatarBaseUrl={currentContext?.domoObject?.baseUrl}
                   className='w-[95%]'
-                  defaultInputValue={null}
-                  form='update-owner-form'
-                  formValue='key'
                   isActive={isOpen}
                   label='Owner'
                   maxListHeight={isSidepanel() ? 'max-h-100' : 'max-h-30'}
                   menuTrigger='input'
-                  name='owner'
+                  selectedKey={selectedOwnerId}
                   tabId={currentContext?.tabId}
+                  onSelectionChange={setSelectedOwnerId}
                 />
               </Modal.Body>
               <Modal.Footer className='flex items-center justify-between'>
-                <Tooltip closeDelay={0} delay={200}>
+                <Tooltip delay={200}>
                   <Button
                     isIconOnly
                     isDisabled={isSubmitting || !currentUserId}
@@ -125,10 +122,7 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
                   >
                     <IconPerson />
                   </Button>
-                  <Tooltip.Content
-                    className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
-                    offset={4}
-                  >
+                  <Tooltip.Content className='max-w-60' offset={4}>
                     Update owner to yourself
                   </Tooltip.Content>
                 </Tooltip>
@@ -136,7 +130,7 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
                   <Button isDisabled={isSubmitting} size='sm' slot='close' variant='tertiary'>
                     Cancel
                   </Button>
-                  <Button isDisabled={isSubmitting} size='sm' type='submit' variant='primary'>
+                  <Button isDisabled={isSubmitting || !selectedOwnerId} size='sm' type='submit' variant='primary'>
                     Save
                   </Button>
                 </div>

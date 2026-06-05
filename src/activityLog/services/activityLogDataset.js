@@ -124,14 +124,10 @@ export async function getActivityLogFromDataset({
       ]);
 
       if (!countResp.ok) {
-        throw new Error(
-          `Failed to fetch activity log count from dataset. HTTP status: ${countResp.status}`
-        );
+        throw new Error(`Failed to fetch activity log count from dataset. HTTP status: ${countResp.status}`);
       }
       if (!pageResp.ok) {
-        throw new Error(
-          `Failed to fetch activity log events from dataset. HTTP status: ${pageResp.status}`
-        );
+        throw new Error(`Failed to fetch activity log events from dataset. HTTP status: ${pageResp.status}`);
       }
 
       const countData = await countResp.json();
@@ -142,16 +138,7 @@ export async function getActivityLogFromDataset({
         total: parseInt(countData.rows?.[0]?.[0] ?? 0, 10) || 0
       };
     },
-    [
-      datasetId,
-      ACTIVITY_LOG_DATASET_COLUMNS,
-      where,
-      QUERY_CONTEXT,
-      COUNT_QUERY_CONTEXT,
-      limit,
-      offset,
-      order
-    ],
+    [datasetId, ACTIVITY_LOG_DATASET_COLUMNS, where, QUERY_CONTEXT, COUNT_QUERY_CONTEXT, limit, offset, order],
     tabId
   );
 

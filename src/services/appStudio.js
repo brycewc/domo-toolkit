@@ -47,9 +47,7 @@ export async function getFormsForPage({ formWidgetIds, tabId = null }) {
         formWidgetIds.map(async (widgetId) => {
           try {
             // Step 1: Resolve widget to workflow model and form ID
-            const widgetResponse = await fetch(
-              `/api/workflow/v1/models/widget/${widgetId}`
-            );
+            const widgetResponse = await fetch(`/api/workflow/v1/models/widget/${widgetId}`);
             if (!widgetResponse.ok) return null;
             const widget = await widgetResponse.json();
 
@@ -194,18 +192,15 @@ export async function getUserOwnedWorksheets(userId, tabId = null) {
 export async function shareStudioApp({ appId, tabId = null, userId }) {
   return executeInPage(
     async (appId, userId) => {
-      const response = await fetch(
-        '/api/content/v1/dataapps/share?sendEmail=false',
-        {
-          body: JSON.stringify({
-            dataAppIds: [appId],
-            message: 'I thought you might find this interesting.',
-            recipients: [{ id: userId, type: 'user' }]
-          }),
-          headers: { 'Content-Type': 'application/json' },
-          method: 'POST'
-        }
-      );
+      const response = await fetch('/api/content/v1/dataapps/share?sendEmail=false', {
+        body: JSON.stringify({
+          dataAppIds: [appId],
+          message: 'I thought you might find this interesting.',
+          recipients: [{ id: userId, type: 'user' }]
+        }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST'
+      });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
     },
     [appId, userId],
@@ -221,12 +216,7 @@ export async function shareStudioApp({ appId, tabId = null, userId }) {
  * @param {number|null} tabId - Optional Chrome tab ID
  * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
  */
-export async function transferAppStudioApps(
-  appIds,
-  fromUserId,
-  toUserId,
-  tabId = null
-) {
+export async function transferAppStudioApps(appIds, fromUserId, toUserId, tabId = null) {
   return transferDataApps(appIds, fromUserId, toUserId, tabId);
 }
 
@@ -238,12 +228,7 @@ export async function transferAppStudioApps(
  * @param {number|null} tabId - Optional Chrome tab ID
  * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
  */
-export async function transferWorksheets(
-  worksheetIds,
-  fromUserId,
-  toUserId,
-  tabId = null
-) {
+export async function transferWorksheets(worksheetIds, fromUserId, toUserId, tabId = null) {
   return transferDataApps(worksheetIds, fromUserId, toUserId, tabId);
 }
 
@@ -265,22 +250,19 @@ function fetchOwnedDataApps(userId, type, tabId) {
       let moreData = true;
 
       while (moreData) {
-        const response = await fetch(
-          `/api/content/v1/dataapps/adminsummary?limit=${limit}&skip=${skip}`,
-          {
-            body: JSON.stringify({
-              ascending: true,
-              includeOwnerClause: true,
-              includeTitleClause: true,
-              orderBy: 'title',
-              ownerIds: [userId],
-              titleSearchText: '',
-              type
-            }),
-            headers: { 'Content-Type': 'application/json' },
-            method: 'POST'
-          }
-        );
+        const response = await fetch(`/api/content/v1/dataapps/adminsummary?limit=${limit}&skip=${skip}`, {
+          body: JSON.stringify({
+            ascending: true,
+            includeOwnerClause: true,
+            includeTitleClause: true,
+            orderBy: 'title',
+            ownerIds: [userId],
+            titleSearchText: '',
+            type
+          }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
 
@@ -388,35 +370,28 @@ function transferDataApps(ids, fromUserId, toUserId, tabId) {
     async (ids, fromUserId, toUserId) => {
       try {
         // Add new owner
-        const addResponse = await fetch(
-          '/api/content/v1/dataapps/bulk/owners',
-          {
-            body: JSON.stringify({
-              entityIds: ids,
-              note: '',
-              owners: [{ id: parseInt(toUserId), type: 'USER' }],
-              sendEmail: false
-            }),
-            headers: { 'Content-Type': 'application/json' },
-            method: 'PUT'
-          }
-        );
+        const addResponse = await fetch('/api/content/v1/dataapps/bulk/owners', {
+          body: JSON.stringify({
+            entityIds: ids,
+            note: '',
+            owners: [{ id: parseInt(toUserId), type: 'USER' }],
+            sendEmail: false
+          }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'PUT'
+        });
         if (!addResponse.ok) throw new Error(`HTTP ${addResponse.status}`);
 
         // Remove old owner
-        const removeResponse = await fetch(
-          '/api/content/v1/dataapps/bulk/owners/remove',
-          {
-            body: JSON.stringify({
-              entityIds: ids,
-              owners: [{ id: fromUserId, type: 'USER' }]
-            }),
-            headers: { 'Content-Type': 'application/json' },
-            method: 'POST'
-          }
-        );
-        if (!removeResponse.ok)
-          throw new Error(`HTTP ${removeResponse.status}`);
+        const removeResponse = await fetch('/api/content/v1/dataapps/bulk/owners/remove', {
+          body: JSON.stringify({
+            entityIds: ids,
+            owners: [{ id: fromUserId, type: 'USER' }]
+          }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        });
+        if (!removeResponse.ok) throw new Error(`HTTP ${removeResponse.status}`);
 
         return { errors: [], failed: 0, succeeded: ids.length };
       } catch (error) {

@@ -68,7 +68,7 @@ import IconVector from '@icons/vector.svg?react';
 import IconWrench from '@icons/wrench.svg?react';
 import IconX from '@icons/x.svg?react';
 
-import { parseDataflow, searchTiles } from '../services';
+import { parseDataflow, searchTiles } from '../services/dataflowParser';
 
 const CATEGORY_COLORS = {
   'Aggregate': { bg: 'bg-pink-500', text: 'text-pink-500' },
@@ -237,7 +237,7 @@ export function DataflowInspector({ cacheRef, dataflowId, onClose, resolveTabId 
       <Card className='border-divider h-full rounded-none border-l p-0 shadow-none'>
         <Card.Header className='border-divider flex-row items-center justify-between border-b px-4 py-3'>
           <span className='font-semibold'>Loading ETL...</span>
-          <Tooltip closeDelay={0} delay={400}>
+          <Tooltip>
             <Button isIconOnly size='sm' variant='tertiary' onPress={onClose}>
               <IconX />
             </Button>
@@ -256,7 +256,7 @@ export function DataflowInspector({ cacheRef, dataflowId, onClose, resolveTabId 
       <Card className='border-divider h-full rounded-none border-l p-0 shadow-none'>
         <Card.Header className='border-divider flex-row items-center justify-between border-b px-4 py-3'>
           <span className='font-semibold'>ETL Inspector</span>
-          <Tooltip closeDelay={0} delay={400}>
+          <Tooltip>
             <Button isIconOnly size='sm' variant='tertiary' onPress={onClose}>
               <IconX />
             </Button>
@@ -276,14 +276,11 @@ export function DataflowInspector({ cacheRef, dataflowId, onClose, resolveTabId 
         <div className='flex items-center justify-between'>
           <div className='flex min-w-0 items-center gap-2'>
             <IconDataflow className='size-4 shrink-0' />
-            <span
-              className='truncate font-semibold'
-              title={`${dataflow.name} (ID: ${dataflow.id})`}
-            >
+            <span className='truncate font-semibold' title={`${dataflow.name} (ID: ${dataflow.id})`}>
               {dataflow.name}
             </span>
           </div>
-          <Tooltip closeDelay={0} delay={400}>
+          <Tooltip>
             <Button isIconOnly size='sm' variant='tertiary' onPress={onClose}>
               <IconX />
             </Button>
@@ -316,13 +313,7 @@ export function DataflowInspector({ cacheRef, dataflowId, onClose, resolveTabId 
         </Tabs.ListContainer>
         <Tabs.Panel className='flex min-h-0 flex-1 flex-col overflow-hidden p-0' id='tiles'>
           <div className='border-divider shrink-0 border-b p-2'>
-            <SearchField
-              fullWidth
-              aria-label='Search tiles'
-              value={tileSearch}
-              variant='secondary'
-              onChange={setTileSearch}
-            >
+            <SearchField fullWidth aria-label='Search tiles' value={tileSearch} variant='secondary' onChange={setTileSearch}>
               <SearchField.Group>
                 <SearchField.SearchIcon />
                 <SearchField.Input placeholder='Search tiles (column, expression, value...)' />
@@ -345,11 +336,7 @@ export function DataflowInspector({ cacheRef, dataflowId, onClose, resolveTabId 
               <DisclosureGroup className='w-full'>
                 {flatRows.map((row) =>
                   row.type === 'header' ? (
-                    <CategoryHeader
-                      category={row.category}
-                      count={row.count}
-                      key={`h-${row.category}`}
-                    />
+                    <CategoryHeader category={row.category} count={row.count} key={`h-${row.category}`} />
                   ) : (
                     <div className='mb-1.5' key={row.tile.id}>
                       <TileDetail searchQuery={tileSearch || undefined} tile={row.tile} />
@@ -370,27 +357,15 @@ export function DataflowInspector({ cacheRef, dataflowId, onClose, resolveTabId 
                 collapsed={1}
                 collapseStringMode='word'
                 collapseStringsAfterLength={80}
+                customizeCopy={(node) => (typeof node === 'object' ? JSON.stringify(node, null, 2) : String(node))}
                 matchesURL={false}
                 src={rawJSON}
                 CopiedComponent={({ className, style }) => (
-                  <AnimatedCheck
-                    className={className + ' text-success'}
-                    size={16}
-                    stroke={1.5}
-                    style={style}
-                  />
+                  <AnimatedCheck className={className + ' text-success'} size={16} stroke={1.5} style={style} />
                 )}
                 CopyComponent={({ className, onClick, style }) => (
-                  <IconClipboardCopy
-                    className={className}
-                    size={16}
-                    style={style}
-                    onClick={onClick}
-                  />
+                  <IconClipboardCopy className={className} size={16} style={style} onClick={onClick} />
                 )}
-                customizeCopy={(node) =>
-                  typeof node === 'object' ? JSON.stringify(node, null, 2) : String(node)
-                }
                 customizeNode={(params) => {
                   if (params.node === null || params.node === undefined) {
                     return { enableClipboard: false };
@@ -564,9 +539,7 @@ const TileDetail = memo(function TileDetail({ searchQuery, tile }) {
           {tile.outputDataset && (
             <DetailSection label='Output DataSet'>
               <DetailMono>{tile.outputDataset}</DetailMono>
-              {tile.rawDetails.updateMode && (
-                <DetailMono>Mode: {tile.rawDetails.updateMode}</DetailMono>
-              )}
+              {tile.rawDetails.updateMode && <DetailMono>Mode: {tile.rawDetails.updateMode}</DetailMono>}
             </DetailSection>
           )}
 
@@ -584,9 +557,7 @@ const TileDetail = memo(function TileDetail({ searchQuery, tile }) {
           {tile.filters.length > 0 && (
             <DetailSection label='Filters'>
               {tile.filters.map((f, i) => (
-                <DetailMono key={i}>
-                  {highlightMatch(`${f.field} ${f.operator} ${f.value}`, searchQuery)}
-                </DetailMono>
+                <DetailMono key={i}>{highlightMatch(`${f.field} ${f.operator} ${f.value}`, searchQuery)}</DetailMono>
               ))}
             </DetailSection>
           )}
@@ -595,8 +566,7 @@ const TileDetail = memo(function TileDetail({ searchQuery, tile }) {
             <DetailSection label='Join Keys'>
               {tile.joins.map((j, i) => (
                 <DetailMono key={i}>
-                  {highlightMatch(j.leftKey, searchQuery)} ={' '}
-                  {highlightMatch(j.rightKey, searchQuery)}
+                  {highlightMatch(j.leftKey, searchQuery)} = {highlightMatch(j.rightKey, searchQuery)}
                   <span className='ml-2 text-muted'>({j.joinType})</span>
                 </DetailMono>
               ))}
@@ -608,9 +578,7 @@ const TileDetail = memo(function TileDetail({ searchQuery, tile }) {
               {tile.expressions.map((e, i) => (
                 <div className='border-divider rounded border bg-surface p-2 text-xs' key={i}>
                   <div className='font-semibold'>{highlightMatch(e.resultField, searchQuery)}</div>
-                  <div className='font-mono break-all'>
-                    {highlightMatch(e.expression, searchQuery)}
-                  </div>
+                  <div className='font-mono break-all'>{highlightMatch(e.expression, searchQuery)}</div>
                 </div>
               ))}
             </DetailSection>
@@ -621,9 +589,7 @@ const TileDetail = memo(function TileDetail({ searchQuery, tile }) {
               {tile.rawDetails.aggregates.map((a, i) => (
                 <div className='border-divider rounded border bg-surface p-2 text-xs' key={i}>
                   <div className='font-semibold'>{highlightMatch(a.field, searchQuery)}</div>
-                  <div className='font-mono break-all text-muted'>
-                    {highlightMatch(a.expression, searchQuery)}
-                  </div>
+                  <div className='font-mono break-all text-muted'>{highlightMatch(a.expression, searchQuery)}</div>
                 </div>
               ))}
             </DetailSection>
@@ -653,9 +619,7 @@ const TileDetail = memo(function TileDetail({ searchQuery, tile }) {
 
           {tile.rawDetails.fieldValue != null && (
             <DetailSection label='Value'>
-              <DetailMono>
-                {highlightMatch(String(tile.rawDetails.fieldValue), searchQuery)}
-              </DetailMono>
+              <DetailMono>{highlightMatch(String(tile.rawDetails.fieldValue), searchQuery)}</DetailMono>
             </DetailSection>
           )}
 
@@ -682,10 +646,7 @@ const TileDetail = memo(function TileDetail({ searchQuery, tile }) {
           {tile.sql.length > 0 && (
             <DetailSection label='SQL'>
               {tile.sql.map((s, i) => (
-                <pre
-                  className='border-divider overflow-x-auto rounded border bg-surface p-2 font-mono text-xs'
-                  key={i}
-                >
+                <pre className='border-divider overflow-x-auto rounded border bg-surface p-2 font-mono text-xs' key={i}>
                   {highlightMatch(typeof s === 'string' ? s : s.query, searchQuery)}
                 </pre>
               ))}
@@ -713,9 +674,7 @@ const TileDetail = memo(function TileDetail({ searchQuery, tile }) {
 });
 
 function DetailMono({ children }) {
-  return (
-    <div className='border-divider rounded border bg-surface p-2 font-mono text-xs'>{children}</div>
-  );
+  return <div className='border-divider rounded border bg-surface p-2 font-mono text-xs'>{children}</div>;
 }
 
 function DetailSection({ children, label }) {
@@ -744,10 +703,7 @@ function TileConfig({ rawDetails }) {
   return (
     <DetailSection label='Configuration'>
       {entries.map(([label, value], i) => (
-        <div
-          className='border-divider flex items-center justify-between rounded border bg-surface p-2 text-xs'
-          key={i}
-        >
+        <div className='border-divider flex items-center justify-between rounded border bg-surface p-2 text-xs' key={i}>
           <span className='font-semibold'>{label}</span>
           <span className='font-mono text-muted'>{value}</span>
         </div>

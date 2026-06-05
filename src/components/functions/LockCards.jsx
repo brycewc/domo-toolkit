@@ -5,13 +5,7 @@ import { getCardsForObject, lockCards } from '@/services/cards';
 import { waitForCards } from '@/utils/cardHelpers';
 import IconLockClosed from '@icons/lock-closed.svg?react';
 
-const VALID_TYPES = [
-  'DATA_APP_VIEW',
-  'DATA_SOURCE',
-  'PAGE',
-  'REPORT_BUILDER_VIEW',
-  'WORKSHEET_VIEW'
-];
+const VALID_TYPES = ['DATA_APP_VIEW', 'DATA_SOURCE', 'PAGE', 'REPORT_BUILDER_VIEW', 'WORKSHEET_VIEW'];
 
 const PRE_FETCHED_TYPES = ['DATA_APP_VIEW', 'DATA_SOURCE', 'PAGE', 'WORKSHEET_VIEW'];
 
@@ -27,11 +21,7 @@ export function LockCards({ currentContext, isDisabled }) {
     const objectType = currentContext.domoObject.typeId;
 
     if (!VALID_TYPES.includes(objectType)) {
-      showStatus(
-        'Invalid Object Type',
-        `This function does not support ${currentContext.domoObject.typeName}.`,
-        'danger'
-      );
+      showStatus('Invalid Object Type', `This function does not support ${currentContext.domoObject.typeName}.`, 'danger');
       return;
     }
 
@@ -67,7 +57,7 @@ export function LockCards({ currentContext, isDisabled }) {
   };
 
   return (
-    <Tooltip closeDelay={100} delay={600}>
+    <Tooltip>
       <Button
         fullWidth
         className='min-w-36 flex-1 whitespace-normal'
@@ -78,10 +68,7 @@ export function LockCards({ currentContext, isDisabled }) {
         <IconLockClosed />
         Lock Cards
       </Button>
-      <Tooltip.Content
-        className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
-        offset={4}
-      >
+      <Tooltip.Content className='max-w-40' offset={4}>
         Lock all cards on this object from being edited
       </Tooltip.Content>
     </Tooltip>

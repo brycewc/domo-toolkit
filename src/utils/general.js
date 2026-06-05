@@ -4,15 +4,7 @@ export function JsonStringifyOrder(obj, space) {
   return JSON.stringify(obj, Array.from(allKeys).sort(), space);
 }
 
-const DATE_KEYWORDS_LOWER = [
-  'date',
-  'created',
-  'modified',
-  'updated',
-  'time',
-  'timestamp',
-  'last'
-];
+const DATE_KEYWORDS_LOWER = ['date', 'created', 'modified', 'updated', 'time', 'timestamp', 'last'];
 const DATE_KEYWORDS_CASE_SENSITIVE = ['At'];
 
 export function formatEpochTimestamp(value) {
@@ -39,8 +31,7 @@ export function isDateFieldName(fieldName) {
   if (isUserFieldName(fieldName)) return false;
   const lower = fieldName.toLowerCase();
   return (
-    DATE_KEYWORDS_LOWER.some((kw) => lower.includes(kw)) ||
-    DATE_KEYWORDS_CASE_SENSITIVE.some((kw) => fieldName.includes(kw))
+    DATE_KEYWORDS_LOWER.some((kw) => lower.includes(kw)) || DATE_KEYWORDS_CASE_SENSITIVE.some((kw) => fieldName.includes(kw))
   );
 }
 
@@ -68,9 +59,7 @@ export function extractGroupIds(obj) {
       }
     }
 
-    const isGroupByType = GROUP_TYPE_DISCRIMINATORS.some((disc) =>
-      GROUP_TYPE_VALUES.has(node[disc])
-    );
+    const isGroupByType = GROUP_TYPE_DISCRIMINATORS.some((disc) => GROUP_TYPE_VALUES.has(node[disc]));
     if (isGroupByType) {
       for (const idField of ['id', 'memberId']) {
         if (idField in node && isValidEntityId(node[idField])) {
@@ -89,10 +78,7 @@ export function extractGroupIds(obj) {
   function collectIds(value) {
     if (value === null || value === undefined) return;
 
-    if (
-      (typeof value === 'number' || typeof value === 'string') &&
-      isValidEntityId(value)
-    ) {
+    if ((typeof value === 'number' || typeof value === 'string') && isValidEntityId(value)) {
       groupIds.add(Number(value));
       return;
     }
@@ -149,10 +135,7 @@ export function extractUserIds(obj) {
   function collectIds(value) {
     if (value === null || value === undefined) return;
 
-    if (
-      (typeof value === 'number' || typeof value === 'string') &&
-      isValidEntityId(value)
-    ) {
+    if ((typeof value === 'number' || typeof value === 'string') && isValidEntityId(value)) {
       userIds.add(Number(value));
       return;
     }
@@ -192,8 +175,7 @@ export function isUserFieldName(fieldName) {
   if (typeof fieldName !== 'string') return false;
   const lower = fieldName.toLowerCase();
   return (
-    USER_KEYWORDS_LOWER.some((kw) => lower.includes(kw)) ||
-    USER_KEYWORDS_CASE_SENSITIVE.some((kw) => fieldName.includes(kw))
+    USER_KEYWORDS_LOWER.some((kw) => lower.includes(kw)) || USER_KEYWORDS_CASE_SENSITIVE.some((kw) => fieldName.includes(kw))
   );
 }
 

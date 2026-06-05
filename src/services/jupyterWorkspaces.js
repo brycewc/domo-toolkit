@@ -15,20 +15,17 @@ export async function getOwnedJupyterWorkspaces(userId, tabId = null) {
       let offset = 0;
 
       while (moreData) {
-        const response = await fetch(
-          '/api/datascience/v1/search/workspaces',
-          {
-            body: JSON.stringify({
-              filters: [{ type: 'OWNER', values: [userId] }],
-              limit,
-              offset,
-              searchFieldMap: {},
-              sortFieldMap: { LAST_RUN: 'DESC' }
-            }),
-            headers: { 'Content-Type': 'application/json' },
-            method: 'POST'
-          }
-        );
+        const response = await fetch('/api/datascience/v1/search/workspaces', {
+          body: JSON.stringify({
+            filters: [{ type: 'OWNER', values: [userId] }],
+            limit,
+            offset,
+            searchFieldMap: {},
+            sortFieldMap: { LAST_RUN: 'DESC' }
+          }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
 
@@ -61,12 +58,7 @@ export async function getOwnedJupyterWorkspaces(userId, tabId = null) {
  * @param {number|null} tabId - Optional Chrome tab ID
  * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
  */
-export async function transferJupyterWorkspaces(
-  workspaceIds,
-  fromUserId,
-  toUserId,
-  tabId = null
-) {
+export async function transferJupyterWorkspaces(workspaceIds, fromUserId, toUserId, tabId = null) {
   return executeInPage(
     async (workspaceIds, fromUserId, toUserId) => {
       const errors = [];
@@ -74,14 +66,11 @@ export async function transferJupyterWorkspaces(
 
       for (const id of workspaceIds) {
         try {
-          const response = await fetch(
-            `/api/datascience/v1/workspaces/${id}/ownership`,
-            {
-              body: JSON.stringify({ newOwnerId: toUserId }),
-              headers: { 'Content-Type': 'application/json' },
-              method: 'PUT'
-            }
-          );
+          const response = await fetch(`/api/datascience/v1/workspaces/${id}/ownership`, {
+            body: JSON.stringify({ newOwnerId: toUserId }),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'PUT'
+          });
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           succeeded++;
         } catch (error) {

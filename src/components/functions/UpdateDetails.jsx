@@ -1,7 +1,7 @@
 import { Button, Tooltip } from '@heroui/react';
 
-import { ObjectTypeIcon } from '@/components/ObjectTypeIcon';
 import { useLaunchView } from '@/hooks/useLaunchView';
+import IconPencil from '@icons/pencil.svg?react';
 
 // Per-type tooltip describing what fields the Update Details view edits.
 // Falls back to a generic message for any type without an entry here.
@@ -18,7 +18,7 @@ export function UpdateDetails({ currentContext, onStatusUpdate }) {
   const tooltip = TOOLTIPS_BY_TYPE[typeId] || `Edit this ${typeName.toLowerCase()}'s details`;
 
   return (
-    <Tooltip closeDelay={100} delay={600}>
+    <Tooltip>
       <Button
         fullWidth
         className='min-w-36 flex-1 whitespace-normal'
@@ -32,13 +32,10 @@ export function UpdateDetails({ currentContext, onStatusUpdate }) {
           })
         }
       >
-        <ObjectTypeIcon typeId={typeId} />
+        <IconPencil />
         {label}
       </Button>
-      <Tooltip.Content
-        className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'
-        offset={4}
-      >
+      <Tooltip.Content className='max-w-60' offset={4}>
         {tooltip}
       </Tooltip.Content>
     </Tooltip>

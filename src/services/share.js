@@ -10,8 +10,7 @@ import { sharePages } from './pages';
  * Full permission bundle granted to AppDB collections when sharing a DomoApp
  * card with a user — mirrors what the Domo UI grants when you share a card.
  */
-const FULL_COLLECTION_PERMS =
-  'ADMIN,SHARE,DELETE,WRITE,READ,READ_CONTENT,CREATE_CONTENT,UPDATE_CONTENT,DELETE_CONTENT';
+const FULL_COLLECTION_PERMS = 'ADMIN,SHARE,DELETE,WRITE,READ,READ_CONTENT,CREATE_CONTENT,UPDATE_CONTENT,DELETE_CONTENT';
 
 /**
  * Share a batch of resources with a set of recipients via the generic
@@ -28,21 +27,15 @@ const FULL_COLLECTION_PERMS =
  * @param {number|null} [tabId]
  * @returns {Promise<boolean>} true on success
  */
-export async function shareContent(
-  { message = '', recipients, resources, sendEmail = false },
-  tabId = null
-) {
+export async function shareContent({ message = '', recipients, resources, sendEmail = false }, tabId = null) {
   if (!resources?.length || !recipients?.length) return true;
   return executeInPage(
     async (resources, recipients, message, sendEmail) => {
-      const response = await fetch(
-        `/api/content/v1/share?sendEmail=${sendEmail}`,
-        {
-          body: JSON.stringify({ message, recipients, resources }),
-          headers: { 'Content-Type': 'application/json' },
-          method: 'POST'
-        }
-      );
+      const response = await fetch(`/api/content/v1/share?sendEmail=${sendEmail}`, {
+        body: JSON.stringify({ message, recipients, resources }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST'
+      });
       return response.ok;
     },
     [resources, recipients, message, sendEmail],
@@ -66,12 +59,7 @@ export async function shareContent(
  * @param {Function} [params.setStatus] - Optional (title, description, level) callback
  * @param {number|null} [params.tabId] - Optional Chrome tab ID
  */
-export async function shareWithSelf({
-  object,
-  setStatus,
-  tabId = null,
-  userId
-}) {
+export async function shareWithSelf({ object, setStatus, tabId = null, userId }) {
   try {
     if (!object || !object.typeId || !object.id) {
       throw new Error('Invalid object provided');
@@ -143,19 +131,13 @@ async function shareForType({ object, tabId, userId }) {
 
     case 'DATA_SOURCE': {
       if (object.metadata?.details?.type === 'dataflow') {
-        throw new Error(
-          'DataSet is a DataFlow output and does not have an account to share'
-        );
+        throw new Error('DataSet is a DataFlow output and does not have an account to share');
       }
       const accountIds = getAccountIdsForDomoObject(object);
       if (accountIds.length === 0) {
         throw new Error('DataSet account information not found');
       }
-      await Promise.all(
-        accountIds.map((accountId) =>
-          shareAccount({ accountId, tabId, userId })
-        )
-      );
+      await Promise.all(accountIds.map((accountId) => shareAccount({ accountId, tabId, userId })));
       if (accountIds.length === 1) {
         return `Account ${accountIds[0]} shared successfully`;
       }

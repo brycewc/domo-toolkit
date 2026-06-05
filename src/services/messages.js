@@ -33,14 +33,10 @@ export async function sendEmail(
   tabId = null
 ) {
   if (!recipientEmails && recipientsUserIds.length === 0 && recipientsGroupIds.length === 0) {
-    throw new Error(
-      'sendEmail requires at least one of recipientEmails, recipientsUserIds, or recipientsGroupIds'
-    );
+    throw new Error('sendEmail requires at least one of recipientEmails, recipientsUserIds, or recipientsGroupIds');
   }
 
-  const emailsParam = Array.isArray(recipientEmails)
-    ? recipientEmails.join(',')
-    : recipientEmails || '';
+  const emailsParam = Array.isArray(recipientEmails) ? recipientEmails.join(',') : recipientEmails || '';
 
   return executeInPage(
     async (payload, emailsParam) => {

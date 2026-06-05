@@ -150,15 +150,12 @@ export async function enrichMetadata(lineageResponse, tabId = null, existingKeys
     return await executeInPage(
       async (ids) => {
         try {
-          const response = await fetch(
-            '/api/data/v3/datasources/bulk?part=core,rowcolcount',
-            {
-              body: JSON.stringify(ids),
-              credentials: 'include',
-              headers: { 'Content-Type': 'application/json' },
-              method: 'POST'
-            }
-          );
+          const response = await fetch('/api/data/v3/datasources/bulk?part=core,rowcolcount', {
+            body: JSON.stringify(ids),
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            method: 'POST'
+          });
           if (response.ok) {
             const data = await response.json();
             return (data.dataSources || []).map((ds) => ({
@@ -182,10 +179,10 @@ export async function enrichMetadata(lineageResponse, tabId = null, existingKeys
     return await executeInPage(
       async (ids) => {
         try {
-          const response = await fetch(
-            `/api/dataprocessing/v2/dataflows?dataFlowId=${ids.join(',')}`,
-            { credentials: 'include', method: 'GET' }
-          );
+          const response = await fetch(`/api/dataprocessing/v2/dataflows?dataFlowId=${ids.join(',')}`, {
+            credentials: 'include',
+            method: 'GET'
+          });
           if (response.ok) {
             const data = await response.json();
             return (data.onboardFlows || []).map((df) => ({
@@ -295,9 +292,7 @@ function mergeLineageResponses(upResponse, downResponse) {
     const existing = merged[key];
 
     if (entity.parents?.length) {
-      const seen = new Set(
-        (existing.parents || []).map((p) => `${p.type}${p.id}`)
-      );
+      const seen = new Set((existing.parents || []).map((p) => `${p.type}${p.id}`));
       for (const parent of entity.parents) {
         if (!seen.has(`${parent.type}${parent.id}`)) {
           (existing.parents ??= []).push(parent);
@@ -306,9 +301,7 @@ function mergeLineageResponses(upResponse, downResponse) {
     }
 
     if (entity.children?.length) {
-      const seen = new Set(
-        (existing.children || []).map((c) => `${c.type}${c.id}`)
-      );
+      const seen = new Set((existing.children || []).map((c) => `${c.type}${c.id}`));
       for (const child of entity.children) {
         if (!seen.has(`${child.type}${child.id}`)) {
           (existing.children ??= []).push(child);

@@ -286,3 +286,5 @@ table td { border: 1px solid var(--minima-table-border-color); }
 /** Grid helpers */
 @media screen and (min-width: 1000px) { .one-half { width: calc(50% - (20px / 2)); } }
 h2 { padding-bottom: 0.3em; font-size: 1.5em; border-bottom: 1px solid #eaecef; }
+
+.post-header .post-title, .home > .page-heading { display: none; }

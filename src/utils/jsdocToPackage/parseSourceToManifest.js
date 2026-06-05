@@ -5,28 +5,7 @@ import { parseJSDoc } from './parseJSDoc';
 import { reconcileSignatures } from './reconcileSignatures';
 import { applyJSDocRewrites } from './rewriteJSDoc';
 
-export { buildManifestFunctions } from './buildManifestFunctions';
-export { deriveDisplayName } from './displayName';
-export {
-  computeStructuralDiff,
-  diffFunctions,
-  findCurrentVersionInfo,
-  findLatestVersion,
-  findLatestVersionInfo,
-  findVersionForBaseline,
-  incrementPatch,
-  isVersionReleased,
-  mergeManifestFunctions,
-  preparePackagePayload,
-  resolveTargetVersion
-} from './mergeManifest';
-export { parseFunctionSignatures } from './parseFunctionSignatures';
-export { parseJSDoc } from './parseJSDoc';
-export { evaluateJSDocDefault, reconcileSignatures, serializeJSDocDefault } from './reconcileSignatures';
-export { applyJSDocRewrites } from './rewriteJSDoc';
-export { mapJSDocType, PRIMITIVE_TYPES } from './typeMap';
-
-export function parseSourceToManifest(source, existingFunctions = []) {
+export function parseSourceToManifest(source, existingFunctions = [], editorStartIndices = {}) {
   const allWarnings = [];
 
   const { functionDocs, typedefs } = parseJSDoc(source);
@@ -43,6 +22,7 @@ export function parseSourceToManifest(source, existingFunctions = []) {
   const reconciledSource = applyJSDocRewrites(source, reconciled.jsdocRewrites);
 
   const built = buildManifestFunctions({
+    editorStartIndices,
     reconciledDocs: reconciled.reconciledDocs,
     typedefs
   });

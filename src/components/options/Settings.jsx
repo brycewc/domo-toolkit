@@ -1,15 +1,4 @@
-import {
-  Button,
-  Description,
-  Form,
-  Input,
-  Label,
-  ListBox,
-  Select,
-  Separator,
-  Switch,
-  TextField
-} from '@heroui/react';
+import { Button, Description, Form, Input, Label, ListBox, Select, Separator, Switch, TextField } from '@heroui/react';
 import { toast } from '@heroui/react';
 import { useEffect, useState } from 'react';
 
@@ -32,11 +21,7 @@ const TRACKED_KEYS = Object.keys(DEFAULT_SETTINGS);
 export function Settings() {
   const [developerMode, setDeveloperMode] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const {
-    clear: clearPerInstance,
-    settings: perInstanceSettings,
-    update: updatePerInstance
-  } = usePerInstanceSettings();
+  const { clear: clearPerInstance, settings: perInstanceSettings, update: updatePerInstance } = usePerInstanceSettings();
 
   // Store all settings in a single state object for extensibility
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
@@ -160,12 +145,7 @@ export function Settings() {
   return (
     <div className='flex h-full min-h-[calc(100vh-10)] w-xl flex-col gap-2 py-4'>
       <Form className='flex flex-col gap-2' onSubmit={handleSubmit}>
-        <Select
-          className='w-50'
-          placeholder='System'
-          value={settings.themePreference}
-          onChange={handleThemeChange}
-        >
+        <Select className='w-50' placeholder='System' value={settings.themePreference} onChange={handleThemeChange}>
           <Label>Theme</Label>
           <Select.Trigger>
             <Select.Value />
@@ -177,21 +157,15 @@ export function Settings() {
             <ListBox>
               <ListBox.Item id='system' textValue='System'>
                 System
-                <ListBox.ItemIndicator>
-                  {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
-                </ListBox.ItemIndicator>
+                <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
               </ListBox.Item>
               <ListBox.Item id='light' textValue='Light'>
                 Light
-                <ListBox.ItemIndicator>
-                  {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
-                </ListBox.ItemIndicator>
+                <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
               </ListBox.Item>
               <ListBox.Item id='dark' textValue='Dark'>
                 Dark
-                <ListBox.ItemIndicator>
-                  {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
-                </ListBox.ItemIndicator>
+                <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
               </ListBox.Item>
             </ListBox>
           </Select.Popover>
@@ -214,41 +188,34 @@ export function Settings() {
                   <img alt='' className='h-4 w-4' src='/toolkit-16.png' />
                   Domo Blue
                 </span>
-                <ListBox.ItemIndicator>
-                  {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
-                </ListBox.ItemIndicator>
+                <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
               </ListBox.Item>
               <ListBox.Item id='black' textValue='Black'>
                 <span className='flex flex-row items-center gap-2'>
                   <img alt='' className='h-4 w-4' src='/toolkit-black-16.png' />
                   Black
                 </span>
-                <ListBox.ItemIndicator>
-                  {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
-                </ListBox.ItemIndicator>
+                <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
               </ListBox.Item>
               <ListBox.Item id='white' textValue='White'>
                 <span className='flex flex-row items-center gap-2'>
                   <img alt='' className='h-4 w-4' src='/toolkit-white-16.png' />
                   White
                 </span>
-                <ListBox.ItemIndicator>
-                  {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
-                </ListBox.ItemIndicator>
+                <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
               </ListBox.Item>
             </ListBox>
           </Select.Popover>
           <Description className='w-lg'>
-            Choose the toolbar icon color. Useful when a custom browser theme makes the default hard
-            to see.
+            Choose the toolbar icon color. Useful when a custom browser theme makes the default hard to see.
           </Description>
         </Select>
         <TextField className='w-50' onChange={handleDefaultInstanceChange}>
           <Label>Default Domo Instance</Label>
           <Input placeholder='Enter an instance' value={settings.defaultDomoInstance} />
           <Description className='w-lg'>
-            This is used when navigating to copied objects from non-Domo websites. Enter without
-            .domo.com (e.g., company for company.domo.com)
+            This is used when navigating to copied objects from non-Domo websites. Enter without .domo.com (e.g., company for
+            company.domo.com)
           </Description>
         </TextField>
         <Switch isSelected={settings.autoClearCookiesOn431} onChange={handleAutoClearChange}>
@@ -258,8 +225,7 @@ export function Settings() {
           <Switch.Content>
             <Label>Auto-clear cookies on 431 errors</Label>
             <Description className='w-lg'>
-              When a Domo page returns HTTP 431, automatically clear cookies and preserve the last 2
-              instances.
+              When a Domo page returns HTTP 431, automatically clear cookies and preserve the last 2 instances.
             </Description>
           </Switch.Content>
         </Switch>
@@ -270,8 +236,8 @@ export function Settings() {
           <Switch.Content>
             <Label>Show clear cookies button</Label>
             <Description className='w-lg'>
-              Adds a manual clear-cookies button to the popup action bar. Useful as a fallback when
-              auto-clearing fails or when you want to clear cookies without a 431 error.
+              Adds a manual clear-cookies button to the popup action bar. Useful as a fallback when auto-clearing fails or
+              when you want to clear cookies without a 431 error.
             </Description>
           </Switch.Content>
         </Switch>
@@ -292,21 +258,17 @@ export function Settings() {
             <ListBox>
               <ListBox.Item id='preserve' textValue='Preserve last 2 instances'>
                 Preserve last 2 instances
-                <ListBox.ItemIndicator>
-                  {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
-                </ListBox.ItemIndicator>
+                <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
               </ListBox.Item>
               <ListBox.Item id='all' textValue='Clear all Domo cookies'>
                 Clear all Domo cookies
-                <ListBox.ItemIndicator>
-                  {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
-                </ListBox.ItemIndicator>
+                <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
               </ListBox.Item>
             </ListBox>
           </Select.Popover>
           <Description className='w-lg'>
-            What the button does on click. Preserve keeps the DA-SID cookies for your two
-            most-recently-used instances; All wipes every Domo cookie.
+            What the button does on click. Preserve keeps the DA-SID cookies for your two most-recently-used instances; All
+            wipes every Domo cookie.
           </Description>
         </Select>
         <div className='pt-1'>
@@ -321,8 +283,8 @@ export function Settings() {
       <div className='flex w-lg flex-col gap-2'>
         <Label>Per-Instance Settings</Label>
         <Description className='w-lg'>
-          Stored locally on this device, populated automatically when you use features like the
-          DomoStats Activity Log source. Manage or clear them here.
+          Stored locally on this device, populated automatically when you use features like the DomoStats Activity Log
+          source. Manage or clear them here.
         </Description>
         {Object.keys(perInstanceSettings).length === 0 ? (
           <p className='text-sm text-muted'>No instance settings stored yet.</p>
@@ -330,10 +292,7 @@ export function Settings() {
           Object.entries(perInstanceSettings)
             .sort(([a], [b]) => a.localeCompare(b))
             .map(([instance, instanceSettings]) => (
-              <div
-                className='flex flex-col gap-2 rounded-lg border border-border p-2'
-                key={instance}
-              >
+              <div className='flex flex-col gap-2 rounded-lg border border-border p-2' key={instance}>
                 <div className='flex items-center justify-between gap-2'>
                   <span className='truncate font-semibold' title={`${instance}.domo.com`}>
                     {instance}.domo.com
@@ -345,10 +304,7 @@ export function Settings() {
                 {instanceSettings.activityLogDatasetId && (
                   <div className='flex flex-col gap-1 pl-1'>
                     <span className='text-xs text-muted'>Activity Log Dataset ID</span>
-                    <code
-                      className='truncate text-xs'
-                      title={instanceSettings.activityLogDatasetId}
-                    >
+                    <code className='truncate text-xs' title={instanceSettings.activityLogDatasetId}>
                       {instanceSettings.activityLogDatasetId}
                     </code>
                     <Switch
@@ -361,8 +317,7 @@ export function Settings() {
                       <Switch.Content>
                         <Label>Always use DomoStats Activity Log dataset</Label>
                         <Description>
-                          When enabled, the Activity Log opens in DomoStats mode by default for this
-                          instance.
+                          When enabled, the Activity Log opens in DomoStats mode by default for this instance.
                         </Description>
                       </Switch.Content>
                     </Switch>

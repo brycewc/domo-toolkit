@@ -7,9 +7,13 @@ import IconDataflow from '@icons/dataflow.svg?react';
 import IconInfoCircle from '@icons/info-circle.svg?react';
 import IconSync from '@icons/sync.svg?react';
 
-import { DataflowInspector, DataPreviewPanel, LevelToolbar, LineageGraph } from './components';
-import { useGraphVisibility, useLineageCache } from './hooks';
-import { toLineageType, toNodeId } from './services';
+import { DataflowInspector } from './components/DataflowInspector';
+import { DataPreviewPanel } from './components/DataPreviewPanel';
+import { LevelToolbar } from './components/LevelToolbar';
+import { LineageGraph } from './components/LineageGraph';
+import { useGraphVisibility } from './hooks/useGraphVisibility';
+import { useLineageCache } from './hooks/useLineageCache';
+import { toLineageType, toNodeId } from './services/lineage';
 
 export function Lineage() {
   const [params, setParams] = useState(null);
@@ -23,13 +27,9 @@ export function Lineage() {
   const inspectorCacheRef = useRef(new Map());
   const resolveTabId = useResolveTabId(params?.tabId, params?.instance);
 
-  const { expandFetch, expandLoading, graph, init, isNeighborCached, loading, prefetch } =
-    useLineageCache();
+  const { expandFetch, expandLoading, graph, init, isNeighborCached, loading, prefetch } = useLineageCache();
 
-  const rootNodeId = useMemo(
-    () => (params ? toNodeId(toLineageType(params.entityType), params.entityId) : null),
-    [params]
-  );
+  const rootNodeId = useMemo(() => (params ? toNodeId(toLineageType(params.entityType), params.entityId) : null), [params]);
 
   const {
     clearHighlight,
@@ -52,13 +52,7 @@ export function Lineage() {
 
   useEffect(() => {
     chrome.storage.session
-      .get([
-        'lineageEntityId',
-        'lineageEntityType',
-        'lineageInstance',
-        'lineageObjectName',
-        'lineageTabId'
-      ])
+      .get(['lineageEntityId', 'lineageEntityType', 'lineageInstance', 'lineageObjectName', 'lineageTabId'])
       .then((result) => {
         if (result.lineageEntityId && result.lineageEntityType) {
           setParams({
@@ -198,11 +192,13 @@ export function Lineage() {
           </div>
         </div>
         <div className='flex items-center gap-2'>
-          <Tooltip closeDelay={0} delay={400}>
+          <Tooltip>
             <Button isIconOnly size='sm' variant='tertiary' onPress={handleRefresh}>
               <IconSync />
             </Button>
-            <Tooltip.Content placement='left'>Refresh</Tooltip.Content>
+            <Tooltip.Content className='max-w-60' placement='left'>
+              Refresh
+            </Tooltip.Content>
           </Tooltip>
         </div>
       </div>

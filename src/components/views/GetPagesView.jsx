@@ -1,15 +1,11 @@
-import { Alert, Button, Card, Separator, Spinner } from '@heroui/react';
+import { Alert, Button, Card, Spinner } from '@heroui/react';
 import { useEffect, useRef, useState } from 'react';
 
 import { CloseButton } from '@/components/CloseButton';
 import { DataListItem } from '@/models/DataListItem';
 import { DomoContext } from '@/models/DomoContext';
 import { DomoObject } from '@/models/DomoObject';
-import {
-  getCardsForObject,
-  getCardsForParent,
-  removeCardFromPage
-} from '@/services/cards';
+import { getCardsForObject, getCardsForParent, removeCardFromPage } from '@/services/cards';
 import { getChildPages, getPagesForCards, sharePages } from '@/services/pages';
 import { waitForCards } from '@/utils/cardHelpers';
 import { getValidTabForInstance } from '@/utils/currentObject';
@@ -20,11 +16,7 @@ import IconSync from '@icons/sync.svg?react';
 
 import { DataList } from './DataList';
 
-export function GetPagesView({
-  currentContext = null,
-  onBackToDefault = null,
-  onStatusUpdate = null
-}) {
+export function GetPagesView({ currentContext = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
@@ -60,12 +52,7 @@ export function GetPagesView({
       // Get the stored page data from local storage
       const data = await getSidepanelData();
       console.log('Loaded sidepanel data:', data);
-      if (
-        !data ||
-        (data.type !== 'getChildPages' &&
-          data.type !== 'getCardPages' &&
-          data.type !== 'childPagesWarning')
-      ) {
+      if (!data || (data.type !== 'getChildPages' && data.type !== 'getCardPages' && data.type !== 'childPagesWarning')) {
         setError('No page data found. Please try again from a page URL.');
         setIsLoading(false);
         return;
@@ -84,24 +71,17 @@ export function GetPagesView({
 
       // For card pages, always use the object's own ID (not parent).
       // parentId would be a dataflow/stream ID for DATA_SOURCE, which is wrong for card lookups.
-      const objectId =
-        sidepanelType === 'getCardPages' ? domoObject.id : domoObject.parentId || domoObject.id;
+      const objectId = sidepanelType === 'getCardPages' ? domoObject.id : domoObject.parentId || domoObject.id;
       const objectName =
         sidepanelType === 'getCardPages'
-          ? domoObject.metadata?.name ||
-            domoObject.metadata?.parent?.name ||
-            `${domoObject.typeName} ${objectId}`
-          : domoObject.metadata?.parent?.name ||
-            domoObject.metadata?.name ||
-            `${domoObject.typeName} ${objectId}`;
+          ? domoObject.metadata?.name || domoObject.metadata?.parent?.name || `${domoObject.typeName} ${objectId}`
+          : domoObject.metadata?.parent?.name || domoObject.metadata?.name || `${domoObject.typeName} ${objectId}`;
       const instance = context.instance;
       const origin = `https://${instance}.domo.com`;
 
       // Get appId for DATA_APP_VIEW types (stored as parentId in domoObject)
       const appId =
-        objectType === 'DATA_APP_VIEW'
-          ? domoObject.parentId || domoObject?.metadata?.parent?.id || domoObject.id
-          : null;
+        objectType === 'DATA_APP_VIEW' ? domoObject.parentId || domoObject?.metadata?.parent?.id || domoObject.id : null;
 
       // Set label early so the loading spinner shows the right text
       setPageTypeLabel(
@@ -121,11 +101,7 @@ export function GetPagesView({
       if (!childPages && !forceRefresh) {
         // No pre-fetched data (popup handoff)
         if (sidepanelType === 'getCardPages') {
-          if (
-            objectType === 'PAGE' ||
-            objectType === 'DATA_APP_VIEW' ||
-            objectType === 'WORKSHEET_VIEW'
-          ) {
+          if (objectType === 'PAGE' || objectType === 'DATA_APP_VIEW' || objectType === 'WORKSHEET_VIEW') {
             // Page-like types — get cards then find other pages they appear on
             const waitResult = await waitForCards(context);
             if (waitResult.success && waitResult.cards?.length) {
@@ -279,8 +255,7 @@ export function GetPagesView({
   const loadParentScopeCardPages = async (data) => {
     const context = DomoContext.fromJSON(data.currentContext);
     const childTypeId = context.domoObject.typeId;
-    const parentTypeId =
-      childTypeId === 'WORKSHEET_VIEW' ? 'WORKSHEET' : 'DATA_APP';
+    const parentTypeId = childTypeId === 'WORKSHEET_VIEW' ? 'WORKSHEET' : 'DATA_APP';
     const parentId = data.parentId || context.domoObject.parentId;
     const instance = context.instance;
     const origin = `https://${instance}.domo.com`;
@@ -309,12 +284,7 @@ export function GetPagesView({
     const cardIds = [...cardIdSet];
 
     if (cardIds.length === 0) {
-      onStatusUpdate?.(
-        'No Cards Found',
-        `No cards found across any view on this ${parentLabel}.`,
-        'warning',
-        3000
-      );
+      onStatusUpdate?.('No Cards Found', `No cards found across any view on this ${parentLabel}.`, 'warning', 3000);
       onBackToDefault?.();
       return;
     }
@@ -338,11 +308,7 @@ export function GetPagesView({
       }));
 
     if (childPages.length === 0) {
-      onStatusUpdate?.(
-        'No Pages Found',
-        `Cards on this ${parentLabel} are not used on any other pages.`,
-        'warning'
-      );
+      onStatusUpdate?.('No Pages Found', `Cards on this ${parentLabel} are not used on any other pages.`, 'warning');
       onBackToDefault?.();
       return;
     }
@@ -359,23 +325,14 @@ export function GetPagesView({
     });
 
     setError(null);
-    setItems(
-      transformGroupedPagesData(childPages, origin, result.cardsByPage)
-    );
+    setItems(transformGroupedPagesData(childPages, origin, result.cardsByPage));
   };
 
   /**
    * Fetch fresh pages data from API based on sidepanel type and object type.
    * Dynamically finds a valid tab on the same Domo instance for API calls.
    */
-  const fetchFreshPages = async ({
-    appId,
-    instance,
-    metadata,
-    objectId,
-    objectType,
-    sidepanelType
-  }) => {
+  const fetchFreshPages = async ({ appId, instance, metadata, objectId, objectType, sidepanelType }) => {
     const tabId = await getValidTabForInstance(instance);
 
     if (sidepanelType === 'getCardPages') {
@@ -453,14 +410,7 @@ export function GetPagesView({
     }
   };
 
-  const buildItemsFromPages = ({
-    childPages,
-    objectId,
-    objectName: _objectName,
-    objectType,
-    origin,
-    pages
-  }) => {
+  const buildItemsFromPages = ({ childPages, objectId, objectName: _objectName, objectType, origin, pages }) => {
     // Sort pages by title
     const sortedPages = (pages || []).sort((a, b) => a.pageTitle.localeCompare(b.pageTitle));
 
@@ -471,9 +421,7 @@ export function GetPagesView({
     // Build items array - just the child pages
     const childItems = sortedPages?.map((page) => {
       // Filter child pages by parentPageId
-      const childPagesForPage = childPages.filter(
-        (childPage) => childPage.parentPageId === page.pageId
-      );
+      const childPagesForPage = childPages.filter((childPage) => childPage.parentPageId === page.pageId);
 
       const nestedChildren =
         childPagesForPage.length > 0
@@ -492,17 +440,14 @@ export function GetPagesView({
               })
           : undefined;
 
-      const domoObject = new DomoObject(
-        pageTypeId,
-        page.pageId,
-        origin,
-        { name: page.pageTitle },
-        null,
-        parentId
-      );
+      const domoObject = new DomoObject(pageTypeId, page.pageId, origin, { name: page.pageTitle }, null, parentId);
       return DataListItem.fromDomoObject(domoObject, {
         children: nestedChildren,
-        count: childPagesForPage.length
+        // Hide the badge entirely when a child page has no nested pages (a bare
+        // "(0)" reads as "0 cards" next to the card-count badges elsewhere), and
+        // label the non-zero case "pages" so it can't be mistaken for a card count.
+        count: childPagesForPage.length || undefined,
+        countLabel: 'pages'
       });
     });
 
@@ -516,12 +461,7 @@ export function GetPagesView({
         pageId: item.id,
         tabId: await getValidTabForInstance(pageData.instance)
       });
-      onStatusUpdate?.(
-        'Removed',
-        `Card removed from page **${item.label || item.id}**`,
-        'success',
-        2000
-      );
+      onStatusUpdate?.('Removed', `Card removed from page **${item.label || item.id}**`, 'success', 2000);
       await loadPagesData(true); // Force fresh API call
     } catch (err) {
       console.error('[GetPagesView] Error in remove action:', err);
@@ -541,12 +481,7 @@ export function GetPagesView({
           tabId,
           userId: pageData.userId
         });
-        onStatusUpdate?.(
-          'Shared',
-          `Page **${item.label || item.id}** shared with yourself`,
-          'success',
-          2000
-        );
+        onStatusUpdate?.('Shared', `Page **${item.label || item.id}** shared with yourself`, 'success', 2000);
       }
     } catch (err) {
       console.error('[GetPagesView] Error in share action:', err);
@@ -568,12 +503,7 @@ export function GetPagesView({
           tabId,
           userId: pageData.userId
         });
-        onStatusUpdate?.(
-          'Shared',
-          `**${count}** page${count !== 1 ? 's' : ''} shared with yourself`,
-          'success',
-          2000
-        );
+        onStatusUpdate?.('Shared', `**${count}** page${count !== 1 ? 's' : ''} shared with yourself`, 'success', 2000);
       }
     } catch (err) {
       console.error('[GetPagesView] Error in shareAll action:', err);
@@ -616,12 +546,7 @@ export function GetPagesView({
           tabId,
           userId: pageData.userId
         });
-        onStatusUpdate?.(
-          'Shared',
-          `**${count}** page${count !== 1 ? 's' : ''} shared with yourself`,
-          'success',
-          2000
-        );
+        onStatusUpdate?.('Shared', `**${count}** page${count !== 1 ? 's' : ''} shared with yourself`, 'success', 2000);
         chrome.tabs.reload(tabId);
       }
     } catch (err) {
@@ -630,24 +555,13 @@ export function GetPagesView({
     }
   };
 
-  const renderTitle = () => (
-    <span>
-      {pageTypeLabel}
-      {pageTypeLabel.endsWith('on') ? '' : ' for'}{' '}
-      <span className='font-bold'>{pageData?.objectName}</span>
-    </span>
-  );
+  const renderTitle = () => `${pageTypeLabel}${pageTypeLabel.endsWith('on') ? '' : ' for'} **${pageData?.objectName}**`;
 
   const renderSubtext = () => {
     if (items.length === undefined) return null;
 
     if (pageData?.sidepanelType === 'getCardPages') {
-      const pageTypes = new Set([
-        'DATA_APP_VIEW',
-        'PAGE',
-        'REPORT_BUILDER_VIEW',
-        'WORKSHEET_VIEW'
-      ]);
+      const pageTypes = new Set(['DATA_APP_VIEW', 'PAGE', 'REPORT_BUILDER_VIEW', 'WORKSHEET_VIEW']);
       const cardIds = new Set();
       const tally = (list) => {
         let pages = 0;
@@ -663,43 +577,20 @@ export function GetPagesView({
       const pages = tally(items);
       const cards = cardIds.size;
       if (!pages) return null;
-      return (
-        <span className='inline-flex items-center gap-1'>
-          <span>
-            {pages} page{pages === 1 ? '' : 's'}
-          </span>
-          {cards > 0 && (
-            <>
-              <Separator className='mx-1 h-3' orientation='vertical' size='sm' />
-              <span>
-                {cards} card{cards === 1 ? '' : 's'}
-              </span>
-            </>
-          )}
-        </span>
-      );
+      let text = `${pages} page${pages === 1 ? '' : 's'}`;
+      if (cards > 0) {
+        text += ` • ${cards} card${cards === 1 ? '' : 's'}`;
+      }
+      return text;
     }
 
-    const grandchildCount = items.reduce(
-      (total, item) => total + (item.children?.length || 0),
-      0
-    );
-    return (
-      <span className='inline-flex items-center gap-1'>
-        <span>
-          {items.length} {pageData?.objectType === 'PAGE' ? 'child page' : 'page'}
-          {items.length === 1 ? '' : 's'}
-        </span>
-        {grandchildCount > 0 && (
-          <>
-            <Separator className='mx-1 h-3' orientation='vertical' size='sm' />
-            <span>
-              {grandchildCount} grandchild {grandchildCount === 1 ? 'page' : 'pages'}
-            </span>
-          </>
-        )}
-      </span>
-    );
+    const grandchildCount = items.reduce((total, item) => total + (item.children?.length || 0), 0);
+    const pageLabel = pageData?.objectType === 'PAGE' ? 'child page' : 'page';
+    let text = `${items.length} ${pageLabel}${items.length === 1 ? '' : 's'}`;
+    if (grandchildCount > 0) {
+      text += ` • ${grandchildCount} grandchild ${grandchildCount === 1 ? 'page' : 'pages'}`;
+    }
+    return text;
   };
   if (isLoading) {
     if (!showSpinner) return null;
@@ -730,11 +621,7 @@ export function GetPagesView({
           <div className='flex flex-col items-start justify-center gap-2'>
             <Alert.Description>{error}</Alert.Description>
             <Button isPending={isRetrying} size='sm' onPress={handleRetry}>
-              {isRetrying ? (
-                <Spinner color='currentColor' size='sm' />
-              ) : (
-                <IconSync />
-              )}
+              {isRetrying ? <Spinner color='currentColor' size='sm' /> : <IconSync />}
               Retry
             </Button>
           </div>
@@ -746,7 +633,6 @@ export function GetPagesView({
 
   return (
     <DataList
-      closeLabel={`Close ${pageTypeLabel} View`}
       currentContext={currentContext}
       isRefreshing={isRefreshing}
       itemLabel='page'
@@ -771,9 +657,7 @@ export function GetPagesView({
           : ['openAll', 'copy', 'shareAll', 'reload', 'refresh']
       }
       itemActions={
-        pageData?.sidepanelType === 'getCardPages'
-          ? ['openAll', 'copy', 'remove', 'share', 'shareAll']
-          : undefined
+        pageData?.sidepanelType === 'getCardPages' ? ['openAll', 'copy', 'remove', 'share', 'shareAll'] : undefined
       }
     />
   );
@@ -859,21 +743,8 @@ function transformGroupedPagesData(childPages, origin, cardsByPage) {
         const sortedPages = pages.sort((a, b) => a.pageTitle.localeCompare(b.pageTitle));
 
         const pageChildren = sortedPages.map((page) => {
-          const cardChildren = buildCardChildren(
-            page.pageId,
-            cardsByPage,
-            origin,
-            'DATA_APP_VIEW',
-            appId
-          );
-          const domoObject = new DomoObject(
-            'DATA_APP_VIEW',
-            page.pageId,
-            origin,
-            { name: page.pageTitle },
-            null,
-            appId
-          );
+          const cardChildren = buildCardChildren(page.pageId, cardsByPage, origin, 'DATA_APP_VIEW', appId);
+          const domoObject = new DomoObject('DATA_APP_VIEW', page.pageId, origin, { name: page.pageTitle }, null, appId);
           return DataListItem.fromDomoObject(domoObject, {
             children: cardChildren,
             count: cardChildren?.length,
@@ -928,17 +799,10 @@ function transformGroupedPagesData(childPages, origin, cardsByPage) {
 
   // Handle Report Builder pages
   if (pagesByType.REPORT_BUILDER_VIEW.length > 0) {
-    const sortedPages = pagesByType.REPORT_BUILDER_VIEW.sort((a, b) =>
-      a.pageTitle.localeCompare(b.pageTitle)
-    );
+    const sortedPages = pagesByType.REPORT_BUILDER_VIEW.sort((a, b) => a.pageTitle.localeCompare(b.pageTitle));
 
     const children = sortedPages.map((page) => {
-      const cardChildren = buildCardChildren(
-        page.pageId,
-        cardsByPage,
-        origin,
-        'REPORT_BUILDER_VIEW'
-      );
+      const cardChildren = buildCardChildren(page.pageId, cardsByPage, origin, 'REPORT_BUILDER_VIEW');
       const domoObject = new DomoObject('REPORT_BUILDER_VIEW', page.pageId, origin, {
         name: page.pageTitle
       });
@@ -979,21 +843,8 @@ function transformGroupedPagesData(childPages, origin, cardsByPage) {
         const sortedPages = pages.sort((a, b) => a.pageTitle.localeCompare(b.pageTitle));
 
         const pageChildren = sortedPages.map((page) => {
-          const cardChildren = buildCardChildren(
-            page.pageId,
-            cardsByPage,
-            origin,
-            'WORKSHEET_VIEW',
-            appId
-          );
-          const domoObject = new DomoObject(
-            'WORKSHEET_VIEW',
-            page.pageId,
-            origin,
-            { name: page.pageTitle },
-            null,
-            appId
-          );
+          const cardChildren = buildCardChildren(page.pageId, cardsByPage, origin, 'WORKSHEET_VIEW', appId);
+          const domoObject = new DomoObject('WORKSHEET_VIEW', page.pageId, origin, { name: page.pageTitle }, null, appId);
           return DataListItem.fromDomoObject(domoObject, {
             children: cardChildren,
             count: cardChildren?.length,

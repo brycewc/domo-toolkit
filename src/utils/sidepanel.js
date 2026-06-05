@@ -33,14 +33,7 @@ export function isSidepanel() {
  * @param {Function} [options.preCheck] - Async fn returning { empty, title, message } or null
  * @param {...any} options - Extra props forwarded to storeSidepanelData (e.g. appId)
  */
-export async function launchView({
-  currentContext,
-  onCollapseActions,
-  onStatusUpdate,
-  preCheck,
-  type,
-  ...extras
-}) {
+export async function launchView({ currentContext, onCollapseActions, onStatusUpdate, preCheck, type, ...extras }) {
   // In the popup, open the sidepanel immediately to preserve the user gesture
   // (chrome.sidePanel.open requires a recent user gesture — async preChecks
   // that poll for pre-fetched data would cause it to expire).
@@ -72,13 +65,10 @@ export function openSidepanel() {
   // If it's already open, this will fail, but that's okay -
   // the already-open sidepanel will detect the storage change
   try {
-    chrome.tabs.query(
-      { active: true, currentWindow: true, windowType: 'normal' },
-      ([tab]) => {
-        chrome.sidePanel.open({ tabId: tab.id });
-        window.close();
-      }
-    );
+    chrome.tabs.query({ active: true, currentWindow: true, windowType: 'normal' }, ([tab]) => {
+      chrome.sidePanel.open({ tabId: tab.id });
+      window.close();
+    });
   } catch (error) {
     // Sidepanel is likely already open, which is fine
   }
@@ -122,10 +112,7 @@ export async function showStatus({
       console.log('[pageHelpers] SHOW_STATUS message sent successfully');
       onComplete?.();
     } catch (error) {
-      console.log(
-        '[pageHelpers] SHOW_STATUS message failed, showing in popup instead:',
-        error
-      );
+      console.log('[pageHelpers] SHOW_STATUS message failed, showing in popup instead:', error);
       // If sidepanel is not open, show in popup instead
       onStatusUpdate?.(title, description, status, timeout);
       onComplete?.();

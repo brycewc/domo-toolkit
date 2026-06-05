@@ -3,3 +3,9 @@
 ---
 
 @import "minima";
+
+.post-header .post-title,
+.home > .page-heading {
+  display: none;
+}
+

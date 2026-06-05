@@ -15,16 +15,12 @@ export async function getOwnedAlerts(userId, tabId = null) {
       let offset = 0;
 
       while (moreData) {
-        const response = await fetch(
-          `/api/social/v4/alerts?limit=${limit}&offset=${offset}&ownerId=${userId}`
-        );
+        const response = await fetch(`/api/social/v4/alerts?limit=${limit}&offset=${offset}&ownerId=${userId}`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
 
         if (data && data.length > 0) {
-          allAlerts.push(
-            ...data.map((a) => ({ id: a.id, name: a.name || a.id.toString() }))
-          );
+          allAlerts.push(...data.map((a) => ({ id: a.id, name: a.name || a.id.toString() })));
           offset += limit;
           if (data.length < limit) moreData = false;
         } else {
@@ -47,12 +43,7 @@ export async function getOwnedAlerts(userId, tabId = null) {
  * @param {number|null} tabId - Optional Chrome tab ID
  * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
  */
-export async function transferAlerts(
-  alertIds,
-  fromUserId,
-  toUserId,
-  tabId = null
-) {
+export async function transferAlerts(alertIds, fromUserId, toUserId, tabId = null) {
   return executeInPage(
     async (alertIds, fromUserId, toUserId) => {
       const errors = [];
@@ -87,11 +78,7 @@ export async function transferAlerts(
  * @param {number|null} [params.tabId] - Optional Chrome tab ID
  * @returns {Promise<void>} Resolves on success, throws on HTTP failure
  */
-export async function updateAlertOwner({
-  alertId,
-  newOwnerId,
-  tabId = null
-}) {
+export async function updateAlertOwner({ alertId, newOwnerId, tabId = null }) {
   return executeInPage(
     async (alertId, newOwnerId) => {
       const response = await fetch(`/api/social/v4/alerts/${alertId}`, {

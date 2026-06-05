@@ -174,8 +174,7 @@ function reconcileParam({ doc, jp, rewrites, source, sp, warnings }) {
       };
     }
     const sigLiteral = serializeJSDocDefault(sp.defaultEvaluated.value);
-    const jsdocSerialized =
-      jp.defaultRaw != null ? serializeJSDocDefault(jsdocDefault.defaultEvaluated) : null;
+    const jsdocSerialized = jp.defaultRaw != null ? serializeJSDocDefault(jsdocDefault.defaultEvaluated) : null;
     if (jsdocSerialized !== sigLiteral) {
       const rewrite = buildParamRewrite({
         blockRange: doc.blockRange,

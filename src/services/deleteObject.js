@@ -10,13 +10,11 @@ import { deleteWorkflow } from './workflows';
  */
 const DELETE_HANDLERS = {
   APP: ({ id, tabId }) => deleteCustomApp({ designId: id, tabId }),
-  BEAST_MODE_FORMULA: ({ id }) => deleteFunction(id),
-  FUNCTION_TEMPLATE: ({ id }) => deleteFunction(id),
-  MAGNUM_COLLECTION: ({ id, tabId }) =>
-    deleteAppDbCollection({ collectionId: id, tabId }),
-  TEMPLATE: ({ id, tabId }) =>
-    deleteApprovalTemplate({ tabId, templateId: id }),
-  VARIABLE: ({ id }) => deleteFunction(id),
+  BEAST_MODE_FORMULA: ({ id, tabId }) => deleteFunction({ functionId: id, tabId }),
+  FUNCTION_TEMPLATE: ({ id, tabId }) => deleteFunction({ functionId: id, tabId }),
+  MAGNUM_COLLECTION: ({ id, tabId }) => deleteAppDbCollection({ collectionId: id, tabId }),
+  TEMPLATE: ({ id, tabId }) => deleteApprovalTemplate({ tabId, templateId: id }),
+  VARIABLE: ({ id, tabId }) => deleteFunction({ functionId: id, tabId }),
   WORKFLOW_MODEL: ({ id, tabId }) => deleteWorkflow({ modelId: id, tabId })
 };
 
@@ -52,7 +50,7 @@ export async function deleteObject({ object, tabId = null }) {
   try {
     await handler({ id: object.id, tabId });
     return {
-      statusDescription: `Deleted ${object.typeName?.toLowerCase() || 'object'} ${object.id}`,
+      statusDescription: `Deleted ${object.typeName?.toLowerCase() || 'object'} **${object.id}**`,
       statusTitle: 'Deleted Successfully',
       statusType: 'success',
       success: true

@@ -1,7 +1,4 @@
-import {
-  applyFaviconRules,
-  applyInstanceLogoAuto
-} from './faviconModifier';
+import { applyFaviconRules, applyInstanceLogoAuto } from './faviconModifier';
 
 // Apply favicon rules - called by service worker
 async function applyFavicon() {
@@ -91,10 +88,7 @@ function triggerContextRedetection() {
       type: 'DETECT_CONTEXT'
     })
     .catch((error) => {
-      console.error(
-        '[ContentScript] Error triggering context re-detection:',
-        error
-      );
+      console.error('[ContentScript] Error triggering context re-detection:', error);
     });
 }
 
@@ -105,12 +99,8 @@ function triggerContextRedetection() {
 let lastDetectedCEVersion = null;
 
 function checkCEVersionChange() {
-  const container = document.querySelector(
-    'div[class*="module_packageControls"]'
-  );
-  const input = container?.querySelector(
-    'input[class*="SelectListInputComponent"]'
-  );
+  const container = document.querySelector('div[class*="module_packageControls"]');
+  const input = container?.querySelector('input[class*="SelectListInputComponent"]');
   const currentValue = input?.value || null;
   if (currentValue && currentValue !== lastDetectedCEVersion) {
     lastDetectedCEVersion = currentValue;
@@ -146,9 +136,7 @@ document.addEventListener(
 
     // Wait for React to update selection state after the click
     requestAnimationFrame(() => {
-      const selectedNode = document.querySelector(
-        '.react-flow__node.selected'
-      );
+      const selectedNode = document.querySelector('.react-flow__node.selected');
       const selectedNodeId = selectedNode?.getAttribute('data-id') || null;
 
       if (selectedNodeId !== lastSelectedActionNodeId) {
@@ -172,9 +160,7 @@ if (location.pathname.startsWith('/admin/')) {
     () => {
       // Use setTimeout to allow Angular's digest cycle to update the detail panel
       setTimeout(() => {
-        const titleEl = document.querySelector(
-          '.bulk-item-details-title'
-        );
+        const titleEl = document.querySelector('.bulk-item-details-title');
         const currentTitle = titleEl?.innerText?.trim() || null;
 
         if (currentTitle !== lastAdminDetailTitle) {
@@ -263,9 +249,7 @@ const MODAL_DETECTORS = [
     },
     onLoadCheck() {
       if (document.querySelector('.bulk-item-details-content')) {
-        lastAdminDetailTitle =
-          document.querySelector('.bulk-item-details-title')
-            ?.innerText?.trim() || null;
+        lastAdminDetailTitle = document.querySelector('.bulk-item-details-title')?.innerText?.trim() || null;
         triggerContextRedetection();
       }
     },
@@ -291,11 +275,7 @@ const MODAL_DETECTORS = [
       checkCEVersionChange();
     },
     onLoadCheck() {
-      if (
-        document.querySelector(
-          'div[class*="module_packageControls"]'
-        )
-      ) {
+      if (document.querySelector('div[class*="module_packageControls"]')) {
         checkCEVersionChange();
       }
     },

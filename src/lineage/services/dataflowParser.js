@@ -330,18 +330,13 @@ function parseTile(action) {
             rightKey: toFieldName(action.keys2[i]) || '?'
           });
         }
-        tile.columns = [
-          ...(action.keys1 || []).map(toFieldName),
-          ...(action.keys2 || []).map(toFieldName)
-        ];
+        tile.columns = [...(action.keys1 || []).map(toFieldName), ...(action.keys2 || []).map(toFieldName)];
       }
       break;
 
     case 'Metadata':
       if (Array.isArray(action.fields)) {
-        tile.columns = action.fields.map((f) =>
-          typeof f === 'string' ? f : f.name || ''
-        ).filter(Boolean);
+        tile.columns = action.fields.map((f) => (typeof f === 'string' ? f : f.name || '')).filter(Boolean);
       }
       break;
 
@@ -355,9 +350,7 @@ function parseTile(action) {
 
     case 'Order':
       if (Array.isArray(action.fields)) {
-        tile.columns = action.fields.map((f) =>
-          typeof f === 'string' ? f : f.name || ''
-        ).filter(Boolean);
+        tile.columns = action.fields.map((f) => (typeof f === 'string' ? f : f.name || '')).filter(Boolean);
       }
       break;
 
@@ -389,9 +382,7 @@ function parseTile(action) {
     case 'SelectValues':
       if (action.fields) {
         tile.columns = action.fields.map((f) => f.name || '').filter(Boolean);
-        tile.rawDetails.renames = action.fields
-          .filter((f) => f.rename)
-          .map((f) => ({ from: f.name, to: f.rename }));
+        tile.rawDetails.renames = action.fields.filter((f) => f.rename).map((f) => ({ from: f.name, to: f.rename }));
       }
       break;
 
@@ -424,9 +415,7 @@ function parseTile(action) {
 
     case 'Unique':
       if (Array.isArray(action.fields)) {
-        tile.columns = action.fields.map((f) =>
-          typeof f === 'string' ? f : f.name || ''
-        ).filter(Boolean);
+        tile.columns = action.fields.map((f) => (typeof f === 'string' ? f : f.name || '')).filter(Boolean);
       }
       break;
 

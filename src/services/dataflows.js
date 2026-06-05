@@ -1,5 +1,7 @@
 import { executeInPage } from '@/utils/executeInPage';
 
+import { getUserName } from './users';
+
 /**
  * Delete a DataFlow and all its output datasets.
  * Deletes outputs first, then the dataflow itself.
@@ -93,9 +95,7 @@ export async function getDataflowForOutputDataset(datasetId, tabId = null) {
     );
 
     if (!response.ok) {
-      throw new Error(
-        `Failed to fetch DataFlow for DataSet ${datasetId}. HTTP status: ${response.status}`
-      );
+      throw new Error(`Failed to fetch DataFlow for DataSet ${datasetId}. HTTP status: ${response.status}`);
     }
 
     const data = await response.json();
@@ -209,8 +209,11 @@ export async function getOwnedDataflows(userId, tabId = null) {
  * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
  */
 export async function transferDataflows(dataflowIds, fromUserId, toUserId, tabId = null) {
+  // Resolve the source user's name for the tag, but never let that lookup block
+  // the transfer: on failure we proceed untagged rather than aborting ownership.
+  const fromUserName = await getUserName(fromUserId, tabId).catch(() => null);
   return executeInPage(
-    async (dataflowIds, fromUserId, toUserId) => {
+    async (dataflowIds, toUserId, fromUserName) => {
       try {
         const response = await fetch('/api/dataprocessing/v1/dataflows/bulk/patch', {
           body: JSON.stringify({
@@ -221,6 +224,30 @@ export async function transferDataflows(dataflowIds, fromUserId, toUserId, tabId
           method: 'PUT'
         });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        // Tag each transferred dataflow with its previous owner so the new owner
+        // can see where it came from. Best-effort: ownership has already moved,
+        // so a failed tag call must not flip the result to failed. Batch the tag
+        // calls in chunks of 50 to keep each request bounded.
+        if (fromUserName) {
+          for (let i = 0; i < dataflowIds.length; i += 50) {
+            const chunk = dataflowIds.slice(i, i + 50);
+            try {
+              const tagResponse = await fetch('/api/dataprocessing/v1/dataflows/bulk/tag', {
+                body: JSON.stringify({
+                  dataFlowIds: chunk,
+                  tagNames: [`From ${fromUserName}`]
+                }),
+                headers: { 'Content-Type': 'application/json' },
+                method: 'PUT'
+              });
+              if (!tagResponse.ok) throw new Error(`HTTP ${tagResponse.status}`);
+            } catch {
+              // Best-effort tagging; the ownership transfer already succeeded.
+            }
+          }
+        }
+
         return { errors: [], failed: 0, succeeded: dataflowIds.length };
       } catch (error) {
         return {
@@ -230,7 +257,7 @@ export async function transferDataflows(dataflowIds, fromUserId, toUserId, tabId
         };
       }
     },
-    [dataflowIds, fromUserId, toUserId],
+    [dataflowIds, toUserId, fromUserName],
     tabId
   );
 }

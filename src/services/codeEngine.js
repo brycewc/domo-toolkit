@@ -21,9 +21,7 @@ export async function getCodeEngineCode({ packageId, tabId, version }) {
           throw new Error('Could not determine package version');
         }
 
-        const response = await fetch(
-          `/api/codeengine/v2/packages/${packageId}/versions/${version}?parts=code`
-        );
+        const response = await fetch(`/api/codeengine/v2/packages/${packageId}/versions/${version}?parts=code`);
         if (!response.ok) {
           throw new Error(`Failed to fetch package code. HTTP status: ${response.status}`);
         }
@@ -45,23 +43,99 @@ export async function getCodeEngineCode({ packageId, tabId, version }) {
  * Falls back to fetching the latest saved version's code via API if the editor isn't reachable.
  *
  * The Code Engine IDE uses CodeMirror 6, which exposes its EditorView via a private
- * `cmView.view` property on the `.cm-content` element. We read `state.doc.toString()`
- * to get the full document text.
+ * `cmView.view` property on the `.cm-content` element. The page has multiple CM6
+ * instances (the main code editor plus markdown editors for each function's description
+ * and example), so a naked `.cm-content` selector grabs the first one in DOM order,
+ * which is often a short markdown editor whose `###` heading would make acorn choke.
+ * We pick the editor with the longest document since the main code editor is reliably
+ * the largest by orders of magnitude.
+ *
+ * On the editor path we also walk the live Lezer syntax tree to return, from the
+ * same parse Domo uses, `editorStartIndices` (function name -> parse-tree node
+ * index) and `functionNames` (top-level functions in declaration order). The
+ * indices let a sync match Domo's per-function editorStartIndex; the names let it
+ * regenerate the `module.exports = {...}` block Domo appends on save (without
+ * which the runtime reports every function as not found). Both are `null` if the
+ * tree can't be read and absent on the API fallback, so callers must refuse to
+ * sync without them.
  *
  * @param {Object} params
  * @param {string} params.packageId - Code Engine package UUID
  * @param {number} [params.tabId] - Optional Chrome tab ID
- * @returns {Promise<{ code: string, source: 'editor'|'api', version?: string }>}
+ * @returns {Promise<{ code: string, editorStartIndices?: Object<string, number>|null, functionNames?: string[]|null, source: 'editor'|'api', version?: string }>}
  */
 export async function getCodeEngineEditorSource({ packageId, tabId }) {
   return executeInPage(
     async (packageId) => {
+      // Walk the live CodeMirror 6 Lezer tree, the same parse Domo uses, to
+      // recover two things the GET API and the editor display both omit:
+      //  - editorStartIndex per function (the parse-tree node index Domo uses to
+      //    bind a manifest function to its code definition), and
+      //  - the ordered list of top-level function names, used to regenerate the
+      //    `module.exports = {...}` block Domo appends on save. Without that
+      //    block the runtime reports every function as "not found in package".
+      // Both are only reproducible from the live tree: a fresh offline parse
+      // chunks the tree differently and yields different node indices.
+      function extractEditorFunctionData(state) {
+        let tree = null;
+        for (const value of state.values || []) {
+          if (value && value.tree && typeof value.tree.cursor === 'function') {
+            tree = value.tree;
+            break;
+          }
+        }
+        if (!tree) return null;
+        const doc = state.doc;
+        const functionTypes = ['ArrowFunction', 'FunctionDeclaration'];
+        const nodes = [];
+        const cursor = tree.cursor();
+        do {
+          if (functionTypes.includes(cursor.type?.name)) nodes.push(cursor.node);
+        } while (cursor.next());
+        // Drop functions nested inside another collected function (closures,
+        // callbacks) so only top-level package functions remain.
+        const topLevel = nodes.filter((node, index, all) => {
+          for (let i = 0; i < all.length; i++) {
+            if (i === index) continue;
+            const other = all[i];
+            if (node.from > other.from && node.from < other.to) return false;
+          }
+          return true;
+        });
+        const editorStartIndices = {};
+        const functionNames = [];
+        for (const node of topLevel) {
+          const nameNode =
+            node.type.name === 'ArrowFunction'
+              ? node.parent?.getChild('VariableDefinition')
+              : node.getChild('VariableDefinition');
+          if (!nameNode) continue;
+          const name = doc.sliceString(nameNode.from, nameNode.to);
+          if (name) {
+            editorStartIndices[name] = node.index;
+            functionNames.push(name);
+          }
+        }
+        return { editorStartIndices, functionNames };
+      }
+
       for (let attempt = 0; attempt < 3; attempt++) {
-        const contentEl = document.querySelector('.cm-content');
-        const editorView = contentEl?.cmView?.view;
-        const code = editorView?.state?.doc?.toString();
-        if (typeof code === 'string' && code.length > 0) {
-          return { code, source: 'editor' };
+        const editors = Array.from(document.querySelectorAll('.cm-content'))
+          .map((el) => el?.cmView?.view)
+          .filter((view) => view?.state?.doc);
+        if (editors.length > 0) {
+          editors.sort((a, b) => b.state.doc.length - a.state.doc.length);
+          const view = editors[0];
+          const code = view.state.doc.toString();
+          if (typeof code === 'string' && code.length > 0) {
+            const data = extractEditorFunctionData(view.state);
+            return {
+              code,
+              editorStartIndices: data?.editorStartIndices ?? null,
+              functionNames: data?.functionNames ?? null,
+              source: 'editor'
+            };
+          }
         }
         if (attempt < 2) await new Promise((r) => setTimeout(r, 500));
       }
@@ -91,32 +165,10 @@ export async function getCodeEngineEditorSource({ packageId, tabId }) {
       }
       if (!version) throw new Error('Could not determine package version for fallback');
 
-      const codeResp = await fetch(
-        `/api/codeengine/v2/packages/${packageId}/versions/${version}?parts=code`
-      );
+      const codeResp = await fetch(`/api/codeengine/v2/packages/${packageId}/versions/${version}?parts=code`);
       if (!codeResp.ok) throw new Error(`HTTP ${codeResp.status} fetching saved code`);
       const data = await codeResp.json();
       return { code: data.code || '', source: 'api', version };
-    },
-    [packageId],
-    tabId
-  );
-}
-
-/**
- * GET /api/codeengine/v2/packages/{packageId} with all parts needed for sync.
- * @param {string} packageId - Code Engine package UUID
- * @param {number|null} tabId - Optional Chrome tab ID
- * @returns {Promise<Object>} Full package definition (functions, versions, configuration, name, etc.)
- */
-export async function getCodeEnginePackageDefinition(packageId, tabId = null) {
-  return executeInPage(
-    async (packageId) => {
-      const response = await fetch(
-        `/api/codeengine/v2/packages/${packageId}?parts=functions,versions,configuration`
-      );
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      return response.json();
     },
     [packageId],
     tabId
@@ -136,10 +188,62 @@ export async function getCodeEnginePackageDefinition(packageId, tabId = null) {
 export async function getCodeEnginePackageInfo(packageId, tabId = null) {
   return executeInPage(
     async (packageId) => {
-      const response = await fetch(`/api/codeengine/v2/packages/${packageId}?parts=versions`);
+      const response = await fetch(
+        `/api/codeengine/v2/packages/${packageId}?parts=versions,functions,configuration,privateFunctions`
+      );
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
+      return response.json();
+    },
+    [packageId],
+    tabId
+  );
+}
+
+/**
+ * GET /api/codeengine/v2/packages/{packageId}/versions/{version}, which fetches the
+ * function manifest and saved code for ONE specific version. Use this for diffing
+ * a sync against the actual baseline rather than against whatever happens to be
+ * the latest version's snapshot at the package level.
+ *
+ * @param {string} packageId - Code Engine package UUID
+ * @param {string} version - Specific version string (e.g., "1.0.31")
+ * @param {number|null} tabId - Optional Chrome tab ID
+ * @returns {Promise<Object>} Version-scoped definition with `functions`, `code`, `privateFunctions`, etc.
+ */
+export async function getCodeEnginePackageVersion(packageId, version, tabId = null) {
+  return executeInPage(
+    async (packageId, version) => {
+      const response = await fetch(
+        `/api/codeengine/v2/packages/${packageId}/versions/${version}?parts=functions,code,privateFunctions`
+      );
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json();
+    },
+    [packageId, version],
+    tabId
+  );
+}
+
+/**
+ * GET /api/codeengine/v2/packages/{packageId} with the parts needed to *choose* a
+ * baseline version: the versions list (with per-version metadata like released/
+ * unreleased status) plus the package-level configuration. Deliberately excludes
+ * `functions`, since the function manifest is version-specific and should be
+ * fetched via {@link getCodeEnginePackageVersion} after the baseline version is
+ * picked. This mirrors Domo's own UI flow (their `saveVersion` fetches versions
+ * here, then `d(packageId, version)` to get the specific manifest).
+ *
+ * @param {string} packageId - Code Engine package UUID
+ * @param {number|null} tabId - Optional Chrome tab ID
+ * @returns {Promise<Object>} Package envelope with `versions` array, `configuration`, and package-level metadata
+ */
+export async function getCodeEnginePackageVersions(packageId, tabId = null) {
+  return executeInPage(
+    async (packageId) => {
+      const response = await fetch(`/api/codeengine/v2/packages/${packageId}?parts=versions,configuration`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
       return response.json();
     },
     [packageId],
@@ -186,9 +290,7 @@ export async function getOwnedCodeEnginePackages(userId, tabId = null) {
 
         const packages = data.searchResultsMap?.package || [];
         if (packages.length > 0) {
-          allPackages.push(
-            ...packages.map((p) => ({ id: p.uuid, name: p.winnerText || p.uuid }))
-          );
+          allPackages.push(...packages.map((p) => ({ id: p.uuid, name: p.winnerText || p.uuid })));
           offset += count;
           if (packages.length < count) moreData = false;
         } else {
@@ -204,7 +306,7 @@ export async function getOwnedCodeEnginePackages(userId, tabId = null) {
 }
 
 /**
- * POST /api/codeengine/v2/packages — creates a new version of an existing package.
+ * POST /api/codeengine/v2/packages, which creates a new version of an existing package.
  * @param {Object} definition - Package payload with `manifest` envelope
  * @param {number|null} tabId - Optional Chrome tab ID
  * @returns {Promise<Object>} Server response with new version info
@@ -239,10 +341,9 @@ export async function postCodeEnginePackageVersion(definition, tabId = null) {
 export async function releaseCodeEnginePackageVersion(packageId, version, tabId = null) {
   return executeInPage(
     async (packageId, version) => {
-      const response = await fetch(
-        `/api/codeengine/v2/packages/${packageId}/versions/${version}/release`,
-        { method: 'POST' }
-      );
+      const response = await fetch(`/api/codeengine/v2/packages/${packageId}/versions/${version}/release`, {
+        method: 'POST'
+      });
       if (!response.ok) {
         const text = await response.text().catch(() => '');
         throw new Error(`HTTP ${response.status}${text ? `: ${text}` : ''}`);
@@ -265,11 +366,14 @@ export async function releaseCodeEnginePackageVersion(packageId, version, tabId 
 export async function setCodeEngineEditorSource({ code, tabId }) {
   return executeInPage(
     async (code) => {
-      const contentEl = document.querySelector('.cm-content');
-      const editorView = contentEl?.cmView?.view;
-      if (!editorView?.dispatch || !editorView?.state?.doc) {
+      const editors = Array.from(document.querySelectorAll('.cm-content'))
+        .map((el) => el?.cmView?.view)
+        .filter((view) => view?.dispatch && view?.state?.doc);
+      if (editors.length === 0) {
         return { ok: false, reason: 'editor not reachable' };
       }
+      editors.sort((a, b) => b.state.doc.length - a.state.doc.length);
+      const editorView = editors[0];
       try {
         editorView.dispatch({
           changes: { from: 0, insert: code, to: editorView.state.doc.length }

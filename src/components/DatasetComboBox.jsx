@@ -1,13 +1,4 @@
-import {
-  Collection,
-  ComboBox,
-  EmptyState,
-  Input,
-  Label,
-  ListBox,
-  ListBoxLoadMoreItem,
-  Spinner
-} from '@heroui/react';
+import { Collection, ComboBox, EmptyState, Input, Label, ListBox, ListBoxLoadMoreItem, Spinner } from '@heroui/react';
 import { useEffect, useRef, useState } from 'react';
 
 import { searchDatasets } from '@/services/datasets';
@@ -24,6 +15,7 @@ import IconChevronDown from '@icons/chevron-down.svg?react';
  * @param {Object} props
  * @param {string} [props.instanceBaseUrl] - Base URL for the Domo instance (e.g. "https://instance.domo.com"), used for provider icons
  * @param {string} [props.className] - Additional CSS class for the ComboBox
+ * @param {Set<string>} [props.excludeIds] - Dataset IDs to omit from results (e.g. the origin dataset)
  * @param {boolean} [props.isActive=true] - Whether to fetch datasets (use false when inside a closed modal)
  * @param {string} [props.maxListHeight] - Override max height class for the list
  * @param {number|null} [props.tabId] - Chrome tab ID for API calls
@@ -31,6 +23,7 @@ import IconChevronDown from '@icons/chevron-down.svg?react';
  */
 export function DatasetComboBox({
   className,
+  excludeIds,
   instanceBaseUrl,
   isActive = true,
   label = 'Dataset',
@@ -49,7 +42,6 @@ export function DatasetComboBox({
   const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   const debounceRef = useRef(null);
-  const isOpenRef = useRef(false);
   const searchGenRef = useRef(0);
 
   useEffect(() => {
@@ -75,7 +67,8 @@ export function DatasetComboBox({
       try {
         const { datasets: fetched, totalCount } = await searchDatasets(searchQuery, tabId, 0);
         if (!controller.signal.aborted && gen === searchGenRef.current) {
-          setDatasets(fetched);
+          const filtered = excludeIds ? fetched.filter((d) => !excludeIds.has(d.id)) : fetched;
+          setDatasets(filtered);
           setHasMore(totalCount !== null && fetched.length < totalCount);
           setOffset(fetched.length);
         }
@@ -89,7 +82,7 @@ export function DatasetComboBox({
     fetchDatasets();
 
     return () => controller.abort();
-  }, [isActive, searchQuery, tabId]);
+  }, [isActive, searchQuery, tabId, excludeIds]);
 
   const loadMore = async () => {
     if (isLoadingMore || !hasMore) return;
@@ -98,10 +91,20 @@ export function DatasetComboBox({
     try {
       const { datasets: fetched, totalCount } = await searchDatasets(searchQuery, tabId, offset);
       if (gen !== searchGenRef.current) return;
-      const newDatasets = [...datasets, ...fetched];
-      setDatasets(newDatasets);
-      setHasMore(totalCount !== null && newDatasets.length < totalCount);
-      setOffset(newDatasets.length);
+      const filtered = excludeIds ? fetched.filter((d) => !excludeIds.has(d.id)) : fetched;
+      // Dedupe by id when merging — Domo's search occasionally returns the
+      // same row across pages, and React requires unique keys per item.
+      const seen = new Set(datasets.map((d) => d.id));
+      const merged = [...datasets];
+      for (const d of filtered) {
+        if (!seen.has(d.id)) {
+          seen.add(d.id);
+          merged.push(d);
+        }
+      }
+      setDatasets(merged);
+      setHasMore(totalCount !== null && merged.length < totalCount);
+      setOffset(offset + fetched.length);
     } catch (error) {
       console.error('Error loading more datasets:', error);
     } finally {
@@ -120,7 +123,6 @@ export function DatasetComboBox({
   };
 
   const handleOpenChange = (open) => {
-    isOpenRef.current = open;
     clearTimeout(debounceRef.current);
     if (open) {
       setSearchQuery('');
@@ -132,31 +134,41 @@ export function DatasetComboBox({
   const { onSelectionChange, ...restComboBoxProps } = comboBoxProps;
   const handleSelectionChange = (key) => {
     clearTimeout(debounceRef.current);
-    if (key != null) {
-      const selected = datasets.find((d) => d.id === key);
-      if (selected) {
-        setSelectedName(selected.name);
-        setInputValue(selected.name);
-      }
-    } else if (selectedName && !isOpenRef.current) {
-      setInputValue(selectedName);
+    // React Aria fires a null selection when the menu closes/blurs without an
+    // explicit pick — including the common case where opening the box refetched
+    // the list (searchQuery '') and dropped the currently-selected row from the
+    // collection, so it can't reconcile the controlled selectedKey. There's no
+    // clear affordance here, so a null is always spurious: keep the current
+    // selection (restore the input text) and DON'T propagate a clear that would
+    // wipe the parent's dataset and leave it stuck blank.
+    if (key == null) {
+      if (selectedName) setInputValue(selectedName);
       setSearchQuery('');
       return;
-    } else {
-      setSelectedName('');
-      setInputValue('');
+    }
+    const selectedDataset = datasets.find((d) => d.id === key) || null;
+    if (selectedDataset) {
+      setSelectedName(selectedDataset.name);
+      setInputValue(selectedDataset.name);
     }
     setSearchQuery('');
-    onSelectionChange?.(key);
+    // Forward the resolved name too, so a parent can persist it and re-seed
+    // `selectedDisplayName` after the picker unmounts and remounts.
+    onSelectionChange?.(key, selectedDataset?.name ?? null);
   };
 
   const listHeight = maxListHeight || (isSidepanel() ? 'max-h-60' : 'max-h-30');
 
+  // Results are filtered server-side by searchDatasets (by name OR id), so
+  // disable the ComboBox's built-in client filter (a "contains" match against
+  // each item's textValue, the dataset name). Without this, pasting an id hides
+  // the server-matched result because the id isn't a substring of the name.
   return (
     <ComboBox
       allowsEmptyCollection
       isRequired
       className={className}
+      defaultFilter={() => true}
       inputValue={inputValue}
       menuTrigger={menuTrigger}
       variant='secondary'
@@ -180,12 +192,13 @@ export function DatasetComboBox({
           <Collection items={datasets}>
             {(dataset) => (
               <ListBox.Item
+                className='min-h-14'
                 id={dataset.id}
                 key={dataset.id}
                 textValue={dataset.name}
                 title={dataset.name}
               >
-                <div className='size-10 shrink-0 overflow-hidden rounded-sm bg-surface-secondary'>
+                <div className='size-8 shrink-0 overflow-hidden rounded-sm bg-surface-secondary'>
                   {dataset.dataProviderType && instanceBaseUrl ? (
                     <img
                       alt=''

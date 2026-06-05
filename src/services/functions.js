@@ -1,9 +1,146 @@
 import { executeInPage } from '@/utils/executeInPage';
 
-export async function deleteFunction(functionId) {
-  await fetch(`/api/query/v1/functions/template/${functionId}`, {
-    method: 'DELETE'
-  });
+/**
+ * Create Beast Mode templates in bulk on a target dataset.
+ *
+ * Each entry must be a fully-formed function template (clone an origin
+ * template via `getFunctionTemplate`, rewrite its `expression` +
+ * `columnPositions[].columnName`, and point its `DATA_SOURCE` link at the
+ * target dataset). Returns the raw bulk response so the caller can read back
+ * each created template's new `id`/`legacyId` and build the origin → target id
+ * remap that repoints card references.
+ *
+ * @param {Object} params
+ * @param {Array<Object>} params.functions - Create entries (see endpoint shape).
+ * @param {number|null} [params.tabId]
+ * @returns {Promise<Object>} The raw `POST /functions/bulk/template` response.
+ */
+export async function createDatasetFunctions({ functions, tabId = null }) {
+  return executeInPage(
+    async (functions) => {
+      const response = await fetch('/api/query/v1/functions/bulk/template', {
+        body: JSON.stringify({
+          create: functions,
+          links: {},
+          strict: false
+        }),
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST'
+      });
+      if (!response.ok) {
+        const text = await response.text().catch(() => '');
+        throw new Error(`HTTP ${response.status}: ${text}`.trim());
+      }
+      return response.json();
+    },
+    [functions],
+    tabId
+  );
+}
+
+/**
+ * Delete a function template (Beast Mode or Variable).
+ * @param {Object} params
+ * @param {string} params.functionId - The function template ID
+ * @param {number|null} [params.tabId] - Optional Chrome tab ID
+ */
+export async function deleteFunction({ functionId, tabId = null }) {
+  return executeInPage(
+    async (functionId) => {
+      const response = await fetch(`/api/query/v1/functions/template/${functionId}`, { method: 'DELETE' });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    },
+    [functionId],
+    tabId
+  );
+}
+
+/**
+ * Get the Beast Modes saved to a dataset.
+ *
+ * Excludes Variables (`variable: true`) — those are a separate type. The
+ * search response carries `activeLinks.CARD` (the cards actively using each
+ * Beast Mode), which drives the migration dependency lock; drill links arrive
+ * as `dr:<drillId>:<rootId>` URNs and are normalized here to the bare drill card
+ * id so they line up with the rest of the app's card ids. It does NOT include
+ * the expression; hydrate that per-template via `getFunctionTemplate` when
+ * scanning column refs or cloning for create.
+ *
+ * @param {string} datasetId
+ * @param {number|null} [tabId]
+ * @returns {Promise<Array<{activeCardIds: string[], dataType: string|null, id: any, legacyId: string|null, name: string}>>}
+ */
+export async function getDatasetFunctions(datasetId, tabId = null) {
+  return executeInPage(
+    async (datasetId) => {
+      const all = [];
+      const limit = 100;
+      let offset = 0;
+      let moreData = true;
+      while (moreData) {
+        const response = await fetch('/api/query/v1/functions/search', {
+          body: JSON.stringify({
+            filters: [{ field: 'dataset', idList: [datasetId] }],
+            limit,
+            offset,
+            sort: { ascending: true, field: 'name' }
+          }),
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        const results = data?.results || [];
+        for (const f of results) {
+          if (f?.variable === true) continue;
+          all.push({
+            // A drill's link comes back as a `dr:<drillId>:<rootId>` URN, not a
+            // bare card id. Normalize to the drillId (middle segment) so these
+            // match the bare drill card ids the rest of the app uses; bare card
+            // ids pass through unchanged.
+            activeCardIds: (f?.activeLinks?.CARD || []).map((id) => {
+              const s = String(id);
+              return s.startsWith('dr:') ? s.split(':')[1] || s : s;
+            }),
+            dataType: f.dataType || null,
+            id: f.id,
+            legacyId: f.legacyId || null,
+            name: f.name || String(f.id)
+          });
+        }
+        offset += limit;
+        moreData = Boolean(data?.hasMore) && results.length > 0;
+      }
+      return all;
+    },
+    [datasetId],
+    tabId
+  );
+}
+
+/**
+ * Fetch a single function template in full (includes `expression`,
+ * `columnPositions`, `links`, `dataType`, etc.) — the fields needed to scan
+ * its column refs and to clone it onto a target dataset.
+ *
+ * @param {string|number} functionId
+ * @param {number|null} [tabId]
+ * @returns {Promise<Object>}
+ */
+export async function getFunctionTemplate(functionId, tabId = null) {
+  return executeInPage(
+    async (functionId) => {
+      const response = await fetch(`/api/query/v1/functions/template/${functionId}?hidden=true`, {
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json();
+    },
+    [functionId],
+    tabId
+  );
 }
 
 /**
@@ -65,12 +202,7 @@ export async function getOwnedFunctions(userId, tabId = null) {
  * @param {number|null} tabId - Optional Chrome tab ID
  * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
  */
-export async function transferFunctions(
-  functionIds,
-  fromUserId,
-  toUserId,
-  tabId = null
-) {
+export async function transferFunctions(functionIds, fromUserId, toUserId, tabId = null) {
   return executeInPage(
     async (functionIds, fromUserId, toUserId) => {
       const errors = [];
@@ -80,9 +212,7 @@ export async function transferFunctions(
 
       for (const id of functionIds) {
         try {
-          const response = await fetch(
-            `/api/query/v1/functions/template/${id}?hidden=true`
-          );
+          const response = await fetch(`/api/query/v1/functions/template/${id}?hidden=true`);
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           const func = await response.json();
 
@@ -109,15 +239,49 @@ export async function transferFunctions(
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           succeeded += chunk.length;
         } catch (error) {
-          chunk.forEach((f) =>
-            errors.push({ error: error.message, id: f.id })
-          );
+          chunk.forEach((f) => errors.push({ error: error.message, id: f.id }));
         }
       }
 
       return { errors, failed: errors.length, succeeded };
     },
     [functionIds, fromUserId, toUserId],
+    tabId
+  );
+}
+
+/**
+ * Update Beast Mode templates in bulk (the "overwrite existing" disposition).
+ *
+ * Each entry must be a full template with the fields to change already
+ * applied (typically a target template whose `expression` +
+ * `columnPositions[].columnName` were rewritten via the column remap).
+ *
+ * @param {Object} params
+ * @param {Array<Object>} params.functions - Update entries.
+ * @param {number|null} [params.tabId]
+ * @returns {Promise<Object>} The raw `POST /functions/bulk/template` response.
+ */
+export async function updateDatasetFunctions({ functions, tabId = null }) {
+  return executeInPage(
+    async (functions) => {
+      const response = await fetch('/api/query/v1/functions/bulk/template', {
+        body: JSON.stringify({
+          links: {},
+          strict: false,
+          update: functions
+        }),
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST'
+      });
+      if (!response.ok) {
+        const text = await response.text().catch(() => '');
+        throw new Error(`HTTP ${response.status}: ${text}`.trim());
+      }
+      return response.json();
+    },
+    [functions],
     tabId
   );
 }

@@ -2,7 +2,7 @@ import { Button, Card, Chip, Link } from '@heroui/react';
 import { motion } from 'motion/react';
 import { useEffect } from 'react';
 
-import { releases } from '@/data';
+import { releases } from '@/data/releases';
 import IconArrowSquareOut from '@icons/arrow-square-out.svg?react';
 import IconX from '@icons/x.svg?react';
 
@@ -38,14 +38,8 @@ export function ReleaseNotes() {
         initial={{ opacity: 0, y: -20 }}
         transition={{ duration: 0.3 }}
       >
-        <img
-          alt='Domo Toolkit Logo'
-          className='h-16 w-16'
-          src='/toolkit-512.png'
-        />
-        <h1 className='text-xl font-semibold text-foreground'>
-          What's New in v{latest.version}
-        </h1>
+        <img alt='Domo Toolkit Logo' className='h-16 w-16' src='/toolkit-512.png' />
+        <h1 className='text-xl font-semibold text-foreground'>Domo Toolkit Release Notes v{latest.version}</h1>
         <p className='text-sm text-muted'>{latest.summary}</p>
       </motion.div>
 
@@ -55,9 +49,7 @@ export function ReleaseNotes() {
         initial={{ opacity: 0 }}
         transition={{ delay: 0.1, duration: 0.3 }}
       >
-        <p className='text-sm font-medium tracking-wide uppercase'>
-          Highlights
-        </p>
+        <p className='text-sm font-medium tracking-wide uppercase'>Highlights</p>
         <div className='grid grid-cols-1 gap-2'>
           {latest.highlights.map((highlight, index) => (
             <motion.div
@@ -69,11 +61,7 @@ export function ReleaseNotes() {
               <Card>
                 <Card.Header>
                   <Card.Description className='flex flex-row items-center justify-start gap-2 text-foreground'>
-                    <Chip
-                      className='size-6 shrink-0 items-center justify-center rounded-full'
-                      color='accent'
-                      variant='soft'
-                    >
+                    <Chip className='size-6 shrink-0 items-center justify-center rounded-full' color='accent' variant='soft'>
                       {index + 1}
                     </Chip>
                     {highlight}
@@ -92,24 +80,11 @@ export function ReleaseNotes() {
           initial={{ opacity: 0 }}
           transition={{ delay: 0.2, duration: 0.3 }}
         >
-          <p className='text-sm font-medium tracking-wide uppercase'>
-            Previous Releases
-          </p>
+          <p className='text-sm font-medium tracking-wide uppercase'>Previous Releases</p>
           <div className='flex flex-wrap gap-4'>
             {releases.slice(1).map((release) => (
-              <Link
-                className='no-underline'
-                href={release.githubUrl}
-                key={release.version}
-                target='_blank'
-              >
-                <Chip
-                  className='w-20 justify-center'
-                  color='accent'
-                  key={release.version}
-                  size='lg'
-                  variant='soft'
-                >
+              <Link className='no-underline' href={release.githubUrl} key={release.version} target='_blank'>
+                <Chip className='w-20 justify-center' color='accent' key={release.version} size='lg' variant='soft'>
                   <Chip.Label>v{release.version}</Chip.Label>
                 </Chip>
               </Link>

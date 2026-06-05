@@ -27,15 +27,9 @@ export async function waitForCardPages(currentContext, maxAttempts = 50) {
           type: 'GET_TAB_CONTEXT'
         });
 
-        if (
-          response?.success &&
-          response?.context?.domoObject?.metadata?.context?.cardPages !==
-            undefined
-        ) {
-          cardPages =
-            response.context.domoObject.metadata.details.cardPages;
-          cardsByPage =
-            response.context.domoObject.metadata.details.cardsByPage;
+        if (response?.success && response?.context?.domoObject?.metadata?.context?.cardPages !== undefined) {
+          cardPages = response.context.domoObject.metadata.details.cardPages;
+          cardsByPage = response.context.domoObject.metadata.details.cardsByPage;
           break;
         }
       }
@@ -44,8 +38,7 @@ export async function waitForCardPages(currentContext, maxAttempts = 50) {
         return {
           cardPages: null,
           cardsByPage: null,
-          error:
-            'Timeout while checking for card pages. Please try again.',
+          error: 'Timeout while checking for card pages. Please try again.',
           success: false
         };
       }
@@ -76,62 +69,57 @@ export async function waitForCardPages(currentContext, maxAttempts = 50) {
  */
 export async function waitForChildPages(currentContext, maxAttempts = 50) {
   try {
-  const objectType = currentContext.domoObject?.typeId;
-  const propertyName =
-    objectType === 'DATA_APP_VIEW' ? 'appPages' : 'childPages';
+    const objectType = currentContext.domoObject?.typeId;
+    // Only PAGE enriches its children into context.childPages. The app-view family
+    // (DATA_APP_VIEW, WORKSHEET_VIEW, REPORT_BUILDER_VIEW) all enrich into
+    // context.appPages, so anything that is not a PAGE reads from there.
+    const propertyName = objectType === 'PAGE' ? 'childPages' : 'appPages';
 
-  let childPages = currentContext.domoObject.metadata?.context?.[propertyName];
+    let childPages = currentContext.domoObject.metadata?.context?.[propertyName];
 
-  // Three states:
-  // 1. undefined/null: Not yet checked for pages - need to wait
-  // 2. []: Checked and found no pages - safe to proceed
-  // 3. [...]: Has pages
+    // Three states:
+    // 1. undefined/null: Not yet checked for pages - need to wait
+    // 2. []: Checked and found no pages - safe to proceed
+    // 3. [...]: Has pages
 
-  if (childPages === undefined || childPages === null) {
-    console.log(`[pageHelpers] ${propertyName} not yet loaded, waiting...`);
+    if (childPages === undefined || childPages === null) {
+      console.log(`[pageHelpers] ${propertyName} not yet loaded, waiting...`);
 
-    // Poll for pages to be loaded (max 5 seconds by default)
-    let attempts = 0;
+      // Poll for pages to be loaded (max 5 seconds by default)
+      let attempts = 0;
 
-    while (attempts < maxAttempts) {
-      attempts++;
-      await new Promise((resolve) => setTimeout(resolve, 200)); // Wait 200ms
+      while (attempts < maxAttempts) {
+        attempts++;
+        await new Promise((resolve) => setTimeout(resolve, 200)); // Wait 200ms
 
-      // Re-fetch the current context to get updated pages
-      const response = await chrome.runtime.sendMessage({
-        tabId: currentContext.tabId,
-        type: 'GET_TAB_CONTEXT'
-      });
+        // Re-fetch the current context to get updated pages
+        const response = await chrome.runtime.sendMessage({
+          tabId: currentContext.tabId,
+          type: 'GET_TAB_CONTEXT'
+        });
 
-      if (
-        response?.success &&
-        response?.context?.domoObject?.metadata?.context?.[propertyName] !==
-          undefined
-      ) {
-        childPages = response.context.domoObject.metadata.details[propertyName];
-        console.log(
-          `[pageHelpers] ${propertyName} loaded:`,
-          childPages?.length || 0
-        );
-        break;
+        if (response?.success && response?.context?.domoObject?.metadata?.context?.[propertyName] !== undefined) {
+          childPages = response.context.domoObject.metadata.context[propertyName];
+          console.log(`[pageHelpers] ${propertyName} loaded:`, childPages?.length || 0);
+          break;
+        }
+      }
+
+      if (childPages === undefined || childPages === null) {
+        console.log(`[pageHelpers] Timeout waiting for ${propertyName}`);
+        return {
+          childPages: null,
+          error: `Timeout while checking for ${objectType === 'PAGE' ? 'child pages' : 'pages'}. Please try again.`,
+          success: false
+        };
       }
     }
 
-    if (childPages === undefined || childPages === null) {
-      console.log(`[pageHelpers] Timeout waiting for ${propertyName}`);
-      return {
-        childPages: null,
-        error: `Timeout while checking for ${objectType === 'DATA_APP_VIEW' ? 'app pages' : 'child pages'}. Please try again.`,
-        success: false
-      };
-    }
-  }
-
-  return {
-    childPages: childPages || [],
-    error: null,
-    success: true
-  };
+    return {
+      childPages: childPages || [],
+      error: null,
+      success: true
+    };
   } catch (error) {
     console.error('Error in waitForChildPages:', error);
     return {

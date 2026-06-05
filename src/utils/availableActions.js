@@ -11,27 +11,14 @@ export function getAvailableActions(currentContext) {
   const details = metadata?.details;
   const url = currentContext?.url;
   const userRights = currentContext?.user?.metadata?.USER_RIGHTS || [];
-  if (
-    [
-      'DATA_APP_VIEW',
-      'DATA_SOURCE',
-      'DATAFLOW_TYPE',
-      'PAGE',
-      'REPORT_BUILDER_VIEW',
-      'WORKSHEET_VIEW'
-    ].includes(typeId)
-  ) {
+  if (['DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE', 'REPORT_BUILDER_VIEW', 'WORKSHEET_VIEW'].includes(typeId)) {
     actions.add('getCards');
     if (userRights.includes('content.admin')) {
       actions.add('lockCards');
     }
   }
 
-  if (
-    ['CARD', 'DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE', 'WORKSHEET_VIEW'].includes(
-      typeId
-    )
-  ) {
+  if (['CARD', 'DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE', 'WORKSHEET_VIEW'].includes(typeId)) {
     actions.add('getDatasets');
   }
 
@@ -39,11 +26,7 @@ export function getAvailableActions(currentContext) {
     actions.add('getChildPages');
   }
 
-  if (
-    ['CARD', 'DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE', 'WORKSHEET_VIEW'].includes(
-      typeId
-    )
-  ) {
+  if (['CARD', 'DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE', 'WORKSHEET_VIEW'].includes(typeId)) {
     actions.add('getCardPages');
   }
 
@@ -51,6 +34,7 @@ export function getAvailableActions(currentContext) {
     actions.add('copyColorRules');
     actions.add('getViewInputs');
     actions.add('dataRepair');
+    actions.add('migrateDownstreamContent');
     if (details?.streamId && metadata?.parent?.details?.currentExecutionState === 'ACTIVE') {
       actions.add('cancelStreamExecution');
     }
@@ -93,8 +77,19 @@ export function getAvailableActions(currentContext) {
     actions.add('export');
   }
 
-  if (['CODEENGINE_PACKAGE', 'CODEENGINE_PACKAGE_VERSION'].includes(typeId)) {
-    actions.add('syncJSDocFromSource');
+  if (
+    ['CODEENGINE_PACKAGE', 'CODEENGINE_PACKAGE_VERSION'].includes(typeId) &&
+    !metadata?.context?.workflowModelId &&
+    (metadata?.details?.language || metadata?.parent?.details?.language || 'JAVASCRIPT').toUpperCase() !== 'PYTHON'
+  ) {
+    actions.add('generate');
+  }
+
+  if (typeId === 'MAGNUM_COLLECTION') {
+    actions.add('generate');
+    if (details?.syncEnabled === true) {
+      actions.add('sync');
+    }
   }
 
   if (typeId === 'CARD' && details?.type !== 'domoapp') {

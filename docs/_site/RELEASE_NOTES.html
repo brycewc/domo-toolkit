@@ -3,9 +3,9 @@
   <meta charset="utf-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.8.0 -->
-<title>Domo Toolkit v1.2.0 Release Notes | Domo Toolkit</title>
+<title>Release Notes | Domo Toolkit</title>
 <meta name="generator" content="Jekyll v3.9.5" />
-<meta property="og:title" content="Domo Toolkit v1.2.0 Release Notes" />
+<meta property="og:title" content="Release Notes" />
 <meta property="og:locale" content="en_US" />
 <meta name="description" content="Domo Toolkit is a Chrome extension built for the people who live inside Domo every day - administrators managing hundreds of objects, consultants jumping between client instances, and power users building on the platform. Every feature is built to save clicks, reduce context-switching, and surface information that Domo’s native UI buries behind multiple navigations." />
 <meta property="og:description" content="Domo Toolkit is a Chrome extension built for the people who live inside Domo every day - administrators managing hundreds of objects, consultants jumping between client instances, and power users building on the platform. Every feature is built to save clicks, reduce context-switching, and surface information that Domo’s native UI buries behind multiple navigations." />
@@ -14,14 +14,14 @@
 <meta property="og:site_name" content="Domo Toolkit" />
 <meta property="og:type" content="website" />
 <meta name="twitter:card" content="summary" />
-<meta property="twitter:title" content="Domo Toolkit v1.2.0 Release Notes" />
+<meta property="twitter:title" content="Release Notes" />
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"WebPage","description":"Domo Toolkit is a Chrome extension built for the people who live inside Domo every day - administrators managing hundreds of objects, consultants jumping between client instances, and power users building on the platform. Every feature is built to save clicks, reduce context-switching, and surface information that Domo’s native UI buries behind multiple navigations.","headline":"Domo Toolkit v1.2.0 Release Notes","url":"http://localhost:4000/RELEASE_NOTES.html"}</script>
+{"@context":"https://schema.org","@type":"WebPage","description":"Domo Toolkit is a Chrome extension built for the people who live inside Domo every day - administrators managing hundreds of objects, consultants jumping between client instances, and power users building on the platform. Every feature is built to save clicks, reduce context-switching, and surface information that Domo’s native UI buries behind multiple navigations.","headline":"Release Notes","url":"http://localhost:4000/RELEASE_NOTES.html"}</script>
 <!-- End Jekyll SEO tag -->
 <link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="Domo Toolkit" /></head>
 <body><header class="site-header" role="banner">
 
-  <div class="wrapper"><a class="site-title" rel="author" href="/">Domo Toolkit</a><nav class="site-nav">
+  <div class="wrapper"><a class="site-title" href="https://github.com/brycewc/domo-toolkit">Domo Toolkit</a><nav class="site-nav">
         <input type="checkbox" id="nav-trigger" class="nav-trigger" />
         <label for="nav-trigger">
           <span class="menu-icon">
@@ -31,7 +31,7 @@
           </span>
         </label>
 
-        <div class="trigger"><a class="page-link" href="/CONTRIBUTING.html">Contributing to Domo Toolkit</a><a class="page-link" href="/PRIVACY_POLICY.html">Privacy Policy for Domo Toolkit</a><a class="page-link" href="/RELEASE_NOTES.html">Domo Toolkit v1.2.0 Release Notes</a><a class="page-link" href="/">Domo Toolkit</a></div>
+        <div class="trigger"><a class="page-link" href="/README.html">Home</a><a class="page-link" href="/PRIVACY_POLICY.html">Privacy Policy</a><a class="page-link" href="/RELEASE_NOTES.html">Release Notes</a><a class="page-link" href="/CONTRIBUTING.html">Contributing</a></div>
       </nav></div>
 </header>
 <main class="page-content" aria-label="Content">
@@ -39,57 +39,74 @@
         <article class="post">
 
   <header class="post-header">
-    <h1 class="post-title">Domo Toolkit v1.2.0 Release Notes</h1>
+    <h1 class="post-title">Release Notes</h1>
   </header>
 
   <div class="post-content">
-    <h1 id="domo-toolkit-v120-release-notes">Domo Toolkit v1.2.0 Release Notes</h1>
+    <h1 id="domo-toolkit-v131-release-notes-wip">Domo Toolkit v1.3.1 Release Notes (WIP)</h1>
 
-<h2 id="lineage">Lineage</h2>
+<h2 id="ui-improvements">UI Improvements</h2>
 
 <ul>
-  <li>Trace upstream and downstream datasets and dataflows via the new lightning-fast lineage viewer</li>
-  <li>View dataset previews and dataflow tile operations directly from the graph for quick insights into your data pipelines</li>
-  <li>Can be opened from dataset and dataflow pages and any data discovery views with dataset/dataflow links</li>
-  <li>Includes support for dark mode and opens in a new tab for maximum screen real estate</li>
-  <li>Huge thank you to Will West for his work on this feature!</li>
+  <li>Removed pulsing effect on Copy Filters button, as it was distracting more than it added value</li>
+  <li>Fixed action buttons growing vertically when their label wrapped onto two lines — buttons now stay at a consistent height and the label wraps inside</li>
+  <li>Activity Log Source column (DomoStats path): <code class="language-plaintext highlighter-rouge">USER</code> chips stay accent and <code class="language-plaintext highlighter-rouge">GROUP</code> chips are now success-green; any other source type (<code class="language-plaintext highlighter-rouge">SYSTEM</code>, <code class="language-plaintext highlighter-rouge">ETL</code>, etc.) hashes to a stable color so each type is visually distinct but consistent across rows</li>
+  <li>DataList header title now shows its full value in a HeroUI Tooltip on hover (replacing the previous native <code class="language-plaintext highlighter-rouge">title</code>-attribute approach), so truncated headings like “Downstream Content of {long dataset name}” are always readable. Subtext deliberately does NOT get a tooltip since every subtext we render is a short, bounded count/status string that wouldn’t realistically truncate at typical sidepanel widths</li>
+  <li>DataList header title and subtext now take plain strings with inline <code class="language-plaintext highlighter-rouge">**bold**</code> markdown (instead of JSX) — the shared <code class="language-plaintext highlighter-rouge">parseMarkdownBold</code> util renders the bold for the visible header while <code class="language-plaintext highlighter-rouge">stripMarkdownBold</code> flattens it for the title tooltip so the overlay reads as unstyled prose. Migrated every consumer (GetCards, GetPages, GetDatasets, GetViewInputs, Ownership, MigrateDownstreamContent) and extracted the markdown helpers (originally embedded in useStatusBar’s <code class="language-plaintext highlighter-rouge">parseDescription</code>) to <code class="language-plaintext highlighter-rouge">src/utils/markdown.jsx</code> so status messages, header titles, and subtext all speak the same lightweight markup</li>
 </ul>
 
-<h2 id="bulk-update-workflow-code-engine-package-versions">Bulk Update Workflow Code Engine Package Versions</h2>
+<h2 id="new-features">New Features</h2>
+
+<h3 id="migrate-downstream-content-datasets">Migrate Downstream Content (Datasets)</h3>
 
 <ul>
-  <li>New bulk update feature for workflow actions and their defined code engine package versions</li>
-  <li>Update all package references to the latest version with a single click, or select specific packages and versions to update</li>
-  <li>Keeps all input and output mappings, saving you hours per week of tedious clicks</li>
+  <li>New “Migrate Downstream Content” action button on datasets — finds every card, dataset view, and dataflow that uses the in-scope dataset as an input and rewires their input to a new dataset</li>
+  <li>Discovery uses Domo’s lineage API (no DomoStats setup required) plus the dataset’s cards endpoint</li>
+  <li>Sidepanel view mirrors the Transfer Ownership UX: every found item is pre-selected, with checkboxes on both type groups and individual items so the user can deselect entire categories or cherry-pick</li>
+  <li>Target dataset picker uses async typeahead search with paginated load-more</li>
+  <li>Schema-compatibility check runs as soon as a target is picked — surfaces missing/type-mismatched columns inline</li>
+  <li><strong>Column remapper for incompatible schemas</strong>: when the target’s schema doesn’t fully cover the origin, the modal scans every selected card / dataset view / dataflow for column references and surfaces only the columns that are BOTH actually used by the selected content AND missing from the target. Each surfaced column gets a per-row dropdown of target columns, defaulting to “Leave unmapped” — no auto-suggestions, the user picks each mapping deliberately. The same mapping applies consistently across every piece of content powered by the dataset.</li>
+  <li><strong>Robust column-reference rewriter</strong>: applies the user’s column map at three levels — JSON object keys at known column-keyed paths (<code class="language-plaintext highlighter-rouge">columnFormats</code>, <code class="language-plaintext highlighter-rouge">columnInfo</code>), plain string values at known column-bearing fields (<code class="language-plaintext highlighter-rouge">column</code>, <code class="language-plaintext highlighter-rouge">leftColumn</code>, <code class="language-plaintext highlighter-rouge">groupBy</code>, etc., plus column-list arrays), and backtick-wrapped column refs inside expression strings (formulas, SQL clauses, <code class="language-plaintext highlighter-rouge">formattedExpression</code>). Card definitions that get column rewrites are PUT through the full card-update endpoint instead of the lightweight datasource-swap shortcut.</li>
+  <li>Strong inline warnings throughout the schema-mismatch flow — best-practice text reminding the user to align schemas before migration, and that broken column references can cause cards to render blank, dataflows to fail, and views to error</li>
+  <li>Per-type progress reported live in the sidepanel rows; failures expose the underlying error message</li>
+  <li>Dataset-view input-swap recurses through SQL <code class="language-plaintext highlighter-rouge">selectBody</code> (joins, set operations), updates column <code class="language-plaintext highlighter-rouge">referenceDataSourceId</code> references, rewrites <code class="language-plaintext highlighter-rouge">formattedExpression</code> mappings, then does a final string sweep — the same hardened logic from the original CLI tool</li>
+  <li>Drill cards on each parent card are also migrated when their content uses the in-scope dataset: discovered via the bulk <code class="language-plaintext highlighter-rouge">parts=drillPath,drillPathURNs</code> endpoint, fetched with their own datasource metadata, and rewired alongside the parent so drill-down paths don’t break after the swap</li>
+  <li>Downstream dataflows now show their real names instead of <code class="language-plaintext highlighter-rouge">Dataflow {id}</code> — the lineage endpoint doesn’t return names, so we hydrate them in parallel via <code class="language-plaintext highlighter-rouge">getDataflowDetail</code> after the lineage fetch</li>
+  <li>Parent group checkboxes (Cards / Dataset Views / Dataflows) in selection mode now show the indeterminate dash icon when only some of their children are selected, instead of reading as unchecked. Implemented in <code class="language-plaintext highlighter-rouge">DataList</code> as a general affordance so any future view with parent-and-child selectable rows gets the same behavior; OwnershipView’s existing “Select all” toolbar checkbox already follows the same pattern</li>
 </ul>
 
-<h2 id="clipboard-navigation-overhaul">Clipboard Navigation Overhaul</h2>
+<h3 id="transfer-ownership-per-item-selection">Transfer Ownership (per-item selection)</h3>
 
 <ul>
-  <li>Navigate to copied object now activates on button click instead of passive clipboard monitoring for improved reliability and reduced resource usage</li>
+  <li>Transfer Ownership is no longer all-or-nothing per object type. In selection mode each leaf row (individual card, dataset, dataflow, …) now gets its own checkbox so users can transfer a subset within a type — e.g. move 3 specific dashboards instead of every dashboard the source user owns</li>
+  <li>Parent type rows act as cascading toggles: clicking a type checks/unchecks all its leaves, deselecting any leaf flips the parent into indeterminate, and the toolbar “Select all” reads against the leaf-level totals so it goes indeterminate whenever any single object is deselected</li>
+  <li>Subtext line in selection mode now shows <code class="language-plaintext highlighter-rouge">**N** types, **M** objects selected</code> driven by the actual leaf selection (was previously the all-or-nothing type count), and the bottom-pinned “Transfer ownership to…” footer button enables as soon as ≥1 individual object is selected (no longer requires a full type)</li>
+  <li>Individual object checkboxes now appear pre-checked as soon as their type’s fetch resolves, instead of waiting for every type to finish loading. The optimistic-pre-select effect runs incrementally per type — each loaded type idempotently seeds its leaves (if the user hasn’t deselected the parent type during loading) or prunes itself (if it ended up non-eligible). Net effect: a user who launches the Transfer Ownership view sees per-leaf checkboxes light up cards/datasets/dataflows/etc. as their data streams in, instead of every leaf flipping checked together at the slowest fetch’s deadline</li>
+  <li>The Select-all toolbar checkbox no longer flashes between indeterminate and checked while types are loading. During the loading phase it’s pinned to a stable “checked + disabled” visual so each newly-arriving type doesn’t briefly outpace the leaf-hydration tick; once everything is fully loaded the toolbar resumes its normal three-state evaluation (unchecked / indeterminate / checked) against the per-leaf selection</li>
+  <li>Virtual parent rows (group headers like “Cards”, “Dataset Views”, “Dataflows”, “Pages”, “Datasets”, etc.) now show the matching ObjectTypeIcon in front of the label — matching the icon already displayed on every leaf inside the group. Applied generically in DataList by routing virtual-parent label rendering through the same <code class="language-plaintext highlighter-rouge">labelInner</code> helper that regular items use; consumers (OwnershipView, MigrateDownstreamContentView) populate <code class="language-plaintext highlighter-rouge">typeId</code> on each parent DataListItem from their existing <code class="language-plaintext highlighter-rouge">TYPE_KEY_TO_DOMO_TYPE</code> map. Synthetic group rows without a typeId (e.g. <code class="language-plaintext highlighter-rouge">REPORT_BUILDER_group</code>) render unchanged because ObjectTypeIcon returns null when typeId is unmapped</li>
+  <li>Tasks now nest under their parent project inside the “Projects &amp; Tasks” row instead of rendering as a flat list. The tree shape mirrors Domo’s data model: virtual parent → projects → tasks. Project checkboxes cascade to their task children (selecting a project auto-checks every task underneath); deselecting any single task flips the project checkbox to indeterminate but leaves the project’s own selection intact so the user keeps fine-grained control. The <code class="language-plaintext highlighter-rouge">[Project]</code> / <code class="language-plaintext highlighter-rouge">[Task]</code> label prefixes are dropped — the tree hierarchy plus the Project icon on every row conveys the role visually. Orphan tasks (whose parent project isn’t in the owned list — defensive only, shouldn’t happen given how <code class="language-plaintext highlighter-rouge">getOwnedProjectsAndTasks</code> fetches tasks per-owned-project) render alongside projects as a fallback so they stay selectable</li>
+  <li>Fixed project display names that were rendering as numeric IDs in the Transfer Ownership flow. The Domo project API returns the display name in <code class="language-plaintext highlighter-rouge">projectName</code> (matching the <code class="language-plaintext highlighter-rouge">pathToName: 'projectName'</code> on the PROJECT object type), but <code class="language-plaintext highlighter-rouge">getOwnedProjectsAndTasks</code> was reading <code class="language-plaintext highlighter-rouge">project.name</code> and silently falling back to the id-as-string when it was undefined. Pre-existing bug — the old <code class="language-plaintext highlighter-rouge">[Project] 12345</code> label format camouflaged it; the new flat label exposed it. Service now reads <code class="language-plaintext highlighter-rouge">projectName</code> first, with <code class="language-plaintext highlighter-rouge">name</code> and the id-as-string as fallbacks</li>
+  <li>DataList tooltips on plain (non-Link, non-virtual-parent) rows now show the canonical <code class="language-plaintext highlighter-rouge">originalId</code> when present, instead of the React-key id. Matters for views like the Projects &amp; Tasks tree where the React id is namespaced (<code class="language-plaintext highlighter-rouge">projectsAndTasks:task-12345</code>) to keep CheckboxGroup values unique — the tooltip used to read out that whole composite string. Now it just shows the underlying task or project id, matching the long-standing behavior of the Copy-ID action</li>
+  <li>Nested DataList rows now indent by 16px per nesting level so children read as descendants of their parent instead of as flush-left siblings. Most visible in OwnershipView’s Projects &amp; Tasks tree (tasks shift right under their project) and in any future view with multi-level grouping. The <code class="language-plaintext highlighter-rouge">depth</code> prop was already being threaded recursively from <code class="language-plaintext highlighter-rouge">DataList</code> → <code class="language-plaintext highlighter-rouge">DataListItem</code>; it now drives an inline <code class="language-plaintext highlighter-rouge">paddingLeft</code> on the row’s outer container (<code class="language-plaintext highlighter-rouge">Disclosure.Heading</code> for parents, the flat wrapper div for leaves) — applied only to the row’s outer element so it doesn’t compound with the children’s own depth-based padding</li>
+  <li>Project and Task rows in OwnershipView’s Projects &amp; Tasks tree are now clickable links to their actual Domo pages. Projects open at <code class="language-plaintext highlighter-rouge">/project/{id}</code> (the canonical PROJECT urlPath); tasks open at <code class="language-plaintext highlighter-rouge">/project?taskId={id}</code> (the PROJECT_TASK urlPath). Earlier the rows rendered as plain text because the leaf-builder hardcoded <code class="language-plaintext highlighter-rouge">url: null</code> — corrected by constructing URLs via <code class="language-plaintext highlighter-rouge">DomoObject</code> against the appropriate subtype, mirroring how every other transfer type (datasets, cards, dataflows…) already links to its native Domo page</li>
+  <li><code class="language-plaintext highlighter-rouge">transferAllOwnership</code> in <code class="language-plaintext highlighter-rouge">services/transferOwnership.js</code> gained an optional <code class="language-plaintext highlighter-rouge">enabledItemIds: Map&lt;typeKey, Set&lt;itemId&gt;&gt;</code> parameter that post-filters the listed <code class="language-plaintext highlighter-rouge">owned</code> array per type before the transfer call. Preserves all existing callers (filter is opt-in); works correctly for types with a dedicated <code class="language-plaintext highlighter-rouge">getOwnedForTransfer</code> (filter applies to the re-fetched canonical list) and for <code class="language-plaintext highlighter-rouge">projectsAndTasks</code> (filters projects/tasks separately by <code class="language-plaintext highlighter-rouge">project-&lt;id&gt;</code> / <code class="language-plaintext highlighter-rouge">task-&lt;id&gt;</code> composites)</li>
+  <li><code class="language-plaintext highlighter-rouge">TransferOwnershipModal</code> no longer derives object counts from a <code class="language-plaintext highlighter-rouge">selectedTypeKeys</code> Set + <code class="language-plaintext highlighter-rouge">results</code> map. The parent now hands it pre-computed <code class="language-plaintext highlighter-rouge">selectedTypeCount</code> / <code class="language-plaintext highlighter-rouge">selectedObjectCount</code> numbers, so the modal stays leaf-id agnostic</li>
 </ul>
 
-<h2 id="newly-supported-object-types">Newly Supported Object Types</h2>
+<h2 id="bug-fixes">Bug Fixes</h2>
+
+<h3 id="duplicate-user-scoped-sharing-itemized-preview-audit-log-download">Duplicate User: scoped sharing, itemized preview, audit-log download</h3>
 
 <ul>
-  <li>Workflow Trigger</li>
-</ul>
-
-<h2 id="new-actions">New Actions</h2>
-
-<ul>
-  <li>Update a dataset schedule to manual</li>
-</ul>
-
-<h2 id="bug-fixes-and-improvements">Bug Fixes and Improvements</h2>
-
-<ul>
-  <li>New transparent extension icon that looks great on all toolbar backgrounds — removed the light/dark icon toggle from settings</li>
-  <li>Alert icons updated to Tabler icon set for consistency</li>
-  <li>Removed case sensitivity in URL-based object detection (accommodates a new code engine route)</li>
-  <li>Improved reliability of governance toolkit job detection</li>
-  <li>Fixed Get Card Pages not working from the popup</li>
-  <li>New child pages API endpoint for improved speed of page discovery</li>
+  <li>Fixed Duplicate User over-sharing where the new user ended up with explicit shares on cards and pages the source user only saw indirectly. Root cause: the previous flow fetched from <code class="language-plaintext highlighter-rouge">/api/content/v1/access/users/{id}/cards|pages</code>, which conflates direct individual grants with content reachable through group membership, PDP rules, dataset-derived visibility, org-wide content, and Workspace membership. Every visibility path was then re-granted as a direct share on the new user, so the per-resource “Shared with” panels filled up with the new user even when the source user had never been there as a direct grantee. The new user’s effective access is unchanged because step 5 still copies group memberships (and inherited Workspace access flows from those groups). Only the <em>direct-share</em> list per resource gets tidied up</li>
+  <li>Replaced the access-endpoint read with a fresh derivation in <code class="language-plaintext highlighter-rouge">src/services/userIndividualShares.js</code>: pulls the combined <code class="language-plaintext highlighter-rouge">/api/content/v1/access/users/{id}</code> response, keeps only <code class="language-plaintext highlighter-rouge">accessRecords</code> where <code class="language-plaintext highlighter-rouge">groupId</code> is null and <code class="language-plaintext highlighter-rouge">userId</code> matches the target, then cross-checks each surviving candidate against the Workspaces API (<code class="language-plaintext highlighter-rouge">/api/nav/v1/workspaces/entity/{type}/{id}</code> and the embedded <code class="language-plaintext highlighter-rouge">members</code> array per workspace) to drop anything the user reaches via Workspace membership (their own or any of their groups’). Per-call memoization on both the entity-lookup and the per-workspace member fetch so a user with hundreds of access records doesn’t fan out into thousands of round trips</li>
+  <li>Handles the page-vs-data-app ambiguity in <code class="language-plaintext highlighter-rouge">accessRecords</code>: a <code class="language-plaintext highlighter-rouge">pageId</code> could be a dashboard page OR a data app view, and Workspaces tracks them under different entity types (<code class="language-plaintext highlighter-rouge">page</code> vs <code class="language-plaintext highlighter-rouge">dataApp</code>). The new pipeline tries <code class="language-plaintext highlighter-rouge">entity/page/{pageId}</code> first; on empty response it looks up the page’s parent app via <code class="language-plaintext highlighter-rouge">/api/content/v1/pages/summary</code> (the same <code class="language-plaintext highlighter-rouge">dataAppId</code> field the rest of the codebase already uses for App Studio pages) and retries as <code class="language-plaintext highlighter-rouge">entity/dataApp/{parentAppId}</code>. Regular dashboard pages with no Workspace fall through correctly; data app views inside a Workspace get correctly classified and filtered. Custom (pro-code) apps from the <code class="language-plaintext highlighter-rouge">domoappId</code> field skip the Workspace check because Workspaces doesn’t surface them by a known entity type, so they survive the filter and rely on the operator’s preview checkboxes</li>
+  <li>Fails open on Workspaces lookup errors: if the entity or members endpoint returns a non-OK status for one candidate, the candidate survives the filter with a console warning instead of being silently dropped. The operator’s per-item checkboxes are the safety net. Failing closed would silently break duplications when Workspaces APIs hiccup, which is worse than over-including a few items</li>
+  <li>Preview rewritten to show every individually-shared card, page, and custom app by name with per-item checkboxes (defaults to all-selected). Aggregate sections (Role, Profile, Locale, Group memberships) still render compactly with disclosure expansion for long lists. The three selectable sections render through <code class="language-plaintext highlighter-rouge">DataList</code> with <code class="language-plaintext highlighter-rouge">selectionMode={true}</code>, virtualization, and a “Select all / Deselect all” toolbar so a 500-card list stays usable. Inline italic note under each selectable section reminds operators that deselection only suppresses the <em>direct-share grant</em>, not group-inherited access, to head off the misconception that deselection locks the new user out of the resource entirely</li>
+  <li>Custom apps surface in the preview but the share step is intentionally a no-op for now (Domo’s custom-app share endpoint is <code class="language-plaintext highlighter-rouge">shareCustomAppDesign(designId, …)</code>, which requires a separate <code class="language-plaintext highlighter-rouge">designId</code> lookup not yet built into this flow). Custom apps that were checked appear in the audit log with <code class="language-plaintext highlighter-rouge">Status: SKIPPED</code> and <code class="language-plaintext highlighter-rouge">Notes: Manual sharing required</code> so operators have an explicit record to follow up on</li>
+  <li>Auto-downloads an Excel audit log (<code class="language-plaintext highlighter-rouge">duplicated-user_YYYYMMDD_HHMMSS.xlsx</code>) at the end of every duplication with one row per attempted item across all steps: USER (the create itself), one PROFILE_FIELD row per copied field, LOCALE, one GROUP row per group added, one CARD/PAGE row per attempted share (status <code class="language-plaintext highlighter-rouge">SHARED</code> / <code class="language-plaintext highlighter-rouge">FAILED</code> with the error message in Notes), and one CUSTOM_APP row per checked custom app. Each row carries Source User ID/Name and New User ID/Name columns for cross-referencing. Built via the existing <code class="language-plaintext highlighter-rouge">buildExcelBlob</code> + <code class="language-plaintext highlighter-rouge">downloadBlob</code> plumbing in <code class="language-plaintext highlighter-rouge">src/utils/exportData.js</code>, same as the activity log export</li>
+  <li>Updated terminology throughout: the action button tooltip now reads <code class="language-plaintext highlighter-rouge">Clone this user's role, profile, groups, and individually-shared content</code>, the two share step labels now read <code class="language-plaintext highlighter-rouge">Share individually-shared cards</code> and <code class="language-plaintext highlighter-rouge">Share individually-shared pages</code> (plus a new <code class="language-plaintext highlighter-rouge">Share individually-shared apps</code> step), and the post-completion toast mentions the audit log was downloaded. Replaces the older “accessible cards/pages” phrasing that hinted at the broader, group-inclusive read</li>
+  <li>Deleted the dead helpers <code class="language-plaintext highlighter-rouge">getUserAccessibleCards</code> (<code class="language-plaintext highlighter-rouge">src/services/cards.js</code>) and <code class="language-plaintext highlighter-rouge">getUserAccessiblePages</code> (<code class="language-plaintext highlighter-rouge">src/services/pages.js</code>). Both were used only by the duplicate flow’s previous implementation; grep confirmed no other consumers</li>
 </ul>
 
   </div>
@@ -97,30 +114,6 @@
 </article>
 
       </div>
-    </main><footer class="site-footer h-card">
-  <data class="u-url" href="/"></data>
-
-  <div class="wrapper">
-
-    <h2 class="footer-heading">Domo Toolkit</h2>
-
-    <div class="footer-col-wrapper">
-      <div class="footer-col footer-col-1">
-        <ul class="contact-list">
-          <li class="p-name">Domo Toolkit</li></ul>
-      </div>
-
-      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/brycewc"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">brycewc</span></a></li></ul>
-</div>
-
-      <div class="footer-col footer-col-3">
-        <p>Domo Toolkit is a Chrome extension built for the people who live inside Domo every day - administrators managing hundreds of objects, consultants jumping between client instances, and power users building on the platform. Every feature is built to save clicks, reduce context-switching, and surface information that Domo&#39;s native UI buries behind multiple navigations.</p>
-      </div>
-    </div>
-
-  </div>
-
-</footer>
-</body>
+    </main></body>
 
 </html>

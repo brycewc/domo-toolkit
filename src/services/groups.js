@@ -24,14 +24,11 @@ export async function addUsersToGroups(accessPayload, tabId = null) {
 export async function fetchGroupDisplayNames(groupIds, tabId = null) {
   return executeInPage(
     async (ids) => {
-      const response = await fetch(
-        '/api/content/v2/groups/get?includeActive=true&includeUsers=false',
-        {
-          body: JSON.stringify(ids.map(String)),
-          headers: { 'Content-Type': 'application/json' },
-          method: 'POST'
-        }
-      );
+      const response = await fetch('/api/content/v2/groups/get?includeActive=true&includeUsers=false', {
+        body: JSON.stringify(ids.map(String)),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST'
+      });
       if (!response.ok) return {};
       const groups = await response.json();
       const map = {};
@@ -62,20 +59,14 @@ export async function getOwnedGroups(userId, tabId = null) {
       let offset = 0;
 
       while (moreData) {
-        const response = await fetch(
-          `/api/content/v2/groups/grouplist?limit=${limit}&offset=${offset}&owner=${userId}`
-        );
+        const response = await fetch(`/api/content/v2/groups/grouplist?limit=${limit}&offset=${offset}&owner=${userId}`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
 
         if (data && data.length > 0) {
           allGroups.push(
             ...data
-              .filter((g) =>
-                g.owners?.some(
-                  (o) => o.type === 'USER' && String(o.id) === String(userId)
-                )
-              )
+              .filter((g) => g.owners?.some((o) => o.type === 'USER' && String(o.id) === String(userId)))
               .map((g) => ({
                 id: g.groupId,
                 name: g.name || g.groupId.toString()
@@ -103,12 +94,7 @@ export async function getOwnedGroups(userId, tabId = null) {
  * @param {number|null} tabId - Optional Chrome tab ID
  * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
  */
-export async function transferGroups(
-  groupIds,
-  fromUserId,
-  toUserId,
-  tabId = null
-) {
+export async function transferGroups(groupIds, fromUserId, toUserId, tabId = null) {
   return executeInPage(
     async (groupIds, fromUserId, toUserId) => {
       try {

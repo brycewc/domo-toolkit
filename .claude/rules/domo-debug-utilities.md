@@ -1,7 +1,5 @@
 ---
 description: Browser console debug utilities for reverse-engineering Domo pages. Use when investigating how Domo stores object IDs, inspecting React component internals, or searching for IDs/UUIDs on a page.
-globs:
-alwaysApply: false
 ---
 
 # Domo Debug Utilities
@@ -11,6 +9,7 @@ These are browser console scripts for inspecting Domo pages at runtime. They are
 ## Find Integer IDs on a Page
 
 Scans the entire page for integer IDs (useful for discovering Domo object IDs). Searches:
+
 - DOM attributes
 - Inline `<script>` tags
 - `<meta>` tags
@@ -98,28 +97,64 @@ function findIntegerIds(targetId = null) {
 
   if (window.bootstrap) scanObject(window.bootstrap, 'window.bootstrap');
   extractFromText(document.cookie, 'document.cookie');
-  try { for (let i = 0; i < localStorage.length; i++) { const key = localStorage.key(i); checkValue(key, `localStorage key: ${key}`); const val = localStorage.getItem(key); if (val) { checkValue(val, `localStorage[${key}]`); if (val.length > 20) extractFromText(val, `localStorage[${key}]`); } } } catch {}
-  try { for (let i = 0; i < sessionStorage.length; i++) { const key = sessionStorage.key(i); checkValue(key, `sessionStorage key: ${key}`); const val = sessionStorage.getItem(key); if (val) { checkValue(val, `sessionStorage[${key}]`); if (val.length > 20) extractFromText(val, `sessionStorage[${key}]`); } } } catch {}
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      checkValue(key, `localStorage key: ${key}`);
+      const val = localStorage.getItem(key);
+      if (val) {
+        checkValue(val, `localStorage[${key}]`);
+        if (val.length > 20) extractFromText(val, `localStorage[${key}]`);
+      }
+    }
+  } catch {}
+  try {
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i);
+      checkValue(key, `sessionStorage key: ${key}`);
+      const val = sessionStorage.getItem(key);
+      if (val) {
+        checkValue(val, `sessionStorage[${key}]`);
+        if (val.length > 20) extractFromText(val, `sessionStorage[${key}]`);
+      }
+    }
+  } catch {}
 
   for (const name of ['__NEXT_DATA__', '__INITIAL_STATE__', '__APP_DATA__', 'domo', 'appData', 'pageData', 'cardData']) {
-    try { if (window[name] && typeof window[name] === 'object') scanObject(window[name], `window.${name}`); } catch {}
+    try {
+      if (window[name] && typeof window[name] === 'object') scanObject(window[name], `window.${name}`);
+    } catch {}
   }
 
-  try { const rootStyles = getComputedStyle(document.documentElement); for (const prop of rootStyles) { if (prop.startsWith('--')) { const val = rootStyles.getPropertyValue(prop).trim(); checkValue(val, `CSS var: ${prop}`); } } } catch {}
+  try {
+    const rootStyles = getComputedStyle(document.documentElement);
+    for (const prop of rootStyles) {
+      if (prop.startsWith('--')) {
+        const val = rootStyles.getPropertyValue(prop).trim();
+        checkValue(val, `CSS var: ${prop}`);
+      }
+    }
+  } catch {}
 
   const sorted = [...results.entries()].sort((a, b) => b[1].length - a[1].length);
   for (const [id, locations] of sorted) {
-    console.groupCollapsed(`%c${id}%c — found in ${locations.length} location(s)`, 'color: #60a5fa; font-weight: bold', 'color: inherit');
+    console.groupCollapsed(
+      `%c${id}%c — found in ${locations.length} location(s)`,
+      'color: #60a5fa; font-weight: bold',
+      'color: inherit'
+    );
     locations.forEach((loc) => console.log(`  ${loc}`));
     console.groupEnd();
   }
-  console.log(`\nTotal: ${results.size} unique ID(s) across ${[...results.values()].reduce((s, l) => s + l.length, 0)} location(s)`);
+  console.log(
+    `\nTotal: ${results.size} unique ID(s) across ${[...results.values()].reduce((s, l) => s + l.length, 0)} location(s)`
+  );
   return results;
 }
 
 // Usage:
-findIntegerIds();          // Find all integer IDs (skips < 100)
-findIntegerIds(1234567);   // Search for a specific ID
+findIntegerIds(); // Find all integer IDs (skips < 100)
+findIntegerIds(1234567); // Search for a specific ID
 ```
 
 ## Find UUIDs on a Page
@@ -184,28 +219,58 @@ function findUuids(targetUUID = null) {
 
   if (window.bootstrap) scanObject(window.bootstrap, 'window.bootstrap');
   extractUUIDs(document.cookie, 'document.cookie');
-  try { for (let i = 0; i < localStorage.length; i++) { const key = localStorage.key(i); extractUUIDs(key, `localStorage key: ${key}`); const val = localStorage.getItem(key); if (val) extractUUIDs(val, `localStorage[${key}]`); } } catch {}
-  try { for (let i = 0; i < sessionStorage.length; i++) { const key = sessionStorage.key(i); extractUUIDs(key, `sessionStorage key: ${key}`); const val = sessionStorage.getItem(key); if (val) extractUUIDs(val, `sessionStorage[${key}]`); } } catch {}
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      extractUUIDs(key, `localStorage key: ${key}`);
+      const val = localStorage.getItem(key);
+      if (val) extractUUIDs(val, `localStorage[${key}]`);
+    }
+  } catch {}
+  try {
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i);
+      extractUUIDs(key, `sessionStorage key: ${key}`);
+      const val = sessionStorage.getItem(key);
+      if (val) extractUUIDs(val, `sessionStorage[${key}]`);
+    }
+  } catch {}
 
   for (const name of ['__NEXT_DATA__', '__INITIAL_STATE__', '__APP_DATA__', 'domo', 'appData', 'pageData', 'cardData']) {
-    try { if (window[name] && typeof window[name] === 'object') scanObject(window[name], `window.${name}`); } catch {}
+    try {
+      if (window[name] && typeof window[name] === 'object') scanObject(window[name], `window.${name}`);
+    } catch {}
   }
 
-  try { const rootStyles = getComputedStyle(document.documentElement); for (const prop of rootStyles) { if (prop.startsWith('--')) { const val = rootStyles.getPropertyValue(prop); extractUUIDs(val, `CSS var: ${prop}`); } } } catch {}
+  try {
+    const rootStyles = getComputedStyle(document.documentElement);
+    for (const prop of rootStyles) {
+      if (prop.startsWith('--')) {
+        const val = rootStyles.getPropertyValue(prop);
+        extractUUIDs(val, `CSS var: ${prop}`);
+      }
+    }
+  } catch {}
 
   const sorted = [...results.entries()].sort((a, b) => b[1].length - a[1].length);
   for (const [uuid, locations] of sorted) {
-    console.groupCollapsed(`%c${uuid}%c — found in ${locations.length} location(s)`, 'color: #f59e0b; font-weight: bold', 'color: inherit');
+    console.groupCollapsed(
+      `%c${uuid}%c — found in ${locations.length} location(s)`,
+      'color: #f59e0b; font-weight: bold',
+      'color: inherit'
+    );
     locations.forEach((loc) => console.log(`  ${loc}`));
     console.groupEnd();
   }
-  console.log(`\nTotal: ${results.size} unique UUID(s) across ${[...results.values()].reduce((s, l) => s + l.length, 0)} location(s)`);
+  console.log(
+    `\nTotal: ${results.size} unique UUID(s) across ${[...results.values()].reduce((s, l) => s + l.length, 0)} location(s)`
+  );
   return results;
 }
 
 // Usage:
-findUuids();                                          // Find all UUIDs
-findUuids('550e8400-e29b-41d4-a716-446655440000');    // Search for a specific UUID
+findUuids(); // Find all UUIDs
+findUuids('550e8400-e29b-41d4-a716-446655440000'); // Search for a specific UUID
 ```
 
 ## Inspect React Fiber Tree
@@ -242,6 +307,7 @@ while (fiber) {
 ### Domo-Specific Globals to Inspect
 
 Domo pages commonly expose data through these window properties:
+
 - `window.bootstrap` — Primary Domo config (user info, instance settings, feature flags)
 - `window.__NEXT_DATA__` — Next.js page data (some newer Domo pages)
 - `window.__INITIAL_STATE__` / `window.__APP_DATA__` — App state

@@ -34,6 +34,26 @@ export async function detectCurrentObject() {
 
     case parts.includes('drillviewid'):
       objectType = 'DRILL_VIEW';
+      id = parts[parts.indexOf('drillviewid') + 1];
+      // Extract page/app context from query params (drill launched from a page or app)
+      if (parts.includes('dataappid')) {
+        return {
+          appId: parts[parts.indexOf('dataappid') + 1],
+          appViewId: parts[parts.indexOf('pageid') + 1],
+          baseUrl: `${location.protocol}//${location.hostname}`,
+          id,
+          typeId: objectType,
+          url
+        };
+      } else if (parts.includes('pageid')) {
+        return {
+          baseUrl: `${location.protocol}//${location.hostname}`,
+          id,
+          pageId: parts[parts.indexOf('pageid') + 1],
+          typeId: objectType,
+          url
+        };
+      }
       break;
 
     case parts.includes('cardid'):
@@ -135,9 +155,7 @@ export async function detectCurrentObject() {
           // console.log('Fetching App Studio object type...');
           // Need to fetch to determine if Worksheet or Data App
           try {
-            const response = await fetch(
-              `/api/content/v1/dataapps/${parts[parts.indexOf('app-studio') + 1]}`
-            );
+            const response = await fetch(`/api/content/v1/dataapps/${parts[parts.indexOf('app-studio') + 1]}`);
             // console.log('Fetch response received:', response);
             if (response.ok) {
               const data = await response.json();
@@ -173,6 +191,10 @@ export async function detectCurrentObject() {
       break;
     case url.includes('datasources/') && parts[parts.indexOf('datasources') + 1].length > 5:
       objectType = 'DATA_SOURCE';
+      break;
+
+    case url.includes('dataflows/') && /^\d+$/.test(parts[parts.indexOf('details') + 1] || ''):
+      objectType = 'DATAFLOW_TYPE_EXECUTION';
       break;
 
     case url.includes('dataflows/'):
@@ -216,17 +238,12 @@ export async function detectCurrentObject() {
             const modelId = parts[workflowsIdx + 2];
             const version = parts[workflowsIdx + 3];
 
-            const defResponse = await fetch(
-              `/api/workflow/v2/models/${modelId}/versions/${version}/definition`
-            );
+            const defResponse = await fetch(`/api/workflow/v2/models/${modelId}/versions/${version}/definition`);
             if (defResponse.ok) {
               const definition = await defResponse.json();
               const element = (definition.designElements || []).find((el) => el.id === nodeId);
 
-              if (
-                element?.data?.taskType === 'nebulaFunction' &&
-                element.data.metadata?.packageId
-              ) {
+              if (element?.data?.taskType === 'nebulaFunction' && element.data.metadata?.packageId) {
                 if (element.data.metadata.version) {
                   return {
                     baseUrl: `${location.protocol}//${location.hostname}`,
@@ -572,9 +589,7 @@ export async function getValidTabForInstance(instance) {
     return matchingTabs[0].id;
   }
 
-  throw new Error(
-    `No open tab found for ${instance}.domo.com. Please open a tab on that Domo instance and try again.`
-  );
+  throw new Error(`No open tab found for ${instance}.domo.com. Please open a tab on that Domo instance and try again.`);
 }
 
 /**

@@ -1,27 +1,44 @@
 import { getObjectType } from '@/models/DomoObjectType';
 import { executeInPage } from '@/utils/executeInPage';
 
+import { getUserName } from './users';
+
 const DATASETS_PAGE_SIZE = 50;
 
 export async function cancelStreamExecution({ executionId, streamId, tabId }) {
   return executeInPage(
     async (streamId, executionId) => {
-      const response = await fetch(
-        `/api/data/v1/streams/${streamId}/executions/${executionId}/abort`,
-        {
-          body: JSON.stringify({ category: 'CONNECTOR', message: 'Cancelled via Domo Toolkit' }),
-          headers: { 'Content-Type': 'application/json' },
-          method: 'PUT'
-        }
-      );
+      const response = await fetch(`/api/data/v1/streams/${streamId}/executions/${executionId}/abort`, {
+        body: JSON.stringify({ category: 'CONNECTOR', message: 'Cancelled via Domo Toolkit' }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'PUT'
+      });
       if (!response.ok) {
-        throw new Error(
-          `Failed to abort execution ${executionId}. HTTP status: ${response.status}`
-        );
+        throw new Error(`Failed to abort execution ${executionId}. HTTP status: ${response.status}`);
       }
       return response.json();
     },
     [streamId, executionId],
+    tabId
+  );
+}
+
+/**
+ * Permanently delete a dataset.
+ * @param {Object} params
+ * @param {string} params.datasetId - The datasource ID
+ * @param {number|null} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<void>} Resolves on success, throws on HTTP failure
+ */
+export async function deleteDataset({ datasetId, tabId = null }) {
+  return executeInPage(
+    async (datasetId) => {
+      const response = await fetch(`/api/data/v3/datasources/${datasetId}`, {
+        method: 'DELETE'
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    },
+    [datasetId],
     tabId
   );
 }
@@ -95,6 +112,36 @@ export async function getDatasetColumns({ datasetId, tabId }) {
       }
       const schema = await response.json();
       return schema.tables?.[0]?.columns || [];
+    },
+    [datasetId],
+    tabId
+  );
+}
+
+/**
+ * Count the objects downstream of a dataset, used to decide whether deleting it
+ * is safe. Reads Domo's precomputed impact endpoint, which already rolls up the
+ * full downstream blast radius, and sums the impact counts (every dataflow,
+ * dataset, card, and alert that ultimately depends on this dataset). The
+ * `impact*` fields are the transitive totals; the unprefixed counts are direct
+ * children only.
+ * @param {Object} params
+ * @param {string} params.datasetId - The datasource ID
+ * @param {number|null} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<number>} Total downstream impact (dataflows + datasets + cards + alerts)
+ */
+export async function getDatasetDependentCount({ datasetId, tabId = null }) {
+  return executeInPage(
+    async (datasetId) => {
+      const response = await fetch(`/api/data/v1/impacts/DATA_SOURCE/${datasetId}`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const impact = await response.json();
+      return (
+        (impact.impactCardCount || 0) +
+        (impact.impactDataFlowCount || 0) +
+        (impact.impactDataSourceCount || 0) +
+        (impact.impactAlertCount || 0)
+      );
     },
     [datasetId],
     tabId
@@ -211,9 +258,7 @@ export async function getDatasetsForPage({ pageId, tabId }) {
     const response = await fetch(`/api/content/v1/datasources/pages/${pageId}`);
 
     if (!response.ok) {
-      throw new Error(
-        `Failed to fetch datasets for page ${pageId}. HTTP status: ${response.status}`
-      );
+      throw new Error(`Failed to fetch datasets for page ${pageId}. HTTP status: ${response.status}`);
     }
 
     const data = await response.json();
@@ -243,14 +288,10 @@ export async function getDatasetsForPage({ pageId, tabId }) {
 export async function getDatasetsForView({ datasetId, tabId }) {
   const fetchLogic = async (datasetId) => {
     // 1) Get the schema to extract dataset IDs
-    const schemaResponse = await fetch(
-      `/api/query/v1/datasources/${datasetId}/schema/indexed?includeHidden=true`
-    );
+    const schemaResponse = await fetch(`/api/query/v1/datasources/${datasetId}/schema/indexed?includeHidden=true`);
 
     if (!schemaResponse.ok) {
-      throw new Error(
-        `Failed to fetch schema for datasource ${datasetId}. HTTP status: ${schemaResponse.status}`
-      );
+      throw new Error(`Failed to fetch schema for datasource ${datasetId}. HTTP status: ${schemaResponse.status}`);
     }
 
     const schema = await schemaResponse.json();
@@ -284,8 +325,7 @@ export async function getDatasetsForView({ datasetId, tabId }) {
       if (Array.isArray(sel.joins)) {
         for (const j of sel.joins) {
           if (!j) continue;
-          const name =
-            j.left === false ? j.leftItem && j.leftItem.name : j.rightItem && j.rightItem.name;
+          const name = j.left === false ? j.leftItem && j.leftItem.name : j.rightItem && j.rightItem.name;
           if (name) idsSet.add(stripTicks(name));
         }
       }
@@ -297,16 +337,13 @@ export async function getDatasetsForView({ datasetId, tabId }) {
     }
 
     // 3) Get names for all datasets using bulk endpoint
-    const bulkResponse = await fetch(
-      '/api/data/v3/datasources/bulk?includePrivate=true&includeAllDetails=true',
-      {
-        body: JSON.stringify(datasetIds),
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        method: 'POST'
-      }
-    );
+    const bulkResponse = await fetch('/api/data/v3/datasources/bulk?includePrivate=true&includeAllDetails=true', {
+      body: JSON.stringify(datasetIds),
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      method: 'POST'
+    });
 
     if (!bulkResponse.ok) {
       // If bulk fails, return IDs without names
@@ -344,9 +381,7 @@ export async function getDependentDatasets({ datasetId, tabId }) {
     );
 
     if (!lineageResponse.ok) {
-      throw new Error(
-        `Failed to fetch lineage for dataset ${datasetId}. HTTP status: ${lineageResponse.status}`
-      );
+      throw new Error(`Failed to fetch lineage for dataset ${datasetId}. HTTP status: ${lineageResponse.status}`);
     }
 
     const lineageData = await lineageResponse.json();
@@ -411,14 +446,11 @@ export async function getOwnedDatasets(userId, tabId = null) {
       for (let i = 0; i < ids.length; i += batchSize) {
         const chunk = ids.slice(i, i + batchSize);
         try {
-          const bulkResponse = await fetch(
-            '/api/data/v3/datasources/bulk?includePrivate=true&part=core',
-            {
-              body: JSON.stringify(chunk),
-              headers: { 'Content-Type': 'application/json' },
-              method: 'POST'
-            }
-          );
+          const bulkResponse = await fetch('/api/data/v3/datasources/bulk?includePrivate=true&part=core', {
+            body: JSON.stringify(chunk),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'POST'
+          });
           if (bulkResponse.ok) {
             const bulk = await bulkResponse.json();
             for (const d of bulk.dataSources || []) {
@@ -457,9 +489,7 @@ export async function getStreamExecution({ executionId, streamId, tabId }) {
     async (streamId, executionId) => {
       const response = await fetch(`/api/data/v1/streams/${streamId}/executions/${executionId}`);
       if (!response.ok) {
-        throw new Error(
-          `Failed to fetch execution ${executionId} for stream ${streamId}. HTTP status: ${response.status}`
-        );
+        throw new Error(`Failed to fetch execution ${executionId} for stream ${streamId}. HTTP status: ${response.status}`);
       }
       return response.json();
     },
@@ -473,20 +503,14 @@ export async function getStreamExecutions({ limit = 100, streamId, tabId }) {
     async (streamId, limit) => {
       const stateResponse = await fetch(`/api/data/v1/streams/state/${streamId}`);
       if (!stateResponse.ok) {
-        throw new Error(
-          `Failed to fetch stream state for stream ${streamId}. HTTP status: ${stateResponse.status}`
-        );
+        throw new Error(`Failed to fetch stream state for stream ${streamId}. HTTP status: ${stateResponse.status}`);
       }
       const stateData = await stateResponse.json();
       const offset = stateData[0].executionId < limit ? 0 : stateData[0].executionId - limit;
 
-      const response = await fetch(
-        `/api/data/v1/streams/${streamId}/executions?limit=${limit}&offset=${offset}`
-      );
+      const response = await fetch(`/api/data/v1/streams/${streamId}/executions?limit=${limit}&offset=${offset}`);
       if (!response.ok) {
-        throw new Error(
-          `Failed to fetch stream executions for stream ${streamId}. HTTP status: ${response.status}`
-        );
+        throw new Error(`Failed to fetch stream executions for stream ${streamId}. HTTP status: ${response.status}`);
       }
       const data = await response.json();
       return data;
@@ -526,8 +550,13 @@ export function isViewType(details) {
  * @returns {Promise<{totalCount: number|null, datasets: Array<Object>}>}
  */
 export async function searchDatasets(text, tabId = null, offset = 0) {
-  const isId = !!text && getObjectType('DATA_SOURCE').isValidObjectId(text);
-  const filters = isId ? [{ field: 'databaseId', filterType: 'term', value: text }] : [];
+  // Trim first: a pasted dataset ID is usually copied with surrounding
+  // whitespace, which would otherwise fail the anchored UUID pattern.
+  const trimmed = text?.trim() || '';
+  const isId = !!trimmed && getObjectType('DATA_SOURCE').isValidObjectId(trimmed);
+
+  // A valid dataset ID narrows the search to that one dataset via databaseId.
+  const filters = isId ? [{ field: 'databaseId', filterType: 'term', value: trimmed }] : [];
 
   return executeInPage(
     async (filters, query, offset, count) => {
@@ -556,7 +585,7 @@ export async function searchDatasets(text, tabId = null, offset = 0) {
         totalCount: data._metaData?.totalCount ?? null
       };
     },
-    [filters, isId ? '*' : text || '*', offset, DATASETS_PAGE_SIZE],
+    [filters, isId ? '*' : trimmed || '*', offset, DATASETS_PAGE_SIZE],
     tabId
   );
 }
@@ -635,8 +664,11 @@ export async function setStreamScheduleToManual({ streamId, tabId }) {
  * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
  */
 export async function transferDatasets(datasetIds, fromUserId, toUserId, tabId = null) {
+  // Resolve the source user's name for the tag, but never let that lookup block
+  // the transfer: on failure we proceed untagged rather than aborting ownership.
+  const fromUserName = await getUserName(fromUserId, tabId).catch(() => null);
   return executeInPage(
-    async (datasetIds, fromUserId, toUserId) => {
+    async (datasetIds, toUserId, fromUserName) => {
       const errors = [];
       let succeeded = 0;
       const batchSize = 50;
@@ -654,6 +686,27 @@ export async function transferDatasets(datasetIds, fromUserId, toUserId, tabId =
             method: 'POST'
           });
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+          // Tag each reassigned dataset with its previous owner so the new owner
+          // can see where it came from. Best-effort: ownership has already moved,
+          // so a failed tag call must not flip the batch to failed (which would
+          // wrongly report a successful transfer as failed and invite a retry).
+          if (fromUserName) {
+            try {
+              const tagResponse = await fetch('/api/data/v1/ui/bulk/tag', {
+                body: JSON.stringify({
+                  bulkItems: { ids: chunk, type: 'DATA_SOURCE' },
+                  tags: [`From ${fromUserName}`]
+                }),
+                headers: { 'Content-Type': 'application/json' },
+                method: 'POST'
+              });
+              if (!tagResponse.ok) throw new Error(`HTTP ${tagResponse.status}`);
+            } catch {
+              // Best-effort tagging; the ownership transfer already succeeded.
+            }
+          }
+
           succeeded += chunk.length;
         } catch (error) {
           chunk.forEach((id) => errors.push({ error: error.message, id }));
@@ -662,7 +715,7 @@ export async function transferDatasets(datasetIds, fromUserId, toUserId, tabId =
 
       return { errors, failed: errors.length, succeeded };
     },
-    [datasetIds, fromUserId, toUserId],
+    [datasetIds, toUserId, fromUserName],
     tabId
   );
 }

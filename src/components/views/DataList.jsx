@@ -18,6 +18,7 @@ import { memo, useCallback, useMemo, useRef, useState } from 'react';
 
 import { getAvailableActions } from '@/utils/availableActions';
 import { getValidTabForInstance } from '@/utils/currentObject';
+import { parseMarkdownBold, stripMarkdownBold } from '@/utils/markdown';
 import { launchView } from '@/utils/sidepanel';
 import IconArrowSquareOut from '@icons/arrow-square-out.svg?react';
 import IconCancel from '@icons/cancel.svg?react';
@@ -25,6 +26,7 @@ import IconChevronDown from '@icons/chevron-down.svg?react';
 import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
 import IconCompass from '@icons/compass.svg?react';
 import IconDotsHorizontal from '@icons/dots-horizontal.svg?react';
+import IconInfoCircle from '@icons/info-circle.svg?react';
 import IconLineage from '@icons/lineage.svg?react';
 import IconPeoplePlus from '@icons/people-plus.svg?react';
 import IconPersonPlus from '@icons/person-plus.svg?react';
@@ -33,6 +35,7 @@ import IconSync from '@icons/sync.svg?react';
 import IconX from '@icons/x.svg?react';
 
 import { AnimatedCheck } from '../AnimatedCheck';
+import { DisabledTooltip } from '../DisabledTooltip';
 import { ObjectTypeIcon } from '../ObjectTypeIcon';
 
 /**
@@ -53,10 +56,10 @@ import { ObjectTypeIcon } from '../ObjectTypeIcon';
  *
  * @param {Object} props
  * @param {Array} props.items - Array of list items with optional children
- * @param {React.ReactNode} props.title - Title/stats section to display in header
+ * @param {string} props.title - Plain-text header title. Supports inline `**bold**` markdown for emphasis (parsed via `parseMarkdownBold`). The tooltip mirrors the same text with bold markers stripped so the overlay reads as unstyled prose.
+ * @param {1|2} [props.titleLineClamp=1] - Max lines the header title clamps to before truncating. Defaults to 1; pass 2 for long titles (e.g. a bolded object name) that read better across two lines.
  * @param {HeaderActionType[]} props.headerActions - Array of action types to show in header
  * @param {Function} props.onClose - Callback when close button is clicked (shows close button if provided)
- * @param {string} props.closeLabel - Label for close button tooltip
  * @param {boolean} props.isRefreshing - Whether refresh action is in progress
  * @param {string|number} props.objectId - Object ID for header copy action
  * @param {Function} props.onRefresh - Callback for refresh action
@@ -76,18 +79,26 @@ import { ObjectTypeIcon } from '../ObjectTypeIcon';
  * @param {Set} [props.selectedIds] - Controlled set of currently-selected item ids. Required when `selectionMode` is true.
  * @param {Function} [props.onSelectionChange] - `(newSelectedIds: Set<string>) => void` callback fired when the selection set changes. Required when `selectionMode` is true. Receives the full new Set after any add/remove from the wrapping `CheckboxGroup`'s `onChange`.
  * @param {Function} [props.isSelectable] - `(item) => boolean` filter. When `selectionMode` is true, only items returning true get a checkbox-wrapped label; others get an empty 16px placeholder to preserve column alignment. Defaults to `() => true`.
+ * @param {Function} [props.getItemLock] - `(item) => { locked: boolean, tooltip: string } | null`. When it returns `locked`, the item's checkbox renders read-only (kept checked, can't be unchecked) and muted, wrapped in a tooltip showing `tooltip`. Uses `aria-disabled` rather than `isDisabled` so the tooltip still fires and the row's label link stays clickable. The consumer must also keep the id in `selectedIds` (e.g. re-add it in `onSelectionChange`) so the lock holds. Applies to both leaf rows and parent (group-header) rows; a locked parent gets the same read-only + muted checkbox while its disclosure toggle stays interactive.
  * @param {React.ReactNode} [props.selectionToolbar] - Selection-mode-only content rendered as a third header row directly under the action buttons. Use for "Select all"/"Deselect all" or other bulk-selection controls. Ignored when `selectionMode` is false.
- * @param {React.ReactNode} [props.footer] - Content rendered inside the Card below the items list, separated from the scroll area by a `<Separator>`. Use for a primary action that should sit pinned beneath the list (e.g. a full-width "Transfer ownership to…" button in selection mode). Consumers decide visibility — pass `null`/`false` to omit.
- * @param {React.ReactNode} [props.subtext] - Secondary content rendered on the second header row (typically counts, status text, or a breadcrumb). Truncates with `title`-attribute hover-overflow if it can't fit alongside header actions.
+ * @param {Boolean} [props.fillHeight] - When true, the root Card fills its parent's available height (`h-full`) instead of being content-sized (`max-h-fit`), so the items list scrolls internally and the footer stays pinned at the bottom. Requires a parent that provides a constrained height (a flex/grid column). Default false preserves content-sizing.
+ * @param {React.ReactNode} [props.footer] - Content rendered inside the Card below the items list, separated from the scroll area by a `<Separator>`. Use for a primary action that should sit pinned beneath the list (e.g. a full-width "Transfer ownership to…" button in selection mode). Consumers decide visibility; pass `null`/`false` to omit.
+ * @param {string} [props.subtext] - Plain-text secondary content for the second header row (typically counts, status text, or a breadcrumb). Supports inline `**bold**` markdown the same way `title` does. Truncates if it can't fit alongside header actions, but does NOT get a hover tooltip; every subtext we render is a short, bounded count/status string and a tooltip mirroring already-visible text felt redundant.
+ * @param {React.ReactNode} [props.subtextStartContent] - Node rendered inline at the start of the second header (subtext) row, before the subtext text (e.g. a status `Chip` such as "Beta"). Pass it `shrink-0` so the subtext truncates after it rather than the chip. Omit for no adornment.
  * @param {Array<{ key: string, icon: React.ReactNode, tooltipText: string, onPress: () => void, isDisabled?: boolean, isActive?: boolean, ariaLabel?: string }>} [props.customHeaderActions] - View-specific header buttons rendered inline after the built-in `headerActions`. Use this for actions that don't fit the preset enum (Transfer Ownership, Selection toggle, etc.).
  * @param {string} [props.viewType] - The action key for this view (e.g. `'getCards'`, `'getDatasets'`). Required when `'reload'` is in `headerActions`. Used as the `type` passed to `launchView` and as the key looked up against `getAvailableActions(currentContext)` to decide if reload is enabled.
  * @param {Object} [props.currentContext] - Live `DomoContext` for the user's currently-active object. Required when `'reload'` is in `headerActions`. Drives whether reload is enabled (current object differs from original AND supports the view).
+ * @param {Boolean} [props.allowsMultipleExpanded=false] - When true, multiple rows can be expanded at once. Defaults to false (single-expansion: opening one collapses its siblings). Pair with `defaultExpandedIds` to render a tree fully expanded.
+ * @param {Array|Set} [props.defaultExpandedIds] - Item ids to start expanded. Seeds each DisclosureGroup's initial (uncontrolled) expansion plus the shadow expansion state once on mount, so a consumer can render a tree fully expanded by default (e.g. a read-only list inside a modal). Omit for all-collapsed.
  */
 export function DataList({
-  closeLabel = 'Close',
+  allowsMultipleExpanded = false,
   currentContext,
   customHeaderActions,
+  defaultExpandedIds,
+  fillHeight = false,
   footer,
+  getItemLock,
   headerActions = [],
   isRefreshing = false,
   isSelectable,
@@ -110,7 +121,9 @@ export function DataList({
   showActions = true,
   showCounts = true,
   subtext,
+  subtextStartContent,
   title,
+  titleLineClamp = 1,
   variant,
   viewType,
   virtualThreshold = 50
@@ -119,7 +132,7 @@ export function DataList({
   const [isHeaderShared, setIsHeaderShared] = useState(false);
   // Centralized expansion state, keyed by item.id, survives unmount/remount
   // when items virtualize. See `VirtualizedItems` below.
-  const [expandedIds, setExpandedIds] = useState(() => new Set());
+  const [expandedIds, setExpandedIds] = useState(() => new Set(defaultExpandedIds || []));
   const onToggleExpanded = useCallback((id, isOpen) => {
     setExpandedIds((prev) => {
       const next = new Set(prev);
@@ -225,6 +238,7 @@ export function DataList({
               const tab = await chrome.tabs.get(tabId);
               chrome.tabs.create({
                 index: tab.index + 1,
+                openerTabId: tab.id,
                 url: chrome.runtime.getURL('src/options/index.html#lineage'),
                 windowId: tab.windowId
               });
@@ -264,11 +278,7 @@ export function DataList({
           case 'viewsExplorer': {
             const baseUrl = item.domoObject?.baseUrl;
             if (baseUrl && item.id) {
-              window.open(
-                `${baseUrl}/datasources/${item.id}/view/create`,
-                '_blank',
-                'noopener,noreferrer'
-              );
+              window.open(`${baseUrl}/datasources/${item.id}/view/create`, '_blank', 'noopener,noreferrer');
             }
             break;
           }
@@ -284,10 +294,9 @@ export function DataList({
     [itemLabel, onItemRemove, onItemShare, onItemShareAll, onStatusUpdate]
   );
 
-  const hasInlineActions =
-    headerActions.length > 0 || (customHeaderActions && customHeaderActions.length > 0);
+  const hasInlineActions = headerActions.length > 0 || (customHeaderActions && customHeaderActions.length > 0);
   const hasSelectionToolbar = selectionMode && Boolean(selectionToolbar);
-  const hasHeader = title || subtext || hasInlineActions || onClose || hasSelectionToolbar;
+  const hasHeader = title || subtext || subtextStartContent || hasInlineActions || onClose || hasSelectionToolbar;
 
   // In selection mode, wrap the rendered items in a HeroUI CheckboxGroup so
   // each row's `<Checkbox value={item.id}>` is driven by group context. The
@@ -316,29 +325,38 @@ export function DataList({
   const sortedItems = useMemo(() => sortItemsByLabel(items), [items]);
 
   return (
-    <Card className='flex max-h-fit min-h-0 w-full flex-1 flex-col gap-0 p-2' variant={variant}>
+    <Card
+      className={`datalist-root flex min-h-0 w-full flex-1 flex-col gap-0 p-2 ${fillHeight ? 'h-full' : 'max-h-fit'}`}
+      variant={variant}
+    >
       {hasHeader && (
         // HeroUI canonical header pattern: close button is an absolute-positioned
         // sibling of Card.Title (NOT inside Card.Title). Card.Title is one line
         // with right padding to clear the close icon. Subtext + action buttons
         // live on a second row inside Card.Header. Actions render inline — no
         // IconDotsHorizontal Popover collapse — so primary actions like Refresh are one
-        // click instead of two. Subtext truncates first when buttons take their
-        // share of width; a `title` attribute surfaces the full text on hover.
+        // click instead of two. Title and subtext are plain strings with optional
+        // `**bold**` markdown rendered via `parseMarkdownBold`. Only the title
+        // gets a HeroUI Tooltip (`stripMarkdownBold` flattens it for the
+        // overlay so the hover text reads as unstyled prose) — subtext is
+        // always a bounded short count/status string, so a tooltip mirroring
+        // already-visible content would be redundant.
         <Card.Header className='gap-1'>
           {title && (
-            <Card.Title
-              className='line-clamp-1 min-w-0 pr-8'
-              title={typeof title === 'string' ? title : undefined}
-            >
-              {title}
-            </Card.Title>
+            <Tooltip>
+              <Tooltip.Trigger className='min-w-0 pr-8'>
+                <Card.Title className={titleLineClamp === 2 ? 'line-clamp-2' : 'line-clamp-1'}>
+                  {parseMarkdownBold(title)}
+                </Card.Title>
+              </Tooltip.Trigger>
+              <Tooltip.Content className='max-w-60'>{stripMarkdownBold(title)}</Tooltip.Content>
+            </Tooltip>
           )}
           {onClose && (
-            <Tooltip closeDelay={0} delay={400}>
+            <Tooltip>
               <Button
                 isIconOnly
-                aria-label={closeLabel}
+                aria-label='Close view'
                 className='absolute top-1 right-2'
                 size='sm'
                 variant='ghost'
@@ -346,21 +364,17 @@ export function DataList({
               >
                 <IconX />
               </Button>
-              <Tooltip.Content className='text-xs'>{closeLabel}</Tooltip.Content>
+              <Tooltip.Content className='max-w-60'>Close view</Tooltip.Content>
             </Tooltip>
           )}
-          {(subtext || hasInlineActions) && (
+          {(subtext || subtextStartContent || hasInlineActions) && (
             <div className='flex min-w-0 items-center justify-between gap-2'>
-              <div
-                className='min-w-0 flex-1 truncate text-xs text-muted'
-                title={typeof subtext === 'string' ? subtext : undefined}
-              >
-                {subtext}
-              </div>
+              {subtextStartContent}
+              <div className='min-w-0 flex-1 truncate text-xs text-muted'>{parseMarkdownBold(subtext)}</div>
               {hasInlineActions && (
                 <ButtonGroup hideSeparator className='flex shrink-0' size='sm' variant='ghost'>
                   {customHeaderActions?.map((action) => (
-                    <Tooltip closeDelay={0} delay={400} key={action.key}>
+                    <Tooltip key={action.key}>
                       <Button
                         isIconOnly
                         aria-label={action.ariaLabel ?? action.tooltipText}
@@ -372,11 +386,13 @@ export function DataList({
                       >
                         {action.icon}
                       </Button>
-                      <Tooltip.Content className='text-xs'>{action.tooltipText}</Tooltip.Content>
+                      <Tooltip.Content className='max-w-60' placement='bottom'>
+                        {action.tooltipText}
+                      </Tooltip.Content>
                     </Tooltip>
                   ))}
                   {headerActions.includes('openAll') && (
-                    <Tooltip closeDelay={0} delay={400}>
+                    <Tooltip>
                       <Button
                         isIconOnly
                         aria-label='Open All'
@@ -386,11 +402,13 @@ export function DataList({
                       >
                         <IconArrowSquareOut />
                       </Button>
-                      <Tooltip.Content className='text-xs'>Open all in new tabs</Tooltip.Content>
+                      <Tooltip.Content className='max-w-60' placement='bottom'>
+                        Open all in new tabs
+                      </Tooltip.Content>
                     </Tooltip>
                   )}
-                  {headerActions.includes('shareAll') && (
-                    <Tooltip closeDelay={0} delay={400}>
+                  {onShareAll && headerActions.includes('shareAll') && (
+                    <Tooltip>
                       <Button
                         isIconOnly
                         aria-label='Share All'
@@ -400,13 +418,13 @@ export function DataList({
                       >
                         {isHeaderShared ? <AnimatedCheck stroke={1.5} /> : <IconPeoplePlus />}
                       </Button>
-                      <Tooltip.Content className='text-xs'>
+                      <Tooltip.Content className='max-w-60' placement='bottom'>
                         {isHeaderShared ? 'Shared!' : 'Share all with yourself'}
                       </Tooltip.Content>
                     </Tooltip>
                   )}
                   {headerActions.includes('copy') && (
-                    <Tooltip closeDelay={0} delay={400}>
+                    <Tooltip>
                       <Button
                         isIconOnly
                         aria-label='Copy'
@@ -416,7 +434,7 @@ export function DataList({
                       >
                         {isCopied ? <AnimatedCheck stroke={1.5} /> : <IconClipboardCopy />}
                       </Button>
-                      <Tooltip.Content className='text-xs'>
+                      <Tooltip.Content className='max-w-60' placement='bottom'>
                         {isCopied ? 'Copied!' : 'Copy ID'}
                       </Tooltip.Content>
                     </Tooltip>
@@ -426,45 +444,44 @@ export function DataList({
                     (() => {
                       // Always rendered (when opted-in) to keep the action bar
                       // layout stable as the user navigates. When the current
-                      // object can't reload, the button is *faded* and ignores
-                      // clicks — but is NOT `isDisabled`, because HeroUI/React
-                      // Aria disables pointer events on disabled buttons,
-                      // which would suppress the tooltip explaining *why*.
+                      // object can't reload, it renders through DisabledTooltip
+                      // so the tooltip explaining *why* still shows (that
+                      // component handles the disabled-but-hoverable mechanics).
                       const currentTypeId = currentContext?.domoObject?.typeId;
                       const reloadDisabledReason = !currentTypeId
                         ? 'Navigate to a Domo object to reload'
                         : !getAvailableActions(currentContext).has(viewType)
                           ? "Current object doesn't support this view"
-                          : currentContext.domoObject.id === objectId &&
-                              currentTypeId === objectType
+                          : currentContext.domoObject.id === objectId && currentTypeId === objectType
                             ? 'Already showing data for the current object'
                             : null;
                       const isReloadDisabled = reloadDisabledReason !== null;
                       const tooltipText = reloadDisabledReason ?? 'Reload for current object';
-                      return (
-                        <Tooltip closeDelay={0} delay={400}>
+                      return isReloadDisabled ? (
+                        <DisabledTooltip content={tooltipText} placement='bottom'>
+                          <Button isIconOnly aria-label='Reload' size='sm' variant='ghost'>
+                            <IconReset />
+                          </Button>
+                        </DisabledTooltip>
+                      ) : (
+                        <Tooltip>
                           <Button
                             isIconOnly
-                            aria-disabled={isReloadDisabled}
                             aria-label='Reload'
                             size='sm'
                             variant='ghost'
-                            onPress={() => {
-                              if (isReloadDisabled) return;
-                              handleHeaderAction('reload');
-                            }}
-                            className={
-                              isReloadDisabled ? 'cursor-not-allowed opacity-50' : undefined
-                            }
+                            onPress={() => handleHeaderAction('reload')}
                           >
                             <IconReset />
                           </Button>
-                          <Tooltip.Content className='text-xs'>{tooltipText}</Tooltip.Content>
+                          <Tooltip.Content className='max-w-60' placement='bottom'>
+                            {tooltipText}
+                          </Tooltip.Content>
                         </Tooltip>
                       );
                     })()}
                   {headerActions.includes('refresh') && (
-                    <Tooltip closeDelay={0} delay={400}>
+                    <Tooltip>
                       <Button
                         isIconOnly
                         aria-label='Refresh'
@@ -475,16 +492,16 @@ export function DataList({
                       >
                         <IconSync className={isRefreshing ? 'animate-spin' : ''} />
                       </Button>
-                      <Tooltip.Content className='text-xs'>Refresh</Tooltip.Content>
+                      <Tooltip.Content className='max-w-60' placement='bottom'>
+                        Refresh
+                      </Tooltip.Content>
                     </Tooltip>
                   )}
                 </ButtonGroup>
               )}
             </div>
           )}
-          {selectionMode && selectionToolbar && (
-            <div className='flex min-w-0 items-center'>{selectionToolbar}</div>
-          )}
+          {selectionMode && selectionToolbar && <div className='flex min-w-0 items-center'>{selectionToolbar}</div>}
         </Card.Header>
       )}
       <Separator className='mt-1.5' />
@@ -496,12 +513,21 @@ export function DataList({
           // more than the visual flourish.
           withSelectionGroup(
             <Card.Content className='flex min-h-0 w-full flex-1 flex-col p-0'>
-              <DisclosureGroup className='flex min-h-0 w-full flex-1 flex-col divide-y divide-border'>
+              <DisclosureGroup
+                allowsMultipleExpanded={allowsMultipleExpanded}
+                className='flex min-h-0 w-full flex-1 flex-col divide-y divide-border'
+                defaultExpandedKeys={defaultExpandedIds}
+              >
                 <VirtualizedItems
                   items={sortedItems}
                   renderItem={(item) => (
                     <DataListItem
+                      allowsMultipleExpanded={allowsMultipleExpanded}
+                      canShare={!!onItemShare}
+                      canShareAll={!!onItemShareAll}
+                      defaultExpandedIds={defaultExpandedIds}
                       expandedIds={expandedIds}
+                      getItemLock={getItemLock}
                       isSelectable={isSelectable}
                       item={item}
                       itemActions={itemActions}
@@ -522,15 +548,34 @@ export function DataList({
         : withSelectionGroup(
             <ScrollShadow
               hideScrollBar
-              className='min-h-0 flex-1 overflow-y-auto overscroll-x-none overscroll-y-contain'
+              // `overscroll-y-contain` only when the DataList owns its scroll
+              // viewport (`fillHeight`, bounded by a flex parent). When content-
+              // sized (e.g. inside a modal body that owns the scroll), this
+              // container isn't actually scrollable, and `contain` would still
+              // block wheel events from chaining to the ancestor scroller — so
+              // scrolling over the rows would do nothing while the margins and
+              // scrollbar worked. `overscroll-y-auto` there lets the wheel reach
+              // the real scroller. In the bounded case this stays scrollable, so
+              // `auto` only matters at the edge, where it chains to the
+              // overflow-hidden shell (a no-op): no regression.
+              className={`min-h-0 flex-1 overflow-y-auto overscroll-x-none ${fillHeight ? 'overscroll-y-contain' : 'overscroll-y-auto'}`}
               offset={2}
               orientation='vertical'
             >
               <Card.Content>
-                <DisclosureGroup className='flex w-full flex-col divide-y divide-border'>
+                <DisclosureGroup
+                  allowsMultipleExpanded={allowsMultipleExpanded}
+                  className='flex w-full flex-col divide-y divide-border'
+                  defaultExpandedKeys={defaultExpandedIds}
+                >
                   {sortedItems.map((item, index) => (
                     <DataListItem
+                      allowsMultipleExpanded={allowsMultipleExpanded}
+                      canShare={!!onItemShare}
+                      canShareAll={!!onItemShareAll}
+                      defaultExpandedIds={defaultExpandedIds}
                       expandedIds={expandedIds}
+                      getItemLock={getItemLock}
                       isSelectable={isSelectable}
                       item={item}
                       itemActions={itemActions}
@@ -647,7 +692,13 @@ function VirtualizedItems({ bounded = false, items, renderItem }) {
       style={containerStyle}
       className={
         bounded
-          ? 'w-full overflow-y-auto overscroll-contain'
+          ? // `overscroll-auto` (not `contain`) lets a bounded child list chain
+            // its scroll to the parent once it hits its top/bottom edge — so
+            // scrolling inside an expanded group keeps scrolling the whole
+            // DataList instead of dead-stopping at the group's boundary. The
+            // unbounded top-level container keeps `overscroll-y-contain` so the
+            // sidepanel/page itself never bounce-scrolls past the list.
+            'w-full overflow-y-auto overscroll-auto'
           : 'min-h-0 w-full flex-1 overflow-y-auto overscroll-x-none overscroll-y-contain'
       }
     >
@@ -703,13 +754,15 @@ const SHAREABLE_TYPES = new Set(['APP', 'DATA_APP', 'DATA_SOURCE', 'PAGE', 'WORK
  * Result: when one Disclosure toggles, only the toggled row re-renders;
  * sibling rows skip. Big win for the Get Card Pages case (130+ groups).
  *
- * Caveat: this assumes a row's children are leaves (no nested Disclosures
- * deeper than 1 level). If a deeply-nested Disclosure ever toggles, its
- * ancestor would skip re-render and the descendant would not see the new
- * `expandedIds` reference. Today no DataList consumer nests Disclosures more
- * than 1 level deep — revisit if that changes.
+ * Nested Disclosures: a row also re-renders when one of its direct children's
+ * own expansion toggles (see the child-open check below), so that child gets
+ * the fresh `expandedIds` reference and can open/close. This covers one level
+ * of nested Disclosures (e.g. drill cards under a parent card). A grandchild
+ * Disclosure would still need a recursive check; no consumer nests that deep.
  */
 function arePropsEqualForRow(prev, next) {
+  if (prev.canShare !== next.canShare) return false;
+  if (prev.canShareAll !== next.canShareAll) return false;
   if (prev.item !== next.item) return false;
   if (prev.itemActions !== next.itemActions) return false;
   if (prev.objectType !== next.objectType) return false;
@@ -727,6 +780,22 @@ function arePropsEqualForRow(prev, next) {
   const prevSelected = prev.selectedIds?.has(prev.item.id) ?? false;
   const nextSelected = next.selectedIds?.has(next.item.id) ?? false;
   if (prevSelected !== nextSelected) return false;
+  // A row's lock can change without its own selection changing (a Beast Mode's
+  // lock depends on which CARDS are selected). getItemLock's identity changes
+  // when that upstream selection changes, so resolve and compare the lock here.
+  const prevLock = prev.getItemLock?.(prev.item) || null;
+  const nextLock = next.getItemLock?.(next.item) || null;
+  if ((prevLock?.locked ?? false) !== (nextLock?.locked ?? false)) return false;
+  if ((prevLock?.tooltip ?? '') !== (nextLock?.tooltip ?? '')) return false;
+  // Parent rows must re-render when any DESCENDANT's selection or expansion
+  // changes: a descendant's selection drives this row's indeterminate visual,
+  // and a descendant Disclosure needs the fresh `expandedIds` reference to
+  // open/close. Recurses the whole subtree, so it holds at any nesting depth
+  // (e.g. drills nested under a card under the Cards group). Leaf rows return
+  // immediately; cost is O(subtree) and only parent rows pay it.
+  if (subtreeStateChanged(prev.item, prev.selectedIds, next.selectedIds, prev.expandedIds, next.expandedIds)) {
+    return false;
+  }
   return true;
 }
 
@@ -752,8 +821,13 @@ function arePropsEqualForRow(prev, next) {
  * @param {Number} props.virtualThreshold - Children array length above which children virtualize. Threaded recursively from DataList.
  */
 function DataListItemImpl({
+  allowsMultipleExpanded = false,
+  canShare = false,
+  canShareAll = false,
+  defaultExpandedIds,
   depth = 0,
   expandedIds,
+  getItemLock,
   isSelectable,
   item,
   itemActions,
@@ -775,10 +849,8 @@ function DataListItemImpl({
   // DataListItem spans both fetch and transfer phases; the count slot swaps
   // to a spinner or X icon to mirror the row's lifecycle without changing
   // its layout. See useParallelFetches for the producing hook.
-  const isLoadingState =
-    item.isVirtualParent && (item.status === 'loading' || item.status === 'transferring');
-  const isErrorState =
-    item.isVirtualParent && (item.status === 'error' || item.status === 'failed');
+  const isLoadingState = item.isVirtualParent && (item.status === 'loading' || item.status === 'transferring');
+  const isErrorState = item.isVirtualParent && (item.status === 'error' || item.status === 'failed');
   const showsErrorBody = isErrorState && item.error;
   const statusIndicator = isLoadingState ? (
     <Spinner
@@ -813,10 +885,52 @@ function DataListItemImpl({
   // descendant selector has specificity (0,0,2,0), which beats a plain `mt-0`
   // utility (0,0,1,0), so the `!` important modifier is needed to flip the
   // cascade.
-  const isItemSelectableInMode =
-    selectionMode && (typeof isSelectable === 'function' ? isSelectable(item) : true);
-  const selectionPlaceholder =
-    selectionMode && !isItemSelectableInMode ? <div className='h-9 w-4 shrink-0' /> : null;
+  const isItemSelectableInMode = selectionMode && (typeof isSelectable === 'function' ? isSelectable(item) : true);
+  const selectionPlaceholder = selectionMode && !isItemSelectableInMode ? <div className='h-9 w-4 shrink-0' /> : null;
+  // Lock state for this row (leaf rows only). When locked, the checkbox is
+  // read-only + muted and wrapped in a tooltip; the consumer keeps it selected.
+  const itemLock = isItemSelectableInMode && typeof getItemLock === 'function' ? getItemLock(item) : null;
+  const isLocked = Boolean(itemLock?.locked);
+
+  // Visual indentation per nesting level so children read as descendants
+  // rather than as siblings of their parent. Scoped to selection mode on
+  // purpose: in default mode each nesting level already sits inside its own
+  // `disclosure__body` (HeroUI's `p-2`), which gives ~8px of natural indent
+  // per level, so adding an explicit indent here would double up and over-pad
+  // the rows. In selection mode that body padding is stripped to `p-0` (see
+  // the `[data-slot='checkbox-group'] .disclosure__body` rule in global.css),
+  // so without this the nested leaf rows would sit flush against their parent
+  // group header. Applied on the row's outer container (Disclosure.Heading or
+  // the flat row's wrapper div), NOT on the whole <Disclosure>, because the
+  // Disclosure body holds the next level of children and each child already
+  // computes its own depth-based padding via `depth + 1` in childRenderProps;
+  // padding the whole Disclosure would compound and over-indent. Inline style
+  // (rather than a Tailwind class) because `depth` is runtime, so Tailwind's
+  // JIT can't emit a class whose name doesn't appear as a static substring of
+  // the source.
+  const indentStyle = selectionMode && depth > 0 ? { paddingLeft: `${depth * 8}px` } : undefined;
+
+  // Indeterminate state for parent rows: when *some but not all* of the row's
+  // selectable children are in `selectedIds`, the parent checkbox should paint
+  // the dash icon. Checked-state still comes from the parent's own membership
+  // in the CheckboxGroup value (consumer's onChange propagates parent↔children
+  // so all-children-selected ⇒ parent in set ⇒ checkbox checked). We filter
+  // children by `isSelectable` first so rows whose children are non-selectable
+  // (e.g. OwnershipView type rows) never go indeterminate, only the parents
+  // in MigrateDownstreamContent-style trees where children are independently
+  // selectable.
+  const isParentIndeterminate = (() => {
+    if (!isItemSelectableInMode || !hasChildren) return false;
+    const selectableChildren = item.children.filter((child) =>
+      typeof isSelectable === 'function' ? isSelectable(child) : true
+    );
+    if (selectableChildren.length === 0) return false;
+    let selectedCount = 0;
+    for (const child of selectableChildren) {
+      if (selectedIds?.has(String(child.id))) selectedCount++;
+    }
+    return selectedCount > 0 && selectedCount < selectableChildren.length;
+  })();
 
   const handleAction = useCallback(
     async (actionType) => {
@@ -850,18 +964,11 @@ function DataListItemImpl({
     if (!showActions) return [];
 
     const removeButton = (
-      <Tooltip closeDelay={0} delay={400} key='remove'>
-        <Button
-          fullWidth
-          isIconOnly
-          aria-label='Remove'
-          size='sm'
-          variant='ghost'
-          onPress={() => handleAction('remove')}
-        >
+      <Tooltip key='remove'>
+        <Button fullWidth isIconOnly aria-label='Remove' size='sm' variant='ghost' onPress={() => handleAction('remove')}>
           <IconCancel className='text-danger' />
         </Button>
-        <Tooltip.Content className='text-xs'>
+        <Tooltip.Content className='max-w-60'>
           Remove{' '}
           <span className='lowercase'>
             {objectType} from {item?.domoObject?.typeName || item?.typeId}
@@ -871,39 +978,25 @@ function DataListItemImpl({
     );
 
     const openAllButton = (
-      <Tooltip closeDelay={0} delay={400} key='openAll'>
-        <Button
-          fullWidth
-          isIconOnly
-          aria-label='Open All'
-          size='sm'
-          variant='ghost'
-          onPress={() => handleAction('openAll')}
-        >
+      <Tooltip key='openAll'>
+        <Button fullWidth isIconOnly aria-label='Open All' size='sm' variant='ghost' onPress={() => handleAction('openAll')}>
           <IconArrowSquareOut />
         </Button>
-        <Tooltip.Content className='text-xs'>Open all in new tabs</Tooltip.Content>
+        <Tooltip.Content className='max-w-60'>Open all in new tabs</Tooltip.Content>
       </Tooltip>
     );
 
     const copyButton = (
-      <Tooltip closeDelay={0} delay={400} key='copy'>
-        <Button
-          fullWidth
-          isIconOnly
-          aria-label='Copy'
-          size='sm'
-          variant='ghost'
-          onPress={() => handleAction('copy')}
-        >
+      <Tooltip key='copy'>
+        <Button fullWidth isIconOnly aria-label='Copy' size='sm' variant='ghost' onPress={() => handleAction('copy')}>
           {isCopied ? <AnimatedCheck stroke={1.5} /> : <IconClipboardCopy />}
         </Button>
-        <Tooltip.Content className='text-xs'>{isCopied ? 'Copied!' : 'Copy ID'}</Tooltip.Content>
+        <Tooltip.Content className='max-w-60'>{isCopied ? 'Copied!' : 'Copy ID'}</Tooltip.Content>
       </Tooltip>
     );
 
     const shareAllButton = (
-      <Tooltip closeDelay={0} delay={400} key='shareAll'>
+      <Tooltip key='shareAll'>
         <Button
           fullWidth
           isIconOnly
@@ -914,32 +1007,21 @@ function DataListItemImpl({
         >
           {isShared ? <AnimatedCheck stroke={1.5} /> : <IconPeoplePlus />}
         </Button>
-        <Tooltip.Content className='text-xs'>
-          {isShared ? 'Shared!' : 'Share all with yourself'}
-        </Tooltip.Content>
+        <Tooltip.Content className='max-w-60'>{isShared ? 'Shared!' : 'Share all with yourself'}</Tooltip.Content>
       </Tooltip>
     );
 
     const shareButton = (
-      <Tooltip closeDelay={0} delay={400} key='share'>
-        <Button
-          fullWidth
-          isIconOnly
-          aria-label='Share'
-          size='sm'
-          variant='ghost'
-          onPress={() => handleAction('share')}
-        >
+      <Tooltip key='share'>
+        <Button fullWidth isIconOnly aria-label='Share' size='sm' variant='ghost' onPress={() => handleAction('share')}>
           {isShared ? <AnimatedCheck stroke={1.5} /> : <IconPersonPlus />}
         </Button>
-        <Tooltip.Content className='text-xs'>
-          {isShared ? 'Shared!' : 'Share with yourself'}
-        </Tooltip.Content>
+        <Tooltip.Content className='max-w-60'>{isShared ? 'Shared!' : 'Share with yourself'}</Tooltip.Content>
       </Tooltip>
     );
 
     const viewsExplorerButton = (
-      <Tooltip closeDelay={0} delay={400} key='viewsExplorer'>
+      <Tooltip key='viewsExplorer'>
         <Button
           fullWidth
           isIconOnly
@@ -950,12 +1032,12 @@ function DataListItemImpl({
         >
           <IconCompass />
         </Button>
-        <Tooltip.Content className='text-xs'>Open in Views Explorer</Tooltip.Content>
+        <Tooltip.Content className='max-w-60'>Open in Views Explorer</Tooltip.Content>
       </Tooltip>
     );
 
     const lineageButton = (
-      <Tooltip closeDelay={0} delay={400} key='lineage'>
+      <Tooltip key='lineage'>
         <Button
           fullWidth
           isIconOnly
@@ -966,7 +1048,7 @@ function DataListItemImpl({
         >
           <IconLineage />
         </Button>
-        <Tooltip.Content className='text-xs'>View Lineage</Tooltip.Content>
+        <Tooltip.Content className='max-w-60'>View Lineage</Tooltip.Content>
       </Tooltip>
     );
 
@@ -975,7 +1057,7 @@ function DataListItemImpl({
       const actions = [];
       if (item.id !== 'REPORT_BUILDER_group') {
         actions.push(openAllButton);
-        if (hasShareableChildren(item)) actions.push(shareAllButton);
+        if (canShareAll && hasShareableChildren(item)) actions.push(shareAllButton);
       }
       return actions;
     }
@@ -983,16 +1065,11 @@ function DataListItemImpl({
     if (itemActions) {
       const actions = [];
       if (itemActions.includes('openAll') && hasChildren) actions.push(openAllButton);
-      if (itemActions.includes('shareAll') && hasShareableChildren(item))
-        actions.push(shareAllButton);
-      if (itemActions.includes('share') && isItemShareable(item)) actions.push(shareButton);
-      if (
-        itemActions.includes('lineage') &&
-        (item.typeId === 'DATA_SOURCE' || item.typeId === 'DATAFLOW_TYPE')
-      )
+      if (canShareAll && itemActions.includes('shareAll') && hasShareableChildren(item)) actions.push(shareAllButton);
+      if (canShare && itemActions.includes('share') && isItemShareable(item)) actions.push(shareButton);
+      if (itemActions.includes('lineage') && (item.typeId === 'DATA_SOURCE' || item.typeId === 'DATAFLOW_TYPE'))
         actions.push(lineageButton);
-      if (itemActions.includes('viewsExplorer') && item.typeId === 'DATA_SOURCE')
-        actions.push(viewsExplorerButton);
+      if (itemActions.includes('viewsExplorer') && item.typeId === 'DATA_SOURCE') actions.push(viewsExplorerButton);
       if (itemActions.includes('copy')) actions.push(copyButton);
       return actions;
     }
@@ -1002,7 +1079,7 @@ function DataListItemImpl({
     if (hasChildren && item.typeId !== 'DATA_APP') {
       actions.push(openAllButton);
     }
-    if (hasShareableChildren(item)) {
+    if (canShareAll && hasShareableChildren(item)) {
       actions.push(shareAllButton);
     }
 
@@ -1014,21 +1091,48 @@ function DataListItemImpl({
       actions.push(removeButton);
     }
 
-    if (isItemShareable(item)) actions.push(shareButton);
+    if (canShare && isItemShareable(item)) actions.push(shareButton);
     actions.push(copyButton);
     return actions;
-  }, [hasChildren, handleAction, isCopied, isShared, item, itemActions, objectType, showActions]);
+  }, [canShare, canShareAll, hasChildren, handleAction, isCopied, isShared, item, itemActions, objectType, showActions]);
+
+  // Optional leading info-icon marker rendered between the icon and the label
+  // text. A plain `<span title>` rather than a React Aria Tooltip so it never
+  // nests an interactive element inside the row's disclosure-toggle button, and
+  // because it sits at the START of the label it survives the label's
+  // `truncate`. The pointed-to explanation also appears as a legend near the
+  // list, so the hover is a convenience, not the only path to it.
+  // Match the marker icon to the adjacent ObjectTypeIcon's 16px box so the two
+  // icons share an identical bottom-line; a smaller icon bottom-aligned next to
+  // a 16px one reads as vertically staggered (its optical center sits higher).
+  const annotationMarker = item.annotation ? (
+    <span className='mr-1 inline-flex cursor-help align-text-bottom text-accent' title={item.annotation}>
+      <IconInfoCircle className='size-4 shrink-0' />
+    </span>
+  ) : null;
 
   const labelInner = (
     <>
-      <ObjectTypeIcon
-        className='mr-1 inline-block shrink-0 align-[-3px]'
-        size={16}
-        typeId={item.typeId}
-      />
+      <ObjectTypeIcon className='mr-1 inline-block shrink-0 align-text-bottom' size={16} typeId={item.typeId} />
+      {annotationMarker}
       {item.label}
     </>
   );
+
+  // Full label for the native `title` on truncating non-link rows (virtual
+  // parents and non-link disclosure headings render the label inside a
+  // `truncate` <p> with no <Link> to surface it). A long label (e.g. a card
+  // flagged "(column not used here)") would otherwise truncate with nothing on
+  // hover. Mirrors the link rows' native-title approach; only set when the
+  // label is a plain string.
+  const labelTitle = typeof item.label === 'string' ? item.label : undefined;
+
+  // Muted rows read as secondary/container entries rather than direct results
+  // (e.g. a card that only appears because a drill under it uses a column). The
+  // class lands on the label wrapper, so the name and the `currentColor`-driven
+  // ObjectTypeIcon both mute, while the annotation marker keeps its own
+  // `text-accent` and stays prominent.
+  const labelMutedClass = item.muted ? ' text-muted' : '';
 
   // Link items: native `title` shows the full URL on hover. Lighter than
   // React Aria Tooltip (no portal, no delay state machine, no extra DOM) and
@@ -1041,14 +1145,21 @@ function DataListItemImpl({
   // `flex-1`) keeps the label content-sized so the count sits adjacent to it
   // instead of getting shoved to the right edge by an expanding label.
   const itemLabel = item?.isVirtualParent ? (
-    <p className='min-w-0 truncate text-sm font-medium'>{item.label}</p>
+    // Virtual parents share the same `labelInner` (icon + label) as regular
+    // items so the row's leading icon stays consistent between collapsed
+    // group headers and their expanded leaves. ObjectTypeIcon returns null
+    // when item.typeId is unset, so synthetic group rows (no typeId) render
+    // identically to before.
+    <p className={`min-w-0 truncate text-sm font-medium${labelMutedClass}`} title={labelTitle}>
+      {labelInner}
+    </p>
   ) : item.url ? (
     // `min-w-0` (without `flex-1`) lets the Link be content-sized when text
     // is short and shrink/truncate when long — but never grow into empty
     // space. The Trigger (below) takes flex-1 so the empty space between the
     // link text and the count is part of the disclosure-toggle hit area.
     <Link
-      className='block min-w-0 truncate text-sm font-normal no-underline decoration-accent hover:text-accent hover:underline'
+      className='block min-w-0 truncate text-sm font-normal decoration-accent hover:text-accent'
       href={item.url}
       isDisabled={!item.url}
       target='_blank'
@@ -1057,11 +1168,11 @@ function DataListItemImpl({
       {labelInner}
     </Link>
   ) : (
-    <span className='text-sm'>
-      <Tooltip className='flex-1' closeDelay={0} delay={200}>
+    <span className={`text-sm${labelMutedClass}`}>
+      <Tooltip className='flex-1'>
         <Tooltip.Trigger className='block truncate'>{labelInner}</Tooltip.Trigger>
-        <Tooltip.Content offset={4} placement='top left'>
-          ID: {item.id}
+        <Tooltip.Content className='max-w-60' offset={4} placement='top left'>
+          ID: {item.originalId ?? item.id}
         </Tooltip.Content>
       </Tooltip>
     </span>
@@ -1077,12 +1188,7 @@ function DataListItemImpl({
             </Button>
             <Popover.Content offset={4} placement='left'>
               <Popover.Dialog className='p-0'>
-                <ButtonGroup
-                  fullWidth
-                  className='flex max-w-xs justify-end'
-                  size='sm'
-                  variant='ghost'
-                >
+                <ButtonGroup fullWidth className='flex max-w-xs justify-end' size='sm' variant='ghost'>
                   {applicableActions}
                 </ButtonGroup>
               </Popover.Dialog>
@@ -1103,11 +1209,16 @@ function DataListItemImpl({
     //
     // Outer div carries border-t; inner div carries `my-1 min-h-9`. This
     // mirrors the Disclosure structure so flat rows and Disclosure-heading
-    // rows have identical vertical metrics — without the 8px gap that
+    // rows have identical vertical metrics, without the 8px gap that
     // appears when a flat row only has `py-1` while the Disclosure row has
     // `my-1` on its heading.
+    //
+    // A leaf row also shows a `(count countLabel)` badge when it sets `count`
+    // (e.g. a related dataset showing its downstream dependency count), so the
+    // count is no longer gated to virtual parents. The muted-empty treatment
+    // stays virtual-parent-only.
     const isMutedEmpty = item.isVirtualParent && item.count === 0;
-    const flatCount = showCounts && item.isVirtualParent && item.count !== undefined && (
+    const flatCount = showCounts && item.count !== undefined && (
       <p className='shrink-0 text-sm whitespace-nowrap text-muted'>
         ({item.count}
         {item.countLabel ? ` ${item.countLabel}` : ''})
@@ -1117,6 +1228,7 @@ function DataListItemImpl({
       <div className='w-full'>
         <div
           className={`my-1 flex min-h-9 w-full flex-row items-center justify-between gap-2 ${isMutedEmpty ? 'text-muted' : ''}`}
+          style={indentStyle}
         >
           {/* Selectable: Checkbox is control-only with `aria-label` for screen
               readers — toggling selection requires clicking the actual
@@ -1125,15 +1237,37 @@ function DataListItemImpl({
               so its click semantics (Link navigation / tooltip ID surfacing)
               stay independent of the selection control. */}
           {isItemSelectableInMode ? (
-            <Checkbox
-              aria-label={typeof item.label === 'string' ? item.label : `Select ${item.id}`}
-              className='mt-0! shrink-0'
-              value={String(item.id)}
-            >
-              <Checkbox.Control>
-                <Checkbox.Indicator />
-              </Checkbox.Control>
-            </Checkbox>
+            isLocked ? (
+              // Locked: read-only (can't be unchecked) + muted, wrapped in a
+              // tooltip. `aria-disabled` (not `isDisabled`) keeps pointer events
+              // alive so the tooltip fires; the consumer keeps the id selected.
+              <Tooltip delay={300}>
+                <Tooltip.Trigger className='shrink-0 cursor-not-allowed!'>
+                  <Checkbox
+                    aria-disabled
+                    isReadOnly
+                    aria-label={typeof item.label === 'string' ? item.label : `Select ${item.id}`}
+                    className='mt-0! shrink-0 opacity-60 [--cursor-interactive:var(--cursor-disabled)]'
+                    value={String(item.id)}
+                  >
+                    <Checkbox.Control>
+                      <Checkbox.Indicator />
+                    </Checkbox.Control>
+                  </Checkbox>
+                </Tooltip.Trigger>
+                <Tooltip.Content className='max-w-60'>{itemLock.tooltip}</Tooltip.Content>
+              </Tooltip>
+            ) : (
+              <Checkbox
+                aria-label={typeof item.label === 'string' ? item.label : `Select ${item.id}`}
+                className='mt-0! shrink-0'
+                value={String(item.id)}
+              >
+                <Checkbox.Control>
+                  <Checkbox.Indicator />
+                </Checkbox.Control>
+              </Checkbox>
+            )
           ) : (
             selectionPlaceholder
           )}
@@ -1148,8 +1282,13 @@ function DataListItemImpl({
   }
 
   const childRenderProps = (child) => ({
+    allowsMultipleExpanded,
+    canShare,
+    canShareAll,
+    defaultExpandedIds,
     depth: depth + 1,
     expandedIds,
+    getItemLock,
     isSelectable,
     item: child,
     itemActions,
@@ -1166,10 +1305,14 @@ function DataListItemImpl({
   return (
     <Disclosure
       className='space-0 w-full'
+      id={item.id}
       isExpanded={isOpen}
       onExpandedChange={(open) => onToggleExpanded?.(item.id, open)}
     >
-      <Disclosure.Heading className='my-1 flex min-h-9 w-full flex-row items-center justify-between gap-2'>
+      <Disclosure.Heading
+        className='my-1 flex min-h-9 w-full flex-row items-center justify-between gap-2'
+        style={indentStyle}
+      >
         {isItemSelectableInMode ? (
           // Selection mode + selectable: the Checkbox is the control alone
           // (no label content), with an `aria-label` for screen readers.
@@ -1195,36 +1338,69 @@ function DataListItemImpl({
           // would otherwise inflate the row to ~52px (descendant selector
           // wins over a plain `mt-0` utility on specificity).
           <>
-            <Checkbox
-              aria-label={typeof item.label === 'string' ? item.label : `Select ${item.id}`}
-              className='mt-0! shrink-0'
-              value={String(item.id)}
-            >
-              <Checkbox.Control>
-                <Checkbox.Indicator />
-              </Checkbox.Control>
-            </Checkbox>
-            <Disclosure.Trigger
-              aria-label='Toggle'
-              className='flex min-w-0 flex-1 flex-row items-center gap-2 self-stretch'
-              variant='tertiary'
-            >
-              <p className='min-w-0 truncate text-left text-sm font-medium'>{item.label}</p>
-              {statusIndicator
-                ? statusIndicator
-                : showCounts &&
-                  item.count !== undefined && (
-                    <p className='shrink-0 text-sm whitespace-nowrap text-muted'>
-                      ({item.count}
-                      {item.countLabel ? ` ${item.countLabel}` : ''})
-                    </p>
-                  )}
-              {!isLoadingState && (
-                <Disclosure.Indicator>
-                  <IconChevronDown />
-                </Disclosure.Indicator>
-              )}
-            </Disclosure.Trigger>
+            {isLocked ? (
+              // Locked parent: every selectable child under it is itself locked,
+              // so the parent toggle can't change anything. Render it read-only +
+              // muted with an explanatory tooltip, mirroring the locked leaf rows.
+              // `aria-disabled` (not `isDisabled`) keeps the tooltip firing.
+              <Tooltip delay={300}>
+                <Tooltip.Trigger className='shrink-0 cursor-not-allowed!'>
+                  <Checkbox
+                    aria-disabled
+                    isReadOnly
+                    aria-label={typeof item.label === 'string' ? item.label : `Select ${item.id}`}
+                    className='mt-0! shrink-0 opacity-60 [--cursor-interactive:var(--cursor-disabled)]'
+                    isIndeterminate={isParentIndeterminate}
+                    value={String(item.id)}
+                  >
+                    <Checkbox.Control>
+                      <Checkbox.Indicator />
+                    </Checkbox.Control>
+                  </Checkbox>
+                </Tooltip.Trigger>
+                <Tooltip.Content className='max-w-60'>{itemLock.tooltip}</Tooltip.Content>
+              </Tooltip>
+            ) : (
+              <Checkbox
+                aria-label={typeof item.label === 'string' ? item.label : `Select ${item.id}`}
+                className='mt-0! shrink-0'
+                isIndeterminate={isParentIndeterminate}
+                value={String(item.id)}
+              >
+                <Checkbox.Control>
+                  <Checkbox.Indicator />
+                </Checkbox.Control>
+              </Checkbox>
+            )}
+            {/* Label stays OUTSIDE the Trigger so a selectable parent that is
+                also a real object (e.g. a card with drill children) keeps its
+                <Link> navigation. The Trigger holds only the count + chevron and
+                claims the remaining width, so clicking the empty space or the
+                chevron toggles, while the label navigates and the checkbox
+                selects. */}
+            <div className='flex w-full min-w-0 flex-1 basis-4/5 items-center gap-2'>
+              {itemLabel}
+              <Disclosure.Trigger
+                aria-label='Toggle'
+                className='flex flex-1 flex-row items-center gap-2 self-stretch'
+                variant='tertiary'
+              >
+                {statusIndicator
+                  ? statusIndicator
+                  : showCounts &&
+                    item.count !== undefined && (
+                      <p className='shrink-0 text-sm whitespace-nowrap text-muted'>
+                        ({item.count}
+                        {item.countLabel ? ` ${item.countLabel}` : ''})
+                      </p>
+                    )}
+                {!isLoadingState && (
+                  <Disclosure.Indicator>
+                    <IconChevronDown />
+                  </Disclosure.Indicator>
+                )}
+              </Disclosure.Trigger>
+            </div>
           </>
         ) : item.isVirtualParent ? (
           // Virtual parents: the entire label area IS the Trigger so clicking
@@ -1239,7 +1415,9 @@ function DataListItemImpl({
               className='flex min-w-0 flex-1 basis-4/5 flex-row items-center gap-2'
               variant='tertiary'
             >
-              <p className='min-w-0 truncate text-left text-sm font-medium'>{item.label}</p>
+              <p className={`min-w-0 truncate text-left text-sm font-medium${labelMutedClass}`} title={labelTitle}>
+                {labelInner}
+              </p>
               {statusIndicator
                 ? statusIndicator
                 : showCounts &&
@@ -1257,29 +1435,19 @@ function DataListItemImpl({
               )}
             </Disclosure.Trigger>
           </>
-        ) : (
-          // Regular items: label stays outside the Trigger so the <Link> /
-          // tooltip-wrapped span retains its own click semantics (navigate /
-          // surface ID). The count moves INTO the Trigger as its first child
-          // so the trigger's min-content size is `count + gap + chevron`
-          // rather than just the chevron — otherwise a long, truncating label
-          // would collapse the trigger to a 16px hit area next to a 100px+
-          // count that did nothing on click. The Trigger keeps flex-1 to
-          // claim any remaining empty space between the count and the
-          // chevron, so clicking that empty space also toggles disclosure.
-          // HeroUI's `.disclosure__indicator` has `margin-inline-start: auto`,
-          // which pushes the chevron to the trigger's right edge inside its
-          // flex context — so the count visually sits adjacent to the label
-          // (left side of trigger) and the chevron stays pinned right.
+        ) : item.url ? (
+          // Regular LINK items: the label stays OUTSIDE the Trigger so the
+          // <Link> keeps its own click semantics (navigate). The count moves
+          // INTO the Trigger as its first child so the trigger's min-content
+          // size is count + chevron, and the Trigger keeps flex-1 to claim the
+          // empty space so clicking it (or the chevron) toggles. HeroUI's
+          // `.disclosure__indicator` has `margin-inline-start: auto`, pinning
+          // the chevron to the trigger's right edge.
           <>
             {selectionPlaceholder}
             <div className='flex w-full min-w-0 flex-1 basis-4/5 items-center gap-2'>
               {itemLabel}
-              <Disclosure.Trigger
-                aria-label='Toggle'
-                className='flex flex-1 flex-row items-center gap-2'
-                variant='tertiary'
-              >
+              <Disclosure.Trigger aria-label='Toggle' className='flex flex-1 flex-row items-center gap-2' variant='tertiary'>
                 {showCounts && item.count !== undefined && (
                   <p className='shrink-0 text-sm whitespace-nowrap text-muted'>
                     ({item.count}
@@ -1292,6 +1460,33 @@ function DataListItemImpl({
               </Disclosure.Trigger>
             </div>
           </>
+        ) : (
+          // Regular NON-LINK items: there's no <Link> to preserve, so the label
+          // goes INSIDE the Trigger (like a virtual parent). A long label then
+          // truncates within the trigger instead of overflowing and pushing the
+          // chevron off-screen, and the whole row toggles.
+          <>
+            {selectionPlaceholder}
+            <Disclosure.Trigger
+              aria-label='Toggle'
+              className='flex min-w-0 flex-1 basis-4/5 flex-row items-center gap-2'
+              variant='tertiary'
+            >
+              <p className={`min-w-0 truncate text-left text-sm${labelMutedClass}`} title={labelTitle}>
+                {labelInner}
+              </p>
+              {showCounts && item.count !== undefined && (
+                <p className='shrink-0 text-sm whitespace-nowrap text-muted'>
+                  ({item.count}
+                  {item.countLabel ? ` ${item.countLabel}` : ''})
+                </p>
+              )}
+              <span aria-hidden='true' className='flex-1' />
+              <Disclosure.Indicator>
+                <IconChevronDown />
+              </Disclosure.Indicator>
+            </Disclosure.Trigger>
+          </>
         )}
         {selectionMode ? null : actions}
       </Disclosure.Heading>
@@ -1300,12 +1495,17 @@ function DataListItemImpl({
           {showsErrorBody && <p className='px-2 py-1 text-xs text-danger'>{item.error}</p>}
           {hasChildren && (
             // Each nesting level needs its own DisclosureGroup so React Aria
-            // scopes single-expansion coordination to siblings at that level
-            // only. Without this, nested Disclosures inherit the outer
-            // group's context and expanding a child would collapse its
-            // parent. This wrapper recurses naturally via DataListItemImpl,
-            // so arbitrary depth is handled.
-            <DisclosureGroup className='flex w-full flex-col divide-y divide-border'>
+            // scopes expansion coordination to siblings at that level only.
+            // Without this, nested Disclosures inherit the outer group's context
+            // and expanding a child would collapse its parent. This wrapper
+            // recurses naturally via DataListItemImpl, so arbitrary depth is
+            // handled. `allowsMultipleExpanded`/`defaultExpandedKeys` flow down
+            // so a consumer can render every level expanded at once.
+            <DisclosureGroup
+              allowsMultipleExpanded={allowsMultipleExpanded}
+              className='flex w-full flex-col divide-y divide-border'
+              defaultExpandedKeys={defaultExpandedIds}
+            >
               {item.children.length > virtualThreshold ? (
                 <VirtualizedItems
                   bounded
@@ -1321,7 +1521,7 @@ function DataListItemImpl({
                 // move from `DisclosureGroup` onto this wrapper since the
                 // group now has a single child.
                 <div
-                  className='w-full divide-y divide-border overflow-y-auto overscroll-contain'
+                  className='w-full divide-y divide-border overflow-y-auto overscroll-auto'
                   style={{ height: MAX_VISIBLE_CHILDREN_ROWS * ROW_HEIGHT }}
                 >
                   {item.children.map((child, index) => (
@@ -1329,9 +1529,7 @@ function DataListItemImpl({
                   ))}
                 </div>
               ) : (
-                item.children.map((child, index) => (
-                  <DataListItem key={child.id || index} {...childRenderProps(child)} />
-                ))
+                item.children.map((child, index) => <DataListItem key={child.id || index} {...childRenderProps(child)} />)
               )}
             </DisclosureGroup>
           )}
@@ -1341,9 +1539,26 @@ function DataListItemImpl({
   );
 }
 
+// Recursively reports whether any descendant of `item` changed selection or
+// expansion between renders. Lets arePropsEqualForRow re-render a parent row
+// when a nested child toggles, keeping indeterminate state and nested
+// Disclosure open/close in sync at any nesting depth.
+function subtreeStateChanged(item, prevSelected, nextSelected, prevExpanded, nextExpanded) {
+  const children = item?.children;
+  if (!Array.isArray(children) || children.length === 0) return false;
+  for (const child of children) {
+    const id = String(child.id);
+    if ((prevSelected?.has(id) ?? false) !== (nextSelected?.has(id) ?? false)) return true;
+    if ((prevExpanded?.has(child.id) ?? false) !== (nextExpanded?.has(child.id) ?? false)) return true;
+    if (subtreeStateChanged(child, prevSelected, nextSelected, prevExpanded, nextExpanded)) return true;
+  }
+  return false;
+}
+
 const DataListItem = memo(DataListItemImpl, arePropsEqualForRow);
 
 function hasShareableChildren(item) {
+  if (item?.unshareable === true) return false;
   if (!item?.children?.length) return false;
   return item.children.some((c) => isItemShareable(c) || hasShareableChildren(c));
 }

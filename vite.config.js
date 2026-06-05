@@ -31,17 +31,12 @@ export default defineConfig(({ mode }) => {
       chunkSizeWarningLimit: 1200,
       rollupOptions: {
         treeshake: {
-          manualPureFunctions:
-            mode === 'production' ? ['console.log', 'console.warn'] : []
+          manualPureFunctions: mode === 'production' ? ['console.log', 'console.warn'] : []
         },
         output: {
           // Group related modules into the same chunk to avoid cross-chunk circular dependencies
           manualChunks: (id) => {
-            if (
-              id.includes('/src/lineage/') ||
-              id.includes('@xyflow/react') ||
-              id.includes('@dagrejs/dagre')
-            ) {
+            if (id.includes('/src/lineage/') || id.includes('@xyflow/react') || id.includes('@dagrejs/dagre')) {
               return 'lineage';
             }
             if (id.includes('/src/activityLog/')) {
@@ -56,10 +51,7 @@ export default defineConfig(({ mode }) => {
             // does `export * from './views'`, so the components chunk
             // imports from the views chunk and vice versa — which can
             // leave React undefined during initialization.
-            if (
-              id.includes('/src/components/') ||
-              id.includes('/src/hooks/')
-            ) {
+            if (id.includes('/src/components/') || id.includes('/src/hooks/')) {
               return 'components';
             }
             if (id.includes('/src/models/')) {
@@ -84,26 +76,28 @@ export default defineConfig(({ mode }) => {
           server.middlewares.use((req, res, next) => {
             if (req.url !== '/dev-lineage') return next();
             res.setHeader('Content-Type', 'text/html');
-            res.end([
-              '<!doctype html>',
-              '<html lang="en"><head>',
-              '<meta charset="UTF-8" />',
-              '<meta name="viewport" content="width=device-width, initial-scale=1.0" />',
-              '<title>Dev Lineage - Domo Toolkit</title>',
-              '</head>',
-              '<body class="w-full appearance-none bg-background">',
-              '<div id="root"></div>',
-              '<script type="module" src="/@vite/client"><\/script>',
-              '<script type="module">',
-              'import RefreshRuntime from "/@react-refresh";',
-              'RefreshRuntime.injectIntoGlobalHook(window);',
-              'window.$RefreshReg$ = () => {};',
-              'window.$RefreshSig$ = () => (type) => type;',
-              'window.__vite_plugin_react_preamble_installed__ = true;',
-              '<\/script>',
-              '<script type="module" src="/src/dev/dev-lineage.jsx"><\/script>',
-              '</body></html>'
-            ].join('\n'));
+            res.end(
+              [
+                '<!doctype html>',
+                '<html lang="en"><head>',
+                '<meta charset="UTF-8" />',
+                '<meta name="viewport" content="width=device-width, initial-scale=1.0" />',
+                '<title>Dev Lineage - Domo Toolkit</title>',
+                '</head>',
+                '<body class="w-full appearance-none bg-background">',
+                '<div id="root"></div>',
+                '<script type="module" src="/@vite/client"><\/script>',
+                '<script type="module">',
+                'import RefreshRuntime from "/@react-refresh";',
+                'RefreshRuntime.injectIntoGlobalHook(window);',
+                'window.$RefreshReg$ = () => {};',
+                'window.$RefreshSig$ = () => (type) => type;',
+                'window.__vite_plugin_react_preamble_installed__ = true;',
+                '<\/script>',
+                '<script type="module" src="/src/dev/dev-lineage.jsx"><\/script>',
+                '</body></html>'
+              ].join('\n')
+            );
           });
         },
         name: 'dev-lineage-page'
@@ -113,26 +107,28 @@ export default defineConfig(({ mode }) => {
           server.middlewares.use((req, res, next) => {
             if (req.url !== '/dev-activity-log') return next();
             res.setHeader('Content-Type', 'text/html');
-            res.end([
-              '<!doctype html>',
-              '<html lang="en"><head>',
-              '<meta charset="UTF-8" />',
-              '<meta name="viewport" content="width=device-width, initial-scale=1.0" />',
-              '<title>Dev Activity Log - Domo Toolkit</title>',
-              '</head>',
-              '<body class="w-full appearance-none bg-background">',
-              '<div id="root"></div>',
-              '<script type="module" src="/@vite/client"><\/script>',
-              '<script type="module">',
-              'import RefreshRuntime from "/@react-refresh";',
-              'RefreshRuntime.injectIntoGlobalHook(window);',
-              'window.$RefreshReg$ = () => {};',
-              'window.$RefreshSig$ = () => (type) => type;',
-              'window.__vite_plugin_react_preamble_installed__ = true;',
-              '<\/script>',
-              '<script type="module" src="/src/dev/dev-activity-log.jsx"><\/script>',
-              '</body></html>'
-            ].join('\n'));
+            res.end(
+              [
+                '<!doctype html>',
+                '<html lang="en"><head>',
+                '<meta charset="UTF-8" />',
+                '<meta name="viewport" content="width=device-width, initial-scale=1.0" />',
+                '<title>Dev Activity Log - Domo Toolkit</title>',
+                '</head>',
+                '<body class="w-full appearance-none bg-background">',
+                '<div id="root"></div>',
+                '<script type="module" src="/@vite/client"><\/script>',
+                '<script type="module">',
+                'import RefreshRuntime from "/@react-refresh";',
+                'RefreshRuntime.injectIntoGlobalHook(window);',
+                'window.$RefreshReg$ = () => {};',
+                'window.$RefreshSig$ = () => (type) => type;',
+                'window.__vite_plugin_react_preamble_installed__ = true;',
+                '<\/script>',
+                '<script type="module" src="/src/dev/dev-activity-log.jsx"><\/script>',
+                '</body></html>'
+              ].join('\n')
+            );
           });
         },
         name: 'dev-activity-log-page'
@@ -144,10 +140,20 @@ export default defineConfig(({ mode }) => {
       visualizer({ filename: '.visuals/bundle-analysis.html', gzipSize: true })
     ],
     resolve: {
-      alias: {
-        '@': `${path.resolve(__dirname, 'src')}`,
-        '@icons': `${path.resolve(__dirname, 'src/assets/icons')}`
-      }
+      alias: [
+        // Replace react-stately's tooltip state hook with a patched copy that
+        // makes the hover "warm-up" per-tooltip instead of page-wide, so every
+        // tooltip waits its own delay rather than insta-showing when the cursor
+        // sweeps between nearby triggers. See src/vendor/useTooltipTriggerState.js.
+        // Exact-match regex so only this subpath is intercepted; the patch
+        // imports from the 'react-stately' package root, which must stay resolvable.
+        {
+          find: /^react-stately\/useTooltipTriggerState$/,
+          replacement: path.resolve(__dirname, 'src/vendor/useTooltipTriggerState.js')
+        },
+        { find: '@', replacement: path.resolve(__dirname, 'src') },
+        { find: '@icons', replacement: path.resolve(__dirname, 'src/assets/icons') }
+      ]
     },
     server: {
       cors: {
@@ -159,7 +165,28 @@ export default defineConfig(({ mode }) => {
         protocol: 'ws'
       },
       port: 5173,
-      proxy
+      proxy,
+      watch: {
+        // Only src/ and public/ feed the extension bundle. Everything else here
+        // (docs, tooling, editor config, generated build output) isn't in the
+        // module graph, so a change there can't hot-swap and Vite falls back to
+        // a full page reload. Ignore those so they don't interrupt dev sessions.
+        // Merged with Vite's defaults (.git, node_modules, cache dir).
+        ignored: [
+          '**/*.md', // CLAUDE.md, READMEs, rule docs (never imported into the bundle)
+          '**/.agents/**', // vendored skill definitions
+          '**/.claude/**', // Claude rules, skills, commands, settings
+          '**/.cursor/**', // Cursor rules
+          '**/.github/**', // CI workflows
+          '**/.visuals/**', // generated bundle analysis
+          '**/.vscode/**', // editor settings
+          '**/dist/**', // build output
+          '**/docs/**', // release notes, TODO, Jekyll site
+          '**/release/**', // packaged Chrome/Edge zips
+          '**/scripts/**', // Node release/build scripts (not browser code)
+          '**/store-listing/**' // Chrome Web Store assets
+        ]
+      }
     }
   };
 });
