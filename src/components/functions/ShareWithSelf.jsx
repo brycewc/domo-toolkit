@@ -109,11 +109,11 @@ export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
   // transient, the button disables itself while the share runs, so it is excluded).
   const disabledReason =
     isDisabled || !currentContext?.domoObject
-      ? 'Navigate to a Domo object to share it with yourself'
+      ? 'Navigate to a Domo object use share with self'
       : isDataSource && !hasAccounts
         ? 'This dataset has no connected account to share'
         : !isSupportedType
-          ? `Sharing with yourself isn't supported for ${typeName}`
+          ? `Share with self isn't supported for ${typeName?.toLowerCase()}s`
           : needsContentAdmin
             ? `You need the Content Admin permission to share this ${typeName?.toLowerCase()}`
             : needsAccountAdmin
@@ -137,10 +137,7 @@ export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
       <Button fullWidth isIconOnly isDisabled={isSharing} variant='tertiary' onPress={handleShare}>
         <IconPersonPlus />
       </Button>
-      <Tooltip.Content
-        className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'
-        offset={4}
-      >
+      <Tooltip.Content className='max-w-60' offset={4}>
         {isDataSource ? <>Share dataset account(s) with yourself</> : <>Share {typeName?.toLowerCase()} with yourself</>}
       </Tooltip.Content>
     </Tooltip>

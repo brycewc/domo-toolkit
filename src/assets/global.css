@@ -275,4 +275,25 @@
   .switch--lg .switch__thumb {
     @apply rounded-full;
   }
+
+  /* App-wide default look for tooltip content (the floating box). In HeroUI v3's
+     slot model the `base` slot carries the `.tooltip` class, and `base` IS the
+     content overlay (Tooltip.Content), NOT the trigger or root: the root
+     <Tooltip> renders no DOM of its own, and the trigger gets
+     `.tooltip__trigger`. So this rule styles exactly the content element.
+
+     We center content in a column, tighten the padding, and normalize wrapping
+     so short labels read as balanced, centered text. This was previously
+     repeated as a per-instance className on Tooltip.Content across the app;
+     promoting it to the default means call sites only need their own className
+     for genuine one-offs.
+
+     Same selector and specificity as HeroUI's base `.tooltip` (0,0,1,0), so our
+     later source order within the shared `components` layer wins the conflicting
+     declarations (px-1/py-0.5 over the default p-2, break-normal over
+     break-all). We deliberately omit a max-width so HeroUI's default `max-w-xs`
+     still governs; individual tooltips can cap narrower via their own className. */
+  .tooltip {
+    @apply flex flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal;
+  }
 }

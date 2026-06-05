@@ -951,10 +951,10 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
         fullWidth
         isDisabled={selectedObjectCount === 0 || isTransferring || !isFullyLoaded || !hasAnyTransferable}
         size='sm'
-        startContent={<IconArrowsHorizontalBox />}
         variant='primary'
         onPress={handleOpenTransferModal}
       >
+        <IconArrowsHorizontalBox />
         Transfer ownership to…
       </Button>
     );

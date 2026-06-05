@@ -271,9 +271,7 @@ export function DuplicateView({ onBackToDefault = null, onStatusUpdate = null })
               <Button isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
                 <IconX />
               </Button>
-              <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'>
-                Close
-              </Tooltip.Content>
+              <Tooltip.Content className='max-w-60'>Close</Tooltip.Content>
             </Tooltip>
           )}
         </Card.Title>

@@ -85,10 +85,7 @@ export function Export({ currentContext, isDisabled }) {
           <IconDownload />
           Download Code
         </Button>
-        <Tooltip.Content
-          className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'
-          offset={4}
-        >
+        <Tooltip.Content className='max-w-60' offset={4}>
           Download code engine package version code as a {isPython ? '.py' : '.js'} file
         </Tooltip.Content>
       </Tooltip>
@@ -123,10 +120,7 @@ export function Export({ currentContext, isDisabled }) {
           <IconDownload />
           Export
         </Button>
-        <Tooltip.Content
-          className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'
-          offset={4}
-        >
+        <Tooltip.Content className='max-w-60' offset={4}>
           Quick export card data as Excel or CSV
         </Tooltip.Content>
       </Tooltip>

@@ -282,11 +282,8 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
           <IconListSearch />
           <LongPressOverlay />
         </Button>
-        <Tooltip.Content
-          className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'
-          offset={4}
-        >
-          <span>Activity log</span>
+        <Tooltip.Content className='max-w-60' offset={4}>
+          <span>View activity log</span>
           {longPressEnabled && <span className='italic'>Hold for more options</span>}
         </Tooltip.Content>
       </Tooltip>

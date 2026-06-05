@@ -338,7 +338,7 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
                       {objectName} (ID: {domoObject.id})
                     </div>
                   </Tooltip.Trigger>
-                  <Tooltip.Content className='flex flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+                  <Tooltip.Content className='text-wrap'>
                     {objectName} (ID: {domoObject.id})
                   </Tooltip.Content>
                 </Tooltip>
@@ -349,9 +349,7 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
                 <Button isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
                   <IconX />
                 </Button>
-                <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'>
-                  Close
-                </Tooltip.Content>
+                <Tooltip.Content className='max-w-60'>Close</Tooltip.Content>
               </Tooltip>
             )}
           </Card.Title>
@@ -399,7 +397,7 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
                   <IconTrash className='text-danger' />
                   {cascadeLabel}
                 </Button>
-                <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'>
+                <Tooltip.Content className='max-w-60'>
                   {blocked ? cascade.blockedReason(ctx) : cascade.tooltip(ctx)}
                 </Tooltip.Content>
               </Tooltip>
@@ -416,9 +414,7 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
               <IconTrash />
               {primaryLabel}
             </Button>
-            <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'>
-              {deps?.blockingReason || 'Blocked'}
-            </Tooltip.Content>
+            <Tooltip.Content className='max-w-60'>{deps?.blockingReason || 'Blocked'}</Tooltip.Content>
           </Tooltip>
         </div>
       </Card>

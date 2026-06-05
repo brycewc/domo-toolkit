@@ -267,9 +267,7 @@ export function GenerateSchemaView({ onBackToDefault = null, onStatusUpdate = nu
           <Button fullWidth isDisabled={isSubmitting || !validation.isValid} variant='tertiary' onPress={handleApply}>
             <IconCheck /> Apply Schema
           </Button>
-          <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'>
-            {validation.reason}
-          </Tooltip.Content>
+          <Tooltip.Content className='max-w-60'>{validation.reason}</Tooltip.Content>
         </Tooltip>
         <Tooltip isDisabled={validation.isValid}>
           <Button
@@ -281,9 +279,7 @@ export function GenerateSchemaView({ onBackToDefault = null, onStatusUpdate = nu
           >
             <IconSync /> Apply Schema and Sync
           </Button>
-          <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'>
-            {validation.reason}
-          </Tooltip.Content>
+          <Tooltip.Content className='max-w-60'>{validation.reason}</Tooltip.Content>
         </Tooltip>
       </div>
     </Card>
@@ -339,9 +335,7 @@ function ColumnRow({ column, isDisabled, onChangeName, onChangeType, onRemove })
         <Button isIconOnly aria-label='Remove column' isDisabled={isDisabled} size='sm' variant='ghost' onPress={onRemove}>
           <IconTrash className='text-danger' />
         </Button>
-        <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'>
-          Remove column
-        </Tooltip.Content>
+        <Tooltip.Content className='max-w-60'>Remove column</Tooltip.Content>
       </Tooltip>
     </div>
   );
@@ -395,9 +389,7 @@ function ViewHeader({ onBackToDefault, subtitle, title }) {
           >
             <IconX />
           </Button>
-          <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'>
-            Close
-          </Tooltip.Content>
+          <Tooltip.Content className='max-w-60'>Close</Tooltip.Content>
         </Tooltip>
       )}
       {subtitle && <div className='min-w-0 flex-1 truncate text-xs text-muted'>{subtitle}</div>}

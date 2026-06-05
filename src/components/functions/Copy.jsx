@@ -79,10 +79,7 @@ export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
           {isCopied ? <AnimatedCheck stroke={1.5} /> : <IconClipboardCopy />}
           <LongPressOverlay />
         </Button>
-        <Tooltip.Content
-          className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'
-          offset={4}
-        >
+        <Tooltip.Content className='max-w-60' offset={4}>
           <div className='flex items-center gap-2'>
             <span>Copy {primaryConfig?.label || 'ID'}</span>
             <Kbd className='text-xs'>

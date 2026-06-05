@@ -82,10 +82,7 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
           <IconPencilBox />
           Update Owner
         </Button>
-        <Tooltip.Content
-          className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'
-          offset={4}
-        >
+        <Tooltip.Content className='max-w-60' offset={4}>
           Update {currentContext?.domoObject.typeName} owner
         </Tooltip.Content>
       </Tooltip>
@@ -125,10 +122,7 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
                   >
                     <IconPerson />
                   </Button>
-                  <Tooltip.Content
-                    className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'
-                    offset={4}
-                  >
+                  <Tooltip.Content className='max-w-60' offset={4}>
                     Update owner to yourself
                   </Tooltip.Content>
                 </Tooltip>

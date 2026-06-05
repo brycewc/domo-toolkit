@@ -56,11 +56,8 @@ export function ApiErrors({ currentContext, isDisabled, onCollapseActions, onSta
           {errorCount}
         </Chip>
       </Button>
-      <Tooltip.Content
-        className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'
-        offset={4}
-      >
-        List API errors captured on this page
+      <Tooltip.Content className='max-w-60' offset={4}>
+        List API errors captured on this webpage
       </Tooltip.Content>
     </Tooltip>
   );

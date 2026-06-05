@@ -165,7 +165,28 @@ export default defineConfig(({ mode }) => {
         protocol: 'ws'
       },
       port: 5173,
-      proxy
+      proxy,
+      watch: {
+        // Only src/ and public/ feed the extension bundle. Everything else here
+        // (docs, tooling, editor config, generated build output) isn't in the
+        // module graph, so a change there can't hot-swap and Vite falls back to
+        // a full page reload. Ignore those so they don't interrupt dev sessions.
+        // Merged with Vite's defaults (.git, node_modules, cache dir).
+        ignored: [
+          '**/*.md', // CLAUDE.md, READMEs, rule docs (never imported into the bundle)
+          '**/.agents/**', // vendored skill definitions
+          '**/.claude/**', // Claude rules, skills, commands, settings
+          '**/.cursor/**', // Cursor rules
+          '**/.github/**', // CI workflows
+          '**/.visuals/**', // generated bundle analysis
+          '**/.vscode/**', // editor settings
+          '**/dist/**', // build output
+          '**/docs/**', // release notes, TODO, Jekyll site
+          '**/release/**', // packaged Chrome/Edge zips
+          '**/scripts/**', // Node release/build scripts (not browser code)
+          '**/store-listing/**' // Chrome Web Store assets
+        ]
+      }
     }
   };
 });

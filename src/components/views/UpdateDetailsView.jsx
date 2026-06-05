@@ -229,7 +229,7 @@ export function UpdateDetailsView({ onBackToDefault = null, onStatusUpdate = nul
                   {objectName} (ID: {objectId})
                 </div>
               </Tooltip.Trigger>
-              <Tooltip.Content className='flex flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+              <Tooltip.Content className='text-wrap'>
                 {objectName} (ID: {objectId})
               </Tooltip.Content>
             </Tooltip>
@@ -239,9 +239,7 @@ export function UpdateDetailsView({ onBackToDefault = null, onStatusUpdate = nul
               <Button isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
                 <IconX />
               </Button>
-              <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'>
-                Close
-              </Tooltip.Content>
+              <Tooltip.Content className='max-w-60'>Close</Tooltip.Content>
             </Tooltip>
           )}
         </Card.Title>
@@ -358,7 +356,7 @@ function FieldRow({
               <Button isIconOnly isDisabled={isResetDisabled} size='md' variant='tertiary' onPress={onReset}>
                 <IconArrowCurvedBack />
               </Button>
-              <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'>
+              <Tooltip.Content className='max-w-60'>
                 {originalValue
                   ? 'Reset — clears userDefinedType and restores displayType to dataProviderType'
                   : 'Nothing to reset'}

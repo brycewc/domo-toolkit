@@ -29,10 +29,7 @@ export function Sync({ currentContext, isDisabled }) {
       >
         <IconSync /> Sync Datastore
       </Button>
-      <Tooltip.Content
-        className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'
-        offset={4}
-      >
+      <Tooltip.Content className='max-w-60' offset={4}>
         Trigger a manual sync of the parent AppDB datastore (affects every collection in the datastore)
       </Tooltip.Content>
     </Tooltip>

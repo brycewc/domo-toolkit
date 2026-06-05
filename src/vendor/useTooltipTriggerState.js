@@ -22,7 +22,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useOverlayTriggerState } from 'react-stately';
 
-const TOOLTIP_DELAY = 500;
+const TOOLTIP_DELAY = 400;
 const TOOLTIP_COOLDOWN = 100;
 
 // Shared across instances on purpose: ensures opening one tooltip closes any

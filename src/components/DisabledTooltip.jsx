@@ -47,7 +47,7 @@ export function DisabledTooltip({ children, className, content, contentClassName
   );
 }
 
-// Matches the tooltip content styling used across the action buttons: a
-// centered, balanced, width-capped label.
-const DEFAULT_CONTENT_CLASSNAME =
-  'flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal';
+// The centered, balanced layout for tooltip content now comes from the global
+// `.tooltip` default (see global.css). This only caps the width narrower than
+// that default's inherited max-w-xs, matching the action-button tooltips.
+const DEFAULT_CONTENT_CLASSNAME = 'max-w-60';

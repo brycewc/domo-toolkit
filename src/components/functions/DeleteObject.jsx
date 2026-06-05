@@ -62,20 +62,13 @@ export function DeleteObject({ currentContext, isDisabled, onStatusUpdate }) {
     (typeId === 'DATAFLOW_TYPE' && currentContext?.domoObject?.metadata?.details?.deleted === true) ||
     isDeleteForbidden;
 
-  const tooltipSuffix =
-    typeId === 'PAGE' || typeId === 'DATA_APP_VIEW' || typeId === 'WORKSHEET_VIEW'
-      ? ' and all its cards'
-      : typeId === 'DATAFLOW_TYPE'
-        ? ' and all its output datasets'
-        : '';
-
   // Persistent reasons the action is unavailable (the pending state is transient
   // and handled by the button below, so it is intentionally excluded here).
   const disabledReason =
     isDisabled || !currentContext?.domoObject
-      ? 'Navigate to a Domo object to delete it'
+      ? 'Navigate to a Domo object to use delete'
       : !SUPPORTED_TYPES.includes(typeId)
-        ? `Deleting isn't supported for ${typeName}s`
+        ? `Delete isn't supported for ${typeName}s`
         : typeId === 'DATAFLOW_TYPE' && currentContext?.domoObject?.metadata?.details?.deleted === true
           ? 'This dataflow is already deleted'
           : isDeleteForbidden
@@ -110,12 +103,8 @@ export function DeleteObject({ currentContext, isDisabled, onStatusUpdate }) {
       >
         {({ isDisabled: btnDisabled }) => <IconTrash className={btnDisabled ? '' : 'text-danger'} />}
       </Button>
-      <Tooltip.Content
-        className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'
-        offset={4}
-      >
-        List dependencies and confirm delete of {typeName}
-        {tooltipSuffix}
+      <Tooltip.Content className='max-w-60' offset={4}>
+        List dependencies and confirm delete
       </Tooltip.Content>
     </Tooltip>
   );

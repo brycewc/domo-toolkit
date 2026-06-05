@@ -35,10 +35,7 @@ export function CopyColorRules({ currentContext, onStatusUpdate }) {
         <IconColor />
         Copy Color Rules
       </Button>
-      <Tooltip.Content
-        className='flex max-w-40 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'
-        offset={4}
-      >
+      <Tooltip.Content className='max-w-40' offset={4}>
         Copy this dataset's color rules to another dataset
       </Tooltip.Content>
     </Tooltip>

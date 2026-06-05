@@ -53,10 +53,7 @@ export function GetChildPages({ currentContext, isDisabled, onCollapseActions, o
           )
         }
       </Button>
-      <Tooltip.Content
-        className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'
-        offset={4}
-      >
+      <Tooltip.Content className='max-w-60' offset={4}>
         List all pages nested under this object
       </Tooltip.Content>
     </Tooltip>

@@ -96,6 +96,9 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
   const [scanError, setScanError] = useState(null);
   const [columnMap, setColumnMap] = useState({});
   const [autoMapConfirmOpen, setAutoMapConfirmOpen] = useState(false);
+  // Transient feedback for the (synchronous) Auto Map action so the user can
+  // see it ran: 'idle' | 'mapping' (brief spinner) | 'done' (checkmark, clears).
+  const [autoMapStatus, setAutoMapStatus] = useState('idle');
 
   // Beast Modes already on the target dataset, used to detect name collisions
   // with the selected origin Beast Modes. `beastModeChoices` holds the user's
@@ -105,6 +108,7 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
 
   const mountedRef = useRef(true);
   const bailedRef = useRef(false);
+  const autoMapTimersRef = useRef([]);
   const { showStatus } = useStatusBar();
 
   useEffect(() => {
@@ -112,6 +116,7 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
     loadData();
     return () => {
       mountedRef.current = false;
+      autoMapTimersRef.current.forEach(clearTimeout);
     };
   }, []);
 
@@ -790,14 +795,35 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
     setColumnMap(next);
   }, [targetColumns, usedUnmappedColumns]);
 
+  // runAutoMap is synchronous, so on its own the button gives no sign it ran.
+  // Flash a spinner, do the mapping, then settle on a checkmark for a moment
+  // before returning to idle. Timers are tracked so they can be cleared on
+  // unmount (and reset if the button is pressed again mid-flash). Defined before
+  // handleAutoMapClick so its dependency-array reference isn't in the TDZ.
+  const runAutoMapWithFeedback = useCallback(() => {
+    autoMapTimersRef.current.forEach(clearTimeout);
+    autoMapTimersRef.current = [];
+    setAutoMapStatus('mapping');
+    const mapTimer = setTimeout(() => {
+      runAutoMap();
+      if (!mountedRef.current) return;
+      setAutoMapStatus('done');
+      const resetTimer = setTimeout(() => {
+        if (mountedRef.current) setAutoMapStatus('idle');
+      }, 1500);
+      autoMapTimersRef.current.push(resetTimer);
+    }, 350);
+    autoMapTimersRef.current.push(mapTimer);
+  }, [runAutoMap]);
+
   const handleAutoMapClick = useCallback(() => {
     const alreadyMapped = Object.values(columnMap).some((to) => to != null);
     if (alreadyMapped) {
       setAutoMapConfirmOpen(true);
     } else {
-      runAutoMap();
+      runAutoMapWithFeedback();
     }
-  }, [columnMap, runAutoMap]);
+  }, [columnMap, runAutoMapWithFeedback]);
 
   // Confirmed migrate. Assembles the same payload the old modal submitted, then
   // drives migrateAllDownstreamContent and threads per-type progress into the
@@ -1058,9 +1084,7 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
             >
               <IconX />
             </Button>
-            <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
-              Close
-            </Tooltip.Content>
+            <Tooltip.Content className='max-w-60 text-wrap'>Close</Tooltip.Content>
           </Tooltip>
         </Card.Header>
         <Separator />
@@ -1070,7 +1094,7 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
               className='min-w-0'
               excludeIds={excludeIds}
               instanceBaseUrl={origin}
-              label='To Dataset'
+              label='To DataSet'
               maxListHeight='max-h-120'
               selectedDisplayName={selectedDatasetName}
               selectedKey={selectedDatasetId}
@@ -1155,10 +1179,22 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
                 <div className='flex items-center justify-between gap-2'>
                   <Label className='text-sm font-medium'>Column Remap</Label>
                   <Tooltip>
-                    <Button size='sm' startContent={<IconWand />} variant='secondary' onPress={handleAutoMapClick}>
-                      Auto Map
+                    <Button
+                      isPending={autoMapStatus === 'mapping'}
+                      size='sm'
+                      variant='secondary'
+                      onPress={handleAutoMapClick}
+                    >
+                      {autoMapStatus === 'mapping' ? (
+                        <Spinner color='currentColor' size='sm' />
+                      ) : autoMapStatus === 'done' ? (
+                        <IconCheck className='text-success' />
+                      ) : (
+                        <IconWand />
+                      )}
+                      {autoMapStatus === 'mapping' ? 'Mapping…' : autoMapStatus === 'done' ? 'Mapped' : 'Auto Map'}
                     </Button>
-                    <Tooltip.Content className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-wrap break-normal'>
+                    <Tooltip.Content className='max-w-80 text-wrap'>
                       Fills each column with the closest target column once names are normalized (case, spaces, hyphens, and
                       underscores). Columns with no match are left unmapped. Review before migrating.
                     </Tooltip.Content>
@@ -1264,14 +1300,8 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
           <Button isDisabled={isTransferring} size='sm' variant='tertiary' onPress={() => setPage('select')}>
             Back
           </Button>
-          <Button
-            fullWidth
-            isDisabled={migrateDisabled}
-            size='sm'
-            startContent={<IconArrowsHorizontalBox />}
-            variant='primary'
-            onPress={() => setConfirmOpen(true)}
-          >
+          <Button fullWidth isDisabled={migrateDisabled} size='sm' variant='primary' onPress={() => setConfirmOpen(true)}>
+            <IconArrowsHorizontalBox />
             {migrateLabel}
           </Button>
         </div>
@@ -1371,13 +1401,13 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
                 </Button>
                 <Button
                   size='sm'
-                  startContent={<IconWand />}
                   variant='primary'
                   onPress={() => {
-                    runAutoMap();
+                    runAutoMapWithFeedback();
                     setAutoMapConfirmOpen(false);
                   }}
                 >
+                  <IconWand />
                   Auto Map
                 </Button>
               </AlertDialog.Footer>
@@ -1828,7 +1858,7 @@ function ColumnMapRow({
             <Button isIconOnly aria-label='Data type mismatch' className='shrink-0 text-warning' size='sm' variant='ghost'>
               <IconExclamationTriangle />
             </Button>
-            <Tooltip.Content className='w-fit max-w-60 px-1 py-0.5 text-center text-balance break-normal'>
+            <Tooltip.Content className='w-fit max-w-60'>
               Selected column's type <span className='font-mono text-muted'>{selectedTargetType}</span> doesn't match the
               original <span className='font-mono text-muted'>{originType}</span>
             </Tooltip.Content>
@@ -1932,15 +1962,18 @@ function ColumnUsagesModal({ cardsById, items, origin, originName, totalSelected
   } = useMemo(() => buildColumnUsageTree(items, cardsById, origin), [cardsById, items, origin]);
   return (
     <Modal>
-      <Button
-        isIconOnly
-        aria-label={`Show where ${originName} is used`}
-        className='size-4 min-h-0 p-0 text-muted hover:text-foreground'
-        size='sm'
-        variant='ghost'
-      >
-        <IconInfoCircle className='size-3.5' />
-      </Button>
+      <Tooltip delay={300}>
+        <Button
+          isIconOnly
+          aria-label={`Show where ${originName} is used`}
+          className='size-4 min-h-0 p-0 text-muted hover:text-foreground'
+          size='sm'
+          variant='ghost'
+        >
+          <IconInfoCircle className='size-3.5' />
+        </Button>
+        <Tooltip.Content className='max-w-60'>Click to view what objects reference this column</Tooltip.Content>
+      </Tooltip>
       <Modal.Backdrop>
         <Modal.Container className='p-1' placement='center' scroll='outside'>
           <Modal.Dialog className='p-2 pt-3'>
@@ -1986,15 +2019,18 @@ function ColumnUsagesModal({ cardsById, items, origin, originName, totalSelected
 function DataflowCollisionModal({ dataflows, origin, originName }) {
   return (
     <Modal>
-      <Button
-        isIconOnly
-        aria-label={`Show dataflows where ${originName} collides`}
-        className='size-4 min-h-0 p-0 text-current hover:opacity-70'
-        size='sm'
-        variant='ghost'
-      >
-        <IconInfoCircle className='size-3.5' />
-      </Button>
+      <Tooltip delay={300}>
+        <Button
+          isIconOnly
+          aria-label={`Show dataflows where ${originName} collides`}
+          className='size-4 min-h-0 p-0 text-current hover:opacity-70'
+          size='sm'
+          variant='ghost'
+        >
+          <IconInfoCircle className='size-3.5' />
+        </Button>
+        <Tooltip.Content className='max-w-60'>Click to view dataflows with a column that has the same name</Tooltip.Content>
+      </Tooltip>
       <Modal.Backdrop isDissmissable>
         <Modal.Container className='p-1' placement='center' scroll='outside'>
           <Modal.Dialog className='p-2 pt-3'>

@@ -114,7 +114,7 @@ export default function App() {
             >
               <IconBug stroke={1.5} />
             </Button>
-            <Tooltip.Content className='w-fit text-center'>Report bug</Tooltip.Content>
+            <Tooltip.Content className='w-fit'>Report bug</Tooltip.Content>
           </Tooltip>
           <Tooltip>
             <Button
@@ -126,7 +126,7 @@ export default function App() {
             >
               <IconAiSparkle />
             </Button>
-            <Tooltip.Content className='w-fit text-center'>Request feature</Tooltip.Content>
+            <Tooltip.Content className='w-fit'>Request feature</Tooltip.Content>
           </Tooltip>
         </div>
       </div>

@@ -68,10 +68,7 @@ export function LockCards({ currentContext, isDisabled }) {
         <IconLockClosed />
         Lock Cards
       </Button>
-      <Tooltip.Content
-        className='flex max-w-40 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'
-        offset={4}
-      >
+      <Tooltip.Content className='max-w-40' offset={4}>
         Lock all cards on this object from being edited
       </Tooltip.Content>
     </Tooltip>
