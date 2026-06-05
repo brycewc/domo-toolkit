@@ -97,3 +97,4 @@
 - Fixed the Copy-ID shortcut (Ctrl/Cmd+Shift+1) silently doing nothing when the sidepanel or popup had focus.
 - Returning from a Cloud Integration to its account list now clears the detected object, instead of still showing the integration you left.
 - Long instance and object-type names in the Current Context header now shorten to fit instead of overlapping the info icon.
+- Fixed the side panel's expand button staying disabled when viewing captured API errors was the only available action, which kept those errors out of reach.

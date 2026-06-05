@@ -1,5 +1,5 @@
 import { Button, ButtonGroup, Card, Disclosure, Skeleton, Tooltip } from '@heroui/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import { ActivityLog } from '@/components/functions/ActivityLog';
 import { ApiErrors } from '@/components/functions/ApiErrors';
@@ -41,6 +41,8 @@ import IconRightRailFill from '@icons/right-rail-fill.svg?react';
 
 export function ActionButtons({ collapsable = false, currentContext, defaultExpanded, isLoading, onStatusUpdate }) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded ?? !collapsable);
+  const [hasExpandableActions, setHasExpandableActions] = useState(false);
+  const contentRef = useRef(null);
 
   useEffect(() => {
     if (defaultExpanded !== undefined) {
@@ -48,9 +50,23 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
     }
   }, [defaultExpanded]);
 
+  // Whether the panel has anything to show is measured from the rendered DOM,
+  // not from getAvailableActions alone: ApiErrors and DevMenu render
+  // unconditionally and manage their own visibility without re-rendering this
+  // component, so the count would otherwise miss them and leave the expand
+  // toggle disabled when one of them is the only available action.
+  useLayoutEffect(() => {
+    const node = contentRef.current;
+    if (!node) return;
+    const update = () => setHasExpandableActions(node.childElementCount > 0);
+    update();
+    const observer = new MutationObserver(update);
+    observer.observe(node, { childList: true });
+    return () => observer.disconnect();
+  }, [isLoading]);
+
   const isDomoPage = currentContext?.isDomoPage ?? false;
   const availableActions = getAvailableActions(currentContext);
-  const hasExpandableActions = availableActions.size > 0;
 
   return (
     <Card className='w-full shrink-0 p-0'>
@@ -142,7 +158,10 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
               </ButtonGroup>
             </Disclosure.Heading>
             <Disclosure.Content className='flex h-full w-full flex-col items-center justify-center gap-1'>
-              <div className='flex w-full flex-wrap place-items-center items-center justify-center gap-1 not-empty:mt-1 empty:hidden'>
+              <div
+                className='flex w-full flex-wrap place-items-center items-center justify-center gap-1 not-empty:mt-1 empty:hidden'
+                ref={contentRef}
+              >
                 {availableActions.has('getCards') && (
                   <GetCards
                     currentContext={currentContext}
