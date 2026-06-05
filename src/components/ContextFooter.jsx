@@ -408,28 +408,32 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
           </div>
         ) : (
           <>
-            <div className='alert__title flex w-full items-start justify-between' data-slot='alert-title'>
+            <div className='alert__title flex w-full items-start justify-between gap-x-1' data-slot='alert-title'>
               {currentContext?.isDomoPage ? (
                 <div className='flex min-w-0 flex-1 items-center gap-x-1'>
+                  {/* Items truncate in priority order as the panel narrows so they never
+                      collide with the status icon: the "Current Context" label gives up
+                      space first (largest shrink), then the instance chip, then the
+                      object-type chip. The icon stays shrink-0 and fully visible. */}
                   <Tooltip delay={700}>
-                    <Tooltip.Trigger>
-                      <span className='min-w-0 truncate'>Current Context</span>
+                    <Tooltip.Trigger className='min-w-0 shrink-9999'>
+                      <span className='block truncate'>Current Context</span>
                     </Tooltip.Trigger>
                     <Tooltip.Content className='max-w-60'>Current Context</Tooltip.Content>
                   </Tooltip>
                   <Tooltip>
-                    <Tooltip.Trigger className='flex shrink-0 items-center'>
-                      <Chip className='w-fit lowercase' color='accent' size='sm' variant='soft'>
-                        {currentContext?.instance}
+                    <Tooltip.Trigger className='flex min-w-0 shrink-100 items-center'>
+                      <Chip className='min-w-0 shrink lowercase' color='accent' size='sm' variant='soft'>
+                        <Chip.Label className='min-w-0 truncate'>{currentContext?.instance}</Chip.Label>
                       </Chip>
                     </Tooltip.Trigger>
                     <Tooltip.Content className='max-w-60'>Instance: {currentContext?.instance}.domo.com</Tooltip.Content>
                   </Tooltip>
                   <Tooltip>
-                    <Tooltip.Trigger className='flex shrink-0 items-center'>
-                      <Chip className='w-fit lowercase' color='accent' size='sm' variant='soft'>
-                        <ObjectTypeIcon typeId={currentContext?.domoObject?.typeId} />
-                        {currentContext?.domoObject?.typeName}
+                    <Tooltip.Trigger className='flex min-w-0 shrink items-center'>
+                      <Chip className='min-w-0 shrink lowercase' color='accent' size='sm' variant='soft'>
+                        <ObjectTypeIcon className='shrink-0' typeId={currentContext?.domoObject?.typeId} />
+                        <span className='min-w-0 truncate'>{currentContext?.domoObject?.typeName}</span>
                       </Chip>
                     </Tooltip.Trigger>
                     <Tooltip.Content className='max-w-60 rounded p-0 text-wrap'>
@@ -443,7 +447,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
                 'Not a Domo Instance'
               )}
               <Tooltip delay={300} isDisabled={!currentContext?.domoObject?.id || !currentContext?.isDomoPage}>
-                <Tooltip.Trigger>
+                <Tooltip.Trigger className='shrink-0'>
                   <Alert.Indicator>
                     <AlertStatusIcon />
                   </Alert.Indicator>

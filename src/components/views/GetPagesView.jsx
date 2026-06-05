@@ -443,7 +443,11 @@ export function GetPagesView({ currentContext = null, onBackToDefault = null, on
       const domoObject = new DomoObject(pageTypeId, page.pageId, origin, { name: page.pageTitle }, null, parentId);
       return DataListItem.fromDomoObject(domoObject, {
         children: nestedChildren,
-        count: childPagesForPage.length
+        // Hide the badge entirely when a child page has no nested pages (a bare
+        // "(0)" reads as "0 cards" next to the card-count badges elsewhere), and
+        // label the non-zero case "pages" so it can't be mistaken for a card count.
+        count: childPagesForPage.length || undefined,
+        countLabel: 'pages'
       });
     });
 

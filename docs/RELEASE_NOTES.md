@@ -67,6 +67,7 @@
 - The Activity Log, Share with Self, and Delete buttons now show a tooltip explaining why they're unavailable when disabled.
 - The Get Owned Objects, Update Code Engine Versions, and Generate Definition from JSDoc views now show a "Beta" label.
 - Pop-up notifications now use Domo-style status icons, matching the rest of the extension.
+- In Get Child Pages, child pages with no nested pages no longer show a stray "(0)", and the rest label the count "(N pages)" so it isn't mistaken for a card count.
 
 ## Bug Fixes
 
@@ -95,3 +96,4 @@
 - Fixed on the Objects Owned view, the type-group "Share all with yourself" button silently doing nothing when clicked.
 - Fixed the Copy-ID shortcut (Ctrl/Cmd+Shift+1) silently doing nothing when the sidepanel or popup had focus.
 - Returning from a Cloud Integration to its account list now clears the detected object, instead of still showing the integration you left.
+- Long instance and object-type names in the Current Context header now shorten to fit instead of overlapping the info icon.
