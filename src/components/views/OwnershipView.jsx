@@ -1,4 +1,4 @@
-import { Button, Card, Checkbox, Label, Spinner } from '@heroui/react';
+import { Button, Card, Checkbox, Chip, Label, Spinner } from '@heroui/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { TransferOwnershipModal } from '@/components/modals/TransferOwnershipModal';
@@ -960,6 +960,12 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
     );
   }, [handleOpenTransferModal, hasAnyTransferable, isFullyLoaded, isTransferring, selectedObjectCount, selectionMode]);
 
+  const betaChip = (
+    <Chip className='shrink-0' color='accent' size='sm' variant='soft'>
+      Beta
+    </Chip>
+  );
+
   if (isLoading) {
     return (
       <Card className='flex h-full w-full items-center justify-center'>
@@ -991,6 +997,7 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
         showActions={true}
         showCounts={true}
         subtext={subtextNode}
+        subtextStartContent={betaChip}
         title={`Objects Owned by **${userName}**`}
         viewType='ownership'
         onClose={onBackToDefault}

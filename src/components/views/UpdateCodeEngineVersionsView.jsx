@@ -481,7 +481,12 @@ export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusU
       <Card.Header>
         <Card.Title className='flex items-start justify-between'>
           <div className='flex flex-col gap-1'>
-            <div className='line-clamp-2 min-w-0'>Update Code Engine Versions</div>
+            <div className='flex items-center gap-1.5'>
+              <div className='line-clamp-2 min-w-0'>Update Code Engine Versions</div>
+              <Chip className='shrink-0' color='accent' size='sm' variant='soft'>
+                Beta
+              </Chip>
+            </div>
 
             <div className='flex flex-row items-center gap-1'>
               <span className='text-sm text-muted'>

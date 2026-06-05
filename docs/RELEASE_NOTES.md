@@ -83,6 +83,8 @@
 - Tooltips no longer pop up instantly when you move between nearby buttons; each one now waits the normal hover delay.
 - The disabled "open copied object" button shown when no default Domo instance is set is now announced as disabled to screen readers, instead of as an active button.
 - The Activity Log, Share with Self, and Delete buttons now show a tooltip explaining why they're unavailable when disabled, instead of giving no feedback on hover.
+- The Objects Owned view now shows a "Beta" label.
+- The Update Code Engine Versions and Generate Definition from JSDoc views now show a "Beta" label.
 
 ## Bug Fixes
 

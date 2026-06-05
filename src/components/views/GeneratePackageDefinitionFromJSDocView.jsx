@@ -674,7 +674,12 @@ function TargetPill({ target }) {
 function ViewHeader({ isRefreshing, onBackToDefault, onRefresh, subtitle, title }) {
   return (
     <Card.Header className='gap-1'>
-      <Card.Title className='line-clamp-2 min-w-0 pr-8'>{title}</Card.Title>
+      <Card.Title className='flex min-w-0 items-center gap-1.5 pr-8'>
+        <span className='line-clamp-2 min-w-0'>{title}</span>
+        <Chip className='shrink-0' color='accent' size='sm' variant='soft'>
+          Beta
+        </Chip>
+      </Card.Title>
       {onBackToDefault && (
         <Tooltip>
           <Button
