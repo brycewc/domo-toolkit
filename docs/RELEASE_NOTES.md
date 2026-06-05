@@ -2,7 +2,7 @@
 ## title: Release Notes
 ---
 
-# Domo Toolkit v1.3.1 Release Notes
+# Domo Toolkit v1.4.0 Release Notes
 
 ## New Features and Imrovements
 

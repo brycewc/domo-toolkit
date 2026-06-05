@@ -1,6 +1,6 @@
 {
   "name": "domo-toolkit",
-  "version": "1.3.1",
+  "version": "1.4.0",
   "license": "MIT",
   "description": "A collection of utilities for Domo power users.",
   "homepage": "https://github.com/brycewc/domo-toolkit",
@@ -26,18 +26,6 @@
     "email": "bryce.cindrich@domo.com",
     "url": "https://github.com/brycewc"
   },
-  "contributors": [
-    {
-      "name": "William West",
-      "email": "william.west@domo.com",
-      "url": "https://github.com/Willwwest"
-    },
-    {
-      "name": "Elliot Leonard",
-      "email": "elliot.leonard@domo.com",
-      "url": "https://github.com/ellibot88"
-    }
-  ],
   "type": "module",
   "browser": {},
   "private": true,

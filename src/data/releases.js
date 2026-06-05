@@ -1,5 +1,22 @@
 export const releases = [
   {
+    date: '2026-06-05',
+    githubUrl: 'https://github.com/brycewc/domo-toolkit/releases/tag/v1.4.0',
+    highlights: [
+      'Migrate DataSet Content (Beta): repoint every beast mode, card, drill path, dataflow, and dataset view from one dataset to another in a single pass, with a schema-compatibility check and column remapping that reaches inside formulas and SQL',
+      'Transfer Ownership (Beta) now lets you pick individual objects within a type instead of all-or-nothing, with tasks nested under their parent project',
+      'Duplicate User now lists every shared card, page, and app for per-item re-sharing, auto-downloads an Excel audit log, and no longer over-shares content the source user only reached indirectly',
+      'AppDB collections gain Sync Datastore and Generate Schema actions, inferring a column schema from recent documents',
+      'Approval Templates can be deleted with a full dependency check, or deleted together with their backing dataset',
+      'Activity Log adds an "in / not in" user filter and combined logs for app pages and worksheet views alongside their parent',
+      'New object type recognition for Variables, Drill Paths, and DataFlow Executions'
+    ],
+    notify: 'fullPage',
+    summary:
+      'Feature release adding Migrate DataSet Content, granular Transfer Ownership and Duplicate User controls, AppDB and Approval Template tools, and several newly recognized object types.',
+    version: '1.4.0'
+  },
+  {
     date: '2026-05-14',
     githubUrl: 'https://github.com/brycewc/domo-toolkit/releases/tag/v1.3.0',
     highlights: [
