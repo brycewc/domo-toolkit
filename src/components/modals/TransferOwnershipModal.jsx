@@ -159,7 +159,7 @@ export function TransferOwnershipModal({
                       setSelectedDisplayName(null);
                     }}
                   />
-                  <Tooltip closeDelay={50} delay={800}>
+                  <Tooltip>
                     <Button
                       isIconOnly
                       isDisabled={!manager || !manager.active}

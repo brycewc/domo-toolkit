@@ -83,7 +83,7 @@ export function ClearCookies({ currentContext, isDisabled }) {
   const tooltipText = behavior === 'all' ? 'Clear all Domo cookies' : 'Clear Domo cookies and preserve last 2 instances';
 
   return (
-    <Tooltip closeDelay={50} delay={800}>
+    <Tooltip delay={200}>
       <Button fullWidth isIconOnly isDisabled={isDisabled} variant='tertiary' onPress={handleClearCookies}>
         <IconCookieOff className='text-danger' stroke={1.5} />
       </Button>

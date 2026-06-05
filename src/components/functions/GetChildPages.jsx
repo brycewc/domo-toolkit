@@ -12,7 +12,7 @@ export function GetChildPages({ currentContext, isDisabled, onCollapseActions, o
     typeId === 'DATA_APP_VIEW' ? 'Get App Pages' : typeId === 'WORKSHEET_VIEW' ? 'Get Worksheet Pages' : 'Get Child Pages';
 
   return (
-    <Tooltip closeDelay={50} delay={800}>
+    <Tooltip>
       <Button
         fullWidth
         className='min-w-36 flex-1 whitespace-normal'

@@ -172,7 +172,7 @@ export function ObjectDetailsView({ onBackToDefault = null, onStatusUpdate = nul
             )}
           </div>
           <ButtonGroup hideSeparator className='shrink-0'>
-            <Tooltip closeDelay={50} delay={800}>
+            <Tooltip>
               <Button fullWidth isIconOnly size='sm' variant='ghost' onPress={handleCopyId}>
                 <IconClipboardCopy />
               </Button>
@@ -181,7 +181,7 @@ export function ObjectDetailsView({ onBackToDefault = null, onStatusUpdate = nul
               </Tooltip.Content>
             </Tooltip>
             {onBackToDefault && (
-              <Tooltip closeDelay={50} delay={800}>
+              <Tooltip>
                 <Button fullWidth isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
                   <IconX />
                 </Button>

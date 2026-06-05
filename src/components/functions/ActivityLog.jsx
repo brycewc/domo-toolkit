@@ -1,6 +1,7 @@
 import { Button, Description, Dropdown, Label, Tooltip } from '@heroui/react';
 import { useState } from 'react';
 
+import { DisabledTooltip } from '@/components/DisabledTooltip';
 import { ObjectTypeIcon } from '@/components/ObjectTypeIcon';
 import { useLongPress } from '@/hooks/useLongPress';
 import { getObjectType } from '@/models/DomoObjectType';
@@ -18,6 +19,13 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
 
   const userRights = currentContext?.user?.metadata?.USER_RIGHTS || [];
   const isDisabled = !currentContext?.domoObject?.id || isLoading || !userRights.includes('audit');
+  // Persistent reasons the action is unavailable (loading is transient and
+  // handled by the button's pending state, so it is intentionally excluded).
+  const disabledReason = !currentContext?.domoObject?.id
+    ? 'Navigate to a Domo object to view its activity log'
+    : !userRights.includes('audit')
+      ? 'You need the Audit permission to view activity logs'
+      : null;
   const typeId = currentContext?.domoObject?.typeId;
   const longPressEnabled =
     !isDisabled && ['DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE', 'WORKSHEET_VIEW'].includes(typeId);
@@ -249,9 +257,19 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
     }
   };
 
+  if (disabledReason) {
+    return (
+      <DisabledTooltip content={disabledReason}>
+        <Button fullWidth isIconOnly variant='tertiary'>
+          <IconListSearch />
+        </Button>
+      </DisabledTooltip>
+    );
+  }
+
   return (
     <Dropdown isDisabled={!longPressEnabled} trigger='longPress'>
-      <Tooltip closeDelay={50} delay={800}>
+      <Tooltip delay={200}>
         <Button
           fullWidth
           isIconOnly

@@ -161,7 +161,7 @@ export function CopyColorRulesView({ onBackToDefault = null, onStatusUpdate = nu
   return (
     <Card className='flex min-h-0 w-full flex-1 flex-col p-2'>
       <Card.Header className='gap-1'>
-        <Tooltip closeDelay={50} delay={800}>
+        <Tooltip>
           <Tooltip.Trigger className='min-w-0 pr-8'>
             <Card.Title className='line-clamp-1'>{parseMarkdownBold(headerTitle)}</Card.Title>
           </Tooltip.Trigger>
@@ -170,7 +170,7 @@ export function CopyColorRulesView({ onBackToDefault = null, onStatusUpdate = nu
           </Tooltip.Content>
         </Tooltip>
         {onBackToDefault && (
-          <Tooltip closeDelay={50} delay={800}>
+          <Tooltip>
             <Button
               isIconOnly
               aria-label='Close view'

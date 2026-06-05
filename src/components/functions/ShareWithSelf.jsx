@@ -1,6 +1,7 @@
 import { Button, Tooltip } from '@heroui/react';
 import { useState } from 'react';
 
+import { DisabledTooltip } from '@/components/DisabledTooltip';
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { getAccountIdsForDomoObject } from '@/services/accounts';
 import { shareWithSelf } from '@/services/share';
@@ -101,30 +102,46 @@ export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
     contentAdminTypes.includes(currentContext?.domoObject?.typeId) && !userRights.includes('content.admin');
   const needsAccountAdmin = currentContext?.domoObject?.typeId === 'DATA_SOURCE' && !userRights.includes('account.admin');
   const needsAppAdmin = currentContext?.domoObject?.typeId === 'APP' && !userRights.includes('app.admin');
-  const buttonDisabled =
-    isDisabled ||
-    isSharing ||
-    !currentContext?.domoObject ||
-    !isSupportedType ||
-    needsContentAdmin ||
-    needsAccountAdmin ||
-    needsAppAdmin;
+  const typeName = currentContext?.domoObject?.typeName;
+  const isDataSource = currentContext?.domoObject?.typeId === 'DATA_SOURCE';
+  const hasAccounts = isDataSource && getAccountIdsForDomoObject(currentContext.domoObject).length > 0;
+  // Persistent reasons the action is unavailable (sharing-in-progress is
+  // transient, the button disables itself while the share runs, so it is excluded).
+  const disabledReason =
+    isDisabled || !currentContext?.domoObject
+      ? 'Navigate to a Domo object to share it with yourself'
+      : isDataSource && !hasAccounts
+        ? 'This dataset has no connected account to share'
+        : !isSupportedType
+          ? `Sharing with yourself isn't supported for ${typeName}`
+          : needsContentAdmin
+            ? `You need the Content Admin permission to share this ${typeName?.toLowerCase()}`
+            : needsAccountAdmin
+              ? "You need the Account Admin permission to share this dataset's account(s)"
+              : needsAppAdmin
+                ? 'You need the App Admin permission to share this app'
+                : null;
+
+  if (disabledReason) {
+    return (
+      <DisabledTooltip content={disabledReason}>
+        <Button fullWidth isIconOnly variant='tertiary'>
+          <IconPersonPlus />
+        </Button>
+      </DisabledTooltip>
+    );
+  }
 
   return (
-    <Tooltip closeDelay={50} delay={800} disabled={!buttonDisabled}>
-      <Button fullWidth isIconOnly isDisabled={buttonDisabled} variant='tertiary' onPress={handleShare}>
+    <Tooltip delay={200}>
+      <Button fullWidth isIconOnly isDisabled={isSharing} variant='tertiary' onPress={handleShare}>
         <IconPersonPlus />
       </Button>
       <Tooltip.Content
         className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'
         offset={4}
       >
-        {currentContext?.domoObject?.typeId === 'DATA_SOURCE' &&
-        getAccountIdsForDomoObject(currentContext?.domoObject).length > 0 ? (
-          <>Share dataset account(s) with yourself</>
-        ) : (
-          <>Share {currentContext?.domoObject?.typeName.toLowerCase()} with yourself</>
-        )}
+        {isDataSource ? <>Share dataset account(s) with yourself</> : <>Share {typeName?.toLowerCase()} with yourself</>}
       </Tooltip.Content>
     </Tooltip>
   );

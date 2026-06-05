@@ -192,7 +192,7 @@ export function Lineage() {
           </div>
         </div>
         <div className='flex items-center gap-2'>
-          <Tooltip closeDelay={50} delay={800}>
+          <Tooltip>
             <Button isIconOnly size='sm' variant='tertiary' onPress={handleRefresh}>
               <IconSync />
             </Button>

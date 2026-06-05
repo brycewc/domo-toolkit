@@ -92,13 +92,13 @@ export function ApiErrorsView({ onBackToDefault = null, onStatusUpdate = null })
             </span>
           </div>
           <ButtonGroup>
-            <Tooltip closeDelay={50} delay={800}>
+            <Tooltip>
               <Button isIconOnly size='sm' variant='ghost' onPress={handleClearAll}>
                 <IconTrash />
               </Button>
               <Tooltip.Content>Clear errors</Tooltip.Content>
             </Tooltip>
-            <Tooltip closeDelay={50} delay={800}>
+            <Tooltip>
               <Button isIconOnly size='sm' variant='ghost' onPress={() => onBackToDefault?.()}>
                 <IconX />
               </Button>

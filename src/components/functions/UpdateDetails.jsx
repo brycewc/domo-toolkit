@@ -18,7 +18,7 @@ export function UpdateDetails({ currentContext, onStatusUpdate }) {
   const tooltip = TOOLTIPS_BY_TYPE[typeId] || `Edit this ${typeName.toLowerCase()}'s details`;
 
   return (
-    <Tooltip closeDelay={50} delay={800}>
+    <Tooltip>
       <Button
         fullWidth
         className='min-w-36 flex-1 whitespace-normal'

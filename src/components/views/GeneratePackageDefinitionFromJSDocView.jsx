@@ -606,7 +606,7 @@ function SourcePill({ currentVersionInfo, sourceRead }) {
   }
   const fallbackVersion = sourceRead.version || currentVersionInfo?.version || null;
   return (
-    <Tooltip closeDelay={50} delay={800}>
+    <Tooltip>
       <Chip color='warning' size='sm' variant='soft'>
         Saved version{fallbackVersion ? ` v${fallbackVersion}` : ''}
       </Chip>
@@ -662,7 +662,7 @@ function TargetPill({ target }) {
       ? `v${target.version} is the current draft, saving directly to it (no release).`
       : `No unreleased draft found, creating new v${target.version} (no release).`;
   return (
-    <Tooltip closeDelay={50} delay={800}>
+    <Tooltip>
       <Chip color={target.mode === 'overwrite' ? 'success' : 'accent'} size='sm' variant='soft'>
         {target.mode === 'overwrite' ? `Save to v${target.version}` : `New v${target.version}`}
       </Chip>
@@ -676,7 +676,7 @@ function ViewHeader({ isRefreshing, onBackToDefault, onRefresh, subtitle, title 
     <Card.Header className='gap-1'>
       <Card.Title className='line-clamp-2 min-w-0 pr-8'>{title}</Card.Title>
       {onBackToDefault && (
-        <Tooltip closeDelay={50} delay={800}>
+        <Tooltip>
           <Button
             isIconOnly
             aria-label='Close'
@@ -696,7 +696,7 @@ function ViewHeader({ isRefreshing, onBackToDefault, onRefresh, subtitle, title 
         <div className='flex min-w-0 items-center justify-between gap-2'>
           <div className='min-w-0 flex-1 truncate text-xs text-muted'>{subtitle}</div>
           {onRefresh && (
-            <Tooltip closeDelay={50} delay={800}>
+            <Tooltip>
               <Button
                 isIconOnly
                 aria-label='Refresh'

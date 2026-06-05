@@ -16,6 +16,7 @@ import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
 import IconEye from '@icons/eye.svg?react';
 import IconRightRailFill from '@icons/right-rail-fill.svg?react';
 
+import { DisabledTooltip } from '../DisabledTooltip';
 import { ObjectTypeIcon } from '../ObjectTypeIcon';
 
 const TYPE_PRIORITY = [
@@ -293,23 +294,17 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
 
   if (needsDefaultInstance) {
     return (
-      <Tooltip className='h-fit' closeDelay={50} delay={200}>
-        <Button fullWidth isIconOnly className='cursor-not-allowed opacity-50' variant='tertiary' onPress={() => {}}>
+      <DisabledTooltip content='Set a default Domo instance in settings'>
+        <Button fullWidth isIconOnly variant='tertiary'>
           <IconArrowSquareOut />
         </Button>
-        <Tooltip.Content
-          className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'
-          offset={4}
-        >
-          Set a default Domo instance in settings
-        </Tooltip.Content>
-      </Tooltip>
+      </DisabledTooltip>
     );
   }
 
   return (
     <Dropdown isOpen={isOpen} onOpenChange={handleOpenChange}>
-      <Tooltip closeDelay={50} delay={800}>
+      <Tooltip delay={200}>
         <Button fullWidth isIconOnly variant='tertiary'>
           <IconArrowSquareOut />
         </Button>

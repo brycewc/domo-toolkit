@@ -332,7 +332,7 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
               <ObjectTypeIcon size={30} typeId={domoObject.typeId} />
               <div className='min-w-0'>
                 <div className='truncate'>Delete {domoObject.typeName || config.typeName}</div>
-                <Tooltip closeDelay={50} delay={800}>
+                <Tooltip>
                   <Tooltip.Trigger className='block w-full min-w-0 pr-8'>
                     <div className='truncate text-xs font-normal text-muted'>
                       {objectName} (ID: {domoObject.id})
@@ -345,7 +345,7 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
               </div>
             </div>
             {onBackToDefault && (
-              <Tooltip closeDelay={50} delay={800}>
+              <Tooltip>
                 <Button isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
                   <IconX />
                 </Button>
@@ -383,7 +383,7 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
             const cascadeLabel = cascade.label(ctx);
             const blocked = cascade.isBlocked?.(ctx) ?? false;
             return (
-              <Tooltip closeDelay={50} delay={800} key={idx}>
+              <Tooltip key={idx}>
                 <Button
                   fullWidth
                   isDisabled={isDeleting || blocked}
@@ -405,7 +405,7 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
               </Tooltip>
             );
           })}
-          <Tooltip closeDelay={50} delay={800} isDisabled={!isBlocked}>
+          <Tooltip isDisabled={!isBlocked}>
             <Button
               fullWidth
               isDisabled={isDeleting || isBlocked}

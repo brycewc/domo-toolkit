@@ -35,7 +35,7 @@ export function ApiErrors({ currentContext, isDisabled, onCollapseActions, onSta
   if (errorCount === 0) return null;
 
   return (
-    <Tooltip closeDelay={50} delay={800}>
+    <Tooltip>
       <Button
         fullWidth
         className='min-w-36 flex-1 whitespace-normal'

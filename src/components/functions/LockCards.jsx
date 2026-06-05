@@ -57,7 +57,7 @@ export function LockCards({ currentContext, isDisabled }) {
   };
 
   return (
-    <Tooltip closeDelay={50} delay={800}>
+    <Tooltip>
       <Button
         fullWidth
         className='min-w-36 flex-1 whitespace-normal'

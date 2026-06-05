@@ -411,7 +411,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
             <div className='alert__title flex w-full items-start justify-between' data-slot='alert-title'>
               {currentContext?.isDomoPage ? (
                 <div className='flex min-w-0 flex-1 items-center gap-x-1'>
-                  <Tooltip closeDelay={50} delay={800}>
+                  <Tooltip delay={700}>
                     <Tooltip.Trigger>
                       <span className='min-w-0 truncate'>Current Context</span>
                     </Tooltip.Trigger>
@@ -419,7 +419,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
                       Current Context
                     </Tooltip.Content>
                   </Tooltip>
-                  <Tooltip closeDelay={50} delay={600}>
+                  <Tooltip>
                     <Tooltip.Trigger className='flex shrink-0 items-center'>
                       <Chip className='w-fit lowercase' color='accent' size='sm' variant='soft'>
                         {currentContext?.instance}
@@ -429,7 +429,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
                       Instance: {currentContext?.instance}.domo.com
                     </Tooltip.Content>
                   </Tooltip>
-                  <Tooltip closeDelay={50} delay={600}>
+                  <Tooltip>
                     <Tooltip.Trigger className='flex shrink-0 items-center'>
                       <Chip className='w-fit lowercase' color='accent' size='sm' variant='soft'>
                         <ObjectTypeIcon typeId={currentContext?.domoObject?.typeId} />
@@ -446,11 +446,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
               ) : (
                 'Not a Domo Instance'
               )}
-              <Tooltip
-                closeDelay={50}
-                delay={800}
-                isDisabled={!currentContext?.domoObject?.id || !currentContext?.isDomoPage}
-              >
+              <Tooltip delay={300} isDisabled={!currentContext?.domoObject?.id || !currentContext?.isDomoPage}>
                 <Tooltip.Trigger>
                   <Alert.Indicator>
                     <AlertStatusIcon />

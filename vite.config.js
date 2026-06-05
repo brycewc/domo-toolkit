@@ -140,10 +140,20 @@ export default defineConfig(({ mode }) => {
       visualizer({ filename: '.visuals/bundle-analysis.html', gzipSize: true })
     ],
     resolve: {
-      alias: {
-        '@': `${path.resolve(__dirname, 'src')}`,
-        '@icons': `${path.resolve(__dirname, 'src/assets/icons')}`
-      }
+      alias: [
+        // Replace react-stately's tooltip state hook with a patched copy that
+        // makes the hover "warm-up" per-tooltip instead of page-wide, so every
+        // tooltip waits its own delay rather than insta-showing when the cursor
+        // sweeps between nearby triggers. See src/vendor/useTooltipTriggerState.js.
+        // Exact-match regex so only this subpath is intercepted; the patch
+        // imports from the 'react-stately' package root, which must stay resolvable.
+        {
+          find: /^react-stately\/useTooltipTriggerState$/,
+          replacement: path.resolve(__dirname, 'src/vendor/useTooltipTriggerState.js')
+        },
+        { find: '@', replacement: path.resolve(__dirname, 'src') },
+        { find: '@icons', replacement: path.resolve(__dirname, 'src/assets/icons') }
+      ]
     },
     server: {
       cors: {

@@ -80,6 +80,9 @@
 - Scrolling inside an expanded group now continues into the outer list at the group's edge, instead of stopping dead.
 - The related-objects tabs now scroll sideways with a normal vertical mouse wheel while hovering them, not just a horizontal scroll wheel.
 - Closing a tab the extension opened now returns you to the tab you launched it from, instead of the tab on its right.
+- Tooltips no longer pop up instantly when you move between nearby buttons; each one now waits the normal hover delay.
+- The disabled "open copied object" button shown when no default Domo instance is set is now announced as disabled to screen readers, instead of as an active button.
+- The Activity Log, Share with Self, and Delete buttons now show a tooltip explaining why they're unavailable when disabled, instead of giving no feedback on hover.
 
 ## Bug Fixes
 

@@ -1047,7 +1047,7 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
             Migrate Content of <strong>{datasetName}</strong>
           </Card.Title>
           <div className='flex'>{betaChip}</div>
-          <Tooltip closeDelay={50} delay={800}>
+          <Tooltip>
             <Button
               isIconOnly
               aria-label='Close'
@@ -1154,7 +1154,7 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
               <div className='flex flex-col gap-1'>
                 <div className='flex items-center justify-between gap-2'>
                   <Label className='text-sm font-medium'>Column Remap</Label>
-                  <Tooltip closeDelay={50} delay={800}>
+                  <Tooltip>
                     <Button size='sm' startContent={<IconWand />} variant='secondary' onPress={handleAutoMapClick}>
                       Auto Map
                     </Button>
@@ -1824,7 +1824,7 @@ function ColumnMapRow({
           </span>
         </div>
         {typeMismatch && (
-          <Tooltip closeDelay={50} delay={300}>
+          <Tooltip delay={300}>
             <Button isIconOnly aria-label='Data type mismatch' className='shrink-0 text-warning' size='sm' variant='ghost'>
               <IconExclamationTriangle />
             </Button>

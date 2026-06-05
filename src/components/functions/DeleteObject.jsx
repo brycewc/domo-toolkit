@@ -1,5 +1,6 @@
 import { Button, Tooltip } from '@heroui/react';
 
+import { DisabledTooltip } from '@/components/DisabledTooltip';
 import { useLaunchView } from '@/hooks/useLaunchView';
 import IconTrash from '@icons/trash.svg?react';
 
@@ -68,8 +69,31 @@ export function DeleteObject({ currentContext, isDisabled, onStatusUpdate }) {
         ? ' and all its output datasets'
         : '';
 
+  // Persistent reasons the action is unavailable (the pending state is transient
+  // and handled by the button below, so it is intentionally excluded here).
+  const disabledReason =
+    isDisabled || !currentContext?.domoObject
+      ? 'Navigate to a Domo object to delete it'
+      : !SUPPORTED_TYPES.includes(typeId)
+        ? `Deleting isn't supported for ${typeName}s`
+        : typeId === 'DATAFLOW_TYPE' && currentContext?.domoObject?.metadata?.details?.deleted === true
+          ? 'This dataflow is already deleted'
+          : isDeleteForbidden
+            ? `You don't have permission to delete this ${typeName}`
+            : null;
+
+  if (disabledReason) {
+    return (
+      <DisabledTooltip content={disabledReason}>
+        <Button fullWidth isIconOnly variant='tertiary'>
+          <IconTrash />
+        </Button>
+      </DisabledTooltip>
+    );
+  }
+
   return (
-    <Tooltip closeDelay={50} delay={800} isDisabled={isDeleteDisabled}>
+    <Tooltip delay={200} isDisabled={isDeleteDisabled}>
       <Button
         fullWidth
         isIconOnly

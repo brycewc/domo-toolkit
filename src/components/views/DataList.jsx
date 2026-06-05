@@ -35,6 +35,7 @@ import IconSync from '@icons/sync.svg?react';
 import IconX from '@icons/x.svg?react';
 
 import { AnimatedCheck } from '../AnimatedCheck';
+import { DisabledTooltip } from '../DisabledTooltip';
 import { ObjectTypeIcon } from '../ObjectTypeIcon';
 
 /**
@@ -342,7 +343,7 @@ export function DataList({
         // already-visible content would be redundant.
         <Card.Header className='gap-1'>
           {title && (
-            <Tooltip closeDelay={50} delay={800}>
+            <Tooltip>
               <Tooltip.Trigger className='min-w-0 pr-8'>
                 <Card.Title className={titleLineClamp === 2 ? 'line-clamp-2' : 'line-clamp-1'}>
                   {parseMarkdownBold(title)}
@@ -354,7 +355,7 @@ export function DataList({
             </Tooltip>
           )}
           {onClose && (
-            <Tooltip closeDelay={50} delay={800}>
+            <Tooltip>
               <Button
                 isIconOnly
                 aria-label='Close view'
@@ -377,7 +378,7 @@ export function DataList({
               {hasInlineActions && (
                 <ButtonGroup hideSeparator className='flex shrink-0' size='sm' variant='ghost'>
                   {customHeaderActions?.map((action) => (
-                    <Tooltip closeDelay={50} delay={800} key={action.key}>
+                    <Tooltip key={action.key}>
                       <Button
                         isIconOnly
                         aria-label={action.ariaLabel ?? action.tooltipText}
@@ -398,7 +399,7 @@ export function DataList({
                     </Tooltip>
                   ))}
                   {headerActions.includes('openAll') && (
-                    <Tooltip closeDelay={50} delay={800}>
+                    <Tooltip>
                       <Button
                         isIconOnly
                         aria-label='Open All'
@@ -417,7 +418,7 @@ export function DataList({
                     </Tooltip>
                   )}
                   {onShareAll && headerActions.includes('shareAll') && (
-                    <Tooltip closeDelay={50} delay={800}>
+                    <Tooltip>
                       <Button
                         isIconOnly
                         aria-label='Share All'
@@ -436,7 +437,7 @@ export function DataList({
                     </Tooltip>
                   )}
                   {headerActions.includes('copy') && (
-                    <Tooltip closeDelay={50} delay={800}>
+                    <Tooltip>
                       <Button
                         isIconOnly
                         aria-label='Copy'
@@ -459,10 +460,9 @@ export function DataList({
                     (() => {
                       // Always rendered (when opted-in) to keep the action bar
                       // layout stable as the user navigates. When the current
-                      // object can't reload, the button is *faded* and ignores
-                      // clicks — but is NOT `isDisabled`, because HeroUI/React
-                      // Aria disables pointer events on disabled buttons,
-                      // which would suppress the tooltip explaining *why*.
+                      // object can't reload, it renders through DisabledTooltip
+                      // so the tooltip explaining *why* still shows (that
+                      // component handles the disabled-but-hoverable mechanics).
                       const currentTypeId = currentContext?.domoObject?.typeId;
                       const reloadDisabledReason = !currentTypeId
                         ? 'Navigate to a Domo object to reload'
@@ -473,19 +473,20 @@ export function DataList({
                             : null;
                       const isReloadDisabled = reloadDisabledReason !== null;
                       const tooltipText = reloadDisabledReason ?? 'Reload for current object';
-                      return (
-                        <Tooltip closeDelay={50} delay={800}>
+                      return isReloadDisabled ? (
+                        <DisabledTooltip content={tooltipText} placement='bottom'>
+                          <Button isIconOnly aria-label='Reload' size='sm' variant='ghost'>
+                            <IconReset />
+                          </Button>
+                        </DisabledTooltip>
+                      ) : (
+                        <Tooltip>
                           <Button
                             isIconOnly
-                            aria-disabled={isReloadDisabled}
                             aria-label='Reload'
-                            className={isReloadDisabled ? 'cursor-not-allowed opacity-50' : undefined}
                             size='sm'
                             variant='ghost'
-                            onPress={() => {
-                              if (isReloadDisabled) return;
-                              handleHeaderAction('reload');
-                            }}
+                            onPress={() => handleHeaderAction('reload')}
                           >
                             <IconReset />
                           </Button>
@@ -499,7 +500,7 @@ export function DataList({
                       );
                     })()}
                   {headerActions.includes('refresh') && (
-                    <Tooltip closeDelay={50} delay={800}>
+                    <Tooltip>
                       <Button
                         isIconOnly
                         aria-label='Refresh'
@@ -985,7 +986,7 @@ function DataListItemImpl({
     if (!showActions) return [];
 
     const removeButton = (
-      <Tooltip closeDelay={50} delay={800} key='remove'>
+      <Tooltip key='remove'>
         <Button fullWidth isIconOnly aria-label='Remove' size='sm' variant='ghost' onPress={() => handleAction('remove')}>
           <IconCancel className='text-danger' />
         </Button>
@@ -999,7 +1000,7 @@ function DataListItemImpl({
     );
 
     const openAllButton = (
-      <Tooltip closeDelay={50} delay={800} key='openAll'>
+      <Tooltip key='openAll'>
         <Button fullWidth isIconOnly aria-label='Open All' size='sm' variant='ghost' onPress={() => handleAction('openAll')}>
           <IconArrowSquareOut />
         </Button>
@@ -1010,7 +1011,7 @@ function DataListItemImpl({
     );
 
     const copyButton = (
-      <Tooltip closeDelay={50} delay={800} key='copy'>
+      <Tooltip key='copy'>
         <Button fullWidth isIconOnly aria-label='Copy' size='sm' variant='ghost' onPress={() => handleAction('copy')}>
           {isCopied ? <AnimatedCheck stroke={1.5} /> : <IconClipboardCopy />}
         </Button>
@@ -1021,7 +1022,7 @@ function DataListItemImpl({
     );
 
     const shareAllButton = (
-      <Tooltip closeDelay={50} delay={800} key='shareAll'>
+      <Tooltip key='shareAll'>
         <Button
           fullWidth
           isIconOnly
@@ -1039,7 +1040,7 @@ function DataListItemImpl({
     );
 
     const shareButton = (
-      <Tooltip closeDelay={50} delay={800} key='share'>
+      <Tooltip key='share'>
         <Button fullWidth isIconOnly aria-label='Share' size='sm' variant='ghost' onPress={() => handleAction('share')}>
           {isShared ? <AnimatedCheck stroke={1.5} /> : <IconPersonPlus />}
         </Button>
@@ -1050,7 +1051,7 @@ function DataListItemImpl({
     );
 
     const viewsExplorerButton = (
-      <Tooltip closeDelay={50} delay={800} key='viewsExplorer'>
+      <Tooltip key='viewsExplorer'>
         <Button
           fullWidth
           isIconOnly
@@ -1068,7 +1069,7 @@ function DataListItemImpl({
     );
 
     const lineageButton = (
-      <Tooltip closeDelay={50} delay={800} key='lineage'>
+      <Tooltip key='lineage'>
         <Button
           fullWidth
           isIconOnly
@@ -1202,7 +1203,7 @@ function DataListItemImpl({
     </Link>
   ) : (
     <span className={`text-sm${labelMutedClass}`}>
-      <Tooltip className='flex-1' closeDelay={50} delay={400}>
+      <Tooltip className='flex-1'>
         <Tooltip.Trigger className='block truncate'>{labelInner}</Tooltip.Trigger>
         <Tooltip.Content
           className='flex max-w-60 flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal'
@@ -1278,7 +1279,7 @@ function DataListItemImpl({
               // Locked: read-only (can't be unchecked) + muted, wrapped in a
               // tooltip. `aria-disabled` (not `isDisabled`) keeps pointer events
               // alive so the tooltip fires; the consumer keeps the id selected.
-              <Tooltip closeDelay={50} delay={300}>
+              <Tooltip delay={300}>
                 <Tooltip.Trigger className='shrink-0 cursor-not-allowed!'>
                   <Checkbox
                     aria-disabled
@@ -1382,7 +1383,7 @@ function DataListItemImpl({
               // so the parent toggle can't change anything. Render it read-only +
               // muted with an explanatory tooltip, mirroring the locked leaf rows.
               // `aria-disabled` (not `isDisabled`) keeps the tooltip firing.
-              <Tooltip closeDelay={50} delay={300}>
+              <Tooltip delay={300}>
                 <Tooltip.Trigger className='shrink-0 cursor-not-allowed!'>
                   <Checkbox
                     aria-disabled
