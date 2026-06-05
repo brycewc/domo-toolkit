@@ -1681,6 +1681,37 @@ function ColumnMapRow({
     [mappableBeastModes, mappedTo]
   );
 
+  // The target columns and Beast Modes as ListBox items, built once so they can
+  // render either flat (no Beast Modes to offer) or split into labeled sections
+  // (when Beast Modes are available). The "Columns" header is only shown
+  // alongside the "Beast Modes" header — on its own it adds no information and
+  // would just hint at options that aren't there.
+  const columnItems = targetColumns.map((col) => (
+    <ListBox.Item id={col.name} key={col.name} textValue={col.name}>
+      <div className='flex min-w-0 flex-col'>
+        <span className='truncate font-mono text-xs' title={col.name}>
+          {col.name}
+        </span>
+        <span className='text-[10px] text-muted'>{col.type || 'STRING'}</span>
+      </div>
+      <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
+    </ListBox.Item>
+  ));
+  const beastModeItems = mappableBeastModes.map((bm) => (
+    <ListBox.Item id={bm.legacyId} key={bm.legacyId} textValue={bm.name}>
+      <span className='flex min-w-0 items-center gap-1'>
+        <ObjectTypeIcon className='size-3.5 shrink-0' typeId='BEAST_MODE_FORMULA' />
+        <div className='flex min-w-0 flex-col'>
+          <span className='truncate text-xs' title={bm.name}>
+            {bm.name}
+          </span>
+          <span className='text-[10px] text-muted'>{bm.dataType || 'STRING'}</span>
+        </div>
+      </span>
+      <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
+    </ListBox.Item>
+  ));
+
   // Aggregate collisions by dataflow. Many other-inputs may share the same
   // column name; the user mostly cares which dataflows are affected.
   const collisionByDataflow = useMemo(() => {
@@ -1811,22 +1842,23 @@ function ColumnMapRow({
           variant='secondary'
           onChange={(key) => onChange(key)}
         >
-          <Autocomplete.Trigger>
-            {/* Render only the column name (not its type) so the selected value stays one
-                line and the trigger doesn't grow taller than the "Leave unmapped" state. */}
-            <Autocomplete.Value>
+          <Autocomplete.Trigger className='w-full'>
+            {/* Render only the name (not its type) so the value stays one line.
+                `flex-1 min-w-0` lets a long name truncate within the trigger
+                instead of growing it and pushing the clear/indicator controls. */}
+            <Autocomplete.Value className='flex min-w-0 flex-1 items-center gap-1'>
               {() =>
                 mappedTo === UNMAPPED ? (
-                  <span className='text-muted italic'>Leave unmapped</span>
+                  <span className='min-w-0 truncate text-muted italic'>Leave unmapped</span>
                 ) : mappedTo === DROP ? (
-                  <span className='text-danger italic'>Drop column</span>
+                  <span className='min-w-0 truncate text-danger italic'>Drop column</span>
                 ) : selectedBeastMode ? (
-                  <span className='inline-flex min-w-0 items-center gap-1 truncate text-xs'>
+                  <>
                     <ObjectTypeIcon className='size-3.5 shrink-0' typeId='BEAST_MODE_FORMULA' />
-                    <span className='truncate'>{selectedBeastMode.name}</span>
-                  </span>
+                    <span className='min-w-0 truncate text-xs'>{selectedBeastMode.name}</span>
+                  </>
                 ) : (
-                  <span className='truncate font-mono text-xs'>{mappedTo}</span>
+                  <span className='min-w-0 truncate font-mono text-xs'>{mappedTo}</span>
                 )
               }
             </Autocomplete.Value>
@@ -1861,34 +1893,20 @@ function ColumnMapRow({
                     <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
                   </ListBox.Item>
                 )}
-                <ListBox.Section>
-                  <Header>Columns</Header>
-                  {targetColumns.map((col) => (
-                    <ListBox.Item id={col.name} key={col.name} textValue={col.name}>
-                      <div className='flex min-w-0 flex-col'>
-                        <span className='truncate font-mono text-xs' title={col.name}>
-                          {col.name}
-                        </span>
-                        {col.type && <span className='text-[10px] text-muted'>{col.type}</span>}
-                      </div>
-                      <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
-                    </ListBox.Item>
-                  ))}
-                </ListBox.Section>
-                {mappableBeastModes.length > 0 && (
+                {/* No Beast Modes to offer: render columns flat, with no section
+                    header. Beast Modes available: split into labeled sections so
+                    the "Beast Modes" group is obviously selectable. */}
+                {beastModeItems.length === 0 && columnItems}
+                {beastModeItems.length > 0 && (
+                  <ListBox.Section>
+                    <Header>Columns</Header>
+                    {columnItems}
+                  </ListBox.Section>
+                )}
+                {beastModeItems.length > 0 && (
                   <ListBox.Section>
                     <Header>Beast Modes</Header>
-                    {mappableBeastModes.map((bm) => (
-                      <ListBox.Item id={bm.legacyId} key={bm.legacyId} textValue={bm.name}>
-                        <span className='flex min-w-0 items-center gap-1'>
-                          <ObjectTypeIcon className='size-3.5 shrink-0' typeId='BEAST_MODE_FORMULA' />
-                          <span className='truncate text-xs' title={bm.name}>
-                            {bm.name}
-                          </span>
-                        </span>
-                        <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
-                      </ListBox.Item>
-                    ))}
+                    {beastModeItems}
                   </ListBox.Section>
                 )}
               </ListBox>

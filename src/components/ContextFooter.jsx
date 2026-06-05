@@ -4,6 +4,7 @@ import JsonView from 'react18-json-view';
 
 import { useGroupLookup } from '@/hooks/useGroupLookup';
 import { useUserLookup } from '@/hooks/useUserLookup';
+import { useWheelHorizontalScroll } from '@/hooks/useWheelHorizontalScroll';
 import { fetchObjectDetailsInPage, getObjectType } from '@/models/DomoObjectType';
 import { getTemplateApprovals } from '@/services/approvals';
 import { getDatasetColumns, getDatasetsForPage } from '@/services/datasets';
@@ -235,6 +236,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
   }, [activeTab, activeTabId, currentContext, relatedCache]);
   const groupMap = useGroupLookup(activeSrc, currentContext?.tabId);
   const userMap = useUserLookup(activeSrc, currentContext?.tabId);
+  const tabScrollRef = useWheelHorizontalScroll();
 
   // Lazy-load related object details when a tab is selected
   const handleTabChange = async (key) => {
@@ -510,7 +512,14 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
               onSelectionChange={handleTabChange}
             >
               <Tabs.ListContainer>
-                <ScrollShadow hideScrollBar className='w-full flex-1' offset={2} orientation='horizontal' size={40}>
+                <ScrollShadow
+                  hideScrollBar
+                  className='w-full flex-1'
+                  offset={2}
+                  orientation='horizontal'
+                  ref={tabScrollRef}
+                  size={40}
+                >
                   <Tabs.List aria-label='Object details' className='w-fit min-w-full flex-nowrap'>
                     {tabs.map((tab) => {
                       const cached = relatedCache[tab.id];

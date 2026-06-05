@@ -402,7 +402,7 @@ export const ObjectTypeRegistry = {
       pathToName: 'name'
     },
     extractConfig: { keyword: 'id' },
-    icon: { component: 'Formula' },
+    icon: { component: 'Function' },
     idPattern: /^\d+$/,
     parents: ['DATA_SOURCE', 'CARD'],
     urlPath: '/datacenter/beastmode?id={id}'
@@ -709,9 +709,25 @@ export const ObjectTypeRegistry = {
   }),
   DRILL_VIEW: new DomoObjectType('DRILL_VIEW', 'Drill Path', {
     api: {
-      endpoint: '/content/v1/cards?urns={id}:{parent}',
-      pathToName: 'title'
+      endpoint: '/content/v1/cards?urns=dr:{id}:{parent}&includeFiltered=true&parts=metadata,datasources',
+      pathToDetails: '[0]',
+      pathToName: '[0].title'
     },
+    copyConfigs: [
+      {
+        label: 'URN',
+        source: 'metadata.details.urn'
+      },
+      {
+        label: 'Card ID',
+        source: 'parentId'
+      },
+      {
+        label: 'DataSet ID',
+        source: 'metadata.details.datasources.0.dataSourceId',
+        when: { field: 'metadata.details.datasources', length: 1 }
+      }
+    ],
     extractConfig: {
       keyword: 'drillviewid',
       parentExtract: { keyword: 'cardid', offset: 1 }
@@ -719,6 +735,36 @@ export const ObjectTypeRegistry = {
     icon: { component: 'Drill' },
     idPattern: /^\d+$/,
     parents: ['CARD'],
+    relatedData: [
+      { label: 'Parent Card', source: 'parentId', typeId: 'CARD' },
+      {
+        field: 'datasources',
+        isArray: true,
+        itemIdField: 'dataSourceId',
+        itemTypeId: 'DATA_SOURCE',
+        label: 'DataSets'
+      },
+      {
+        field: 'pageId',
+        fieldSource: 'context',
+        label: 'Page',
+        typeId: 'PAGE'
+      },
+      {
+        field: 'appViewId',
+        fieldSource: 'context',
+        label: 'App Page',
+        parentFieldSource: 'context',
+        parentSource: 'appId',
+        typeId: 'DATA_APP_VIEW'
+      },
+      {
+        field: 'appId',
+        fieldSource: 'context',
+        label: 'Studio App',
+        typeId: 'DATA_APP'
+      }
+    ],
     urlPath: '/analyzer?cardid={parent}&drillviewid={id}'
   }),
   ENIGMA_FORM: new DomoObjectType('ENIGMA_FORM', 'Form', {

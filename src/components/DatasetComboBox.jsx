@@ -42,7 +42,6 @@ export function DatasetComboBox({
   const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   const debounceRef = useRef(null);
-  const isOpenRef = useRef(false);
   const searchGenRef = useRef(0);
 
   useEffect(() => {
@@ -124,7 +123,6 @@ export function DatasetComboBox({
   };
 
   const handleOpenChange = (open) => {
-    isOpenRef.current = open;
     clearTimeout(debounceRef.current);
     if (open) {
       setSearchQuery('');
@@ -136,19 +134,22 @@ export function DatasetComboBox({
   const { onSelectionChange, ...restComboBoxProps } = comboBoxProps;
   const handleSelectionChange = (key) => {
     clearTimeout(debounceRef.current);
-    const selectedDataset = key != null ? datasets.find((d) => d.id === key) : null;
-    if (key != null) {
-      if (selectedDataset) {
-        setSelectedName(selectedDataset.name);
-        setInputValue(selectedDataset.name);
-      }
-    } else if (selectedName && !isOpenRef.current) {
-      setInputValue(selectedName);
+    // React Aria fires a null selection when the menu closes/blurs without an
+    // explicit pick — including the common case where opening the box refetched
+    // the list (searchQuery '') and dropped the currently-selected row from the
+    // collection, so it can't reconcile the controlled selectedKey. There's no
+    // clear affordance here, so a null is always spurious: keep the current
+    // selection (restore the input text) and DON'T propagate a clear that would
+    // wipe the parent's dataset and leave it stuck blank.
+    if (key == null) {
+      if (selectedName) setInputValue(selectedName);
       setSearchQuery('');
       return;
-    } else {
-      setSelectedName('');
-      setInputValue('');
+    }
+    const selectedDataset = datasets.find((d) => d.id === key) || null;
+    if (selectedDataset) {
+      setSelectedName(selectedDataset.name);
+      setInputValue(selectedDataset.name);
     }
     setSearchQuery('');
     // Forward the resolved name too, so a parent can persist it and re-seed

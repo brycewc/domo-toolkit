@@ -30,6 +30,7 @@ import IconFileDrawer from '@icons/file-drawer.svg?react';
 import IconFolder from '@icons/folder.svg?react';
 import IconFormatListChecks from '@icons/format-list-checks.svg?react';
 import IconFormula from '@icons/formula.svg?react';
+import IconFunction from '@icons/function.svg?react';
 import IconGear from '@icons/gear.svg?react';
 import IconGoals from '@icons/goals.svg?react';
 import IconJupyter from '@icons/jupyter.svg?react';
@@ -88,6 +89,7 @@ const ICON_MAP = {
   Folder: IconFolder,
   FormatListChecks: IconFormatListChecks,
   Formula: IconFormula,
+  Function: IconFunction,
   Gear: IconGear,
   Goals: IconGoals,
   Jupyter: IconJupyter,

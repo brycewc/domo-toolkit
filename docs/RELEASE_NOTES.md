@@ -49,6 +49,7 @@
 ### Supported Types
 
 - Variables are now recognized as their own type instead of being treated as Beast Modes.
+- Drill Paths are now properly recognized and have context filled.
 - Added DataSet to the related objects for Approval Templates.
 - Added an Approvals tab to Approval Templates' related objects, listing every active approval request from the template with its key Approval Center context.
 - On an AppDB Collection, the "DataStore" related-object tab now populates automatically.
@@ -77,6 +78,7 @@
 - The "Delete App and All Cards" confirmation now shows the page and card counts (e.g. "all its pages (4), and all cards on those pages (37)").
 - The Update Details view now shows the object's name and ID under the title, matching the Delete and Object Details views.
 - Scrolling inside an expanded group now continues into the outer list at the group's edge, instead of stopping dead.
+- The related-objects tabs now scroll sideways with a normal vertical mouse wheel while hovering them, not just a horizontal scroll wheel.
 - Closing a tab the extension opened now returns you to the tab you launched it from, instead of the tab on its right.
 
 ## Bug Fixes
@@ -126,6 +128,10 @@
 
 - Fixed the Update Owner (Alert/Workflow) user picker clearing your selected user when you clicked out, which blocked Save until you re-selected.
 - Save now requires an actual selection, and the picked owner resets each time the dialog opens.
+
+### Copy Color Rules: dataset picker no longer clears your selection when you click in and back out
+
+- Clicking into the destination dataset search and then clicking away without choosing a different dataset no longer wipes your selected dataset.
 
 ### Duplicate User: scoped sharing, itemized preview, audit-log download
 

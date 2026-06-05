@@ -34,6 +34,26 @@ export async function detectCurrentObject() {
 
     case parts.includes('drillviewid'):
       objectType = 'DRILL_VIEW';
+      id = parts[parts.indexOf('drillviewid') + 1];
+      // Extract page/app context from query params (drill launched from a page or app)
+      if (parts.includes('dataappid')) {
+        return {
+          appId: parts[parts.indexOf('dataappid') + 1],
+          appViewId: parts[parts.indexOf('pageid') + 1],
+          baseUrl: `${location.protocol}//${location.hostname}`,
+          id,
+          typeId: objectType,
+          url
+        };
+      } else if (parts.includes('pageid')) {
+        return {
+          baseUrl: `${location.protocol}//${location.hostname}`,
+          id,
+          pageId: parts[parts.indexOf('pageid') + 1],
+          typeId: objectType,
+          url
+        };
+      }
       break;
 
     case parts.includes('cardid'):
