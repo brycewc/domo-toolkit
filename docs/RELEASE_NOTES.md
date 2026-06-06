@@ -4,7 +4,7 @@
 
 # Domo Toolkit v1.4.0 Release Notes
 
-## New Features and Imrovements
+## New Features and Improvements
 
 ### Migrate DataSet Content (Beta)
 
