@@ -65,7 +65,7 @@
 - Closing a tab the extension opened now returns you to the tab you launched it from, instead of the tab on its right.
 - Tooltips no longer pop up instantly when you move between nearby buttons; each one now waits the normal hover delay.
 - The Activity Log, Share with Self, and Delete buttons now show a tooltip explaining why they're unavailable when disabled.
-- The Get Owned Objects, Update Code Engine Versions, and Generate Definition from JSDoc views now show a "Beta" label.
+- The Get Owned Objects, Update Code Engine Versions, Generate Definition from JSDoc, and Duplicate User views now show a "Beta" label.
 - Pop-up notifications now use Domo-style status icons, matching the rest of the extension.
 - In Get Child Pages, child pages with no nested pages no longer show a stray "(0)", and the rest label the count "(N pages)" so it isn't mistaken for a card count.
 

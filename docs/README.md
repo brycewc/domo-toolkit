@@ -44,9 +44,9 @@ Handles Domo's "Request Header Fields Too Large" errors with three independent c
 
 - **Copy ID** - Copy the current object's ID. Long-press for related IDs like stream ID (datasets), app ID (app studio pages), parent Code Engine Package ID (package versions), or DataSet ID (single-dataset cards). Keyboard shortcut: `Ctrl+Shift+1` (`Cmd+Shift+1` on Mac).
 - **Share With Self** - Grant yourself access to pages, studio apps, and custom app designs.
-- **Activity Log** - View activity log records for the current object. Long-press for advanced options: view activity for all cards on the current object, all pages containing those cards, or all child pages. Supports multi-user filtering and can pull from a DomoStats Activity Log dataset to bypass the audit API's \~1-year retention limit (the dataset is auto-discovered and cached per instance; a per-instance toggle makes it the default).
+- **Activity Log** - View activity log records for the current object. On app studio pages and worksheet views, the log combines the view's records with those of its parent Studio App or Worksheet. Long-press for advanced options: activity for all cards on the current object, all pages containing those cards, all child pages, or just the parent Studio App / Worksheet. Supports multi-user filtering with an include/exclude toggle, and can pull from a DomoStats Activity Log dataset to bypass the audit API's \~1-year retention limit (the dataset is auto-discovered and cached per instance; a per-instance toggle makes it the default).
 - **Clipboard Navigation** - Click this button to read your clipboard, identify the Domo object only by its ID on your clipboard, and navigate directly to it. Works with any Domo object ID copied from anywhere - a card, dataset, spreadsheet, Slack message, etc. For objects that don't support navigation, detailed information is displayed in the side panel instead.
-- **Delete Current Object** - Delete beast modes, appdb collections, workflows, pages/app studio pages and all their cards, and dataflows and all their outputs. Lists every dependency (child pages, output datasets, downstream cards) before you confirm, split into "Will be deleted" and "Other dependencies". Pages with child pages are hard-blocked from deletion.
+- **Delete Current Object** - Delete beast modes, appdb collections, workflows, pages/app studio pages and all their cards, dataflows and all their outputs, and approval templates (optionally including their backing dataset). Lists every dependency (child pages, output datasets, downstream cards) before you confirm, split into "Will be deleted" and "Other dependencies". Pages with child pages are hard-blocked from deletion.
 
 ### Data Discovery
 
@@ -68,7 +68,7 @@ API errors are automatically captured as you browse. Click the API Errors button
 
 - **Transfer Ownership** - Reassign every object owned by a user to another user in one flow. Select which object types to include, preview counts before you commit, and optionally delete the user after a successful transfer. Quick button to transfer to the user's manager (uses `reportsTo` from user context). Optionally email the recipient an Excel attachment listing everything transferred.
 - **View Ownership by User** - See everything a given user owns, grouped by object type. Virtualized list keeps large ownership results fast.
-- **Duplicate (Clone) User** - Clone a user with all access, group membership, and configuration carried over - just change the name and email.
+- **Duplicate (Clone) User** - Clone a user with all access, group membership, and configuration carried over - just change the name and email. Choose exactly which individually-shared cards, pages, and apps to re-share with per-item checkboxes, and get an Excel audit log of every item attempted and its result.
 
 ### Object-Specific Actions
 
@@ -79,10 +79,13 @@ API errors are automatically captured as you browse. Click the API Errors button
 - **Update Owner** - Change ownership of alerts and workflows with a searchable user picker and a "Set to Self" shortcut.
 - **Update DataFlow Details** - Edit a dataflow's name and description without creating a new version.
 - **Update DataSet Details** - Update a dataset's user defined type.
+- **Migrate DataSet Content** _(Beta)_ - Repoint every beast mode, card, drill path, dataflow, and dataset view that uses a dataset to a different dataset in one pass. Deselect a whole type or cherry-pick individual items, run a schema-compatibility check that flags missing or type-mismatched columns, and remap them (including references buried inside formulas and SQL expressions) before applying.
+- **Sync Datastore** - Trigger a sync on an AppDB collection.
+- **Generate Schema** - Infer a column schema for an AppDB collection from its recent documents, edit it, and apply it (optionally turning on sync to produce a dataset in one step).
 - **Update Code Engine Versions** - Bulk update workflow code engine actions to the latest version in a single click, without unmapping inputs and outputs.
 - **Copy Color Rules** - Copy a dataset's color rules (conditional formats) to another dataset in one click. Per-rule column references are validated against the destination's schema; Beast Mode references are name-matched between source and destination so rules keep working across datasets with equivalent calculations.
 - **Cancel Stuck Stream Update** - Cancel a dataset stream execution stuck in a storing state with no option to cancel in the UI.
-- **Sync JSDoc to Code Engine Package** - Derive a Code Engine package manifest (function names, parameters, types, descriptions) from JSDoc in the source and update the package definition to match. Shows a structural diff before you confirm.
+- **Generate Definition from JSDoc** _(Beta)_ - Derive a Code Engine package manifest (function names, parameters, types, descriptions) from JSDoc in a JavaScript package's source and update the package definition to match. Shows a structural diff before you confirm.
 - **Lock Cards** - Lock all cards on a page, app studio page, dataset, worksheet, report builder report, or all dataflow outputs.
 - **Set DataSet Schedule to Manual** - Set a dataset's schedule to manual.
 - **Fix Empty String Filters** - Remove empty string default values from "contains" quick filters on cards, so null values display when no value is entered instead of being filtered out.
@@ -115,7 +118,7 @@ Both show the current context (instance, object type, object ID) and update as y
 
 ## Supported Object Types
 
-Pages, cards, datasets, dataflows, app studio apps (and their pages), worksheets (and their pages), workspaces, users, groups, alerts, workflows (including versions, executions, triggers, and actions), code engine packages (and versions), pro-code apps, beast modes, variables, access tokens, appdb collections, approvals, approval templates, jupyter workspaces, filesets, files, forms, governance toolkit jobs, certification processes, AI toolkits, AI agents, and dozens more.
+Pages, cards, datasets, dataflows, app studio apps (and their pages), worksheets (and their pages), workspaces, users, groups, alerts, workflows (including versions, executions, triggers, and actions), code engine packages (and versions), pro-code apps, beast modes, variables, drill paths, access tokens, appdb collections, approvals, approval templates, jupyter workspaces, filesets, files, forms, governance toolkit jobs, certification processes, AI toolkits, AI agents, and dozens more.
 
 ## Privacy
 

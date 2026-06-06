@@ -1,6 +1,7 @@
 import {
   Button,
   Card,
+  Chip,
   Disclosure,
   FieldError,
   Input,
@@ -263,7 +264,12 @@ export function DuplicateView({ onBackToDefault = null, onStatusUpdate = null })
       <Card.Header className='gap-2'>
         <Card.Title className='flex items-start justify-between'>
           <div className='min-w-0 flex-1 pt-1'>
-            <div className='truncate'>{config?.title || 'Duplicate'}</div>
+            <div className='flex items-center gap-1.5'>
+              <div className='truncate'>{config?.title || 'Duplicate'}</div>
+              <Chip className='shrink-0' color='accent' size='sm' variant='soft'>
+                Beta
+              </Chip>
+            </div>
             {sourceUser && <div className='truncate text-xs font-normal text-muted'>from {sourceUser.name}</div>}
           </div>
           {onBackToDefault && (
