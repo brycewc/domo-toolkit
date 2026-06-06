@@ -65,6 +65,7 @@ Claude Code auto-loads every `.md` in `.claude/rules/`. Rules with a `paths:` fr
 | `package-manager.md`      | Always                 | Use `yarn` not `npm`                                                                                         |
 | `contributing-sync.md`    | `docs/CONTRIBUTING.md` | Keep contributor guide in sync with codebase                                                                 |
 | `domo-debug-utilities.md` | Always                 | Browser console scripts for reverse-engineering Domo pages                                                   |
+| `store-listing.md`        | `STORE_LISTING.txt`    | Keep the store description under the Edge store's 10,000-character cap after every edit                       |
 
 | Skill          | What it covers                             |
 | -------------- | ------------------------------------------ |
