@@ -1,5 +1,6 @@
 ---
 title: Home
+permalink: /
 ---
 
 # Domo Toolkit

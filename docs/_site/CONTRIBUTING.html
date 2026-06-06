@@ -31,7 +31,7 @@
           </span>
         </label>
 
-        <div class="trigger"><a class="page-link" href="/README.html">Home</a><a class="page-link" href="/PRIVACY_POLICY.html">Privacy Policy</a><a class="page-link" href="/RELEASE_NOTES.html">Release Notes</a><a class="page-link" href="/CONTRIBUTING.html">Contributing</a></div>
+        <div class="trigger"><a class="page-link" href="/">Home</a><a class="page-link" href="/PRIVACY_POLICY.html">Privacy Policy</a><a class="page-link" href="/RELEASE_NOTES.html">Domo Toolkit v1.4.0 Release Notes</a><a class="page-link" href="/CONTRIBUTING.html">Contributing</a></div>
       </nav></div>
 </header>
 <main class="page-content" aria-label="Content">
@@ -141,9 +141,9 @@ yarn dev
 
 <p>All PRs are reviewed before merging. You may be asked to make changes – this is normal and part of the process. Keep an eye on your PR for comments and requested changes.</p>
 
-<h1 id="helpful-developer-information">Helpful Developer Information</h1>
+<h2 id="helpful-developer-information">Helpful Developer Information</h2>
 
-<h2 id="tech-stack">Tech Stack</h2>
+<h3 id="tech-stack">Tech Stack</h3>
 
 <table>
   <thead>
@@ -202,7 +202,7 @@ yarn dev
   </tbody>
 </table>
 
-<h2 id="project-structure">Project Structure</h2>
+<h3 id="project-structure">Project Structure</h3>
 
 <div class="language-text highlighter-rouge"><div class="highlight"><pre class="highlight"><code>src/
 ├── assets/             # Static assets and CSS
@@ -223,7 +223,7 @@ yarn dev
 └── contentScript.js    # Content script (injected into Domo pages)
 </code></pre></div></div>
 
-<h2 id="architecture">Architecture</h2>
+<h3 id="architecture">Architecture</h3>
 
 <p>The extension has five main execution contexts:</p>
 
@@ -235,14 +235,14 @@ yarn dev
   <li><strong>Background Service Worker</strong> - Handles message passing, maintains tab context cache</li>
 </ol>
 
-<h3 id="flow">Flow</h3>
+<h4 id="flow">Flow</h4>
 
 <p>Content Script (detects page context)
 → Background Service Worker (message relay, caches context)
 → Popup/Sidepanel (receives context via chrome.runtime messages)
 → User triggers action → Services execute via content script</p>
 
-<h3 id="core-models">Core Models</h3>
+<h4 id="core-models">Core Models</h4>
 
 <ul>
   <li><strong>DomoContext</strong> - Represents a tab’s context (instance, URL, detected object)</li>
@@ -250,7 +250,7 @@ yarn dev
   <li><strong>DomoObjectType</strong> - Registry of ~100+ supported object types with URL patterns, ID validation, and API configs</li>
 </ul>
 
-<h2 id="development-setup">Development Setup</h2>
+<h3 id="development-setup">Development Setup</h3>
 
 <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Clone the repository (or your fork)</span>
 git clone https://github.com/brycewc/domo-toolkit.git
@@ -277,9 +277,9 @@ yarn preview  <span class="c"># or: npm run preview</span>
   <li>Click “Load unpacked” and select the <code class="language-plaintext highlighter-rouge">dist</code> directory</li>
 </ol>
 
-<h2 id="code-conventions">Code Conventions</h2>
+<h3 id="code-conventions">Code Conventions</h3>
 
-<h3 id="linting-via-eslint">Linting (via ESLint)</h3>
+<h4 id="linting-via-eslint">Linting (via ESLint)</h4>
 
 <p>The project uses ESLint with three plugin layers configured in <code class="language-plaintext highlighter-rouge">eslint.config.js</code>:</p>
 
@@ -306,7 +306,7 @@ yarn preview  <span class="c"># or: npm run preview</span>
 <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>npx eslint <span class="nt">--no-warn-ignored</span> &lt;file-paths&gt;
 </code></pre></div></div>
 
-<h3 id="formatting-via-prettier">Formatting (via Prettier)</h3>
+<h4 id="formatting-via-prettier">Formatting (via Prettier)</h4>
 
 <ul>
   <li>Single quotes for strings and JSX attributes</li>
@@ -316,7 +316,7 @@ yarn preview  <span class="c"># or: npm run preview</span>
   <li>Tailwind classes auto-sorted via <code class="language-plaintext highlighter-rouge">prettier-plugin-tailwindcss</code></li>
 </ul>
 
-<h3 id="file-organization">File Organization</h3>
+<h4 id="file-organization">File Organization</h4>
 
 <ul>
   <li><strong>Path alias:</strong> <code class="language-plaintext highlighter-rouge">@/</code> maps to <code class="language-plaintext highlighter-rouge">src/</code> (e.g., <code class="language-plaintext highlighter-rouge">import { Copy } from '@/components'</code>)</li>
@@ -324,7 +324,7 @@ yarn preview  <span class="c"># or: npm run preview</span>
   <li><strong>Named exports only</strong> (no default exports for components)</li>
 </ul>
 
-<h3 id="react-patterns">React Patterns</h3>
+<h4 id="react-patterns">React Patterns</h4>
 
 <ul>
   <li>Functional components only (no class components)</li>
@@ -333,13 +333,13 @@ yarn preview  <span class="c"># or: npm run preview</span>
   <li>React 19 - no <code class="language-plaintext highlighter-rouge">forwardRef</code> needed</li>
 </ul>
 
-<h3 id="model-classes">Model Classes</h3>
+<h4 id="model-classes">Model Classes</h4>
 
 <ul>
   <li>ES6 classes with <code class="language-plaintext highlighter-rouge">toJSON()</code> and <code class="language-plaintext highlighter-rouge">static fromJSON()</code> for serialization (required for message passing between extension contexts)</li>
 </ul>
 
-<h3 id="styling">Styling</h3>
+<h4 id="styling">Styling</h4>
 
 <ul>
   <li>Tailwind CSS utility classes only (no inline styles)</li>
@@ -348,9 +348,9 @@ yarn preview  <span class="c"># or: npm run preview</span>
   <li>OKLch color space for theme colors (see <code class="language-plaintext highlighter-rouge">src/assets/global.css</code>)</li>
 </ul>
 
-<h2 id="key-patterns">Key Patterns</h2>
+<h3 id="key-patterns">Key Patterns</h3>
 
-<h3 id="executing-code-in-page-context">Executing Code in Page Context</h3>
+<h4 id="executing-code-in-page-context">Executing Code in Page Context</h4>
 
 <p>Services need to inherit user session, authentication, and permissions by running in the page context:</p>
 
@@ -366,7 +366,7 @@ yarn preview  <span class="c"># or: npm run preview</span>
 <span class="p">);</span>
 </code></pre></div></div>
 
-<h3 id="message-passing">Message Passing</h3>
+<h4 id="message-passing">Message Passing</h4>
 
 <p>Popup and sidepanel listen for context updates from the background service worker. Messages are filtered by <code class="language-plaintext highlighter-rouge">currentTabId</code> so each view only responds to updates for the tab it’s displaying:</p>
 
@@ -388,7 +388,7 @@ yarn preview  <span class="c"># or: npm run preview</span>
 <span class="p">},</span> <span class="p">[</span><span class="nx">currentTabId</span><span class="p">]);</span>
 </code></pre></div></div>
 
-<h3 id="status-bar-pattern">Status Bar Pattern</h3>
+<h4 id="status-bar-pattern">Status Bar Pattern</h4>
 
 <p>Status messages are managed by the <code class="language-plaintext highlighter-rouge">useStatusBar</code> hook in the parent App component (popup or sidepanel). Child components receive an <code class="language-plaintext highlighter-rouge">onStatusUpdate</code> callback prop and call it to display transient alerts:</p>
 
@@ -417,7 +417,7 @@ yarn preview  <span class="c"># or: npm run preview</span>
 <span class="nx">onStatusUpdate</span><span class="p">(</span><span class="dl">'</span><span class="s1">Copied</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">Object ID copied to clipboard</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">success</span><span class="dl">'</span><span class="p">,</span> <span class="mi">3000</span><span class="p">);</span>
 </code></pre></div></div>
 
-<h2 id="extension-permissions">Extension Permissions</h2>
+<h3 id="extension-permissions">Extension Permissions</h3>
 
 <table>
   <thead>
@@ -464,7 +464,7 @@ yarn preview  <span class="c"># or: npm run preview</span>
 
 <p>Host permission: <code class="language-plaintext highlighter-rouge">*://*.domo.com/*</code></p>
 
-<h2 id="configuration-files">Configuration Files</h2>
+<h3 id="configuration-files">Configuration Files</h3>
 
 <table>
   <thead>
@@ -493,7 +493,7 @@ yarn preview  <span class="c"># or: npm run preview</span>
   </tbody>
 </table>
 
-<h2 id="documentation">Documentation</h2>
+<h3 id="documentation">Documentation</h3>
 
 <ul>
   <li><a href="https://react.dev/reference/react">React Documentation</a></li>

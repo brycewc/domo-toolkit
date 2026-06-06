@@ -9,14 +9,14 @@
 <meta property="og:locale" content="en_US" />
 <meta name="description" content="Domo Toolkit is a Chrome extension built for the people who live inside Domo every day - administrators managing hundreds of objects, consultants jumping between client instances, and power users building on the platform. Every feature is built to save clicks, reduce context-switching, and surface information that Domo’s native UI buries behind multiple navigations." />
 <meta property="og:description" content="Domo Toolkit is a Chrome extension built for the people who live inside Domo every day - administrators managing hundreds of objects, consultants jumping between client instances, and power users building on the platform. Every feature is built to save clicks, reduce context-switching, and surface information that Domo’s native UI buries behind multiple navigations." />
-<link rel="canonical" href="http://localhost:4000/README.html" />
-<meta property="og:url" content="http://localhost:4000/README.html" />
+<link rel="canonical" href="http://localhost:4000/" />
+<meta property="og:url" content="http://localhost:4000/" />
 <meta property="og:site_name" content="Domo Toolkit" />
 <meta property="og:type" content="website" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Home" />
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"WebPage","description":"Domo Toolkit is a Chrome extension built for the people who live inside Domo every day - administrators managing hundreds of objects, consultants jumping between client instances, and power users building on the platform. Every feature is built to save clicks, reduce context-switching, and surface information that Domo’s native UI buries behind multiple navigations.","headline":"Home","url":"http://localhost:4000/README.html"}</script>
+{"@context":"https://schema.org","@type":"WebSite","description":"Domo Toolkit is a Chrome extension built for the people who live inside Domo every day - administrators managing hundreds of objects, consultants jumping between client instances, and power users building on the platform. Every feature is built to save clicks, reduce context-switching, and surface information that Domo’s native UI buries behind multiple navigations.","headline":"Home","name":"Domo Toolkit","url":"http://localhost:4000/"}</script>
 <!-- End Jekyll SEO tag -->
 <link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="Domo Toolkit" /></head>
 <body><header class="site-header" role="banner">
@@ -31,19 +31,12 @@
           </span>
         </label>
 
-        <div class="trigger"><a class="page-link" href="/README.html">Home</a><a class="page-link" href="/PRIVACY_POLICY.html">Privacy Policy</a><a class="page-link" href="/RELEASE_NOTES.html">Release Notes</a><a class="page-link" href="/CONTRIBUTING.html">Contributing</a></div>
+        <div class="trigger"><a class="page-link" href="/">Home</a><a class="page-link" href="/PRIVACY_POLICY.html">Privacy Policy</a><a class="page-link" href="/RELEASE_NOTES.html">Domo Toolkit v1.4.0 Release Notes</a><a class="page-link" href="/CONTRIBUTING.html">Contributing</a></div>
       </nav></div>
 </header>
 <main class="page-content" aria-label="Content">
       <div class="wrapper">
-        <article class="post">
-
-  <header class="post-header">
-    <h1 class="post-title">Home</h1>
-  </header>
-
-  <div class="post-content">
-    <h1 id="domo-toolkit">Domo Toolkit</h1>
+        <div class="home"><h1 class="page-heading">Home</h1><h1 id="domo-toolkit">Domo Toolkit</h1>
 
 <p>Power tools for Domo administrators. Stop wasting time navigating menus, managing hundreds of identical browser tabs, copying dataset IDs from the URL, and constantly clearing your cookies.</p>
 
@@ -90,9 +83,9 @@
 <ul>
   <li><strong>Copy ID</strong> - Copy the current object’s ID. Long-press for related IDs like stream ID (datasets), app ID (app studio pages), parent Code Engine Package ID (package versions), or DataSet ID (single-dataset cards). Keyboard shortcut: <code class="language-plaintext highlighter-rouge">Ctrl+Shift+1</code> (<code class="language-plaintext highlighter-rouge">Cmd+Shift+1</code> on Mac).</li>
   <li><strong>Share With Self</strong> - Grant yourself access to pages, studio apps, and custom app designs.</li>
-  <li><strong>Activity Log</strong> - View activity log records for the current object. Long-press for advanced options: view activity for all cards on the current object, all pages containing those cards, or all child pages. Supports multi-user filtering and can pull from a DomoStats Activity Log dataset to bypass the audit API’s ~1-year retention limit (the dataset is auto-discovered and cached per instance; a per-instance toggle makes it the default).</li>
+  <li><strong>Activity Log</strong> - View activity log records for the current object. On app studio pages and worksheet views, the log combines the view’s records with those of its parent Studio App or Worksheet. Long-press for advanced options: activity for all cards on the current object, all pages containing those cards, all child pages, or just the parent Studio App / Worksheet. Supports multi-user filtering with an include/exclude toggle, and can pull from a DomoStats Activity Log dataset to bypass the audit API’s ~1-year retention limit (the dataset is auto-discovered and cached per instance; a per-instance toggle makes it the default).</li>
   <li><strong>Clipboard Navigation</strong> - Click this button to read your clipboard, identify the Domo object only by its ID on your clipboard, and navigate directly to it. Works with any Domo object ID copied from anywhere - a card, dataset, spreadsheet, Slack message, etc. For objects that don’t support navigation, detailed information is displayed in the side panel instead.</li>
-  <li><strong>Delete Current Object</strong> - Delete beast modes, appdb collections, workflows, pages/app studio pages and all their cards, and dataflows and all their outputs. Lists every dependency (child pages, output datasets, downstream cards) before you confirm, split into “Will be deleted” and “Other dependencies”. Pages with child pages are hard-blocked from deletion.</li>
+  <li><strong>Delete Current Object</strong> - Delete beast modes, appdb collections, workflows, pages/app studio pages and all their cards, dataflows and all their outputs, and approval templates (optionally including their backing dataset). Lists every dependency (child pages, output datasets, downstream cards) before you confirm, split into “Will be deleted” and “Other dependencies”. Pages with child pages are hard-blocked from deletion.</li>
 </ul>
 
 <h3 id="data-discovery">Data Discovery</h3>
@@ -118,7 +111,7 @@
 <ul>
   <li><strong>Transfer Ownership</strong> - Reassign every object owned by a user to another user in one flow. Select which object types to include, preview counts before you commit, and optionally delete the user after a successful transfer. Quick button to transfer to the user’s manager (uses <code class="language-plaintext highlighter-rouge">reportsTo</code> from user context). Optionally email the recipient an Excel attachment listing everything transferred.</li>
   <li><strong>View Ownership by User</strong> - See everything a given user owns, grouped by object type. Virtualized list keeps large ownership results fast.</li>
-  <li><strong>Duplicate (Clone) User</strong> - Clone a user with all access, group membership, and configuration carried over - just change the name and email.</li>
+  <li><strong>Duplicate (Clone) User</strong> - Clone a user with all access, group membership, and configuration carried over - just change the name and email. Choose exactly which individually-shared cards, pages, and apps to re-share with per-item checkboxes, and get an Excel audit log of every item attempted and its result.</li>
 </ul>
 
 <h3 id="object-specific-actions">Object-Specific Actions</h3>
@@ -131,10 +124,13 @@
   <li><strong>Update Owner</strong> - Change ownership of alerts and workflows with a searchable user picker and a “Set to Self” shortcut.</li>
   <li><strong>Update DataFlow Details</strong> - Edit a dataflow’s name and description without creating a new version.</li>
   <li><strong>Update DataSet Details</strong> - Update a dataset’s user defined type.</li>
+  <li><strong>Migrate DataSet Content</strong> <em>(Beta)</em> - Repoint every beast mode, card, drill path, dataflow, and dataset view that uses a dataset to a different dataset in one pass. Deselect a whole type or cherry-pick individual items, run a schema-compatibility check that flags missing or type-mismatched columns, and remap them (including references buried inside formulas and SQL expressions) before applying.</li>
+  <li><strong>Sync Datastore</strong> - Trigger a sync on an AppDB collection.</li>
+  <li><strong>Generate Schema</strong> - Infer a column schema for an AppDB collection from its recent documents, edit it, and apply it (optionally turning on sync to produce a dataset in one step).</li>
   <li><strong>Update Code Engine Versions</strong> - Bulk update workflow code engine actions to the latest version in a single click, without unmapping inputs and outputs.</li>
   <li><strong>Copy Color Rules</strong> - Copy a dataset’s color rules (conditional formats) to another dataset in one click. Per-rule column references are validated against the destination’s schema; Beast Mode references are name-matched between source and destination so rules keep working across datasets with equivalent calculations.</li>
   <li><strong>Cancel Stuck Stream Update</strong> - Cancel a dataset stream execution stuck in a storing state with no option to cancel in the UI.</li>
-  <li><strong>Sync JSDoc to Code Engine Package</strong> - Derive a Code Engine package manifest (function names, parameters, types, descriptions) from JSDoc in the source and update the package definition to match. Shows a structural diff before you confirm.</li>
+  <li><strong>Generate Definition from JSDoc</strong> <em>(Beta)</em> - Derive a Code Engine package manifest (function names, parameters, types, descriptions) from JSDoc in a JavaScript package’s source and update the package definition to match. Shows a structural diff before you confirm.</li>
   <li><strong>Lock Cards</strong> - Lock all cards on a page, app studio page, dataset, worksheet, report builder report, or all dataflow outputs.</li>
   <li><strong>Set DataSet Schedule to Manual</strong> - Set a dataset’s schedule to manual.</li>
   <li><strong>Fix Empty String Filters</strong> - Remove empty string default values from “contains” quick filters on cards, so null values display when no value is entered instead of being filtered out.</li>
@@ -174,7 +170,7 @@
 
 <h2 id="supported-object-types">Supported Object Types</h2>
 
-<p>Pages, cards, datasets, dataflows, app studio apps (and their pages), worksheets (and their pages), workspaces, users, groups, alerts, workflows (including versions, executions, triggers, and actions), code engine packages (and versions), pro-code apps, beast modes, variables, access tokens, appdb collections, approvals, approval templates, jupyter workspaces, filesets, files, forms, governance toolkit jobs, certification processes, AI toolkits, AI agents, and dozens more.</p>
+<p>Pages, cards, datasets, dataflows, app studio apps (and their pages), worksheets (and their pages), workspaces, users, groups, alerts, workflows (including versions, executions, triggers, and actions), code engine packages (and versions), pro-code apps, beast modes, variables, drill paths, access tokens, appdb collections, approvals, approval templates, jupyter workspaces, filesets, files, forms, governance toolkit jobs, certification processes, AI toolkits, AI agents, and dozens more.</p>
 
 <h2 id="privacy">Privacy</h2>
 
@@ -195,10 +191,7 @@
 <h2 id="issues--feedback">Issues &amp; Feedback</h2>
 
 <p>Found a bug or have a feature request? <a href="https://github.com/brycewc/domo-toolkit/issues">Open an issue</a>.</p>
-
-  </div>
-
-</article>
+</div>
 
       </div>
     </main></body>
