@@ -1,3 +1,5 @@
+single purpose description:
+To enhance the experience of using the SaaS data and AI platform Domo for power users, simplifying complex or tedious administrative and power tasks into quick access buttons.
 sidePanel justification:
 Enables a persistent companion interface alongside Domo pages. Users can view child pages, navigate page hierarchies, see cards on pages, and access activity logs without leaving their current workflow. The side panel displays contextual information about the current Domo object (page, card, dataset, dataflow) and provides quick actions like copying object IDs, sharing pages, and viewing related objects. This persistent UI is essential for power users who work with complex Domo environments and need constant access to toolkit features without having to constantly open and wait for the popup to load, and not having a big enough surface area to display lists of objects for exploration and administration.
 storage justification:
