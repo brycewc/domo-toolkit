@@ -14,3 +14,11 @@ published: false
 - [ ] Implement a check for page access, so we populate the page name from that endpoint instead if they don't have access (/api/content/v1/pages/{id}/access) and can turn off share if they do (or maybe change it to a remove)
 - [ ] Consolidate Beast Modes functions that are saved on a card but have the same name and formula
 - [ ] Related data approval template for an approvals dataset
+- [ ] Update code engine functions in a custom app to the latest version
+- [ ] Unshare datasets when you unshare cards/pages
+- [ ] Add card data query to JSON
+- [ ] Add function and parameter checking to upgrading code engine functions, so it doesn't break if the function isn't there or parameters aren't there (do more testing to figure out if and when it breaks)
+- [ ] Maybe transfer ownership of all cards on a page
+- [ ] Transfer ownership of all inputs of a dataflow
+- [ ] Add support mode, via automatic recognition of the support user
+- [ ] View all feature switches (maybe only for support)
