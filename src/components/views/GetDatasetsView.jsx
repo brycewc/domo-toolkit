@@ -123,7 +123,7 @@ export function GetDatasetsView({ currentContext = null, onBackToDefault = null,
           : objectType === 'DATAFLOW_TYPE'
             ? 'This dataflow has no input or output datasets.'
             : objectType === 'DATA_SOURCE'
-              ? 'No dependent datasets found for this dataset.'
+              ? 'No dependent dataset views found for this dataset.'
               : objectType === 'CARD'
                 ? 'No datasets found for this card.'
                 : 'No datasets found for this page.';
