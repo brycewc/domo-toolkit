@@ -67,7 +67,9 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
       setFilterCount(allFilters.length);
 
       const filteredUrl = buildPfilterUrl(currentUrl, objectId, allFilters);
-      await navigator.clipboard.writeText(filteredUrl);
+      const tabTitle = await getTabTitle(currentContext.tabId);
+      const linkText = tabTitle || currentContext.domoObject?.metadata?.name?.trim() || filteredUrl;
+      await copyUrlAsLink(filteredUrl, linkText);
 
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
@@ -162,6 +164,26 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
       </Dropdown.Popover>
     </Dropdown>
   );
+}
+
+async function copyUrlAsLink(url, text) {
+  const escapeHtml = (value) =>
+    value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const html = `<a href="${escapeHtml(url)}">${escapeHtml(text)}</a>`;
+  const item = new ClipboardItem({
+    'text/html': new Blob([html], { type: 'text/html' }),
+    'text/plain': new Blob([url], { type: 'text/plain' })
+  });
+  await navigator.clipboard.write([item]);
+}
+
+async function getTabTitle(tabId) {
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    return tab?.title?.trim() || null;
+  } catch {
+    return null;
+  }
 }
 
 function resolveCurrentUrl(currentContext, typeId, objectId) {

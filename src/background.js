@@ -185,6 +185,9 @@ const tabDetectionGen = new Map();
 // Per-instance cache for user + groups (instance -> { user, userGroups, promise })
 const instanceUserCache = new Map();
 
+// Cached setting: omit the " - Domo" suffix when renaming Domo tabs (synced from storage)
+let removeDomoTitleSuffix = false;
+
 /**
  * Get or fetch the current user and their groups for an instance.
  * Returns cached data if available, otherwise fetches and caches.
@@ -276,7 +279,9 @@ function broadcastApiErrors(tabId) {
 function buildAllowedTitles(domoObject) {
   const allowed = [];
   if (domoObject.metadata?.parent?.name) {
-    allowed.push(`${domoObject.metadata.parent.name} - Domo`);
+    const parentName = domoObject.metadata.parent.name;
+    allowed.push(`${parentName} - Domo`);
+    allowed.push(parentName);
   }
   return allowed;
 }
@@ -429,17 +434,19 @@ function setActionIcon(color) {
   chrome.action.setIcon({ path }).catch((err) => console.error('[Background] setIcon failed:', err));
 }
 
-function setSectionTitle(tabId, url) {
+function setSectionTitle(tabId, url, force = false) {
   try {
     const pathname = new URL(url).pathname;
     const sortedKeys = Object.keys(SECTION_TITLES).sort((a, b) => b.length - a.length);
     const matchedKey = sortedKeys.find((key) => pathname.startsWith(key));
     if (matchedKey) {
-      setTabTitle(tabId, SECTION_TITLES[matchedKey]);
+      setTabTitle(tabId, SECTION_TITLES[matchedKey], [], force);
+      return true;
     }
   } catch (error) {
     console.error(`[Background] Error setting section title for tab ${tabId}:`, error);
   }
+  return false;
 }
 
 /**
@@ -483,22 +490,39 @@ function setTabContext(tabId, context) {
     });
 }
 
-function setTabTitle(tabId, objectName, allowedTitles = []) {
+function setTabTitle(tabId, objectName, allowedTitles = [], force = false) {
   try {
     chrome.scripting.executeScript({
-      args: [objectName, allowedTitles],
-      func: (objectName, allowedTitles) => {
+      args: [objectName, allowedTitles, removeDomoTitleSuffix, force],
+      func: (objectName, allowedTitles, removeSuffix, force) => {
         const currentTitle = document.title.trim();
-        if (currentTitle !== 'Domo' && !allowedTitles.includes(currentTitle)) {
+        if (!force && currentTitle !== 'Domo' && !allowedTitles.includes(currentTitle)) {
           return;
         }
-        document.title = `${objectName} - Domo`;
+        document.title = removeSuffix ? objectName : `${objectName} - Domo`;
       },
       target: { tabId },
       world: 'MAIN'
     });
   } catch (error) {
     console.error(`[Background] Error updating title for tab ${tabId}:`, error);
+  }
+}
+
+function stripTitleSuffix(tabId) {
+  try {
+    chrome.scripting.executeScript({
+      func: () => {
+        const suffix = ' - Domo';
+        if (document.title.endsWith(suffix) && document.title.length > suffix.length) {
+          document.title = document.title.slice(0, -suffix.length);
+        }
+      },
+      target: { tabId },
+      world: 'MAIN'
+    });
+  } catch (error) {
+    console.error(`[Background] Error stripping title suffix for tab ${tabId}:`, error);
   }
 }
 
@@ -695,6 +719,11 @@ chrome.storage.sync.get(['autoClearCookiesOn431', 'defaultClearCookiesHandling']
   }
 });
 
+// Initialize the cached tab-title suffix setting from storage.
+chrome.storage.sync.get(['removeDomoTitleSuffix'], (result) => {
+  removeDomoTitleSuffix = result.removeDomoTitleSuffix ?? false;
+});
+
 // Clean up when tabs are closed
 chrome.tabs.onRemoved.addListener((tabId) => {
   console.log(`[Background] Tab ${tabId} removed, cleaning up context`);
@@ -744,26 +773,27 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     await detectAndStoreContext(tabId);
   }
 
-  // Update title when Domo sets it to "Domo" or a stale parent-only title
+  // Update the title when Domo resets it to "Domo", leaves a stale parent-only
+  // title, or (with the suffix setting on) tacks " - Domo" onto any other page.
   if (changeInfo.title && isDomoUrl(tab.url)) {
     const context = getTabContext(tabId);
+    const objectName = context?.domoObject?.metadata?.name;
+    const allowedTitles = objectName ? buildAllowedTitles(context.domoObject) : [];
     if (changeInfo.title === 'Domo') {
-      // Title reset to "Domo" — apply object name or section title
-      if (context?.domoObject?.metadata?.name) {
+      // Title reset to "Domo", so apply the object name or a section title
+      if (objectName) {
         console.log(`[Background] Updating title for tab ${tabId} to include object name`);
-        const allowedTitles = buildAllowedTitles(context.domoObject);
-        setTabTitle(tabId, context.domoObject.metadata.name, allowedTitles);
+        setTabTitle(tabId, objectName, allowedTitles);
       } else if (tab.url) {
         setSectionTitle(tabId, tab.url);
       }
-    } else if (context?.domoObject?.metadata?.name) {
-      // Title changed to something other than "Domo" — check if it's a
-      // stale parent-only title we can enrich (e.g., "MyApp - Domo")
-      const allowedTitles = buildAllowedTitles(context.domoObject);
-      if (allowedTitles.includes(changeInfo.title)) {
-        console.log(`[Background] Enriching stale title for tab ${tabId}`);
-        setTabTitle(tabId, context.domoObject.metadata.name, allowedTitles);
-      }
+    } else if (objectName && allowedTitles.includes(changeInfo.title)) {
+      // Stale parent-only title (e.g., "MyApp - Domo"), so enrich to the object name
+      console.log(`[Background] Enriching stale title for tab ${tabId}`);
+      setTabTitle(tabId, objectName, allowedTitles);
+    } else if (removeDomoTitleSuffix && changeInfo.title.endsWith(' - Domo')) {
+      // Suffix setting on, so strip " - Domo" from any other Domo tab title
+      stripTitleSuffix(tabId);
     }
   }
 });
@@ -788,6 +818,30 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
 
   if (areaName === 'sync' && changes.iconColor) {
     applyIconFromStorage();
+  }
+
+  if (areaName === 'sync' && changes.removeDomoTitleSuffix !== undefined) {
+    removeDomoTitleSuffix = changes.removeDomoTitleSuffix.newValue ?? false;
+
+    // Re-title open Domo tabs so the change applies without a reload
+    const tabs = await chrome.tabs.query({
+      url: '*://*.domo.com/*',
+      windowType: 'normal'
+    });
+    for (const tab of tabs) {
+      const context = getTabContext(tab.id);
+      if (context?.domoObject?.metadata?.name) {
+        const allowedTitles = buildAllowedTitles(context.domoObject);
+        setTabTitle(tab.id, context.domoObject.metadata.name, allowedTitles, true);
+        continue;
+      }
+      // Unmanaged page (no detected object): re-apply a section title if one
+      // matches, otherwise strip the suffix directly when the setting is on.
+      const appliedSection = setSectionTitle(tab.id, tab.url, true);
+      if (!appliedSection && removeDomoTitleSuffix) {
+        stripTitleSuffix(tab.id);
+      }
+    }
   }
 
   if (areaName === 'sync' && changes.faviconRules) {

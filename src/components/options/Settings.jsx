@@ -12,6 +12,7 @@ const DEFAULT_SETTINGS = {
   clearCookiesButtonBehavior: 'preserve',
   defaultDomoInstance: '',
   iconColor: 'blue',
+  removeDomoTitleSuffix: false,
   showClearCookiesButton: false,
   themePreference: 'system'
 };
@@ -95,6 +96,13 @@ export function Settings() {
     setSettings((prev) => ({
       ...prev,
       iconColor: value
+    }));
+  };
+
+  const handleRemoveDomoSuffixChange = (value) => {
+    setSettings((prev) => ({
+      ...prev,
+      removeDomoTitleSuffix: value
     }));
   };
 
@@ -218,6 +226,19 @@ export function Settings() {
             company.domo.com)
           </Description>
         </TextField>
+        <Switch isSelected={settings.removeDomoTitleSuffix} onChange={handleRemoveDomoSuffixChange}>
+          <Switch.Control>
+            <Switch.Thumb />
+          </Switch.Control>
+          <Switch.Content>
+            <Label>{'Remove " - Domo" from tab titles'}</Label>
+            <Description className='w-lg'>
+              When the extension renames a Domo tab to the object name, it leaves off the {'" - Domo"'} suffix. This also
+              changes the title used as link text when copying a filtered URL.
+            </Description>
+          </Switch.Content>
+        </Switch>
+        <Separator className='my-2' />
         <Switch isSelected={settings.autoClearCookiesOn431} onChange={handleAutoClearChange}>
           <Switch.Control>
             <Switch.Thumb />
