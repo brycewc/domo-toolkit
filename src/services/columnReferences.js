@@ -121,9 +121,17 @@ export function extractDataflowColumnRefs(dataflowDefinition) {
 // ---------------------------------------------------------------------------
 
 /**
- * Mirror of `rewriteDatasetViewColumns` in columnRewriter.js — extract refs
- * the same way the rewriter would change them, so the modal only surfaces
- * columns that are BOTH used AND will actually be rewritten on submit.
+ * Extract the column refs a view actually USES: the columns named in its query
+ * (`select.selectBody` and `viewTemplate.select`) and output. Deliberately skips
+ * `viewTemplate.fromItemInfo`, the available-input-column palette, which lists
+ * every column each joined input exposes whether or not the view touches it.
+ * Counting the palette flags columns for remap that never appear in the query or
+ * output (see `walkDatasetViewForRefs`).
+ *
+ * This intentionally diverges from `rewriteDatasetViewColumns`, which still walks
+ * the palette: the rewriter only changes a palette entry when its column is in
+ * the user's columnMap, and a column can't get into that map unless it's surfaced
+ * here, so palette-only columns are neither surfaced nor (effectively) rewritten.
  *
  * @param {Object} viewDefinition
  * @returns {Set<string>}
@@ -388,6 +396,15 @@ function walkDatasetViewForRefs(node, onColumnRef) {
   }
   if (typeof node !== 'object') return;
   for (const [key, value] of Object.entries(node)) {
+    // `fromItemInfo` is the view's available-input-column PALETTE (every column
+    // each joined input exposes), not the query. A view with two inputs can list
+    // hundreds of columns here that it never selects, joins on, or outputs. Those
+    // aren't "used" — counting them flags columns for remap that don't appear in
+    // `select.selectBody` or the output schema. Real usage lives in `select`
+    // (selectBody) and `viewTemplate.select`, both still walked, so skip this
+    // subtree entirely. (Observed: a real view reported 392 columns via the full
+    // walk vs 70 actually used, the other 322 were palette-only.)
+    if (key === 'fromItemInfo') continue;
     if (typeof value === 'string') {
       if (key === 'referencedColumnName' || key === 'columnName') {
         onColumnRef(stripBackticks(value));

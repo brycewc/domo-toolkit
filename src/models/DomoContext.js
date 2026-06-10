@@ -103,4 +103,25 @@ export class DomoContext {
       userGroups: this.userGroups || null
     };
   }
+
+  /**
+   * Like toJSON, but strips fields too heavy to persist. For a dataset,
+   * `metadata.details.properties` is the full Beast Mode formula dump from
+   * `?includeAllDetails=true` (often hundreds of KB). Caching that for up to
+   * MAX_CACHED_TABS tabs plus the sidepanel copy blows the 10 MB
+   * chrome.storage.session quota. It's read only from the live (messaged)
+   * context, never a restored one, so omitting it from storage is safe;
+   * restored contexts re-enrich it on the next detection.
+   *
+   * @returns {Object}
+   */
+  toStorageJSON() {
+    const json = this.toJSON();
+    const details = json.domoObject?.metadata?.details;
+    if (details && typeof details === 'object' && Object.prototype.hasOwnProperty.call(details, 'properties')) {
+      const { properties: _omit, ...rest } = details;
+      json.domoObject.metadata = { ...json.domoObject.metadata, details: rest };
+    }
+    return json;
+  }
 }

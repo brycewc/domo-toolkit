@@ -362,6 +362,7 @@ export default function App() {
 
             {activeView === 'migrateDownstream' && (
               <MigrateDownstreamContentView
+                currentContext={currentContext}
                 key={viewKey}
                 onBackToDefault={handleBackToDefault}
                 onStatusUpdate={showStatus}

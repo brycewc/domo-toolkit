@@ -67,7 +67,7 @@ const UNMAPPED = '__unmapped__';
 // from the (badge_table) cards/drills that use it instead of mapping it.
 const DROP = '__drop__';
 
-export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusUpdate = null }) {
+export function MigrateDownstreamContentView({ currentContext = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   const [datasetId, setDatasetId] = useState(null);
   const [datasetName, setDatasetName] = useState('');
@@ -99,6 +99,11 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
   // Transient feedback for the (synchronous) Auto Map action so the user can
   // see it ran: 'idle' | 'mapping' (brief spinner) | 'done' (checkmark, clears).
   const [autoMapStatus, setAutoMapStatus] = useState('idle');
+
+  // Target ids the user has dismissed from the "use the dataset you're viewing"
+  // suggestion, so navigating back to one doesn't re-offer it. Keyed by dataset
+  // id; persists for the life of the view (a fresh launch starts empty).
+  const [dismissedSuggestionIds, setDismissedSuggestionIds] = useState(() => new Set());
 
   // Beast Modes already on the target dataset, used to detect name collisions
   // with the selected origin Beast Modes. `beastModeChoices` holds the user's
@@ -763,6 +768,35 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
     return hasEffectiveMapping(columnMap) ? 'Migrate with Remap' : 'Proceed Anyway';
   }, [columnMap, hasMismatches]);
 
+  // The dataset currently open in the browser tab, offered as a one-tap target
+  // when the user navigates somewhere new after starting the migration (the
+  // common "open the dataset I want to migrate to, copy its id, paste it" flow).
+  // Suppressed entirely once a target is chosen (by either path): the picker is
+  // already settled, so re-offering whatever tab the user wanders to would just
+  // be noise. Otherwise only a DATA_SOURCE that isn't the origin and hasn't been
+  // dismissed qualifies. `currentContext` is the live tab context from the app,
+  // distinct from the origin captured at launch, so navigating away changes only
+  // the suggestion, never the origin.
+  const suggestedTarget = useMemo(() => {
+    if (selectedDatasetId) return null;
+    const obj = currentContext?.domoObject;
+    if (!obj || obj.typeId !== 'DATA_SOURCE') return null;
+    const id = obj.id;
+    if (!id || id === datasetId || dismissedSuggestionIds.has(id)) return null;
+    const name = obj.metadata?.name || obj.metadata?.displayName || `Dataset ${id}`;
+    return { id, name };
+  }, [currentContext, datasetId, selectedDatasetId, dismissedSuggestionIds]);
+
+  const handleDismissSuggestedTarget = useCallback(() => {
+    setDismissedSuggestionIds((prev) => (suggestedTarget ? new Set(prev).add(suggestedTarget.id) : prev));
+  }, [suggestedTarget]);
+
+  const handleUseSuggestedTarget = useCallback(() => {
+    if (!suggestedTarget) return;
+    setSelectedDatasetId(suggestedTarget.id);
+    setSelectedDatasetName(suggestedTarget.name);
+  }, [suggestedTarget]);
+
   const handleColumnChoice = useCallback((originName, choice) => {
     setColumnMap((prev) => {
       const next = { ...prev };
@@ -1104,6 +1138,26 @@ export function MigrateDownstreamContentView({ onBackToDefault = null, onStatusU
                 setSelectedDatasetName(name ?? null);
               }}
             />
+
+            {suggestedTarget && (
+              <Alert className='w-full border border-border bg-transparent' status='accent'>
+                <Alert.Indicator>
+                  <IconInfoCircle data-slot='alert-default-icon' />
+                </Alert.Indicator>
+                <Alert.Content>
+                  <Alert.Title>Use the dataset you're viewing?</Alert.Title>
+                  <Alert.Description className='break-all'>{suggestedTarget.name}</Alert.Description>
+                  <div className='mt-2 flex gap-2'>
+                    <Button size='sm' variant='primary' onPress={handleUseSuggestedTarget}>
+                      Use as target
+                    </Button>
+                    <Button size='sm' variant='ghost' onPress={handleDismissSuggestedTarget}>
+                      Dismiss
+                    </Button>
+                  </div>
+                </Alert.Content>
+              </Alert>
+            )}
 
             {isComparing && (
               <div className='flex items-center gap-2 text-xs text-muted'>

@@ -161,7 +161,7 @@ export async function storeSidepanelData(options) {
 
   const data = {
     ...rest,
-    currentContext: currentContext?.toJSON?.() || currentContext,
+    currentContext: currentContext?.toStorageJSON?.() || currentContext?.toJSON?.() || currentContext,
     tabId: tabId || null,
     timestamp: Date.now()
   };

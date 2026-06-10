@@ -394,8 +394,12 @@ function pathnameOf(url) {
  */
 async function persistToSession() {
   try {
-    // Convert Map to array for storage
-    const contextsArray = Array.from(tabContexts.entries()).slice(0, MAX_CACHED_TABS);
+    // Convert Map to array for storage. Serialize via toStorageJSON so the heavy
+    // per-object metadata (a dataset's full Beast Mode dump) is dropped before it
+    // is multiplied across MAX_CACHED_TABS cached tabs and overflows the quota.
+    const contextsArray = Array.from(tabContexts.entries())
+      .slice(0, MAX_CACHED_TABS)
+      .map(([tabId, context]) => [tabId, context?.toStorageJSON?.() || context]);
     await chrome.storage.session.set({
       [SESSION_STORAGE_KEY]: contextsArray
     });
