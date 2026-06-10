@@ -955,18 +955,25 @@ function buildBeastModeEntry(template, { currentUserId, name, originId, targetId
 /**
  * Build the dataflow version-history comment, capped at Domo's 253-char limit.
  * Drops the target name first, then the origin name, to stay under the cap.
+ *
+ * The input remap is stated as the primary action; the column-reference rename
+ * count is a separate trailing sentence. This keeps the two facts distinct so a
+ * same-name reconciliation (where only the column's type changed, so no
+ * reference needs renaming) still reads as a deliberate remap instead of "0
+ * column references", which looked like nothing happened.
  */
 function buildDataflowVersionDescription(originName, targetName, count) {
   const max = 253;
-  const refs = `${count} column reference${count === 1 ? '' : 's'}`;
+  const refsSentence =
+    count === 0 ? 'No column references needed renaming.' : `Renamed ${count} column reference${count === 1 ? '' : 's'}.`;
   const candidates = [];
   if (originName && targetName) {
-    candidates.push(`Remapped ${originName} to ${targetName}, including ${refs} via Domo Toolkit`);
+    candidates.push(`Remapped ${originName} to ${targetName} via Domo Toolkit. ${refsSentence}`);
   }
   if (originName) {
-    candidates.push(`Remapped ${originName}, including ${refs} via Domo Toolkit`);
+    candidates.push(`Remapped ${originName} via Domo Toolkit. ${refsSentence}`);
   }
-  candidates.push(`Remapped the input, including ${refs} via Domo Toolkit`);
+  candidates.push(`Remapped the input via Domo Toolkit. ${refsSentence}`);
   for (const candidate of candidates) {
     if (candidate.length <= max) return candidate;
   }

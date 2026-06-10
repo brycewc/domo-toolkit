@@ -15,4 +15,6 @@
 
 ## Bug Fixes
 
+- Migrating downstream content now records a clearer note on each updated dataflow version, stating the input was remapped even when no column references needed renaming.
+
 ### Other Fixes
