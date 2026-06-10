@@ -161,7 +161,12 @@ export async function storeSidepanelData(options) {
 
   const data = {
     ...rest,
-    currentContext: currentContext?.toStorageJSON?.() || currentContext?.toJSON?.() || currentContext,
+    // Full serialization (not toStorageJSON): this single per-window record is
+    // read back by views via getSidepanelData, and some need the heavy fields
+    // toStorageJSON drops, e.g. CopyColorRules reads metadata.details.properties
+    // and Ownership reads user. The quota problem is the background's per-tab
+    // backup duplicating those across many tabs, not this one record.
+    currentContext: currentContext?.toJSON?.() || currentContext,
     tabId: tabId || null,
     timestamp: Date.now()
   };

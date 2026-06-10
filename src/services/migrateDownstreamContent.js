@@ -517,7 +517,7 @@ export async function swapDatasetViewInput({
     if (hasEffectiveMapping(columnMap)) {
       definition = rewriteDatasetViewColumns(definition, columnMap, originId, targetColumnTypes);
     }
-    return await putDatasetViewInPage(viewId, definition, originId, targetId, tabId);
+    return await putDatasetViewInPage(viewId, definition, originId, targetId, targetColumnTypes, tabId);
   } catch (err) {
     return { error: err?.message || String(err), success: false };
   }
@@ -679,9 +679,9 @@ async function putDataflowInPage(dataflowId, definition, originId, targetId, tab
   );
 }
 
-async function putDatasetViewInPage(viewId, viewDefinition, originId, targetId, tabId) {
+async function putDatasetViewInPage(viewId, viewDefinition, originId, targetId, targetColumnTypes, tabId) {
   return executeInPage(
-    async (viewId, viewDefinition, originId, targetId) => {
+    async (viewId, viewDefinition, originId, targetId, targetColumnTypes) => {
       try {
         const cleanId = (id) => (!id ? id : id.replace(/`/g, ''));
         const quoteId = (id) => `\`${cleanId(id)}\``;
@@ -732,11 +732,53 @@ async function putDatasetViewInPage(viewId, viewDefinition, originId, targetId, 
           });
         };
 
+        // The id sweep repoints the input but leaves the available-column palette
+        // (fromItemInfo.columnInfo) listing the ORIGIN's columns under the target's
+        // id, so it shows columns the target doesn't have and omits ones it does.
+        // Rebuild the target-input passthrough entries from the target's real
+        // schema: drop every entry that is a bare `targetId`.`col` ref and re-add
+        // one per target column. Computed expressions and other inputs' refs (e.g.
+        // a join's base alias) aren't bare target refs, so they're left untouched.
+        // Skipped when the target schema isn't known (compatible-schema migrations
+        // don't fetch it, and their swept palette has no dangling columns anyway).
+        const regenerateTargetPalette = (viewTemplate, newId, columnTypes) => {
+          if (!viewTemplate?.fromItemInfo || !columnTypes || Object.keys(columnTypes).length === 0) return;
+          const idClean = cleanId(newId);
+          const escaped = idClean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const bareTargetRef = new RegExp('^`' + escaped + '`\\.`[^`]+`$');
+          Object.values(viewTemplate.fromItemInfo).forEach((section) => {
+            if (!section?.columnInfo) return;
+            const kept = {};
+            for (const [key, entry] of Object.entries(section.columnInfo)) {
+              const fe = entry?.formattedExpression;
+              if (typeof fe === 'string' && bareTargetRef.test(fe)) continue; // drop stale target passthrough
+              kept[key] = entry;
+            }
+            const usedKeys = new Set(Object.keys(kept));
+            const rebuilt = { ...kept };
+            for (const [colName, type] of Object.entries(columnTypes)) {
+              let key = colName;
+              let n = 1;
+              while (usedKeys.has(key)) key = `${colName} ${n++}`;
+              usedKeys.add(key);
+              rebuilt[key] = { aggregated: false, formattedExpression: `\`${idClean}\`.\`${colName}\``, type };
+            }
+            section.columnInfo = rebuilt;
+          });
+        };
+
         const payload = JSON.parse(JSON.stringify(viewDefinition));
         swapDatasetRecursive(payload.viewTemplate?.select?.selectBody, originId, targetId);
         updateColumnReferences(payload, originId, targetId);
         updateMappingExpressions(payload.viewTemplate, originId, targetId);
         const cleaned = JSON.parse(JSON.stringify(payload).replaceAll(originId, targetId));
+        // Run after the id sweep so the palette is rebuilt against the target id.
+        // Non-fatal: a failure here must not block the (already-correct) migration.
+        try {
+          regenerateTargetPalette(cleaned.viewTemplate, targetId, targetColumnTypes);
+        } catch (paletteErr) {
+          console.warn('[migrate] view palette regeneration skipped:', paletteErr);
+        }
         const updatedPayload = {
           dataProviderType: null,
           dataSourceName: payload.name,
@@ -759,7 +801,7 @@ async function putDatasetViewInPage(viewId, viewDefinition, originId, targetId, 
         return { error: err?.message || String(err), success: false };
       }
     },
-    [viewId, viewDefinition, originId, targetId],
+    [viewId, viewDefinition, originId, targetId, targetColumnTypes],
     tabId
   );
 }

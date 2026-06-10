@@ -23,6 +23,7 @@ import {
   isColumnListParent,
   stripBackticks
 } from './columnFields';
+import { isFusionView } from './columnReferences';
 
 /**
  * Returns true if the columnMap has at least one effective rename
@@ -133,6 +134,11 @@ export function rewriteDataflowColumns(dataflowDefinition, columnMap) {
  * @returns {Object} new view definition (input is not mutated)
  */
 export function rewriteDatasetViewColumns(viewDefinition, columnMap, originId, targetColumnTypes = null) {
+  // Fusion views store column refs in a different shape; the template walker
+  // below can't see them, so delegate.
+  if (isFusionView(viewDefinition)) {
+    return rewriteFusionViewColumns(viewDefinition, columnMap, originId);
+  }
   const next = deepClone(viewDefinition);
   const originAliases = findOriginAliases(next, originId);
   walkDatasetViewConservative(next, columnMap, originAliases);
@@ -141,6 +147,41 @@ export function rewriteDatasetViewColumns(viewDefinition, columnMap, originId, t
     alignUnionBranchCasts(next, originAliases, targetColumnTypes);
     propagateColumnInfoTypes(next, columnMap, targetColumnTypes);
   }
+  return next;
+}
+
+/**
+ * Rewrite origin column refs in a fusion view (`views[].mapping`). Every leaf of
+ * the form `{exprType: 'COLUMN', column, table}` whose `table` is the origin
+ * dataset gets its `column` remapped per `columnMap`. Recurses the whole `views`
+ * tree, so it covers simple passthrough mappings, computed/nested mapping exprs,
+ * and `columnFuses[].on` join conditions uniformly. Only the source column ref is
+ * changed; output column names (mapping keys, `tables[].columns[].name`) are the
+ * view's own and stay put. The dataset-id repoint is handled separately by the
+ * caller's JSON sweep.
+ *
+ * @param {Object} viewDefinition
+ * @param {Record<string, string|null>} columnMap
+ * @param {string} originId - The origin dataset id (no backticks).
+ * @returns {Object} new view definition (input is not mutated)
+ */
+export function rewriteFusionViewColumns(viewDefinition, columnMap, originId) {
+  const next = deepClone(viewDefinition);
+  const origin = stripBackticks(originId);
+  const rewriteLeaves = (node) => {
+    if (Array.isArray(node)) {
+      for (const item of node) rewriteLeaves(item);
+      return;
+    }
+    if (!node || typeof node !== 'object') return;
+    if (node.exprType === 'COLUMN' && stripBackticks(node.table) === origin && typeof node.column === 'string') {
+      const to = columnMap[node.column];
+      if (to != null && to !== node.column) node.column = to;
+      return;
+    }
+    for (const v of Object.values(node)) rewriteLeaves(v);
+  };
+  rewriteLeaves(next.views);
   return next;
 }
 

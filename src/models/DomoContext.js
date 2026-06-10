@@ -105,13 +105,21 @@ export class DomoContext {
   }
 
   /**
-   * Like toJSON, but strips fields too heavy to persist. For a dataset,
-   * `metadata.details.properties` is the full Beast Mode formula dump from
-   * `?includeAllDetails=true` (often hundreds of KB). Caching that for up to
-   * MAX_CACHED_TABS tabs plus the sidepanel copy blows the 10 MB
-   * chrome.storage.session quota. It's read only from the live (messaged)
-   * context, never a restored one, so omitting it from storage is safe;
-   * restored contexts re-enrich it on the next detection.
+   * Serialization for the background's per-tab context backup, which caches up
+   * to MAX_CACHED_TABS tabs and blew the 10 MB chrome.storage.session quota.
+   * Drops fields that don't need to survive per tab:
+   *
+   *   - `metadata.details.properties`: a dataset's full Beast Mode formula dump
+   *     from `?includeAllDetails=true`, often hundreds of KB. Read only from the
+   *     live (messaged) context, never a restored one, so it's safe to omit;
+   *     restored contexts re-enrich on the next detection.
+   *   - `user` / `userGroups`: identical for every tab on the same instance (the
+   *     background already caches them per instance). The backup duplicated them
+   *     per tab; restoreFromSession rehydrates them from the instance-level cache.
+   *
+   * NOTE: only for the background backup. The sidepanel's getSidepanelData record
+   * keeps these (CopyColorRules needs properties, Ownership needs user), so that
+   * path uses toJSON, not this.
    *
    * @returns {Object}
    */
@@ -122,6 +130,8 @@ export class DomoContext {
       const { properties: _omit, ...rest } = details;
       json.domoObject.metadata = { ...json.domoObject.metadata, details: rest };
     }
+    json.user = null;
+    json.userGroups = null;
     return json;
   }
 }

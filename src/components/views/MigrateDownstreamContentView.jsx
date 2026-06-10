@@ -502,6 +502,9 @@ export function MigrateDownstreamContentView({ currentContext = null, onBackToDe
   // can't auto-remap (origin SELECT *, an unsupported engine). These get an
   // honest "review manually" note instead of the old false "all clear".
   const sqlDataflowWarnings = scanResult?.dataflowSqlWarnings || [];
+  // Fusion views whose origin columns appear inside computed expressions: the
+  // simple refs are remapped automatically, but the computation may need a look.
+  const viewFusionWarnings = scanResult?.viewFusionWarnings || [];
 
   // Columns that are BOTH used by selected content AND missing/changed in the
   // target schema. The intersection is what the user has to decide about;
@@ -1300,11 +1303,31 @@ export function MigrateDownstreamContentView({ currentContext = null, onBackToDe
               </Alert>
             )}
 
+            {hasMismatches && !isScanning && scanResult && viewFusionWarnings.length > 0 && (
+              <Alert className='w-full border border-border bg-transparent' status='warning'>
+                <Alert.Indicator>
+                  <IconExclamationTriangle data-slot='alert-default-icon' />
+                </Alert.Indicator>
+                <Alert.Content>
+                  <Alert.Title>
+                    {viewFusionWarnings.length === 1
+                      ? '1 fused view needs manual review'
+                      : `${viewFusionWarnings.length} fused views need manual review`}
+                  </Alert.Title>
+                  <Alert.Description>
+                    {viewFusionWarnings.map((w) => w.name).join(', ')} use this dataset's columns inside calculated columns.
+                    Those column references are remapped automatically, but double-check the calculations after migrating.
+                  </Alert.Description>
+                </Alert.Content>
+              </Alert>
+            )}
+
             {hasMismatches &&
               !isScanning &&
               scanResult &&
               usedUnmappedColumns.length === 0 &&
-              sqlDataflowWarnings.length === 0 && (
+              sqlDataflowWarnings.length === 0 &&
+              viewFusionWarnings.length === 0 && (
                 <Alert className='w-full border border-border bg-transparent' status='default'>
                   <Alert.Indicator>
                     <IconInfoCircle data-slot='alert-default-icon' />

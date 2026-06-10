@@ -178,6 +178,12 @@ const MAX_CACHED_TABS = 10;
 
 // Session storage keys
 const SESSION_STORAGE_KEY = 'tabContextsBackup';
+const INSTANCE_USERS_KEY = 'instanceUsersBackup';
+
+// Persisted instance-user entries older than this are treated as stale on
+// restore and re-fetched, so group changes can't be served indefinitely from a
+// long-lived backup. In-session cache behavior is unchanged.
+const INSTANCE_USER_TTL_MS = 12 * 60 * 60 * 1000;
 
 // Per-tab detection generation counter to prevent stale async callbacks
 const tabDetectionGen = new Map();
@@ -218,6 +224,7 @@ function getInstanceUser(instance, tabId) {
     // for a full admin until logout. Dropping it lets the next detection retry.
     if (user?.metadata?.USER_RIGHTS?.length) {
       instanceUserCache.set(instance, { promise: null, user, userGroups });
+      persistInstanceUsers();
     } else {
       instanceUserCache.delete(instance);
     }
@@ -239,6 +246,7 @@ function getInstanceUser(instance, tabId) {
  */
 function invalidateInstanceUser(instance) {
   instanceUserCache.delete(instance);
+  persistInstanceUsers();
   console.log(`[Background] Invalidated user cache for instance: ${instance}`);
 }
 
@@ -390,6 +398,27 @@ function pathnameOf(url) {
 }
 
 /**
+ * Persist the per-instance user/groups cache to session storage. These are
+ * identical across every tab on an instance, so they live here once instead of
+ * being duplicated in each tab's context backup. Only user-bearing entries are
+ * written (in-flight promise entries are skipped); each is stamped so stale
+ * entries can be dropped on restore.
+ */
+async function persistInstanceUsers() {
+  try {
+    const record = {};
+    for (const [instance, entry] of instanceUserCache.entries()) {
+      if (entry?.user) {
+        record[instance] = { fetchedAt: Date.now(), user: entry.user, userGroups: entry.userGroups || [] };
+      }
+    }
+    await chrome.storage.session.set({ [INSTANCE_USERS_KEY]: record });
+  } catch (error) {
+    console.error('[Background] Error persisting instance users:', error);
+  }
+}
+
+/**
  * Persist current tab contexts to session storage
  */
 async function persistToSession() {
@@ -413,6 +442,10 @@ async function persistToSession() {
  */
 async function restoreFromSession() {
   try {
+    // Restore the instance-user cache first so contexts (which no longer carry
+    // their own user/userGroups in the backup) can be rehydrated from it.
+    await restoreInstanceUsers();
+
     const result = await chrome.storage.session.get(SESSION_STORAGE_KEY);
     if (result[SESSION_STORAGE_KEY]) {
       const contextsArray = result[SESSION_STORAGE_KEY];
@@ -422,6 +455,14 @@ async function restoreFromSession() {
       for (const [tabId, contextData] of contextsArray) {
         // Reconstruct DomoContext instance from plain object
         const context = DomoContext.fromJSON(contextData);
+        // Rehydrate user/userGroups from the per-instance cache (toStorageJSON
+        // dropped them from the backup). A miss leaves them null until the next
+        // detection re-fetches, same as a cold start with no cache.
+        const cached = context.instance ? instanceUserCache.get(context.instance) : null;
+        if (cached?.user) {
+          context.user = cached.user;
+          context.userGroups = cached.userGroups || null;
+        }
         tabContexts.set(tabId, context);
         touchTab(tabId);
       }
@@ -430,6 +471,28 @@ async function restoreFromSession() {
     }
   } catch (error) {
     console.error('[Background] Error restoring from session storage:', error);
+  }
+}
+
+/**
+ * Restore the per-instance user/groups cache from session storage on service
+ * worker wake. Entries older than INSTANCE_USER_TTL_MS are skipped so group
+ * changes aren't served indefinitely from a long-lived backup.
+ */
+async function restoreInstanceUsers() {
+  try {
+    const result = await chrome.storage.session.get(INSTANCE_USERS_KEY);
+    const record = result[INSTANCE_USERS_KEY];
+    if (!record) return;
+    const now = Date.now();
+    for (const [instance, entry] of Object.entries(record)) {
+      if (entry?.user && now - (entry.fetchedAt || 0) < INSTANCE_USER_TTL_MS) {
+        instanceUserCache.set(instance, { promise: null, user: entry.user, userGroups: entry.userGroups || [] });
+      }
+    }
+    console.log(`[Background] Restored ${instanceUserCache.size} instance user(s) from session`);
+  } catch (error) {
+    console.error('[Background] Error restoring instance users:', error);
   }
 }
 

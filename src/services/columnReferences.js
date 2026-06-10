@@ -142,6 +142,82 @@ export function extractDatasetViewColumnRefs(viewDefinition) {
   return refs;
 }
 
+/**
+ * Fusion views (`views[].mapping`) store column refs differently from template
+ * views: each output column is `mapping[outName].expr`, an expr tree whose leaves
+ * are `{exprType: 'COLUMN', column, table}`. Join keys live in
+ * `columnFuses[].on`. The template-view walker never reads these, so without this
+ * a fusion view's columns are invisible to the mismatch scan (and the swap then
+ * blanket-repoints the input id while leaving column names untouched, silently
+ * breaking the view if origin and target columns differ).
+ *
+ * Collects every origin-sourced column name (leaf `table` === originId). `unsafe`
+ * is set when an origin column is referenced inside a COMPUTED mapping expr (an
+ * expr whose top node isn't a plain COLUMN, e.g. a function or CASE): the leaf is
+ * still rewritten, but the view is flagged for manual review since the surrounding
+ * computation may need attention.
+ *
+ * @param {Object} viewDefinition
+ * @param {string} originId - The migration origin dataset id.
+ * @returns {{ refs: Set<string>, unsafe: boolean }}
+ */
+export function extractFusionViewColumnRefs(viewDefinition, originId) {
+  const refs = new Set();
+  let unsafe = false;
+  const origin = stripBackticks(originId);
+  const views = Array.isArray(viewDefinition?.views) ? viewDefinition.views : [];
+
+  const collectOriginLeaves = (node, onLeaf) => {
+    if (Array.isArray(node)) {
+      for (const item of node) collectOriginLeaves(item, onLeaf);
+      return;
+    }
+    if (!node || typeof node !== 'object') return;
+    if (node.exprType === 'COLUMN' && stripBackticks(node.table) === origin && typeof node.column === 'string') {
+      onLeaf(node.column);
+      return;
+    }
+    for (const v of Object.values(node)) collectOriginLeaves(v, onLeaf);
+  };
+
+  for (const view of views) {
+    const mapping = view?.mapping && typeof view.mapping === 'object' ? view.mapping : {};
+    for (const info of Object.values(mapping)) {
+      const expr = info?.expr;
+      if (!expr || typeof expr !== 'object') continue;
+      if (expr.exprType === 'COLUMN') {
+        if (stripBackticks(expr.table) === origin && typeof expr.column === 'string') refs.add(expr.column);
+      } else {
+        // Computed expr: rewrite its origin leaves but flag the view for review.
+        collectOriginLeaves(expr, (name) => {
+          refs.add(name);
+          unsafe = true;
+        });
+      }
+    }
+    // Join conditions are structured COLUMN leaves and rewrite cleanly.
+    collectOriginLeaves(view?.columnFuses, (name) => refs.add(name));
+  }
+  return { refs, unsafe };
+}
+
+/**
+ * True when a view definition is a fusion (`views[].mapping`) rather than the
+ * template form (`viewTemplate.select.selectBody`). The two store column refs in
+ * incompatible shapes, so scanning and rewriting branch on this.
+ *
+ * @param {Object} viewDefinition
+ * @returns {boolean}
+ */
+export function isFusionView(viewDefinition) {
+  return (
+    Array.isArray(viewDefinition?.views) &&
+    !!viewDefinition.views[0] &&
+    typeof viewDefinition.views[0].mapping === 'object' &&
+    viewDefinition.views[0].mapping !== null
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Public extractors — one per content type. Each returns Set<string>.
 // ---------------------------------------------------------------------------
@@ -160,13 +236,15 @@ export function makeItemKey(typeKey, itemId) {
  *   byItem: Map<string, {definition: Object|null, usedColumns: Set<string>, error?: string}>,
  *   errors: Array<{type: string, id: any, error: string}>,
  *   dataflowCollisions: Map<string, Array<{dataflowId: any, dataflowName: string, otherInputId: string, otherInputName: string}>>,
- *   dataflowSqlWarnings: Array<{engine: string, id: any, name: string}>
+ *   dataflowSqlWarnings: Array<{engine: string, id: any, name: string}>,
+ *   viewFusionWarnings: Array<{id: any, name: string}>
  * }>}
  */
 export async function scanContentForColumns({ originId, selectedItems, tabId = null }) {
   const byColumn = new Map();
   const byItem = new Map();
   const dataflowSqlWarnings = [];
+  const viewFusionWarnings = [];
   const errors = [];
 
   const addRef = (typeKey, item, columnName) => {
@@ -193,7 +271,18 @@ export async function scanContentForColumns({ originId, selectedItems, tabId = n
         used = extractBeastModeColumnRefs(definition);
       } else if (typeKey === 'datasets') {
         definition = await fetchDatasetViewDefinition(item.id, tabId);
-        used = extractDatasetViewColumnRefs(definition);
+        // Fusion views (views[].mapping) and template views (viewTemplate) store
+        // column refs in incompatible shapes; the template walker is blind to
+        // fusion, so route by shape. Fusion computed exprs are flagged for review.
+        if (isFusionView(definition)) {
+          const fusionScan = extractFusionViewColumnRefs(definition, originId);
+          used = fusionScan.refs;
+          if (fusionScan.unsafe) {
+            viewFusionWarnings.push({ id: item.id, name: item.name || String(item.id) });
+          }
+        } else {
+          used = extractDatasetViewColumnRefs(definition);
+        }
       } else if (typeKey === 'dataflows') {
         definition = await fetchDataflowDefinition(item.id, tabId);
         // Magic ETL keeps column refs in structured fields (existing walker).
@@ -265,7 +354,7 @@ export async function scanContentForColumns({ originId, selectedItems, tabId = n
     tabId
   });
 
-  return { byColumn, byItem, dataflowCollisions, dataflowSqlWarnings, errors };
+  return { byColumn, byItem, dataflowCollisions, dataflowSqlWarnings, errors, viewFusionWarnings };
 }
 
 async function collectDataflowCollisions({ byItem, originId, selectedDataflows, tabId }) {
