@@ -100,6 +100,9 @@ export function getAvailableActions(currentContext) {
     actions.add('transferOwnership');
     actions.add('getOwnedObjects');
     actions.add('duplicate');
+    if (userRights.includes('user.edit')) {
+      actions.add('updateDetails');
+    }
     // Sidepanel routing key used by both GetOwnedObjects and TransferOwnership
     // — added here so DataList's reload affordance can verify the current
     // object supports the shared OwnershipView. Not consumed by any button.

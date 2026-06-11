@@ -11,6 +11,7 @@
 - When migrating downstream content, navigating to another dataset now offers it as the migration target in one click, instead of having to copy and paste its ID.
 - Jupyter Workspaces are now detected when their settings dialog is open, so a workspace no longer needs to be running to act on it.
 - Jupyter Workspaces now show their input datasets, output datasets, and accounts as tabs, with details and links for each.
+- Update Person Details lets admins change a user's username (the login and SSO identity), with an option to keep the email in sync.
 
 ### Supported Types
 

@@ -2,12 +2,14 @@ import {
   Button,
   Card,
   ComboBox,
+  Description,
   Input,
   Label,
   ListBox,
   ListLayout,
   Separator,
   Spinner,
+  Switch,
   TextArea,
   TextField,
   Tooltip,
@@ -19,12 +21,15 @@ import { useStatusBar } from '@/hooks/useStatusBar';
 import { DomoContext } from '@/models/DomoContext';
 import { updateDataflowDetails } from '@/services/dataflows';
 import { getProviders, updateDatasetProperties } from '@/services/datasets';
+import { setUserAttributes } from '@/services/users';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconArrowCurvedBack from '@icons/arrow-curved-back.svg?react';
 import IconChevronDown from '@icons/chevron-down.svg?react';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
 import IconSync from '@icons/sync.svg?react';
 import IconX from '@icons/x.svg?react';
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const updatersByType = {
   DATA_SOURCE: {
@@ -62,6 +67,36 @@ const updatersByType = {
     run: (id, updates) => updateDataflowDetails(id, updates),
     title: 'Update DataFlow Details',
     typeName: 'DataFlow'
+  },
+  USER: {
+    applyToggles: (diff, { originalValues, toggles }) => {
+      if (toggles.syncEmail && diff.userName && diff.userName !== originalValues.email) {
+        return { ...diff, email: diff.userName };
+      }
+      return diff;
+    },
+    fields: [{ key: 'userName', kind: 'email', label: 'Username', required: true, syncFromKey: 'email' }],
+    getOriginal: (ctx) => ({
+      email: ctx.domoObject?.metadata?.details?.emailAddress || '',
+      userName: ctx.domoObject?.metadata?.details?.userName || ''
+    }),
+    run: async (id, updates) => {
+      const attributes = [];
+      if ('userName' in updates) attributes.push({ key: 'userName', values: [updates.userName] });
+      if ('email' in updates) attributes.push({ key: 'emailAddress', values: [updates.email] });
+      const ok = await setUserAttributes(id, attributes);
+      if (!ok) throw new Error('Failed to update user');
+    },
+    title: 'Update Person Details',
+    toggles: [
+      {
+        defaultSelected: true,
+        description: 'Sets the email to the new username on save',
+        key: 'syncEmail',
+        label: 'Also update email to match'
+      }
+    ],
+    typeName: 'Person'
   }
 };
 
@@ -71,6 +106,7 @@ export function UpdateDetailsView({ onBackToDefault = null, onStatusUpdate = nul
   const [config, setConfig] = useState(null);
   const [originalValues, setOriginalValues] = useState({});
   const [values, setValues] = useState({});
+  const [toggles, setToggles] = useState({});
   const [options, setOptions] = useState(null);
   const [optionsError, setOptionsError] = useState(null);
   const [isLoadingOptions, setIsLoadingOptions] = useState(false);
@@ -107,6 +143,7 @@ export function UpdateDetailsView({ onBackToDefault = null, onStatusUpdate = nul
       setConfig(cfg);
       setOriginalValues(original);
       setValues(original);
+      setToggles(Object.fromEntries((cfg.toggles || []).map((t) => [t.key, !!t.defaultSelected])));
       if (cfg.loadOptions) loadOptions(cfg);
     } catch (error) {
       console.error('[UpdateDetailsView] Error loading data:', error);
@@ -192,8 +229,12 @@ export function UpdateDetailsView({ onBackToDefault = null, onStatusUpdate = nul
         onStatusUpdate?.(`${f.label} is required`, '', 'warning', 2000);
         return;
       }
+      if (f.kind === 'email' && diff[f.key] !== undefined && !EMAIL_PATTERN.test(diff[f.key])) {
+        onStatusUpdate?.(`${f.label} must be a valid email address`, '', 'warning', 2000);
+        return;
+      }
     }
-    performUpdate(diff);
+    performUpdate(config.applyToggles ? config.applyToggles(diff, { originalValues, toggles }) : diff);
   };
 
   const handleReset = () => {
@@ -256,6 +297,7 @@ export function UpdateDetailsView({ onBackToDefault = null, onStatusUpdate = nul
             options={options}
             optionsError={optionsError}
             originalValue={originalValues[field.key]}
+            syncValue={field.syncFromKey ? (originalValues[field.syncFromKey] ?? '') : undefined}
             value={values[field.key] ?? ''}
             onChange={(v) => setValue(field.key, v)}
             onReset={hasResettableValue ? handleReset : undefined}
@@ -265,6 +307,23 @@ export function UpdateDetailsView({ onBackToDefault = null, onStatusUpdate = nul
       </div>
 
       <div className='flex shrink-0 flex-col gap-2'>
+        {(config.toggles || []).map((toggle) => (
+          <Switch
+            className='py-1'
+            isDisabled={isSubmitting}
+            isSelected={!!toggles[toggle.key]}
+            key={toggle.key}
+            onChange={(v) => setToggles((prev) => ({ ...prev, [toggle.key]: v }))}
+          >
+            <Switch.Control>
+              <Switch.Thumb />
+            </Switch.Control>
+            <Switch.Content>
+              <Label>{toggle.label}</Label>
+              <Description>{toggle.description}</Description>
+            </Switch.Content>
+          </Switch>
+        ))}
         <Button fullWidth isDisabled={isSubmitting} isPending={isSubmitting} variant='primary' onPress={handleSubmit}>
           Save
         </Button>
@@ -283,6 +342,7 @@ function FieldRow({
   options,
   optionsError,
   originalValue,
+  syncValue,
   value
 }) {
   if (field.kind === 'text') {
@@ -291,6 +351,38 @@ function FieldRow({
         <Label>{field.label}</Label>
         <Input className='h-8' isDisabled={isDisabled} value={value} onChange={(e) => onChange(e.target.value)} />
       </TextField>
+    );
+  }
+
+  if (field.kind === 'email') {
+    const showSyncButton = Boolean(field.syncFromKey);
+    const isSyncDisabled = isDisabled || !syncValue || value === syncValue;
+    return (
+      <div className='flex flex-col gap-1'>
+        <TextField id={`update-${field.key}`} isRequired={field.required} name={field.key} variant='secondary'>
+          <Label>{field.label}</Label>
+          <div className='flex items-center gap-1'>
+            <Input
+              className='h-8 flex-1'
+              isDisabled={isDisabled}
+              type='email'
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+            />
+            {showSyncButton && (
+              <Tooltip>
+                <Button isIconOnly isDisabled={isSyncDisabled} size='md' variant='tertiary' onPress={() => onChange(syncValue)}>
+                  <IconSync />
+                </Button>
+                <Tooltip.Content className='max-w-60'>
+                  {syncValue ? `Set to current email (${syncValue})` : 'No email to copy'}
+                </Tooltip.Content>
+              </Tooltip>
+            )}
+          </div>
+        </TextField>
+        {showSyncButton && <span className='text-xs text-muted'>Current email: {syncValue || 'none'}</span>}
+      </div>
     );
   }
 
