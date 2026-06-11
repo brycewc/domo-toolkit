@@ -12,6 +12,7 @@
 - Jupyter Workspaces are now detected when their settings dialog is open, so a workspace no longer needs to be running to act on it.
 - Jupyter Workspaces now show their input datasets, output datasets, and accounts as tabs, with details and links for each.
 - Update Person Details lets admins change a user's username (the login and SSO identity), with an option to keep the email in sync.
+- Approval Center datasets now show a Template tab linking to the approval template that created them.
 
 ### Supported Types
 
@@ -21,7 +22,7 @@
 
 - Migrating downstream content now records a clearer note on each updated dataflow version, stating the input was remapped even when no column references needed renaming.
 - Migrating downstream content no longer asks you to remap dataset-view columns the view doesn't actually use; only columns referenced in the view's query or output are flagged now.
-- Side panel actions no longer intermittently fail to open when many tabs are open or a dataset has very large Beast Mode definitions.
+- Side panel actions no longer intermittently fail to open when many tabs are open, a dataset has very large Beast Mode definitions, or pages hold many cards.
 - Migrating a dataset view's input now updates the view's available-columns list to the new dataset's columns instead of leaving the previous dataset's.
 - Migrating downstream content now remaps column references inside fused views (DataFusions) instead of leaving them pointing at the old dataset, and flags any fused view that uses the dataset in a calculated column for manual review.
 - Approvals and Approval Templates no longer appear as failing rows in Objects Owned and Transfer Ownership on instances that don't have Approvals enabled.

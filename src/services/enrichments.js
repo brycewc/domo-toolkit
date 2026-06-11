@@ -207,6 +207,23 @@ const ENRICHMENTS = [
     types: ['USER']
   },
 
+  // Approval Center datasets carry their source template's UUID in the
+  // description Domo writes at creation time. Missing (user edited the
+  // description) just means no Template tab renders.
+  {
+    fetch: ({ enrichedMetadata, objectId }) => {
+      if (enrichedMetadata.details?.type?.toLowerCase() !== 'domo-approval-center') return undefined;
+      const match = enrichedMetadata.details?.description?.match(
+        /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
+      );
+      if (!match || match[0].toLowerCase() === objectId?.toLowerCase()) return undefined;
+      return match[0];
+    },
+    id: 'approval-dataset-template',
+    storePath: 'context.approvalTemplateId',
+    types: ['DATA_SOURCE']
+  },
+
   // URL segment for CERTIFICATION_PROCESS, derived from the template type
   // (CC:CARD[:DOMO] → certified-cards; CC:DSET[:DOMO] → certified-datasets)
   {

@@ -116,6 +116,11 @@ export class DomoContext {
    *     from `?includeAllDetails=true`, often hundreds of KB. Read only from the
    *     live (messaged) context, never a restored one, so it's safe to omit;
    *     restored contexts re-enrich on the next detection.
+   *   - `metadata.context`: extension-injected context, detection-time IDs plus
+   *     the async enrichment payload (a page's cards/forms/queues and combined
+   *     content array, child/card page lists, Jupyter related data). The
+   *     enrichment arrays can rival the Beast Mode dump in size. Rebuilt from
+   *     scratch on every detection, so restored contexts recover the same way.
    *   - `user` / `userGroups` / `featureSwitches`: identical for every tab on
    *     the same instance (the background already caches them per instance).
    *     The backup duplicated them per tab; restoreFromSession rehydrates them
@@ -129,10 +134,15 @@ export class DomoContext {
    */
   toStorageJSON() {
     const json = this.toJSON();
-    const details = json.domoObject?.metadata?.details;
-    if (details && typeof details === 'object' && Object.prototype.hasOwnProperty.call(details, 'properties')) {
-      const { properties: _omit, ...rest } = details;
-      json.domoObject.metadata = { ...json.domoObject.metadata, details: rest };
+    const metadata = json.domoObject?.metadata;
+    if (metadata && typeof metadata === 'object') {
+      const { context: _omitContext, ...slimMetadata } = metadata;
+      const details = slimMetadata.details;
+      if (details && typeof details === 'object' && Object.prototype.hasOwnProperty.call(details, 'properties')) {
+        const { properties: _omitProperties, ...slimDetails } = details;
+        slimMetadata.details = slimDetails;
+      }
+      json.domoObject.metadata = slimMetadata;
     }
     json.user = null;
     json.userGroups = null;

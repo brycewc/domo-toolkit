@@ -688,6 +688,9 @@ export const ObjectTypeRegistry = {
       // migrated streams stop populating `accountId` on the datasource.
       { field: 'accountId', label: 'Account', typeId: 'ACCOUNT' },
       { label: 'DataFlow', source: 'parent', typeId: 'DATAFLOW_TYPE' },
+      // Approval Center datasets: template UUID parsed from the description by
+      // the 'approval-dataset-template' enrichment; absent when a user removed it.
+      { field: 'approvalTemplateId', fieldSource: 'context', label: 'Template', typeId: 'TEMPLATE' },
       { fetcher: 'datasetColumns', isArray: true, label: 'Columns' }
     ],
     urlPath: '/datasources/{id}/details/overview'
