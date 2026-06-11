@@ -176,6 +176,11 @@ const tabContexts = new Map();
 // LRU tracking (tabId -> timestamp)
 const tabAccessTimes = new Map();
 const MAX_CACHED_TABS = 10;
+// Per-entry budget for the session backup, in JSON string length (roughly
+// bytes). toStorageJSON already drops the known-heavy fields; this is the
+// generic backstop for any object whose raw details blob is still huge, so
+// the worst case stays around MAX_CACHED_TABS * this out of the 10 MB quota.
+const MAX_BACKUP_ENTRY_CHARS = 250000;
 
 // Session storage keys
 const SESSION_STORAGE_KEY = 'tabContextsBackup';
@@ -444,13 +449,26 @@ async function persistInstanceUsers() {
  */
 async function persistToSession() {
   try {
-    // Convert Map to array for storage. Serialize via toStorageJSON so the heavy
-    // per-object metadata (a dataset's full Beast Mode dump, the enrichment
-    // payload in metadata.context) is dropped before it is multiplied across
-    // MAX_CACHED_TABS cached tabs and overflows the quota.
+    // Convert Map to array for storage. toStorageJSON allowlists what survives
+    // per tab; on top of that, any entry still over MAX_BACKUP_ENTRY_CHARS
+    // (some type's raw details blob) is stored without details at all. The
+    // identity fields keep titles, navigation, and action gating working after
+    // a restore, and details re-enrich on the next detection.
     const contextsArray = Array.from(tabContexts.entries())
       .slice(0, MAX_CACHED_TABS)
-      .map(([tabId, context]) => [tabId, context?.toStorageJSON?.() || context]);
+      .map(([tabId, context]) => {
+        let entry = context?.toStorageJSON?.() || context;
+        if (entry?.domoObject?.metadata?.details && JSON.stringify(entry).length > MAX_BACKUP_ENTRY_CHARS) {
+          entry = {
+            ...entry,
+            domoObject: {
+              ...entry.domoObject,
+              metadata: { ...entry.domoObject.metadata, details: null }
+            }
+          };
+        }
+        return [tabId, entry];
+      });
     await chrome.storage.session.set({
       [SESSION_STORAGE_KEY]: contextsArray
     });

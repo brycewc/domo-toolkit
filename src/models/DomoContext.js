@@ -11,13 +11,11 @@ export class DomoContext {
    * @param {number} tabId - The Chrome tab ID
    * @param {string} url - The full URL of the tab
    * @param {DomoObject} [domoObject] - The detected Domo object (optional)
-   * @param {chrome.tabs.Tab} [tab] - The Chrome tab object (optional)
    * @param {{id: number, metadata: Object}} [user] - The current user (optional)
    */
-  constructor(tabId, url, domoObject = null, tab = null, user = null) {
+  constructor(tabId, url, domoObject = null, user = null) {
     this.tabId = tabId;
     this.url = url;
-    this.tab = tab;
 
     // Extract instance from URL and determine if this is a valid Domo page
     try {
@@ -36,18 +34,6 @@ export class DomoContext {
     this.user = user;
     this.userGroups = null;
     this.featureSwitches = null;
-
-    // Fetch tab object if not provided but tabId is available
-    if (!this.tab && this.tabId && typeof chrome !== 'undefined' && chrome.tabs) {
-      chrome.tabs
-        .get(this.tabId)
-        .then((fetchedTab) => {
-          this.tab = fetchedTab;
-        })
-        .catch((error) => {
-          console.error('Error fetching tab object:', error);
-        });
-    }
   }
 
   /**
@@ -59,7 +45,7 @@ export class DomoContext {
     // Use DomoObject.fromJSON to properly reconstruct the DomoObject instance
     const domoObject = data.domoObject ? DomoObject.fromJSON(data.domoObject) : null;
 
-    const context = new DomoContext(data.tabId, data.url, domoObject, data.tab || null, data.user || null);
+    const context = new DomoContext(data.tabId, data.url, domoObject, data.user || null);
 
     context.userGroups = data.userGroups || null;
     context.featureSwitches = data.featureSwitches || null;
@@ -99,7 +85,6 @@ export class DomoContext {
       featureSwitches: this.featureSwitches || null,
       instance: this.instance,
       isDomoPage: this.isDomoPage,
-      tab: this.tab || null,
       tabId: this.tabId,
       url: this.url,
       user: this.user || null,
@@ -110,25 +95,29 @@ export class DomoContext {
   /**
    * Serialization for the background's per-tab context backup, which caches up
    * to MAX_CACHED_TABS tabs and blew the 10 MB chrome.storage.session quota.
-   * Drops fields that don't need to survive per tab:
+   * Where toJSON copies metadata wholesale, this allowlists it: only the keys
+   * built below survive, so a new metadata slot (like the enrichment payload
+   * that lived in `metadata.context`) stays out of the backup until it is
+   * deliberately added here. Restored contexts rebuild dropped data on the
+   * next detection.
+   *
+   * Within the allowlist, two more cuts:
    *
    *   - `metadata.details.properties`: a dataset's full Beast Mode formula dump
    *     from `?includeAllDetails=true`, often hundreds of KB. Read only from the
-   *     live (messaged) context, never a restored one, so it's safe to omit;
-   *     restored contexts re-enrich on the next detection.
-   *   - `metadata.context`: extension-injected context, detection-time IDs plus
-   *     the async enrichment payload (a page's cards/forms/queues and combined
-   *     content array, child/card page lists, Jupyter related data). The
-   *     enrichment arrays can rival the Beast Mode dump in size. Rebuilt from
-   *     scratch on every detection, so restored contexts recover the same way.
+   *     live (messaged) context, never a restored one, so it's safe to omit.
    *   - `user` / `userGroups` / `featureSwitches`: identical for every tab on
    *     the same instance (the background already caches them per instance).
    *     The backup duplicated them per tab; restoreFromSession rehydrates them
    *     from the instance-level cache.
    *
+   * `details` itself stays whole (the footer renders its fields wholesale), so
+   * persistToSession adds a size backstop on top of this: an entry still over
+   * budget is stored without `details` at all.
+   *
    * NOTE: only for the background backup. The sidepanel's getSidepanelData record
-   * keeps these (CopyColorRules needs properties, Ownership needs user), so that
-   * path uses toJSON, not this.
+   * keeps the heavy fields (CopyColorRules needs properties, Ownership needs
+   * user), so that path uses toJSON, not this.
    *
    * @returns {Object}
    */
@@ -136,7 +125,14 @@ export class DomoContext {
     const json = this.toJSON();
     const metadata = json.domoObject?.metadata;
     if (metadata && typeof metadata === 'object') {
-      const { context: _omitContext, ...slimMetadata } = metadata;
+      const slimMetadata = {
+        details: metadata.details,
+        isOwner: metadata.isOwner,
+        name: metadata.name,
+        parent: metadata.parent,
+        parentId: metadata.parentId,
+        permission: metadata.permission
+      };
       const details = slimMetadata.details;
       if (details && typeof details === 'object' && Object.prototype.hasOwnProperty.call(details, 'properties')) {
         const { properties: _omitProperties, ...slimDetails } = details;

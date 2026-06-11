@@ -71,8 +71,7 @@ export async function deletePageAndAllCards({
             statusDescription: `This page has ${childPages.length} child page${childPages.length !== 1 ? 's' : ''}. Please delete or reassign the child pages first.`,
             statusTitle: 'Cannot Delete Page',
             statusType: 'warning',
-            success: false,
-            windowId: currentContext?.tab?.windowId
+            success: false
           };
         }
       }
