@@ -11,7 +11,7 @@ import IconCheckCircle from '@icons/check-circle.svg?react';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
 import IconX from '@icons/x.svg?react';
 
-export function CopyColorRulesView({ onBackToDefault = null, onStatusUpdate = null }) {
+export function CopyColorRulesView({ instance = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   const [currentContext, setCurrentContext] = useState(null);
   const [sourceRules, setSourceRules] = useState([]);
@@ -35,7 +35,7 @@ export function CopyColorRulesView({ onBackToDefault = null, onStatusUpdate = nu
 
   const loadData = async () => {
     try {
-      const data = await getSidepanelData();
+      const data = await getSidepanelData(instance);
       if (!data || data.type !== 'copyColorRules') {
         onBackToDefault?.();
         return;
@@ -281,7 +281,7 @@ export function CopyColorRulesView({ onBackToDefault = null, onStatusUpdate = nu
  * Regular columns match by name or id against the destination's schema. Beast
  * Modes (calculation_<uuid>) have per-dataset ids, so we name-match the source
  * beast mode against the destination's beast modes and emit a swap entry when
- * we find one — that swap is applied to the rules right before the PUT so the
+ * we find one; that swap is applied to the rules right before the PUT so the
  * copied rule references the destination's id.
  *
  * Returns `{ missingColumns, swap }`. `missingColumns` shows friendly names

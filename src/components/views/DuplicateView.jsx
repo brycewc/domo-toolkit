@@ -71,7 +71,7 @@ const buildInitialStepStates = (steps) => Object.fromEntries(steps.map((s) => [s
 
 const buildInitialValues = (fields) => Object.fromEntries(fields.map((f) => [f.key, '']));
 
-export function DuplicateView({ onBackToDefault = null, onStatusUpdate = null }) {
+export function DuplicateView({ instance = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   const [currentContext, setCurrentContext] = useState(null);
   const [sourceUser, setSourceUser] = useState(null);
@@ -99,7 +99,7 @@ export function DuplicateView({ onBackToDefault = null, onStatusUpdate = null })
 
   const loadData = async () => {
     try {
-      const data = await getSidepanelData();
+      const data = await getSidepanelData(instance);
       if (!data || data.type !== 'duplicate') {
         onBackToDefault?.();
         return;

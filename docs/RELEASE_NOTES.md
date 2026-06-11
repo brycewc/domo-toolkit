@@ -13,6 +13,7 @@
 - Jupyter Workspaces now show their input datasets, output datasets, and accounts as tabs, with details and links for each.
 - Update Person Details lets admins change a user's username (the login and SSO identity), with an option to keep the email in sync.
 - Approval Center datasets now show a Template tab linking to the approval template that created them.
+- Side panel views are now scoped to each Domo instance, so switching instances swaps to that instance's own view (in-progress operations included) instead of carrying one view everywhere.
 
 ### Supported Types
 

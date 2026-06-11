@@ -28,7 +28,7 @@ import IconPlusCircle from '@icons/plus-circle.svg?react';
 import IconSync from '@icons/sync.svg?react';
 import IconX from '@icons/x.svg?react';
 
-export function GeneratePackageDefinitionFromJSDocView({ onBackToDefault = null, onStatusUpdate = null }) {
+export function GeneratePackageDefinitionFromJSDocView({ instance = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -51,7 +51,7 @@ export function GeneratePackageDefinitionFromJSDocView({ onBackToDefault = null,
 
   const loadData = async () => {
     try {
-      const data = await getSidepanelData();
+      const data = await getSidepanelData(instance);
       if (!data || data.type !== 'generatePackageDefinitionFromJSDoc') {
         onBackToDefault?.();
         return;

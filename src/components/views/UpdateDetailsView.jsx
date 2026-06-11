@@ -100,7 +100,7 @@ const updatersByType = {
   }
 };
 
-export function UpdateDetailsView({ onBackToDefault = null, onStatusUpdate = null }) {
+export function UpdateDetailsView({ instance = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   const [currentContext, setCurrentContext] = useState(null);
   const [config, setConfig] = useState(null);
@@ -124,7 +124,7 @@ export function UpdateDetailsView({ onBackToDefault = null, onStatusUpdate = nul
 
   const loadData = async () => {
     try {
-      const data = await getSidepanelData();
+      const data = await getSidepanelData(instance);
       if (!data || data.type !== 'updateDetails') {
         onBackToDefault?.();
         return;
@@ -450,7 +450,7 @@ function FieldRow({
               </Button>
               <Tooltip.Content className='max-w-60'>
                 {originalValue
-                  ? 'Reset — clears userDefinedType and restores displayType to dataProviderType'
+                  ? 'Reset: clears userDefinedType and restores displayType to dataProviderType'
                   : 'Nothing to reset'}
               </Tooltip.Content>
             </Tooltip>

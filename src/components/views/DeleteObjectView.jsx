@@ -186,7 +186,7 @@ const deletersByType = {
 };
 deletersByType.WORKSHEET_VIEW.cascadeButtons = deletersByType.DATA_APP_VIEW.cascadeButtons;
 
-export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null }) {
+export function DeleteObjectView({ instance = null, isActive = true, onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   const [currentContext, setCurrentContext] = useState(null);
   const [config, setConfig] = useState(null);
@@ -208,7 +208,7 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
 
   const loadData = async () => {
     try {
-      const data = await getSidepanelData();
+      const data = await getSidepanelData(instance);
       if (!data || data.type !== 'deleteObject') {
         onBackToDefault?.();
         return;
@@ -420,7 +420,7 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
       </Card>
 
       <AlertDialog
-        isOpen={!!pendingAction}
+        isOpen={!!pendingAction && isActive}
         onOpenChange={(open) => {
           if (!open) setPendingAction(null);
         }}

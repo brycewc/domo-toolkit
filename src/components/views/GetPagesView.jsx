@@ -16,7 +16,7 @@ import IconSync from '@icons/sync.svg?react';
 
 import { DataList } from './DataList';
 
-export function GetPagesView({ currentContext = null, onBackToDefault = null, onStatusUpdate = null }) {
+export function GetPagesView({ currentContext = null, instance: viewInstance = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
@@ -50,7 +50,7 @@ export function GetPagesView({ currentContext = null, onBackToDefault = null, on
 
     try {
       // Get the stored page data from local storage
-      const data = await getSidepanelData();
+      const data = await getSidepanelData(viewInstance);
       console.log('Loaded sidepanel data:', data);
       if (!data || (data.type !== 'getChildPages' && data.type !== 'getCardPages' && data.type !== 'childPagesWarning')) {
         setError('No page data found. Please try again from a page URL.');
@@ -102,7 +102,7 @@ export function GetPagesView({ currentContext = null, onBackToDefault = null, on
         // No pre-fetched data (popup handoff)
         if (sidepanelType === 'getCardPages') {
           if (objectType === 'PAGE' || objectType === 'DATA_APP_VIEW' || objectType === 'WORKSHEET_VIEW') {
-            // Page-like types — get cards then find other pages they appear on
+            // Page-like types: get cards then find other pages they appear on
             const waitResult = await waitForCards(context);
             if (waitResult.success && waitResult.cards?.length) {
               const tabId = await getValidTabForInstance(instance);
@@ -123,9 +123,9 @@ export function GetPagesView({ currentContext = null, onBackToDefault = null, on
               cardsByPage = result.cardsByPage;
             }
           }
-          // CARD, DATA_SOURCE, DATAFLOW_TYPE — fall through to fetchFreshPages
+          // CARD, DATA_SOURCE, DATAFLOW_TYPE: fall through to fetchFreshPages
         } else {
-          // getChildPages or childPagesWarning — background-cached hierarchical children
+          // getChildPages or childPagesWarning: background-cached hierarchical children
           const waitResult = await waitForChildPages(context);
           if (waitResult.success) {
             childPages = waitResult.childPages;
@@ -352,7 +352,7 @@ export function GetPagesView({ currentContext = null, onBackToDefault = null, on
         cardIds = cards.map((card) => card.id);
       }
 
-      // Treat null result the same as empty — keeps the UI stable if the
+      // Treat null result the same as empty; keeps the UI stable if the
       // executeInPage bridge nulls out (script timeout, OOM, transient errors).
       const result = (await getPagesForCards(cardIds, tabId)) ?? {
         cardsByPage: {},
@@ -376,7 +376,7 @@ export function GetPagesView({ currentContext = null, onBackToDefault = null, on
       return { cardsByPage, childPages };
     }
 
-    // getChildPages / childPagesWarning — hierarchical children
+    // getChildPages / childPagesWarning: hierarchical children
     if (objectType === 'PAGE') {
       const childPages = await getChildPages({
         includeGrandchildren: true,

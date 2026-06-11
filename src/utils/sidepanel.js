@@ -1,10 +1,12 @@
 /**
- * Read the current window's sidepanel data from session storage.
+ * Read the current window's sidepanel data for a Domo instance from session storage.
+ * @param {string} instance - Domo instance the record is scoped to
  * @returns {Promise<Object|null>} The stored data, or null if none
  */
-export async function getSidepanelData() {
+export async function getSidepanelData(instance) {
+  if (!instance) return null;
   const { id } = await chrome.windows.getCurrent();
-  const key = sidepanelStorageKey(id);
+  const key = sidepanelStorageKey(id, instance);
   const result = await chrome.storage.session.get([key]);
   return result[key] || null;
 }
@@ -22,12 +24,13 @@ export function isSidepanel() {
  *
  * The view becomes the single source of truth for fetching, validation, and display.
  * An optional `preCheck` can short-circuit with a toast when pre-fetched data shows
- * there are no results — avoiding an unnecessary context switch (popup → sidepanel)
+ * there are no results, avoiding an unnecessary context switch (popup → sidepanel)
  * or a loading flash (sidepanel) just to display "no results".
  *
  * @param {Object} options
  * @param {string} options.type - View type routed by sidepanel App (e.g. 'getCards')
  * @param {Object} options.currentContext - Current DomoContext
+ * @param {string} [options.instance] - Domo instance to scope the view to (defaults to currentContext.instance)
  * @param {Function} [options.onCollapseActions] - Collapse the action bar (sidepanel only)
  * @param {Function} [options.onStatusUpdate] - Show a toast in the current context
  * @param {Function} [options.preCheck] - Async fn returning { empty, title, message } or null
@@ -35,7 +38,7 @@ export function isSidepanel() {
  */
 export async function launchView({ currentContext, onCollapseActions, onStatusUpdate, preCheck, type, ...extras }) {
   // In the popup, open the sidepanel immediately to preserve the user gesture
-  // (chrome.sidePanel.open requires a recent user gesture — async preChecks
+  // (chrome.sidePanel.open requires a recent user gesture; async preChecks
   // that poll for pre-fetched data would cause it to expire).
   if (!isSidepanel()) {
     await storeSidepanelData({ currentContext, type, ...extras });
@@ -121,12 +124,25 @@ export async function showStatus({
 }
 
 /**
- * Build the window-scoped storage key for sidepanel data.
+ * Build the window + instance scoped storage key for sidepanel data.
+ * @param {number} windowId
+ * @param {string} instance - Domo instance the record is scoped to
+ * @returns {string}
+ */
+export function sidepanelStorageKey(windowId, instance) {
+  return `${sidepanelStorageKeyPrefix(windowId)}${instance}`;
+}
+
+/**
+ * Build the storage key prefix for one window's sidepanel records. The
+ * trailing underscore keeps window 12's prefix from matching window 123's
+ * keys, and instances cannot contain underscores, so slicing the prefix off
+ * a matching key always yields the instance.
  * @param {number} windowId
  * @returns {string}
  */
-export function sidepanelStorageKey(windowId) {
-  return `sidepanelData_${windowId}`;
+export function sidepanelStorageKeyPrefix(windowId) {
+  return `sidepanelData_${windowId}_`;
 }
 
 /**
@@ -137,11 +153,19 @@ export function sidepanelStorageKey(windowId) {
  * @param {Object} options - Data to store
  * @param {string} options.type - Type of data (e.g., 'getChildPages', 'getCardPages', 'getDatasets', 'childPagesWarning')
  * @param {Object} [options.currentContext] - Current DomoContext (will be serialized via toJSON)
+ * @param {string} [options.instance] - Domo instance to scope the record to (defaults to currentContext.instance)
  * @param {boolean} [options.statusShown] - Whether status was already shown
  * @param {...any} options - Any additional properties to store
  */
 export async function storeSidepanelData(options) {
-  const { currentContext, ...rest } = options;
+  const { currentContext, instance, ...rest } = options;
+
+  // Scope the record to a Domo instance so each instance keeps its own view
+  const effectiveInstance = instance ?? currentContext?.instance;
+  if (!effectiveInstance) {
+    console.warn('[storeSidepanelData] No instance to scope to, skipping store:', rest.type);
+    return;
+  }
 
   // Resolve window ID so each window gets its own storage slot
   let windowId;
@@ -151,7 +175,7 @@ export async function storeSidepanelData(options) {
       const tab = await chrome.tabs.get(tabId);
       windowId = tab.windowId;
     } catch {
-      // Tab may have closed — fall back to current window
+      // Tab may have closed, fall back to current window
     }
   }
   if (!windowId) {
@@ -171,7 +195,7 @@ export async function storeSidepanelData(options) {
     timestamp: Date.now()
   };
 
-  const key = sidepanelStorageKey(windowId);
-  console.log(`[storeSidepanelData] Storing data for window ${windowId}:`, data);
+  const key = sidepanelStorageKey(windowId, effectiveInstance);
+  console.log(`[storeSidepanelData] Storing data for window ${windowId}, instance ${effectiveInstance}:`, data);
   await chrome.storage.session.set({ [key]: data });
 }

@@ -35,7 +35,7 @@ import IconChevronDown from '@icons/chevron-down.svg?react';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
 import IconX from '@icons/x.svg?react';
 
-export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusUpdate = null }) {
+export function UpdateCodeEngineVersionsView({ instance = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDiffing, setIsDiffing] = useState(false);
@@ -58,7 +58,7 @@ export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusU
 
   const loadData = async () => {
     try {
-      const data = await getSidepanelData();
+      const data = await getSidepanelData(instance);
 
       if (!data || data.type !== 'updateCodeEngineVersions') {
         onBackToDefault?.();
@@ -138,7 +138,7 @@ export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusU
           const currentVersion = isSingleVersion ? uniqueVersions[0] : null;
           const latestVersion = availableVersions.length > 0 ? availableVersions[0] : null;
 
-          // Built-in Domo packages can only be upgraded to latest — no
+          // Built-in Domo packages can only be upgraded to latest, no
           // downgrades or intermediate versions.
           if (isDomoBuiltin) {
             availableVersions =

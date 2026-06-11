@@ -1,5 +1,5 @@
 import { Card, Spinner } from '@heroui/react';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { ActionButtons } from '@/components/ActionButtons';
 import { ContextFooter } from '@/components/ContextFooter';
@@ -25,15 +25,18 @@ import { useStatusBar } from '@/hooks/useStatusBar';
 import { useTheme } from '@/hooks/useTheme';
 import { DomoContext } from '@/models/DomoContext';
 import { resolvePrimaryCopy } from '@/models/DomoObjectType';
-import { sidepanelStorageKey } from '@/utils/sidepanel';
+import { sidepanelStorageKey, sidepanelStorageKeyPrefix } from '@/utils/sidepanel';
 
 export default function App() {
   useTheme();
   useReleaseNotification();
 
-  const [activeView, setActiveView] = useState('default');
-  const [viewKey, setViewKey] = useState(0);
-  const [loadingMessage, setLoadingMessage] = useState('Loading...');
+  // One view slot per Domo instance: { [instance]: { loadingMessage?, type, viewKey? } }.
+  // Slots for inactive instances stay mounted (hidden) so in-flight operations,
+  // results, scroll, and selections survive switching instances.
+  const [instanceViews, setInstanceViews] = useState({});
+  // Sticky: only a Domo page can change it, so non-Domo tabs keep the current view.
+  const [activeInstance, setActiveInstance] = useState(null);
   const [currentContext, setCurrentContext] = useState(null);
   const [currentTabId, setCurrentTabId] = useState(null);
   const [isLoadingCurrentContext, setIsLoadingCurrentContext] = useState(true);
@@ -47,26 +50,44 @@ export default function App() {
     currentContextRef.current = currentContext;
   }, [currentContext]);
 
-  // Listen for storage changes for sidepanel data (scoped to this window)
-  useEffect(() => {
-    const applyViewData = (data) => {
+  // Route a context (or null) from any entry point: update context/tab state and
+  // activate the context's instance. Gated on isDomoPage, not just instance, so
+  // excluded hostnames (e.g. www.domo.com yields instance 'www') don't steal the
+  // panel; null/non-Domo contexts leave the active instance, and its view, alone.
+  const applyContext = useCallback((context, tabId) => {
+    setCurrentContext(context);
+    if (tabId !== undefined) setCurrentTabId(tabId);
+    if (context?.isDomoPage && context.instance) {
+      setActiveInstance(context.instance);
+    }
+  }, []);
+
+  // Apply a stored sidepanel record (or its removal) to an instance's view slot.
+  // A non-null write also activates its instance: a launch implies focus, and some
+  // launches target an instance other than the active tab's (e.g. navigating to a
+  // copied object from a non-Domo tab).
+  const applyViewData = useCallback((instance, data) => {
+    setInstanceViews((prev) => {
       if (!data) {
-        setActiveView('default');
-        return;
+        return prev[instance] ? { ...prev, [instance]: { type: 'default' } } : prev;
       }
       if (data.type === 'loading') {
-        setActiveView('loading');
-        setLoadingMessage(data.message || 'Loading...');
-        return;
+        return { ...prev, [instance]: { loadingMessage: data.message || 'Loading...', type: 'loading' } };
       }
-      setActiveView(data.type);
-      setViewKey(data.timestamp || Date.now());
-    };
+      return { ...prev, [instance]: { type: data.type, viewKey: data.timestamp || Date.now() } };
+    });
+    if (data) setActiveInstance(instance);
+  }, []);
 
+  // Listen for storage changes for sidepanel data (scoped to this window)
+  useEffect(() => {
     const handleStorageChange = (changes, areaName) => {
-      const key = sidepanelStorageKey(windowIdRef.current);
-      if (areaName === 'session' && changes[key]) {
-        applyViewData(changes[key].newValue);
+      if (areaName !== 'session' || !windowIdRef.current) return;
+      const prefix = sidepanelStorageKeyPrefix(windowIdRef.current);
+      for (const [key, change] of Object.entries(changes)) {
+        if (key.startsWith(prefix)) {
+          applyViewData(key.slice(prefix.length), change.newValue);
+        }
       }
     };
 
@@ -77,19 +98,28 @@ export default function App() {
     // sidepanel, and the cold-start can take several seconds (missing the
     // storage.onChanged event that fires before the listener is registered).
     const checkExistingData = () => {
-      const key = sidepanelStorageKey(windowIdRef.current);
-      if (!key || !windowIdRef.current) return;
-      chrome.storage.session.get([key], (result) => {
-        if (result[key]) {
-          const age = Date.now() - (result[key].timestamp || 0);
+      if (!windowIdRef.current) return;
+      const prefix = sidepanelStorageKeyPrefix(windowIdRef.current);
+      chrome.storage.session.get(null, (result) => {
+        const staleKeys = [];
+        for (const [key, record] of Object.entries(result)) {
+          if (!key.startsWith(prefix)) continue;
+          const age = Date.now() - (record?.timestamp || 0);
           if (age < 10000) {
-            applyViewData(result[key]);
+            applyViewData(key.slice(prefix.length), record);
+          } else {
+            // Stale records only exist when this window's panel was closed
+            // mid-session; nothing reads them again, so reclaim the quota.
+            staleKeys.push(key);
           }
+        }
+        if (staleKeys.length > 0) {
+          chrome.storage.session.remove(staleKeys);
         }
       });
     };
 
-    // windowIdRef is set in the mount effect — retry briefly if not yet available
+    // windowIdRef is set in the mount effect, retry briefly if not yet available
     if (windowIdRef.current) {
       checkExistingData();
     } else {
@@ -103,7 +133,7 @@ export default function App() {
     return () => {
       chrome.storage.onChanged.removeListener(handleStorageChange);
     };
-  }, []);
+  }, [applyViewData]);
 
   // Get context on mount
   useEffect(() => {
@@ -118,28 +148,21 @@ export default function App() {
         });
 
         if (response.success) {
-          // Always set the tab ID so we receive updates for this tab
-          setCurrentTabId(response.tabId);
-
-          if (response.context) {
-            // Reconstruct DomoContext from plain object to get class instance with methods
-            const context = DomoContext.fromJSON(response.context);
-            setCurrentContext(context);
-          } else {
-            setCurrentContext(null);
-          }
+          // Reconstruct DomoContext from plain object to get class instance with
+          // methods; always pass the tab ID so we receive updates for this tab
+          const context = response.context ? DomoContext.fromJSON(response.context) : null;
+          applyContext(context, response.tabId);
         } else {
-          setCurrentContext(null);
-          setCurrentTabId(null);
+          applyContext(null, null);
         }
       } catch (error) {
         console.error('[Sidepanel] Error getting tab context:', error);
-        setCurrentContext(null);
+        applyContext(null);
       } finally {
         setIsLoadingCurrentContext(false);
       }
     });
-  }, []);
+  }, [applyContext]);
 
   // Listen for context updates while sidepanel is open
   useEffect(() => {
@@ -147,7 +170,7 @@ export default function App() {
       if (message.type === 'TAB_CONTEXT_UPDATED') {
         if (message.tabId === currentTabId) {
           const context = message.context ? DomoContext.fromJSON(message.context) : null;
-          setCurrentContext(context);
+          applyContext(context);
         }
         sendResponse({ received: true });
         return true;
@@ -190,7 +213,7 @@ export default function App() {
     return () => {
       chrome.runtime.onMessage.removeListener(handleMessage);
     };
-  }, [currentTabId, showStatus]);
+  }, [applyContext, currentTabId, showStatus]);
 
   // Listen for tab activation changes (scoped to this window only)
   useEffect(() => {
@@ -202,16 +225,13 @@ export default function App() {
         });
 
         if (response.success && response.context) {
-          const context = DomoContext.fromJSON(response.context);
-          setCurrentContext(context);
-          setCurrentTabId(tabId);
+          applyContext(DomoContext.fromJSON(response.context), tabId);
         } else {
-          setCurrentContext(null);
-          setCurrentTabId(tabId);
+          applyContext(null, tabId);
         }
       } catch (error) {
         console.error('[Sidepanel] Error fetching context:', error);
-        setCurrentContext(null);
+        applyContext(null);
       }
     };
 
@@ -238,14 +258,181 @@ export default function App() {
       chrome.tabs.onActivated.removeListener(handleTabActivated);
       chrome.windows.onFocusChanged.removeListener(handleWindowFocused);
     };
-  }, []);
+  }, [applyContext]);
 
-  const handleBackToDefault = () => {
-    setActiveView('default');
-    // Clear this window's sidepanel data
-    const key = sidepanelStorageKey(windowIdRef.current);
-    chrome.storage.session.remove([key]);
+  const handleBackToDefault = (instance) => {
+    applyViewData(instance, null);
+    // Clear this window's record for the instance
+    chrome.storage.session.remove([sidepanelStorageKey(windowIdRef.current, instance)]);
   };
+
+  const renderInstanceView = (instance, slot) => {
+    const isActive = instance === activeInstance;
+    const backToDefault = () => handleBackToDefault(instance);
+
+    return (
+      <>
+        {(slot.type === 'getChildPages' || slot.type === 'getCardPages' || slot.type === 'childPagesWarning') && (
+          <GetPagesView
+            currentContext={currentContext}
+            instance={instance}
+            isActive={isActive}
+            key={slot.viewKey}
+            onBackToDefault={backToDefault}
+            onStatusUpdate={showStatus}
+          />
+        )}
+
+        {slot.type === 'getCards' && (
+          <GetCardsView
+            currentContext={currentContext}
+            instance={instance}
+            isActive={isActive}
+            key={slot.viewKey}
+            onBackToDefault={backToDefault}
+            onStatusUpdate={showStatus}
+          />
+        )}
+
+        {slot.type === 'getDatasets' && (
+          <GetDatasetsView
+            currentContext={currentContext}
+            instance={instance}
+            isActive={isActive}
+            key={slot.viewKey}
+            onBackToDefault={backToDefault}
+            onStatusUpdate={showStatus}
+          />
+        )}
+
+        {slot.type === 'getViewInputs' && (
+          <GetViewInputsView
+            currentContext={currentContext}
+            instance={instance}
+            isActive={isActive}
+            key={slot.viewKey}
+            onBackToDefault={backToDefault}
+            onStatusUpdate={showStatus}
+          />
+        )}
+
+        {slot.type === 'viewObjectDetails' && (
+          <ObjectDetailsView
+            instance={instance}
+            isActive={isActive}
+            key={slot.viewKey}
+            onBackToDefault={backToDefault}
+            onStatusUpdate={showStatus}
+          />
+        )}
+
+        {slot.type === 'apiErrors' && (
+          <ApiErrorsView
+            instance={instance}
+            isActive={isActive}
+            key={slot.viewKey}
+            onBackToDefault={backToDefault}
+            onStatusUpdate={showStatus}
+          />
+        )}
+
+        {slot.type === 'duplicate' && (
+          <DuplicateView
+            instance={instance}
+            isActive={isActive}
+            key={slot.viewKey}
+            onBackToDefault={backToDefault}
+            onStatusUpdate={showStatus}
+          />
+        )}
+
+        {slot.type === 'updateCodeEngineVersions' && (
+          <UpdateCodeEngineVersionsView
+            instance={instance}
+            isActive={isActive}
+            key={slot.viewKey}
+            onBackToDefault={backToDefault}
+            onStatusUpdate={showStatus}
+          />
+        )}
+
+        {slot.type === 'generatePackageDefinitionFromJSDoc' && (
+          <GeneratePackageDefinitionFromJSDocView
+            instance={instance}
+            isActive={isActive}
+            key={slot.viewKey}
+            onBackToDefault={backToDefault}
+            onStatusUpdate={showStatus}
+          />
+        )}
+
+        {slot.type === 'generateSchema' && (
+          <GenerateSchemaView
+            instance={instance}
+            isActive={isActive}
+            key={slot.viewKey}
+            onBackToDefault={backToDefault}
+            onStatusUpdate={showStatus}
+          />
+        )}
+
+        {slot.type === 'updateDetails' && (
+          <UpdateDetailsView
+            instance={instance}
+            isActive={isActive}
+            key={slot.viewKey}
+            onBackToDefault={backToDefault}
+            onStatusUpdate={showStatus}
+          />
+        )}
+
+        {slot.type === 'copyColorRules' && (
+          <CopyColorRulesView
+            instance={instance}
+            isActive={isActive}
+            key={slot.viewKey}
+            onBackToDefault={backToDefault}
+            onStatusUpdate={showStatus}
+          />
+        )}
+
+        {slot.type === 'deleteObject' && (
+          <DeleteObjectView
+            instance={instance}
+            isActive={isActive}
+            key={slot.viewKey}
+            onBackToDefault={backToDefault}
+            onStatusUpdate={showStatus}
+          />
+        )}
+
+        {slot.type === 'ownership' && (
+          <OwnershipView
+            currentContext={currentContext}
+            instance={instance}
+            isActive={isActive}
+            key={slot.viewKey}
+            onBackToDefault={backToDefault}
+            onStatusUpdate={showStatus}
+          />
+        )}
+
+        {slot.type === 'migrateDownstream' && (
+          <MigrateDownstreamContentView
+            currentContext={currentContext}
+            instance={instance}
+            isActive={isActive}
+            key={slot.viewKey}
+            onBackToDefault={backToDefault}
+            onStatusUpdate={showStatus}
+          />
+        )}
+      </>
+    );
+  };
+
+  const activeType = (activeInstance && instanceViews[activeInstance]?.type) || 'default';
+  const mountedEntries = Object.entries(instanceViews).filter(([, slot]) => slot.type !== 'default');
 
   return (
     <>
@@ -253,121 +440,37 @@ export default function App() {
         <ActionButtons
           collapsable={true}
           currentContext={currentContext}
-          defaultExpanded={activeView === 'default'}
+          defaultExpanded={activeType === 'default'}
           isLoading={isLoadingCurrentContext}
           onStatusUpdate={showStatus}
         />
 
         <ContextFooter currentContext={currentContext} isLoading={isLoadingCurrentContext} onStatusUpdate={showStatus} />
 
-        {activeView === 'loading' && (
-          <Card className='h-full w-full'>
-            <Card.Content className='flex flex-col items-center justify-center gap-2 py-8'>
-              <Spinner size='lg' />
-              <p className='text-sm text-muted'>{loadingMessage}</p>
-            </Card.Content>
-          </Card>
-        )}
-
-        {activeView !== 'default' && activeView !== 'loading' && (
-          <div className='flex min-h-0 w-full flex-1 flex-col'>
-            {(activeView === 'getChildPages' || activeView === 'getCardPages' || activeView === 'childPagesWarning') && (
-              <GetPagesView
-                currentContext={currentContext}
-                key={viewKey}
-                onBackToDefault={handleBackToDefault}
-                onStatusUpdate={showStatus}
-              />
-            )}
-
-            {activeView === 'getCards' && (
-              <GetCardsView
-                currentContext={currentContext}
-                key={viewKey}
-                onBackToDefault={handleBackToDefault}
-                onStatusUpdate={showStatus}
-              />
-            )}
-
-            {activeView === 'getDatasets' && (
-              <GetDatasetsView
-                currentContext={currentContext}
-                key={viewKey}
-                onBackToDefault={handleBackToDefault}
-                onStatusUpdate={showStatus}
-              />
-            )}
-
-            {activeView === 'getViewInputs' && (
-              <GetViewInputsView
-                currentContext={currentContext}
-                key={viewKey}
-                onBackToDefault={handleBackToDefault}
-                onStatusUpdate={showStatus}
-              />
-            )}
-
-            {activeView === 'viewObjectDetails' && (
-              <ObjectDetailsView key={viewKey} onBackToDefault={handleBackToDefault} onStatusUpdate={showStatus} />
-            )}
-
-            {activeView === 'apiErrors' && (
-              <ApiErrorsView key={viewKey} onBackToDefault={handleBackToDefault} onStatusUpdate={showStatus} />
-            )}
-
-            {activeView === 'duplicate' && (
-              <DuplicateView key={viewKey} onBackToDefault={handleBackToDefault} onStatusUpdate={showStatus} />
-            )}
-
-            {activeView === 'updateCodeEngineVersions' && (
-              <UpdateCodeEngineVersionsView
-                key={viewKey}
-                onBackToDefault={handleBackToDefault}
-                onStatusUpdate={showStatus}
-              />
-            )}
-
-            {activeView === 'generatePackageDefinitionFromJSDoc' && (
-              <GeneratePackageDefinitionFromJSDocView
-                key={viewKey}
-                onBackToDefault={handleBackToDefault}
-                onStatusUpdate={showStatus}
-              />
-            )}
-
-            {activeView === 'generateSchema' && (
-              <GenerateSchemaView key={viewKey} onBackToDefault={handleBackToDefault} onStatusUpdate={showStatus} />
-            )}
-
-            {activeView === 'updateDetails' && (
-              <UpdateDetailsView key={viewKey} onBackToDefault={handleBackToDefault} onStatusUpdate={showStatus} />
-            )}
-
-            {activeView === 'copyColorRules' && (
-              <CopyColorRulesView key={viewKey} onBackToDefault={handleBackToDefault} onStatusUpdate={showStatus} />
-            )}
-
-            {activeView === 'deleteObject' && (
-              <DeleteObjectView key={viewKey} onBackToDefault={handleBackToDefault} onStatusUpdate={showStatus} />
-            )}
-
-            {activeView === 'ownership' && (
-              <OwnershipView
-                currentContext={currentContext}
-                key={viewKey}
-                onBackToDefault={handleBackToDefault}
-                onStatusUpdate={showStatus}
-              />
-            )}
-
-            {activeView === 'migrateDownstream' && (
-              <MigrateDownstreamContentView
-                currentContext={currentContext}
-                key={viewKey}
-                onBackToDefault={handleBackToDefault}
-                onStatusUpdate={showStatus}
-              />
-            )}
+        {/* Every visited instance's view stays mounted, stacked, with inactive ones
+            visibility-hidden. display:none would zero the scroll element, collapsing
+            virtualized list measurements and scroll position; visibility keeps full
+            layout so switching instances is a pure visibility toggle and in-flight
+            operations, results, scroll, and selections survive. */}
+        {mountedEntries.length > 0 && (
+          <div className='relative min-h-0 w-full flex-1'>
+            {mountedEntries.map(([instance, slot]) => (
+              <div
+                className={`absolute inset-0 flex min-h-0 flex-col${instance === activeInstance ? '' : ' invisible'}`}
+                key={instance}
+              >
+                {slot.type === 'loading' ? (
+                  <Card className='h-full w-full'>
+                    <Card.Content className='flex flex-col items-center justify-center gap-2 py-8'>
+                      <Spinner size='lg' />
+                      <p className='text-sm text-muted'>{slot.loadingMessage}</p>
+                    </Card.Content>
+                  </Card>
+                ) : (
+                  renderInstanceView(instance, slot)
+                )}
+              </div>
+            ))}
           </div>
         )}
       </div>

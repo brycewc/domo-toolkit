@@ -15,7 +15,7 @@ import IconSync from '@icons/sync.svg?react';
 
 import { DataList } from './DataList';
 
-export function GetCardsView({ currentContext = null, onBackToDefault = null, onStatusUpdate = null }) {
+export function GetCardsView({ currentContext = null, instance: viewInstance = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
@@ -51,7 +51,7 @@ export function GetCardsView({ currentContext = null, onBackToDefault = null, on
       : null;
 
     try {
-      const data = await getSidepanelData();
+      const data = await getSidepanelData(viewInstance);
 
       if (!data || data.type !== 'getCards') {
         setError('No card data found. Please try again.');

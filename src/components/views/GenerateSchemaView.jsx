@@ -34,7 +34,7 @@ const TYPE_OPTIONS = ['STRING', 'LONG', 'DOUBLE', 'DECIMAL', 'DATE', 'DATETIME']
 const ISO_DATETIME_RE = /^\d{4}-\d{2}-\d{2}T/;
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-export function GenerateSchemaView({ onBackToDefault = null, onStatusUpdate = null }) {
+export function GenerateSchemaView({ instance = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentContext, setCurrentContext] = useState(null);
@@ -57,7 +57,7 @@ export function GenerateSchemaView({ onBackToDefault = null, onStatusUpdate = nu
 
   const loadData = async () => {
     try {
-      const data = await getSidepanelData();
+      const data = await getSidepanelData(instance);
       if (!data || data.type !== 'generateSchema') {
         onBackToDefault?.();
         return;

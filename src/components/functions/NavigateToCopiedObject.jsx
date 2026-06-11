@@ -47,7 +47,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
     return getAllNavigableObjectTypes()
       .filter((type) => {
         // Types whose parent is resolvable from an ID alone (e.g. DATA_APP_VIEW)
-        // are always navigable — `buildObjectUrl` / `fetchObjectMetadata` fill
+        // are always navigable; `buildObjectUrl` / `fetchObjectMetadata` fill
         // the placeholder lazily via `DomoObject.getParent`.
         if (type.canResolveParentFromIdAlone()) return true;
         // Otherwise include only types that don't need a parent at all:
@@ -182,7 +182,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
       if (typeConfig.id === 'PAGE' && metadata.details.type !== 'page') {
         continue;
       }
-      // TEMPLATE and CERTIFICATION_PROCESS share the same API endpoint —
+      // TEMPLATE and CERTIFICATION_PROCESS share the same API endpoint;
       // discriminate by `details.type`: 'AC' → TEMPLATE, anything else → CERTIFICATION_PROCESS.
       if (typeConfig.id === 'TEMPLATE' && metadata.details.type !== 'AC') {
         continue;
@@ -192,7 +192,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
       }
 
       const domoObject = buildResolvedDomoObject(typeConfig, metadata, baseUrl, text);
-      // STREAM without an associated dataset can't redirect — try next type.
+      // STREAM without an associated dataset can't redirect; try next type.
       if (!domoObject) continue;
 
       setResolvedObject(domoObject);
@@ -221,7 +221,13 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
     async (domoObject) => {
       try {
         if (!domoObject.hasUrl()) {
+          // Scope both writes to the object's own instance: this flow can target
+          // an instance other than the active tab's (defaultDomoInstance fallback
+          // on non-Domo tabs), and the loading write has no context to derive from.
+          const { hostname } = new URL(domoObject.baseUrl);
+          const instance = hostname.endsWith('.domo.com') ? hostname.replace('.domo.com', '') : null;
           await storeSidepanelData({
+            instance,
             message: 'Loading object details...',
             timestamp: Date.now(),
             type: 'loading'
@@ -232,6 +238,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
           await storeSidepanelData({
             currentContext,
             domoObject: domoObject.toJSON(),
+            instance,
             type: 'viewObjectDetails'
           });
           return;
@@ -395,7 +402,7 @@ function buildDomoMetadata(typeConfig, metadata) {
 }
 
 function buildResolvedDomoObject(typeConfig, metadata, baseUrl, fallbackId) {
-  // STREAM has no UI of its own in Domo — redirect to its associated dataset.
+  // STREAM has no UI of its own in Domo; redirect to its associated dataset.
   if (typeConfig.id === 'STREAM') {
     const datasetId = metadata.details?.dataSource?.id;
     if (!datasetId) return null;

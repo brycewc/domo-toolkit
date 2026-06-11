@@ -11,6 +11,7 @@ import { clearCookies } from '@/utils/clearCookies';
 import { EXCLUDED_HOSTNAMES, SECTION_TITLES } from '@/utils/constants';
 import { detectCurrentObject, isDomoUrl } from '@/utils/currentObject';
 import { executeInPage } from '@/utils/executeInPage';
+import { sidepanelStorageKeyPrefix } from '@/utils/sidepanel';
 
 /**
  * Compute whether the current user is an owner of the detected object.
@@ -83,7 +84,7 @@ function computeIsOwner(typeId, details, userId, userGroups) {
     return false;
   }
 
-  // Single owner — typed object
+  // Single owner: typed object
   if (typeof owner === 'object') {
     return checkTypedOwner(owner);
   }
@@ -677,7 +678,7 @@ chrome.runtime.onInstalled.addListener((details) => {
     const newReleases = releases.filter((r) => compareVersions(r.version, details.previousVersion) > 0);
 
     if (newReleases.length === 0) {
-      // No release entry for this version — silently update lastSeenVersion
+      // No release entry for this version, silently update lastSeenVersion
       chrome.storage.local.set({ lastSeenVersion: currentVersion });
     } else {
       const hasFullPage = newReleases.some((r) => r.notify === 'fullPage');
@@ -846,6 +847,21 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   tabApiErrors.delete(tabId);
   tabLastContext.delete(tabId);
   persistToSession();
+});
+
+// Sweep a closed window's per-instance sidepanel records so their full context
+// serializations don't pile up against the session-storage quota. getKeys()
+// (Chrome 130+) lists keys without deserializing the stored values.
+chrome.windows.onRemoved.addListener(async (windowId) => {
+  try {
+    const keys = await chrome.storage.session.getKeys();
+    const matches = keys.filter((key) => key.startsWith(sidepanelStorageKeyPrefix(windowId)));
+    if (matches.length > 0) {
+      await chrome.storage.session.remove(matches);
+    }
+  } catch (error) {
+    console.error(`[Background] Error sweeping sidepanel records for window ${windowId}:`, error);
+  }
 });
 
 // Detect context when tab becomes active (eager detection)
@@ -1072,7 +1088,7 @@ async function detectAndStoreContext(tabId) {
             );
           }
           // During redetection, only store silently if domoObject isn't
-          // resolved yet — the final setTabContext after detection will
+          // resolved yet; the final setTabContext after detection will
           // broadcast the complete context.
           if (isRedetection && !currentContext.domoObject) {
             tabContexts.set(tabId, currentContext);
@@ -1263,7 +1279,7 @@ async function detectAndStoreContext(tabId) {
     }
 
     // For objects with parents, enrich metadata with parent details
-    // (skip for stream parents — those are enriched async below)
+    // (skip for stream parents; those are enriched async below)
     console.log(`[Background] Parent enrichment check: parentId=${parentId}, parents=${JSON.stringify(typeModel.parents)}`);
     if (parentId && typeModel.parents && typeModel.parents.length > 0 && !isStreamParent) {
       try {

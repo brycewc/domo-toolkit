@@ -12,7 +12,7 @@ import '@/assets/json-view-theme.css';
 
 import { AnimatedCheck } from '../AnimatedCheck';
 
-export function ApiErrorsView({ onBackToDefault = null, onStatusUpdate = null }) {
+export function ApiErrorsView({ instance = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [errors, setErrors] = useState([]);
   const [tabId, setTabId] = useState(null);
   const mountedRef = useRef(true);
@@ -45,7 +45,7 @@ export function ApiErrorsView({ onBackToDefault = null, onStatusUpdate = null })
   }, [tabId, onBackToDefault]);
 
   const loadErrors = async () => {
-    const data = await getSidepanelData();
+    const data = await getSidepanelData(instance);
 
     if (!data || data.type !== 'apiErrors') {
       onBackToDefault?.();

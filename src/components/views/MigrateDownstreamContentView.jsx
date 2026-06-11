@@ -67,7 +67,7 @@ const UNMAPPED = '__unmapped__';
 // from the (badge_table) cards/drills that use it instead of mapping it.
 const DROP = '__drop__';
 
-export function MigrateDownstreamContentView({ currentContext = null, onBackToDefault = null, onStatusUpdate = null }) {
+export function MigrateDownstreamContentView({ currentContext = null, instance = null, isActive = true, onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   const [datasetId, setDatasetId] = useState(null);
   const [datasetName, setDatasetName] = useState('');
@@ -127,7 +127,7 @@ export function MigrateDownstreamContentView({ currentContext = null, onBackToDe
 
   const loadData = async () => {
     try {
-      const data = await getSidepanelData();
+      const data = await getSidepanelData(instance);
       if (!data || data.type !== 'migrateDownstream') {
         onBackToDefault?.();
         return;
@@ -444,7 +444,7 @@ export function MigrateDownstreamContentView({ currentContext = null, onBackToDe
 
   // Fetch the target's Beast Modes when a target is chosen so we can flag name
   // collisions with the selected origin Beast Modes (independent of schema
-  // compatibility — a collision matters even when the columns line up).
+  // compatibility; a collision matters even when the columns line up).
   useEffect(() => {
     if (page !== 'target' || !selectedDatasetId) {
       setTargetBeastModes([]);
@@ -513,7 +513,7 @@ export function MigrateDownstreamContentView({ currentContext = null, onBackToDe
     if (!hasMismatches || !scanResult) return [];
     const missing = comparison?.missing || [];
     const mismatchedNames = new Set(missing.map((m) => m.name));
-    // expectedType is the origin column's own type — surfaced so the user knows
+    // expectedType is the origin column's own type, surfaced so the user knows
     // the existing type when choosing a target column to remap onto.
     const typeByName = new Map(missing.map((m) => [m.name, m.expectedType]));
     const referenced = scanResult.byColumn || new Map();
@@ -540,8 +540,8 @@ export function MigrateDownstreamContentView({ currentContext = null, onBackToDe
     return names;
   }, [usedUnmappedColumns]);
 
-  // Of the card-only columns, those whose using cards/drills are ALL badge_table
-  // — the ones eligible for the "drop column" choice (removing the column from a
+  // Of the card-only columns, those whose using cards/drills are ALL badge_table,
+  // the ones eligible for the "drop column" choice (removing the column from a
   // table is safe; other chart types aren't). Also used to filter the user's
   // drop choices at migrate time so a stale choice can't slip through.
   const droppableColumnNames = useMemo(() => {
@@ -880,7 +880,7 @@ export function MigrateDownstreamContentView({ currentContext = null, onBackToDe
 
     // Split the remap state into renames and drops. The DROP sentinel never
     // reaches the rewriters; drops travel separately. Beast Mode mappings store
-    // the target Beast Mode's legacyId as the value — the card rewriter renames
+    // the target Beast Mode's legacyId as the value; the card rewriter renames
     // the column reference to that id (the same id form a card uses to reference
     // a dataset Beast Mode), so they ride along in the rename map. Both drops and
     // Beast Mode mappings are re-checked against their eligible set so a stale
@@ -1384,7 +1384,7 @@ export function MigrateDownstreamContentView({ currentContext = null, onBackToDe
         </div>
       </Card>
       <AlertDialog
-        isOpen={confirmOpen}
+        isOpen={confirmOpen && isActive}
         onOpenChange={(open) => {
           if (!open) setConfirmOpen(false);
         }}
@@ -1448,7 +1448,7 @@ export function MigrateDownstreamContentView({ currentContext = null, onBackToDe
         </AlertDialog.Backdrop>
       </AlertDialog>
       <AlertDialog
-        isOpen={autoMapConfirmOpen}
+        isOpen={autoMapConfirmOpen && isActive}
         onOpenChange={(open) => {
           if (!open) setAutoMapConfirmOpen(false);
         }}
@@ -1770,7 +1770,7 @@ function ColumnMapRow({
   // the user can type to narrow a long target-column list.
   const { contains } = useFilter({ sensitivity: 'base' });
 
-  // Target Beast Modes offered as mapping targets — only those with a legacyId
+  // Target Beast Modes offered as mapping targets: only those with a legacyId
   // (the id a card references them by; without it we couldn't rewrite the ref).
   // Shown only for card-only columns. Sorted by name to match the column list.
   const mappableBeastModes = useMemo(() => {
@@ -1791,7 +1791,7 @@ function ColumnMapRow({
   // The target columns and Beast Modes as ListBox items, built once so they can
   // render either flat (no Beast Modes to offer) or split into labeled sections
   // (when Beast Modes are available). The "Columns" header is only shown
-  // alongside the "Beast Modes" header — on its own it adds no information and
+  // alongside the "Beast Modes" header; on its own it adds no information and
   // would just hint at options that aren't there.
   const columnItems = targetColumns.map((col) => (
     <ListBox.Item id={col.name} key={col.name} textValue={col.name}>

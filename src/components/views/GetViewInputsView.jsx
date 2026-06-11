@@ -13,7 +13,7 @@ import IconSync from '@icons/sync.svg?react';
 
 import { DataList } from './DataList';
 
-export function GetViewInputsView({ currentContext = null, onBackToDefault = null, onStatusUpdate = null }) {
+export function GetViewInputsView({ currentContext = null, instance: viewInstance = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
@@ -44,7 +44,7 @@ export function GetViewInputsView({ currentContext = null, onBackToDefault = nul
       : null;
 
     try {
-      const data = await getSidepanelData();
+      const data = await getSidepanelData(viewInstance);
 
       if (!data || data.type !== 'getViewInputs') {
         setError('No dataset data found. Please try again.');

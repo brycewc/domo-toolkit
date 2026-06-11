@@ -45,7 +45,7 @@ const KNOWN_FIELDS = [
   { format: 'number', key: 'columnCount', label: 'Column Count' }
 ];
 
-export function ObjectDetailsView({ onBackToDefault = null, onStatusUpdate = null }) {
+export function ObjectDetailsView({ instance = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRetrying, setIsRetrying] = useState(false);
   const [showSpinner, setShowSpinner] = useState(false);
@@ -56,7 +56,7 @@ export function ObjectDetailsView({ onBackToDefault = null, onStatusUpdate = nul
   const groupMap = useGroupLookup(domoObject?.metadata?.details);
   const userMap = useUserLookup(domoObject?.metadata?.details);
 
-  // Remount JsonView when lookup maps change — react18-json-view's JsonNode
+  // Remount JsonView when lookup maps change: react18-json-view's JsonNode
   // calls useContext before customizeNode's early return but useState after
   // it, so switching a node between element/config returns mid-render trips
   // the Rules of Hooks. Remounting on map changes sidesteps the library bug.
@@ -79,7 +79,7 @@ export function ObjectDetailsView({ onBackToDefault = null, onStatusUpdate = nul
     }, 200);
 
     try {
-      const data = await getSidepanelData();
+      const data = await getSidepanelData(instance);
 
       if (!data || data.type !== 'viewObjectDetails') {
         setError('No object details found. Please try again.');

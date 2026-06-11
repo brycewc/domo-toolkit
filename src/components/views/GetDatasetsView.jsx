@@ -14,7 +14,7 @@ import IconSync from '@icons/sync.svg?react';
 
 import { DataList } from './DataList';
 
-export function GetDatasetsView({ currentContext = null, onBackToDefault = null, onStatusUpdate = null }) {
+export function GetDatasetsView({ currentContext = null, instance: viewInstance = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
@@ -47,7 +47,7 @@ export function GetDatasetsView({ currentContext = null, onBackToDefault = null,
 
     try {
       // Get the stored data from session storage
-      const data = await getSidepanelData();
+      const data = await getSidepanelData(viewInstance);
 
       if (!data || data.type !== 'getDatasets') {
         setError('No dataset data found. Please try again.');
