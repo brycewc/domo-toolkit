@@ -605,6 +605,32 @@ export const ObjectTypeRegistry = {
     extractConfig: { keyword: 'jupyter-workspaces' },
     icon: { component: 'Jupyter' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    relatedData: [
+      {
+        fetcher: 'jupyterWorkspaceInputs',
+        field: 'inputConfiguration',
+        isArray: true,
+        itemIdField: 'dataSourceId',
+        itemTypeId: 'DATA_SOURCE',
+        label: 'Inputs'
+      },
+      {
+        fetcher: 'jupyterWorkspaceOutputs',
+        field: 'outputConfiguration',
+        isArray: true,
+        itemIdField: 'dataSourceId',
+        itemTypeId: 'DATA_SOURCE',
+        label: 'Outputs'
+      },
+      {
+        fetcher: 'jupyterWorkspaceAccounts',
+        field: 'accountConfiguration',
+        isArray: true,
+        itemIdField: 'account_id',
+        itemTypeId: 'ACCOUNT',
+        label: 'Accounts'
+      }
+    ],
     urlPath: '/jupyter-workspaces/{id}'
   }),
   DATA_SOURCE: new DomoObjectType('DATA_SOURCE', 'DataSet', {

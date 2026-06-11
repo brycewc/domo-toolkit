@@ -8,6 +8,7 @@ import { useWheelHorizontalScroll } from '@/hooks/useWheelHorizontalScroll';
 import { fetchObjectDetailsInPage, getObjectType } from '@/models/DomoObjectType';
 import { getTemplateApprovals } from '@/services/approvals';
 import { getDatasetColumns, getDatasetsForPage } from '@/services/datasets';
+import { getJupyterWorkspaceAccounts, getJupyterWorkspaceDatasets } from '@/services/jupyterWorkspaces';
 import { executeInPage } from '@/utils/executeInPage';
 import { formatEpochTimestamp, isDateFieldName, isGroupFieldName, isUserFieldName } from '@/utils/general';
 import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
@@ -15,10 +16,16 @@ import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
 // Maps relatedData[].fetcher key → (params) => Promise<Array>. Lives here
 // (not in DomoObjectType.js) so the type model stays import-free of services.
 // Adding a new lazy-array fetcher = one entry here + one `fetcher: '<key>'` on
-// the relatedData entry.
+// the relatedData entry. Pair the entry with a `field` to gate the tab on (and
+// seed its count from) an array already present in the object's details.
 const LAZY_ARRAY_FETCHERS = {
   datasetColumns: ({ objectId, tabId }) => getDatasetColumns({ datasetId: objectId, tabId }),
   datasetsForPage: ({ objectId, tabId }) => getDatasetsForPage({ pageId: objectId, tabId }),
+  jupyterWorkspaceAccounts: ({ details, tabId }) =>
+    getJupyterWorkspaceAccounts({ entries: details?.accountConfiguration, tabId }),
+  jupyterWorkspaceInputs: ({ details, tabId }) => getJupyterWorkspaceDatasets({ entries: details?.inputConfiguration, tabId }),
+  jupyterWorkspaceOutputs: ({ details, tabId }) =>
+    getJupyterWorkspaceDatasets({ entries: details?.outputConfiguration, tabId }),
   templateApprovals: ({ objectId, tabId }) => getTemplateApprovals(objectId, tabId)
 };
 
@@ -101,9 +108,20 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
       for (const related of typeModel.relatedData) {
         if (related.source === 'self') continue;
         if (related.isArray) {
+          const arrayBase =
+            related.fieldSource === 'context'
+              ? domoObject.metadata?.context
+              : related.fieldSource === 'parent'
+                ? domoObject.metadata?.parent?.details
+                : domoObject.metadata?.details;
+          const arrayData = related.field ? arrayBase?.[related.field] : undefined;
+
           // Lazy: presence of `fetcher` defers the load until tab activation.
-          // Data lands in relatedCache; count appended at render time.
+          // Data lands in relatedCache; count appended at render time. When a
+          // `field` is also configured, the tab hides while that array is
+          // empty and its length seeds the count before the fetch runs.
           if (related.fetcher) {
+            if (related.field && !arrayData?.length) continue;
             result.push({
               fetcher: related.fetcher,
               id: related.field || related.fetcher,
@@ -112,18 +130,12 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
               itemIdField: related.itemIdField,
               itemTypeField: related.itemTypeField,
               itemTypeId: related.itemTypeId,
+              knownCount: related.field ? arrayData.length : undefined,
               label: related.label,
               parentId: resolveRelatedParentId(related, domoObject)
             });
             continue;
           }
-          const arrayBase =
-            related.fieldSource === 'context'
-              ? domoObject.metadata?.context
-              : related.fieldSource === 'parent'
-                ? domoObject.metadata?.parent?.details
-                : domoObject.metadata?.details;
-          const arrayData = arrayBase?.[related.field];
           if (arrayData?.length > 0) {
             result.push({
               data: arrayData,
@@ -273,7 +285,11 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
         // Lazy array: dispatch to the registered fetcher, store the array in cache.
         const fetcher = LAZY_ARRAY_FETCHERS[tab.fetcher];
         if (!fetcher) throw new Error(`Unknown lazy array fetcher: ${tab.fetcher}`);
-        const arr = await fetcher({ objectId, tabId: chromeTabId });
+        const arr = await fetcher({
+          details: currentContext?.domoObject?.metadata?.details,
+          objectId,
+          tabId: chromeTabId
+        });
         const data = arr ?? [];
         writeRelatedCache(chromeTabId, objectId, key, data);
         if (contextKeyRef.current === reqKey) {
@@ -517,7 +533,9 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
                   <Tabs.List aria-label='Object details' className='w-fit min-w-full flex-nowrap'>
                     {tabs.map((tab) => {
                       const cached = relatedCache[tab.id];
-                      const lazyCountSuffix = tab.fetcher ? ` (${Array.isArray(cached) ? cached.length : '...'})` : '';
+                      const lazyCountSuffix = tab.fetcher
+                        ? ` (${Array.isArray(cached) ? cached.length : (tab.knownCount ?? '...')})`
+                        : '';
                       const displayLabel = `${tab.label}${lazyCountSuffix}`;
                       // h-12! overrides HeroUI's fixed 32px tab height so a
                       // line-clamp-2 label that wraps to two lines fits inside

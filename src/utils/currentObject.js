@@ -381,6 +381,35 @@ export async function detectCurrentObject() {
       objectType = 'AI_MODEL';
       break;
 
+    case url.includes('ai-services/jupyter'): {
+      const workspaceModal = document.querySelector('[class*="CreateWorkspaceModalV2_createModal"]');
+      if (!workspaceModal) return null;
+
+      // Extract workspaceId from React fiber tree (prop on ancestor component).
+      // In create mode the prop is absent, so detection yields no object.
+      const fiberKey = Object.keys(workspaceModal).find((k) => k.startsWith('__reactFiber'));
+      let workspaceId = null;
+      if (fiberKey) {
+        let fiber = workspaceModal[fiberKey];
+        for (let i = 0; i < 15 && fiber; i++) {
+          if (fiber.memoizedProps?.workspaceId) {
+            workspaceId = fiber.memoizedProps.workspaceId;
+            break;
+          }
+          fiber = fiber.return;
+        }
+      }
+
+      if (!workspaceId) return null;
+
+      return {
+        baseUrl: `${location.protocol}//${location.hostname}`,
+        id: workspaceId,
+        typeId: 'DATA_SCIENCE_NOTEBOOK',
+        url
+      };
+    }
+
     case url.includes('ai-library/toolkits/domo-provided/'):
       objectType = 'AI_TOOLKIT_DOMO_PROVIDED';
       break;
