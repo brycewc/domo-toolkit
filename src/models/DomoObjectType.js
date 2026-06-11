@@ -24,6 +24,10 @@ export class DomoObjectType {
    *     { field, length } for array-length equality (e.g., show only when an array has exactly N items),
    *     or a function (domoObject) => boolean for arbitrary checks.
    * @param {Object} [options.extractConfig] - Configuration for extracting ID from URL
+   * @param {string} [options.featureSwitch] - Instance feature switch this type requires (e.g. 'approvalcenter').
+   *   Consumers route through `isTypeFeatureEnabled()` in `@/utils/featureSwitches`, which fails open while the
+   *   context's switch list is unknown and skips the type once the loaded list confirms the switch is absent.
+   *   Omit for types available on every instance.
    * @param {Object} [options.icon] - Icon config for this object type
    *   { component: string, rotation?: number } where component is a key in the ObjectTypeIcon registry
    * @param {RegExp} [options.idPattern] - Regular expression to validate IDs for this type
@@ -54,6 +58,7 @@ export class DomoObjectType {
     this.api = options.api ?? null;
     this.copyConfigs = options.copyConfigs ?? null;
     this.extractConfig = options.extractConfig ?? null;
+    this.featureSwitch = options.featureSwitch ?? null;
     this.icon = options.icon ?? null;
     this.idPattern = options.idPattern ?? null;
     this.parents = options.parents ?? null;
@@ -389,6 +394,7 @@ export const ObjectTypeRegistry = {
     },
     copyConfigs: [{ label: 'Approval Template ID', source: 'parentId' }],
     extractConfig: { keyword: 'request-details' },
+    featureSwitch: 'approvalcenter',
     icon: { component: 'ApprovalCenter' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     parents: ['TEMPLATE'],
@@ -1150,6 +1156,7 @@ export const ObjectTypeRegistry = {
       pathToName: 'data.template.title'
     },
     extractConfig: { keyword: 'edit-request-form' },
+    featureSwitch: 'approvalcenter',
     icon: { component: 'ApprovalCenter' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     relatedData: [

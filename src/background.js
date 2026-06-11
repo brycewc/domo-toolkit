@@ -4,6 +4,7 @@ import { DomoObject } from '@/models/DomoObject';
 import { fetchObjectDetailsInPage, getObjectType, resolvePrimaryCopy } from '@/models/DomoObjectType';
 import { getDataflowForOutputDataset } from '@/services/dataflows';
 import { runEnrichments } from '@/services/enrichments';
+import { getFeatureSwitches } from '@/services/features';
 import { checkPageType } from '@/services/pages';
 import { getCurrentUser, getUserGroups } from '@/services/users';
 import { clearCookies } from '@/utils/clearCookies';
@@ -188,47 +189,62 @@ const INSTANCE_USER_TTL_MS = 12 * 60 * 60 * 1000;
 // Per-tab detection generation counter to prevent stale async callbacks
 const tabDetectionGen = new Map();
 
-// Per-instance cache for user + groups (instance -> { user, userGroups, promise })
+// Per-instance cache for user + groups + feature switches
+// (instance -> { user, userGroups, featureSwitches, promise })
 const instanceUserCache = new Map();
 
 // Cached setting: omit the " - Domo" suffix when renaming Domo tabs (synced from storage)
 let removeDomoTitleSuffix = false;
 
 /**
- * Get or fetch the current user and their groups for an instance.
- * Returns cached data if available, otherwise fetches and caches.
+ * Get or fetch the current user, their groups, and the instance's enabled
+ * feature switches. Returns cached data if available, otherwise fetches and
+ * caches. Feature switches ride the same per-instance entry as the user, so
+ * they share its caching, persistence, and logout invalidation.
  * @param {string} instance - The Domo instance subdomain
  * @param {number} tabId - The tab ID to execute API calls in
- * @returns {Promise<{ user: Object, userGroups: string[] }>}
+ * @returns {Promise<{ user: Object, userGroups: string[], featureSwitches: string[]|null }>}
  */
 function getInstanceUser(instance, tabId) {
   const cached = instanceUserCache.get(instance);
   if (cached?.user?.metadata?.USER_RIGHTS?.length) {
-    return Promise.resolve({ user: cached.user, userGroups: cached.userGroups });
+    return Promise.resolve({
+      featureSwitches: cached.featureSwitches ?? null,
+      user: cached.user,
+      userGroups: cached.userGroups
+    });
   }
   if (cached?.promise) return cached.promise;
 
   const promise = (async () => {
     const user = await getCurrentUser(tabId);
     let userGroups = [];
+    let featureSwitches = null;
     if (user?.id) {
-      const richGroups = await getUserGroups(user.id, tabId).catch((error) => {
-        console.warn(`[Background] Could not fetch user groups for ${instance}:`, error.message);
-        return [];
-      });
+      const [richGroups, switches] = await Promise.all([
+        getUserGroups(user.id, tabId).catch((error) => {
+          console.warn(`[Background] Could not fetch user groups for ${instance}:`, error.message);
+          return [];
+        }),
+        getFeatureSwitches(tabId).catch((error) => {
+          console.warn(`[Background] Could not fetch feature switches for ${instance}:`, error.message);
+          return null;
+        })
+      ]);
       userGroups = richGroups.map((g) => g.groupId);
+      featureSwitches = switches;
     }
     // Only cache a user that actually carries its rights. Empty USER_RIGHTS means
     // bootstrap wasn't fully hydrated when we read it; caching that hollow user
     // would serve it to every later detection and disable audit-gated features
     // for a full admin until logout. Dropping it lets the next detection retry.
     if (user?.metadata?.USER_RIGHTS?.length) {
-      instanceUserCache.set(instance, { promise: null, user, userGroups });
+      instanceUserCache.set(instance, { featureSwitches, promise: null, user, userGroups });
       persistInstanceUsers();
     } else {
       instanceUserCache.delete(instance);
     }
-    return { user, userGroups };
+    return { featureSwitches, user, userGroups };
   })();
 
   // Clear cache on failure so next detection retries
@@ -236,7 +252,7 @@ function getInstanceUser(instance, tabId) {
     instanceUserCache.delete(instance);
   });
 
-  instanceUserCache.set(instance, { promise, user: null, userGroups: null });
+  instanceUserCache.set(instance, { featureSwitches: null, promise, user: null, userGroups: null });
   return promise;
 }
 
@@ -409,7 +425,12 @@ async function persistInstanceUsers() {
     const record = {};
     for (const [instance, entry] of instanceUserCache.entries()) {
       if (entry?.user) {
-        record[instance] = { fetchedAt: Date.now(), user: entry.user, userGroups: entry.userGroups || [] };
+        record[instance] = {
+          featureSwitches: entry.featureSwitches || null,
+          fetchedAt: Date.now(),
+          user: entry.user,
+          userGroups: entry.userGroups || []
+        };
       }
     }
     await chrome.storage.session.set({ [INSTANCE_USERS_KEY]: record });
@@ -462,6 +483,7 @@ async function restoreFromSession() {
         if (cached?.user) {
           context.user = cached.user;
           context.userGroups = cached.userGroups || null;
+          context.featureSwitches = cached.featureSwitches || null;
         }
         tabContexts.set(tabId, context);
         touchTab(tabId);
@@ -487,7 +509,12 @@ async function restoreInstanceUsers() {
     const now = Date.now();
     for (const [instance, entry] of Object.entries(record)) {
       if (entry?.user && now - (entry.fetchedAt || 0) < INSTANCE_USER_TTL_MS) {
-        instanceUserCache.set(instance, { promise: null, user: entry.user, userGroups: entry.userGroups || [] });
+        instanceUserCache.set(instance, {
+          featureSwitches: entry.featureSwitches || null,
+          promise: null,
+          user: entry.user,
+          userGroups: entry.userGroups || []
+        });
       }
     }
     console.log(`[Background] Restored ${instanceUserCache.size} instance user(s) from session`);
@@ -1007,14 +1034,15 @@ async function detectAndStoreContext(tabId) {
       setTabContext(tabId, context);
     }
 
-    // Fetch current user + groups (cached per instance, non-blocking)
+    // Fetch current user + groups + feature switches (cached per instance, non-blocking)
     getInstanceUser(context.instance, tabId)
-      .then(({ user, userGroups }) => {
+      .then(({ featureSwitches, user, userGroups }) => {
         if (isStale()) return;
         const currentContext = getTabContext(tabId);
         if (currentContext) {
           currentContext.user = user;
           currentContext.userGroups = userGroups;
+          currentContext.featureSwitches = featureSwitches;
           // Recompute isOwner if metadata is already available
           if (currentContext.domoObject?.metadata?.details) {
             currentContext.domoObject.metadata.isOwner = computeIsOwner(

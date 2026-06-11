@@ -23,5 +23,6 @@
 - Side panel actions no longer intermittently fail to open when many tabs are open or a dataset has very large Beast Mode definitions.
 - Migrating a dataset view's input now updates the view's available-columns list to the new dataset's columns instead of leaving the previous dataset's.
 - Migrating downstream content now remaps column references inside fused views (DataFusions) instead of leaving them pointing at the old dataset, and flags any fused view that uses the dataset in a calculated column for manual review.
+- Approvals and Approval Templates no longer appear as failing rows in Objects Owned and Transfer Ownership on instances that don't have Approvals enabled.
 
 ### Other Fixes

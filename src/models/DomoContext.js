@@ -35,6 +35,7 @@ export class DomoContext {
     this.domoObject = domoObject;
     this.user = user;
     this.userGroups = null;
+    this.featureSwitches = null;
 
     // Fetch tab object if not provided but tabId is available
     if (!this.tab && this.tabId && typeof chrome !== 'undefined' && chrome.tabs) {
@@ -61,6 +62,7 @@ export class DomoContext {
     const context = new DomoContext(data.tabId, data.url, domoObject, data.tab || null, data.user || null);
 
     context.userGroups = data.userGroups || null;
+    context.featureSwitches = data.featureSwitches || null;
 
     // Override isDomoPage if it was explicitly set in the serialized data
     if (Object.prototype.hasOwnProperty.call(data, 'isDomoPage')) {
@@ -94,6 +96,7 @@ export class DomoContext {
             url: this.domoObject.url
           }
         : null,
+      featureSwitches: this.featureSwitches || null,
       instance: this.instance,
       isDomoPage: this.isDomoPage,
       tab: this.tab || null,
@@ -113,9 +116,10 @@ export class DomoContext {
    *     from `?includeAllDetails=true`, often hundreds of KB. Read only from the
    *     live (messaged) context, never a restored one, so it's safe to omit;
    *     restored contexts re-enrich on the next detection.
-   *   - `user` / `userGroups`: identical for every tab on the same instance (the
-   *     background already caches them per instance). The backup duplicated them
-   *     per tab; restoreFromSession rehydrates them from the instance-level cache.
+   *   - `user` / `userGroups` / `featureSwitches`: identical for every tab on
+   *     the same instance (the background already caches them per instance).
+   *     The backup duplicated them per tab; restoreFromSession rehydrates them
+   *     from the instance-level cache.
    *
    * NOTE: only for the background backup. The sidepanel's getSidepanelData record
    * keeps these (CopyColorRules needs properties, Ownership needs user), so that
@@ -132,6 +136,7 @@ export class DomoContext {
     }
     json.user = null;
     json.userGroups = null;
+    json.featureSwitches = null;
     return json;
   }
 }

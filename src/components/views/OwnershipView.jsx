@@ -20,6 +20,7 @@ import {
 } from '@/services/transferOwnership';
 import { deleteUser } from '@/services/users';
 import { buildExcelBlob, generateExportFilename } from '@/utils/exportData';
+import { isTypeFeatureEnabled } from '@/utils/featureSwitches';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconArrowsHorizontalBox from '@icons/arrows-horizontal-box.svg?react';
 import IconFormatListChecks from '@icons/format-list-checks.svg?react';
@@ -165,8 +166,13 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
         setSelectionMode(true);
         setPendingSelectAll(true);
         const userRights = context.user?.metadata?.USER_RIGHTS || [];
+        // Same feature-switch filter as the `transferTypes` memo below, applied
+        // against the local context snapshot (launchContext state isn't set
+        // yet), so a feature-disabled type never enters the selection set.
         const initiallySelected = TRANSFER_TYPES.filter(
-          (t) => !t.requiredAuthority || userRights.includes(t.requiredAuthority)
+          (t) =>
+            isTypeFeatureEnabled(TYPE_KEY_TO_DOMO_TYPE[t.key], context) &&
+            (!t.requiredAuthority || userRights.includes(t.requiredAuthority))
         ).map((t) => t.key);
         // Seed type keys only; leaves get added by the pendingSelectAll effect
         // once fetches resolve and we know what leaf IDs exist.
@@ -180,18 +186,27 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
     }
   };
 
-  // Specs for useParallelFetches. Stable identity required — memoize on the
-  // primary inputs so the hook doesn't loop on every render.
+  // Transfer types whose required feature switch is enabled on this instance
+  // (fail-open: all of them while the switch list is unknown). Every body-level
+  // iteration below uses this filtered list, so a feature-disabled type never
+  // gets a fetch spec and never produces a row.
+  const transferTypes = useMemo(
+    () => TRANSFER_TYPES.filter((t) => isTypeFeatureEnabled(TYPE_KEY_TO_DOMO_TYPE[t.key], launchContext)),
+    [launchContext]
+  );
+
+  // Specs for useParallelFetches. Stable identity required, so memoize on the
+  // primary inputs and the hook doesn't loop on every render.
   const specs = useMemo(
     () =>
       userId
-        ? TRANSFER_TYPES.map((t) => ({
+        ? transferTypes.map((t) => ({
             fetch: () => t.getOwned(userId, tabId),
             key: t.key,
             label: t.label
           }))
         : [],
-    [userId, tabId]
+    [userId, tabId, transferTypes]
   );
 
   const { errorCount, isFullyLoaded, loadingCount, refresh: refreshFetches, results } = useParallelFetches(specs);
@@ -202,9 +217,9 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
   const forbidden = useMemo(() => {
     const userRights = launchContext?.user?.metadata?.USER_RIGHTS || [];
     return new Set(
-      TRANSFER_TYPES.filter((t) => t.requiredAuthority && !userRights.includes(t.requiredAuthority)).map((t) => t.key)
+      transferTypes.filter((t) => t.requiredAuthority && !userRights.includes(t.requiredAuthority)).map((t) => t.key)
     );
-  }, [launchContext]);
+  }, [launchContext, transferTypes]);
 
   const isUserSource = launchContext?.domoObject?.typeId === 'USER';
 
@@ -212,7 +227,7 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
   const { loadedTypeCount, totalObjects } = useMemo(() => {
     let total = 0;
     let typeCount = 0;
-    for (const t of TRANSFER_TYPES) {
+    for (const t of transferTypes) {
       const r = results[t.key];
       if (r?.status === 'loaded' && r.items) {
         const c = countOwned(t.key, r.items);
@@ -221,16 +236,16 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
       }
     }
     return { loadedTypeCount: typeCount, totalObjects: total };
-  }, [results]);
+  }, [results, transferTypes]);
 
   const hasAnyTransferable = useMemo(
     () =>
-      TRANSFER_TYPES.some((t) => {
+      transferTypes.some((t) => {
         if (forbidden.has(t.key)) return false;
         const r = results[t.key];
         return r?.status === 'loaded' && r.items && countOwned(t.key, r.items) > 0;
       }),
-    [forbidden, results]
+    [forbidden, results, transferTypes]
   );
 
   // Every type the toolkit user can actually transfer right now (loaded, > 0
@@ -238,12 +253,12 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
   // all" toolbar button stays accurate as types finish loading.
   const eligibleTypeKeys = useMemo(
     () =>
-      TRANSFER_TYPES.filter((t) => {
+      transferTypes.filter((t) => {
         if (forbidden.has(t.key)) return false;
         const r = results[t.key];
         return r?.status === 'loaded' && r.items && countOwned(t.key, r.items) > 0;
       }).map((t) => t.key),
-    [forbidden, results]
+    [forbidden, results, transferTypes]
   );
 
   // Auto-select pruner: `loadData` optimistically pre-selects every type the
@@ -279,7 +294,7 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
     setSelectedIds((prev) => {
       let changed = false;
       const next = new Set(prev);
-      for (const t of TRANSFER_TYPES) {
+      for (const t of transferTypes) {
         const r = results[t.key];
         if (r?.status !== 'loaded') continue;
         const items = r.items;
@@ -310,7 +325,7 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
     });
 
     if (isFullyLoaded) setPendingSelectAll(false);
-  }, [pendingSelectAll, isFullyLoaded, results, forbidden]);
+  }, [pendingSelectAll, isFullyLoaded, results, forbidden, transferTypes]);
 
   // Map<projectId, task[]> for the Projects & Tasks group. Drives two things:
   //   - `buildLeafItems` reads it to nest tasks under their parent project
@@ -346,7 +361,7 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
   // genuinely returns zero items.
   const dataListItems = useMemo(
     () =>
-      TRANSFER_TYPES.map((t) => {
+      transferTypes.map((t) => {
         const result = results[t.key];
         const xfer = transferStatus[t.key];
         const status = xfer?.status ?? result?.status ?? 'loading';
@@ -389,7 +404,7 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
           unshareable: t.key !== 'pages'
         });
       }),
-    [results, transferStatus, forbidden, origin, tasksByProject]
+    [results, transferStatus, forbidden, origin, tasksByProject, transferTypes]
   );
 
   // Selection eligibility — applies to BOTH parent type rows and individual
@@ -531,7 +546,7 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
   // filter. Recomputed whenever the selection set or fetch results change.
   const selectedItemsByType = useMemo(() => {
     const acc = {};
-    for (const t of TRANSFER_TYPES) {
+    for (const t of transferTypes) {
       acc[t.key] = [];
       const r = results[t.key];
       if (r?.status !== 'loaded' || !r.items) continue;
@@ -540,7 +555,7 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
       }
     }
     return acc;
-  }, [results, selectedIds]);
+  }, [results, selectedIds, transferTypes]);
 
   const selectedTypeCount = useMemo(
     () => Object.values(selectedItemsByType).filter((items) => items.length > 0).length,
@@ -641,7 +656,7 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
       // orchestrator's filterOwnedToSelection step.
       const enabledTypes = new Set();
       const enabledItemIds = new Map();
-      for (const t of TRANSFER_TYPES) {
+      for (const t of transferTypes) {
         const items = selectedItemsByType[t.key];
         if (!items || items.length === 0) continue;
         enabledTypes.add(t.key);
@@ -806,7 +821,7 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
         }
       }
     },
-    [onBackToDefault, results, selectedItemsByType, showStatus, tabId, userId, userName]
+    [onBackToDefault, results, selectedItemsByType, showStatus, tabId, transferTypes, userId, userName]
   );
 
   const subtextNode = useMemo(() => {
@@ -828,7 +843,7 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
       return `**${selectedTypeCount}** ${typeWord}, **${selectedObjectCount}** ${objectWord} selected`;
     }
     if (!isFullyLoaded) {
-      return `Searching… (${TRANSFER_TYPES.length - loadingCount}/${TRANSFER_TYPES.length} types)`;
+      return `Searching… (${transferTypes.length - loadingCount}/${transferTypes.length} types)`;
     }
     const objectWord = totalObjects === 1 ? 'object' : 'objects';
     const typeWord = loadedTypeCount === 1 ? 'type' : 'types';
@@ -847,7 +862,8 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
     selectedTypeCount,
     selectionMode,
     totalObjects,
-    transferStatus
+    transferStatus,
+    transferTypes
   ]);
 
   const customHeaderActions = useMemo(() => {
