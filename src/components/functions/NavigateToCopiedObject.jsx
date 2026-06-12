@@ -338,7 +338,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
               id='_error'
               textValue={error || 'Error'}
             >
-              <IconExclamationTriangle className='size-5 shrink-0' />
+              <IconExclamationTriangle className='size-4 shrink-0' />
               <Label className='text-muted'>{error}</Label>
             </Dropdown.Item>
             <Dropdown.Item
@@ -346,7 +346,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
               id='_resolved'
               textValue='Navigate'
             >
-              <ObjectTypeIcon className='size-5 shrink-0' typeId={resolvedObject?.typeId} />
+              <ObjectTypeIcon className='size-4 shrink-0' typeId={resolvedObject?.typeId} />
               <div className='flex flex-col gap-1'>
                 <Chip className='w-fit lowercase' color='accent' size='sm' variant='soft'>
                   {resolvedObject?.typeName}
@@ -368,7 +368,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
                 <Header>Manual selection</Header>
                 {filteredTypes.map((type) => (
                   <Dropdown.Item id={type.id} key={type.id} textValue={type.name}>
-                    <ObjectTypeIcon className='size-5 shrink-0' typeId={type.id} />
+                    <ObjectTypeIcon className='size-4 shrink-0' typeId={type.id} />
                     <Label>{type.name}</Label>
                     {type.hasUrl() || type.redirectsToType ? (
                       <IconArrowSquareOut className='ml-auto size-5 shrink-0' />

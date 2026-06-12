@@ -96,7 +96,7 @@ export function GetDatasets({ currentContext, isDisabled, onCollapseActions, onS
         <Dropdown.Menu onAction={handleAction}>
           {dropdownItems.map((item) => (
             <Dropdown.Item id={item.id} key={item.id} textValue={item.label}>
-              <IconDatabase className='size-5 shrink-0' />
+              <IconDatabase className='size-4 shrink-0' />
               <Label>{item.label}</Label>
             </Dropdown.Item>
           ))}

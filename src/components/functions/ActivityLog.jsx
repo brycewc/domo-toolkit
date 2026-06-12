@@ -292,7 +292,7 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
           {hasParent && (
             <Dropdown.Item id='parent' textValue={parentTypeName || 'Parent'}>
               <div className='flex h-fit items-start justify-start gap-2'>
-                <ObjectTypeIcon className='size-5 shrink-0' typeId={parentTypeId} />
+                <ObjectTypeIcon className='size-4 shrink-0' typeId={parentTypeId} />
                 <div className='flex flex-col'>
                   <Label>{parentTypeName}</Label>
                   <Description className='text-xs'>
@@ -305,7 +305,7 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
           )}
           <Dropdown.Item id='cards' textValue='Cards'>
             <div className='flex h-fit items-start justify-start gap-2'>
-              <IconChartBarBox className='size-5 shrink-0' />
+              <IconChartBarBox className='size-4 shrink-0' />
               <div className='flex flex-col'>
                 <Label>Cards</Label>
                 <Description className='text-xs'>
@@ -316,7 +316,7 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
           </Dropdown.Item>
           <Dropdown.Item id='card-pages' textValue='Card Pages'>
             <div className='flex h-fit items-start justify-start gap-2'>
-              <IconPagesBars className='size-5 shrink-0' />
+              <IconPagesBars className='size-4 shrink-0' />
               <div className='flex flex-col'>
                 <Label>Card Pages</Label>
                 <Description className='text-xs'>
@@ -329,7 +329,7 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
           {hasChildPages && (
             <Dropdown.Item id='child-pages' textValue='Child Pages'>
               <div className='flex h-fit items-start justify-start gap-2'>
-                <IconTree className='size-5 shrink-0' />
+                <IconTree className='size-4 shrink-0' />
                 <div className='flex flex-col'>
                   <Label>Child Pages</Label>
                   <Description className='text-xs'>View activity log for hierarchical child pages</Description>

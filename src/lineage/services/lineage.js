@@ -1,8 +1,9 @@
+import { DomoObject } from '@/models/DomoObject';
 import { executeInPage } from '@/utils/executeInPage';
 
 const LINEAGE_TYPE_MAP = { DATAFLOW_TYPE: 'DATAFLOW' };
 
-export function convertToGraph(lineageResponse, startEntityType, startEntityId) {
+export function convertToGraph(lineageResponse, startEntityType, startEntityId, baseUrl = '') {
   if (!lineageResponse || typeof lineageResponse !== 'object') {
     return { edges: [], nodes: [] };
   }
@@ -97,6 +98,7 @@ export function convertToGraph(lineageResponse, startEntityType, startEntityId) 
       id: nodeId,
       metadata: entity.metadata,
       name,
+      object: buildNodeObject(entity.type, entity.id, baseUrl, entity.metadata),
       upstreamCount: parents.length
     });
 
@@ -150,7 +152,7 @@ export async function enrichMetadata(lineageResponse, tabId = null, existingKeys
     return await executeInPage(
       async (ids) => {
         try {
-          const response = await fetch('/api/data/v3/datasources/bulk?part=core,rowcolcount', {
+          const response = await fetch('/api/data/v3/datasources/bulk?part=core,rowcolcount,status,cryo', {
             body: JSON.stringify(ids),
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
@@ -160,9 +162,11 @@ export async function enrichMetadata(lineageResponse, tabId = null, existingKeys
             const data = await response.json();
             return (data.dataSources || []).map((ds) => ({
               columnCount: ds.columnCount,
+              cryoStatus: ds.cryoStatus,
               id: ds.id,
               name: ds.name,
-              rowCount: ds.rowCount
+              rowCount: ds.rowCount,
+              status: ds.status
             }));
           }
         } catch {
@@ -191,7 +195,7 @@ export async function enrichMetadata(lineageResponse, tabId = null, existingKeys
               lastExecution: df.lastExecution,
               name: df.name,
               outputCount: df.outputs?.length,
-              state: df.runState
+              runState: df.runState
             }));
           }
         } catch {
@@ -276,6 +280,20 @@ export function toMapKey(type, id) {
 
 export function toNodeId(type, id) {
   return `${type}:${id}`;
+}
+
+function buildNodeObject(type, id, baseUrl, metadata) {
+  try {
+    const object = new DomoObject(type, id, baseUrl, metadata ?? {});
+    // Without an instance we cannot build an absolute deep link, so drop the
+    // relative URL DomoObject would otherwise produce.
+    if (!baseUrl) object.url = null;
+    return object;
+  } catch {
+    // Unknown type (not in the registry): callers fall back to the raw lineage
+    // type and skip the URL.
+    return null;
+  }
 }
 
 function mergeLineageResponses(upResponse, downResponse) {

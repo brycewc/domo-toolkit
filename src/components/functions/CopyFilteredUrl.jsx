@@ -157,7 +157,7 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
       <Dropdown.Popover className='w-fit min-w-60' placement='bottom'>
         <Dropdown.Menu onAction={handleAction}>
           <Dropdown.Item id='pfilters' textValue='Copy pfilters param only'>
-            <IconClipboardCopy className='size-5 shrink-0' />
+            <IconClipboardCopy className='size-4 shrink-0' />
             <Label>Copy pfilters param only</Label>
           </Dropdown.Item>
         </Dropdown.Menu>

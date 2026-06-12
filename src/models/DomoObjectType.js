@@ -696,6 +696,7 @@ export const ObjectTypeRegistry = {
     urlPath: '/datasources/{id}/details/overview'
   }),
   DATAFLOW_TYPE: new DomoObjectType('DATAFLOW_TYPE', 'DataFlow', {
+    aliases: ['DATAFLOW'],
     api: { endpoint: '/dataprocessing/v2/dataflows/{id}', pathToName: 'name' },
     extractConfig: { keyword: 'dataflows' },
     icon: { component: 'Dataflow' },

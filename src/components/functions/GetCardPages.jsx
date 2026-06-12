@@ -104,7 +104,7 @@ export function GetCardPages({ currentContext, isDisabled, onCollapseActions, on
         <Dropdown.Menu onAction={handleAction}>
           {dropdownItems.map((item) => (
             <Dropdown.Item id={item.id} key={item.id} textValue={item.label}>
-              <IconPagesBars className='size-5 shrink-0' />
+              <IconPagesBars className='size-4 shrink-0' />
               <Label>{item.label}</Label>
             </Dropdown.Item>
           ))}

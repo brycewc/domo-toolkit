@@ -14,18 +14,13 @@ import {
 import '@xyflow/react/dist/style.css';
 import { createContext, memo, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
+import { ObjectTypeIcon } from '@/components/ObjectTypeIcon';
 import { useTheme } from '@/hooks/useTheme';
 import IconDatabase from '@icons/database.svg?react';
-import IconDataflow from '@icons/dataflow.svg?react';
 
 import { LineageNodeToolbar } from './LineageNodeToolbar';
 
 const LineageGraphContext = createContext(null);
-
-const NODE_ICONS = {
-  DATA_SOURCE: IconDatabase,
-  DATAFLOW: IconDataflow
-};
 
 function formatNumber(n) {
   if (n == null) return '';
@@ -36,18 +31,10 @@ function formatNumber(n) {
 
 const LineageNode = memo(function LineageNode({ data, id }) {
   const ctx = useContext(LineageGraphContext);
-  const Icon = NODE_ICONS[data.entityType] || IconDatabase;
   const meta = data.metadata;
   const hasName = data.label && data.label !== data.entityId;
   const isSelected = ctx?.selectedNodeId === id;
-
-  const nodeUrl = useMemo(() => {
-    if (!ctx?.instance) return null;
-    const base = `https://${ctx.instance}.domo.com`;
-    if (data.entityType === 'DATA_SOURCE') return `${base}/datasources/${data.entityId}/details/overview`;
-    if (data.entityType === 'DATAFLOW') return `${base}/datacenter/dataflows/${data.entityId}/details`;
-    return null;
-  }, [ctx?.instance, data.entityType, data.entityId]);
+  const nodeUrl = data.object?.url || null;
 
   let badge = '';
   if (data.entityType === 'DATA_SOURCE') {
@@ -84,7 +71,11 @@ const LineageNode = memo(function LineageNode({ data, id }) {
       {data.hasIncoming && <Handle className='size-2' position={Position.Left} type='target' />}
 
       <div className={`flex w-8 shrink-0 items-center justify-center border-none ${stripe}`}>
-        <Icon className='size-5 text-white' />
+        {data.object?.typeId ? (
+          <ObjectTypeIcon className='size-5 text-white' typeId={data.object.typeId} />
+        ) : (
+          <IconDatabase className='size-5 text-white' />
+        )}
       </div>
 
       <div className='flex min-h-20 min-w-0 flex-1 flex-col items-start justify-between gap-2 px-3 py-1.5'>
@@ -153,7 +144,6 @@ export function LineageGraph({
   error,
   expandLoading,
   highlightedDepth,
-  instance,
   instanceRef,
   loading,
   onCollapseNode,
@@ -186,6 +176,7 @@ export function LineageGraph({
           isRoot: pNode.id === rootNodeId,
           label: pNode.name,
           metadata: pNode.metadata,
+          object: pNode.object,
           upstreamCount: pNode.upstreamCount
         },
         id: pNode.id,
@@ -264,12 +255,11 @@ export function LineageGraph({
     () => ({
       expandLoading,
       highlightedDepth,
-      instance,
       onCollapseNode,
       onExpandNode,
       selectedNodeId
     }),
-    [expandLoading, highlightedDepth, instance, onCollapseNode, onExpandNode, selectedNodeId]
+    [expandLoading, highlightedDepth, onCollapseNode, onExpandNode, selectedNodeId]
   );
 
   if (loading) {

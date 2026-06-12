@@ -102,7 +102,7 @@ export function GetCards({ currentContext, isDisabled, onCollapseActions, onStat
         <Dropdown.Menu onAction={handleAction}>
           {dropdownItems.map((item) => (
             <Dropdown.Item id={item.id} key={item.id} textValue={item.label}>
-              <IconCard className='size-5 shrink-0' />
+              <IconCard className='size-4 shrink-0' />
               <Label>{item.label}</Label>
             </Dropdown.Item>
           ))}

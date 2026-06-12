@@ -97,7 +97,7 @@ export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
         <Dropdown.Menu onAction={handleAction}>
           {dropdownItems.map((item) => (
             <Dropdown.Item id={item.id} key={item.id} textValue={item.label}>
-              <IconClipboardCopy className='size-5 shrink-0' />
+              <IconClipboardCopy className='size-4 shrink-0' />
               <Label>{item.label}</Label>
             </Dropdown.Item>
           ))}

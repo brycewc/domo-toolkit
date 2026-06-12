@@ -1,9 +1,15 @@
-import { Button, Spinner, Tooltip } from '@heroui/react';
+import { Button, Dropdown, Label, Spinner, Tooltip } from '@heroui/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useResolveTabId } from '@/hooks/useResolveTabId';
+import { useStatusBar } from '@/hooks/useStatusBar';
+import { exportToCSV, exportToExcel, exportToJson, generateExportFilename } from '@/utils/exportData';
+import IconCsv from '@icons/csv.svg?react';
+import IconCurlyBrackets from '@icons/curly-brackets.svg?react';
 import IconDatabase from '@icons/database.svg?react';
 import IconDataflow from '@icons/dataflow.svg?react';
+import IconDownload from '@icons/download.svg?react';
+import IconExcel from '@icons/excel.svg?react';
 import IconInfoCircle from '@icons/info-circle.svg?react';
 import IconSync from '@icons/sync.svg?react';
 
@@ -14,6 +20,7 @@ import { LineageGraph } from './components/LineageGraph';
 import { useGraphVisibility } from './hooks/useGraphVisibility';
 import { useLineageCache } from './hooks/useLineageCache';
 import { toLineageType, toNodeId } from './services/lineage';
+import { buildLineageJson, buildLineageRows, LINEAGE_EXPORT_COLUMNS } from './services/lineageExport';
 
 export function Lineage() {
   const [params, setParams] = useState(null);
@@ -21,13 +28,17 @@ export function Lineage() {
   const [selectedNodeId, setSelectedNodeId] = useState(null);
   const [inspectedDataflow, setInspectedDataflow] = useState(null);
   const [previewDataset, setPreviewDataset] = useState(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportCount, setExportCount] = useState(0);
   const graphInstanceRef = useRef(null);
   const previewHeightRef = useRef(300);
   const previewCacheRef = useRef(new Map());
   const inspectorCacheRef = useRef(new Map());
   const resolveTabId = useResolveTabId(params?.tabId, params?.instance);
+  const { showStatus } = useStatusBar();
 
-  const { expandFetch, expandLoading, graph, init, isNeighborCached, loading, prefetch } = useLineageCache();
+  const { expandFetch, expandLoading, fetchEntireLineage, graph, init, isNeighborCached, loading, prefetch } =
+    useLineageCache();
 
   const rootNodeId = useMemo(() => (params ? toNodeId(toLineageType(params.entityType), params.entityId) : null), [params]);
 
@@ -140,6 +151,39 @@ export function Lineage() {
     }
   }, [params, init, preserveExpansion]);
 
+  const handleExport = useCallback(
+    async (format) => {
+      if (!graph || isExporting) return;
+      setIsExporting(true);
+      setExportCount(0);
+      try {
+        const fullGraph = await fetchEntireLineage(setExportCount);
+        const rows = buildLineageRows(fullGraph);
+        if (rows.length === 0) {
+          showStatus('Nothing to export', 'No lineage objects were found', 'warning');
+          return;
+        }
+        const safeName = (params?.objectName || `${params?.entityType}_${params?.entityId}`).replace(/[^\w.-]+/g, '_');
+        const filename = generateExportFilename(`lineage_${safeName}`);
+        if (format === 'csv') {
+          exportToCSV(rows, LINEAGE_EXPORT_COLUMNS, filename);
+        } else if (format === 'xlsx') {
+          await exportToExcel(rows, LINEAGE_EXPORT_COLUMNS, filename, 'Lineage');
+        } else if (format === 'json') {
+          exportToJson(buildLineageJson(fullGraph, rootNodeId), filename);
+        }
+        showStatus('Lineage exported', `Exported **${rows.length}** objects`, 'success');
+      } catch (err) {
+        console.error('[Lineage] Export failed:', err);
+        showStatus('Export failed', err.message || 'Could not export lineage', 'danger');
+      } finally {
+        setIsExporting(false);
+        setExportCount(0);
+      }
+    },
+    [graph, isExporting, fetchEntireLineage, params, rootNodeId, showStatus]
+  );
+
   const handleRootClick = useCallback(() => {
     if (rootNodeId) {
       setSelectedNodeId(rootNodeId);
@@ -192,11 +236,44 @@ export function Lineage() {
           </div>
         </div>
         <div className='flex items-center gap-2'>
+          {isExporting && <span className='text-xs text-muted'>Crawling lineage... {exportCount} objects</span>}
+          <Dropdown>
+            <Tooltip>
+              <Button
+                isIconOnly
+                isDisabled={loading || !graph || graph.nodes.length === 0 || isExporting}
+                isPending={isExporting}
+                size='sm'
+                variant='tertiary'
+              >
+                {({ isPending }) => (isPending ? <Spinner color='currentColor' size='sm' /> : <IconDownload />)}
+              </Button>
+              <Tooltip.Content className='max-w-60' placement='bottom'>
+                Export full lineage
+              </Tooltip.Content>
+            </Tooltip>
+            <Dropdown.Popover>
+              <Dropdown.Menu onAction={(key) => handleExport(key)}>
+                <Dropdown.Item id='xlsx' textValue='Export as Excel'>
+                  <IconExcel className='size-4 shrink-0' />
+                  <Label>Export as Excel</Label>
+                </Dropdown.Item>
+                <Dropdown.Item id='csv' textValue='Export as CSV'>
+                  <IconCsv className='size-4 shrink-0' />
+                  <Label>Export as CSV</Label>
+                </Dropdown.Item>
+                <Dropdown.Item id='json' textValue='Export as JSON'>
+                  <IconCurlyBrackets className='size-4 shrink-0' />
+                  <Label>Export as JSON</Label>
+                </Dropdown.Item>
+              </Dropdown.Menu>
+            </Dropdown.Popover>
+          </Dropdown>
           <Tooltip>
             <Button isIconOnly size='sm' variant='tertiary' onPress={handleRefresh}>
               <IconSync />
             </Button>
-            <Tooltip.Content className='max-w-60' placement='left'>
+            <Tooltip.Content className='max-w-60' placement='bottom'>
               Refresh
             </Tooltip.Content>
           </Tooltip>
@@ -254,7 +331,6 @@ export function Lineage() {
               error={null}
               expandLoading={expandLoading}
               highlightedDepth={highlightedDepth}
-              instance={params?.instance}
               instanceRef={graphInstanceRef}
               loading={false}
               rootNodeId={rootNodeId}
