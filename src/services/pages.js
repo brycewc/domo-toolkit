@@ -395,9 +395,10 @@ export async function getOwnedPages(userId, tabId = null) {
 }
 
 /**
- * Get all pages that cards appear on (including regular pages, app studio pages, and report builder pages)
+ * Get all pages that cards appear on (including regular pages, app studio pages, and report builder pages).
+ * Cards that are not on any page are returned separately as orphanedCards.
  * @param {Array<number>} cardIds - Array of card IDs
- * @returns {Promise<Object>} Array of page objects with type, id, and name
+ * @returns {Promise<{cardsByPage: Object, orphanedCards: Array<{id: string|number, name: string}>, pages: Array<Object>}>}
  * @throws {Error} If the fetch fails
  */
 export async function getPagesForCards(cardIds, tabId = null) {
@@ -425,7 +426,7 @@ export async function getPagesForCards(cardIds, tabId = null) {
         // serializable and lets the caller render a friendly "no pages found"
         // state instead of crashing on a thrown error.
         if (!allDetailCards.length) {
-          return { cardsByPage: {}, pages: [] };
+          return { cardsByPage: {}, orphanedCards: [], pages: [] };
         }
 
         // Build flat lists of all pages, app pages, and report pages from all cards
@@ -435,6 +436,7 @@ export async function getPagesForCards(cardIds, tabId = null) {
         const allWorksheetViews = [];
         const allReportPages = [];
         const cardsByPage = {};
+        const pagedCardIds = new Set();
 
         const addCardToPage = (pageId, card) => {
           const key = String(pageId);
@@ -442,6 +444,7 @@ export async function getPagesForCards(cardIds, tabId = null) {
             cardsByPage[key] = [];
           }
           const cardId = card.id || card.urn;
+          pagedCardIds.add(cardId);
           // Avoid duplicate cards on the same page
           if (!cardsByPage[key].some((c) => c.id === cardId)) {
             cardsByPage[key].push({
@@ -501,6 +504,22 @@ export async function getPagesForCards(cardIds, tabId = null) {
           }
         });
 
+        // Cards present in the response but absent from every page list are
+        // orphaned. Cards missing from the response entirely (failed fetch or
+        // deleted card) are deliberately not flagged, since they can't be
+        // confirmed or named.
+        const orphanedCards = [];
+        const orphanedIds = new Set();
+        allDetailCards.forEach((card) => {
+          const cardId = card.id || card.urn;
+          if (cardId == null || pagedCardIds.has(cardId) || orphanedIds.has(cardId)) return;
+          orphanedIds.add(cardId);
+          orphanedCards.push({
+            id: cardId,
+            name: card.title || card.name || `Card ${cardId}`
+          });
+        });
+
         // Deduplicate pages by ID for each type (keep first occurrence's data)
         const deduplicatePages = (pages) => {
           const map = new Map();
@@ -545,7 +564,7 @@ export async function getPagesForCards(cardIds, tabId = null) {
           }))
         ];
 
-        return { cardsByPage, pages: pageObjects };
+        return { cardsByPage, orphanedCards, pages: pageObjects };
       },
       [cardIds],
       tabId

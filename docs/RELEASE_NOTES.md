@@ -14,6 +14,7 @@
 - Update Person Details lets admins change a user's username (the login and SSO identity), with an option to keep the email in sync.
 - Approval Center datasets now show a Template tab linking to the approval template that created them.
 - Side panel views are now scoped to each Domo instance, so switching instances swaps to that instance's own view (in-progress operations included) instead of carrying one view everywhere.
+- Get Card Pages now lists cards that aren't on any page under an Orphaned Cards group, instead of leaving them out of the results.
 
 ### Supported Types
 
