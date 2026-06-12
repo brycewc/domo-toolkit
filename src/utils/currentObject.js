@@ -493,6 +493,9 @@ export async function detectCurrentObject() {
     case url.includes('certifiedcontent') && url.includes('edit-form/'):
       objectType = 'CERTIFICATION_PROCESS';
       break;
+    case url.includes('certifiedcontent/request-details/'):
+      objectType = 'CERTIFICATION';
+      break;
 
     case url.includes('governance-toolkit'): {
       const jobElement = document.querySelector('[class*="job-overview-top"]');

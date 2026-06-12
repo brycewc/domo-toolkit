@@ -126,6 +126,7 @@ export class DomoContext {
     const metadata = json.domoObject?.metadata;
     if (metadata && typeof metadata === 'object') {
       const slimMetadata = {
+        created: metadata.created,
         details: metadata.details,
         isOwner: metadata.isOwner,
         name: metadata.name,

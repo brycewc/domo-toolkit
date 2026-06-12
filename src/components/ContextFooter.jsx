@@ -10,7 +10,7 @@ import { getTemplateApprovals } from '@/services/approvals';
 import { getDatasetColumns, getDatasetsForPage } from '@/services/datasets';
 import { getJupyterWorkspaceAccounts, getJupyterWorkspaceDatasets } from '@/services/jupyterWorkspaces';
 import { executeInPage } from '@/utils/executeInPage';
-import { formatEpochTimestamp, isDateFieldName, isGroupFieldName, isUserFieldName } from '@/utils/general';
+import { formatEpochTimestamp, formatTimestamp, isDateFieldName, isGroupFieldName, isUserFieldName } from '@/utils/general';
 import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
 
 // Maps relatedData[].fetcher key → (params) => Promise<Array>. Lives here
@@ -482,6 +482,11 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
                         {currentContext?.domoObject?.metadata?.name}
                       </span>
                       <span className='w-full truncate text-left'>ID: {currentContext?.domoObject?.id}</span>
+                      {formatTimestamp(currentContext?.domoObject?.metadata?.created) && (
+                        <span className='w-full truncate text-left text-muted'>
+                          Created: {formatTimestamp(currentContext?.domoObject?.metadata?.created)}
+                        </span>
+                      )}
                     </>
                   )
                 ) : (

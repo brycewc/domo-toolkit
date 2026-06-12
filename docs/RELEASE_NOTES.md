@@ -16,6 +16,7 @@
 - Side panel views are now scoped to each Domo instance, so switching instances swaps to that instance's own view (in-progress operations included) instead of carrying one view everywhere.
 - Get Card Pages now lists cards that aren't on any page under an Orphaned Cards group, instead of leaving them out of the results.
 - The lineage view can now export its full upstream and downstream lineage (with each object's level relative to the root) as a CSV, Excel, or JSON file.
+- The popup, side panel, and object details now show when the current object was created.
 
 ### Supported Types
 

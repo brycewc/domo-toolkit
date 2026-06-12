@@ -26,6 +26,31 @@ export function formatEpochTimestamp(value) {
   return date.toLocaleString();
 }
 
+/**
+ * Format an arbitrary timestamp value (as carried on `metadata.created`) into a readable
+ * local date + time string. Handles the shapes Domo APIs return across object types:
+ * epoch milliseconds, epoch seconds, numeric strings of either, and ISO/RFC date strings.
+ * Reuses formatEpochTimestamp for the numeric ranges and falls back to Date parsing for
+ * strings. Unlike the JSON-viewer path, it does NOT gate on isDateFieldName: the value is
+ * config-declared as a date, so it formats whatever it is handed.
+ * @param {number|string} value - The raw timestamp value
+ * @returns {string|null} Localized date + time, or null when unparseable
+ */
+export function formatTimestamp(value) {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value === 'number') return formatEpochTimestamp(value);
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed !== '' && !Number.isNaN(Number(trimmed))) {
+      const epoch = formatEpochTimestamp(Number(trimmed));
+      if (epoch) return epoch;
+    }
+    const date = new Date(trimmed);
+    return Number.isNaN(date.getTime()) ? null : date.toLocaleString();
+  }
+  return null;
+}
+
 export function isDateFieldName(fieldName) {
   if (typeof fieldName !== 'string') return false;
   if (isUserFieldName(fieldName)) return false;

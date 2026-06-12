@@ -7,7 +7,7 @@ import { CloseButton } from '@/components/CloseButton';
 import { useGroupLookup } from '@/hooks/useGroupLookup';
 import { useUserLookup } from '@/hooks/useUserLookup';
 import { DomoObject } from '@/models/DomoObject';
-import { formatEpochTimestamp, isDateFieldName, isGroupFieldName, isUserFieldName } from '@/utils/general';
+import { formatEpochTimestamp, formatTimestamp, isDateFieldName, isGroupFieldName, isUserFieldName } from '@/utils/general';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconChevronDown from '@icons/chevron-down.svg?react';
 import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
@@ -34,12 +34,10 @@ const KNOWN_FIELDS = [
   { key: 'description', label: 'Description' },
   { key: 'status', label: 'Status' },
   { format: 'boolean', key: 'valid', label: 'Valid' },
-  { format: 'date', key: 'createdAt', label: 'Created' },
   { format: 'date', key: 'modifiedAt', label: 'Modified' },
   { format: 'date', key: 'updatedAt', label: 'Updated' },
   { format: 'date', key: 'lastUpdated', label: 'Last Updated' },
   { format: 'date', key: 'dataModified', label: 'Data Modified' },
-  { format: 'date', key: 'createdDate', label: 'Created' },
   { format: 'date', key: 'modifiedDate', label: 'Modified' },
   { format: 'number', key: 'rowCount', label: 'Row Count' },
   { format: 'number', key: 'columnCount', label: 'Column Count' }
@@ -93,9 +91,13 @@ export function ObjectDetailsView({ instance = null, onBackToDefault = null, onS
       setError(null);
       setDomoObject(obj);
 
-      // Extract key fields from metadata details
+      // Extract key fields from metadata details, with the authoritative creation date
+      // (grabbed like name, on metadata.created) prepended ahead of anything in the raw details.
       const details = obj.metadata?.details || {};
-      setKeyFields(extractKeyFields(details));
+      const fields = extractKeyFields(details);
+      const createdValue = formatTimestamp(obj.metadata?.created);
+      if (createdValue) fields.unshift({ label: 'Created', value: createdValue });
+      setKeyFields(fields);
     } catch (err) {
       console.error('[ObjectDetailsView] Error loading details:', err);
       setError(err.message || 'Failed to load object details');
