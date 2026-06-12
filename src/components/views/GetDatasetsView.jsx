@@ -6,7 +6,13 @@ import { DataListItem } from '@/models/DataListItem';
 import { DomoContext } from '@/models/DomoContext';
 import { DomoObject } from '@/models/DomoObject';
 import { getCardDatasets } from '@/services/cards';
-import { getDatasetsForApp, getDatasetsForDataflow, getDatasetsForPage, getDependentDatasets } from '@/services/datasets';
+import {
+  getDatasetsForApp,
+  getDatasetsForDataflow,
+  getDatasetsForJupyterWorkspace,
+  getDatasetsForPage,
+  getDependentDatasets
+} from '@/services/datasets';
 import { getValidTabForInstance } from '@/utils/currentObject';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
@@ -14,7 +20,12 @@ import IconSync from '@icons/sync.svg?react';
 
 import { DataList } from './DataList';
 
-export function GetDatasetsView({ currentContext = null, instance: viewInstance = null, onBackToDefault = null, onStatusUpdate = null }) {
+export function GetDatasetsView({
+  currentContext = null,
+  instance: viewInstance = null,
+  onBackToDefault = null,
+  onStatusUpdate = null
+}) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
@@ -63,6 +74,12 @@ export function GetDatasetsView({ currentContext = null, instance: viewInstance 
       const instance = context.instance;
       const origin = `https://${instance}.domo.com`;
 
+      // DataFlows and Jupyter workspaces both expose their datasets as separate
+      // input and output sets, so they render as two grouped sections rather
+      // than one flat list. Every branch below that differs for those types
+      // keys off this flag.
+      const isInputsOutputs = objectType === 'DATAFLOW_TYPE' || objectType === 'DATA_SCIENCE_NOTEBOOK';
+
       const objectName = data.appId
         ? domoObject.metadata?.parent?.name || `App ${data.appId}`
         : domoObject.metadata?.name || `${objectType} ${objectId}`;
@@ -100,7 +117,7 @@ export function GetDatasetsView({ currentContext = null, instance: viewInstance 
           objectType
         });
 
-        if (objectType === 'DATAFLOW_TYPE') {
+        if (isInputsOutputs) {
           dataflowInputs = refreshResult.inputs;
           dataflowOutputs = refreshResult.outputs;
         } else {
@@ -109,10 +126,9 @@ export function GetDatasetsView({ currentContext = null, instance: viewInstance 
       }
 
       // Check for empty results
-      const hasData =
-        objectType === 'DATAFLOW_TYPE'
-          ? (dataflowInputs?.length || 0) + (dataflowOutputs?.length || 0) > 0
-          : datasets?.length > 0;
+      const hasData = isInputsOutputs
+        ? (dataflowInputs?.length || 0) + (dataflowOutputs?.length || 0) > 0
+        : datasets?.length > 0;
 
       if (!hasData) {
         if (!mountedRef.current) return;
@@ -122,11 +138,13 @@ export function GetDatasetsView({ currentContext = null, instance: viewInstance 
             : 'No datasets found for this app.'
           : objectType === 'DATAFLOW_TYPE'
             ? 'This dataflow has no input or output datasets.'
-            : objectType === 'DATA_SOURCE'
-              ? 'No dependent dataset views found for this dataset.'
-              : objectType === 'CARD'
-                ? 'No datasets found for this card.'
-                : 'No datasets found for this page.';
+            : objectType === 'DATA_SCIENCE_NOTEBOOK'
+              ? 'This Jupyter workspace has no input or output datasets.'
+              : objectType === 'DATA_SOURCE'
+                ? 'No dependent dataset views found for this dataset.'
+                : objectType === 'CARD'
+                  ? 'No datasets found for this card.'
+                  : 'No datasets found for this page.';
         onStatusUpdate?.('No Datasets Found', message, 'warning');
         onBackToDefault?.();
         setIsLoading(false);
@@ -135,7 +153,7 @@ export function GetDatasetsView({ currentContext = null, instance: viewInstance 
 
       // Transform to items based on object type
       setError(null);
-      if (objectType === 'DATAFLOW_TYPE') {
+      if (isInputsOutputs) {
         const transformedItems = transformDataflowDatasetsToItems({
           inputs: dataflowInputs,
           origin,
@@ -178,6 +196,8 @@ export function GetDatasetsView({ currentContext = null, instance: viewInstance 
       return getDatasetsForPage({ pageId: objectId, tabId });
     } else if (objectType === 'DATAFLOW_TYPE') {
       return getDatasetsForDataflow({ details });
+    } else if (objectType === 'DATA_SCIENCE_NOTEBOOK') {
+      return getDatasetsForJupyterWorkspace({ details, tabId });
     } else if (objectType === 'DATA_SOURCE') {
       return getDependentDatasets({ datasetId: objectId, tabId });
     }
@@ -199,7 +219,7 @@ export function GetDatasetsView({ currentContext = null, instance: viewInstance 
 
   // Calculate total count (including nested items for dataflows)
   const getTotalCount = () => {
-    if (viewData?.objectType === 'DATAFLOW_TYPE') {
+    if (viewData?.objectType === 'DATAFLOW_TYPE' || viewData?.objectType === 'DATA_SCIENCE_NOTEBOOK') {
       return items.reduce((total, group) => total + (group.children?.length || 0), 0);
     }
     return items.length;

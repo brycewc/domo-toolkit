@@ -20,6 +20,8 @@
 
 ### Supported Types
 
+- Get DataSets now works on Jupyter Workspaces, listing their input and output datasets in separate groups.
+
 ## UI Improvements
 
 ## Bug Fixes

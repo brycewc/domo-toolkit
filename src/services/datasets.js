@@ -1,6 +1,7 @@
 import { getObjectType } from '@/models/DomoObjectType';
 import { executeInPage } from '@/utils/executeInPage';
 
+import { getJupyterWorkspaceDatasets } from './jupyterWorkspaces';
 import { getUserName } from './users';
 
 const DATASETS_PAGE_SIZE = 50;
@@ -242,6 +243,25 @@ export function getDatasetsForDataflow({ details }) {
     name: output.dataSourceName || `Dataset ${output.dataSourceId}`
   }));
 
+  return { inputs, outputs };
+}
+
+/**
+ * Get datasets from a Jupyter workspace's input and output configuration.
+ * Mirrors `getDatasetsForDataflow`'s `{ inputs, outputs }` shape so the view can
+ * render both the same way, but the workspace stores dataset references as
+ * id-only configuration entries, so each side is enriched with the dataset's
+ * core details (name, owner, etc.) before being returned.
+ * @param {Object} params - Parameters
+ * @param {Object} params.details - The workspace metadata.details object
+ * @param {number} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<{inputs: Array<Object>, outputs: Array<Object>}>}
+ */
+export async function getDatasetsForJupyterWorkspace({ details, tabId }) {
+  const [inputs, outputs] = await Promise.all([
+    getJupyterWorkspaceDatasets({ entries: details?.inputConfiguration, tabId }),
+    getJupyterWorkspaceDatasets({ entries: details?.outputConfiguration, tabId })
+  ]);
   return { inputs, outputs };
 }
 

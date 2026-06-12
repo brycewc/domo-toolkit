@@ -18,7 +18,7 @@ export function getAvailableActions(currentContext) {
     }
   }
 
-  if (['CARD', 'DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE', 'WORKSHEET_VIEW'].includes(typeId)) {
+  if (['CARD', 'DATA_APP_VIEW', 'DATA_SCIENCE_NOTEBOOK', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE', 'WORKSHEET_VIEW'].includes(typeId)) {
     actions.add('getDatasets');
   }
 

@@ -44,6 +44,10 @@ export function GetDatasets({ currentContext, isDisabled, onCollapseActions, onS
       buttonText = 'Get Card DataSets';
       tooltipText = 'List datasets powering this card';
       break;
+    case 'DATA_SCIENCE_NOTEBOOK':
+      buttonText = 'Get Workspace DataSets';
+      tooltipText = 'List dataset inputs and outputs for this Jupyter workspace';
+      break;
     case 'DATA_SOURCE':
       buttonText = 'Get Dependent Views';
       tooltipText = 'List dataset views built on this dataset';
