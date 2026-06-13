@@ -1,6 +1,6 @@
 import { executeInPage } from '@/utils/executeInPage';
 
-import { getUserName } from './users';
+import { getUserGroups, getUserName } from './users';
 
 /**
  * Delete a DataFlow and all its output datasets.
@@ -201,6 +201,119 @@ export async function getOwnedDataflows(userId, tabId = null) {
 }
 
 /**
+ * Ensure a user has access to every input dataset feeding the given dataflows.
+ *
+ * Owning a dataflow is useless if you can't read its inputs, so after a transfer
+ * we grant the new owner read access to any input dataset they can't already
+ * reach. "Can already reach" means either a direct USER grant on the dataset or
+ * membership in a GROUP the dataset is shared with, so a user who inherits
+ * access through a group is never granted a redundant direct share.
+ *
+ * Best-effort throughout: unreadable dataflow details, unreadable dataset
+ * grants, and failed share calls are swallowed per item rather than thrown, so
+ * one bad dataset never blocks sharing the rest. When a dataset's grants can't
+ * be read at all, it defaults to being shared (the new owner should have access).
+ *
+ * @param {string[]} dataflowIds - The dataflows whose inputs to cover
+ * @param {number} toUserId - The user who should end up with input access
+ * @param {number|null} tabId - Optional Chrome tab ID
+ * @returns {Promise<{alreadyHadAccess: number, failed: number, shared: number}>}
+ */
+export async function shareDataflowInputsWithOwner(dataflowIds, toUserId, tabId = null) {
+  // Resolve the new owner's group memberships once, up front, so the in-page
+  // step can treat group-inherited access the same as a direct grant. On
+  // failure we proceed with no groups: at worst the user gets a redundant
+  // direct share on a dataset they could already reach through a group.
+  const groupIds = await getUserGroups(toUserId, tabId)
+    .then((groups) => groups.map((g) => g.groupId))
+    .catch(() => []);
+
+  return executeInPage(
+    async (dataflowIds, toUserId, groupIds) => {
+      const toUserIdStr = String(toUserId);
+      const groupIdSet = new Set(groupIds.map(String));
+
+      // 1. Gather the unique input dataSourceIds across all transferred dataflows.
+      const inputIds = new Set();
+      await Promise.all(
+        dataflowIds.map(async (id) => {
+          try {
+            const response = await fetch(`/api/dataprocessing/v1/dataflows/${id}`, { credentials: 'include' });
+            if (!response.ok) return;
+            const detail = await response.json();
+            for (const input of detail.inputs || []) {
+              if (input.dataSourceId) inputIds.add(input.dataSourceId);
+            }
+          } catch {
+            // Skip this dataflow's inputs; the others still get covered.
+          }
+        })
+      );
+      if (inputIds.size === 0) return { alreadyHadAccess: 0, failed: 0, shared: 0 };
+
+      // 2. For each input dataset, read its share grants and decide whether the
+      //    new owner already has access (direct USER grant or via a group).
+      const needsShare = [];
+      let alreadyHadAccess = 0;
+      await Promise.all(
+        [...inputIds].map(async (datasetId) => {
+          try {
+            const response = await fetch(`/api/data/v3/datasources/${datasetId}/permissions`, { credentials: 'include' });
+            if (!response.ok) {
+              // Can't read grants: default to sharing rather than risk locking
+              // the new owner out of an input they need.
+              needsShare.push(datasetId);
+              return;
+            }
+            const data = await response.json();
+            const hasAccess = (data.list || []).some(
+              (grant) =>
+                (grant.type === 'USER' && String(grant.id) === toUserIdStr) ||
+                (grant.type === 'GROUP' && groupIdSet.has(String(grant.id)))
+            );
+            if (hasAccess) {
+              alreadyHadAccess++;
+            } else {
+              needsShare.push(datasetId);
+            }
+          } catch {
+            needsShare.push(datasetId);
+          }
+        })
+      );
+      if (needsShare.length === 0) return { alreadyHadAccess, failed: 0, shared: 0 };
+
+      // 3. Share the inputs the new owner can't yet reach, batched 50 per call.
+      let failed = 0;
+      let shared = 0;
+      for (let i = 0; i < needsShare.length; i += 50) {
+        const chunk = needsShare.slice(i, i + 50);
+        try {
+          const response = await fetch('/api/data/v1/ui/bulk/share', {
+            body: JSON.stringify({
+              bulkItems: { excludeIds: null, ids: chunk, query: null, type: 'DATA_SOURCE' },
+              dataSourceShareEntity: {
+                permissions: [{ accessLevel: 'CAN_VIEW', id: toUserIdStr, type: 'USER' }],
+                sendEmail: false
+              }
+            }),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'POST'
+          });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          shared += chunk.length;
+        } catch {
+          failed += chunk.length;
+        }
+      }
+      return { alreadyHadAccess, failed, shared };
+    },
+    [dataflowIds, toUserId, groupIds],
+    tabId
+  );
+}
+
+/**
  * Transfer dataflow ownership to a new user.
  * @param {string[]} dataflowIds - Array of dataflow IDs to transfer
  * @param {number} fromUserId - The current owner's user ID
@@ -212,7 +325,7 @@ export async function transferDataflows(dataflowIds, fromUserId, toUserId, tabId
   // Resolve the source user's name for the tag, but never let that lookup block
   // the transfer: on failure we proceed untagged rather than aborting ownership.
   const fromUserName = await getUserName(fromUserId, tabId).catch(() => null);
-  return executeInPage(
+  const result = await executeInPage(
     async (dataflowIds, toUserId, fromUserName) => {
       try {
         const response = await fetch('/api/dataprocessing/v1/dataflows/bulk/patch', {
@@ -260,6 +373,20 @@ export async function transferDataflows(dataflowIds, fromUserId, toUserId, tabId
     [dataflowIds, toUserId, fromUserName],
     tabId
   );
+
+  // Once ownership has moved, make sure the new owner can actually use each
+  // dataflow by granting access to any input dataset they can't already reach.
+  // Best-effort: a sharing failure must never flip a successful transfer to
+  // failed, and we skip it entirely when the reassign itself failed.
+  if (result.succeeded > 0) {
+    try {
+      await shareDataflowInputsWithOwner(dataflowIds, toUserId, tabId);
+    } catch {
+      // Best-effort; the ownership transfer already succeeded.
+    }
+  }
+
+  return result;
 }
 
 export async function updateDataflowDetails(dataflowId, updates) {
