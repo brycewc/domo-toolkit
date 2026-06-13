@@ -9,6 +9,7 @@ import { extractPageContentIds, getFormsForPage, getQueuesForPage } from '@/serv
 import { getCardsForObject, getCardsForParent } from '@/services/cards';
 import { waitForCards } from '@/utils/cardHelpers';
 import { getValidTabForInstance } from '@/utils/currentObject';
+import { withCanonicalGroups } from '@/utils/dataListGroups';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
 import IconSync from '@icons/sync.svg?react';
@@ -357,6 +358,15 @@ async function fetchCardsForOutputDatasets(outputs, tabId) {
   return { cards: allCards, outputDatasets };
 }
 
+// Canonical content categories for an App Studio page, in display order. Forms
+// and queues only exist on App Studio pages, so each always renders -- empty
+// ones as muted, non-expandable `(0)` rows.
+const APP_PAGE_CONTENT_GROUPS = [
+  { id: 'cards_group', label: 'Cards' },
+  { id: 'forms_group', label: 'Forms' },
+  { id: 'queues_group', label: 'Queues' }
+];
+
 /**
  * Transform cards into DataListItem format
  * @param {Array} cards - Array of card objects
@@ -425,14 +435,20 @@ function transformDataflowItems(outputDatasets, origin) {
 
 /**
  * Transform cards, forms, and queues into DataListItems.
- * When only cards exist, returns a flat list. When forms or queues
- * are also present, groups items under disclosure headers.
+ *
+ * For App Studio pages (DATA_APP_VIEW) -- the only scope where forms and queues
+ * apply -- always renders Cards, Forms, and Queues headers, with empty ones as
+ * muted `(0)` rows so absence is explicit. For every other object type, only
+ * cards apply: a single type stays a flat list, multiple types group under
+ * disclosure headers (existing behavior).
  */
 function transformPageItems(cards, forms, queues, origin, objectType, objectId, parentId) {
+  const isAppStudioPage = objectType === 'DATA_APP_VIEW';
   const hasMultipleTypes = [cards.length > 0, forms.length > 0, queues.length > 0].filter(Boolean).length > 1;
 
-  // Only cards: preserve flat list behavior
-  if (!hasMultipleTypes && cards.length > 0) {
+  // Non-App-Studio with a single type: preserve flat list behavior. App Studio
+  // pages skip the shortcut so the canonical Cards/Forms/Queues set always shows.
+  if (!isAppStudioPage && !hasMultipleTypes && cards.length > 0) {
     return transformCardsToItems(cards, origin, objectType, objectId, parentId);
   }
 
@@ -492,7 +508,7 @@ function transformPageItems(cards, forms, queues, origin, objectType, objectId, 
     );
   }
 
-  return items;
+  return isAppStudioPage ? withCanonicalGroups(items, APP_PAGE_CONTENT_GROUPS) : items;
 }
 
 /**

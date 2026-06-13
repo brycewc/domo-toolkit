@@ -14,6 +14,7 @@ import {
   getDependentDatasets
 } from '@/services/datasets';
 import { getValidTabForInstance } from '@/utils/currentObject';
+import { withCanonicalGroups } from '@/utils/dataListGroups';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
 import IconSync from '@icons/sync.svg?react';
@@ -294,6 +295,14 @@ export function GetDatasetsView({
   );
 }
 
+// Canonical category set for dataflow/notebook inputs and outputs, in display
+// order. A dataflow always conceptually has both sides, so an empty side still
+// renders as a muted, non-expandable `(0)` row rather than vanishing.
+const DATAFLOW_DATASET_GROUPS = [
+  { id: 'inputs_group', label: 'Input DataSets' },
+  { id: 'outputs_group', label: 'Output DataSets' }
+];
+
 /**
  * Transform dataflow inputs/outputs into grouped DataListItems
  * @param {Object} params
@@ -329,7 +338,7 @@ function transformDataflowDatasetsToItems({ inputs, origin, outputs }) {
     );
   }
 
-  return items;
+  return withCanonicalGroups(items, DATAFLOW_DATASET_GROUPS);
 }
 
 /**

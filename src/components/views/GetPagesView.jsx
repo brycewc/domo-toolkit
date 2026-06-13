@@ -9,6 +9,7 @@ import { getCardsForObject, getCardsForParent, removeCardFromPage } from '@/serv
 import { getChildPages, getPagesForCards, sharePages } from '@/services/pages';
 import { waitForCards } from '@/utils/cardHelpers';
 import { getValidTabForInstance } from '@/utils/currentObject';
+import { withCanonicalGroups } from '@/utils/dataListGroups';
 import { waitForChildPages } from '@/utils/pageHelpers';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
@@ -215,7 +216,7 @@ export function GetPagesView({ currentContext = null, instance: viewInstance = n
       setError(null);
 
       if (sidepanelType === 'getCardPages') {
-        const transformedItems = transformGroupedPagesData(childPages, origin, cardsByPage, orphanedCards);
+        const transformedItems = transformGroupedPagesData(childPages, origin, cardsByPage, orphanedCards, objectType);
         setItems(transformedItems);
       } else {
         // Normal PAGE or DATA_APP_VIEW data - use existing logic
@@ -330,7 +331,7 @@ export function GetPagesView({ currentContext = null, instance: viewInstance = n
     });
 
     setError(null);
-    setItems(transformGroupedPagesData(childPages, origin, result.cardsByPage, result.orphanedCards));
+    setItems(transformGroupedPagesData(childPages, origin, result.cardsByPage, result.orphanedCards, parentTypeId));
   };
 
   /**
@@ -673,6 +674,21 @@ export function GetPagesView({ currentContext = null, instance: viewInstance = n
   );
 }
 
+// Canonical category set for Get Card Pages, in display order. Categories with
+// no cards still render as muted, non-expandable `(0)` rows so absence reads as
+// an explicit answer rather than a category that was never checked.
+const CARD_PAGE_GROUPS = [
+  { id: 'DATA_APP_group', label: 'App Studio Apps' },
+  { id: 'PAGE_group', label: 'Dashboards' },
+  { id: 'REPORT_BUILDER_group', label: 'Report Builder Pages' },
+  { id: 'WORKSHEET_group', label: 'Worksheets' }
+];
+
+// Orphaned Cards is an always-show category too, except when querying a single
+// card: a "0 orphaned cards" row is meaningless there (the card itself would be
+// the orphan). When the view does build the group, the helper still appends it.
+const ORPHANED_CARDS_GROUP = { id: 'ORPHANED_CARDS_group', label: 'Orphaned Cards' };
+
 /**
  * Build card DataListItem children for a page from the cardsByPage mapping
  * @param {string|number} pageId - The page ID to look up
@@ -712,7 +728,7 @@ function buildCardChildren(pageId, cardsByPage, origin, pageType, parentId) {
  * @param {Object} [cardsByPage] - Optional mapping of pageId -> [{ id, name }] for card children
  * @param {Array<{id: string|number, name: string}>} [orphanedCards] - Optional cards that are not on any page
  */
-function transformGroupedPagesData(childPages, origin, cardsByPage, orphanedCards) {
+function transformGroupedPagesData(childPages, origin, cardsByPage, orphanedCards, objectType) {
   if ((!childPages || !childPages.length) && !orphanedCards?.length) return [];
 
   // Group pages by pageType
@@ -876,8 +892,8 @@ function transformGroupedPagesData(childPages, origin, cardsByPage, orphanedCard
       DataListItem.createGroup({
         children: appChildren,
         id: 'WORKSHEET_group',
-        label: 'Worksheet Views',
-        metadata: `${pagesByApp.size} app${pagesByApp.size !== 1 ? 's' : ''}, ${pagesByType.WORKSHEET_VIEW.length} view${pagesByType.WORKSHEET_VIEW.length !== 1 ? 's' : ''}`
+        label: 'Worksheets',
+        metadata: `${pagesByApp.size} worksheet${pagesByApp.size !== 1 ? 's' : ''}, ${pagesByType.WORKSHEET_VIEW.length} view${pagesByType.WORKSHEET_VIEW.length !== 1 ? 's' : ''}`
       })
     );
   }
@@ -903,5 +919,6 @@ function transformGroupedPagesData(childPages, origin, cardsByPage, orphanedCard
     );
   }
 
-  return items;
+  const canonicalGroups = objectType === 'CARD' ? CARD_PAGE_GROUPS : [...CARD_PAGE_GROUPS, ORPHANED_CARDS_GROUP];
+  return withCanonicalGroups(items, canonicalGroups);
 }

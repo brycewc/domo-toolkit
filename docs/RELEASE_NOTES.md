@@ -15,6 +15,9 @@
 - Approval Center datasets now show a Template tab linking to the approval template that created them.
 - Side panel views are now scoped to each Domo instance, so switching instances swaps to that instance's own view (in-progress operations included) instead of carrying one view everywhere.
 - Get Card Pages now lists cards that aren't on any page under an Orphaned Cards group, instead of leaving them out of the results.
+- Get Card Pages now always shows App Studio Apps, Dashboards, Report Builder Pages, and Worksheets, marking any with no cards as (0) instead of hiding the category.
+- Get DataSets now always shows both Input DataSets and Output DataSets for dataflows, marking an empty side as (0) instead of hiding it.
+- Get Cards now always shows Cards, Forms, and Queues for App Studio pages, marking an empty category as (0) instead of hiding it.
 - The lineage view can now export its full upstream and downstream lineage (with each object's level relative to the root) as a CSV, Excel, or JSON file.
 - The popup, side panel, and object details now show when the current object was created.
 - Transferring ownership of a dataflow now shares its input datasets with the new owner if they don't already have access.
@@ -24,6 +27,8 @@
 - Get DataSets now works on Jupyter Workspaces, listing their input and output datasets in separate groups.
 
 ## UI Improvements
+
+- Renamed the "Worksheet Views" group to "Worksheets" in Get Card Pages.
 
 ## Bug Fixes
 
