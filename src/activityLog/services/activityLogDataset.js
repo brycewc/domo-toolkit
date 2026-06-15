@@ -69,7 +69,7 @@ export async function getActivityLogFromDataset({
   const where = buildWhere(filters);
   const order = sortDirection === 'ascending' ? 'ASCENDING' : 'DESCENDING';
 
-  const { rawRows, total } = await executeInPage(
+  const result = await executeInPage(
     async (datasetId, columns, where, queryContext, countContext, limit, offset, order) => {
       const url = `/api/query/v1/execute/${datasetId}`;
       const init = {
@@ -118,34 +118,49 @@ export async function getActivityLogFromDataset({
         querySource: 'judoTable-rowCount'
       };
 
-      const [countResp, pageResp] = await Promise.all([
-        fetch(url, { ...init, body: JSON.stringify(countBody) }),
-        fetch(url, { ...init, body: JSON.stringify(pageBody) })
-      ]);
+      // Errors thrown inside an injected MAIN-world function are not propagated
+      // back by chrome.scripting (the frame result is serialized as null), which
+      // would surface downstream as a cryptic destructure crash. Return failures
+      // as a structured { error } object so the real HTTP status survives.
+      try {
+        const [countResp, pageResp] = await Promise.all([
+          fetch(url, { ...init, body: JSON.stringify(countBody) }),
+          fetch(url, { ...init, body: JSON.stringify(pageBody) })
+        ]);
 
-      if (!countResp.ok) {
-        throw new Error(`Failed to fetch activity log count from dataset. HTTP status: ${countResp.status}`);
+        if (!countResp.ok) {
+          return { error: `Failed to fetch activity log count from dataset. HTTP status: ${countResp.status}` };
+        }
+        if (!pageResp.ok) {
+          return { error: `Failed to fetch activity log events from dataset. HTTP status: ${pageResp.status}` };
+        }
+
+        const countData = await countResp.json();
+        const pageData = await pageResp.json();
+
+        return {
+          rawRows: pageData.rows || [],
+          total: parseInt(countData.rows?.[0]?.[0] ?? 0, 10) || 0
+        };
+      } catch (err) {
+        return { error: err?.message || 'Unknown error querying the DomoStats dataset' };
       }
-      if (!pageResp.ok) {
-        throw new Error(`Failed to fetch activity log events from dataset. HTTP status: ${pageResp.status}`);
-      }
-
-      const countData = await countResp.json();
-      const pageData = await pageResp.json();
-
-      return {
-        rawRows: pageData.rows || [],
-        total: parseInt(countData.rows?.[0]?.[0] ?? 0, 10) || 0
-      };
     },
     [datasetId, ACTIVITY_LOG_DATASET_COLUMNS, where, QUERY_CONTEXT, COUNT_QUERY_CONTEXT, limit, offset, order],
     tabId
   );
 
+  if (!result) {
+    throw new Error('No response from the DomoStats dataset query.');
+  }
+  if (result.error) {
+    throw new Error(result.error);
+  }
+
   return {
-    events: rawRows.map((r) => datasetRowToActivityRecord(r)),
+    events: result.rawRows.map((r) => datasetRowToActivityRecord(r)),
     limit,
     offset,
-    total
+    total: result.total
   };
 }
