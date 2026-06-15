@@ -1207,11 +1207,16 @@ export function ActivityLogTable() {
 
   if (isInitialLoad && events.length === 0) {
     return (
-      <div className='skeleton--shimmer flex h-full min-h-0 w-full flex-1 flex-col gap-2 overflow-hidden p-4'>
-        {/* Title + subtitle row */}
-        <div className='flex items-center justify-between p-1'>
-          <Skeleton animationType='none' className='h-6 w-80 rounded-lg' />
-          <Skeleton animationType='none' className='h-4 w-44 rounded-lg' />
+      <div className='skeleton--shimmer relative flex h-full min-h-0 w-full flex-1 flex-col gap-2 overflow-hidden p-4'>
+        {/* Header: source alert banner + title/subtitle row */}
+        <div className='flex flex-col gap-2 p-1'>
+          {/* DomoStats/API source alert banner */}
+          <Skeleton animationType='none' className='h-17 w-full rounded-xl' />
+          {/* Title + subtitle row */}
+          <div className='flex items-center justify-between'>
+            <Skeleton animationType='none' className='h-6 w-80 rounded-lg' />
+            <Skeleton animationType='none' className='h-4 w-44 rounded-lg' />
+          </div>
         </div>
 
         {/* Filter row */}

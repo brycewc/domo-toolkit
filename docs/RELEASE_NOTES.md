@@ -31,6 +31,7 @@
 - Renamed the "Worksheet Views" group to "Worksheets" in Get Card Pages.
 - App Pages and Worksheet Views now show just the page's own name in the context footer, keeping the parent app or worksheet name in the browser tab title only.
 - The browser tab title for App Pages and Worksheet Views now separates the app and page names with ">" instead of ":".
+- The Activity Log's loading placeholder now reserves space for the source banner, so the layout no longer jumps when it finishes loading.
 
 ## Bug Fixes
 
@@ -40,5 +41,6 @@
 - Migrating a dataset view's input now updates the view's available-columns list to the new dataset's columns instead of leaving the previous dataset's.
 - Migrating downstream content now remaps column references inside fused views (DataFusions) instead of leaving them pointing at the old dataset, and flags any fused view that uses the dataset in a calculated column for manual review.
 - Approvals and Approval Templates no longer appear as failing rows in Objects Owned and Transfer Ownership on instances that don't have Approvals enabled.
+- The Activity Log no longer briefly flashes scroll bars across the page while it loads.
 
 ### Other Fixes
