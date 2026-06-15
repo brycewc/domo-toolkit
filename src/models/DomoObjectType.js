@@ -593,7 +593,7 @@ export const ObjectTypeRegistry = {
   }),
   DATA_APP_VIEW: new DomoObjectType('DATA_APP_VIEW', 'App Page', {
     api: {
-      displayName: '{parent.name}: {name}',
+      displayName: '{parent.name} > {name}',
       endpoint: '/content/v3/stacks/{id}',
       paths: { created: 'page.created', name: 'title' }
     },
@@ -1349,7 +1349,7 @@ export const ObjectTypeRegistry = {
   }),
   WORKSHEET_VIEW: new DomoObjectType('WORKSHEET_VIEW', 'Worksheet View', {
     api: {
-      displayName: '{parent.name}: {name}',
+      displayName: '{parent.name} > {name}',
       endpoint: '/content/v3/stacks/{id}',
       paths: { created: 'page.created', name: 'title' }
     },

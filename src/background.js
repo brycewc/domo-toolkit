@@ -356,6 +356,15 @@ function getTabContext(tabId) {
   return tabContexts.get(tabId) || null;
 }
 
+/**
+ * Resolve the name used for the tab title. Prefers the parent-qualified
+ * titleName (composed from a type's api.displayName template) and falls back to
+ * the object's own name, which is what the context footer shows.
+ */
+function getTitleName(domoObject) {
+  return domoObject?.metadata?.titleName || domoObject?.metadata?.name;
+}
+
 const ICON_PATHS = {
   black: {
     16: 'toolkit-black-16.png',
@@ -576,7 +585,7 @@ function setTabContext(tabId, context) {
 
   if (context?.domoObject?.metadata?.name) {
     const allowedTitles = buildAllowedTitles(context.domoObject);
-    setTabTitle(tabId, context.domoObject.metadata.name, allowedTitles);
+    setTabTitle(tabId, getTitleName(context.domoObject), allowedTitles);
   }
 
   const contextData = context?.toJSON();
@@ -912,14 +921,14 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
       // Title reset to "Domo", so apply the object name or a section title
       if (objectName) {
         console.log(`[Background] Updating title for tab ${tabId} to include object name`);
-        setTabTitle(tabId, objectName, allowedTitles);
+        setTabTitle(tabId, getTitleName(context.domoObject), allowedTitles);
       } else if (tab.url) {
         setSectionTitle(tabId, tab.url);
       }
     } else if (objectName && allowedTitles.includes(changeInfo.title)) {
       // Stale parent-only title (e.g., "MyApp - Domo"), so enrich to the object name
       console.log(`[Background] Enriching stale title for tab ${tabId}`);
-      setTabTitle(tabId, objectName, allowedTitles);
+      setTabTitle(tabId, getTitleName(context.domoObject), allowedTitles);
     } else if (removeDomoTitleSuffix && changeInfo.title.endsWith(' - Domo')) {
       // Suffix setting on, so strip " - Domo" from any other Domo tab title
       stripTitleSuffix(tabId);
@@ -961,7 +970,7 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
       const context = getTabContext(tab.id);
       if (context?.domoObject?.metadata?.name) {
         const allowedTitles = buildAllowedTitles(context.domoObject);
-        setTabTitle(tab.id, context.domoObject.metadata.name, allowedTitles, true);
+        setTabTitle(tab.id, getTitleName(context.domoObject), allowedTitles, true);
         continue;
       }
       // Unmanaged page (no detected object): re-apply a section title if one
@@ -1293,9 +1302,11 @@ async function detectAndStoreContext(tabId) {
       }
     }
 
-    // Compose display name from template if configured
+    // Compose a tab-title display name from template if configured. This is kept
+    // separate from metadata.name so the context footer shows the object's own
+    // name while the tab title gets the parent-qualified form.
     if (typeModel.api?.displayName && domoObject.metadata?.parent?.name) {
-      domoObject.metadata.name = typeModel.api.displayName
+      domoObject.metadata.titleName = typeModel.api.displayName
         .replace('{parent.name}', domoObject.metadata.parent.name)
         .replace('{name}', domoObject.metadata.name || '')
         .replace('{id}', objectId);

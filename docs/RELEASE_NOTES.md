@@ -29,6 +29,8 @@
 ## UI Improvements
 
 - Renamed the "Worksheet Views" group to "Worksheets" in Get Card Pages.
+- App Pages and Worksheet Views now show just the page's own name in the context footer, keeping the parent app or worksheet name in the browser tab title only.
+- The browser tab title for App Pages and Worksheet Views now separates the app and page names with ">" instead of ":".
 
 ## Bug Fixes
 
