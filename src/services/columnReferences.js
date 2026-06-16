@@ -527,6 +527,14 @@ function walkForColumnRefs(node, onColumnRef, parentKey = null) {
 
   if (typeof node !== 'object') return;
 
+  // Magic ETL structured Field node: { type: 'Field', name: '<col>', table }
+  // (see columnFields.js header). Mirrors the rewriter: the column sits at
+  // `name` under `expression`, which the bare-`name` gate below skips, so
+  // collect it explicitly here. The Set dedupes if another branch also sees it.
+  if (node.type === 'Field' && typeof node.name === 'string') {
+    onColumnRef(stripBackticks(node.name));
+  }
+
   for (const [key, value] of Object.entries(node)) {
     // 1. Column-keyed objects — keys are column names.
     if (COLUMN_KEYED_FIELDS.has(key) && value && typeof value === 'object' && !Array.isArray(value)) {

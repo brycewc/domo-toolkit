@@ -541,6 +541,15 @@ function walkAndRewriteColumns(node, columnMap, parentKey = null) {
 
   if (typeof node !== 'object') return;
 
+  // Magic ETL structured Field node: { type: 'Field', name: '<col>', table }
+  // (see columnFields.js header). The column sits at `name` under `expression`,
+  // which the bare-`name` gate in the value-field branch skips, so rewrite it
+  // explicitly here. The subsequent key loop's `name` handling is gated out
+  // (parent isn't a column-list), so no double rewrite occurs.
+  if (node.type === 'Field' && typeof node.name === 'string') {
+    node.name = rewriteColumnName(node.name, columnMap);
+  }
+
   for (const [key, value] of Object.entries(node)) {
     // 1. Column-keyed objects — rename keys.
     if (COLUMN_KEYED_FIELDS.has(key) && value && typeof value === 'object' && !Array.isArray(value)) {
