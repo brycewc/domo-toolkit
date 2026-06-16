@@ -7,7 +7,7 @@ import { useUserLookup } from '@/hooks/useUserLookup';
 import { useWheelHorizontalScroll } from '@/hooks/useWheelHorizontalScroll';
 import { fetchObjectDetailsInPage, getObjectType } from '@/models/DomoObjectType';
 import { getTemplateApprovals } from '@/services/approvals';
-import { getDatasetColumns, getDatasetsForPage } from '@/services/datasets';
+import { getAccountDatasetDetails, getDatasetColumns, getDatasetsForPage } from '@/services/datasets';
 import { getJupyterWorkspaceAccounts, getJupyterWorkspaceDatasets } from '@/services/jupyterWorkspaces';
 import { executeInPage } from '@/utils/executeInPage';
 import { formatEpochTimestamp, formatTimestamp, isDateFieldName, isGroupFieldName, isUserFieldName } from '@/utils/general';
@@ -20,6 +20,7 @@ import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
 // seed its count from) an array already present in the object's details.
 const LAZY_ARRAY_FETCHERS = {
   datasetColumns: ({ objectId, tabId }) => getDatasetColumns({ datasetId: objectId, tabId }),
+  datasetsForAccountDetails: ({ details, tabId }) => getAccountDatasetDetails({ datasets: details?.accountDatasets, tabId }),
   datasetsForPage: ({ objectId, tabId }) => getDatasetsForPage({ pageId: objectId, tabId }),
   jupyterWorkspaceAccounts: ({ details, tabId }) =>
     getJupyterWorkspaceAccounts({ entries: details?.accountConfiguration, tabId }),

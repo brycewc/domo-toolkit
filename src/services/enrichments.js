@@ -5,6 +5,7 @@ import { getAppDbCollectionPermission } from './appDb';
 import { extractPageContentIds, getFormsForPage, getQueuesForPage } from './appStudio';
 import { getCardsForObject } from './cards';
 import { getDataflowPermission } from './dataflows';
+import { getDatasetsForAccount } from './datasets';
 import { getChildPages, getPagesForCards, getSubpageIds } from './pages';
 import { getUserReportsTo } from './users';
 import { getVersionDefinition, getWorkflowPermission } from './workflows';
@@ -28,6 +29,16 @@ import { getVersionDefinition, getWorkflowPermission } from './workflows';
  *   composition. After storing, the orchestrator checks if all content groups have resolved.
  */
 const ENRICHMENTS = [
+  // DataSets fed by an ACCOUNT, stored as a lightweight id+name list. The
+  // related-data tab seeds its count from this and bulk-loads full details lazily.
+  {
+    fallback: [],
+    fetch: ({ objectId, tabId }) => getDatasetsForAccount({ accountId: objectId, tabId }),
+    id: 'account-datasets',
+    storePath: 'details.accountDatasets',
+    types: ['ACCOUNT']
+  },
+
   // Stream parent for non-DataFlow DATA_SOURCE
   {
     fallback: undefined,

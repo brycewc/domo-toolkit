@@ -45,6 +45,41 @@ export async function deleteDataset({ datasetId, tabId = null }) {
 }
 
 /**
+ * Get full details for the datasets fed by an account.
+ *
+ * Takes the lightweight id+name list attached to the account during detection
+ * (the account-datasets endpoint returns only ids and names, everything else
+ * null) and bulk-fetches the complete dataset records so the related-data tab
+ * can show real owners, row counts, types, etc.
+ *
+ * @param {Object} params - Parameters
+ * @param {Array<{dataSourceId: string}>} params.datasets - Light dataset list from detection
+ * @param {number} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<Array<Object>>} Array of full dataset objects (empty if none)
+ */
+export async function getAccountDatasetDetails({ datasets, tabId }) {
+  const datasetIds = (datasets || []).map((ds) => ds.dataSourceId).filter(Boolean);
+  if (datasetIds.length === 0) return [];
+
+  return executeInPage(
+    async (datasetIds) => {
+      const response = await fetch('/api/data/v3/datasources/bulk?includePrivate=true&includeAllDetails=true', {
+        body: JSON.stringify(datasetIds),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST'
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch dataset details. HTTP status: ${response.status}`);
+      }
+      const data = await response.json();
+      return data.dataSources || [];
+    },
+    [datasetIds],
+    tabId
+  );
+}
+
+/**
  * Get the conditional-format ("color") rules for a dataset.
  * @param {string} datasetId - The dataset UUID
  * @param {number|null} [tabId] - Optional Chrome tab ID
@@ -198,6 +233,27 @@ export async function getDatasetPreview(datasetId, tabId = null, limit = 100) {
   );
 
   return { headers, rows };
+}
+
+/**
+ * Get the datasets fed by a connector account.
+ * @param {Object} params - Parameters
+ * @param {string|number} params.accountId - The account ID
+ * @param {number} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<Array<Object>>} Array of dataset objects (each keyed by dataSourceId/dataSourceName)
+ */
+export async function getDatasetsForAccount({ accountId, tabId }) {
+  return executeInPage(
+    async (accountId) => {
+      const response = await fetch(`/api/data/v2/datasources/account/${accountId}`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch datasets for account ${accountId}. HTTP status: ${response.status}`);
+      }
+      return response.json();
+    },
+    [accountId],
+    tabId
+  );
 }
 
 /**

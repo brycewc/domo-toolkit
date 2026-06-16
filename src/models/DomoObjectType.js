@@ -280,6 +280,15 @@ export const ObjectTypeRegistry = {
     api: { endpoint: '/data/v1/accounts/{id}', paths: { created: 'createdAt', name: 'name' } },
     icon: { component: 'Key' },
     idPattern: /^\d+$/,
+    relatedData: [
+      {
+        fetcher: 'datasetsForAccountDetails',
+        field: 'accountDatasets',
+        isArray: true,
+        itemTypeId: 'DATA_SOURCE',
+        label: 'DataSets'
+      }
+    ],
     urlPath: '/datacenter/accounts?id={id}'
   }),
   ACCOUNT_TEMPLATE: new DomoObjectType('ACCOUNT_TEMPLATE', 'Account Template', {
