@@ -25,6 +25,7 @@
 
 ### Supported Types
 
+- The toolkit now recognizes the account you have open when its edit or sharing dialog is showing.
 - Get DataSets now works on Jupyter Workspaces, listing their input and output datasets in separate groups.
 
 ## UI Improvements

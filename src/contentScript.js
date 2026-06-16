@@ -274,6 +274,12 @@ const MODAL_DETECTORS = [
     urlGuard: 'ai-services/jupyter'
   }),
 
+  // Account edit/share modal
+  createSimpleDetector({
+    selector: '[role="dialog"][class*="AccountModal"]',
+    urlGuard: 'datacenter/accounts'
+  }),
+
   // Code Engine version selector — triggers redetection when the selector
   // first appears (handles late rendering after initial page detection)
   {

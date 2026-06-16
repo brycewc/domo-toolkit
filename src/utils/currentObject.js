@@ -487,6 +487,36 @@ export async function detectCurrentObject() {
     case url.includes('cloud-integrations/'):
       objectType = 'WAREHOUSE_ACCOUNT';
       break;
+    case url.includes('datacenter/accounts'): {
+      const accountModal = document.querySelector('[role="dialog"][class*="AccountModal"]');
+      if (!accountModal) return null;
+
+      // Account ID lives only in the React fiber tree (props.account on an ancestor).
+      // The modal is portaled to <body>, so DOM traversal can't reach the account row.
+      // In create-account mode there is no account id, so detection yields no object.
+      const fiberKey = Object.keys(accountModal).find((k) => k.startsWith('__reactFiber'));
+      let accountId = null;
+      if (fiberKey) {
+        let fiber = accountModal[fiberKey];
+        for (let i = 0; i < 15 && fiber; i++) {
+          const account = fiber.memoizedProps?.account;
+          if (account?.entityType === 'account' && account.id) {
+            accountId = account.id;
+            break;
+          }
+          fiber = fiber.return;
+        }
+      }
+
+      if (!accountId) return null;
+
+      return {
+        baseUrl: `${location.protocol}//${location.hostname}`,
+        id: accountId,
+        typeId: 'ACCOUNT',
+        url
+      };
+    }
     case url.includes('workspaces/'):
       objectType = 'WORKSPACE';
       break;
