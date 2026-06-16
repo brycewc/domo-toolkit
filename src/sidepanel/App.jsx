@@ -15,6 +15,7 @@ import { GetDatasetsView } from '@/components/views/GetDatasetsView';
 import { GetPagesView } from '@/components/views/GetPagesView';
 import { GetViewInputsView } from '@/components/views/GetViewInputsView';
 import { LinkPreview } from '@/components/views/LinkPreview';
+import { ManageTagsView } from '@/components/views/ManageTagsView';
 import { MigrateDownstreamContentView } from '@/components/views/MigrateDownstreamContentView';
 import { ObjectDetailsView } from '@/components/views/ObjectDetailsView';
 import { OwnershipView } from '@/components/views/OwnershipView';
@@ -388,6 +389,17 @@ export default function App() {
 
         {slot.type === 'copyColorRules' && (
           <CopyColorRulesView
+            instance={instance}
+            isActive={isActive}
+            key={slot.viewKey}
+            onBackToDefault={backToDefault}
+            onStatusUpdate={showStatus}
+          />
+        )}
+
+        {slot.type === 'manageTags' && (
+          <ManageTagsView
+            currentContext={currentContext}
             instance={instance}
             isActive={isActive}
             key={slot.viewKey}

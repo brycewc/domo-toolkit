@@ -54,6 +54,7 @@ export function getAvailableActions(currentContext) {
   if (typeId === 'DATAFLOW_TYPE') {
     if (metadata?.permission?.mask & 2) {
       actions.add('updateDetails');
+      actions.add('manageTags');
     }
   } else if (typeId === 'DATA_SOURCE') {
     if (metadata?.isOwner || userRights.includes('dataset.admin')) {

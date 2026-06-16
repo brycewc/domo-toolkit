@@ -22,6 +22,7 @@ import { GetDatasets } from '@/components/functions/GetDatasets';
 import { GetOwnedObjects } from '@/components/functions/GetOwnedObjects';
 import { GetViewInputs } from '@/components/functions/GetViewInputs';
 import { LockCards } from '@/components/functions/LockCards';
+import { ManageTags } from '@/components/functions/ManageTags';
 import { MigrateDownstreamContent } from '@/components/functions/MigrateDownstreamContent';
 import { NavigateToCopiedObject } from '@/components/functions/NavigateToCopiedObject';
 import { RemoveEmptyStringsFromQuickFilters } from '@/components/functions/RemoveEmptyStringsFromQuickFilters';
@@ -210,6 +211,14 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                 )}
                 {availableActions.has('updateDetails') && (
                   <UpdateDetails currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
+                )}
+                {availableActions.has('manageTags') && (
+                  <ManageTags
+                    currentContext={currentContext}
+                    isDisabled={!isDomoPage}
+                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
+                    onStatusUpdate={onStatusUpdate}
+                  />
                 )}
                 {availableActions.has('copyFilteredUrl') && (
                   <CopyFilteredUrl

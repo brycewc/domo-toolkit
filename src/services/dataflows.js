@@ -201,6 +201,154 @@ export async function getOwnedDataflows(userId, tabId = null) {
 }
 
 /**
+ * Read the current tags on a DataFlow and a set of its datasets in one pass.
+ *
+ * The caller edits a single shared tag set and we write each object back with a
+ * full-replacement, so the "current" tags we read here are the baseline the new
+ * list is computed against. That makes an accurate read safety-critical: a wrong
+ * or missing read would clobber an object's real tags on save. So a hard read
+ * failure throws (the view surfaces it and offers retry), and any dataset the
+ * bulk endpoint omits is simply left out of the returned map rather than
+ * defaulted to empty, so the view can treat it as unreadable and never write it.
+ *
+ * @param {Object} params
+ * @param {string} params.dataflowId - The DataFlow ID
+ * @param {string[]} params.datasetIds - Dataset UUIDs to read (inputs and/or outputs)
+ * @param {number} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<{dataflow: string[], datasets: {[id: string]: string[]}}>}
+ */
+export async function getTagsForDataflowAndDatasets({ dataflowId, datasetIds = [], tabId = null }) {
+  return executeInPage(
+    async (dataflowId, datasetIds) => {
+      const dfResponse = await fetch(`/api/dataprocessing/v1/dataflows/${dataflowId}/tags`);
+      if (!dfResponse.ok) throw new Error(`Failed to read dataflow tags: HTTP ${dfResponse.status}`);
+      const dfData = await dfResponse.json();
+      const dataflow = Array.isArray(dfData?.tags) ? dfData.tags : [];
+
+      const datasets = {};
+      if (datasetIds.length > 0) {
+        const dsResponse = await fetch('/api/data/v3/datasources/bulk', {
+          body: JSON.stringify(datasetIds),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        });
+        if (!dsResponse.ok) throw new Error(`Failed to read dataset tags: HTTP ${dsResponse.status}`);
+        const dsData = await dsResponse.json();
+        // The bulk endpoint returns each dataset's tags as an escaped JSON string
+        // (e.g. "[\"Analytics\"]"), not a real array, so parse each one.
+        for (const ds of dsData?.dataSources || []) {
+          let tags;
+          try {
+            const parsed = JSON.parse(ds.tags || '[]');
+            tags = Array.isArray(parsed) ? parsed : [];
+          } catch {
+            tags = [];
+          }
+          datasets[ds.id] = tags;
+        }
+      }
+
+      return { dataflow, datasets };
+    },
+    [dataflowId, datasetIds],
+    tabId
+  );
+}
+
+/**
+ * Get tag suggestions for autocomplete: every tag used across datasets and
+ * dataflows in the instance, with usage counts, sorted most-used first.
+ * Best-effort: returns an empty list on any failure so the editor falls back to
+ * free text.
+ * @param {number} [tabId] - Optional Chrome tab ID
+ * @returns {Promise<Array<{count: number, value: string}>>}
+ */
+export async function getTagSuggestions(tabId = null) {
+  return executeInPage(
+    async () => {
+      try {
+        const response = await fetch('/api/search/v1/query', {
+          body: JSON.stringify({
+            count: 0,
+            entities: ['dataset', 'dataflow'],
+            facetValuesToInclude: ['TAG'],
+            query: '*'
+          }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        });
+        if (!response.ok) return [];
+        const data = await response.json();
+        const values = data?.facetMap?.TAG?.facetValues || [];
+        return values
+          .map((v) => ({ count: v.count || 0, value: v.value }))
+          .filter((v) => v.value)
+          .sort((a, b) => b.count - a.count);
+      } catch {
+        return [];
+      }
+    },
+    [],
+    tabId
+  );
+}
+
+/**
+ * Write a tag list to a DataFlow and/or a set of datasets (full replacement each).
+ * Each object is written independently and a failure on one is recorded without
+ * aborting the rest, mirroring the bulk-result shape used elsewhere.
+ * @param {Object} params
+ * @param {{id: string, name: string, tags: string[]}|null} params.dataflow - The dataflow to write, or null to skip
+ * @param {Array<{id: string, name: string, tags: string[]}>} params.datasets - Datasets to write
+ * @param {number} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<{errors: Array<{error: string, id: string, name: string}>, failed: number, succeeded: number}>}
+ */
+export async function setTagsForObjects({ dataflow = null, datasets = [], tabId = null }) {
+  return executeInPage(
+    async (dataflow, datasets) => {
+      const errors = [];
+      let failed = 0;
+      let succeeded = 0;
+
+      if (dataflow) {
+        try {
+          const response = await fetch(`/api/dataprocessing/v1/dataflows/${dataflow.id}/tags`, {
+            body: JSON.stringify({ flowId: Number(dataflow.id), tags: dataflow.tags }),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'PUT'
+          });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          succeeded++;
+        } catch (error) {
+          errors.push({ error: error.message, id: dataflow.id, name: dataflow.name });
+          failed++;
+        }
+      }
+
+      for (const ds of datasets) {
+        try {
+          // The single-dataset tags write takes a bare JSON array as its body.
+          const response = await fetch(`/api/data/ui/v3/datasources/${ds.id}/tags`, {
+            body: JSON.stringify(ds.tags),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'POST'
+          });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          succeeded++;
+        } catch (error) {
+          errors.push({ error: error.message, id: ds.id, name: ds.name });
+          failed++;
+        }
+      }
+
+      return { errors, failed, succeeded };
+    },
+    [dataflow, datasets],
+    tabId
+  );
+}
+
+/**
  * Ensure a user has access to every input dataset feeding the given dataflows.
  *
  * Owning a dataflow is useless if you can't read its inputs, so after a transfer

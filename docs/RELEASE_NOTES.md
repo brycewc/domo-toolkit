@@ -21,6 +21,7 @@
 - The lineage view can now export its full upstream and downstream lineage (with each object's level relative to the root) as a CSV, Excel, or JSON file.
 - The popup, side panel, and object details now show when the current object was created.
 - Transferring ownership of a dataflow now shares its input datasets with the new owner if they don't already have access.
+- Added Manage Tags for dataflows: add or remove tags on a dataflow and its output datasets together in one step.
 
 ### Supported Types
 
