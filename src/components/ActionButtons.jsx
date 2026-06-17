@@ -54,9 +54,9 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
   }, [defaultExpanded]);
 
   // Whether the panel has anything to show is measured from the rendered DOM,
-  // not from getAvailableActions alone: ApiErrors and DevMenu render
-  // unconditionally and manage their own visibility without re-rendering this
-  // component, so the count would otherwise miss them and leave the expand
+  // not from getAvailableActions alone: ApiErrors and DevMenu render outside of
+  // getAvailableActions (DevMenu manages its own visibility without re-rendering
+  // this component), so the count would otherwise miss them and leave the expand
   // toggle disabled when one of them is the only available action.
   useLayoutEffect(() => {
     const node = contentRef.current;
@@ -165,6 +165,12 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                 className='flex w-full flex-wrap place-items-center items-center justify-center gap-1 not-empty:mt-1 empty:hidden'
                 ref={contentRef}
               >
+                <ApiErrors
+                  currentContext={currentContext}
+                  isDisabled={!isDomoPage}
+                  onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
+                  onStatusUpdate={onStatusUpdate}
+                />
                 {availableActions.has('getCards') && (
                   <GetCards
                     currentContext={currentContext}
@@ -311,12 +317,6 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
-                <ApiErrors
-                  currentContext={currentContext}
-                  isDisabled={!isDomoPage}
-                  onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
-                  onStatusUpdate={onStatusUpdate}
-                />
                 {availableActions.has('removeEmptyStrings') && (
                   <RemoveEmptyStringsFromQuickFilters currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
                 )}

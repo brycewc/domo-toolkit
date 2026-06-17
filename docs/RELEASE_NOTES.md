@@ -41,6 +41,7 @@
 - Nested group headers in result lists are now slightly lighter than top-level headers, making the grouping hierarchy easier to read at a glance.
 - The theme dropdown in settings now shows an icon next to each option.
 - The favicon effect dropdown now shows an icon next to each option.
+- The View Errors button now always shows at the top of the expanded actions, disabled with a 0 count when there are no errors, instead of appearing only when errors exist.
 
 ## Bug Fixes
 
