@@ -553,6 +553,28 @@ export async function getProviders() {
 }
 
 /**
+ * Fetch a stream's full definition. The account a connector-backed dataset pulls
+ * from lives on this object, so it's the source of truth for switching accounts.
+ * @param {Object} params
+ * @param {string|number} params.streamId - The stream ID
+ * @param {number} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<Object>} The stream definition
+ */
+export async function getStreamDefinition({ streamId, tabId }) {
+  return executeInPage(
+    async (streamId) => {
+      const response = await fetch(`/api/data/v1/streams/${streamId}?fields=all`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch stream ${streamId}. HTTP status: ${response.status}`);
+      }
+      return response.json();
+    },
+    [streamId],
+    tabId
+  );
+}
+
+/**
  * Get a single stream execution's detailed data
  * @param {Object} params - Parameters
  * @param {string|number} params.streamId - The stream ID
@@ -808,5 +830,78 @@ export async function updateDatasetProperties(datasetId, updates) {
       return res.json().catch(() => null);
     },
     [datasetId, JSON.stringify(updates)]
+  );
+}
+
+/**
+ * Swap the account(s) a stream pulls from. Re-points one or more of the stream's
+ * existing accounts at new ones, leaving every other field of the definition
+ * untouched, then PUTs the definition back (the same GET-mutate-PUT contract
+ * `setStreamScheduleToManual` uses).
+ *
+ * A stream definition often carries both a singular `account` object and an
+ * `accounts` array. The array is authoritative when populated: an empty `accounts`
+ * means the stream uses the singular `account` (so we rewrite `account.id`),
+ * otherwise we rewrite the matching entries in `accounts`.
+ *
+ * `accountChanges` maps an existing accountId to its replacement. We throw if no id
+ * matched, since a zero-match PUT would silently report success without changing
+ * anything.
+ *
+ * @param {Object} params
+ * @param {string|number} params.streamId - The stream ID
+ * @param {Object} params.accountChanges - Map of oldAccountId -> newAccountId
+ * @param {number} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<Object>} The updated stream definition
+ */
+export async function updateStreamAccounts({ accountChanges, streamId, tabId }) {
+  return executeInPage(
+    async (streamId, changes) => {
+      const getResponse = await fetch(`/api/data/v1/streams/${streamId}?fields=all`);
+      if (!getResponse.ok) {
+        throw new Error(`Failed to fetch stream ${streamId}. HTTP status: ${getResponse.status}`);
+      }
+      const definition = await getResponse.json();
+
+      // `changes` arrives as string-keyed pairs (JSON object keys are strings),
+      // so compare ids loosely against both the numeric and string forms.
+      const replacementFor = (id) => {
+        if (id == null) return undefined;
+        return changes[id] ?? changes[String(id)];
+      };
+      let replaced = 0;
+
+      if (Array.isArray(definition.accounts) && definition.accounts.length > 0) {
+        definition.accounts = definition.accounts.map((entry) => {
+          if (!entry || typeof entry !== 'object') return entry;
+          const next = replacementFor(entry.accountId ?? entry.id);
+          if (next == null) return entry;
+          replaced++;
+          return 'accountId' in entry ? { ...entry, accountId: next } : { ...entry, id: next };
+        });
+      } else if (definition.account && typeof definition.account === 'object') {
+        const next = replacementFor(definition.account.id);
+        if (next != null) {
+          definition.account = { ...definition.account, id: next };
+          replaced++;
+        }
+      }
+
+      if (replaced === 0) {
+        throw new Error('Could not locate the account on the stream definition to switch.');
+      }
+
+      const putResponse = await fetch(`/api/data/v1/streams/${streamId}`, {
+        body: JSON.stringify(definition),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'PUT'
+      });
+      if (!putResponse.ok) {
+        throw new Error(`Failed to update stream ${streamId}. HTTP status: ${putResponse.status}`);
+      }
+      return putResponse.json();
+    },
+    [streamId, accountChanges],
+    tabId
   );
 }

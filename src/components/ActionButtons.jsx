@@ -28,6 +28,7 @@ import { NavigateToCopiedObject } from '@/components/functions/NavigateToCopiedO
 import { RemoveEmptyStringsFromQuickFilters } from '@/components/functions/RemoveEmptyStringsFromQuickFilters';
 import { SetStreamToManual } from '@/components/functions/SetStreamToManual';
 import { ShareWithSelf } from '@/components/functions/ShareWithSelf';
+import { SwitchAccount } from '@/components/functions/SwitchAccount';
 import { Sync } from '@/components/functions/Sync';
 import { TransferOwnership } from '@/components/functions/TransferOwnership';
 import { UpdateCodeEngineVersions } from '@/components/functions/UpdateCodeEngineVersions';
@@ -273,6 +274,9 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                     isDisabled={!isDomoPage}
                     onStatusUpdate={onStatusUpdate}
                   />
+                )}
+                {availableActions.has('switchAccount') && (
+                  <SwitchAccount currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('updateCodeEngineVersions') && (
                   <UpdateCodeEngineVersions

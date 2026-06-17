@@ -19,6 +19,7 @@ import { ManageTagsView } from '@/components/views/ManageTagsView';
 import { MigrateDownstreamContentView } from '@/components/views/MigrateDownstreamContentView';
 import { ObjectDetailsView } from '@/components/views/ObjectDetailsView';
 import { OwnershipView } from '@/components/views/OwnershipView';
+import { SwitchAccountView } from '@/components/views/SwitchAccountView';
 import { UpdateCodeEngineVersionsView } from '@/components/views/UpdateCodeEngineVersionsView';
 import { UpdateDetailsView } from '@/components/views/UpdateDetailsView';
 import { useReleaseNotification } from '@/hooks/useReleaseNotification';
@@ -432,6 +433,16 @@ export default function App() {
         {slot.type === 'migrateDownstream' && (
           <MigrateDownstreamContentView
             currentContext={currentContext}
+            instance={instance}
+            isActive={isActive}
+            key={slot.viewKey}
+            onBackToDefault={backToDefault}
+            onStatusUpdate={showStatus}
+          />
+        )}
+
+        {slot.type === 'switchAccount' && (
+          <SwitchAccountView
             instance={instance}
             isActive={isActive}
             key={slot.viewKey}

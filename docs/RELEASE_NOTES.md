@@ -22,6 +22,7 @@
 - The popup, side panel, and object details now show when the current object was created.
 - Transferring ownership of a dataflow now shares its input datasets with the new owner if they don't already have access.
 - Added Manage Tags for dataflows: add or remove tags on a dataflow and its output datasets together in one step.
+- Admins can now switch a dataset to any compatible account in the instance, without first sharing that account with themselves.
 
 ### Supported Types
 

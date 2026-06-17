@@ -1,3 +1,5 @@
+import { getAccountIdsForDomoObject } from '@/services/accounts';
+
 /**
  * Determine which expandable action buttons are available for the current context.
  * Returns a Set of action keys. Used for both rendering the main action bar and
@@ -40,6 +42,9 @@ export function getAvailableActions(currentContext) {
     }
     if (details?.streamId && metadata?.parent?.details?.scheduleState !== 'MANUAL') {
       actions.add('setStreamToManual');
+    }
+    if (userRights.includes('account.admin') && getAccountIdsForDomoObject(currentContext.domoObject).length > 0) {
+      actions.add('switchAccount');
     }
   }
 
