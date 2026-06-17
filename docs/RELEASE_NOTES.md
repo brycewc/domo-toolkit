@@ -46,5 +46,9 @@
 - Migrating downstream content now remaps column references inside fused views (DataFusions) instead of leaving them pointing at the old dataset, and flags any fused view that uses the dataset in a calculated column for manual review.
 - Approvals and Approval Templates no longer appear as failing rows in Objects Owned and Transfer Ownership on instances that don't have Approvals enabled.
 - The Activity Log no longer briefly flashes scroll bars across the page while it loads.
+- Nested dataset Beast Modes now migrate in the right order so they, and the cards that use them, transfer cleanly.
+- Magic ETL sort columns now get renamed during migration along with the rest of the dataflow.
 
 ### Other Fixes
+
+- Refreshing a Domo page now retries fetching the object's name and details when an earlier attempt came up empty, instead of staying blank until you navigate away.

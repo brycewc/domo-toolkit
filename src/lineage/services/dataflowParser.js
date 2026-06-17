@@ -349,8 +349,12 @@ function parseTile(action) {
       break;
 
     case 'Order':
-      if (Array.isArray(action.fields)) {
-        tile.columns = action.fields.map((f) => (typeof f === 'string' ? f : f.name || '')).filter(Boolean);
+      // Order tiles hold their sort columns at `orderBy[].expression` (a
+      // structured Field node), not `action.fields`.
+      if (Array.isArray(action.orderBy)) {
+        tile.columns = action.orderBy.map((o) => toFieldName(o?.expression)).filter(Boolean);
+      } else if (Array.isArray(action.fields)) {
+        tile.columns = action.fields.map(toFieldName).filter(Boolean);
       }
       break;
 

@@ -911,6 +911,19 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     await detectAndStoreContext(tabId);
   }
 
+  // A page refresh reloads the same URL, so `changeInfo.url` never fires and the
+  // branch above is skipped. If an earlier detection left the context without a
+  // resolved object name (a transient API/auth failure, or the page wasn't ready
+  // when detection first ran), use the reload completing as a retry point so the
+  // name and metadata get fetched again.
+  if (changeInfo.status === 'complete' && isDomoUrl(tab.url)) {
+    const context = getTabContext(tabId);
+    if (context && !context.domoObject?.metadata?.name) {
+      console.log(`[Background] Tab ${tabId} reloaded without resolved object metadata, retrying detection`);
+      await detectAndStoreContext(tabId);
+    }
+  }
+
   // Update the title when Domo resets it to "Domo", leaves a stale parent-only
   // title, or (with the suffix setting on) tacks " - Domo" onto any other page.
   if (changeInfo.title && isDomoUrl(tab.url)) {

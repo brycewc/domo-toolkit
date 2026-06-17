@@ -9,7 +9,7 @@
 import { executeInPage } from '@/utils/executeInPage';
 
 import { getCardDefinition } from './cards';
-import { extractDataflowColumnRefs, makeItemKey } from './columnReferences';
+import { extractDataflowColumnRefs, isFusionView, makeItemKey } from './columnReferences';
 import {
   hasEffectiveMapping,
   removeCardColumns,
@@ -523,6 +523,34 @@ export async function swapDatasetViewInput({
   }
 }
 
+/**
+ * Swap a data fusion's input dataset, optionally rewriting column references.
+ *
+ * Fusions are a distinct object from template/SQL views with their own edit
+ * model and endpoint (`/api/query/v1/fusions/{id}`), so this path never touches
+ * the template-view PUT. It fetches the native fusion definition, repoints the
+ * origin input id and rewrites only that input's column refs (join predicates
+ * and `columnList[].fuseMapping`), and PUTs the native shape back. Output column
+ * names and the other input's columns are preserved.
+ *
+ * @param {Object} params
+ * @param {string} params.fusionId
+ * @param {string} params.originId
+ * @param {string} params.targetId
+ * @param {Record<string, string|null>} [params.columnMap]
+ * @param {Record<string, string>} [params.targetColumnTypes] - Map of NEW column name → target type.
+ * @param {number|null} [params.tabId]
+ * @returns {Promise<{success: boolean, error?: string}>}
+ */
+export async function swapFusionInput({ columnMap, fusionId, originId, tabId = null, targetColumnTypes, targetId }) {
+  try {
+    const definition = await fetchFusionDefinitionInPage(fusionId, tabId);
+    return await putFusionInPage(fusionId, definition, originId, targetId, columnMap, targetColumnTypes, tabId);
+  } catch (err) {
+    return { error: err?.message || String(err), success: false };
+  }
+}
+
 async function fetchDataflowDefinitionInPage(dataflowId, tabId) {
   return executeInPage(
     async (dataflowId) => {
@@ -548,6 +576,18 @@ async function fetchDatasetViewDefinitionInPage(viewId, tabId) {
       return response.json();
     },
     [viewId],
+    tabId
+  );
+}
+
+async function fetchFusionDefinitionInPage(fusionId, tabId) {
+  return executeInPage(
+    async (fusionId) => {
+      const response = await fetch(`/api/query/v1/fusions/${fusionId}`, { credentials: 'include' });
+      if (!response.ok) throw new Error(`GET fusion HTTP ${response.status}`);
+      return response.json();
+    },
+    [fusionId],
     tabId
   );
 }
@@ -806,6 +846,108 @@ async function putDatasetViewInPage(viewId, viewDefinition, originId, targetId, 
   );
 }
 
+/**
+ * PUT a data fusion's native definition back with its input repointed and the
+ * origin input's column refs rewritten. Operates on the native fusion shape
+ * (`columnFuse` + `columnList`), NOT the compiled `/schema/indexed` shape the
+ * template-view PUT uses, which is what broke fusions with `Invalid alias
+ * 'mapping'`.
+ *
+ * Column rewrites are scoped to the ORIGIN input (identified by its dataSource
+ * id) so the other input's columns are never touched:
+ *   - `columnList[].fuseMapping.columnName` where `fuseMapping.dataSource` is the
+ *     origin (and its declared `type` when the remap crosses a type boundary).
+ *   - the origin side of each join predicate (`leftColumn` when
+ *     `leftDataSource` is origin, else `rightColumn`).
+ * Output column names (`columnList[].name`) are the view's own and stay put.
+ * After the scoped rewrite, the origin input id is swept to the target (UUID, so
+ * a string sweep is collision-safe) and validation is disabled on save.
+ */
+async function putFusionInPage(fusionId, fusionDefinition, originId, targetId, columnMap, targetColumnTypes, tabId) {
+  return executeInPage(
+    async (fusionId, fusionDefinition, originId, targetId, columnMap, targetColumnTypes) => {
+      try {
+        const stripTicks = (s) =>
+          typeof s === 'string' && s.length >= 2 && s.startsWith('`') && s.endsWith('`') ? s.slice(1, -1) : s;
+        const originClean = stripTicks(originId);
+        const map = columnMap || {};
+        const types = targetColumnTypes || {};
+        const remapColumn = (name) => {
+          if (typeof name !== 'string') return name;
+          const wasTicked = name.length >= 2 && name.startsWith('`') && name.endsWith('`');
+          const bare = wasTicked ? name.slice(1, -1) : name;
+          const to = map[bare];
+          if (to == null || to === bare) return name;
+          return wasTicked ? `\`${to}\`` : to;
+        };
+
+        const payload = JSON.parse(JSON.stringify(fusionDefinition));
+
+        const rewrite = (node) => {
+          if (Array.isArray(node)) {
+            for (const item of node) rewrite(item);
+            return;
+          }
+          if (!node || typeof node !== 'object') return;
+          // columnList entry: { name, type, fuseMapping: { dataSource, columnName } }
+          if (
+            node.fuseMapping &&
+            typeof node.fuseMapping === 'object' &&
+            stripTicks(node.fuseMapping.dataSource) === originClean &&
+            typeof node.fuseMapping.columnName === 'string'
+          ) {
+            const oldCol = stripTicks(node.fuseMapping.columnName);
+            const newCol = map[oldCol];
+            if (newCol != null && newCol !== oldCol) {
+              node.fuseMapping.columnName = remapColumn(node.fuseMapping.columnName);
+              const newType = types[newCol];
+              if (newType && typeof node.type === 'string' && node.type !== newType) node.type = newType;
+            }
+          }
+          // columnFuse node: { type, leftDataSource, rightDataSource, predicates }
+          if (Array.isArray(node.predicates) && (node.leftDataSource || node.rightDataSource)) {
+            const leftIsOrigin = stripTicks(node.leftDataSource) === originClean;
+            const rightIsOrigin = stripTicks(node.rightDataSource) === originClean;
+            for (const predicate of node.predicates) {
+              if (!predicate || typeof predicate !== 'object') continue;
+              if (leftIsOrigin && typeof predicate.leftColumn === 'string') {
+                predicate.leftColumn = remapColumn(predicate.leftColumn);
+              }
+              if (rightIsOrigin && typeof predicate.rightColumn === 'string') {
+                predicate.rightColumn = remapColumn(predicate.rightColumn);
+              }
+            }
+          }
+          for (const v of Object.values(node)) rewrite(v);
+        };
+        rewrite(payload);
+
+        const updated = JSON.parse(JSON.stringify(payload).replaceAll(originId, targetId));
+        updated.validate = false;
+        // The fusion edit endpoint requires the type discriminator; default it if
+        // the GET response (which is otherwise round-tripped verbatim) omits it.
+        if (!updated.dataSourceType) updated.dataSourceType = 'datafusion';
+
+        const putResponse = await fetch(`/api/query/v1/fusions/${fusionId}`, {
+          body: JSON.stringify(updated),
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          method: 'PUT'
+        });
+        if (!putResponse.ok) {
+          const text = await putResponse.text().catch(() => '');
+          return { error: `PUT fusion HTTP ${putResponse.status}: ${text}`.trim(), success: false };
+        }
+        return { success: true };
+      } catch (err) {
+        return { error: err?.message || String(err), success: false };
+      }
+    },
+    [fusionId, fusionDefinition, originId, targetId, columnMap, targetColumnTypes],
+    tabId
+  );
+}
+
 async function swapCardInputFast(cardId, originId, targetId, tabId) {
   return executeInPage(
     async (cardId, originId, targetId) => {
@@ -979,14 +1121,28 @@ export async function migrateAllDownstreamContent({
 
 /**
  * Build a Beast Mode create/update entry from a (column-rewritten) origin
- * template: sweep origin-dataset-id references onto the target (catches the
+ * template: first repoint references to OTHER beast modes (origin
+ * `calculation_<uuid>` → the target id they were created under, via `idRemap`),
+ * then sweep origin-dataset-id references onto the target (catches the
  * `DATA_SOURCE` link and any embedded ids, same approach as the card/view
  * swaps), drop server-managed timestamps, set the name, and set the owner
  * to the current user. Callers handle `id`/`legacyId` (deleted for create,
  * set to the target's for overwrite).
+ *
+ * The id-remap sweep runs BEFORE the dataset-id sweep so a nested beast mode's
+ * embedded reference points at the already-created target beast mode; the
+ * target `calculation_<uuid>` tokens don't contain `originId`, so the dataset
+ * sweep can't corrupt them.
  */
-function buildBeastModeEntry(template, { currentUserId, name, originId, targetId }) {
-  const entry = JSON.parse(JSON.stringify(template).replaceAll(originId, targetId));
+function buildBeastModeEntry(template, { currentUserId, idRemap, name, originId, targetId }) {
+  let json = JSON.stringify(template);
+  if (idRemap) {
+    for (const [from, to] of Object.entries(idRemap)) {
+      if (from && to && from !== to) json = json.replaceAll(from, to);
+    }
+  }
+  json = json.replaceAll(originId, targetId);
+  const entry = JSON.parse(json);
   delete entry.created;
   delete entry.lastModified;
   entry.name = name;
@@ -1044,6 +1200,42 @@ function countRemappedColumns(definition, columnMap, originId, engine) {
   return count;
 }
 
+/**
+ * Route a downstream dataset to the correct swap path. Downstream datasets are
+ * always derived (template/SQL views or data-fusions); fusions need their own
+ * native edit endpoint, so detect fusion-ness from the indexed schema (cached by
+ * the column scan, fetched here only if absent) and branch.
+ */
+async function dispatchDatasetSwap(item, options) {
+  let indexed = options.cachedDefinition;
+  if (!indexed) {
+    try {
+      indexed = await fetchDatasetViewDefinitionInPage(item.id, options.tabId);
+    } catch (err) {
+      return { error: err?.message || String(err), success: false };
+    }
+  }
+  if (isFusionView(indexed)) {
+    return swapFusionInput({
+      columnMap: options.columnMap,
+      fusionId: item.id,
+      originId: options.originId,
+      tabId: options.tabId,
+      targetColumnTypes: options.targetColumnTypes,
+      targetId: options.targetId
+    });
+  }
+  return swapDatasetViewInput({
+    cachedDefinition: indexed,
+    columnMap: options.columnMap,
+    originId: options.originId,
+    tabId: options.tabId,
+    targetColumnTypes: options.targetColumnTypes,
+    targetId: options.targetId,
+    viewId: item.id
+  });
+}
+
 async function dispatchSwap(typeKey, item, options) {
   if (typeKey === 'cards') {
     return swapCardInput({
@@ -1060,17 +1252,13 @@ async function dispatchSwap(typeKey, item, options) {
     });
   }
   if (typeKey === 'datasets') {
-    // Downstream datasets are always views/data-fusions, so the view-definition
-    // swap (recursive selectBody, joins, column refs) is the right path.
-    return swapDatasetViewInput({
-      cachedDefinition: options.cachedDefinition,
-      columnMap: options.columnMap,
-      originId: options.originId,
-      tabId: options.tabId,
-      targetColumnTypes: options.targetColumnTypes,
-      targetId: options.targetId,
-      viewId: item.id
-    });
+    // Fusions and template/SQL views are different objects with different edit
+    // APIs, not variants of one shape. A fusion saved through the template-view
+    // PUT round-trips its compiled internal projection (aliased `mapping`) and
+    // Domo rejects it ("Invalid alias 'mapping'"), so route fusions to their own
+    // native path. Detect from the cached indexed schema (the scan caches it);
+    // fall back to fetching it when no cache is present.
+    return dispatchDatasetSwap(item, options);
   }
   if (typeKey === 'dataflows') {
     return swapDataflowInput({
@@ -1088,6 +1276,27 @@ async function dispatchSwap(typeKey, item, options) {
 }
 
 /**
+ * Pull the created-function entries out of a `POST /functions/bulk/template`
+ * response, in request order, so callers can resolve new legacyIds positionally
+ * (collision-safe when duplicate names exist). Tolerant of the response being a
+ * bare array or wrapping the created list under a known key.
+ */
+function extractCreatedFunctions(response) {
+  if (!response) return [];
+  if (Array.isArray(response)) return response;
+  for (const key of ['create', 'created', 'functions', 'results', 'templates']) {
+    if (Array.isArray(response[key])) return response[key];
+  }
+  return [];
+}
+
+/** Read a Beast Mode entry's `legacyId` (the `calculation_<uuid>`), if present. */
+function getEntryLegacyId(entry) {
+  if (!entry || typeof entry !== 'object') return null;
+  return entry.legacyId || entry.template?.legacyId || null;
+}
+
+/**
  * Migrate dataset-saved Beast Modes onto the target, returning an id remap
  * (origin legacyId → target legacyId) the card swap uses to repoint references.
  *
@@ -1096,9 +1305,20 @@ async function dispatchSwap(typeKey, item, options) {
  *   - keep:      reuse the same-named Beast Mode already on the target.
  *   - overwrite: replace that target Beast Mode's definition with this one.
  *   - create / rename (default): create a new Beast Mode on the target.
- * Column refs are rewritten via `columnMap` before any write. New legacyIds are
- * resolved by re-reading the target's Beast Modes and matching on name, so the
- * create response shape isn't relied on.
+ * Column refs are rewritten via `columnMap` before any write.
+ *
+ * Nested Beast Modes (one whose formula references another, e.g.
+ * `bm3 = CONCAT(\`bm1\`, \`bm2\`)`) embed the ORIGIN `calculation_<uuid>` of the
+ * Beast Modes they reference, which doesn't exist on the target. To handle them:
+ *   1. keep/overwrite mappings are seeded into `idRemap` up front (their target
+ *      ids are known immediately), so any create that references them resolves.
+ *   2. creates are split into dependency-ordered WAVES (Kahn topological sort on
+ *      "B references A's origin legacyId"); each wave is built with the
+ *      accumulated `idRemap` applied, so its references point at the target ids
+ *      of already-created Beast Modes.
+ *   3. after each wave's create, new legacyIds are resolved positionally from
+ *      the order-preserving bulk response (collision-safe for duplicate names),
+ *      falling back to a name re-read only for any the response didn't surface.
  */
 async function migrateBeastModes({
   beastModeChoices,
@@ -1129,6 +1349,10 @@ async function migrateBeastModes({
     if (origin?.legacyId && target?.legacyId) idRemap[origin.legacyId] = target.legacyId;
   };
 
+  // Classify each selected Beast Mode. keep/overwrite seed `idRemap` immediately
+  // (their target ids are known), so dependent creates can reference them; the
+  // actual overwrite writes are deferred until after creates so an overwrite that
+  // references a freshly-created Beast Mode also resolves.
   for (const bm of selectedBeastModes) {
     try {
       const cached = definitionsByItemKey?.get?.(makeItemKey('beastModes', bm.id))?.definition;
@@ -1154,58 +1378,153 @@ async function migrateBeastModes({
           errors.push({ error: `No Beast Mode named "${bm.name}" on the target to overwrite`, id: bm.id });
           continue;
         }
-        const entry = buildBeastModeEntry(rewritten, { currentUserId, name: bm.name, originId, targetId });
-        entry.id = existing.id;
-        entry.legacyId = existing.legacyId;
-        toUpdate.push({ entry, origin: bm, target: existing });
+        // Seed the remap now (the target Beast Mode already exists regardless of
+        // whether the overwrite write succeeds); build the entry after creates.
+        mapLegacyId(bm, existing);
+        toUpdate.push({ name: bm.name, origin: bm, target: existing, template: rewritten });
         continue;
       }
 
       // create (default) or rename
       const name = disposition === 'rename' && choice.newName ? choice.newName : bm.name;
-      const entry = buildBeastModeEntry(rewritten, { currentUserId, name, originId, targetId });
-      delete entry.id;
-      delete entry.legacyId;
-      toCreate.push({ entry, name, origin: bm });
+      toCreate.push({ name, origin: bm, template: rewritten });
     } catch (err) {
       errors.push({ error: err?.message || String(err), id: bm.id });
     }
   }
 
-  if (toUpdate.length > 0) {
-    try {
-      await updateDatasetFunctions({ functions: toUpdate.map((u) => u.entry), tabId });
-      for (const u of toUpdate) {
-        mapLegacyId(u.origin, u.target);
-        succeeded++;
+  // Create in dependency-ordered waves, extending `idRemap` after each wave.
+  if (toCreate.length > 0) {
+    const waves = orderBeastModeCreateWaves(toCreate);
+    const unresolved = [];
+    for (const wave of waves) {
+      const entries = wave.map((c) => {
+        const entry = buildBeastModeEntry(c.template, { currentUserId, idRemap, name: c.name, originId, targetId });
+        delete entry.id;
+        delete entry.legacyId;
+        return entry;
+      });
+      let response;
+      try {
+        response = await createDatasetFunctions({ functions: entries, tabId });
+      } catch (err) {
+        for (const c of wave) errors.push({ error: err?.message || String(err), id: c.origin.id });
+        continue;
       }
+      // Prefer the order-preserving bulk response (collision-safe for duplicate
+      // names); anything it doesn't surface falls through to a name re-read.
+      const created = extractCreatedFunctions(response);
+      for (let i = 0; i < wave.length; i++) {
+        const c = wave[i];
+        const newLegacyId = getEntryLegacyId(created[i]);
+        if (newLegacyId && c.origin?.legacyId) {
+          idRemap[c.origin.legacyId] = newLegacyId;
+          succeeded++;
+        } else {
+          unresolved.push(c);
+        }
+      }
+    }
+
+    if (unresolved.length > 0) {
+      try {
+        const refreshed = await getDatasetFunctions(targetId, tabId);
+        const refByName = new Map(refreshed.map((b) => [b.name, b]));
+        for (const c of unresolved) {
+          const found = refByName.get(c.name);
+          if (found) {
+            mapLegacyId(c.origin, found);
+            succeeded++;
+          } else {
+            errors.push({ error: `Created Beast Mode "${c.name}" not found on the target`, id: c.origin.id });
+          }
+        }
+      } catch (err) {
+        for (const c of unresolved) errors.push({ error: err?.message || String(err), id: c.origin.id });
+      }
+    }
+  }
+
+  // Overwrites run last so their references to freshly-created Beast Modes
+  // resolve through the now-complete `idRemap`.
+  if (toUpdate.length > 0) {
+    const entries = toUpdate.map((u) => {
+      const entry = buildBeastModeEntry(u.template, { currentUserId, idRemap, name: u.name, originId, targetId });
+      entry.id = u.target.id;
+      entry.legacyId = u.target.legacyId;
+      return entry;
+    });
+    try {
+      await updateDatasetFunctions({ functions: entries, tabId });
+      // idRemap was already seeded for overwrites during classification.
+      succeeded += toUpdate.length;
     } catch (err) {
       for (const u of toUpdate) errors.push({ error: err?.message || String(err), id: u.origin.id });
     }
   }
 
-  if (toCreate.length > 0) {
-    try {
-      await createDatasetFunctions({ functions: toCreate.map((c) => c.entry), tabId });
-      // Re-read the target's Beast Modes and match newly created ones by name
-      // to resolve their legacyIds (the create response shape isn't relied on).
-      const refreshed = await getDatasetFunctions(targetId, tabId);
-      const refByName = new Map(refreshed.map((b) => [b.name, b]));
-      for (const c of toCreate) {
-        const created = refByName.get(c.name);
-        if (created) {
-          mapLegacyId(c.origin, created);
-          succeeded++;
-        } else {
-          errors.push({ error: `Created Beast Mode "${c.name}" not found on the target`, id: c.origin.id });
-        }
-      }
-    } catch (err) {
-      for (const c of toCreate) errors.push({ error: err?.message || String(err), id: c.origin.id });
+  return { errors, idRemap, succeeded };
+}
+
+/**
+ * Split Beast Mode create records into dependency-ordered waves so a nested
+ * Beast Mode is always created AFTER the ones it references. Dependency `B → A`
+ * is detected when B's (column-rewritten) template embeds A's origin
+ * `legacyId` (`calculation_<uuid>`) — a collision-safe token, mirroring the
+ * card-swap reference sweep. Waves are emitted via Kahn's algorithm: each wave
+ * is the set of records whose dependencies have all been emitted. A dependency
+ * cycle (which Domo itself forbids for Beast Modes) can't drain to empty, so the
+ * remaining records are emitted as one final wave in their original order and
+ * the existing per-create error path reports any that then fail.
+ *
+ * @param {Array<{name: string, origin: {id: any, legacyId?: string}, template: Object}>} createRecords
+ * @returns {Array<Array<{name: string, origin: Object, template: Object}>>}
+ */
+function orderBeastModeCreateWaves(createRecords) {
+  const n = createRecords.length;
+  const tokens = createRecords.map((r) => r.origin?.legacyId || null);
+  const serialized = createRecords.map((r) => JSON.stringify(r.template));
+  // deps[i] = set of indices record i depends on (references).
+  const deps = createRecords.map(() => new Set());
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      if (i === j) continue;
+      if (tokens[j] && serialized[i].includes(tokens[j])) deps[i].add(j);
     }
   }
 
-  return { errors, idRemap, succeeded };
+  const remaining = new Set(Array.from({ length: n }, (_, i) => i));
+  const emitted = new Set();
+  const waves = [];
+  while (remaining.size > 0) {
+    const wave = [];
+    for (const i of remaining) {
+      let ready = true;
+      for (const d of deps[i]) {
+        if (!emitted.has(d)) {
+          ready = false;
+          break;
+        }
+      }
+      if (ready) wave.push(i);
+    }
+    if (wave.length === 0) {
+      // Cycle (or self-reference) — emit the rest in original order and let the
+      // create path surface any failure.
+      waves.push(
+        Array.from(remaining)
+          .sort((a, b) => a - b)
+          .map((i) => createRecords[i])
+      );
+      break;
+    }
+    for (const i of wave) {
+      remaining.delete(i);
+      emitted.add(i);
+    }
+    waves.push(wave.map((i) => createRecords[i]));
+  }
+  return waves;
 }
 
 /** Set the auditable version-history comment on the dataflow's new version. */
