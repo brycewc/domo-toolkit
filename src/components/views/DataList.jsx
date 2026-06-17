@@ -1309,6 +1309,18 @@ function DataListItemImpl({
     virtualThreshold
   });
 
+  // When this row's only populated subcategory is a single virtual parent (the
+  // others empty and hidden, e.g. a Beast Mode used only on cards), seed that
+  // lone subcategory into the child group's initial expansion so it opens
+  // together with this row instead of needing a second click. React Aria's
+  // DisclosureGroup owns expansion once mounted and ignores a per-Disclosure
+  // `isExpanded`, so this is the seam that actually drives it: the child group
+  // mounts with the row (collapsed bodies stay mounted, just hidden), reading
+  // these keys once. Deeper chains resolve on their own, each level seeds its
+  // own child group, so a sole child that itself has a sole child opens too.
+  const soleChildId = soleVirtualChildId(item);
+  const childGroupExpandedKeys = soleChildId ? [...(defaultExpandedIds ?? []), soleChildId] : defaultExpandedIds;
+
   return (
     <Disclosure
       className='space-0 w-full'
@@ -1511,7 +1523,7 @@ function DataListItemImpl({
             <DisclosureGroup
               allowsMultipleExpanded={allowsMultipleExpanded}
               className='flex w-full flex-col divide-y divide-border'
-              defaultExpandedKeys={defaultExpandedIds}
+              defaultExpandedKeys={childGroupExpandedKeys}
             >
               {item.children.length > virtualThreshold ? (
                 <VirtualizedItems
@@ -1575,6 +1587,20 @@ function isItemShareable(item) {
   if (item.unshareable === true) return false;
   if (Number(item.id) < 0) return false;
   return SHAREABLE_TYPES.has(item.typeId);
+}
+
+/**
+ * Returns the id of `item`'s sole populated subcategory, or null. A match means
+ * `item` has exactly one virtual-parent child that itself has children (e.g. a
+ * Beast Mode whose only non-empty category is "Cards", its Drills and Other
+ * Beast Modes being empty and hidden). Used to auto-expand that lone
+ * subcategory with its parent. Only the immediate child is returned; deeper
+ * chains resolve because each level seeds its own child group in turn.
+ */
+function soleVirtualChildId(item) {
+  if (!item?.children?.length) return null;
+  const populated = item.children.filter((child) => child.isVirtualParent && child.children?.length > 0);
+  return populated.length === 1 ? populated[0].id : null;
 }
 
 /**

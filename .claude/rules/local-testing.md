@@ -39,18 +39,27 @@ Vite proxies `/api/*` to `VITE_DOMO_BASE_URL` and injects `X-Domo-Developer-Toke
 
 3. **Visual verification via Playwriter**: Use the `playwriter` skill to drive the user's actual Chrome to `http://localhost:5173/dev-activity-log` (or `/dev-lineage`) and screenshot. This is the real visual test for layout, colors, responsive breakpoints, and interactions. Run before claiming a visual change "looks right." Before starting `yarn dev`, check `ss -tln | grep 5173` — the user often has it already running, and a duplicate just lands on 5174.
 
-## What's NOT covered by dev routes
+## Two ways to run dev, do not confuse them
 
-The dev pages only mount Activity Log and Lineage. The following still require loading the unpacked `dist/` extension in Chrome and cannot be tested via localhost:
+There are two distinct localhost testing paths, and the surfaces each one covers are different:
 
-- Popup (`src/popup/`)
-- Side panel (`src/sidepanel/`)
-- Options page (`src/options/`)
-- Content scripts that inject into Domo pages (`src/contentScripts/`)
-- Background service worker behavior (`src/background.js`)
-- Anything that depends on `chrome.scripting`, `chrome.runtime.onInstalled`, or other APIs the polyfill intentionally omits
+1. **Standalone `/dev-*` routes** (the table above): localhost pages that mount one component with a Chrome-API polyfill. Only Activity Log and Lineage have these. Use them for fast, screenshot-friendly iteration on those two views.
+2. **The CRXJS dev extension**: `yarn dev` also builds a development copy of the whole extension via `@crxjs/vite-plugin` and serves it with HMR. Loading that unpacked gives you the popup, side panel, options page, and content scripts running as a real extension, with edits hot-reloading across all of those surfaces. This is NOT limited to Activity Log and Lineage.
 
-For those, do not claim the change works just because ESLint passes. But also **do not tack on a standing caveat** explaining that these contexts lack a localhost dev route and therefore can't be tested here (e.g. "this lives in the popup/sidepanel/background, which the dev routes don't cover, so please verify in browser"). The maintainer already knows which surfaces have dev routes and which don't; repeating it every turn is noise. Just do the verification a dev route enables when one exists, run ESLint, and stop. Surface a "please verify in browser" note only when there is something genuinely non-obvious to check (an untested assumption, a response shape you couldn't confirm, a risky edge case), not as boilerplate about where the code runs.
+So the popup/side panel/options/content scripts are **not** coverable by the standalone `/dev-*` routes, but they **are** coverable by loading the CRXJS dev extension while `yarn dev` runs. "No `/dev-*` route exists for the side panel" does not mean "the side panel can't be tested on localhost."
+
+### The maintainer is almost always running `yarn dev` already
+
+Assume a dev server is live on `5173` and the unpacked `dist/` is loaded in Chrome whenever you're prompted. Two consequences:
+
+- **Don't run `yarn build` to "test" a change.** HMR has already applied your edit to every surface; verify via ESLint plus the running dev server, not a production build. Reserve `yarn build` / `yarn release` for actually cutting a release.
+- **Both `yarn dev` and `yarn build` write to `dist/`.** Running a production build into `dist/` while the dev server is serving it corrupts the CRXJS dev loader: it rewrites each surface's `index.html` into a tiny loader that boots from the dev server, and bundled `assets/` written over that leave the loader referencing files that don't line up, so the popup/side panel render `"An unknown error occurred. Failed to load the script."` If a surface ever shows that error, suspect a polluted `dist/`: stop everything, `rm -rf dist`, then run a single mode.
+
+### What still can't run on localhost at all
+
+Code that depends on `chrome.scripting`, `chrome.runtime.onInstalled`, or other APIs the standalone-route polyfill omits (see "Polyfill caveats" below) won't run on the `/dev-*` routes. The loaded CRXJS dev extension does have real Chrome APIs, so most of this works there, but background-service-worker lifecycle events still need a real install/update to observe.
+
+For anything you genuinely can't verify, do not claim the change works just because ESLint passes. But also **do not tack on a standing caveat** about where the code runs (e.g. "this lives in the side panel, so please verify in browser"). The maintainer knows the surfaces. Do the verification a dev path enables, run ESLint, and stop. Surface a "please verify in browser" note only when there is something genuinely non-obvious to check (an untested assumption, a response shape you couldn't confirm, a risky edge case), not as boilerplate about where the code runs.
 
 ## Polyfill caveats
 
