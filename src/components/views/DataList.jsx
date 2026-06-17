@@ -1172,14 +1172,21 @@ function DataListItemImpl({
       target='_blank'
       title={item.url}
     >
-      {labelInner}
+      <Tooltip>
+        <Tooltip.Trigger className='block min-w-0 truncate'>{labelInner}</Tooltip.Trigger>
+        <Tooltip.Content className='flex flex-col flex-wrap items-start gap-1 text-left' offset={4} placement='top left'>
+          {labelTitle}
+          <span>ID: {item.originalId ?? item.id}</span>
+        </Tooltip.Content>
+      </Tooltip>
     </Link>
   ) : (
     <span className={`text-sm${labelMutedClass}`}>
       <Tooltip className='flex-1'>
-        <Tooltip.Trigger className='block truncate'>{labelInner}</Tooltip.Trigger>
-        <Tooltip.Content className='max-w-60' offset={4} placement='top left'>
-          ID: {item.originalId ?? item.id}
+        <Tooltip.Trigger className='block min-w-0 truncate'>{labelInner}</Tooltip.Trigger>
+        <Tooltip.Content className='flex flex-col flex-wrap items-start gap-1 text-left' offset={4} placement='top left'>
+          {labelTitle}
+          <span>ID: {item.originalId ?? item.id}</span>
         </Tooltip.Content>
       </Tooltip>
     </span>
@@ -1434,7 +1441,10 @@ function DataListItemImpl({
               className='flex min-w-0 flex-1 basis-4/5 flex-row items-center gap-2'
               variant='tertiary'
             >
-              <p className={`min-w-0 truncate text-left text-sm ${virtualHeaderWeightClass}${labelMutedClass}`} title={labelTitle}>
+              <p
+                className={`min-w-0 truncate text-left text-sm ${virtualHeaderWeightClass}${labelMutedClass}`}
+                title={labelTitle}
+              >
                 {labelInner}
               </p>
               {statusIndicator
