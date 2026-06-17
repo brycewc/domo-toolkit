@@ -40,6 +40,7 @@
 - The Activity Log's loading placeholder now reserves space for the source banner, so the layout no longer jumps when it finishes loading.
 - Nested group headers in result lists are now slightly lighter than top-level headers, making the grouping hierarchy easier to read at a glance.
 - The theme dropdown in settings now shows an icon next to each option.
+- The favicon effect dropdown now shows an icon next to each option.
 
 ## Bug Fixes
 
