@@ -276,7 +276,7 @@ export function GetDatasetsView({
   return (
     <DataList
       currentContext={currentContext}
-      headerActions={['openAll', 'copy', 'reload', 'refresh']}
+      headerActions={['openAll', 'reload', 'refresh']}
       isRefreshing={isRefreshing}
       itemActions={['copy', 'openAll', 'viewsExplorer', 'lineage']}
       itemLabel='dataset'

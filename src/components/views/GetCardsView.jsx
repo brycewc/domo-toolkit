@@ -310,7 +310,7 @@ export function GetCardsView({ currentContext = null, instance: viewInstance = n
   return (
     <DataList
       currentContext={currentContext}
-      headerActions={['openAll', 'copy', 'reload', 'refresh']}
+      headerActions={['openAll', 'reload', 'refresh']}
       isRefreshing={isRefreshing}
       itemActions={['copy', 'openAll']}
       itemLabel={hasMultipleTypes ? 'item' : 'card'}

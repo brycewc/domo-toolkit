@@ -175,7 +175,7 @@ export function GetBeastModesView({
   return (
     <DataList
       currentContext={currentContext}
-      headerActions={['openAll', 'copy', 'reload', 'refresh']}
+      headerActions={['openAll', 'reload', 'refresh']}
       isRefreshing={isRefreshing}
       itemActions={['copy', 'openAll']}
       itemLabel='Beast Mode'

@@ -7,6 +7,7 @@ import { useLongPress } from '@/hooks/useLongPress';
 import { getObjectType } from '@/models/DomoObjectType';
 import { getCardsForObject } from '@/services/cards';
 import { getPagesForCards, getSubpageIds } from '@/services/pages';
+import { launchActivityLog } from '@/utils/activityLog';
 import { waitForChildPages } from '@/utils/pageHelpers';
 import IconChartBarBox from '@icons/chart-bar-box.svg?react';
 import IconListSearch from '@icons/list-search.svg?react';
@@ -232,22 +233,13 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
         }
       }
 
-      await chrome.storage.session.set({
-        activityLogInstance: currentContext?.instance,
-        activityLogObjects: activityLogObjects,
-        activityLogTabId: currentContext?.tabId,
-        activityLogType: activityLogType
-      });
-
       onStatusUpdate?.('Opening Activity Log', message, 'success');
 
-      // Open the options page in the same window (preserves incognito context), right after the launching tab
-      const tab = await chrome.tabs.get(currentContext.tabId);
-      chrome.tabs.create({
-        index: tab.index + 1,
-        openerTabId: tab.id,
-        url: chrome.runtime.getURL('src/options/index.html#activity-log'),
-        windowId: tab.windowId
+      await launchActivityLog({
+        instance: currentContext?.instance,
+        objects: activityLogObjects,
+        tabId: currentContext?.tabId,
+        type: activityLogType
       });
     } catch (err) {
       console.error('Error opening activity log:', err);

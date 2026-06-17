@@ -26,6 +26,8 @@
 - Admins can now switch a dataset to any compatible account in the instance, without first sharing that account with themselves.
 - Added Get Beast Modes: list the Beast Modes tied to a dataset, dataflow, card, page, app, or worksheet, showing the cards, drills, and other Beast Modes each one is used on.
 - The welcome screen now has a quick theme switcher to set System, Light, or Dark without opening settings.
+- Every object in a list now has a View Activity Log action that opens its activity log.
+- Lists now offer a View Activity Log for all action, in the header and on any expandable item, covering that item and everything nested under it.
 
 ### Supported Types
 
@@ -43,6 +45,7 @@
 - The theme dropdown in settings now shows an icon next to each option.
 - The favicon effect dropdown now shows an icon next to each option.
 - The View Errors button now always shows at the top of the expanded actions, disabled with a 0 count when there are no errors, instead of appearing only when errors exist.
+- Removed the Copy ID button from result list headers, since the same ID can be copied from the object's own action button.
 
 ## Bug Fixes
 

@@ -16,6 +16,7 @@ import {
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 
+import { launchActivityLog } from '@/utils/activityLog';
 import { getAvailableActions } from '@/utils/availableActions';
 import { getValidTabForInstance } from '@/utils/currentObject';
 import { parseMarkdownBold, stripMarkdownBold } from '@/utils/markdown';
@@ -28,6 +29,7 @@ import IconCompass from '@icons/compass.svg?react';
 import IconDotsHorizontal from '@icons/dots-horizontal.svg?react';
 import IconInfoCircle from '@icons/info-circle.svg?react';
 import IconLineage from '@icons/lineage.svg?react';
+import IconListSearch from '@icons/list-search.svg?react';
 import IconPeoplePlus from '@icons/people-plus.svg?react';
 import IconPersonPlus from '@icons/person-plus.svg?react';
 import IconReset from '@icons/reset.svg?react';
@@ -61,7 +63,7 @@ import { ObjectTypeIcon } from '../ObjectTypeIcon';
  * @param {HeaderActionType[]} props.headerActions - Array of action types to show in header
  * @param {Function} props.onClose - Callback when close button is clicked (shows close button if provided)
  * @param {boolean} props.isRefreshing - Whether refresh action is in progress
- * @param {string|number} props.objectId - Object ID for header copy action
+ * @param {string|number} props.objectId - The view's source object ID, used by the `reload` header action to detect when the current object already matches this view
  * @param {Function} props.onRefresh - Callback for refresh action
  * @param {Function} props.onShareAll - Callback for shareAll header action
  * @param {ItemActionType[]} props.itemActions - Array of action types to show on items (if not provided, uses default logic)
@@ -128,7 +130,6 @@ export function DataList({
   viewType,
   virtualThreshold = 50
 }) {
-  const [isCopied, setIsCopied] = useState(false);
   const [isHeaderShared, setIsHeaderShared] = useState(false);
   // Centralized expansion state, keyed by item.id, survives unmount/remount
   // when items virtualize. See `VirtualizedItems` below.
@@ -142,6 +143,12 @@ export function DataList({
     });
   }, []);
 
+  // Loggable objects across the whole list (deduped) for the header "View
+  // activity log for all" action. Drives both whether that header button shows
+  // and what it logs (every real object in the list + its descendants).
+  const headerLogObjects = useMemo(() => collectActivityLogObjects(items), [items]);
+  const hasHeaderLog = headerLogObjects.length > 0;
+
   /**
    * Handle header action button clicks
    * Standard actions (copy, openAll) are handled here.
@@ -151,12 +158,16 @@ export function DataList({
     async (actionType) => {
       try {
         switch (actionType) {
-          case 'copy':
-            setIsCopied(true);
-            setTimeout(() => setIsCopied(false), 1000);
-            await navigator.clipboard.writeText(objectId?.toString() || '');
-            onStatusUpdate?.('Copied', `ID **${objectId}** copied to clipboard`, 'success', 2000);
+          case 'activityLogAll': {
+            if (headerLogObjects.length === 0) break;
+            const instance = activityLogInstanceFor(items) ?? currentContext?.instance ?? null;
+            if (instance) {
+              const tabId = await getValidTabForInstance(instance);
+              await launchActivityLog({ instance, objects: headerLogObjects, tabId, type: 'multi-object' });
+              window.close();
+            }
             break;
+          }
 
           case 'openAll': {
             // Filter out DATA_APP items (we want their children, not the app itself)
@@ -200,7 +211,7 @@ export function DataList({
         onStatusUpdate?.('Error', err.message || `Failed to ${actionType}`, 'danger', 3000);
       }
     },
-    [currentContext, items, itemLabel, objectId, onRefresh, onShareAll, onStatusUpdate, viewType]
+    [currentContext, headerLogObjects, items, itemLabel, onRefresh, onShareAll, onStatusUpdate, viewType]
   );
 
   /**
@@ -212,6 +223,36 @@ export function DataList({
     async (actionType, item) => {
       try {
         switch (actionType) {
+          case 'activityLog': {
+            const instance = item.domoObject?.baseUrl
+              ? new URL(item.domoObject.baseUrl).hostname.replace('.domo.com', '')
+              : null;
+            if (item.id && item.typeId && instance) {
+              const tabId = await getValidTabForInstance(instance);
+              await launchActivityLog({
+                instance,
+                objects: [{ id: String(item.originalId ?? item.id), name: item.label ?? '', type: item.typeId }],
+                tabId,
+                type: 'single-object'
+              });
+              window.close();
+            }
+            break;
+          }
+          case 'activityLogAll': {
+            const objects = collectActivityLogObjects([item]);
+            if (objects.length === 0) {
+              onStatusUpdate?.('No Objects', 'No loggable objects found here', 'warning', 3000);
+              break;
+            }
+            const instance = activityLogInstanceFor([item]);
+            if (instance) {
+              const tabId = await getValidTabForInstance(instance);
+              await launchActivityLog({ instance, objects, tabId, type: 'multi-object' });
+              window.close();
+            }
+            break;
+          }
           case 'copy': {
             // Prefer originalId for clipboard when present — consumers may
             // namespace `id` to avoid cross-namespace key collisions while
@@ -294,7 +335,8 @@ export function DataList({
     [itemLabel, onItemRemove, onItemShare, onItemShareAll, onStatusUpdate]
   );
 
-  const hasInlineActions = headerActions.length > 0 || (customHeaderActions && customHeaderActions.length > 0);
+  const hasInlineActions =
+    headerActions.length > 0 || (customHeaderActions && customHeaderActions.length > 0) || hasHeaderLog;
   const hasSelectionToolbar = selectionMode && Boolean(selectionToolbar);
   const hasHeader = title || subtext || subtextStartContent || hasInlineActions || onClose || hasSelectionToolbar;
 
@@ -391,6 +433,22 @@ export function DataList({
                       </Tooltip.Content>
                     </Tooltip>
                   ))}
+                  {hasHeaderLog && (
+                    <Tooltip>
+                      <Button
+                        isIconOnly
+                        aria-label='View Activity Log for all'
+                        size='sm'
+                        variant='ghost'
+                        onPress={() => handleHeaderAction('activityLogAll')}
+                      >
+                        <IconListSearch />
+                      </Button>
+                      <Tooltip.Content className='max-w-60' placement='bottom'>
+                        View activity log for all in this list
+                      </Tooltip.Content>
+                    </Tooltip>
+                  )}
                   {headerActions.includes('openAll') && (
                     <Tooltip>
                       <Button
@@ -420,22 +478,6 @@ export function DataList({
                       </Button>
                       <Tooltip.Content className='max-w-60' placement='bottom'>
                         {isHeaderShared ? 'Shared!' : 'Share all with yourself'}
-                      </Tooltip.Content>
-                    </Tooltip>
-                  )}
-                  {headerActions.includes('copy') && (
-                    <Tooltip>
-                      <Button
-                        isIconOnly
-                        aria-label='Copy'
-                        size='sm'
-                        variant='ghost'
-                        onPress={() => handleHeaderAction('copy')}
-                      >
-                        {isCopied ? <AnimatedCheck stroke={1.5} /> : <IconClipboardCopy />}
-                      </Button>
-                      <Tooltip.Content className='max-w-60' placement='bottom'>
-                        {isCopied ? 'Copied!' : 'Copy ID'}
                       </Tooltip.Content>
                     </Tooltip>
                   )}
@@ -609,14 +651,69 @@ export function DataList({
 }
 
 /**
- * Available header action types for DataList
- * @typedef {'openAll' | 'copy' | 'shareAll' | 'refresh' | 'reload'} HeaderActionType
+ * Available header action types for DataList. `activityLogAll` is rendered
+ * unconditionally (gated only on the list having loggable objects), not opt-in
+ * via the `headerActions` prop.
+ * @typedef {'openAll' | 'shareAll' | 'refresh' | 'reload' | 'activityLogAll'} HeaderActionType
  */
 
 /**
- * Available item action types for DataList items
- * @typedef {'remove' | 'openAll' | 'copy' | 'share' | 'shareAll' | 'viewsExplorer'} ItemActionType
+ * Available item action types for DataList items. `activityLog` (single object)
+ * and `activityLogAll` (item + all descendants) are added to every row
+ * automatically, not opt-in via the `itemActions` prop.
+ * @typedef {'remove' | 'openAll' | 'copy' | 'share' | 'shareAll' | 'viewsExplorer' | 'lineage' | 'activityLog' | 'activityLogAll'} ItemActionType
  */
+
+/**
+ * Finds the Domo instance subdomain for an item tree by walking to the first
+ * row that carries a real object base URL. Used to resolve the instance for the
+ * activity-log "for all" actions, where the clicked row may be a virtual group
+ * header with no object of its own.
+ * @param {Array} itemList - Array of items (and their children) to walk.
+ * @returns {string|null} Instance subdomain (e.g. `my-co`) or null if none found.
+ */
+function activityLogInstanceFor(itemList) {
+  for (const item of itemList) {
+    const baseUrl = item.domoObject?.baseUrl;
+    if (baseUrl) return new URL(baseUrl).hostname.replace('.domo.com', '');
+    if (item.children && item.children.length > 0) {
+      const fromChild = activityLogInstanceFor(item.children);
+      if (fromChild) return fromChild;
+    }
+  }
+  return null;
+}
+
+/**
+ * Recursively collect loggable objects from an item tree for the activity-log
+ * "for all" actions. Returns deduped `{ id, name, type }` records (keyed by
+ * `type:id`). Skips virtual group headers (no real object) and rows missing a
+ * type/id or carrying a negative numeric id (Overview/Favorites/Shared
+ * pseudo-pages); UUID/string ids are kept.
+ * @param {Array} itemList - Array of items (and their children) to walk.
+ * @returns {Array<{ id: string, name: string, type: string }>}
+ */
+function collectActivityLogObjects(itemList) {
+  const seen = new Set();
+  const objects = [];
+  const traverse = (list) => {
+    for (const item of list) {
+      const id = item.originalId ?? item.id;
+      if (!item.isVirtualParent && id != null && item.typeId && !(Number(id) < 0)) {
+        const key = `${item.typeId}:${id}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          objects.push({ id: String(id), name: item.label ?? '', type: item.typeId });
+        }
+      }
+      if (item.children && item.children.length > 0) {
+        traverse(item.children);
+      }
+    }
+  };
+  traverse(itemList);
+  return objects;
+}
 
 /**
  * Recursively collect all URLs from items and their children
@@ -1052,6 +1149,38 @@ function DataListItemImpl({
       </Tooltip>
     );
 
+    const activityLogButton = (
+      <Tooltip key='activityLog'>
+        <Button
+          fullWidth
+          isIconOnly
+          aria-label='View Activity Log'
+          size='sm'
+          variant='ghost'
+          onPress={() => handleAction('activityLog')}
+        >
+          <IconListSearch />
+        </Button>
+        <Tooltip.Content className='max-w-60'>View activity log</Tooltip.Content>
+      </Tooltip>
+    );
+
+    const activityLogAllButton = (
+      <Tooltip key='activityLogAll'>
+        <Button
+          fullWidth
+          isIconOnly
+          aria-label='View Activity Log for all'
+          size='sm'
+          variant='ghost'
+          onPress={() => handleAction('activityLogAll')}
+        >
+          <IconListSearch />
+        </Button>
+        <Tooltip.Content className='max-w-60'>View activity log for all</Tooltip.Content>
+      </Tooltip>
+    );
+
     if (item.isVirtualParent) {
       if (!hasChildren) return [];
       const actions = [];
@@ -1059,6 +1188,9 @@ function DataListItemImpl({
         actions.push(openAllButton);
         if (canShareAll && hasShareableChildren(item)) actions.push(shareAllButton);
       }
+      // Virtual group headers have no object of their own, so only the "for all"
+      // log applies, covering every real descendant beneath the header.
+      actions.push(activityLogAllButton);
       return actions;
     }
 
@@ -1071,6 +1203,11 @@ function DataListItemImpl({
         actions.push(lineageButton);
       if (itemActions.includes('viewsExplorer') && item.typeId === 'DATA_SOURCE') actions.push(viewsExplorerButton);
       if (itemActions.includes('copy')) actions.push(copyButton);
+      // Activity-log actions are added to every object regardless of the view's
+      // opted-in `itemActions`: the single-object log for this row, plus the
+      // "for all" log when it has descendants.
+      actions.push(activityLogButton);
+      if (hasChildren) actions.push(activityLogAllButton);
       return actions;
     }
 
@@ -1093,6 +1230,10 @@ function DataListItemImpl({
 
     if (canShare && isItemShareable(item)) actions.push(shareButton);
     actions.push(copyButton);
+    // Activity-log actions on every object: single-object for this row, plus the
+    // "for all" log when it has descendants.
+    actions.push(activityLogButton);
+    if (hasChildren) actions.push(activityLogAllButton);
     return actions;
   }, [canShare, canShareAll, hasChildren, handleAction, isCopied, isShared, item, itemActions, objectType, showActions]);
 
