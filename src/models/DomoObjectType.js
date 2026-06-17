@@ -733,12 +733,14 @@ export const ObjectTypeRegistry = {
     idPattern: /^\d+$/,
     relatedData: [
       {
+        fetcher: 'dataflowInputs',
         field: 'inputs',
         isArray: true,
         itemTypeId: 'DATA_SOURCE',
         label: 'Inputs'
       },
       {
+        fetcher: 'dataflowOutputs',
         field: 'outputs',
         isArray: true,
         itemTypeId: 'DATA_SOURCE',

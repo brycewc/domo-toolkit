@@ -45,41 +45,6 @@ export async function deleteDataset({ datasetId, tabId = null }) {
 }
 
 /**
- * Get full details for the datasets fed by an account.
- *
- * Takes the lightweight id+name list attached to the account during detection
- * (the account-datasets endpoint returns only ids and names, everything else
- * null) and bulk-fetches the complete dataset records so the related-data tab
- * can show real owners, row counts, types, etc.
- *
- * @param {Object} params - Parameters
- * @param {Array<{dataSourceId: string}>} params.datasets - Light dataset list from detection
- * @param {number} [params.tabId] - Optional Chrome tab ID
- * @returns {Promise<Array<Object>>} Array of full dataset objects (empty if none)
- */
-export async function getAccountDatasetDetails({ datasets, tabId }) {
-  const datasetIds = (datasets || []).map((ds) => ds.dataSourceId).filter(Boolean);
-  if (datasetIds.length === 0) return [];
-
-  return executeInPage(
-    async (datasetIds) => {
-      const response = await fetch('/api/data/v3/datasources/bulk?includePrivate=true&includeAllDetails=true', {
-        body: JSON.stringify(datasetIds),
-        headers: { 'Content-Type': 'application/json' },
-        method: 'POST'
-      });
-      if (!response.ok) {
-        throw new Error(`Failed to fetch dataset details. HTTP status: ${response.status}`);
-      }
-      const data = await response.json();
-      return data.dataSources || [];
-    },
-    [datasetIds],
-    tabId
-  );
-}
-
-/**
  * Get the conditional-format ("color") rules for a dataset.
  * @param {string} datasetId - The dataset UUID
  * @param {number|null} [tabId] - Optional Chrome tab ID
@@ -180,6 +145,43 @@ export async function getDatasetDependentCount({ datasetId, tabId = null }) {
       );
     },
     [datasetId],
+    tabId
+  );
+}
+
+/**
+ * Bulk-fetch the full dataset records for a lightweight list of dataset
+ * references (account datasets, dataflow inputs/outputs, etc.).
+ *
+ * These reference lists arrive with only an id and name per entry, everything
+ * else null. This pulls the complete records so a related-data tab can show
+ * real owners, row counts, types, and the like instead of just id and name.
+ * Datasets the user can't access are dropped by the bulk endpoint, so the
+ * result may be shorter than the input list.
+ *
+ * @param {Object} params - Parameters
+ * @param {Array<{dataSourceId: string}>} params.datasets - Light dataset reference list
+ * @param {number} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<Array<Object>>} Array of full dataset objects (empty if none)
+ */
+export async function getDatasetDetailsForList({ datasets, tabId }) {
+  const datasetIds = (datasets || []).map((ds) => ds.dataSourceId).filter(Boolean);
+  if (datasetIds.length === 0) return [];
+
+  return executeInPage(
+    async (datasetIds) => {
+      const response = await fetch('/api/data/v3/datasources/bulk?includePrivate=true&includeAllDetails=true', {
+        body: JSON.stringify(datasetIds),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST'
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch dataset details. HTTP status: ${response.status}`);
+      }
+      const data = await response.json();
+      return data.dataSources || [];
+    },
+    [datasetIds],
     tabId
   );
 }

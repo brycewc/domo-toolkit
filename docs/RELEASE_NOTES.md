@@ -22,6 +22,7 @@
 - The popup, side panel, and object details now show when the current object was created.
 - Transferring ownership of a dataflow now shares its input datasets with the new owner if they don't already have access.
 - Added Manage Tags for dataflows: add or remove tags on a dataflow and its output datasets together in one step.
+- A dataflow's Inputs and Outputs JSON tabs now show each dataset's full details and links instead of just its name and ID.
 - Admins can now switch a dataset to any compatible account in the instance, without first sharing that account with themselves.
 - Added Get Beast Modes: list the Beast Modes tied to a dataset, dataflow, card, page, app, or worksheet, showing the cards, drills, and other Beast Modes each one is used on.
 - The welcome screen now has a quick theme switcher to set System, Light, or Dark without opening settings.
