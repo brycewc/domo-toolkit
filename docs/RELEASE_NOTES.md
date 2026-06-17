@@ -25,3 +25,5 @@
 - Magic ETL sort columns now get renamed during migration along with the rest of the dataflow.
 
 ### Other Fixes
+
+- Refreshing a Domo page now retries fetching the object's name and details when an earlier attempt came up empty, instead of staying blank until you navigate away.
