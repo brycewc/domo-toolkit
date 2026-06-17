@@ -57,6 +57,7 @@ import { ObjectTypeIcon } from '../ObjectTypeIcon';
  * Custom actions (refresh, shareAll, share) are delegated via callbacks.
  *
  * @param {Object} props
+ * @param {React.ReactNode} [props.banner] - Content rendered inside the Card between the header and the items list (after the header `<Separator>`), pinned above the scroll area. Use for status/context that belongs to the whole list (e.g. a dependency-check alert above a delete view's affected-objects list). Pass `null`/`false` to omit.
  * @param {Array} props.items - Array of list items with optional children
  * @param {string} props.title - Plain-text header title. Supports inline `**bold**` markdown for emphasis (parsed via `parseMarkdownBold`). The tooltip mirrors the same text with bold markers stripped so the overlay reads as unstyled prose.
  * @param {1|2} [props.titleLineClamp=1] - Max lines the header title clamps to before truncating. Defaults to 1; pass 2 for long titles (e.g. a bolded object name) that read better across two lines.
@@ -95,6 +96,7 @@ import { ObjectTypeIcon } from '../ObjectTypeIcon';
  */
 export function DataList({
   allowsMultipleExpanded = false,
+  banner,
   currentContext,
   customHeaderActions,
   defaultExpandedIds,
@@ -335,10 +337,14 @@ export function DataList({
     [itemLabel, onItemRemove, onItemShare, onItemShareAll, onStatusUpdate]
   );
 
-  const hasInlineActions =
-    headerActions.length > 0 || (customHeaderActions && customHeaderActions.length > 0) || hasHeaderLog;
+  const hasInlineActions = headerActions.length > 0 || (customHeaderActions && customHeaderActions.length > 0);
   const hasSelectionToolbar = selectionMode && Boolean(selectionToolbar);
   const hasHeader = title || subtext || subtextStartContent || hasInlineActions || onClose || hasSelectionToolbar;
+  // The header-level "View activity log for all" button shows only when a header
+  // already exists for some other reason: it never conjures a blank header just
+  // to host itself (headerless lists are still covered by the per-row "for all"
+  // action). It also respects `showActions`, so selection-only lists stay clean.
+  const showHeaderLogButton = hasHeaderLog && showActions && hasHeader;
 
   // In selection mode, wrap the rendered items in a HeroUI CheckboxGroup so
   // each row's `<Checkbox value={item.id}>` is driven by group context. The
@@ -409,11 +415,11 @@ export function DataList({
               <Tooltip.Content className='max-w-60'>Close view</Tooltip.Content>
             </Tooltip>
           )}
-          {(subtext || subtextStartContent || hasInlineActions) && (
+          {(subtext || subtextStartContent || hasInlineActions || showHeaderLogButton) && (
             <div className='flex min-w-0 items-center justify-between gap-2'>
               {subtextStartContent}
               <div className='min-w-0 flex-1 truncate text-xs text-muted'>{parseMarkdownBold(subtext)}</div>
-              {hasInlineActions && (
+              {(hasInlineActions || showHeaderLogButton) && (
                 <ButtonGroup hideSeparator className='flex shrink-0' size='sm' variant='ghost'>
                   {customHeaderActions?.map((action) => (
                     <Tooltip key={action.key}>
@@ -433,22 +439,6 @@ export function DataList({
                       </Tooltip.Content>
                     </Tooltip>
                   ))}
-                  {hasHeaderLog && (
-                    <Tooltip>
-                      <Button
-                        isIconOnly
-                        aria-label='View Activity Log for all'
-                        size='sm'
-                        variant='ghost'
-                        onPress={() => handleHeaderAction('activityLogAll')}
-                      >
-                        <IconListSearch />
-                      </Button>
-                      <Tooltip.Content className='max-w-60' placement='bottom'>
-                        View activity log for all in this list
-                      </Tooltip.Content>
-                    </Tooltip>
-                  )}
                   {headerActions.includes('openAll') && (
                     <Tooltip>
                       <Button
@@ -478,6 +468,25 @@ export function DataList({
                       </Button>
                       <Tooltip.Content className='max-w-60' placement='bottom'>
                         {isHeaderShared ? 'Shared!' : 'Share all with yourself'}
+                      </Tooltip.Content>
+                    </Tooltip>
+                  )}
+                  {/* Sits right of Open All / Share All but left of Reload and
+                      Refresh, so the destructive/navigational controls stay at
+                      the far edge. */}
+                  {showHeaderLogButton && (
+                    <Tooltip>
+                      <Button
+                        isIconOnly
+                        aria-label='View Activity Log for all'
+                        size='sm'
+                        variant='ghost'
+                        onPress={() => handleHeaderAction('activityLogAll')}
+                      >
+                        <IconListSearch />
+                      </Button>
+                      <Tooltip.Content className='max-w-60' placement='bottom'>
+                        View activity log for all in this list
                       </Tooltip.Content>
                     </Tooltip>
                   )}
@@ -547,6 +556,7 @@ export function DataList({
         </Card.Header>
       )}
       <Separator className='mt-1.5' />
+      {banner && <div className='shrink-0 pt-2'>{banner}</div>}
       {sortedItems.length > virtualThreshold
         ? // Virtualized top-level: VirtualizedItems is the scroll container.
           // Bypass ScrollShadow so TanStack Virtual listens for scroll on an

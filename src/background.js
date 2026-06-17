@@ -194,6 +194,11 @@ const INSTANCE_USER_TTL_MS = 12 * 60 * 60 * 1000;
 
 // Per-tab detection generation counter to prevent stale async callbacks
 const tabDetectionGen = new Map();
+// Tabs with a detection currently running (tabId -> the generation that is in
+// flight). Used so the page-reload retry branch doesn't start a competing
+// detection while one is already running, which would bump the generation and
+// cancel the in-flight run before it commits the object's name.
+const tabDetectionInFlight = new Map();
 
 // Per-instance cache for user + groups + feature switches
 // (instance -> { user, userGroups, featureSwitches, promise })
@@ -853,6 +858,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   tabContexts.delete(tabId);
   tabAccessTimes.delete(tabId);
   tabDetectionGen.delete(tabId);
+  tabDetectionInFlight.delete(tabId);
   tabApiErrors.delete(tabId);
   tabLastContext.delete(tabId);
   persistToSession();
@@ -916,7 +922,13 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   // resolved object name (a transient API/auth failure, or the page wasn't ready
   // when detection first ran), use the reload completing as a retry point so the
   // name and metadata get fetched again.
-  if (changeInfo.status === 'complete' && isDomoUrl(tab.url)) {
+  //
+  // Skip when a detection is already running for this tab: a redetection nulls
+  // the cached object until it commits, and a reload fires `complete` more than
+  // once, so an unguarded retry would read that transient null, start a
+  // competing detection, and cancel the in-flight run (e.g. the one Share with
+  // Self kicks off after reloading), leaving the details blank.
+  if (changeInfo.status === 'complete' && isDomoUrl(tab.url) && !tabDetectionInFlight.has(tabId)) {
     const context = getTabContext(tabId);
     if (context && !context.domoObject?.metadata?.name) {
       console.log(`[Background] Tab ${tabId} reloaded without resolved object metadata, retrying detection`);
@@ -1050,6 +1062,7 @@ async function copyViaFocusedUi() {
 async function detectAndStoreContext(tabId) {
   const generation = (tabDetectionGen.get(tabId) || 0) + 1;
   tabDetectionGen.set(tabId, generation);
+  tabDetectionInFlight.set(tabId, generation);
   const isStale = () => tabDetectionGen.get(tabId) !== generation;
 
   try {
@@ -1356,6 +1369,12 @@ async function detectAndStoreContext(tabId) {
   } catch (error) {
     console.error(`[Background] Error detecting context for tab ${tabId}:`, error);
     return null;
+  } finally {
+    // Only clear if we're still the latest run; a newer generation that
+    // superseded us owns the marker now and must clear it itself.
+    if (tabDetectionInFlight.get(tabId) === generation) {
+      tabDetectionInFlight.delete(tabId);
+    }
   }
 }
 

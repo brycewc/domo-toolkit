@@ -46,6 +46,7 @@
 - The favicon effect dropdown now shows an icon next to each option.
 - The View Errors button now always shows at the top of the expanded actions, disabled with a 0 count when there are no errors, instead of appearing only when errors exist.
 - Removed the Copy ID button from result list headers, since the same ID can be copied from the object's own action button.
+- The delete confirmation view now presents the objects it affects as one list with "Will be deleted" and "Other dependencies" as expandable groups that start open.
 
 ## Bug Fixes
 
