@@ -23,6 +23,7 @@ import { DomoContext } from '@/models/DomoContext';
 import { DomoObject } from '@/models/DomoObject';
 import { getTagsForDataflowAndDatasets, getTagSuggestions, setTagsForObjects } from '@/services/dataflows';
 import { getDatasetsForDataflow } from '@/services/datasets';
+import { getUserName } from '@/services/users';
 import { getValidTabForInstance } from '@/utils/currentObject';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconChevronDown from '@icons/chevron-down.svg?react';
@@ -45,6 +46,7 @@ export function ManageTagsView({ currentContext = null, instance = null, onBackT
   const [domoInstance, setDomoInstance] = useState(null);
   const [objectId, setObjectId] = useState(null);
   const [dataflowName, setDataflowName] = useState('');
+  const [ownerName, setOwnerName] = useState('');
   const [objects, setObjects] = useState([]);
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [added, setAdded] = useState(() => new Set());
@@ -134,6 +136,18 @@ export function ManageTagsView({ currentContext = null, instance = null, onBackT
           if (mountedRef.current) setSuggestions(s || []);
         })
         .catch(() => {});
+
+      // Resolve the dataflow owner so we can recommend its "From <owner>" tag
+      // (the convention Transfer Ownership stamps on transferred objects) when
+      // that tag already exists in the instance. Best-effort, like suggestions.
+      const ownerId = domoObject.metadata?.details?.responsibleUserId;
+      if (ownerId) {
+        getUserName(ownerId, tabId)
+          .then((name) => {
+            if (mountedRef.current && name) setOwnerName(name);
+          })
+          .catch(() => {});
+      }
     } catch (err) {
       console.error('[ManageTagsView] Error loading data:', err);
       if (mountedRef.current) setError(err.message || 'Failed to read tags');
@@ -366,7 +380,17 @@ export function ManageTagsView({ currentContext = null, instance = null, onBackT
 
   const suggestionChips = (() => {
     const shown = new Set(displayedTags.map((d) => d.tag));
-    return suggestions.filter((s) => !shown.has(s.value)).slice(0, 8);
+    const available = suggestions.filter((s) => !shown.has(s.value));
+    const chips = available.slice(0, 8);
+    // Always recommend the owner's "From <owner>" tag when it exists in the
+    // instance and isn't already applied, pinning it first even if its usage
+    // count would otherwise push it out of the top suggestions.
+    const ownerTag = ownerName ? `From ${ownerName}` : null;
+    if (ownerTag && !chips.some((c) => c.value === ownerTag)) {
+      const match = available.find((s) => s.value === ownerTag);
+      if (match) return [match, ...chips.slice(0, 7)];
+    }
+    return chips;
   })();
 
   const readableObjects = objects.filter((o) => o.readable);
@@ -527,7 +551,7 @@ export function ManageTagsView({ currentContext = null, instance = null, onBackT
       selectionMode
       showCounts
       currentContext={currentContext}
-      defaultExpandedIds={['dataflow_group', 'output_group', 'input_group']}
+      defaultExpandedIds={['dataflow_group', 'output_group']}
       footer={tagEditor}
       headerActions={['reload', 'refresh']}
       isRefreshing={isRefreshing}
