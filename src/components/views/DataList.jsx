@@ -1134,6 +1134,13 @@ function DataListItemImpl({
   // `text-accent` and stays prominent.
   const labelMutedClass = item.muted ? ' text-muted' : '';
 
+  // Virtual-parent (group header) weight steps down with nesting: top-level
+  // headers stay `font-medium` (500) to anchor each section, while nested
+  // headers drop to a half-step (450) — lighter than the top level but still
+  // heavier than the normal-weight (400) leaf rows beneath them, so the
+  // hierarchy reads at a glance without any nested header looking like body text.
+  const virtualHeaderWeightClass = depth > 0 ? 'font-[450]' : 'font-medium';
+
   // Link items: native `title` shows the full URL on hover. Lighter than
   // React Aria Tooltip (no portal, no delay state machine, no extra DOM) and
   // avoids nested-interactive-element accessibility issues from wrapping a
@@ -1150,7 +1157,7 @@ function DataListItemImpl({
     // group headers and their expanded leaves. ObjectTypeIcon returns null
     // when item.typeId is unset, so synthetic group rows (no typeId) render
     // identically to before.
-    <p className={`min-w-0 truncate text-sm font-medium${labelMutedClass}`} title={labelTitle}>
+    <p className={`min-w-0 truncate text-sm ${virtualHeaderWeightClass}${labelMutedClass}`} title={labelTitle}>
       {labelInner}
     </p>
   ) : item.url ? (
@@ -1415,7 +1422,7 @@ function DataListItemImpl({
               className='flex min-w-0 flex-1 basis-4/5 flex-row items-center gap-2'
               variant='tertiary'
             >
-              <p className={`min-w-0 truncate text-left text-sm font-medium${labelMutedClass}`} title={labelTitle}>
+              <p className={`min-w-0 truncate text-left text-sm ${virtualHeaderWeightClass}${labelMutedClass}`} title={labelTitle}>
                 {labelInner}
               </p>
               {statusIndicator

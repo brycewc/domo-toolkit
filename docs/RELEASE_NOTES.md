@@ -23,6 +23,7 @@
 - Transferring ownership of a dataflow now shares its input datasets with the new owner if they don't already have access.
 - Added Manage Tags for dataflows: add or remove tags on a dataflow and its output datasets together in one step.
 - Admins can now switch a dataset to any compatible account in the instance, without first sharing that account with themselves.
+- Added Get Beast Modes: list the Beast Modes tied to a dataset, dataflow, card, page, app, or worksheet, showing the cards, drills, and other Beast Modes each one is used on.
 
 ### Supported Types
 
@@ -36,6 +37,7 @@
 - App Pages and Worksheet Views now show just the page's own name in the context footer, keeping the parent app or worksheet name in the browser tab title only.
 - The browser tab title for App Pages and Worksheet Views now separates the app and page names with ">" instead of ":".
 - The Activity Log's loading placeholder now reserves space for the source banner, so the layout no longer jumps when it finishes loading.
+- Nested group headers in result lists are now slightly lighter than top-level headers, making the grouping hierarchy easier to read at a glance.
 
 ## Bug Fixes
 

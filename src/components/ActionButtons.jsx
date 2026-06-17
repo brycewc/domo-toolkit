@@ -15,6 +15,7 @@ import { DirectSignOn } from '@/components/functions/DirectSignOn';
 import { Duplicate } from '@/components/functions/Duplicate';
 import { Export } from '@/components/functions/Export';
 import { Generate } from '@/components/functions/Generate';
+import { GetBeastModes } from '@/components/functions/GetBeastModes';
 import { GetCardPages } from '@/components/functions/GetCardPages';
 import { GetCards } from '@/components/functions/GetCards';
 import { GetChildPages } from '@/components/functions/GetChildPages';
@@ -190,6 +191,14 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                 )}
                 {availableActions.has('getCardPages') && (
                   <GetCardPages
+                    currentContext={currentContext}
+                    isDisabled={!isDomoPage}
+                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
+                    onStatusUpdate={onStatusUpdate}
+                  />
+                )}
+                {availableActions.has('getBeastModes') && (
+                  <GetBeastModes
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
                     onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}

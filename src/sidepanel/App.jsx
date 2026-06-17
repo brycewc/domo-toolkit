@@ -10,6 +10,7 @@ import { DeleteObjectView } from '@/components/views/DeleteObjectView';
 import { DuplicateView } from '@/components/views/DuplicateView';
 import { GeneratePackageDefinitionFromJSDocView } from '@/components/views/GeneratePackageDefinitionFromJSDocView';
 import { GenerateSchemaView } from '@/components/views/GenerateSchemaView';
+import { GetBeastModesView } from '@/components/views/GetBeastModesView';
 import { GetCardsView } from '@/components/views/GetCardsView';
 import { GetDatasetsView } from '@/components/views/GetDatasetsView';
 import { GetPagesView } from '@/components/views/GetPagesView';
@@ -276,6 +277,17 @@ export default function App() {
       <>
         {(slot.type === 'getChildPages' || slot.type === 'getCardPages' || slot.type === 'childPagesWarning') && (
           <GetPagesView
+            currentContext={currentContext}
+            instance={instance}
+            isActive={isActive}
+            key={slot.viewKey}
+            onBackToDefault={backToDefault}
+            onStatusUpdate={showStatus}
+          />
+        )}
+
+        {slot.type === 'getBeastModes' && (
+          <GetBeastModesView
             currentContext={currentContext}
             instance={instance}
             isActive={isActive}

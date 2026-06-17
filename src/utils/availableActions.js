@@ -24,6 +24,10 @@ export function getAvailableActions(currentContext) {
     actions.add('getDatasets');
   }
 
+  if (['CARD', 'DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE', 'WORKSHEET_VIEW'].includes(typeId)) {
+    actions.add('getBeastModes');
+  }
+
   if (['DATA_APP_VIEW', 'PAGE', 'WORKSHEET_VIEW'].includes(typeId)) {
     actions.add('getChildPages');
   }
