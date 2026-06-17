@@ -39,6 +39,8 @@ Vite proxies `/api/*` to `VITE_DOMO_BASE_URL` and injects `X-Domo-Developer-Toke
 
 3. **Visual verification via Playwriter**: Use the `playwriter` skill to drive the user's actual Chrome to `http://localhost:5173/dev-activity-log` (or `/dev-lineage`) and screenshot. This is the real visual test for layout, colors, responsive breakpoints, and interactions. Run before claiming a visual change "looks right." Before starting `yarn dev`, check `ss -tln | grep 5173` — the user often has it already running, and a duplicate just lands on 5174.
 
+   **Playwriter cannot open `chrome-extension://` pages.** It only reaches `http://localhost` URLs, so the popup, side panel, options page, and Welcome page are NOT visually verifiable through Playwriter, even when the CRXJS dev extension is loaded. This is the whole reason the `/dev-*` routes exist: they re-mount a component as a localhost page Playwriter can drive. A surface with no `/dev-*` route (popup, side panel, options, Welcome) has no Playwriter path at all. For those, verify via the compile/HMR check plus ESLint, build the change so it hot-reloads in the loaded extension for the maintainer to eyeball, and do not claim the visual result was confirmed.
+
 ## Two ways to run dev, do not confuse them
 
 There are two distinct localhost testing paths, and the surfaces each one covers are different:

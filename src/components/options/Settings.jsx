@@ -5,7 +5,10 @@ import { useEffect, useState } from 'react';
 import { usePerInstanceSettings } from '@/hooks/usePerInstanceSettings';
 import IconCheck from '@icons/check.svg?react';
 import IconChevronDown from '@icons/chevron-down.svg?react';
+import IconComputer from '@icons/computer.svg?react';
+import IconMoon from '@icons/moon.svg?react';
 import IconSave from '@icons/save.svg?react';
+import IconSun from '@icons/sun.svg?react';
 
 const DEFAULT_SETTINGS = {
   autoClearCookiesOn431: true,
@@ -164,15 +167,24 @@ export function Settings() {
           <Select.Popover>
             <ListBox>
               <ListBox.Item id='system' textValue='System'>
-                System
+                <span className='flex flex-row items-center gap-2'>
+                  <IconComputer className='h-4 w-4' />
+                  System
+                </span>
                 <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
               </ListBox.Item>
               <ListBox.Item id='light' textValue='Light'>
-                Light
+                <span className='flex flex-row items-center gap-2'>
+                  <IconSun className='h-4 w-4' />
+                  Light
+                </span>
                 <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
               </ListBox.Item>
               <ListBox.Item id='dark' textValue='Dark'>
-                Dark
+                <span className='flex flex-row items-center gap-2'>
+                  <IconMoon className='h-4 w-4' />
+                  Dark
+                </span>
                 <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
               </ListBox.Item>
             </ListBox>
