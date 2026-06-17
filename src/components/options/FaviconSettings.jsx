@@ -431,23 +431,29 @@ export function FaviconSettings() {
               Effects are the way the favicon gets modified:
               <ul className='list-inside list-disc space-y-1 pl-4'>
                 <li>
+                  <IconDomo className='mr-1 inline size-4 align-text-bottom' />
                   <strong>instance-logo:</strong> uses the Domo instance logo instead of a color (no color picker for this
                   one)
                 </li>
                 <li>
+                  <IconDomoRainbow className='mr-1 inline size-4 align-text-bottom' />
                   <strong>domo-logo-colored:</strong> Domo logo with colored background (color picker selects background
                   color)
                 </li>
                 <li>
+                  <IconTopNavFill className='mr-1 inline size-4 align-text-bottom' />
                   <strong>top:</strong> puts a colored stripe over the top quarter
                 </li>
                 <li>
+                  <IconRightRailFill className='mr-1 inline size-4 align-text-bottom' />
                   <strong>right:</strong> puts a colored stripe over the right quarter
                 </li>
                 <li>
+                  <IconBottomNavFill className='mr-1 inline size-4 align-text-bottom' />
                   <strong>bottom:</strong> puts a colored stripe over the bottom quarter
                 </li>
                 <li>
+                  <IconLeftNavFill className='mr-1 inline size-4 align-text-bottom' />
                   <strong>left:</strong> puts a colored stripe over the left quarter
                 </li>
               </ul>
