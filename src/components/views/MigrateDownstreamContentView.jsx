@@ -36,7 +36,7 @@ import { getObjectType } from '@/models/DomoObjectType';
 import { scanContentForColumns } from '@/services/columnReferences';
 import { hasEffectiveMapping } from '@/services/columnRewriter';
 import { getDatasetColumns } from '@/services/datasets';
-import { getDatasetFunctions } from '@/services/functions';
+import { getBeastModeReferenceGraph, getCardBeastModes, getDatasetFunctions } from '@/services/functions';
 import {
   compareDatasetSchemas,
   getDownstreamCards,
@@ -67,7 +67,13 @@ const UNMAPPED = '__unmapped__';
 // from the (badge_table) cards/drills that use it instead of mapping it.
 const DROP = '__drop__';
 
-export function MigrateDownstreamContentView({ currentContext = null, instance = null, isActive = true, onBackToDefault = null, onStatusUpdate = null }) {
+export function MigrateDownstreamContentView({
+  currentContext = null,
+  instance = null,
+  isActive = true,
+  onBackToDefault = null,
+  onStatusUpdate = null
+}) {
   const [isLoading, setIsLoading] = useState(true);
   const [datasetId, setDatasetId] = useState(null);
   const [datasetName, setDatasetName] = useState('');
@@ -111,6 +117,20 @@ export function MigrateDownstreamContentView({ currentContext = null, instance =
   const [targetBeastModes, setTargetBeastModes] = useState([]);
   const [beastModeChoices, setBeastModeChoices] = useState({});
 
+  // Card-level Beast Modes on the origin (the ones that travel with a card, not
+  // saved to the dataset). Used to flag names that collide with a target dataset
+  // Beast Mode, which Domo would reject on save. `cardBeastModeChoices` holds the
+  // user's per-collision resolution (keyed by the card-level Beast Mode id).
+  const [cardBeastModes, setCardBeastModes] = useState([]);
+  const [cardBeastModeChoices, setCardBeastModeChoices] = useState({});
+
+  // Nested-reference graph among the origin dataset's Beast Modes (origin
+  // legacyId -> set of referenced origin legacyIds). Built once the Beast Mode
+  // list loads; drives requiring a Beast Mode's dependencies whenever it (or a
+  // card that uses it) is migrated, so nested Beast Modes never arrive on the
+  // target with a dangling reference.
+  const [bmRefGraph, setBmRefGraph] = useState(() => new Map());
+
   const mountedRef = useRef(true);
   const bailedRef = useRef(false);
   const autoMapTimersRef = useRef([]);
@@ -128,7 +148,7 @@ export function MigrateDownstreamContentView({ currentContext = null, instance =
   const loadData = async () => {
     try {
       const data = await getSidepanelData(instance);
-      if (!data || data.type !== 'migrateDownstream') {
+      if (!data || data.type !== 'migrateDownstreamContent') {
         onBackToDefault?.();
         return;
       }
@@ -332,9 +352,76 @@ export function MigrateDownstreamContentView({ currentContext = null, instance =
     [selectedItemsByType]
   );
 
-  // True when every Beast Mode is used by at least one selected card, i.e. every
-  // Beast Mode leaf is individually locked. Drives locking the parent "Beast
-  // Modes" group checkbox, since at that point its toggle can't change anything.
+  // Build the nested-reference graph once the Beast Mode list settles. It's a
+  // function of the loaded list only (not the selection), so it's fetched once
+  // per dataset load and reused as the user toggles content. Keyed by numeric
+  // Beast Mode id (the id a nested formula references via DOMO_BEAST_MODE(id)).
+  useEffect(() => {
+    const r = results.beastModes;
+    const items = r?.status === 'loaded' ? r.items?.items || [] : [];
+    if (items.length === 0) {
+      setBmRefGraph(new Map());
+      return;
+    }
+    let cancelled = false;
+    getBeastModeReferenceGraph(items, tabId)
+      .then((graph) => {
+        if (!cancelled) setBmRefGraph(graph);
+      })
+      .catch(() => {
+        if (!cancelled) setBmRefGraph(new Map());
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [results, tabId]);
+
+  // Every Beast Mode being migrated, expanded over its nested references: the
+  // seed is each Beast Mode used by a selected card OR selected directly, then
+  // forward-reachability follows `bm -> bms it nests` to its full dependency
+  // closure. Cycle-safe via the visited set. In numeric-id space.
+  const requiredBeastModeIds = useMemo(() => {
+    const seeds = new Set();
+    const r = results.beastModes;
+    const items = r?.status === 'loaded' ? r.items?.items || [] : [];
+    for (const bm of items) {
+      const fnId = bm?.id != null ? String(bm.id) : null;
+      if (fnId && (beastModeCardLinks.get(fnId) || []).some((id) => selectedCardIdSet.has(String(id)))) {
+        seeds.add(fnId);
+      }
+    }
+    for (const bm of selectedItemsByType.beastModes) {
+      if (bm?.id != null) seeds.add(String(bm.id));
+    }
+    const visited = new Set();
+    const stack = [...seeds];
+    while (stack.length > 0) {
+      const id = stack.pop();
+      if (visited.has(id)) continue;
+      visited.add(id);
+      for (const ref of bmRefGraph.get(id) || []) {
+        if (!visited.has(ref)) stack.push(ref);
+      }
+    }
+    return visited;
+  }, [beastModeCardLinks, bmRefGraph, results, selectedCardIdSet, selectedItemsByType]);
+
+  // The Beast Modes that something else being migrated nests, so dropping one
+  // would dangle that formula. These lock (can't be unchecked). A migrated
+  // top-level Beast Mode that nothing references is NOT here, so the user can
+  // still drop it (which then releases its now-orphaned dependencies). The
+  // closure is forward-closed, so every ref target is itself migrated.
+  const lockedBeastModeIds = useMemo(() => {
+    const locked = new Set();
+    for (const id of requiredBeastModeIds) {
+      for (const ref of bmRefGraph.get(id) || []) locked.add(ref);
+    }
+    return locked;
+  }, [bmRefGraph, requiredBeastModeIds]);
+
+  // True when every Beast Mode is locked, either because a selected card uses it
+  // or because another migrated Beast Mode nests it. Drives locking the parent
+  // "Beast Modes" group checkbox, since its toggle can't change anything.
   const allBeastModesLocked = useMemo(() => {
     const r = results.beastModes;
     const items = r?.status === 'loaded' ? r.items?.items || [] : [];
@@ -342,9 +429,10 @@ export function MigrateDownstreamContentView({ currentContext = null, instance =
     return items.every((bm) => {
       const fnId = bm.id != null ? String(bm.id) : null;
       if (!fnId) return false;
-      return (beastModeCardLinks.get(fnId) || []).some((cardId) => selectedCardIdSet.has(String(cardId)));
+      const cardLocked = (beastModeCardLinks.get(fnId) || []).some((cardId) => selectedCardIdSet.has(String(cardId)));
+      return cardLocked || lockedBeastModeIds.has(fnId);
     });
-  }, [beastModeCardLinks, results, selectedCardIdSet]);
+  }, [beastModeCardLinks, lockedBeastModeIds, results, selectedCardIdSet]);
 
   // A Beast Mode leaf is locked (kept checked, can't be unchecked) while any
   // card that uses it is selected: dropping it would break those cards on the
@@ -360,19 +448,29 @@ export function MigrateDownstreamContentView({ currentContext = null, instance =
         if (!allBeastModesLocked) return null;
         return {
           locked: true,
-          tooltip: 'Every Beast Mode here is used by a selected card, so they all have to migrate'
+          tooltip: 'Every Beast Mode here has to migrate'
         };
       }
       const fnId = item?.originalId != null ? String(item.originalId) : null;
       if (!fnId) return null;
       const usingCount = (beastModeCardLinks.get(fnId) || []).filter((id) => selectedCardIdSet.has(String(id))).length;
-      if (usingCount === 0) return null;
-      return {
-        locked: true,
-        tooltip: `Used by ${usingCount} selected card${usingCount === 1 ? '' : 's'}; it has to migrate too or those cards break`
-      };
+      if (usingCount > 0) {
+        return {
+          locked: true,
+          tooltip: `Used by ${usingCount} selected card${usingCount === 1 ? '' : 's'}; it has to migrate too or those cards break`
+        };
+      }
+      // Not used by a card, but another Beast Mode being migrated nests it:
+      // dropping it would dangle that formula on the target.
+      if (lockedBeastModeIds.has(fnId)) {
+        return {
+          locked: true,
+          tooltip: "Required by a Beast Mode you're migrating; it has to come too or that formula breaks"
+        };
+      }
+      return null;
     },
-    [allBeastModesLocked, beastModeCardLinks, selectedCardIdSet]
+    [allBeastModesLocked, beastModeCardLinks, lockedBeastModeIds, selectedCardIdSet]
   );
 
   // Run the schema check whenever a target dataset is picked. Clears any prior
@@ -495,6 +593,81 @@ export function MigrateDownstreamContentView({ currentContext = null, instance =
       [bmId]: disposition === 'rename' ? { disposition, newName: newName ?? '' } : { disposition }
     }));
   }, []);
+
+  // Fetch the origin's card-level Beast Modes when a target is chosen, so we can
+  // flag any whose name collides with a target dataset Beast Mode.
+  useEffect(() => {
+    if (page !== 'target' || !selectedDatasetId || !datasetId) {
+      setCardBeastModes([]);
+      return;
+    }
+    let cancelled = false;
+    getCardBeastModes(datasetId, tabId)
+      .then((bms) => {
+        if (!cancelled) setCardBeastModes(bms || []);
+      })
+      .catch(() => {
+        if (!cancelled) setCardBeastModes([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [datasetId, page, selectedDatasetId, tabId]);
+
+  // Card-level Beast Modes on a SELECTED card whose name already exists as a
+  // dataset Beast Mode on the target. Domo rejects saving the card with such a
+  // name, so the user must resolve each (use the target's, or rename).
+  const cardBeastModeConflicts = useMemo(() => {
+    if (cardBeastModes.length === 0 || targetBeastModes.length === 0) return [];
+    const targetNames = new Set(targetBeastModes.map((b) => b.name));
+    return cardBeastModes
+      .filter((bm) => targetNames.has(bm.name) && (bm.activeCardIds || []).some((id) => selectedCardIdSet.has(String(id))))
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }, [cardBeastModes, selectedCardIdSet, targetBeastModes]);
+
+  // Default every card-level collision to "use the target's Beast Mode" and drop
+  // choices for ones no longer in conflict.
+  useEffect(() => {
+    setCardBeastModeChoices((prev) => {
+      const next = {};
+      let changed = false;
+      for (const bm of cardBeastModeConflicts) {
+        next[bm.id] = prev[bm.id] || { disposition: 'useTarget' };
+        if (!prev[bm.id]) changed = true;
+      }
+      if (!changed && Object.keys(prev).length === Object.keys(next).length) return prev;
+      return next;
+    });
+  }, [cardBeastModeConflicts]);
+
+  const handleCardBeastModeChoice = useCallback((bmId, disposition, newName) => {
+    setCardBeastModeChoices((prev) => ({
+      ...prev,
+      [bmId]: disposition === 'rename' ? { disposition, newName: newName ?? '' } : { disposition }
+    }));
+  }, []);
+
+  const targetBeastModeByName = useMemo(() => new Map(targetBeastModes.map((b) => [b.name, b])), [targetBeastModes]);
+
+  // Resolutions the card swap applies: per colliding card-level Beast Mode, either
+  // rename it or repoint its references to the same-named target dataset Beast
+  // Mode (carrying that Beast Mode's legacyId + numeric template id).
+  const cardBeastModeResolutions = useMemo(
+    () =>
+      cardBeastModeConflicts.map((bm) => {
+        const choice = cardBeastModeChoices[bm.id] || { disposition: 'useTarget' };
+        const target = targetBeastModeByName.get(bm.name);
+        return {
+          disposition: choice.disposition,
+          newName: choice.newName,
+          originLegacyId: bm.legacyId,
+          originTemplateId: bm.id,
+          targetLegacyId: target?.legacyId ?? null,
+          targetTemplateId: target?.id ?? null
+        };
+      }),
+    [cardBeastModeChoices, cardBeastModeConflicts, targetBeastModeByName]
+  );
 
   const hasMismatches = comparison && !comparison.compatible;
 
@@ -713,11 +886,33 @@ export function MigrateDownstreamContentView({ currentContext = null, instance =
           next.add(leafSelectionId('beastModes', bm.id));
         }
       }
+
+      // Enforce nested Beast Mode dependencies: any Beast Mode nested by a Beast
+      // Mode being migrated (one a still-selected card uses, or one selected
+      // directly) must come too, or its formula dangles on the target. Seed from
+      // the resulting selection, expand the reference closure (in numeric-id
+      // space), and re-add every dependency. (The read-only checkbox blocks
+      // dropping a locked dependency directly; this covers the cascade paths.)
+      const seeds = new Set();
+      for (const bm of bmItems) {
+        if (bm?.id != null && next.has(leafSelectionId('beastModes', bm.id))) seeds.add(String(bm.id));
+      }
+      const visited = new Set();
+      const stack = [...seeds];
+      while (stack.length > 0) {
+        const id = stack.pop();
+        if (visited.has(id)) continue;
+        visited.add(id);
+        for (const ref of bmRefGraph.get(id) || []) {
+          if (!visited.has(ref)) stack.push(ref);
+        }
+      }
+      for (const id of visited) next.add(leafSelectionId('beastModes', id));
       reconcileLeafParent('beastModes');
 
       setSelectedIds(next);
     },
-    [selectedIds, results]
+    [bmRefGraph, results, selectedIds]
   );
 
   const subtextNode = useMemo(() => {
@@ -749,6 +944,18 @@ export function MigrateDownstreamContentView({ currentContext = null, instance =
     return false;
   }, [beastModeConflicts, beastModeChoices, targetBeastModeNames]);
 
+  // Same rename validity check for card-level Beast Mode collisions.
+  const cardBeastModeChoiceInvalid = useMemo(() => {
+    for (const bm of cardBeastModeConflicts) {
+      const c = cardBeastModeChoices[bm.id];
+      if (c?.disposition === 'rename') {
+        const trimmed = (c.newName || '').trim();
+        if (trimmed === '' || targetBeastModeNames.has(trimmed)) return true;
+      }
+    }
+    return false;
+  }, [cardBeastModeConflicts, cardBeastModeChoices, targetBeastModeNames]);
+
   // The footer Migrate button stays disabled until: every fetch settled, at
   // least one item is selected, a target is chosen, and the schema check +
   // any content scan have finished without error. Mismatches do NOT disable
@@ -762,7 +969,8 @@ export function MigrateDownstreamContentView({ currentContext = null, instance =
     isScanning ||
     comparisonError !== null ||
     scanError !== null ||
-    beastModeChoiceInvalid;
+    beastModeChoiceInvalid ||
+    cardBeastModeChoiceInvalid;
 
   // CTA wording reflects the schema state: a clean migrate, a migrate that
   // will apply the user's column remap, or an explicit proceed-despite-mismatch.
@@ -913,6 +1121,7 @@ export function MigrateDownstreamContentView({ currentContext = null, instance =
     try {
       const transferResults = await migrateAllDownstreamContent({
         beastModeChoices,
+        cardBeastModeResolutions,
         columnMap: renameMap,
         definitionsByItemKey,
         droppedColumns,
@@ -1019,6 +1228,7 @@ export function MigrateDownstreamContentView({ currentContext = null, instance =
     }
   }, [
     beastModeChoices,
+    cardBeastModeResolutions,
     cardOnlyColumnNames,
     columnMap,
     datasetId,
@@ -1060,14 +1270,17 @@ export function MigrateDownstreamContentView({ currentContext = null, instance =
   if (page === 'select') {
     return (
       <DataList
+        currentContext={currentContext}
         fillHeight={true}
         getItemLock={getItemLock}
-        headerActions={['refresh']}
+        headerActions={['reload', 'refresh']}
         isRefreshing={loadingCount > 0}
         isSelectable={isSelectable}
         itemActions={['copy']}
         itemLabel='item'
         items={dataListItems}
+        objectId={datasetId}
+        objectType='DATA_SOURCE'
         selectedIds={selectedIds}
         selectionMode={true}
         showActions={true}
@@ -1076,6 +1289,7 @@ export function MigrateDownstreamContentView({ currentContext = null, instance =
         subtextStartContent={betaChip}
         title={`Migrate Content of **${datasetName}**`}
         titleLineClamp={2}
+        viewType='migrateDownstreamContent'
         onClose={onBackToDefault}
         onRefresh={refreshFetches}
         onSelectionChange={handleSelectionChange}
@@ -1096,7 +1310,9 @@ export function MigrateDownstreamContentView({ currentContext = null, instance =
   }
 
   // Page 2: pick the target dataset, reconcile schema (warn + remap), migrate.
-  // Aggregate transfer progress, since the per-type rows live on page 1.
+  // Live transfer progress rides on the footer's Migrate button (always visible,
+  // unlike the old inline row that rendered below the remap UI, off-screen).
+  // Aggregate over types, since the per-type rows live on page 1.
   const migratedDone = Object.values(transferStatus).filter(
     (x) => x.status === 'transferred' || x.status === 'failed'
   ).length;
@@ -1362,12 +1578,24 @@ export function MigrateDownstreamContentView({ currentContext = null, instance =
               </div>
             )}
 
-            {isTransferring && (
-              <div className='flex items-center gap-2 text-xs text-muted'>
-                <Spinner size='sm' />
-                <span>
-                  Migrating… <span className='font-medium text-foreground'>{migratedDone}</span>/{migratedTotal}
-                </span>
+            {cardBeastModeConflicts.length > 0 && (
+              <div className='flex flex-col gap-1'>
+                <Label className='text-sm font-medium'>Card Beast Mode Conflicts</Label>
+                <Description className='text-xs'>
+                  A selected card has a Beast Mode whose name already exists as a Beast Mode on the target dataset, which
+                  Domo won't allow. Use the target's Beast Mode instead, or rename the card's so both can exist.
+                </Description>
+                <div className='flex flex-col divide-y divide-border'>
+                  {cardBeastModeConflicts.map((bm) => (
+                    <CardBeastModeConflictRow
+                      choice={cardBeastModeChoices[bm.id]}
+                      key={bm.id}
+                      originName={bm.name}
+                      targetNames={targetBeastModeNames}
+                      onChange={(disposition, newName) => handleCardBeastModeChoice(bm.id, disposition, newName)}
+                    />
+                  ))}
+                </div>
               </div>
             )}
           </Card.Content>
@@ -1377,9 +1605,25 @@ export function MigrateDownstreamContentView({ currentContext = null, instance =
           <Button isDisabled={isTransferring} size='sm' variant='tertiary' onPress={() => setPage('select')}>
             Back
           </Button>
-          <Button fullWidth isDisabled={migrateDisabled} size='sm' variant='primary' onPress={() => setConfirmOpen(true)}>
-            <IconArrowsHorizontalBox />
-            {migrateLabel}
+          <Button
+            fullWidth
+            isDisabled={migrateDisabled}
+            isPending={isTransferring}
+            size='sm'
+            variant='primary'
+            onPress={() => setConfirmOpen(true)}
+          >
+            {isTransferring ? (
+              <>
+                <Spinner color='currentColor' size='sm' />
+                Migrating… {migratedDone}/{migratedTotal}
+              </>
+            ) : (
+              <>
+                <IconArrowsHorizontalBox />
+                {migrateLabel}
+              </>
+            )}
           </Button>
         </div>
       </Card>
@@ -1751,6 +1995,65 @@ function buildObjectUrl(typeKey, item, origin) {
   }
 }
 
+// One row of the card-level Beast Mode collision resolver: a card's Beast Mode
+// whose name clashes with a target dataset Beast Mode. The user either uses the
+// target's Beast Mode (references repointed, card copy dropped) or renames the
+// card's copy so both can coexist.
+function CardBeastModeConflictRow({ choice, onChange, originName, targetNames }) {
+  const disposition = choice?.disposition || 'useTarget';
+  const newName = choice?.newName ?? '';
+  const trimmed = newName.trim();
+  const renameEmpty = disposition === 'rename' && trimmed === '';
+  const renameCollides = disposition === 'rename' && trimmed !== '' && targetNames.has(trimmed);
+  return (
+    <div className='flex flex-col gap-1 py-1.5'>
+      <div className='flex items-center gap-2'>
+        <span className='min-w-0 flex-1 truncate font-mono text-xs' title={originName}>
+          {originName}
+        </span>
+        <Select
+          aria-label={`Resolve card Beast Mode ${originName}`}
+          className='w-36'
+          value={disposition}
+          variant='secondary'
+          onChange={(value) => onChange(value, newName)}
+        >
+          <Select.Trigger>
+            <Select.Value />
+            <Select.Indicator>
+              <IconChevronDown />
+            </Select.Indicator>
+          </Select.Trigger>
+          <Select.Popover>
+            <ListBox>
+              <ListBox.Item id='useTarget'>
+                Use target's
+                <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
+              </ListBox.Item>
+              <ListBox.Item id='rename'>
+                Rename card's
+                <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
+              </ListBox.Item>
+            </ListBox>
+          </Select.Popover>
+        </Select>
+      </div>
+      {disposition === 'rename' && (
+        <TextField aria-label={`New name for ${originName}`} className='w-full' variant='secondary'>
+          <Input
+            className='h-8 font-mono text-xs'
+            placeholder='New Beast Mode name…'
+            value={newName}
+            onChange={(e) => onChange('rename', e.target.value)}
+          />
+        </TextField>
+      )}
+      {renameEmpty && <p className='text-xs text-warning'>Enter a name for the card's Beast Mode.</p>}
+      {renameCollides && <p className='text-xs text-warning'>That name also exists on the target.</p>}
+    </div>
+  );
+}
+
 function ColumnMapRow({
   canDrop = false,
   canMapBeastMode = false,
@@ -1826,14 +2129,17 @@ function ColumnMapRow({
     const m = new Map();
     for (const c of collisions) {
       if (!m.has(c.dataflowId)) {
-        m.set(c.dataflowId, { dataflowName: c.dataflowName, otherInputs: new Set() });
+        m.set(c.dataflowId, { dataflowName: c.dataflowName, otherInputs: new Map() });
       }
-      m.get(c.dataflowId).otherInputs.add(c.otherInputName);
+      // Dedup each dataflow's other inputs by dataset id (the same input can
+      // surface for several colliding columns), keeping the input's name so it
+      // can render as a link to the dataset.
+      m.get(c.dataflowId).otherInputs.set(c.otherInputId, c.otherInputName);
     }
     return [...m.entries()].map(([id, v]) => ({
       dataflowId: id,
       dataflowName: v.dataflowName,
-      otherInputs: [...v.otherInputs]
+      otherInputs: [...v.otherInputs].map(([inputId, name]) => ({ id: inputId, name }))
     }));
   }, [collisions]);
 
@@ -1865,7 +2171,7 @@ function ColumnMapRow({
                     <ObjectTypeIcon className='size-3.5 shrink-0' typeId='DATAFLOW_TYPE' />
                     {singleCollisionUrl ? (
                       <Link
-                        className='no-underline decoration-accent hover:text-accent hover:underline'
+                        className='text-current no-underline decoration-accent hover:text-accent hover:underline'
                         href={singleCollisionUrl}
                         target='_blank'
                         title={singleCollision.dataflowName}
@@ -1891,15 +2197,29 @@ function ColumnMapRow({
               affected dataflow
               {collisionByDataflow.length === 1 ? '' : 's'}, including refs that came from{' '}
               {collisionByDataflow.length === 1
-                ? collisionByDataflow[0].otherInputs.map((name, i) => (
-                    <Fragment key={name}>
-                      {i > 0 ? ', ' : ''}
-                      <span className='inline-flex items-center gap-0.5 align-text-bottom'>
-                        <ObjectTypeIcon className='size-3.5 shrink-0' typeId='DATA_SOURCE' />
-                        <span className='font-medium'>{name}</span>
-                      </span>
-                    </Fragment>
-                  ))
+                ? collisionByDataflow[0].otherInputs.map((input, i) => {
+                    const inputUrl = buildObjectUrl('datasets', { id: input.id, name: input.name }, origin);
+                    return (
+                      <Fragment key={input.id}>
+                        {i > 0 ? ', ' : ''}
+                        <span className='inline-flex items-center gap-0.5 align-text-bottom'>
+                          <ObjectTypeIcon className='size-3.5 shrink-0' typeId='DATA_SOURCE' />
+                          {inputUrl ? (
+                            <Link
+                              className='font-medium text-current no-underline decoration-accent hover:text-accent hover:underline'
+                              href={inputUrl}
+                              target='_blank'
+                              title={input.name}
+                            >
+                              {input.name}
+                            </Link>
+                          ) : (
+                            <span className='font-medium'>{input.name}</span>
+                          )}
+                        </span>
+                      </Fragment>
+                    );
+                  })
                 : 'other inputs'}
               . Consider leaving this unmapped and fixing the dataflow manually.
             </Alert.Description>

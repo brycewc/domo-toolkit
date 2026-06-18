@@ -12,6 +12,8 @@ dist
 release
 dist-ssr
 *.local
+*.env.*
+!.env.development.local.example
 Gemfile.lock
 
 # Yarn Berry — ignore cache/state, allow committed config slots

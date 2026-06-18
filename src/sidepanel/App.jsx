@@ -442,7 +442,7 @@ export default function App() {
           />
         )}
 
-        {slot.type === 'migrateDownstream' && (
+        {slot.type === 'migrateDownstreamContent' && (
           <MigrateDownstreamContentView
             currentContext={currentContext}
             instance={instance}
