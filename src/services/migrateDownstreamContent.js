@@ -343,6 +343,8 @@ export async function searchDatasets(text, tabId = null, offset = 0) {
  * @param {number} params.cardId
  * @param {string} params.originId
  * @param {string} params.targetId
+ * @param {Record<string, string>} [params.beastModeIdRemap] - Origin → target Beast Mode legacyIds, for the card's own references.
+ * @param {Record<string, string>} [params.beastModeNumericRemap] - Origin → target Beast Mode numeric ids, for nested DOMO_BEAST_MODE(id) references.
  * @param {Record<string, string|null>} [params.columnMap]
  * @param {Object} [params.cachedDefinition]
  * @param {boolean} [params.useFullPath] - Force the full-PUT path even with no remap. Set when the schema check found mismatches; the lightweight endpoint can't reconcile mismatched column names server-side and would error.
@@ -351,7 +353,9 @@ export async function searchDatasets(text, tabId = null, offset = 0) {
  */
 export async function swapCardInput({
   beastModeIdRemap,
+  beastModeNumericRemap,
   cachedDefinition,
+  cardBeastModeResolutions,
   cardId,
   columnMap,
   droppedColumns,
@@ -363,8 +367,16 @@ export async function swapCardInput({
 }) {
   // A non-empty Beast Mode remap forces the full-PUT path: the lightweight
   // shortcut can't repoint a card's references to its dataset's Beast Modes,
-  // which now live on the target under new ids.
-  const hasBeastModeRemap = beastModeIdRemap && Object.keys(beastModeIdRemap).length > 0;
+  // which now live on the target under new ids. `beastModeIdRemap` covers the
+  // card's own references (legacyId); `beastModeNumericRemap` covers nested
+  // `DOMO_BEAST_MODE(<id>)` refs embedded in card-level Beast Mode formulas;
+  // `cardBeastModeResolutions` resolves card-level Beast Modes whose name
+  // collides with a target dataset Beast Mode (rename, or use the target's).
+  const hasCardBeastModeResolutions = Array.isArray(cardBeastModeResolutions) && cardBeastModeResolutions.length > 0;
+  const hasBeastModeRemap =
+    (beastModeIdRemap && Object.keys(beastModeIdRemap).length > 0) ||
+    (beastModeNumericRemap && Object.keys(beastModeNumericRemap).length > 0) ||
+    hasCardBeastModeResolutions;
   // Dropping columns also forces the full-PUT path: the lightweight shortcut
   // can't strip a column's references from the definition.
   const hasDroppedColumns = Array.isArray(droppedColumns) && droppedColumns.length > 0;
@@ -389,14 +401,32 @@ export async function swapCardInput({
     }
     rewritten = JSON.parse(JSON.stringify(rewritten).replaceAll(originId, targetId));
     // Repoint references to the origin dataset's Beast Modes onto the ones now
-    // on the target. Keys are origin legacyIds (`calculation_<uuid>`), which
-    // are collision-safe for a string sweep (unlike short numeric ids).
-    if (hasBeastModeRemap) {
+    // on the target. The card references Beast Modes by origin legacyId
+    // (`calculation_<uuid>`), collision-safe for a string sweep (unlike short
+    // numeric ids).
+    if (beastModeIdRemap && Object.keys(beastModeIdRemap).length > 0) {
       let json = JSON.stringify(rewritten);
       for (const [from, to] of Object.entries(beastModeIdRemap)) {
         if (from && to && from !== to) json = json.replaceAll(from, to);
       }
       rewritten = JSON.parse(json);
+    }
+    // A card-level Beast Mode that nests dataset Beast Modes embeds those by
+    // numeric id as `DOMO_BEAST_MODE(<id>)`. Repoint each onto its target id.
+    // Targeted (not a blind sweep) since short numeric ids collide easily.
+    if (beastModeNumericRemap && Object.keys(beastModeNumericRemap).length > 0) {
+      const json = JSON.stringify(rewritten).replace(
+        /DOMO_BEAST_MODE\(\s*(\d+)\s*\)/g,
+        (match, id) => (beastModeNumericRemap[id] ? `DOMO_BEAST_MODE(${beastModeNumericRemap[id]})` : match)
+      );
+      rewritten = JSON.parse(json);
+    }
+    // Resolve card-level Beast Modes whose name collides with a target dataset
+    // Beast Mode (Domo rejects saving the card otherwise): either rename the
+    // card-level Beast Mode, or repoint its references to the target's and drop
+    // the card-level copy.
+    if (hasCardBeastModeResolutions) {
+      rewritten = applyCardBeastModeResolutions(rewritten, cardBeastModeResolutions);
     }
     // Drop columns the user chose to remove (offered only for badge_table
     // cards/drills): strip every reference so they disappear from the table.
@@ -1009,6 +1039,7 @@ export const MIGRATE_TYPES = [{ key: 'beastModes' }, { key: 'cards' }, { key: 'd
  */
 export async function migrateAllDownstreamContent({
   beastModeChoices,
+  cardBeastModeResolutions,
   columnMap,
   definitionsByItemKey,
   droppedColumns,
@@ -1029,6 +1060,7 @@ export async function migrateAllDownstreamContent({
   // consumes; nothing else depends on it, so it must complete before phase 2.
   const beastModeItems = selectedItems?.beastModes || [];
   let beastModeIdRemap = {};
+  let beastModeNumericRemap = {};
   const beastModeAttempted = beastModeItems.map((i) => ({ id: i.id, name: i.name || String(i.id) }));
   if (beastModeItems.length === 0) {
     const result = { attempted: [], count: 0, errors: [], failed: 0, succeeded: 0 };
@@ -1047,6 +1079,7 @@ export async function migrateAllDownstreamContent({
       targetId
     });
     beastModeIdRemap = bm.idRemap;
+    beastModeNumericRemap = bm.numericRemap;
     const result = {
       attempted: beastModeAttempted,
       count: beastModeItems.length,
@@ -1058,7 +1091,7 @@ export async function migrateAllDownstreamContent({
     onProgress?.({ count: beastModeItems.length, result, status: 'done', typeKey: 'beastModes' });
   }
 
-  // Phase 2: cards / datasets / dataflows. Cards consume `beastModeIdRemap`.
+  // Phase 2: cards / datasets / dataflows. Cards consume both Beast Mode remaps.
   await Promise.allSettled(
     MIGRATE_TYPES.filter((type) => type.key !== 'beastModes').map(async (type) => {
       const items = selectedItems?.[type.key] || [];
@@ -1080,7 +1113,9 @@ export async function migrateAllDownstreamContent({
         const cached = definitionsByItemKey?.get?.(makeItemKey(type.key, item.id))?.definition;
         const resp = await dispatchSwap(type.key, item, {
           beastModeIdRemap,
+          beastModeNumericRemap,
           cachedDefinition: cached,
+          cardBeastModeResolutions,
           columnMap,
           droppedColumns,
           originId,
@@ -1120,33 +1155,72 @@ export async function migrateAllDownstreamContent({
 }
 
 /**
- * Build a Beast Mode create/update entry from a (column-rewritten) origin
- * template: first repoint references to OTHER beast modes (origin
- * `calculation_<uuid>` → the target id they were created under, via `idRemap`),
- * then sweep origin-dataset-id references onto the target (catches the
- * `DATA_SOURCE` link and any embedded ids, same approach as the card/view
- * swaps), drop server-managed timestamps, set the name, and set the owner
- * to the current user. Callers handle `id`/`legacyId` (deleted for create,
- * set to the target's for overwrite).
- *
- * The id-remap sweep runs BEFORE the dataset-id sweep so a nested beast mode's
- * embedded reference points at the already-created target beast mode; the
- * target `calculation_<uuid>` tokens don't contain `originId`, so the dataset
- * sweep can't corrupt them.
+ * Resolve card-level Beast Modes on a card definition whose name collides with a
+ * target dataset Beast Mode. Each resolution targets one card-level Beast Mode
+ * (by its origin legacyId):
+ *   - `rename`: rename the card-level Beast Mode (references use its id, so they
+ *     don't change); the card keeps its own copy under a non-colliding name.
+ *   - `useTarget`: drop the card-level copy and repoint every reference (the
+ *     `formulaId` legacyId and any `DOMO_BEAST_MODE(<id>)` nesting) onto the
+ *     target dataset Beast Mode of the same name.
+ * A resolution whose Beast Mode isn't on this card is skipped. Returns the
+ * (possibly replaced) definition.
  */
-function buildBeastModeEntry(template, { currentUserId, idRemap, name, originId, targetId }) {
-  let json = JSON.stringify(template);
-  if (idRemap) {
-    for (const [from, to] of Object.entries(idRemap)) {
-      if (from && to && from !== to) json = json.replaceAll(from, to);
+function applyCardBeastModeResolutions(definition, resolutions) {
+  let def = definition;
+  for (const r of resolutions) {
+    const formulas = Array.isArray(def.formulas) ? def.formulas : [];
+    const entry = formulas.find((f) => f?.id === r.originLegacyId);
+    if (!entry) continue;
+    if (r.disposition === 'rename' && r.newName) {
+      entry.name = r.newName;
+    } else if (r.disposition === 'useTarget' && r.targetLegacyId) {
+      // Drop the card-level copy first, then repoint references to the target.
+      def.formulas = formulas.filter((f) => f?.id !== r.originLegacyId);
+      let json = JSON.stringify(def).replaceAll(r.originLegacyId, r.targetLegacyId);
+      if (r.originTemplateId != null && r.targetTemplateId != null) {
+        json = json.replaceAll(`DOMO_BEAST_MODE(${r.originTemplateId})`, `DOMO_BEAST_MODE(${r.targetTemplateId})`);
+      }
+      def = JSON.parse(json);
     }
   }
-  json = json.replaceAll(originId, targetId);
-  const entry = JSON.parse(json);
+  return def;
+}
+
+/**
+ * Build a Beast Mode create/update entry from a (column-rewritten) origin
+ * template. Two transforms run first: repoint references to OTHER Beast Modes it
+ * nests (origin numeric template id → the target id they were created under, via
+ * `numericRemap`), then sweep origin-dataset-id references onto the target. The
+ * result is then reduced to the shape Domo's create accepts.
+ *
+ * A nested Beast Mode references the ones it nests by NUMERIC template id
+ * (`DOMO_BEAST_MODE(<id>)` in the expression), NOT by `calculation_<uuid>`
+ * legacyId (that token is only how cards reference Beast Modes). The numeric
+ * remap is a targeted structural rewrite (not a blind string sweep) since short
+ * numeric ids collide easily; the dataset-id sweep that follows is a UUID, so
+ * it's collision-safe and can't corrupt the remapped numeric ids.
+ *
+ * Critically, `functionTemplateDependencies` and `FUNCTION_TEMPLATE` links are
+ * DROPPED: Domo derives the nesting server-side from the expression, and sending
+ * them makes the bulk create reject a nested Beast Mode ("cannot contain another
+ * calculation"). `persistedOnDataSource: true` and a single visible target
+ * `DATA_SOURCE` link mark it as saved to the dataset. Callers set the final
+ * `id`/`legacyId` (left at 0/absent for create, the target's for overwrite).
+ */
+function buildBeastModeEntry(template, { currentUserId, name, numericRemap, originId, targetId }) {
+  const remapped = remapNestedBeastModeIds(JSON.parse(JSON.stringify(template)), numericRemap);
+  const entry = JSON.parse(JSON.stringify(remapped).replaceAll(originId, targetId));
   delete entry.created;
   delete entry.lastModified;
+  delete entry.checkSum;
+  delete entry.legacyId;
+  delete entry.functionTemplateDependencies;
+  entry.id = 0;
   entry.name = name;
   entry.owner = currentUserId;
+  entry.persistedOnDataSource = true;
+  entry.links = [{ resource: { id: targetId, type: 'DATA_SOURCE' }, visible: true }];
   return entry;
 }
 
@@ -1240,7 +1314,9 @@ async function dispatchSwap(typeKey, item, options) {
   if (typeKey === 'cards') {
     return swapCardInput({
       beastModeIdRemap: options.beastModeIdRemap,
+      beastModeNumericRemap: options.beastModeNumericRemap,
       cachedDefinition: options.cachedDefinition,
+      cardBeastModeResolutions: options.cardBeastModeResolutions,
       cardId: item.id,
       columnMap: options.columnMap,
       droppedColumns: options.droppedColumns,
@@ -1290,15 +1366,11 @@ function extractCreatedFunctions(response) {
   return [];
 }
 
-/** Read a Beast Mode entry's `legacyId` (the `calculation_<uuid>`), if present. */
-function getEntryLegacyId(entry) {
-  if (!entry || typeof entry !== 'object') return null;
-  return entry.legacyId || entry.template?.legacyId || null;
-}
-
 /**
- * Migrate dataset-saved Beast Modes onto the target, returning an id remap
- * (origin legacyId → target legacyId) the card swap uses to repoint references.
+ * Migrate dataset-saved Beast Modes onto the target, returning two origin →
+ * target remaps the card swap consumes: `idRemap` (legacyId → legacyId) for the
+ * card's own Beast Mode references, and `numericRemap` (numeric template id →
+ * numeric template id) for nested `DOMO_BEAST_MODE(<id>)` references.
  *
  * Per Beast Mode, the user's choice (from `beastModeChoices`, keyed by origin
  * id) decides the disposition:
@@ -1307,17 +1379,19 @@ function getEntryLegacyId(entry) {
  *   - create / rename (default): create a new Beast Mode on the target.
  * Column refs are rewritten via `columnMap` before any write.
  *
- * Nested Beast Modes (one whose formula references another, e.g.
- * `bm3 = CONCAT(\`bm1\`, \`bm2\`)`) embed the ORIGIN `calculation_<uuid>` of the
- * Beast Modes they reference, which doesn't exist on the target. To handle them:
- *   1. keep/overwrite mappings are seeded into `idRemap` up front (their target
- *      ids are known immediately), so any create that references them resolves.
+ * Nested Beast Modes (one whose formula nests another, e.g.
+ * `bm3 = CONCAT(DOMO_BEAST_MODE(bm1), DOMO_BEAST_MODE(bm2))`) reference the ones
+ * they nest by ORIGIN numeric template id, which doesn't exist on the target. To
+ * handle them:
+ *   1. keep/overwrite mappings seed `numericRemap` (and `idRemap`) up front
+ *      (their target ids are known immediately), so any create that nests them
+ *      resolves.
  *   2. creates are split into dependency-ordered WAVES (Kahn topological sort on
- *      "B references A's origin legacyId"); each wave is built with the
- *      accumulated `idRemap` applied, so its references point at the target ids
- *      of already-created Beast Modes.
- *   3. after each wave's create, new legacyIds are resolved positionally from
- *      the order-preserving bulk response (collision-safe for duplicate names),
+ *      each template's `functionTemplateDependencies`); each wave is built with
+ *      the accumulated `numericRemap` applied, so its nested references point at
+ *      the target ids of already-created Beast Modes.
+ *   3. after each wave's create, new ids are read positionally from the
+ *      order-preserving bulk response (collision-safe for duplicate names),
  *      falling back to a name re-read only for any the response didn't surface.
  */
 async function migrateBeastModes({
@@ -1331,7 +1405,14 @@ async function migrateBeastModes({
   targetId
 }) {
   const errors = [];
+  // Two remaps, both origin -> target. `idRemap` (legacyId -> legacyId) repoints
+  // CARD references to Beast Modes (cards reference them by `calculation_<uuid>`).
+  // `numericRemap` (numeric template id -> numeric template id) repoints
+  // BEAST-MODE-to-Beast-Mode references (a nested Beast Mode nests others by
+  // `DOMO_BEAST_MODE(<id>)`). Both are returned: the card swap uses idRemap for
+  // its own references and numericRemap for any nested formulas it embeds.
   const idRemap = {};
+  const numericRemap = {};
   const targetByName = new Map((targetBeastModes || []).map((b) => [b.name, b]));
   const applyRemap = hasEffectiveMapping(columnMap);
   const toCreate = [];
@@ -1342,11 +1423,17 @@ async function migrateBeastModes({
   // The API rejects creates with owner set to another user.
   const currentUserId = await getCurrentUserId(tabId);
   if (!currentUserId) {
-    return { errors: [{ error: 'Could not determine current user ID', id: 'all' }], idRemap: {}, succeeded: 0 };
+    return {
+      errors: [{ error: 'Could not determine current user ID', id: 'all' }],
+      idRemap: {},
+      numericRemap: {},
+      succeeded: 0
+    };
   }
 
-  const mapLegacyId = (origin, target) => {
+  const mapIds = (origin, target) => {
     if (origin?.legacyId && target?.legacyId) idRemap[origin.legacyId] = target.legacyId;
+    if (origin?.id != null && target?.id != null) numericRemap[String(origin.id)] = String(target.id);
   };
 
   // Classify each selected Beast Mode. keep/overwrite seed `idRemap` immediately
@@ -1364,7 +1451,7 @@ async function migrateBeastModes({
       if (disposition === 'keep') {
         const existing = targetByName.get(bm.name);
         if (existing) {
-          mapLegacyId(bm, existing);
+          mapIds(bm, existing);
           succeeded++;
         } else {
           errors.push({ error: `No Beast Mode named "${bm.name}" on the target to keep`, id: bm.id });
@@ -1380,7 +1467,7 @@ async function migrateBeastModes({
         }
         // Seed the remap now (the target Beast Mode already exists regardless of
         // whether the overwrite write succeeds); build the entry after creates.
-        mapLegacyId(bm, existing);
+        mapIds(bm, existing);
         toUpdate.push({ name: bm.name, origin: bm, target: existing, template: rewritten });
         continue;
       }
@@ -1393,32 +1480,47 @@ async function migrateBeastModes({
     }
   }
 
-  // Create in dependency-ordered waves, extending `idRemap` after each wave.
+  // Create in dependency-ordered waves, extending both remaps after each wave.
   if (toCreate.length > 0) {
     const waves = orderBeastModeCreateWaves(toCreate);
     const unresolved = [];
     for (const wave of waves) {
-      const entries = wave.map((c) => {
-        const entry = buildBeastModeEntry(c.template, { currentUserId, idRemap, name: c.name, originId, targetId });
-        delete entry.id;
-        delete entry.legacyId;
-        return entry;
-      });
+      const buildable = [];
+      for (const c of wave) {
+        // Safety net: a nested Beast Mode whose dependency wasn't migrated (an
+        // earlier failure, or a UI regression that let a dependency be dropped)
+        // would still reference the origin's numeric id and dangle on the
+        // target. `functionTemplateDependencies` is Domo's authoritative dep
+        // list; once a dep is migrated it has a numericRemap entry, so an
+        // unmapped dep (other than the Beast Mode's own id) means skip + report.
+        const dangling = (c.template.functionTemplateDependencies || []).some(
+          (d) => String(d) !== String(c.origin?.id) && !numericRemap[String(d)]
+        );
+        if (dangling) {
+          errors.push({
+            error: `"${c.name}" nests a Beast Mode that wasn't migrated; skipped to avoid a broken formula`,
+            id: c.origin.id
+          });
+          continue;
+        }
+        const entry = buildBeastModeEntry(c.template, { currentUserId, name: c.name, numericRemap, originId, targetId });
+        buildable.push({ entry, record: c });
+      }
+      if (buildable.length === 0) continue;
       let response;
       try {
-        response = await createDatasetFunctions({ functions: entries, tabId });
+        response = await createDatasetFunctions({ functions: buildable.map((b) => b.entry), tabId });
       } catch (err) {
-        for (const c of wave) errors.push({ error: err?.message || String(err), id: c.origin.id });
+        for (const b of buildable) errors.push({ error: err?.message || String(err), id: b.record.origin.id });
         continue;
       }
       // Prefer the order-preserving bulk response (collision-safe for duplicate
       // names); anything it doesn't surface falls through to a name re-read.
       const created = extractCreatedFunctions(response);
-      for (let i = 0; i < wave.length; i++) {
-        const c = wave[i];
-        const newLegacyId = getEntryLegacyId(created[i]);
-        if (newLegacyId && c.origin?.legacyId) {
-          idRemap[c.origin.legacyId] = newLegacyId;
+      for (let i = 0; i < buildable.length; i++) {
+        const c = buildable[i].record;
+        if (created[i]) {
+          mapIds(c.origin, created[i]);
           succeeded++;
         } else {
           unresolved.push(c);
@@ -1433,7 +1535,7 @@ async function migrateBeastModes({
         for (const c of unresolved) {
           const found = refByName.get(c.name);
           if (found) {
-            mapLegacyId(c.origin, found);
+            mapIds(c.origin, found);
             succeeded++;
           } else {
             errors.push({ error: `Created Beast Mode "${c.name}" not found on the target`, id: c.origin.id });
@@ -1446,52 +1548,58 @@ async function migrateBeastModes({
   }
 
   // Overwrites run last so their references to freshly-created Beast Modes
-  // resolve through the now-complete `idRemap`.
+  // resolve through the now-complete `numericRemap`.
   if (toUpdate.length > 0) {
     const entries = toUpdate.map((u) => {
-      const entry = buildBeastModeEntry(u.template, { currentUserId, idRemap, name: u.name, originId, targetId });
+      const entry = buildBeastModeEntry(u.template, { currentUserId, name: u.name, numericRemap, originId, targetId });
       entry.id = u.target.id;
       entry.legacyId = u.target.legacyId;
       return entry;
     });
     try {
       await updateDatasetFunctions({ functions: entries, tabId });
-      // idRemap was already seeded for overwrites during classification.
+      // Both remaps were already seeded for overwrites during classification.
       succeeded += toUpdate.length;
     } catch (err) {
       for (const u of toUpdate) errors.push({ error: err?.message || String(err), id: u.origin.id });
     }
   }
 
-  return { errors, idRemap, succeeded };
+  return { errors, idRemap, numericRemap, succeeded };
 }
 
 /**
  * Split Beast Mode create records into dependency-ordered waves so a nested
- * Beast Mode is always created AFTER the ones it references. Dependency `B → A`
- * is detected when B's (column-rewritten) template embeds A's origin
- * `legacyId` (`calculation_<uuid>`) — a collision-safe token, mirroring the
- * card-swap reference sweep. Waves are emitted via Kahn's algorithm: each wave
- * is the set of records whose dependencies have all been emitted. A dependency
+ * Beast Mode is always created AFTER the ones it nests. Dependency `B → A` is
+ * read straight from B's template `functionTemplateDependencies` (Domo's
+ * authoritative numeric list of the Beast Modes B nests), restricted to records
+ * also being created here. Waves are emitted via Kahn's algorithm: each wave is
+ * the set of records whose dependencies have all been emitted. A dependency
  * cycle (which Domo itself forbids for Beast Modes) can't drain to empty, so the
  * remaining records are emitted as one final wave in their original order and
  * the existing per-create error path reports any that then fail.
  *
- * @param {Array<{name: string, origin: {id: any, legacyId?: string}, template: Object}>} createRecords
+ * @param {Array<{name: string, origin: {id: any}, template: Object}>} createRecords
  * @returns {Array<Array<{name: string, origin: Object, template: Object}>>}
  */
 function orderBeastModeCreateWaves(createRecords) {
   const n = createRecords.length;
-  const tokens = createRecords.map((r) => r.origin?.legacyId || null);
-  const serialized = createRecords.map((r) => JSON.stringify(r.template));
-  // deps[i] = set of indices record i depends on (references).
-  const deps = createRecords.map(() => new Set());
-  for (let i = 0; i < n; i++) {
-    for (let j = 0; j < n; j++) {
-      if (i === j) continue;
-      if (tokens[j] && serialized[i].includes(tokens[j])) deps[i].add(j);
+  // index by origin numeric id so a dependency id resolves to its record.
+  const indexById = new Map();
+  createRecords.forEach((r, i) => {
+    if (r.origin?.id != null) indexById.set(String(r.origin.id), i);
+  });
+  // deps[i] = set of indices record i depends on (the Beast Modes it nests that
+  // are also being created here; deps satisfied by keep/overwrite are already
+  // resolved up front and don't gate ordering).
+  const deps = createRecords.map((r, i) => {
+    const set = new Set();
+    for (const d of r.template?.functionTemplateDependencies || []) {
+      const j = indexById.get(String(d));
+      if (j != null && j !== i) set.add(j);
     }
-  }
+    return set;
+  });
 
   const remaining = new Set(Array.from({ length: n }, (_, i) => i));
   const emitted = new Set();
@@ -1525,6 +1633,36 @@ function orderBeastModeCreateWaves(createRecords) {
     waves.push(wave.map((i) => createRecords[i]));
   }
   return waves;
+}
+
+/**
+ * Repoint a Beast Mode template's nested references (the OTHER Beast Modes it
+ * nests) from origin numeric template ids onto their target ids, in the three
+ * places Domo stores them: `DOMO_BEAST_MODE(<id>)` tokens in the expression,
+ * the `functionTemplateDependencies` id list, and `FUNCTION_TEMPLATE` links.
+ * Mutates and returns the passed template. A no-op when `numericRemap` is empty
+ * or an id isn't mapped (left as-is, then surfaced by the dangling-ref guard).
+ */
+function remapNestedBeastModeIds(template, numericRemap) {
+  if (!template || typeof template !== 'object' || !numericRemap) return template;
+  if (typeof template.expression === 'string') {
+    template.expression = template.expression.replace(/DOMO_BEAST_MODE\(\s*(\d+)\s*\)/g, (match, id) => {
+      const to = numericRemap[id];
+      return to ? `DOMO_BEAST_MODE(${to})` : match;
+    });
+  }
+  if (Array.isArray(template.functionTemplateDependencies)) {
+    template.functionTemplateDependencies = template.functionTemplateDependencies.map((d) => numericRemap[String(d)] || d);
+  }
+  if (Array.isArray(template.links)) {
+    for (const link of template.links) {
+      if (link?.resource?.type === 'FUNCTION_TEMPLATE') {
+        const to = numericRemap[String(link.resource.id)];
+        if (to) link.resource.id = to;
+      }
+    }
+  }
+  return template;
 }
 
 /** Set the auditable version-history comment on the dataflow's new version. */

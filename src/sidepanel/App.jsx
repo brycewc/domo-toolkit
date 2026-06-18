@@ -360,7 +360,7 @@ export default function App() {
               />
             )}
 
-            {activeView === 'migrateDownstream' && (
+            {activeView === 'migrateDownstreamContent' && (
               <MigrateDownstreamContentView
                 currentContext={currentContext}
                 key={viewKey}

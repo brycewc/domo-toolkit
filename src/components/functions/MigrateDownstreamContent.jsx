@@ -18,7 +18,7 @@ export function MigrateDownstreamContent({ currentContext, onCollapseActions, on
             currentContext,
             onCollapseActions,
             onStatusUpdate,
-            type: 'migrateDownstream'
+            type: 'migrateDownstreamContent'
           })
         }
       >
