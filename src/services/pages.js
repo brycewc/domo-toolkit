@@ -1,6 +1,7 @@
-import { waitForCards } from '@/utils/cardHelpers';
 import { executeInPage } from '@/utils/executeInPage';
 import { storeSidepanelData } from '@/utils/sidepanel';
+
+import { getCardsForObject } from './cards';
 
 /**
  * Check if a page is actually a data app view and get its parent app ID.
@@ -77,20 +78,23 @@ export async function deletePageAndAllCards({
       }
     }
 
-    // Wait for cards to be loaded from background process
-    const cardsResult = await waitForCards(currentContext);
-
-    if (!cardsResult.success) {
+    // Fetch the page's cards fresh, right before deleting them. The background
+    // enriches the cached tab context with cards/forms/queues asynchronously to
+    // drive the UI, but a delete only needs the card ids, and waiting on that
+    // cache could time out (or act on a stale list) for a destructive action.
+    // Reading straight from the page's cards endpoint is fast and authoritative.
+    let cardIds;
+    try {
+      const cards = await getCardsForObject({ objectId: pageId, objectType: pageType, tabId });
+      cardIds = cards.map((card) => card.id).filter((id) => Number.isFinite(id));
+    } catch (error) {
       return {
-        statusDescription: cardsResult.error,
+        statusDescription: `Could not load the page's cards to delete (${error.message}).`,
         statusTitle: 'Error',
         statusType: 'danger',
         success: false
       };
     }
-
-    const cards = cardsResult.cards;
-    const cardIds = cards.map((card) => card.id);
 
     // Execute deletion logic in page context to inherit authentication
     const result = await executeInPage(

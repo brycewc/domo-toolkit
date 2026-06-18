@@ -59,6 +59,7 @@
 - The Activity Log no longer briefly flashes scroll bars across the page while it loads.
 - Nested dataset Beast Modes now migrate in the right order so they, and the cards that use them, transfer cleanly.
 - Magic ETL sort columns now get renamed during migration along with the rest of the dataflow.
+- Deleting a page and all its cards no longer fails with a "Timeout while checking for page items" error.
 
 ### Other Fixes
 

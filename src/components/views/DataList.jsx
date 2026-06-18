@@ -14,7 +14,7 @@ import {
   Tooltip
 } from '@heroui/react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { memo, useCallback, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { launchActivityLog } from '@/utils/activityLog';
 import { getAvailableActions } from '@/utils/availableActions';
@@ -136,6 +136,23 @@ export function DataList({
   // Centralized expansion state, keyed by item.id, survives unmount/remount
   // when items virtualize. See `VirtualizedItems` below.
   const [expandedIds, setExpandedIds] = useState(() => new Set(defaultExpandedIds || []));
+  // Auto-expand any defaultExpandedIds that appear *after* mount. A consumer
+  // whose items load asynchronously (e.g. the delete view's dependency groups)
+  // has an empty defaultExpandedIds at first render, so the one-time useState
+  // seed above misses them. We seed each id the first time we see it and never
+  // again, so a group the user later collapses isn't forced back open on a
+  // re-render.
+  const seededDefaultsRef = useRef(new Set(defaultExpandedIds || []));
+  useEffect(() => {
+    const fresh = (defaultExpandedIds ? [...defaultExpandedIds] : []).filter((id) => !seededDefaultsRef.current.has(id));
+    if (fresh.length === 0) return;
+    fresh.forEach((id) => seededDefaultsRef.current.add(id));
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      fresh.forEach((id) => next.add(id));
+      return next;
+    });
+  }, [defaultExpandedIds]);
   const onToggleExpanded = useCallback((id, isOpen) => {
     setExpandedIds((prev) => {
       const next = new Set(prev);
@@ -372,6 +389,15 @@ export function DataList({
   // re-running on every state change (e.g. each Disclosure toggle).
   const sortedItems = useMemo(() => sortItemsByLabel(items), [items]);
 
+  // Remount key for the top-level DisclosureGroup. React Aria seeds a group's
+  // expansion from defaultExpandedKeys once at mount and ignores later changes,
+  // so a consumer whose expandable ids arrive asynchronously (e.g. the delete
+  // view, whose dependency groups appear only after the dependency check
+  // resolves) would render collapsed. Re-keying the group on its seed ids
+  // forces a fresh mount that re-reads them the moment they show up. Stable ids
+  // produce a stable key, so synchronous consumers never remount.
+  const expansionSeedKey = defaultExpandedIds ? [...defaultExpandedIds].join('|') : '';
+
   return (
     <Card
       className={`datalist-root flex min-h-0 w-full flex-1 flex-col gap-0 p-2 ${fillHeight ? 'h-full' : 'max-h-fit'}`}
@@ -569,6 +595,7 @@ export function DataList({
                 allowsMultipleExpanded={allowsMultipleExpanded}
                 className='flex min-h-0 w-full flex-1 flex-col divide-y divide-border'
                 defaultExpandedKeys={defaultExpandedIds}
+                key={expansionSeedKey}
               >
                 <VirtualizedItems
                   items={sortedItems}
@@ -619,6 +646,7 @@ export function DataList({
                   allowsMultipleExpanded={allowsMultipleExpanded}
                   className='flex w-full flex-col divide-y divide-border'
                   defaultExpandedKeys={defaultExpandedIds}
+                  key={expansionSeedKey}
                 >
                   {sortedItems.map((item, index) => (
                     <DataListItem
