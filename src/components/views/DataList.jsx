@@ -17,9 +17,8 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { launchActivityLog } from '@/utils/activityLog';
-import { getAvailableActions } from '@/utils/availableActions';
 import { getValidTabForInstance } from '@/utils/currentObject';
-import { parseMarkdownBold, stripMarkdownBold } from '@/utils/markdown';
+import { buildRefreshAction, buildReloadAction } from '@/utils/headerActions';
 import { launchView } from '@/utils/sidepanel';
 import IconArrowSquareOut from '@icons/arrow-square-out.svg?react';
 import IconCancel from '@icons/cancel.svg?react';
@@ -32,13 +31,11 @@ import IconLineage from '@icons/lineage.svg?react';
 import IconListSearch from '@icons/list-search.svg?react';
 import IconPeoplePlus from '@icons/people-plus.svg?react';
 import IconPersonPlus from '@icons/person-plus.svg?react';
-import IconReset from '@icons/reset.svg?react';
-import IconSync from '@icons/sync.svg?react';
 import IconX from '@icons/x.svg?react';
 
 import { AnimatedCheck } from '../AnimatedCheck';
-import { DisabledTooltip } from '../DisabledTooltip';
 import { ObjectTypeIcon } from '../ObjectTypeIcon';
+import { ViewHeader } from './ViewHeader';
 
 /**
  * DataList Component
@@ -59,8 +56,11 @@ import { ObjectTypeIcon } from '../ObjectTypeIcon';
  * @param {Object} props
  * @param {React.ReactNode} [props.banner] - Content rendered inside the Card between the header and the items list (after the header `<Separator>`), pinned above the scroll area. Use for status/context that belongs to the whole list (e.g. a dependency-check alert above a delete view's affected-objects list). Pass `null`/`false` to omit.
  * @param {Array} props.items - Array of list items with optional children
- * @param {string} props.title - Plain-text header title. Supports inline `**bold**` markdown for emphasis (parsed via `parseMarkdownBold`). The tooltip mirrors the same text with bold markers stripped so the overlay reads as unstyled prose.
- * @param {1|2} [props.titleLineClamp=1] - Max lines the header title clamps to before truncating. Defaults to 1; pass 2 for long titles (e.g. a bolded object name) that read better across two lines.
+ * @param {React.ReactNode} [props.featureIcon] - Large header icon identifying the view (passed through to `ViewHeader`), spanning the title and subtext rows.
+ * @param {string} [props.feature] - The feature + connecting text for the title, e.g. "Beast Modes for" (passed through to `ViewHeader`).
+ * @param {string} [props.subject] - The subject object's display name, rendered bold in the title (passed through to `ViewHeader`).
+ * @param {string} [props.subjectTypeId] - typeId for an `ObjectTypeIcon` rendered inline before the subject. Defaults to `objectType` when omitted.
+ * @param {boolean} [props.beta] - Renders the standard "Beta" chip beneath the feature icon (passed through to `ViewHeader`).
  * @param {HeaderActionType[]} props.headerActions - Array of action types to show in header
  * @param {Function} props.onClose - Callback when close button is clicked (shows close button if provided)
  * @param {boolean} props.isRefreshing - Whether refresh action is in progress
@@ -86,8 +86,7 @@ import { ObjectTypeIcon } from '../ObjectTypeIcon';
  * @param {React.ReactNode} [props.selectionToolbar] - Selection-mode-only content rendered as a third header row directly under the action buttons. Use for "Select all"/"Deselect all" or other bulk-selection controls. Ignored when `selectionMode` is false.
  * @param {Boolean} [props.fillHeight] - When true, the root Card fills its parent's available height (`h-full`) instead of being content-sized (`max-h-fit`), so the items list scrolls internally and the footer stays pinned at the bottom. Requires a parent that provides a constrained height (a flex/grid column). Default false preserves content-sizing.
  * @param {React.ReactNode} [props.footer] - Content rendered inside the Card below the items list, separated from the scroll area by a `<Separator>`. Use for a primary action that should sit pinned beneath the list (e.g. a full-width "Transfer ownership to…" button in selection mode). Consumers decide visibility; pass `null`/`false` to omit.
- * @param {string} [props.subtext] - Plain-text secondary content for the second header row (typically counts, status text, or a breadcrumb). Supports inline `**bold**` markdown the same way `title` does. Truncates if it can't fit alongside header actions, but does NOT get a hover tooltip; every subtext we render is a short, bounded count/status string and a tooltip mirroring already-visible text felt redundant.
- * @param {React.ReactNode} [props.subtextStartContent] - Node rendered inline at the start of the second header (subtext) row, before the subtext text (e.g. a status `Chip` such as "Beta"). Pass it `shrink-0` so the subtext truncates after it rather than the chip. Omit for no adornment.
+ * @param {string} [props.subtext] - Plain-text secondary content for the second header row (typically counts, status text, or a breadcrumb). Supports inline `**bold**` markdown. Truncates if it can't fit alongside header actions, but does NOT get a hover tooltip; every subtext we render is a short, bounded count/status string and a tooltip mirroring already-visible text felt redundant.
  * @param {Array<{ key: string, icon: React.ReactNode, tooltipText: string, onPress: () => void, isDisabled?: boolean, isActive?: boolean, ariaLabel?: string }>} [props.customHeaderActions] - View-specific header buttons rendered inline after the built-in `headerActions`. Use this for actions that don't fit the preset enum (Transfer Ownership, Selection toggle, etc.).
  * @param {string} [props.viewType] - The action key for this view (e.g. `'getCards'`, `'getDatasets'`). Required when `'reload'` is in `headerActions`. Used as the `type` passed to `launchView` and as the key looked up against `getAvailableActions(currentContext)` to decide if reload is enabled.
  * @param {Object} [props.currentContext] - Live `DomoContext` for the user's currently-active object. Required when `'reload'` is in `headerActions`. Drives whether reload is enabled (current object differs from original AND supports the view).
@@ -97,9 +96,12 @@ import { ObjectTypeIcon } from '../ObjectTypeIcon';
 export function DataList({
   allowsMultipleExpanded = false,
   banner,
+  beta = false,
   currentContext,
   customHeaderActions,
   defaultExpandedIds,
+  feature,
+  featureIcon,
   fillHeight = false,
   footer,
   getItemLock,
@@ -124,10 +126,9 @@ export function DataList({
   selectionToolbar,
   showActions = true,
   showCounts = true,
+  subject,
+  subjectTypeId,
   subtext,
-  subtextStartContent,
-  title,
-  titleLineClamp = 1,
   variant,
   viewType,
   virtualThreshold = 50
@@ -356,12 +357,66 @@ export function DataList({
 
   const hasInlineActions = headerActions.length > 0 || (customHeaderActions && customHeaderActions.length > 0);
   const hasSelectionToolbar = selectionMode && Boolean(selectionToolbar);
-  const hasHeader = title || subtext || subtextStartContent || hasInlineActions || onClose || hasSelectionToolbar;
+  const hasHeader = feature || subject || subtext || beta || hasInlineActions || onClose || hasSelectionToolbar;
   // The header-level "View activity log for all" button shows only when a header
   // already exists for some other reason: it never conjures a blank header just
   // to host itself (headerless lists are still covered by the per-row "for all"
   // action). It also respects `showActions`, so selection-only lists stay clean.
   const showHeaderLogButton = hasHeaderLog && showActions && hasHeader;
+
+  // Header action specs in display order: custom actions first, then Share All,
+  // Open All, the activity-log button, and finally the navigational Reload +
+  // Refresh at the far edge. Fed to ViewHeader's generic `actions` slot; reload
+  // and refresh come from the shared builders so they behave identically here
+  // and in the custom-header views.
+  const headerActionSpecs = [
+    ...(customHeaderActions ?? []).map((a) => ({
+      ariaLabel: a.ariaLabel,
+      icon: a.icon,
+      isActive: a.isActive,
+      isDisabled: a.isDisabled,
+      key: a.key,
+      onPress: a.onPress,
+      tooltip: a.tooltipText
+    })),
+    ...(onShareAll && headerActions.includes('shareAll')
+      ? [
+          {
+            ariaLabel: 'Share All',
+            icon: isHeaderShared ? <AnimatedCheck stroke={1.5} /> : <IconPeoplePlus />,
+            key: 'shareAll',
+            onPress: () => handleHeaderAction('shareAll'),
+            tooltip: isHeaderShared ? 'Shared!' : 'Share all with yourself'
+          }
+        ]
+      : []),
+    ...(headerActions.includes('openAll')
+      ? [
+          {
+            ariaLabel: 'Open All',
+            icon: <IconArrowSquareOut />,
+            key: 'openAll',
+            onPress: () => handleHeaderAction('openAll'),
+            tooltip: 'Open all in new tabs'
+          }
+        ]
+      : []),
+    ...(showHeaderLogButton
+      ? [
+          {
+            ariaLabel: 'View Activity Log for all',
+            icon: <IconListSearch />,
+            key: 'activityLogAll',
+            onPress: () => handleHeaderAction('activityLogAll'),
+            tooltip: 'View activity log for all in this list'
+          }
+        ]
+      : []),
+    ...(headerActions.includes('reload') && viewType
+      ? [buildReloadAction({ currentContext, objectId, objectType, onStatusUpdate, viewType })]
+      : []),
+    ...(headerActions.includes('refresh') ? [buildRefreshAction({ isRefreshing, onRefresh })] : [])
+  ];
 
   // In selection mode, wrap the rendered items in a HeroUI CheckboxGroup so
   // each row's `<Checkbox value={item.id}>` is driven by group context. The
@@ -404,182 +459,17 @@ export function DataList({
       variant={variant}
     >
       {hasHeader && (
-        // HeroUI canonical header pattern: close button is an absolute-positioned
-        // sibling of Card.Title (NOT inside Card.Title). Card.Title is one line
-        // with right padding to clear the close icon. Subtext + action buttons
-        // live on a second row inside Card.Header. Actions render inline — no
-        // IconDotsHorizontal Popover collapse — so primary actions like Refresh are one
-        // click instead of two. Title and subtext are plain strings with optional
-        // `**bold**` markdown rendered via `parseMarkdownBold`. Only the title
-        // gets a HeroUI Tooltip (`stripMarkdownBold` flattens it for the
-        // overlay so the hover text reads as unstyled prose) — subtext is
-        // always a bounded short count/status string, so a tooltip mirroring
-        // already-visible content would be redundant.
-        <Card.Header className='gap-1'>
-          {title && (
-            <Tooltip>
-              <Tooltip.Trigger className='min-w-0 pr-8'>
-                <Card.Title className={titleLineClamp === 2 ? 'line-clamp-2' : 'line-clamp-1'}>
-                  {parseMarkdownBold(title)}
-                </Card.Title>
-              </Tooltip.Trigger>
-              <Tooltip.Content className='max-w-60'>{stripMarkdownBold(title)}</Tooltip.Content>
-            </Tooltip>
-          )}
-          {onClose && (
-            <Tooltip>
-              <Button
-                isIconOnly
-                aria-label='Close view'
-                className='absolute top-1 right-2'
-                size='sm'
-                variant='ghost'
-                onPress={onClose}
-              >
-                <IconX />
-              </Button>
-              <Tooltip.Content className='max-w-60'>Close view</Tooltip.Content>
-            </Tooltip>
-          )}
-          {(subtext || subtextStartContent || hasInlineActions || showHeaderLogButton) && (
-            <div className='flex min-w-0 items-center justify-between gap-2'>
-              {subtextStartContent}
-              <div className='min-w-0 flex-1 truncate text-xs text-muted'>{parseMarkdownBold(subtext)}</div>
-              {(hasInlineActions || showHeaderLogButton) && (
-                <ButtonGroup hideSeparator className='flex shrink-0' size='sm' variant='ghost'>
-                  {customHeaderActions?.map((action) => (
-                    <Tooltip key={action.key}>
-                      <Button
-                        isIconOnly
-                        aria-label={action.ariaLabel ?? action.tooltipText}
-                        className={action.isActive ? 'text-accent' : undefined}
-                        isDisabled={action.isDisabled}
-                        size='sm'
-                        variant='ghost'
-                        onPress={action.onPress}
-                      >
-                        {action.icon}
-                      </Button>
-                      <Tooltip.Content className='max-w-60' placement='bottom'>
-                        {action.tooltipText}
-                      </Tooltip.Content>
-                    </Tooltip>
-                  ))}
-                  {headerActions.includes('openAll') && (
-                    <Tooltip>
-                      <Button
-                        isIconOnly
-                        aria-label='Open All'
-                        size='sm'
-                        variant='ghost'
-                        onPress={() => handleHeaderAction('openAll')}
-                      >
-                        <IconArrowSquareOut />
-                      </Button>
-                      <Tooltip.Content className='max-w-60' placement='bottom'>
-                        Open all in new tabs
-                      </Tooltip.Content>
-                    </Tooltip>
-                  )}
-                  {onShareAll && headerActions.includes('shareAll') && (
-                    <Tooltip>
-                      <Button
-                        isIconOnly
-                        aria-label='Share All'
-                        size='sm'
-                        variant='ghost'
-                        onPress={() => handleHeaderAction('shareAll')}
-                      >
-                        {isHeaderShared ? <AnimatedCheck stroke={1.5} /> : <IconPeoplePlus />}
-                      </Button>
-                      <Tooltip.Content className='max-w-60' placement='bottom'>
-                        {isHeaderShared ? 'Shared!' : 'Share all with yourself'}
-                      </Tooltip.Content>
-                    </Tooltip>
-                  )}
-                  {/* Sits right of Open All / Share All but left of Reload and
-                      Refresh, so the destructive/navigational controls stay at
-                      the far edge. */}
-                  {showHeaderLogButton && (
-                    <Tooltip>
-                      <Button
-                        isIconOnly
-                        aria-label='View Activity Log for all'
-                        size='sm'
-                        variant='ghost'
-                        onPress={() => handleHeaderAction('activityLogAll')}
-                      >
-                        <IconListSearch />
-                      </Button>
-                      <Tooltip.Content className='max-w-60' placement='bottom'>
-                        View activity log for all in this list
-                      </Tooltip.Content>
-                    </Tooltip>
-                  )}
-                  {headerActions.includes('reload') &&
-                    viewType &&
-                    (() => {
-                      // Always rendered (when opted-in) to keep the action bar
-                      // layout stable as the user navigates. When the current
-                      // object can't reload, it renders through DisabledTooltip
-                      // so the tooltip explaining *why* still shows (that
-                      // component handles the disabled-but-hoverable mechanics).
-                      const currentTypeId = currentContext?.domoObject?.typeId;
-                      const reloadDisabledReason = !currentTypeId
-                        ? 'Navigate to a Domo object to reload'
-                        : !getAvailableActions(currentContext).has(viewType)
-                          ? "Current object doesn't support this view"
-                          : currentContext.domoObject.id === objectId && currentTypeId === objectType
-                            ? 'Already showing data for the current object'
-                            : null;
-                      const isReloadDisabled = reloadDisabledReason !== null;
-                      const tooltipText = reloadDisabledReason ?? 'Reload for current object';
-                      return isReloadDisabled ? (
-                        <DisabledTooltip content={tooltipText} placement='bottom'>
-                          <Button isIconOnly aria-label='Reload' size='sm' variant='ghost'>
-                            <IconReset />
-                          </Button>
-                        </DisabledTooltip>
-                      ) : (
-                        <Tooltip>
-                          <Button
-                            isIconOnly
-                            aria-label='Reload'
-                            size='sm'
-                            variant='ghost'
-                            onPress={() => handleHeaderAction('reload')}
-                          >
-                            <IconReset />
-                          </Button>
-                          <Tooltip.Content className='max-w-60' placement='bottom'>
-                            {tooltipText}
-                          </Tooltip.Content>
-                        </Tooltip>
-                      );
-                    })()}
-                  {headerActions.includes('refresh') && (
-                    <Tooltip>
-                      <Button
-                        isIconOnly
-                        aria-label='Refresh'
-                        isDisabled={isRefreshing}
-                        size='sm'
-                        variant='ghost'
-                        onPress={() => handleHeaderAction('refresh')}
-                      >
-                        <IconSync className={isRefreshing ? 'animate-spin' : ''} />
-                      </Button>
-                      <Tooltip.Content className='max-w-60' placement='bottom'>
-                        Refresh
-                      </Tooltip.Content>
-                    </Tooltip>
-                  )}
-                </ButtonGroup>
-              )}
-            </div>
-          )}
-          {selectionMode && selectionToolbar && <div className='flex min-w-0 items-center'>{selectionToolbar}</div>}
-        </Card.Header>
+        <ViewHeader
+          actions={headerActionSpecs}
+          beta={beta}
+          bottomRow={hasSelectionToolbar ? selectionToolbar : undefined}
+          feature={feature}
+          featureIcon={featureIcon}
+          subject={subject}
+          subjectTypeId={subjectTypeId ?? objectType}
+          subtext={subtext}
+          onClose={onClose}
+        />
       )}
       <Separator className='mt-1.5' />
       {banner && <div className='shrink-0 pt-2'>{banner}</div>}

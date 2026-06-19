@@ -1270,7 +1270,10 @@ export function MigrateDownstreamContentView({
   if (page === 'select') {
     return (
       <DataList
+        beta
         currentContext={currentContext}
+        feature='Migrate Content of'
+        featureIcon={<IconArrowsHorizontalBox />}
         fillHeight={true}
         getItemLock={getItemLock}
         headerActions={['reload', 'refresh']}
@@ -1285,10 +1288,8 @@ export function MigrateDownstreamContentView({
         selectionMode={true}
         showActions={true}
         showCounts={true}
+        subject={datasetName}
         subtext={subtextNode}
-        subtextStartContent={betaChip}
-        title={`Migrate Content of **${datasetName}**`}
-        titleLineClamp={2}
         viewType='migrateDownstreamContent'
         onClose={onBackToDefault}
         onRefresh={refreshFetches}

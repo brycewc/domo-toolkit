@@ -335,6 +335,7 @@ export default function App() {
             instance={instance}
             isActive={isActive}
             key={slot.viewKey}
+            liveContext={currentContext}
             onBackToDefault={backToDefault}
             onStatusUpdate={showStatus}
           />
@@ -355,6 +356,7 @@ export default function App() {
             instance={instance}
             isActive={isActive}
             key={slot.viewKey}
+            liveContext={currentContext}
             onBackToDefault={backToDefault}
             onStatusUpdate={showStatus}
           />
@@ -365,6 +367,7 @@ export default function App() {
             instance={instance}
             isActive={isActive}
             key={slot.viewKey}
+            liveContext={currentContext}
             onBackToDefault={backToDefault}
             onStatusUpdate={showStatus}
           />
@@ -375,6 +378,7 @@ export default function App() {
             instance={instance}
             isActive={isActive}
             key={slot.viewKey}
+            liveContext={currentContext}
             onBackToDefault={backToDefault}
             onStatusUpdate={showStatus}
           />
@@ -385,6 +389,7 @@ export default function App() {
             instance={instance}
             isActive={isActive}
             key={slot.viewKey}
+            liveContext={currentContext}
             onBackToDefault={backToDefault}
             onStatusUpdate={showStatus}
           />
@@ -395,6 +400,7 @@ export default function App() {
             instance={instance}
             isActive={isActive}
             key={slot.viewKey}
+            liveContext={currentContext}
             onBackToDefault={backToDefault}
             onStatusUpdate={showStatus}
           />
@@ -405,6 +411,7 @@ export default function App() {
             instance={instance}
             isActive={isActive}
             key={slot.viewKey}
+            liveContext={currentContext}
             onBackToDefault={backToDefault}
             onStatusUpdate={showStatus}
           />
@@ -426,6 +433,7 @@ export default function App() {
             instance={instance}
             isActive={isActive}
             key={slot.viewKey}
+            liveContext={currentContext}
             onBackToDefault={backToDefault}
             onStatusUpdate={showStatus}
           />
@@ -458,6 +466,7 @@ export default function App() {
             instance={instance}
             isActive={isActive}
             key={slot.viewKey}
+            liveContext={currentContext}
             onBackToDefault={backToDefault}
             onStatusUpdate={showStatus}
           />

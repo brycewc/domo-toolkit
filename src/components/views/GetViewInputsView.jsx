@@ -8,6 +8,7 @@ import { DomoObject } from '@/models/DomoObject';
 import { getDatasetsForView } from '@/services/datasets';
 import { getValidTabForInstance } from '@/utils/currentObject';
 import { getSidepanelData } from '@/utils/sidepanel';
+import IconCompass from '@icons/compass.svg?react';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
 import IconSync from '@icons/sync.svg?react';
 
@@ -112,8 +113,6 @@ export function GetViewInputsView({ currentContext = null, instance: viewInstanc
     }
   };
 
-  const renderTitle = () => `DataSets Used in View for **${viewData?.objectName}**`;
-
   const renderSubtext = () => {
     const totalCount = items.length;
     if (totalCount === 0) return null;
@@ -162,6 +161,8 @@ export function GetViewInputsView({ currentContext = null, instance: viewInstanc
   return (
     <DataList
       currentContext={currentContext}
+      feature='DataSets Used in View for'
+      featureIcon={<IconCompass />}
       headerActions={['openAll', 'reload', 'refresh']}
       isRefreshing={isRefreshing}
       itemActions={['copy', 'openAll', 'viewsExplorer']}
@@ -171,8 +172,8 @@ export function GetViewInputsView({ currentContext = null, instance: viewInstanc
       objectType='DATA_SOURCE'
       showActions={true}
       showCounts={true}
+      subject={viewData?.objectName}
       subtext={renderSubtext()}
-      title={renderTitle()}
       viewType='getViewInputs'
       onClose={onBackToDefault}
       onRefresh={handleRefresh}

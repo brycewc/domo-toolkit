@@ -1,17 +1,19 @@
-import { Alert, Button, Card, Separator, Spinner, Tooltip } from '@heroui/react';
+import { Alert, Button, Card, Separator, Spinner } from '@heroui/react';
 import { useEffect, useRef, useState } from 'react';
 
 import { DatasetComboBox } from '@/components/DatasetComboBox';
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { DomoContext } from '@/models/DomoContext';
 import { getColorRules, getDatasetBeastModes, getDatasetColumns, setColorRules } from '@/services/datasets';
-import { parseMarkdownBold, stripMarkdownBold } from '@/utils/markdown';
+import { buildReloadAction } from '@/utils/headerActions';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconCheckCircle from '@icons/check-circle.svg?react';
+import IconColor from '@icons/color.svg?react';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
-import IconX from '@icons/x.svg?react';
 
-export function CopyColorRulesView({ instance = null, onBackToDefault = null, onStatusUpdate = null }) {
+import { ViewHeader } from './ViewHeader';
+
+export function CopyColorRulesView({ instance = null, liveContext = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   const [currentContext, setCurrentContext] = useState(null);
   const [sourceRules, setSourceRules] = useState([]);
@@ -155,36 +157,28 @@ export function CopyColorRulesView({ instance = null, onBackToDefault = null, on
   const destinationHasRules = (destinationExistingRules?.length ?? 0) > 0;
   const canSubmit = !!destinationId && !sameDataset && !isLoadingDestination && !isSubmitting && sourceRules.length > 0;
 
-  const headerTitle = `Copy Color Rules from **${sourceName}**`;
   const headerSubtext = `${sourceRules.length} color rule${sourceRules.length === 1 ? '' : 's'}`;
 
   return (
     <Card className='flex min-h-0 w-full flex-1 flex-col p-2'>
-      <Card.Header className='gap-1'>
-        <Tooltip>
-          <Tooltip.Trigger className='min-w-0 pr-8'>
-            <Card.Title className='line-clamp-1'>{parseMarkdownBold(headerTitle)}</Card.Title>
-          </Tooltip.Trigger>
-          <Tooltip.Content className='max-w-60'>{stripMarkdownBold(headerTitle)}</Tooltip.Content>
-        </Tooltip>
-        {onBackToDefault && (
-          <Tooltip>
-            <Button
-              isIconOnly
-              aria-label='Close view'
-              className='absolute top-1 right-2'
-              size='sm'
-              variant='ghost'
-              onPress={onBackToDefault}
-            >
-              <IconX />
-            </Button>
-            <Tooltip.Content className='max-w-60'>Close view</Tooltip.Content>
-          </Tooltip>
-        )}
-        <div className='min-w-0 truncate text-xs text-muted'>{parseMarkdownBold(headerSubtext)}</div>
-        <Separator className='mt-1.5' />
-      </Card.Header>
+      <ViewHeader
+        feature='Copy Color Rules from'
+        featureIcon={<IconColor />}
+        subject={sourceName}
+        subjectTypeId='DATA_SOURCE'
+        subtext={headerSubtext}
+        onClose={onBackToDefault}
+        actions={[
+          buildReloadAction({
+            currentContext: liveContext,
+            objectId: currentContext?.domoObject?.id,
+            objectType: currentContext?.domoObject?.typeId,
+            onStatusUpdate,
+            viewType: 'copyColorRules'
+          })
+        ]}
+      />
+      <Separator className='mt-1.5' />
 
       <div className='flex flex-col gap-3 pt-3'>
         <DatasetComboBox

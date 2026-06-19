@@ -16,6 +16,7 @@ import {
 import { getValidTabForInstance } from '@/utils/currentObject';
 import { withCanonicalGroups } from '@/utils/dataListGroups';
 import { getSidepanelData } from '@/utils/sidepanel';
+import IconDatabase from '@icons/database.svg?react';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
 import IconSync from '@icons/sync.svg?react';
 
@@ -226,8 +227,6 @@ export function GetDatasetsView({
     return items.length;
   };
 
-  const renderTitle = () => `${viewData?.typeLabel} for **${viewData?.objectName}**`;
-
   const renderSubtext = () => {
     const totalCount = getTotalCount();
     if (totalCount === 0) return null;
@@ -276,6 +275,8 @@ export function GetDatasetsView({
   return (
     <DataList
       currentContext={currentContext}
+      feature={`${viewData?.typeLabel} for`}
+      featureIcon={<IconDatabase />}
       headerActions={['openAll', 'reload', 'refresh']}
       isRefreshing={isRefreshing}
       itemActions={['copy', 'openAll', 'viewsExplorer', 'lineage']}
@@ -285,8 +286,8 @@ export function GetDatasetsView({
       objectType={viewData?.objectType}
       showActions={true}
       showCounts={true}
+      subject={viewData?.objectName}
       subtext={renderSubtext()}
-      title={renderTitle()}
       viewType='getDatasets'
       onClose={onBackToDefault}
       onRefresh={handleRefresh}

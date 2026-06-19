@@ -10,8 +10,7 @@ import {
   ScrollShadow,
   Select,
   Separator,
-  Spinner,
-  Tooltip
+  Spinner
 } from '@heroui/react';
 import { useEffect, useRef, useState } from 'react';
 
@@ -20,6 +19,7 @@ import { DomoContext } from '@/models/DomoContext';
 import { getCodeEnginePackageInfo } from '@/services/codeEngine';
 import { getVersionDefinition, updateVersionDefinition } from '@/services/workflows';
 import { classifyContractChanges, getFunctionContract } from '@/utils/ceContractDiff';
+import { buildReloadAction } from '@/utils/headerActions';
 import { getSidepanelData } from '@/utils/sidepanel';
 import { waitForDefinition } from '@/utils/workflowHelpers';
 import {
@@ -33,9 +33,16 @@ import IconArrowRight from '@icons/arrow-right.svg?react';
 import IconCheck from '@icons/check.svg?react';
 import IconChevronDown from '@icons/chevron-down.svg?react';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
-import IconX from '@icons/x.svg?react';
+import IconPackage from '@icons/package.svg?react';
 
-export function UpdateCodeEngineVersionsView({ instance = null, onBackToDefault = null, onStatusUpdate = null }) {
+import { ViewHeader } from './ViewHeader';
+
+export function UpdateCodeEngineVersionsView({
+  instance = null,
+  liveContext = null,
+  onBackToDefault = null,
+  onStatusUpdate = null
+}) {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDiffing, setIsDiffing] = useState(false);
@@ -476,34 +483,27 @@ export function UpdateCodeEngineVersionsView({ instance = null, onBackToDefault 
     );
   }
 
+  const totalActions = packages.reduce((sum, pkg) => sum + pkg.actions.length, 0);
+  const headerSubtext = `${packages.length} package${packages.length === 1 ? '' : 's'} | ${totalActions} action${totalActions === 1 ? '' : 's'}`;
+
   return (
     <Card className='flex min-h-0 w-full flex-1 flex-col p-2'>
-      <Card.Header>
-        <Card.Title className='flex items-start justify-between'>
-          <div className='flex flex-col gap-1'>
-            <div className='flex items-center gap-1.5'>
-              <div className='line-clamp-2 min-w-0'>Update Code Engine Versions</div>
-              <Chip className='shrink-0' color='accent' size='sm' variant='soft'>
-                Beta
-              </Chip>
-            </div>
-
-            <div className='flex flex-row items-center gap-1'>
-              <span className='text-sm text-muted'>
-                {`${packages.length} package${packages.length === 1 ? '' : 's'} | ${packages.reduce((sum, pkg) => sum + pkg.actions.length, 0)} action${packages.reduce((sum, pkg) => sum + pkg.actions.length, 0) === 1 ? '' : 's'}`}
-              </span>
-            </div>
-          </div>
-          {onBackToDefault && (
-            <Tooltip>
-              <Button isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
-                <IconX />
-              </Button>
-              <Tooltip.Content className='max-w-60'>Close</Tooltip.Content>
-            </Tooltip>
-          )}
-        </Card.Title>
-      </Card.Header>
+      <ViewHeader
+        beta
+        feature='Update Code Engine Versions'
+        featureIcon={<IconPackage />}
+        subtext={headerSubtext}
+        onClose={onBackToDefault}
+        actions={[
+          buildReloadAction({
+            currentContext: liveContext,
+            objectId: currentContext?.domoObject?.id,
+            objectType: currentContext?.domoObject?.typeId,
+            onStatusUpdate,
+            viewType: 'updateCodeEngineVersions'
+          })
+        ]}
+      />
       <Separator />
       <ScrollShadow hideScrollBar className='min-h-0 flex-1 overflow-y-auto' offset={5} orientation='vertical'>
         <Card.Content>

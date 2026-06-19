@@ -47,6 +47,8 @@
 - The View Errors button now always shows at the top of the expanded actions, disabled with a 0 count when there are no errors, instead of appearing only when errors exist.
 - Removed the Copy ID button from result list headers, since the same ID can be copied from the object's own action button.
 - The delete confirmation view now presents the objects it affects as one list with "Will be deleted" and "Other dependencies" as expandable groups that start open.
+- Side panel view headers now lead with an icon for the action, and views about a specific object show that object's type icon inline next to its name.
+- More side panel views now have reload and refresh buttons in their header, matching the content lists.
 
 - Migrating downstream content now shows its live progress on the Migrate button, instead of in a message that could sit off-screen below the column-mapping options.
 - The Migrate Content view now has a reload button to restart it for whichever dataset you've since navigated to, matching the reload control on the other content lists.

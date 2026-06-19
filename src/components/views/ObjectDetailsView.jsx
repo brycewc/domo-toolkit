@@ -1,4 +1,4 @@
-import { Alert, Button, ButtonGroup, Card, Chip, Disclosure, Link, ScrollShadow, Spinner, Tooltip } from '@heroui/react';
+import { Alert, Button, Card, Disclosure, Link, ScrollShadow, Spinner } from '@heroui/react';
 import { useEffect, useState } from 'react';
 import JsonView from 'react18-json-view';
 
@@ -8,17 +8,19 @@ import { useGroupLookup } from '@/hooks/useGroupLookup';
 import { useUserLookup } from '@/hooks/useUserLookup';
 import { DomoObject } from '@/models/DomoObject';
 import { formatEpochTimestamp, formatTimestamp, isDateFieldName, isGroupFieldName, isUserFieldName } from '@/utils/general';
+import { buildRefreshAction, buildReloadAction } from '@/utils/headerActions';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconChevronDown from '@icons/chevron-down.svg?react';
 import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
 import IconSync from '@icons/sync.svg?react';
-import IconX from '@icons/x.svg?react';
 
 import { AnimatedCheck } from '../AnimatedCheck';
 import { GroupIdAnnotation } from '../GroupIdAnnotation';
+import { ObjectTypeIcon } from '../ObjectTypeIcon';
 import { TimestampAnnotation } from '../TimestampAnnotation';
 import { UserIdAnnotation } from '../UserIdAnnotation';
+import { ViewHeader } from './ViewHeader';
 
 /**
  * Known fields to display prominently with human-readable labels.
@@ -43,7 +45,7 @@ const KNOWN_FIELDS = [
   { format: 'number', key: 'columnCount', label: 'Column Count' }
 ];
 
-export function ObjectDetailsView({ instance = null, onBackToDefault = null, onStatusUpdate = null }) {
+export function ObjectDetailsView({ instance = null, liveContext = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRetrying, setIsRetrying] = useState(false);
   const [showSpinner, setShowSpinner] = useState(false);
@@ -160,37 +162,23 @@ export function ObjectDetailsView({ instance = null, onBackToDefault = null, onS
 
   return (
     <Card className='min-h-0 flex-1 overflow-hidden p-2'>
-      <Card.Header>
-        <Card.Title className='flex items-start justify-between'>
-          <div className='flex min-w-0 flex-1 flex-col gap-1'>
-            <div className='flex flex-wrap items-center gap-x-2'>
-              <span>{domoObject.metadata?.name || `ID: ${domoObject.id}`}</span>
-              <Chip color='accent' size='sm' variant='soft'>
-                {domoObject.typeName}
-              </Chip>
-            </div>
-            {domoObject.id && !(domoObject.metadata?.name || domoObject.typeId === 'STREAM') && (
-              <span className='text-sm text-muted'>ID: {domoObject.id}</span>
-            )}
-          </div>
-          <ButtonGroup hideSeparator className='shrink-0'>
-            <Tooltip>
-              <Button fullWidth isIconOnly size='sm' variant='ghost' onPress={handleCopyId}>
-                <IconClipboardCopy />
-              </Button>
-              <Tooltip.Content className='max-w-60'>Copy ID</Tooltip.Content>
-            </Tooltip>
-            {onBackToDefault && (
-              <Tooltip>
-                <Button fullWidth isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
-                  <IconX />
-                </Button>
-                <Tooltip.Content className='max-w-60'>Close</Tooltip.Content>
-              </Tooltip>
-            )}
-          </ButtonGroup>
-        </Card.Title>
-      </Card.Header>
+      <ViewHeader
+        featureIcon={<ObjectTypeIcon typeId={domoObject.typeId} />}
+        subject={domoObject.metadata?.name || `ID: ${domoObject.id}`}
+        subtext={domoObject.metadata?.name ? `ID: ${domoObject.id}` : undefined}
+        onClose={onBackToDefault}
+        actions={[
+          { ariaLabel: 'Copy ID', icon: <IconClipboardCopy />, key: 'copyId', onPress: handleCopyId, tooltip: 'Copy ID' },
+          buildReloadAction({
+            currentContext: liveContext,
+            objectId: domoObject?.id,
+            objectType: domoObject?.typeId,
+            onStatusUpdate,
+            viewType: 'viewObjectDetails'
+          }),
+          buildRefreshAction({ isRefreshing: isRetrying, onRefresh: handleRetry })
+        ]}
+      />
 
       <ScrollShadow hideScrollBar className='min-h-0 flex-1 overflow-y-auto' orientation='vertical'>
         <Card.Content className='flex flex-col gap-3'>

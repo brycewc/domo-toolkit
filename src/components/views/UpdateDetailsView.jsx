@@ -22,12 +22,15 @@ import { DomoContext } from '@/models/DomoContext';
 import { updateDataflowDetails } from '@/services/dataflows';
 import { getProviders, updateDatasetProperties } from '@/services/datasets';
 import { setUserAttributes } from '@/services/users';
+import { buildReloadAction } from '@/utils/headerActions';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconArrowCurvedBack from '@icons/arrow-curved-back.svg?react';
 import IconChevronDown from '@icons/chevron-down.svg?react';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
+import IconPencil from '@icons/pencil.svg?react';
 import IconSync from '@icons/sync.svg?react';
-import IconX from '@icons/x.svg?react';
+
+import { ViewHeader } from './ViewHeader';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -100,7 +103,7 @@ const updatersByType = {
   }
 };
 
-export function UpdateDetailsView({ instance = null, onBackToDefault = null, onStatusUpdate = null }) {
+export function UpdateDetailsView({ instance = null, liveContext = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   const [currentContext, setCurrentContext] = useState(null);
   const [config, setConfig] = useState(null);
@@ -260,32 +263,23 @@ export function UpdateDetailsView({ instance = null, onBackToDefault = null, onS
 
   return (
     <Card className='flex min-h-0 w-full flex-1 flex-col p-2'>
-      <Card.Header className='gap-2'>
-        <Card.Title className='flex items-start justify-between'>
-          <div className='min-w-0 flex-1 pt-1'>
-            <div className='truncate'>{config.title}</div>
-            <Tooltip>
-              <Tooltip.Trigger className='block w-full min-w-0 pr-8'>
-                <div className='truncate text-xs font-normal text-muted'>
-                  {objectName} (ID: {objectId})
-                </div>
-              </Tooltip.Trigger>
-              <Tooltip.Content className='text-wrap'>
-                {objectName} (ID: {objectId})
-              </Tooltip.Content>
-            </Tooltip>
-          </div>
-          {onBackToDefault && (
-            <Tooltip>
-              <Button isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
-                <IconX />
-              </Button>
-              <Tooltip.Content className='max-w-60'>Close</Tooltip.Content>
-            </Tooltip>
-          )}
-        </Card.Title>
-        <Separator />
-      </Card.Header>
+      <ViewHeader
+        feature={config.title}
+        featureIcon={<IconPencil />}
+        subtext={`${objectName} (ID: ${objectId})`}
+        subtextTypeId={currentContext.domoObject.typeId}
+        onClose={onBackToDefault}
+        actions={[
+          buildReloadAction({
+            currentContext: liveContext,
+            objectId: currentContext.domoObject.id,
+            objectType: currentContext.domoObject.typeId,
+            onStatusUpdate,
+            viewType: 'updateDetails'
+          })
+        ]}
+      />
+      <Separator />
 
       <div className='flex flex-col gap-2'>
         {config.fields.map((field) => (

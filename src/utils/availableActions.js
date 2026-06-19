@@ -93,10 +93,15 @@ export function getAvailableActions(currentContext) {
     (metadata?.details?.language || metadata?.parent?.details?.language || 'JAVASCRIPT').toUpperCase() !== 'PYTHON'
   ) {
     actions.add('generate');
+    // Routing key for the Generate Definition from JSDoc view's reload action
+    // (not consumed by any button — the button uses `generate`).
+    actions.add('generatePackageDefinitionFromJSDoc');
   }
 
   if (typeId === 'MAGNUM_COLLECTION') {
     actions.add('generate');
+    // Routing key for the Generate Schema view's reload action.
+    actions.add('generateSchema');
     if (details?.syncEnabled === true) {
       actions.add('sync');
     }
@@ -121,6 +126,32 @@ export function getAvailableActions(currentContext) {
 
   if (url?.includes('domo.com/auth/index') && !url?.includes('domoManualLogin=true')) {
     actions.add('directSignOn');
+  }
+
+  // Routing key for the Delete view's reload action (not consumed by any button;
+  // the Delete control lives outside getAvailableActions). Mirrors the object
+  // types DeleteObjectView's `deletersByType` knows how to delete.
+  if (
+    [
+      'APP',
+      'BEAST_MODE_FORMULA',
+      'DATA_APP_VIEW',
+      'DATAFLOW_TYPE',
+      'MAGNUM_COLLECTION',
+      'PAGE',
+      'TEMPLATE',
+      'VARIABLE',
+      'WORKFLOW_MODEL',
+      'WORKSHEET_VIEW'
+    ].includes(typeId)
+  ) {
+    actions.add('deleteObject');
+  }
+
+  // ObjectDetails renders any detected object, so its reload affordance is
+  // available whenever there is a current object. Routing key only.
+  if (typeId) {
+    actions.add('viewObjectDetails');
   }
 
   return actions;

@@ -1,7 +1,6 @@
 import { Alert, AlertDialog, Button, Card, Spinner, Tooltip } from '@heroui/react';
 import { useEffect, useRef, useState } from 'react';
 
-import { ObjectTypeIcon } from '@/components/ObjectTypeIcon';
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { DataListItem } from '@/models/DataListItem';
 import { DomoContext } from '@/models/DomoContext';
@@ -186,7 +185,13 @@ const deletersByType = {
 };
 deletersByType.WORKSHEET_VIEW.cascadeButtons = deletersByType.DATA_APP_VIEW.cascadeButtons;
 
-export function DeleteObjectView({ instance = null, isActive = true, onBackToDefault = null, onStatusUpdate = null }) {
+export function DeleteObjectView({
+  instance = null,
+  isActive = true,
+  liveContext = null,
+  onBackToDefault = null,
+  onStatusUpdate = null
+}) {
   const [isLoading, setIsLoading] = useState(true);
   const [currentContext, setCurrentContext] = useState(null);
   const [config, setConfig] = useState(null);
@@ -194,6 +199,7 @@ export function DeleteObjectView({ instance = null, isActive = true, onBackToDef
   const [isLoadingDeps, setIsLoadingDeps] = useState(false);
   const [depsError, setDepsError] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
   const mountedRef = useRef(true);
   const { showPromiseStatus } = useStatusBar();
@@ -250,6 +256,16 @@ export function DeleteObjectView({ instance = null, isActive = true, onBackToDef
       }
     } finally {
       if (mountedRef.current) setIsLoadingDeps(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    if (!currentContext) return;
+    setIsRefreshing(true);
+    try {
+      await loadDependencies(currentContext);
+    } finally {
+      if (mountedRef.current) setIsRefreshing(false);
     }
   };
 
@@ -359,17 +375,25 @@ export function DeleteObjectView({ instance = null, isActive = true, onBackToDef
       <DataList
         allowsMultipleExpanded
         fillHeight
+        currentContext={liveContext}
         defaultExpandedIds={expandedGroupIds}
+        feature='Delete'
+        featureIcon={<IconTrash />}
+        headerActions={['reload', 'refresh']}
+        isRefreshing={isRefreshing}
         itemActions={['copy', 'lineage', 'viewsExplorer']}
         itemLabel='dependency'
         items={dependencyItems}
+        objectId={domoObject.id}
+        objectType={domoObject.typeId}
         showActions={true}
         showCounts={true}
-        subtext={`**${objectName}** (ID: ${domoObject.id})`}
-        subtextStartContent={<ObjectTypeIcon className='shrink-0' size={16} typeId={domoObject.typeId} />}
-        title={`Delete ${domoObject.typeName || config.typeName}`}
-        titleLineClamp={1}
+        subject={objectName}
+        subjectTypeId={domoObject.typeId}
+        subtext={`ID: ${domoObject.id}`}
+        viewType='deleteObject'
         onClose={onBackToDefault || undefined}
+        onRefresh={handleRefresh}
         onStatusUpdate={onStatusUpdate}
         banner={renderDependencyBanner({
           deps,

@@ -13,7 +13,9 @@ import { withCanonicalGroups } from '@/utils/dataListGroups';
 import { waitForChildPages } from '@/utils/pageHelpers';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
+import IconPagesBars from '@icons/pages-bars.svg?react';
 import IconSync from '@icons/sync.svg?react';
+import IconTree from '@icons/tree.svg?react';
 
 import { DataList } from './DataList';
 
@@ -562,7 +564,7 @@ export function GetPagesView({ currentContext = null, instance: viewInstance = n
     }
   };
 
-  const renderTitle = () => `${pageTypeLabel}${pageTypeLabel.endsWith('on') ? '' : ' for'} **${pageData?.objectName}**`;
+  const renderFeature = () => `${pageTypeLabel}${pageTypeLabel.endsWith('on') ? '' : ' for'}`;
 
   const renderSubtext = () => {
     if (items.length === undefined) return null;
@@ -645,6 +647,8 @@ export function GetPagesView({ currentContext = null, instance: viewInstance = n
   return (
     <DataList
       currentContext={currentContext}
+      feature={renderFeature()}
+      featureIcon={pageData?.sidepanelType === 'getCardPages' ? <IconPagesBars /> : <IconTree />}
       isRefreshing={isRefreshing}
       itemLabel='page'
       items={items}
@@ -652,8 +656,8 @@ export function GetPagesView({ currentContext = null, instance: viewInstance = n
       objectType={pageData?.objectType}
       showActions={true}
       showCounts={true}
+      subject={pageData?.objectName}
       subtext={renderSubtext()}
-      title={renderTitle()}
       viewType={pageData?.sidepanelType}
       onClose={onBackToDefault}
       onItemRemove={handleItemRemove}

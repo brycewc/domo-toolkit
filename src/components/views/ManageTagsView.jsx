@@ -552,6 +552,8 @@ export function ManageTagsView({ currentContext = null, instance = null, onBackT
       showCounts
       currentContext={currentContext}
       defaultExpandedIds={['dataflow_group', 'output_group']}
+      feature='Manage Tags for'
+      featureIcon={<IconTagMultiple />}
       footer={tagEditor}
       headerActions={['reload', 'refresh']}
       isRefreshing={isRefreshing}
@@ -562,8 +564,8 @@ export function ManageTagsView({ currentContext = null, instance = null, onBackT
       objectType='DATAFLOW_TYPE'
       selectedIds={selectedIds}
       selectionToolbar={selectionToolbar}
+      subject={dataflowName}
       subtext={`${selectedObjects.length} of ${readableObjects.length} selected`}
-      title={`Manage Tags for **${dataflowName}**`}
       viewType='manageTags'
       onClose={onBackToDefault}
       onRefresh={handleRefresh}

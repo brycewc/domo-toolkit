@@ -10,6 +10,7 @@ import {
   postCodeEnginePackageVersion,
   setCodeEngineEditorSource
 } from '@/services/codeEngine';
+import { buildRefreshAction, buildReloadAction } from '@/utils/headerActions';
 import {
   computeStructuralDiff,
   findCurrentVersionInfo,
@@ -24,11 +25,18 @@ import IconCheckCircle from '@icons/check-circle.svg?react';
 import IconChevronDown from '@icons/chevron-down.svg?react';
 import IconCircle from '@icons/circle.svg?react';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
+import IconMagic from '@icons/magic.svg?react';
 import IconPlusCircle from '@icons/plus-circle.svg?react';
 import IconSync from '@icons/sync.svg?react';
-import IconX from '@icons/x.svg?react';
 
-export function GeneratePackageDefinitionFromJSDocView({ instance = null, onBackToDefault = null, onStatusUpdate = null }) {
+import { ViewHeader } from './ViewHeader';
+
+export function GeneratePackageDefinitionFromJSDocView({
+  instance = null,
+  liveContext = null,
+  onBackToDefault = null,
+  onStatusUpdate = null
+}) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -132,6 +140,17 @@ export function GeneratePackageDefinitionFromJSDocView({ instance = null, onBack
       if (mountedRef.current) setIsRefreshing(false);
     }
   };
+
+  const headerActions = [
+    buildReloadAction({
+      currentContext: liveContext,
+      objectId: currentContext?.domoObject?.id,
+      objectType: currentContext?.domoObject?.typeId,
+      onStatusUpdate,
+      viewType: 'generatePackageDefinitionFromJSDoc'
+    }),
+    buildRefreshAction({ isRefreshing, onRefresh: handleRefresh })
+  ];
 
   const currentVersionId =
     currentContext?.domoObject?.typeId === 'CODEENGINE_PACKAGE_VERSION' ? currentContext?.domoObject?.id : null;
@@ -297,11 +316,11 @@ export function GeneratePackageDefinitionFromJSDocView({ instance = null, onBack
     return (
       <Card className='flex h-full w-full flex-col p-2'>
         <ViewHeader
-          isRefreshing={isRefreshing}
-          subtitle={null}
-          title='Generate Definition from JSDoc'
-          onBackToDefault={onBackToDefault}
-          onRefresh={handleRefresh}
+          beta
+          actions={headerActions}
+          feature='Generate Definition from JSDoc'
+          featureIcon={<IconMagic />}
+          onClose={onBackToDefault}
         />
         <Separator />
         <Card.Content className='flex flex-col items-center gap-2 py-8'>
@@ -315,11 +334,12 @@ export function GeneratePackageDefinitionFromJSDocView({ instance = null, onBack
   return (
     <Card className='flex min-h-0 w-full flex-1 flex-col p-2'>
       <ViewHeader
-        isRefreshing={isRefreshing}
-        subtitle={packageDef?.name ? `Package: ${packageDef.name}` : null}
-        title='Generate Definition from JSDoc'
-        onBackToDefault={onBackToDefault}
-        onRefresh={handleRefresh}
+        beta
+        actions={headerActions}
+        feature='Generate Definition from JSDoc'
+        featureIcon={<IconMagic />}
+        subtext={packageDef?.name ? `Package: ${packageDef.name}` : null}
+        onClose={onBackToDefault}
       />
       <Separator />
       <ScrollShadow hideScrollBar className='min-h-0 flex-1 overflow-y-auto' offset={5} orientation='vertical'>
@@ -668,54 +688,6 @@ function TargetPill({ target }) {
       </Chip>
       <Tooltip.Content className='text-wrap'>{tip}</Tooltip.Content>
     </Tooltip>
-  );
-}
-
-function ViewHeader({ isRefreshing, onBackToDefault, onRefresh, subtitle, title }) {
-  return (
-    <Card.Header className='gap-1'>
-      <Card.Title className='flex min-w-0 items-center gap-1.5 pr-8'>
-        <span className='line-clamp-2 min-w-0'>{title}</span>
-        <Chip className='shrink-0' color='accent' size='sm' variant='soft'>
-          Beta
-        </Chip>
-      </Card.Title>
-      {onBackToDefault && (
-        <Tooltip>
-          <Button
-            isIconOnly
-            aria-label='Close'
-            className='absolute top-1 right-2'
-            size='sm'
-            variant='ghost'
-            onPress={onBackToDefault}
-          >
-            <IconX />
-          </Button>
-          <Tooltip.Content className='max-w-60'>Close</Tooltip.Content>
-        </Tooltip>
-      )}
-      {(subtitle || onRefresh) && (
-        <div className='flex min-w-0 items-center justify-between gap-2'>
-          <div className='min-w-0 flex-1 truncate text-xs text-muted'>{subtitle}</div>
-          {onRefresh && (
-            <Tooltip>
-              <Button
-                isIconOnly
-                aria-label='Refresh'
-                isDisabled={isRefreshing}
-                size='sm'
-                variant='ghost'
-                onPress={onRefresh}
-              >
-                <IconSync className={isRefreshing ? 'animate-spin' : ''} />
-              </Button>
-              <Tooltip.Content className='max-w-60'>Refresh</Tooltip.Content>
-            </Tooltip>
-          )}
-        </div>
-      )}
-    </Card.Header>
   );
 }
 

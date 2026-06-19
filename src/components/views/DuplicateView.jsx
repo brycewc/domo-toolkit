@@ -1,7 +1,6 @@
 import {
   Button,
   Card,
-  Chip,
   Disclosure,
   FieldError,
   Input,
@@ -9,8 +8,7 @@ import {
   ScrollShadow,
   Separator,
   Spinner,
-  TextField,
-  Tooltip
+  TextField
 } from '@heroui/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
@@ -19,13 +17,16 @@ import { DataListItem } from '@/models/DataListItem';
 import { DomoContext } from '@/models/DomoContext';
 import { duplicateUser, fetchDuplicationPreview } from '@/services/duplicate';
 import { exportToExcel, generateExportFilename } from '@/utils/exportData';
+import { buildReloadAction } from '@/utils/headerActions';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconCheck from '@icons/check.svg?react';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
+import IconPersonPlus from '@icons/person-plus.svg?react';
 import IconSync from '@icons/sync.svg?react';
 import IconX from '@icons/x.svg?react';
 
 import { DataList } from './DataList';
+import { ViewHeader } from './ViewHeader';
 
 const LOG_COLUMNS = [
   { accessorKey: 'Date', header: 'Date' },
@@ -71,7 +72,7 @@ const buildInitialStepStates = (steps) => Object.fromEntries(steps.map((s) => [s
 
 const buildInitialValues = (fields) => Object.fromEntries(fields.map((f) => [f.key, '']));
 
-export function DuplicateView({ instance = null, onBackToDefault = null, onStatusUpdate = null }) {
+export function DuplicateView({ instance = null, liveContext = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   const [currentContext, setCurrentContext] = useState(null);
   const [sourceUser, setSourceUser] = useState(null);
@@ -261,28 +262,23 @@ export function DuplicateView({ instance = null, onBackToDefault = null, onStatu
 
   return (
     <Card className='flex min-h-0 w-full flex-1 flex-col p-2'>
-      <Card.Header className='gap-2'>
-        <Card.Title className='flex items-start justify-between'>
-          <div className='min-w-0 flex-1 pt-1'>
-            <div className='flex items-center gap-1.5'>
-              <div className='truncate'>{config?.title || 'Duplicate'}</div>
-              <Chip className='shrink-0' color='accent' size='sm' variant='soft'>
-                Beta
-              </Chip>
-            </div>
-            {sourceUser && <div className='truncate text-xs font-normal text-muted'>from {sourceUser.name}</div>}
-          </div>
-          {onBackToDefault && (
-            <Tooltip>
-              <Button isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
-                <IconX />
-              </Button>
-              <Tooltip.Content className='max-w-60'>Close</Tooltip.Content>
-            </Tooltip>
-          )}
-        </Card.Title>
-        <Separator />
-      </Card.Header>
+      <ViewHeader
+        beta
+        feature={config?.title || 'Duplicate'}
+        featureIcon={<IconPersonPlus />}
+        subtext={sourceUser ? `from ${sourceUser.name}` : undefined}
+        onClose={onBackToDefault}
+        actions={[
+          buildReloadAction({
+            currentContext: liveContext,
+            objectId: currentContext?.domoObject?.id,
+            objectType: currentContext?.domoObject?.typeId,
+            onStatusUpdate,
+            viewType: 'duplicate'
+          })
+        ]}
+      />
+      <Separator />
 
       <div className='flex shrink-0 flex-col gap-2'>
         {config?.fields.map((field) => (

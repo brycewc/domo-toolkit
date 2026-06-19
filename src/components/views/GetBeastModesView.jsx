@@ -11,6 +11,7 @@ import { getDatasetsForPage } from '@/services/datasets';
 import { getValidTabForInstance } from '@/utils/currentObject';
 import { withCanonicalGroups } from '@/utils/dataListGroups';
 import { getSidepanelData } from '@/utils/sidepanel';
+import IconBeastMode from '@icons/beast-mode.svg?react';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
 import IconSync from '@icons/sync.svg?react';
 
@@ -131,12 +132,11 @@ export function GetBeastModesView({
     setIsRetrying(false);
   };
 
-  const renderTitle = () => `Beast Modes for **${viewData?.objectName}**`;
-
   const renderSubtext = () => {
     const total = viewData?.total || 0;
     if (total === 0) return null;
-    return `${total} Beast Mode${total === 1 ? '' : 's'}`;
+    const uses = countDistinctUsage(items);
+    return `${total} Beast Mode${total === 1 ? '' : 's'} · ${uses} distinct dependenc${uses === 1 ? 'y' : 'ies'}`;
   };
 
   if (isLoading) {
@@ -172,9 +172,15 @@ export function GetBeastModesView({
     );
   }
 
+  const expandedIds = collectUsedGroupIds(items);
+
   return (
     <DataList
+      allowsMultipleExpanded={expandedIds.length > 1}
       currentContext={currentContext}
+      defaultExpandedIds={expandedIds}
+      feature='Beast Modes for'
+      featureIcon={<IconBeastMode />}
       headerActions={['openAll', 'reload', 'refresh']}
       isRefreshing={isRefreshing}
       itemActions={['copy', 'openAll']}
@@ -184,8 +190,8 @@ export function GetBeastModesView({
       objectType={viewData?.displayType}
       showActions={true}
       showCounts={true}
+      subject={viewData?.objectName}
       subtext={renderSubtext()}
-      title={renderTitle()}
       viewType='getBeastModes'
       onClose={onBackToDefault}
       onRefresh={handleRefresh}
@@ -402,6 +408,26 @@ function buildUsageBeastModeItem(bm, origin) {
 }
 
 /**
+ * Collect the ids of the "Used by this card" groups so they can start expanded
+ * (CARD scope only; other scopes produce none, so this returns []). A
+ * single-dataset card has a top-level `used` group; a multi-dataset card nests a
+ * `${datasetId}_used` group under each dataset row, so that dataset row is
+ * included too, otherwise its nested group would be hidden.
+ */
+function collectUsedGroupIds(items) {
+  const ids = [];
+  for (const item of items || []) {
+    if (item.id === 'used') {
+      ids.push('used');
+    } else if (item.children?.length) {
+      const usedChild = item.children.find((child) => String(child.id).endsWith('_used'));
+      if (usedChild) ids.push(item.id, usedChild.id);
+    }
+  }
+  return ids;
+}
+
+/**
  * Count the Beast Mode rows (type BEAST_MODE_FORMULA) anywhere in a tree of
  * items, so the subtext can report a real total regardless of grouping depth.
  */
@@ -412,6 +438,28 @@ function countBeastModes(items) {
     else if (item.children?.length) total += countBeastModes(item.children);
   }
   return total;
+}
+
+/**
+ * Count the distinct objects these Beast Modes are used on. Each Beast Mode's
+ * usage lives in `_cards` / `_drills` / `_other` category groups whose leaves
+ * carry the real target id; the same card can use several Beast Modes, so we
+ * dedupe those ids into a Set and return its size rather than summing per-Beast-
+ * Mode usage counts (which would double-count shared consumers).
+ */
+function countDistinctUsage(items) {
+  const targetIds = new Set();
+  const walk = (list) => {
+    for (const item of list || []) {
+      if (typeof item.id === 'string' && /_(?:cards|drills|other)$/.test(item.id)) {
+        for (const leaf of item.children || []) targetIds.add(String(leaf.id));
+      } else if (item.children?.length) {
+        walk(item.children);
+      }
+    }
+  };
+  walk(items);
+  return targetIds.size;
 }
 
 /**

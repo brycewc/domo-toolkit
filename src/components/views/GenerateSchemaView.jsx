@@ -21,20 +21,23 @@ import {
   syncAppDbDatastore,
   updateAppDbCollectionSchema
 } from '@/services/appDb';
+import { buildReloadAction } from '@/utils/headerActions';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconCheck from '@icons/check.svg?react';
 import IconChevronDown from '@icons/chevron-down.svg?react';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
+import IconMagic from '@icons/magic.svg?react';
 import IconPlus from '@icons/plus.svg?react';
 import IconSync from '@icons/sync.svg?react';
 import IconTrash from '@icons/trash.svg?react';
-import IconX from '@icons/x.svg?react';
+
+import { ViewHeader } from './ViewHeader';
 
 const TYPE_OPTIONS = ['STRING', 'LONG', 'DOUBLE', 'DECIMAL', 'DATE', 'DATETIME'];
 const ISO_DATETIME_RE = /^\d{4}-\d{2}-\d{2}T/;
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-export function GenerateSchemaView({ instance = null, onBackToDefault = null, onStatusUpdate = null }) {
+export function GenerateSchemaView({ instance = null, liveContext = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentContext, setCurrentContext] = useState(null);
@@ -209,6 +212,14 @@ export function GenerateSchemaView({ instance = null, onBackToDefault = null, on
     }
   };
 
+  const reloadAction = buildReloadAction({
+    currentContext: liveContext,
+    objectId: currentContext?.domoObject?.id,
+    objectType: currentContext?.domoObject?.typeId,
+    onStatusUpdate,
+    viewType: 'generateSchema'
+  });
+
   if (isLoading) {
     return (
       <Card className='flex h-full w-full items-center justify-center'>
@@ -223,7 +234,12 @@ export function GenerateSchemaView({ instance = null, onBackToDefault = null, on
   if (error) {
     return (
       <Card className='flex h-full w-full flex-col p-2'>
-        <ViewHeader subtitle={null} title='Generate Schema' onBackToDefault={onBackToDefault} />
+        <ViewHeader
+          actions={[reloadAction]}
+          feature='Generate Schema'
+          featureIcon={<IconMagic />}
+          onClose={onBackToDefault}
+        />
         <Separator />
         <Card.Content className='flex flex-col items-center gap-2 py-8'>
           <IconExclamationTriangle className='text-danger' />
@@ -236,9 +252,11 @@ export function GenerateSchemaView({ instance = null, onBackToDefault = null, on
   return (
     <Card className='flex min-h-0 w-full flex-1 flex-col p-2'>
       <ViewHeader
-        subtitle={collectionName ? `Collection: ${collectionName}` : null}
-        title='Generate Schema'
-        onBackToDefault={onBackToDefault}
+        actions={[reloadAction]}
+        feature='Generate Schema'
+        featureIcon={<IconMagic />}
+        subtext={collectionName ? `Collection: ${collectionName}` : null}
+        onClose={onBackToDefault}
       />
       <Separator />
       <ScrollShadow hideScrollBar className='min-h-0 flex-1 overflow-y-auto' offset={5} orientation='vertical'>
@@ -371,28 +389,4 @@ function inferColumnsFromDocuments(documents) {
     }
     return { name: key, type: 'STRING' };
   });
-}
-
-function ViewHeader({ onBackToDefault, subtitle, title }) {
-  return (
-    <Card.Header className='gap-1'>
-      <Card.Title className='line-clamp-2 min-w-0 pr-8'>{title}</Card.Title>
-      {onBackToDefault && (
-        <Tooltip>
-          <Button
-            isIconOnly
-            aria-label='Close'
-            className='absolute top-1 right-2'
-            size='sm'
-            variant='ghost'
-            onPress={onBackToDefault}
-          >
-            <IconX />
-          </Button>
-          <Tooltip.Content className='max-w-60'>Close</Tooltip.Content>
-        </Tooltip>
-      )}
-      {subtitle && <div className='min-w-0 flex-1 truncate text-xs text-muted'>{subtitle}</div>}
-    </Card.Header>
-  );
 }

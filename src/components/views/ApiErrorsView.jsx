@@ -1,4 +1,4 @@
-import { Button, ButtonGroup, Card, Disclosure, DisclosureGroup, Separator, Tooltip } from '@heroui/react';
+import { Card, Disclosure, DisclosureGroup, Separator } from '@heroui/react';
 import { useEffect, useRef, useState } from 'react';
 import JsonView from 'react18-json-view';
 
@@ -6,11 +6,12 @@ import { DomoContext } from '@/models/DomoContext';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconChevronDown from '@icons/chevron-down.svg?react';
 import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
+import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
 import IconTrash from '@icons/trash.svg?react';
-import IconX from '@icons/x.svg?react';
 import '@/assets/json-view-theme.css';
 
 import { AnimatedCheck } from '../AnimatedCheck';
+import { ViewHeader } from './ViewHeader';
 
 export function ApiErrorsView({ instance = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [errors, setErrors] = useState([]);
@@ -83,30 +84,21 @@ export function ApiErrorsView({ instance = null, onBackToDefault = null, onStatu
 
   return (
     <Card className='flex min-h-0 w-full flex-1 flex-col p-2'>
-      <Card.Header>
-        <Card.Title className='flex items-start justify-between gap-2'>
-          <div className='flex flex-col gap-0.5'>
-            <span className='text-sm font-semibold'>API Errors</span>
-            <span className='text-xs text-muted'>
-              {errors.length} error{errors.length === 1 ? '' : 's'}
-            </span>
-          </div>
-          <ButtonGroup>
-            <Tooltip>
-              <Button isIconOnly size='sm' variant='ghost' onPress={handleClearAll}>
-                <IconTrash />
-              </Button>
-              <Tooltip.Content>Clear errors</Tooltip.Content>
-            </Tooltip>
-            <Tooltip>
-              <Button isIconOnly size='sm' variant='ghost' onPress={() => onBackToDefault?.()}>
-                <IconX />
-              </Button>
-              <Tooltip.Content>Close</Tooltip.Content>
-            </Tooltip>
-          </ButtonGroup>
-        </Card.Title>
-      </Card.Header>
+      <ViewHeader
+        feature='API Errors'
+        featureIcon={<IconExclamationTriangle />}
+        subtext={`${errors.length} error${errors.length === 1 ? '' : 's'}`}
+        onClose={onBackToDefault}
+        actions={[
+          {
+            ariaLabel: 'Clear errors',
+            icon: <IconTrash />,
+            key: 'clear',
+            onPress: handleClearAll,
+            tooltip: 'Clear errors'
+          }
+        ]}
+      />
 
       <Card.Content className='min-h-0 flex-1 overflow-y-auto'>
         <DisclosureGroup className='flex flex-col gap-1.5'>

@@ -11,6 +11,7 @@ import { waitForCards } from '@/utils/cardHelpers';
 import { getValidTabForInstance } from '@/utils/currentObject';
 import { withCanonicalGroups } from '@/utils/dataListGroups';
 import { getSidepanelData } from '@/utils/sidepanel';
+import IconCard from '@icons/card.svg?react';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
 import IconSync from '@icons/sync.svg?react';
 
@@ -254,7 +255,6 @@ export function GetCardsView({ currentContext = null, instance: viewInstance = n
   const totalItems = itemCounts.cards + itemCounts.forms + itemCounts.queues;
 
   const titlePrefix = hasMultipleTypes ? 'Items for' : 'Cards for';
-  const renderTitle = () => `${titlePrefix} **${viewData?.objectName}**`;
 
   const renderSubtext = () => {
     if (totalItems === 0) return null;
@@ -310,6 +310,8 @@ export function GetCardsView({ currentContext = null, instance: viewInstance = n
   return (
     <DataList
       currentContext={currentContext}
+      feature={titlePrefix}
+      featureIcon={<IconCard />}
       headerActions={['openAll', 'reload', 'refresh']}
       isRefreshing={isRefreshing}
       itemActions={['copy', 'openAll']}
@@ -319,8 +321,8 @@ export function GetCardsView({ currentContext = null, instance: viewInstance = n
       objectType={viewData?.objectType}
       showActions={true}
       showCounts={true}
+      subject={viewData?.objectName}
       subtext={renderSubtext()}
-      title={renderTitle()}
       viewType='getCards'
       onClose={onBackToDefault}
       onRefresh={handleRefresh}

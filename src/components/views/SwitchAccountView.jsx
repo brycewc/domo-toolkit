@@ -1,4 +1,4 @@
-import { Button, Card, Separator, Spinner, Tooltip } from '@heroui/react';
+import { Button, Card, Separator, Spinner } from '@heroui/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { EntityPicker } from '@/components/EntityPicker';
@@ -7,12 +7,15 @@ import { useStatusBar } from '@/hooks/useStatusBar';
 import { DomoContext } from '@/models/DomoContext';
 import { getAccountIdsForDomoObject, getAccountsForProvider } from '@/services/accounts';
 import { updateStreamAccounts } from '@/services/datasets';
+import { buildReloadAction } from '@/utils/headerActions';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
+import IconSwapHorizontal from '@icons/swap-horizontal.svg?react';
 import IconSync from '@icons/sync.svg?react';
-import IconX from '@icons/x.svg?react';
 
-export function SwitchAccountView({ instance = null, onBackToDefault = null, onStatusUpdate = null }) {
+import { ViewHeader } from './ViewHeader';
+
+export function SwitchAccountView({ instance = null, liveContext = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   const [currentContext, setCurrentContext] = useState(null);
   const [streamId, setStreamId] = useState(null);
@@ -169,32 +172,23 @@ export function SwitchAccountView({ instance = null, onBackToDefault = null, onS
 
   return (
     <Card className='flex min-h-0 w-full flex-1 flex-col p-2'>
-      <Card.Header className='gap-2'>
-        <Card.Title className='flex items-start justify-between'>
-          <div className='min-w-0 flex-1 pt-1'>
-            <div className='truncate'>Switch Account</div>
-            <Tooltip>
-              <Tooltip.Trigger className='block w-full min-w-0 pr-8'>
-                <div className='truncate text-xs font-normal text-muted'>
-                  {objectName} (ID: {objectId})
-                </div>
-              </Tooltip.Trigger>
-              <Tooltip.Content className='text-wrap'>
-                {objectName} (ID: {objectId})
-              </Tooltip.Content>
-            </Tooltip>
-          </div>
-          {onBackToDefault && (
-            <Tooltip>
-              <Button isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
-                <IconX />
-              </Button>
-              <Tooltip.Content className='max-w-60'>Close</Tooltip.Content>
-            </Tooltip>
-          )}
-        </Card.Title>
-        <Separator />
-      </Card.Header>
+      <ViewHeader
+        feature='Switch Account'
+        featureIcon={<IconSwapHorizontal />}
+        subtext={`${objectName} (ID: ${objectId})`}
+        subtextTypeId={currentContext.domoObject.typeId}
+        onClose={onBackToDefault}
+        actions={[
+          buildReloadAction({
+            currentContext: liveContext,
+            objectId: currentContext.domoObject.id,
+            objectType: currentContext.domoObject.typeId,
+            onStatusUpdate,
+            viewType: 'switchAccount'
+          })
+        ]}
+      />
+      <Separator />
 
       {screen === 'picker' && activeSlot ? (
         <EntityPicker
