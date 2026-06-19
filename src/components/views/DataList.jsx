@@ -1394,8 +1394,19 @@ function DataListItemImpl({
   // mounts with the row (collapsed bodies stay mounted, just hidden), reading
   // these keys once. Deeper chains resolve on their own, each level seeds its
   // own child group, so a sole child that itself has a sole child opens too.
+  // Seed this child group with ONLY the keys that belong to its own direct
+  // children: any `defaultExpandedIds` that are direct children, plus this item's
+  // sole populated child. Filtering to direct children is essential under
+  // single-expansion (allowsMultipleExpanded=false) — passing the full
+  // `defaultExpandedIds` down (which includes open ancestor groups like a
+  // top-level "Used by this card") would crowd out the sole child as an extra
+  // key, and React Aria would honor the ancestor instead, leaving the lone child
+  // collapsed.
   const soleChildId = soleVirtualChildId(item);
-  const childGroupExpandedKeys = soleChildId ? [...(defaultExpandedIds ?? []), soleChildId] : defaultExpandedIds;
+  const seedIds = defaultExpandedIds ? [...defaultExpandedIds] : [];
+  const childGroupExpandedKeys = (item.children ?? [])
+    .map((child) => child.id)
+    .filter((id) => id === soleChildId || seedIds.includes(id));
 
   return (
     <Disclosure
