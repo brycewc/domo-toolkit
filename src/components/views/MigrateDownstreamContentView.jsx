@@ -669,6 +669,10 @@ export function MigrateDownstreamContentView({ currentContext = null, onBackToDe
   // can't auto-remap (origin SELECT *, an unsupported engine). These get an
   // honest "review manually" note instead of the old false "all clear".
   const sqlDataflowWarnings = scanResult?.dataflowSqlWarnings || [];
+  // Magic ETL dataflows with a Python/R script tile that references a column the
+  // user could remap. The script body can't be auto-rewritten, so it's flagged
+  // for the user to update by hand.
+  const scriptDataflowWarnings = scanResult?.dataflowScriptWarnings || [];
   // Fusion views whose origin columns appear inside computed expressions: the
   // simple refs are remapped automatically, but the computation may need a look.
   const viewFusionWarnings = scanResult?.viewFusionWarnings || [];
@@ -1513,6 +1517,26 @@ export function MigrateDownstreamContentView({ currentContext = null, onBackToDe
               </Alert>
             )}
 
+            {hasMismatches && !isScanning && scanResult && scriptDataflowWarnings.length > 0 && (
+              <Alert className='w-full border border-border bg-transparent' status='warning'>
+                <Alert.Indicator>
+                  <IconExclamationTriangle data-slot='alert-default-icon' />
+                </Alert.Indicator>
+                <Alert.Content>
+                  <Alert.Title>
+                    {scriptDataflowWarnings.length === 1
+                      ? '1 script dataflow needs manual review'
+                      : `${scriptDataflowWarnings.length} script dataflows need manual review`}
+                  </Alert.Title>
+                  <Alert.Description>
+                    {scriptDataflowWarnings.map((w) => w.name).join(', ')} reference this dataset's columns inside a Python or
+                    R script tile, which can't be renamed automatically. The input is repointed on migrate, but you'll need
+                    to update the script by hand.
+                  </Alert.Description>
+                </Alert.Content>
+              </Alert>
+            )}
+
             {hasMismatches && !isScanning && scanResult && viewFusionWarnings.length > 0 && (
               <Alert className='w-full border border-border bg-transparent' status='warning'>
                 <Alert.Indicator>
@@ -1536,6 +1560,7 @@ export function MigrateDownstreamContentView({ currentContext = null, onBackToDe
               !isScanning &&
               scanResult &&
               usedUnmappedColumns.length === 0 &&
+              scriptDataflowWarnings.length === 0 &&
               sqlDataflowWarnings.length === 0 &&
               viewFusionWarnings.length === 0 && (
                 <Alert className='w-full border border-border bg-transparent' status='default'>

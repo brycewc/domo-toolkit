@@ -20,6 +20,7 @@ import {
 } from './columnRewriter';
 import { getDataflowDetail } from './dataflows';
 import { createDatasetFunctions, getDatasetFunctions, getFunctionTemplate, updateDatasetFunctions } from './functions';
+import { findScriptColumnConflicts } from './scriptColumns';
 import { extractDataflowSqlColumnRefs, getDataflowEngine, rewriteDataflowSqlColumns } from './sqlColumns';
 import { getCurrentUserId } from './users';
 
@@ -498,6 +499,18 @@ export async function swapDataflowInput({
         definition = result.definition;
         unhandled = result.unhandled;
       } else if (engine === 'magic') {
+        // Python/R script tiles run freeform code whose column refs aren't
+        // backticked and can't be safely auto-renamed; the structured rewriter
+        // below leaves the script body alone. Flag any script tile that
+        // references a remapped column for manual review (the input still
+        // repoints; the user updates the script by hand).
+        const remappedColumns = Object.entries(columnMap)
+          .filter(([from, to]) => to != null && to !== from)
+          .map(([from]) => from);
+        unhandled = findScriptColumnConflicts(definition, remappedColumns).map((c) => ({
+          actionId: c.actionId,
+          field: 'statements'
+        }));
         definition = rewriteDataflowColumns(definition, columnMap);
       }
       // Unknown non-Magic engines: repoint the input only. The column scan
@@ -837,6 +850,106 @@ async function putDatasetViewInPage(viewId, viewDefinition, originId, targetId, 
           });
         };
 
+        // Make a multi-input (UNION/JOIN) view's projection step round-trippable.
+        // A view with a calculated column compiles into a logical projection step
+        // (`viewTemplate.fromItemInfo.<step>`, where <step> is the synthetic table
+        // the outer SELECT reads from, e.g. `mapping`). In the `/schema/indexed`
+        // form that step is internally inconsistent as a SAVE payload: it declares
+        // palette columns as refs to raw union-INPUT datasets (which live inside the
+        // sub-select and aren't reachable at the projection level), omits pure
+        // passthrough columns, and is keyed/expressed without table context so the
+        // column rewriter mis-remaps it on a schema change. Saving it yields an
+        // unqueryable view ("Invalid alias: `mapping`" / "Invalid column(s)
+        // referenced"). Rebuild the step instead from `schema.select` — the
+        // top-level resolved query, the one representation that carries table
+        // context and is therefore remapped correctly by the rewriter + id sweep
+        // above. Each output column maps to its real source ref (`base`/joined
+        // table), and calculated columns are reconstructed from their expression
+        // tree with source column refs resolved back to sibling output names. A
+        // no-op for views without this projection shape (single-input views, etc.).
+        const exprToString = (node, srcToOut) => {
+          if (!node || typeof node !== 'object') return null;
+          const ops = { ADDITION: '+', DIVISION: '/', MODULO: '%', MULTIPLICATION: '*', SUBTRACTION: '-' };
+          switch (node['@type']) {
+            case 'CAST':
+              return exprToString(node.leftExpression, srcToOut);
+            case 'COLUMN': {
+              const t = cleanId(node.table?.name);
+              const c = cleanId(node.columnName);
+              const out = srcToOut[`${t} ${c}`];
+              return out != null ? `\`${out}\`` : `\`${t}\`.\`${c}\``;
+            }
+            case 'DOUBLE_VALUE':
+            case 'LONG_VALUE':
+              return String(node.value);
+            case 'FUNCTION': {
+              const args = (node.parameters?.expressions || node.arguments || []).map((a) => exprToString(a, srcToOut));
+              if (args.some((a) => a == null)) return null;
+              return `${node.name}(${args.join(', ')})`;
+            }
+            case 'PARENTHESIS': {
+              const inner = exprToString(node.expression, srcToOut);
+              return inner == null ? null : `(${inner})`;
+            }
+            case 'STRING_VALUE':
+              return typeof node.value === 'string' ? node.value : `'${node.value}'`;
+            default: {
+              if (ops[node['@type']] && node.leftExpression && node.rightExpression) {
+                const l = exprToString(node.leftExpression, srcToOut);
+                const r = exprToString(node.rightExpression, srcToOut);
+                return l == null || r == null ? null : `${l} ${ops[node['@type']]} ${r}`;
+              }
+              return null;
+            }
+          }
+        };
+        const rebuildProjectionFromTopSelect = (schema) => {
+          const topItems = schema?.select?.selectBody?.selectItems;
+          const viewTemplate = schema?.viewTemplate;
+          if (!Array.isArray(topItems) || topItems.length === 0 || !viewTemplate?.fromItemInfo) return;
+          // The projection step = the table the inner (viewTemplate) SELECT reads from.
+          const stepName = cleanId(viewTemplate.select?.selectBody?.selectItems?.[0]?.expression?.table?.name);
+          if (!stepName || !viewTemplate.fromItemInfo[stepName]?.columnInfo) return;
+          const colType = {};
+          for (const c of schema.tables?.[0]?.columns || []) colType[cleanId(c.name)] = c.type;
+          // Map each source column ref -> the output name that selects it (for calcs).
+          const srcToOut = {};
+          for (const it of topItems) {
+            const e = it.expression;
+            if (e?.['@type'] === 'COLUMN') srcToOut[`${cleanId(e.table?.name)} ${cleanId(e.columnName)}`] = cleanId(it.alias?.name);
+          }
+          const rebuilt = {};
+          for (const it of topItems) {
+            const name = cleanId(it.alias?.name);
+            const e = it.expression;
+            if (!name || !e) return; // unexpected shape — leave the view untouched
+            if (e['@type'] === 'COLUMN') {
+              rebuilt[name] = {
+                aggregated: false,
+                formattedExpression: `\`${cleanId(e.table?.name)}\`.\`${cleanId(e.columnName)}\``,
+                type: colType[name] || 'STRING'
+              };
+            } else {
+              const fe = exprToString(e, srcToOut);
+              if (fe == null) return; // can't safely reconstruct a calc — abort the rebuild
+              rebuilt[name] = { aggregated: false, formattedExpression: fe, type: colType[name] || 'STRING' };
+            }
+          }
+          viewTemplate.fromItemInfo[stepName] = { columnInfo: rebuilt };
+          // The `calculated` step (if present) just re-projects the calc columns off
+          // the projection step; rebuild it to match the calc columns we kept.
+          if (viewTemplate.fromItemInfo.calculated) {
+            const calc = {};
+            for (const it of topItems) {
+              if (it.expression?.['@type'] !== 'COLUMN') {
+                const name = cleanId(it.alias?.name);
+                calc[name] = { aggregated: false, formattedExpression: `\`${stepName}\`.\`${name}\``, type: colType[name] || 'STRING' };
+              }
+            }
+            viewTemplate.fromItemInfo.calculated = { columnInfo: calc };
+          }
+        };
+
         const payload = JSON.parse(JSON.stringify(viewDefinition));
         swapDatasetRecursive(payload.viewTemplate?.select?.selectBody, originId, targetId);
         updateColumnReferences(payload, originId, targetId);
@@ -848,6 +961,13 @@ async function putDatasetViewInPage(viewId, viewDefinition, originId, targetId, 
           regenerateTargetPalette(cleaned.viewTemplate, targetId, targetColumnTypes);
         } catch (paletteErr) {
           console.warn('[migrate] view palette regeneration skipped:', paletteErr);
+        }
+        // Rebuild the projection step so multi-input + calc views round-trip (see
+        // above). Runs last so it reads the fully-remapped top-level select.
+        try {
+          rebuildProjectionFromTopSelect(cleaned);
+        } catch (projErr) {
+          console.warn('[migrate] view projection rebuild skipped:', projErr);
         }
         const updatedPayload = {
           dataProviderType: null,

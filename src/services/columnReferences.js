@@ -32,6 +32,7 @@ import {
   stripBackticks
 } from './columnFields';
 import { getFunctionTemplate } from './functions';
+import { findScriptColumnConflicts } from './scriptColumns';
 import { extractDataflowSqlColumnRefs, getDataflowEngine } from './sqlColumns';
 
 /**
@@ -236,6 +237,7 @@ export function makeItemKey(typeKey, itemId) {
  *   byItem: Map<string, {definition: Object|null, usedColumns: Set<string>, error?: string}>,
  *   errors: Array<{type: string, id: any, error: string}>,
  *   dataflowCollisions: Map<string, Array<{dataflowId: any, dataflowName: string, otherInputId: string, otherInputName: string}>>,
+ *   dataflowScriptWarnings: Array<{engine: string, id: any, name: string}>,
  *   dataflowSqlWarnings: Array<{engine: string, id: any, name: string}>,
  *   viewFusionWarnings: Array<{id: any, name: string}>
  * }>}
@@ -243,6 +245,7 @@ export function makeItemKey(typeKey, itemId) {
 export async function scanContentForColumns({ originId, selectedItems, tabId = null }) {
   const byColumn = new Map();
   const byItem = new Map();
+  const dataflowScriptWarnings = [];
   const dataflowSqlWarnings = [];
   const viewFusionWarnings = [];
   const errors = [];
@@ -301,6 +304,13 @@ export async function scanContentForColumns({ originId, selectedItems, tabId = n
           dataflowSqlWarnings.push({ engine, id: item.id, name: item.name || String(item.id) });
         } else {
           used = extractDataflowColumnRefs(definition);
+          // Magic ETL Python/R script tiles run freeform code we can't safely
+          // rewrite. If a script references a column the user could remap, flag
+          // the dataflow so it's reviewed by hand (the structured fields around
+          // the tile still remap; only the script body is left alone).
+          if (findScriptColumnConflicts(definition, used).length > 0) {
+            dataflowScriptWarnings.push({ engine, id: item.id, name: item.name || String(item.id) });
+          }
         }
       } else {
         return;
@@ -354,7 +364,7 @@ export async function scanContentForColumns({ originId, selectedItems, tabId = n
     tabId
   });
 
-  return { byColumn, byItem, dataflowCollisions, dataflowSqlWarnings, errors, viewFusionWarnings };
+  return { byColumn, byItem, dataflowCollisions, dataflowScriptWarnings, dataflowSqlWarnings, errors, viewFusionWarnings };
 }
 
 async function collectDataflowCollisions({ byItem, originId, selectedDataflows, tabId }) {

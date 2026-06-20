@@ -16,11 +16,19 @@ import { executeInPage } from '@/utils/executeInPage';
  * @returns {Promise<Object>} The raw `POST /functions/bulk/template` response.
  */
 export async function createDatasetFunctions({ functions, tabId = null }) {
+  // The bulk endpoint dedupes the create list by each entry's `id`, so every
+  // entry needs a DISTINCT id even on create. The usual `0` placeholder is fine
+  // for a single create, but two or more entries all carrying `0` make Domo
+  // reject the whole batch ("functions to create have duplicate ids ... same
+  // key: 0"). Stamp a distinct negative placeholder per entry: negatives can't
+  // collide with real (positive) function ids, and the server still assigns and
+  // returns the real ids in the response (callers read them back positionally).
+  const create = (functions || []).map((fn, i) => ({ ...fn, id: -(i + 1) }));
   return executeInPage(
-    async (functions) => {
+    async (create) => {
       const response = await fetch('/api/query/v1/functions/bulk/template', {
         body: JSON.stringify({
-          create: functions,
+          create,
           links: {},
           strict: false
         }),
@@ -34,7 +42,7 @@ export async function createDatasetFunctions({ functions, tabId = null }) {
       }
       return response.json();
     },
-    [functions],
+    [create],
     tabId
   );
 }
