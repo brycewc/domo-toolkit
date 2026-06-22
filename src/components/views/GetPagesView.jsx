@@ -118,11 +118,11 @@ export function GetPagesView({ currentContext = null, instance: viewInstance = n
               childPages = result.pages
                 .filter((page) => String(page.id) !== stringId)
                 .map((page) => ({
-                  appId: page.appId || null,
-                  appName: page.appName || null,
                   pageId: page.id,
                   pageTitle: page.name,
-                  pageType: page.type
+                  pageType: page.type,
+                  parentId: page.parentId || null,
+                  parentName: page.parentName || null
                 }));
               cardsByPage = result.cardsByPage;
               orphanedCards = result.orphanedCards;
@@ -172,10 +172,10 @@ export function GetPagesView({ currentContext = null, instance: viewInstance = n
           .sendMessage({
             contextUpdates: {
               cardPages: childPages.map((p) => ({
-                appId: p.appId,
-                appName: p.appName,
                 id: p.pageId,
                 name: p.pageTitle,
+                parentId: p.parentId,
+                parentName: p.parentName,
                 type: p.pageType
               }))
             },
@@ -306,13 +306,13 @@ export function GetPagesView({ currentContext = null, instance: viewInstance = n
     // pages, not other views within the same app.
     const stringParentId = String(parentId);
     const childPages = result.pages
-      .filter((page) => String(page.appId) !== stringParentId)
+      .filter((page) => String(page.parentId) !== stringParentId)
       .map((page) => ({
-        appId: page.appId || null,
-        appName: page.appName || null,
         pageId: page.id,
         pageTitle: page.name,
-        pageType: page.type
+        pageType: page.type,
+        parentId: page.parentId || null,
+        parentName: page.parentName || null
       }));
 
     if (childPages.length === 0 && !result.orphanedCards?.length) {
@@ -375,11 +375,11 @@ export function GetPagesView({ currentContext = null, instance: viewInstance = n
       const childPages = pages
         .filter((page) => !excludeSelf || String(page.id) !== stringId)
         .map((page) => ({
-          appId: page.appId || null,
-          appName: page.appName || null,
           pageId: page.id,
           pageTitle: page.name,
-          pageType: page.type
+          pageType: page.type,
+          parentId: page.parentId || null,
+          parentName: page.parentName || null
         }));
 
       return { cardsByPage, childPages, orphanedCards };
@@ -726,7 +726,8 @@ function buildCardChildren(pageId, cardsByPage, origin, pageType, parentId) {
  * Transform grouped pages data into hierarchical structure
  * For CARD and DATA_SOURCE types, childPages is a flat array with pageType property
  * We group by pageType and create virtual parent items
- * For App Studio pages, we create a nested hierarchy: App Studio Apps > App > Pages
+ * For App Studio pages, we create a nested hierarchy: App Studio Apps > App > Pages.
+ * Report Builder pages nest the same way: Report Builder Pages > Report > Pages.
  * @param {Array} childPages - Array of page objects
  * @param {string} origin - The base URL origin
  * @param {Object} [cardsByPage] - Optional mapping of pageId -> [{ id, name }] for card children
@@ -764,10 +765,10 @@ function transformGroupedPagesData(childPages, origin, cardsByPage, orphanedCard
     // Group pages by appId
     const pagesByApp = new Map();
     pagesByType.DATA_APP_VIEW.forEach((page) => {
-      const appId = page.appId;
+      const appId = page.parentId;
       if (!pagesByApp.has(appId)) {
         pagesByApp.set(appId, {
-          appName: page.appName || `App ${appId}`,
+          appName: page.parentName || `App ${appId}`,
           pages: []
         });
       }
@@ -835,28 +836,50 @@ function transformGroupedPagesData(childPages, origin, cardsByPage, orphanedCard
     );
   }
 
-  // Handle Report Builder pages
+  // Handle Report Builder pages - group by report first (same structure as App Studio)
   if (pagesByType.REPORT_BUILDER_VIEW.length > 0) {
-    const sortedPages = pagesByType.REPORT_BUILDER_VIEW.sort((a, b) => a.pageTitle.localeCompare(b.pageTitle));
-
-    const children = sortedPages.map((page) => {
-      const cardChildren = buildCardChildren(page.pageId, cardsByPage, origin, 'REPORT_BUILDER_VIEW');
-      const domoObject = new DomoObject('REPORT_BUILDER_VIEW', page.pageId, origin, {
-        name: page.pageTitle
-      });
-      return DataListItem.fromDomoObject(domoObject, {
-        children: cardChildren,
-        count: cardChildren?.length,
-        countLabel: cardChildren ? 'cards' : null
-      });
+    const pagesByReport = new Map();
+    pagesByType.REPORT_BUILDER_VIEW.forEach((page) => {
+      const reportId = page.parentId;
+      if (!pagesByReport.has(reportId)) {
+        pagesByReport.set(reportId, {
+          pages: [],
+          reportName: page.parentName || `Report ${reportId}`
+        });
+      }
+      pagesByReport.get(reportId).pages.push(page);
     });
+
+    const reportChildren = Array.from(pagesByReport.entries())
+      .sort(([, a], [, b]) => a.reportName.localeCompare(b.reportName))
+      .map(([reportId, { pages, reportName }]) => {
+        const sortedPages = pages.sort((a, b) => a.pageTitle.localeCompare(b.pageTitle));
+
+        const pageChildren = sortedPages.map((page) => {
+          const cardChildren = buildCardChildren(page.pageId, cardsByPage, origin, 'REPORT_BUILDER_VIEW', reportId);
+          const domoObject = new DomoObject('REPORT_BUILDER_VIEW', page.pageId, origin, { name: page.pageTitle }, null, reportId);
+          return DataListItem.fromDomoObject(domoObject, {
+            children: cardChildren,
+            count: cardChildren?.length,
+            countLabel: cardChildren ? 'cards' : null
+          });
+        });
+
+        const reportDomoObject = new DomoObject('REPORT_BUILDER', reportId, origin, {
+          name: reportName
+        });
+        return DataListItem.fromDomoObject(reportDomoObject, {
+          children: pageChildren,
+          count: pageChildren.length
+        });
+      });
 
     items.push(
       DataListItem.createGroup({
-        children,
+        children: reportChildren,
         id: 'REPORT_BUILDER_group',
         label: 'Report Builder Pages',
-        metadata: `${children.length} page${children.length !== 1 ? 's' : ''}`
+        metadata: `${pagesByReport.size} report${pagesByReport.size !== 1 ? 's' : ''}, ${pagesByType.REPORT_BUILDER_VIEW.length} page${pagesByType.REPORT_BUILDER_VIEW.length !== 1 ? 's' : ''}`
       })
     );
   }
@@ -865,10 +888,10 @@ function transformGroupedPagesData(childPages, origin, cardsByPage, orphanedCard
   if (pagesByType.WORKSHEET_VIEW.length > 0) {
     const pagesByApp = new Map();
     pagesByType.WORKSHEET_VIEW.forEach((page) => {
-      const appId = page.appId;
+      const appId = page.parentId;
       if (!pagesByApp.has(appId)) {
         pagesByApp.set(appId, {
-          appName: page.appName || `App ${appId}`,
+          appName: page.parentName || `App ${appId}`,
           pages: []
         });
       }

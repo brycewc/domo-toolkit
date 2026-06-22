@@ -6,6 +6,8 @@ import {
   CheckboxGroup,
   Disclosure,
   DisclosureGroup,
+  Dropdown,
+  Label,
   Link,
   Popover,
   ScrollShadow,
@@ -16,6 +18,7 @@ import {
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { getObjectType } from '@/models/DomoObjectType';
 import { launchActivityLog } from '@/utils/activityLog';
 import { getValidTabForInstance } from '@/utils/currentObject';
 import { buildRefreshAction, buildReloadAction } from '@/utils/headerActions';
@@ -31,6 +34,8 @@ import IconLineage from '@icons/lineage.svg?react';
 import IconListSearch from '@icons/list-search.svg?react';
 import IconPeoplePlus from '@icons/people-plus.svg?react';
 import IconPersonPlus from '@icons/person-plus.svg?react';
+import IconSearch from '@icons/search.svg?react';
+import IconTree from '@icons/tree.svg?react';
 import IconX from '@icons/x.svg?react';
 
 import { AnimatedCheck } from '../AnimatedCheck';
@@ -184,7 +189,6 @@ export function DataList({
             if (instance) {
               const tabId = await getValidTabForInstance(instance);
               await launchActivityLog({ instance, objects: headerLogObjects, tabId, type: 'multi-object' });
-              window.close();
             }
             break;
           }
@@ -255,7 +259,6 @@ export function DataList({
                 tabId,
                 type: 'single-object'
               });
-              window.close();
             }
             break;
           }
@@ -269,7 +272,6 @@ export function DataList({
             if (instance) {
               const tabId = await getValidTabForInstance(instance);
               await launchActivityLog({ instance, objects, tabId, type: 'multi-object' });
-              window.close();
             }
             break;
           }
@@ -383,7 +385,7 @@ export function DataList({
       ? [
           {
             ariaLabel: 'Share All',
-            icon: isHeaderShared ? <AnimatedCheck stroke={1.5} /> : <IconPeoplePlus />,
+            icon: isHeaderShared ? <AnimatedCheck /> : <IconPeoplePlus />,
             key: 'shareAll',
             onPress: () => handleHeaderAction('shareAll'),
             tooltip: isHeaderShared ? 'Shared!' : 'Share all with yourself'
@@ -1014,7 +1016,7 @@ function DataListItemImpl({
     const copyButton = (
       <Tooltip key='copy'>
         <Button fullWidth isIconOnly aria-label='Copy' size='sm' variant='ghost' onPress={() => handleAction('copy')}>
-          {isCopied ? <AnimatedCheck stroke={1.5} /> : <IconClipboardCopy />}
+          {isCopied ? <AnimatedCheck /> : <IconClipboardCopy />}
         </Button>
         <Tooltip.Content className='max-w-60'>{isCopied ? 'Copied!' : 'Copy ID'}</Tooltip.Content>
       </Tooltip>
@@ -1030,7 +1032,7 @@ function DataListItemImpl({
           variant='ghost'
           onPress={() => handleAction('shareAll')}
         >
-          {isShared ? <AnimatedCheck stroke={1.5} /> : <IconPeoplePlus />}
+          {isShared ? <AnimatedCheck /> : <IconPeoplePlus />}
         </Button>
         <Tooltip.Content className='max-w-60'>{isShared ? 'Shared!' : 'Share all with yourself'}</Tooltip.Content>
       </Tooltip>
@@ -1039,7 +1041,7 @@ function DataListItemImpl({
     const shareButton = (
       <Tooltip key='share'>
         <Button fullWidth isIconOnly aria-label='Share' size='sm' variant='ghost' onPress={() => handleAction('share')}>
-          {isShared ? <AnimatedCheck stroke={1.5} /> : <IconPersonPlus />}
+          {isShared ? <AnimatedCheck /> : <IconPersonPlus />}
         </Button>
         <Tooltip.Content className='max-w-60'>{isShared ? 'Shared!' : 'Share with yourself'}</Tooltip.Content>
       </Tooltip>
@@ -1077,37 +1079,70 @@ function DataListItemImpl({
       </Tooltip>
     );
 
-    const activityLogButton = (
-      <Tooltip key='activityLog'>
-        <Button
-          fullWidth
-          isIconOnly
-          aria-label='View Activity Log'
-          size='sm'
-          variant='ghost'
-          onPress={() => handleAction('activityLog')}
-        >
-          <IconListSearch />
-        </Button>
-        <Tooltip.Content className='max-w-60'>View activity log</Tooltip.Content>
-      </Tooltip>
-    );
-
-    const activityLogAllButton = (
-      <Tooltip key='activityLogAll'>
-        <Button
-          fullWidth
-          isIconOnly
-          aria-label='View Activity Log for all'
-          size='sm'
-          variant='ghost'
-          onPress={() => handleAction('activityLogAll')}
-        >
-          <IconListSearch />
-        </Button>
-        <Tooltip.Content className='max-w-60'>View activity log for all</Tooltip.Content>
-      </Tooltip>
-    );
+    // Activity-log action. When both the single-object and "all objects" logs
+    // apply (a row with descendants), it's a dropdown: "This object" reads the
+    // log for the row itself, "All objects" covers everything nested under it.
+    // When only one applies (a leaf with no descendants, or a virtual group
+    // header with no object of its own), there's no choice to make, so it's a
+    // plain button that launches that log immediately with no dropdown.
+    const buildActivityLogAction = (showSingle, showAll) => {
+      if (showSingle && !showAll) {
+        return (
+          <Tooltip key='activityLog'>
+            <Button
+              fullWidth
+              isIconOnly
+              aria-label='View Activity Log'
+              size='sm'
+              variant='ghost'
+              onPress={() => handleAction('activityLog')}
+            >
+              <IconListSearch />
+            </Button>
+            <Tooltip.Content className='max-w-60'>View activity log</Tooltip.Content>
+          </Tooltip>
+        );
+      }
+      if (showAll && !showSingle) {
+        return (
+          <Tooltip key='activityLog'>
+            <Button
+              fullWidth
+              isIconOnly
+              aria-label='View Activity Log for all'
+              size='sm'
+              variant='ghost'
+              onPress={() => handleAction('activityLogAll')}
+            >
+              <IconListSearch />
+            </Button>
+            <Tooltip.Content className='max-w-60'>View activity log for all</Tooltip.Content>
+          </Tooltip>
+        );
+      }
+      return (
+        <Dropdown key='activityLog'>
+          <Tooltip>
+            <Button fullWidth isIconOnly aria-label='View Activity Log' size='sm' variant='ghost'>
+              <IconListSearch />
+            </Button>
+            <Tooltip.Content className='max-w-60'>View activity log</Tooltip.Content>
+          </Tooltip>
+          <Dropdown.Popover className='w-fit min-w-60' placement='bottom'>
+            <Dropdown.Menu onAction={handleAction}>
+              <Dropdown.Item id='activityLog' textValue='This object'>
+                <IconSearch className='size-4 shrink-0' />
+                <Label>Only this object</Label>
+              </Dropdown.Item>
+              <Dropdown.Item id='activityLogAll' textValue='All objects'>
+                <IconTree className='size-4 shrink-0' />
+                <Label>Including all children</Label>
+              </Dropdown.Item>
+            </Dropdown.Menu>
+          </Dropdown.Popover>
+        </Dropdown>
+      );
+    };
 
     if (item.isVirtualParent) {
       if (!hasChildren) return [];
@@ -1116,26 +1151,28 @@ function DataListItemImpl({
         actions.push(openAllButton);
         if (canShareAll && hasShareableChildren(item)) actions.push(shareAllButton);
       }
-      // Virtual group headers have no object of their own, so only the "for all"
-      // log applies, covering every real descendant beneath the header.
-      actions.push(activityLogAllButton);
+      // Virtual group headers have no object of their own, so only the "all
+      // objects" log applies, covering every real descendant beneath the header.
+      actions.push(buildActivityLogAction(false, true));
       return actions;
     }
 
     if (itemActions) {
       const actions = [];
-      if (itemActions.includes('openAll') && hasChildren) actions.push(openAllButton);
+      // Report builder objects have no navigable URL, so "Open All" on a report
+      // parent would open zero tabs. Suppress it there (the REPORT_BUILDER_group
+      // header is already excluded above).
+      if (itemActions.includes('openAll') && hasChildren && item.typeId !== 'REPORT_BUILDER') actions.push(openAllButton);
       if (canShareAll && itemActions.includes('shareAll') && hasShareableChildren(item)) actions.push(shareAllButton);
       if (canShare && itemActions.includes('share') && isItemShareable(item)) actions.push(shareButton);
       if (itemActions.includes('lineage') && (item.typeId === 'DATA_SOURCE' || item.typeId === 'DATAFLOW_TYPE'))
         actions.push(lineageButton);
       if (itemActions.includes('viewsExplorer') && item.typeId === 'DATA_SOURCE') actions.push(viewsExplorerButton);
       if (itemActions.includes('copy')) actions.push(copyButton);
-      // Activity-log actions are added to every object regardless of the view's
-      // opted-in `itemActions`: the single-object log for this row, plus the
-      // "for all" log when it has descendants.
-      actions.push(activityLogButton);
-      if (hasChildren) actions.push(activityLogAllButton);
+      // The activity-log dropdown is added to every object regardless of the
+      // view's opted-in `itemActions`: the single-object log for this row, plus
+      // the "all objects" log when it has descendants.
+      actions.push(buildActivityLogAction(true, hasChildren));
       return actions;
     }
 
@@ -1158,10 +1195,9 @@ function DataListItemImpl({
 
     if (canShare && isItemShareable(item)) actions.push(shareButton);
     actions.push(copyButton);
-    // Activity-log actions on every object: single-object for this row, plus the
-    // "for all" log when it has descendants.
-    actions.push(activityLogButton);
-    if (hasChildren) actions.push(activityLogAllButton);
+    // Activity-log dropdown on every object: single-object for this row, plus the
+    // "all objects" log when it has descendants.
+    actions.push(buildActivityLogAction(true, hasChildren));
     return actions;
   }, [canShare, canShareAll, hasChildren, handleAction, isCopied, isShared, item, itemActions, objectType, showActions]);
 
@@ -1196,6 +1232,11 @@ function DataListItemImpl({
   // label is a plain string.
   const labelTitle = typeof item.label === 'string' ? item.label : undefined;
 
+  // Human-readable type name shown ahead of the ID in the hover tooltip (e.g.
+  // "Page ID: 123" rather than just "ID: 123"). Null for synthetic group rows
+  // with no typeId, where the tooltip falls back to a bare "ID:".
+  const typeLabel = item.typeId ? getObjectType(item.typeId)?.name : null;
+
   // Muted rows read as secondary/container entries rather than direct results
   // (e.g. a card that only appears because a drill under it uses a column). The
   // class lands on the label wrapper, so the name and the `currentColor`-driven
@@ -1209,6 +1250,15 @@ function DataListItemImpl({
   // heavier than the normal-weight (400) leaf rows beneath them, so the
   // hierarchy reads at a glance without any nested header looking like body text.
   const virtualHeaderWeightClass = depth > 0 ? 'font-[450]' : 'font-medium';
+
+  // A flat leaf (no children, not an error body that auto-promotes to a
+  // Disclosure) is not clickable to expand anything, so its name should read as
+  // plain text with the default arrow cursor rather than the I-beam that `cursor:
+  // auto` resolves to over text. Disclosure rows skip this: their label sits
+  // inside the trigger button and inherits its `pointer`, signalling the name can
+  // be clicked to expand.
+  const isFlatLeaf = !hasChildren && !showsErrorBody;
+  const leafCursorClass = isFlatLeaf ? ' cursor-default' : '';
 
   // Link items: native `title` shows the full URL on hover. Lighter than
   // React Aria Tooltip (no portal, no delay state machine, no extra DOM) and
@@ -1245,18 +1295,24 @@ function DataListItemImpl({
         <Tooltip.Trigger className='block min-w-0 truncate'>{labelInner}</Tooltip.Trigger>
         <Tooltip.Content className='flex flex-col flex-wrap items-start gap-1 text-left' offset={4} placement='top left'>
           {labelTitle}
-          <span>ID: {item.originalId ?? item.id}</span>
+          <span>
+            {typeLabel ? `${typeLabel} ID: ` : 'ID: '}
+            {item.originalId ?? item.id}
+          </span>
         </Tooltip.Content>
       </Tooltip>
     </Link>
   ) : (
     <Tooltip className='flex-1'>
       <Tooltip.Trigger className='block min-w-0 truncate'>
-        <span className={`cursor-default text-sm${labelMutedClass}`}>{labelInner}</span>
+        <span className={`text-sm${labelMutedClass}${leafCursorClass}`}>{labelInner}</span>
       </Tooltip.Trigger>
       <Tooltip.Content className='flex flex-col flex-wrap items-start gap-1 text-left' offset={4} placement='top left'>
         {labelTitle}
-        <span>ID: {item.originalId ?? item.id}</span>
+        <span>
+          {typeLabel ? `${typeLabel} ID: ` : 'ID: '}
+          {item.originalId ?? item.id}
+        </span>
       </Tooltip.Content>
     </Tooltip>
   );
@@ -1521,10 +1577,7 @@ function DataListItemImpl({
               className='flex min-w-0 flex-1 basis-4/5 flex-row items-center gap-2'
               variant='tertiary'
             >
-              <p
-                className={`min-w-0 truncate text-left text-sm ${virtualHeaderWeightClass}${labelMutedClass}`}
-                title={labelTitle}
-              >
+              <p className={`min-w-0 truncate text-left text-sm ${virtualHeaderWeightClass}${labelMutedClass}`}>
                 {labelInner}
               </p>
               {statusIndicator

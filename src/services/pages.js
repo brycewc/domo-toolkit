@@ -477,30 +477,34 @@ export async function getPagesForCards(cardIds, tabId = null) {
               if (page && page.appPageId) {
                 if (page.dataAppType === 'worksheet') {
                   allWorksheetViews.push({
-                    appId: page.appId,
-                    appName: page.appTitle || `App ${page.appId}`,
                     id: page.appPageId,
-                    name: page.appPageTitle || `Worksheet View ${page.appPageId}`
+                    name: page.appPageTitle || `Worksheet View ${page.appPageId}`,
+                    parentId: page.appId,
+                    parentName: page.appTitle || `App ${page.appId}`
                   });
                 } else {
                   allAppPages.push({
-                    appId: page.appId,
-                    appName: page.appTitle || `App ${page.appId}`,
                     id: page.appPageId,
-                    name: page.appPageTitle || `App Page ${page.appPageId}`
+                    name: page.appPageTitle || `App Page ${page.appPageId}`,
+                    parentId: page.appId,
+                    parentName: page.appTitle || `App ${page.appId}`
                   });
                 }
                 addCardToPage(page.appPageId, card);
               }
             });
           }
-          // Report builder pages
+          // Report builder pages. Carry the parent report's id/title in the same
+          // parentId/parentName slots App Studio and worksheet pages use, so the
+          // view can nest each report page under its report.
           if (Array.isArray(card.adminAllReportPages)) {
             card.adminAllReportPages.forEach((page) => {
               if (page && page.reportPageId) {
                 allReportPages.push({
                   id: page.reportPageId,
-                  name: page.reportPageTitle || `Report Page ${page.reportPageId}`
+                  name: page.reportPageTitle || `Report Page ${page.reportPageId}`,
+                  parentId: page.reportId,
+                  parentName: page.reportTitle || `Report ${page.reportId}`
                 });
                 addCardToPage(page.reportPageId, card);
               }
@@ -547,23 +551,25 @@ export async function getPagesForCards(cardIds, tabId = null) {
             name,
             type: 'PAGE'
           })),
-          ...appPages.map(({ appId, appName, id, name }) => ({
-            appId,
-            appName,
+          ...appPages.map(({ id, name, parentId, parentName }) => ({
             id: String(id),
             name,
+            parentId,
+            parentName,
             type: 'DATA_APP_VIEW'
           })),
-          ...worksheetViews.map(({ appId, appName, id, name }) => ({
-            appId,
-            appName,
+          ...worksheetViews.map(({ id, name, parentId, parentName }) => ({
             id: String(id),
             name,
+            parentId,
+            parentName,
             type: 'WORKSHEET_VIEW'
           })),
-          ...reportPages.map(({ id, name }) => ({
+          ...reportPages.map(({ id, name, parentId, parentName }) => ({
             id: String(id),
             name,
+            parentId,
+            parentName,
             type: 'REPORT_BUILDER_VIEW'
           }))
         ];

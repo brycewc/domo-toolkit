@@ -25,8 +25,8 @@
 - Admins can now switch a dataset to any compatible account in the instance, without first sharing that account with themselves.
 - Added Get Beast Modes: list the Beast Modes tied to a dataset, dataflow, card, page, app, or worksheet, showing the cards, drills, and other Beast Modes each one is used on.
 - The welcome screen now has a quick theme switcher to set System, Light, or Dark without opening settings.
-- Every object in a list now has a View Activity Log action that opens its activity log.
-- Lists now offer a View Activity Log for all action, in the header and on any expandable item, covering that item and everything nested under it.
+- Every object in a list now has an activity log button that opens its log directly, or a menu to view the object's log or everything nested under it when it has nested items.
+- Lists now offer a View Activity Log for all action in the header, covering every object in the list.
 
 ### Supported Types
 
@@ -37,6 +37,7 @@
 ## UI Improvements
 
 - Renamed the "Worksheet Views" group to "Worksheets" in Get Card Pages.
+- Get Card Pages now nests each report builder page under its report, matching how app studio pages nest under their app.
 - Get Card Pages on a single card no longer repeats that card under every page where it appears.
 - App Pages and Worksheet Views now show just the page's own name in the context footer, keeping the parent app or worksheet name in the browser tab title only.
 - The browser tab title for App Pages and Worksheet Views now separates the app and page names with ">" instead of ":".
@@ -49,6 +50,8 @@
 - The delete confirmation view now presents the objects it affects as one list with "Will be deleted" and "Other dependencies" as expandable groups that start open.
 - Side panel view headers now lead with an icon for the action, and views about a specific object show that object's type icon inline next to its name.
 - More side panel views now have reload and refresh buttons in their header, matching the content lists.
+- Object names in result lists now show a normal arrow cursor when the row can't be expanded, while expandable rows keep the pointer cursor to signal the name is clickable.
+- Hovering an object in a result list now shows its type before the ID (for example "Page ID: 123" instead of just "ID: 123").
 
 - Migrating downstream content now shows its live progress on the Migrate button, instead of in a message that could sit off-screen below the column-mapping options.
 - The Migrate Content view now has a reload button to restart it for whichever dataset you've since navigated to, matching the reload control on the other content lists.
