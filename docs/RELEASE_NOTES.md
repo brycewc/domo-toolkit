@@ -70,6 +70,7 @@
 - When a migrating card has a Beast Mode whose name already exists as a Beast Mode on the target dataset, you can now choose to use the target's Beast Mode or rename the card's, instead of the migration failing.
 - Magic ETL sort columns now get renamed during migration along with the rest of the dataflow.
 - Deleting a page and all its cards no longer fails with a "Timeout while checking for page items" error.
+- Expanding upstream or downstream in the lineage view now brings the newly revealed nodes into view instead of jumping the view back to the root.
 
 ### Other Fixes
 

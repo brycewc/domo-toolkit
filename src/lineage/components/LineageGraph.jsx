@@ -222,6 +222,15 @@ export function LineageGraph({
   }, []);
 
   const reactFlowRef = useRef(null);
+  // Wraps ReactFlow so we can read the pane's pixel size when computing how far
+  // to zoom to fit newly expanded nodes.
+  const paneRef = useRef(null);
+  // Node ids from the previous layout, used to detect which nodes an expansion
+  // added so we can frame just those.
+  const prevNodeIdsRef = useRef(null);
+  // The root we have already framed.  A brand-new trace (or a new root) frames
+  // the root once; later layout changes are treated as expand/collapse.
+  const framedRootRef = useRef(null);
 
   const fitViewOptions = useMemo(
     () => ({
@@ -240,16 +249,62 @@ export function LineageGraph({
     [instanceRef]
   );
 
-  // Re-fit whenever the layout produces new positions (collapse, expand,
-  // or initial load).  Keyed on initialNodes so user drag/selection
-  // changes (which only touch `nodes`) do not trigger a re-fit.
+  // Re-frame whenever the layout produces new positions.  Keyed on initialNodes
+  // so user drag/selection changes (which only touch `nodes`) do not re-frame.
+  //
+  // - Initial load or a new root: frame the root.
+  // - Expansion (nodes added): fit to just the newly added nodes so the whole
+  //   new frontier comes into view, capped at the current zoom so we never zoom
+  //   in past where the user was.  Expanding a frontier from the level toolbar
+  //   adds nodes without selecting any, so framing the additions (rather than a
+  //   node) is what keeps the view on what the user just revealed.
+  // - Collapse, or any change that adds nothing: leave the viewport untouched.
   useEffect(() => {
-    if (initialNodes.length > 0 && reactFlowRef.current) {
-      requestAnimationFrame(() => {
-        reactFlowRef.current.fitView(fitViewOptions);
-      });
+    if (initialNodes.length === 0 || !reactFlowRef.current) return;
+    const instance = reactFlowRef.current;
+    const currentIds = initialNodes.map((n) => n.id);
+    const prevIds = prevNodeIdsRef.current;
+    prevNodeIdsRef.current = currentIds;
+
+    const isNewRoot = framedRootRef.current !== rootNodeId;
+    framedRootRef.current = rootNodeId;
+
+    if (isNewRoot || !prevIds) {
+      requestAnimationFrame(() => instance.fitView(fitViewOptions));
+      return;
     }
-  }, [initialNodes, fitViewOptions]);
+
+    const prevSet = new Set(prevIds);
+    const addedNodes = initialNodes.filter((n) => !prevSet.has(n.id) && n.position);
+    if (addedNodes.length === 0) return;
+
+    // Animate to the newly added nodes so the user can follow what was just
+    // revealed.  We drive this with setCenter on the additions' center (rather
+    // than fitView, which would need React Flow to have already measured the new
+    // nodes), computing a zoom that fits the whole new frontier but never zooms
+    // in past where the user already was.
+    let left = Infinity;
+    let right = -Infinity;
+    let top = Infinity;
+    let bottom = -Infinity;
+    for (const n of addedNodes) {
+      left = Math.min(left, n.position.x);
+      right = Math.max(right, n.position.x + NODE_WIDTH);
+      top = Math.min(top, n.position.y);
+      bottom = Math.max(bottom, n.position.y + (n.position.height ?? 90));
+    }
+    const centerX = (left + right) / 2;
+    const centerY = (top + bottom) / 2;
+
+    let zoom = instance.getZoom();
+    const pane = paneRef.current;
+    if (pane && pane.clientWidth > 0 && pane.clientHeight > 0) {
+      const fitZoom = 0.85 * Math.min(pane.clientWidth / (right - left), pane.clientHeight / (bottom - top));
+      zoom = Math.min(zoom, fitZoom);
+    }
+
+    requestAnimationFrame(() => instance.setCenter(centerX, centerY, { duration: 400, zoom }));
+  }, [fitViewOptions, initialNodes, rootNodeId]);
 
   const graphContext = useMemo(
     () => ({
@@ -289,25 +344,27 @@ export function LineageGraph({
 
   return (
     <LineageGraphContext.Provider value={graphContext}>
-      <ReactFlow
-        colorMode={theme}
-        edges={edges}
-        elementsSelectable={interactive}
-        maxZoom={2}
-        minZoom={0.1}
-        nodes={nodes}
-        nodesConnectable={false}
-        nodesDraggable={interactive}
-        nodeTypes={nodeTypes}
-        onEdgesChange={onEdgesChange}
-        onInit={handleInit}
-        onNodeClick={handleNodeClick}
-        onNodesChange={onNodesChange}
-      >
-        <Background gap={32} lineWidth={1.5} variant='cross' />
-        <Controls onInteractiveChange={setInteractive} />
-        <MiniMap pannable zoomable nodeColor={miniMapNodeColor} />
-      </ReactFlow>
+      <div className='h-full w-full' ref={paneRef}>
+        <ReactFlow
+          colorMode={theme}
+          edges={edges}
+          elementsSelectable={interactive}
+          maxZoom={2}
+          minZoom={0.1}
+          nodes={nodes}
+          nodesConnectable={false}
+          nodesDraggable={interactive}
+          nodeTypes={nodeTypes}
+          onEdgesChange={onEdgesChange}
+          onInit={handleInit}
+          onNodeClick={handleNodeClick}
+          onNodesChange={onNodesChange}
+        >
+          <Background gap={32} lineWidth={1.5} variant='cross' />
+          <Controls onInteractiveChange={setInteractive} />
+          <MiniMap pannable zoomable nodeColor={miniMapNodeColor} />
+        </ReactFlow>
+      </div>
     </LineageGraphContext.Provider>
   );
 }
