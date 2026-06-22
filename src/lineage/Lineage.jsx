@@ -355,7 +355,7 @@ export function Lineage() {
         </div>
 
         {inspectedDataflow && (
-          <div className='h-full w-100 shrink-0'>
+          <div className='relative z-20 h-full w-100 shrink-0'>
             <DataflowInspector
               cacheRef={inspectorCacheRef}
               dataflowId={inspectedDataflow.id}

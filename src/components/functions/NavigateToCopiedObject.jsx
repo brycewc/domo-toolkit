@@ -13,7 +13,6 @@ import { isSidepanel, openSidepanel, storeSidepanelData } from '@/utils/sidepane
 import IconArrowSquareOut from '@icons/arrow-square-out.svg?react';
 import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
-import IconEye from '@icons/eye.svg?react';
 import IconRightRailFill from '@icons/right-rail-fill.svg?react';
 
 import { DisabledTooltip } from '../DisabledTooltip';
@@ -182,6 +181,9 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
       if (typeConfig.id === 'PAGE' && metadata.details.type !== 'page') {
         continue;
       }
+      if (typeConfig.id === 'REPORT_BUILDER_PAGE' && metadata.details.type !== 'rbv') {
+        continue;
+      }
       // TEMPLATE and CERTIFICATION_PROCESS share the same API endpoint;
       // discriminate by `details.type`: 'AC' → TEMPLATE, anything else → CERTIFICATION_PROCESS.
       if (typeConfig.id === 'TEMPLATE' && metadata.details.type !== 'AC') {
@@ -321,10 +323,15 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
       </Tooltip>
       <Dropdown.Popover className='flex max-h-80 w-80 min-w-80 flex-col overflow-hidden' placement='bottom'>
         {copiedId && (
-          <div className='pointer-events-none flex shrink-0 items-center gap-1 px-2 pt-2 font-mono text-xs text-muted select-none'>
-            <IconClipboardCopy size={12} />
-            <p title='Current clipboard value'>{copiedId}</p>
-          </div>
+          <Tooltip>
+            <Tooltip.Trigger>
+              <span className='pointer-events-none flex w-fit shrink-0 items-center gap-1 px-2 pt-2 font-mono text-xs text-muted select-none'>
+                <IconClipboardCopy size={12} />
+                {copiedId}
+              </span>
+            </Tooltip.Trigger>
+            <Tooltip.Content className='max-w-60'>Clipboard contents (auto-detected ID)</Tooltip.Content>
+          </Tooltip>
         )}
         <Dropdown.Menu className='min-h-0 flex-1 overflow-auto overscroll-contain' onAction={handleAction}>
           <Dropdown.Section>
@@ -356,7 +363,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
               {resolvedObject?.hasUrl() ? (
                 <IconArrowSquareOut className='ml-auto size-5 shrink-0' />
               ) : (
-                <IconEye className='ml-auto size-5 shrink-0' />
+                <IconRightRailFill className='ml-auto size-5 shrink-0' />
               )}
             </Dropdown.Item>
           </Dropdown.Section>
@@ -387,10 +394,11 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
 }
 
 function buildDomoMetadata(typeConfig, metadata) {
-  const domoMetadata = {
-    details: metadata.details,
-    name: metadata.name
-  };
+  // Carry through every field fetchObjectDetailsInPage resolved (name, created,
+  // parentId, and any future `api.paths` entry), mirroring the page-detection
+  // path's whole-object assign in background.js. Spreading instead of an explicit
+  // allowlist means a new declared path flows here automatically.
+  const domoMetadata = { ...metadata };
   // CERTIFICATION_PROCESS doesn't go through the page-detection pipeline, so
   // the clipboard flow has to add the context discriminator itself.
   if (typeConfig.id === 'CERTIFICATION_PROCESS' && metadata.details?.type) {

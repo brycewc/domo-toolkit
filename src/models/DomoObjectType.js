@@ -1109,16 +1109,20 @@ export const ObjectTypeRegistry = {
     idPattern: /^\d+$/
   }),
   REPORT_BUILDER_PAGE: new DomoObjectType('REPORT_BUILDER_PAGE', 'Report Page', {
+    api: {
+      endpoint: '/content/v3/stacks/{id}',
+      paths: { created: 'page.created', name: 'title' }
+    },
     icon: { component: 'PagesBars' },
     idPattern: /^\d+$/,
-    parents: ['REPORT_BUILDER']
+    parents: ['REPORT_BUILDER_VIEW']
   }),
   REPORT_BUILDER_VIEW: new DomoObjectType('REPORT_BUILDER_VIEW', 'Report Builder View', {
     api: {
       endpoint: '/content/v1/reportbuilder/views/{id}',
       paths: { name: 'subject' }
     },
-    icon: { component: 'PagesBars' },
+    icon: { component: 'Document' },
     idPattern: /^\d+$/,
     parents: ['REPORT_BUILDER']
   }),
