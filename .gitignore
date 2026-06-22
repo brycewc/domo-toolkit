@@ -42,3 +42,10 @@ dist.pem
 
 # heroui-agents-md
 .heroui-docs/
+
+# Jekyll docs site (docs/) build output and caches — built locally for testing
+# and rebuilt by GitHub Pages on deploy, so never needs to be committed
+docs/_site/
+docs/.jekyll-cache/
+docs/.jekyll-metadata
+docs/.sass-cache/
