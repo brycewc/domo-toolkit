@@ -1,5 +1,4 @@
 ---
-## title: Release Notes
 ---
 
 # Domo Toolkit v1.4.0 Release Notes

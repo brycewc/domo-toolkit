@@ -23,7 +23,7 @@ title: Domo Toolkit
 # email: don't email me
 description: >- # this means to ignore newlines until "baseurl:"
   Domo Toolkit is a Chrome extension built for the people who live inside Domo every day - administrators managing hundreds of objects, consultants jumping between client instances, and power users building on the platform. Every feature is built to save clicks, reduce context-switching, and surface information that Domo's native UI buries behind multiple navigations.
-baseurl: '/' # the subpath of your site, e.g. /blog
+baseurl: '' # the subpath of your site, e.g. /blog
 url: 'https://domotoolkit.com' # the base hostname & protocol for your site, e.g. http://example.com
 # twitter_username: jekyllrb
 github_username: brycewc
@@ -37,6 +37,31 @@ header_pages:
 
 titles_from_headings:
   strip_title: true
+
+# Front matter for these pages lives here (not in the files) so GitHub's repo
+# viewer doesn't render it as a metadata table. Each file keeps an empty front
+# matter block so Jekyll still processes it into HTML.
+defaults:
+  - scope:
+      path: README.md
+    values:
+      title: Home
+      permalink: /
+      # Use the same layout as the other pages so the body heading is sized
+      # consistently (the default home layout renders it smaller).
+      layout: page
+  - scope:
+      path: CONTRIBUTING.md
+    values:
+      title: Contributing
+  - scope:
+      path: PRIVACY_POLICY.md
+    values:
+      title: Privacy Policy
+  - scope:
+      path: RELEASE_NOTES.md
+    values:
+      title: Release Notes
 # Build settings
 theme: minima
 # remote_theme: jekyll/minima@3cdd14d
