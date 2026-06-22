@@ -735,6 +735,13 @@ function buildCardChildren(pageId, cardsByPage, origin, pageType, parentId) {
 function transformGroupedPagesData(childPages, origin, cardsByPage, orphanedCards, objectType) {
   if ((!childPages || !childPages.length) && !orphanedCards?.length) return [];
 
+  // When querying a single card, every page lists that same card as its only
+  // child. The user already knows which card they asked about, so repeating it
+  // under each page is clutter, not information. Drop the per-page card children
+  // (and their count badges) for CARD queries by clearing the lookup the
+  // children are built from.
+  if (objectType === 'CARD') cardsByPage = undefined;
+
   // Group pages by pageType
   const pagesByType = {
     DATA_APP_VIEW: [],

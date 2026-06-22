@@ -37,6 +37,7 @@
 ## UI Improvements
 
 - Renamed the "Worksheet Views" group to "Worksheets" in Get Card Pages.
+- Get Card Pages on a single card no longer repeats that card under every page where it appears.
 - App Pages and Worksheet Views now show just the page's own name in the context footer, keeping the parent app or worksheet name in the browser tab title only.
 - The browser tab title for App Pages and Worksheet Views now separates the app and page names with ">" instead of ":".
 - The Activity Log's loading placeholder now reserves space for the source banner, so the layout no longer jumps when it finishes loading.

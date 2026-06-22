@@ -1250,15 +1250,15 @@ function DataListItemImpl({
       </Tooltip>
     </Link>
   ) : (
-    <span className={`text-sm${labelMutedClass}`}>
-      <Tooltip className='flex-1'>
-        <Tooltip.Trigger className='block min-w-0 truncate'>{labelInner}</Tooltip.Trigger>
-        <Tooltip.Content className='flex flex-col flex-wrap items-start gap-1 text-left' offset={4} placement='top left'>
-          {labelTitle}
-          <span>ID: {item.originalId ?? item.id}</span>
-        </Tooltip.Content>
-      </Tooltip>
-    </span>
+    <Tooltip className='flex-1'>
+      <Tooltip.Trigger className='block min-w-0 truncate'>
+        <span className={`cursor-default text-sm${labelMutedClass}`}>{labelInner}</span>
+      </Tooltip.Trigger>
+      <Tooltip.Content className='flex flex-col flex-wrap items-start gap-1 text-left' offset={4} placement='top left'>
+        {labelTitle}
+        <span>ID: {item.originalId ?? item.id}</span>
+      </Tooltip.Content>
+    </Tooltip>
   );
 
   const actions =
@@ -1581,9 +1581,7 @@ function DataListItemImpl({
               className='flex min-w-0 flex-1 basis-4/5 flex-row items-center gap-2'
               variant='tertiary'
             >
-              <p className={`min-w-0 truncate text-left text-sm${labelMutedClass}`} title={labelTitle}>
-                {labelInner}
-              </p>
+              {itemLabel}
               {showCounts && item.count !== undefined && (
                 <p className='shrink-0 text-sm whitespace-nowrap text-muted'>
                   ({item.count}
