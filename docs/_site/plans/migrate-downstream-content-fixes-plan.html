@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Fix Migrate-Downstream-Content bugs reported by Landon | Domo Toolkit</title>
+<meta name="generator" content="Jekyll v3.9.5" />
+<meta property="og:title" content="Fix Migrate-Downstream-Content bugs reported by Landon" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Domo Toolkit is a Chrome extension built for the people who live inside Domo every day - administrators managing hundreds of objects, consultants jumping between client instances, and power users building on the platform. Every feature is built to save clicks, reduce context-switching, and surface information that Domo’s native UI buries behind multiple navigations." />
+<meta property="og:description" content="Domo Toolkit is a Chrome extension built for the people who live inside Domo every day - administrators managing hundreds of objects, consultants jumping between client instances, and power users building on the platform. Every feature is built to save clicks, reduce context-switching, and surface information that Domo’s native UI buries behind multiple navigations." />
+<link rel="canonical" href="http://localhost:4000/plans/migrate-downstream-content-fixes-plan.html" />
+<meta property="og:url" content="http://localhost:4000/plans/migrate-downstream-content-fixes-plan.html" />
+<meta property="og:site_name" content="Domo Toolkit" />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Fix Migrate-Downstream-Content bugs reported by Landon" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebPage","description":"Domo Toolkit is a Chrome extension built for the people who live inside Domo every day - administrators managing hundreds of objects, consultants jumping between client instances, and power users building on the platform. Every feature is built to save clicks, reduce context-switching, and surface information that Domo’s native UI buries behind multiple navigations.","headline":"Fix Migrate-Downstream-Content bugs reported by Landon","url":"http://localhost:4000/plans/migrate-downstream-content-fixes-plan.html"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="Domo Toolkit" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" href="https://github.com/brycewc/domo-toolkit">Domo Toolkit</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/">Home</a><a class="page-link" href="/PRIVACY_POLICY.html">Privacy Policy</a><a class="page-link" href="/RELEASE_NOTES.html">Release Notes</a><a class="page-link" href="/CONTRIBUTING.html">Contributing</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post">
+
+  <header class="post-header">
+    <h1 class="post-title">Fix Migrate-Downstream-Content bugs reported by Landon</h1>
+  </header>
+
+  <div class="post-content">
+    <h2 id="context">Context</h2>
+
+<p>Landon Woollard stress-tested the <strong>Migrate Downstream Content</strong> feature (move all cards / views / dataflows / beast modes from one dataset to another, with column remapping) against a purpose-built set of test datasets and reported three distinct failures. Drill-path and card remapping work; the failures are in beast modes, fusion-view migration, and one Magic ETL sort reference.</p>
+
+<p>Source of truth: his Teams chat (parsed from the <code class="language-plaintext highlighter-rouge">.msg</code> and the <code class="language-plaintext highlighter-rouge">landon.pdf</code> screenshots), which include the exact Domo error responses and a Kibana trace. This plan fixes all three.</p>
+
+<p>All work is in <code class="language-plaintext highlighter-rouge">src/services/</code> (the migration engine). The migration UI lives in the side panel / options page, which has <strong>no localhost dev route</strong> (<code class="language-plaintext highlighter-rouge">local-testing.md</code>), so end-to-end verification requires the unpacked extension against a real Domo instance using Landon’s test datasets.</p>
+
+<hr />
+
+<h2 id="bug-1--nested--dataset-saved-beast-modes-fail-to-migrate-and-cascade-to-cards">Bug 1 — Nested / dataset-saved beast modes fail to migrate (and cascade to cards)</h2>
+
+<h3 id="evidence">Evidence</h3>
+
+<ul>
+  <li>Beast Modes panel: <code class="language-plaintext highlighter-rouge">8 items failed: 3196: Created Beast Mode "bm1" not found on the target</code>.</li>
+  <li>Cards panel: <code class="language-plaintext highlighter-rouge">PUT card HTTP 400: The following formula(s) are missing from the definition or datasource: calculation_d8e1f3cc-…, calculation_122628…</code>.</li>
+  <li>Screenshots prove nesting: <code class="language-plaintext highlighter-rouge">bm3 = CONCAT(\</code>bm1`, `bm2`)<code class="language-plaintext highlighter-rouge">. Rewriting </code>bm3<code class="language-plaintext highlighter-rouge">to</code>CONCAT(‘1’,’2’)<code class="language-plaintext highlighter-rouge">(no beast-mode refs) made migration succeed. Origin also had duplicate-named beast modes (two</code>bm1<code class="language-plaintext highlighter-rouge">, two </code>bm3`).</li>
+</ul>
+
+<h3 id="root-cause">Root cause</h3>
+
+<p>In <a href="src/services/migrateDownstreamContent.js#L1103-L1209">migrateBeastModes()</a>:</p>
+
+<ol>
+  <li><strong>No inter-beast-mode id remap.</strong> Each beast mode is column-rewritten (<a href="src/services/columnRewriter.js#L74-L78">rewriteBeastModeColumns</a>) and has its origin <em>dataset</em> id swept to the target (<a href="src/services/migrateDownstreamContent.js#L988-L995">buildBeastModeEntry</a>). Nothing rewrites references to <strong>other beast modes</strong>. A nested beast mode’s definition still embeds the <em>origin</em> <code class="language-plaintext highlighter-rouge">calculation_&lt;uuid&gt;</code> of the beast mode it references, which does not exist on the target.</li>
+  <li><strong>No dependency ordering.</strong> All creates go in one unordered batch via <a href="src/services/functions.js#L18-L40">createDatasetFunctions</a> (<code class="language-plaintext highlighter-rouge">POST /functions/bulk/template</code>, <code class="language-plaintext highlighter-rouge">strict:false</code>). A dependent beast mode is created before (or alongside) the one it references, so its reference resolves to nothing → server drops/fails it.</li>
+  <li><strong>Name-based id resolution is ambiguous.</strong> After create, the code re-reads target beast modes and matches <strong>by name</strong> into a <code class="language-plaintext highlighter-rouge">Map</code> (<a href="src/services/migrateDownstreamContent.js#L1192-L1202">lines 1192-1202</a>). Duplicate names collapse in the <code class="language-plaintext highlighter-rouge">Map</code>, and any beast mode whose create failed is “not found on the target”.</li>
+  <li><strong>Cascade.</strong> A beast mode missing from <code class="language-plaintext highlighter-rouge">idRemap</code> means the card swap’s <code class="language-plaintext highlighter-rouge">beastModeIdRemap</code> sweep (<a href="src/services/migrateDownstreamContent.js#L394-L400">swapCardInput lines 394-400</a>) leaves the origin <code class="language-plaintext highlighter-rouge">calculation_&lt;uuid&gt;</code> in the card → Domo 400 “missing formula” for every card using that beast mode.</li>
+</ol>
+
+<h3 id="fix-all-within-migratebeastmodes">Fix (all within <code class="language-plaintext highlighter-rouge">migrateBeastModes</code>)</h3>
+
+<p>Rework the create phase from a single batch into <strong>dependency-ordered waves with an incrementally-built id remap</strong>:</p>
+
+<ol>
+  <li><strong>Build a dependency graph among the selected beast modes.</strong> For each selected beast mode, fetch its template (already cached in <code class="language-plaintext highlighter-rouge">definitionsByItemKey</code>), and detect references to <em>other selected</em> beast modes by scanning the template for their origin <code class="language-plaintext highlighter-rouge">legacyId</code> (<code class="language-plaintext highlighter-rouge">calculation_&lt;uuid&gt;</code>) and/or their backticked name. Edge <code class="language-plaintext highlighter-rouge">B → A</code> when <code class="language-plaintext highlighter-rouge">B</code> references <code class="language-plaintext highlighter-rouge">A</code>.
+    <ul>
+      <li>Reuse the existing reference walk in <a href="src/services/columnReferences.js">columnReferences.js</a> as the scanning primitive; add a small helper that, given a template, returns the set of <code class="language-plaintext highlighter-rouge">calculation_&lt;uuid&gt;</code> tokens it contains (a regex over the stringified template is sufficient and collision-safe, mirroring the card-swap comment at <a href="src/services/migrateDownstreamContent.js#L391-L393">lines 391-393</a>).</li>
+    </ul>
+  </li>
+  <li><strong>Topologically sort</strong> the <code class="language-plaintext highlighter-rouge">toCreate</code> list (Kahn’s algorithm; on a cycle, fall back to original order and let the existing error path report it — Domo itself forbids true beast-mode cycles).</li>
+  <li><strong>Create wave by wave.</strong> Maintain a growing <code class="language-plaintext highlighter-rouge">idRemap</code> (origin <code class="language-plaintext highlighter-rouge">calculation_&lt;uuid&gt;</code> → target <code class="language-plaintext highlighter-rouge">calculation_&lt;uuid&gt;</code>). Before building each beast mode’s create entry, apply the accumulated remap to its definition with the same <code class="language-plaintext highlighter-rouge">JSON.stringify(...).replaceAll(from, to)</code> sweep the card swap uses, so its references point at the already-created target beast modes. After each wave’s <code class="language-plaintext highlighter-rouge">createDatasetFunctions</code>, resolve the new <code class="language-plaintext highlighter-rouge">legacyId</code>s and extend <code class="language-plaintext highlighter-rouge">idRemap</code>.</li>
+  <li><strong>Resolve new ids reliably.</strong> Prefer the <strong>order-preserving create response</strong> from <code class="language-plaintext highlighter-rouge">createDatasetFunctions</code> (it returns each created template’s new <code class="language-plaintext highlighter-rouge">id</code>/<code class="language-plaintext highlighter-rouge">legacyId</code>; the function already returns the raw response, see its JSDoc) to map each origin beast mode → its target id positionally. Keep name-matching only as a fallback. This removes the duplicate-name ambiguity.</li>
+  <li><strong>Surface failures without silent card breakage.</strong> When a beast mode fails to create, its origin <code class="language-plaintext highlighter-rouge">calculation_&lt;uuid&gt;</code> is absent from <code class="language-plaintext highlighter-rouge">idRemap</code>. Leave the existing per-card error reporting in place, but consider flagging (in the returned <code class="language-plaintext highlighter-rouge">errors</code>) cards that still reference an unresolved beast mode so the user understands the linkage.</li>
+</ol>
+
+<p><code class="language-plaintext highlighter-rouge">createDatasetFunctions</code>/<code class="language-plaintext highlighter-rouge">updateDatasetFunctions</code> already return the raw bulk response, so resolving ids from it requires no API change. Single-wave (no nesting) behavior is unchanged.</p>
+
+<p><strong>Critical files:</strong> <a href="src/services/migrateDownstreamContent.js">migrateDownstreamContent.js</a> (<code class="language-plaintext highlighter-rouge">migrateBeastModes</code>, <code class="language-plaintext highlighter-rouge">buildBeastModeEntry</code>), with read-only reuse of <a href="src/services/columnReferences.js">columnReferences.js</a> and <a href="src/services/functions.js">functions.js</a>.</p>
+
+<hr />
+
+<h2 id="bug-2--fusion-view-migration-aliases-every-column-to-the-literal-mapping">Bug 2 — Fusion-view migration aliases every column to the literal <code class="language-plaintext highlighter-rouge">mapping</code></h2>
+
+<h3 id="evidence-1">Evidence</h3>
+
+<ul>
+  <li>Kibana: <code class="language-plaintext highlighter-rouge">Bad Request … Invalid alias 'mapping'</code> on <code class="language-plaintext highlighter-rouge">PUT …/datasources/&lt;viewId&gt;/…</code>.</li>
+  <li>The fetched indexed schema shows <code class="language-plaintext highlighter-rouge">expression.table.name = "mapping"</code> for <code class="language-plaintext highlighter-rouge">order_id</code>, <code class="language-plaintext highlighter-rouge">first_name</code>, <code class="language-plaintext highlighter-rouge">last_name</code> — i.e. every column now references a table alias <code class="language-plaintext highlighter-rouge">mapping</code> that the view’s FROM clause never defines.</li>
+  <li>Landon’s view (“View with Union and join”) is a <strong>data fusion</strong> (<code class="language-plaintext highlighter-rouge">views[].mapping</code>); none of its column names are italicized in Domo’s UI, so the breakage is not in the visible column config.</li>
+</ul>
+
+<h3 id="root-cause-1">Root cause</h3>
+
+<p>The recent “Added support for fusions” commit (HEAD <code class="language-plaintext highlighter-rouge">3f95797</code>) taught the <strong>scanner</strong> (<a href="src/services/columnReferences.js#L164-L202">extractFusionViewColumnRefs</a>) and the <strong>rewriter</strong> (<a href="src/services/columnRewriter.js#L168-L186">rewriteFusionViewColumns</a>) the indexed <code class="language-plaintext highlighter-rouge">views[].mapping</code> shape, but did <strong>not</strong> add a fusion PUT.</p>
+
+<p><a href="src/services/migrateDownstreamContent.js#L503-L524">swapDatasetViewInput()</a> sends every dataset, fusion included, through <a href="src/services/migrateDownstreamContent.js#L682-L807">putDatasetViewInPage()</a>, which only understands the <strong>template-view</strong> shape: it runs <code class="language-plaintext highlighter-rouge">swapDatasetRecursive(payload.viewTemplate?.select?.selectBody, …)</code> and friends (all no-ops for a fusion, which has no <code class="language-plaintext highlighter-rouge">viewTemplate</code>), then builds the PUT body as <code class="language-plaintext highlighter-rouge">{ schema: cleaned, dataSourceName, trigger, dataProviderType }</code> from the <strong>compiled <code class="language-plaintext highlighter-rouge">/schema/indexed</code></strong> response and PUTs it to <code class="language-plaintext highlighter-rouge">/api/query/v1/views/{viewId}</code>. That compiled schema references the fusion’s internal projection step, aliased <code class="language-plaintext highlighter-rouge">mapping</code>, so round-tripping it through the view endpoint is invalid → <code class="language-plaintext highlighter-rouge">Invalid alias 'mapping'</code>.</p>
+
+<h3 id="the-real-fusion-edit-api-captured-live-from-domos-ui">The real fusion edit API (captured live from Domo’s UI)</h3>
+
+<p>A fusion is saved with its <strong>own endpoint and model</strong>, unrelated to the template-view or <code class="language-plaintext highlighter-rouge">/schema/indexed</code> shapes:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PUT /api/query/v1/fusions/{fusionId}          → 200 { dataSourceId, indexRequestKey }
+</code></pre></div></div>
+
+<div class="language-jsonc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="w">
+  </span><span class="nl">"dataSourceName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"F1"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"dataSourceType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"datafusion"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"responsibleUserId"</span><span class="p">:</span><span class="w"> </span><span class="mi">1286760875</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"dataSourceId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"8e47e3b1-…-47f8c4a119ad"</span><span class="p">,</span><span class="w"> </span><span class="c1">// the fusion's own id</span><span class="w">
+  </span><span class="nl">"validate"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"columnFuse"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+    </span><span class="nl">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"inner"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"leftDataSource"</span><span class="p">:</span><span class="w"> </span><span class="s2">"22542a59-…fc954"</span><span class="p">,</span><span class="w"> </span><span class="c1">// INPUT dataset id</span><span class="w">
+    </span><span class="nl">"rightDataSource"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ec075284-…40c9c"</span><span class="p">,</span><span class="w"> </span><span class="c1">// INPUT dataset id</span><span class="w">
+    </span><span class="nl">"predicates"</span><span class="p">:</span><span class="w"> </span><span class="p">[{</span><span class="w"> </span><span class="nl">"leftColumn"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Value"</span><span class="p">,</span><span class="w"> </span><span class="nl">"rightColumn"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Value"</span><span class="w"> </span><span class="p">}]</span><span class="w">
+  </span><span class="p">},</span><span class="w">
+  </span><span class="nl">"columnList"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w">
+    </span><span class="p">{</span><span class="w">
+      </span><span class="nl">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Value"</span><span class="p">,</span><span class="w">
+      </span><span class="nl">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"LONG"</span><span class="p">,</span><span class="w">
+      </span><span class="nl">"color"</span><span class="p">:</span><span class="w"> </span><span class="s2">"#559e38"</span><span class="p">,</span><span class="w">
+      </span><span class="nl">"included"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w">
+      </span><span class="nl">"fuseMapping"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nl">"dataSource"</span><span class="p">:</span><span class="w"> </span><span class="s2">"22542a59-…fc954"</span><span class="p">,</span><span class="w"> </span><span class="nl">"columnName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Value"</span><span class="w"> </span><span class="p">}</span><span class="w">
+    </span><span class="p">}</span><span class="w">
+    </span><span class="c1">// …one entry per output column; output `name` is the view's own and stays put</span><span class="w">
+  </span><span class="p">]</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
+
+<p>Input dataset ids and source column refs live in flat, well-defined places: <code class="language-plaintext highlighter-rouge">columnFuse.leftDataSource</code> / <code class="language-plaintext highlighter-rouge">rightDataSource</code>, <code class="language-plaintext highlighter-rouge">columnFuse.predicates[].leftColumn</code> / <code class="language-plaintext highlighter-rouge">rightColumn</code>, and each <code class="language-plaintext highlighter-rouge">columnList[].fuseMapping.{dataSource, columnName}</code>. Output column names (<code class="language-plaintext highlighter-rouge">columnList[].name</code>) are the view’s own and must not be renamed.</p>
+
+<h3 id="fix">Fix</h3>
+
+<p><strong>Fusions and template/SQL views are different objects, not variants — treat them as fully separate paths with no shared fetch/rewrite/PUT.</strong> This mirrors precedent already in the codebase (<a href="src/services/datasets.js#L288">getDatasetsForView</a> branches on <code class="language-plaintext highlighter-rouge">schema.views</code> vs <code class="language-plaintext highlighter-rouge">schema.select.selectBody</code>; <a href="src/services/datasets.js#L527-L538">isViewType</a> distinguishes <code class="language-plaintext highlighter-rouge">dataset-view</code> from <code class="language-plaintext highlighter-rouge">datafusion</code>). The migration swap is currently the one place that wrongly collapses them; re-separate it:</p>
+
+<ol>
+  <li><strong>Route by type at the entry point, not as a branch deep inside the PUT.</strong> Determine fusion-ness during downstream-dataset discovery — <a href="src/services/migrateDownstreamContent.js#L126-L206">getDownstreamLineage</a> already bulk-fetches dataset metadata (<code class="language-plaintext highlighter-rouge">part=core</code>); have it carry the <code class="language-plaintext highlighter-rouge">dataProviderType</code>/<code class="language-plaintext highlighter-rouge">type</code> so each dataset item knows if it is a <code class="language-plaintext highlighter-rouge">datafusion</code> (reuse the discriminator behind <a href="src/services/datasets.js#L527-L538">isViewType</a>). Then <a href="src/services/migrateDownstreamContent.js#L1047-L1088">dispatchSwap</a> routes fusions to a new <strong><code class="language-plaintext highlighter-rouge">swapFusionInput</code></strong> and template/SQL views to the existing <strong><code class="language-plaintext highlighter-rouge">swapDatasetViewInput</code></strong> — two sibling functions, just like cards / dataflows / views are already separate cases in <code class="language-plaintext highlighter-rouge">dispatchSwap</code>. The fusion path never touches <code class="language-plaintext highlighter-rouge">putDatasetViewInPage</code>, and the template-view path is left exactly as-is. Fall back to <code class="language-plaintext highlighter-rouge">isFusionView(definition)</code> on the fetched def only if a metadata signal is unavailable.</li>
+  <li><strong>Fetch the native fusion definition.</strong> Add <code class="language-plaintext highlighter-rouge">fetchFusionDefinitionInPage(fusionId)</code> — confirm the GET is the symmetric <code class="language-plaintext highlighter-rouge">GET /api/query/v1/fusions/{fusionId}</code> returning the <code class="language-plaintext highlighter-rouge">{ columnFuse, columnList, dataSourceName, responsibleUserId, … }</code> shape above (capture it the same way the PUT was captured if it differs). The <code class="language-plaintext highlighter-rouge">/schema/indexed</code> fetch is only needed for the column-mismatch scan, not for this PUT.</li>
+  <li><strong>Rewrite on the native shape</strong> (new <code class="language-plaintext highlighter-rouge">putFusionInPage</code>, mirroring <code class="language-plaintext highlighter-rouge">putDatasetViewInPage</code>’s structure):
+    <ul>
+      <li><strong>Repoint input ids</strong> origin → target: <code class="language-plaintext highlighter-rouge">columnFuse.leftDataSource</code>, <code class="language-plaintext highlighter-rouge">columnFuse.rightDataSource</code>, and every <code class="language-plaintext highlighter-rouge">columnList[].fuseMapping.dataSource</code> equal to <code class="language-plaintext highlighter-rouge">originId</code>.</li>
+      <li><strong>Rewrite source columns</strong> via <code class="language-plaintext highlighter-rouge">columnMap</code>, scoped to origin only: <code class="language-plaintext highlighter-rouge">columnList[].fuseMapping.columnName</code> where <code class="language-plaintext highlighter-rouge">fuseMapping.dataSource === originId</code>, and the origin side of <code class="language-plaintext highlighter-rouge">columnFuse.predicates[]</code> (<code class="language-plaintext highlighter-rouge">leftColumn</code> when <code class="language-plaintext highlighter-rouge">leftDataSource === originId</code>, else <code class="language-plaintext highlighter-rouge">rightColumn</code>). Leave the other input’s columns untouched (mirrors the conservative origin-alias scoping in the template-view rewriter).</li>
+      <li><strong>Preserve</strong> <code class="language-plaintext highlighter-rouge">columnList[].name</code> / <code class="language-plaintext highlighter-rouge">type</code> / <code class="language-plaintext highlighter-rouge">color</code> / <code class="language-plaintext highlighter-rouge">included</code>, <code class="language-plaintext highlighter-rouge">dataSourceName</code>, <code class="language-plaintext highlighter-rouge">dataSourceType</code>, <code class="language-plaintext highlighter-rouge">responsibleUserId</code>, <code class="language-plaintext highlighter-rouge">dataSourceId</code>; send <code class="language-plaintext highlighter-rouge">validate: false</code>.</li>
+      <li>Apply target column <strong>types</strong> (from <code class="language-plaintext highlighter-rouge">targetColumnTypes</code>) to <code class="language-plaintext highlighter-rouge">columnList[].type</code> for remapped origin columns when the remap crosses a type boundary, same rationale as <code class="language-plaintext highlighter-rouge">propagateColumnTypes</code> in the template path.</li>
+      <li>PUT to <code class="language-plaintext highlighter-rouge">/api/query/v1/fusions/{fusionId}</code>.</li>
+    </ul>
+  </li>
+  <li>The existing <code class="language-plaintext highlighter-rouge">rewriteFusionViewColumns</code> (operating on indexed <code class="language-plaintext highlighter-rouge">views[].mapping</code>) stays as the <strong>scan</strong> rewriter only; the PUT uses the native shape above. Non-fusion template views keep the existing, working path untouched.</li>
+</ol>
+
+<p><strong>Critical files:</strong> <a href="src/services/migrateDownstreamContent.js">migrateDownstreamContent.js</a> (<code class="language-plaintext highlighter-rouge">dispatchSwap</code>, new <code class="language-plaintext highlighter-rouge">swapFusionInput</code>, <code class="language-plaintext highlighter-rouge">fetchFusionDefinitionInPage</code>, <code class="language-plaintext highlighter-rouge">putFusionInPage</code>). Reuses <a href="src/services/columnReferences.js#L212-L219">isFusionView</a>.</p>
+
+<hr />
+
+<h2 id="bug-3--one-magic-etl-sort-reference-not-remapped-minor">Bug 3 — One Magic ETL sort reference not remapped (minor)</h2>
+
+<h3 id="evidence-2">Evidence</h3>
+
+<ul>
+  <li>After migration the ETL shows <code class="language-plaintext highlighter-rouge">Column referenced but no longer found: 'order_date'</code> on an Order/sort tile; the rest of the ETL remapped <code class="language-plaintext highlighter-rouge">order_date → transaction_date</code> correctly. Landon: easy manual fix.</li>
+</ul>
+
+<h3 id="root-cause-confirmed-from-the-captured-order-action-config">Root cause (confirmed from the captured Order action config)</h3>
+
+<p>The Magic ETL <strong>Order</strong> action holds its sort columns at <code class="language-plaintext highlighter-rouge">orderBy[].expression.name</code>, where <code class="language-plaintext highlighter-rouge">expression</code> is a <strong>structured Field node</strong>:</p>
+
+<div class="language-jsonc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="w">
+  </span><span class="nl">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Order"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"orderBy"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w">
+    </span><span class="p">{</span><span class="w"> </span><span class="nl">"expression"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nl">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"CreatedDate"</span><span class="p">,</span><span class="w"> </span><span class="nl">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Field"</span><span class="p">,</span><span class="w"> </span><span class="nl">"table"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="nl">"orderType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ASCENDING"</span><span class="w"> </span><span class="p">},</span><span class="w">
+    </span><span class="p">{</span><span class="w"> </span><span class="nl">"expression"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nl">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Parent.CaseNumber"</span><span class="p">,</span><span class="w"> </span><span class="nl">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Field"</span><span class="p">,</span><span class="w"> </span><span class="nl">"table"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="nl">"orderType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ASCENDING"</span><span class="w"> </span><span class="p">}</span><span class="w">
+  </span><span class="p">]</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
+
+<p><code class="language-plaintext highlighter-rouge">orderBy</code> <strong>is</strong> already in <code class="language-plaintext highlighter-rouge">COLUMN_LIST_FIELDS</code>, so <a href="src/services/columnRewriter.js#L534-L600">walkAndRewriteColumns</a> enters the list branch, but: (a) the item-field probe <code class="language-plaintext highlighter-rouge">['column','columnName','inStreamName','name','field','id']</code> finds nothing on the <code class="language-plaintext highlighter-rouge">{expression, orderType}</code> item, so it recurses; (b) inside the <code class="language-plaintext highlighter-rouge">expression</code> object the column sits at key <code class="language-plaintext highlighter-rouge">name</code>, and the guard <code class="language-plaintext highlighter-rouge">if ((key === 'name' || key === 'id') &amp;&amp; !isColumnListParent(parentKey)) continue;</code> (<a href="src/services/columnRewriter.js#L585">columnRewriter.js#L585</a>, mirrored in the scanner at <a href="src/services/columnReferences.js#L564">columnReferences.js#L564</a>) skips it because the parent key is <code class="language-plaintext highlighter-rouge">expression</code>, which <a href="src/services/columnFields.js#L123-L129">isColumnListParent</a> does not recognize. So the sort column is never rewritten. (It still works elsewhere because <code class="language-plaintext highlighter-rouge">order_date</code> was surfaced/mapped via other tiles; only this node is missed.)</p>
+
+<h3 id="fix-1">Fix</h3>
+
+<p>Teach both walkers to recognize the <strong>Magic ETL structured Field node</strong> as a column reference — a 5th shape alongside the existing four. In the object branch of <a href="src/services/columnRewriter.js#L534-L600">walkAndRewriteColumns</a> and the scanner’s <code class="language-plaintext highlighter-rouge">walkForColumnRefs</code>, when a node has <code class="language-plaintext highlighter-rouge">type === 'Field'</code> and a string <code class="language-plaintext highlighter-rouge">name</code>, rewrite/collect <code class="language-plaintext highlighter-rouge">name</code> as a column ref:</p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// rewriter</span>
+<span class="k">if</span> <span class="p">(</span><span class="nx">node</span><span class="p">.</span><span class="nx">type</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">Field</span><span class="dl">'</span> <span class="o">&amp;&amp;</span> <span class="k">typeof</span> <span class="nx">node</span><span class="p">.</span><span class="nx">name</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">string</span><span class="dl">'</span><span class="p">)</span> <span class="p">{</span>
+  <span class="nx">node</span><span class="p">.</span><span class="nx">name</span> <span class="o">=</span> <span class="nx">rewriteColumnName</span><span class="p">(</span><span class="nx">node</span><span class="p">.</span><span class="nx">name</span><span class="p">,</span> <span class="nx">columnMap</span><span class="p">);</span>
+<span class="p">}</span>
+<span class="c1">// scanner</span>
+<span class="k">if</span> <span class="p">(</span><span class="nx">node</span><span class="p">.</span><span class="nx">type</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">Field</span><span class="dl">'</span> <span class="o">&amp;&amp;</span> <span class="k">typeof</span> <span class="nx">node</span><span class="p">.</span><span class="nx">name</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">string</span><span class="dl">'</span><span class="p">)</span> <span class="nx">onColumnRef</span><span class="p">(</span><span class="nx">stripBackticks</span><span class="p">(</span><span class="nx">node</span><span class="p">.</span><span class="nx">name</span><span class="p">));</span>
+</code></pre></div></div>
+
+<p><code class="language-plaintext highlighter-rouge">type === 'Field'</code> is unambiguous in Magic ETL expression trees (the action node is <code class="language-plaintext highlighter-rouge">type:'Order'</code>, constants are <code class="language-plaintext highlighter-rouge">type:'Constant'</code>, etc.), so this is precise, depth-agnostic (covers Field nodes nested inside <code class="language-plaintext highlighter-rouge">Operation</code> expressions used by Filter/calculators too), and keeps scanner and rewriter in lockstep. No registry-list change is needed; document the new shape in <a href="src/services/columnFields.js">columnFields.js</a>’s header comment. The existing <code class="language-plaintext highlighter-rouge">name</code>/<code class="language-plaintext highlighter-rouge">id</code> gate stays as-is (it correctly guards the over-broad bare-<code class="language-plaintext highlighter-rouge">name</code> case); the Field-node check fires before/independently of it, so there is no double-rewrite.</p>
+
+<p><strong>Critical files:</strong> <a href="src/services/columnRewriter.js">columnRewriter.js</a> (<code class="language-plaintext highlighter-rouge">walkAndRewriteColumns</code> object branch) and <a href="src/services/columnReferences.js">columnReferences.js</a> (<code class="language-plaintext highlighter-rouge">walkForColumnRefs</code> object branch); doc note in <a href="src/services/columnFields.js">columnFields.js</a>.</p>
+
+<p><strong>Adjacent (optional, out of migration scope):</strong> the lineage parser’s <a href="src/lineage/services/dataflowParser.js#L351-L355">Order case</a> reads <code class="language-plaintext highlighter-rouge">action.fields</code>, but Order uses <code class="language-plaintext highlighter-rouge">action.orderBy</code> — so Order tiles show no sort columns in the lineage view. Worth a one-line fix while here, but it does not affect migration.</p>
+
+<hr />
+
+<h2 id="verification">Verification</h2>
+
+<ol>
+  <li><strong>ESLint</strong> after every edit: <code class="language-plaintext highlighter-rouge">npx eslint --no-warn-ignored &lt;files&gt;</code> (<code class="language-plaintext highlighter-rouge">code-style.md</code>).</li>
+  <li><strong>End-to-end against Landon’s test datasets</strong> (load unpacked <code class="language-plaintext highlighter-rouge">dist/</code> in Chrome, no dev route covers the migration view):
+    <ul>
+      <li><strong>Bug 1:</strong> migrate a dataset whose dataset-saved beast modes include a nested chain (<code class="language-plaintext highlighter-rouge">bm3 = CONCAT(\</code>bm1`, `bm2`)<code class="language-plaintext highlighter-rouge">) and duplicate names. Expect all beast modes created on the target with correct cross-references, </code>idRemap` complete, and cards that use them PUT cleanly (no “missing formula” 400).</li>
+      <li><strong>Bug 2:</strong> migrate the “View with Union and join” fusion. Expect a 200 save, no <code class="language-plaintext highlighter-rouge">Invalid alias 'mapping'</code>, and the target fusion’s columns resolving to real input tables (not <code class="language-plaintext highlighter-rouge">mapping</code>). Re-open the fusion in Domo and confirm column refs and join keys are intact and repointed to the target.</li>
+      <li><strong>Bug 3:</strong> migrate the ETL with the Order-by-<code class="language-plaintext highlighter-rouge">order_date</code> tile. Expect no <code class="language-plaintext highlighter-rouge">Column referenced but no longer found</code> error and <code class="language-plaintext highlighter-rouge">order_date → transaction_date</code> applied in the sort tile.</li>
+    </ul>
+  </li>
+  <li><strong>WIP release notes</strong> (<code class="language-plaintext highlighter-rouge">wip-release-notes.md</code>): add one user-facing bullet per shipped fix under Bug Fixes, e.g. “Nested dataset beast modes now migrate in the right order so they and the cards that use them transfer cleanly”, “Data fusions now migrate without breaking their column references”, “Magic ETL sort columns now get renamed during migration”. (All three are fixes to previously shipped behavior, so they pass the gate.)</li>
+</ol>
+
+<h2 id="appendix--source-evidence-self-contained-originals-can-be-deleted">Appendix — source evidence (self-contained; originals can be deleted)</h2>
+
+<p>This captures everything needed from Landon’s Teams chat (<code class="language-plaintext highlighter-rouge">.msg</code>) and the <code class="language-plaintext highlighter-rouge">landon.pdf</code> screenshots, plus Bryce’s two live network captures, so the source files are no longer required.</p>
+
+<h3 id="a-landons-report-verbatim-observations">A. Landon’s report (verbatim observations)</h3>
+
+<blockquote>
+  <p>Here are the test datasets with the simple column name remappings. Drill path, and card remapping looks great!
+Beastmodes seem to have some migration issues. Renaming dupes on one of the cards still doesn’t resolve this. Could it be nested beast modes? The nesting issue resolved that.
+My thought is that the order of migration/creation matters when beast mode formulas are nested, and this may be a transient bug based on chance of which beastmodes are moved in which order. If BeastMode B references BeastMode A, then they must be moved in order BeastMode A THEN BeastMode B, or the creation of beastmode B will fail due to a missing reference.
+But, if that is true, then why did the beast mode migrations on THIS card fail? These don’t have nested BM references. Did one beast mode failing to move prevent all cards with beast modes from moving?
+Migration of a View tried to alias a column as “Mapping”, but none of the columns in the remapping process would have been given the name “mapping”. Neither the union configuration nor the join configuration include “mapping”. The join also seems to resolve (showing row matches) in the configuration UI. None of the column names in the view are italicized, indicating nothing has been renamed/aliased so I don’t know where this error is coming from. Even the columns array in the error details on Kibana are empty. But it looks like behind the scenes most column names were swapped to “mapping”. I suppose the remapping process took the name of the list/dict with the column remappings, instead of fetching the correct element from that list/dict?
+This .filter call on line 410/411 of migrateDownstreamContent.js looks like it might insert the string literal ‘mapping’, but this has nothing to do with views and should only come into play when migrating cards.
+The ETL had one old reference to an ‘order_date’ column fail to remap to a ‘transaction_date’ column. But that is an easy manual fix, and with the manual adjustment the rest of the ETL was correct and the outputs look valid with the remapped columns propagating through as expected.</p>
+</blockquote>
+
+<h3 id="b-exact-error-strings-from-the-pdf-screenshots">B. Exact error strings (from the PDF screenshots)</h3>
+
+<ul>
+  <li><strong>Cards panel:</strong> <code class="language-plaintext highlighter-rouge">2 items failed: 830213169: PUT card HTTP 400: {"message":"The following formula(s) are missing from the definition or datasource: calculation_d8e1f3cc-bf7a-4aef-be86-fa2ddc7fd78a,calculation_122628I3c-2b43-4f05-ac6d-8da78o0a7e82","type":"InvalidSubscription"…}</code></li>
+  <li><strong>Beast Modes panel:</strong> <code class="language-plaintext highlighter-rouge">8 items failed: 3196: Created Beast Mode "bm1" not found on the target…</code></li>
+  <li><strong>View migration (Kibana):</strong> <code class="language-plaintext highlighter-rouge">Bad Request … Invalid alias 'mapping' … shouldExposeMessage=false … errorCode…=3198</code> on <code class="language-plaintext highlighter-rouge">GET/PUT …/api/query/v1/datasources/&lt;viewId&gt;/schema/indexed?options=…INCLUDE_DATA_CONTROL_COLUMN_DETAILS</code>. The indexed-schema response showed <code class="language-plaintext highlighter-rouge">SELECT_EXPRESSION_ITEM</code> entries whose <code class="language-plaintext highlighter-rouge">expression.table.name = "mapping"</code> for <code class="language-plaintext highlighter-rouge">order_id</code>, <code class="language-plaintext highlighter-rouge">first_name</code>, <code class="language-plaintext highlighter-rouge">last_name</code> (columnName correct, table alias wrong).</li>
+  <li><strong>ETL:</strong> red banner <code class="language-plaintext highlighter-rouge">Column referenced but no longer found: 'order_date'</code> on the Order tile.</li>
+</ul>
+
+<h3 id="c-beast-mode-test-fixture-from-screenshots">C. Beast mode test fixture (from screenshots)</h3>
+
+<p>Origin dataset <code class="language-plaintext highlighter-rouge">old_customers.csv</code> had beast modes: <code class="language-plaintext highlighter-rouge">bm1</code>, <code class="language-plaintext highlighter-rouge">bm1</code>, <code class="language-plaintext highlighter-rouge">bm2</code>, <code class="language-plaintext highlighter-rouge">bm3</code>, <code class="language-plaintext highlighter-rouge">bm3</code>, <code class="language-plaintext highlighter-rouge">bmsaved</code> (duplicate names present; some saved-to-card, some saved-to-dataset). Formulas:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">bm1 = CONCAT(\</code>cust_id`,`territory`,`fname`)` (columns only)</li>
+  <li><code class="language-plaintext highlighter-rouge">bm2 = CONCAT(\</code>email_address`,`fname`,`lname`,`territory`)` (columns only)</li>
+  <li><code class="language-plaintext highlighter-rouge">bm3 (renamed) = CONCAT(\</code>bm1 (renamed)`,`bm2`)` ← <strong>nested: references other beast modes</strong></li>
+  <li><code class="language-plaintext highlighter-rouge">bmsaved = SUM(cust_id)</code></li>
+  <li>Control: <code class="language-plaintext highlighter-rouge">bm3 (renamed - no nesting) = CONCAT('1','2')</code> migrated successfully, proving nesting is the trigger.</li>
+</ul>
+
+<h3 id="d-fusion-test-fixture-from-screenshots">D. Fusion test fixture (from screenshots)</h3>
+
+<p>View “View with Union and join”: union of <code class="language-plaintext highlighter-rouge">new_customers.csv</code> + <code class="language-plaintext highlighter-rouge">new_archive.csv</code>, joined to <code class="language-plaintext highlighter-rouge">new_orders.csv</code> on <code class="language-plaintext highlighter-rouge">customer_id = cust_id</code>. Output columns: customer_id, first_name, last_name, email, region, product, amount, order_id, order_date. Confirmed a <strong>data fusion</strong> (<code class="language-plaintext highlighter-rouge">dataSourceType: "datafusion"</code>).</p>
+
+<h3 id="e-live-network-captures-bryce">E. Live network captures (Bryce)</h3>
+
+<ul>
+  <li><strong>Fusion save:</strong> <code class="language-plaintext highlighter-rouge">PUT /api/query/v1/fusions/{fusionId}</code> → <code class="language-plaintext highlighter-rouge">200 { dataSourceId, indexRequestKey }</code>; body = the <code class="language-plaintext highlighter-rouge">{ dataSourceName, dataSourceType:"datafusion", responsibleUserId, dataSourceId, validate:false, columnFuse, columnList }</code> shape reproduced in the Bug 2 section.</li>
+  <li><strong>Order action config:</strong> the <code class="language-plaintext highlighter-rouge">{ type:"Order", orderBy:[{ expression:{ name, type:"Field", table }, orderType }] }</code> shape reproduced in the Bug 3 section.</li>
+</ul>
+
+<h2 id="notes--open-items-to-pin-during-implementation">Notes / open items to pin during implementation</h2>
+
+<ul>
+  <li><strong>Bug 2:</strong> the fusion save request is captured (<code class="language-plaintext highlighter-rouge">PUT /api/query/v1/fusions/{id}</code> with <code class="language-plaintext highlighter-rouge">columnFuse</code> + <code class="language-plaintext highlighter-rouge">columnList</code>). The only thing to confirm during coding is the matching <strong>GET</strong> for the native fusion definition (expected <code class="language-plaintext highlighter-rouge">GET /api/query/v1/fusions/{id}</code>); capture it the same way if it differs.</li>
+  <li><strong>Bug 3:</strong> the Order action shape is confirmed (<code class="language-plaintext highlighter-rouge">orderBy[].expression</code>, a <code class="language-plaintext highlighter-rouge">type:'Field'</code> node) — no guessing needed.</li>
+  <li><strong>Bug 1:</strong> no external unknowns; whether to resolve new beast-mode ids from the create response vs. snapshot-diff is an internal implementation choice (prefer the order-preserving create response).</li>
+</ul>
+
+  </div>
+
+</article>
+
+      </div>
+    </main></body>
+
+</html>

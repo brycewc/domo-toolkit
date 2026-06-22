@@ -3,9 +3,9 @@
   <meta charset="utf-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.8.0 -->
-<title>Domo Toolkit v1.4.0 Release Notes | Domo Toolkit</title>
+<title>Release Notes | Domo Toolkit</title>
 <meta name="generator" content="Jekyll v3.9.5" />
-<meta property="og:title" content="Domo Toolkit v1.4.0 Release Notes" />
+<meta property="og:title" content="Release Notes" />
 <meta property="og:locale" content="en_US" />
 <meta name="description" content="Domo Toolkit is a Chrome extension built for the people who live inside Domo every day - administrators managing hundreds of objects, consultants jumping between client instances, and power users building on the platform. Every feature is built to save clicks, reduce context-switching, and surface information that Domo’s native UI buries behind multiple navigations." />
 <meta property="og:description" content="Domo Toolkit is a Chrome extension built for the people who live inside Domo every day - administrators managing hundreds of objects, consultants jumping between client instances, and power users building on the platform. Every feature is built to save clicks, reduce context-switching, and surface information that Domo’s native UI buries behind multiple navigations." />
@@ -14,9 +14,9 @@
 <meta property="og:site_name" content="Domo Toolkit" />
 <meta property="og:type" content="website" />
 <meta name="twitter:card" content="summary" />
-<meta property="twitter:title" content="Domo Toolkit v1.4.0 Release Notes" />
+<meta property="twitter:title" content="Release Notes" />
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"WebPage","description":"Domo Toolkit is a Chrome extension built for the people who live inside Domo every day - administrators managing hundreds of objects, consultants jumping between client instances, and power users building on the platform. Every feature is built to save clicks, reduce context-switching, and surface information that Domo’s native UI buries behind multiple navigations.","headline":"Domo Toolkit v1.4.0 Release Notes","url":"http://localhost:4000/RELEASE_NOTES.html"}</script>
+{"@context":"https://schema.org","@type":"WebPage","description":"Domo Toolkit is a Chrome extension built for the people who live inside Domo every day - administrators managing hundreds of objects, consultants jumping between client instances, and power users building on the platform. Every feature is built to save clicks, reduce context-switching, and surface information that Domo’s native UI buries behind multiple navigations.","headline":"Release Notes","url":"http://localhost:4000/RELEASE_NOTES.html"}</script>
 <!-- End Jekyll SEO tag -->
 <link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="Domo Toolkit" /></head>
 <body><header class="site-header" role="banner">
@@ -31,7 +31,7 @@
           </span>
         </label>
 
-        <div class="trigger"><a class="page-link" href="/">Home</a><a class="page-link" href="/PRIVACY_POLICY.html">Privacy Policy</a><a class="page-link" href="/RELEASE_NOTES.html">Domo Toolkit v1.4.0 Release Notes</a><a class="page-link" href="/CONTRIBUTING.html">Contributing</a></div>
+        <div class="trigger"><a class="page-link" href="/">Home</a><a class="page-link" href="/PRIVACY_POLICY.html">Privacy Policy</a><a class="page-link" href="/RELEASE_NOTES.html">Release Notes</a><a class="page-link" href="/CONTRIBUTING.html">Contributing</a></div>
       </nav></div>
 </header>
 <main class="page-content" aria-label="Content">
@@ -39,125 +39,92 @@
         <article class="post">
 
   <header class="post-header">
-    <h1 class="post-title">Domo Toolkit v1.4.0 Release Notes</h1>
+    <h1 class="post-title">Release Notes</h1>
   </header>
 
   <div class="post-content">
-    <h2 id="new-features-and-improvements">New Features and Improvements</h2>
+    <h1 id="domo-toolkit-v150-release-notes-wip">Domo Toolkit v1.5.0 Release Notes (WIP)</h1>
 
-<h3 id="migrate-dataset-content-beta">Migrate DataSet Content (Beta)</h3>
-
-<ul>
-  <li>New “Migrate DataSet Content” action button: repoints every beast mode, card, drill path, dataflow, and dataset view that uses a dataset to a different dataset in one pass.</li>
-  <li>Every found item has checkboxes on both type groups and individual items, so you can deselect a category or cherry-pick.</li>
-  <li>Picking a target runs a schema-compatibility check that flags missing or type-mismatched columns, and allows you to remap them before applying the migration.</li>
-  <li>Column remapping reaches references inside formulas and SQL expressions, not just top-level fields, so renamed columns don’t break cards, views, or dataflows.</li>
-</ul>
-
-<h3 id="transfer-ownership-beta">Transfer Ownership (Beta)</h3>
+<h2 id="new-features-and-improvements">New Features and Improvements</h2>
 
 <ul>
-  <li>Transfer Ownership now has a checkbox on every individual item, so you can transfer a subset within a type instead of all-or-nothing per type.</li>
-  <li>The selection summary now counts actual items (“<strong>N</strong> types, <strong>M</strong> objects selected”), and the transfer button enables as soon as one item is selected.</li>
-  <li>Group headers now show the type’s icon next to the label, matching the items inside.</li>
-  <li>Tasks now nest under their parent project in the “Projects &amp; Tasks” group instead of a flat list, with project checkboxes cascading to their tasks.</li>
-  <li>Transferring datasets or dataflows now adds a “From [previous owner]” tag to each transferred object.</li>
-</ul>
-
-<h3 id="activity-log">Activity Log</h3>
-
-<ul>
-  <li>Deleted (inactive) users in the Activity Log now get the grey-and-white striped avatar that matches Domo.</li>
-  <li>The Activity Log user filter now has an “in / not in” toggle, so you can exclude specific users, not just filter to them.</li>
-  <li>Clicking Activity Log on an app page or worksheet view now opens a combined log of both the view and its parent Studio App or Worksheet.</li>
-  <li>The long-press dropdown gains a “Studio App” / “Worksheet” option that opens just the parent’s log.</li>
-  <li>Worksheet views now get the full long-press Activity Log dropdown, matching app pages (i.e., cards, card pages).</li>
-</ul>
-
-<h3 id="appdb">AppDB</h3>
-
-<ul>
-  <li>On an AppDB Collection, the “DataStore” related-object tab now populates automatically.</li>
-  <li>New “Sync Datastore” action button on AppDB collections.</li>
-  <li>New “Generate Schema” action button on AppDB collections that infers a column schema from the collection’s recent documents, lets you edit it, and applies it (optionally turning on sync to produce a DataSet in one step).</li>
-</ul>
-
-<h3 id="approval-templates">Approval Templates</h3>
-
-<ul>
-  <li>Deleting an approval template now shows a dependency check: its related dataset (with a downstream-object count) and a tally of its existing approval requests.</li>
-  <li>Added a “Delete Template and DataSet” option that deletes the template and its backing dataset in one pass.</li>
-</ul>
-
-<h3 id="duplicate-user">Duplicate User</h3>
-
-<ul>
-  <li>The preview now lists every individually-shared card, page, and app by name with per-item checkboxes and select-all, so you choose exactly what to re-share.</li>
-  <li>Every duplication now auto-downloads an Excel audit log with one row per attempted item (user, profile fields, groups, shares, apps) and its result.</li>
-  <li>Fixed Duplicate User over-sharing the new user with content the source user only reached indirectly (through groups, PDP, org-wide content, or Workspaces); now only directly-shared content is re-shared.</li>
+  <li>Copy Filters now copies the filtered URL as a clickable formatted link titled with the page name, instead of as plain text.</li>
+  <li>Added a setting to strip the “ - Domo” suffix from Domo tab titles.</li>
+  <li>When migrating downstream content, navigating to another dataset now offers it as the migration target in one click, instead of having to copy and paste its ID.</li>
+  <li>Jupyter Workspaces are now detected when their settings dialog is open, so a workspace no longer needs to be running to act on it.</li>
+  <li>Jupyter Workspaces now show their input datasets, output datasets, and accounts as tabs, with details and links for each.</li>
+  <li>Update Person Details lets admins change a user’s username (the login and SSO identity), with an option to keep the email in sync.</li>
+  <li>Approval Center datasets now show a Template tab linking to the approval template that created them.</li>
+  <li>Side panel views are now scoped to each Domo instance, so switching instances swaps to that instance’s own view (in-progress operations included) instead of carrying one view everywhere.</li>
+  <li>Get Card Pages now lists cards that aren’t on any page under an Orphaned Cards group, instead of leaving them out of the results.</li>
+  <li>Get Card Pages now always shows App Studio Apps, Dashboards, Report Builder Pages, and Worksheets, marking any with no cards as (0) instead of hiding the category.</li>
+  <li>Get DataSets now always shows both Input DataSets and Output DataSets for dataflows, marking an empty side as (0) instead of hiding it.</li>
+  <li>Get Cards now always shows Cards, Forms, and Queues for App Studio pages, marking an empty category as (0) instead of hiding it.</li>
+  <li>The lineage view can now export its full upstream and downstream lineage (with each object’s level relative to the root) as a CSV, Excel, or JSON file.</li>
+  <li>The popup, side panel, and object details now show when the current object was created.</li>
+  <li>Transferring ownership of a dataflow now shares its input datasets with the new owner if they don’t already have access.</li>
+  <li>Added Manage Tags for dataflows: add or remove tags on a dataflow and its output datasets together in one step.</li>
+  <li>A dataflow’s Inputs and Outputs JSON tabs now show each dataset’s full details and links instead of just its name and ID.</li>
+  <li>Admins can now switch a dataset to any compatible account in the instance, without first sharing that account with themselves.</li>
+  <li>Added Get Beast Modes: list the Beast Modes tied to a dataset, dataflow, card, page, app, or worksheet, showing the cards, drills, and other Beast Modes each one is used on.</li>
+  <li>The welcome screen now has a quick theme switcher to set System, Light, or Dark without opening settings.</li>
+  <li>Every object in a list now has a View Activity Log action that opens its activity log.</li>
+  <li>Lists now offer a View Activity Log for all action, in the header and on any expandable item, covering that item and everything nested under it.</li>
 </ul>
 
 <h3 id="supported-types">Supported Types</h3>
 
 <ul>
-  <li>Variables are now recognized as their own type instead of being treated as Beast Modes.</li>
-  <li>Drill Paths are now properly recognized and have context filled.</li>
-  <li>Added DataSet to the related objects for Approval Templates.</li>
-  <li>Added an Approvals tab to Approval Templates’ related objects, listing every active approval request from the template.</li>
-  <li>Renamed the Code Engine “Sync JSDoc to Package” button to “Generate Definition from JSDoc”, limited it to JavaScript packages, and moved to beta.</li>
-  <li>DataFlow Executions are now recognized as their own type instead of just a DataFlow.</li>
+  <li>The toolkit now recognizes the account you have open when its edit or sharing dialog is showing.</li>
+  <li>A detected account now has a DataSets tab listing the datasets it feeds.</li>
+  <li>Get DataSets now works on Jupyter Workspaces, listing their input and output datasets in separate groups.</li>
 </ul>
 
 <h2 id="ui-improvements">UI Improvements</h2>
 
 <ul>
-  <li>The action buttons at the top of the side panel now re-expand when you close a view, instead of staying collapsed.</li>
-  <li>Removed pulsing effect on Copy Filters button.</li>
-  <li>In the Activity Log Source column, “GROUP” chips are now green and other source types each get their own stable color.</li>
-  <li>The “Delete App and All Cards” confirmation now shows the page and card counts (e.g. “all its pages (4), and all cards on those pages (37)”).</li>
-  <li>The related-objects tabs now scroll sideways with a normal vertical mouse wheel while hovering them, not just a horizontal scroll wheel.</li>
-  <li>Closing a tab the extension opened now returns you to the tab you launched it from, instead of the tab on its right.</li>
-  <li>Tooltips no longer pop up instantly when you move between nearby buttons; each one now waits the normal hover delay.</li>
-  <li>The Activity Log, Share with Self, and Delete buttons now show a tooltip explaining why they’re unavailable when disabled.</li>
-  <li>The Get Owned Objects, Update Code Engine Versions, Generate Definition from JSDoc, and Duplicate User views now show a “Beta” label.</li>
-  <li>Pop-up notifications now use Domo-style status icons, matching the rest of the extension.</li>
-  <li>In Get Child Pages, child pages with no nested pages no longer show a stray “(0)”, and the rest label the count “(N pages)” so it isn’t mistaken for a card count.</li>
+  <li>Renamed the “Worksheet Views” group to “Worksheets” in Get Card Pages.</li>
+  <li>App Pages and Worksheet Views now show just the page’s own name in the context footer, keeping the parent app or worksheet name in the browser tab title only.</li>
+  <li>The browser tab title for App Pages and Worksheet Views now separates the app and page names with “&gt;” instead of “:”.</li>
+  <li>The Activity Log’s loading placeholder now reserves space for the source banner, so the layout no longer jumps when it finishes loading.</li>
+  <li>Nested group headers in result lists are now slightly lighter than top-level headers, making the grouping hierarchy easier to read at a glance.</li>
+  <li>The theme dropdown in settings now shows an icon next to each option.</li>
+  <li>The favicon effect dropdown now shows an icon next to each option.</li>
+  <li>The View Errors button now always shows at the top of the expanded actions, disabled with a 0 count when there are no errors, instead of appearing only when errors exist.</li>
+  <li>Removed the Copy ID button from result list headers, since the same ID can be copied from the object’s own action button.</li>
+  <li>The delete confirmation view now presents the objects it affects as one list with “Will be deleted” and “Other dependencies” as expandable groups that start open.</li>
+  <li>Side panel view headers now lead with an icon for the action, and views about a specific object show that object’s type icon inline next to its name.</li>
+  <li>
+    <p>More side panel views now have reload and refresh buttons in their header, matching the content lists.</p>
+  </li>
+  <li>Migrating downstream content now shows its live progress on the Migrate button, instead of in a message that could sit off-screen below the column-mapping options.</li>
+  <li>The Migrate Content view now has a reload button to restart it for whichever dataset you’ve since navigated to, matching the reload control on the other content lists.</li>
+  <li>In the cross-input collision warning, the linked dataflow name now matches the warning’s text color instead of appearing in the default dark color, and still turns the accent color on hover.</li>
+  <li>The input datasets named in the cross-input collision warning are now clickable links to those datasets, matching the dataflow link in the same warning.</li>
 </ul>
 
 <h2 id="bug-fixes">Bug Fixes</h2>
 
-<h3 id="activity-log-1">Activity Log</h3>
-
 <ul>
-  <li>Fixed the Activity Log button staying disabled for users who do have access, on instances or page loads where it took a few seconds for your account to finish loading.</li>
-  <li>Long names in the Activity Log table now truncate with a tooltip showing the full name, instead of overflowing into the next column.</li>
-  <li>Fixed the Activity Log flickering to broken values, with the count disappearing and infinite scroll stalling, on instances set to always use the DomoStats dataset.</li>
-  <li>Users who don’t have a profile picture in the Activity Log now show their initials, instead of a generic grey placeholder.</li>
-  <li>The whole page’s horizontal and vertical scroll bars no longer flicker in while the Activity Log loads; scrolling stays on the table.</li>
-</ul>
-
-<h3 id="update-code-engine-versions-beta">Update Code Engine Versions (Beta)</h3>
-
-<ul>
-  <li>Bumping a Code Engine function version now reconciles the tile’s inputs and outputs to the new version, instead of leaving them stale and silently breaking the tile.</li>
-  <li>Renamed inputs and outputs are automatically re-pointed to the same workflow variable, so downstream tiles keep working.</li>
-  <li>New outputs are added and mapped to a new variable by default; new required inputs are flagged for you to set.</li>
-  <li>Removed or renamed inputs with a binding get a remap dropdown, and type changes or removed outputs warn which variables and downstream tiles are affected.</li>
+  <li>Migrating downstream content now records a clearer note on each updated dataflow version, stating the input was remapped even when no column references needed renaming.</li>
+  <li>Migrating downstream content no longer asks you to remap dataset-view columns the view doesn’t actually use; only columns referenced in the view’s query or output are flagged now.</li>
+  <li>Side panel actions no longer intermittently fail to open when many tabs are open or after viewing very large objects, such as datasets with thousands of Beast Modes or pages with many cards.</li>
+  <li>When an action fails while reading data from the Domo page, it now reports the actual reason instead of a misleading “Cannot read properties of null” message.</li>
+  <li>Migrating a dataset view’s input now updates the view’s available-columns list to the new dataset’s columns instead of leaving the previous dataset’s.</li>
+  <li>Migrating downstream content now remaps column references inside fused views (DataFusions) instead of leaving them pointing at the old dataset, and flags any fused view that uses the dataset in a calculated column for manual review.</li>
+  <li>Approvals and Approval Templates no longer appear as failing rows in Objects Owned and Transfer Ownership on instances that don’t have Approvals enabled.</li>
+  <li>The Activity Log no longer briefly flashes scroll bars across the page while it loads.</li>
+  <li>Nested Beast Modes now migrate correctly: the Beast Modes they rely on come along in the right order, and the nested references are repointed to the migrated copies on the target instead of breaking.</li>
+  <li>Beast Modes that live on a card (rather than being saved to the dataset) are no longer listed as separate items to migrate; they now travel with their card.</li>
+  <li>When a migrating card has a Beast Mode whose name already exists as a Beast Mode on the target dataset, you can now choose to use the target’s Beast Mode or rename the card’s, instead of the migration failing.</li>
+  <li>Magic ETL sort columns now get renamed during migration along with the rest of the dataflow.</li>
+  <li>Deleting a page and all its cards no longer fails with a “Timeout while checking for page items” error.</li>
 </ul>
 
 <h3 id="other-fixes">Other Fixes</h3>
 
 <ul>
-  <li>Deleting a Beast Mode or Variable now actually takes effect (it previously did nothing while reporting success), and real failures surface as errors.</li>
-  <li>Fixed “Get Worksheet Pages” hanging and then erroring instead of listing the worksheet’s pages.</li>
-  <li>Fixed the Update Owner (Alert/Workflow) user picker clearing your selected user when you clicked out, which blocked Save until you re-selected.</li>
-  <li>In “Copy Color Rules”, clicking into the destination dataset search and then clicking away without choosing a different dataset no longer wipes your selected dataset.</li>
-  <li>Fixed Generate Package Definition from JSDoc producing package versions whose functions Domo Workflows reported as missing at run time.</li>
-  <li>Fixed on the Objects Owned view, the type-group “Share all with yourself” button silently doing nothing when clicked.</li>
-  <li>Fixed the Copy-ID shortcut (Ctrl/Cmd+Shift+1) silently doing nothing when the sidepanel or popup had focus.</li>
-  <li>Returning from a Cloud Integration to its account list now clears the detected object, instead of still showing the integration you left.</li>
-  <li>Long instance and object-type names in the Current Context header now shorten to fit instead of overlapping the info icon.</li>
-  <li>Fixed the side panel’s expand button staying disabled when viewing captured API errors was the only available action, which kept those errors out of reach.</li>
+  <li>Refreshing a Domo page now retries fetching the object’s name and details when an earlier attempt came up empty, instead of staying blank until you navigate away.</li>
 </ul>
 
   </div>

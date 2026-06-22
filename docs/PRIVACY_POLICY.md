@@ -1,5 +1,4 @@
 ---
-title: Privacy Policy
 ---
 
 # Privacy Policy for Domo Toolkit
