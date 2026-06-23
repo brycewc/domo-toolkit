@@ -52,6 +52,7 @@
 - More side panel views now have reload and refresh buttons in their header, matching the content lists.
 - Object names in result lists now show a normal arrow cursor when the row can't be expanded, while expandable rows keep the pointer cursor to signal the name is clickable.
 - Hovering an object in a result list now shows its type before the ID (for example "Page ID: 123" instead of just "ID: 123").
+- An object's Share and Share All buttons in a result list are now a single share button with a dropdown to share just that object or it and everything nested under it.
 
 - Migrating downstream content now shows its live progress on the Migrate button, instead of in a message that could sit off-screen below the column-mapping options.
 - The Migrate Content view now has a reload button to restart it for whichever dataset you've since navigated to, matching the reload control on the other content lists.
@@ -73,6 +74,7 @@
 - When a migrating card has a Beast Mode whose name already exists as a Beast Mode on the target dataset, you can now choose to use the target's Beast Mode or rename the card's, instead of the migration failing.
 - Magic ETL sort columns now get renamed during migration along with the rest of the dataflow.
 - Deleting a page and all its cards no longer fails with a "Timeout while checking for page items" error.
+- Get Child Pages now lists grandchild pages again for pages with more than 10 child pages, which previously returned no grandchildren at all.
 - Expanding upstream or downstream in the lineage view now brings the newly revealed nodes into view instead of jumping the view back to the root.
 
 ### Other Fixes

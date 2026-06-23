@@ -32,7 +32,6 @@ import IconDotsHorizontal from '@icons/dots-horizontal.svg?react';
 import IconInfoCircle from '@icons/info-circle.svg?react';
 import IconLineage from '@icons/lineage.svg?react';
 import IconListSearch from '@icons/list-search.svg?react';
-import IconPeoplePlus from '@icons/people-plus.svg?react';
 import IconPersonPlus from '@icons/person-plus.svg?react';
 import IconSearch from '@icons/search.svg?react';
 import IconTree from '@icons/tree.svg?react';
@@ -385,7 +384,7 @@ export function DataList({
       ? [
           {
             ariaLabel: 'Share All',
-            icon: isHeaderShared ? <AnimatedCheck /> : <IconPeoplePlus />,
+            icon: isHeaderShared ? <AnimatedCheck /> : <IconPersonPlus />,
             key: 'shareAll',
             onPress: () => handleHeaderAction('shareAll'),
             tooltip: isHeaderShared ? 'Shared!' : 'Share all with yourself'
@@ -1022,30 +1021,62 @@ function DataListItemImpl({
       </Tooltip>
     );
 
-    const shareAllButton = (
-      <Tooltip key='shareAll'>
-        <Button
-          fullWidth
-          isIconOnly
-          aria-label='Share All'
-          size='sm'
-          variant='ghost'
-          onPress={() => handleAction('shareAll')}
-        >
-          {isShared ? <AnimatedCheck /> : <IconPeoplePlus />}
-        </Button>
-        <Tooltip.Content className='max-w-60'>{isShared ? 'Shared!' : 'Share all with yourself'}</Tooltip.Content>
-      </Tooltip>
-    );
-
-    const shareButton = (
-      <Tooltip key='share'>
-        <Button fullWidth isIconOnly aria-label='Share' size='sm' variant='ghost' onPress={() => handleAction('share')}>
-          {isShared ? <AnimatedCheck /> : <IconPersonPlus />}
-        </Button>
-        <Tooltip.Content className='max-w-60'>{isShared ? 'Shared!' : 'Share with yourself'}</Tooltip.Content>
-      </Tooltip>
-    );
+    // Share action. When both sharing the row itself and sharing it plus all its
+    // descendants apply, it's a dropdown: "Only this object" shares just the row,
+    // "Including all children" shares the row and everything nested under it. When
+    // only one applies, there's no choice to make, so it's a plain button that
+    // shares immediately with no dropdown. Mirrors buildActivityLogAction below.
+    const buildShareAction = (showSingle, showAll) => {
+      if (showSingle && !showAll) {
+        return (
+          <Tooltip key='share'>
+            <Button fullWidth isIconOnly aria-label='Share' size='sm' variant='ghost' onPress={() => handleAction('share')}>
+              {isShared ? <AnimatedCheck /> : <IconPersonPlus />}
+            </Button>
+            <Tooltip.Content className='max-w-60'>{isShared ? 'Shared!' : 'Share with yourself'}</Tooltip.Content>
+          </Tooltip>
+        );
+      }
+      if (showAll && !showSingle) {
+        return (
+          <Tooltip key='share'>
+            <Button
+              fullWidth
+              isIconOnly
+              aria-label='Share All'
+              size='sm'
+              variant='ghost'
+              onPress={() => handleAction('shareAll')}
+            >
+              {isShared ? <AnimatedCheck /> : <IconPersonPlus />}
+            </Button>
+            <Tooltip.Content className='max-w-60'>{isShared ? 'Shared!' : 'Share all with yourself'}</Tooltip.Content>
+          </Tooltip>
+        );
+      }
+      return (
+        <Dropdown key='share'>
+          <Tooltip>
+            <Button fullWidth isIconOnly aria-label='Share' size='sm' variant='ghost'>
+              {isShared ? <AnimatedCheck /> : <IconPersonPlus />}
+            </Button>
+            <Tooltip.Content className='max-w-60'>{isShared ? 'Shared!' : 'Share with yourself'}</Tooltip.Content>
+          </Tooltip>
+          <Dropdown.Popover className='w-fit min-w-60' placement='bottom'>
+            <Dropdown.Menu onAction={handleAction}>
+              <Dropdown.Item id='share' textValue='This object'>
+                <IconPersonPlus className='size-4 shrink-0' />
+                <Label>Only this object</Label>
+              </Dropdown.Item>
+              <Dropdown.Item id='shareAll' textValue='All objects'>
+                <IconTree className='size-4 shrink-0' />
+                <Label>Including all children</Label>
+              </Dropdown.Item>
+            </Dropdown.Menu>
+          </Dropdown.Popover>
+        </Dropdown>
+      );
+    };
 
     const viewsExplorerButton = (
       <Tooltip key='viewsExplorer'>
@@ -1148,8 +1179,8 @@ function DataListItemImpl({
       if (!hasChildren) return [];
       const actions = [];
       if (item.id !== 'REPORT_BUILDER_group') {
+        if (canShareAll && hasShareableChildren(item)) actions.push(buildShareAction(false, true));
         actions.push(openAllButton);
-        if (canShareAll && hasShareableChildren(item)) actions.push(shareAllButton);
       }
       // Virtual group headers have no object of their own, so only the "all
       // objects" log applies, covering every real descendant beneath the header.
@@ -1162,12 +1193,13 @@ function DataListItemImpl({
       // Report builder objects have no navigable URL, so "Open All" on a report
       // parent would open zero tabs. Suppress it there (the REPORT_BUILDER_group
       // header is already excluded above).
-      if (itemActions.includes('openAll') && hasChildren && item.typeId !== 'REPORT_BUILDER') actions.push(openAllButton);
-      if (canShareAll && itemActions.includes('shareAll') && hasShareableChildren(item)) actions.push(shareAllButton);
-      if (canShare && itemActions.includes('share') && isItemShareable(item)) actions.push(shareButton);
+      const canShowShare = canShare && itemActions.includes('share') && isItemShareable(item);
+      const canShowShareAll = canShareAll && itemActions.includes('shareAll') && hasShareableChildren(item);
+      if (canShowShare || canShowShareAll) actions.push(buildShareAction(canShowShare, canShowShareAll));
       if (itemActions.includes('lineage') && (item.typeId === 'DATA_SOURCE' || item.typeId === 'DATAFLOW_TYPE'))
         actions.push(lineageButton);
       if (itemActions.includes('viewsExplorer') && item.typeId === 'DATA_SOURCE') actions.push(viewsExplorerButton);
+      if (itemActions.includes('openAll') && hasChildren && item.typeId !== 'REPORT_BUILDER') actions.push(openAllButton);
       if (itemActions.includes('copy')) actions.push(copyButton);
       // The activity-log dropdown is added to every object regardless of the
       // view's opted-in `itemActions`: the single-object log for this row, plus
@@ -1178,12 +1210,9 @@ function DataListItemImpl({
 
     // Default logic
     const actions = [];
-    if (hasChildren && item.typeId !== 'DATA_APP') {
-      actions.push(openAllButton);
-    }
-    if (canShareAll && hasShareableChildren(item)) {
-      actions.push(shareAllButton);
-    }
+    const canShowShare = canShare && isItemShareable(item);
+    const canShowShareAll = canShareAll && hasShareableChildren(item);
+    if (canShowShare || canShowShareAll) actions.push(buildShareAction(canShowShare, canShowShareAll));
 
     if (
       ((objectType === 'CARD' && (item.typeId === 'PAGE' || item.typeId === 'DATA_APP_VIEW')) ||
@@ -1193,7 +1222,10 @@ function DataListItemImpl({
       actions.push(removeButton);
     }
 
-    if (canShare && isItemShareable(item)) actions.push(shareButton);
+    if (hasChildren && item.typeId !== 'DATA_APP') {
+      actions.push(openAllButton);
+    }
+
     actions.push(copyButton);
     // Activity-log dropdown on every object: single-object for this row, plus the
     // "all objects" log when it has descendants.

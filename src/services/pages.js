@@ -288,36 +288,47 @@ export async function getChildPages({ appId = null, includeGrandchildren = false
           const adminSummaryResponse = await response.json();
           childPages = adminSummaryResponse.pageAdminSummaries || [];
 
-          // If includeGrandchildren is true, fetch grandchildren for each child page
+          // If includeGrandchildren is true, fetch grandchildren for each child page.
+          // The adminsummary endpoint silently returns zero results when
+          // parentPageIds holds more than 10 ids, so request grandchildren in
+          // batches of at most 10 parents and combine them. Without batching, any
+          // page with more than 10 children returns no grandchildren at all.
           if (includeGrandchildren && childPages.length > 0) {
             const grandchildPageIds = childPages.map((page) => page.pageId);
-
-            const grandchildrenBody = {
-              ascending: true,
-              includeParentPageIdsClause: true,
-              orderBy: 'lastModified',
-              parentPageIds: grandchildPageIds
-            };
-
-            const grandchildrenResponse = await fetch('/api/content/v1/pages/adminsummary?limit=100&skip=0', {
-              body: JSON.stringify(grandchildrenBody),
-              headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json'
-              },
-              method: 'POST'
-            });
-
-            if (!grandchildrenResponse.ok) {
-              console.warn(`Failed to fetch grandchildren pages (HTTP ${grandchildrenResponse.status})`);
-              return childPages;
+            const PARENT_BATCH_SIZE = 10;
+            const batches = [];
+            for (let i = 0; i < grandchildPageIds.length; i += PARENT_BATCH_SIZE) {
+              batches.push(grandchildPageIds.slice(i, i + PARENT_BATCH_SIZE));
             }
 
-            const grandchildrenData = await grandchildrenResponse.json();
-            const grandchildPages = grandchildrenData.pageAdminSummaries || [];
+            const grandchildResults = await Promise.all(
+              batches.map(async (parentPageIds) => {
+                const grandchildrenResponse = await fetch('/api/content/v1/pages/adminsummary?limit=100&skip=0', {
+                  body: JSON.stringify({
+                    ascending: true,
+                    includeParentPageIdsClause: true,
+                    orderBy: 'lastModified',
+                    parentPageIds
+                  }),
+                  headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                  },
+                  method: 'POST'
+                });
+
+                if (!grandchildrenResponse.ok) {
+                  console.warn(`Failed to fetch grandchildren pages (HTTP ${grandchildrenResponse.status})`);
+                  return [];
+                }
+
+                const grandchildrenData = await grandchildrenResponse.json();
+                return grandchildrenData.pageAdminSummaries || [];
+              })
+            );
 
             // Return both children and grandchildren
-            childPages = [...childPages, ...grandchildPages];
+            childPages = [...childPages, ...grandchildResults.flat()];
           }
         } else if (pageType === 'DATA_APP_VIEW') {
           const appResponse = await fetch(`/api/content/v1/dataapps/${appId}`);
