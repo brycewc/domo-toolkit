@@ -41,6 +41,7 @@ export function getAvailableActions(currentContext) {
     actions.add('getViewInputs');
     actions.add('dataRepair');
     actions.add('migrateDownstreamContent');
+    actions.add('remapColumns');
     if (details?.streamId && metadata?.parent?.details?.currentExecutionState === 'ACTIVE') {
       actions.add('cancelStreamExecution');
     }

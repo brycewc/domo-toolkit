@@ -20,6 +20,7 @@ import { ManageTagsView } from '@/components/views/ManageTagsView';
 import { MigrateDownstreamContentView } from '@/components/views/MigrateDownstreamContentView';
 import { ObjectDetailsView } from '@/components/views/ObjectDetailsView';
 import { OwnershipView } from '@/components/views/OwnershipView';
+import { RemapColumnsView } from '@/components/views/RemapColumnsView';
 import { SwitchAccountView } from '@/components/views/SwitchAccountView';
 import { UpdateCodeEngineVersionsView } from '@/components/views/UpdateCodeEngineVersionsView';
 import { UpdateDetailsView } from '@/components/views/UpdateDetailsView';
@@ -455,6 +456,15 @@ export default function App() {
             currentContext={currentContext}
             instance={instance}
             isActive={isActive}
+            key={slot.viewKey}
+            onBackToDefault={backToDefault}
+            onStatusUpdate={showStatus}
+          />
+        )}
+
+        {slot.type === 'remapColumns' && (
+          <RemapColumnsView
+            instance={instance}
             key={slot.viewKey}
             onBackToDefault={backToDefault}
             onStatusUpdate={showStatus}

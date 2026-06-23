@@ -26,6 +26,7 @@ import { LockCards } from '@/components/functions/LockCards';
 import { ManageTags } from '@/components/functions/ManageTags';
 import { MigrateDownstreamContent } from '@/components/functions/MigrateDownstreamContent';
 import { NavigateToCopiedObject } from '@/components/functions/NavigateToCopiedObject';
+import { RemapColumns } from '@/components/functions/RemapColumns';
 import { RemoveEmptyStringsFromQuickFilters } from '@/components/functions/RemoveEmptyStringsFromQuickFilters';
 import { SetStreamToManual } from '@/components/functions/SetStreamToManual';
 import { ShareWithSelf } from '@/components/functions/ShareWithSelf';
@@ -251,6 +252,13 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                 )}
                 {availableActions.has('migrateDownstreamContent') && (
                   <MigrateDownstreamContent
+                    currentContext={currentContext}
+                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
+                    onStatusUpdate={onStatusUpdate}
+                  />
+                )}
+                {availableActions.has('remapColumns') && (
+                  <RemapColumns
                     currentContext={currentContext}
                     onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
                     onStatusUpdate={onStatusUpdate}
