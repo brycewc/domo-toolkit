@@ -1146,7 +1146,7 @@ export const ObjectTypeRegistry = {
     extractConfig: { keyword: 'roles' },
     icon: { component: 'Shield' },
     idPattern: /^\d+$/,
-    urlPath: '/admin/roles/{id}'
+    urlPath: '/admin/roles/{id}?tab=grants'
   }),
   RYUU_APP: new DomoObjectType('RYUU_APP', 'Custom App (Pro-Code)', {
     api: { endpoint: '/apps/v1/designs/{id}', paths: { created: 'createdDate', name: 'name' } },
@@ -1216,11 +1216,21 @@ export const ObjectTypeRegistry = {
     icon: { component: 'Key' },
     idPattern: /^\d+$/
   }),
-  USER: new DomoObjectType('USER', 'Person', {
-    api: { endpoint: '/content/v2/users/{id}', paths: { created: 'created', name: 'displayName' } },
+  USER: new DomoObjectType('USER', 'User', {
+    api: {
+      endpoint: '/content/v3/users/{id}?includeDetails=true',
+      paths: { created: 'detail.created', name: 'displayName' }
+    },
     extractConfig: { keyword: 'people' },
     icon: { component: 'Person' },
     idPattern: /^\d+$/,
+    relatedData: [
+      {
+        field: 'roleId',
+        label: 'Role',
+        typeId: 'ROLE'
+      }
+    ],
     urlPath: '/admin/people/{id}?tab=profile'
   }),
   USER_CUSTOM_KEY: new DomoObjectType('USER_CUSTOM_KEY', 'User Custom Attribute', {

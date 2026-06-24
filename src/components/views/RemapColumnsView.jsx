@@ -16,6 +16,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { DataList } from '@/components/views/DataList';
+import { ViewHeader } from '@/components/views/ViewHeader';
 import { useParallelFetches } from '@/hooks/useParallelFetches';
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { DataListItem } from '@/models/DataListItem';
@@ -27,10 +28,11 @@ import { getDatasetColumns } from '@/services/datasets';
 import { getDatasetFunctions } from '@/services/functions';
 import { getDownstreamCards, getDownstreamLineage } from '@/services/migrateDownstreamContent';
 import { remapDatasetColumns } from '@/services/remapDatasetColumns';
+import { buildRefreshAction, buildReloadAction } from '@/utils/headerActions';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconChevronDown from '@icons/chevron-down.svg?react';
+import IconColumnEdit from '@icons/column-edit.svg?react';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
-import IconInfoCircle from '@icons/info-circle.svg?react';
 import IconPlus from '@icons/plus.svg?react';
 import IconTrash from '@icons/trash.svg?react';
 import IconX from '@icons/x.svg?react';
@@ -44,7 +46,7 @@ const TYPE_KEY_TO_DOMO_TYPE = {
   datasets: 'DATA_SOURCE'
 };
 
-export function RemapColumnsView({ instance = null, onBackToDefault = null, onStatusUpdate = null }) {
+export function RemapColumnsView({ currentContext = null, instance = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   const [datasetId, setDatasetId] = useState(null);
   const [datasetName, setDatasetName] = useState('');
@@ -66,6 +68,10 @@ export function RemapColumnsView({ instance = null, onBackToDefault = null, onSt
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [transferStatus, setTransferStatus] = useState({});
   const [isTransferring, setIsTransferring] = useState(false);
+  // 'map' = build the old -> new column mappings; 'select' = pick which affected
+  // content to rewrite, then apply. Opposite order from Migrate Content, whose
+  // first page is the selection and whose second is the column work.
+  const [page, setPage] = useState('map');
 
   const mountedRef = useRef(true);
   const rowKeyRef = useRef(0);
@@ -151,7 +157,7 @@ export function RemapColumnsView({ instance = null, onBackToDefault = null, onSt
     ];
   }, [datasetId, tabId]);
 
-  const { isFullyLoaded, loadedCount, results } = useParallelFetches(specs);
+  const { isFullyLoaded, loadedCount, loadingCount, refresh, results } = useParallelFetches(specs);
 
   // Every loaded downstream item, by type, used both to scan for column
   // references and to resolve a usage back to its full record (for the card urn,
@@ -347,6 +353,15 @@ export function RemapColumnsView({ instance = null, onBackToDefault = null, onSt
     }).filter(Boolean);
   }, [affectedByType, origin, transferStatus]);
 
+  // Start a type group expanded only when it holds a single affected item, so
+  // that lone entry is visible without a click; groups with several items stay
+  // collapsed. Seeding every group (the prior behavior) fought the list's
+  // single-expansion mode, which then animated the extras shut.
+  const defaultExpandedGroupIds = useMemo(
+    () => dataListItems.filter((group) => group.children?.length === 1).map((group) => group.id),
+    [dataListItems]
+  );
+
   const isSelectable = useCallback((item) => (item.isVirtualParent ? item.children?.length > 0 : true), []);
 
   const handleSelectionChange = useCallback(
@@ -406,7 +421,8 @@ export function RemapColumnsView({ instance = null, onBackToDefault = null, onSt
 
     const initialStatus = {};
     for (const t of REMAP_TYPES) {
-      if (selectedItems[t.key].length > 0) initialStatus[t.key] = { count: selectedItems[t.key].length, status: 'transferring' };
+      if (selectedItems[t.key].length > 0)
+        initialStatus[t.key] = { count: selectedItems[t.key].length, status: 'transferring' };
     }
     setTransferStatus(initialStatus);
     setIsTransferring(true);
@@ -487,7 +503,17 @@ export function RemapColumnsView({ instance = null, onBackToDefault = null, onSt
     } finally {
       if (mountedRef.current) setIsTransferring(false);
     }
-  }, [columnMap, datasetId, datasetName, onBackToDefault, scanResult, schemaColumns, selectedItemsByType, showStatus, tabId]);
+  }, [
+    columnMap,
+    datasetId,
+    datasetName,
+    onBackToDefault,
+    scanResult,
+    schemaColumns,
+    selectedItemsByType,
+    showStatus,
+    tabId
+  ]);
 
   if (isLoading || nothingDownstream) {
     return (
@@ -501,43 +527,40 @@ export function RemapColumnsView({ instance = null, onBackToDefault = null, onSt
   }
 
   const mappedCount = Object.keys(columnMap).length;
+  const totalAffected = affectedLeafIds.size;
+  const canAdvance = mappedCount > 0 && totalAffected > 0 && !isScanning && !isTransferring;
   const canApply = mappedCount > 0 && totalSelected > 0 && !isTransferring && !isScanning;
 
-  return (
-    <>
+  // Page 1: build the old -> new column mappings. The footer's only action is
+  // Next, which advances to the selection page once a mapping affects content.
+  if (page === 'map') {
+    // Reload re-targets at the user's current object; refresh re-runs the
+    // downstream fetch + scan in place. Built from the shared helpers so they
+    // match every other view's header exactly.
+    const headerActions = [
+      buildReloadAction({
+        currentContext,
+        objectId: datasetId,
+        objectType: 'DATA_SOURCE',
+        onStatusUpdate,
+        viewType: 'remapColumns'
+      }),
+      buildRefreshAction({ isRefreshing: loadingCount > 0, onRefresh: refresh })
+    ];
+    return (
       <Card className='flex min-h-0 w-full flex-1 flex-col p-2'>
-        <Card.Header className='gap-1'>
-          <Card.Title className='line-clamp-2 min-w-0 pr-8'>
-            Remap Columns of <strong>{datasetName}</strong>
-          </Card.Title>
-          <div className='flex'>
-            <Chip className='shrink-0' color='accent' size='sm' variant='soft'>
-              Beta
-            </Chip>
-          </div>
-          <Tooltip>
-            <Button isIconOnly aria-label='Close' className='absolute top-1 right-2' size='sm' variant='ghost' onPress={onBackToDefault}>
-              <IconX />
-            </Button>
-            <Tooltip.Content className='max-w-60 text-wrap'>Close</Tooltip.Content>
-          </Tooltip>
-        </Card.Header>
+        <ViewHeader
+          beta
+          actions={headerActions}
+          feature='Remap Columns of'
+          featureIcon={<IconColumnEdit />}
+          subject={datasetName}
+          subjectTypeId='DATA_SOURCE'
+          onClose={onBackToDefault}
+        />
         <Separator />
         <ScrollShadow hideScrollBar className='min-h-0 flex-1 overflow-y-auto' offset={5} orientation='vertical'>
           <Card.Content className='flex flex-col gap-3 py-2'>
-            <Alert className='w-full border border-border bg-transparent' status='accent'>
-              <Alert.Indicator>
-                <IconInfoCircle data-slot='alert-default-icon' />
-              </Alert.Indicator>
-              <Alert.Content>
-                <Alert.Title>Repair downstream references</Alert.Title>
-                <Alert.Description>
-                  Map each old column to its new name. Every selected card, Beast Mode, dataflow, and dataset view that
-                  references the old name is rewritten in place. This cannot be undone.
-                </Alert.Description>
-              </Alert.Content>
-            </Alert>
-
             {isScanning && (
               <div className='flex items-center gap-2 text-xs text-muted'>
                 <Spinner size='sm' />
@@ -577,7 +600,7 @@ export function RemapColumnsView({ instance = null, onBackToDefault = null, onSt
                   onRemove={removeRow}
                 />
               ))}
-              <Button className='mt-1 self-start' size='sm' variant='ghost' onPress={addRow}>
+              <Button className='mt-1 self-start' size='sm' variant='secondary' onPress={addRow}>
                 <IconPlus className='size-4' />
                 Add a column
               </Button>
@@ -600,70 +623,101 @@ export function RemapColumnsView({ instance = null, onBackToDefault = null, onSt
                 </Alert.Content>
               </Alert>
             )}
-
-            <Separator />
-
-            {mappedCount === 0 ? (
-              <EmptyState className='py-6'>Map at least one column to see what will be updated.</EmptyState>
-            ) : dataListItems.length === 0 ? (
-              <EmptyState className='py-6'>No downstream content references the mapped column(s).</EmptyState>
-            ) : (
-              <DataList
-                defaultExpandedIds={REMAP_TYPES.map((t) => t.key)}
-                isSelectable={isSelectable}
-                itemActions={['copy']}
-                itemLabel='item'
-                items={dataListItems}
-                objectId={datasetId}
-                objectType='DATA_SOURCE'
-                selectedIds={selectedIds}
-                selectionMode={true}
-                showActions={true}
-                showCounts={true}
-                subject='Content to update'
-                variant='transparent'
-                viewType='remapColumns'
-                onSelectionChange={handleSelectionChange}
-                onStatusUpdate={onStatusUpdate}
-              />
-            )}
           </Card.Content>
         </ScrollShadow>
         <Separator />
         <Card.Footer className='pt-2'>
-          <Button
-            fullWidth
-            isDisabled={!canApply}
-            isPending={isTransferring}
-            size='sm'
-            variant='primary'
-            onPress={() => setConfirmOpen(true)}
-          >
-            {isTransferring ? 'Updating…' : `Update ${totalSelected} item${totalSelected === 1 ? '' : 's'}`}
+          <Button fullWidth isDisabled={!canAdvance} size='sm' variant='primary' onPress={() => setPage('select')}>
+            Next
           </Button>
         </Card.Footer>
       </Card>
+    );
+  }
 
-      <AlertDialog isDismissable isOpen={confirmOpen} onOpenChange={setConfirmOpen}>
+  // Page 2: pick which affected content to rewrite, then apply. The full-page
+  // DataList owns its header and footer; live per-type progress rides on the
+  // item rows via transferStatus.
+  return (
+    <>
+      <DataList
+        allowsMultipleExpanded
+        beta
+        defaultExpandedIds={defaultExpandedGroupIds}
+        feature='Remap Columns of'
+        featureIcon={<IconColumnEdit />}
+        fillHeight={true}
+        isSelectable={isSelectable}
+        itemActions={['copy']}
+        itemLabel='item'
+        items={dataListItems}
+        objectId={datasetId}
+        objectType='DATA_SOURCE'
+        selectedIds={selectedIds}
+        selectionMode={true}
+        showActions={true}
+        showActivityLogAll={false}
+        showCounts={true}
+        subject={datasetName}
+        viewType='remapColumns'
+        onClose={onBackToDefault}
+        onSelectionChange={handleSelectionChange}
+        onStatusUpdate={onStatusUpdate}
+        footer={
+          <div className='flex gap-2'>
+            <Button isDisabled={isTransferring} size='sm' variant='tertiary' onPress={() => setPage('map')}>
+              Back
+            </Button>
+            <Button
+              fullWidth
+              isDisabled={!canApply}
+              isPending={isTransferring}
+              size='sm'
+              variant='primary'
+              onPress={() => setConfirmOpen(true)}
+            >
+              {isTransferring ? 'Updating…' : `Update ${totalSelected} item${totalSelected === 1 ? '' : 's'}`}
+            </Button>
+          </div>
+        }
+      />
+
+      <AlertDialog
+        isOpen={confirmOpen}
+        onOpenChange={(open) => {
+          if (!open) setConfirmOpen(false);
+        }}
+      >
         <AlertDialog.Backdrop>
-          <AlertDialog.Container>
+          <AlertDialog.Container className='p-1'>
             <AlertDialog.Dialog className='p-2 pt-3'>
-              <AlertDialog.CloseTrigger />
+              <div className='absolute top-0 left-0 h-1.25 w-full bg-warning' />
+              <AlertDialog.CloseTrigger className='absolute top-3 right-2' variant='ghost'>
+                <IconX />
+              </AlertDialog.CloseTrigger>
               <AlertDialog.Header>
-                <AlertDialog.Heading>Remap columns?</AlertDialog.Heading>
+                <AlertDialog.Heading className='flex items-center gap-2'>
+                  <IconExclamationTriangle className='text-warning' />
+                  Remap columns
+                </AlertDialog.Heading>
               </AlertDialog.Header>
-              <AlertDialog.Body>
-                <p className='text-sm'>
+              <AlertDialog.Body className='text-sm'>
+                <p>
                   This rewrites <strong>{totalSelected}</strong> downstream item{totalSelected === 1 ? '' : 's'} to use the
                   new column name{mappedCount === 1 ? '' : 's'}. It saves changes to live content and cannot be undone.
                 </p>
               </AlertDialog.Body>
               <AlertDialog.Footer>
-                <Button variant='secondary' onPress={() => setConfirmOpen(false)}>
+                <Button size='sm' slot='close' variant='tertiary'>
                   Cancel
                 </Button>
-                <Button variant='primary' onPress={handleRemap}>
-                  Remap
+                <Button
+                  className='bg-warning text-warning-foreground hover:bg-warning-hover'
+                  size='sm'
+                  variant='primary'
+                  onPress={handleRemap}
+                >
+                  Confirm
                 </Button>
               </AlertDialog.Footer>
             </AlertDialog.Dialog>
@@ -765,7 +819,10 @@ function RemapRow({ isOrphan, oldType, onChange, onRemove, row, schemaColumns, s
             </ComboBox.Trigger>
           </ComboBox.InputGroup>
           <ComboBox.Popover className='max-w-9/10' placement='bottom start'>
-            <ListBox className='max-h-60 overflow-y-auto' renderEmptyState={() => <EmptyState>No matching column</EmptyState>}>
+            <ListBox
+              className='max-h-60 overflow-y-auto'
+              renderEmptyState={() => <EmptyState>No matching column</EmptyState>}
+            >
               {columnItems}
             </ListBox>
           </ComboBox.Popover>

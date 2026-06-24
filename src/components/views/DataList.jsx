@@ -77,6 +77,7 @@ import { ViewHeader } from './ViewHeader';
  * @param {Function} props.onItemShareAll - Callback for shareAll item action (actionType, item) => void
  * @param {Function} props.onStatusUpdate - Callback to show status messages (title, description, status, timeout)
  * @param {Boolean} props.showActions - Whether to show action buttons on items
+ * @param {Boolean} [props.showActivityLogAll] - Whether to show the header "View activity log for all" action (default true). Set false for selection-style lists where a bulk activity-log view is out of place.
  * @param {Boolean} props.showCounts - Whether to show item counts
  * @param {String} props.objectType - The type of object being displayed (e.g., 'DATA_APP_VIEW', 'PAGE')
  * @param {String} props.itemLabel - Label for items in status messages (default: 'item')
@@ -129,6 +130,7 @@ export function DataList({
   selectionMode = false,
   selectionToolbar,
   showActions = true,
+  showActivityLogAll = true,
   showCounts = true,
   subject,
   subjectTypeId,
@@ -363,7 +365,7 @@ export function DataList({
   // already exists for some other reason: it never conjures a blank header just
   // to host itself (headerless lists are still covered by the per-row "for all"
   // action). It also respects `showActions`, so selection-only lists stay clean.
-  const showHeaderLogButton = hasHeaderLog && showActions && hasHeader;
+  const showHeaderLogButton = hasHeaderLog && showActions && hasHeader && showActivityLogAll;
 
   // Header action specs in display order: custom actions first, then Share All,
   // Open All, the activity-log button, and finally the navigational Reload +

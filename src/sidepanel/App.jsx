@@ -464,6 +464,7 @@ export default function App() {
 
         {slot.type === 'remapColumns' && (
           <RemapColumnsView
+            currentContext={currentContext}
             instance={instance}
             key={slot.viewKey}
             onBackToDefault={backToDefault}
