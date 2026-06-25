@@ -33,13 +33,14 @@
       return originalFetch.apply(window, args);
     }
 
-    var url = typeof args[0] === 'string' ? args[0] : args[0] && args[0].url;
+    var isRequestObject = typeof args[0] !== 'string' && args[0] && typeof args[0].url === 'string';
+    var url = isRequestObject ? args[0].url : args[0];
 
     if (!isApiEndpoint(url)) {
       return originalFetch.apply(window, args);
     }
 
-    var method = (args[1] && args[1].method) || 'GET';
+    var method = (args[1] && args[1].method) || (isRequestObject && args[0].method) || 'GET';
 
     return originalFetch
       .apply(window, args)
