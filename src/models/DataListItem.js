@@ -34,6 +34,11 @@ export class DataListItem {
    *   `transferred`/`failed`) phases so a row can reuse the same field across
    *   the lifecycle.
    * @param {string} [config.error] - Error message to display when status is 'error' or 'failed'
+   * @param {*} [config.errorDetail] - Optional raw, structured error payload (e.g.
+   *   the full array of per-item failures). When present, DataList's error Alert
+   *   exposes a copy button that copies this serialized as pretty-printed JSON,
+   *   so the complete failure data is recoverable even though the Alert body
+   *   shows a human-readable summary.
    * @param {string|number} [config.originalId] - Canonical id for clipboard
    *   copy when `id` has been namespaced for uniqueness (e.g.
    *   `project-123`/`task-123` to avoid cross-namespace collisions). When
@@ -51,6 +56,7 @@ export class DataListItem {
     countLabel = null,
     domoObject = null,
     error = null,
+    errorDetail = null,
     id,
     isVirtualParent = false,
     label,
@@ -74,6 +80,7 @@ export class DataListItem {
     this.domoObject = domoObject;
     this.status = status;
     this.error = error;
+    this.errorDetail = errorDetail;
     this.originalId = originalId;
     this.unshareable = unshareable;
     this.annotation = annotation;
@@ -154,6 +161,7 @@ export class DataListItem {
       countLabel: data.countLabel || null,
       domoObject: data.domoObject ? DomoObject.fromJSON(data.domoObject) : null,
       error: data.error || null,
+      errorDetail: data.errorDetail ?? null,
       id: data.id,
       isVirtualParent: data.isVirtualParent || false,
       label: data.label,
@@ -195,6 +203,7 @@ export class DataListItem {
       countLabel: this.countLabel,
       domoObject: this.domoObject?.toJSON() || null,
       error: this.error,
+      errorDetail: this.errorDetail,
       id: this.id,
       isVirtualParent: this.isVirtualParent,
       label: this.label,

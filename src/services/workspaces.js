@@ -99,8 +99,12 @@ export async function transferWorkspaces(workspaceIds, fromUserId, toUserId, tab
           const payload = await listRes.json();
           const members = Array.isArray(payload) ? payload : payload.members || [];
 
-          const destMember = members.find((m) => m.memberType === 'USER' && m.memberId === toUserId);
-          const sourceMember = members.find((m) => m.memberType === 'USER' && m.memberId === fromUserId);
+          // Compare ids as strings: the members API returns memberId as a
+          // different type than the from/to ids in some cases, and a strict
+          // === miss on the source member would silently skip the step-3
+          // DELETE below, leaving the old owner on the workspace.
+          const destMember = members.find((m) => m.memberType === 'USER' && String(m.memberId) === String(toUserId));
+          const sourceMember = members.find((m) => m.memberType === 'USER' && String(m.memberId) === String(fromUserId));
 
           // Step 2: ensure destination is OWNER
           if (destMember) {

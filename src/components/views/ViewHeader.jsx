@@ -59,7 +59,10 @@ export function ViewHeader({
           <div className='flex shrink-0 flex-col items-center gap-1 text-foreground'>
             {featureIcon && <span className='[&_svg]:size-7'>{featureIcon}</span>}
             {beta && (
-              <Chip className='shrink-0' color='accent' size='sm' variant='soft'>
+              // Nudge the chip down so it sits on the subtitle/actions row in the
+              // adjacent column; the two columns flow independently, so this is a
+              // static offset rather than a shared baseline.
+              <Chip className='mt-0.5 shrink-0' color='accent' size='sm' variant='soft'>
                 Beta
               </Chip>
             )}

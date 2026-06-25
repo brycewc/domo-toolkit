@@ -86,7 +86,13 @@ const TYPE_KEY_TO_DOMO_TYPE = {
   workspaces: 'WORKSPACE'
 };
 
-export function OwnershipView({ currentContext = null, instance = null, isActive = true, onBackToDefault = null, onStatusUpdate = null }) {
+export function OwnershipView({
+  currentContext = null,
+  instance = null,
+  isActive = true,
+  onBackToDefault = null,
+  onStatusUpdate = null
+}) {
   const [isLoading, setIsLoading] = useState(true);
   const [userName, setUserName] = useState('');
   const [userId, setUserId] = useState(null);
@@ -254,11 +260,13 @@ export function OwnershipView({ currentContext = null, instance = null, isActive
   // all" toolbar button stays accurate as types finish loading.
   const eligibleTypeKeys = useMemo(
     () =>
-      transferTypes.filter((t) => {
-        if (forbidden.has(t.key)) return false;
-        const r = results[t.key];
-        return r?.status === 'loaded' && r.items && countOwned(t.key, r.items) > 0;
-      }).map((t) => t.key),
+      transferTypes
+        .filter((t) => {
+          if (forbidden.has(t.key)) return false;
+          const r = results[t.key];
+          return r?.status === 'loaded' && r.items && countOwned(t.key, r.items) > 0;
+        })
+        .map((t) => t.key),
     [forbidden, results, transferTypes]
   );
 
@@ -369,6 +377,7 @@ export function OwnershipView({ currentContext = null, instance = null, isActive
 
         let count;
         let error = null;
+        let errorDetail = null;
         let children;
 
         if (result?.status === 'loaded' && result.items !== null) {
@@ -380,6 +389,7 @@ export function OwnershipView({ currentContext = null, instance = null, isActive
 
         if (xfer) {
           if (xfer.error) error = xfer.error;
+          if (xfer.errorDetail) errorDetail = xfer.errorDetail;
           if (xfer.count !== undefined) count = xfer.count;
         }
 
@@ -387,6 +397,7 @@ export function OwnershipView({ currentContext = null, instance = null, isActive
           children,
           count,
           error,
+          errorDetail,
           id: t.key,
           isVirtualParent: true,
           label: t.label,
@@ -648,7 +659,8 @@ export function OwnershipView({ currentContext = null, instance = null, isActive
   // message, same UX as the old TransferOwnership view's failure-disclosure.
   const handleTransferSubmit = useCallback(
     async (formData) => {
-      const { deleteAfterTransfer, emailNewOwner, targetUser, toUserDisplayName, toUserId } = formData;
+      const { currentUser, deleteAfterTransfer, emailCurrentUser, emailNewOwner, targetUser, toUserDisplayName, toUserId } =
+        formData;
 
       // A type is "enabled for transfer" iff at least one of its leaves is
       // selected; bare type-key membership in `selectedIds` isn't sufficient
@@ -718,6 +730,7 @@ export function OwnershipView({ currentContext = null, instance = null, isActive
                 next[typeKey] = {
                   count: count ?? succeeded + failed,
                   error: failed > 0 ? formatTransferErrors(result) : null,
+                  errorDetail: failed > 0 ? (result?.errors ?? null) : null,
                   failed,
                   status: failed > 0 ? 'failed' : 'transferred',
                   succeeded
@@ -726,6 +739,7 @@ export function OwnershipView({ currentContext = null, instance = null, isActive
                 next[typeKey] = {
                   count: 0,
                   error: result?.errors?.[0]?.error || 'Transfer failed before completing',
+                  errorDetail: result?.errors ?? result ?? null,
                   status: 'failed'
                 };
               }
@@ -744,15 +758,23 @@ export function OwnershipView({ currentContext = null, instance = null, isActive
           totalFailed += r.failed || 0;
         }
 
-        // Optional: email the new owner with an Excel summary.
-        if (emailNewOwner && targetUser?.email && totalSucceeded > 0) {
+        // Optional: email an Excel summary. The new-owner and email-me toggles
+        // are independent, but we only ever send a single email whose recipient
+        // list is the union of whichever toggles are on (deduped so a self-
+        // transfer doesn't double-list the same address).
+        const recipientEmails = [
+          ...new Set(
+            [emailNewOwner ? targetUser?.email : null, emailCurrentUser ? currentUser?.email : null].filter(Boolean)
+          )
+        ];
+        if (recipientEmails.length > 0 && totalSucceeded > 0) {
           try {
             const rows = buildTransferLogRows({
               fromUserId: userId,
               fromUserName: userName,
               results: transferResults,
               toUserId,
-              toUserName: toUserDisplayName ?? targetUser.displayName
+              toUserName: toUserDisplayName ?? targetUser?.displayName
             });
             const blob = await buildExcelBlob(rows, LOG_COLUMNS, 'Transfer Log');
             const filename = `${generateExportFilename('transferred-objects')}.xlsx`;
@@ -765,13 +787,13 @@ export function OwnershipView({ currentContext = null, instance = null, isActive
                   totalSucceeded
                 }),
                 dataFileAttachments: [dataFileId],
-                recipientEmails: targetUser.email,
+                recipientEmails,
                 subject: `Ownership transferred to you from ${userName}`
               },
               tabId
             );
           } catch (err) {
-            showStatus('Email Not Sent', err.message || 'Failed to email new owner', 'warning', 5000);
+            showStatus('Email Not Sent', err.message || 'Failed to email transfer summary', 'warning', 5000);
           }
         }
 
@@ -1202,7 +1224,12 @@ function formatTransferErrors(result) {
   if (result.errors.length === 1) {
     return `${result.errors[0].id}: ${result.errors[0].error}`;
   }
-  return `${result.errors.length} item${result.errors.length === 1 ? '' : 's'} failed: ${result.errors[0].id}: ${result.errors[0].error}…`;
+  // List every failure in full (one per line). The DataList error Alert renders
+  // this untruncated and offers a copy button for the raw JSON, so there's no
+  // reason to collapse to just the first error any more.
+  const header = `${result.errors.length} items failed:`;
+  const lines = result.errors.map((e) => `${e.id}: ${e.error}`);
+  return [header, ...lines].join('\n');
 }
 
 function isParentKey(id) {

@@ -20,7 +20,7 @@ import IconX from '@icons/x.svg?react';
  * @param {Object} props.currentContext - Active DomoContext (carries baseUrl, tabId, user.metadata.USER_RIGHTS, and the source user's reportsTo).
  * @param {boolean} props.isOpen
  * @param {(open: boolean) => void} props.onOpenChange
- * @param {(formData: { toUserId: number, toUserDisplayName: string|null, emailNewOwner: boolean, deleteAfterTransfer: boolean, targetUser: { displayName: string|null, email: string|null }|null }) => void} props.onSubmit
+ * @param {(formData: { toUserId: number, toUserDisplayName: string|null, emailNewOwner: boolean, emailCurrentUser: boolean, deleteAfterTransfer: boolean, targetUser: { displayName: string|null, email: string|null }|null, currentUser: { displayName: string|null, email: string|null }|null }) => void} props.onSubmit
  * @param {number} props.selectedObjectCount - Number of individual leaves currently selected, summed across types. Drives the confirmation summary line.
  * @param {number} props.selectedTypeCount - Number of types with ≥1 leaf selected. Drives the summary line AND gates submit (0 ⇒ disabled).
  * @param {{ id: number|string, name: string }} props.sourceUser
@@ -37,19 +37,24 @@ export function TransferOwnershipModal({
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [selectedDisplayName, setSelectedDisplayName] = useState(null);
   const [emailNewOwner, setEmailNewOwner] = useState(false);
+  const [emailCurrentUser, setEmailCurrentUser] = useState(true);
   const [deleteAfterTransfer, setDeleteAfterTransfer] = useState(false);
   const [targetUser, setTargetUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
   const [manager, setManager] = useState(null);
 
-  // Reset form whenever the modal opens fresh — stale picks from a previous
-  // session shouldn't leak into the next attempt.
+  // Reset the email/delete toggles whenever the modal opens fresh. The chosen
+  // destination is intentionally NOT cleared here: UserComboBox keeps its own
+  // displayed selection across close/reopen, so wiping selectedUserId would
+  // desync the parent (the combobox shows a name while the form thinks nothing
+  // is picked, which would also make Transfer silently no-op). Leaving it lets
+  // the selection, its resolved email, and the switch description all persist
+  // in lockstep with what the combobox still shows.
   useEffect(() => {
     if (!isOpen) return;
-    setSelectedUserId(null);
-    setSelectedDisplayName(null);
     setEmailNewOwner(false);
+    setEmailCurrentUser(true);
     setDeleteAfterTransfer(false);
-    setTargetUser(null);
   }, [isOpen]);
 
   // Resolve manager (reportsTo) for the manager-shortcut button. Only fires
@@ -80,7 +85,7 @@ export function TransferOwnershipModal({
   }, [isOpen, currentContext?.domoObject?.metadata?.context?.reportsTo, currentContext?.tabId]);
 
   // Resolve email + displayName for the destination whenever it changes.
-  // Powers the email-toggle's enable state and the attachment's "New Owner
+  // Powers the email-toggle's description and the attachment's "New Owner
   // Name" column when the parent emails the recipient post-transfer.
   useEffect(() => {
     if (!selectedUserId || !currentContext?.tabId) {
@@ -105,6 +110,36 @@ export function TransferOwnershipModal({
     };
   }, [selectedUserId, currentContext?.tabId]);
 
+  // Resolve the current (toolkit) user's email so the "email me" toggle can
+  // show the address and the parent can add it to the post-transfer email's
+  // recipient list. Unlike the destination lookup, this runs as soon as the
+  // context is ready (not gated on isOpen) and is never cleared on reopen: the
+  // toolkit user never changes within a session, so prefetching once and
+  // caching the result means the address is already present the moment the
+  // modal opens, with no flash of the generic "to you" fallback.
+  useEffect(() => {
+    const currentUserId = currentContext?.user?.id;
+    if (!currentUserId || !currentContext?.tabId) {
+      setCurrentUser(null);
+      return;
+    }
+    let cancelled = false;
+    getFullUserDetails(currentUserId, currentContext.tabId)
+      .then((user) => {
+        if (cancelled || !user) return;
+        setCurrentUser({
+          displayName: user.displayName || null,
+          email: user.emailAddress || user.email || null
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setCurrentUser(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentContext?.user?.id, currentContext?.tabId]);
+
   const userRights = currentContext?.user?.metadata?.USER_RIGHTS || [];
   const canDeleteUsers = userRights.includes('user.edit');
 
@@ -113,7 +148,9 @@ export function TransferOwnershipModal({
     if (!selectedUserId || selectedTypeCount === 0) return;
 
     const formData = {
+      currentUser,
       deleteAfterTransfer: deleteAfterTransfer && canDeleteUsers,
+      emailCurrentUser: emailCurrentUser && !!currentUser?.email,
       emailNewOwner: emailNewOwner && !!targetUser?.email,
       targetUser,
       toUserDisplayName: selectedDisplayName ?? targetUser?.displayName ?? null,
@@ -183,22 +220,32 @@ export function TransferOwnershipModal({
                   </Tooltip>
                 </div>
 
-                <Switch
-                  isDisabled={!targetUser?.email}
-                  isSelected={emailNewOwner && !!targetUser?.email}
-                  onChange={setEmailNewOwner}
-                >
+                <Switch isSelected={emailNewOwner} onChange={setEmailNewOwner}>
                   <Switch.Control>
                     <Switch.Thumb />
                   </Switch.Control>
                   <Switch.Content>
                     <Label>Email new owner with summary</Label>
                     <Description>
-                      {targetUser?.email
-                        ? `Sends an Excel attachment to ${targetUser.email}`
-                        : selectedUserId
-                          ? 'Email unavailable for selected user'
-                          : 'Select a destination user to enable'}
+                      {!selectedUserId
+                        ? 'Sends an Excel attachment to the new owner'
+                        : targetUser?.email
+                          ? `Sends an Excel attachment to ${targetUser.email}`
+                          : 'Email unavailable for selected user'}
+                    </Description>
+                  </Switch.Content>
+                </Switch>
+
+                <Switch isSelected={emailCurrentUser} onChange={setEmailCurrentUser}>
+                  <Switch.Control>
+                    <Switch.Thumb />
+                  </Switch.Control>
+                  <Switch.Content>
+                    <Label>Email me with summary</Label>
+                    <Description>
+                      {currentUser?.email
+                        ? `Sends an Excel attachment to ${currentUser.email}`
+                        : 'Sends an Excel attachment to you'}
                     </Description>
                   </Switch.Content>
                 </Switch>

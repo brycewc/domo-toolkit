@@ -285,7 +285,7 @@ export async function getFunctionTemplate(functionId, tabId = null) {
  * Get all beast mode formulas and variables owned by a user.
  * @param {number} userId - The Domo user ID
  * @param {number|null} tabId - Optional Chrome tab ID
- * @returns {Promise<Array<{global: boolean, id: string, name: string}>>}
+ * @returns {Promise<Array<Object>>} The raw function search results, each as returned by the API
  */
 export async function getOwnedFunctions(userId, tabId = null) {
   return executeInPage(
@@ -310,13 +310,7 @@ export async function getOwnedFunctions(userId, tabId = null) {
         const data = await response.json();
 
         if (data.results && data.results.length > 0) {
-          allFunctions.push(
-            ...data.results.map((f) => ({
-              global: f.global,
-              id: f.id,
-              name: f.name || f.id
-            }))
-          );
+          allFunctions.push(...data.results);
           offset += limit;
           moreData = data.hasMore;
         } else {
@@ -333,36 +327,23 @@ export async function getOwnedFunctions(userId, tabId = null) {
 
 /**
  * Transfer function (beast mode/variable) ownership to a new user.
- * Handles link sanitization for functions with dead references.
- * @param {string[]} functionIds - Array of function IDs to transfer
+ * The full function objects returned by getOwnedFunctions already carry
+ * everything the bulk update needs, so each is sent back with only its owner
+ * overridden, no per-function template lookup required.
+ * @param {Object[]} functions - Full function objects (from getOwnedFunctions) to transfer
  * @param {number} fromUserId - The current owner's user ID
  * @param {number} toUserId - The new owner's user ID
  * @param {number|null} tabId - Optional Chrome tab ID
  * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
  */
-export async function transferFunctions(functionIds, fromUserId, toUserId, tabId = null) {
+export async function transferFunctions(functions, fromUserId, toUserId, tabId = null) {
   return executeInPage(
-    async (functionIds, fromUserId, toUserId) => {
+    async (functions, toUserId) => {
       const errors = [];
-      const updates = [];
       const chunkSize = 100;
       let succeeded = 0;
 
-      for (const id of functionIds) {
-        try {
-          const response = await fetch(`/api/query/v1/functions/template/${id}?hidden=true`);
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          const func = await response.json();
-
-          updates.push({
-            id,
-            links: func.links || [],
-            owner: toUserId
-          });
-        } catch (error) {
-          errors.push({ error: error.message, id });
-        }
-      }
+      const updates = functions.map((func) => ({ ...func, owner: toUserId }));
 
       // Transfer in batches
       const bulkUrl = '/api/query/v1/functions/bulk/template';
@@ -383,7 +364,7 @@ export async function transferFunctions(functionIds, fromUserId, toUserId, tabId
 
       return { errors, failed: errors.length, succeeded };
     },
-    [functionIds, fromUserId, toUserId],
+    [functions, toUserId],
     tabId
   );
 }

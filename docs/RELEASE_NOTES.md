@@ -21,6 +21,7 @@
 - The lineage view can now export its full upstream and downstream lineage (with each object's level relative to the root) as a CSV, Excel, or JSON file.
 - The popup, side panel, and object details now show when the current object was created.
 - Transferring ownership of a dataflow now shares its input datasets with the new owner if they don't already have access.
+- Transfer Ownership can now email the Excel summary to yourself, the new owner, or both.
 - Added Manage Tags for dataflows: add or remove tags on a dataflow and its output datasets together in one step.
 - A dataflow's Inputs and Outputs JSON tabs now show each dataset's full details and links instead of just its name and ID.
 - Admins can now switch a dataset to any compatible account in the instance, without first sharing that account with themselves.
@@ -55,6 +56,7 @@
 - Object names in result lists now show a normal arrow cursor when the row can't be expanded, while expandable rows keep the pointer cursor to signal the name is clickable.
 - Hovering an object in a result list now shows its type before the ID (for example "Page ID: 123" instead of just "ID: 123").
 - An object's Share and Share All buttons in a result list are now a single share button with a dropdown to share just that object or it and everything nested under it.
+- Errors on a result list group now appear in full inside a dismissable alert with a copy button, instead of being cut off after the first line.
 
 - Migrating downstream content now shows its live progress on the Migrate button, instead of in a message that could sit off-screen below the column-mapping options.
 - The Migrate Content view now has a reload button to restart it for whichever dataset you've since navigated to, matching the reload control on the other content lists.
