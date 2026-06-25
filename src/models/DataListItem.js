@@ -26,6 +26,10 @@ export class DataListItem {
    * @param {number} [config.count] - Optional count for children or related items
    * @param {string} [config.countLabel] - Optional label for count display (e.g., 'cards', 'pages')
    * @param {DataListItem[]} [config.children] - Optional nested child items
+   * @param {string} [config.childTypeId] - On a virtual-parent group whose rows
+   *   are all one object type, the type of those rows (e.g. 'DATA_APP'). Lets
+   *   DataList derive the group's "all" actions from that type's capabilities
+   *   instead of walking the children. Leave null for heterogeneous groups.
    * @param {boolean} [config.isVirtualParent] - Whether this is a grouping/virtual parent node
    * @param {DomoObject} [config.domoObject] - Optional DomoObject instance for richer functionality
    * @param {'loading'|'loaded'|'transferring'|'transferred'|'error'|'failed'} [config.status]
@@ -52,6 +56,7 @@ export class DataListItem {
   constructor({
     annotation = null,
     children = undefined,
+    childTypeId = null,
     count = undefined,
     countLabel = null,
     domoObject = null,
@@ -76,6 +81,7 @@ export class DataListItem {
     this.count = count;
     this.countLabel = countLabel;
     this.children = children;
+    this.childTypeId = childTypeId;
     this.isVirtualParent = isVirtualParent;
     this.domoObject = domoObject;
     this.status = status;
@@ -93,6 +99,9 @@ export class DataListItem {
    * @param {string} config.id - Unique identifier for the group
    * @param {string} config.label - Display label for the group
    * @param {DataListItem[]} [config.children] - Child items in this group
+   * @param {string} [config.childTypeId] - The object type of this group's rows
+   *   when they are homogeneous (e.g. 'DATA_APP'), so DataList can derive the
+   *   group's "all" actions from that type. Omit for mixed-type groups.
    * @param {number} [config.count] - Override child count (defaults to children.length).
    *   Useful for async-loading rows where children aren't populated yet but a
    *   total is known.
@@ -102,10 +111,11 @@ export class DataListItem {
    * @param {string} [config.error] - Error message rendered inside the body when expanded (status='error'/'failed').
    * @returns {DataListItem}
    */
-  static createGroup({ children, count, error, id, label, metadata, status }) {
+  static createGroup({ children, childTypeId = null, count, error, id, label, metadata, status }) {
     const childCount = Array.isArray(children) ? children.length : 0;
     return new DataListItem({
       children,
+      childTypeId,
       count: count !== undefined ? count : childCount,
       domoObject: null,
       error,
@@ -157,6 +167,7 @@ export class DataListItem {
     return new DataListItem({
       annotation: data.annotation || null,
       children: data.children?.map((child) => DataListItem.fromJSON(child)),
+      childTypeId: data.childTypeId ?? null,
       count: data.count,
       countLabel: data.countLabel || null,
       domoObject: data.domoObject ? DomoObject.fromJSON(data.domoObject) : null,
@@ -199,6 +210,7 @@ export class DataListItem {
     return {
       annotation: this.annotation,
       children: this.children?.map((child) => (child instanceof DataListItem ? child.toJSON() : child)),
+      childTypeId: this.childTypeId,
       count: this.count,
       countLabel: this.countLabel,
       domoObject: this.domoObject?.toJSON() || null,

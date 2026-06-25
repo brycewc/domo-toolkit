@@ -116,9 +116,6 @@ const FETCHERS = {
           id: o.dataSourceId,
           label: o.dataSourceName || o.dataSourceId,
           typeId: 'DATA_SOURCE',
-          // Output datasets of a dataflow have no account, so they aren't
-          // shareable in the toolkit's "share with self" sense.
-          unshareable: true,
           url: `${origin}/datasources/${o.dataSourceId}/details/overview`
         })),
         label: 'Output datasets'

@@ -13,6 +13,7 @@ import { deleteObject } from '@/services/deleteObject';
 import { getDependenciesForDelete } from '@/services/dependencies';
 import { deletePageAndAllCards } from '@/services/pages';
 import { parseMarkdownBold } from '@/utils/markdown';
+import { collectShareableObjects } from '@/utils/rowActions';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
 import IconTrash from '@icons/trash.svg?react';
@@ -339,7 +340,7 @@ export function DeleteObjectView({
 
   const availableCascades = (config.cascadeButtons || []).filter((c) => c.available({ context: currentContext, deps }));
 
-  // "Will be deleted" and "Other dependencies" each become a top-level virtual
+  // "Will also be deleted" and "Other dependencies" each become a top-level virtual
   // parent group, so the whole view is one DataList: its header carries the
   // delete title/object and the activity-log-for-all button, its footer carries
   // the delete buttons, and these groups (auto-expanded) hold the affected
@@ -354,8 +355,8 @@ export function DeleteObjectView({
     dependencyItems.push(
       DataListItem.createGroup({
         children: buildDependencyItems(deletedGroups, 'deleted-group', baseUrl),
-        id: 'will-be-deleted',
-        label: 'Will be deleted'
+        id: 'will-also-be-deleted',
+        label: 'Will also be deleted'
       })
     );
   }
@@ -369,6 +370,9 @@ export function DeleteObjectView({
     );
   }
   const expandedGroupIds = dependencyItems.map((item) => item.id);
+  // Show the header "Share all" only when some dependency row is actually
+  // shareable (DataList shares them itself via its per-type capabilities).
+  const hasShareableDeps = collectShareableObjects(dependencyItems).length > 0;
 
   return (
     <>
@@ -379,9 +383,8 @@ export function DeleteObjectView({
         defaultExpandedIds={expandedGroupIds}
         feature='Delete'
         featureIcon={<IconTrash />}
-        headerActions={['reload', 'refresh']}
+        headerActions={hasShareableDeps ? ['shareAll', 'reload', 'refresh'] : ['reload', 'refresh']}
         isRefreshing={isRefreshing}
-        itemActions={['copy', 'lineage', 'viewsExplorer']}
         itemLabel='dependency'
         items={dependencyItems}
         objectId={domoObject.id}
@@ -535,8 +538,11 @@ function buildDependencyItems(groups, idPrefix, baseUrl) {
     // directly, so the row keeps its type icon and inline actions instead of
     // sitting under an icon-less disclosure header.
     if (group.flat) return children;
+    // Each dependency group lists items of a single type, so record it as the
+    // group's childTypeId; DataList uses it to decide the group's "all" actions.
     return DataListItem.createGroup({
       children,
+      childTypeId: group.items[0]?.typeId ?? null,
       id: `${idPrefix}-${idx}`,
       label: group.label
     });

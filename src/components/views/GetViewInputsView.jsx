@@ -165,7 +165,6 @@ export function GetViewInputsView({ currentContext = null, instance: viewInstanc
       featureIcon={<IconCompass />}
       headerActions={['openAll', 'reload', 'refresh']}
       isRefreshing={isRefreshing}
-      itemActions={['copy', 'openAll', 'viewsExplorer']}
       itemLabel='dataset'
       items={items}
       objectId={viewData?.objectId}

@@ -22,6 +22,7 @@
 - The popup, side panel, and object details now show when the current object was created.
 - Transferring ownership of a dataflow now shares its input datasets with the new owner if they don't already have access.
 - Transfer Ownership can now email the Excel summary to yourself, the new owner, or both.
+- An approval request now has a Transfer Approval button to reassign that single pending request to another user.
 - Added Manage Tags for dataflows: add or remove tags on a dataflow and its output datasets together in one step.
 - A dataflow's Inputs and Outputs JSON tabs now show each dataset's full details and links instead of just its name and ID.
 - Admins can now switch a dataset to any compatible account in the instance, without first sharing that account with themselves.
@@ -29,6 +30,7 @@
 - The welcome screen now has a quick theme switcher to set System, Light, or Dark without opening settings.
 - Every object in a list now has an activity log button that opens its log directly, or a menu to view the object's log or everything nested under it when it has nested items.
 - Lists now offer a View Activity Log for all action in the header, covering every object in the list.
+- The delete confirmation view now lets you share an affected object, or all affected objects, with yourself.
 
 ### Supported Types
 
@@ -57,6 +59,9 @@
 - Hovering an object in a result list now shows its type before the ID (for example "Page ID: 123" instead of just "ID: 123").
 - An object's Share and Share All buttons in a result list are now a single share button with a dropdown to share just that object or it and everything nested under it.
 - Errors on a result list group now appear in full inside a dismissable alert with a copy button, instead of being cut off after the first line.
+- Datasets in the DataSets Used in View list now have a View Lineage button, matching the dataset lists elsewhere.
+- Objects Owned now offers Share All with yourself on the App Studio Apps, Custom Apps, and Worksheets groups, not just Pages.
+- Get Card Pages no longer includes the button to remove a card from a page.
 
 - Migrating downstream content now shows its live progress on the Migrate button, instead of in a message that could sit off-screen below the column-mapping options.
 - The Migrate Content view now has a reload button to restart it for whichever dataset you've since navigated to, matching the reload control on the other content lists.

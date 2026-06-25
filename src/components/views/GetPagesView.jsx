@@ -5,8 +5,8 @@ import { CloseButton } from '@/components/CloseButton';
 import { DataListItem } from '@/models/DataListItem';
 import { DomoContext } from '@/models/DomoContext';
 import { DomoObject } from '@/models/DomoObject';
-import { getCardsForObject, getCardsForParent, removeCardFromPage } from '@/services/cards';
-import { getChildPages, getPagesForCards, sharePages } from '@/services/pages';
+import { getCardsForObject, getCardsForParent } from '@/services/cards';
+import { getChildPages, getPagesForCards } from '@/services/pages';
 import { waitForCards } from '@/utils/cardHelpers';
 import { getValidTabForInstance } from '@/utils/currentObject';
 import { withCanonicalGroups } from '@/utils/dataListGroups';
@@ -463,107 +463,6 @@ export function GetPagesView({ currentContext = null, instance: viewInstance = n
     setItems(childItems);
   };
 
-  const handleItemRemove = async (item) => {
-    try {
-      await removeCardFromPage({
-        cardId: pageData?.objectId,
-        pageId: item.id,
-        tabId: await getValidTabForInstance(pageData.instance)
-      });
-      onStatusUpdate?.('Removed', `Card removed from page **${item.label || item.id}**`, 'success', 2000);
-      await loadPagesData(true); // Force fresh API call
-    } catch (err) {
-      console.error('[GetPagesView] Error in remove action:', err);
-      onStatusUpdate?.('Error', err.message || 'Failed to remove', 'danger', 3000);
-    }
-  };
-
-  /**
-   * Handle share item action (custom - page specific)
-   */
-  const handleItemShare = async (actionType, item) => {
-    try {
-      if (pageData?.instance) {
-        const tabId = await getValidTabForInstance(pageData.instance);
-        await sharePages({
-          pageIds: [item.id],
-          tabId,
-          userId: pageData.userId
-        });
-        onStatusUpdate?.('Shared', `Page **${item.label || item.id}** shared with yourself`, 'success', 2000);
-      }
-    } catch (err) {
-      console.error('[GetPagesView] Error in share action:', err);
-      onStatusUpdate?.('Error', err.message || 'Failed to share', 'danger', 3000);
-    }
-  };
-
-  /**
-   * Handle shareAll item action (custom - page specific)
-   */
-  const handleItemShareAll = async (actionType, item) => {
-    try {
-      if (pageData?.instance && item.children) {
-        const tabId = await getValidTabForInstance(pageData.instance);
-        const pageIds = [item.id, ...item.children.map((child) => child.id)];
-        const count = pageIds.length;
-        await sharePages({
-          pageIds,
-          tabId,
-          userId: pageData.userId
-        });
-        onStatusUpdate?.('Shared', `**${count}** page${count !== 1 ? 's' : ''} shared with yourself`, 'success', 2000);
-      }
-    } catch (err) {
-      console.error('[GetPagesView] Error in shareAll action:', err);
-      onStatusUpdate?.('Error', err.message || 'Failed to share', 'danger', 3000);
-    }
-  };
-
-  /**
-   * Handle shareAll header action (custom - page specific)
-   */
-  const handleShareAll = async () => {
-    try {
-      if (pageData?.instance) {
-        const tabId = await getValidTabForInstance(pageData.instance);
-
-        // Collect all shareable page IDs, excluding cards, virtual parents, and negative IDs
-        const collectPageIds = (itemList) => {
-          const ids = [];
-          for (const item of itemList) {
-            if (!item.isVirtualParent && item.typeId !== 'CARD' && Number(item.id) >= 0) {
-              ids.push(item.id);
-            }
-            if (item.children) {
-              ids.push(...collectPageIds(item.children));
-            }
-          }
-          return ids;
-        };
-
-        const pageIds = collectPageIds(items);
-
-        if (pageData.objectType === 'PAGE') {
-          pageIds.unshift(pageData.objectId);
-        }
-
-        const count = pageIds.length;
-
-        await sharePages({
-          pageIds,
-          tabId,
-          userId: pageData.userId
-        });
-        onStatusUpdate?.('Shared', `**${count}** page${count !== 1 ? 's' : ''} shared with yourself`, 'success', 2000);
-        chrome.tabs.reload(tabId);
-      }
-    } catch (err) {
-      console.error('[GetPagesView] Error in shareAll header action:', err);
-      onStatusUpdate?.('Error', err.message || 'Failed to share', 'danger', 3000);
-    }
-  };
-
   const renderFeature = () => `${pageTypeLabel}${pageTypeLabel.endsWith('on') ? '' : ' for'}`;
 
   const renderSubtext = () => {
@@ -660,19 +559,12 @@ export function GetPagesView({ currentContext = null, instance: viewInstance = n
       subtext={renderSubtext()}
       viewType={pageData?.sidepanelType}
       onClose={onBackToDefault}
-      onItemRemove={handleItemRemove}
-      onItemShare={handleItemShare}
-      onItemShareAll={handleItemShareAll}
       onRefresh={handleRefresh}
-      onShareAll={handleShareAll}
       onStatusUpdate={onStatusUpdate}
       headerActions={
         pageData?.objectType === 'DATA_APP_VIEW' && pageData?.sidepanelType !== 'getCardPages'
-          ? ['openAll', 'copy', 'reload', 'refresh']
-          : ['openAll', 'copy', 'shareAll', 'reload', 'refresh']
-      }
-      itemActions={
-        pageData?.sidepanelType === 'getCardPages' ? ['openAll', 'copy', 'remove', 'share', 'shareAll'] : undefined
+          ? ['openAll', 'reload', 'refresh']
+          : ['openAll', 'shareAll', 'reload', 'refresh']
       }
     />
   );
@@ -682,16 +574,16 @@ export function GetPagesView({ currentContext = null, instance: viewInstance = n
 // no cards still render as muted, non-expandable `(0)` rows so absence reads as
 // an explicit answer rather than a category that was never checked.
 const CARD_PAGE_GROUPS = [
-  { id: 'DATA_APP_group', label: 'App Studio Apps' },
-  { id: 'PAGE_group', label: 'Dashboards' },
-  { id: 'REPORT_BUILDER_group', label: 'Report Builder Pages' },
-  { id: 'WORKSHEET_group', label: 'Worksheets' }
+  { childTypeId: 'DATA_APP', id: 'DATA_APP_group', label: 'App Studio Apps' },
+  { childTypeId: 'PAGE', id: 'PAGE_group', label: 'Dashboards' },
+  { childTypeId: 'REPORT_BUILDER', id: 'REPORT_BUILDER_group', label: 'Report Builder Pages' },
+  { childTypeId: 'WORKSHEET', id: 'WORKSHEET_group', label: 'Worksheets' }
 ];
 
 // Orphaned Cards is an always-show category too, except when querying a single
 // card: a "0 orphaned cards" row is meaningless there (the card itself would be
 // the orphan). When the view does build the group, the helper still appends it.
-const ORPHANED_CARDS_GROUP = { id: 'ORPHANED_CARDS_group', label: 'Orphaned Cards' };
+const ORPHANED_CARDS_GROUP = { childTypeId: 'CARD', id: 'ORPHANED_CARDS_group', label: 'Orphaned Cards' };
 
 /**
  * Build card DataListItem children for a page from the cardsByPage mapping
@@ -803,6 +695,7 @@ function transformGroupedPagesData(childPages, origin, cardsByPage, orphanedCard
     items.push(
       DataListItem.createGroup({
         children: appChildren,
+        childTypeId: 'DATA_APP',
         id: 'DATA_APP_group',
         label: 'App Studio Apps',
         metadata: `${pagesByApp.size} app${pagesByApp.size !== 1 ? 's' : ''}, ${pagesByType.DATA_APP_VIEW.length} page${pagesByType.DATA_APP_VIEW.length !== 1 ? 's' : ''}`
@@ -829,6 +722,7 @@ function transformGroupedPagesData(childPages, origin, cardsByPage, orphanedCard
     items.push(
       DataListItem.createGroup({
         children,
+        childTypeId: 'PAGE',
         id: 'PAGE_group',
         label: 'Dashboards',
         metadata: `${children.length} page${children.length !== 1 ? 's' : ''}`
@@ -877,6 +771,7 @@ function transformGroupedPagesData(childPages, origin, cardsByPage, orphanedCard
     items.push(
       DataListItem.createGroup({
         children: reportChildren,
+        childTypeId: 'REPORT_BUILDER',
         id: 'REPORT_BUILDER_group',
         label: 'Report Builder Pages',
         metadata: `${pagesByReport.size} report${pagesByReport.size !== 1 ? 's' : ''}, ${pagesByType.REPORT_BUILDER_VIEW.length} page${pagesByType.REPORT_BUILDER_VIEW.length !== 1 ? 's' : ''}`
@@ -925,6 +820,7 @@ function transformGroupedPagesData(childPages, origin, cardsByPage, orphanedCard
     items.push(
       DataListItem.createGroup({
         children: appChildren,
+        childTypeId: 'WORKSHEET',
         id: 'WORKSHEET_group',
         label: 'Worksheets',
         metadata: `${pagesByApp.size} worksheet${pagesByApp.size !== 1 ? 's' : ''}, ${pagesByType.WORKSHEET_VIEW.length} view${pagesByType.WORKSHEET_VIEW.length !== 1 ? 's' : ''}`
@@ -946,6 +842,7 @@ function transformGroupedPagesData(childPages, origin, cardsByPage, orphanedCard
     items.push(
       DataListItem.createGroup({
         children,
+        childTypeId: 'CARD',
         id: 'ORPHANED_CARDS_group',
         label: 'Orphaned Cards',
         metadata: `${children.length} card${children.length !== 1 ? 's' : ''}`

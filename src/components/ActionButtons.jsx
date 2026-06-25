@@ -32,6 +32,7 @@ import { SetStreamToManual } from '@/components/functions/SetStreamToManual';
 import { ShareWithSelf } from '@/components/functions/ShareWithSelf';
 import { SwitchAccount } from '@/components/functions/SwitchAccount';
 import { Sync } from '@/components/functions/Sync';
+import { TransferApproval } from '@/components/functions/TransferApproval';
 import { TransferOwnership } from '@/components/functions/TransferOwnership';
 import { UpdateCodeEngineVersions } from '@/components/functions/UpdateCodeEngineVersions';
 import { UpdateDetails } from '@/components/functions/UpdateDetails';
@@ -225,6 +226,13 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                 )}
                 {availableActions.has('updateOwner') && (
                   <UpdateOwner currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
+                )}
+                {availableActions.has('transferApproval') && (
+                  <TransferApproval
+                    currentContext={currentContext}
+                    isDisabled={!isDomoPage}
+                    onStatusUpdate={onStatusUpdate}
+                  />
                 )}
                 {availableActions.has('updateDetails') && (
                   <UpdateDetails currentContext={currentContext} onStatusUpdate={onStatusUpdate} />

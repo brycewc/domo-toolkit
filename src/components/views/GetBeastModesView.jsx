@@ -183,7 +183,6 @@ export function GetBeastModesView({
       featureIcon={<IconBeastMode />}
       headerActions={['openAll', 'reload', 'refresh']}
       isRefreshing={isRefreshing}
-      itemActions={['copy', 'openAll']}
       itemLabel='Beast Mode'
       items={items}
       objectId={viewData?.objectId}
@@ -218,14 +217,23 @@ function buildCardDatasetGroups(beastModes, cardId, origin, idPrefix = '') {
   const notUsedId = `${idPrefix}notUsed`;
   const groups = [];
   if (used.length) {
-    groups.push(DataListItem.createGroup({ children: used, id: usedId, label: 'Used by this card' }));
+    groups.push(
+      DataListItem.createGroup({ children: used, childTypeId: 'BEAST_MODE_FORMULA', id: usedId, label: 'Used by this card' })
+    );
   }
   if (notUsed.length) {
-    groups.push(DataListItem.createGroup({ children: notUsed, id: notUsedId, label: 'Not used by this card' }));
+    groups.push(
+      DataListItem.createGroup({
+        children: notUsed,
+        childTypeId: 'BEAST_MODE_FORMULA',
+        id: notUsedId,
+        label: 'Not used by this card'
+      })
+    );
   }
   return withCanonicalGroups(groups, [
-    { id: usedId, label: 'Used by this card' },
-    { id: notUsedId, label: 'Not used by this card' }
+    { childTypeId: 'BEAST_MODE_FORMULA', id: usedId, label: 'Used by this card' },
+    { childTypeId: 'BEAST_MODE_FORMULA', id: notUsedId, label: 'Not used by this card' }
   ]);
 }
 
@@ -489,5 +497,5 @@ function makeCategoryGroup(id, label, entries, typeId, origin) {
     .slice()
     .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
     .map((e) => DataListItem.fromDomoObject(new DomoObject(typeId, e.id, origin, { name: e.name })));
-  return DataListItem.createGroup({ children, id, label });
+  return DataListItem.createGroup({ children, childTypeId: typeId, id, label });
 }

@@ -314,7 +314,6 @@ export function GetCardsView({ currentContext = null, instance: viewInstance = n
       featureIcon={<IconCard />}
       headerActions={['openAll', 'reload', 'refresh']}
       isRefreshing={isRefreshing}
-      itemActions={['copy', 'openAll']}
       itemLabel={hasMultipleTypes ? 'item' : 'card'}
       items={items}
       objectId={viewData?.objectId}
@@ -364,9 +363,9 @@ async function fetchCardsForOutputDatasets(outputs, tabId) {
 // and queues only exist on App Studio pages, so each always renders -- empty
 // ones as muted, non-expandable `(0)` rows.
 const APP_PAGE_CONTENT_GROUPS = [
-  { id: 'cards_group', label: 'Cards' },
-  { id: 'forms_group', label: 'Forms' },
-  { id: 'queues_group', label: 'Queues' }
+  { childTypeId: 'CARD', id: 'cards_group', label: 'Cards' },
+  { childTypeId: 'ENIGMA_FORM', id: 'forms_group', label: 'Forms' },
+  { childTypeId: 'HOPPER_QUEUE', id: 'queues_group', label: 'Queues' }
 ];
 
 /**
@@ -461,6 +460,7 @@ function transformPageItems(cards, forms, queues, origin, objectType, objectId, 
     items.push(
       DataListItem.createGroup({
         children: cardItems,
+        childTypeId: 'CARD',
         id: 'cards_group',
         label: 'Cards',
         metadata: `${cards.length} card${cards.length !== 1 ? 's' : ''}`
@@ -484,6 +484,7 @@ function transformPageItems(cards, forms, queues, origin, objectType, objectId, 
     items.push(
       DataListItem.createGroup({
         children: formItems,
+        childTypeId: 'ENIGMA_FORM',
         id: 'forms_group',
         label: 'Forms',
         metadata: `${forms.length} form${forms.length !== 1 ? 's' : ''}`
@@ -503,6 +504,7 @@ function transformPageItems(cards, forms, queues, origin, objectType, objectId, 
     items.push(
       DataListItem.createGroup({
         children: queueItems,
+        childTypeId: 'HOPPER_QUEUE',
         id: 'queues_group',
         label: 'Queues',
         metadata: `${queues.length} queue${queues.length !== 1 ? 's' : ''}`

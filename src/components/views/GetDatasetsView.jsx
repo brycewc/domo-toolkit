@@ -279,7 +279,6 @@ export function GetDatasetsView({
       featureIcon={<IconDatabase />}
       headerActions={['openAll', 'reload', 'refresh']}
       isRefreshing={isRefreshing}
-      itemActions={['copy', 'openAll', 'viewsExplorer', 'lineage']}
       itemLabel='dataset'
       items={items}
       objectId={viewData?.objectId}
@@ -300,8 +299,8 @@ export function GetDatasetsView({
 // order. A dataflow always conceptually has both sides, so an empty side still
 // renders as a muted, non-expandable `(0)` row rather than vanishing.
 const DATAFLOW_DATASET_GROUPS = [
-  { id: 'inputs_group', label: 'Input DataSets' },
-  { id: 'outputs_group', label: 'Output DataSets' }
+  { childTypeId: 'DATA_SOURCE', id: 'inputs_group', label: 'Input DataSets' },
+  { childTypeId: 'DATA_SOURCE', id: 'outputs_group', label: 'Output DataSets' }
 ];
 
 /**
@@ -320,6 +319,7 @@ function transformDataflowDatasetsToItems({ inputs, origin, outputs }) {
     items.push(
       DataListItem.createGroup({
         children: inputChildren,
+        childTypeId: 'DATA_SOURCE',
         id: 'inputs_group',
         label: 'Input DataSets',
         metadata: `${inputs.length} dataset${inputs.length !== 1 ? 's' : ''}`
@@ -332,6 +332,7 @@ function transformDataflowDatasetsToItems({ inputs, origin, outputs }) {
     items.push(
       DataListItem.createGroup({
         children: outputChildren,
+        childTypeId: 'DATA_SOURCE',
         id: 'outputs_group',
         label: 'Output DataSets',
         metadata: `${outputs.length} dataset${outputs.length !== 1 ? 's' : ''}`

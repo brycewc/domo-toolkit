@@ -15,14 +15,16 @@ import { DataListItem } from '@/models/DataListItem';
  * only appear alongside at least one populated category.
  *
  * @param {DataListItem[]} items - Groups the view actually built
- * @param {Array<{id: string, label: string}>} canonicalGroups - Ordered canonical set
+ * @param {Array<{id: string, label: string, childTypeId?: string}>} canonicalGroups - Ordered canonical set
  * @returns {DataListItem[]}
  */
 export function withCanonicalGroups(items, canonicalGroups) {
   if (!items.length) return items;
   const byId = new Map(items.map((item) => [item.id, item]));
   const ordered = canonicalGroups.map(
-    (group) => byId.get(group.id) ?? DataListItem.createGroup({ children: [], id: group.id, label: group.label })
+    (group) =>
+      byId.get(group.id) ??
+      DataListItem.createGroup({ children: [], childTypeId: group.childTypeId ?? null, id: group.id, label: group.label })
   );
   const canonicalIds = new Set(canonicalGroups.map((group) => group.id));
   const extra = items.filter((item) => !canonicalIds.has(item.id));

@@ -15,6 +15,7 @@ import {
 } from '@heroui/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { ColumnUsagesModal } from '@/components/views/ColumnUsagesModal';
 import { DataList } from '@/components/views/DataList';
 import { ViewHeader } from '@/components/views/ViewHeader';
 import { useParallelFetches } from '@/hooks/useParallelFetches';
@@ -176,6 +177,14 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
     [allItemsByType]
   );
 
+  // Every downstream card (parents and drills) keyed by id, so the column-usages
+  // modal can resolve a drill's parent card and nest it correctly.
+  const cardsById = useMemo(() => {
+    const m = new Map();
+    for (const c of allItemsByType.cards) m.set(String(c.id), c);
+    return m;
+  }, [allItemsByType]);
+
   // Nothing references this dataset: there is nothing to repair. Bail back to the
   // default view with a note rather than painting empty tables.
   const bailedRef = useRef(false);
@@ -325,11 +334,13 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
     [selectedItemsByType]
   );
 
+  // Always render a group per type, even at zero affected items, so the four
+  // categories stay visible as a consistent rundown (matching the Migrate
+  // Content list). Empty groups aren't selectable or expandable.
   const dataListItems = useMemo(() => {
     return REMAP_TYPES.map((t) => {
       const items = affectedByType[t.key];
       const xfer = transferStatus[t.key];
-      if (items.length === 0 && !xfer) return null;
       const leaves = items.map(
         (item) =>
           new DataListItem({
@@ -350,17 +361,19 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
         status: xfer?.status ?? 'loaded',
         typeId: TYPE_KEY_TO_DOMO_TYPE[t.key]
       });
-    }).filter(Boolean);
+    });
   }, [affectedByType, origin, transferStatus]);
 
-  // Start a type group expanded only when it holds a single affected item, so
-  // that lone entry is visible without a click; groups with several items stay
-  // collapsed. Seeding every group (the prior behavior) fought the list's
-  // single-expansion mode, which then animated the extras shut.
-  const defaultExpandedGroupIds = useMemo(
-    () => dataListItems.filter((group) => group.children?.length === 1).map((group) => group.id),
-    [dataListItems]
-  );
+  // Decide which type groups start expanded. When only one category has any
+  // affected content, expand it outright (however many items it holds) so the
+  // sole non-empty group isn't left collapsed behind a click. Otherwise expand
+  // just the groups holding a single item, so a lone entry is visible while
+  // multi-item groups stay collapsed.
+  const defaultExpandedGroupIds = useMemo(() => {
+    const groupsWithChildren = dataListItems.filter((group) => group.children?.length > 0);
+    if (groupsWithChildren.length === 1) return [groupsWithChildren[0].id];
+    return groupsWithChildren.filter((group) => group.children.length === 1).map((group) => group.id);
+  }, [dataListItems]);
 
   const isSelectable = useCallback((item) => (item.isVirtualParent ? item.children?.length > 0 : true), []);
 
@@ -589,13 +602,16 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
             <div className='flex flex-col gap-1'>
               {rows.map((row) => (
                 <RemapRow
+                  cardsById={cardsById}
                   isOrphan={orphanCandidates.includes(row.oldName)}
                   key={row.key}
                   oldType={schemaTypeByName.get(row.oldName) || null}
+                  origin={origin}
                   row={row}
                   schemaColumns={schemaColumns}
                   schemaTypeByName={schemaTypeByName}
-                  usageCount={(scanResult?.byColumn?.get(row.oldName) || []).length}
+                  totalAvailable={totalAvailable}
+                  usages={scanResult?.byColumn?.get(row.oldName) || []}
                   onChange={setRow}
                   onRemove={removeRow}
                 />
@@ -781,9 +797,22 @@ function parseLeafTypeKey(id) {
 // size, and each reserves a caption line beneath it so they stay aligned: the
 // old field's shows the broken/usage badges, the new field's calls out a data
 // type mismatch.
-function RemapRow({ isOrphan, oldType, onChange, onRemove, row, schemaColumns, schemaTypeByName, usageCount }) {
+function RemapRow({
+  cardsById,
+  isOrphan,
+  oldType,
+  onChange,
+  onRemove,
+  origin,
+  row,
+  schemaColumns,
+  schemaTypeByName,
+  totalAvailable,
+  usages
+}) {
   const newType = row.newName ? schemaTypeByName.get(row.newName) || null : null;
   const typeMismatch = Boolean(oldType && newType && oldType !== newType);
+  const usageCount = usages.length;
 
   const columnItems = schemaColumns.map((col) => (
     <ListBox.Item id={col.name} key={col.name} textValue={col.name}>
@@ -834,9 +863,19 @@ function RemapRow({ isOrphan, oldType, onChange, onRemove, row, schemaColumns, s
             </Chip>
           )}
           {usageCount > 0 && (
-            <span>
-              {usageCount} use{usageCount === 1 ? '' : 's'}
-            </span>
+            <>
+              <span>
+                {usageCount} use{usageCount === 1 ? '' : 's'}
+              </span>
+              <ColumnUsagesModal
+                cardsById={cardsById}
+                columnName={row.oldName}
+                items={usages}
+                origin={origin}
+                total={totalAvailable}
+                totalLabel='downstream item'
+              />
+            </>
           )}
         </span>
       </div>

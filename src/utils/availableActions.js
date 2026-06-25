@@ -20,7 +20,11 @@ export function getAvailableActions(currentContext) {
     }
   }
 
-  if (['CARD', 'DATA_APP_VIEW', 'DATA_SCIENCE_NOTEBOOK', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE', 'WORKSHEET_VIEW'].includes(typeId)) {
+  if (
+    ['CARD', 'DATA_APP_VIEW', 'DATA_SCIENCE_NOTEBOOK', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE', 'WORKSHEET_VIEW'].includes(
+      typeId
+    )
+  ) {
     actions.add('getDatasets');
   }
 
@@ -74,6 +78,22 @@ export function getAvailableActions(currentContext) {
 
   if (['ALERT', 'WORKFLOW_MODEL'].includes(typeId)) {
     actions.add('updateOwner');
+  }
+
+  if (typeId === 'APPROVAL' && details?.status === 'PENDING') {
+    const pendingApprover = details?.pendingApprover;
+    const templateOwnerId = metadata?.parent?.details?.owner?.id;
+    const currentUserId = currentContext?.user?.id;
+    const isTemplateOwner =
+      templateOwnerId != null && currentUserId != null && String(templateOwnerId) === String(currentUserId);
+    if (
+      pendingApprover?.isCurrentUser ||
+      pendingApprover?.currentUserIsMember ||
+      isTemplateOwner ||
+      userRights.includes('approvalcenter.admin')
+    ) {
+      actions.add('transferApproval');
+    }
   }
 
   if (typeId === 'WORKFLOW_MODEL_VERSION' && !details?.deletedAt && !details?.releasedAt) {

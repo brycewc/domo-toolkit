@@ -20,12 +20,19 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { getObjectType } from '@/models/DomoObjectType';
+import { shareWithSelf } from '@/services/share';
 import { launchActivityLog } from '@/utils/activityLog';
 import { getValidTabForInstance } from '@/utils/currentObject';
 import { buildRefreshAction, buildReloadAction } from '@/utils/headerActions';
+import {
+  collectShareableObjects,
+  getRowActionsForType,
+  hasShareableChildren,
+  isItemShareable,
+  isShareableType
+} from '@/utils/rowActions';
 import { launchView } from '@/utils/sidepanel';
 import IconArrowSquareOut from '@icons/arrow-square-out.svg?react';
-import IconCancel from '@icons/cancel.svg?react';
 import IconChevronDown from '@icons/chevron-down.svg?react';
 import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
 import IconCompass from '@icons/compass.svg?react';
@@ -56,8 +63,10 @@ import { ViewHeader } from './ViewHeader';
  * - Configurable header action buttons (with built-in copy and openAll handling)
  * - Responsive design with Tailwind CSS
  *
- * Standard actions (copy, openAll) are handled internally.
- * Custom actions (refresh, shareAll, share) are delegated via callbacks.
+ * Standard actions (copy, openAll, share, share-all, lineage, viewsExplorer,
+ * activity log) are handled internally. Which actions a row shows is driven by
+ * its object type (see `@/utils/rowActions`), optionally narrowed by the
+ * `itemActions` allow-list. Refresh/reload are delegated via callbacks.
  *
  * @param {Object} props
  * @param {React.ReactNode} [props.banner] - Content rendered inside the Card between the header and the items list (after the header `<Separator>`), pinned above the scroll area. Use for status/context that belongs to the whole list (e.g. a dependency-check alert above a delete view's affected-objects list). Pass `null`/`false` to omit.
@@ -72,11 +81,7 @@ import { ViewHeader } from './ViewHeader';
  * @param {boolean} props.isRefreshing - Whether refresh action is in progress
  * @param {string|number} props.objectId - The view's source object ID, used by the `reload` header action to detect when the current object already matches this view
  * @param {Function} props.onRefresh - Callback for refresh action
- * @param {Function} props.onShareAll - Callback for shareAll header action
- * @param {ItemActionType[]} props.itemActions - Array of action types to show on items (if not provided, uses default logic)
- * @param {Function} props.onItemRemove - Callback for remove item action (item) => void
- * @param {Function} props.onItemShare - Callback for share item action (actionType, item) => void
- * @param {Function} props.onItemShareAll - Callback for shareAll item action (actionType, item) => void
+ * @param {ItemActionType[]} [props.itemActions] - Optional allow-list narrowing the per-type action menu (e.g. `['copy']` for selection-mode lists). Omit to show every action the row's type supports.
  * @param {Function} props.onStatusUpdate - Callback to show status messages (title, description, status, timeout)
  * @param {Boolean} props.showActions - Whether to show action buttons on items
  * @param {Boolean} [props.showActivityLogAll] - Whether to show the header "View activity log for all" action (default true). Set false for selection-style lists where a bulk activity-log view is out of place.
@@ -121,12 +126,8 @@ export function DataList({
   objectId,
   objectType,
   onClose,
-  onItemRemove,
-  onItemShare,
-  onItemShareAll,
   onRefresh,
   onSelectionChange,
-  onShareAll,
   onStatusUpdate,
   selectedIds,
   selectionMode = false,
@@ -177,10 +178,40 @@ export function DataList({
   const headerLogObjects = useMemo(() => collectActivityLogObjects(items), [items]);
   const hasHeaderLog = headerLogObjects.length > 0;
 
+  // Share is a built-in behavior: DataList shares with self via `shareWithSelf`
+  // using its own context, so views never wire share handlers. Disabled when
+  // there is no user to share to (so a dead button can't render).
+  const shareEnabled = !!currentContext?.user?.id;
+
+  // Share every shareable object in a subtree with the current user. Used by the
+  // header "Share all" and a row's "Share all" (which passes [item]).
+  const shareItemsWithSelf = useCallback(
+    async (nodes) => {
+      const objects = collectShareableObjects(nodes);
+      if (!objects.length) return;
+      let shared = 0;
+      let firstError = null;
+      for (const object of objects) {
+        try {
+          await shareWithSelf({ object, tabId: currentContext?.tabId, userId: currentContext?.user?.id });
+          shared++;
+        } catch (err) {
+          if (!firstError) firstError = err.message;
+        }
+      }
+      if (shared > 0) {
+        onStatusUpdate?.('Shared', `**${shared}** object${shared !== 1 ? 's' : ''} shared with yourself`, 'success', 2000);
+      } else {
+        onStatusUpdate?.('Share Failed', firstError || 'Failed to share', 'danger', 3000);
+      }
+    },
+    [currentContext, onStatusUpdate]
+  );
+
   /**
    * Handle header action button clicks
    * Standard actions (copy, openAll) are handled here.
-   * Custom actions are delegated to callbacks.
+   * Share is performed in-place via `shareWithSelf`.
    */
   const handleHeaderAction = useCallback(
     async (actionType) => {
@@ -225,7 +256,7 @@ export function DataList({
             break;
 
           case 'shareAll':
-            await onShareAll?.();
+            await shareItemsWithSelf(items);
             setIsHeaderShared(true);
             setTimeout(() => setIsHeaderShared(false), 1500);
             break;
@@ -238,7 +269,7 @@ export function DataList({
         onStatusUpdate?.('Error', err.message || `Failed to ${actionType}`, 'danger', 3000);
       }
     },
-    [currentContext, headerLogObjects, items, itemLabel, onRefresh, onShareAll, onStatusUpdate, viewType]
+    [currentContext, headerLogObjects, items, itemLabel, onRefresh, onStatusUpdate, shareItemsWithSelf, viewType]
   );
 
   /**
@@ -329,16 +360,15 @@ export function DataList({
             }
             break;
 
-          case 'remove':
-            onItemRemove?.(item);
+          case 'share': {
+            if (!item.domoObject) break;
+            await shareWithSelf({ object: item.domoObject, tabId: currentContext?.tabId, userId: currentContext?.user?.id });
+            onStatusUpdate?.('Shared', `**${item.label || item.id}** shared with yourself`, 'success', 2000);
             break;
-
-          case 'share':
-            await onItemShare?.(actionType, item);
-            break;
+          }
 
           case 'shareAll':
-            await onItemShareAll?.(actionType, item);
+            await shareItemsWithSelf([item]);
             break;
 
           case 'viewsExplorer': {
@@ -357,7 +387,7 @@ export function DataList({
         onStatusUpdate?.('Error', err.message || `Failed to ${actionType}`, 'danger', 3000);
       }
     },
-    [itemLabel, onItemRemove, onItemShare, onItemShareAll, onStatusUpdate]
+    [currentContext, itemLabel, onStatusUpdate, shareItemsWithSelf]
   );
 
   const hasInlineActions = headerActions.length > 0 || (customHeaderActions && customHeaderActions.length > 0);
@@ -384,7 +414,7 @@ export function DataList({
       onPress: a.onPress,
       tooltip: a.tooltipText
     })),
-    ...(onShareAll && headerActions.includes('shareAll')
+    ...(shareEnabled && headerActions.includes('shareAll')
       ? [
           {
             ariaLabel: 'Share All',
@@ -497,8 +527,6 @@ export function DataList({
                   renderItem={(item) => (
                     <DataListItem
                       allowsMultipleExpanded={allowsMultipleExpanded}
-                      canShare={!!onItemShare}
-                      canShareAll={!!onItemShareAll}
                       defaultExpandedIds={defaultExpandedIds}
                       expandedIds={expandedIds}
                       getItemLock={getItemLock}
@@ -508,6 +536,7 @@ export function DataList({
                       objectType={objectType}
                       selectedIds={selectedIds}
                       selectionMode={selectionMode}
+                      shareEnabled={shareEnabled}
                       showActions={showActions}
                       showCounts={showCounts}
                       virtualThreshold={virtualThreshold}
@@ -546,8 +575,6 @@ export function DataList({
                   {sortedItems.map((item, index) => (
                     <DataListItem
                       allowsMultipleExpanded={allowsMultipleExpanded}
-                      canShare={!!onItemShare}
-                      canShareAll={!!onItemShareAll}
                       defaultExpandedIds={defaultExpandedIds}
                       expandedIds={expandedIds}
                       getItemLock={getItemLock}
@@ -558,6 +585,7 @@ export function DataList({
                       objectType={objectType}
                       selectedIds={selectedIds}
                       selectionMode={selectionMode}
+                      shareEnabled={shareEnabled}
                       showActions={showActions}
                       showCounts={showCounts}
                       virtualThreshold={virtualThreshold}
@@ -594,7 +622,7 @@ export function DataList({
  * Available item action types for DataList items. `activityLog` (single object)
  * and `activityLogAll` (item + all descendants) are added to every row
  * automatically, not opt-in via the `itemActions` prop.
- * @typedef {'remove' | 'openAll' | 'copy' | 'share' | 'shareAll' | 'viewsExplorer' | 'lineage' | 'activityLog' | 'activityLogAll'} ItemActionType
+ * @typedef {'openAll' | 'copy' | 'share' | 'shareAll' | 'viewsExplorer' | 'lineage' | 'activityLog' | 'activityLogAll'} ItemActionType
  */
 
 /**
@@ -685,95 +713,6 @@ const MAX_VISIBLE_CHILDREN_ROWS = 12;
 const VIRTUAL_OVERSCAN = 5;
 
 /**
- * Renders an items array via TanStack Virtual when the array is large enough
- * that mounting every row would be wasteful. Used at two call sites in
- * `DataList`: the top-level items map and each `Disclosure.Body`'s children
- * map. Top-level usage passes `bounded=false` so the parent `ScrollShadow`
- * owns the scroll viewport; child usage passes `bounded=true` so an expanded
- * group's height is capped.
- *
- * The `renderItem` callback is passed the item — typically a `DataListItem`
- * with appropriate props for the call site (top-level has no `depth`, child
- * call site passes `depth + 1`).
- *
- * @param {Object} props
- * @param {boolean} props.bounded - When true, cap height at MAX_VISIBLE_CHILDREN_ROWS * ROW_HEIGHT.
- * @param {Array} props.items - Items to render.
- * @param {(item: Object, index: number) => React.ReactNode} props.renderItem
- */
-function VirtualizedItems({ bounded = false, items, renderItem }) {
-  const parentRef = useRef(null);
-  const virtualizer = useVirtualizer({
-    count: items.length,
-    estimateSize: () => ROW_HEIGHT,
-    getScrollElement: () => parentRef.current,
-    overscan: VIRTUAL_OVERSCAN
-  });
-
-  const containerStyle = bounded
-    ? {
-        height: Math.min(items.length * ROW_HEIGHT, MAX_VISIBLE_CHILDREN_ROWS * ROW_HEIGHT)
-      }
-    : undefined;
-
-  return (
-    <div
-      ref={parentRef}
-      style={containerStyle}
-      className={
-        bounded
-          ? // `overscroll-auto` (not `contain`) lets a bounded child list chain
-            // its scroll to the parent once it hits its top/bottom edge — so
-            // scrolling inside an expanded group keeps scrolling the whole
-            // DataList instead of dead-stopping at the group's boundary. The
-            // unbounded top-level container keeps `overscroll-y-contain` so the
-            // sidepanel/page itself never bounce-scrolls past the list.
-            'w-full overflow-y-auto overscroll-auto'
-          : 'min-h-0 w-full flex-1 overflow-y-auto overscroll-x-none overscroll-y-contain'
-      }
-    >
-      <div
-        className='divide-y divide-border'
-        style={{
-          height: virtualizer.getTotalSize(),
-          position: 'relative',
-          width: '100%'
-        }}
-      >
-        {virtualizer.getVirtualItems().map((vRow) => {
-          const item = items[vRow.index];
-          return (
-            <div
-              data-index={vRow.index}
-              key={item?.id ?? vRow.index}
-              ref={virtualizer.measureElement}
-              style={{
-                left: 0,
-                position: 'absolute',
-                top: 0,
-                transform: `translateY(${vRow.start}px)`,
-                width: '100%'
-              }}
-            >
-              {renderItem(item, vRow.index)}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-/**
- * Allow-list of typeIds that the toolkit's "share with self" flow can target
- * directly. `share.js` also accepts DATA_APP_VIEW / WORKSHEET_VIEW / CARD, but
- * only as workarounds for current-object detection or for `domoapp` cards
- * specifically — neither concern applies inside a DataList, so we surface
- * share/shareAll only for the canonical shareable forms.
- */
-const SHAREABLE_TYPES = new Set(['APP', 'DATA_APP', 'DATA_SOURCE', 'PAGE', 'WORKSHEET']);
-
-/**
  * Custom React.memo comparator for DataListItem.
  *
  * Default `Object.is` comparison would treat every new `expandedIds` Set as a
@@ -791,8 +730,7 @@ const SHAREABLE_TYPES = new Set(['APP', 'DATA_APP', 'DATA_SOURCE', 'PAGE', 'WORK
  * Disclosure would still need a recursive check; no consumer nests that deep.
  */
 function arePropsEqualForRow(prev, next) {
-  if (prev.canShare !== next.canShare) return false;
-  if (prev.canShareAll !== next.canShareAll) return false;
+  if (prev.shareEnabled !== next.shareEnabled) return false;
   if (prev.item !== next.item) return false;
   if (prev.itemActions !== next.itemActions) return false;
   if (prev.objectType !== next.objectType) return false;
@@ -852,8 +790,6 @@ function arePropsEqualForRow(prev, next) {
  */
 function DataListItemImpl({
   allowsMultipleExpanded = false,
-  canShare = false,
-  canShareAll = false,
   defaultExpandedIds,
   depth = 0,
   expandedIds,
@@ -866,6 +802,7 @@ function DataListItemImpl({
   onToggleExpanded,
   selectedIds,
   selectionMode = false,
+  shareEnabled = false,
   showActions = true,
   showCounts = true,
   virtualThreshold = 50
@@ -1014,20 +951,6 @@ function DataListItemImpl({
   // feedback flicker).
   const applicableActions = useMemo(() => {
     if (!showActions) return [];
-
-    const removeButton = (
-      <Tooltip key='remove'>
-        <Button fullWidth isIconOnly aria-label='Remove' size='sm' variant='ghost' onPress={() => handleAction('remove')}>
-          <IconCancel className='text-danger' />
-        </Button>
-        <Tooltip.Content className='max-w-60'>
-          Remove{' '}
-          <span className='lowercase'>
-            {objectType} from {item?.domoObject?.typeName || item?.typeId}
-          </span>
-        </Tooltip.Content>
-      </Tooltip>
-    );
 
     const openAllButton = (
       <Tooltip key='openAll'>
@@ -1205,7 +1128,12 @@ function DataListItemImpl({
       if (!hasChildren) return [];
       const actions = [];
       if (item.id !== 'REPORT_BUILDER_group') {
-        if (canShareAll && hasShareableChildren(item)) actions.push(buildShareAction(false, true));
+        // Group "share all": gated by the declared child type when present (so a
+        // group of non-shareable rows never offers it), and always by the actual
+        // presence of a shareable descendant (which respects `unshareable` and
+        // synthetic ids per row).
+        const childShareable = item.childTypeId ? isShareableType(item.childTypeId) : true;
+        if (shareEnabled && childShareable && hasShareableChildren(item)) actions.push(buildShareAction(false, true));
         actions.push(openAllButton);
       }
       // Virtual group headers have no object of their own, so only the "all
@@ -1214,50 +1142,32 @@ function DataListItemImpl({
       return actions;
     }
 
-    if (itemActions) {
-      const actions = [];
-      // Report builder objects have no navigable URL, so "Open All" on a report
-      // parent would open zero tabs. Suppress it there (the REPORT_BUILDER_group
-      // header is already excluded above).
-      const canShowShare = canShare && itemActions.includes('share') && isItemShareable(item);
-      const canShowShareAll = canShareAll && itemActions.includes('shareAll') && hasShareableChildren(item);
-      if (canShowShare || canShowShareAll) actions.push(buildShareAction(canShowShare, canShowShareAll));
-      if (itemActions.includes('lineage') && (item.typeId === 'DATA_SOURCE' || item.typeId === 'DATAFLOW_TYPE'))
-        actions.push(lineageButton);
-      if (itemActions.includes('viewsExplorer') && item.typeId === 'DATA_SOURCE') actions.push(viewsExplorerButton);
-      if (itemActions.includes('openAll') && hasChildren && item.typeId !== 'REPORT_BUILDER') actions.push(openAllButton);
-      if (itemActions.includes('copy')) actions.push(copyButton);
-      // The activity-log dropdown is added to every object regardless of the
-      // view's opted-in `itemActions`: the single-object log for this row, plus
-      // the "all objects" log when it has descendants.
-      actions.push(buildActivityLogAction(true, hasChildren));
-      return actions;
-    }
+    // Leaf row: the intrinsic action menu comes from the type registry, narrowed
+    // by the view's optional `itemActions` allow-list. `openAll` (structural) and
+    // the activity log (universal) are handled outside the capability set.
+    const typeCaps = getRowActionsForType(item.typeId);
+    const allowed = itemActions ? new Set(itemActions.filter((a) => typeCaps.has(a))) : typeCaps;
 
-    // Default logic
     const actions = [];
-    const canShowShare = canShare && isItemShareable(item);
-    const canShowShareAll = canShareAll && hasShareableChildren(item);
+    const canShowShare = shareEnabled && allowed.has('share') && isItemShareable(item);
+    const canShowShareAll =
+      shareEnabled && (allowed.has('share') || itemActions?.includes('shareAll')) && hasShareableChildren(item);
     if (canShowShare || canShowShareAll) actions.push(buildShareAction(canShowShare, canShowShareAll));
-
-    if (
-      ((objectType === 'CARD' && (item.typeId === 'PAGE' || item.typeId === 'DATA_APP_VIEW')) ||
-        (itemActions && itemActions?.includes('remove'))) &&
-      Number(item.id) >= 0
-    ) {
-      actions.push(removeButton);
-    }
-
-    if (hasChildren && item.typeId !== 'DATA_APP') {
+    if (allowed.has('lineage')) actions.push(lineageButton);
+    if (allowed.has('viewsExplorer')) actions.push(viewsExplorerButton);
+    // Open-all is structural (needs children) and type-restricted: DATA_APP and
+    // REPORT_BUILDER rows aren't navigable as a batch. When a view passes an
+    // allow-list it must opt in; otherwise it's derived from structure.
+    const openAllAllowed = itemActions ? itemActions.includes('openAll') : true;
+    if (openAllAllowed && hasChildren && item.typeId !== 'DATA_APP' && item.typeId !== 'REPORT_BUILDER') {
       actions.push(openAllButton);
     }
-
-    actions.push(copyButton);
+    if (allowed.has('copy')) actions.push(copyButton);
     // Activity-log dropdown on every object: single-object for this row, plus the
     // "all objects" log when it has descendants.
     actions.push(buildActivityLogAction(true, hasChildren));
     return actions;
-  }, [canShare, canShareAll, hasChildren, handleAction, isCopied, isShared, item, itemActions, objectType, showActions]);
+  }, [hasChildren, handleAction, isCopied, isShared, item, itemActions, objectType, shareEnabled, showActions]);
 
   // Optional leading info-icon marker rendered between the icon and the label
   // text. A plain `<span title>` rather than a React Aria Tooltip so it never
@@ -1480,8 +1390,6 @@ function DataListItemImpl({
 
   const childRenderProps = (child) => ({
     allowsMultipleExpanded,
-    canShare,
-    canShareAll,
     defaultExpandedIds,
     depth: depth + 1,
     expandedIds,
@@ -1494,6 +1402,7 @@ function DataListItemImpl({
     onToggleExpanded,
     selectedIds,
     selectionMode,
+    shareEnabled,
     showActions,
     showCounts,
     virtualThreshold
@@ -1717,7 +1626,7 @@ function DataListItemImpl({
                   <IconExclamationTriangle data-slot='alert-default-icon' />
                 </Alert.Indicator>
                 <Alert.Content className='min-w-0'>
-                  <Alert.Description className='block max-h-40 overflow-y-auto text-xs break-words whitespace-pre-wrap'>
+                  <Alert.Description className='block max-h-40 overflow-y-auto text-xs whitespace-pre-wrap wrap-break-word'>
                     {item.error}
                   </Alert.Description>
                 </Alert.Content>
@@ -1806,20 +1715,87 @@ function subtreeStateChanged(item, prevSelected, nextSelected, prevExpanded, nex
   return false;
 }
 
+/**
+ * Renders an items array via TanStack Virtual when the array is large enough
+ * that mounting every row would be wasteful. Used at two call sites in
+ * `DataList`: the top-level items map and each `Disclosure.Body`'s children
+ * map. Top-level usage passes `bounded=false` so the parent `ScrollShadow`
+ * owns the scroll viewport; child usage passes `bounded=true` so an expanded
+ * group's height is capped.
+ *
+ * The `renderItem` callback is passed the item — typically a `DataListItem`
+ * with appropriate props for the call site (top-level has no `depth`, child
+ * call site passes `depth + 1`).
+ *
+ * @param {Object} props
+ * @param {boolean} props.bounded - When true, cap height at MAX_VISIBLE_CHILDREN_ROWS * ROW_HEIGHT.
+ * @param {Array} props.items - Items to render.
+ * @param {(item: Object, index: number) => React.ReactNode} props.renderItem
+ */
+function VirtualizedItems({ bounded = false, items, renderItem }) {
+  const parentRef = useRef(null);
+  const virtualizer = useVirtualizer({
+    count: items.length,
+    estimateSize: () => ROW_HEIGHT,
+    getScrollElement: () => parentRef.current,
+    overscan: VIRTUAL_OVERSCAN
+  });
+
+  const containerStyle = bounded
+    ? {
+        height: Math.min(items.length * ROW_HEIGHT, MAX_VISIBLE_CHILDREN_ROWS * ROW_HEIGHT)
+      }
+    : undefined;
+
+  return (
+    <div
+      ref={parentRef}
+      style={containerStyle}
+      className={
+        bounded
+          ? // `overscroll-auto` (not `contain`) lets a bounded child list chain
+            // its scroll to the parent once it hits its top/bottom edge — so
+            // scrolling inside an expanded group keeps scrolling the whole
+            // DataList instead of dead-stopping at the group's boundary. The
+            // unbounded top-level container keeps `overscroll-y-contain` so the
+            // sidepanel/page itself never bounce-scrolls past the list.
+            'w-full overflow-y-auto overscroll-auto'
+          : 'min-h-0 w-full flex-1 overflow-y-auto overscroll-x-none overscroll-y-contain'
+      }
+    >
+      <div
+        className='divide-y divide-border'
+        style={{
+          height: virtualizer.getTotalSize(),
+          position: 'relative',
+          width: '100%'
+        }}
+      >
+        {virtualizer.getVirtualItems().map((vRow) => {
+          const item = items[vRow.index];
+          return (
+            <div
+              data-index={vRow.index}
+              key={item?.id ?? vRow.index}
+              ref={virtualizer.measureElement}
+              style={{
+                left: 0,
+                position: 'absolute',
+                top: 0,
+                transform: `translateY(${vRow.start}px)`,
+                width: '100%'
+              }}
+            >
+              {renderItem(item, vRow.index)}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 const DataListItem = memo(DataListItemImpl, arePropsEqualForRow);
-
-function hasShareableChildren(item) {
-  if (item?.unshareable === true) return false;
-  if (!item?.children?.length) return false;
-  return item.children.some((c) => isItemShareable(c) || hasShareableChildren(c));
-}
-
-function isItemShareable(item) {
-  if (!item) return false;
-  if (item.unshareable === true) return false;
-  if (Number(item.id) < 0) return false;
-  return SHAREABLE_TYPES.has(item.typeId);
-}
 
 /**
  * Returns the id of `item`'s sole populated subcategory, or null. A match means
