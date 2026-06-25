@@ -469,6 +469,10 @@ export async function detectCurrentObject() {
       objectType = 'APPROVAL';
       break;
 
+    case url.includes('approval/create-request/'):
+      objectType = 'TEMPLATE';
+      break;
+
     case url.includes('approval/edit-request-form/'):
       objectType = 'TEMPLATE';
       break;

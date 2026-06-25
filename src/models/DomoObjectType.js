@@ -1192,7 +1192,7 @@ export const ObjectTypeRegistry = {
       method: 'POST',
       paths: { details: 'data.template', name: 'data.template.title' }
     },
-    extractConfig: { keyword: 'edit-request-form' },
+    extractConfig: { keyword: 'approval', offset: 2 },
     featureSwitch: 'approvalcenter',
     icon: { component: 'ApprovalCenter' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
