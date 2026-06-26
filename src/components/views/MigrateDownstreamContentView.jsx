@@ -48,7 +48,7 @@ import {
 } from '@/services/migrateDownstreamContent';
 import { findAppColumnCollisions, getDownstreamApps } from '@/services/proCodeApps';
 import { getSidepanelData } from '@/utils/sidepanel';
-import IconArrowsHorizontalBox from '@icons/arrows-horizontal-box.svg?react';
+import IconSwapHorizontal from '@icons/swap-horizontal.svg?react';
 import IconCheckCircle from '@icons/check-circle.svg?react';
 import IconCheck from '@icons/check.svg?react';
 import IconChevronDown from '@icons/chevron-down.svg?react';
@@ -1321,7 +1321,7 @@ export function MigrateDownstreamContentView({
         beta
         currentContext={currentContext}
         feature='Migrate Content of'
-        featureIcon={<IconArrowsHorizontalBox />}
+        featureIcon={<IconSwapHorizontal />}
         fillHeight={true}
         getItemLock={getItemLock}
         headerActions={['reload', 'refresh']}
@@ -1580,9 +1580,9 @@ export function MigrateDownstreamContentView({
                       : `${scriptDataflowWarnings.length} script dataflows need manual review`}
                   </Alert.Title>
                   <Alert.Description>
-                    {scriptDataflowWarnings.map((w) => w.name).join(', ')} reference this dataset's columns inside a Python or
-                    R script tile, which can't be renamed automatically. The input is repointed on migrate, but you'll need
-                    to update the script by hand.
+                    {scriptDataflowWarnings.map((w) => w.name).join(', ')} reference this dataset's columns inside a Python
+                    or R script tile, which can't be renamed automatically. The input is repointed on migrate, but you'll
+                    need to update the script by hand.
                   </Alert.Description>
                 </Alert.Content>
               </Alert>
@@ -1620,8 +1620,8 @@ export function MigrateDownstreamContentView({
                   </Alert.Title>
                   <Alert.Description>
                     {appColumnCollisions.map((a) => a.name).join(', ')} map two or more fields to the same target column (
-                    {appColumnCollisions.flatMap((a) => a.collisions.map((c) => c.columnName)).join(', ')}). The app reads each
-                    column only once, so only one of those fields keeps its data and the rest show up blank. Map them to
+                    {appColumnCollisions.flatMap((a) => a.collisions.map((c) => c.columnName)).join(', ')}). The app reads
+                    each column only once, so only one of those fields keeps its data and the rest show up blank. Map them to
                     distinct columns to avoid losing data.
                   </Alert.Description>
                 </Alert.Content>
@@ -1712,7 +1712,7 @@ export function MigrateDownstreamContentView({
               </>
             ) : (
               <>
-                <IconArrowsHorizontalBox />
+                <IconSwapHorizontal />
                 {migrateLabel}
               </>
             )}
@@ -2222,7 +2222,13 @@ function ColumnMapRow({
             <span>
               {items.length} use{items.length === 1 ? '' : 's'}
             </span>
-            <ColumnUsagesModal cardsById={cardsById} columnName={originName} items={items} origin={origin} total={totalSelected} />
+            <ColumnUsagesModal
+              cardsById={cardsById}
+              columnName={originName}
+              items={items}
+              origin={origin}
+              total={totalSelected}
+            />
           </span>
         </div>
         {typeMismatch && (
