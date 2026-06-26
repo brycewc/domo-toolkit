@@ -65,6 +65,8 @@
 - Datasets in the DataSets Used in View list now have a View Lineage button, matching the dataset lists elsewhere.
 - Objects Owned now offers Share All with yourself on the App Studio Apps, Custom Apps, and Worksheets groups, not just Pages.
 - Get Card Pages no longer includes the button to remove a card from a page.
+- The Update Owner and Transfer Ownership dialogs now open centered on screen instead of near the top.
+- The Update Details view now puts the object's name in its title ("Update Details for <object>") instead of a generic per-type heading, with just the ID below it.
 
 - Migrating downstream content now shows its live progress on the Migrate button, instead of in a message that could sit off-screen below the column-mapping options.
 - The Migrate Content view now has a reload button to restart it for whichever dataset you've since navigated to, matching the reload control on the other content lists.

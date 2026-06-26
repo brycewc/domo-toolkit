@@ -109,7 +109,7 @@ export function TransferApproval({ currentContext, isDisabled, onStatusUpdate })
         </Tooltip.Content>
       </Tooltip>
       <Modal.Backdrop>
-        <Modal.Container className='p-1' placement='top' scroll='outside'>
+        <Modal.Container className='p-1' placement='center' scroll='outside'>
           <Modal.Dialog className='p-2'>
             <Modal.CloseTrigger className='absolute top-2 right-2' variant='ghost'>
               <IconX />

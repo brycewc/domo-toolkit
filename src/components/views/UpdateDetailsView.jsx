@@ -55,7 +55,6 @@ const updatersByType = {
         .sort();
     },
     run: (id, updates) => updateDatasetProperties(id, updates),
-    title: 'Update DataSet Details',
     typeName: 'DataSet'
   },
   DATAFLOW_TYPE: {
@@ -68,7 +67,6 @@ const updatersByType = {
       name: ctx.domoObject?.metadata?.details?.name || ''
     }),
     run: (id, updates) => updateDataflowDetails(id, updates),
-    title: 'Update DataFlow Details',
     typeName: 'DataFlow'
   },
   USER: {
@@ -90,7 +88,6 @@ const updatersByType = {
       const ok = await setUserAttributes(id, attributes);
       if (!ok) throw new Error('Failed to update user');
     },
-    title: 'Update Person Details',
     toggles: [
       {
         defaultSelected: true,
@@ -264,9 +261,9 @@ export function UpdateDetailsView({ instance = null, liveContext = null, onBackT
   return (
     <Card className='flex min-h-0 w-full flex-1 flex-col p-2'>
       <ViewHeader
-        feature={config.title}
+        feature={`Update Details for ${objectName}`}
         featureIcon={<IconPencil />}
-        subtext={`${objectName} (ID: ${objectId})`}
+        subtext={`ID: ${objectId}`}
         subtextTypeId={currentContext.domoObject.typeId}
         onClose={onBackToDefault}
         actions={[
