@@ -118,6 +118,12 @@ const deletersByType = {
     run: ({ context }) => runPageDelete({ context }),
     typeName: 'Page'
   },
+  REPORT_SCHEDULE: {
+    confirmSuffix: '',
+    primaryLabel: 'Delete Scheduled Report',
+    run: ({ context }) => deleteObject({ object: context.domoObject, tabId: context.tabId }),
+    typeName: 'Scheduled Report'
+  },
   TEMPLATE: {
     cascadeButtons: [
       {

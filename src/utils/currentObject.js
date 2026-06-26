@@ -201,6 +201,11 @@ export async function detectCurrentObject() {
       objectType = 'DATAFLOW_TYPE';
       break;
 
+    case url.includes('scheduled-reports/history/'):
+      objectType = 'REPORT_SCHEDULE';
+      id = parts[parts.indexOf('history') + 1];
+      break;
+
     case url.includes('people/'):
       objectType = 'USER';
       break;

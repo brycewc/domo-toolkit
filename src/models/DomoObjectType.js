@@ -1129,7 +1129,8 @@ export const ObjectTypeRegistry = {
   REPORT_SCHEDULE: new DomoObjectType('REPORT_SCHEDULE', 'Scheduled Report', {
     api: { endpoint: '/content/v1/reportschedules/{id}', paths: { name: 'title' } },
     icon: { component: 'CalendarTime' },
-    idPattern: /^\d+$/
+    idPattern: /^\d+$/,
+    urlPath: '/scheduled-reports/history/{id}'
   }),
   REPOSITORY: new DomoObjectType('REPOSITORY', 'Sandbox Repository', {
     api: { endpoint: '/versions/v1/repositories/{id}', paths: { name: 'name' } },

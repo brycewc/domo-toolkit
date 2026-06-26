@@ -28,7 +28,7 @@ import { scanContentForColumns } from '@/services/columnReferences';
 import { getDatasetColumns } from '@/services/datasets';
 import { getDatasetFunctions } from '@/services/functions';
 import { getDownstreamCards, getDownstreamCardsRaw, getDownstreamLineage } from '@/services/migrateDownstreamContent';
-import { getDownstreamApps } from '@/services/proCodeApps';
+import { findAppColumnCollisions, getDownstreamApps } from '@/services/proCodeApps';
 import { remapDatasetColumns } from '@/services/remapDatasetColumns';
 import { buildRefreshAction, buildReloadAction } from '@/utils/headerActions';
 import { getSidepanelData } from '@/utils/sidepanel';
@@ -350,6 +350,17 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
     [selectedItemsByType]
   );
 
+  // Pro-code apps whose column renames would collapse two or more aliases onto
+  // the same column, blanking those fields (the app reads each column once).
+  const appColumnCollisions = useMemo(() => {
+    const out = [];
+    for (const app of selectedItemsByType.apps || []) {
+      const collisions = findAppColumnCollisions(app.fields, columnMap);
+      if (collisions.length > 0) out.push({ collisions, id: app.id, name: app.name || String(app.id) });
+    }
+    return out;
+  }, [columnMap, selectedItemsByType]);
+
   // Always render a group per type, even at zero affected items, so the four
   // categories stay visible as a consistent rundown (matching the Migrate
   // Content list). Empty groups aren't selectable or expandable.
@@ -653,6 +664,26 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
                     {viewFusionWarnings.length > 0 &&
                       `${viewFusionWarnings.length} fusion view${viewFusionWarnings.length === 1 ? '' : 's'} use the column in a computed expression. `}
                     Review these by hand after applying.
+                  </Alert.Description>
+                </Alert.Content>
+              </Alert>
+            )}
+
+            {appColumnCollisions.length > 0 && (
+              <Alert className='w-full border border-border bg-transparent' status='warning'>
+                <Alert.Indicator>
+                  <IconExclamationTriangle data-slot='alert-default-icon' />
+                </Alert.Indicator>
+                <Alert.Content>
+                  <Alert.Title>
+                    {appColumnCollisions.length === 1
+                      ? '1 pro-code app would lose fields'
+                      : `${appColumnCollisions.length} pro-code apps would lose fields`}
+                  </Alert.Title>
+                  <Alert.Description>
+                    {appColumnCollisions.map((a) => a.name).join(', ')} rename two or more fields to the same column (
+                    {appColumnCollisions.flatMap((a) => a.collisions.map((c) => c.columnName)).join(', ')}). The app reads each
+                    column only once, so only one of those fields keeps its data and the rest show up blank.
                   </Alert.Description>
                 </Alert.Content>
               </Alert>

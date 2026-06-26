@@ -40,6 +40,7 @@
 - The toolkit now recognizes the account you have open when its edit or sharing dialog is showing.
 - A detected account now has a DataSets tab listing the datasets it feeds.
 - Get DataSets now works on Jupyter Workspaces, listing their input and output datasets in separate groups.
+- Scheduled reports can now be deleted from the toolkit.
 
 ## UI Improvements
 

@@ -160,6 +160,7 @@ export function getAvailableActions(currentContext) {
       'DATAFLOW_TYPE',
       'MAGNUM_COLLECTION',
       'PAGE',
+      'REPORT_SCHEDULE',
       'TEMPLATE',
       'VARIABLE',
       'WORKFLOW_MODEL',

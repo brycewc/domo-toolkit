@@ -46,7 +46,7 @@ import {
   MIGRATE_TYPES,
   migrateAllDownstreamContent
 } from '@/services/migrateDownstreamContent';
-import { getDownstreamApps } from '@/services/proCodeApps';
+import { findAppColumnCollisions, getDownstreamApps } from '@/services/proCodeApps';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconArrowsHorizontalBox from '@icons/arrows-horizontal-box.svg?react';
 import IconCheckCircle from '@icons/check-circle.svg?react';
@@ -750,6 +750,40 @@ export function MigrateDownstreamContentView({
     return names;
   }, [cardOnlyColumnNames, cardsById, usedUnmappedColumns]);
 
+  // The effective rename map + dropped-column list, derived once from the user's
+  // column choices and reused by both the migration and the pro-code app
+  // collision warning so the warning can't drift from what actually runs. DROP
+  // choices travel separately; a Beast Mode mapping only applies to a card-only
+  // column.
+  const { droppedColumns: plannedDroppedColumns, renameMap: plannedRenameMap } = useMemo(() => {
+    const beastModeLegacyIds = new Set((targetBeastModes || []).map((b) => b.legacyId).filter(Boolean));
+    const renameMap = {};
+    const droppedColumns = [];
+    for (const [name, choice] of Object.entries(columnMap)) {
+      if (choice === DROP) {
+        if (droppableColumnNames.has(name)) droppedColumns.push(name);
+      } else if (choice != null && choice !== UNMAPPED) {
+        if (beastModeLegacyIds.has(choice)) {
+          if (cardOnlyColumnNames.has(name)) renameMap[name] = choice;
+        } else {
+          renameMap[name] = choice;
+        }
+      }
+    }
+    return { droppedColumns, renameMap };
+  }, [cardOnlyColumnNames, columnMap, droppableColumnNames, targetBeastModes]);
+
+  // Pro-code apps whose selected column mapping would collapse two or more
+  // aliases onto the same column (so those fields would silently blank out).
+  const appColumnCollisions = useMemo(() => {
+    const out = [];
+    for (const app of selectedItemsByType.apps || []) {
+      const collisions = findAppColumnCollisions(app.fields, plannedRenameMap);
+      if (collisions.length > 0) out.push({ collisions, id: app.id, name: app.name || String(app.id) });
+    }
+    return out;
+  }, [plannedRenameMap, selectedItemsByType]);
+
   const dataListItems = useMemo(
     () =>
       MIGRATE_TYPES.map((t) => {
@@ -1120,20 +1154,8 @@ export function MigrateDownstreamContentView({
     // Beast Mode mappings are re-checked against their eligible set so a stale
     // choice (e.g. after a selection change) can't slip through to a dataflow or
     // view that the rewrite would corrupt.
-    const beastModeLegacyIds = new Set((targetBeastModes || []).map((b) => b.legacyId).filter(Boolean));
-    const renameMap = {};
-    const droppedColumns = [];
-    for (const [name, choice] of Object.entries(columnMap)) {
-      if (choice === DROP) {
-        if (droppableColumnNames.has(name)) droppedColumns.push(name);
-      } else if (choice != null) {
-        if (beastModeLegacyIds.has(choice)) {
-          if (cardOnlyColumnNames.has(name)) renameMap[name] = choice;
-        } else {
-          renameMap[name] = choice;
-        }
-      }
-    }
+    const renameMap = plannedRenameMap;
+    const droppedColumns = plannedDroppedColumns;
 
     const initialStatus = {};
     for (const t of MIGRATE_TYPES) {
@@ -1256,13 +1278,12 @@ export function MigrateDownstreamContentView({
   }, [
     beastModeChoices,
     cardBeastModeResolutions,
-    cardOnlyColumnNames,
-    columnMap,
     datasetId,
     datasetName,
-    droppableColumnNames,
     hasMismatches,
     onBackToDefault,
+    plannedDroppedColumns,
+    plannedRenameMap,
     scanResult,
     selectedDatasetId,
     selectedDatasetName,
@@ -1586,9 +1607,31 @@ export function MigrateDownstreamContentView({
               </Alert>
             )}
 
+            {!isScanning && scanResult && appColumnCollisions.length > 0 && (
+              <Alert className='w-full border border-border bg-transparent' status='warning'>
+                <Alert.Indicator>
+                  <IconExclamationTriangle data-slot='alert-default-icon' />
+                </Alert.Indicator>
+                <Alert.Content>
+                  <Alert.Title>
+                    {appColumnCollisions.length === 1
+                      ? '1 pro-code app would lose fields'
+                      : `${appColumnCollisions.length} pro-code apps would lose fields`}
+                  </Alert.Title>
+                  <Alert.Description>
+                    {appColumnCollisions.map((a) => a.name).join(', ')} map two or more fields to the same target column (
+                    {appColumnCollisions.flatMap((a) => a.collisions.map((c) => c.columnName)).join(', ')}). The app reads each
+                    column only once, so only one of those fields keeps its data and the rest show up blank. Map them to
+                    distinct columns to avoid losing data.
+                  </Alert.Description>
+                </Alert.Content>
+              </Alert>
+            )}
+
             {hasMismatches &&
               !isScanning &&
               scanResult &&
+              appColumnCollisions.length === 0 &&
               usedUnmappedColumns.length === 0 &&
               scriptDataflowWarnings.length === 0 &&
               sqlDataflowWarnings.length === 0 &&

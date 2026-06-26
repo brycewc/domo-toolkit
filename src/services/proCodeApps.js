@@ -4,9 +4,21 @@
  *
  * A pro-code app binds to one or more datasets and references their columns. The
  * live binding each placed app card uses lives on that card's instance context
- * (`/domoapps/apps/v2/{instanceId}` → `context.mapping[]`), NOT on the shared
- * design version, so every placed card is repaired in isolation like a chart
- * card. The app's own code references the stable `alias`; only the `columnName`
+ * (`/domoapps/apps/v2/{instanceId}` → `context.mapping[]`), separate from the
+ * shared design version's manifest
+ * (`/api/apps/v1/designs/{designId}/versions/{version}/assets?path=manifest.json`
+ * → `datasetsMapping[]`). Each placed card is repaired in isolation like a chart
+ * card by rewriting its instance binding.
+ *
+ * The design itself is repaired too, but only when its own binding still points
+ * at the same source dataset as the card (design === source === card): that is
+ * the one case where the card has not diverged from its design, so repointing the
+ * shared design is safe and keeps the editor preview and any future cards built
+ * from it in sync. When the card has diverged (its instance points somewhere the
+ * design's manifest does not), the design is left untouched, since mutating it
+ * would silently repoint every other card built from that design.
+ *
+ * The app's own code references the stable `alias`; only the `columnName`
  * bridge to the real dataset column breaks on a rename, so a column repair
  * rewrites `columnName` and nothing else. Fields mapped to a Beast Mode via
  * `beastModeName` (rather than `columnName`) are out of scope.
@@ -17,6 +29,40 @@
  */
 
 import { executeInPage } from '@/utils/executeInPage';
+
+/**
+ * Detect aliases in a pro-code app's dataset binding that would collapse onto the
+ * same column after a column rename/migration. The app data layer returns each
+ * underlying column only once, so when two aliases resolve to the same
+ * `columnName` only the first survives in every row and the rest silently blank
+ * out, breaking those fields with no error. Given the binding's `fields` and the
+ * origin → target `columnMap` (same map the swap applies), returns one group per
+ * resulting column that 2+ aliases would share. Beast-Mode-mapped fields are
+ * excluded (they bind by `beastModeName`, not `columnName`).
+ *
+ * @param {Array<{alias: string, columnName: string|null, beastModeName: string|null}>} fields
+ * @param {Record<string, string|null>} [columnMap] - Origin → target column name; null/no-op entries leave the column name unchanged.
+ * @returns {Array<{columnName: string, aliases: string[]}>}
+ */
+export function findAppColumnCollisions(fields, columnMap) {
+  const map = columnMap || {};
+  const byColumn = new Map();
+  for (const field of Array.isArray(fields) ? fields : []) {
+    if (!field || field.beastModeName != null) continue;
+    const from = field.columnName;
+    if (typeof from !== 'string') continue;
+    // The resulting column is the remapped name when the map renames it, else the
+    // field's existing column. This mirrors how swapAppColumns rewrites columnName.
+    const to = map[from] != null && map[from] !== from ? map[from] : from;
+    if (!byColumn.has(to)) byColumn.set(to, []);
+    byColumn.get(to).push(field.alias);
+  }
+  const collisions = [];
+  for (const [columnName, aliases] of byColumn) {
+    if (aliases.length > 1) collisions.push({ aliases, columnName });
+  }
+  return collisions;
+}
 
 /**
  * Discover the pro-code app cards that consume this dataset. Splits the
@@ -55,13 +101,23 @@ export async function getDownstreamApps(datasetId, tabId = null, rawCards = null
  * editor's two-PUT sequence: PUT the full context back in place, then PUT the
  * instance to re-bind the (same) context to the card.
  *
+ * After the instance is saved, the shared design's manifest is repaired the same
+ * way, but ONLY when the design's own binding still points at `originId` (i.e.
+ * design === source === card). In that aligned case the design's
+ * `datasetsMapping` entry gets the same `columnName` rewrites and `dataSetId`
+ * repoint and is written back via the design asset endpoint, so the editor
+ * preview and future cards match. When the design's binding has diverged from the
+ * card, the design is left untouched. The design write is best-effort: a failure
+ * is reported in `designError` but does not fail the (already-saved) instance
+ * repair.
+ *
  * @param {Object} params
  * @param {{ instanceId: string, contextId: string, fullpage: boolean, name: string }} params.app
  * @param {Record<string, string|null>} [params.columnMap] - Origin → target column name. Null/no-op entries are skipped.
  * @param {string} params.originId - The dataset whose binding entry is rewritten.
  * @param {string} params.targetId - Destination dataset id (equals originId for an in-place remap).
  * @param {number|null} [params.tabId]
- * @returns {Promise<{success: boolean, error?: string}>}
+ * @returns {Promise<{success: boolean, error?: string, designUpdated?: boolean, designError?: string}>}
  */
 export async function swapAppColumns({ app, columnMap, originId, tabId = null, targetId }) {
   const { fullpage, instanceId, name } = app || {};
@@ -119,7 +175,66 @@ export async function swapAppColumns({ app, columnMap, originId, tabId = null, t
           const text = await instRes.text().catch(() => '');
           return { error: `PUT app instance HTTP ${instRes.status}: ${text}`.trim(), success: false };
         }
-        return { success: true };
+
+        // The instance is repaired. Now repoint the shared design too, but only
+        // when its own binding still points at the source dataset (design ===
+        // source === card). When the card has diverged from its design, leave the
+        // design alone so we never repoint every other card built from it. This
+        // is best-effort: a failure here is reported but does not fail the
+        // already-saved instance repair.
+        let designUpdated = false;
+        let designError = null;
+        const designId = context.designId;
+        if (designId) {
+          try {
+            const metaRes = await fetch(`/api/apps/v1/designs/${designId}`, { credentials: 'include' });
+            const version = metaRes.ok ? (await metaRes.json())?.latestVersion : null;
+            if (version) {
+              const assetUrl = `/api/apps/v1/designs/${designId}/versions/${version}/assets?path=manifest.json`;
+              const manRes = await fetch(assetUrl, { credentials: 'include' });
+              if (manRes.ok) {
+                const manifest = await manRes.json();
+                const designMapping = Array.isArray(manifest.datasetsMapping) ? manifest.datasetsMapping : [];
+                // Update the design only when it binds the same source dataset as
+                // the card. A missing entry means the design has diverged — skip it.
+                const designEntry = designMapping.find((m) => m && String(m.dataSetId) === String(originId));
+                if (designEntry) {
+                  let changed = false;
+                  for (const field of Array.isArray(designEntry.fields) ? designEntry.fields : []) {
+                    if (!field || field.beastModeName != null) continue;
+                    const from = field.columnName;
+                    if (typeof from === 'string' && map[from] != null && map[from] !== from) {
+                      field.columnName = map[from];
+                      changed = true;
+                    }
+                  }
+                  if (targetId && String(targetId) !== String(originId)) {
+                    designEntry.dataSetId = targetId;
+                    changed = true;
+                  }
+                  if (changed) {
+                    const wRes = await fetch(assetUrl, {
+                      body: JSON.stringify(manifest),
+                      credentials: 'include',
+                      headers: { 'Content-Type': 'application/json' },
+                      method: 'POST'
+                    });
+                    if (wRes.ok) {
+                      designUpdated = true;
+                    } else {
+                      const t = await wRes.text().catch(() => '');
+                      designError = `POST design manifest HTTP ${wRes.status}: ${t}`.trim();
+                    }
+                  }
+                }
+              }
+            }
+          } catch (err) {
+            designError = err?.message || String(err);
+          }
+        }
+
+        return { designError, designUpdated, success: true };
       } catch (err) {
         return { error: err?.message || String(err), success: false };
       }
