@@ -27,7 +27,8 @@ import { getObjectType } from '@/models/DomoObjectType';
 import { scanContentForColumns } from '@/services/columnReferences';
 import { getDatasetColumns } from '@/services/datasets';
 import { getDatasetFunctions } from '@/services/functions';
-import { getDownstreamCards, getDownstreamLineage } from '@/services/migrateDownstreamContent';
+import { getDownstreamCards, getDownstreamCardsRaw, getDownstreamLineage } from '@/services/migrateDownstreamContent';
+import { getDownstreamApps } from '@/services/proCodeApps';
 import { remapDatasetColumns } from '@/services/remapDatasetColumns';
 import { buildRefreshAction, buildReloadAction } from '@/utils/headerActions';
 import { getSidepanelData } from '@/utils/sidepanel';
@@ -38,9 +39,16 @@ import IconPlus from '@icons/plus.svg?react';
 import IconTrash from '@icons/trash.svg?react';
 import IconX from '@icons/x.svg?react';
 
-const REMAP_TYPES = [{ key: 'beastModes' }, { key: 'cards' }, { key: 'dataflows' }, { key: 'datasets' }];
+const REMAP_TYPES = [
+  { key: 'beastModes' },
+  { key: 'cards' },
+  { key: 'dataflows' },
+  { key: 'datasets' },
+  { key: 'apps' }
+];
 
 const TYPE_KEY_TO_DOMO_TYPE = {
+  apps: 'RYUU_APP',
   beastModes: 'BEAST_MODE_FORMULA',
   cards: 'CARD',
   dataflows: 'DATAFLOW_TYPE',
@@ -138,9 +146,17 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
       if (!lineagePromise) lineagePromise = getDownstreamLineage(datasetId, tabId);
       return lineagePromise;
     };
+    // Cards and pro-code apps both come from the dataset → cards endpoint. Share
+    // one in-flight fetch so it isn't hit twice (mirrors the lineage promise).
+    let cardsRawPromise = null;
+    const cardsRaw = () => {
+      if (!cardsRawPromise) cardsRawPromise = getDownstreamCardsRaw(datasetId, tabId);
+      return cardsRawPromise;
+    };
     return [
       { fetch: async () => ({ items: await getDatasetFunctions(datasetId, tabId) }), key: 'beastModes' },
-      { fetch: async () => ({ items: await getDownstreamCards(datasetId, tabId) }), key: 'cards' },
+      { fetch: async () => ({ items: await getDownstreamCards(datasetId, tabId, await cardsRaw()) }), key: 'cards' },
+      { fetch: async () => ({ items: await getDownstreamApps(datasetId, tabId, await cardsRaw()) }), key: 'apps' },
       {
         fetch: async () => {
           const { datasets } = await lineage();
@@ -164,7 +180,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
   // references and to resolve a usage back to its full record (for the card urn,
   // names, links).
   const allItemsByType = useMemo(() => {
-    const acc = { beastModes: [], cards: [], dataflows: [], datasets: [] };
+    const acc = { apps: [], beastModes: [], cards: [], dataflows: [], datasets: [] };
     for (const t of REMAP_TYPES) {
       const r = results[t.key];
       acc[t.key] = r?.status === 'loaded' ? r.items?.items || [] : [];
@@ -238,13 +254,13 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
       // Skip references that were never user columns (Beast Mode ids, object
       // ids, system columns) so they don't masquerade as renamed columns.
       if (!isLikelyRenamedColumn(name)) continue;
-      // Only trust cards and dataset Beast Modes for discovery: they are built
-      // on this dataset alone, so every column they reference is one of its
-      // columns. Dataflows and dataset views join other datasets, so a name
-      // missing here may simply be another input's column, not a renamed one.
-      // (Such columns are still rewritten if the user maps them, and can always
-      // be entered by hand.)
-      if (!usages.some((u) => u.type === 'beastModes' || u.type === 'cards')) continue;
+      // Only trust cards, dataset Beast Modes, and pro-code apps for discovery:
+      // each is bound to this dataset alone, so every column they reference is
+      // one of its columns. Dataflows and dataset views join other datasets, so
+      // a name missing here may simply be another input's column, not a renamed
+      // one. (Such columns are still rewritten if the user maps them, and can
+      // always be entered by hand.)
+      if (!usages.some((u) => u.type === 'apps' || u.type === 'beastModes' || u.type === 'cards')) continue;
       out.push(name);
     }
     return out.sort((a, b) => a.localeCompare(b));
@@ -278,13 +294,13 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
   // the full loaded record (carrying the card urn for drills). Deduped by id
   // across columns. This is exactly what a remap will rewrite.
   const affectedByType = useMemo(() => {
-    const acc = { beastModes: [], cards: [], dataflows: [], datasets: [] };
+    const acc = { apps: [], beastModes: [], cards: [], dataflows: [], datasets: [] };
     if (!scanResult?.byColumn) return acc;
     const itemsById = {};
     for (const t of REMAP_TYPES) {
       itemsById[t.key] = new Map(allItemsByType[t.key].map((i) => [String(i.id), i]));
     }
-    const seen = { beastModes: new Set(), cards: new Set(), dataflows: new Set(), datasets: new Set() };
+    const seen = { apps: new Set(), beastModes: new Set(), cards: new Set(), dataflows: new Set(), datasets: new Set() };
     for (const oldName of Object.keys(columnMap)) {
       for (const usage of scanResult.byColumn.get(oldName) || []) {
         const { id, type } = usage;
@@ -320,7 +336,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
   }, [affectedByType, affectedLeafIds]);
 
   const selectedItemsByType = useMemo(() => {
-    const acc = { beastModes: [], cards: [], dataflows: [], datasets: [] };
+    const acc = { apps: [], beastModes: [], cards: [], dataflows: [], datasets: [] };
     for (const t of REMAP_TYPES) {
       for (const item of affectedByType[t.key]) {
         if (selectedIds.has(leafSelectionId(t.key, item.id))) acc[t.key].push(item);
@@ -751,7 +767,11 @@ function buildObjectUrl(typeKey, item, origin) {
   const domoTypeId = TYPE_KEY_TO_DOMO_TYPE[typeKey];
   if (!domoTypeId || !origin) return null;
   try {
-    return new DomoObject(domoTypeId, item.id, origin, { name: item.name }).url;
+    // Apps link to their asset-library overview, keyed by the design id, not the
+    // card id every other field of the row is keyed by.
+    const objectId = typeKey === 'apps' ? item.designId : item.id;
+    if (!objectId) return null;
+    return new DomoObject(domoTypeId, objectId, origin, { name: item.name }).url;
   } catch {
     return null;
   }
@@ -935,6 +955,9 @@ function RemapRow({
 }
 
 function typeGroupLabel(typeKey) {
+  // The pro-code app type's own name ("Custom App (Pro-Code)") doesn't pluralize
+  // cleanly, so give the group its own readable plural.
+  if (typeKey === 'apps') return 'Pro-Code Apps';
   const name = getObjectType(TYPE_KEY_TO_DOMO_TYPE[typeKey])?.name || typeKey;
   return `${name}s`;
 }

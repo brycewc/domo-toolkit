@@ -2,12 +2,13 @@ import { isFusionView, makeItemKey } from './columnReferences';
 import { hasEffectiveMapping, rewriteBeastModeColumns } from './columnRewriter';
 import { updateDatasetFunctions } from './functions';
 import { swapCardInput, swapDataflowInput, swapDatasetViewInput, swapFusionInput } from './migrateDownstreamContent';
+import { swapAppColumns } from './proCodeApps';
 
 /**
  * Downstream types remapped in phase 2 (everything except dataset Beast Modes,
  * which are handled in place in phase 1).
  */
-const REMAP_TYPES = ['cards', 'datasets', 'dataflows'];
+const REMAP_TYPES = ['cards', 'datasets', 'dataflows', 'apps'];
 
 /**
  * Rewrite every selected downstream object's references to renamed columns IN
@@ -134,6 +135,17 @@ function buildBeastModeUpdateEntry(template) {
  */
 async function dispatchRemap(typeKey, item, { columnMap, datasetId, datasetName, definitionsByItemKey, tabId, targetColumnTypes }) {
   const cached = definitionsByItemKey?.get?.(makeItemKey(typeKey, item.id))?.definition;
+  if (typeKey === 'apps') {
+    // In-place column repair: origin === target, so the swap rewrites
+    // columnName only and leaves the binding's dataset id alone.
+    return swapAppColumns({
+      app: item,
+      columnMap,
+      originId: datasetId,
+      tabId,
+      targetId: datasetId
+    });
+  }
   if (typeKey === 'cards') {
     return swapCardInput({
       cachedDefinition: cached,

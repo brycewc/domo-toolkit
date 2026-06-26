@@ -20,6 +20,7 @@ import {
 } from './columnRewriter';
 import { getDataflowDetail } from './dataflows';
 import { createDatasetFunctions, getDatasetFunctions, getFunctionTemplate, updateDatasetFunctions } from './functions';
+import { swapAppColumns } from './proCodeApps';
 import { findScriptColumnConflicts } from './scriptColumns';
 import { extractDataflowSqlColumnRefs, getDataflowEngine, rewriteDataflowSqlColumns } from './sqlColumns';
 import { getCurrentUserId } from './users';
@@ -49,7 +50,55 @@ import { getCurrentUserId } from './users';
  * @param {number|null} tabId
  * @returns {Promise<Array<{id: number, name: string, chartType: string|null, urn?: string, isDrill?: boolean, parentId?: number, parentName?: string}>>}
  */
-export async function getDownstreamCards(datasetId, tabId = null) {
+export async function getDownstreamCards(datasetId, tabId = null, rawCards = null) {
+  const cards = rawCards || (await getDownstreamCardsRaw(datasetId, tabId));
+  const matchesDataset = (id) => id != null && String(id) === String(datasetId);
+  const out = [];
+  const seenDrills = new Set();
+  for (const card of Array.isArray(cards) ? cards : []) {
+    // Pro-code app cards (type 'domoapp') are repaired through the dedicated
+    // apps path; their card definition / card PUT endpoints 405, so keep them
+    // out of the cards group entirely.
+    if (card?.type === 'domoapp') continue;
+    const cardId =
+      card.id || card.kpiId || (typeof card.urn === 'string' ? parseInt(card.urn.split(':').pop(), 10) : null);
+    // Parent migrates only when it uses this dataset directly; otherwise it's
+    // here purely as the container for a drill that does.
+    if (matchesDataset(card.datasourceId) && Number.isFinite(cardId)) {
+      out.push({ chartType: card.chartType || null, id: cardId, name: card.title || card.name || `Card ${cardId}` });
+    }
+    for (const drill of Array.isArray(card.drills) ? card.drills : []) {
+      if (!matchesDataset(drill?.datasourceId)) continue;
+      const drillId = drill.id ?? (typeof drill.urn === 'string' ? parseInt(drill.urn.split(':')[1], 10) : null);
+      if (!Number.isFinite(drillId) || seenDrills.has(drillId)) continue;
+      seenDrills.add(drillId);
+      out.push({
+        chartType: drill.chartType || null,
+        id: drillId,
+        isDrill: true,
+        name: drill.title || `Drill ${drillId}`,
+        parentId: Number.isFinite(cardId) ? cardId : null,
+        // The parent's name, carried so the UI can label it even when the
+        // parent itself isn't migrating (it doesn't use this dataset) and so
+        // isn't in the cards list to resolve the name from.
+        parentName: card.title || card.name || (Number.isFinite(cardId) ? `Card ${cardId}` : null),
+        urn: drill.urn
+      });
+    }
+  }
+  return out;
+}
+
+/**
+ * Raw dataset → cards list (`?drill=true`), unparsed. Both the cards group
+ * (`getDownstreamCards`) and the pro-code apps group (`getDownstreamApps`) read
+ * from this; sharing one in-flight fetch keeps the endpoint from being hit twice.
+ *
+ * @param {string} datasetId
+ * @param {number|null} tabId
+ * @returns {Promise<any[]>}
+ */
+export async function getDownstreamCardsRaw(datasetId, tabId = null) {
   return executeInPage(
     async (datasetId) => {
       const response = await fetch(`/api/content/v1/datasources/${datasetId}/cards?drill=true`, {
@@ -58,38 +107,7 @@ export async function getDownstreamCards(datasetId, tabId = null) {
       if (!response.ok) {
         throw new Error(`Failed to fetch cards for dataset ${datasetId}: HTTP ${response.status}`);
       }
-      const cards = (await response.json()) || [];
-      const matchesDataset = (id) => id != null && String(id) === String(datasetId);
-      const out = [];
-      const seenDrills = new Set();
-      for (const card of cards) {
-        const cardId =
-          card.id || card.kpiId || (typeof card.urn === 'string' ? parseInt(card.urn.split(':').pop(), 10) : null);
-        // Parent migrates only when it uses this dataset directly; otherwise it's
-        // here purely as the container for a drill that does.
-        if (matchesDataset(card.datasourceId) && Number.isFinite(cardId)) {
-          out.push({ chartType: card.chartType || null, id: cardId, name: card.title || card.name || `Card ${cardId}` });
-        }
-        for (const drill of Array.isArray(card.drills) ? card.drills : []) {
-          if (!matchesDataset(drill?.datasourceId)) continue;
-          const drillId = drill.id ?? (typeof drill.urn === 'string' ? parseInt(drill.urn.split(':')[1], 10) : null);
-          if (!Number.isFinite(drillId) || seenDrills.has(drillId)) continue;
-          seenDrills.add(drillId);
-          out.push({
-            chartType: drill.chartType || null,
-            id: drillId,
-            isDrill: true,
-            name: drill.title || `Drill ${drillId}`,
-            parentId: Number.isFinite(cardId) ? cardId : null,
-            // The parent's name, carried so the UI can label it even when the
-            // parent itself isn't migrating (it doesn't use this dataset) and so
-            // isn't in the cards list to resolve the name from.
-            parentName: card.title || card.name || (Number.isFinite(cardId) ? `Card ${cardId}` : null),
-            urn: drill.urn
-          });
-        }
-      }
-      return out;
+      return (await response.json()) || [];
     },
     [datasetId],
     tabId
@@ -1131,7 +1149,13 @@ async function swapCardInputFast(cardId, originId, targetId, tabId) {
  * derived from the object type model (see `typeGroupLabel` in the view), not
  * stored here, so they stay correct (e.g. "DataFlow"/"DataSet" casing).
  */
-export const MIGRATE_TYPES = [{ key: 'beastModes' }, { key: 'cards' }, { key: 'dataflows' }, { key: 'datasets' }];
+export const MIGRATE_TYPES = [
+  { key: 'beastModes' },
+  { key: 'cards' },
+  { key: 'dataflows' },
+  { key: 'datasets' },
+  { key: 'apps' }
+];
 
 /**
  * Migrate every selected item from `originId` to `targetId`. Calls
@@ -1431,6 +1455,17 @@ async function dispatchDatasetSwap(item, options) {
 }
 
 async function dispatchSwap(typeKey, item, options) {
+  if (typeKey === 'apps') {
+    // Pro-code apps carry no Beast Modes, so they skip every Beast Mode remap;
+    // only the column rewrite and the dataset-id repoint apply.
+    return swapAppColumns({
+      app: item,
+      columnMap: options.columnMap,
+      originId: options.originId,
+      tabId: options.tabId,
+      targetId: options.targetId
+    });
+  }
   if (typeKey === 'cards') {
     return swapCardInput({
       beastModeIdRemap: options.beastModeIdRemap,

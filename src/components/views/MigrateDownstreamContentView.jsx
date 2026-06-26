@@ -41,10 +41,12 @@ import { getBeastModeReferenceGraph, getCardBeastModes, getDatasetFunctions } fr
 import {
   compareDatasetSchemas,
   getDownstreamCards,
+  getDownstreamCardsRaw,
   getDownstreamLineage,
   MIGRATE_TYPES,
   migrateAllDownstreamContent
 } from '@/services/migrateDownstreamContent';
+import { getDownstreamApps } from '@/services/proCodeApps';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconArrowsHorizontalBox from '@icons/arrows-horizontal-box.svg?react';
 import IconCheckCircle from '@icons/check-circle.svg?react';
@@ -57,6 +59,7 @@ import IconWand from '@icons/wand.svg?react';
 import IconX from '@icons/x.svg?react';
 
 const TYPE_KEY_TO_DOMO_TYPE = {
+  apps: 'RYUU_APP',
   beastModes: 'BEAST_MODE_FORMULA',
   cards: 'CARD',
   dataflows: 'DATAFLOW_TYPE',
@@ -184,13 +187,20 @@ export function MigrateDownstreamContentView({
       if (!lineagePromise) lineagePromise = getDownstreamLineage(datasetId, tabId);
       return lineagePromise;
     };
+    // Cards and pro-code apps both come from the dataset → cards endpoint. Share
+    // one in-flight fetch so it isn't hit twice (mirrors the lineage promise).
+    let cardsRawPromise = null;
+    const cardsRaw = () => {
+      if (!cardsRawPromise) cardsRawPromise = getDownstreamCardsRaw(datasetId, tabId);
+      return cardsRawPromise;
+    };
     return [
       {
         fetch: async () => ({ items: await getDatasetFunctions(datasetId, tabId) }),
         key: 'beastModes'
       },
       {
-        fetch: async () => ({ items: await getDownstreamCards(datasetId, tabId) }),
+        fetch: async () => ({ items: await getDownstreamCards(datasetId, tabId, await cardsRaw()) }),
         key: 'cards'
       },
       {
@@ -206,6 +216,10 @@ export function MigrateDownstreamContentView({
           return { items: dataflows };
         },
         key: 'dataflows'
+      },
+      {
+        fetch: async () => ({ items: await getDownstreamApps(datasetId, tabId, await cardsRaw()) }),
+        key: 'apps'
       }
     ];
   }, [datasetId, tabId]);
@@ -274,7 +288,7 @@ export function MigrateDownstreamContentView({
   }, [nothingToMigrate, datasetName, onStatusUpdate, onBackToDefault]);
 
   const selectedCounts = useMemo(() => {
-    const counts = { beastModes: 0, cards: 0, dataflows: 0, datasets: 0 };
+    const counts = { apps: 0, beastModes: 0, cards: 0, dataflows: 0, datasets: 0 };
     for (const t of MIGRATE_TYPES) {
       const r = results[t.key];
       const items = r?.status === 'loaded' ? r.items?.items || [] : [];
@@ -288,7 +302,11 @@ export function MigrateDownstreamContentView({
   }, [results, selectedIds]);
 
   const totalSelected =
-    selectedCounts.beastModes + selectedCounts.cards + selectedCounts.datasets + selectedCounts.dataflows;
+    selectedCounts.apps +
+    selectedCounts.beastModes +
+    selectedCounts.cards +
+    selectedCounts.datasets +
+    selectedCounts.dataflows;
 
   // Non-zero selected counts as `{ key, n, noun }` parts, in MIGRATE_TYPES
   // order, for the confirmation's "N beast modes, 1 card, …" breakdown. The
@@ -309,7 +327,7 @@ export function MigrateDownstreamContentView({
   // for column references when a schema mismatch is detected. Distinct from
   // `selectedCounts` (numbers) and `selectedIds` (flat key Set).
   const selectedItemsByType = useMemo(() => {
-    const acc = { beastModes: [], cards: [], dataflows: [], datasets: [] };
+    const acc = { apps: [], beastModes: [], cards: [], dataflows: [], datasets: [] };
     for (const t of MIGRATE_TYPES) {
       const r = results[t.key];
       const items = r?.status === 'loaded' ? r.items?.items || [] : [];
@@ -1905,7 +1923,11 @@ function buildObjectUrl(typeKey, item, origin) {
   const domoTypeId = TYPE_KEY_TO_DOMO_TYPE[typeKey];
   if (!domoTypeId || !origin) return null;
   try {
-    return new DomoObject(domoTypeId, item.id, origin, { name: item.name }).url;
+    // Apps link to their asset-library overview, keyed by the design id, not the
+    // card id every other field of the row is keyed by.
+    const objectId = typeKey === 'apps' ? item.designId : item.id;
+    if (!objectId) return null;
+    return new DomoObject(domoTypeId, objectId, origin, { name: item.name }).url;
   } catch {
     return null;
   }
@@ -2355,6 +2377,9 @@ function parseLeafTypeKey(id) {
 // casing matches everywhere it's shown (e.g. "DataFlows", "DataSets"). None of
 // these types pluralize irregularly, so a trailing "s" is enough.
 function typeGroupLabel(typeKey) {
+  // The pro-code app type's own name ("Custom App (Pro-Code)") doesn't pluralize
+  // cleanly, so give the group its own readable plural.
+  if (typeKey === 'apps') return 'Pro-Code Apps';
   const name = getObjectType(TYPE_KEY_TO_DOMO_TYPE[typeKey])?.name || typeKey;
   return `${name}s`;
 }

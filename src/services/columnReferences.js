@@ -36,6 +36,24 @@ import { findScriptColumnConflicts } from './scriptColumns';
 import { extractDataflowSqlColumnRefs, getDataflowEngine } from './sqlColumns';
 
 /**
+ * Scan a pro-code app's dataset binding for the column names it references. Each
+ * binding field maps the app's stable `alias` to a real dataset column via
+ * `columnName`; a field mapped to a Beast Mode (`beastModeName`) has no column
+ * reference to repair and is skipped.
+ *
+ * @param {Array<{columnName: string|null, beastModeName: string|null}>} fields
+ * @returns {Set<string>}
+ */
+export function extractAppColumnRefs(fields) {
+  const refs = new Set();
+  for (const field of Array.isArray(fields) ? fields : []) {
+    if (!field || field.beastModeName != null) continue;
+    if (typeof field.columnName === 'string' && field.columnName) refs.add(field.columnName);
+  }
+  return refs;
+}
+
+/**
  * Scan a Beast Mode (function) template for the column names it references.
  * Mirrors the rewriter (`rewriteBeastModeColumns`) field-for-field: the
  * template's `expression` (backticked refs) and `columnPositions[].columnName`.
@@ -260,7 +278,13 @@ export async function scanContentForColumns({ originId, selectedItems, tabId = n
     try {
       let definition;
       let used;
-      if (typeKey === 'cards') {
+      if (typeKey === 'apps') {
+        // App rows already carry their dataset binding fields, so the column set
+        // needs no fetch. There's no cached definition to reuse at write time
+        // (the swap re-reads the live instance context), so leave it null.
+        definition = null;
+        used = extractAppColumnRefs(item.fields);
+      } else if (typeKey === 'cards') {
         // Drill cards are fetched via their `dr:<drillId>:<rootId>` URN, not
         // the bare numeric id — the kpi/definition endpoint sends `urn` as
         // the body key, and a drill's bare id returns an unrelated payload.
@@ -334,6 +358,7 @@ export async function scanContentForColumns({ originId, selectedItems, tabId = n
   for (const bm of selectedItems?.beastModes || []) queue.push(['beastModes', bm]);
   for (const ds of selectedItems?.datasets || []) queue.push(['datasets', ds]);
   for (const df of selectedItems?.dataflows || []) queue.push(['dataflows', df]);
+  for (const app of selectedItems?.apps || []) queue.push(['apps', app]);
 
   // Bounded concurrency — each fetchAndScan goes through executeInPage
   // (chrome.scripting.executeScript). Letting 100 of those run at once
