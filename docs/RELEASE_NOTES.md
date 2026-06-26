@@ -75,10 +75,13 @@
 - Side panel actions no longer intermittently fail to open when many tabs are open or after viewing very large objects, such as datasets with thousands of Beast Modes or pages with many cards.
 - When an action fails while reading data from the Domo page, it now reports the actual reason instead of a misleading "Cannot read properties of null" message.
 - Migrating a dataset view's input now updates the view's available-columns list to the new dataset's columns instead of leaving the previous dataset's.
+- Migrating a dataset view that appends (unions) inputs and has a calculated column built from those inputs now produces a working view, instead of one that errored when opened or queried.
 - Migrating downstream content now remaps column references inside fused views (DataFusions) instead of leaving them pointing at the old dataset, and flags any fused view that uses the dataset in a calculated column for manual review.
+- Migrating downstream content now flags any dataflow that uses the dataset's columns inside a Python or R script tile for manual review, instead of migrating it with the script left pointing at the old column names.
 - Approvals and Approval Templates no longer appear as failing rows in Objects Owned and Transfer Ownership on instances that don't have Approvals enabled.
 - The Activity Log no longer briefly flashes scroll bars across the page while it loads.
 - Nested Beast Modes now migrate correctly: the Beast Modes they rely on come along in the right order, and the nested references are repointed to the migrated copies on the target instead of breaking.
+- Datasets with more than one saved Beast Mode now migrate their Beast Modes (and the cards that use them) correctly, instead of failing the whole batch.
 - Beast Modes that live on a card (rather than being saved to the dataset) are no longer listed as separate items to migrate; they now travel with their card.
 - When a migrating card has a Beast Mode whose name already exists as a Beast Mode on the target dataset, you can now choose to use the target's Beast Mode or rename the card's, instead of the migration failing.
 - Magic ETL sort columns now get renamed during migration along with the rest of the dataflow.
