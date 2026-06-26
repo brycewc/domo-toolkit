@@ -45,6 +45,11 @@ export class DomoObjectType {
    *   Entries don't have to point at navigable Domo objects — omit `itemTypeId`/
    *   `itemIdField` (or `typeId` for single entries) to render plain data
    *   (e.g., dataset columns) without URL injection.
+   *   For a single (non-array) entry whose type isn't fixed, set `typeField: '<path>'`
+   *   to resolve the related object's type from a sibling field (read from the same
+   *   base as `field`, e.g. a CONTAINER_VIEW's `resourceType` deciding whether
+   *   `resourceId` is a PAGE/CARD/DATA_APP). This is the single-entry analog of
+   *   `itemTypeField` for arrays; the entry then needs no static `typeId`.
    * @param {string} [options.urlPath] - The URL path pattern. Supported placeholders:
    *   - `{id}`: the object ID
    *   - `{parent}`: the parent object ID (fetched async if needed)
@@ -477,12 +482,14 @@ export const ObjectTypeRegistry = {
       bodyTemplate: {
         operationName: 'getCertificationDetails',
         query:
-          'query getCertificationDetails($id: ID!) {\n  certification(id: $id) {\n    id\n    request {\n      id\n      type\n      status\n      entityType\n      entityId\n      entityTitle\n      entityOwnerEx {\n        id\n        type\n        displayName\n        ... on User {\n          title\n          avatarKey\n          isCurrentUser\n          __typename\n        }\n        ... on Group {\n          currentUserIsMember\n          userCount\n          isDeleted\n          __typename\n        }\n        __typename\n      }\n      entityOwners {\n        id\n        type\n        displayName\n        ... on User {\n          title\n          avatarKey\n          isCurrentUser\n          __typename\n        }\n        ... on Group {\n          currentUserIsMember\n          userCount\n          isDeleted\n          __typename\n        }\n        __typename\n      }\n      requestor {\n        id\n        displayName\n        title\n        avatarKey\n        isCurrentUser\n        isDeleted\n        __typename\n      }\n      modifiedTime\n      createdTime\n      __typename\n    }\n    approval {\n      id\n      version\n      type\n      title\n      status\n      providerName\n      templateID\n      templateTitle\n      buzzChannelId\n      buzzGeneralThreadId\n      templateInstructions\n      templateDescription\n      total {\n        value\n        currency\n        __typename\n      }\n      modifiedTime\n      previousApprover: previousApproverEx {\n        id\n        type\n        displayName\n        ... on User {\n          title\n          avatarKey\n          isCurrentUser\n          __typename\n        }\n        ... on Group {\n          currentUserIsMember\n          userCount\n          isDeleted\n          actor {\n            displayName\n            id\n            __typename\n          }\n          __typename\n        }\n        __typename\n      }\n      pendingApprover: pendingApproverEx {\n        id\n        type\n        displayName\n        ... on User {\n          title\n          avatarKey\n          isCurrentUser\n          __typename\n        }\n        ... on Group {\n          userCount\n          isDeleted\n          currentUserIsMember\n          __typename\n        }\n        __typename\n      }\n      submitter {\n        id\n        displayName\n        title\n        avatarKey\n        isCurrentUser\n        __typename\n      }\n      approvalChainIdx\n      chain {\n        actor {\n          displayName\n          __typename\n        }\n        approver {\n          id\n          type\n          displayName\n          ... on User {\n            title\n            avatarKey\n            isCurrentUser\n            __typename\n          }\n          ... on Group {\n            userCount\n            isDeleted\n            __typename\n          }\n          __typename\n        }\n        status\n        time\n        type\n        key\n        __typename\n      }\n      observers {\n        id\n        type\n        displayName\n        avatarKey\n        title\n        ... on Group {\n          userCount\n          __typename\n        }\n        __typename\n      }\n      fields {\n        type\n        name\n        data\n        key\n        ... on NumberField {\n          value\n          __typename\n        }\n        ... on CurrencyField {\n          number: value\n          currency\n          __typename\n        }\n        ... on DateField {\n          date: value\n          __typename\n        }\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n}',
-        variables: { id: '2743d2e1-0e66-4ae7-9a94-{id}' }
+          'query getCertificationDetails($id: ID!) {\n  certification: certificationByApprovalId(id: $id) {\n    id\n    request {\n      id\n      type\n      status\n      entityType\n      entityId\n      entityTitle\n      entityOwnerEx {\n        id\n        type\n        displayName\n        ... on User {\n          title\n          avatarKey\n          isCurrentUser\n          __typename\n        }\n        ... on Group {\n          currentUserIsMember\n          userCount\n          isDeleted\n          __typename\n        }\n        __typename\n      }\n      entityOwners {\n        id\n        type\n        displayName\n        ... on User {\n          title\n          avatarKey\n          isCurrentUser\n          __typename\n        }\n        ... on Group {\n          currentUserIsMember\n          userCount\n          isDeleted\n          __typename\n        }\n        __typename\n      }\n      requestor {\n        id\n        displayName\n        title\n        avatarKey\n        isCurrentUser\n        isDeleted\n        __typename\n      }\n      modifiedTime\n      createdTime\n      __typename\n    }\n    approval {\n      id\n      version\n      type\n      title\n      status\n      providerName\n      templateID\n      templateTitle\n      buzzChannelId\n      buzzGeneralThreadId\n      templateInstructions\n      templateDescription\n      total {\n        value\n        currency\n        __typename\n      }\n      modifiedTime\n      previousApprover: previousApproverEx {\n        id\n        type\n        displayName\n        ... on User {\n          title\n          avatarKey\n          isCurrentUser\n          __typename\n        }\n        ... on Group {\n          currentUserIsMember\n          userCount\n          isDeleted\n          actor {\n            displayName\n            id\n            __typename\n          }\n          __typename\n        }\n        __typename\n      }\n      pendingApprover: pendingApproverEx {\n        id\n        type\n        displayName\n        ... on User {\n          title\n          avatarKey\n          isCurrentUser\n          __typename\n        }\n        ... on Group {\n          userCount\n          isDeleted\n          currentUserIsMember\n          __typename\n        }\n        __typename\n      }\n      submitter {\n        id\n        displayName\n        title\n        avatarKey\n        isCurrentUser\n        __typename\n      }\n      approvalChainIdx\n      chain {\n        actor {\n          displayName\n          __typename\n        }\n        approver {\n          id\n          type\n          displayName\n          ... on User {\n            title\n            avatarKey\n            isCurrentUser\n            __typename\n          }\n          ... on Group {\n            userCount\n            isDeleted\n            __typename\n          }\n          __typename\n        }\n        status\n        time\n        type\n        key\n        __typename\n      }\n      observers {\n        id\n        type\n        displayName\n        avatarKey\n        title\n        ... on Group {\n          userCount\n          __typename\n        }\n        __typename\n      }\n      fields {\n        type\n        name\n        data\n        key\n        ... on NumberField {\n          value\n          __typename\n        }\n        ... on CurrencyField {\n          number: value\n          currency\n          __typename\n        }\n        ... on DateField {\n          date: value\n          __typename\n        }\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n}',
+        // The id in the certification URL is the approval id, not the certification
+        // id, so the query resolves it via certificationByApprovalId (aliased back to
+        // `certification` so the paths below stay unchanged).
+        variables: { id: '{id}' }
       },
       endpoint: '/synapse/approval/graphql',
       method: 'POST',
-      parents: ['CERTIFICATION_PROCESS'],
       paths: {
         created: 'data.certification.request.createdTime',
         details: 'data.certification',
@@ -491,9 +498,14 @@ export const ObjectTypeRegistry = {
       }
     },
     copyConfigs: [{ label: 'Certification Process ID', source: 'parentId' }],
+    extractConfig: { keyword: 'request-details' },
     icon: { component: 'Certified' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    relatedData: [{ label: 'Certification Process', source: 'parentId', typeId: 'CERTIFICATION_PROCESS' }],
+    parents: ['CERTIFICATION_PROCESS'],
+    relatedData: [
+      { field: 'request.entityId', label: 'Certified Object', typeField: 'request.entityType' },
+      { label: 'Certification Process', source: 'parentId', typeId: 'CERTIFICATION_PROCESS' }
+    ],
     urlPath: '/certification-center/request-details/{id}'
   }),
   CERTIFICATION_PROCESS: new DomoObjectType('CERTIFICATION_PROCESS', 'Certification Process', {
@@ -576,7 +588,18 @@ export const ObjectTypeRegistry = {
     idPattern: /.*/
   }),
   CONTAINER_VIEW: new DomoObjectType('CONTAINER_VIEW', 'Container View', {
-    idPattern: /.*/
+    api: {
+      endpoint: '/content/v2/views/{id}',
+      paths: { created: 'created', name: 'name', parentId: 'resourceId' }
+    },
+    icon: { component: 'Document' },
+    idPattern: /^\d+$/,
+    // The parent's concrete type is dynamic: resourceType names which of these the
+    // view sits on, and resourceId holds its id. Because it isn't a single fixed
+    // type, the generic getParent() (which uses parents[0]) can't enrich it; the
+    // parent resource is surfaced via the typeField relatedData entry instead.
+    parents: ['CARD', 'DATA_APP', 'PAGE', 'REPORT_BUILDER_VIEW'],
+    relatedData: [{ field: 'resourceId', label: 'Resource', typeField: 'resourceType' }]
   }),
   CUSTOMER: new DomoObjectType('CUSTOMER', 'Customer', { idPattern: /.*/ }),
   CUSTOMER_LANDING_ENTITY: new DomoObjectType('CUSTOMER_LANDING_ENTITY', 'Customer Landing Entity', { idPattern: /.*/ }),
@@ -1127,9 +1150,16 @@ export const ObjectTypeRegistry = {
     parents: ['REPORT_BUILDER']
   }),
   REPORT_SCHEDULE: new DomoObjectType('REPORT_SCHEDULE', 'Scheduled Report', {
-    api: { endpoint: '/content/v1/reportschedules/{id}', paths: { name: 'title' } },
+    api: { endpoint: '/content/v1/reportschedules/{id}', paths: { name: 'title', parentId: 'viewId' } },
     icon: { component: 'CalendarTime' },
     idPattern: /^\d+$/,
+    // Single, fixed parent type, so getParent() enriches metadata.parent with the
+    // CONTAINER_VIEW details, which the View tab shows and the Resource tab reads.
+    parents: ['CONTAINER_VIEW'],
+    relatedData: [
+      { label: 'View', source: 'parent', typeId: 'CONTAINER_VIEW' },
+      { field: 'resourceId', fieldSource: 'parent', label: 'Resource', typeField: 'resourceType' }
+    ],
     urlPath: '/scheduled-reports/history/{id}'
   }),
   REPOSITORY: new DomoObjectType('REPOSITORY', 'Sandbox Repository', {

@@ -532,7 +532,7 @@ export async function detectCurrentObject() {
     case url.includes('certifiedcontent') && url.includes('edit-form/'):
       objectType = 'CERTIFICATION_PROCESS';
       break;
-    case url.includes('certifiedcontent/request-details/'):
+    case url.includes('certification-center/request-details/'):
       objectType = 'CERTIFICATION';
       break;
 

@@ -41,6 +41,8 @@
 - A detected account now has a DataSets tab listing the datasets it feeds.
 - Get DataSets now works on Jupyter Workspaces, listing their input and output datasets in separate groups.
 - Scheduled reports can now be deleted from the toolkit.
+- A detected scheduled report now links to its view and to the page, card, or app it reports on.
+- Certifications are now recognized, linking to the object they certify and their certification process.
 
 ## UI Improvements
 

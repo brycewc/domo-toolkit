@@ -171,6 +171,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
         }
 
         let relatedId;
+        let resolvedTypeId = related.typeId;
         if (related.source === 'parentId') {
           relatedId = domoObject.parentId;
         } else {
@@ -181,16 +182,22 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
                 ? domoObject.metadata?.parent?.details
                 : domoObject.metadata?.details;
           relatedId = related.field.split('.').reduce((obj, key) => obj?.[key], fieldBase);
+          // Dynamic type: resolve the related object's type from a sibling field rather than a
+          // fixed typeId (e.g. a CONTAINER_VIEW's resourceType says whether resourceId points at a
+          // PAGE, CARD, DATA_APP, etc.). Read from the same base as the id.
+          if (related.typeField) {
+            resolvedTypeId = related.typeField.split('.').reduce((obj, key) => obj?.[key], fieldBase);
+          }
         }
 
-        if (relatedId) {
+        if (relatedId && resolvedTypeId) {
           result.push({
             id: related.field || related.source || related.typeId,
             isCurrentObject: false,
             label: related.label,
             objectId: relatedId,
             parentId: resolveRelatedParentId(related, domoObject),
-            typeId: related.typeId
+            typeId: resolvedTypeId
           });
         }
       }
