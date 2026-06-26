@@ -6,6 +6,7 @@
 ## New Features and Improvements
 
 - Copy Filters now copies the filtered URL as a clickable formatted link titled with the page name, instead of as plain text.
+- Copy Filters now offers an option to apply the active filters to the current tab and reload it, useful for keeping the filter state after page refresh.
 - Added a setting to strip the " - Domo" suffix from Domo tab titles.
 - When migrating downstream content, navigating to another dataset now offers it as the migration target in one click, instead of having to copy and paste its ID.
 - Migrate Content now repoints pro-code app cards to the target dataset along with the rest of a dataset's downstream content, instead of skipping them.
@@ -91,6 +92,7 @@
 - Expanding upstream or downstream in the lineage view now brings the newly revealed nodes into view instead of jumping the view back to the root.
 - The API Errors view now shows each failed request's real method (DELETE, PUT, POST) instead of mislabeling some as GET.
 - Searching for a dataset by name now matches against the dataset name only, instead of returning hundreds of unrelated datasets.
+- Copy Filters no longer pins a page-wide filter to a single dataset, so a copied link keeps applying the filter across every dataset on the page.
 
 ### Other Fixes
 

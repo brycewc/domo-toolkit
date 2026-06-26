@@ -3,6 +3,12 @@ import { executeInAllFrames, executeInPage } from '@/utils/executeInPage';
 /**
  * Build a pfilter URL from base URL and filters
  * Works for pages, cards, and any Domo URL that supports pfilters
+ *
+ * Emits dataset-agnostic pfilters by default: a page-level filter that applies to
+ * every dataset on the page is not pinned to a single dataSetId. Domo still honors
+ * the dataSetId-bearing form today, but a bare filter keeps the URL correct if that
+ * behavior ever changes. getAllFilters() still returns the dataSetId on each filter,
+ * so a future caller that needs a dataset-scoped pfilter can opt back in here.
  * @param {string} baseUrl - Base URL (instance + path)
  * @param {string} objectId - Object ID (page or card ID) - unused but kept for compatibility
  * @param {Array} filters - Array of filter objects
@@ -17,7 +23,10 @@ export function buildPfilterUrl(baseUrl, objectId, filters) {
 
     // Add new pfilters if we have filters
     if (Array.isArray(filters) && filters.length > 0) {
-      const encoded = encodeFilters(filters);
+      // Drop dataSetId, then collapse the duplicate bare entries that stripping
+      // per-dataset variants of the same column can produce.
+      const bareFilters = dedupeFilters(filters.map(stripDataSetId));
+      const encoded = encodeFilters(bareFilters);
       urlObj.searchParams.set('pfilters', decodeURIComponent(encoded));
     }
 
@@ -1157,6 +1166,25 @@ export function mergeFilters(...filterArrays) {
 }
 
 /**
+ * Deduplicate filters by column, operand, and values
+ * Used after stripping dataSetId, where per-dataset variants of a column collapse
+ * into identical bare filters
+ * @param {Array} filters - Array of pfilter objects
+ * @returns {Array} Filters with duplicates removed, original order preserved
+ */
+function dedupeFilters(filters) {
+  const seen = new Set();
+  return filters.filter((filter) => {
+    const key = `${filter.column}:${filter.operand}:${JSON.stringify(filter.values)}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+/**
  * Detect if current page is an App Studio page
  * App Studio pages have specific characteristics that distinguish them
  * @param {number} tabId - Optional Chrome tab ID
@@ -1285,6 +1313,21 @@ async function isAppStudioPage(tabId = null) {
     console.warn('[Domo] App Studio detection failed:', error);
     return false;
   }
+}
+
+/**
+ * Strip dataset scoping from a pfilter so it applies across every dataset on the page
+ * @param {Object} filter - Pfilter object that may carry dataSetId/dataSourceId
+ * @returns {Object} A new filter object without dataset-scoping keys
+ */
+function stripDataSetId(filter) {
+  if (!filter || (filter.dataSetId === undefined && filter.dataSourceId === undefined)) {
+    return filter;
+  }
+  const bare = { ...filter };
+  delete bare.dataSetId;
+  delete bare.dataSourceId;
+  return bare;
 }
 
 /**
