@@ -1193,19 +1193,15 @@ function buildTransferLogRows({ fromUserId, fromUserName, results, toUserId, toU
   return rows;
 }
 
+// Concise one-line title for the error Alert's header. The full per-item
+// breakdown rides along as structured `errorDetail` (rendered as JSON in the
+// Alert body), so this only has to summarize.
 function formatTransferErrors(result) {
   if (!result?.errors?.length) return null;
   const wholeBatch = result.errors.find((e) => e.id === 'all');
   if (wholeBatch) return wholeBatch.error;
-  if (result.errors.length === 1) {
-    return `${result.errors[0].id}: ${result.errors[0].error}`;
-  }
-  // List every failure in full (one per line). The DataList error Alert renders
-  // this untruncated and offers a copy button for the raw JSON, so there's no
-  // reason to collapse to just the first error any more.
-  const header = `${result.errors.length} items failed:`;
-  const lines = result.errors.map((e) => `${e.id}: ${e.error}`);
-  return [header, ...lines].join('\n');
+  const n = result.errors.length;
+  return `${n} item${n === 1 ? '' : 's'} failed`;
 }
 
 function isParentKey(id) {

@@ -355,6 +355,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
         children: leaves,
         count: xfer?.count ?? items.length,
         error: xfer?.error || null,
+        errorDetail: xfer?.errorDetail || null,
         id: t.key,
         isVirtualParent: true,
         label: typeGroupLabel(t.key),
@@ -458,6 +459,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
               nextStatus[typeKey] = {
                 count: count ?? succeeded + failed,
                 error: failed > 0 ? formatErrors(result) : null,
+                errorDetail: failed > 0 ? (result?.errors ?? null) : null,
                 failed,
                 status: failed > 0 ? 'failed' : 'transferred',
                 succeeded
@@ -755,10 +757,13 @@ function buildObjectUrl(typeKey, item, origin) {
   }
 }
 
+// Concise one-line title for the error Alert's header. The full per-item
+// breakdown rides along as structured `errorDetail` (rendered as JSON in the
+// Alert body), so this only has to summarize.
 function formatErrors(result) {
   if (!result?.errors?.length) return null;
-  if (result.errors.length === 1) return `${result.errors[0].id}: ${result.errors[0].error}`;
-  return `${result.errors.length} items failed: ${result.errors[0].id}: ${result.errors[0].error}…`;
+  const n = result.errors.length;
+  return `${n} item${n === 1 ? '' : 's'} failed`;
 }
 
 // Whether a referenced name plausibly was a real, user-facing column (and so a

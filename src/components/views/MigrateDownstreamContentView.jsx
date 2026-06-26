@@ -738,6 +738,7 @@ export function MigrateDownstreamContentView({
         let count;
         let countLabel = null;
         let error = null;
+        let errorDetail = null;
         let children;
 
         if (result?.status === 'loaded' && result.items?.items) {
@@ -759,6 +760,7 @@ export function MigrateDownstreamContentView({
 
         if (xfer) {
           if (xfer.error) error = xfer.error;
+          if (xfer.errorDetail) errorDetail = xfer.errorDetail;
           if (xfer.count !== undefined) count = xfer.count;
           // Transfer progress shows a plain count, not the "+ N drills" tally.
           countLabel = null;
@@ -769,6 +771,7 @@ export function MigrateDownstreamContentView({
           count,
           countLabel,
           error,
+          errorDetail,
           id: t.key,
           isVirtualParent: true,
           label: typeGroupLabel(t.key),
@@ -1138,6 +1141,7 @@ export function MigrateDownstreamContentView({
               next[typeKey] = {
                 count: count ?? succeeded + failed,
                 error: failed > 0 ? formatErrors(result) : null,
+                errorDetail: failed > 0 ? (result?.errors ?? null) : null,
                 failed,
                 status: failed > 0 ? 'failed' : 'transferred',
                 succeeded
@@ -2294,12 +2298,13 @@ function DataflowCollisionModal({ dataflows, origin, originName }) {
   );
 }
 
+// Concise one-line title for the error Alert's header. The full per-item
+// breakdown rides along as structured `errorDetail` (rendered as JSON in the
+// Alert body), so this only has to summarize.
 function formatErrors(result) {
   if (!result?.errors?.length) return null;
-  if (result.errors.length === 1) {
-    return `${result.errors[0].id}: ${result.errors[0].error}`;
-  }
-  return `${result.errors.length} item${result.errors.length === 1 ? '' : 's'} failed: ${result.errors[0].id}: ${result.errors[0].error}…`;
+  const n = result.errors.length;
+  return `${n} item${n === 1 ? '' : 's'} failed`;
 }
 
 function isParentKey(id) {

@@ -1,5 +1,4 @@
 import {
-  Alert,
   Button,
   ButtonGroup,
   Card,
@@ -37,7 +36,6 @@ import IconChevronDown from '@icons/chevron-down.svg?react';
 import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
 import IconCompass from '@icons/compass.svg?react';
 import IconDotsHorizontal from '@icons/dots-horizontal.svg?react';
-import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
 import IconInfoCircle from '@icons/info-circle.svg?react';
 import IconLineage from '@icons/lineage.svg?react';
 import IconListSearch from '@icons/list-search.svg?react';
@@ -47,6 +45,7 @@ import IconTree from '@icons/tree.svg?react';
 import IconX from '@icons/x.svg?react';
 
 import { AnimatedCheck } from '../AnimatedCheck';
+import { ErrorAlert } from '../ErrorAlert';
 import { ObjectTypeIcon } from '../ObjectTypeIcon';
 import { ViewHeader } from './ViewHeader';
 
@@ -812,27 +811,12 @@ function DataListItemImpl({
   const [isCopied, setIsCopied] = useState(false);
   const [isShared, setIsShared] = useState(false);
   const [errorDismissed, setErrorDismissed] = useState(false);
-  const [errorCopied, setErrorCopied] = useState(false);
 
   // A fresh error (e.g. a re-run transfer that fails again) should re-surface
   // the Alert even if the previous one was dismissed.
   useEffect(() => {
     setErrorDismissed(false);
   }, [item.error]);
-
-  // Copy the complete failure payload. Prefer the structured errorDetail
-  // (serialized as pretty JSON) so the full per-item data is recoverable;
-  // fall back to the displayed message when there's no structured detail.
-  const handleCopyError = useCallback(async () => {
-    const payload = item.errorDetail != null ? JSON.stringify(item.errorDetail, null, 2) : String(item.error ?? '');
-    try {
-      await navigator.clipboard.writeText(payload);
-      setErrorCopied(true);
-      setTimeout(() => setErrorCopied(false), 1000);
-    } catch {
-      // Clipboard can reject (permissions/focus); nothing actionable here.
-    }
-  }, [item.errorDetail, item.error]);
 
   // Async-state rendering for virtual parents only. `status` field on
   // DataListItem spans both fetch and transfer phases; the count slot swaps
@@ -1621,36 +1605,7 @@ function DataListItemImpl({
         <Disclosure.Body>
           {showsErrorBody && !errorDismissed && (
             <div className='p-2'>
-              <Alert className='w-full border border-border bg-transparent' status='danger'>
-                <Alert.Indicator>
-                  <IconExclamationTriangle data-slot='alert-default-icon' />
-                </Alert.Indicator>
-                <Alert.Content className='min-w-0'>
-                  <Alert.Description className='block max-h-40 overflow-y-auto text-xs whitespace-pre-wrap wrap-break-word'>
-                    {item.error}
-                  </Alert.Description>
-                </Alert.Content>
-                <div className='flex shrink-0 items-start gap-1'>
-                  <Tooltip>
-                    <Button isIconOnly aria-label='Copy error details' size='sm' variant='ghost' onPress={handleCopyError}>
-                      {errorCopied ? <AnimatedCheck /> : <IconClipboardCopy />}
-                    </Button>
-                    <Tooltip.Content>{errorCopied ? 'Copied!' : 'Copy error details'}</Tooltip.Content>
-                  </Tooltip>
-                  <Tooltip>
-                    <Button
-                      isIconOnly
-                      aria-label='Dismiss error'
-                      size='sm'
-                      variant='ghost'
-                      onPress={() => setErrorDismissed(true)}
-                    >
-                      <IconX />
-                    </Button>
-                    <Tooltip.Content>Dismiss</Tooltip.Content>
-                  </Tooltip>
-                </div>
-              </Alert>
+              <ErrorAlert detail={item.errorDetail} title={item.error} onDismiss={() => setErrorDismissed(true)} />
             </div>
           )}
           {hasChildren && (

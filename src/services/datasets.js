@@ -655,11 +655,21 @@ export async function searchDatasets(text, tabId = null, offset = 0) {
   const trimmed = text?.trim() || '';
   const isId = !!trimmed && getObjectType('DATA_SOURCE').isValidObjectId(trimmed);
 
-  // A valid dataset ID narrows the search to that one dataset via databaseId.
-  const filters = isId ? [{ field: 'databaseId', filterType: 'term', value: trimmed }] : [];
+  // Mirror Domo's own dataset search: the top-level `query` stays '*' and the
+  // search text rides in a filter. A valid dataset ID narrows to that one
+  // dataset via a `databaseId` term filter; otherwise a name search uses a
+  // `name_sort` wildcard so it matches the dataset name only. Putting the raw
+  // text in the top-level `query` instead runs a broad relevance search across
+  // every indexed field, which floods the list with unrelated matches.
+  let filters = [];
+  if (isId) {
+    filters = [{ field: 'databaseId', filterType: 'term', value: trimmed }];
+  } else if (trimmed) {
+    filters = [{ field: 'name_sort', filterType: 'wildcard', query: `*${trimmed}*` }];
+  }
 
   return executeInPage(
-    async (filters, query, offset, count) => {
+    async (filters, offset, count) => {
       const response = await fetch('/api/data/ui/v3/datasources/search', {
         body: JSON.stringify({
           combineResults: true,
@@ -667,7 +677,7 @@ export async function searchDatasets(text, tabId = null, offset = 0) {
           entities: ['DATASET'],
           filters,
           offset,
-          query,
+          query: '*',
           sort: {
             fieldSorts: [{ field: 'create_date', sortOrder: 'DESC' }],
             isRelevance: false
@@ -685,7 +695,7 @@ export async function searchDatasets(text, tabId = null, offset = 0) {
         totalCount: data._metaData?.totalCount ?? null
       };
     },
-    [filters, isId ? '*' : trimmed || '*', offset, DATASETS_PAGE_SIZE],
+    [filters, offset, DATASETS_PAGE_SIZE],
     tabId
   );
 }

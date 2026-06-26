@@ -86,6 +86,7 @@
 - Get Child Pages now lists grandchild pages again for pages with more than 10 child pages, which previously returned no grandchildren at all.
 - Expanding upstream or downstream in the lineage view now brings the newly revealed nodes into view instead of jumping the view back to the root.
 - The API Errors view now shows each failed request's real method (DELETE, PUT, POST) instead of mislabeling some as GET.
+- Searching for a dataset by name now matches against the dataset name only, instead of returning hundreds of unrelated datasets.
 
 ### Other Fixes
 
