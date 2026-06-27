@@ -355,7 +355,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
   const appColumnCollisions = useMemo(() => {
     const out = [];
     for (const app of selectedItemsByType.apps || []) {
-      const collisions = findAppColumnCollisions(app.fields, columnMap);
+      const collisions = findAppColumnCollisions(app.fieldGroups, columnMap);
       if (collisions.length > 0) out.push({ collisions, id: app.id, name: app.name || String(app.id) });
     }
     return out;

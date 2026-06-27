@@ -31,35 +31,41 @@
 import { executeInPage } from '@/utils/executeInPage';
 
 /**
- * Detect aliases in a pro-code app's dataset binding that would collapse onto the
+ * Detect aliases in a pro-code app's dataset bindings that would collapse onto the
  * same column after a column rename/migration. The app data layer returns each
- * underlying column only once, so when two aliases resolve to the same
- * `columnName` only the first survives in every row and the rest silently blank
- * out, breaking those fields with no error. Given the binding's `fields` and the
- * origin → target `columnMap` (same map the swap applies), returns one group per
- * resulting column that 2+ aliases would share. Beast-Mode-mapped fields are
+ * underlying column only once, so when two aliases in the SAME binding resolve to
+ * the same `columnName` only the first survives in every row and the rest silently
+ * blank out, breaking those fields with no error.
+ *
+ * Detection is per binding group, not across them: an app can bind the same
+ * dataset under multiple aliases, and each binding is its own `/data/v1/<alias>`
+ * query, so two fields collide only when they share a group. Pass one group per
+ * binding (each an array of that binding's `fields`); the origin → target
+ * `columnMap` is the same map the swap applies. Beast-Mode-mapped fields are
  * excluded (they bind by `beastModeName`, not `columnName`).
  *
- * @param {Array<{alias: string, columnName: string|null, beastModeName: string|null}>} fields
+ * @param {Array<Array<{alias: string, columnName: string|null, beastModeName: string|null}>>} fieldGroups - One group per dataset binding for the migrated dataset.
  * @param {Record<string, string|null>} [columnMap] - Origin → target column name; null/no-op entries leave the column name unchanged.
  * @returns {Array<{columnName: string, aliases: string[]}>}
  */
-export function findAppColumnCollisions(fields, columnMap) {
+export function findAppColumnCollisions(fieldGroups, columnMap) {
   const map = columnMap || {};
-  const byColumn = new Map();
-  for (const field of Array.isArray(fields) ? fields : []) {
-    if (!field || field.beastModeName != null) continue;
-    const from = field.columnName;
-    if (typeof from !== 'string') continue;
-    // The resulting column is the remapped name when the map renames it, else the
-    // field's existing column. This mirrors how swapAppColumns rewrites columnName.
-    const to = map[from] != null && map[from] !== from ? map[from] : from;
-    if (!byColumn.has(to)) byColumn.set(to, []);
-    byColumn.get(to).push(field.alias);
-  }
   const collisions = [];
-  for (const [columnName, aliases] of byColumn) {
-    if (aliases.length > 1) collisions.push({ aliases, columnName });
+  for (const fields of Array.isArray(fieldGroups) ? fieldGroups : []) {
+    const byColumn = new Map();
+    for (const field of Array.isArray(fields) ? fields : []) {
+      if (!field || field.beastModeName != null) continue;
+      const from = field.columnName;
+      if (typeof from !== 'string') continue;
+      // The resulting column is the remapped name when the map renames it, else
+      // the field's existing column. Mirrors how swapAppColumns rewrites columnName.
+      const to = map[from] != null && map[from] !== from ? map[from] : from;
+      if (!byColumn.has(to)) byColumn.set(to, []);
+      byColumn.get(to).push(field.alias);
+    }
+    for (const [columnName, aliases] of byColumn) {
+      if (aliases.length > 1) collisions.push({ aliases, columnName });
+    }
   }
   return collisions;
 }
@@ -73,7 +79,7 @@ export function findAppColumnCollisions(fields, columnMap) {
  * @param {string} datasetId
  * @param {number|null} [tabId]
  * @param {any[]|null} [rawCards] - Pre-fetched dataset → cards list (drill=true). Pass the shared fetch so the endpoint isn't hit twice; omit to fetch here.
- * @returns {Promise<Array<{id: number, instanceId: string, contextId: string, name: string, fullpage: boolean, designId: string|null, fields: Array<{alias: string, columnName: string|null, beastModeName: string|null}>}>>}
+ * @returns {Promise<Array<{id: number, instanceId: string, contextId: string, name: string, fullpage: boolean, designId: string|null, fields: Array<{alias: string, columnName: string|null, beastModeName: string|null}>, fieldGroups: Array<Array<{alias: string, columnName: string|null, beastModeName: string|null}>>}>>}
  */
 export async function getDownstreamApps(datasetId, tabId = null, rawCards = null) {
   const cards = rawCards || (await fetchDownstreamCardsRaw(datasetId, tabId));
@@ -95,11 +101,12 @@ export async function getDownstreamApps(datasetId, tabId = null, rawCards = null
 
 /**
  * Repair (and optionally repoint) one pro-code app card's dataset binding.
- * Reads the live instance context, rewrites the mapping entry's
+ * Reads the live instance context, rewrites every origin-dataset binding entry's
  * `fields[].columnName` per `columnMap` (skipping Beast Mode fields), repoints
- * the entry's `dataSetId` when migrating (origin !== target), and saves with the
+ * each entry's `dataSetId` when migrating (origin !== target), and saves with the
  * editor's two-PUT sequence: PUT the full context back in place, then PUT the
- * instance to re-bind the (same) context to the card.
+ * instance to re-bind the (same) context to the card. An app that binds the same
+ * dataset under multiple aliases has every matching entry repaired.
  *
  * After the instance is saved, the shared design's manifest is repaired the same
  * way, but ONLY when the design's own binding still points at `originId` (i.e.
@@ -132,24 +139,29 @@ export async function swapAppColumns({ app, columnMap, originId, tabId = null, t
         if (!context || !context.id) return { error: 'App instance has no context', success: false };
 
         const mapping = Array.isArray(context.mapping) ? context.mapping : [];
-        const entry = mapping.find((m) => m && String(m.dataSetId) === String(originId));
+        // An app can bind the same dataset under multiple aliases, so repair every
+        // entry for the origin dataset, not just the first — otherwise a migrate
+        // would leave a second alias dangling on the old dataset.
+        const entries = mapping.filter((m) => m && String(m.dataSetId) === String(originId));
         // Nothing on this app references the origin dataset — nothing to repair.
-        if (!entry) return { success: true };
+        if (entries.length === 0) return { success: true };
 
         const map = columnMap || {};
-        for (const field of Array.isArray(entry.fields) ? entry.fields : []) {
-          // The app code references the stable alias; a Beast-Mode-mapped field
-          // has no columnName bridge to repair, so leave it alone.
-          if (!field || field.beastModeName != null) continue;
-          const from = field.columnName;
-          if (typeof from === 'string' && map[from] != null && map[from] !== from) {
-            field.columnName = map[from];
+        for (const entry of entries) {
+          for (const field of Array.isArray(entry.fields) ? entry.fields : []) {
+            // The app code references the stable alias; a Beast-Mode-mapped field
+            // has no columnName bridge to repair, so leave it alone.
+            if (!field || field.beastModeName != null) continue;
+            const from = field.columnName;
+            if (typeof from === 'string' && map[from] != null && map[from] !== from) {
+              field.columnName = map[from];
+            }
           }
-        }
-        // Repoint the binding to the target dataset when migrating. A no-op for an
-        // in-place remap (origin === target).
-        if (targetId && String(targetId) !== String(originId)) {
-          entry.dataSetId = targetId;
+          // Repoint the binding to the target dataset when migrating. A no-op for
+          // an in-place remap (origin === target).
+          if (targetId && String(targetId) !== String(originId)) {
+            entry.dataSetId = targetId;
+          }
         }
 
         const contextId = context.id;
@@ -196,21 +208,24 @@ export async function swapAppColumns({ app, columnMap, originId, tabId = null, t
                 const manifest = await manRes.json();
                 const designMapping = Array.isArray(manifest.datasetsMapping) ? manifest.datasetsMapping : [];
                 // Update the design only when it binds the same source dataset as
-                // the card. A missing entry means the design has diverged — skip it.
-                const designEntry = designMapping.find((m) => m && String(m.dataSetId) === String(originId));
-                if (designEntry) {
+                // the card. No matching entry means the design has diverged — skip
+                // it. Handle every matching entry (same dataset, multiple aliases).
+                const designEntries = designMapping.filter((m) => m && String(m.dataSetId) === String(originId));
+                if (designEntries.length > 0) {
                   let changed = false;
-                  for (const field of Array.isArray(designEntry.fields) ? designEntry.fields : []) {
-                    if (!field || field.beastModeName != null) continue;
-                    const from = field.columnName;
-                    if (typeof from === 'string' && map[from] != null && map[from] !== from) {
-                      field.columnName = map[from];
+                  for (const designEntry of designEntries) {
+                    for (const field of Array.isArray(designEntry.fields) ? designEntry.fields : []) {
+                      if (!field || field.beastModeName != null) continue;
+                      const from = field.columnName;
+                      if (typeof from === 'string' && map[from] != null && map[from] !== from) {
+                        field.columnName = map[from];
+                        changed = true;
+                      }
+                    }
+                    if (targetId && String(targetId) !== String(originId)) {
+                      designEntry.dataSetId = targetId;
                       changed = true;
                     }
-                  }
-                  if (targetId && String(targetId) !== String(originId)) {
-                    designEntry.dataSetId = targetId;
-                    changed = true;
                   }
                   if (changed) {
                     const wRes = await fetch(assetUrl, {
@@ -297,14 +312,20 @@ async function resolveAppInstances(appCards, datasetId, tabId) {
         const context = instance?.context;
         if (!context) continue;
         const mapping = Array.isArray(context.mapping) ? context.mapping : [];
-        const entry = mapping.find((m) => m && String(m.dataSetId) === String(datasetId));
+        // The same dataset can be bound under multiple aliases; collect every
+        // matching binding. `fieldGroups` keeps them separate (each is its own
+        // query, so collision detection is per group); `fields` is the flattened
+        // union, used by the column-reference scan.
+        const entries = mapping.filter((m) => m && String(m.dataSetId) === String(datasetId));
+        const fieldGroups = entries.map((e) => (Array.isArray(e.fields) ? e.fields : []));
         // `metadata.fullpage` comes back as a string ("true"/"false"), so parse
         // it rather than coercing (Boolean('false') is truthy).
         const fp = meta?.metadata?.fullpage;
         rows.push({
           contextId: context.id,
           designId: context.designId || null,
-          fields: Array.isArray(entry?.fields) ? entry.fields : [],
+          fieldGroups,
+          fields: fieldGroups.flat(),
           fullpage: fp === true || fp === 'true',
           id: card.id,
           instanceId,

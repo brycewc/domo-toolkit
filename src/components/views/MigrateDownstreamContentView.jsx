@@ -48,13 +48,13 @@ import {
 } from '@/services/migrateDownstreamContent';
 import { findAppColumnCollisions, getDownstreamApps } from '@/services/proCodeApps';
 import { getSidepanelData } from '@/utils/sidepanel';
-import IconSwapHorizontal from '@icons/swap-horizontal.svg?react';
 import IconCheckCircle from '@icons/check-circle.svg?react';
 import IconCheck from '@icons/check.svg?react';
 import IconChevronDown from '@icons/chevron-down.svg?react';
 import IconExclamationPointCircle from '@icons/exclamation-point-circle.svg?react';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
 import IconInfoCircle from '@icons/info-circle.svg?react';
+import IconSwapHorizontal from '@icons/swap-horizontal.svg?react';
 import IconWand from '@icons/wand.svg?react';
 import IconX from '@icons/x.svg?react';
 
@@ -778,7 +778,7 @@ export function MigrateDownstreamContentView({
   const appColumnCollisions = useMemo(() => {
     const out = [];
     for (const app of selectedItemsByType.apps || []) {
-      const collisions = findAppColumnCollisions(app.fields, plannedRenameMap);
+      const collisions = findAppColumnCollisions(app.fieldGroups, plannedRenameMap);
       if (collisions.length > 0) out.push({ collisions, id: app.id, name: app.name || String(app.id) });
     }
     return out;
