@@ -726,39 +726,54 @@ export function OwnershipView({
         }
 
         // Optional: email an Excel summary. The new-owner and email-me toggles
-        // are independent, but we only ever send a single email whose recipient
-        // list is the union of whichever toggles are on (deduped so a self-
-        // transfer doesn't double-list the same address).
-        const recipientEmails = [
-          ...new Set(
-            [emailNewOwner ? targetUser?.email : null, emailCurrentUser ? currentUser?.email : null].filter(Boolean)
-          )
-        ];
-        if (recipientEmails.length > 0 && totalSucceeded > 0) {
+        // are independent and need different copy: the new owner reads "transferred
+        // to you", while the toolkit user who ran the transfer gets a neutral
+        // summary naming both parties (nothing came to them). So we send a
+        // separate email per perspective rather than one shared body. The one
+        // exception is a self-transfer (you are also the new owner): the two
+        // addresses match, the "to you" copy is correct, and we send just that.
+        const toUserName = toUserDisplayName ?? targetUser?.displayName;
+        const newOwnerEmail = emailNewOwner ? targetUser?.email : null;
+        const currentUserEmail = emailCurrentUser ? currentUser?.email : null;
+        const sendNewOwnerEmail = !!newOwnerEmail;
+        const sendSummaryEmail = !!currentUserEmail && currentUserEmail !== newOwnerEmail;
+        if ((sendNewOwnerEmail || sendSummaryEmail) && totalSucceeded > 0) {
           try {
             const rows = buildTransferLogRows({
               fromUserId: userId,
               fromUserName: userName,
               results: transferResults,
               toUserId,
-              toUserName: toUserDisplayName ?? targetUser?.displayName
+              toUserName
             });
             const blob = await buildExcelBlob(rows, LOG_COLUMNS, 'Transfer Log');
             const filename = `${generateExportFilename('transferred-objects')}.xlsx`;
             const dataFileId = await uploadDataFile(blob, filename, XLSX_MIME_TYPE, tabId);
-            await sendEmail(
-              {
-                bodyHtml: renderEmailBody({
+            const emails = [];
+            if (sendNewOwnerEmail) {
+              emails.push({
+                bodyHtml: renderNewOwnerEmailBody({ sourceUserName: userName, totalFailed, totalSucceeded }),
+                dataFileAttachments: [dataFileId],
+                recipientEmails: [newOwnerEmail],
+                subject: `Ownership transferred to you from ${userName}`
+              });
+            }
+            if (sendSummaryEmail) {
+              emails.push({
+                bodyHtml: renderSummaryEmailBody({
                   sourceUserName: userName,
+                  targetUserName: toUserName,
                   totalFailed,
                   totalSucceeded
                 }),
                 dataFileAttachments: [dataFileId],
-                recipientEmails,
-                subject: `Ownership transferred to you from ${userName}`
-              },
-              tabId
-            );
+                recipientEmails: [currentUserEmail],
+                subject: `Ownership transfer summary: ${userName} to ${toUserName}`
+              });
+            }
+            for (const email of emails) {
+              await sendEmail(email, tabId);
+            }
           } catch (err) {
             showStatus('Email Not Sent', err.message || 'Failed to email transfer summary', 'warning', 5000);
           }
@@ -1266,11 +1281,22 @@ function parseTaskIdFromLeaf(id) {
   return Number.isFinite(n) ? n : null;
 }
 
-function renderEmailBody({ sourceUserName, totalFailed, totalSucceeded }) {
+function renderFailedLine(totalFailed) {
+  if (totalFailed <= 0) return '';
+  return `<p>${totalFailed} object${totalFailed === 1 ? '' : 's'} could not be transferred and ${totalFailed === 1 ? 'is' : 'are'} included in the attachment with a FAILED status.</p>`;
+}
+
+// Body for the new owner: the objects landed in their account, so it reads in
+// the second person ("transferred to you").
+function renderNewOwnerEmailBody({ sourceUserName, totalFailed, totalSucceeded }) {
   const objectWord = totalSucceeded === 1 ? 'object' : 'objects';
-  const failedLine =
-    totalFailed > 0
-      ? `<p>${totalFailed} object${totalFailed === 1 ? '' : 's'} could not be transferred and ${totalFailed === 1 ? 'is' : 'are'} included in the attachment with a FAILED status.</p>`
-      : '';
-  return `<p>Ownership of <strong>${totalSucceeded}</strong> ${objectWord} has been transferred to you from <strong>${sourceUserName}</strong>.</p><p>A complete list is attached.</p>${failedLine}`;
+  return `<p>Ownership of <strong>${totalSucceeded}</strong> ${objectWord} has been transferred to you from <strong>${sourceUserName}</strong>.</p><p>A complete list is attached.</p>${renderFailedLine(totalFailed)}`;
+}
+
+// Body for the "email me" copy sent to the toolkit user who ran the transfer.
+// Nothing came to them, so this is the observer's perspective: it names both
+// the source and the destination owner instead of saying "to you".
+function renderSummaryEmailBody({ sourceUserName, targetUserName, totalFailed, totalSucceeded }) {
+  const objectWord = totalSucceeded === 1 ? 'object' : 'objects';
+  return `<p>Ownership of <strong>${totalSucceeded}</strong> ${objectWord} has been transferred from <strong>${sourceUserName}</strong> to <strong>${targetUserName}</strong>.</p><p>A complete list is attached.</p>${renderFailedLine(totalFailed)}`;
 }

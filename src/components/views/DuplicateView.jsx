@@ -8,14 +8,18 @@ import {
   ScrollShadow,
   Separator,
   Spinner,
-  TextField
+  TextField,
+  ToggleButton,
+  ToggleButtonGroup
 } from '@heroui/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { UserComboBox } from '@/components/UserComboBox';
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { DataListItem } from '@/models/DataListItem';
 import { DomoContext } from '@/models/DomoContext';
-import { duplicateUser, fetchDuplicationPreview } from '@/services/duplicate';
+import { addAccessToExistingUser, duplicateUser, fetchDuplicationPreview } from '@/services/duplicate';
+import { getUserDetails } from '@/services/users';
 import { exportToExcel, generateExportFilename } from '@/utils/exportData';
 import { buildReloadAction } from '@/utils/headerActions';
 import { getSidepanelData } from '@/utils/sidepanel';
@@ -27,6 +31,10 @@ import IconX from '@icons/x.svg?react';
 
 import { DataList } from './DataList';
 import { ViewHeader } from './ViewHeader';
+
+// The subset of duplication steps that are purely additive grants. The
+// "add to existing user" mode runs only these (no create/profile/locale).
+const GRANT_STEP_KEYS = new Set(['addGroups', 'shareApps', 'shareCards', 'sharePages']);
 
 const LOG_COLUMNS = [
   { accessorKey: 'Date', header: 'Date' },
@@ -84,9 +92,9 @@ export function DuplicateView({ instance = null, liveContext = null, onBackToDef
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [stepStates, setStepStates] = useState({});
   const [completedResult, setCompletedResult] = useState(null);
-  const [selectedCardIds, setSelectedCardIds] = useState(() => new Set());
-  const [selectedPageIds, setSelectedPageIds] = useState(() => new Set());
-  const [selectedAppIds, setSelectedAppIds] = useState(() => new Set());
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [mode, setMode] = useState('create');
+  const [targetUser, setTargetUser] = useState(null);
   const mountedRef = useRef(true);
   const { showStatus } = useStatusBar();
 
@@ -156,12 +164,52 @@ export function DuplicateView({ instance = null, liveContext = null, onBackToDef
     }
   };
 
+  // Map of group-parent id -> its leaf ids, plus the flat leaf list. Leaf ids are
+  // namespaced (`card:123`) so the single DataList selection Set never collides a
+  // card id with a page id, and the parent id (`cards`) drives the group checkbox.
+  const { allLeafIds, groupLeafMap, items } = useMemo(() => {
+    if (!preview) return { allLeafIds: [], groupLeafMap: {}, items: [] };
+    const groups = [
+      { idField: 'groupId', idPrefix: 'group', label: 'Group memberships', list: preview.groups, nameField: 'groupName', parentId: 'groups', typeId: 'GROUP' },
+      { idField: 'id', idPrefix: 'card', label: 'Individually-shared cards', list: preview.cards, nameField: 'name', parentId: 'cards', typeId: 'CARD' },
+      { idField: 'id', idPrefix: 'page', label: 'Individually-shared pages', list: preview.pages, nameField: 'title', parentId: 'pages', typeId: 'PAGE' },
+      { idField: 'id', idPrefix: 'app', label: 'Individually-shared apps', list: preview.customApps, nameField: 'name', parentId: 'apps', typeId: 'APP' }
+    ];
+    const map = {};
+    const leaves = [];
+    const built = [];
+    for (const g of groups) {
+      if (!g.list.length) continue;
+      const childIds = g.list.map((item) => `${g.idPrefix}:${item[g.idField]}`);
+      map[g.parentId] = childIds;
+      leaves.push(...childIds);
+      built.push(
+        DataListItem.createGroup({
+          children: g.list.map(
+            (item) =>
+              new DataListItem({
+                id: `${g.idPrefix}:${item[g.idField]}`,
+                label: item[g.nameField] || `${g.typeId} ${item[g.idField]}`,
+                originalId: item[g.idField],
+                typeId: g.typeId
+              })
+          ),
+          childTypeId: g.typeId,
+          id: g.parentId,
+          label: g.label
+        })
+      );
+    }
+    return { allLeafIds: leaves, groupLeafMap: map, items: built };
+  }, [preview]);
+
+  // Default every shared item to selected once the preview loads.
   useEffect(() => {
     if (!preview) return;
-    setSelectedCardIds(new Set(preview.cards.map((c) => String(c.id))));
-    setSelectedPageIds(new Set(preview.pages.map((p) => String(p.id))));
-    setSelectedAppIds(new Set(preview.customApps.map((a) => String(a.id))));
-  }, [preview]);
+    const next = new Set(allLeafIds);
+    for (const parentId of Object.keys(groupLeafMap)) next.add(parentId);
+    setSelectedIds(next);
+  }, [preview, allLeafIds, groupLeafMap]);
 
   const setValue = (key, v) => setValues((prev) => ({ ...prev, [key]: v }));
 
@@ -170,39 +218,115 @@ export function DuplicateView({ instance = null, liveContext = null, onBackToDef
     return { ok: !field.required || !!trimmed };
   };
 
-  const canSubmit = !!config && !!preview && !isSubmitting && config.fields.every((f) => fieldValidity(f).ok);
+  // "existing" mode runs only the additive-grant steps; "create" runs all of them.
+  const activeSteps = useMemo(() => {
+    if (!config) return [];
+    return mode === 'existing' ? config.steps.filter((s) => GRANT_STEP_KEYS.has(s.key)) : config.steps;
+  }, [config, mode]);
+
+  const isSelf = !!targetUser?.id && !!sourceUser?.id && String(targetUser.id) === String(sourceUser.id);
+  const targetValid = !!targetUser?.id && !isSelf && targetUser.active !== false;
+
+  const canSubmit =
+    !!config &&
+    !!preview &&
+    !isSubmitting &&
+    (mode === 'existing' ? targetValid : config.fields.every((f) => fieldValidity(f).ok));
   const hasStarted = Object.values(stepStates).some((s) => s.status !== 'idle');
+
+  const handleModeChange = (keys) => {
+    const next = [...keys][0];
+    if (!next || next === mode) return;
+    setMode(next);
+    setCompletedResult(null);
+    if (config) setStepStates(buildInitialStepStates(config.steps));
+  };
+
+  const handleTargetChange = async (key) => {
+    if (key == null) {
+      setTargetUser(null);
+      return;
+    }
+    setTargetUser({ active: true, displayName: '', id: key });
+    const details = await getUserDetails(key, currentContext?.tabId);
+    if (!mountedRef.current) return;
+    setTargetUser({
+      active: details?.active !== false,
+      displayName: details?.displayName ?? `User ${key}`,
+      id: key
+    });
+  };
+
+  // Single flat selection Set for the grouped DataList. Toggling a group parent
+  // cascades to its leaves; toggling a leaf reconciles whether its parent is
+  // fully selected. Mirrors the parent/child selection pattern in OwnershipView.
+  const handleSelectionChange = (incoming) => {
+    const next = new Set(incoming);
+    const added = [...incoming].filter((id) => !selectedIds.has(id));
+    const removed = [...selectedIds].filter((id) => !incoming.has(id));
+    for (const id of added) {
+      if (groupLeafMap[id]) groupLeafMap[id].forEach((leaf) => next.add(leaf));
+    }
+    for (const id of removed) {
+      if (groupLeafMap[id]) groupLeafMap[id].forEach((leaf) => next.delete(leaf));
+    }
+    for (const [parentId, leaves] of Object.entries(groupLeafMap)) {
+      if (leaves.length > 0 && leaves.every((leaf) => next.has(leaf))) next.add(parentId);
+      else next.delete(parentId);
+    }
+    setSelectedIds(next);
+  };
 
   const handleSubmit = async () => {
     if (!canSubmit || !sourceUser) return;
     setIsSubmitting(true);
     setCompletedResult(null);
-    setStepStates(buildInitialStepStates(config.steps));
+    setStepStates(buildInitialStepStates(activeSteps));
+
+    const onStepProgress = (stepKey, status, res) => {
+      if (!mountedRef.current) return;
+      setStepStates((prev) => ({
+        ...prev,
+        [stepKey]: { result: res, status }
+      }));
+    };
 
     try {
-      const selectedCards = preview.cards.filter((c) => selectedCardIds.has(String(c.id)));
-      const selectedPages = preview.pages.filter((p) => selectedPageIds.has(String(p.id)));
-      const selectedApps = preview.customApps.filter((a) => selectedAppIds.has(String(a.id)));
+      const selectedGroups = preview.groups.filter((g) => selectedIds.has(`group:${g.groupId}`));
+      const selectedCards = preview.cards
+        .filter((c) => selectedIds.has(`card:${c.id}`))
+        .map((c) => ({ id: c.id, name: c.name }));
+      const selectedPages = preview.pages
+        .filter((p) => selectedIds.has(`page:${p.id}`))
+        .map((p) => ({ id: p.id, title: p.title }));
+      const selectedApps = preview.customApps
+        .filter((a) => selectedIds.has(`app:${a.id}`))
+        .map((a) => ({ id: a.id, name: a.name }));
 
-      const result = await duplicateUser({
-        cards: selectedCards.map((c) => ({ id: c.id, name: c.name })),
-        customApps: selectedApps.map((a) => ({ id: a.id, name: a.name })),
-        groups: preview.groups,
-        locale: preview.locale,
-        newDisplayName: values.newDisplayName.trim(),
-        newEmail: values.newEmail.trim(),
-        onStepProgress: (stepKey, status, res) => {
-          if (!mountedRef.current) return;
-          setStepStates((prev) => ({
-            ...prev,
-            [stepKey]: { result: res, status }
-          }));
-        },
-        pages: selectedPages.map((p) => ({ id: p.id, title: p.title })),
-        profileFields: preview.profileFields,
-        sourceUserId: sourceUser.id,
-        tabId: currentContext.tabId
-      });
+      const result =
+        mode === 'existing'
+          ? await addAccessToExistingUser({
+              cards: selectedCards,
+              customApps: selectedApps,
+              groups: selectedGroups,
+              onStepProgress,
+              pages: selectedPages,
+              tabId: currentContext.tabId,
+              targetUser
+            })
+          : await duplicateUser({
+              cards: selectedCards,
+              customApps: selectedApps,
+              groups: selectedGroups,
+              locale: preview.locale,
+              newDisplayName: values.newDisplayName.trim(),
+              newEmail: values.newEmail.trim(),
+              onStepProgress,
+              pages: selectedPages,
+              profileFields: preview.profileFields,
+              sourceUserId: sourceUser.id,
+              tabId: currentContext.tabId
+            });
 
       if (!mountedRef.current) return;
       setCompletedResult(result);
@@ -212,27 +336,40 @@ export function DuplicateView({ instance = null, liveContext = null, onBackToDef
       const sharedCardCount = result.cardResults.attempted.length - result.cardResults.errors.length;
       const sharedPageCount = result.pageResults.attempted.length - result.pageResults.errors.length;
       const appsSkipped = result.appResults.attempted.length;
+      const name = result.newUser?.displayName || targetUser?.displayName || 'user';
 
       if (result.success) {
         const appNote = appsSkipped > 0 ? `, **${appsSkipped}** apps skipped (manual)` : '';
+        const lead = result.created ? `Created **${name}**` : `Added access to **${name}**`;
         showStatus(
-          'Duplication Complete',
-          `Created **${result.newUser.displayName}**. Shared **${sharedCardCount}** cards, **${sharedPageCount}** pages${appNote}. Audit log downloaded.`,
+          result.created ? 'Duplication Complete' : 'Access Added',
+          `${lead}. Shared **${sharedCardCount}** cards, **${sharedPageCount}** pages${appNote}. Audit log downloaded.`,
           'success',
           6000
         );
       } else if (result.newUser) {
+        const failures = result.errors.length || result.cardResults.errors.length + result.pageResults.errors.length;
         showStatus(
-          'Duplicated with Warnings',
-          `Created **${result.newUser.displayName}** but **${result.errors.length || result.cardResults.errors.length + result.pageResults.errors.length}** step(s) had failures. See audit log.`,
+          result.created ? 'Duplicated with Warnings' : 'Added with Warnings',
+          `${result.created ? 'Created' : 'Updated'} **${name}** but **${failures}** step(s) had failures. See audit log.`,
           'warning',
           7000
         );
       } else {
-        showStatus('Duplication Failed', result.errors[0]?.message || 'Unable to create new user', 'danger', 5000);
+        showStatus(
+          result.created ? 'Duplication Failed' : 'Failed to Add Access',
+          result.errors[0]?.message || (result.created ? 'Unable to create new user' : 'Unable to add access'),
+          'danger',
+          5000
+        );
       }
     } catch (error) {
-      showStatus('Duplication Failed', error.message || 'An error occurred', 'danger', 5000);
+      showStatus(
+        mode === 'existing' ? 'Failed to Add Access' : 'Duplication Failed',
+        error.message || 'An error occurred',
+        'danger',
+        5000
+      );
     } finally {
       if (mountedRef.current) setIsSubmitting(false);
     }
@@ -243,7 +380,8 @@ export function DuplicateView({ instance = null, liveContext = null, onBackToDef
     try {
       const rows = buildDuplicationLogRows({ result, sourceUser });
       if (rows.length === 0) return;
-      await exportToExcel(rows, LOG_COLUMNS, generateExportFilename('duplicated-user'), 'Duplication Log');
+      const fileLabel = result.created === false ? 'user-access-added' : 'duplicated-user';
+      await exportToExcel(rows, LOG_COLUMNS, generateExportFilename(fileLabel), 'Duplication Log');
     } catch (err) {
       console.error('[DuplicateView] Failed to write audit log:', err);
     }
@@ -264,7 +402,7 @@ export function DuplicateView({ instance = null, liveContext = null, onBackToDef
     <Card className='flex min-h-0 w-full flex-1 flex-col p-2'>
       <ViewHeader
         beta
-        feature={config?.title || 'Duplicate'}
+        feature={mode === 'existing' ? 'Add to Existing User' : config?.title || 'Duplicate'}
         featureIcon={<IconPersonPlus />}
         subtext={sourceUser ? `from ${sourceUser.name}` : undefined}
         onClose={onBackToDefault}
@@ -280,44 +418,128 @@ export function DuplicateView({ instance = null, liveContext = null, onBackToDef
       />
       <Separator />
 
-      <div className='flex shrink-0 flex-col gap-2'>
-        {config?.fields.map((field) => (
-          <TextField
-            id={`duplicate-${field.key}`}
-            isRequired={field.required}
-            key={field.key}
-            name={field.key}
-            type={field?.type}
-            variant='secondary'
-          >
-            <Label>{field.label}</Label>
-            <Input className='h-8' value={values[field.key] ?? ''} onChange={(e) => setValue(field.key, e.target.value)} />
-            <FieldError className='text-xs text-danger'>Invalid {field.label.toLowerCase()}</FieldError>
-          </TextField>
-        ))}
-
-        <Separator className='mt-1' />
-      </div>
-
       <ScrollShadow hideScrollBar className='min-h-0 flex-1 overflow-y-auto px-1 py-2' offset={5} orientation='vertical'>
-        <PreviewPanel
-          error={previewError}
-          isLoading={isPreviewLoading}
-          preview={preview}
-          selectedAppIds={selectedAppIds}
-          selectedCardIds={selectedCardIds}
-          selectedPageIds={selectedPageIds}
-          setSelectedAppIds={setSelectedAppIds}
-          setSelectedCardIds={setSelectedCardIds}
-          setSelectedPageIds={setSelectedPageIds}
-          onRetry={loadPreview}
-        />
+        <div className='flex flex-col gap-2'>
+          <ToggleButtonGroup
+            disallowEmptySelection
+            aria-label='Duplication mode'
+            className='w-full'
+            isDisabled={isSubmitting}
+            selectedKeys={new Set([mode])}
+            selectionMode='single'
+            size='sm'
+            onSelectionChange={handleModeChange}
+          >
+            <ToggleButton className='flex-1' id='create'>
+              New user
+            </ToggleButton>
+            <ToggleButton className='flex-1' id='existing'>
+              Existing user
+            </ToggleButton>
+          </ToggleButtonGroup>
+
+          {mode === 'create' ? (
+            config?.fields.map((field) => (
+              <TextField
+                id={`duplicate-${field.key}`}
+                isRequired={field.required}
+                key={field.key}
+                name={field.key}
+                type={field?.type}
+                variant='secondary'
+              >
+                <Label>{field.label}</Label>
+                <Input
+                  className='h-8'
+                  value={values[field.key] ?? ''}
+                  onChange={(e) => setValue(field.key, e.target.value)}
+                />
+                <FieldError className='text-xs text-danger'>Invalid {field.label.toLowerCase()}</FieldError>
+              </TextField>
+            ))
+          ) : (
+            <div className='flex flex-col gap-1'>
+              <UserComboBox
+                isRequired
+                avatarBaseUrl={currentContext?.domoObject?.baseUrl}
+                label='Add access to'
+                selectedKey={targetUser?.id ?? null}
+                tabId={currentContext?.tabId}
+                onSelectionChange={handleTargetChange}
+              />
+              {isSelf && <p className='text-xs text-danger'>You cannot add a user&apos;s access to themselves.</p>}
+              {targetUser?.active === false && <p className='text-xs text-danger'>This user is deactivated.</p>}
+            </div>
+          )}
+        </div>
+
+        <Separator className='my-2' />
+
+        {isPreviewLoading ? (
+          <div className='flex items-center justify-center gap-2 py-2'>
+            <Spinner size='sm' />
+            <span className='text-sm text-muted'>Loading preview...</span>
+          </div>
+        ) : previewError ? (
+          <div className='flex items-center gap-2 py-1'>
+            <IconExclamationTriangle className='shrink-0 text-danger' size={18} />
+            <span className='min-w-0 flex-1 text-sm text-danger'>{previewError}</span>
+            <Button size='sm' variant='tertiary' onPress={loadPreview}>
+              <IconSync />
+              Retry
+            </Button>
+          </div>
+        ) : preview ? (
+          <div className='flex flex-col gap-1'>
+            {mode === 'create' && (
+              <>
+                <div className='text-xs font-medium text-muted uppercase'>Always copied</div>
+                <AggregateRow
+                  emptyText='None'
+                  items={preview.source.roleId != null ? [`Role ID ${preview.source.roleId}`] : []}
+                  label='Role'
+                />
+                <AggregateRow
+                  emptyText='None'
+                  items={preview.profileFields.map((f) => `${f.key}: ${f.value}`)}
+                  label='Profile fields'
+                />
+                <AggregateRow emptyText='Not set' items={preview.locale ? [preview.locale] : []} label='Locale' />
+                <Separator className='my-1' />
+              </>
+            )}
+            {allLeafIds.length > 0 ? (
+              <>
+                <div className='text-xs font-medium text-muted uppercase'>
+                  {mode === 'existing' ? 'Choose what to add' : 'Choose what to copy'}
+                </div>
+                <p className='text-xs text-muted italic'>
+                  Deselect anything you do not want. Deselecting a card or page skips only its direct share, so the user
+                  may still reach it through a group or Workspace.
+                  {preview.customApps.length > 0
+                    ? ' App sharing is not yet implemented, so checked apps are recorded in the audit log to share manually.'
+                    : ''}
+                </p>
+                <DataList
+                  selectionMode
+                  items={items}
+                  selectedIds={selectedIds}
+                  showActions={false}
+                  variant='transparent'
+                  onSelectionChange={handleSelectionChange}
+                />
+              </>
+            ) : (
+              <p className='text-sm text-muted'>No groups or individually-shared content found.</p>
+            )}
+          </div>
+        ) : null}
 
         {hasStarted && config && (
           <>
             <Separator className='my-3' />
             <div className='mb-1 text-xs font-medium text-muted uppercase'>Progress</div>
-            {config.steps.map((step) => (
+            {activeSteps.map((step) => (
               <StepRow key={step.key} state={stepStates[step.key]} step={step} />
             ))}
           </>
@@ -328,7 +550,15 @@ export function DuplicateView({ instance = null, liveContext = null, onBackToDef
 
       <div className='flex shrink-0 flex-col gap-2'>
         <Button fullWidth isDisabled={!canSubmit} isPending={isSubmitting} variant='primary' onPress={handleSubmit}>
-          {isSubmitting ? <Spinner color='currentColor' size='sm' /> : completedResult?.success ? 'Duplicated' : 'Duplicate'}
+          {isSubmitting ? (
+            <Spinner color='currentColor' size='sm' />
+          ) : mode === 'existing' ? (
+            completedResult?.success ? 'Access Added' : 'Add Access'
+          ) : completedResult?.success ? (
+            'Duplicated'
+          ) : (
+            'Duplicate'
+          )}
         </Button>
       </div>
     </Card>
@@ -404,14 +634,14 @@ function buildDuplicationLogRows({ result, sourceUser }) {
 
   const rows = [];
 
-  // USER (the new user creation)
+  // USER (created in duplicate mode, or the existing recipient in add-access mode)
   rows.push(
     baseRow({
       'Notes': result.newUser ? '' : result.errors[0]?.message || 'Failed',
       'Object ID': result.newUser?.id ?? '',
       'Object Name': result.newUser?.displayName ?? '',
       'Object Type': 'USER',
-      'Status': result.newUser ? 'CREATED' : 'FAILED'
+      'Status': result.newUser ? (result.created === false ? 'EXISTING' : 'CREATED') : 'FAILED'
     })
   );
 
@@ -541,159 +771,6 @@ function formatStepDetail(stepKey, result) {
   }
   if (stepKey === 'createUser' && result.id) return `#${result.id}`;
   return null;
-}
-
-function PreviewPanel({
-  error,
-  isLoading,
-  onRetry,
-  preview,
-  selectedAppIds,
-  selectedCardIds,
-  selectedPageIds,
-  setSelectedAppIds,
-  setSelectedCardIds,
-  setSelectedPageIds
-}) {
-  if (isLoading) {
-    return (
-      <div className='flex items-center justify-center gap-2 py-4'>
-        <Spinner size='sm' />
-        <span className='text-sm text-muted'>Loading preview...</span>
-      </div>
-    );
-  }
-  if (error) {
-    return (
-      <div className='flex items-center gap-2 py-2'>
-        <IconExclamationTriangle className='shrink-0 text-danger' size={18} />
-        <span className='min-w-0 flex-1 text-sm text-danger'>{error}</span>
-        <Button size='sm' variant='tertiary' onPress={onRetry}>
-          <IconSync />
-          Retry
-        </Button>
-      </div>
-    );
-  }
-  if (!preview) return null;
-
-  return (
-    <div className='flex flex-col gap-1'>
-      <div className='mb-1 text-xs font-medium text-muted uppercase'>Will be copied</div>
-
-      <AggregateRow
-        emptyText='None'
-        items={preview.source.roleId != null ? [`Role ID ${preview.source.roleId}`] : []}
-        label='Role'
-      />
-      <AggregateRow
-        emptyText='None'
-        items={preview.profileFields.map((f) => `${f.key}: ${f.value}`)}
-        label='Profile fields'
-      />
-      <AggregateRow emptyText='Not set' items={preview.locale ? [preview.locale] : []} label='Locale' />
-      <AggregateRow emptyText='None' items={preview.groups.map((g) => g.groupName)} label='Group memberships' />
-
-      <SelectableSection
-        emptyText='None'
-        items={preview.cards}
-        itemTypeId='CARD'
-        label='Individually-shared cards'
-        nameField='name'
-        selectedIds={selectedCardIds}
-        setSelectedIds={setSelectedCardIds}
-      />
-      <SelectableSection
-        emptyText='None'
-        items={preview.pages}
-        itemTypeId='PAGE'
-        label='Individually-shared pages'
-        nameField='title'
-        selectedIds={selectedPageIds}
-        setSelectedIds={setSelectedPageIds}
-      />
-      <SelectableSection
-        emptyText='None'
-        helperText='App sharing is not yet implemented. Listed items will be recorded in the audit log so you can share them manually.'
-        items={preview.customApps}
-        itemTypeId='APP'
-        label='Individually-shared apps'
-        nameField='name'
-        selectedIds={selectedAppIds}
-        setSelectedIds={setSelectedAppIds}
-      />
-    </div>
-  );
-}
-
-function SelectableSection({ emptyText, helperText, items, itemTypeId, label, nameField, selectedIds, setSelectedIds }) {
-  const dataListItems = useMemo(
-    () =>
-      items.map(
-        (item) =>
-          new DataListItem({
-            id: String(item.id),
-            label: item[nameField] || `${itemTypeId} ${item.id}`,
-            typeId: itemTypeId
-          })
-      ),
-    [items, itemTypeId, nameField]
-  );
-
-  if (items.length === 0) {
-    return (
-      <div className='flex items-center justify-between py-1'>
-        <span className='text-sm'>{label}</span>
-        <span className='shrink-0 text-xs text-muted'>{emptyText || 'None'}</span>
-      </div>
-    );
-  }
-
-  const selectAll = () => setSelectedIds(new Set(items.map((it) => String(it.id))));
-  const deselectAll = () => setSelectedIds(new Set());
-
-  return (
-    <Disclosure>
-      <Disclosure.Heading>
-        <Button className='h-auto w-full justify-between px-0 py-1 font-normal' slot='trigger' variant='ghost'>
-          <span className='text-sm'>{label}</span>
-          <span className='flex items-center gap-1 text-xs text-muted'>
-            {selectedIds.size} of {items.length}
-            <Disclosure.Indicator />
-          </span>
-        </Button>
-      </Disclosure.Heading>
-      <Disclosure.Content>
-        <Disclosure.Body className='pt-0 pb-1 pl-2'>
-          <p className='mb-1 text-xs text-muted italic'>
-            Deselecting a row only skips its direct share. The new user may still see it through inherited group or Workspace
-            access.
-            {helperText ? ` ${helperText}` : ''}
-          </p>
-          <DataList
-            isSelectable={() => true}
-            items={dataListItems}
-            selectedIds={selectedIds}
-            selectionMode={true}
-            showActions={false}
-            showCounts={false}
-            variant='transparent'
-            onSelectionChange={setSelectedIds}
-            selectionToolbar={
-              <div className='flex gap-1'>
-                <Button size='sm' variant='tertiary' onPress={selectAll}>
-                  Select all
-                </Button>
-                <Button size='sm' variant='tertiary' onPress={deselectAll}>
-                  Deselect all
-                </Button>
-              </div>
-            }
-          />
-        </Disclosure.Body>
-      </Disclosure.Content>
-    </Disclosure>
-  );
 }
 
 function StepRow({ state, step }) {

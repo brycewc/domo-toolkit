@@ -1485,19 +1485,49 @@ function DataListItemImpl({
                 </Checkbox.Control>
               </Checkbox>
             )}
-            {/* Label stays OUTSIDE the Trigger so a selectable parent that is
-                also a real object (e.g. a card with drill children) keeps its
-                <Link> navigation. The Trigger holds only the count + chevron and
-                claims the remaining width, so clicking the empty space or the
-                chevron toggles, while the label navigates and the checkbox
-                selects. */}
-            <div className='flex w-full min-w-0 flex-1 basis-4/5 items-center gap-2'>
-              {itemLabel}
+            {item.url ? (
+              // Selectable row whose label is a real <Link> (e.g. a card with
+              // drill children): the label stays OUTSIDE the Trigger so the
+              // <Link> keeps its own navigation, since a <Link> can't live inside
+              // the Trigger's <button>. The Trigger holds the count + chevron and
+              // claims the remaining width, so clicking the empty space or the
+              // chevron toggles, while the label navigates and the checkbox
+              // selects.
+              <div className='flex w-full min-w-0 flex-1 basis-4/5 items-center gap-2'>
+                {itemLabel}
+                <Disclosure.Trigger
+                  aria-label='Toggle'
+                  className='flex flex-1 flex-row items-center gap-2 self-stretch'
+                  variant='tertiary'
+                >
+                  {statusIndicator
+                    ? statusIndicator
+                    : showCounts &&
+                      item.count !== undefined && (
+                        <p className='shrink-0 text-sm whitespace-nowrap text-muted'>
+                          ({item.count}
+                          {item.countLabel ? ` ${item.countLabel}` : ''})
+                        </p>
+                      )}
+                  {!isLoadingState && (
+                    <Disclosure.Indicator>
+                      <IconChevronDown />
+                    </Disclosure.Indicator>
+                  )}
+                </Disclosure.Trigger>
+              </div>
+            ) : (
+              // Selectable row with a non-navigable label (a virtual-parent group
+              // header, or a non-link object with children): there's no <Link> to
+              // preserve, so the label goes INSIDE the Trigger and the whole label
+              // area, text included, toggles the disclosure. The checkbox sits
+              // outside as its own affordance.
               <Disclosure.Trigger
                 aria-label='Toggle'
-                className='flex flex-1 flex-row items-center gap-2 self-stretch'
+                className='flex w-full min-w-0 flex-1 basis-4/5 flex-row items-center gap-2 self-stretch'
                 variant='tertiary'
               >
+                {itemLabel}
                 {statusIndicator
                   ? statusIndicator
                   : showCounts &&
@@ -1507,13 +1537,14 @@ function DataListItemImpl({
                         {item.countLabel ? ` ${item.countLabel}` : ''})
                       </p>
                     )}
+                <span aria-hidden='true' className='flex-1' />
                 {!isLoadingState && (
                   <Disclosure.Indicator>
                     <IconChevronDown />
                   </Disclosure.Indicator>
                 )}
               </Disclosure.Trigger>
-            </div>
+            )}
           </>
         ) : item.isVirtualParent ? (
           // Virtual parents: the entire label area IS the Trigger so clicking
