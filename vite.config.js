@@ -68,6 +68,17 @@ export default defineConfig(({ mode }) => {
       },
       sourcemap: false
     },
+    // Pre-bundle the lineage graph deps at server startup. They're only
+    // reached by lazily-loaded extension surfaces (the side panel), so Vite
+    // would otherwise discover them mid-session and re-optimize, which bumps
+    // the dep browserHash and asks the page to reload. A chrome-extension://
+    // surface frequently ignores that reload request and stays stranded on the
+    // now-outdated dep chunk, whose export map predates the request, surfacing
+    // as "does not provide an export named 'Position'". Pre-bundling avoids the
+    // mid-session re-optimize entirely.
+    optimizeDeps: {
+      include: ['@dagrejs/dagre', '@xyflow/react']
+    },
     plugins: [
       // Serve the standalone lineage dev page via middleware so CRXJS
       // doesn't intercept and strip its script tags.

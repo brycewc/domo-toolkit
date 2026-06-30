@@ -19,7 +19,7 @@ import { DomoContext } from '@/models/DomoContext';
 import { getCodeEnginePackageInfo } from '@/services/codeEngine';
 import { getVersionDefinition, updateVersionDefinition } from '@/services/workflows';
 import { classifyContractChanges, getFunctionContract } from '@/utils/ceContractDiff';
-import { buildReloadAction } from '@/utils/headerActions';
+import { buildRefreshAction, buildReloadAction } from '@/utils/headerActions';
 import { getSidepanelData } from '@/utils/sidepanel';
 import { waitForDefinition } from '@/utils/workflowHelpers';
 import {
@@ -44,6 +44,7 @@ export function UpdateCodeEngineVersionsView({
   onStatusUpdate = null
 }) {
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDiffing, setIsDiffing] = useState(false);
   const [packages, setPackages] = useState([]);
@@ -187,6 +188,15 @@ export function UpdateCodeEngineVersionsView({
     }
   };
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await loadData();
+    } finally {
+      if (mountedRef.current) setIsRefreshing(false);
+    }
+  };
+
   const computeChanges = () => {
     const changes = [];
 
@@ -268,6 +278,7 @@ export function UpdateCodeEngineVersionsView({
         defaults[elementId] = {
           addOutputs: info.addedOutputs.slice(),
           inputRemap: {},
+          updateVariableSchemas: {},
           updateVariableTypes: {}
         };
       }
@@ -302,6 +313,7 @@ export function UpdateCodeEngineVersionsView({
       const current = prev[elementId] || {
         addOutputs: [],
         inputRemap: {},
+        updateVariableSchemas: {},
         updateVariableTypes: {}
       };
       return {
@@ -316,6 +328,7 @@ export function UpdateCodeEngineVersionsView({
       const current = prev[elementId] || {
         addOutputs: [],
         inputRemap: {},
+        updateVariableSchemas: {},
         updateVariableTypes: {}
       };
       const set = new Set(current.addOutputs);
@@ -325,11 +338,30 @@ export function UpdateCodeEngineVersionsView({
     });
   };
 
+  const handleToggleVariableSchema = (elementId, variableId, selected) => {
+    setReconciliations((prev) => {
+      const current = prev[elementId] || {
+        addOutputs: [],
+        inputRemap: {},
+        updateVariableSchemas: {},
+        updateVariableTypes: {}
+      };
+      return {
+        ...prev,
+        [elementId]: {
+          ...current,
+          updateVariableSchemas: { ...current.updateVariableSchemas, [variableId]: selected }
+        }
+      };
+    });
+  };
+
   const handleToggleVariableType = (elementId, variableId, selected) => {
     setReconciliations((prev) => {
       const current = prev[elementId] || {
         addOutputs: [],
         inputRemap: {},
+        updateVariableSchemas: {},
         updateVariableTypes: {}
       };
       return {
@@ -392,7 +424,7 @@ export function UpdateCodeEngineVersionsView({
       await updateVersionDefinition(modelId, versionNumber, modified, tabId);
 
       // Reload the tab to reflect changes
-      chrome.tabs.reload(tabId);
+      // chrome.tabs.reload(tabId);
 
       return count;
     })();
@@ -501,7 +533,8 @@ export function UpdateCodeEngineVersionsView({
             objectType: currentContext?.domoObject?.typeId,
             onStatusUpdate,
             viewType: 'updateCodeEngineVersions'
-          })
+          }),
+          buildRefreshAction({ isRefreshing, onRefresh: handleRefresh })
         ]}
       />
       <Separator />
@@ -616,6 +649,7 @@ export function UpdateCodeEngineVersionsView({
                       reconciliation={reconciliations[action.elementId]}
                       onRemapInput={handleRemapInput}
                       onToggleOutput={handleToggleOutput}
+                      onToggleVariableSchema={handleToggleVariableSchema}
                       onToggleVariableType={handleToggleVariableType}
                     />
                   );
@@ -654,7 +688,7 @@ export function UpdateCodeEngineVersionsView({
         )}
         <Button
           fullWidth
-          isDisabled={!hasChanges || isSubmitting || isDiffing}
+          isDisabled={!hasChanges || isSubmitting || isDiffing || isRefreshing}
           isPending={isSubmitting}
           size='sm'
           variant='primary'
@@ -679,11 +713,20 @@ function actionNeedsReview(info) {
     info.removedBoundInputs.length > 0 ||
     info.addedRequiredInputs.length > 0 ||
     info.typeChangeImpacts.length > 0 ||
+    info.schemaChangeImpacts.length > 0 ||
     info.breakingRemovedOutputs.length > 0
   );
 }
 
-function ActionReconciliation({ action, info, onRemapInput, onToggleOutput, onToggleVariableType, reconciliation }) {
+function ActionReconciliation({
+  action,
+  info,
+  onRemapInput,
+  onToggleOutput,
+  onToggleVariableSchema,
+  onToggleVariableType,
+  reconciliation
+}) {
   if (info.functionDeleted) {
     return (
       <div className='mt-1 flex items-start gap-2 rounded-md bg-danger-soft p-2 text-xs text-danger'>
@@ -696,26 +739,32 @@ function ActionReconciliation({ action, info, onRemapInput, onToggleOutput, onTo
     );
   }
 
-  const choices = reconciliation || { addOutputs: [], inputRemap: {}, updateVariableTypes: {} };
+  const choices = reconciliation || { addOutputs: [], inputRemap: {}, updateVariableSchemas: {}, updateVariableTypes: {} };
   const needsReview = actionNeedsReview(info);
 
   return (
-    <Disclosure className='mt-1 w-full rounded-md border border-border' defaultExpanded={needsReview}>
+    <Disclosure
+      className='border-divider mt-1 w-full overflow-hidden rounded-lg border bg-surface-secondary'
+      defaultExpanded={needsReview}
+    >
       <Disclosure.Heading>
-        <Button fullWidth className='items-center justify-between gap-1 px-2 py-1 text-xs' slot='trigger' variant='ghost'>
-          <span className='flex min-w-0 items-center gap-1'>
-            <Disclosure.Indicator>
-              <IconChevronDown size={12} />
-            </Disclosure.Indicator>
-            <span className='truncate'>{action.actionName}</span>
+        <Disclosure.Trigger className='flex w-full items-center justify-between gap-2 p-2'>
+          <span className='flex min-w-0 flex-1 items-center gap-2' title={action.actionName}>
+            <span className='truncate text-sm font-medium'>{action.actionName}</span>
           </span>
           <Chip color={needsReview ? 'warning' : 'accent'} size='sm' variant='soft'>
             {needsReview ? 'Review' : 'Auto'}
           </Chip>
-        </Button>
+          <Disclosure.Indicator>
+            <IconChevronDown />
+          </Disclosure.Indicator>
+        </Disclosure.Trigger>
       </Disclosure.Heading>
       <Disclosure.Content>
-        <div className='flex flex-col gap-2 px-2 pb-2 text-xs'>
+        <div className='px-4'>
+          <Separator variant='secondary' />
+        </div>
+        <div className='flex flex-col gap-2 p-2 text-xs'>
           {info.autoNotes.length > 0 && (
             <ul className='flex flex-col gap-0.5 text-muted'>
               {info.autoNotes.map((note) => (
@@ -830,6 +879,39 @@ function ActionReconciliation({ action, info, onRemapInput, onToggleOutput, onTo
             </div>
           ))}
 
+          {info.schemaChangeImpacts.map((impact) => (
+            <div
+              className='flex flex-col gap-1 rounded-md bg-warning-soft p-2 text-warning'
+              key={`sc-${impact.flag}-${impact.paramName}`}
+            >
+              <span className='flex items-start gap-2'>
+                <IconExclamationTriangle className='mt-0.5 shrink-0' size={12} />
+                <span>
+                  The properties of {impact.isList ? 'the objects in ' : ''}
+                  <span className='font-mono'>{impact.paramName}</span> changed, but variable{' '}
+                  <span className='font-mono'>{impact.variableName}</span> keeps its old properties
+                  {impact.consumers.length > 0
+                    ? ` (also used by ${impact.consumers.map((c) => c.title || c.paramName).join(', ')})`
+                    : ''}
+                  .
+                </span>
+              </span>
+              <Checkbox
+                isSelected={!!choices.updateVariableSchemas?.[impact.variableId]}
+                onChange={(selected) => onToggleVariableSchema(action.elementId, impact.variableId, selected)}
+              >
+                <Checkbox.Control>
+                  <Checkbox.Indicator />
+                </Checkbox.Control>
+                <Checkbox.Content>
+                  <Label className='text-xs'>
+                    Update variable <span className='font-mono'>{impact.variableName}</span>&apos;s properties
+                  </Label>
+                </Checkbox.Content>
+              </Checkbox>
+            </div>
+          ))}
+
           {info.breakingRemovedOutputs.map((impact) => (
             <div
               className='flex items-start gap-2 rounded-md bg-warning-soft p-2 text-warning'
@@ -876,18 +958,26 @@ function buildActionContractInfo({ change, definition, newFn, oldFn }) {
       paramName: e.name
     }));
 
+  // Describe a type the way a user reads it, keeping the list-ness visible so an
+  // array of objects never collapses to a bare "object" in the warning.
+  const describeType = (entry) => {
+    const type = entry?.type ?? null;
+    if (!type) return type;
+    return entry?.isList ? `list of ${type}` : type;
+  };
+
   // Every type change, paired with the tile param that carries the binding.
   const typeChanged = [
     ...classified.inputs.typeChanged.map((t) => ({
       flag: 'input',
       name: t.name,
-      newType: t.new?.type ?? null,
+      newType: describeType(t.new),
       param: inputParams.get(t.name)
     })),
     ...classified.outputs.typeChanged.map((t) => ({
       flag: 'output',
       name: t.name,
-      newType: t.new?.type ?? null,
+      newType: describeType(t.new),
       param: outputParams.get(t.name)
     }))
   ];
@@ -897,6 +987,34 @@ function buildActionContractInfo({ change, definition, newFn, oldFn }) {
       consumers: consumersOf(t.param.mappedTo),
       flag: t.flag,
       newType: t.newType,
+      paramName: t.name,
+      variableId: t.param.mappedTo,
+      variableName: variableName(t.param.mappedTo)
+    }));
+
+  // Changes confined to an object's nested property schema (the data type is
+  // unchanged). Paired with the binding so the user can sync the variable's
+  // properties; `isList` tunes the wording (objects in an array vs. one object).
+  const schemaChanged = [
+    ...classified.inputs.schemaChanged.map((t) => ({
+      flag: 'input',
+      isList: t.new?.isList ?? false,
+      name: t.name,
+      param: inputParams.get(t.name)
+    })),
+    ...classified.outputs.schemaChanged.map((t) => ({
+      flag: 'output',
+      isList: t.new?.isList ?? false,
+      name: t.name,
+      param: outputParams.get(t.name)
+    }))
+  ];
+  const schemaChangeImpacts = schemaChanged
+    .filter((t) => t.param?.mappedTo)
+    .map((t) => ({
+      consumers: consumersOf(t.param.mappedTo),
+      flag: t.flag,
+      isList: t.isList,
       paramName: t.name,
       variableId: t.param.mappedTo,
       variableName: variableName(t.param.mappedTo)
@@ -934,6 +1052,11 @@ function buildActionContractInfo({ change, definition, newFn, oldFn }) {
       autoNotes.push(`Type of ${t.name} changed to ${t.newType}, no variable bound`);
     }
   }
+  for (const t of schemaChanged) {
+    if (!t.param?.mappedTo) {
+      autoNotes.push(`Properties of ${t.name} changed, no variable bound`);
+    }
+  }
   for (const o of removedOutputs) {
     if (o.consumers.length === 0) {
       autoNotes.push(
@@ -954,6 +1077,7 @@ function buildActionContractInfo({ change, definition, newFn, oldFn }) {
     functionDeleted: classified.functionDeleted,
     newFn,
     removedBoundInputs,
+    schemaChangeImpacts,
     typeChangeImpacts
   };
 }

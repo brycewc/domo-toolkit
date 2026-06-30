@@ -7,14 +7,20 @@ import { computeStructuralDiff } from '@/utils/jsdocToPackage/mergeManifest';
  * (which maps to a workflow tile param's `paramName`), so the result describes
  * exactly what a workflow tile would need reconciled after a version bump.
  *
+ * A change to an entry's data type (its dataType, list-ness, or entity subtype,
+ * the parts a workflow variable carries) lands in `typeChanged`. A change that
+ * leaves the data type alone but alters the nested property schema of an object
+ * (the fields of the objects in an array, say) lands in `schemaChanged`: it is a
+ * real change worth surfacing, just a different kind than a type change.
+ *
  * @param {Object|null} oldFn - The function manifest at the tile's current version.
  * @param {Object|null} newFn - The function manifest at the target version, or
  *   `null` when the function no longer exists in that version.
  * @returns {{
  *   functionDeleted: boolean,
  *   hasChanges: boolean,
- *   inputs: { added: Object[], removed: Object[], renamed: Object[], typeChanged: Object[] },
- *   outputs: { added: Object[], removed: Object[], renamed: Object[], typeChanged: Object[] }
+ *   inputs: { added: Object[], removed: Object[], renamed: Object[], schemaChanged: Object[], typeChanged: Object[] },
+ *   outputs: { added: Object[], removed: Object[], renamed: Object[], schemaChanged: Object[], typeChanged: Object[] }
  * }}
  */
 export function classifyContractChanges(oldFn, newFn) {
@@ -31,7 +37,12 @@ export function classifyContractChanges(oldFn, newFn) {
   const outputs = classifyEntries(oldFn?.output ? [oldFn.output] : [], newFn?.output ? [newFn.output] : []);
 
   const hasChanges = [inputs, outputs].some(
-    (c) => c.added.length > 0 || c.removed.length > 0 || c.renamed.length > 0 || c.typeChanged.length > 0
+    (c) =>
+      c.added.length > 0 ||
+      c.removed.length > 0 ||
+      c.renamed.length > 0 ||
+      c.typeChanged.length > 0 ||
+      c.schemaChanged.length > 0
   );
 
   return { functionDeleted: false, hasChanges, inputs, outputs };
@@ -70,14 +81,20 @@ function classifyEntries(oldEntries, newEntries) {
   const added = [];
   const removed = [];
   const renamed = [];
+  const schemaChanged = [];
   const typeChanged = [];
 
   for (const entry of newList) {
     const prev = oldByName.get(entry.name);
     if (!prev) {
       added.push(entry);
-    } else if (!entriesStructurallyEqual(prev, entry)) {
+    } else if (!variableTypeEqual(prev, entry)) {
+      // The data type itself changed (dataType, list-ness, or entity subtype).
       typeChanged.push({ name: entry.name, new: entry, old: prev });
+    } else if (!entriesStructurallyEqual(prev, entry)) {
+      // Same data type, but the nested property schema differs (e.g. the fields
+      // of the objects in an array changed). Surface it as its own kind.
+      schemaChanged.push({ name: entry.name, new: entry, old: prev });
     }
   }
   for (const entry of oldList) {
@@ -99,11 +116,11 @@ function classifyEntries(oldEntries, newEntries) {
     removed.splice(removed.indexOf(oldEntry), 1);
   }
 
-  return { added, removed, renamed, typeChanged };
+  return { added, removed, renamed, schemaChanged, typeChanged };
 }
 
 function emptyClassification() {
-  return { added: [], removed: [], renamed: [], typeChanged: [] };
+  return { added: [], removed: [], renamed: [], schemaChanged: [], typeChanged: [] };
 }
 
 function entriesStructurallyEqual(a, b) {
@@ -117,4 +134,20 @@ function normalizeForCompare(entry) {
     isList: entry?.isList ?? false,
     type: entry?.type ?? null
   };
+}
+
+// Equal on the fields that constitute an entry's data type: its dataType,
+// list-ness, and entity subtype. Deliberately ignores `children` so that a
+// difference confined to the nested property schema (e.g. an `object[]` output
+// whose element fields changed) is NOT counted as a type change. It stays an
+// array of objects either way; that difference is caught separately as a schema
+// change via the full structural compare. `children` also still participates in
+// rename pairing, where matching the full structure keeps an auto-rename from
+// silently rewiring a binding.
+function variableTypeEqual(a, b) {
+  return (
+    (a?.type ?? null) === (b?.type ?? null) &&
+    (a?.isList ?? false) === (b?.isList ?? false) &&
+    (a?.entitySubType ?? null) === (b?.entitySubType ?? null)
+  );
 }

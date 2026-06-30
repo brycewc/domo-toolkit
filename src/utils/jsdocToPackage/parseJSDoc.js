@@ -61,7 +61,7 @@ function buildFunctionDoc({ block, functionName, range }) {
   const description = explicitDesc || implicitDesc || '';
   const isPrivate = block.tags.some((t) => t.tag === 'private');
   const params = extractParams(block.tags.filter((t) => t.tag === 'param'));
-  const returns = extractReturns(block.tags.find((t) => t.tag === 'returns' || t.tag === 'return'));
+  const returns = extractReturns(block.tags.filter((t) => t.tag === 'returns' || t.tag === 'return'));
   return {
     blockRange: range,
     description,
@@ -102,32 +102,37 @@ function extractProperties(propertyTags) {
   return propertyTags.map((tag) => buildParamFromTag(tag)).filter(Boolean);
 }
 
-function extractReturns(returnsTag) {
-  if (!returnsTag) return null;
-  const rawType = returnsTag.type || '';
-  const nameRaw = (returnsTag.name || '').trim();
-  const descRaw = (returnsTag.description || '').trim();
+function extractReturns(returnsTags) {
+  if (!Array.isArray(returnsTags) || returnsTags.length === 0) return null;
+  const [rootTag, ...rest] = returnsTags;
+  const rawType = rootTag.type || '';
+  const nameRaw = (rootTag.name || '').trim();
+  const descRaw = (rootTag.description || '').trim();
   const isIdentifier = nameRaw && /^[A-Za-z_$][\w$]*$/.test(nameRaw);
 
-  // Form: `@returns {type} name - description` (dash-separated; user explicitly named the output)
-  if (isIdentifier && /^-\s/.test(descRaw)) {
+  // Additional @returns tags whose name carries a dotted/bracket path (e.g.
+  // `users[].id`) describe the output's nested schema inline, symmetric to the
+  // `@param users[].id` convention used for inputs. They are parsed like params
+  // so the manifest builder can walk them into the output's children.
+  const properties = rest.map((tag) => buildParamFromTag(tag)).filter((p) => p && /[.[]/.test(p.rawName));
+
+  // Form: `@returns {type} name - description` or `@returns {type} name` (single
+  // identifier; user explicitly named the output).
+  if (isIdentifier && (/^-\s/.test(descRaw) || !descRaw)) {
     return {
       description: descRaw.replace(/^-\s*/, ''),
       explicitName: true,
       name: nameRaw,
+      properties,
       rawType
     };
   }
 
-  // Form: `@returns {type} name` (single identifier, no description; user explicitly named the output)
-  if (isIdentifier && !descRaw) {
-    return { description: '', explicitName: true, name: nameRaw, rawType };
-  }
-
-  // Form: `@returns {type} description...` (no name, all description even when the first word is
-  // a valid identifier like "The"). Treat the whole post-type text as the description.
+  // Form: `@returns {type} description...` (no name, all description even when the
+  // first word is a valid identifier like "The"). Treat the whole post-type text
+  // as the description.
   const fullDesc = [nameRaw, descRaw].filter(Boolean).join(' ').replace(/^-\s*/, '').trim();
-  return { description: fullDesc, explicitName: false, name: null, rawType };
+  return { description: fullDesc, explicitName: false, name: null, properties, rawType };
 }
 
 function findFunctionNameAfter(source, fromIndex) {

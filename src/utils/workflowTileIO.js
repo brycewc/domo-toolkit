@@ -90,7 +90,8 @@ export function hasBinding(param) {
  * @param {Object} params
  * @param {Object} [params.choices] - User reconciliation choices:
  *   { addOutputs: string[], inputRemap: Record<oldName, newName|'drop'|'unset'>,
- *     updateVariableTypes: Record<variableId, boolean> }.
+ *     updateVariableTypes: Record<variableId, boolean>,
+ *     updateVariableSchemas: Record<variableId, boolean> }.
  * @param {Object} params.classified - Result of classifyContractChanges.
  * @param {Object} params.definition - The (cloned) workflow definition.
  * @param {Object} params.element - The (cloned) nebulaFunction designElement.
@@ -104,6 +105,7 @@ export function reconcileTileForVersionBump({ choices = {}, classified, definiti
     droppedBindings: [],
     remappedInputs: [],
     renamedParams: [],
+    schemaChanges: [],
     typeChanges: [],
     unmappedRequiredInputs: []
   };
@@ -223,7 +225,8 @@ function reconcileFlagParams({ choices, classified, definition, existingParams, 
       param.visible = src.visible ?? true;
       // A type change against a still-bound variable is the one case that can
       // break a workflow: the variable keeps its old dataType. Surface it, and
-      // update the variable's type only when the user opted in.
+      // update the variable's type (and its property schema) only when the user
+      // opted in.
       if (src.mappedTo && classified.typeChanged.some((t) => t.name === entry.name)) {
         report.typeChanges.push({
           dataType: entry.type ?? null,
@@ -233,9 +236,21 @@ function reconcileFlagParams({ choices, classified, definition, existingParams, 
         });
         if (choices.updateVariableTypes?.[src.mappedTo]) {
           setVariableType(definition, src.mappedTo, {
+            children: Array.isArray(entry.children) ? entry.children : [],
             dataType: entry.type ?? null,
             entitySubType: entry.entitySubType ?? null,
             isList: entry.isList ?? false
+          });
+        }
+      }
+      // The data type is unchanged but the object's property schema differs (e.g.
+      // the fields of the objects in an array changed). It does not break the
+      // binding, so updating the variable's properties is opt-in too.
+      if (src.mappedTo && classified.schemaChanged.some((t) => t.name === entry.name)) {
+        report.schemaChanges.push({ flag, paramName: entry.name, variableId: src.mappedTo });
+        if (choices.updateVariableSchemas?.[src.mappedTo]) {
+          setVariableType(definition, src.mappedTo, {
+            children: Array.isArray(entry.children) ? entry.children : []
           });
         }
       }
@@ -267,9 +282,10 @@ function reconcileFlagParams({ choices, classified, definition, existingParams, 
   return result;
 }
 
-function setVariableType(definition, variableId, { dataType, entitySubType, isList }) {
+function setVariableType(definition, variableId, { children, dataType, entitySubType, isList }) {
   const variable = (definition?.dataList || []).find((v) => v.id === variableId);
   if (!variable) return false;
+  if (children !== undefined) variable.children = children;
   if (dataType !== undefined) variable.dataType = dataType;
   if (entitySubType !== undefined) variable.entitySubType = entitySubType;
   if (isList !== undefined) variable.isList = isList;

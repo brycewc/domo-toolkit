@@ -71,6 +71,27 @@ function buildOutput(doc, typedefs, warnings) {
     });
   }
 
+  // Inline nested output schema: dotted-path @returns tags (e.g. `users[].id`).
+  // The paths are rooted at the output name, so strip that prefix to root the
+  // tree at the output object itself, then walk each branch into a child entry.
+  if (Array.isArray(ret.properties) && ret.properties.length > 0) {
+    const childParams = ret.properties
+      .map((prop) => ({ ...prop, rawName: stripOutputRoot(prop.rawName, name) }))
+      .filter((prop) => prop.rawName);
+    const tree = buildPathTree(childParams);
+    return {
+      children: tree.children.map((node) => buildOutputEntryFromNode(node, typedefs)),
+      defaultValues: null,
+      displayName: name,
+      entitySubType: null,
+      isList: typeInfo.isList,
+      name,
+      nullable: true,
+      type: 'object',
+      value: null
+    };
+  }
+
   if (typeInfo.isTypedef) {
     const typedef = typedefs[typeInfo.type];
     if (!typedef) {
@@ -96,6 +117,34 @@ function buildOutput(doc, typedefs, warnings) {
   }
 
   return primitiveOutputEntry({ isList: typeInfo.isList, name, type: typeInfo.type });
+}
+
+function buildOutputEntryFromNode(node, typedefs) {
+  const docParam = node.docParam;
+  const typeInfo = docParam ? mapJSDocType(docParam.rawType) : null;
+  const isList = (typeInfo?.isList ?? false) || !!node.segIsList;
+  let resolvedType = typeInfo?.type ?? 'object';
+  let resolvedChildren = null;
+
+  if (typeInfo?.isTypedef) {
+    const typedef = typedefs[typeInfo.type];
+    resolvedType = 'object';
+    resolvedChildren = typedef ? typedef.properties.map((nested) => buildOutputPropertyEntry(nested, typedefs)) : null;
+  } else if (node.children.length > 0) {
+    resolvedType = 'object';
+    resolvedChildren = node.children.map((child) => buildOutputEntryFromNode(child, typedefs));
+  }
+
+  return {
+    children: resolvedChildren,
+    displayName: null,
+    entitySubType: null,
+    isList,
+    name: node.name,
+    nullable: !!(docParam && docParam.optional),
+    type: resolvedType,
+    value: null
+  };
 }
 
 function buildOutputPropertyEntry(prop, typedefs) {
@@ -299,4 +348,11 @@ function primitiveOutputEntry({ isList, name, type }) {
 
 function splitPath(path) {
   return path.split('.').filter(Boolean);
+}
+
+function stripOutputRoot(rawName, rootName) {
+  for (const prefix of [`${rootName}[].`, `${rootName}.`]) {
+    if (rawName.startsWith(prefix)) return rawName.slice(prefix.length);
+  }
+  return rawName;
 }

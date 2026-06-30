@@ -24,6 +24,7 @@
 - The delete confirmation view now lets you share an affected object, or all affected objects, with yourself.
 - Cards now have a Definition tab showing the card's full underlying definition. ([#81](https://github.com/brycewc/domo-toolkit/issues/81))
 - Alerts now have an Actions tab listing the actions an alert triggers, with a link to the workflow, scheduled report, or task behind each one.
+- Generate Definition from JSDoc now picks up a function's nested output schema (the fields of the objects it returns), where before it only read the top-level return type.
 
 ### Copy Filters
 
@@ -32,6 +33,7 @@
 
 ### Migrate Content
 
+- Migrate Content now moves a dataset's alerts to the target dataset, prompting you to map any PDP policy that has no match there.
 - When migrating downstream content, navigating to another dataset now offers it as the migration target in one click, instead of having to copy and paste its ID.
 - Migrate Content now repoints pro-code app cards to the target dataset along with the rest of a dataset's downstream content, instead of skipping them.
 
@@ -93,6 +95,7 @@
 - Objects Owned now offers Share All with yourself on the App Studio Apps, Custom Apps, and Worksheets groups, not just Pages.
 - The Update Owner and Transfer Ownership dialogs now open centered on screen instead of near the top.
 - The Update Details view now puts the object's name in its title ("Update Details for <object>") instead of a generic per-type heading, with just the ID below it.
+- The refresh button's icon now spins counter-clockwise while refreshing, matching the direction of Domo's own sync icon.
 
 ### Get Card Pages
 
@@ -135,6 +138,7 @@
 - The API Errors view now shows each failed request's real method (DELETE, PUT, POST) instead of mislabeling some as GET.
 - Searching for a dataset by name now matches against the dataset name only, instead of returning hundreds of unrelated datasets.
 - Copy Filters no longer pins a page-wide filter to a single dataset, so a copied link keeps applying the filter across every dataset on the page.
+- Update Code Engine Versions now reports a change to an object's fields (or the fields of the objects in an array) as a properties change you can sync to the bound variable, instead of mislabeling it as a data type change.
 
 ### Migrate Content
 

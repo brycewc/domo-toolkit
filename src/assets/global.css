@@ -110,6 +110,9 @@
 
   /* Animations */
   --animate-spin: spin 1s linear infinite;
+  /* Counter-clockwise spin for the refresh (sync) icon, matching the direction
+     Domo's own sync icon arrows travel. */
+  --animate-spin-reverse: spin-reverse 1s linear infinite;
 
   @keyframes spin {
     from {
@@ -117,6 +120,15 @@
     }
     to {
       transform: rotate(360deg);
+    }
+  }
+
+  @keyframes spin-reverse {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(-360deg);
     }
   }
 }

@@ -19,7 +19,7 @@ import IconSync from '@icons/sync.svg?react';
 export function buildRefreshAction({ isRefreshing = false, onRefresh }) {
   return {
     ariaLabel: 'Refresh',
-    icon: <IconSync className={isRefreshing ? 'animate-spin' : ''} />,
+    icon: <IconSync className={isRefreshing ? 'animate-spin-reverse' : ''} />,
     isDisabled: isRefreshing,
     key: 'refresh',
     onPress: () => onRefresh?.(),

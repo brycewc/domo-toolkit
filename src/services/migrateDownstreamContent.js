@@ -8,6 +8,7 @@
 
 import { executeInPage } from '@/utils/executeInPage';
 
+import { moveAlertToTarget } from './alerts';
 import { getCardDefinition } from './cards';
 import { extractDataflowColumnRefs, isFusionView, makeItemKey } from './columnReferences';
 import {
@@ -1154,7 +1155,8 @@ export const MIGRATE_TYPES = [
   { key: 'cards' },
   { key: 'dataflows' },
   { key: 'datasets' },
-  { key: 'apps' }
+  { key: 'apps' },
+  { key: 'alerts' }
 ];
 
 /**
@@ -1190,6 +1192,7 @@ export async function migrateAllDownstreamContent({
   onProgress,
   originId,
   originName,
+  pdpMap,
   selectedItems,
   tabId,
   targetBeastModes,
@@ -1264,6 +1267,7 @@ export async function migrateAllDownstreamContent({
           droppedColumns,
           originId,
           originName,
+          pdpMap,
           tabId,
           targetColumnTypes,
           targetId,
@@ -1455,6 +1459,18 @@ async function dispatchDatasetSwap(item, options) {
 }
 
 async function dispatchSwap(typeKey, item, options) {
+  if (typeKey === 'alerts') {
+    // Alerts carry no Beast Modes, so they skip every Beast Mode remap; only the
+    // dataset repoint, column rewrite, and PDP-policy resolution apply.
+    return moveAlertToTarget({
+      alertId: item.id,
+      columnMap: options.columnMap,
+      originId: options.originId,
+      pdpMap: options.pdpMap,
+      tabId: options.tabId,
+      targetId: options.targetId
+    });
+  }
   if (typeKey === 'apps') {
     // Pro-code apps carry no Beast Modes, so they skip every Beast Mode remap;
     // only the column rewrite and the dataset-id repoint apply.

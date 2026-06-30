@@ -34,6 +34,7 @@ import { DataListItem } from '@/models/DataListItem';
 import { DomoContext } from '@/models/DomoContext';
 import { DomoObject } from '@/models/DomoObject';
 import { getObjectType } from '@/models/DomoObjectType';
+import { extractAlertPdpPolicies, getDownstreamAlerts, getRowPdpPolicies } from '@/services/alerts';
 import { scanContentForColumns } from '@/services/columnReferences';
 import { hasEffectiveMapping } from '@/services/columnRewriter';
 import { getDatasetColumns } from '@/services/datasets';
@@ -59,6 +60,7 @@ import IconWand from '@icons/wand.svg?react';
 import IconX from '@icons/x.svg?react';
 
 const TYPE_KEY_TO_DOMO_TYPE = {
+  alerts: 'ALERT',
   apps: 'RYUU_APP',
   beastModes: 'BEAST_MODE_FORMULA',
   cards: 'CARD',
@@ -70,6 +72,10 @@ const UNMAPPED = '__unmapped__';
 // Sentinel for the "drop column" remap choice: remove the column's references
 // from the (badge_table) cards/drills that use it instead of mapping it.
 const DROP = '__drop__';
+// Sentinel for the PDP-policy mapping select's explicit "remove this policy so
+// the alert watches all rows" choice. The unresolved state is a null value (no
+// selection), which keeps the migration blocked until the user picks.
+const PDP_REMOVE = '__pdp_remove__';
 
 export function MigrateDownstreamContentView({
   currentContext = null,
@@ -134,6 +140,16 @@ export function MigrateDownstreamContentView({
   // card that uses it) is migrated, so nested Beast Modes never arrive on the
   // target with a dangling reference.
   const [bmRefGraph, setBmRefGraph] = useState(() => new Map());
+
+  // Row PDP policies on the target dataset, fetched when a target is chosen and a
+  // selected alert references at least one named policy. `pdpChoices` holds the
+  // user's resolution for each origin policy that has no same-name match on the
+  // target (keyed by the origin filterGroupId): either map it to a target policy
+  // or remove it (widening the alert to all rows). `pdpLoaded` gates the UI/gating
+  // so the unmatched list doesn't flash while the target's policies are loading.
+  const [targetPdpPolicies, setTargetPdpPolicies] = useState([]);
+  const [pdpChoices, setPdpChoices] = useState({});
+  const [pdpLoaded, setPdpLoaded] = useState(false);
 
   const mountedRef = useRef(true);
   const bailedRef = useRef(false);
@@ -220,6 +236,10 @@ export function MigrateDownstreamContentView({
       {
         fetch: async () => ({ items: await getDownstreamApps(datasetId, tabId, await cardsRaw()) }),
         key: 'apps'
+      },
+      {
+        fetch: async () => ({ items: await getDownstreamAlerts(datasetId, tabId) }),
+        key: 'alerts'
       }
     ];
   }, [datasetId, tabId]);
@@ -288,7 +308,7 @@ export function MigrateDownstreamContentView({
   }, [nothingToMigrate, datasetName, onStatusUpdate, onBackToDefault]);
 
   const selectedCounts = useMemo(() => {
-    const counts = { apps: 0, beastModes: 0, cards: 0, dataflows: 0, datasets: 0 };
+    const counts = { alerts: 0, apps: 0, beastModes: 0, cards: 0, dataflows: 0, datasets: 0 };
     for (const t of MIGRATE_TYPES) {
       const r = results[t.key];
       const items = r?.status === 'loaded' ? r.items?.items || [] : [];
@@ -301,12 +321,7 @@ export function MigrateDownstreamContentView({
     return counts;
   }, [results, selectedIds]);
 
-  const totalSelected =
-    selectedCounts.apps +
-    selectedCounts.beastModes +
-    selectedCounts.cards +
-    selectedCounts.datasets +
-    selectedCounts.dataflows;
+  const totalSelected = MIGRATE_TYPES.reduce((sum, t) => sum + (selectedCounts[t.key] || 0), 0);
 
   // Non-zero selected counts as `{ key, n, noun }` parts, in MIGRATE_TYPES
   // order, for the confirmation's "N beast modes, 1 card, …" breakdown. The
@@ -327,7 +342,7 @@ export function MigrateDownstreamContentView({
   // for column references when a schema mismatch is detected. Distinct from
   // `selectedCounts` (numbers) and `selectedIds` (flat key Set).
   const selectedItemsByType = useMemo(() => {
-    const acc = { apps: [], beastModes: [], cards: [], dataflows: [], datasets: [] };
+    const acc = { alerts: [], apps: [], beastModes: [], cards: [], dataflows: [], datasets: [] };
     for (const t of MIGRATE_TYPES) {
       const r = results[t.key];
       const items = r?.status === 'loaded' ? r.items?.items || [] : [];
@@ -688,6 +703,141 @@ export function MigrateDownstreamContentView({
     [cardBeastModeChoices, cardBeastModeConflicts, targetBeastModeByName]
   );
 
+  // Fetch the target's row PDP policies once a target is chosen, but only when a
+  // selected alert actually references a named policy (the common all-rows alert
+  // needs no remap). Used to auto-match origin policies by name and to populate
+  // the per-policy dropdown for any that don't match.
+  const selectedAlertsRefPdp = useMemo(
+    () => (selectedItemsByType.alerts || []).some((a) => extractAlertPdpPolicies(a).some((p) => p.type !== 'open')),
+    [selectedItemsByType]
+  );
+
+  useEffect(() => {
+    if (page !== 'target' || !selectedDatasetId || !selectedAlertsRefPdp) {
+      setTargetPdpPolicies([]);
+      setPdpLoaded(true);
+      return;
+    }
+    let cancelled = false;
+    setPdpLoaded(false);
+    getRowPdpPolicies(selectedDatasetId, tabId)
+      .then((policies) => {
+        if (cancelled) return;
+        setTargetPdpPolicies(policies || []);
+        setPdpLoaded(true);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setTargetPdpPolicies([]);
+        setPdpLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [page, selectedAlertsRefPdp, selectedDatasetId, tabId]);
+
+  // Distinct named PDP policies referenced by the selected alerts (the open "All
+  // Rows" group auto-resolves and is excluded). These are the candidates for
+  // remapping onto the target.
+  const alertPdpReferences = useMemo(() => {
+    const byId = new Map();
+    for (const alert of selectedItemsByType.alerts || []) {
+      for (const p of extractAlertPdpPolicies(alert)) {
+        if (p.type === 'open' || byId.has(p.filterGroupId)) continue;
+        byId.set(p.filterGroupId, p);
+      }
+    }
+    return [...byId.values()].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }, [selectedItemsByType]);
+
+  // Named target policies indexed by name (first wins), for same-name auto-match.
+  const targetPdpByName = useMemo(() => {
+    const m = new Map();
+    for (const p of targetPdpPolicies) {
+      if (p.type !== 'open' && p.name && !m.has(p.name)) m.set(p.name, p);
+    }
+    return m;
+  }, [targetPdpPolicies]);
+
+  // Referenced policies with no same-name policy on the target: the ones the user
+  // must resolve (map to a target policy, or remove to widen the alert).
+  const unmatchedPdpReferences = useMemo(
+    () => alertPdpReferences.filter((p) => !targetPdpByName.has(p.name)),
+    [alertPdpReferences, targetPdpByName]
+  );
+
+  // Prune choices for policies no longer unmatched (e.g. selection changed). No
+  // default disposition is seeded, so each unmatched policy stays unresolved
+  // until the user picks, which keeps the migration gated.
+  useEffect(() => {
+    setPdpChoices((prev) => {
+      const validKeys = new Set(unmatchedPdpReferences.map((p) => String(p.filterGroupId)));
+      const next = {};
+      let changed = false;
+      for (const k of Object.keys(prev)) {
+        if (validKeys.has(k)) next[k] = prev[k];
+        else changed = true;
+      }
+      if (!changed) return prev;
+      return next;
+    });
+  }, [unmatchedPdpReferences]);
+
+  const handlePdpChoice = useCallback((filterGroupId, disposition, targetFilterGroupId) => {
+    setPdpChoices((prev) => ({
+      ...prev,
+      [String(filterGroupId)]:
+        disposition === 'map' ? { disposition, targetFilterGroupId: targetFilterGroupId ?? null } : { disposition }
+    }));
+  }, []);
+
+  // The resolution map handed to the migration, keyed by origin filterGroupId and
+  // covering every referenced group: the open group and same-name matches resolve
+  // automatically; unmatched groups use the user's choice. Groups still
+  // unresolved are omitted (the migrate button is gated until none remain).
+  const pdpMap = useMemo(() => {
+    const targetOpen = targetPdpPolicies.find((p) => p.type === 'open');
+    const map = {};
+    const refsById = new Map();
+    for (const alert of selectedItemsByType.alerts || []) {
+      for (const p of extractAlertPdpPolicies(alert)) {
+        if (!refsById.has(p.filterGroupId)) refsById.set(p.filterGroupId, p);
+      }
+    }
+    for (const p of refsById.values()) {
+      if (p.type === 'open') {
+        if (targetOpen) map[p.filterGroupId] = { action: 'map', target: targetOpen };
+        continue;
+      }
+      const match = targetPdpByName.get(p.name);
+      if (match) {
+        map[p.filterGroupId] = { action: 'map', target: match };
+        continue;
+      }
+      const choice = pdpChoices[String(p.filterGroupId)];
+      if (choice?.disposition === 'remove') {
+        map[p.filterGroupId] = { action: 'remove' };
+      } else if (choice?.disposition === 'map' && choice.targetFilterGroupId != null) {
+        const t = targetPdpPolicies.find((tp) => String(tp.filterGroupId) === String(choice.targetFilterGroupId));
+        if (t) map[p.filterGroupId] = { action: 'map', target: t };
+      }
+    }
+    return map;
+  }, [pdpChoices, selectedItemsByType, targetPdpByName, targetPdpPolicies]);
+
+  // True while any referenced PDP policy lacks a valid resolution: still loading,
+  // or an unmatched policy the user hasn't mapped or removed yet. Gates migrate.
+  const pdpChoiceInvalid = useMemo(() => {
+    if (!selectedAlertsRefPdp) return false;
+    if (!pdpLoaded) return true;
+    for (const p of unmatchedPdpReferences) {
+      const choice = pdpChoices[String(p.filterGroupId)];
+      if (!choice) return true;
+      if (choice.disposition === 'map' && choice.targetFilterGroupId == null) return true;
+    }
+    return false;
+  }, [pdpChoices, pdpLoaded, selectedAlertsRefPdp, unmatchedPdpReferences]);
+
   const hasMismatches = comparison && !comparison.compatible;
 
   // SQL dataflows (Redshift/MySQL) whose SQL references origin in a shape we
@@ -1030,7 +1180,8 @@ export function MigrateDownstreamContentView({
     comparisonError !== null ||
     scanError !== null ||
     beastModeChoiceInvalid ||
-    cardBeastModeChoiceInvalid;
+    cardBeastModeChoiceInvalid ||
+    pdpChoiceInvalid;
 
   // CTA wording reflects the schema state: a clean migrate, a migrate that
   // will apply the user's column remap, or an explicit proceed-despite-mismatch.
@@ -1196,6 +1347,7 @@ export function MigrateDownstreamContentView({
         },
         originId: datasetId,
         originName: datasetName,
+        pdpMap,
         selectedItems,
         tabId,
         targetBeastModes,
@@ -1282,6 +1434,7 @@ export function MigrateDownstreamContentView({
     datasetName,
     hasMismatches,
     onBackToDefault,
+    pdpMap,
     plannedDroppedColumns,
     plannedRenameMap,
     scanResult,
@@ -1685,6 +1838,29 @@ export function MigrateDownstreamContentView({
                       originName={bm.name}
                       targetNames={targetBeastModeNames}
                       onChange={(disposition, newName) => handleCardBeastModeChoice(bm.id, disposition, newName)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {pdpLoaded && unmatchedPdpReferences.length > 0 && (
+              <div className='flex flex-col gap-1'>
+                <Label className='text-sm font-medium'>PDP Policy Mapping</Label>
+                <Description className='text-xs'>
+                  These alerts are scoped by a PDP policy with no match on the target dataset. Map each to a target policy,
+                  or remove it so the moved alert watches all rows. Migration is blocked until each is resolved.
+                </Description>
+                <div className='flex flex-col divide-y divide-border'>
+                  {unmatchedPdpReferences.map((p) => (
+                    <PdpMapRow
+                      choice={pdpChoices[String(p.filterGroupId)]}
+                      key={String(p.filterGroupId)}
+                      originName={p.name}
+                      targetPolicies={targetPdpPolicies}
+                      onChange={(disposition, targetFilterGroupId) =>
+                        handlePdpChoice(p.filterGroupId, disposition, targetFilterGroupId)
+                      }
                     />
                   ))}
                 </div>
@@ -2420,6 +2596,56 @@ function parseLeafTypeKey(id) {
   if (idx === -1) return null;
   const candidate = id.slice(0, idx);
   return MIGRATE_TYPES.some((t) => t.key === candidate) ? candidate : null;
+}
+
+// One row of the PDP policy mapping resolver: an origin policy with no same-name
+// match on the target. The user maps it to a target policy or removes it (the
+// alert then watches all rows). No default is selected, so the row stays
+// unresolved (gating the migrate button) until the user chooses.
+function PdpMapRow({ choice, onChange, originName, targetPolicies }) {
+  const namedTargets = targetPolicies.filter((p) => p.type !== 'open');
+  const value =
+    choice?.disposition === 'remove'
+      ? PDP_REMOVE
+      : choice?.disposition === 'map' && choice.targetFilterGroupId != null
+        ? String(choice.targetFilterGroupId)
+        : null;
+  return (
+    <div className='flex items-center gap-2 py-1.5'>
+      <span className='min-w-0 flex-1 truncate font-mono text-xs' title={originName}>
+        {originName}
+      </span>
+      <Select
+        aria-label={`Map PDP policy ${originName}`}
+        className='w-48'
+        placeholder='Choose…'
+        value={value}
+        variant='secondary'
+        onChange={(key) => (key === PDP_REMOVE ? onChange('remove') : onChange('map', key))}
+      >
+        <Select.Trigger>
+          <Select.Value />
+          <Select.Indicator>
+            <IconChevronDown />
+          </Select.Indicator>
+        </Select.Trigger>
+        <Select.Popover>
+          <ListBox>
+            {namedTargets.map((p) => (
+              <ListBox.Item id={String(p.filterGroupId)} key={String(p.filterGroupId)} textValue={p.name}>
+                {p.name}
+                <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
+              </ListBox.Item>
+            ))}
+            <ListBox.Item id={PDP_REMOVE} textValue='Remove'>
+              <span className='text-danger italic'>Remove (watch all rows)</span>
+              <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
+            </ListBox.Item>
+          </ListBox>
+        </Select.Popover>
+      </Select>
+    </div>
+  );
 }
 
 // Plural group label for a migrate type, taken from the object type model so the
