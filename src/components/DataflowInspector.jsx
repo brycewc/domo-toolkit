@@ -1,5 +1,4 @@
 import {
-  Button,
   Card,
   Chip,
   Disclosure,
@@ -9,14 +8,16 @@ import {
   SearchField,
   Separator,
   Spinner,
-  Tabs,
-  Tooltip
+  Tabs
 } from '@heroui/react';
 import { memo, useEffect, useMemo, useState } from 'react';
 import JsonView from 'react18-json-view';
 
 import '@/assets/json-view-theme.css';
 import { AnimatedCheck } from '@/components/AnimatedCheck';
+import { SqlBlock } from '@/components/SqlBlock';
+import { ViewHeader } from '@/components/views/ViewHeader';
+import { parseDataflow, searchTiles } from '@/services/dataflowParser';
 import { getDataflowDetail } from '@/services/dataflows';
 import IconASemicolonB from '@icons/a-semicolon-b.svg?react';
 import IconAToB from '@icons/a-to-b.svg?react';
@@ -41,8 +42,8 @@ import IconColumnSelect from '@icons/column-select.svg?react';
 import IconDatabaseIn from '@icons/database-in.svg?react';
 import IconDatabaseOut from '@icons/database-out.svg?react';
 import IconDatabase from '@icons/database.svg?react';
-import IconDataflow from '@icons/dataflow.svg?react';
 import IconDateAdd from '@icons/date-add.svg?react';
+import IconEye from '@icons/eye.svg?react';
 import IconForecast from '@icons/forecast.svg?react';
 import IconFunctionOf from '@icons/function-of.svg?react';
 import IconFunnel from '@icons/funnel.svg?react';
@@ -66,9 +67,6 @@ import IconTable from '@icons/table.svg?react';
 import IconTree from '@icons/tree.svg?react';
 import IconVector from '@icons/vector.svg?react';
 import IconWrench from '@icons/wrench.svg?react';
-import IconX from '@icons/x.svg?react';
-
-import { parseDataflow, searchTiles } from '../services/dataflowParser';
 
 const CATEGORY_COLORS = {
   'Aggregate': { bg: 'bg-pink-500', text: 'text-pink-500' },
@@ -110,6 +108,7 @@ const TILE_ICONS = {
   ExpressionRowGenerator: IconColumnConstants,
   Filter: IconFunnel,
   FixedInput: IconTableEdit,
+  GenerateTableAction: IconTable,
   GroupBy: IconArrowsDiagonalIn,
   JsonExpandAction: IconTree,
   Limit: IconTable,
@@ -136,6 +135,7 @@ const TILE_ICONS = {
   SplitFilter: IconFunnel,
   SplitJoin: IconJoin,
   SQL: IconSql,
+  SqlAction: IconSql,
   StashAction: IconGear,
   StringCalculator: IconAbc,
   TextFormatting: IconLetters,
@@ -149,14 +149,23 @@ const TILE_ICONS = {
 };
 
 /**
- * Right panel for inspecting ETL dataflow tiles
+ * Panel for inspecting a dataflow's transforms (Magic ETL + SQL dataflows).
  * @param {Object} props
  * @param {React.RefObject<Map>} [props.cacheRef] - Shared cache for parsed dataflow data
+ * @param {string} [props.className] - Outer card classes (defaults to the lineage right-rail look)
  * @param {string} props.dataflowId - Dataflow ID to inspect
  * @param {Function} [props.resolveTabId] - Async function that resolves a valid tab ID
  * @param {Function} props.onClose - Close handler
+ * @param {boolean} [props.showJson=true] - Show the Tiles/JSON tabs (lineage). When false, renders just the tiles list (sidepanel, where the JSON is already available in the context footer).
  */
-export function DataflowInspector({ cacheRef, dataflowId, onClose, resolveTabId }) {
+export function DataflowInspector({
+  cacheRef,
+  className = 'h-full rounded-none border-l border-divider shadow-none',
+  dataflowId,
+  onClose,
+  resolveTabId,
+  showJson = true
+}) {
   const cached = cacheRef?.current?.get(dataflowId);
   const [dataflow, setDataflow] = useState(cached?.parsed ?? null);
   const [rawJSON, setRawJSON] = useState(cached?.raw ?? null);
@@ -234,17 +243,9 @@ export function DataflowInspector({ cacheRef, dataflowId, onClose, resolveTabId 
 
   if (loading) {
     return (
-      <Card className='border-divider h-full rounded-none border-l p-0 shadow-none'>
-        <Card.Header className='border-divider flex-row items-center justify-between border-b px-4 py-3'>
-          <span className='font-semibold'>Loading ETL...</span>
-          <Tooltip>
-            <Button isIconOnly size='sm' variant='tertiary' onPress={onClose}>
-              <IconX />
-            </Button>
-            <Tooltip.Content>Close</Tooltip.Content>
-          </Tooltip>
-        </Card.Header>
-        <Card.Content className='items-center justify-center'>
+      <Card className={`flex flex-col p-2 ${className}`}>
+        <ViewHeader feature='Inspect Dataflow' featureIcon={<IconEye />} subtext='Loading...' onClose={onClose} />
+        <Card.Content className='flex flex-1 items-center justify-center'>
           <Spinner size='md' />
         </Card.Content>
       </Card>
@@ -253,160 +254,151 @@ export function DataflowInspector({ cacheRef, dataflowId, onClose, resolveTabId 
 
   if (error || !dataflow) {
     return (
-      <Card className='border-divider h-full rounded-none border-l p-0 shadow-none'>
-        <Card.Header className='border-divider flex-row items-center justify-between border-b px-4 py-3'>
-          <span className='font-semibold'>ETL Inspector</span>
-          <Tooltip>
-            <Button isIconOnly size='sm' variant='tertiary' onPress={onClose}>
-              <IconX />
-            </Button>
-            <Tooltip.Content>Close</Tooltip.Content>
-          </Tooltip>
-        </Card.Header>
-        <Card.Content className='items-center justify-center text-danger'>
+      <Card className={`flex flex-col p-2 ${className}`}>
+        <ViewHeader feature='Inspect Dataflow' featureIcon={<IconEye />} onClose={onClose} />
+        <Card.Content className='flex flex-1 items-center justify-center text-danger'>
           <p>{error || 'No data available'}</p>
         </Card.Content>
       </Card>
     );
   }
 
+  const tilesView = (
+    <>
+      <div className='border-divider shrink-0 border-b py-2'>
+        <SearchField fullWidth aria-label='Search tiles' value={tileSearch} variant='secondary' onChange={setTileSearch}>
+          <SearchField.Group>
+            <SearchField.SearchIcon />
+            <SearchField.Input placeholder='Search tiles (column, expression, value...)' />
+            <SearchField.ClearButton />
+          </SearchField.Group>
+        </SearchField>
+        {tileSearch && (
+          <div className='text-xs text-muted'>
+            {filteredTiles.length} of {dataflow.tiles.length} tiles match
+          </div>
+        )}
+      </div>
+
+      <ScrollShadow hideScrollBar className='min-h-0 flex-1 pt-2' offset={10}>
+        {flatRows.length === 0 ? (
+          <div className='py-8 text-center text-muted'>
+            <p>No tiles match &ldquo;{tileSearch}&rdquo;</p>
+          </div>
+        ) : (
+          <DisclosureGroup className='w-full'>
+            {flatRows.map((row) =>
+              row.type === 'header' ? (
+                <CategoryHeader category={row.category} count={row.count} key={`h-${row.category}`} />
+              ) : (
+                <div className='mb-1.5' key={row.tile.id}>
+                  <TileDetail dialect={dataflow.engine} searchQuery={tileSearch || undefined} tile={row.tile} />
+                </div>
+              )
+            )}
+          </DisclosureGroup>
+        )}
+      </ScrollShadow>
+    </>
+  );
+
   return (
-    <Card className='border-divider flex h-full flex-col rounded-none border-l p-0 shadow-none'>
-      <Card.Header className='border-divider shrink-0 gap-1 border-b p-2'>
-        <div className='flex items-center justify-between'>
-          <div className='flex min-w-0 items-center gap-2'>
-            <IconDataflow className='size-4 shrink-0' />
-            <span className='truncate font-semibold' title={`${dataflow.name} (ID: ${dataflow.id})`}>
-              {dataflow.name}
-            </span>
-          </div>
-          <Tooltip>
-            <Button isIconOnly size='sm' variant='tertiary' onPress={onClose}>
-              <IconX />
-            </Button>
-            <Tooltip.Content>Close</Tooltip.Content>
-          </Tooltip>
-        </div>
-        <div className='text-xs text-muted'>
-          {dataflow.tiles.length} tiles &middot; ID: {dataflow.id}
-        </div>
-      </Card.Header>
+    <Card className={`flex flex-col p-2 ${className}`}>
+      <ViewHeader
+        feature='Inspect'
+        featureIcon={<IconEye />}
+        subject={dataflow.name}
+        subjectTypeId='DATAFLOW_TYPE'
+        subtext={`ID: ${dataflow.id} | ${dataflow.tiles.length} tiles`}
+        onClose={onClose}
+      />
 
-      <Tabs
-        className='flex min-h-0 flex-1 flex-col'
-        defaultSelectedKey='tiles'
-        selectedKey={activeTab}
-        variant='secondary'
-        onSelectionChange={setActiveTab}
-      >
-        <Tabs.ListContainer>
-          <Tabs.List className='border-divider shrink-0 justify-center'>
-            <Tabs.Tab id='tiles'>
-              Tiles
-              <Tabs.Indicator />
-            </Tabs.Tab>
-            <Tabs.Tab id='json'>
-              JSON
-              <Tabs.Indicator />
-            </Tabs.Tab>
-          </Tabs.List>
-        </Tabs.ListContainer>
-        <Tabs.Panel className='flex min-h-0 flex-1 flex-col overflow-hidden p-0' id='tiles'>
-          <div className='border-divider shrink-0 border-b p-2'>
-            <SearchField fullWidth aria-label='Search tiles' value={tileSearch} variant='secondary' onChange={setTileSearch}>
-              <SearchField.Group>
-                <SearchField.SearchIcon />
-                <SearchField.Input placeholder='Search tiles (column, expression, value...)' />
-                <SearchField.ClearButton />
-              </SearchField.Group>
-            </SearchField>
-            {tileSearch && (
-              <div className='text-xs text-muted'>
-                {filteredTiles.length} of {dataflow.tiles.length} tiles match
-              </div>
-            )}
-          </div>
+      {!showJson ? (
+        <div className='flex min-h-0 flex-1 flex-col overflow-hidden'>{tilesView}</div>
+      ) : (
+        <Tabs
+          className='flex min-h-0 flex-1 flex-col'
+          defaultSelectedKey='tiles'
+          selectedKey={activeTab}
+          variant='secondary'
+          onSelectionChange={setActiveTab}
+        >
+          <Tabs.ListContainer>
+            <Tabs.List className='border-divider shrink-0 justify-center'>
+              <Tabs.Tab id='tiles'>
+                Tiles
+                <Tabs.Indicator />
+              </Tabs.Tab>
+              <Tabs.Tab id='json'>
+                JSON
+                <Tabs.Indicator />
+              </Tabs.Tab>
+            </Tabs.List>
+          </Tabs.ListContainer>
+          <Tabs.Panel className='flex min-h-0 flex-1 flex-col overflow-hidden p-0' id='tiles'>
+            {tilesView}
+          </Tabs.Panel>
 
-          <ScrollShadow hideScrollBar className='min-h-0 flex-1 p-2' offset={10}>
-            {flatRows.length === 0 ? (
-              <div className='py-8 text-center text-muted'>
-                <p>No tiles match &ldquo;{tileSearch}&rdquo;</p>
-              </div>
-            ) : (
-              <DisclosureGroup className='w-full'>
-                {flatRows.map((row) =>
-                  row.type === 'header' ? (
-                    <CategoryHeader category={row.category} count={row.count} key={`h-${row.category}`} />
-                  ) : (
-                    <div className='mb-1.5' key={row.tile.id}>
-                      <TileDetail searchQuery={tileSearch || undefined} tile={row.tile} />
-                    </div>
-                  )
-                )}
-              </DisclosureGroup>
-            )}
-          </ScrollShadow>
-        </Tabs.Panel>
-
-        <Tabs.Panel className='min-h-0 flex-1 overflow-auto' id='json'>
-          <ScrollShadow hideScrollBar className='h-full'>
-            {rawJSON ? (
-              <JsonView
-                displaySize
-                className='text-sm'
-                collapsed={1}
-                collapseStringMode='word'
-                collapseStringsAfterLength={80}
-                customizeCopy={(node) => (typeof node === 'object' ? JSON.stringify(node, null, 2) : String(node))}
-                matchesURL={false}
-                src={rawJSON}
-                CopiedComponent={({ className, style }) => (
-                  <AnimatedCheck className={className + ' text-success'} size={16} stroke={1.5} style={style} />
-                )}
-                CopyComponent={({ className, onClick, style }) => (
-                  <IconClipboardCopy className={className} size={16} style={style} onClick={onClick} />
-                )}
-                customizeNode={(params) => {
-                  if (params.node === null || params.node === undefined) {
+          <Tabs.Panel className='min-h-0 flex-1 overflow-auto' id='json'>
+            <ScrollShadow hideScrollBar className='h-full'>
+              {rawJSON ? (
+                <JsonView
+                  displaySize
+                  className='text-sm'
+                  collapsed={1}
+                  collapseStringMode='word'
+                  collapseStringsAfterLength={80}
+                  customizeCopy={(node) => (typeof node === 'object' ? JSON.stringify(node, null, 2) : String(node))}
+                  matchesURL={false}
+                  src={rawJSON}
+                  CopiedComponent={({ className, style }) => (
+                    <AnimatedCheck className={className + ' text-success'} size={16} stroke={1.5} style={style} />
+                  )}
+                  CopyComponent={({ className, onClick, style }) => (
+                    <IconClipboardCopy className={className} size={16} style={style} onClick={onClick} />
+                  )}
+                  customizeNode={(params) => {
+                    if (params.node === null || params.node === undefined) {
+                      return { enableClipboard: false };
+                    }
+                    if (typeof params.node === 'string' && params.node.startsWith('https://')) {
+                      return (
+                        <Link
+                          className='text-sm text-accent no-underline decoration-accent hover:underline'
+                          href={params.node}
+                          target='_blank'
+                        >
+                          {params.node}
+                        </Link>
+                      );
+                    }
+                    if (params?.indexOrName?.toLowerCase()?.includes('id')) {
+                      return { enableClipboard: true };
+                    }
+                    if (
+                      (typeof params.node === 'number' || typeof params.node === 'string') &&
+                      params.node?.toString().length >= 7
+                    ) {
+                      return { enableClipboard: true };
+                    }
+                    if (typeof params.node === 'object' && Object.keys(params.node).length > 0) {
+                      return { enableClipboard: true };
+                    }
+                    if (Array.isArray(params.node) && params.node.length > 0) {
+                      return { enableClipboard: true };
+                    }
                     return { enableClipboard: false };
-                  }
-                  if (typeof params.node === 'string' && params.node.startsWith('https://')) {
-                    return (
-                      <Link
-                        className='text-sm text-accent no-underline decoration-accent hover:underline'
-                        href={params.node}
-                        target='_blank'
-                      >
-                        {params.node}
-                      </Link>
-                    );
-                  }
-                  if (params?.indexOrName?.toLowerCase()?.includes('id')) {
-                    return { enableClipboard: true };
-                  }
-                  if (
-                    (typeof params.node === 'number' || typeof params.node === 'string') &&
-                    params.node?.toString().length >= 7
-                  ) {
-                    return { enableClipboard: true };
-                  }
-                  if (typeof params.node === 'object' && Object.keys(params.node).length > 0) {
-                    return { enableClipboard: true };
-                  }
-                  if (Array.isArray(params.node) && params.node.length > 0) {
-                    return { enableClipboard: true };
-                  }
-                  return { enableClipboard: false };
-                }}
-              />
-            ) : (
-              <div className='py-8 text-center text-muted'>
-                <p>No JSON data available</p>
-              </div>
-            )}
-          </ScrollShadow>
-        </Tabs.Panel>
-      </Tabs>
+                  }}
+                />
+              ) : (
+                <div className='py-8 text-center text-muted'>
+                  <p>No JSON data available</p>
+                </div>
+              )}
+            </ScrollShadow>
+          </Tabs.Panel>
+        </Tabs>
+      )}
     </Card>
   );
 }
@@ -483,7 +475,7 @@ function tileHasContent(tile) {
   );
 }
 
-const TileDetail = memo(function TileDetail({ searchQuery, tile }) {
+const TileDetail = memo(function TileDetail({ dialect, searchQuery, tile }) {
   const hasContent = tileHasContent(tile);
   const categoryColor = CATEGORY_COLORS[tile.category] || DEFAULT_CATEGORY_COLOR;
   const tileEntry = TILE_ICONS[tile.type] || IconColumnSelect;
@@ -646,9 +638,7 @@ const TileDetail = memo(function TileDetail({ searchQuery, tile }) {
           {tile.sql.length > 0 && (
             <DetailSection label='SQL'>
               {tile.sql.map((s, i) => (
-                <pre className='border-divider overflow-x-auto rounded border bg-surface p-2 font-mono text-xs' key={i}>
-                  {highlightMatch(typeof s === 'string' ? s : s.query, searchQuery)}
-                </pre>
+                <SqlBlock dialect={dialect} key={i} query={searchQuery} sql={typeof s === 'string' ? s : s.query} />
               ))}
             </DetailSection>
           )}
@@ -697,6 +687,7 @@ function TileConfig({ rawDetails }) {
   if (rawDetails.rowLimit != null) entries.push(['Row Limit', String(rawDetails.rowLimit)]);
   if (rawDetails.rowCount != null) entries.push(['Row Count', String(rawDetails.rowCount)]);
   if (rawDetails.inputCount != null) entries.push(['Inputs', String(rawDetails.inputCount)]);
+  if (rawDetails.targetTableName) entries.push(['Table Alias', rawDetails.targetTableName]);
   if (rawDetails.unionType) entries.push(['Union Type', rawDetails.unionType]);
   if (entries.length === 0) return null;
 

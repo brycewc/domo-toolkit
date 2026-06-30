@@ -1,6 +1,7 @@
 import { Button, Dropdown, Label, Spinner, Tooltip } from '@heroui/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { DataflowInspector } from '@/components/DataflowInspector';
 import { useResolveTabId } from '@/hooks/useResolveTabId';
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { exportToCSV, exportToExcel, exportToJson, generateExportFilename } from '@/utils/exportData';
@@ -13,7 +14,6 @@ import IconExcel from '@icons/excel.svg?react';
 import IconInfoCircle from '@icons/info-circle.svg?react';
 import IconSync from '@icons/sync.svg?react';
 
-import { DataflowInspector } from './components/DataflowInspector';
 import { DataPreviewPanel } from './components/DataPreviewPanel';
 import { LevelToolbar } from './components/LevelToolbar';
 import { LineageGraph } from './components/LineageGraph';

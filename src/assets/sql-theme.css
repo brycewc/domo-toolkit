@@ -1,0 +1,78 @@
+/**
+ * SQL syntax-highlighting theme for the dataflow inspector.
+ *
+ * Light-mode colors mirror Domo's own SQL editor (CodeMirror 5 default theme,
+ * mode text/x-pgsql and text/x-mysql), captured from a live dataflow:
+ *   keyword #770088, builtin/function #3300aa, atom/boolean #221199,
+ *   identifier (quoted + after-dot) #0055aa, string #aa1111, number #116644,
+ *   comment #aa5500. Operators and punctuation use the default text color.
+ *
+ * Dark-mode colors are our own readable palette on a dark surface (Domo's editor
+ * is light-only). Token class names come from Prism's `sql` grammar.
+ */
+
+.sql-block .token.keyword {
+  color: #770088;
+}
+
+.sql-block .token.function {
+  color: #3300aa;
+}
+
+.sql-block .token.boolean {
+  color: #221199;
+}
+
+.sql-block .token.identifier,
+.sql-block .token.variable {
+  color: #0055aa;
+}
+
+.sql-block .token.string {
+  color: #aa1111;
+}
+
+.sql-block .token.number {
+  color: #116644;
+}
+
+.sql-block .token.comment {
+  color: #aa5500;
+}
+
+.dark .sql-block .token.keyword,
+[data-theme='dark'] .sql-block .token.keyword {
+  color: #c792ea;
+}
+
+.dark .sql-block .token.function,
+[data-theme='dark'] .sql-block .token.function {
+  color: #82aaff;
+}
+
+.dark .sql-block .token.boolean,
+[data-theme='dark'] .sql-block .token.boolean {
+  color: #f78c6c;
+}
+
+.dark .sql-block .token.identifier,
+.dark .sql-block .token.variable,
+[data-theme='dark'] .sql-block .token.identifier,
+[data-theme='dark'] .sql-block .token.variable {
+  color: #89ddff;
+}
+
+.dark .sql-block .token.string,
+[data-theme='dark'] .sql-block .token.string {
+  color: #c3e88d;
+}
+
+.dark .sql-block .token.number,
+[data-theme='dark'] .sql-block .token.number {
+  color: #f78c6c;
+}
+
+.dark .sql-block .token.comment,
+[data-theme='dark'] .sql-block .token.comment {
+  color: #8b95b8;
+}

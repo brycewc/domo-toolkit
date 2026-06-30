@@ -15,6 +15,7 @@ import { GetCardsView } from '@/components/views/GetCardsView';
 import { GetDatasetsView } from '@/components/views/GetDatasetsView';
 import { GetPagesView } from '@/components/views/GetPagesView';
 import { GetViewInputsView } from '@/components/views/GetViewInputsView';
+import { InspectDataflowView } from '@/components/views/InspectDataflowView';
 import { LinkPreview } from '@/components/views/LinkPreview';
 import { ManageTagsView } from '@/components/views/ManageTagsView';
 import { MigrateDownstreamContentView } from '@/components/views/MigrateDownstreamContentView';
@@ -329,6 +330,10 @@ export default function App() {
             onBackToDefault={backToDefault}
             onStatusUpdate={showStatus}
           />
+        )}
+
+        {slot.type === 'inspectDataflow' && (
+          <InspectDataflowView instance={instance} key={slot.viewKey} onBackToDefault={backToDefault} />
         )}
 
         {slot.type === 'viewObjectDetails' && (

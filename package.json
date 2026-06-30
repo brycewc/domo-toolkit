@@ -54,6 +54,7 @@
     "comment-parser": "^1.4.7",
     "js-beautify": "^1.15.4",
     "motion": "^12.40.0",
+    "prismjs": "^1.30.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react18-json-view": "^0.2.10",

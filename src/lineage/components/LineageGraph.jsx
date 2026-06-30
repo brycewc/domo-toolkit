@@ -20,7 +20,19 @@ import IconDatabase from '@icons/database.svg?react';
 
 import { LineageNodeToolbar } from './LineageNodeToolbar';
 
+const DATABASE_TYPE_LABELS = {
+  ADRENALINE: 'Adrenaline',
+  MAGIC: 'Magic ETL',
+  MYSQL: 'MySQL',
+  REDSHIFT: 'Redshift'
+};
+
 const LineageGraphContext = createContext(null);
+
+function formatDatabaseType(databaseType) {
+  if (!databaseType || typeof databaseType !== 'string') return '';
+  return DATABASE_TYPE_LABELS[databaseType.toUpperCase()] || databaseType;
+}
 
 function formatNumber(n) {
   if (n == null) return '';
@@ -43,6 +55,8 @@ const LineageNode = memo(function LineageNode({ data, id }) {
     if (meta?.columnCount != null) parts.push(`${formatNumber(meta.columnCount)} columns`);
     badge = parts.join(' | ');
   }
+
+  const databaseTypeLabel = data.entityType === 'DATAFLOW' ? formatDatabaseType(meta?.databaseType) : '';
 
   const dataflowBadge = useMemo(() => {
     if (data.entityType !== 'DATAFLOW' || !meta?.lastExecution?.endTime) return null;
@@ -97,6 +111,7 @@ const LineageNode = memo(function LineageNode({ data, id }) {
         )}
         <div className='truncate font-mono text-xs text-muted'>
           {hasName ? data.entityId : data.entityType}
+          {databaseTypeLabel && ` | ${databaseTypeLabel}`}
           {badge && <div className='text-xs text-muted'>{badge}</div>}
           {dataflowBadge && <div className='text-xs text-muted'>{dataflowBadge}</div>}
         </div>

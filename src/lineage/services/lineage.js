@@ -190,6 +190,7 @@ export async function enrichMetadata(lineageResponse, tabId = null, existingKeys
           if (response.ok) {
             const data = await response.json();
             return (data.onboardFlows || []).map((df) => ({
+              databaseType: df.databaseType,
               id: df.id,
               inputCount: df.inputs?.length,
               lastExecution: df.lastExecution,

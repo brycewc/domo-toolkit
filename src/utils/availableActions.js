@@ -66,6 +66,7 @@ export function getAvailableActions(currentContext) {
   }
 
   if (typeId === 'DATAFLOW_TYPE') {
+    actions.add('inspectDataflow');
     if (metadata?.permission?.mask & 2) {
       actions.add('updateDetails');
       actions.add('manageTags');

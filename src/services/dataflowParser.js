@@ -4,6 +4,8 @@
  * filters, joins, expressions, column references, SQL, etc.
  */
 
+import { getDataflowEngine } from '@/services/sqlColumns';
+
 /**
  * Magic ETL Tile Display Names
  * Matches Domo's native ETL editor (localActionConfigurations)
@@ -18,6 +20,7 @@ const TILE_DISPLAY_NAMES = {
   ExpressionRowGenerator: 'Series',
   Filter: 'Filter Rows',
   FixedInput: 'Fixed Input',
+  GenerateTableAction: 'Transform',
   GroupBy: 'Group By',
   JsonExpandAction: 'JSON Expander',
   Limit: 'Limit',
@@ -44,6 +47,7 @@ const TILE_DISPLAY_NAMES = {
   SplitFilter: 'Split Filter',
   SplitJoin: 'Split Join',
   SQL: 'SQL',
+  SqlAction: 'SQL',
   StashAction: 'Select and Store Columns',
   StringCalculator: 'String Operations',
   TextFormatting: 'Text Formatting',
@@ -70,6 +74,7 @@ const TILE_CATEGORY_MAP = {
   ExpressionRowGenerator: 'Utility',
   Filter: 'Filter',
   FixedInput: 'DataSets',
+  GenerateTableAction: 'Utility',
   GroupBy: 'Aggregate',
   JsonExpandAction: 'Utility',
   Limit: 'Utility',
@@ -96,6 +101,7 @@ const TILE_CATEGORY_MAP = {
   SplitFilter: 'Filter',
   SplitJoin: 'Combine Data',
   SQL: 'Utility',
+  SqlAction: 'Utility',
   StashAction: 'Performance',
   StringCalculator: 'Text',
   TextFormatting: 'Text',
@@ -111,7 +117,7 @@ const TILE_CATEGORY_MAP = {
 /**
  * Parse a full dataflow response into structured data
  * @param {Object} detail - The dataflow detail object from Domo API
- * @returns {Object} ParsedDataflow with id, name, tiles, and dataset IDs
+ * @returns {Object} ParsedDataflow with id, name, tiles, dataset IDs, and engine
  */
 export function parseDataflow(detail) {
   const tiles = (detail.actions || []).map(parseTile);
@@ -120,6 +126,8 @@ export function parseDataflow(detail) {
   const outputDatasetIds = (detail.outputs || []).map((o) => o.dataSourceId);
 
   return {
+    databaseType: detail.databaseType,
+    engine: getDataflowEngine(detail),
     id: detail.id,
     inputDatasetIds,
     name: detail.name,
@@ -213,6 +221,19 @@ export function searchTiles(tiles, query) {
   return results;
 }
 
+/**
+ * Extract the output table name from a `CREATE TABLE <name> AS ...` statement.
+ * Handles backtick-, double-quote-, and bare-identifier forms; returns '' if
+ * the statement isn't a CREATE TABLE.
+ * @param {string} sql
+ * @returns {string}
+ */
+function createTableTarget(sql) {
+  if (typeof sql !== 'string') return '';
+  const match = sql.match(/^\s*CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?[`"]?([^\s`"(]+)/i);
+  return match ? match[1] : '';
+}
+
 function parseTile(action) {
   const tile = {
     category: TILE_CATEGORY_MAP[action.type] || 'Other',
@@ -299,6 +320,13 @@ function parseTile(action) {
       tile.columns = tile.filters.map((f) => f.field);
       break;
 
+    case 'GenerateTableAction':
+      // MySQL SQL dataflow transform: a bare SELECT plus an explicit output
+      // table name. Domo titles the step by that table name.
+      if (action.selectStatement) tile.sql = [action.selectStatement];
+      if (!tile.name && action.tableName) tile.name = action.tableName;
+      break;
+
     case 'GroupBy':
       if (action.groups) tile.columns.push(...action.groups.map(toFieldName));
       if (action.fields) {
@@ -317,6 +345,12 @@ function parseTile(action) {
         tile.inputDatasets.push(String(action.dataSourceId));
       } else if (action.settings?.dataSourceId) {
         tile.inputDatasets.push(String(action.settings.dataSourceId));
+      }
+      // SQL dataflows bind the input dataset to a table alias the statements
+      // reference (e.g. `FROM activity_log`); surface it and use it as the title.
+      if (action.targetTableName) {
+        tile.rawDetails.targetTableName = action.targetTableName;
+        if (!tile.name) tile.name = action.targetTableName;
       }
       break;
 
@@ -364,9 +398,13 @@ function parseTile(action) {
       } else if (action.settings?.dataSourceId) {
         tile.outputDataset = String(action.settings.dataSourceId);
       }
+      // Output tiles carry no `name`; title them by the output dataset's name.
+      if (!tile.name && action.dataSource?.name) tile.name = action.dataSource.name;
       if (action.versionChainType) {
         tile.rawDetails.updateMode = action.versionChainType;
       }
+      // SQL dataflows define the output dataset with a SELECT query; show it.
+      if (action.query) tile.sql = [action.query];
       break;
 
     case 'PythonEngineAction':
@@ -404,6 +442,16 @@ function parseTile(action) {
 
     case 'SQL':
       tile.sql = (action.statements || []).filter((s) => !!s);
+      // Redshift SQL dataflows write `CREATE TABLE <name> AS <body>`; Domo titles
+      // the step by that output table name.
+      if (!tile.name) tile.name = createTableTarget(tile.sql[0]);
+      break;
+
+    case 'SqlAction':
+      // MySQL SQL dataflow statements (e.g. CREATE INDEX); Domo labels these by
+      // their statement text since they have no separate name.
+      tile.sql = (action.statements || []).filter((s) => !!s);
+      if (!tile.name) tile.name = tile.sql[0] || '';
       break;
 
     case 'TextFormatting':
