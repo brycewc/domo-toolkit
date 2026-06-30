@@ -1,3 +1,5 @@
+import { EXCLUDED_HOSTNAMES } from './constants';
+
 /**
  * Main detection function that runs in page context
  * This is a self-contained function that can be stringified and injected via chrome.scripting.executeScript
@@ -664,13 +666,21 @@ export async function getValidTabForInstance(instance) {
 }
 
 /**
- * Check if a URL belongs to a domo.com domain (exact or any subdomain).
+ * Check if a URL is an actionable Domo page: a domo.com domain (exact or any
+ * subdomain) that is NOT one of the excluded hosts (support, developer,
+ * marketing, embed, etc.). Excluded hosts are treated as non-Domo so that no
+ * extension behavior (detection, title rewriting, in-page execution) ever runs
+ * on them. This is the single gate the background and executeInPage rely on, so
+ * folding the exclusion in here keeps every call site consistent.
  * @param {string} url - A full URL string
  * @returns {boolean}
  */
 export function isDomoUrl(url) {
   try {
     const { hostname } = new URL(url);
+    if (EXCLUDED_HOSTNAMES.includes(hostname)) {
+      return false;
+    }
     return hostname === 'domo.com' || hostname.endsWith('.domo.com');
   } catch {
     return false;

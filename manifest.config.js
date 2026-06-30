@@ -1,5 +1,12 @@
 import { defineManifest } from '@crxjs/vite-plugin';
 import pkg from './package.json';
+import { EXCLUDED_HOSTNAMES } from './src/utils/constants.js';
+
+// Excluded Domo hosts (support, developer, marketing, embed, etc.) as content-script
+// exclude_matches patterns, so the content script never injects there at all. Derived
+// from the shared EXCLUDED_HOSTNAMES list so this stays in sync with the rest of the
+// extension's exclusion logic.
+const EXCLUDED_MATCHES = EXCLUDED_HOSTNAMES.map((hostname) => `https://${hostname}/*`);
 
 export default defineManifest({
   manifest_version: 3,
@@ -54,6 +61,7 @@ export default defineManifest({
     {
       js: ['src/contentScript.js'],
       matches: ['https://*.domo.com/*'],
+      exclude_matches: EXCLUDED_MATCHES,
       run_at: 'document_idle',
       all_frames: false
     }

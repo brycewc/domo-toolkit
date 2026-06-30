@@ -955,7 +955,8 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
       console.log(`[Background] Enriching stale title for tab ${tabId}`);
       setTabTitle(tabId, getTitleName(context.domoObject), allowedTitles);
     } else if (removeDomoTitleSuffix && changeInfo.title.endsWith(' - Domo')) {
-      // Suffix setting on, so strip " - Domo" from any other Domo tab title
+      // Suffix setting on, so strip " - Domo" from any other Domo tab title.
+      // Excluded hosts never reach here: isDomoUrl(tab.url) above is false for them.
       stripTitleSuffix(tabId);
     }
   }
@@ -992,6 +993,9 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
       windowType: 'normal'
     });
     for (const tab of tabs) {
+      // The query matches every *.domo.com host, including excluded ones
+      // (support, developer, etc.); skip those so no title management runs there.
+      if (!isDomoUrl(tab.url)) continue;
       const context = getTabContext(tab.id);
       if (context?.domoObject?.metadata?.name) {
         const allowedTitles = buildAllowedTitles(context.domoObject);
@@ -1017,6 +1021,7 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
     });
 
     for (const tab of tabs) {
+      if (!isDomoUrl(tab.url)) continue;
       sendMessageWithRetry(tab.id, { type: 'APPLY_FAVICON' }, 3)
         .then(() => {
           console.log(`[Background] Updated favicon for tab ${tab.id}`);
