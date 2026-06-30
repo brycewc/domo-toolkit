@@ -23,6 +23,7 @@
 - The welcome screen now has a quick theme switcher to set System, Light, or Dark without opening settings.
 - The delete confirmation view now lets you share an affected object, or all affected objects, with yourself.
 - Cards now have a Definition tab showing the card's full underlying definition. ([#81](https://github.com/brycewc/domo-toolkit/issues/81))
+- Alerts now have an Actions tab listing the actions an alert triggers, with a link to the workflow, scheduled report, or task behind each one.
 
 ### Copy Filters
 

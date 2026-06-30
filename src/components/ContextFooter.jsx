@@ -6,6 +6,7 @@ import { useGroupLookup } from '@/hooks/useGroupLookup';
 import { useUserLookup } from '@/hooks/useUserLookup';
 import { useWheelHorizontalScroll } from '@/hooks/useWheelHorizontalScroll';
 import { fetchObjectDetailsInPage, getObjectType } from '@/models/DomoObjectType';
+import { getAlertActions } from '@/services/alerts';
 import { getTemplateApprovals } from '@/services/approvals';
 import { getCardDefinition } from '@/services/cards';
 import { getDatasetColumns, getDatasetDetailsForList, getDatasetsForPage } from '@/services/datasets';
@@ -20,6 +21,7 @@ import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
 // the relatedData entry. Pair the entry with a `field` to gate the tab on (and
 // seed its count from) an array already present in the object's details.
 const LAZY_ARRAY_FETCHERS = {
+  alertActions: ({ details, objectId, tabId }) => getAlertActions({ actions: details?.actions || [], alertId: objectId, tabId }),
   dataflowInputs: ({ details, tabId }) => getDatasetDetailsForList({ datasets: details?.inputs, tabId }),
   dataflowOutputs: ({ details, tabId }) => getDatasetDetailsForList({ datasets: details?.outputs, tabId }),
   datasetColumns: ({ objectId, tabId }) => getDatasetColumns({ datasetId: objectId, tabId }),

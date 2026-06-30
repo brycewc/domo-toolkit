@@ -384,6 +384,7 @@ export const ObjectTypeRegistry = {
     extractConfig: { keyword: 'alerts' },
     icon: { component: 'RingingBell' },
     idPattern: /^\d+$/,
+    relatedData: [{ fetcher: 'alertActions', field: 'actions', isArray: true, label: 'Actions' }],
     urlPath: '/alerts/{id}'
   }),
   APP: new DomoObjectType('APP', 'Custom App (Brick)', {
