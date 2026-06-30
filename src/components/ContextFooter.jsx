@@ -26,7 +26,8 @@ const LAZY_ARRAY_FETCHERS = {
   datasetsForPage: ({ objectId, tabId }) => getDatasetsForPage({ pageId: objectId, tabId }),
   jupyterWorkspaceAccounts: ({ details, tabId }) =>
     getJupyterWorkspaceAccounts({ entries: details?.accountConfiguration, tabId }),
-  jupyterWorkspaceInputs: ({ details, tabId }) => getJupyterWorkspaceDatasets({ entries: details?.inputConfiguration, tabId }),
+  jupyterWorkspaceInputs: ({ details, tabId }) =>
+    getJupyterWorkspaceDatasets({ entries: details?.inputConfiguration, tabId }),
   jupyterWorkspaceOutputs: ({ details, tabId }) =>
     getJupyterWorkspaceDatasets({ entries: details?.outputConfiguration, tabId }),
   templateApprovals: ({ objectId, tabId }) => getTemplateApprovals(objectId, tabId)
@@ -416,8 +417,8 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
   };
 
   const alertContent = (
-    <Alert className='min-h-22 w-full p-2' status={currentContext?.isDomoPage || isLoading ? 'accent' : 'warning'}>
-      <Alert.Content className='flex min-w-0 flex-col items-start gap-2'>
+    <Alert className='min-h-24 w-full p-2' status={currentContext?.isDomoPage || isLoading ? 'accent' : 'warning'}>
+      <Alert.Content className='flex min-w-0 flex-col items-start gap-1'>
         {isLoading ? (
           <div className='skeleton--shimmer relative flex w-full flex-col gap-2 overflow-hidden'>
             <div className='flex w-full items-center justify-between'>
@@ -434,7 +435,10 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
           </div>
         ) : (
           <>
-            <div className='alert__title flex w-full items-start justify-between gap-x-1' data-slot='alert-title'>
+            <div
+              className='alert__title flex w-full items-center justify-between gap-x-1 leading-tight!'
+              data-slot='alert-title'
+            >
               {currentContext?.isDomoPage ? (
                 <div className='flex min-w-0 flex-1 items-center gap-x-1'>
                   {/* Items truncate in priority order as the panel narrows so they never
@@ -474,37 +478,38 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
               )}
               <Tooltip delay={300} isDisabled={!currentContext?.domoObject?.id || !currentContext?.isDomoPage}>
                 <Tooltip.Trigger className='shrink-0'>
-                  <Alert.Indicator>
+                  <Alert.Indicator className='p-0!'>
                     <AlertStatusIcon />
                   </Alert.Indicator>
                 </Tooltip.Trigger>
                 <Tooltip.Content className='max-w-60'>Click to toggle context JSON view</Tooltip.Content>
               </Tooltip>
             </div>
-            <Alert.Description className='flex h-full w-full min-w-0 flex-col items-start justify-start gap-1 text-left'>
-              <div className='flex w-full min-w-0 flex-col items-start justify-start text-left'>
-                {currentContext?.isDomoPage ? (
-                  !currentContext?.instance || !currentContext?.domoObject?.id ? (
-                    <span className='w-full truncate text-left font-medium'>No object detected on this page</span>
-                  ) : (
-                    <>
-                      <span className='w-full truncate text-left font-medium'>
-                        {currentContext?.domoObject?.metadata?.name}
-                      </span>
-                      <span className='w-full truncate text-left'>ID: {currentContext?.domoObject?.id}</span>
-                      {formatTimestamp(currentContext?.domoObject?.metadata?.created) && (
-                        <span className='w-full truncate text-left text-muted'>
-                          Created: {formatTimestamp(currentContext?.domoObject?.metadata?.created)}
-                        </span>
-                      )}
-                    </>
-                  )
+            <Alert.Description className='flex h-full w-full min-w-0 flex-col items-start justify-center text-left'>
+              {currentContext?.isDomoPage ? (
+                !currentContext?.instance || !currentContext?.domoObject?.id ? (
+                  <span className='w-full truncate text-left font-medium'>No object detected on this page</span>
                 ) : (
-                  <span className='w-full truncate text-left font-medium'>
-                    Navigate to an instance to enable most features
-                  </span>
-                )}
-              </div>
+                  <>
+                    <span className='w-full truncate text-left font-medium'>
+                      {currentContext?.domoObject?.metadata?.name}
+                    </span>
+                    <span className='w-full truncate text-left'>ID: {currentContext?.domoObject?.id}</span>
+                    {/* Always render the Created line so the alert keeps the same height whether or
+                          not a timestamp exists; a non-breaking space reserves the line when it's absent,
+                          preventing the footer from shifting between two- and three-line objects. */}
+                    <span className='w-full truncate text-left text-muted'>
+                      {formatTimestamp(currentContext?.domoObject?.metadata?.created)
+                        ? `Created: ${formatTimestamp(currentContext?.domoObject?.metadata?.created)}`
+                        : '\u00a0'}
+                    </span>
+                  </>
+                )
+              ) : (
+                <span className='w-full truncate text-left font-medium'>
+                  Navigate to an instance to enable most features
+                </span>
+              )}
             </Alert.Description>
           </>
         )}
