@@ -11,18 +11,18 @@
 - Approval Center datasets now show a Template tab linking to the approval template that created them.
 - Side panel views are now scoped to each Domo instance, so switching instances swaps to that instance's own view (in-progress operations included) instead of carrying one view everywhere.
 - Get DataSets now always shows both Input DataSets and Output DataSets for dataflows, marking an empty side as (0) instead of hiding it.
-- Get DataSets for a page, App Studio page, or worksheet page now nests the cards on that page under the datasets they come from.
+- Get DataSets for a page, App Studio page, or worksheet page now nests the cards on that page under the datasets they come from. ([#89](https://github.com/brycewc/domo-toolkit/issues/89))
 - Get Cards now always shows Cards, Forms, and Queues for App Studio pages, marking an empty category as (0) instead of hiding it.
-- The lineage view can now export its full upstream and downstream lineage (with each object's level relative to the root) as a CSV, Excel, or JSON file.
+- The lineage view can now export its full upstream and downstream lineage (with each object's level relative to the root) as a CSV, Excel, or JSON file. ([#83](https://github.com/brycewc/domo-toolkit/issues/83))
 - The popup, side panel, and object details now show when the current object was created.
 - An approval request now has a Transfer Approval button to reassign that single pending request to another user.
 - Added Manage Tags for dataflows: add or remove tags on a dataflow and its output datasets together in one step.
 - A dataflow's Inputs and Outputs JSON tabs now show each dataset's full details and links instead of just its name and ID.
 - Admins can now switch a dataset to any compatible account in the instance, without first sharing that account with themselves.
-- Added Get Beast Modes: list the Beast Modes tied to a dataset, dataflow, card, page, app, or worksheet, showing the cards, drills, and other Beast Modes each one is used on.
+- Added Get Beast Modes: list the Beast Modes tied to a dataset, dataflow, card, page, app, or worksheet, showing the cards, drills, and other Beast Modes each one is used on. ([#7](https://github.com/brycewc/domo-toolkit/issues/7))
 - The welcome screen now has a quick theme switcher to set System, Light, or Dark without opening settings.
 - The delete confirmation view now lets you share an affected object, or all affected objects, with yourself.
-- Cards now have a Definition tab showing the card's full underlying definition.
+- Cards now have a Definition tab showing the card's full underlying definition. ([#81](https://github.com/brycewc/domo-toolkit/issues/81))
 
 ### Copy Filters
 
@@ -41,7 +41,7 @@
 
 ### Duplicate User
 
-- Duplicate User can now add a source user's groups and individually-shared content to an existing user, not just create a new one.
+- Duplicate User can now add a source user's groups and individually-shared content to an existing user, not just create a new one. ([#91](https://github.com/brycewc/domo-toolkit/issues/91))
 - Duplicate User now lets you choose which of the source user's group memberships to copy, instead of always copying them all.
 
 ### Get Card Pages
@@ -51,7 +51,7 @@
 
 ### Transfer Ownership
 
-- Transferring ownership of a dataflow now shares its input datasets with the new owner if they don't already have access.
+- Transferring ownership of a dataflow now shares its input datasets with the new owner if they don't already have access. ([#92](https://github.com/brycewc/domo-toolkit/issues/92))
 - Transfer Ownership can now email the Excel summary to yourself, the new owner, or both.
 
 ### Activity Log
@@ -61,7 +61,7 @@
 
 ### Inspect Dataflow
 
-- Added Inspect Dataflow: open a searchable, exploded view of every transform in a dataflow without opening each one in turn.
+- Added Inspect Dataflow: open a searchable, exploded view of every transform in a dataflow without opening each one in turn. ([#87](https://github.com/brycewc/domo-toolkit/issues/87))
 - SQL dataflow transforms now show their SQL formatted and color-coded like Domo's editor, with each step labeled by its output table.
 
 ### Supported Types
