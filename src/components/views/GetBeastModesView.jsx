@@ -176,7 +176,6 @@ export function GetBeastModesView({
 
   return (
     <DataList
-      allowsMultipleExpanded={expandedIds.length > 1}
       currentContext={currentContext}
       defaultExpandedIds={expandedIds}
       feature='Beast Modes for'

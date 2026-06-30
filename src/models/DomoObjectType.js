@@ -42,6 +42,10 @@ export class DomoObjectType {
    *   ContextFooter's `LAZY_ARRAY_FETCHERS` registry) to defer the load until
    *   the user activates the tab. The presence of `fetcher` is the lazy signal;
    *   omit it for eager arrays read directly from metadata.
+   *   For a lazy single-object tab (a JSON blob about the current object itself,
+   *   like a card's full definition), set `fetcher: '<key>'` *without* `isArray`
+   *   (matching a key in ContextFooter's `LAZY_OBJECT_FETCHERS` registry); the
+   *   object is fetched on tab activation and rendered as plain JSON.
    *   Entries don't have to point at navigable Domo objects — omit `itemTypeId`/
    *   `itemIdField` (or `typeId` for single entries) to render plain data
    *   (e.g., dataset columns) without URL injection.
@@ -447,6 +451,10 @@ export const ObjectTypeRegistry = {
     idPattern: /^\d+$/,
     parents: ['DATA_SOURCE', 'APP'],
     relatedData: [
+      {
+        fetcher: 'cardDefinition',
+        label: 'Definition'
+      },
       {
         field: 'datasources',
         isArray: true,

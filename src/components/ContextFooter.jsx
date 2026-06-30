@@ -7,6 +7,7 @@ import { useUserLookup } from '@/hooks/useUserLookup';
 import { useWheelHorizontalScroll } from '@/hooks/useWheelHorizontalScroll';
 import { fetchObjectDetailsInPage, getObjectType } from '@/models/DomoObjectType';
 import { getTemplateApprovals } from '@/services/approvals';
+import { getCardDefinition } from '@/services/cards';
 import { getDatasetColumns, getDatasetDetailsForList, getDatasetsForPage } from '@/services/datasets';
 import { getJupyterWorkspaceAccounts, getJupyterWorkspaceDatasets } from '@/services/jupyterWorkspaces';
 import { executeInPage } from '@/utils/executeInPage';
@@ -31,6 +32,15 @@ const LAZY_ARRAY_FETCHERS = {
   jupyterWorkspaceOutputs: ({ details, tabId }) =>
     getJupyterWorkspaceDatasets({ entries: details?.outputConfiguration, tabId }),
   templateApprovals: ({ objectId, tabId }) => getTemplateApprovals(objectId, tabId)
+};
+
+// Maps relatedData[].fetcher key → (params) => Promise<Object> for lazy
+// single-object tabs: a JSON blob about the current object itself (e.g. a card's
+// full definition), not a related object or an array. Distinguished from
+// LAZY_ARRAY_FETCHERS by the relatedData entry omitting `isArray`; the result is
+// rendered as plain JSON with no URL injection and no count suffix.
+const LAZY_OBJECT_FETCHERS = {
+  cardDefinition: ({ objectId, tabId }) => getCardDefinition({ cardId: objectId, tabId })
 };
 
 import { AlertStatusIcon } from './AlertStatusIcon';
@@ -153,6 +163,20 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
               parentId: resolveRelatedParentId(related, domoObject)
             });
           }
+          continue;
+        }
+
+        // Lazy single-object fetcher (no `isArray`): a JSON blob about the
+        // current object itself (e.g. the card's full definition). Fetched on
+        // tab activation, stored in relatedCache, rendered as plain JSON.
+        if (related.fetcher) {
+          result.push({
+            fetcher: related.fetcher,
+            id: related.fetcher,
+            isCurrentObject: false,
+            isLazyObject: true,
+            label: related.label
+          });
           continue;
         }
 
@@ -293,15 +317,17 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
 
     try {
       if (tab.fetcher) {
-        // Lazy array: dispatch to the registered fetcher, store the array in cache.
-        const fetcher = LAZY_ARRAY_FETCHERS[tab.fetcher];
-        if (!fetcher) throw new Error(`Unknown lazy array fetcher: ${tab.fetcher}`);
-        const arr = await fetcher({
+        // Lazy fetcher: arrays resolve from LAZY_ARRAY_FETCHERS, single-object
+        // tabs from LAZY_OBJECT_FETCHERS. Either way the result lands in cache;
+        // an array falls back to [] on a null return, an object to null.
+        const fetcher = tab.isLazyObject ? LAZY_OBJECT_FETCHERS[tab.fetcher] : LAZY_ARRAY_FETCHERS[tab.fetcher];
+        if (!fetcher) throw new Error(`Unknown lazy fetcher: ${tab.fetcher}`);
+        const fetched = await fetcher({
           details: currentContext?.domoObject?.metadata?.details,
           objectId,
           tabId: chromeTabId
         });
-        const data = arr ?? [];
+        const data = tab.isLazyObject ? (fetched ?? null) : (fetched ?? []);
         writeRelatedCache(chromeTabId, objectId, key, data);
         if (contextKeyRef.current === reqKey) {
           setRelatedCache((prev) => ({ ...prev, [key]: data }));
@@ -389,6 +415,24 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
         parentId: activeTab.parentId
       });
       return <MetadataJsonView collapsed={2} groupMap={groupMap} src={src} userMap={userMap} />;
+    }
+
+    if (activeTab.isLazyObject) {
+      if (loadingTabs[activeTabId]) {
+        return (
+          <div className='flex items-center justify-center py-4'>
+            <Spinner size='sm' />
+          </div>
+        );
+      }
+      const data = relatedCache[activeTabId];
+      if (data?.error) {
+        return <p className='p-2 text-xs text-danger'>{data.error}</p>;
+      }
+      if (!data) {
+        return <p className='py-2 text-center text-sm text-muted'>Select this tab to load details</p>;
+      }
+      return <MetadataJsonView collapsed={2} groupMap={groupMap} src={data} userMap={userMap} />;
     }
 
     if (activeTab.isFullContext) {
@@ -553,9 +597,10 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
                   <Tabs.List aria-label='Object details' className='w-fit min-w-full flex-nowrap'>
                     {tabs.map((tab) => {
                       const cached = relatedCache[tab.id];
-                      const lazyCountSuffix = tab.fetcher
-                        ? ` (${Array.isArray(cached) ? cached.length : (tab.knownCount ?? '...')})`
-                        : '';
+                      const lazyCountSuffix =
+                        tab.fetcher && tab.isArray
+                          ? ` (${Array.isArray(cached) ? cached.length : (tab.knownCount ?? '...')})`
+                          : '';
                       const displayLabel = `${tab.label}${lazyCountSuffix}`;
                       // h-12! overrides HeroUI's fixed 32px tab height so a
                       // line-clamp-2 label that wraps to two lines fits inside

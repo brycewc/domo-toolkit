@@ -11,6 +11,7 @@
 - Approval Center datasets now show a Template tab linking to the approval template that created them.
 - Side panel views are now scoped to each Domo instance, so switching instances swaps to that instance's own view (in-progress operations included) instead of carrying one view everywhere.
 - Get DataSets now always shows both Input DataSets and Output DataSets for dataflows, marking an empty side as (0) instead of hiding it.
+- Get DataSets for a page, App Studio page, or worksheet page now nests the cards on that page under the datasets they come from.
 - Get Cards now always shows Cards, Forms, and Queues for App Studio pages, marking an empty category as (0) instead of hiding it.
 - The lineage view can now export its full upstream and downstream lineage (with each object's level relative to the root) as a CSV, Excel, or JSON file.
 - The popup, side panel, and object details now show when the current object was created.
@@ -21,6 +22,7 @@
 - Added Get Beast Modes: list the Beast Modes tied to a dataset, dataflow, card, page, app, or worksheet, showing the cards, drills, and other Beast Modes each one is used on.
 - The welcome screen now has a quick theme switcher to set System, Light, or Dark without opening settings.
 - The delete confirmation view now lets you share an affected object, or all affected objects, with yourself.
+- Cards now have a Definition tab showing the card's full underlying definition.
 
 ### Copy Filters
 

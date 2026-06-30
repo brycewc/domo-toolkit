@@ -5,7 +5,7 @@ import { CloseButton } from '@/components/CloseButton';
 import { DataListItem } from '@/models/DataListItem';
 import { DomoContext } from '@/models/DomoContext';
 import { DomoObject } from '@/models/DomoObject';
-import { getCardDatasets } from '@/services/cards';
+import { getCardDatasets, getCardsForObject } from '@/services/cards';
 import {
   getDatasetsForApp,
   getDatasetsForDataflow,
@@ -21,6 +21,10 @@ import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
 import IconSync from '@icons/sync.svg?react';
 
 import { DataList } from './DataList';
+
+// Page-type objects (a page, an App Studio page, or a worksheet page) get their
+// datasets listed with the cards on that same page nested beneath each one.
+const PAGE_TYPES = ['DATA_APP_VIEW', 'PAGE', 'WORKSHEET_VIEW'];
 
 export function GetDatasetsView({
   currentContext = null,
@@ -81,6 +85,11 @@ export function GetDatasetsView({
       // than one flat list. Every branch below that differs for those types
       // keys off this flag.
       const isInputsOutputs = objectType === 'DATAFLOW_TYPE' || objectType === 'DATA_SCIENCE_NOTEBOOK';
+
+      // The page scope (a single page, App Studio page, or worksheet page, as
+      // opposed to a whole app via long-press) is the one that nests each
+      // dataset's on-page cards beneath it.
+      const isPageScope = !data.appId && PAGE_TYPES.includes(objectType);
 
       const objectName = data.appId
         ? domoObject.metadata?.parent?.name || `App ${data.appId}`
@@ -162,6 +171,16 @@ export function GetDatasetsView({
           outputs: dataflowOutputs
         });
         setItems(transformedItems);
+      } else if (isPageScope) {
+        const tabId = await getValidTabForInstance(instance);
+        const transformedItems = await buildPageDatasetCardGroups({
+          datasets,
+          objectType,
+          origin,
+          pageId: objectId,
+          tabId
+        });
+        setItems(transformedItems);
       } else {
         const transformedItems = transformDatasetsToItems(datasets, origin);
         setItems(transformedItems);
@@ -230,7 +249,16 @@ export function GetDatasetsView({
   const renderSubtext = () => {
     const totalCount = getTotalCount();
     if (totalCount === 0) return null;
-    return `${totalCount} dataset${totalCount === 1 ? '' : 's'}`;
+    const datasetText = `${totalCount} dataset${totalCount === 1 ? '' : 's'}`;
+
+    // Only the page scope nests cards under datasets, so only it gets the
+    // "across N cards" clause. Count distinct cards: a card drawing from two
+    // of the page's datasets is nested under both but is still one card.
+    const isPageScope = !viewData?.appId && PAGE_TYPES.includes(viewData?.objectType);
+    if (!isPageScope) return datasetText;
+
+    const cardCount = countDistinctCards(items);
+    return `${datasetText} across ${cardCount} card${cardCount === 1 ? '' : 's'}`;
   };
 
   if (isLoading) {
@@ -302,6 +330,79 @@ const DATAFLOW_DATASET_GROUPS = [
   { childTypeId: 'DATA_SOURCE', id: 'inputs_group', label: 'Input DataSets' },
   { childTypeId: 'DATA_SOURCE', id: 'outputs_group', label: 'Output DataSets' }
 ];
+
+/**
+ * Build the page-scope list: one row per dataset on the page, with the cards on
+ * that same page that draw from it nested beneath. Datasets with no card on the
+ * page still appear (they can back filters, variables, or other content), just
+ * without children.
+ *
+ * The page's card list is fetched with each card's datasources attached, so the
+ * card -> datasets relationship can be inverted locally into dataset -> cards
+ * without a second request. A card that uses several datasets nests under each.
+ *
+ * @param {Object} params
+ * @param {Array<{id: string, name: string}>} params.datasets - The page's datasets
+ * @param {string} params.objectType - The page object type (PAGE | DATA_APP_VIEW | WORKSHEET_VIEW)
+ * @param {string} params.origin - The base URL origin
+ * @param {string} params.pageId - The page ID
+ * @param {number|null} params.tabId - Target tab
+ * @returns {Promise<DataListItem[]>}
+ */
+async function buildPageDatasetCardGroups({ datasets, objectType, origin, pageId, tabId }) {
+  const cards = (await getCardsForObject({ objectId: pageId, objectType, parts: 'datasources', tabId })) || [];
+
+  // Invert each card's datasources into dataset id -> cards on this page.
+  const cardsByDataset = new Map();
+  for (const card of cards) {
+    for (const ds of card.datasources || []) {
+      const dsId = ds.dataSourceId || ds.id || ds.datasetId;
+      if (!dsId) continue;
+      const key = String(dsId);
+      if (!cardsByDataset.has(key)) cardsByDataset.set(key, []);
+      cardsByDataset.get(key).push(card);
+    }
+  }
+
+  return (datasets || []).map((ds) => {
+    const id = ds.id || ds.datasetId || ds.dataSourceId;
+    const name = ds.name || ds.datasetName || ds.dataSourceName;
+    const dsObject = new DomoObject('DATA_SOURCE', id, origin, { name });
+
+    const cardChildren = (cardsByDataset.get(String(id)) || [])
+      .slice()
+      .sort((a, b) => (a.title || a.name || '').localeCompare(b.title || b.name || ''))
+      .map((c) => {
+        const cardName = (c.title || c.name || '').trim() || `Card ${c.id}`;
+        return DataListItem.fromDomoObject(new DomoObject('CARD', c.id, origin, { name: cardName }));
+      });
+
+    return DataListItem.fromDomoObject(dsObject, {
+      children: cardChildren.length ? cardChildren : undefined,
+      count: cardChildren.length,
+      countLabel: cardChildren.length === 1 ? 'card' : 'cards'
+    });
+  });
+}
+
+/**
+ * Count the distinct cards nested anywhere in a tree of dataset items, deduping
+ * by id so a card that draws from several of the page's datasets (and is nested
+ * under each) is only counted once.
+ * @param {DataListItem[]} items
+ * @returns {number}
+ */
+function countDistinctCards(items) {
+  const ids = new Set();
+  const walk = (list) => {
+    for (const item of list || []) {
+      if (item.typeId === 'CARD') ids.add(String(item.id));
+      if (item.children?.length) walk(item.children);
+    }
+  };
+  walk(items);
+  return ids.size;
+}
 
 /**
  * Transform dataflow inputs/outputs into grouped DataListItems
