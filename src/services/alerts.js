@@ -200,19 +200,31 @@ export async function getRowPdpPolicies(datasetId, tabId = null) {
 /**
  * Move an alert from the origin dataset onto a target dataset. An alert's dataset
  * reference is fixed at create time and cannot be edited, so this recreates the
- * alert bound to the target and deletes the original. The original is deleted
- * ONLY after the new alert is confirmed created; if the create fails, the
- * original is left untouched.
+ * alert bound to the target and deletes the original. Domo's create endpoint
+ * accepts only a minimal rule body (it rejects inline actions/subscriptions), so
+ * the recreate mirrors what Domo's own UI does: a base create, then per-followup
+ * requests for the actions, the custom message template, and the subscribers,
+ * then a patch to restore the original name and owner.
  *
- * What carries over from the original: rule type, configurations, filters, name,
- * owner, subscriptions, and notification actions (message template). Every origin
- * dataset reference is repointed to the target (`resourceId`, and each
- * `filterGroups[].dataSourceId` / `filters[].dataSourceId`). Column references in
- * the configurations (`COLUMN_ID`, `ANY_ROW_PRIMARY_KEYS`) and filters are
- * rewritten through `columnMap`. PDP policies are resolved through `pdpMap`
- * (keyed by the origin `filterGroupId`): a `'map'` resolution rebinds the group
- * to the target policy; a `'remove'` resolution drops the group (widening the
- * alert to all rows). Server-assigned ids/state are stripped so the copy is fresh.
+ * Ordering and safety:
+ *   1. Base create on the target. If it fails, the original is left untouched.
+ *   2. Recreate each notification action (these are critical: an alert that lost
+ *      its action no longer does anything). If any action fails to recreate, the
+ *      half-built copy is deleted and the original is kept, so the move rolls back
+ *      cleanly with no orphan on the target.
+ *   3. Copy the custom message template and the subscribers, and restore the name
+ *      and owner. These are non-critical: a failure is recorded in `unhandled`
+ *      (which the orchestrator surfaces as a manual-review flag) but does not roll
+ *      back the move.
+ *   4. Delete the original only once the new alert is fully in place.
+ *
+ * What carries over: rule type, configurations (with column references rewritten
+ * through `columnMap`), filters, notification actions, custom message template,
+ * subscribers, name, and owner. PDP policies are resolved through `pdpMap` (keyed
+ * by the origin `filterGroupId`): a `'map'` resolution binds the group to the
+ * matched target policy's id; a `'remove'` resolution drops it (widening the
+ * alert to all rows). Origin policy ids are never sent to the target, since a
+ * filter group belongs to one dataset.
  *
  * @param {Object} params
  * @param {number|string} params.alertId - The origin alert ID
@@ -221,84 +233,74 @@ export async function getRowPdpPolicies(datasetId, tabId = null) {
  * @param {Record<string, {action: 'map'|'remove', target?: Object}>} [params.pdpMap] - Per origin filterGroupId resolution; `target` is the target dataset's full filter-group object
  * @param {number|null} [params.tabId] - Optional Chrome tab ID
  * @param {string} params.targetId - The target dataset ID
- * @returns {Promise<{error?: string, newId?: any, success: boolean}>}
+ * @returns {Promise<{error?: string, newId?: any, success: boolean, unhandled?: string[]}>}
  */
 export async function moveAlertToTarget({ alertId, columnMap, originId, pdpMap, tabId = null, targetId }) {
   return executeInPage(
     async (alertId, originId, targetId, columnMap, pdpMap) => {
-      const getRes = await fetch(`/api/social/v4/alerts/${alertId}`);
-      if (!getRes.ok) return { error: `Failed to load alert ${alertId}: HTTP ${getRes.status}`, success: false };
-      const alert = await getRes.json();
-
       const map = columnMap || {};
       const hasColumnMap = Object.keys(map).some((k) => map[k] && map[k] !== k);
       const remapColumn = (name) => (typeof name === 'string' && map[name] ? map[name] : name);
+      const remapColumnList = (csv) =>
+        csv
+          .split(',')
+          .map((s) => remapColumn(s.trim()))
+          .join(',');
 
-      // Resolve each PDP filter group via pdpMap. A 'remove' resolution drops the
-      // group (the alert then watches all rows); a 'map' resolution rebinds it to
-      // the target dataset's own policy, so the recreated alert carries the
-      // target's members and parameters (the origin policy is meaningless on the
-      // target). Every surviving group points at the target dataset.
+      const getRes = await fetch(`/api/social/v4/alerts/${alertId}?fields=all`);
+      if (!getRes.ok) return { error: `Failed to load alert ${alertId}: HTTP ${getRes.status}`, success: false };
+      const alert = await getRes.json();
+
+      // Translate each PDP filter group to a target policy id via pdpMap. A filter
+      // group belongs to one dataset, so the origin's group ids are meaningless on
+      // the target; the create takes only `{filterGroupId}` pointing at a target
+      // policy. A 'remove' resolution drops the group (the alert widens to all
+      // rows); a group with no resolution is skipped rather than sent with an
+      // origin id the target would reject.
       const srcGroups = Array.isArray(alert.filterGroups) ? alert.filterGroups : [];
       const filterGroups = [];
       for (const g of srcGroups) {
         const resolution = pdpMap ? pdpMap[g.filterGroupId] : null;
-        if (resolution && resolution.action === 'remove') continue;
-        if (resolution && resolution.action === 'map' && resolution.target) {
-          filterGroups.push({ ...resolution.target, dataSourceId: targetId });
-        } else {
-          // No resolution (gated against in the UI) — repoint the dataset only.
-          filterGroups.push({ ...g, dataSourceId: targetId });
+        if (!resolution || resolution.action === 'remove') continue;
+        if (resolution.action === 'map' && resolution.target && resolution.target.filterGroupId != null) {
+          filterGroups.push({ filterGroupId: resolution.target.filterGroupId });
         }
       }
 
-      // Rewrite column-name references in the rule configurations.
+      // Carry the rule configurations verbatim (Domo stores NOTIFY_* and OPERATION
+      // as-is and fills missing defaults server-side), rewriting only the column
+      // references: COLUMN_ID is a single column; ANY_ROW_PRIMARY_KEYS and
+      // ANY_ROW_METADATA_COLUMNS are comma-joined column lists.
       const configurations = (Array.isArray(alert.configurations) ? alert.configurations : []).map((c) => {
-        if (!hasColumnMap || !c) return c;
-        if (c.name === 'COLUMN_ID' && typeof c.value === 'string') return { ...c, value: remapColumn(c.value) };
-        if (c.name === 'ANY_ROW_PRIMARY_KEYS' && typeof c.value === 'string') {
-          return { ...c, value: c.value.split(',').map((s) => remapColumn(s.trim())).join(',') };
+        if (!hasColumnMap || !c || typeof c.value !== 'string') return c;
+        if (c.name === 'COLUMN_ID') return { ...c, value: remapColumn(c.value) };
+        if (c.name === 'ANY_ROW_PRIMARY_KEYS' || c.name === 'ANY_ROW_METADATA_COLUMNS') {
+          return { ...c, value: remapColumnList(c.value) };
         }
         return c;
       });
 
-      // Repoint and column-remap each filter.
-      const filters = (Array.isArray(alert.filters) ? alert.filters : []).map((f) => {
-        if (!f) return f;
-        const next = { ...f, dataSourceId: f.dataSourceId === originId ? targetId : f.dataSourceId };
-        if (hasColumnMap && typeof f.column === 'string') next.column = remapColumn(f.column);
-        return next;
-      });
-
-      // Carry the notification actions (custom message template) but strip the
-      // server-assigned ids so they're created fresh on the new alert.
-      const actions = (Array.isArray(alert.actions) ? alert.actions : []).map((a) => {
-        if (!a) return a;
-        const { id: _id, messageId: _messageId, ...rest } = a;
-        return rest;
-      });
-
-      const body = {
-        actions,
-        active: alert.active,
-        category: alert.category,
+      const createBody = {
         configurations,
-        contextual: alert.contextual,
-        enabled: alert.enabled,
         filterGroups,
-        filters,
-        name: alert.name,
-        owner: alert.owner,
         resourceId: targetId,
-        resourceName: alert.resourceName,
-        resourceType: alert.resourceType,
-        subscriptions: Array.isArray(alert.subscriptions) ? alert.subscriptions : [],
-        triggerFrequency: alert.triggerFrequency,
+        resourceType: alert.resourceType || 'DATASET',
         type: alert.type
       };
+      // Threshold-style alerts carry a top-level `filters` array; ANY_ROW alerts
+      // do not. Repoint and column-remap any that exist; omit the key otherwise.
+      const srcFilters = (Array.isArray(alert.filters) ? alert.filters : [])
+        .filter(Boolean)
+        .map((f) => {
+          const next = { ...f, dataSourceId: f.dataSourceId === originId ? targetId : f.dataSourceId };
+          if (hasColumnMap && typeof f.column === 'string') next.column = remapColumn(f.column);
+          return next;
+        });
+      if (srcFilters.length > 0) createBody.filters = srcFilters;
 
+      // Step 1: base create. On failure the original is untouched.
       const createRes = await fetch('/api/social/v4/alerts', {
-        body: JSON.stringify(body),
+        body: JSON.stringify(createBody),
         headers: { 'Content-Type': 'application/json' },
         method: 'POST'
       });
@@ -308,9 +310,110 @@ export async function moveAlertToTarget({ alertId, columnMap, originId, pdpMap, 
       }
       const created = await createRes.json().catch(() => null);
       const newId = created?.id ?? null;
-      // No id back means we can't trust the create; never delete the original.
       if (newId == null) return { error: 'Alert create returned no id; original left intact', success: false };
 
+      // Step 2: recreate each notification action. The list/GET return actions with
+      // empty metadata; the real metadata only comes from the per-action detail.
+      // Post `{type, ...metadata}` minus `triggerId` so Domo provisions a fresh
+      // trigger bound to the new alert. Actions are critical, so a failure rolls
+      // the whole move back (delete the new alert, keep the original).
+      const srcActions = Array.isArray(alert.actions) ? alert.actions : [];
+      for (const a of srcActions) {
+        if (!a || a.id == null) continue;
+        let failed = false;
+        try {
+          const detRes = await fetch(`/api/social/v4/alerts/${alertId}/actions/${a.id}`);
+          if (!detRes.ok) {
+            failed = true;
+          } else {
+            const detail = await detRes.json();
+            const meta = { ...(detail?.metadata || {}) };
+            delete meta.triggerId;
+            const actRes = await fetch(`/api/social/v4/alerts/${newId}/actions`, {
+              body: JSON.stringify({ type: a.type, ...meta }),
+              headers: { 'Content-Type': 'application/json' },
+              method: 'POST'
+            });
+            if (!actRes.ok) failed = true;
+          }
+        } catch {
+          failed = true;
+        }
+        if (failed) {
+          await fetch(`/api/social/v4/alerts/${newId}`, { method: 'DELETE' }).catch(() => {});
+          return {
+            error: `Could not recreate action ${a.id} on the new alert; move rolled back and original ${alertId} kept`,
+            success: false
+          };
+        }
+      }
+
+      const unhandled = [];
+
+      // Step 3a: copy the custom message template, if the original has one. The GET
+      // returns an empty body when there is no custom template.
+      try {
+        const mtRes = await fetch(`/api/social/v4/alerts/${alertId}/message-template`);
+        if (mtRes.ok) {
+          const mt = await mtRes.json().catch(() => null);
+          if (mt && (mt.body || mt.header || mt.footer)) {
+            const putRes = await fetch(`/api/social/v4/alerts/${newId}/message-template`, {
+              body: JSON.stringify({
+                body: mt.body || '',
+                footer: mt.footer || '',
+                formulas: mt.formulas || {},
+                header: mt.header || ''
+              }),
+              headers: { 'Content-Type': 'application/json' },
+              method: 'PUT'
+            });
+            if (!putRes.ok) unhandled.push('message template not copied');
+          }
+        }
+      } catch {
+        unhandled.push('message template not copied');
+      }
+
+      // Step 3b: copy subscribers. The creator is auto-subscribed on create; POST
+      // adds each additional origin subscriber (PUT only edits the caller's own
+      // subscription, so it can't add others).
+      try {
+        const existingRes = await fetch(`/api/social/v4/alerts/${newId}/subscriptions`);
+        const existing = existingRes.ok ? await existingRes.json().catch(() => []) : [];
+        const existingIds = new Set((Array.isArray(existing) ? existing : []).map((s) => String(s.subscriberId)));
+        const srcSubs = Array.isArray(alert.subscriptions) ? alert.subscriptions : [];
+        for (const s of srcSubs) {
+          if (!s || s.subscriberId == null || existingIds.has(String(s.subscriberId))) continue;
+          const subRes = await fetch(`/api/social/v4/alerts/${newId}/subscriptions`, {
+            body: JSON.stringify({ subscribedBy: s.subscribedBy, subscriberId: String(s.subscriberId), type: s.type || 'USER' }),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'POST'
+          });
+          if (!subRes.ok) unhandled.push(`subscriber ${s.subscriberId} not copied`);
+        }
+      } catch {
+        unhandled.push('subscribers not copied');
+      }
+
+      // Step 3c: restore name and owner (the create defaults the name to the rule's
+      // auto-name and sets owner to the caller).
+      try {
+        const patchBody = { id: newId };
+        if (alert.name) patchBody.name = alert.name;
+        if (alert.owner != null) patchBody.owner = alert.owner;
+        if (patchBody.name != null || patchBody.owner != null) {
+          const patchRes = await fetch(`/api/social/v4/alerts/${newId}`, {
+            body: JSON.stringify(patchBody),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'PATCH'
+          });
+          if (!patchRes.ok) unhandled.push('name/owner not restored');
+        }
+      } catch {
+        unhandled.push('name/owner not restored');
+      }
+
+      // Step 4: delete the original now that the new alert is fully in place.
       const delRes = await fetch(`/api/social/v4/alerts/${alertId}`, { method: 'DELETE' });
       if (!delRes.ok) {
         return {
@@ -319,7 +422,7 @@ export async function moveAlertToTarget({ alertId, columnMap, originId, pdpMap, 
           success: false
         };
       }
-      return { newId, success: true };
+      return unhandled.length > 0 ? { newId, success: true, unhandled } : { newId, success: true };
     },
     [alertId, originId, targetId, columnMap, pdpMap],
     tabId
