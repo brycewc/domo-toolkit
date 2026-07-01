@@ -115,6 +115,25 @@ export async function getVersionDefinition(modelId, versionNumber, tabId = null)
   );
 }
 
+/**
+ * Fetch a workflow model's display name.
+ * @param {string} modelId - The workflow model ID.
+ * @param {number|null} tabId - Optional Chrome tab ID.
+ * @returns {Promise<string|null>} The workflow name, or null if unavailable.
+ */
+export async function getWorkflowModelName(modelId, tabId = null) {
+  return executeInPage(
+    async (modelId) => {
+      const response = await fetch(`/api/workflow/v1/models/${modelId}`);
+      if (!response.ok) return null;
+      const model = await response.json();
+      return model?.name ?? null;
+    },
+    [modelId],
+    tabId
+  );
+}
+
 export async function getWorkflowPermission(modelId, userId, tabId = null) {
   return executeInPage(
     async (modelId, userId) => {

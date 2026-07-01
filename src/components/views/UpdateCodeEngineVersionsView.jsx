@@ -4,6 +4,7 @@ import {
   Card,
   Chip,
   Disclosure,
+  DisclosureGroup,
   Label,
   Link,
   ListBox,
@@ -18,7 +19,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { DomoContext } from '@/models/DomoContext';
 import { getCodeEnginePackageInfo } from '@/services/codeEngine';
-import { getVersionDefinition, updateVersionDefinition } from '@/services/workflows';
+import { getVersionDefinition, getWorkflowModelName, updateVersionDefinition } from '@/services/workflows';
 import { classifyContractChanges, getFunctionContract } from '@/utils/ceContractDiff';
 import { buildRefreshAction, buildReloadAction } from '@/utils/headerActions';
 import { getSidepanelData } from '@/utils/sidepanel';
@@ -53,6 +54,7 @@ export function UpdateCodeEngineVersionsView({
   const [currentContext, setCurrentContext] = useState(null);
   const [contractDiffs, setContractDiffs] = useState({});
   const [reconciliations, setReconciliations] = useState({});
+  const [workflowName, setWorkflowName] = useState(null);
   const mountedRef = useRef(true);
   const contractCacheRef = useRef(new Map());
   const { showPromiseStatus } = useStatusBar();
@@ -84,19 +86,31 @@ export function UpdateCodeEngineVersionsView({
 
       setCurrentContext(context);
 
+      const isCEVersion = context.domoObject?.typeId === 'CODEENGINE_PACKAGE_VERSION';
+      const workflowModelId = isCEVersion
+        ? context.domoObject.metadata?.context?.workflowModelId
+        : context.domoObject.parentId;
+
+      // Name the workflow in the header. A workflow version already carries its
+      // parent workflow's name from detection; a code engine version only knows
+      // the workflow's id, so look up the model to name it.
+      let wfName = isCEVersion ? null : context.domoObject.metadata?.parent?.name || null;
+      if (!wfName && workflowModelId) {
+        wfName = await getWorkflowModelName(workflowModelId, context.tabId);
+      }
+      if (mountedRef.current) setWorkflowName(wfName);
+
       // Get definition - either from stored data or fetch/wait for it
       let def = data.definition;
       if (!def) {
-        const isCEVersion = context.domoObject?.typeId === 'CODEENGINE_PACKAGE_VERSION';
         if (isCEVersion) {
-          const wfModelId = context.domoObject.metadata?.context?.workflowModelId;
           const wfVersion = context.domoObject.metadata?.context?.workflowVersionNumber;
-          if (!wfModelId || !wfVersion) {
+          if (!workflowModelId || !wfVersion) {
             onStatusUpdate?.('Error', 'Missing workflow context for code engine version', 'danger');
             onBackToDefault?.();
             return;
           }
-          def = await getVersionDefinition(wfModelId, wfVersion, context.tabId);
+          def = await getVersionDefinition(workflowModelId, wfVersion, context.tabId);
         } else {
           const waitResult = await waitForDefinition(context);
           if (!waitResult.success) {
@@ -276,11 +290,19 @@ export function UpdateCodeEngineVersionsView({
       if (cancelled || !mountedRef.current) return;
       const defaults = {};
       for (const [elementId, info] of Object.entries(next)) {
+        const updateVariableSchemas = {};
+        for (const impact of info.schemaChangeImpacts) {
+          updateVariableSchemas[impact.variableId] = true;
+        }
+        const updateVariableTypes = {};
+        for (const impact of info.typeChangeImpacts) {
+          updateVariableTypes[impact.variableId] = true;
+        }
         defaults[elementId] = {
           addOutputs: info.addedOutputs.slice(),
           inputRemap: {},
-          updateVariableSchemas: {},
-          updateVariableTypes: {}
+          updateVariableSchemas,
+          updateVariableTypes
         };
       }
       setContractDiffs(next);
@@ -382,6 +404,18 @@ export function UpdateCodeEngineVersionsView({
   const hasChanges = applicableChanges.length > 0;
   const reviewCount = applicableChanges.filter((c) => actionNeedsReview(contractDiffs[c.elementId])).length;
 
+  // Every action whose contract changed, flattened across packages so the
+  // remapping panels share one accordion. Deleted-function actions render as
+  // alerts (not disclosures), so they stay out of the group.
+  const reconciliationEntries = packages.flatMap((pkg) =>
+    pkg.actions
+      .map((action) => ({ action, info: contractDiffs[action.elementId] }))
+      .filter(({ info }) => info && (info.functionDeleted || info.classified?.hasChanges))
+  );
+  const deletedReconciliations = reconciliationEntries.filter(({ info }) => info.functionDeleted);
+  const reviewReconciliations = reconciliationEntries.filter(({ info }) => !info.functionDeleted);
+  const firstReviewId = reviewReconciliations.find(({ info }) => actionNeedsReview(info))?.action.elementId;
+
   const handleSubmit = async () => {
     if (applicableChanges.length === 0) {
       onStatusUpdate?.('No Changes', 'No version changes to apply.', 'warning', 2000);
@@ -425,7 +459,7 @@ export function UpdateCodeEngineVersionsView({
       await updateVersionDefinition(modelId, versionNumber, modified, tabId);
 
       // Reload the tab to reflect changes
-      // chrome.tabs.reload(tabId);
+      chrome.tabs.reload(tabId);
 
       return count;
     })();
@@ -523,8 +557,10 @@ export function UpdateCodeEngineVersionsView({
     <Card className='flex min-h-0 w-full flex-1 flex-col p-2'>
       <ViewHeader
         beta
-        feature='Update Code Engine Versions'
+        feature={workflowName ? 'Update Code Engine Versions for' : 'Update Code Engine Versions'}
         featureIcon={<IconPackage />}
+        subject={workflowName}
+        subjectTypeId={workflowName ? 'WORKFLOW_MODEL' : null}
         subtext={headerSubtext}
         onClose={onBackToDefault}
         actions={[
@@ -638,26 +674,40 @@ export function UpdateCodeEngineVersionsView({
                     </Disclosure.Content>
                   </Disclosure>
                 )}
-
-                {pkg.actions.map((action) => {
-                  const info = contractDiffs[action.elementId];
-                  if (!info || (!info.functionDeleted && !info.classified?.hasChanges)) return null;
-                  return (
-                    <ActionReconciliation
-                      action={action}
-                      info={info}
-                      key={`recon-${action.elementId}`}
-                      reconciliation={reconciliations[action.elementId]}
-                      onRemapInput={handleRemapInput}
-                      onToggleOutput={handleToggleOutput}
-                      onToggleVariableSchema={handleToggleVariableSchema}
-                      onToggleVariableType={handleToggleVariableType}
-                    />
-                  );
-                })}
               </div>
             </div>
           ))}
+
+          {deletedReconciliations.map(({ action, info }) => (
+            <ActionReconciliation
+              action={action}
+              info={info}
+              key={`recon-${action.elementId}`}
+              reconciliation={reconciliations[action.elementId]}
+              onRemapInput={handleRemapInput}
+              onToggleOutput={handleToggleOutput}
+              onToggleVariableSchema={handleToggleVariableSchema}
+              onToggleVariableType={handleToggleVariableType}
+            />
+          ))}
+
+          {reviewReconciliations.length > 0 && (
+            <DisclosureGroup className='mt-1 flex flex-col gap-1' defaultExpandedKeys={firstReviewId ? [firstReviewId] : []}>
+              {reviewReconciliations.map(({ action, info }) => (
+                <ActionReconciliation
+                  action={action}
+                  id={action.elementId}
+                  info={info}
+                  key={`recon-${action.elementId}`}
+                  reconciliation={reconciliations[action.elementId]}
+                  onRemapInput={handleRemapInput}
+                  onToggleOutput={handleToggleOutput}
+                  onToggleVariableSchema={handleToggleVariableSchema}
+                  onToggleVariableType={handleToggleVariableType}
+                />
+              ))}
+            </DisclosureGroup>
+          )}
         </Card.Content>
       </ScrollShadow>
 
@@ -721,6 +771,7 @@ function actionNeedsReview(info) {
 
 function ActionReconciliation({
   action,
+  id = null,
   info,
   onRemapInput,
   onToggleOutput,
@@ -747,8 +798,8 @@ function ActionReconciliation({
 
   return (
     <Disclosure
-      className='border-divider mt-1 w-full overflow-hidden rounded-lg border bg-surface-secondary'
-      defaultExpanded={needsReview}
+      className='border-divider w-full overflow-hidden rounded-lg border bg-surface-secondary'
+      id={id}
     >
       <Disclosure.Heading>
         <Disclosure.Trigger className='flex w-full items-center justify-between gap-2 p-2'>

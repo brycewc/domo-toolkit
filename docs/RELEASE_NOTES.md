@@ -99,6 +99,9 @@
 - Checkboxes shown on cards and panels now use a flatter style that sits better on those surfaces.
 - The warnings shown when updating code engine versions now use the app's standard alert styling.
 - The opt-in toggles shown when updating code engine versions are now switches instead of checkboxes.
+- The sections for reviewing a code engine action's changes now open one at a time instead of several being expanded at once.
+- When updating code engine versions, the option to update a variable's type to match a function's new version now starts turned on.
+- The Update Code Engine Versions title now includes the workflow's name.
 - The warnings and errors shown by Generate Definition from JSDoc now use the app's standard alert styling.
 - Copying a workflow version now copies its parent workflow's ID by default, with the version number moved to the copy button's dropdown.
 
@@ -144,6 +147,7 @@
 - Searching for a dataset by name now matches against the dataset name only, instead of returning hundreds of unrelated datasets.
 - Copy Filters no longer pins a page-wide filter to a single dataset, so a copied link keeps applying the filter across every dataset on the page.
 - Update Code Engine Versions now reports a change to an object's fields (or the fields of the objects in an array) as a properties change you can sync to the bound variable, instead of mislabeling it as a data type change.
+- Update Code Engine Versions can now save a version bump for a function whose input or output is an object (or list of objects), which previously failed to apply.
 
 ### Migrate Content
 

@@ -136,16 +136,17 @@ export function reconcileTileForVersionBump({ choices = {}, classified, definiti
 }
 
 function buildParamFromManifest(entry, flag) {
+  const id = generateTileId();
   return {
     aiDescription: null,
-    children: Array.isArray(entry.children) ? entry.children : [],
+    children: manifestChildrenToParamChildren(entry.children, flag, id),
     configType: null,
     customMappingType: null,
     dataType: entry.type ?? null,
     displayName: entry.displayName ?? entry.name,
     entitySubType: entry.entitySubType ?? null,
     flag,
-    id: generateTileId(),
+    id,
     isList: entry.isList ?? false,
     mappedTo: null,
     paramName: entry.name,
@@ -156,11 +157,12 @@ function buildParamFromManifest(entry, flag) {
 }
 
 function createOutputVariable(definition, entry) {
+  const id = generateTileId();
   const variable = {
-    children: Array.isArray(entry.children) ? entry.children : [],
+    children: manifestChildrenToVariableChildren(entry.children, id),
     dataType: entry.type ?? null,
     entitySubType: entry.entitySubType ?? null,
-    id: generateTileId(),
+    id,
     isList: entry.isList ?? false,
     isOutput: true,
     paramName: entry.name,
@@ -178,6 +180,72 @@ function generateTileId() {
   let id = '';
   for (let i = 0; i < bytes.length; i++) id += alphabet[bytes[i] % alphabet.length];
   return id;
+}
+
+/**
+ * Convert Code Engine manifest child nodes ({ name, type, nullable, children })
+ * into the tile-param shape a workflow expects for a nested field ({ id,
+ * paramName, dataType, required, flag, children, ... }). Child ids are namespaced
+ * under the parent's id (`parentId.suffix`), matching how Domo composes them, and
+ * `mappedTo` is left null since a freshly built field has no binding yet. Recurses
+ * so an object-of-objects keeps its full shape. Copying the raw manifest children
+ * instead is what made the workflow save reject the definition.
+ * @param {Object[]|undefined} children - Manifest child entries.
+ * @param {'input'|'output'} flag
+ * @param {string} parentId - The id of the param these children hang off.
+ * @returns {Object[]}
+ */
+function manifestChildrenToParamChildren(children, flag, parentId) {
+  if (!Array.isArray(children)) return [];
+  return children.map((entry) => {
+    const id = `${parentId}.${generateTileId()}`;
+    return {
+      aiDescription: null,
+      children: manifestChildrenToParamChildren(entry.children, flag, id),
+      configType: null,
+      customMappingType: null,
+      dataType: entry.type ?? null,
+      displayName: entry.displayName ?? entry.name,
+      entitySubType: entry.entitySubType ?? null,
+      flag,
+      id,
+      isList: entry.isList ?? false,
+      mappedTo: null,
+      paramName: entry.name,
+      required: entry.nullable === false,
+      value: entry.value ?? null,
+      visible: true
+    };
+  });
+}
+
+/**
+ * Convert Code Engine manifest child nodes into the workflow-variable shape a
+ * dataList entry expects for a nested field ({ id, paramName, dataType,
+ * showChildren, isOutput, children, ... }). Like the param variant, child ids are
+ * namespaced under the parent variable's id. A variable requires a non-null `id`,
+ * so writing the raw manifest children (which carry `name` but no `id`) is what
+ * made the save fail with a missing-id parse error.
+ * @param {Object[]|undefined} children - Manifest child entries.
+ * @param {string} parentId - The id of the variable these children hang off.
+ * @returns {Object[]}
+ */
+function manifestChildrenToVariableChildren(children, parentId) {
+  if (!Array.isArray(children)) return [];
+  return children.map((entry) => {
+    const id = `${parentId}.${generateTileId()}`;
+    return {
+      children: manifestChildrenToVariableChildren(entry.children, id),
+      dataType: entry.type ?? null,
+      entitySubType: entry.entitySubType ?? null,
+      id,
+      isList: entry.isList ?? false,
+      isOutput: false,
+      paramName: entry.name,
+      showChildren: false,
+      value: entry.value ?? null
+    };
+  });
 }
 
 function reconcileFlagParams({ choices, classified, definition, existingParams, flag, manifestEntries, report }) {
@@ -223,6 +291,11 @@ function reconcileFlagParams({ choices, classified, definition, existingParams, 
       param.mappedTo = src.mappedTo ?? null;
       param.value = src.value ?? null;
       param.visible = src.visible ?? true;
+      // Keep the existing nested children verbatim: they are already in the
+      // workflow shape and carry their own field-level bindings. buildParamFromManifest
+      // seeded `param.children` from the new manifest (manifest shape), which would
+      // break the save; the carried-over param must retain its real children.
+      param.children = Array.isArray(src.children) ? src.children : [];
       // A type change against a still-bound variable is the one case that can
       // break a workflow: the variable keeps its old dataType. Surface it, and
       // update the variable's type (and its property schema) only when the user
@@ -285,7 +358,7 @@ function reconcileFlagParams({ choices, classified, definition, existingParams, 
 function setVariableType(definition, variableId, { children, dataType, entitySubType, isList }) {
   const variable = (definition?.dataList || []).find((v) => v.id === variableId);
   if (!variable) return false;
-  if (children !== undefined) variable.children = children;
+  if (children !== undefined) variable.children = manifestChildrenToVariableChildren(children, variable.id);
   if (dataType !== undefined) variable.dataType = dataType;
   if (entitySubType !== undefined) variable.entitySubType = entitySubType;
   if (isList !== undefined) variable.isList = isList;
