@@ -72,6 +72,65 @@ export async function getFunctionContract({ cache, functionName, packageId, tabI
   return functions.find((fn) => fn.name === functionName) ?? null;
 }
 
+/**
+ * Whether a workflow variable's current schema already matches a function
+ * manifest entry: its data type, list-ness, entity subtype, and the full nested
+ * property tree. Bridges the two shapes (a variable carries `paramName`/`dataType`
+ * where a manifest entry carries `name`/`type`) by canonicalizing both before the
+ * structural compare. Used to suppress an "update the variable" prompt when the
+ * bound variable is already in sync with the target version, so re-running the
+ * same version bump does not keep asking for a change that is already applied.
+ * @param {Object|null} variable - A workflow dataList entry.
+ * @param {Object|null} entry - A function manifest input/output entry.
+ * @returns {boolean}
+ */
+export function variableMatchesEntry(variable, entry) {
+  if (!variable || !entry) return false;
+  return computeStructuralDiff(canonicalizeVariable(variable), canonicalizeEntry(entry)).length === 0;
+}
+
+function canonicalizeEntry(entry) {
+  return {
+    children: canonicalizeEntryChildren(entry?.children),
+    entitySubType: entry?.entitySubType ?? null,
+    isList: entry?.isList ?? false,
+    type: entry?.type ?? null
+  };
+}
+
+function canonicalizeEntryChildren(children) {
+  // Domo records "no nested fields" as `null` on a manifest leaf but as `[]` on a
+  // variable leaf; collapse both to null so a scalar compares equal across shapes.
+  if (!Array.isArray(children) || children.length === 0) return null;
+  return children.map((c) => ({
+    children: canonicalizeEntryChildren(c?.children),
+    entitySubType: c?.entitySubType ?? null,
+    isList: c?.isList ?? false,
+    name: c?.name ?? null,
+    type: c?.type ?? null
+  }));
+}
+
+function canonicalizeVariable(variable) {
+  return {
+    children: canonicalizeVariableChildren(variable?.children),
+    entitySubType: variable?.entitySubType ?? null,
+    isList: variable?.isList ?? false,
+    type: variable?.dataType ?? null
+  };
+}
+
+function canonicalizeVariableChildren(children) {
+  if (!Array.isArray(children) || children.length === 0) return null;
+  return children.map((c) => ({
+    children: canonicalizeVariableChildren(c?.children),
+    entitySubType: c?.entitySubType ?? null,
+    isList: c?.isList ?? false,
+    name: c?.paramName ?? null,
+    type: c?.dataType ?? null
+  }));
+}
+
 function classifyEntries(oldEntries, newEntries) {
   const oldList = Array.isArray(oldEntries) ? oldEntries : [];
   const newList = Array.isArray(newEntries) ? newEntries : [];

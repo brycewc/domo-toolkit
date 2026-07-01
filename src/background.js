@@ -311,6 +311,24 @@ function broadcastApiErrors(tabId) {
     .catch(() => {});
 }
 
+function buildAllowedTitlePrefixes(domoObject) {
+  const template = domoObject.objectType?.api?.displayName;
+  const parentName = domoObject.metadata?.parent?.name;
+  if (!template || !parentName || !template.includes('{name}')) {
+    return [];
+  }
+  // The part of a title before the object's own name is shared by every sibling
+  // under the same parent (e.g. every page of one app studio app, which don't
+  // reset the tab title on internal navigation). A current title starting with
+  // it is one the toolkit set for a sibling, so it is safe to overwrite when
+  // moving between those siblings.
+  const prefix = template
+    .slice(0, template.indexOf('{name}'))
+    .replace('{parent.name}', parentName)
+    .replace('{id}', domoObject.id ?? '');
+  return prefix ? [prefix] : [];
+}
+
 function buildAllowedTitles(domoObject) {
   const allowed = [];
   if (domoObject.metadata?.parent?.name) {
@@ -590,7 +608,8 @@ function setTabContext(tabId, context) {
 
   if (context?.domoObject?.metadata?.name) {
     const allowedTitles = buildAllowedTitles(context.domoObject);
-    setTabTitle(tabId, getTitleName(context.domoObject), allowedTitles);
+    const allowedPrefixes = buildAllowedTitlePrefixes(context.domoObject);
+    setTabTitle(tabId, getTitleName(context.domoObject), allowedTitles, false, allowedPrefixes);
   }
 
   const contextData = context?.toJSON();
@@ -618,13 +637,17 @@ function setTabContext(tabId, context) {
     });
 }
 
-function setTabTitle(tabId, objectName, allowedTitles = [], force = false) {
+function setTabTitle(tabId, objectName, allowedTitles = [], force = false, allowedPrefixes = []) {
   try {
     chrome.scripting.executeScript({
-      args: [objectName, allowedTitles, removeDomoTitleSuffix, force],
-      func: (objectName, allowedTitles, removeSuffix, force) => {
+      args: [objectName, allowedTitles, allowedPrefixes, removeDomoTitleSuffix, force],
+      func: (objectName, allowedTitles, allowedPrefixes, removeSuffix, force) => {
         const currentTitle = document.title.trim();
-        if (!force && currentTitle !== 'Domo' && !allowedTitles.includes(currentTitle)) {
+        const isManagedTitle =
+          currentTitle === 'Domo' ||
+          allowedTitles.includes(currentTitle) ||
+          allowedPrefixes.some((prefix) => prefix && currentTitle.startsWith(prefix));
+        if (!force && !isManagedTitle) {
           return;
         }
         document.title = removeSuffix ? objectName : `${objectName} - Domo`;
@@ -942,18 +965,19 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     const context = getTabContext(tabId);
     const objectName = context?.domoObject?.metadata?.name;
     const allowedTitles = objectName ? buildAllowedTitles(context.domoObject) : [];
+    const allowedPrefixes = objectName ? buildAllowedTitlePrefixes(context.domoObject) : [];
     if (changeInfo.title === 'Domo') {
       // Title reset to "Domo", so apply the object name or a section title
       if (objectName) {
         console.log(`[Background] Updating title for tab ${tabId} to include object name`);
-        setTabTitle(tabId, getTitleName(context.domoObject), allowedTitles);
+        setTabTitle(tabId, getTitleName(context.domoObject), allowedTitles, false, allowedPrefixes);
       } else if (tab.url) {
         setSectionTitle(tabId, tab.url);
       }
     } else if (objectName && allowedTitles.includes(changeInfo.title)) {
       // Stale parent-only title (e.g., "MyApp - Domo"), so enrich to the object name
       console.log(`[Background] Enriching stale title for tab ${tabId}`);
-      setTabTitle(tabId, getTitleName(context.domoObject), allowedTitles);
+      setTabTitle(tabId, getTitleName(context.domoObject), allowedTitles, false, allowedPrefixes);
     } else if (removeDomoTitleSuffix && changeInfo.title.endsWith(' - Domo')) {
       // Suffix setting on, so strip " - Domo" from any other Domo tab title.
       // Excluded hosts never reach here: isDomoUrl(tab.url) above is false for them.
@@ -999,7 +1023,8 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
       const context = getTabContext(tab.id);
       if (context?.domoObject?.metadata?.name) {
         const allowedTitles = buildAllowedTitles(context.domoObject);
-        setTabTitle(tab.id, getTitleName(context.domoObject), allowedTitles, true);
+        const allowedPrefixes = buildAllowedTitlePrefixes(context.domoObject);
+        setTabTitle(tab.id, getTitleName(context.domoObject), allowedTitles, true, allowedPrefixes);
         continue;
       }
       // Unmanaged page (no detected object): re-apply a section title if one

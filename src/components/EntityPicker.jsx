@@ -1,4 +1,4 @@
-import { Button, EmptyState, Input, Spinner } from '@heroui/react';
+import { Button, EmptyState, SearchField, Spinner } from '@heroui/react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
@@ -39,12 +39,14 @@ const DEBOUNCE_MS = 300;
  * @param {Object} props
  * @param {Object} props.adapter - Entity adapter config (see above)
  * @param {Set<string|number>} [props.excludeIds] - Item keys to hide from the list
+ * @param {ReactNode} [props.filterSlot] - Extra filter control rendered under the search box.
+ *   The parent owns the filter state and pre-filters `adapter.items`; the picker just places it.
  * @param {() => void} [props.onCancel] - Back out of the picker without selecting
  * @param {(item: Object) => void} props.onSelect - Confirm callback (the second press)
  * @param {number|null} [props.tabId] - Chrome tab ID for adapter API calls
  * @param {string} [props.title] - Header label
  */
-export function EntityPicker({ adapter, excludeIds, onCancel, onSelect, tabId, title }) {
+export function EntityPicker({ adapter, excludeIds, filterSlot, onCancel, onSelect, tabId, title }) {
   const [inputValue, setInputValue] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [items, setItems] = useState(() => (adapter.paginated ? [] : adapter.items || []));
@@ -170,17 +172,24 @@ export function EntityPicker({ adapter, excludeIds, onCancel, onSelect, tabId, t
         {title && <span className='min-w-0 flex-1 truncate text-sm font-medium'>{title}</span>}
       </div>
 
-      <div className='flex shrink-0 items-center gap-2'>
-        <IconSearch className='shrink-0 text-muted' size={16} />
-        <Input
-          aria-label='Search'
-          className='h-8'
-          placeholder={adapter.searchPlaceholder || 'Search...'}
-          value={inputValue}
-          variant='secondary'
-          onChange={(e) => handleInputChange(e.target.value)}
-        />
-      </div>
+      <SearchField
+        fullWidth
+        aria-label='Search'
+        className='shrink-0'
+        value={inputValue}
+        variant='secondary'
+        onChange={handleInputChange}
+      >
+        <SearchField.Group className='h-8'>
+          <SearchField.SearchIcon>
+            <IconSearch />
+          </SearchField.SearchIcon>
+          <SearchField.Input placeholder={adapter.searchPlaceholder || 'Search...'} />
+          <SearchField.ClearButton />
+        </SearchField.Group>
+      </SearchField>
+
+      {filterSlot && <div className='mt-2 flex shrink-0 items-center'>{filterSlot}</div>}
 
       <div className='mt-2 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto'>
         {isLoading ? (

@@ -21,6 +21,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatedCheck } from '@/components/AnimatedCheck';
 import { CloseButton } from '@/components/CloseButton';
 import { InactiveUserOverlay } from '@/components/InactiveUserOverlay';
+import { UserFilterAutocomplete } from '@/components/UserFilterAutocomplete';
 import { usePerInstanceSettings } from '@/hooks/usePerInstanceSettings';
 import { useResolveTabId } from '@/hooks/useResolveTabId';
 import { DomoObject } from '@/models/DomoObject';
@@ -33,7 +34,6 @@ import IconExclamationPointCircle from '@icons/exclamation-point-circle.svg?reac
 import IconFunnel from '@icons/funnel.svg?react';
 
 import { DataTable } from './components/DataTable';
-import { UserFilterAutocomplete } from './components/UserFilterAutocomplete';
 import { getActivityLogForObject, getEventTypesForObjectType } from './services/activityLog';
 import { getActivityLogFromDataset } from './services/activityLogDataset';
 import { findActivityLogDataset } from './services/findActivityLogDataset';

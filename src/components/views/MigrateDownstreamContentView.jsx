@@ -72,7 +72,8 @@ const TYPE_KEY_TO_DOMO_TYPE = {
 
 const UNMAPPED = '__unmapped__';
 // Sentinel for the "drop column" remap choice: remove the column's references
-// from the (badge_table) cards/drills that use it instead of mapping it.
+// from the content that uses it (badge_table cards/drills, and alert rules)
+// instead of mapping it to a target column.
 const DROP = '__drop__';
 // Sentinel for the PDP-policy mapping select's explicit "remove this policy so
 // the alert watches all rows" choice. The unresolved state is a null value (no
@@ -888,19 +889,25 @@ export function MigrateDownstreamContentView({
     return names;
   }, [usedUnmappedColumns]);
 
-  // Of the card-only columns, those whose using cards/drills are ALL badge_table,
-  // the ones eligible for the "drop column" choice (removing the column from a
-  // table is safe; other chart types aren't). Also used to filter the user's
-  // drop choices at migrate time so a stale choice can't slip through.
+  // Columns eligible for the "drop column" choice: those whose EVERY usage is safe
+  // to drop from. Dropping is safe for a badge_table card (remove the column from
+  // the table) and for an alert (remove it from the rule's column list); any other
+  // chart type, or a dataflow / view / app usage, makes the column non-droppable.
+  // Also re-applied at migrate time so a stale choice can't slip through to
+  // content the drop would corrupt.
   const droppableColumnNames = useMemo(() => {
     const names = new Set();
     for (const { items, name } of usedUnmappedColumns) {
-      if (cardOnlyColumnNames.has(name) && items.every((it) => cardsById.get(String(it.id))?.chartType === 'badge_table')) {
-        names.add(name);
-      }
+      if (items.length === 0) continue;
+      const everyUsageDroppable = items.every((it) => {
+        if (it.type === 'alerts') return true;
+        if (it.type === 'cards') return cardsById.get(String(it.id))?.chartType === 'badge_table';
+        return false;
+      });
+      if (everyUsageDroppable) names.add(name);
     }
     return names;
-  }, [cardOnlyColumnNames, cardsById, usedUnmappedColumns]);
+  }, [cardsById, usedUnmappedColumns]);
 
   // The effective rename map + dropped-column list, derived once from the user's
   // column choices and reused by both the migration and the pro-code app

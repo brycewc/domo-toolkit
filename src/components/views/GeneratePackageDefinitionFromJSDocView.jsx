@@ -713,7 +713,7 @@ function TargetPill({ target }) {
 function WarningsSection({ warnings }) {
   if (!warnings || warnings.length === 0) {
     return (
-      <Alert className='w-full' status='success'>
+      <Alert className='w-full bg-surface-secondary' status='success'>
         <AlertStatusIcon />
         <Alert.Content>
           <Alert.Description>No warnings</Alert.Description>

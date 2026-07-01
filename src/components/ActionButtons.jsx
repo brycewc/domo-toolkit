@@ -38,6 +38,7 @@ import { TransferOwnership } from '@/components/functions/TransferOwnership';
 import { UpdateCodeEngineVersions } from '@/components/functions/UpdateCodeEngineVersions';
 import { UpdateDetails } from '@/components/functions/UpdateDetails';
 import { UpdateOwner } from '@/components/functions/UpdateOwner';
+import { UpdateTriggerVersions } from '@/components/functions/UpdateTriggerVersions';
 import { ViewLineage } from '@/components/functions/ViewLineage';
 import { getAvailableActions } from '@/utils/availableActions';
 import { isSidepanel, openSidepanel } from '@/utils/sidepanel';
@@ -313,10 +314,22 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                   />
                 )}
                 {availableActions.has('switchAccount') && (
-                  <SwitchAccount currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
+                  <SwitchAccount
+                    currentContext={currentContext}
+                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
+                    onStatusUpdate={onStatusUpdate}
+                  />
                 )}
                 {availableActions.has('updateCodeEngineVersions') && (
                   <UpdateCodeEngineVersions
+                    currentContext={currentContext}
+                    isDisabled={!isDomoPage}
+                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
+                    onStatusUpdate={onStatusUpdate}
+                  />
+                )}
+                {availableActions.has('updateTriggerVersions') && (
+                  <UpdateTriggerVersions
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
                     onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}

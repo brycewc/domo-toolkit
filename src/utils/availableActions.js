@@ -81,6 +81,10 @@ export function getAvailableActions(currentContext) {
     actions.add('updateOwner');
   }
 
+  if (typeId === 'WORKFLOW_MODEL') {
+    actions.add('updateTriggerVersions');
+  }
+
   if (typeId === 'APPROVAL' && details?.status === 'PENDING') {
     const pendingApprover = details?.pendingApprover;
     const templateOwnerId = metadata?.parent?.details?.owner?.id;

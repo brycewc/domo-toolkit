@@ -1,15 +1,17 @@
-import { Button, Card, Separator, Spinner } from '@heroui/react';
+import { Button, Card, Separator, Spinner, Tooltip } from '@heroui/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { EntityPicker } from '@/components/EntityPicker';
 import { createAccountPickerAdapter } from '@/components/pickers/accountPickerAdapter';
+import { UserFilterAutocomplete } from '@/components/UserFilterAutocomplete';
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { DomoContext } from '@/models/DomoContext';
 import { getAccountIdsForDomoObject, getAccountsForProvider } from '@/services/accounts';
 import { updateStreamAccounts } from '@/services/datasets';
-import { buildReloadAction } from '@/utils/headerActions';
+import { buildRefreshAction, buildReloadAction } from '@/utils/headerActions';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
+import IconPersonCard from '@icons/person-card.svg?react';
 import IconSwapHorizontal from '@icons/swap-horizontal.svg?react';
 import IconSync from '@icons/sync.svg?react';
 
@@ -27,6 +29,8 @@ export function SwitchAccountView({ instance = null, liveContext = null, onBackT
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [screen, setScreen] = useState('form');
   const [activeSlotIndex, setActiveSlotIndex] = useState(0);
+  const [ownerFilter, setOwnerFilter] = useState([]);
+  const [ownerFilterMode, setOwnerFilterMode] = useState('include');
   const mountedRef = useRef(true);
   const { showPromiseStatus } = useStatusBar();
 
@@ -39,9 +43,19 @@ export function SwitchAccountView({ instance = null, liveContext = null, onBackT
   }, []);
 
   const instanceBaseUrl = currentContext?.domoObject?.baseUrl;
+  // Narrow the compatible accounts to (or away from) the selected owners before the
+  // picker sees them; its own name/ID search then filters further within that set.
+  const filteredAccounts = useMemo(() => {
+    if (ownerFilter.length === 0) return accounts;
+    const selected = new Set(ownerFilter.map(String));
+    return accounts.filter((account) => {
+      const isOwned = account.ownerId != null && selected.has(String(account.ownerId));
+      return ownerFilterMode === 'exclude' ? !isOwned : isOwned;
+    });
+  }, [accounts, ownerFilter, ownerFilterMode]);
   const adapter = useMemo(
-    () => createAccountPickerAdapter({ accounts, dataProviderKey: dataProviderType, instanceBaseUrl }),
-    [accounts, dataProviderType, instanceBaseUrl]
+    () => createAccountPickerAdapter({ accounts: filteredAccounts, dataProviderKey: dataProviderType, instanceBaseUrl }),
+    [dataProviderType, filteredAccounts, instanceBaseUrl]
   );
 
   const loadData = async () => {
@@ -168,25 +182,38 @@ export function SwitchAccountView({ instance = null, liveContext = null, onBackT
 
   const objectId = currentContext.domoObject.id;
   const objectName = currentContext.domoObject.metadata?.name || objectId;
+  const datasetOwner = currentContext.domoObject.metadata?.details?.owner ?? null;
+  // Group ownership isn't supported yet: the owner picker searches users only, so a
+  // group owner's id would resolve to nothing. Gate the shortcut to USER owners.
+  const datasetOwnerIsUser = datasetOwner?.type === 'USER';
   const activeSlot = slots[activeSlotIndex];
+
+  // Reload re-targets the view at the user's current object; refresh re-fetches the
+  // compatible account list in place so newly created or renamed accounts show up.
+  const headerActions = [
+    buildReloadAction({
+      currentContext: liveContext,
+      objectId: currentContext.domoObject.id,
+      objectType: currentContext.domoObject.typeId,
+      onStatusUpdate,
+      viewType: 'switchAccount'
+    }),
+    buildRefreshAction({
+      isRefreshing: isLoadingAccounts,
+      onRefresh: () => loadAccounts(dataProviderType, currentContext.tabId)
+    })
+  ];
 
   return (
     <Card className='flex min-h-0 w-full flex-1 flex-col p-2'>
       <ViewHeader
-        feature='Switch Account'
+        actions={headerActions}
+        feature='Switch Account for'
         featureIcon={<IconSwapHorizontal />}
-        subtext={`${objectName} (ID: ${objectId})`}
-        subtextTypeId={currentContext.domoObject.typeId}
+        subject={objectName}
+        subjectTypeId={currentContext.domoObject.typeId}
+        subtext={`ID: ${objectId}`}
         onClose={onBackToDefault}
-        actions={[
-          buildReloadAction({
-            currentContext: liveContext,
-            objectId: currentContext.domoObject.id,
-            objectType: currentContext.domoObject.typeId,
-            onStatusUpdate,
-            viewType: 'switchAccount'
-          })
-        ]}
       />
       <Separator />
 
@@ -199,6 +226,39 @@ export function SwitchAccountView({ instance = null, liveContext = null, onBackT
           title='Choose account'
           onCancel={() => setScreen('form')}
           onSelect={handlePicked}
+          filterSlot={
+            <div className='flex flex-1 items-center gap-1'>
+              <Tooltip delay={200}>
+                <Button
+                  isIconOnly
+                  className='shrink-0'
+                  isDisabled={!datasetOwnerIsUser}
+                  size='sm'
+                  variant='tertiary'
+                  onPress={() => {
+                    setOwnerFilterMode('include');
+                    setOwnerFilter([datasetOwner.id]);
+                  }}
+                >
+                  <IconPersonCard />
+                </Button>
+                <Tooltip.Content className='max-w-60' offset={4}>
+                  Filter to this dataset's owner
+                </Tooltip.Content>
+              </Tooltip>
+              <UserFilterAutocomplete
+                domoInstance={currentContext.instance}
+                knownUsers={datasetOwnerIsUser ? [{ displayName: datasetOwner.name, id: datasetOwner.id }] : undefined}
+                label='Owner'
+                mode={ownerFilterMode}
+                placeholder='Filter by owner...'
+                tabId={currentContext.tabId}
+                value={ownerFilter}
+                onChange={setOwnerFilter}
+                onModeChange={setOwnerFilterMode}
+              />
+            </div>
+          }
         />
       ) : accountsError ? (
         <div className='flex items-center gap-2 py-2'>

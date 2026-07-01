@@ -20,8 +20,9 @@ import { useStatusBar } from '@/hooks/useStatusBar';
 import { DomoContext } from '@/models/DomoContext';
 import { getCodeEnginePackageInfo } from '@/services/codeEngine';
 import { getVersionDefinition, getWorkflowModelName, updateVersionDefinition } from '@/services/workflows';
-import { classifyContractChanges, getFunctionContract } from '@/utils/ceContractDiff';
+import { classifyContractChanges, getFunctionContract, variableMatchesEntry } from '@/utils/ceContractDiff';
 import { buildRefreshAction, buildReloadAction } from '@/utils/headerActions';
+import { compareSemver } from '@/utils/semver';
 import { getSidepanelData } from '@/utils/sidepanel';
 import { waitForDefinition } from '@/utils/workflowHelpers';
 import {
@@ -557,7 +558,7 @@ export function UpdateCodeEngineVersionsView({
     <Card className='flex min-h-0 w-full flex-1 flex-col p-2'>
       <ViewHeader
         beta
-        feature={workflowName ? 'Update Code Engine Versions for' : 'Update Code Engine Versions'}
+        feature={workflowName ? 'Update CE Versions for' : 'Update Code Engine Versions'}
         featureIcon={<IconPackage />}
         subject={workflowName}
         subjectTypeId={workflowName ? 'WORKFLOW_MODEL' : null}
@@ -797,10 +798,7 @@ function ActionReconciliation({
   const needsReview = actionNeedsReview(info);
 
   return (
-    <Disclosure
-      className='border-divider w-full overflow-hidden rounded-lg border bg-surface-secondary'
-      id={id}
-    >
+    <Disclosure className='border-divider w-full overflow-hidden rounded-lg border bg-surface-secondary' id={id}>
       <Disclosure.Heading>
         <Disclosure.Trigger className='flex w-full items-center justify-between gap-2 p-2'>
           <span className='flex min-w-0 flex-1 items-center gap-2' title={action.actionName}>
@@ -908,12 +906,12 @@ function ActionReconciliation({
               <Alert.Content>
                 <Alert.Description>
                   Type of <span className='font-mono'>{impact.paramName}</span> changed to{' '}
-                  <span className='font-mono'>{impact.newType}</span>, but variable{' '}
-                  <span className='font-mono'>{impact.variableName}</span> keeps its old type
+                  <span className='font-mono'>{impact.newType}</span>, so variable{' '}
+                  <span className='font-mono'>{impact.variableName}</span>
                   {impact.consumers.length > 0
                     ? ` (also used by ${impact.consumers.map((c) => c.title || c.paramName).join(', ')})`
-                    : ''}
-                  .
+                    : ''}{' '}
+                  no longer matches. Keep this on to update it.
                 </Alert.Description>
                 <Switch
                   isSelected={!!choices.updateVariableTypes?.[impact.variableId]}
@@ -940,12 +938,17 @@ function ActionReconciliation({
               <Alert.Content>
                 <Alert.Description>
                   The properties of {impact.isList ? 'the objects in ' : ''}
-                  <span className='font-mono'>{impact.paramName}</span> changed, but variable{' '}
-                  <span className='font-mono'>{impact.variableName}</span> keeps its old properties
-                  {impact.consumers.length > 0
-                    ? ` (also used by ${impact.consumers.map((c) => c.title || c.paramName).join(', ')})`
-                    : ''}
-                  .
+                  <span className='font-mono font-bold'>{impact.paramName}</span> changed, so variable{' '}
+                  <span className='font-mono font-bold'>{impact.variableName}</span>
+                  {impact.consumers.length > 0 ? (
+                    <>
+                      {' '}
+                      (also used by{' '}
+                      <span className='font-semibold'>{impact.consumers.map((c) => c.title || c.paramName).join(', ')}</span>
+                      )
+                    </>
+                  ) : null}{' '}
+                  no longer matches. Keep this on to update it.
                 </Alert.Description>
                 <Switch
                   isSelected={!!choices.updateVariableSchemas?.[impact.variableId]}
@@ -1018,23 +1021,30 @@ function buildActionContractInfo({ change, definition, newFn, oldFn }) {
     return entry?.isList ? `list of ${type}` : type;
   };
 
-  // Every type change, paired with the tile param that carries the binding.
+  // Every type change, paired with the tile param that carries the binding and
+  // the new manifest entry (so we can check whether the bound variable already
+  // matches the target version).
   const typeChanged = [
     ...classified.inputs.typeChanged.map((t) => ({
       flag: 'input',
       name: t.name,
+      newEntry: t.new,
       newType: describeType(t.new),
       param: inputParams.get(t.name)
     })),
     ...classified.outputs.typeChanged.map((t) => ({
       flag: 'output',
       name: t.name,
+      newEntry: t.new,
       newType: describeType(t.new),
       param: outputParams.get(t.name)
     }))
   ];
+  // Only prompt when the bound variable is actually out of sync with the new
+  // version. A variable already matching the target (e.g. from a prior update)
+  // needs nothing, so the version diff alone must not keep flagging it.
   const typeChangeImpacts = typeChanged
-    .filter((t) => t.param?.mappedTo)
+    .filter((t) => t.param?.mappedTo && !variableMatchesEntry(varById.get(t.param.mappedTo), t.newEntry))
     .map((t) => ({
       consumers: consumersOf(t.param.mappedTo),
       flag: t.flag,
@@ -1052,17 +1062,21 @@ function buildActionContractInfo({ change, definition, newFn, oldFn }) {
       flag: 'input',
       isList: t.new?.isList ?? false,
       name: t.name,
+      newEntry: t.new,
       param: inputParams.get(t.name)
     })),
     ...classified.outputs.schemaChanged.map((t) => ({
       flag: 'output',
       isList: t.new?.isList ?? false,
       name: t.name,
+      newEntry: t.new,
       param: outputParams.get(t.name)
     }))
   ];
+  // Same guard as type changes: skip a variable that already carries the new
+  // property schema so a re-run of the same bump stops asking to update it.
   const schemaChangeImpacts = schemaChanged
-    .filter((t) => t.param?.mappedTo)
+    .filter((t) => t.param?.mappedTo && !variableMatchesEntry(varById.get(t.param.mappedTo), t.newEntry))
     .map((t) => ({
       consumers: consumersOf(t.param.mappedTo),
       flag: t.flag,
@@ -1102,11 +1116,15 @@ function buildActionContractInfo({ change, definition, newFn, oldFn }) {
   for (const t of typeChanged) {
     if (!t.param?.mappedTo) {
       autoNotes.push(`Type of ${t.name} changed to ${t.newType}, no variable bound`);
+    } else if (variableMatchesEntry(varById.get(t.param.mappedTo), t.newEntry)) {
+      autoNotes.push(`Type of ${t.name} changed, ${variableName(t.param.mappedTo)} already matches`);
     }
   }
   for (const t of schemaChanged) {
     if (!t.param?.mappedTo) {
       autoNotes.push(`Properties of ${t.name} changed, no variable bound`);
+    } else if (variableMatchesEntry(varById.get(t.param.mappedTo), t.newEntry)) {
+      autoNotes.push(`Properties of ${t.name} changed, ${variableName(t.param.mappedTo)} already matches`);
     }
   }
   for (const o of removedOutputs) {
@@ -1132,20 +1150,6 @@ function buildActionContractInfo({ change, definition, newFn, oldFn }) {
     schemaChangeImpacts,
     typeChangeImpacts
   };
-}
-
-/**
- * Compare two semver strings. Returns negative if a < b, positive if a > b, 0 if equal.
- */
-function compareSemver(a, b) {
-  const pa = a.split('.').map(Number);
-  const pb = b.split('.').map(Number);
-  for (let i = 0; i < 3; i++) {
-    if ((pa[i] || 0) !== (pb[i] || 0)) {
-      return (pa[i] || 0) - (pb[i] || 0);
-    }
-  }
-  return 0;
 }
 
 function describeBinding(param, varById) {

@@ -25,6 +25,7 @@
 - Cards now have a Definition tab showing the card's full underlying definition. ([#81](https://github.com/brycewc/domo-toolkit/issues/81))
 - Alerts now have an Actions tab listing the actions an alert triggers, with a link to the workflow, scheduled report, or task behind each one.
 - Generate Definition from JSDoc now picks up a function's nested output schema (the fields of the objects it returns), where before it only read the top-level return type.
+- Added Update Trigger Versions, which repoints all of a workflow's alert triggers to a chosen version in one step, with the option to exclude individual triggers.
 
 ### Copy Filters
 
@@ -148,6 +149,7 @@
 - Copy Filters no longer pins a page-wide filter to a single dataset, so a copied link keeps applying the filter across every dataset on the page.
 - Update Code Engine Versions now reports a change to an object's fields (or the fields of the objects in an array) as a properties change you can sync to the bound variable, instead of mislabeling it as a data type change.
 - Update Code Engine Versions can now save a version bump for a function whose input or output is an object (or list of objects), which previously failed to apply.
+- Update Code Engine Versions no longer keeps prompting you to sync a variable that already matches the new version.
 
 ### Migrate Content
 
@@ -162,7 +164,9 @@
 - Beast Modes that live on a card (rather than being saved to the dataset) are no longer listed as separate items to migrate; they now travel with their card.
 - When a migrating card has a Beast Mode whose name already exists as a Beast Mode on the target dataset, you can now choose to use the target's Beast Mode or rename the card's, instead of the migration failing.
 - Magic ETL sort columns now get renamed during migration along with the rest of the dataflow.
+- The progress count shown while migrating downstream content now counts only the content types you're actually moving, instead of including ones with nothing selected.
 
 ### Other Fixes
 
 - Refreshing a Domo page now retries fetching the object's name and details when an earlier attempt came up empty, instead of staying blank until you navigate away.
+- The browser tab title now updates to the current page when you move between pages of an App Studio app, instead of staying stuck on the page you first opened.

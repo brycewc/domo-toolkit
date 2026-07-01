@@ -10,9 +10,10 @@ import IconX from '@icons/x.svg?react';
 
 // Canonical downstream content types, in the order their groups render. Matches
 // MIGRATE_TYPES / REMAP_TYPES; kept local so this modal stays standalone.
-const USAGE_TYPES = [{ key: 'beastModes' }, { key: 'cards' }, { key: 'dataflows' }, { key: 'datasets' }];
+const USAGE_TYPES = [{ key: 'alerts' }, { key: 'beastModes' }, { key: 'cards' }, { key: 'dataflows' }, { key: 'datasets' }];
 
 const TYPE_KEY_TO_DOMO_TYPE = {
+  alerts: 'ALERT',
   beastModes: 'BEAST_MODE_FORMULA',
   cards: 'CARD',
   dataflows: 'DATAFLOW_TYPE',

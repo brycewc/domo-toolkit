@@ -36,6 +36,40 @@ import { findScriptColumnConflicts } from './scriptColumns';
 import { extractDataflowSqlColumnRefs, getDataflowEngine } from './sqlColumns';
 
 /**
+ * Scan an alert's rule for the column names it references, so a cross-schema
+ * migration surfaces them for remap the same way cards and dataflows are. An
+ * alert stores rule columns in two shapes, matching the alert rewriter
+ * (`moveAlertToTarget`) field-for-field so anything surfaced here is also
+ * rewritten:
+ *   - `configurations`: `COLUMN_ID` (a single column) and `ANY_ROW_PRIMARY_KEYS`
+ *     / `ANY_ROW_METADATA_COLUMNS` (comma-joined column lists).
+ *   - `filters[].column`: threshold-style alerts filter on a named column.
+ *
+ * @param {Object} alertDefinition - A full alert (GET .../alerts/{id}?fields=all)
+ * @returns {Set<string>}
+ */
+export function extractAlertColumnRefs(alertDefinition) {
+  const refs = new Set();
+  const configurations = Array.isArray(alertDefinition?.configurations) ? alertDefinition.configurations : [];
+  for (const c of configurations) {
+    if (!c || typeof c.value !== 'string') continue;
+    if (c.name === 'COLUMN_ID') {
+      refs.add(stripBackticks(c.value));
+    } else if (c.name === 'ANY_ROW_PRIMARY_KEYS' || c.name === 'ANY_ROW_METADATA_COLUMNS') {
+      for (const part of c.value.split(',')) {
+        const name = stripBackticks(part.trim());
+        if (name) refs.add(name);
+      }
+    }
+  }
+  const filters = Array.isArray(alertDefinition?.filters) ? alertDefinition.filters : [];
+  for (const f of filters) {
+    if (f && typeof f.column === 'string' && f.column) refs.add(stripBackticks(f.column));
+  }
+  return refs;
+}
+
+/**
  * Scan a pro-code app's dataset binding for the column names it references. Each
  * binding field maps the app's stable `alias` to a real dataset column via
  * `columnName`; a field mapped to a Beast Mode (`beastModeName`) has no column
@@ -278,7 +312,13 @@ export async function scanContentForColumns({ originId, selectedItems, tabId = n
     try {
       let definition;
       let used;
-      if (typeKey === 'apps') {
+      if (typeKey === 'alerts') {
+        // An alert's rule references columns by name; on a cross-schema move any
+        // name missing from the target dataset makes Domo's create endpoint reject
+        // the whole alert. Surface those columns so they join the remap step.
+        definition = await fetchAlertDefinition(item.id, tabId);
+        used = extractAlertColumnRefs(definition);
+      } else if (typeKey === 'apps') {
         // App rows already carry their dataset binding fields, so the column set
         // needs no fetch. There's no cached definition to reuse at write time
         // (the swap re-reads the live instance context), so leave it null.
@@ -354,6 +394,7 @@ export async function scanContentForColumns({ originId, selectedItems, tabId = n
   };
 
   const queue = [];
+  for (const alert of selectedItems?.alerts || []) queue.push(['alerts', alert]);
   for (const card of selectedItems?.cards || []) queue.push(['cards', card]);
   for (const bm of selectedItems?.beastModes || []) queue.push(['beastModes', bm]);
   for (const ds of selectedItems?.datasets || []) queue.push(['datasets', ds]);
@@ -453,6 +494,18 @@ async function collectDataflowCollisions({ byItem, originId, selectedDataflows, 
   });
   await Promise.allSettled(workers);
   return collisions;
+}
+
+async function fetchAlertDefinition(alertId, tabId) {
+  return executeInPage(
+    async (alertId) => {
+      const response = await fetch(`/api/social/v4/alerts/${alertId}?fields=all`, { credentials: 'include' });
+      if (!response.ok) throw new Error(`GET alert HTTP ${response.status}`);
+      return response.json();
+    },
+    [alertId],
+    tabId
+  );
 }
 
 async function fetchDataflowDefinition(dataflowId, tabId) {

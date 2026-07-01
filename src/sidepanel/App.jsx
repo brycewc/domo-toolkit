@@ -25,6 +25,7 @@ import { RemapColumnsView } from '@/components/views/RemapColumnsView';
 import { SwitchAccountView } from '@/components/views/SwitchAccountView';
 import { UpdateCodeEngineVersionsView } from '@/components/views/UpdateCodeEngineVersionsView';
 import { UpdateDetailsView } from '@/components/views/UpdateDetailsView';
+import { UpdateTriggerVersionsView } from '@/components/views/UpdateTriggerVersionsView';
 import { useReleaseNotification } from '@/hooks/useReleaseNotification';
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { useTheme } from '@/hooks/useTheme';
@@ -370,6 +371,17 @@ export default function App() {
 
         {slot.type === 'updateCodeEngineVersions' && (
           <UpdateCodeEngineVersionsView
+            instance={instance}
+            isActive={isActive}
+            key={slot.viewKey}
+            liveContext={currentContext}
+            onBackToDefault={backToDefault}
+            onStatusUpdate={showStatus}
+          />
+        )}
+
+        {slot.type === 'updateTriggerVersions' && (
+          <UpdateTriggerVersionsView
             instance={instance}
             isActive={isActive}
             key={slot.viewKey}

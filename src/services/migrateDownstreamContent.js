@@ -1177,7 +1177,7 @@ export const MIGRATE_TYPES = [
  * @param {Record<string, {disposition: 'create'|'rename'|'keep'|'overwrite', newName?: string}>} [params.beastModeChoices] - Per origin Beast Mode id, the conflict resolution chosen on the target.
  * @param {Array<{id: any, name: string, legacyId?: string}>} [params.targetBeastModes] - The target dataset's existing Beast Modes (for keep/overwrite).
  * @param {Record<string, string|null>} [params.columnMap] - Origin → target column-name map. Null targets and no-op entries are skipped.
- * @param {string[]} [params.droppedColumns] - Origin column names to remove entirely from card definitions (the "drop column" choice; cards only).
+ * @param {string[]} [params.droppedColumns] - Origin column names to remove entirely (the "drop column" choice): pruned from card definitions, and from an alert's primary-key / metadata / filter column references.
  * @param {Map<string, { definition: Object }>} [params.definitionsByItemKey] - Cached content definitions from the column-reference scan, keyed by `${typeKey}:${itemId}`. Reused so we don't re-fetch.
  * @param {Function} [params.onProgress]
  * @param {number|null} [params.tabId]
@@ -1210,9 +1210,12 @@ export async function migrateAllDownstreamContent({
   let beastModeNumericRemap = {};
   const beastModeAttempted = beastModeItems.map((i) => ({ id: i.id, name: i.name || String(i.id) }));
   if (beastModeItems.length === 0) {
+    // Nothing selected for this type: record an empty result for the returned map
+    // but emit no progress. Reporting it would seed the UI's progress tally with a
+    // type the user isn't migrating, inflating the "done/total" count (e.g. 5/6
+    // while moving a single alert).
     const result = { attempted: [], count: 0, errors: [], failed: 0, succeeded: 0 };
     results.set('beastModes', result);
-    onProgress?.({ count: 0, result, status: 'done', typeKey: 'beastModes' });
   } else {
     onProgress?.({ count: beastModeItems.length, status: 'transferring', typeKey: 'beastModes' });
     const bm = await migrateBeastModes({
@@ -1245,9 +1248,11 @@ export async function migrateAllDownstreamContent({
       const attempted = items.map((i) => ({ id: i.id, name: i.name || String(i.id) }));
 
       if (items.length === 0) {
+        // Nothing selected for this type: record an empty result but emit no
+        // progress, so the UI's progress tally counts only types actually being
+        // migrated (see the beastModes branch above).
         const result = { attempted: [], count: 0, errors: [], failed: 0, manualReview: [], succeeded: 0 };
         results.set(type.key, result);
-        onProgress?.({ count: 0, result, status: 'done', typeKey: type.key });
         return;
       }
 
@@ -1461,10 +1466,11 @@ async function dispatchDatasetSwap(item, options) {
 async function dispatchSwap(typeKey, item, options) {
   if (typeKey === 'alerts') {
     // Alerts carry no Beast Modes, so they skip every Beast Mode remap; only the
-    // dataset repoint, column rewrite, and PDP-policy resolution apply.
+    // dataset repoint, column rewrite/drop, and PDP-policy resolution apply.
     return moveAlertToTarget({
       alertId: item.id,
       columnMap: options.columnMap,
+      droppedColumns: options.droppedColumns,
       originId: options.originId,
       pdpMap: options.pdpMap,
       tabId: options.tabId,
