@@ -97,6 +97,10 @@
 - The Update Details view now puts the object's name in its title ("Update Details for <object>") instead of a generic per-type heading, with just the ID below it.
 - The refresh button's icon now spins counter-clockwise while refreshing, matching the direction of Domo's own sync icon.
 - Checkboxes shown on cards and panels now use a flatter style that sits better on those surfaces.
+- The warnings shown when updating code engine versions now use the app's standard alert styling.
+- The opt-in toggles shown when updating code engine versions are now switches instead of checkboxes.
+- The warnings and errors shown by Generate Definition from JSDoc now use the app's standard alert styling.
+- Copying a workflow version now copies its parent workflow's ID by default, with the version number moved to the copy button's dropdown.
 
 ### Get Card Pages
 

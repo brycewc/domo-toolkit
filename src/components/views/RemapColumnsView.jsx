@@ -39,13 +39,9 @@ import IconPlus from '@icons/plus.svg?react';
 import IconTrash from '@icons/trash.svg?react';
 import IconX from '@icons/x.svg?react';
 
-const REMAP_TYPES = [
-  { key: 'beastModes' },
-  { key: 'cards' },
-  { key: 'dataflows' },
-  { key: 'datasets' },
-  { key: 'apps' }
-];
+import { AlertStatusIcon } from '../AlertStatusIcon';
+
+const REMAP_TYPES = [{ key: 'beastModes' }, { key: 'cards' }, { key: 'dataflows' }, { key: 'datasets' }, { key: 'apps' }];
 
 const TYPE_KEY_TO_DOMO_TYPE = {
   apps: 'RYUU_APP',
@@ -611,9 +607,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
             )}
             {scanError && (
               <Alert className='w-full border border-border bg-transparent' status='danger'>
-                <Alert.Indicator>
-                  <IconExclamationTriangle data-slot='alert-default-icon' />
-                </Alert.Indicator>
+                <AlertStatusIcon />
                 <Alert.Content>
                   <Alert.Title>Scan failed</Alert.Title>
                   <Alert.Description>{scanError}</Alert.Description>
@@ -653,9 +647,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
 
             {(sqlDataflowWarnings.length > 0 || viewFusionWarnings.length > 0) && (
               <Alert className='w-full border border-border bg-transparent' status='warning'>
-                <Alert.Indicator>
-                  <IconExclamationTriangle data-slot='alert-default-icon' />
-                </Alert.Indicator>
+                <AlertStatusIcon />
                 <Alert.Content>
                   <Alert.Title>Some content needs manual review</Alert.Title>
                   <Alert.Description>
@@ -671,9 +663,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
 
             {appColumnCollisions.length > 0 && (
               <Alert className='w-full border border-border bg-transparent' status='warning'>
-                <Alert.Indicator>
-                  <IconExclamationTriangle data-slot='alert-default-icon' />
-                </Alert.Indicator>
+                <AlertStatusIcon />
                 <Alert.Content>
                   <Alert.Title>
                     {appColumnCollisions.length === 1
@@ -682,8 +672,8 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
                   </Alert.Title>
                   <Alert.Description>
                     {appColumnCollisions.map((a) => a.name).join(', ')} rename two or more fields to the same column (
-                    {appColumnCollisions.flatMap((a) => a.collisions.map((c) => c.columnName)).join(', ')}). The app reads each
-                    column only once, so only one of those fields keeps its data and the rest show up blank.
+                    {appColumnCollisions.flatMap((a) => a.collisions.map((c) => c.columnName)).join(', ')}). The app reads
+                    each column only once, so only one of those fields keeps its data and the rest show up blank.
                   </Alert.Description>
                 </Alert.Content>
               </Alert>

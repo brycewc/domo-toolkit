@@ -27,10 +27,11 @@ import { getUserName } from '@/services/users';
 import { getValidTabForInstance } from '@/utils/currentObject';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconChevronDown from '@icons/chevron-down.svg?react';
-import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
 import IconSync from '@icons/sync.svg?react';
 import IconTagMultiple from '@icons/tag-multiple.svg?react';
 import IconX from '@icons/x.svg?react';
+
+import { AlertStatusIcon } from '../AlertStatusIcon';
 
 const ROLE_LABELS = {
   dataflow: 'DataFlow',
@@ -168,10 +169,7 @@ export function ManageTagsView({ currentContext = null, instance = null, onBackT
     }
   };
 
-  const selectedObjects = useMemo(
-    () => objects.filter((o) => o.readable && selectedIds.has(o.id)),
-    [objects, selectedIds]
-  );
+  const selectedObjects = useMemo(() => objects.filter((o) => o.readable && selectedIds.has(o.id)), [objects, selectedIds]);
 
   // The set of tags in play: the union currently on the selected objects, plus
   // anything added, minus anything removed. Each is flagged "partial" when it is
@@ -208,7 +206,9 @@ export function ManageTagsView({ currentContext = null, instance = null, onBackT
     const groups = [];
     for (const role of ['dataflow', 'output', 'input']) {
       if (byRole[role].length > 0) {
-        groups.push(DataListItem.createGroup({ children: byRole[role].map(toLeaf), id: `${role}_group`, label: ROLE_LABELS[role] }));
+        groups.push(
+          DataListItem.createGroup({ children: byRole[role].map(toLeaf), id: `${role}_group`, label: ROLE_LABELS[role] })
+        );
       }
     }
     return groups;
@@ -351,9 +351,7 @@ export function ManageTagsView({ currentContext = null, instance = null, onBackT
   if (error) {
     return (
       <Alert className='w-full' status='warning'>
-        <Alert.Indicator>
-          <IconExclamationTriangle data-slot='alert-default-icon' />
-        </Alert.Indicator>
+        <AlertStatusIcon />
         <Alert.Content>
           <Alert.Title>Could not read tags</Alert.Title>
           <div className='flex flex-col items-start justify-center gap-2'>
@@ -459,7 +457,12 @@ export function ManageTagsView({ currentContext = null, instance = null, onBackT
             </Virtualizer>
           </ComboBox.Popover>
         </ComboBox>
-        <Button isDisabled={isSubmitting || !tagInput.trim()} size='md' variant='secondary' onPress={() => commitTag(tagInput)}>
+        <Button
+          isDisabled={isSubmitting || !tagInput.trim()}
+          size='md'
+          variant='secondary'
+          onPress={() => commitTag(tagInput)}
+        >
           Add
         </Button>
       </div>

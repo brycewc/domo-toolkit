@@ -12,14 +12,19 @@ import { getValidTabForInstance } from '@/utils/currentObject';
 import { withCanonicalGroups } from '@/utils/dataListGroups';
 import { waitForChildPages } from '@/utils/pageHelpers';
 import { getSidepanelData } from '@/utils/sidepanel';
-import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
 import IconPagesBars from '@icons/pages-bars.svg?react';
 import IconSync from '@icons/sync.svg?react';
 import IconTree from '@icons/tree.svg?react';
 
+import { AlertStatusIcon } from '../AlertStatusIcon';
 import { DataList } from './DataList';
 
-export function GetPagesView({ currentContext = null, instance: viewInstance = null, onBackToDefault = null, onStatusUpdate = null }) {
+export function GetPagesView({
+  currentContext = null,
+  instance: viewInstance = null,
+  onBackToDefault = null,
+  onStatusUpdate = null
+}) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
@@ -525,9 +530,7 @@ export function GetPagesView({ currentContext = null, instance: viewInstance = n
   if (error) {
     return (
       <Alert className='w-full' status='warning'>
-        <Alert.Indicator>
-          <IconExclamationTriangle data-slot='alert-default-icon' />
-        </Alert.Indicator>
+        <AlertStatusIcon />
         <Alert.Content>
           <Alert.Title>Error</Alert.Title>
           <div className='flex flex-col items-start justify-center gap-2'>
@@ -751,7 +754,14 @@ function transformGroupedPagesData(childPages, origin, cardsByPage, orphanedCard
 
         const pageChildren = sortedPages.map((page) => {
           const cardChildren = buildCardChildren(page.pageId, cardsByPage, origin, 'REPORT_BUILDER_VIEW', reportId);
-          const domoObject = new DomoObject('REPORT_BUILDER_VIEW', page.pageId, origin, { name: page.pageTitle }, null, reportId);
+          const domoObject = new DomoObject(
+            'REPORT_BUILDER_VIEW',
+            page.pageId,
+            origin,
+            { name: page.pageTitle },
+            null,
+            reportId
+          );
           return DataListItem.fromDomoObject(domoObject, {
             children: cardChildren,
             count: cardChildren?.length,

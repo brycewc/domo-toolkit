@@ -59,6 +59,8 @@ import IconSwapHorizontal from '@icons/swap-horizontal.svg?react';
 import IconWand from '@icons/wand.svg?react';
 import IconX from '@icons/x.svg?react';
 
+import { AlertStatusIcon } from '../AlertStatusIcon';
+
 const TYPE_KEY_TO_DOMO_TYPE = {
   alerts: 'ALERT',
   apps: 'RYUU_APP',
@@ -1601,9 +1603,7 @@ export function MigrateDownstreamContentView({
 
             {hasMismatches && !isScanning && scanResult && usedUnmappedColumns.length > 0 && (
               <Alert className='w-full border border-border bg-transparent' status='warning'>
-                <Alert.Indicator>
-                  <IconExclamationTriangle data-slot='alert-default-icon' />
-                </Alert.Indicator>
+                <AlertStatusIcon />
                 <Alert.Content>
                   <Alert.Title>
                     {usedUnmappedColumns.length === 1
@@ -1704,9 +1704,7 @@ export function MigrateDownstreamContentView({
 
             {hasMismatches && !isScanning && scanResult && sqlDataflowWarnings.length > 0 && (
               <Alert className='w-full border border-border bg-transparent' status='warning'>
-                <Alert.Indicator>
-                  <IconExclamationTriangle data-slot='alert-default-icon' />
-                </Alert.Indicator>
+                <AlertStatusIcon />
                 <Alert.Content>
                   <Alert.Title>
                     {sqlDataflowWarnings.length === 1
@@ -1723,9 +1721,7 @@ export function MigrateDownstreamContentView({
 
             {hasMismatches && !isScanning && scanResult && scriptDataflowWarnings.length > 0 && (
               <Alert className='w-full border border-border bg-transparent' status='warning'>
-                <Alert.Indicator>
-                  <IconExclamationTriangle data-slot='alert-default-icon' />
-                </Alert.Indicator>
+                <AlertStatusIcon />
                 <Alert.Content>
                   <Alert.Title>
                     {scriptDataflowWarnings.length === 1
@@ -1743,9 +1739,7 @@ export function MigrateDownstreamContentView({
 
             {hasMismatches && !isScanning && scanResult && viewFusionWarnings.length > 0 && (
               <Alert className='w-full border border-border bg-transparent' status='warning'>
-                <Alert.Indicator>
-                  <IconExclamationTriangle data-slot='alert-default-icon' />
-                </Alert.Indicator>
+                <AlertStatusIcon />
                 <Alert.Content>
                   <Alert.Title>
                     {viewFusionWarnings.length === 1
@@ -1762,9 +1756,7 @@ export function MigrateDownstreamContentView({
 
             {!isScanning && scanResult && appColumnCollisions.length > 0 && (
               <Alert className='w-full border border-border bg-transparent' status='warning'>
-                <Alert.Indicator>
-                  <IconExclamationTriangle data-slot='alert-default-icon' />
-                </Alert.Indicator>
+                <AlertStatusIcon />
                 <Alert.Content>
                   <Alert.Title>
                     {appColumnCollisions.length === 1
@@ -1790,9 +1782,7 @@ export function MigrateDownstreamContentView({
               sqlDataflowWarnings.length === 0 &&
               viewFusionWarnings.length === 0 && (
                 <Alert className='w-full border border-border bg-transparent' status='default'>
-                  <Alert.Indicator>
-                    <IconInfoCircle data-slot='alert-default-icon' />
-                  </Alert.Indicator>
+                  <AlertStatusIcon />
                   <Alert.Content>
                     <Alert.Description>
                       None of the mismatched columns are referenced by the selected content. Safe to proceed without
@@ -2315,9 +2305,7 @@ function ColumnMapRow({
     <div className='flex flex-col gap-1 py-1.5'>
       {collisionByDataflow.length > 0 && (
         <Alert className='w-full border border-border bg-transparent' status='warning'>
-          <Alert.Indicator>
-            <IconExclamationTriangle data-slot='alert-default-icon' />
-          </Alert.Indicator>
+          <AlertStatusIcon />
           <Alert.Content>
             <Alert.Title>
               Cross-input collision: <span className='font-mono font-bold'>{originName}</span> also exists on{' '}

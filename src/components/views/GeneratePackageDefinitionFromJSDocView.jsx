@@ -1,4 +1,15 @@
-import { Button, Card, Chip, Disclosure, DisclosureGroup, ScrollShadow, Separator, Spinner, Tooltip } from '@heroui/react';
+import {
+  Alert,
+  Button,
+  Card,
+  Chip,
+  Disclosure,
+  DisclosureGroup,
+  ScrollShadow,
+  Separator,
+  Spinner,
+  Tooltip
+} from '@heroui/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useStatusBar } from '@/hooks/useStatusBar';
@@ -24,11 +35,11 @@ import { getSidepanelData } from '@/utils/sidepanel';
 import IconCheckCircle from '@icons/check-circle.svg?react';
 import IconChevronDown from '@icons/chevron-down.svg?react';
 import IconCircle from '@icons/circle.svg?react';
-import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
 import IconMagic from '@icons/magic.svg?react';
 import IconPlusCircle from '@icons/plus-circle.svg?react';
 import IconSync from '@icons/sync.svg?react';
 
+import { AlertStatusIcon } from '../AlertStatusIcon';
 import { ViewHeader } from './ViewHeader';
 
 export function GeneratePackageDefinitionFromJSDocView({
@@ -323,9 +334,13 @@ export function GeneratePackageDefinitionFromJSDocView({
           onClose={onBackToDefault}
         />
         <Separator />
-        <Card.Content className='flex flex-col items-center gap-2 py-8'>
-          <IconExclamationTriangle className='text-danger' />
-          <p className='text-sm text-danger'>{error}</p>
+        <Card.Content className='py-2'>
+          <Alert className='w-full bg-danger-soft' status='danger'>
+            <AlertStatusIcon />
+            <Alert.Content>
+              <Alert.Description>{error}</Alert.Description>
+            </Alert.Content>
+          </Alert>
         </Card.Content>
       </Card>
     );
@@ -350,20 +365,24 @@ export function GeneratePackageDefinitionFromJSDocView({
           </div>
 
           {editorDataUnavailable && (
-            <div className='flex items-center gap-2 rounded-md bg-danger-soft p-2 text-sm text-danger'>
-              <IconExclamationTriangle />
-              <span>
-                Could not read the function list from the live editor. Open the Code Engine editor for this package and try
-                again. Syncing without it would omit the module.exports block and break Workflow runs.
-              </span>
-            </div>
+            <Alert className='w-full bg-danger-soft' status='danger'>
+              <AlertStatusIcon />
+              <Alert.Content>
+                <Alert.Description>
+                  Could not read the function list from the live editor. Open the Code Engine editor for this package and try
+                  again. Syncing without it would omit the module.exports block and break Workflow runs.
+                </Alert.Description>
+              </Alert.Content>
+            </Alert>
           )}
 
           {parsed?.error && (
-            <div className='flex items-center gap-2 rounded-md bg-danger-soft p-2 text-sm text-danger'>
-              <IconExclamationTriangle />
-              <span>Parser error: {parsed.error}</span>
-            </div>
+            <Alert className='w-full bg-danger-soft' status='danger'>
+              <AlertStatusIcon />
+              <Alert.Content>
+                <Alert.Description>Parser error: {parsed.error}</Alert.Description>
+              </Alert.Content>
+            </Alert>
           )}
 
           {parsed && !parsed.error && (
@@ -694,10 +713,12 @@ function TargetPill({ target }) {
 function WarningsSection({ warnings }) {
   if (!warnings || warnings.length === 0) {
     return (
-      <div className='flex items-center gap-2 text-xs text-muted'>
-        <IconCheckCircle size={14} />
-        <span>No warnings</span>
-      </div>
+      <Alert className='w-full' status='success'>
+        <AlertStatusIcon />
+        <Alert.Content>
+          <Alert.Description>No warnings</Alert.Description>
+        </Alert.Content>
+      </Alert>
     );
   }
   return (
@@ -711,15 +732,19 @@ function WarningsSection({ warnings }) {
         </Button>
       </Disclosure.Heading>
       <Disclosure.Content>
-        <div className='flex flex-col gap-1 pt-1 pl-1 text-xs'>
+        <div className='flex flex-col gap-2 pt-1 pl-1'>
           {warnings.map((w, idx) => (
-            <div className={`flex items-start gap-1 ${w.severity === 'error' ? 'text-danger' : 'text-warning'}`} key={idx}>
-              <IconExclamationTriangle className='mt-0.5 shrink-0' size={12} />
-              <div className='flex flex-col gap-0.5'>
-                {w.functionName && <span className='font-mono text-muted'>{w.functionName}</span>}
-                <span>{w.message}</span>
-              </div>
-            </div>
+            <Alert
+              className={w.severity === 'error' ? 'w-full bg-danger-soft' : 'w-full'}
+              key={idx}
+              status={w.severity === 'error' ? 'danger' : 'warning'}
+            >
+              <AlertStatusIcon />
+              <Alert.Content>
+                {w.functionName && <Alert.Title className='font-mono'>{w.functionName}</Alert.Title>}
+                <Alert.Description>{w.message}</Alert.Description>
+              </Alert.Content>
+            </Alert>
           ))}
         </div>
       </Disclosure.Content>

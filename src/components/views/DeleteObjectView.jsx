@@ -15,10 +15,10 @@ import { deletePageAndAllCards } from '@/services/pages';
 import { parseMarkdownBold } from '@/utils/markdown';
 import { collectShareableObjects } from '@/utils/rowActions';
 import { getSidepanelData } from '@/utils/sidepanel';
-import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
 import IconTrash from '@icons/trash.svg?react';
 import IconX from '@icons/x.svg?react';
 
+import { AlertStatusIcon } from '../AlertStatusIcon';
 import { DataList } from './DataList';
 
 /**
@@ -618,9 +618,7 @@ function renderDependencyBanner({ deps, error, isBlocked, isLoading, onRetry }) 
   if (isBlocked && deps.blockingReason) {
     return (
       <Alert className='w-full bg-warning-soft' status='warning'>
-        <Alert.Indicator>
-          <IconExclamationTriangle data-slot='alert-default-icon' />
-        </Alert.Indicator>
+        <AlertStatusIcon />
         <Alert.Content>
           <Alert.Description>{deps.blockingReason}</Alert.Description>
         </Alert.Content>

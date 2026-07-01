@@ -7,10 +7,9 @@ import { DomoContext } from '@/models/DomoContext';
 import { getColorRules, getDatasetBeastModes, getDatasetColumns, setColorRules } from '@/services/datasets';
 import { buildReloadAction } from '@/utils/headerActions';
 import { getSidepanelData } from '@/utils/sidepanel';
-import IconCheckCircle from '@icons/check-circle.svg?react';
 import IconColor from '@icons/color.svg?react';
-import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
 
+import { AlertStatusIcon } from '../AlertStatusIcon';
 import { ViewHeader } from './ViewHeader';
 
 export function CopyColorRulesView({ instance = null, liveContext = null, onBackToDefault = null, onStatusUpdate = null }) {
@@ -191,9 +190,7 @@ export function CopyColorRulesView({ instance = null, liveContext = null, onBack
 
         {sameDataset && (
           <Alert className='w-full border border-border bg-transparent' status='warning'>
-            <Alert.Indicator>
-              <IconExclamationTriangle data-slot='alert-default-icon' />
-            </Alert.Indicator>
+            <AlertStatusIcon />
             <Alert.Content>
               <Alert.Title>Same dataset</Alert.Title>
               <Alert.Description>Pick a different dataset as the destination.</Alert.Description>
@@ -210,9 +207,7 @@ export function CopyColorRulesView({ instance = null, liveContext = null, onBack
 
         {!isLoadingDestination && destinationHasRules && (
           <Alert className='w-full border border-border bg-transparent' status='warning'>
-            <Alert.Indicator>
-              <IconExclamationTriangle data-slot='alert-default-icon' />
-            </Alert.Indicator>
+            <AlertStatusIcon />
             <Alert.Content>
               <Alert.Title>Destination already has color rules</Alert.Title>
               <Alert.Description>
@@ -225,9 +220,7 @@ export function CopyColorRulesView({ instance = null, liveContext = null, onBack
 
         {schemaResolved && (
           <Alert className='w-full border border-border bg-transparent' status='success'>
-            <Alert.Indicator>
-              <IconCheckCircle data-slot='alert-default-icon' />
-            </Alert.Indicator>
+            <AlertStatusIcon />
             <Alert.Content>
               <Alert.Title>Schema matches</Alert.Title>
               <Alert.Description>
@@ -244,9 +237,7 @@ export function CopyColorRulesView({ instance = null, liveContext = null, onBack
 
         {!isLoadingDestination && missingColumns.length > 0 && (
           <Alert className='w-full border border-border bg-transparent' status='warning'>
-            <Alert.Indicator>
-              <IconExclamationTriangle data-slot='alert-default-icon' />
-            </Alert.Indicator>
+            <AlertStatusIcon />
             <Alert.Content>
               <Alert.Title>
                 {missingColumns.length} column{missingColumns.length === 1 ? '' : 's'} not on destination

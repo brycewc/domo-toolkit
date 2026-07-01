@@ -1,3 +1,4 @@
+import { AlertIndicator } from '@heroui/react';
 import { useEffect, useRef, useState } from 'react';
 
 import IconCheckCircle from '@icons/check-circle.svg?react';
@@ -46,5 +47,9 @@ export function AlertStatusIcon(props) {
 
   const Icon = STATUS_ICONS[status];
 
-  return <Icon data-slot='alert-default-icon' ref={ref} {...props} />;
+  return (
+    <AlertIndicator className='p-0!'>
+      <Icon data-slot='alert-default-icon' ref={ref} {...props} />
+    </AlertIndicator>
+  );
 }

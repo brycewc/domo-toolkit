@@ -12,12 +12,17 @@ import { getValidTabForInstance } from '@/utils/currentObject';
 import { withCanonicalGroups } from '@/utils/dataListGroups';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconCard from '@icons/card.svg?react';
-import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
 import IconSync from '@icons/sync.svg?react';
 
+import { AlertStatusIcon } from '../AlertStatusIcon';
 import { DataList } from './DataList';
 
-export function GetCardsView({ currentContext = null, instance: viewInstance = null, onBackToDefault = null, onStatusUpdate = null }) {
+export function GetCardsView({
+  currentContext = null,
+  instance: viewInstance = null,
+  onBackToDefault = null,
+  onStatusUpdate = null
+}) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
@@ -289,9 +294,7 @@ export function GetCardsView({ currentContext = null, instance: viewInstance = n
   if (error) {
     return (
       <Alert className='w-full' status='warning'>
-        <Alert.Indicator>
-          <IconExclamationTriangle data-slot='alert-default-icon' />
-        </Alert.Indicator>
+        <AlertStatusIcon />
         <Alert.Content>
           <Alert.Title>Error</Alert.Title>
           <div className='flex flex-col items-start justify-center gap-2'>

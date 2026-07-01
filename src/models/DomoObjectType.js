@@ -1380,6 +1380,10 @@ export const ObjectTypeRegistry = {
       endpoint: '/workflow/v2/models/{parent}/versions/{id}',
       paths: { name: 'version' }
     },
+    copyConfigs: [
+      { label: 'Workflow ID', primary: true, source: 'parentId' },
+      { label: 'Version Number', source: 'id' }
+    ],
     extractConfig: {
       keyword: 'workflows',
       offset: 3,

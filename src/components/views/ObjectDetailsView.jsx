@@ -12,9 +12,9 @@ import { buildRefreshAction, buildReloadAction } from '@/utils/headerActions';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconChevronDown from '@icons/chevron-down.svg?react';
 import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
-import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
 import IconSync from '@icons/sync.svg?react';
 
+import { AlertStatusIcon } from '../AlertStatusIcon';
 import { AnimatedCheck } from '../AnimatedCheck';
 import { GroupIdAnnotation } from '../GroupIdAnnotation';
 import { ObjectTypeIcon } from '../ObjectTypeIcon';
@@ -140,9 +140,7 @@ export function ObjectDetailsView({ instance = null, liveContext = null, onBackT
   if (error) {
     return (
       <Alert className='w-full' status='warning'>
-        <Alert.Indicator>
-          <IconExclamationTriangle data-slot='alert-default-icon' />
-        </Alert.Indicator>
+        <AlertStatusIcon />
         <Alert.Content>
           <Alert.Title>Error</Alert.Title>
           <div className='flex flex-col items-start justify-center gap-2'>

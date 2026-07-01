@@ -21,7 +21,8 @@ import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
 // the relatedData entry. Pair the entry with a `field` to gate the tab on (and
 // seed its count from) an array already present in the object's details.
 const LAZY_ARRAY_FETCHERS = {
-  alertActions: ({ details, objectId, tabId }) => getAlertActions({ actions: details?.actions || [], alertId: objectId, tabId }),
+  alertActions: ({ details, objectId, tabId }) =>
+    getAlertActions({ actions: details?.actions || [], alertId: objectId, tabId }),
   dataflowInputs: ({ details, tabId }) => getDatasetDetailsForList({ datasets: details?.inputs, tabId }),
   dataflowOutputs: ({ details, tabId }) => getDatasetDetailsForList({ datasets: details?.outputs, tabId }),
   datasetColumns: ({ objectId, tabId }) => getDatasetColumns({ datasetId: objectId, tabId }),
@@ -524,9 +525,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
               )}
               <Tooltip delay={300} isDisabled={!currentContext?.domoObject?.id || !currentContext?.isDomoPage}>
                 <Tooltip.Trigger className='shrink-0'>
-                  <Alert.Indicator className='p-0!'>
-                    <AlertStatusIcon />
-                  </Alert.Indicator>
+                  <AlertStatusIcon />
                 </Tooltip.Trigger>
                 <Tooltip.Content className='max-w-60'>Click to toggle context JSON view</Tooltip.Content>
               </Tooltip>

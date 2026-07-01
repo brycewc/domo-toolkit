@@ -17,9 +17,9 @@ import { getValidTabForInstance } from '@/utils/currentObject';
 import { withCanonicalGroups } from '@/utils/dataListGroups';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconDatabase from '@icons/database.svg?react';
-import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
 import IconSync from '@icons/sync.svg?react';
 
+import { AlertStatusIcon } from '../AlertStatusIcon';
 import { DataList } from './DataList';
 
 // Page-type objects (a page, an App Studio page, or a worksheet page) get their
@@ -282,9 +282,7 @@ export function GetDatasetsView({
   if (error) {
     return (
       <Alert className='w-full' status='warning'>
-        <Alert.Indicator>
-          <IconExclamationTriangle data-slot='alert-default-icon' />
-        </Alert.Indicator>
+        <AlertStatusIcon />
         <Alert.Content>
           <Alert.Title>Error</Alert.Title>
           <div className='flex flex-col items-start justify-center gap-2'>

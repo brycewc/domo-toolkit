@@ -1,7 +1,7 @@
 import {
+  Alert,
   Button,
   Card,
-  Checkbox,
   Chip,
   Disclosure,
   Label,
@@ -10,7 +10,8 @@ import {
   ScrollShadow,
   Select,
   Separator,
-  Spinner
+  Spinner,
+  Switch
 } from '@heroui/react';
 import { useEffect, useRef, useState } from 'react';
 
@@ -32,9 +33,9 @@ import {
 import IconArrowRight from '@icons/arrow-right.svg?react';
 import IconCheck from '@icons/check.svg?react';
 import IconChevronDown from '@icons/chevron-down.svg?react';
-import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
 import IconPackage from '@icons/package.svg?react';
 
+import { AlertStatusIcon } from '../AlertStatusIcon';
 import { ViewHeader } from './ViewHeader';
 
 export function UpdateCodeEngineVersionsView({
@@ -729,13 +730,15 @@ function ActionReconciliation({
 }) {
   if (info.functionDeleted) {
     return (
-      <div className='mt-1 flex items-start gap-2 rounded-md bg-danger-soft p-2 text-xs text-danger'>
-        <IconExclamationTriangle className='mt-0.5 shrink-0' size={12} />
-        <span>
-          <span className='font-mono'>{action.functionName}</span> no longer exists in the selected version. This action will
-          be skipped so it does not break the workflow.
-        </span>
-      </div>
+      <Alert className='mt-1 w-full bg-danger-soft' status='danger'>
+        <AlertStatusIcon />
+        <Alert.Content>
+          <Alert.Description>
+            <span className='font-mono'>{action.functionName}</span> no longer exists in the selected version. This action
+            will be skipped so it does not break the workflow.
+          </Alert.Description>
+        </Alert.Content>
+      </Alert>
     );
   }
 
@@ -818,42 +821,41 @@ function ActionReconciliation({
           ))}
 
           {info.addedRequiredInputs.length > 0 && (
-            <div className='flex items-start gap-2 rounded-md bg-warning-soft p-2 text-warning'>
-              <IconExclamationTriangle className='mt-0.5 shrink-0' size={12} />
-              <span>
-                New required input{info.addedRequiredInputs.length === 1 ? '' : 's'}{' '}
-                <span className='font-mono'>{info.addedRequiredInputs.join(', ')}</span> will be unset. Set{' '}
-                {info.addedRequiredInputs.length === 1 ? 'it' : 'them'} in Domo after updating.
-              </span>
-            </div>
+            <Alert className='w-full' status='warning'>
+              <AlertStatusIcon />
+              <Alert.Content>
+                <Alert.Description>
+                  New required input{info.addedRequiredInputs.length === 1 ? '' : 's'}{' '}
+                  <span className='font-mono'>{info.addedRequiredInputs.join(', ')}</span> will be unset. Set{' '}
+                  {info.addedRequiredInputs.length === 1 ? 'it' : 'them'} in Domo after updating.
+                </Alert.Description>
+              </Alert.Content>
+            </Alert>
           )}
 
           {info.addedOutputs.map((name) => (
-            <Checkbox
+            <Switch
               isSelected={choices.addOutputs?.includes(name) ?? false}
               key={`out-${name}`}
-              variant='secondary'
+              size='sm'
               onChange={(selected) => onToggleOutput(action.elementId, name, selected)}
             >
-              <Checkbox.Control>
-                <Checkbox.Indicator />
-              </Checkbox.Control>
-              <Checkbox.Content>
+              <Switch.Control>
+                <Switch.Thumb />
+              </Switch.Control>
+              <Switch.Content>
                 <Label className='text-xs'>
                   Add output <span className='font-mono'>{name}</span> and map a new variable
                 </Label>
-              </Checkbox.Content>
-            </Checkbox>
+              </Switch.Content>
+            </Switch>
           ))}
 
           {info.typeChangeImpacts.map((impact) => (
-            <div
-              className='flex flex-col gap-1 rounded-md bg-warning-soft p-2 text-warning'
-              key={`tc-${impact.flag}-${impact.paramName}`}
-            >
-              <span className='flex items-start gap-2'>
-                <IconExclamationTriangle className='mt-0.5 shrink-0' size={12} />
-                <span>
+            <Alert className='w-full' key={`tc-${impact.flag}-${impact.paramName}`} status='warning'>
+              <AlertStatusIcon />
+              <Alert.Content>
+                <Alert.Description>
                   Type of <span className='font-mono'>{impact.paramName}</span> changed to{' '}
                   <span className='font-mono'>{impact.newType}</span>, but variable{' '}
                   <span className='font-mono'>{impact.variableName}</span> keeps its old type
@@ -861,34 +863,31 @@ function ActionReconciliation({
                     ? ` (also used by ${impact.consumers.map((c) => c.title || c.paramName).join(', ')})`
                     : ''}
                   .
-                </span>
-              </span>
-              <Checkbox
-                isSelected={!!choices.updateVariableTypes?.[impact.variableId]}
-                variant='secondary'
-                onChange={(selected) => onToggleVariableType(action.elementId, impact.variableId, selected)}
-              >
-                <Checkbox.Control>
-                  <Checkbox.Indicator />
-                </Checkbox.Control>
-                <Checkbox.Content>
-                  <Label className='text-xs'>
-                    Update variable <span className='font-mono'>{impact.variableName}</span> to{' '}
-                    <span className='font-mono'>{impact.newType}</span>
-                  </Label>
-                </Checkbox.Content>
-              </Checkbox>
-            </div>
+                </Alert.Description>
+                <Switch
+                  isSelected={!!choices.updateVariableTypes?.[impact.variableId]}
+                  size='sm'
+                  onChange={(selected) => onToggleVariableType(action.elementId, impact.variableId, selected)}
+                >
+                  <Switch.Control>
+                    <Switch.Thumb />
+                  </Switch.Control>
+                  <Switch.Content>
+                    <Label className='text-xs'>
+                      Update variable <span className='font-mono'>{impact.variableName}</span> to{' '}
+                      <span className='font-mono'>{impact.newType}</span>
+                    </Label>
+                  </Switch.Content>
+                </Switch>
+              </Alert.Content>
+            </Alert>
           ))}
 
           {info.schemaChangeImpacts.map((impact) => (
-            <div
-              className='flex flex-col gap-1 rounded-md bg-warning-soft p-2 text-warning'
-              key={`sc-${impact.flag}-${impact.paramName}`}
-            >
-              <span className='flex items-start gap-2'>
-                <IconExclamationTriangle className='mt-0.5 shrink-0' size={12} />
-                <span>
+            <Alert className='w-full' key={`sc-${impact.flag}-${impact.paramName}`} status='warning'>
+              <AlertStatusIcon />
+              <Alert.Content>
+                <Alert.Description>
                   The properties of {impact.isList ? 'the objects in ' : ''}
                   <span className='font-mono'>{impact.paramName}</span> changed, but variable{' '}
                   <span className='font-mono'>{impact.variableName}</span> keeps its old properties
@@ -896,37 +895,36 @@ function ActionReconciliation({
                     ? ` (also used by ${impact.consumers.map((c) => c.title || c.paramName).join(', ')})`
                     : ''}
                   .
-                </span>
-              </span>
-              <Checkbox
-                isSelected={!!choices.updateVariableSchemas?.[impact.variableId]}
-                variant='secondary'
-                onChange={(selected) => onToggleVariableSchema(action.elementId, impact.variableId, selected)}
-              >
-                <Checkbox.Control>
-                  <Checkbox.Indicator />
-                </Checkbox.Control>
-                <Checkbox.Content>
-                  <Label className='text-xs'>
-                    Update variable <span className='font-mono'>{impact.variableName}</span>&apos;s properties
-                  </Label>
-                </Checkbox.Content>
-              </Checkbox>
-            </div>
+                </Alert.Description>
+                <Switch
+                  isSelected={!!choices.updateVariableSchemas?.[impact.variableId]}
+                  size='sm'
+                  onChange={(selected) => onToggleVariableSchema(action.elementId, impact.variableId, selected)}
+                >
+                  <Switch.Control>
+                    <Switch.Thumb />
+                  </Switch.Control>
+                  <Switch.Content>
+                    <Label className='text-xs'>
+                      Update <span className='font-mono text-accent'>{impact.variableName}</span> variable properties
+                    </Label>
+                  </Switch.Content>
+                </Switch>
+              </Alert.Content>
+            </Alert>
           ))}
 
           {info.breakingRemovedOutputs.map((impact) => (
-            <div
-              className='flex items-start gap-2 rounded-md bg-warning-soft p-2 text-warning'
-              key={`ro-${impact.paramName}`}
-            >
-              <IconExclamationTriangle className='mt-0.5 shrink-0' size={12} />
-              <span>
-                Output <span className='font-mono'>{impact.paramName}</span> was removed. Variable{' '}
-                <span className='font-mono'>{impact.variableName}</span> loses its writer and will break{' '}
-                {impact.consumers.map((c) => c.title || c.paramName).join(', ')}.
-              </span>
-            </div>
+            <Alert className='w-full' key={`ro-${impact.paramName}`} status='warning'>
+              <AlertStatusIcon />
+              <Alert.Content>
+                <Alert.Description>
+                  Output <span className='font-mono'>{impact.paramName}</span> was removed. Variable{' '}
+                  <span className='font-mono'>{impact.variableName}</span> loses its writer and will break{' '}
+                  {impact.consumers.map((c) => c.title || c.paramName).join(', ')}.
+                </Alert.Description>
+              </Alert.Content>
+            </Alert>
           ))}
         </div>
       </Disclosure.Content>
