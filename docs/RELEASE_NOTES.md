@@ -18,6 +18,7 @@
 - An approval request now has a Transfer Approval button to reassign that single pending request to another user.
 - Added Manage Tags for dataflows: add or remove tags on a dataflow and its output datasets together in one step.
 - A dataflow's Inputs and Outputs JSON tabs now show each dataset's full details and links instead of just its name and ID.
+- Inspect DataFlow now shows the tiles for the specific version you're viewing when you open a dataflow at an older version, instead of always showing the current one.
 - Admins can now switch a dataset to any compatible account in the instance, without first sharing that account with themselves.
 - Added Get Beast Modes: list the Beast Modes tied to a dataset, dataflow, card, page, app, or worksheet, showing the cards, drills, and other Beast Modes each one is used on. ([#7](https://github.com/brycewc/domo-toolkit/issues/7))
 - The welcome screen now has a quick theme switcher to set System, Light, or Dark without opening settings.
@@ -170,3 +171,4 @@
 
 - Refreshing a Domo page now retries fetching the object's name and details when an earlier attempt came up empty, instead of staying blank until you navigate away.
 - The browser tab title now updates to the current page when you move between pages of an App Studio app, instead of staying stuck on the page you first opened.
+- Opening a specific Code Engine package, workflow, or workspace now shows the object's name in the browser tab, instead of leaving it on a generic section title like "Code Engine Packages".

@@ -9,6 +9,7 @@ import { getSidepanelData } from '@/utils/sidepanel';
 export function InspectDataflowView({ instance = null, onBackToDefault = null }) {
   const [dataflowId, setDataflowId] = useState(null);
   const [error, setError] = useState(null);
+  const [versionId, setVersionId] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -21,6 +22,9 @@ export function InspectDataflowView({ instance = null, onBackToDefault = null })
       }
       const context = DomoContext.fromJSON(data.currentContext);
       setDataflowId(context.domoObject?.id ?? null);
+      // When the dataflow is opened at a historical version (?versionId=), detection stashes it
+      // here so Inspect loads that version's tiles instead of the live definition.
+      setVersionId(context.domoObject?.metadata?.context?.dataflowVersionId ?? null);
     })();
     return () => {
       cancelled = true;
@@ -45,6 +49,7 @@ export function InspectDataflowView({ instance = null, onBackToDefault = null })
       dataflowId={dataflowId}
       resolveTabId={resolveTabId}
       showJson={false}
+      versionId={versionId}
       onClose={onBackToDefault}
     />
   );

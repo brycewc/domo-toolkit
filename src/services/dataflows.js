@@ -59,12 +59,21 @@ export async function deleteDataflowAndOutputs({ dataflowId, outputs, tabId = nu
  * Get the full detail of a DataFlow (including actions/tiles)
  * @param {string} dataflowId - The DataFlow ID
  * @param {number} [tabId] - Optional Chrome tab ID
- * @returns {Promise<Object>} The full dataflow JSON
+ * @param {string} [versionId] - Optional version ID; when set, returns that historical version's
+ *   definition (unwrapped from the v2 versions response) instead of the live one
+ * @returns {Promise<Object>} The dataflow definition JSON (actions/inputs/outputs at top level)
  */
-export async function getDataflowDetail(dataflowId, tabId = null) {
+export async function getDataflowDetail(dataflowId, tabId = null, versionId = null) {
   return executeInPage(
-    async (dataflowId) => {
-      const response = await fetch(`/api/dataprocessing/v1/dataflows/${dataflowId}`, {
+    async (dataflowId, versionId) => {
+      // The live definition comes from the v1 endpoint with actions/inputs/outputs at the top
+      // level. A specific version comes from the v2 versions endpoint, which wraps that same
+      // definition under `dataFlow` alongside version metadata. Unwrap it (and carry the
+      // human-friendly versionNumber onto the definition) so callers always get one shape.
+      const url = versionId
+        ? `/api/dataprocessing/v2/dataflows/${dataflowId}/versions/${versionId}`
+        : `/api/dataprocessing/v1/dataflows/${dataflowId}`;
+      const response = await fetch(url, {
         credentials: 'include',
         method: 'GET'
       });
@@ -73,9 +82,15 @@ export async function getDataflowDetail(dataflowId, tabId = null) {
         throw new Error(`Failed to fetch dataflow: HTTP ${response.status}`);
       }
 
-      return response.json();
+      const json = await response.json();
+      if (!versionId) {
+        return json;
+      }
+      const definition = json.dataFlow || {};
+      definition.versionNumber = json.versionNumber;
+      return definition;
     },
-    [dataflowId],
+    [dataflowId, versionId],
     tabId
   );
 }

@@ -117,7 +117,8 @@ const TILE_CATEGORY_MAP = {
 /**
  * Parse a full dataflow response into structured data
  * @param {Object} detail - The dataflow detail object from Domo API
- * @returns {Object} ParsedDataflow with id, name, tiles, dataset IDs, and engine
+ * @returns {Object} ParsedDataflow with id, name, tiles, dataset IDs, engine, and (for a
+ *   historical version) the version number
  */
 export function parseDataflow(detail) {
   const tiles = (detail.actions || []).map(parseTile);
@@ -132,7 +133,8 @@ export function parseDataflow(detail) {
     inputDatasetIds,
     name: detail.name,
     outputDatasetIds,
-    tiles
+    tiles,
+    versionNumber: detail.versionNumber
   };
 }
 

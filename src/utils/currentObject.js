@@ -201,7 +201,15 @@ export async function detectCurrentObject() {
 
     case url.includes('dataflows/'):
       objectType = 'DATAFLOW_TYPE';
-      break;
+      // A DataFlow graph opened at a historical version carries ?versionId= (read from
+      // location.search, which preserves case, since `url` above is lowercased). The object is
+      // still the live DataFlow; the version is a qualifier the service worker stashes in context.
+      return {
+        baseUrl: `${location.protocol}//${location.hostname}`,
+        dataflowVersionId: new URLSearchParams(location.search).get('versionId') || null,
+        typeId: objectType,
+        url
+      };
 
     case url.includes('scheduled-reports/history/'):
       objectType = 'REPORT_SCHEDULE';

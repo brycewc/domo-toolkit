@@ -13,6 +13,14 @@ import { detectCurrentObject, isDomoUrl } from '@/utils/currentObject';
 import { executeInPage } from '@/utils/executeInPage';
 import { sidepanelStorageKeyPrefix } from '@/utils/sidepanel';
 
+// Generic titles the toolkit applies to list/index pages, in both the bare and
+// " - Domo"-suffixed forms document.title can hold. They are overwritable in two
+// directions: our own writes replace them with a resolved object name, and when
+// Domo (re)writes one after we have already set an object name, we re-apply the
+// name. Domo reuses a section title across a list and its detail pages, so
+// navigating from the list into an item can leave the detail tab on it.
+const SECTION_TITLE_STRINGS = Object.values(SECTION_TITLES).flatMap((title) => [title, `${title} - Domo`]);
+
 /**
  * Compute whether the current user is an owner of the detected object.
  * Handles pre-computed booleans, plain IDs, typed objects, and arrays.
@@ -582,9 +590,9 @@ function setActionIcon(color) {
 
 function setSectionTitle(tabId, url, force = false) {
   try {
-    const pathname = new URL(url).pathname;
+    const pathname = new URL(url).pathname.toLowerCase();
     const sortedKeys = Object.keys(SECTION_TITLES).sort((a, b) => b.length - a.length);
-    const matchedKey = sortedKeys.find((key) => pathname.startsWith(key));
+    const matchedKey = sortedKeys.find((key) => pathname.startsWith(key.toLowerCase()));
     if (matchedKey) {
       setTabTitle(tabId, SECTION_TITLES[matchedKey], [], force);
       return true;
@@ -640,11 +648,12 @@ function setTabContext(tabId, context) {
 function setTabTitle(tabId, objectName, allowedTitles = [], force = false, allowedPrefixes = []) {
   try {
     chrome.scripting.executeScript({
-      args: [objectName, allowedTitles, allowedPrefixes, removeDomoTitleSuffix, force],
-      func: (objectName, allowedTitles, allowedPrefixes, removeSuffix, force) => {
+      args: [objectName, allowedTitles, allowedPrefixes, SECTION_TITLE_STRINGS, removeDomoTitleSuffix, force],
+      func: (objectName, allowedTitles, allowedPrefixes, sectionTitles, removeSuffix, force) => {
         const currentTitle = document.title.trim();
         const isManagedTitle =
           currentTitle === 'Domo' ||
+          sectionTitles.includes(currentTitle) ||
           allowedTitles.includes(currentTitle) ||
           allowedPrefixes.some((prefix) => prefix && currentTitle.startsWith(prefix));
         if (!force && !isManagedTitle) {
@@ -974,9 +983,12 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
       } else if (tab.url) {
         setSectionTitle(tabId, tab.url);
       }
-    } else if (objectName && allowedTitles.includes(changeInfo.title)) {
-      // Stale parent-only title (e.g., "MyApp - Domo"), so enrich to the object name
-      console.log(`[Background] Enriching stale title for tab ${tabId}`);
+    } else if (objectName && (allowedTitles.includes(changeInfo.title) || SECTION_TITLE_STRINGS.includes(changeInfo.title))) {
+      // Domo re-applied a generic title after we set the object name: either a
+      // stale parent-only title (e.g., "MyApp - Domo") or a section title it
+      // reuses across a list and its detail pages (e.g., "Code Engine
+      // Packages"), so re-apply the object name.
+      console.log(`[Background] Re-applying object name to tab ${tabId}`);
       setTabTitle(tabId, getTitleName(context.domoObject), allowedTitles, false, allowedPrefixes);
     } else if (removeDomoTitleSuffix && changeInfo.title.endsWith(' - Domo')) {
       // Suffix setting on, so strip " - Domo" from any other Domo tab title.
@@ -1248,9 +1260,24 @@ async function detectAndStoreContext(tabId) {
       parentId // pass parent ID if extracted from URL
     );
 
+    // When a DataFlow is opened at a historical version (?versionId=), enrich from that version's
+    // endpoint so the whole context (JSON details, Inputs/Outputs tabs, name, created) reflects
+    // the version instead of the live definition. The v2 versions response wraps the definition
+    // under `dataFlow` with the version number and timestamp alongside; pointing the detail and
+    // created paths into the wrapper unwraps it into the same shape the live endpoint returns,
+    // and the name template tags the object name with its version so it reads as a version.
+    const apiConfig =
+      detected.dataflowVersionId && typeModel.id === 'DATAFLOW_TYPE'
+        ? {
+            endpoint: `/dataprocessing/v2/dataflows/{id}/versions/${detected.dataflowVersionId}`,
+            nameTemplate: '{dataFlow.name} - {versionNumber}',
+            paths: { created: 'timeStamp', details: 'dataFlow' }
+          }
+        : typeModel.api;
+
     // Prepare parameters for page-safe enrichment function
     const params = {
-      apiConfig: typeModel.api,
+      apiConfig,
       baseUrl: detected.baseUrl,
       objectId,
       parentId: parentId || null,
@@ -1295,6 +1322,11 @@ async function detectAndStoreContext(tabId) {
     if (detected.workflowModelId) {
       domoObject.metadata.context.workflowModelId = detected.workflowModelId;
       domoObject.metadata.context.workflowVersionNumber = detected.workflowVersionNumber;
+    }
+
+    // Preserve the DataFlow version qualifier when viewing a historical version (?versionId=)
+    if (detected.dataflowVersionId) {
+      domoObject.metadata.context.dataflowVersionId = detected.dataflowVersionId;
     }
 
     // Preserve page/app context when a card is viewed from a page or app
@@ -1360,12 +1392,19 @@ async function detectAndStoreContext(tabId) {
 
     // Compose a tab-title display name from template if configured. This is kept
     // separate from metadata.name so the context footer shows the object's own
-    // name while the tab title gets the parent-qualified form.
+    // name while the tab title gets the parent-qualified form. Types that set
+    // api.nameFromDisplayName opt out of that split: their own name is
+    // meaningless alone (a version is just "1.2.3"), so the parent-qualified
+    // form becomes the object's name everywhere, not only in the tab title.
     if (typeModel.api?.displayName && domoObject.metadata?.parent?.name) {
-      domoObject.metadata.titleName = typeModel.api.displayName
+      const displayName = typeModel.api.displayName
         .replace('{parent.name}', domoObject.metadata.parent.name)
         .replace('{name}', domoObject.metadata.name || '')
         .replace('{id}', objectId);
+      domoObject.metadata.titleName = displayName;
+      if (typeModel.api.nameFromDisplayName) {
+        domoObject.metadata.name = displayName;
+      }
     }
 
     updateTabContextKey(tabId, {

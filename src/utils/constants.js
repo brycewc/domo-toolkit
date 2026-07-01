@@ -52,7 +52,7 @@ export const ACTION_COLOR_PATTERNS = {
 // leaves the tab title as just "Domo".  Matched by longest-prefix-first so
 // more-specific paths win (e.g. /datacenter/dataflows before /datacenter).
 export const SECTION_TITLES = {
-  '/codeEngine': 'Code Engine Packages',
+  '/codeengine': 'Code Engine Packages',
   '/workflows': 'Workflows',
   '/workspaces': 'Workspaces'
 };

@@ -1,4 +1,5 @@
 import {
+  Alert,
   Card,
   Chip,
   Disclosure,
@@ -14,6 +15,7 @@ import { memo, useEffect, useMemo, useState } from 'react';
 import JsonView from 'react18-json-view';
 
 import '@/assets/json-view-theme.css';
+import { AlertStatusIcon } from '@/components/AlertStatusIcon';
 import { AnimatedCheck } from '@/components/AnimatedCheck';
 import { SqlBlock } from '@/components/SqlBlock';
 import { ViewHeader } from '@/components/views/ViewHeader';
@@ -157,6 +159,7 @@ const TILE_ICONS = {
  * @param {Function} [props.resolveTabId] - Async function that resolves a valid tab ID
  * @param {Function} props.onClose - Close handler
  * @param {boolean} [props.showJson=true] - Show the Tiles/JSON tabs (lineage). When false, renders just the tiles list (sidepanel, where the JSON is already available in the context footer).
+ * @param {string} [props.versionId] - When set, inspect that historical version instead of the live dataflow
  */
 export function DataflowInspector({
   cacheRef,
@@ -164,9 +167,13 @@ export function DataflowInspector({
   dataflowId,
   onClose,
   resolveTabId,
-  showJson = true
+  showJson = true,
+  versionId
 }) {
-  const cached = cacheRef?.current?.get(dataflowId);
+  // Key the cache by dataflow AND version so the live definition and a historical version
+  // don't overwrite each other's entry when the user toggles between them.
+  const cacheKey = versionId ? `${dataflowId}:${versionId}` : dataflowId;
+  const cached = cacheRef?.current?.get(cacheKey);
   const [dataflow, setDataflow] = useState(cached?.parsed ?? null);
   const [rawJSON, setRawJSON] = useState(cached?.raw ?? null);
   const [loading, setLoading] = useState(!cached);
@@ -190,10 +197,10 @@ export function DataflowInspector({
       setError(null);
       try {
         const tabId = await resolveTabId?.();
-        const dataflowJSON = await getDataflowDetail(dataflowId, tabId);
+        const dataflowJSON = await getDataflowDetail(dataflowId, tabId, versionId);
         const parsed = parseDataflow(dataflowJSON);
         if (!cancelled) {
-          cacheRef?.current?.set(dataflowId, { parsed, raw: dataflowJSON });
+          cacheRef?.current?.set(cacheKey, { parsed, raw: dataflowJSON });
           setDataflow(parsed);
           setRawJSON(dataflowJSON);
           setLoading(false);
@@ -212,7 +219,7 @@ export function DataflowInspector({
     return () => {
       cancelled = true;
     };
-  }, [cacheRef, dataflowId, resolveTabId]);
+  }, [cacheKey, cacheRef, dataflowId, resolveTabId, versionId]);
 
   const filteredTiles = useMemo(() => {
     if (!dataflow) return [];
@@ -312,6 +319,18 @@ export function DataflowInspector({
         subtext={`ID: ${dataflow.id} | ${dataflow.tiles.length} tiles`}
         onClose={onClose}
       />
+
+      {versionId && (
+        <Alert className='mb-2 w-full border border-border bg-transparent' status='warning'>
+          <AlertStatusIcon />
+          <Alert.Content>
+            <Alert.Title>Historical version</Alert.Title>
+            <Alert.Description>
+              Showing version {dataflow.versionNumber ?? versionId}, not the live definition.
+            </Alert.Description>
+          </Alert.Content>
+        </Alert>
+      )}
 
       {!showJson ? (
         <div className='flex min-h-0 flex-1 flex-col overflow-hidden'>{tilesView}</div>

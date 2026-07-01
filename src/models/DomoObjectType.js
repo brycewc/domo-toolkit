@@ -557,6 +557,7 @@ export const ObjectTypeRegistry = {
     api: {
       displayName: '{parent.name} - {id}',
       endpoint: '/codeengine/v2/packages/{parent}/versions/{id}?parts=functions,privateFunctions',
+      nameFromDisplayName: true,
       paths: { name: 'version' }
     },
     copyConfigs: [
@@ -1060,7 +1061,7 @@ export const ObjectTypeRegistry = {
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   }),
   PAGE: new DomoObjectType('PAGE', 'Page', {
-    aliases: ['PAGE_ANALYZER', 'STORY'],
+    aliases: ['PAGE_ANALYZER', 'STORY', 'DASHBOARD'],
     api: { endpoint: '/content/v3/stacks/{id}', paths: { created: 'page.created', name: 'title' } },
     extractConfig: { keyword: 'page' },
     icon: { component: 'PagesBars' },
@@ -1378,6 +1379,7 @@ export const ObjectTypeRegistry = {
     api: {
       displayName: '{parent.name} - {id}',
       endpoint: '/workflow/v2/models/{parent}/versions/{id}',
+      nameFromDisplayName: true,
       paths: { name: 'version' }
     },
     copyConfigs: [
