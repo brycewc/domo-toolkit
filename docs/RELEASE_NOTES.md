@@ -96,6 +96,7 @@
 - The Update Owner and Transfer Ownership dialogs now open centered on screen instead of near the top.
 - The Update Details view now puts the object's name in its title ("Update Details for <object>") instead of a generic per-type heading, with just the ID below it.
 - The refresh button's icon now spins counter-clockwise while refreshing, matching the direction of Domo's own sync icon.
+- Checkboxes shown on cards and panels now use a flatter style that sits better on those surfaces.
 
 ### Get Card Pages
 

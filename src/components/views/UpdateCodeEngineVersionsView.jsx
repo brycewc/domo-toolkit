@@ -832,6 +832,7 @@ function ActionReconciliation({
             <Checkbox
               isSelected={choices.addOutputs?.includes(name) ?? false}
               key={`out-${name}`}
+              variant='secondary'
               onChange={(selected) => onToggleOutput(action.elementId, name, selected)}
             >
               <Checkbox.Control>
@@ -864,6 +865,7 @@ function ActionReconciliation({
               </span>
               <Checkbox
                 isSelected={!!choices.updateVariableTypes?.[impact.variableId]}
+                variant='secondary'
                 onChange={(selected) => onToggleVariableType(action.elementId, impact.variableId, selected)}
               >
                 <Checkbox.Control>
@@ -898,6 +900,7 @@ function ActionReconciliation({
               </span>
               <Checkbox
                 isSelected={!!choices.updateVariableSchemas?.[impact.variableId]}
+                variant='secondary'
                 onChange={(selected) => onToggleVariableSchema(action.elementId, impact.variableId, selected)}
               >
                 <Checkbox.Control>

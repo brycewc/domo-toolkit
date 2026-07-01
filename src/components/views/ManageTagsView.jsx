@@ -403,6 +403,7 @@ export function ManageTagsView({ currentContext = null, instance = null, onBackT
       isDisabled={isSubmitting || readableObjects.length === 0}
       isIndeterminate={someSelected && !allSelected}
       isSelected={allSelected}
+      variant='secondary'
       onChange={(checked) =>
         setSelectedIds(
           checked ? reconcileGroupSelection(new Set(readableObjects.map((o) => o.id)), groupChildren) : new Set()

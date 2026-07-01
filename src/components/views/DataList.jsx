@@ -1340,6 +1340,7 @@ function DataListItemImpl({
                     aria-label={typeof item.label === 'string' ? item.label : `Select ${item.id}`}
                     className='mt-0! shrink-0 opacity-60 [--cursor-interactive:var(--cursor-disabled)]'
                     value={String(item.id)}
+                    variant='secondary'
                   >
                     <Checkbox.Control>
                       <Checkbox.Indicator />
@@ -1353,6 +1354,7 @@ function DataListItemImpl({
                 aria-label={typeof item.label === 'string' ? item.label : `Select ${item.id}`}
                 className='mt-0! shrink-0'
                 value={String(item.id)}
+                variant='secondary'
               >
                 <Checkbox.Control>
                   <Checkbox.Indicator />
@@ -1465,6 +1467,7 @@ function DataListItemImpl({
                     className='mt-0! shrink-0 opacity-60 [--cursor-interactive:var(--cursor-disabled)]'
                     isIndeterminate={isParentIndeterminate}
                     value={String(item.id)}
+                    variant='secondary'
                   >
                     <Checkbox.Control>
                       <Checkbox.Indicator />
@@ -1479,6 +1482,7 @@ function DataListItemImpl({
                 className='mt-0! shrink-0'
                 isIndeterminate={isParentIndeterminate}
                 value={String(item.id)}
+                variant='secondary'
               >
                 <Checkbox.Control>
                   <Checkbox.Indicator />

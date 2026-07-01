@@ -935,6 +935,7 @@ export function OwnershipView({
         isDisabled={isHydrating || totalEligibleObjects === 0 || isTransferring}
         isIndeterminate={!isHydrating && selectedObjectCount > 0 && selectedObjectCount < totalEligibleObjects}
         isSelected={isHydrating || (totalEligibleObjects > 0 && selectedObjectCount === totalEligibleObjects)}
+        variant='secondary'
         onChange={(isSelected) => {
           if (isSelected) selectAllEligible();
           else clearSelection();
