@@ -15,6 +15,7 @@ import { GetCardsView } from '@/components/views/GetCardsView';
 import { GetDatasetsView } from '@/components/views/GetDatasetsView';
 import { GetPagesView } from '@/components/views/GetPagesView';
 import { GetViewInputsView } from '@/components/views/GetViewInputsView';
+import { GetWorkspacesView } from '@/components/views/GetWorkspacesView';
 import { InspectDataflowView } from '@/components/views/InspectDataflowView';
 import { LinkPreview } from '@/components/views/LinkPreview';
 import { ManageTagsView } from '@/components/views/ManageTagsView';
@@ -313,6 +314,17 @@ export default function App() {
 
         {slot.type === 'getDatasets' && (
           <GetDatasetsView
+            currentContext={currentContext}
+            instance={instance}
+            isActive={isActive}
+            key={slot.viewKey}
+            onBackToDefault={backToDefault}
+            onStatusUpdate={showStatus}
+          />
+        )}
+
+        {slot.type === 'getWorkspaces' && (
+          <GetWorkspacesView
             currentContext={currentContext}
             instance={instance}
             isActive={isActive}

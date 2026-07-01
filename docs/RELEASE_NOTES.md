@@ -27,6 +27,7 @@
 - Alerts now have an Actions tab listing the actions an alert triggers, with a link to the workflow, scheduled report, or task behind each one.
 - Generate Definition from JSDoc now picks up a function's nested output schema (the fields of the objects it returns), where before it only read the top-level return type.
 - Added Update Trigger Versions, which repoints all of a workflow's alert triggers to a chosen version in one step, with the option to exclude individual triggers.
+- Added Get Workspaces, which lists the workspaces a card, dataset, dataflow, dashboard, app, worksheet, or workflow has been added to.
 
 ### Copy Filters
 

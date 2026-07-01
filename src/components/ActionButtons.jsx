@@ -22,6 +22,7 @@ import { GetChildPages } from '@/components/functions/GetChildPages';
 import { GetDatasets } from '@/components/functions/GetDatasets';
 import { GetOwnedObjects } from '@/components/functions/GetOwnedObjects';
 import { GetViewInputs } from '@/components/functions/GetViewInputs';
+import { GetWorkspaces } from '@/components/functions/GetWorkspaces';
 import { InspectDataflow } from '@/components/functions/InspectDataflow';
 import { LockCards } from '@/components/functions/LockCards';
 import { ManageTags } from '@/components/functions/ManageTags';
@@ -209,6 +210,14 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                 )}
                 {availableActions.has('getBeastModes') && (
                   <GetBeastModes
+                    currentContext={currentContext}
+                    isDisabled={!isDomoPage}
+                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
+                    onStatusUpdate={onStatusUpdate}
+                  />
+                )}
+                {availableActions.has('getWorkspaces') && (
+                  <GetWorkspaces
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
                     onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}

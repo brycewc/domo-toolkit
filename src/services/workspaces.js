@@ -65,6 +65,51 @@ export async function getOwnedWorkspaces(userId, tabId = null) {
 }
 
 /**
+ * Fetch every Workspace the given entity has been added to, following the
+ * endpoint's limit/offset pagination until a short page is returned.
+ *
+ * @param {Object} params
+ * @param {string|number} params.entityId - The object's id (or its parent app/worksheet id for view types)
+ * @param {string} params.entityType - Workspaces API entityType (CARD, DATASET, DATAFLOW, DASHBOARD, DATA_APP, WORKFLOW_MODEL, WORKSHEET)
+ * @param {number} [params.limit=100] - Page size
+ * @param {number|null} [params.tabId] - Target tab
+ * @returns {Promise<Array<{guid: string, name: string}>>} Raw workspace objects
+ */
+export async function getWorkspacesForEntity({ entityId, entityType, limit = 100, tabId = null }) {
+  return executeInPage(
+    async (entityId, entityType, limit) => {
+      const workspaces = [];
+      let moreData = true;
+      let offset = 0;
+
+      while (moreData) {
+        const response = await fetch(
+          `/api/nav/v1/workspaces/entity/${entityType}/${encodeURIComponent(entityId)}?limit=${limit}&offset=${offset}`
+        );
+        if (response.status === 404) break;
+        if (!response.ok) {
+          throw new Error(`Failed to fetch workspaces for ${entityType}/${entityId} (HTTP ${response.status})`);
+        }
+
+        const data = await response.json();
+        const results = Array.isArray(data?.results) ? data.results : [];
+        workspaces.push(...results);
+
+        if (results.length < limit) {
+          moreData = false;
+        } else {
+          offset += limit;
+        }
+      }
+
+      return workspaces;
+    },
+    [entityId, entityType, limit],
+    tabId
+  );
+}
+
+/**
  * Transfer Workspace ownership to a new user. Per-workspace three-step flow:
  *   1. GET members of the workspace.
  *   2. If destination user is already a member → PUT their role to OWNER.
@@ -164,3 +209,30 @@ export async function transferWorkspaces(workspaceIds, fromUserId, toUserId, tab
     tabId
   );
 }
+
+/**
+ * Translate a detected DomoObjectType id to the entityType value the Workspaces
+ * API expects. App pages and worksheet views resolve to their container type
+ * (DATA_APP / WORKSHEET); the caller supplies the container's id via parentId.
+ *
+ * @param {string} typeId - The current object's DomoObjectType id
+ * @returns {string|null} The API entityType, or null if the type is unsupported
+ */
+export function workspaceEntityTypeFor(typeId) {
+  return ENTITY_TYPE_BY_TYPE_ID[typeId] || null;
+}
+
+// Detected DomoObjectType id -> Workspaces API entityType. The *_VIEW variants
+// (the page/view a user actually lands on) map to their container's type, since
+// Workspace membership lives on the whole app/worksheet, not the individual page.
+const ENTITY_TYPE_BY_TYPE_ID = {
+  CARD: 'CARD',
+  DATA_APP: 'DATA_APP',
+  DATA_APP_VIEW: 'DATA_APP',
+  DATA_SOURCE: 'DATASET',
+  DATAFLOW_TYPE: 'DATAFLOW',
+  PAGE: 'DASHBOARD',
+  WORKFLOW_MODEL: 'WORKFLOW_MODEL',
+  WORKSHEET: 'WORKSHEET',
+  WORKSHEET_VIEW: 'WORKSHEET'
+};

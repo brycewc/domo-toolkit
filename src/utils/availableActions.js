@@ -40,6 +40,22 @@ export function getAvailableActions(currentContext) {
     actions.add('getCardPages');
   }
 
+  if (
+    [
+      'CARD',
+      'DATA_APP',
+      'DATA_APP_VIEW',
+      'DATA_SOURCE',
+      'DATAFLOW_TYPE',
+      'PAGE',
+      'WORKFLOW_MODEL',
+      'WORKSHEET',
+      'WORKSHEET_VIEW'
+    ].includes(typeId)
+  ) {
+    actions.add('getWorkspaces');
+  }
+
   if (typeId === 'DATA_SOURCE') {
     actions.add('copyColorRules');
     actions.add('getViewInputs');
