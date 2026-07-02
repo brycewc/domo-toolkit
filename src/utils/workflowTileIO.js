@@ -82,6 +82,28 @@ export function hasBinding(param) {
 }
 
 /**
+ * Index every workflow variable AND its nested descendants by id, mapping each to
+ * its node and its dotted name path (e.g. `employee.last_day_of_work`). A tile
+ * param can bind to a nested field of an object variable, whose id looks like
+ * `varId.childId[.grandchildId]` and is absent from the flat dataList. A plain
+ * dataList lookup misses it, so callers fall back to showing the raw id and cannot
+ * compare the bound field's type. Walking the tree fixes both.
+ * @param {Object} definition
+ * @returns {Map<string, { node: Object, path: string }>}
+ */
+export function indexVariablesById(definition) {
+  const index = new Map();
+  const walk = (node, prefix) => {
+    if (!node) return;
+    const path = prefix ? `${prefix}.${node.paramName}` : node.paramName;
+    if (node.id) index.set(node.id, { node, path });
+    for (const child of node.children || []) walk(child, path);
+  };
+  for (const variable of getWorkflowVariables(definition)) walk(variable, '');
+  return index;
+}
+
+/**
  * Rebuild a tile's input/output param arrays to match a new function manifest,
  * preserving bindings wherever possible. Pure with respect to the caller: it
  * mutates the passed (already-cloned) `element` and `definition` and returns a
@@ -291,11 +313,15 @@ function reconcileFlagParams({ choices, classified, definition, existingParams, 
       param.mappedTo = src.mappedTo ?? null;
       param.value = src.value ?? null;
       param.visible = src.visible ?? true;
-      // Keep the existing nested children verbatim: they are already in the
-      // workflow shape and carry their own field-level bindings. buildParamFromManifest
-      // seeded `param.children` from the new manifest (manifest shape), which would
-      // break the save; the carried-over param must retain its real children.
-      param.children = Array.isArray(src.children) ? src.children : [];
+      // Re-sync the nested children to the target version's manifest instead of
+      // freezing them at the old contract: fields the new version added appear,
+      // fields it dropped fall away, and types update, while any field-level
+      // binding a surviving child carried (its variable mapping, literal value,
+      // and id) is preserved. Domo does this sync itself when a tile binds a
+      // version; leaving the children untouched on an API-driven bump is what let
+      // a tile keep an out-of-date field set (e.g. a field only a much older
+      // version had), diverging from what the function actually returns.
+      param.children = reconcileParamChildren(src.children, entry.children, flag, param.id);
       // A type change against a still-bound variable is the one case that can
       // break a workflow: the variable keeps its old dataType. Surface it, and
       // update the variable's type (and its property schema) only when the user
@@ -355,10 +381,84 @@ function reconcileFlagParams({ choices, classified, definition, existingParams, 
   return result;
 }
 
+/**
+ * Reconcile an object param's nested children against the target version's
+ * manifest, the way Domo re-syncs a tile's fields to the package contract when it
+ * binds a version. Structure always follows the manifest (fields the new version
+ * added appear, fields it dropped fall away, types update); any binding an
+ * existing field of the same name carried, its variable mapping, literal value,
+ * and id, is preserved so a field-level mapping survives the bump. Recurses so a
+ * nested object keeps its full shape. This is what stops a carried-over param from
+ * freezing at an older version's contract.
+ * @param {Object[]|undefined} existingChildren - The param's current children.
+ * @param {Object[]|undefined} manifestChildren - The manifest entry's children.
+ * @param {'input'|'output'} flag
+ * @param {string} parentId - The id of the param these children hang off.
+ * @returns {Object[]}
+ */
+function reconcileParamChildren(existingChildren, manifestChildren, flag, parentId) {
+  if (!Array.isArray(manifestChildren)) return [];
+  const existingByName = new Map((Array.isArray(existingChildren) ? existingChildren : []).map((c) => [c.paramName, c]));
+  return manifestChildren.map((entry) => {
+    const src = existingByName.get(entry.name);
+    const id = src?.id ?? `${parentId}.${generateTileId()}`;
+    return {
+      aiDescription: src?.aiDescription ?? null,
+      children: reconcileParamChildren(src?.children, entry.children, flag, id),
+      configType: src?.configType ?? null,
+      customMappingType: src?.customMappingType ?? null,
+      dataType: entry.type ?? null,
+      displayName: entry.displayName ?? entry.name,
+      entitySubType: entry.entitySubType ?? null,
+      flag,
+      id,
+      isList: entry.isList ?? false,
+      mappedTo: src?.mappedTo ?? null,
+      paramName: entry.name,
+      required: entry.nullable === false,
+      value: src?.value ?? entry.value ?? null,
+      visible: src?.visible ?? true
+    };
+  });
+}
+
+/**
+ * Reconcile a variable's nested children against a manifest entry's children,
+ * preserving the id of every field that survives by name so references to those
+ * fields keep resolving: rich-text variable mentions in email bodies, downstream
+ * tiles' output mappings, and text substitutions all point at a child by its id.
+ * Regenerating ids wholesale (as a naive rebuild does) orphans every such
+ * reference and makes the workflow fail to deploy ("No variable found with id
+ * ..."). Recurses so a nested object keeps its shape.
+ * @param {Object[]|undefined} existingChildren - The variable's current children.
+ * @param {Object[]|undefined} manifestChildren - The manifest entry's children.
+ * @param {string} parentId - The id of the variable these children hang off.
+ * @returns {Object[]}
+ */
+function reconcileVariableChildren(existingChildren, manifestChildren, parentId) {
+  if (!Array.isArray(manifestChildren)) return [];
+  const existingByName = new Map((Array.isArray(existingChildren) ? existingChildren : []).map((c) => [c.paramName, c]));
+  return manifestChildren.map((entry) => {
+    const src = existingByName.get(entry.name);
+    const id = src?.id ?? `${parentId}.${generateTileId()}`;
+    return {
+      children: reconcileVariableChildren(src?.children, entry.children, id),
+      dataType: entry.type ?? null,
+      entitySubType: entry.entitySubType ?? null,
+      id,
+      isList: entry.isList ?? false,
+      isOutput: false,
+      paramName: entry.name,
+      showChildren: src?.showChildren ?? false,
+      value: src?.value ?? entry.value ?? null
+    };
+  });
+}
+
 function setVariableType(definition, variableId, { children, dataType, entitySubType, isList }) {
   const variable = (definition?.dataList || []).find((v) => v.id === variableId);
   if (!variable) return false;
-  if (children !== undefined) variable.children = manifestChildrenToVariableChildren(children, variable.id);
+  if (children !== undefined) variable.children = reconcileVariableChildren(variable.children, children, variable.id);
   if (dataType !== undefined) variable.dataType = dataType;
   if (entitySubType !== undefined) variable.entitySubType = entitySubType;
   if (isList !== undefined) variable.isList = isList;

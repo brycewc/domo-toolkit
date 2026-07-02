@@ -28,8 +28,8 @@ import { waitForDefinition } from '@/utils/workflowHelpers';
 import {
   getTileParams,
   getVariableConsumers,
-  getWorkflowVariables,
   hasBinding,
+  indexVariablesById,
   reconcileTileForVersionBump
 } from '@/utils/workflowTileIO';
 import IconArrowRight from '@icons/arrow-right.svg?react';
@@ -994,13 +994,16 @@ function ActionReconciliation({
 function buildActionContractInfo({ change, definition, newFn, oldFn }) {
   const classified = classifyContractChanges(oldFn, newFn);
   const element = (definition?.designElements || []).find((e) => e.id === change.elementId);
-  const variables = getWorkflowVariables(definition);
-  const varById = new Map(variables.map((v) => [v.id, v]));
+  // A param can bind to a nested field of an object variable (id `varId.childId`),
+  // which isn't in the flat dataList. Index the whole tree so both the name shown
+  // and the "already matches?" check resolve that child instead of the raw id.
+  const varIndex = indexVariablesById(definition);
+  const variableNode = (variableId) => varIndex.get(variableId)?.node ?? null;
   const inputParams = new Map(getTileParams(element, 'input').map((p) => [p.paramName, p]));
   const outputParams = new Map(getTileParams(element, 'output').map((p) => [p.paramName, p]));
   const consumersOf = (variableId) =>
     getVariableConsumers(definition, variableId).filter((c) => c.elementId !== change.elementId);
-  const variableName = (variableId) => varById.get(variableId)?.paramName || variableId;
+  const variableName = (variableId) => varIndex.get(variableId)?.path || variableId;
 
   const addedInputNames = classified.inputs.added.map((e) => e.name);
   const addedOutputs = classified.outputs.added.map((e) => e.name);
@@ -1009,7 +1012,7 @@ function buildActionContractInfo({ change, definition, newFn, oldFn }) {
   const removedBoundInputs = classified.inputs.removed
     .filter((e) => hasBinding(inputParams.get(e.name)))
     .map((e) => ({
-      binding: describeBinding(inputParams.get(e.name), varById),
+      binding: describeBinding(inputParams.get(e.name), varIndex),
       paramName: e.name
     }));
 
@@ -1044,7 +1047,7 @@ function buildActionContractInfo({ change, definition, newFn, oldFn }) {
   // version. A variable already matching the target (e.g. from a prior update)
   // needs nothing, so the version diff alone must not keep flagging it.
   const typeChangeImpacts = typeChanged
-    .filter((t) => t.param?.mappedTo && !variableMatchesEntry(varById.get(t.param.mappedTo), t.newEntry))
+    .filter((t) => t.param?.mappedTo && !variableMatchesEntry(variableNode(t.param.mappedTo), t.newEntry))
     .map((t) => ({
       consumers: consumersOf(t.param.mappedTo),
       flag: t.flag,
@@ -1076,7 +1079,7 @@ function buildActionContractInfo({ change, definition, newFn, oldFn }) {
   // Same guard as type changes: skip a variable that already carries the new
   // property schema so a re-run of the same bump stops asking to update it.
   const schemaChangeImpacts = schemaChanged
-    .filter((t) => t.param?.mappedTo && !variableMatchesEntry(varById.get(t.param.mappedTo), t.newEntry))
+    .filter((t) => t.param?.mappedTo && !variableMatchesEntry(variableNode(t.param.mappedTo), t.newEntry))
     .map((t) => ({
       consumers: consumersOf(t.param.mappedTo),
       flag: t.flag,
@@ -1116,14 +1119,14 @@ function buildActionContractInfo({ change, definition, newFn, oldFn }) {
   for (const t of typeChanged) {
     if (!t.param?.mappedTo) {
       autoNotes.push(`Type of ${t.name} changed to ${t.newType}, no variable bound`);
-    } else if (variableMatchesEntry(varById.get(t.param.mappedTo), t.newEntry)) {
+    } else if (variableMatchesEntry(variableNode(t.param.mappedTo), t.newEntry)) {
       autoNotes.push(`Type of ${t.name} changed, ${variableName(t.param.mappedTo)} already matches`);
     }
   }
   for (const t of schemaChanged) {
     if (!t.param?.mappedTo) {
       autoNotes.push(`Properties of ${t.name} changed, no variable bound`);
-    } else if (variableMatchesEntry(varById.get(t.param.mappedTo), t.newEntry)) {
+    } else if (variableMatchesEntry(variableNode(t.param.mappedTo), t.newEntry)) {
       autoNotes.push(`Properties of ${t.name} changed, ${variableName(t.param.mappedTo)} already matches`);
     }
   }
@@ -1152,9 +1155,9 @@ function buildActionContractInfo({ change, definition, newFn, oldFn }) {
   };
 }
 
-function describeBinding(param, varById) {
+function describeBinding(param, varIndex) {
   if (!param) return 'unmapped';
-  if (param.mappedTo) return `variable ${varById.get(param.mappedTo)?.paramName || param.mappedTo}`;
+  if (param.mappedTo) return `variable ${varIndex.get(param.mappedTo)?.path || param.mappedTo}`;
   if (param.value !== null && param.value !== undefined) return 'a fixed value';
   return 'unmapped';
 }
