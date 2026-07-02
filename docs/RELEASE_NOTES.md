@@ -114,6 +114,7 @@
 - When updating code engine versions, the option to update a variable's type to match a function's new version now starts turned on.
 - The Update Code Engine Versions title now includes the workflow's name.
 - The warnings and errors shown by Generate Definition from JSDoc now use the app's standard alert styling.
+- Generate Definition from JSDoc now shows each function's JSDoc default-value edits under that function in the changes list, tagged with a JSDoc marker, instead of in a separate section.
 - Copying a workflow version now copies its parent workflow's ID by default, with the version number moved to the copy button's dropdown.
 - Alerts throughout the extension now use tighter padding, matching the compact spacing of the rest of the UI.
 

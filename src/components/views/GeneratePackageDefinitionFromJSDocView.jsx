@@ -388,8 +388,7 @@ export function GeneratePackageDefinitionFromJSDocView({
 
           {parsed && !parsed.error && (
             <>
-              <JSDocRewritesSection rewrites={parsed.jsdocRewrites} />
-              <ManifestDecisionsSection decisions={parsed.decisions} />
+              <ManifestDecisionsSection decisions={parsed.decisions} rewrites={parsed.jsdocRewrites} />
               <WarningsSection warnings={parsed.warnings} />
             </>
           )}
@@ -447,10 +446,12 @@ function DecisionPill({ action }) {
   );
 }
 
-function DecisionRow({ decision }) {
-  const hasDiff = decision.action === 'updated' && decision.diffFields?.length > 0;
+function DecisionRow({ decision, rewrites }) {
+  const hasFieldDiff = decision.action === 'updated' && decision.diffFields?.length > 0;
+  const hasRewrites = rewrites?.length > 0;
+  const expandable = hasFieldDiff || hasRewrites;
   return (
-    <Disclosure className='w-full' id={decision.name} isDisabled={!hasDiff}>
+    <Disclosure className='w-full' id={decision.name} isDisabled={!expandable}>
       <Disclosure.Heading>
         <Button fullWidth className='items-center justify-between gap-1 px-1 py-0.5 text-xs' slot='trigger' variant='ghost'>
           <span className='flex min-w-0 items-center gap-1'>
@@ -458,22 +459,31 @@ function DecisionRow({ decision }) {
               <IconChevronDown size={12} />
             </Disclosure.Indicator>
             <span className='font-mono'>{decision.name}</span>
-            {hasDiff && <span className='truncate text-muted'>({decision.diffFields.join(', ')})</span>}
+            {hasFieldDiff && <span className='truncate text-muted'>({decision.diffFields.join(', ')})</span>}
           </span>
-          <DecisionPill action={decision.action} />
+          <span className='flex shrink-0 items-center gap-1'>
+            {hasRewrites && (
+              <Chip color='accent' size='sm' variant='soft'>
+                JSDoc
+              </Chip>
+            )}
+            <DecisionPill action={decision.action} />
+          </span>
         </Button>
       </Disclosure.Heading>
-      {hasDiff && (
+      {expandable && (
         <Disclosure.Content>
-          <div className='flex flex-col gap-1 border-l border-border pt-1 pl-2 text-xs'>
-            {decision.diffFields.map((field) => (
-              <FieldDiff
-                derivedValue={decision.derived?.[field]}
-                existingValue={decision.existing?.[field]}
-                field={field}
-                key={field}
-              />
-            ))}
+          <div className='flex flex-col gap-2 border-l border-border pt-1 pl-2 text-xs'>
+            {hasFieldDiff &&
+              decision.diffFields.map((field) => (
+                <FieldDiff
+                  derivedValue={decision.derived?.[field]}
+                  existingValue={decision.existing?.[field]}
+                  field={field}
+                  key={field}
+                />
+              ))}
+            {hasRewrites && <JSDocRewriteList rewrites={rewrites} />}
           </div>
         </Disclosure.Content>
       )}
@@ -556,58 +566,37 @@ function formatPath(segments) {
     .join('');
 }
 
-function JSDocRewritesSection({ rewrites }) {
-  if (!rewrites || rewrites.length === 0) return null;
-  const grouped = new Map();
-  for (const r of rewrites) {
-    const key = r.functionName || '(unknown)';
-    if (!grouped.has(key)) grouped.set(key, []);
-    grouped.get(key).push(r);
-  }
+function JSDocRewriteList({ rewrites }) {
   return (
-    <Disclosure className='border-divider w-full overflow-hidden rounded-lg border bg-surface-secondary'>
-      <Disclosure.Heading>
-        <Disclosure.Trigger className='flex w-full items-center justify-between gap-2 p-2'>
-          <span className='truncate text-sm font-medium'>JSDoc updates ({rewrites.length})</span>
-          <Disclosure.Indicator>
-            <IconChevronDown />
-          </Disclosure.Indicator>
-        </Disclosure.Trigger>
-      </Disclosure.Heading>
-      <Disclosure.Content>
-        <div className='px-4'>
-          <Separator variant='secondary' />
-        </div>
-        <div className='flex flex-col gap-3 p-2'>
-          {Array.from(grouped.entries()).map(([fnName, items]) => (
-            <div className='flex flex-col gap-1' key={fnName}>
-              <div className='flex items-baseline gap-2 text-xs text-muted'>
-                <span className='font-mono font-semibold text-foreground'>{fnName}()</span>
-                <span>
-                  {items.length} param{items.length === 1 ? '' : 's'}
-                </span>
-              </div>
-              <div className='flex flex-col gap-2 border-l border-border pl-2 font-mono text-xs'>
-                {items.map((r, idx) => (
-                  <div className='flex flex-col gap-0.5' key={`${r.paramName}-${idx}`}>
-                    <span className='text-[10px] text-muted'>
-                      line {r.line} · param {r.paramName}
-                    </span>
-                    <div className='truncate text-danger'>- {r.oldText}</div>
-                    <div className='truncate text-success'>+ {r.newText}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </Disclosure.Content>
-    </Disclosure>
+    <div className='flex flex-col gap-1'>
+      <span className='text-[10px] text-muted'>JSDoc @param defaults</span>
+      <div className='flex flex-col gap-2'>
+        {rewrites.map((r, idx) => (
+          <div className='flex flex-col gap-0.5' key={`${r.paramName}-${idx}`}>
+            <span className='font-mono text-[10px] text-muted'>
+              line {r.line} · {r.paramName}
+            </span>
+            <pre className='overflow-x-auto rounded bg-danger-soft px-1 py-0.5 text-[11px] whitespace-pre-wrap text-danger'>
+              − {r.oldText}
+            </pre>
+            <pre className='overflow-x-auto rounded bg-success-soft px-1 py-0.5 text-[11px] whitespace-pre-wrap text-success'>
+              + {r.newText}
+            </pre>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
-function ManifestDecisionsSection({ decisions }) {
+function ManifestDecisionsSection({ decisions, rewrites }) {
   if (!decisions || decisions.length === 0) return null;
+  const rewritesByFunction = new Map();
+  for (const r of rewrites || []) {
+    const key = r.functionName || '(unknown)';
+    if (!rewritesByFunction.has(key)) rewritesByFunction.set(key, []);
+    rewritesByFunction.get(key).push(r);
+  }
   return (
     <Disclosure defaultExpanded className='border-divider w-full overflow-hidden rounded-lg border bg-surface-secondary'>
       <Disclosure.Heading>
@@ -624,7 +613,7 @@ function ManifestDecisionsSection({ decisions }) {
         </div>
         <DisclosureGroup className='flex flex-col gap-1 p-2'>
           {decisions.map((d) => (
-            <DecisionRow decision={d} key={d.name} />
+            <DecisionRow decision={d} key={d.name} rewrites={rewritesByFunction.get(d.name)} />
           ))}
         </DisclosureGroup>
       </Disclosure.Content>
