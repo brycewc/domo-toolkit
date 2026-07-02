@@ -1,6 +1,22 @@
 import { DataListItem } from '@/models/DataListItem';
 
 /**
+ * Return the ids to start expanded when exactly one top-level group has any
+ * children. In a grouped view where every category renders (populated groups
+ * plus muted `(0)` placeholders, see `withCanonicalGroups`), a single populated
+ * category means there's only one thing to look at, so opening it saves the user
+ * a click. When zero or more than one group has children, this returns an empty
+ * array and every group stays collapsed.
+ *
+ * @param {DataListItem[]} items - Top-level groups the view is rendering
+ * @returns {string[]} `[soleGroupId]` when exactly one group has children, else `[]`
+ */
+export function soleExpandedGroupIds(items) {
+  const withChildren = (items || []).filter((item) => item.children?.length);
+  return withChildren.length === 1 ? [withChildren[0].id] : [];
+}
+
+/**
  * Back-fill a grouped DataList with empty placeholders for any canonical
  * category the view didn't build, and return groups in canonical order.
  *

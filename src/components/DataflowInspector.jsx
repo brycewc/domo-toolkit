@@ -1,5 +1,4 @@
 import {
-  Alert,
   Card,
   Chip,
   Disclosure,
@@ -15,6 +14,7 @@ import { memo, useEffect, useMemo, useState } from 'react';
 import JsonView from 'react18-json-view';
 
 import '@/assets/json-view-theme.css';
+import { Alert } from '@/components/Alert';
 import { AlertStatusIcon } from '@/components/AlertStatusIcon';
 import { AnimatedCheck } from '@/components/AnimatedCheck';
 import { SqlBlock } from '@/components/SqlBlock';
@@ -322,9 +322,11 @@ export function DataflowInspector({
 
       {versionId && (
         <Alert className='mb-2 w-full border border-border bg-transparent' status='warning'>
-          <AlertStatusIcon />
           <Alert.Content>
-            <Alert.Title>Historical version</Alert.Title>
+            <Alert.Title className='flex items-center gap-1'>
+              <AlertStatusIcon />
+              Historical version
+            </Alert.Title>
             <Alert.Description>
               Showing version {dataflow.versionNumber ?? versionId}, not the live definition.
             </Alert.Description>

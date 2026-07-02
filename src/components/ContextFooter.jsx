@@ -1,7 +1,8 @@
-import { Alert, Chip, Disclosure, Link, ScrollShadow, Skeleton, Spinner, Tabs, Tooltip } from '@heroui/react';
+import { Chip, Disclosure, Link, ScrollShadow, Skeleton, Spinner, Tabs, Tooltip } from '@heroui/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import JsonView from 'react18-json-view';
 
+import { Alert } from '@/components/Alert';
 import { useGroupLookup } from '@/hooks/useGroupLookup';
 import { useUserLookup } from '@/hooks/useUserLookup';
 import { useWheelHorizontalScroll } from '@/hooks/useWheelHorizontalScroll';
@@ -19,14 +20,16 @@ import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
 // (not in DomoObjectType.js) so the type model stays import-free of services.
 // Adding a new lazy-array fetcher = one entry here + one `fetcher: '<key>'` on
 // the relatedData entry. Pair the entry with a `field` to gate the tab on (and
-// seed its count from) an array already present in the object's details.
+// seed its count from) an array already present in the object's details, or in
+// its context when the entry sets `fieldSource: 'context'`.
 const LAZY_ARRAY_FETCHERS = {
   alertActions: ({ details, objectId, tabId }) =>
     getAlertActions({ actions: details?.actions || [], alertId: objectId, tabId }),
   dataflowInputs: ({ details, tabId }) => getDatasetDetailsForList({ datasets: details?.inputs, tabId }),
   dataflowOutputs: ({ details, tabId }) => getDatasetDetailsForList({ datasets: details?.outputs, tabId }),
   datasetColumns: ({ objectId, tabId }) => getDatasetColumns({ datasetId: objectId, tabId }),
-  datasetsForAccountDetails: ({ details, tabId }) => getDatasetDetailsForList({ datasets: details?.accountDatasets, tabId }),
+  datasetsForAccountDetails: ({ context, tabId }) =>
+    getDatasetDetailsForList({ datasets: context?.accountDatasets, tabId }),
   datasetsForPage: ({ objectId, tabId }) => getDatasetsForPage({ pageId: objectId, tabId }),
   jupyterWorkspaceAccounts: ({ details, tabId }) =>
     getJupyterWorkspaceAccounts({ entries: details?.accountConfiguration, tabId }),
@@ -326,6 +329,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
         const fetcher = tab.isLazyObject ? LAZY_OBJECT_FETCHERS[tab.fetcher] : LAZY_ARRAY_FETCHERS[tab.fetcher];
         if (!fetcher) throw new Error(`Unknown lazy fetcher: ${tab.fetcher}`);
         const fetched = await fetcher({
+          context: currentContext?.domoObject?.metadata?.context,
           details: currentContext?.domoObject?.metadata?.details,
           objectId,
           tabId: chromeTabId
@@ -464,7 +468,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
   };
 
   const alertContent = (
-    <Alert className='min-h-24 w-full p-2' status={currentContext?.isDomoPage || isLoading ? 'accent' : 'warning'}>
+    <Alert className='min-h-25 w-full p-2' status={currentContext?.isDomoPage || isLoading ? 'accent' : 'warning'}>
       <Alert.Content className='flex min-w-0 flex-col items-start gap-1'>
         {isLoading ? (
           <div className='skeleton--shimmer relative flex w-full flex-col gap-2 overflow-hidden'>

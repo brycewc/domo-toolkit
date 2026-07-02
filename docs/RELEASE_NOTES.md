@@ -12,6 +12,7 @@
 - Side panel views are now scoped to each Domo instance, so switching instances swaps to that instance's own view (in-progress operations included) instead of carrying one view everywhere.
 - Get DataSets now always shows both Input DataSets and Output DataSets for dataflows, marking an empty side as (0) instead of hiding it.
 - Get DataSets for a page, App Studio page, or worksheet page now nests the cards on that page under the datasets they come from. ([#89](https://github.com/brycewc/domo-toolkit/issues/89))
+- Get DataSets now works on connector accounts, listing the datasets an account feeds.
 - Get Cards now always shows Cards, Forms, and Queues for App Studio pages, marking an empty category as (0) instead of hiding it.
 - The lineage view can now export its full upstream and downstream lineage (with each object's level relative to the root) as a CSV, Excel, or JSON file. ([#83](https://github.com/brycewc/domo-toolkit/issues/83))
 - The popup, side panel, and object details now show when the current object was created.
@@ -28,6 +29,7 @@
 - Generate Definition from JSDoc now picks up a function's nested output schema (the fields of the objects it returns), where before it only read the top-level return type.
 - Added Update Trigger Versions, which repoints all of a workflow's alert triggers to a chosen version in one step, with the option to exclude individual triggers.
 - Added Get Workspaces, which lists the workspaces a card, dataset, dataflow, dashboard, app, worksheet, or workflow has been added to.
+- Update Details now lets you rename an AppDB collection.
 
 ### Copy Filters
 
@@ -84,6 +86,7 @@
 
 - Duplicate User's shared-content picker is now a single combined list that scrolls smoothly, instead of separate per-category lists that scrolled awkwardly.
 - In selectable lists, clicking a category's name now expands or collapses it, not just the chevron or the empty space beside it.
+- Result lists grouped into categories now open the one category with results on launch when it's the only category that has any, instead of leaving everything collapsed.
 - The Activity Log's loading placeholder now reserves space for the source banner, so the layout no longer jumps when it finishes loading.
 - Nested group headers in result lists are now slightly lighter than top-level headers, making the grouping hierarchy easier to read at a glance.
 - The View Errors button now always shows at the top of the expanded actions, disabled with a 0 count when there are no errors, instead of appearing only when errors exist.
@@ -102,11 +105,17 @@
 - Checkboxes shown on cards and panels now use a flatter style that sits better on those surfaces.
 - The warnings shown when updating code engine versions now use the app's standard alert styling.
 - The opt-in toggles shown when updating code engine versions are now switches instead of checkboxes.
-- The sections for reviewing a code engine action's changes now open one at a time instead of several being expanded at once.
+- The per-action overrides and change-review sections under a code engine package now open one at a time instead of several being expanded at once.
+- The sections for reviewing a code engine action's changes now appear directly under the package that triggered them, instead of grouped together at the bottom of the list.
+- The per-action version overrides for a code engine package now match the styling of the review sections.
+- When updating code engine versions, the version dropdown for a built-in package already on its latest version is now disabled.
+- The Built-in tag on a code engine package now has an info tooltip explaining that built-in packages can only be upgraded, not downgraded to an earlier version.
+- The warning shown when a code engine version change alters a variable's data type now states the variable's current type, not just the new one.
 - When updating code engine versions, the option to update a variable's type to match a function's new version now starts turned on.
 - The Update Code Engine Versions title now includes the workflow's name.
 - The warnings and errors shown by Generate Definition from JSDoc now use the app's standard alert styling.
 - Copying a workflow version now copies its parent workflow's ID by default, with the version number moved to the copy button's dropdown.
+- Alerts throughout the extension now use tighter padding, matching the compact spacing of the rest of the UI.
 
 ### Get Card Pages
 

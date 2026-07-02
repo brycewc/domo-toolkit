@@ -1,17 +1,7 @@
-import {
-  Alert,
-  Button,
-  Card,
-  Chip,
-  Disclosure,
-  DisclosureGroup,
-  ScrollShadow,
-  Separator,
-  Spinner,
-  Tooltip
-} from '@heroui/react';
+import { Button, Card, Chip, Disclosure, DisclosureGroup, ScrollShadow, Separator, Spinner, Tooltip } from '@heroui/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { Alert } from '@/components/Alert';
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { DomoContext } from '@/models/DomoContext';
 import {
@@ -739,9 +729,17 @@ function WarningsSection({ warnings }) {
               key={idx}
               status={w.severity === 'error' ? 'danger' : 'warning'}
             >
-              <AlertStatusIcon />
               <Alert.Content>
-                {w.functionName && <Alert.Title className='font-mono'>{w.functionName}</Alert.Title>}
+                <Alert.Title className='flex items-center gap-1'>
+                  <AlertStatusIcon />
+                  {w.functionName ? (
+                    <span className='font-mono'>{w.functionName}</span>
+                  ) : w.severity === 'error' ? (
+                    'Error'
+                  ) : (
+                    'Warning'
+                  )}
+                </Alert.Title>
                 <Alert.Description>{w.message}</Alert.Description>
               </Alert.Content>
             </Alert>

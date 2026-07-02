@@ -1,6 +1,7 @@
-import { Alert, Button, Card, Separator, Spinner } from '@heroui/react';
+import { Button, Card, Separator, Spinner } from '@heroui/react';
 import { useEffect, useRef, useState } from 'react';
 
+import { Alert } from '@/components/Alert';
 import { DatasetComboBox } from '@/components/DatasetComboBox';
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { DomoContext } from '@/models/DomoContext';
@@ -190,9 +191,11 @@ export function CopyColorRulesView({ instance = null, liveContext = null, onBack
 
         {sameDataset && (
           <Alert className='w-full border border-border bg-transparent' status='warning'>
-            <AlertStatusIcon />
             <Alert.Content>
-              <Alert.Title>Same dataset</Alert.Title>
+              <Alert.Title className='flex items-center gap-1'>
+                <AlertStatusIcon />
+                Same dataset
+              </Alert.Title>
               <Alert.Description>Pick a different dataset as the destination.</Alert.Description>
             </Alert.Content>
           </Alert>
@@ -207,9 +210,11 @@ export function CopyColorRulesView({ instance = null, liveContext = null, onBack
 
         {!isLoadingDestination && destinationHasRules && (
           <Alert className='w-full border border-border bg-transparent' status='warning'>
-            <AlertStatusIcon />
             <Alert.Content>
-              <Alert.Title>Destination already has color rules</Alert.Title>
+              <Alert.Title className='flex items-center gap-1'>
+                <AlertStatusIcon />
+                Destination already has color rules
+              </Alert.Title>
               <Alert.Description>
                 The destination dataset has {destinationExistingRules.length} existing rule
                 {destinationExistingRules.length === 1 ? '' : 's'}. Copying will replace them.
@@ -220,9 +225,11 @@ export function CopyColorRulesView({ instance = null, liveContext = null, onBack
 
         {schemaResolved && (
           <Alert className='w-full border border-border bg-transparent' status='success'>
-            <AlertStatusIcon />
             <Alert.Content>
-              <Alert.Title>Schema matches</Alert.Title>
+              <Alert.Title className='flex items-center gap-1'>
+                <AlertStatusIcon />
+                Schema matches
+              </Alert.Title>
               <Alert.Description>
                 All rule column references exist on the destination
                 {beastModeSwapsUsed > 0
@@ -237,9 +244,9 @@ export function CopyColorRulesView({ instance = null, liveContext = null, onBack
 
         {!isLoadingDestination && missingColumns.length > 0 && (
           <Alert className='w-full border border-border bg-transparent' status='warning'>
-            <AlertStatusIcon />
             <Alert.Content>
-              <Alert.Title>
+              <Alert.Title className='flex items-center gap-1'>
+                <AlertStatusIcon />
                 {missingColumns.length} column{missingColumns.length === 1 ? '' : 's'} not on destination
               </Alert.Title>
               <Alert.Description>

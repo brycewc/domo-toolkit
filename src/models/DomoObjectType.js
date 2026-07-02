@@ -293,6 +293,7 @@ export const ObjectTypeRegistry = {
       {
         fetcher: 'datasetsForAccountDetails',
         field: 'accountDatasets',
+        fieldSource: 'context',
         isArray: true,
         itemTypeId: 'DATA_SOURCE',
         label: 'DataSets'

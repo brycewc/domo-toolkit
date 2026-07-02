@@ -40,6 +40,10 @@ export function GetDatasets({ currentContext, isDisabled, onCollapseActions, onS
   let buttonText;
   let tooltipText;
   switch (objectType) {
+    case 'ACCOUNT':
+      buttonText = 'Get Account DataSets';
+      tooltipText = 'List datasets fed by this account';
+      break;
     case 'CARD':
       buttonText = 'Get Card DataSets';
       tooltipText = 'List datasets powering this card';

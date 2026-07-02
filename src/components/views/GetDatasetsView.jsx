@@ -1,12 +1,14 @@
-import { Alert, Button, Card, Spinner } from '@heroui/react';
+import { Button, Card, Spinner } from '@heroui/react';
 import { useEffect, useRef, useState } from 'react';
 
+import { Alert } from '@/components/Alert';
 import { CloseButton } from '@/components/CloseButton';
 import { DataListItem } from '@/models/DataListItem';
 import { DomoContext } from '@/models/DomoContext';
 import { DomoObject } from '@/models/DomoObject';
 import { getCardDatasets, getCardsForObject } from '@/services/cards';
 import {
+  getDatasetsForAccount,
   getDatasetsForApp,
   getDatasetsForDataflow,
   getDatasetsForJupyterWorkspace,
@@ -14,7 +16,7 @@ import {
   getDependentDatasets
 } from '@/services/datasets';
 import { getValidTabForInstance } from '@/utils/currentObject';
-import { withCanonicalGroups } from '@/utils/dataListGroups';
+import { soleExpandedGroupIds, withCanonicalGroups } from '@/utils/dataListGroups';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconDatabase from '@icons/database.svg?react';
 import IconSync from '@icons/sync.svg?react';
@@ -147,15 +149,17 @@ export function GetDatasetsView({
           ? objectType === 'WORKSHEET_VIEW'
             ? 'No datasets found for this worksheet.'
             : 'No datasets found for this app.'
-          : objectType === 'DATAFLOW_TYPE'
-            ? 'This dataflow has no input or output datasets.'
-            : objectType === 'DATA_SCIENCE_NOTEBOOK'
-              ? 'This Jupyter workspace has no input or output datasets.'
-              : objectType === 'DATA_SOURCE'
-                ? 'No dependent dataset views found for this dataset.'
-                : objectType === 'CARD'
-                  ? 'No datasets found for this card.'
-                  : 'No datasets found for this page.';
+          : objectType === 'ACCOUNT'
+            ? 'No datasets found for this account.'
+            : objectType === 'DATAFLOW_TYPE'
+              ? 'This dataflow has no input or output datasets.'
+              : objectType === 'DATA_SCIENCE_NOTEBOOK'
+                ? 'This Jupyter workspace has no input or output datasets.'
+                : objectType === 'DATA_SOURCE'
+                  ? 'No dependent dataset views found for this dataset.'
+                  : objectType === 'CARD'
+                    ? 'No datasets found for this card.'
+                    : 'No datasets found for this page.';
         onStatusUpdate?.('No Datasets Found', message, 'warning');
         onBackToDefault?.();
         setIsLoading(false);
@@ -213,7 +217,9 @@ export function GetDatasetsView({
       return getCardDatasets({ cardId: objectId, tabId });
     }
     const tabId = await getValidTabForInstance(instance);
-    if (objectType === 'PAGE' || objectType === 'DATA_APP_VIEW' || objectType === 'WORKSHEET_VIEW') {
+    if (objectType === 'ACCOUNT') {
+      return getDatasetsForAccount({ accountId: objectId, tabId });
+    } else if (objectType === 'PAGE' || objectType === 'DATA_APP_VIEW' || objectType === 'WORKSHEET_VIEW') {
       return getDatasetsForPage({ pageId: objectId, tabId });
     } else if (objectType === 'DATAFLOW_TYPE') {
       return getDatasetsForDataflow({ details });
@@ -301,6 +307,7 @@ export function GetDatasetsView({
   return (
     <DataList
       currentContext={currentContext}
+      defaultExpandedIds={soleExpandedGroupIds(items)}
       feature={`${viewData?.typeLabel} for`}
       featureIcon={<IconDatabase />}
       headerActions={['openAll', 'reload', 'refresh']}

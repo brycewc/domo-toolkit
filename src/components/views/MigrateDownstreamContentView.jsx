@@ -1,5 +1,4 @@
 import {
-  Alert,
   AlertDialog,
   Autocomplete,
   Button,
@@ -24,6 +23,7 @@ import {
 } from '@heroui/react';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { Alert } from '@/components/Alert';
 import { DatasetComboBox } from '@/components/DatasetComboBox';
 import { ObjectTypeIcon } from '@/components/ObjectTypeIcon';
 import { ColumnUsagesModal } from '@/components/views/ColumnUsagesModal';
@@ -1571,11 +1571,13 @@ export function MigrateDownstreamContentView({
 
             {suggestedTarget && (
               <Alert className='w-full border border-border bg-transparent' status='accent'>
-                <Alert.Indicator>
-                  <IconInfoCircle data-slot='alert-default-icon' />
-                </Alert.Indicator>
                 <Alert.Content>
-                  <Alert.Title>Use the dataset you're viewing?</Alert.Title>
+                  <Alert.Title className='flex items-center gap-1'>
+                    <Alert.Indicator>
+                      <IconInfoCircle data-slot='alert-default-icon' />
+                    </Alert.Indicator>
+                    Use the dataset you're viewing?
+                  </Alert.Title>
                   <Alert.Description className='break-all'>{suggestedTarget.name}</Alert.Description>
                   <div className='mt-2 flex gap-2'>
                     <Button size='sm' variant='primary' onPress={handleUseSuggestedTarget}>
@@ -1598,11 +1600,13 @@ export function MigrateDownstreamContentView({
 
             {comparisonError && (
               <Alert className='w-full border border-border bg-transparent' status='danger'>
-                <Alert.Indicator>
-                  <IconExclamationPointCircle data-slot='alert-default-icon' />
-                </Alert.Indicator>
                 <Alert.Content>
-                  <Alert.Title>Schema check failed</Alert.Title>
+                  <Alert.Title className='flex items-center gap-1'>
+                    <Alert.Indicator>
+                      <IconExclamationPointCircle data-slot='alert-default-icon' />
+                    </Alert.Indicator>
+                    Schema check failed
+                  </Alert.Title>
                   <Alert.Description>{comparisonError}</Alert.Description>
                 </Alert.Content>
               </Alert>
@@ -1610,9 +1614,9 @@ export function MigrateDownstreamContentView({
 
             {hasMismatches && !isScanning && scanResult && usedUnmappedColumns.length > 0 && (
               <Alert className='w-full border border-border bg-transparent' status='warning'>
-                <AlertStatusIcon />
                 <Alert.Content>
-                  <Alert.Title>
+                  <Alert.Title className='flex items-center gap-1'>
+                    <AlertStatusIcon />
                     {usedUnmappedColumns.length === 1
                       ? "1 used column doesn't match"
                       : `${usedUnmappedColumns.length} used columns don't match`}
@@ -1628,11 +1632,13 @@ export function MigrateDownstreamContentView({
 
             {comparison?.compatible && (
               <Alert className='w-full border border-border bg-transparent' status='success'>
-                <Alert.Indicator>
-                  <IconCheckCircle data-slot='alert-default-icon' />
-                </Alert.Indicator>
                 <Alert.Content>
-                  <Alert.Title>Schemas are compatible</Alert.Title>
+                  <Alert.Title className='flex items-center gap-1'>
+                    <Alert.Indicator>
+                      <IconCheckCircle data-slot='alert-default-icon' />
+                    </Alert.Indicator>
+                    Schemas are compatible
+                  </Alert.Title>
                 </Alert.Content>
               </Alert>
             )}
@@ -1646,11 +1652,13 @@ export function MigrateDownstreamContentView({
 
             {hasMismatches && scanError && (
               <Alert className='w-full border border-border bg-transparent' status='danger'>
-                <Alert.Indicator>
-                  <IconExclamationPointCircle data-slot='alert-default-icon' />
-                </Alert.Indicator>
                 <Alert.Content>
-                  <Alert.Title>Column scan failed</Alert.Title>
+                  <Alert.Title className='flex items-center gap-1'>
+                    <Alert.Indicator>
+                      <IconExclamationPointCircle data-slot='alert-default-icon' />
+                    </Alert.Indicator>
+                    Column scan failed
+                  </Alert.Title>
                   <Alert.Description>{scanError}</Alert.Description>
                 </Alert.Content>
               </Alert>
@@ -1711,9 +1719,9 @@ export function MigrateDownstreamContentView({
 
             {hasMismatches && !isScanning && scanResult && sqlDataflowWarnings.length > 0 && (
               <Alert className='w-full border border-border bg-transparent' status='warning'>
-                <AlertStatusIcon />
                 <Alert.Content>
-                  <Alert.Title>
+                  <Alert.Title className='flex items-center gap-1'>
+                    <AlertStatusIcon />
                     {sqlDataflowWarnings.length === 1
                       ? '1 SQL dataflow needs manual review'
                       : `${sqlDataflowWarnings.length} SQL dataflows need manual review`}
@@ -1728,9 +1736,9 @@ export function MigrateDownstreamContentView({
 
             {hasMismatches && !isScanning && scanResult && scriptDataflowWarnings.length > 0 && (
               <Alert className='w-full border border-border bg-transparent' status='warning'>
-                <AlertStatusIcon />
                 <Alert.Content>
-                  <Alert.Title>
+                  <Alert.Title className='flex items-center gap-1'>
+                    <AlertStatusIcon />
                     {scriptDataflowWarnings.length === 1
                       ? '1 script dataflow needs manual review'
                       : `${scriptDataflowWarnings.length} script dataflows need manual review`}
@@ -1746,9 +1754,9 @@ export function MigrateDownstreamContentView({
 
             {hasMismatches && !isScanning && scanResult && viewFusionWarnings.length > 0 && (
               <Alert className='w-full border border-border bg-transparent' status='warning'>
-                <AlertStatusIcon />
                 <Alert.Content>
-                  <Alert.Title>
+                  <Alert.Title className='flex items-center gap-1'>
+                    <AlertStatusIcon />
                     {viewFusionWarnings.length === 1
                       ? '1 fused view needs manual review'
                       : `${viewFusionWarnings.length} fused views need manual review`}
@@ -1763,9 +1771,9 @@ export function MigrateDownstreamContentView({
 
             {!isScanning && scanResult && appColumnCollisions.length > 0 && (
               <Alert className='w-full border border-border bg-transparent' status='warning'>
-                <AlertStatusIcon />
                 <Alert.Content>
-                  <Alert.Title>
+                  <Alert.Title className='flex items-center gap-1'>
+                    <AlertStatusIcon />
                     {appColumnCollisions.length === 1
                       ? '1 pro-code app would lose fields'
                       : `${appColumnCollisions.length} pro-code apps would lose fields`}
@@ -2312,9 +2320,9 @@ function ColumnMapRow({
     <div className='flex flex-col gap-1 py-1.5'>
       {collisionByDataflow.length > 0 && (
         <Alert className='w-full border border-border bg-transparent' status='warning'>
-          <AlertStatusIcon />
           <Alert.Content>
-            <Alert.Title>
+            <Alert.Title className='flex items-center gap-1'>
+              <AlertStatusIcon />
               Cross-input collision: <span className='font-mono font-bold'>{originName}</span> also exists on{' '}
               {singleCollision ? (
                 <>

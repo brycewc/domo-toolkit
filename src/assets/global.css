@@ -308,4 +308,27 @@
   .tooltip {
     @apply flex flex-col items-center justify-center px-1 py-0.5 text-center text-balance break-normal;
   }
+
+  /* App-wide default padding for Alerts. HeroUI v3's base `.alert` ships a
+     roomy `px-4 py-3`, which is heavier than the tight spacing the rest of the
+     extension uses in narrow popup/sidepanel shells. Drop it to a uniform `p-2`
+     everywhere. Same selector and specificity as HeroUI's base `.alert`
+     (0,0,1,0), so our later source order within the shared `components` layer
+     wins the conflicting padding declarations. Individual alerts can still
+     override via their own className. */
+  .alert {
+    @apply w-full p-2;
+  }
+
+  /* Custom `transparent` variant for Alert, mirroring Surface's
+     `.surface--transparent` (bg-transparent + the base surface's text-foreground).
+     HeroUI's base `.alert` paints `bg-surface` with `shadow-surface`; this strips
+     both so the alert reads as a bare foreground block on whatever sits behind it,
+     matching a transparent Surface. Applied via the wrapper Alert's
+     `variant="transparent"` prop (see components/Alert.jsx), which appends this
+     class. Same specificity as base `.alert` (0,0,1,0), so our later source order
+     within the shared `components` layer wins the conflicting bg/shadow. */
+  .alert--transparent {
+    @apply border bg-transparent text-foreground shadow-none;
+  }
 }

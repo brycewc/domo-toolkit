@@ -1,5 +1,4 @@
 import {
-  Alert,
   Button,
   Card,
   Chip,
@@ -12,10 +11,12 @@ import {
   Select,
   Separator,
   Spinner,
-  Switch
+  Switch,
+  Tooltip
 } from '@heroui/react';
 import { useEffect, useRef, useState } from 'react';
 
+import { Alert } from '@/components/Alert';
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { DomoContext } from '@/models/DomoContext';
 import { getCodeEnginePackageInfo } from '@/services/codeEngine';
@@ -35,6 +36,7 @@ import {
 import IconArrowRight from '@icons/arrow-right.svg?react';
 import IconCheck from '@icons/check.svg?react';
 import IconChevronDown from '@icons/chevron-down.svg?react';
+import IconInfoCircle from '@icons/info-circle.svg?react';
 import IconPackage from '@icons/package.svg?react';
 
 import { AlertStatusIcon } from '../AlertStatusIcon';
@@ -405,15 +407,14 @@ export function UpdateCodeEngineVersionsView({
   const hasChanges = applicableChanges.length > 0;
   const reviewCount = applicableChanges.filter((c) => actionNeedsReview(contractDiffs[c.elementId])).length;
 
-  // Every action whose contract changed, flattened across packages so the
-  // remapping panels share one accordion. Deleted-function actions render as
-  // alerts (not disclosures), so they stay out of the group.
+  // Every action whose contract changed, kept in package order. Each package
+  // renders its own reconciliation panels below its version selectors; this
+  // flattened list is used only to pick the first review to auto-expand.
   const reconciliationEntries = packages.flatMap((pkg) =>
     pkg.actions
       .map((action) => ({ action, info: contractDiffs[action.elementId] }))
       .filter(({ info }) => info && (info.functionDeleted || info.classified?.hasChanges))
   );
-  const deletedReconciliations = reconciliationEntries.filter(({ info }) => info.functionDeleted);
   const reviewReconciliations = reconciliationEntries.filter(({ info }) => !info.functionDeleted);
   const firstReviewId = reviewReconciliations.find(({ info }) => actionNeedsReview(info))?.action.elementId;
 
@@ -491,14 +492,18 @@ export function UpdateCodeEngineVersionsView({
   ) => {
     const isActionLevel = elementId !== null;
     const selectId = isActionLevel ? `action-${elementId}` : `pkg-${packageId}`;
+    // A built-in package already on its latest version has nothing to switch to
+    // (downgrades aren't allowed), leaving no versions to choose, so lock it.
+    const isDisabled = availableVersions.length === 0;
 
     return (
       <Select
         className='w-40 flex-1'
         id={selectId}
+        isDisabled={isDisabled}
         selectionMode='single'
         value={selectedVersion}
-        variant='secondary'
+        variant={isActionLevel ? 'primary' : 'secondary'}
         onChange={(key) => {
           if (isActionLevel) {
             onChange(packageId, elementId, key);
@@ -578,40 +583,56 @@ export function UpdateCodeEngineVersionsView({
       <Separator />
       <ScrollShadow hideScrollBar className='min-h-0 flex-1 overflow-y-auto' offset={5} orientation='vertical'>
         <Card.Content>
-          {packages.map((pkg, index) => (
-            <div className={index > 0 ? 'w-full border-t border-border pt-2 pb-1' : 'pb-1'} key={pkg.packageId}>
-              <div className='flex w-full flex-col gap-1'>
-                <div className='flex w-full items-center justify-between gap-2'>
-                  <div className='flex min-w-0 flex-1 items-center gap-1.5'>
+          {packages.map((pkg, index) => {
+            const pkgReconciliations = pkg.actions
+              .map((action) => ({ action, info: contractDiffs[action.elementId] }))
+              .filter(({ info }) => info && (info.functionDeleted || info.classified?.hasChanges));
+            const pkgDeleted = pkgReconciliations.filter(({ info }) => info.functionDeleted);
+            const pkgReviews = pkgReconciliations.filter(({ info }) => !info.functionDeleted);
+
+            return (
+              <div className={index > 0 ? 'w-full border-t border-border pt-2 pb-1' : 'pb-1'} key={pkg.packageId}>
+                <div className='flex w-full flex-col gap-1'>
+                  <div className='flex w-full items-center justify-between gap-2'>
                     <Link
-                      className='min-w-0 truncate no-underline decoration-accent hover:text-accent hover:underline'
+                      className='min-w-0 truncate decoration-accent hover:text-accent'
                       href={`https://${currentContext?.instance}.domo.com/codeengine/${pkg.packageId}`}
                       target='_blank'
                     >
                       {pkg.packageName}
                     </Link>
-                    {pkg.isDomoBuiltin && (
-                      <Chip className='shrink-0' color='accent' size='sm' variant='soft'>
-                        Built-in
-                      </Chip>
-                    )}
+                    <div className='flex min-w-0 flex-1 items-center justify-end gap-2'>
+                      {pkg.isDomoBuiltin && (
+                        <Tooltip delay={200}>
+                          <Tooltip.Trigger className='cursor-help'>
+                            <Chip className='shrink-0 gap-1' color='accent' size='sm' variant='soft'>
+                              Built-in
+                              <IconInfoCircle className='size-3.5 p-0!' />
+                            </Chip>
+                          </Tooltip.Trigger>
+                          <Tooltip.Content className='max-w-56'>
+                            Built-in packages can only be upgraded to the latest version, not downgraded to an earlier one.
+                          </Tooltip.Content>
+                        </Tooltip>
+                      )}
+                      <span className='w-12 shrink-0 text-right text-xs text-muted'>
+                        {pkg.actions.length} action
+                        {pkg.actions.length !== 1 ? 's' : ''}
+                      </span>
+                    </div>
                   </div>
-                  <span className='shrink-0 text-xs text-muted'>
-                    {pkg.actions.length} action
-                    {pkg.actions.length !== 1 ? 's' : ''}
-                  </span>
-                </div>
 
-                <div className='flex w-full items-center justify-between gap-2'>
-                  <Chip
-                    className='h-9'
-                    color={pkg.latestVersion === pkg.currentVersion ? 'success' : pkg.isSingleVersion ? 'warning' : 'danger'}
-                    size='lg'
-                    variant='soft'
-                  >
-                    {pkg.isSingleVersion ? pkg.currentVersion : 'Multiple Versions'}
-                  </Chip>
-                  <div className='flex items-center justify-end gap-2'>
+                  <div className='flex w-full items-center justify-around gap-2'>
+                    <Chip
+                      className='h-9 w-35 rounded-3xl'
+                      size='lg'
+                      variant='secondary'
+                      color={
+                        pkg.latestVersion === pkg.currentVersion ? 'success' : pkg.isSingleVersion ? 'warning' : 'danger'
+                      }
+                    >
+                      {pkg.isSingleVersion ? pkg.currentVersion : 'Multiple Versions'}
+                    </Chip>
                     <IconArrowRight className='shrink-0 text-muted' />
                     {renderVersionSelect(
                       pkg.packageId,
@@ -622,93 +643,99 @@ export function UpdateCodeEngineVersionsView({
                       handlePackageVersionChange
                     )}
                   </div>
-                </div>
 
-                {!pkg.isSingleVersion && (
-                  <Disclosure className='w-full'>
-                    <Disclosure.Heading>
-                      <Button fullWidth className='justify-between' size='sm' slot='trigger' variant='ghost'>
-                        Per-action overrides
-                        <Disclosure.Indicator>
-                          <IconChevronDown />
-                        </Disclosure.Indicator>
-                      </Button>
-                    </Disclosure.Heading>
-                    <Disclosure.Content>
-                      <div className='flex flex-col gap-1.5 pt-1 pl-1'>
-                        {pkg.actions.map((action) => (
-                          <div className='flex flex-col gap-0.5' key={action.elementId}>
-                            <span className='truncate text-xs' title={action.actionName}>
-                              {action.actionName}
-                            </span>
-                            <div className='flex items-center justify-between gap-2'>
-                              <Chip
-                                className='h-9'
-                                size='sm'
-                                variant='soft'
-                                color={
-                                  pkg.latestVersion === pkg.currentVersion
-                                    ? 'success'
-                                    : pkg.isSingleVersion
-                                      ? 'warning'
-                                      : 'danger'
-                                }
-                              >
-                                {action.currentVersion}
-                              </Chip>
-                              <div className='flex items-center justify-end gap-2'>
-                                <IconArrowRight className='shrink-0 text-muted' />
-                                {renderVersionSelect(
-                                  pkg.packageId,
-                                  pkg.availableVersions,
-                                  pkg.latestVersion,
-                                  action.selectedVersion,
-                                  action.currentVersion,
-                                  handleActionVersionChange,
-                                  action.elementId
-                                )}
-                              </div>
+                  {pkgDeleted.map(({ action, info }) => (
+                    <ActionReconciliation
+                      action={action}
+                      info={info}
+                      key={`recon-${action.elementId}`}
+                      reconciliation={reconciliations[action.elementId]}
+                      onRemapInput={handleRemapInput}
+                      onToggleOutput={handleToggleOutput}
+                      onToggleVariableSchema={handleToggleVariableSchema}
+                      onToggleVariableType={handleToggleVariableType}
+                    />
+                  ))}
+
+                  {(!pkg.isSingleVersion || pkgReviews.length > 0) && (
+                    <DisclosureGroup
+                      className='flex flex-col gap-1'
+                      defaultExpandedKeys={firstReviewId ? [firstReviewId] : []}
+                    >
+                      {!pkg.isSingleVersion && (
+                        <Disclosure
+                          className='border-divider w-full overflow-hidden rounded-lg border bg-surface-secondary'
+                          id={`overrides-${pkg.packageId}`}
+                        >
+                          <Disclosure.Heading>
+                            <Disclosure.Trigger className='flex w-full items-center justify-between gap-2 p-2'>
+                              <span className='truncate text-sm font-medium'>Per-action overrides</span>
+                              <Disclosure.Indicator>
+                                <IconChevronDown />
+                              </Disclosure.Indicator>
+                            </Disclosure.Trigger>
+                          </Disclosure.Heading>
+                          <Disclosure.Content>
+                            <div className='px-4'>
+                              <Separator variant='secondary' />
                             </div>
-                          </div>
-                        ))}
-                      </div>
-                    </Disclosure.Content>
-                  </Disclosure>
-                )}
+                            <div className='flex flex-col gap-1.5 p-2'>
+                              {pkg.actions.map((action) => (
+                                <div className='flex flex-col gap-0.5' key={action.elementId}>
+                                  <span className='truncate text-xs' title={action.actionName}>
+                                    {action.actionName}
+                                  </span>
+                                  <div className='flex items-center justify-between gap-2'>
+                                    <Chip
+                                      className='h-9 w-25 rounded-3xl bg-surface! shadow-sm'
+                                      size='lg'
+                                      variant='secondary'
+                                      color={
+                                        pkg.latestVersion === pkg.currentVersion
+                                          ? 'success'
+                                          : pkg.isSingleVersion
+                                            ? 'warning'
+                                            : 'danger'
+                                      }
+                                    >
+                                      {action.currentVersion}
+                                    </Chip>
+                                    <IconArrowRight className='shrink-0 text-muted' />
+                                    {renderVersionSelect(
+                                      pkg.packageId,
+                                      pkg.availableVersions,
+                                      pkg.latestVersion,
+                                      action.selectedVersion,
+                                      action.currentVersion,
+                                      handleActionVersionChange,
+                                      action.elementId
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </Disclosure.Content>
+                        </Disclosure>
+                      )}
+                      {pkgReviews.map(({ action, info }) => (
+                        <ActionReconciliation
+                          action={action}
+                          id={action.elementId}
+                          info={info}
+                          key={`recon-${action.elementId}`}
+                          reconciliation={reconciliations[action.elementId]}
+                          onRemapInput={handleRemapInput}
+                          onToggleOutput={handleToggleOutput}
+                          onToggleVariableSchema={handleToggleVariableSchema}
+                          onToggleVariableType={handleToggleVariableType}
+                        />
+                      ))}
+                    </DisclosureGroup>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
-
-          {deletedReconciliations.map(({ action, info }) => (
-            <ActionReconciliation
-              action={action}
-              info={info}
-              key={`recon-${action.elementId}`}
-              reconciliation={reconciliations[action.elementId]}
-              onRemapInput={handleRemapInput}
-              onToggleOutput={handleToggleOutput}
-              onToggleVariableSchema={handleToggleVariableSchema}
-              onToggleVariableType={handleToggleVariableType}
-            />
-          ))}
-
-          {reviewReconciliations.length > 0 && (
-            <DisclosureGroup className='mt-1 flex flex-col gap-1' defaultExpandedKeys={firstReviewId ? [firstReviewId] : []}>
-              {reviewReconciliations.map(({ action, info }) => (
-                <ActionReconciliation
-                  action={action}
-                  id={action.elementId}
-                  info={info}
-                  key={`recon-${action.elementId}`}
-                  reconciliation={reconciliations[action.elementId]}
-                  onRemapInput={handleRemapInput}
-                  onToggleOutput={handleToggleOutput}
-                  onToggleVariableSchema={handleToggleVariableSchema}
-                  onToggleVariableType={handleToggleVariableType}
-                />
-              ))}
-            </DisclosureGroup>
-          )}
+            );
+          })}
         </Card.Content>
       </ScrollShadow>
 
@@ -721,7 +748,9 @@ export function UpdateCodeEngineVersionsView({
             {reviewCount > 0 && (
               <>
                 <span>·</span>
-                <span className='text-warning'>{reviewCount} need review</span>
+                <span className='text-warning'>
+                  {reviewCount} {reviewCount === 1 ? 'needs' : 'need'} review
+                </span>
               </>
             )}
             {blockedElementIds.size > 0 && (
@@ -782,12 +811,15 @@ function ActionReconciliation({
 }) {
   if (info.functionDeleted) {
     return (
-      <Alert className='mt-1 w-full bg-danger-soft' status='danger'>
-        <AlertStatusIcon />
+      <Alert className='mt-1' status='danger' variant='transparent'>
         <Alert.Content>
+          <Alert.Title className='flex items-center gap-1'>
+            <AlertStatusIcon />
+            Function Removed
+          </Alert.Title>
           <Alert.Description>
-            <span className='font-mono'>{action.functionName}</span> no longer exists in the selected version. This action
-            will be skipped so it does not break the workflow.
+            <span className='font-mono font-bold'>{action.functionName}</span> no longer exists in the selected version. This
+            action will be skipped so it does not break the workflow.
           </Alert.Description>
         </Alert.Content>
       </Alert>
@@ -838,7 +870,7 @@ function ActionReconciliation({
                 className='w-48'
                 selectionMode='single'
                 value={choices.inputRemap?.[ri.paramName] ?? 'drop'}
-                variant='secondary'
+                variant='primary'
                 onChange={(key) => onRemapInput(action.elementId, ri.paramName, key)}
               >
                 <Select.Trigger className='items-center py-0'>
@@ -871,11 +903,14 @@ function ActionReconciliation({
 
           {info.addedRequiredInputs.length > 0 && (
             <Alert className='w-full' status='warning'>
-              <AlertStatusIcon />
               <Alert.Content>
+                <Alert.Title className='flex items-center gap-1'>
+                  <AlertStatusIcon />
+                  New Required Input{info.addedRequiredInputs.length === 1 ? '' : 's'}
+                </Alert.Title>
                 <Alert.Description>
                   New required input{info.addedRequiredInputs.length === 1 ? '' : 's'}{' '}
-                  <span className='font-mono'>{info.addedRequiredInputs.join(', ')}</span> will be unset. Set{' '}
+                  <span className='font-mono font-bold'>{info.addedRequiredInputs.join(', ')}</span> will be unset. Set{' '}
                   {info.addedRequiredInputs.length === 1 ? 'it' : 'them'} in Domo after updating.
                 </Alert.Description>
               </Alert.Content>
@@ -901,16 +936,37 @@ function ActionReconciliation({
           ))}
 
           {info.typeChangeImpacts.map((impact) => (
-            <Alert className='w-full' key={`tc-${impact.flag}-${impact.paramName}`} status='warning'>
-              <AlertStatusIcon />
+            <Alert key={`tc-${impact.flag}-${impact.paramName}`} status='warning'>
               <Alert.Content>
+                <Alert.Title className='flex items-center gap-1'>
+                  <AlertStatusIcon />
+                  Type Change
+                </Alert.Title>
                 <Alert.Description>
-                  Type of <span className='font-mono'>{impact.paramName}</span> changed to{' '}
-                  <span className='font-mono'>{impact.newType}</span>, so variable{' '}
-                  <span className='font-mono'>{impact.variableName}</span>
-                  {impact.consumers.length > 0
-                    ? ` (also used by ${impact.consumers.map((c) => c.title || c.paramName).join(', ')})`
-                    : ''}{' '}
+                  Type of <span className='font-mono font-bold'>{impact.paramName}</span> changed to{' '}
+                  <span className='font-mono font-bold'>{impact.newType}</span>, so variable{' '}
+                  <span className='font-mono font-bold'>{impact.variableName}</span>
+                  {(impact.currentType || impact.consumers.length > 0) && (
+                    <>
+                      {' '}
+                      (
+                      {impact.currentType && (
+                        <>
+                          currently <span className='font-mono font-bold'>{impact.currentType}</span>
+                        </>
+                      )}
+                      {impact.currentType && impact.consumers.length > 0 && ', '}
+                      {impact.consumers.length > 0 && (
+                        <>
+                          also used by{' '}
+                          <span className='font-semibold'>
+                            {impact.consumers.map((c) => c.title || c.paramName).join(', ')}
+                          </span>
+                        </>
+                      )}
+                      )
+                    </>
+                  )}{' '}
                   no longer matches. Keep this on to update it.
                 </Alert.Description>
                 <Switch
@@ -923,8 +979,8 @@ function ActionReconciliation({
                   </Switch.Control>
                   <Switch.Content>
                     <Label className='text-xs'>
-                      Update variable <span className='font-mono'>{impact.variableName}</span> to{' '}
-                      <span className='font-mono'>{impact.newType}</span>
+                      Update {impact.currentType} variable{' '}
+                      <span className='font-mono text-accent'>{impact.variableName}</span> to {impact.newType}
                     </Label>
                   </Switch.Content>
                 </Switch>
@@ -933,9 +989,12 @@ function ActionReconciliation({
           ))}
 
           {info.schemaChangeImpacts.map((impact) => (
-            <Alert className='w-full' key={`sc-${impact.flag}-${impact.paramName}`} status='warning'>
-              <AlertStatusIcon />
+            <Alert key={`sc-${impact.flag}-${impact.paramName}`} status='warning'>
               <Alert.Content>
+                <Alert.Title className='flex items-center gap-1'>
+                  <AlertStatusIcon />
+                  Properties Change
+                </Alert.Title>
                 <Alert.Description>
                   The properties of {impact.isList ? 'the objects in ' : ''}
                   <span className='font-mono font-bold'>{impact.paramName}</span> changed, so variable{' '}
@@ -969,13 +1028,16 @@ function ActionReconciliation({
           ))}
 
           {info.breakingRemovedOutputs.map((impact) => (
-            <Alert className='w-full' key={`ro-${impact.paramName}`} status='warning'>
-              <AlertStatusIcon />
+            <Alert key={`ro-${impact.paramName}`} status='warning'>
               <Alert.Content>
+                <Alert.Title className='flex items-center gap-1'>
+                  <AlertStatusIcon />
+                  Output Removed
+                </Alert.Title>
                 <Alert.Description>
-                  Output <span className='font-mono'>{impact.paramName}</span> was removed. Variable{' '}
-                  <span className='font-mono'>{impact.variableName}</span> loses its writer and will break{' '}
-                  {impact.consumers.map((c) => c.title || c.paramName).join(', ')}.
+                  Output <span className='font-mono font-bold'>{impact.paramName}</span> was removed. Variable{' '}
+                  <span className='font-mono font-bold'>{impact.variableName}</span> loses its writer and will break{' '}
+                  <span className='font-semibold'>{impact.consumers.map((c) => c.title || c.paramName).join(', ')}</span>.
                 </Alert.Description>
               </Alert.Content>
             </Alert>
@@ -1023,6 +1085,13 @@ function buildActionContractInfo({ change, definition, newFn, oldFn }) {
     if (!type) return type;
     return entry?.isList ? `list of ${type}` : type;
   };
+  // Same, but read from a bound variable's node (variables carry the type on
+  // `dataType`), so the warning can state the variable's current type.
+  const describeVariableType = (node) => {
+    const type = node?.dataType ?? null;
+    if (!type) return type;
+    return node?.isList ? `list of ${type}` : type;
+  };
 
   // Every type change, paired with the tile param that carries the binding and
   // the new manifest entry (so we can check whether the bound variable already
@@ -1050,6 +1119,7 @@ function buildActionContractInfo({ change, definition, newFn, oldFn }) {
     .filter((t) => t.param?.mappedTo && !variableMatchesEntry(variableNode(t.param.mappedTo), t.newEntry))
     .map((t) => ({
       consumers: consumersOf(t.param.mappedTo),
+      currentType: describeVariableType(variableNode(t.param.mappedTo)),
       flag: t.flag,
       newType: t.newType,
       paramName: t.name,

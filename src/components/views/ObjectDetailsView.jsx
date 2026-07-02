@@ -1,8 +1,9 @@
-import { Alert, Button, Card, Disclosure, Link, ScrollShadow, Spinner } from '@heroui/react';
+import { Button, Card, Disclosure, Link, ScrollShadow, Spinner } from '@heroui/react';
 import { useEffect, useState } from 'react';
 import JsonView from 'react18-json-view';
 
 import '@/assets/json-view-theme.css';
+import { Alert } from '@/components/Alert';
 import { CloseButton } from '@/components/CloseButton';
 import { useGroupLookup } from '@/hooks/useGroupLookup';
 import { useUserLookup } from '@/hooks/useUserLookup';

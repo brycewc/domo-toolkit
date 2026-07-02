@@ -1,5 +1,4 @@
 import {
-  Alert,
   AlertDialog,
   Button,
   Card,
@@ -15,6 +14,7 @@ import {
 } from '@heroui/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { Alert } from '@/components/Alert';
 import { ColumnUsagesModal } from '@/components/views/ColumnUsagesModal';
 import { DataList } from '@/components/views/DataList';
 import { ViewHeader } from '@/components/views/ViewHeader';
@@ -607,9 +607,11 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
             )}
             {scanError && (
               <Alert className='w-full border border-border bg-transparent' status='danger'>
-                <AlertStatusIcon />
                 <Alert.Content>
-                  <Alert.Title>Scan failed</Alert.Title>
+                  <Alert.Title className='flex items-center gap-1'>
+                    <AlertStatusIcon />
+                    Scan failed
+                  </Alert.Title>
                   <Alert.Description>{scanError}</Alert.Description>
                 </Alert.Content>
               </Alert>
@@ -647,9 +649,11 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
 
             {(sqlDataflowWarnings.length > 0 || viewFusionWarnings.length > 0) && (
               <Alert className='w-full border border-border bg-transparent' status='warning'>
-                <AlertStatusIcon />
                 <Alert.Content>
-                  <Alert.Title>Some content needs manual review</Alert.Title>
+                  <Alert.Title className='flex items-center gap-1'>
+                    <AlertStatusIcon />
+                    Some content needs manual review
+                  </Alert.Title>
                   <Alert.Description>
                     {sqlDataflowWarnings.length > 0 &&
                       `${sqlDataflowWarnings.length} SQL dataflow${sqlDataflowWarnings.length === 1 ? '' : 's'} can't be rewritten automatically. `}
@@ -663,9 +667,9 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
 
             {appColumnCollisions.length > 0 && (
               <Alert className='w-full border border-border bg-transparent' status='warning'>
-                <AlertStatusIcon />
                 <Alert.Content>
-                  <Alert.Title>
+                  <Alert.Title className='flex items-center gap-1'>
+                    <AlertStatusIcon />
                     {appColumnCollisions.length === 1
                       ? '1 pro-code app would lose fields'
                       : `${appColumnCollisions.length} pro-code apps would lose fields`}

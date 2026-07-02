@@ -1,6 +1,7 @@
-import { Alert, Button, Card, Spinner } from '@heroui/react';
+import { Button, Card, Spinner } from '@heroui/react';
 import { useEffect, useRef, useState } from 'react';
 
+import { Alert } from '@/components/Alert';
 import { CloseButton } from '@/components/CloseButton';
 import { DataListItem } from '@/models/DataListItem';
 import { DomoContext } from '@/models/DomoContext';
@@ -9,7 +10,7 @@ import { extractPageContentIds, getFormsForPage, getQueuesForPage } from '@/serv
 import { getCardsForObject, getCardsForParent } from '@/services/cards';
 import { waitForCards } from '@/utils/cardHelpers';
 import { getValidTabForInstance } from '@/utils/currentObject';
-import { withCanonicalGroups } from '@/utils/dataListGroups';
+import { soleExpandedGroupIds, withCanonicalGroups } from '@/utils/dataListGroups';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconCard from '@icons/card.svg?react';
 import IconSync from '@icons/sync.svg?react';
@@ -313,6 +314,7 @@ export function GetCardsView({
   return (
     <DataList
       currentContext={currentContext}
+      defaultExpandedIds={soleExpandedGroupIds(items)}
       feature={titlePrefix}
       featureIcon={<IconCard />}
       headerActions={['openAll', 'reload', 'refresh']}

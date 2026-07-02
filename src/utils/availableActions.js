@@ -21,9 +21,16 @@ export function getAvailableActions(currentContext) {
   }
 
   if (
-    ['CARD', 'DATA_APP_VIEW', 'DATA_SCIENCE_NOTEBOOK', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE', 'WORKSHEET_VIEW'].includes(
-      typeId
-    )
+    [
+      'ACCOUNT',
+      'CARD',
+      'DATA_APP_VIEW',
+      'DATA_SCIENCE_NOTEBOOK',
+      'DATA_SOURCE',
+      'DATAFLOW_TYPE',
+      'PAGE',
+      'WORKSHEET_VIEW'
+    ].includes(typeId)
   ) {
     actions.add('getDatasets');
   }
@@ -144,6 +151,7 @@ export function getAvailableActions(currentContext) {
     actions.add('generate');
     // Routing key for the Generate Schema view's reload action.
     actions.add('generateSchema');
+    actions.add('updateDetails');
     if (details?.syncEnabled === true) {
       actions.add('sync');
     }

@@ -19,6 +19,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { DomoContext } from '@/models/DomoContext';
+import { renameAppDbCollection } from '@/services/appDb';
 import { updateDataflowDetails } from '@/services/dataflows';
 import { getProviders, updateDatasetProperties } from '@/services/datasets';
 import { setUserAttributes } from '@/services/users';
@@ -68,6 +69,14 @@ const updatersByType = {
     }),
     run: (id, updates) => updateDataflowDetails(id, updates),
     typeName: 'DataFlow'
+  },
+  MAGNUM_COLLECTION: {
+    fields: [{ key: 'name', kind: 'text', label: 'Collection Name', required: true }],
+    getOriginal: (ctx) => ({
+      name: ctx.domoObject?.metadata?.details?.name || ''
+    }),
+    run: (id, updates) => renameAppDbCollection({ collectionId: id, name: updates.name }),
+    typeName: 'Collection'
   },
   USER: {
     applyToggles: (diff, { originalValues, toggles }) => {

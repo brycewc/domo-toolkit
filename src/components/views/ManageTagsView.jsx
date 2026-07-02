@@ -1,5 +1,4 @@
 import {
-  Alert,
   Button,
   Card,
   Checkbox,
@@ -15,6 +14,7 @@ import {
 } from '@heroui/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { Alert } from '@/components/Alert';
 import { CloseButton } from '@/components/CloseButton';
 import { DataList } from '@/components/views/DataList';
 import { useStatusBar } from '@/hooks/useStatusBar';

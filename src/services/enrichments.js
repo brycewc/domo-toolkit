@@ -35,7 +35,7 @@ const ENRICHMENTS = [
     fallback: [],
     fetch: ({ objectId, tabId }) => getDatasetsForAccount({ accountId: objectId, tabId }),
     id: 'account-datasets',
-    storePath: 'details.accountDatasets',
+    storePath: 'context.accountDatasets',
     types: ['ACCOUNT']
   },
 

@@ -1,6 +1,7 @@
-import { Alert, AlertDialog, Button, Card, Spinner, Tooltip } from '@heroui/react';
+import { AlertDialog, Button, Card, Spinner, Tooltip } from '@heroui/react';
 import { useEffect, useRef, useState } from 'react';
 
+import { Alert } from '@/components/Alert';
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { DataListItem } from '@/models/DataListItem';
 import { DomoContext } from '@/models/DomoContext';
@@ -577,9 +578,11 @@ function renderDependencyBanner({ deps, error, isBlocked, isLoading, onRetry }) 
   if (error) {
     return (
       <Alert className='w-full bg-danger-soft' status='danger'>
-        <Alert.Indicator />
         <Alert.Content>
-          <Alert.Title>Could not check dependencies</Alert.Title>
+          <Alert.Title className='flex items-center gap-1'>
+            <Alert.Indicator />
+            Could not check dependencies
+          </Alert.Title>
           <Alert.Description>{error}</Alert.Description>
           <Button className='mt-2' size='sm' variant='ghost' onPress={onRetry}>
             Retry
