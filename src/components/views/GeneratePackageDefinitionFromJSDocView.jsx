@@ -195,6 +195,15 @@ export function GeneratePackageDefinitionFromJSDocView({
   const updatedFunctionCount = parsed?.decisions?.filter((d) => d.action === 'updated').length || 0;
   const unchangedFunctionCount = parsed?.decisions?.filter((d) => d.action === 'unchanged').length || 0;
 
+  // The header subtext carries the same at-a-glance counts the in-panel summary
+  // row used to, plus the target version, so the panel body can go straight to
+  // the change sections.
+  const targetWord = target.mode === 'overwrite' ? 'overwriting' : 'new';
+  const headerSummary =
+    parsed && !parsed.error
+      ? `+${newFunctionCount} added, ${updatedFunctionCount} updated, ${unchangedFunctionCount} unchanged · ${targetWord} **v${target.version}**`
+      : null;
+
   // If parsing completes and there's literally nothing to sync (no added,
   // updated, or JSDoc-rewrite changes) we bail straight back to the default
   // view with a warning toast. Opening a full diff card just to say "27
@@ -343,7 +352,9 @@ export function GeneratePackageDefinitionFromJSDocView({
         actions={headerActions}
         feature='Generate Definition from JSDoc'
         featureIcon={<IconMagic />}
-        subtext={packageDef?.name ? `Package: ${packageDef.name}` : null}
+        subject={packageDef?.name || null}
+        subjectTypeId={packageDef?.name ? 'CODEENGINE_PACKAGE' : null}
+        subtext={headerSummary}
         onClose={onBackToDefault}
       />
       <Separator />
@@ -377,15 +388,6 @@ export function GeneratePackageDefinitionFromJSDocView({
 
           {parsed && !parsed.error && (
             <>
-              <SummaryRow
-                jsdocRewriteCount={parsed.jsdocRewrites.length}
-                newFunctionCount={newFunctionCount}
-                target={target}
-                unchangedFunctionCount={unchangedFunctionCount}
-                updatedFunctionCount={updatedFunctionCount}
-                warningCount={parsed.warnings.length}
-              />
-
               <JSDocRewritesSection rewrites={parsed.jsdocRewrites} />
               <ManifestDecisionsSection decisions={parsed.decisions} />
               <WarningsSection warnings={parsed.warnings} />
@@ -563,17 +565,20 @@ function JSDocRewritesSection({ rewrites }) {
     grouped.get(key).push(r);
   }
   return (
-    <Disclosure className='w-full'>
+    <Disclosure className='border-divider w-full overflow-hidden rounded-lg border bg-surface-secondary'>
       <Disclosure.Heading>
-        <Button fullWidth className='justify-between' size='sm' slot='trigger' variant='ghost'>
-          JSDoc updates ({rewrites.length})
+        <Disclosure.Trigger className='flex w-full items-center justify-between gap-2 p-2'>
+          <span className='truncate text-sm font-medium'>JSDoc updates ({rewrites.length})</span>
           <Disclosure.Indicator>
             <IconChevronDown />
           </Disclosure.Indicator>
-        </Button>
+        </Disclosure.Trigger>
       </Disclosure.Heading>
       <Disclosure.Content>
-        <div className='flex flex-col gap-3 pt-1 pl-1'>
+        <div className='px-4'>
+          <Separator variant='secondary' />
+        </div>
+        <div className='flex flex-col gap-3 p-2'>
           {Array.from(grouped.entries()).map(([fnName, items]) => (
             <div className='flex flex-col gap-1' key={fnName}>
               <div className='flex items-baseline gap-2 text-xs text-muted'>
@@ -604,17 +609,20 @@ function JSDocRewritesSection({ rewrites }) {
 function ManifestDecisionsSection({ decisions }) {
   if (!decisions || decisions.length === 0) return null;
   return (
-    <Disclosure defaultExpanded className='w-full'>
+    <Disclosure defaultExpanded className='border-divider w-full overflow-hidden rounded-lg border bg-surface-secondary'>
       <Disclosure.Heading>
-        <Button fullWidth className='justify-between' size='sm' slot='trigger' variant='ghost'>
-          Manifest changes ({decisions.length})
+        <Disclosure.Trigger className='flex w-full items-center justify-between gap-2 p-2'>
+          <span className='truncate text-sm font-medium'>Manifest changes ({decisions.length})</span>
           <Disclosure.Indicator>
             <IconChevronDown />
           </Disclosure.Indicator>
-        </Button>
+        </Disclosure.Trigger>
       </Disclosure.Heading>
       <Disclosure.Content>
-        <DisclosureGroup className='flex flex-col gap-1 pt-1 pl-1'>
+        <div className='px-4'>
+          <Separator variant='secondary' />
+        </div>
+        <DisclosureGroup className='flex flex-col gap-1 p-2'>
           {decisions.map((d) => (
             <DecisionRow decision={d} key={d.name} />
           ))}
@@ -646,44 +654,6 @@ function SourcePill({ currentVersionInfo, sourceRead }) {
   );
 }
 
-function SummaryRow({
-  jsdocRewriteCount,
-  newFunctionCount,
-  target,
-  unchangedFunctionCount,
-  updatedFunctionCount,
-  warningCount
-}) {
-  return (
-    <div className='flex flex-wrap items-center gap-1 text-xs text-muted'>
-      <span>
-        +{newFunctionCount} added, {updatedFunctionCount} updated, {unchangedFunctionCount} unchanged
-      </span>
-      {jsdocRewriteCount > 0 && (
-        <>
-          <span>·</span>
-          <span>
-            {jsdocRewriteCount} JSDoc edit{jsdocRewriteCount === 1 ? '' : 's'}
-          </span>
-        </>
-      )}
-      {warningCount > 0 && (
-        <>
-          <span>·</span>
-          <span className='text-warning'>
-            {warningCount} warning{warningCount === 1 ? '' : 's'}
-          </span>
-        </>
-      )}
-      <span>·</span>
-      <span>
-        {target.mode === 'overwrite' ? 'overwriting unreleased ' : 'new '}
-        <strong className='text-foreground'>v{target.version}</strong>
-      </span>
-    </div>
-  );
-}
-
 function TargetPill({ target }) {
   if (!target) return null;
   const tip =
@@ -712,17 +682,20 @@ function WarningsSection({ warnings }) {
     );
   }
   return (
-    <Disclosure className='w-full'>
+    <Disclosure className='border-divider w-full overflow-hidden rounded-lg border bg-surface-secondary'>
       <Disclosure.Heading>
-        <Button fullWidth className='justify-between' size='sm' slot='trigger' variant='ghost'>
-          Warnings ({warnings.length})
+        <Disclosure.Trigger className='flex w-full items-center justify-between gap-2 p-2'>
+          <span className='truncate text-sm font-medium'>Warnings ({warnings.length})</span>
           <Disclosure.Indicator>
             <IconChevronDown />
           </Disclosure.Indicator>
-        </Button>
+        </Disclosure.Trigger>
       </Disclosure.Heading>
       <Disclosure.Content>
-        <div className='flex flex-col gap-2 pt-1 pl-1'>
+        <div className='px-4'>
+          <Separator variant='secondary' />
+        </div>
+        <div className='flex flex-col gap-2 p-2'>
           {warnings.map((w, idx) => (
             <Alert
               className={w.severity === 'error' ? 'w-full bg-danger-soft' : 'w-full'}
