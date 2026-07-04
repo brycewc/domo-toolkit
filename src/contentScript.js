@@ -268,6 +268,18 @@ const MODAL_DETECTORS = [
     urlGuard: 'workflows/triggers/'
   }),
 
+  // Jupyter Workspace create/edit settings modal
+  createSimpleDetector({
+    selector: '[class*="CreateWorkspaceModalV2_createModal"]',
+    urlGuard: 'ai-services/jupyter'
+  }),
+
+  // Account edit/share modal
+  createSimpleDetector({
+    selector: '[role="dialog"][class*="AccountModal"]',
+    urlGuard: 'datacenter/accounts'
+  }),
+
   // Code Engine version selector — triggers redetection when the selector
   // first appears (handles late rendering after initial page detection)
   {

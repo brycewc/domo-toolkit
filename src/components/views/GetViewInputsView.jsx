@@ -1,6 +1,7 @@
-import { Alert, Button, Card, Spinner } from '@heroui/react';
+import { Button, Card, Spinner } from '@heroui/react';
 import { useEffect, useRef, useState } from 'react';
 
+import { Alert } from '@/components/Alert';
 import { CloseButton } from '@/components/CloseButton';
 import { DataListItem } from '@/models/DataListItem';
 import { DomoContext } from '@/models/DomoContext';
@@ -8,12 +9,18 @@ import { DomoObject } from '@/models/DomoObject';
 import { getDatasetsForView } from '@/services/datasets';
 import { getValidTabForInstance } from '@/utils/currentObject';
 import { getSidepanelData } from '@/utils/sidepanel';
-import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
+import IconCompass from '@icons/compass.svg?react';
 import IconSync from '@icons/sync.svg?react';
 
+import { AlertStatusIcon } from '../AlertStatusIcon';
 import { DataList } from './DataList';
 
-export function GetViewInputsView({ currentContext = null, onBackToDefault = null, onStatusUpdate = null }) {
+export function GetViewInputsView({
+  currentContext = null,
+  instance: viewInstance = null,
+  onBackToDefault = null,
+  onStatusUpdate = null
+}) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
@@ -44,7 +51,7 @@ export function GetViewInputsView({ currentContext = null, onBackToDefault = nul
       : null;
 
     try {
-      const data = await getSidepanelData();
+      const data = await getSidepanelData(viewInstance);
 
       if (!data || data.type !== 'getViewInputs') {
         setError('No dataset data found. Please try again.');
@@ -112,8 +119,6 @@ export function GetViewInputsView({ currentContext = null, onBackToDefault = nul
     }
   };
 
-  const renderTitle = () => `DataSets Used in View for **${viewData?.objectName}**`;
-
   const renderSubtext = () => {
     const totalCount = items.length;
     if (totalCount === 0) return null;
@@ -141,9 +146,7 @@ export function GetViewInputsView({ currentContext = null, onBackToDefault = nul
   if (error) {
     return (
       <Alert className='w-full' status='warning'>
-        <Alert.Indicator>
-          <IconExclamationTriangle data-slot='alert-default-icon' />
-        </Alert.Indicator>
+        <AlertStatusIcon />
         <Alert.Content>
           <Alert.Title>Error</Alert.Title>
           <div className='flex flex-col items-start justify-center gap-2'>
@@ -162,17 +165,18 @@ export function GetViewInputsView({ currentContext = null, onBackToDefault = nul
   return (
     <DataList
       currentContext={currentContext}
-      headerActions={['openAll', 'copy', 'reload', 'refresh']}
+      feature='DataSets Used in View for'
+      featureIcon={<IconCompass />}
+      headerActions={['openAll', 'reload', 'refresh']}
       isRefreshing={isRefreshing}
-      itemActions={['copy', 'openAll', 'viewsExplorer']}
       itemLabel='dataset'
       items={items}
       objectId={viewData?.objectId}
       objectType='DATA_SOURCE'
       showActions={true}
       showCounts={true}
+      subject={viewData?.objectName}
       subtext={renderSubtext()}
-      title={renderTitle()}
       viewType='getViewInputs'
       onClose={onBackToDefault}
       onRefresh={handleRefresh}

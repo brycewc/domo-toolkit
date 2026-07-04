@@ -5,6 +5,7 @@ import { getAppDbCollectionPermission } from './appDb';
 import { extractPageContentIds, getFormsForPage, getQueuesForPage } from './appStudio';
 import { getCardsForObject } from './cards';
 import { getDataflowPermission } from './dataflows';
+import { getDatasetsForAccount } from './datasets';
 import { getChildPages, getPagesForCards, getSubpageIds } from './pages';
 import { getUserReportsTo } from './users';
 import { getVersionDefinition, getWorkflowPermission } from './workflows';
@@ -28,6 +29,16 @@ import { getVersionDefinition, getWorkflowPermission } from './workflows';
  *   composition. After storing, the orchestrator checks if all content groups have resolved.
  */
 const ENRICHMENTS = [
+  // DataSets fed by an ACCOUNT, stored as a lightweight id+name list. The
+  // related-data tab seeds its count from this and bulk-loads full details lazily.
+  {
+    fallback: [],
+    fetch: ({ objectId, tabId }) => getDatasetsForAccount({ accountId: objectId, tabId }),
+    id: 'account-datasets',
+    storePath: 'context.accountDatasets',
+    types: ['ACCOUNT']
+  },
+
   // Stream parent for non-DataFlow DATA_SOURCE
   {
     fallback: undefined,
@@ -205,6 +216,23 @@ const ENRICHMENTS = [
     id: 'user-reports-to',
     storePath: 'context.reportsTo',
     types: ['USER']
+  },
+
+  // Approval Center datasets carry their source template's UUID in the
+  // description Domo writes at creation time. Missing (user edited the
+  // description) just means no Template tab renders.
+  {
+    fetch: ({ enrichedMetadata, objectId }) => {
+      if (enrichedMetadata.details?.type?.toLowerCase() !== 'domo-approval-center') return undefined;
+      const match = enrichedMetadata.details?.description?.match(
+        /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
+      );
+      if (!match || match[0].toLowerCase() === objectId?.toLowerCase()) return undefined;
+      return match[0];
+    },
+    id: 'approval-dataset-template',
+    storePath: 'context.approvalTemplateId',
+    types: ['DATA_SOURCE']
   },
 
   // URL segment for CERTIFICATION_PROCESS, derived from the template type

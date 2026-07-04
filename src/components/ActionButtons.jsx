@@ -15,23 +15,31 @@ import { DirectSignOn } from '@/components/functions/DirectSignOn';
 import { Duplicate } from '@/components/functions/Duplicate';
 import { Export } from '@/components/functions/Export';
 import { Generate } from '@/components/functions/Generate';
+import { GetBeastModes } from '@/components/functions/GetBeastModes';
 import { GetCardPages } from '@/components/functions/GetCardPages';
 import { GetCards } from '@/components/functions/GetCards';
 import { GetChildPages } from '@/components/functions/GetChildPages';
 import { GetDatasets } from '@/components/functions/GetDatasets';
 import { GetOwnedObjects } from '@/components/functions/GetOwnedObjects';
 import { GetViewInputs } from '@/components/functions/GetViewInputs';
+import { GetWorkspaces } from '@/components/functions/GetWorkspaces';
+import { InspectDataflow } from '@/components/functions/InspectDataflow';
 import { LockCards } from '@/components/functions/LockCards';
+import { ManageTags } from '@/components/functions/ManageTags';
 import { MigrateDownstreamContent } from '@/components/functions/MigrateDownstreamContent';
 import { NavigateToCopiedObject } from '@/components/functions/NavigateToCopiedObject';
+import { RemapColumns } from '@/components/functions/RemapColumns';
 import { RemoveEmptyStringsFromQuickFilters } from '@/components/functions/RemoveEmptyStringsFromQuickFilters';
 import { SetStreamToManual } from '@/components/functions/SetStreamToManual';
 import { ShareWithSelf } from '@/components/functions/ShareWithSelf';
+import { SwitchAccount } from '@/components/functions/SwitchAccount';
 import { Sync } from '@/components/functions/Sync';
+import { TransferApproval } from '@/components/functions/TransferApproval';
 import { TransferOwnership } from '@/components/functions/TransferOwnership';
 import { UpdateCodeEngineVersions } from '@/components/functions/UpdateCodeEngineVersions';
 import { UpdateDetails } from '@/components/functions/UpdateDetails';
 import { UpdateOwner } from '@/components/functions/UpdateOwner';
+import { UpdateTriggerVersions } from '@/components/functions/UpdateTriggerVersions';
 import { ViewLineage } from '@/components/functions/ViewLineage';
 import { getAvailableActions } from '@/utils/availableActions';
 import { isSidepanel, openSidepanel } from '@/utils/sidepanel';
@@ -51,9 +59,9 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
   }, [defaultExpanded]);
 
   // Whether the panel has anything to show is measured from the rendered DOM,
-  // not from getAvailableActions alone: ApiErrors and DevMenu render
-  // unconditionally and manage their own visibility without re-rendering this
-  // component, so the count would otherwise miss them and leave the expand
+  // not from getAvailableActions alone: ApiErrors and DevMenu render outside of
+  // getAvailableActions (DevMenu manages its own visibility without re-rendering
+  // this component), so the count would otherwise miss them and leave the expand
   // toggle disabled when one of them is the only available action.
   useLayoutEffect(() => {
     const node = contentRef.current;
@@ -162,6 +170,12 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                 className='flex w-full flex-wrap place-items-center items-center justify-center gap-1 not-empty:mt-1 empty:hidden'
                 ref={contentRef}
               >
+                <ApiErrors
+                  currentContext={currentContext}
+                  isDisabled={!isDomoPage}
+                  onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
+                  onStatusUpdate={onStatusUpdate}
+                />
                 {availableActions.has('getCards') && (
                   <GetCards
                     currentContext={currentContext}
@@ -194,6 +208,22 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
+                {availableActions.has('getBeastModes') && (
+                  <GetBeastModes
+                    currentContext={currentContext}
+                    isDisabled={!isDomoPage}
+                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
+                    onStatusUpdate={onStatusUpdate}
+                  />
+                )}
+                {availableActions.has('getWorkspaces') && (
+                  <GetWorkspaces
+                    currentContext={currentContext}
+                    isDisabled={!isDomoPage}
+                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
+                    onStatusUpdate={onStatusUpdate}
+                  />
+                )}
                 {availableActions.has('getViewInputs') && (
                   <GetViewInputs
                     currentContext={currentContext}
@@ -205,11 +235,34 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                 {availableActions.has('viewLineage') && (
                   <ViewLineage currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
                 )}
+                {availableActions.has('inspectDataflow') && (
+                  <InspectDataflow
+                    currentContext={currentContext}
+                    isDisabled={!isDomoPage}
+                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
+                    onStatusUpdate={onStatusUpdate}
+                  />
+                )}
                 {availableActions.has('updateOwner') && (
                   <UpdateOwner currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
                 )}
+                {availableActions.has('transferApproval') && (
+                  <TransferApproval
+                    currentContext={currentContext}
+                    isDisabled={!isDomoPage}
+                    onStatusUpdate={onStatusUpdate}
+                  />
+                )}
                 {availableActions.has('updateDetails') && (
                   <UpdateDetails currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
+                )}
+                {availableActions.has('manageTags') && (
+                  <ManageTags
+                    currentContext={currentContext}
+                    isDisabled={!isDomoPage}
+                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
+                    onStatusUpdate={onStatusUpdate}
+                  />
                 )}
                 {availableActions.has('copyFilteredUrl') && (
                   <CopyFilteredUrl
@@ -221,11 +274,15 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                 {availableActions.has('dataRepair') && (
                   <DataRepair currentContext={currentContext} isDisabled={!isDomoPage} />
                 )}
-                {availableActions.has('copyColorRules') && (
-                  <CopyColorRules currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
-                )}
                 {availableActions.has('migrateDownstreamContent') && (
                   <MigrateDownstreamContent
+                    currentContext={currentContext}
+                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
+                    onStatusUpdate={onStatusUpdate}
+                  />
+                )}
+                {availableActions.has('remapColumns') && (
+                  <RemapColumns
                     currentContext={currentContext}
                     onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
                     onStatusUpdate={onStatusUpdate}
@@ -265,8 +322,23 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
+                {availableActions.has('switchAccount') && (
+                  <SwitchAccount
+                    currentContext={currentContext}
+                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
+                    onStatusUpdate={onStatusUpdate}
+                  />
+                )}
                 {availableActions.has('updateCodeEngineVersions') && (
                   <UpdateCodeEngineVersions
+                    currentContext={currentContext}
+                    isDisabled={!isDomoPage}
+                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
+                    onStatusUpdate={onStatusUpdate}
+                  />
+                )}
+                {availableActions.has('updateTriggerVersions') && (
+                  <UpdateTriggerVersions
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
                     onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
@@ -289,17 +361,14 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
-                <ApiErrors
-                  currentContext={currentContext}
-                  isDisabled={!isDomoPage}
-                  onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
-                  onStatusUpdate={onStatusUpdate}
-                />
                 {availableActions.has('removeEmptyStrings') && (
                   <RemoveEmptyStringsFromQuickFilters currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('directSignOn') && (
                   <DirectSignOn currentContext={currentContext} isDisabled={!isDomoPage} />
+                )}
+                {availableActions.has('copyColorRules') && (
+                  <CopyColorRules currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('lockCards') && (
                   <LockCards currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />

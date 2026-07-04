@@ -40,9 +40,17 @@ export function GetDatasets({ currentContext, isDisabled, onCollapseActions, onS
   let buttonText;
   let tooltipText;
   switch (objectType) {
+    case 'ACCOUNT':
+      buttonText = 'Get Account DataSets';
+      tooltipText = 'List datasets fed by this account';
+      break;
     case 'CARD':
       buttonText = 'Get Card DataSets';
       tooltipText = 'List datasets powering this card';
+      break;
+    case 'DATA_SCIENCE_NOTEBOOK':
+      buttonText = 'Get Workspace DataSets';
+      tooltipText = 'List dataset inputs and outputs for this Jupyter workspace';
       break;
     case 'DATA_SOURCE':
       buttonText = 'Get Dependent Views';
@@ -96,7 +104,7 @@ export function GetDatasets({ currentContext, isDisabled, onCollapseActions, onS
         <Dropdown.Menu onAction={handleAction}>
           {dropdownItems.map((item) => (
             <Dropdown.Item id={item.id} key={item.id} textValue={item.label}>
-              <IconDatabase className='size-5 shrink-0' />
+              <IconDatabase className='size-4 shrink-0' />
               <Label>{item.label}</Label>
             </Dropdown.Item>
           ))}

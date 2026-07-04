@@ -43,12 +43,12 @@ Evaluate proposals on technical merit (correctness and fit), not against a "is t
 ## Development
 
 ```bash
-yarn dev       # Dev server with HMR
+yarn dev       # Dev server with HMR (CRXJS) → dist/
 yarn build     # Production build → dist/
 yarn release   # Build + package Chrome/Edge zips
 ```
 
-Load unpacked from `dist/` at `chrome://extensions` with developer mode enabled.
+Load unpacked from `dist/` at `chrome://extensions` with developer mode enabled. `yarn dev` hot-reloads **all** extension surfaces (popup, side panel, options, content scripts) via CRXJS, not just the `/dev-*` routes. Both `yarn dev` and `yarn build` write to `dist/`, so do not run a production build into `dist/` while a `yarn dev` session is serving it; the mixed output breaks the CRXJS dev loader. See `local-testing.md`.
 
 ## Rules & Skills Directory
 
@@ -60,12 +60,12 @@ Claude Code auto-loads every `.md` in `.claude/rules/`. Rules with a `paths:` fr
 | `architecture.md`         | Core source files      | Extension contexts, message flow, core models, `executeInPage()`, services pattern, detection flow           |
 | `release-process.md`      | Release files          | Full release checklist: version bump, releases.js, release notes, build, CI/CD                               |
 | `wip-release-notes.md`    | Always                 | Auto-update `docs/RELEASE_NOTES.md` WIP list after every notable change without being asked                  |
-| `local-testing.md`        | Always                 | Localhost dev routes (`/dev-activity-log`, `/dev-lineage`) for testing UI changes before claiming success    |
+| `local-testing.md`        | Always                 | Localhost dev routes + the CRXJS dev extension (HMR on all surfaces) for testing UI before claiming success  |
 | `domo-apis.md`            | Always                 | Use Postman MCP to look up Domo API endpoints before writing API calls                                       |
 | `package-manager.md`      | Always                 | Use `yarn` not `npm`                                                                                         |
 | `contributing-sync.md`    | `docs/CONTRIBUTING.md` | Keep contributor guide in sync with codebase                                                                 |
 | `domo-debug-utilities.md` | Always                 | Browser console scripts for reverse-engineering Domo pages                                                   |
-| `store-listing.md`        | `STORE_LISTING.txt`    | Keep the store description under the Edge store's 10,000-character cap after every edit                       |
+| `store-listing.md`        | `STORE_LISTING.txt`    | Keep the store description under the Edge store's 10,000-character cap after every edit                      |
 
 | Skill          | What it covers                             |
 | -------------- | ------------------------------------------ |

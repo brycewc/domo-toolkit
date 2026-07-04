@@ -1,17 +1,19 @@
-import { Alert, Button, Card, Separator, Spinner, Tooltip } from '@heroui/react';
+import { Button, Card, Separator, Spinner } from '@heroui/react';
 import { useEffect, useRef, useState } from 'react';
 
+import { Alert } from '@/components/Alert';
 import { DatasetComboBox } from '@/components/DatasetComboBox';
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { DomoContext } from '@/models/DomoContext';
 import { getColorRules, getDatasetBeastModes, getDatasetColumns, setColorRules } from '@/services/datasets';
-import { parseMarkdownBold, stripMarkdownBold } from '@/utils/markdown';
+import { buildReloadAction } from '@/utils/headerActions';
 import { getSidepanelData } from '@/utils/sidepanel';
-import IconCheckCircle from '@icons/check-circle.svg?react';
-import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
-import IconX from '@icons/x.svg?react';
+import IconColor from '@icons/color.svg?react';
 
-export function CopyColorRulesView({ onBackToDefault = null, onStatusUpdate = null }) {
+import { AlertStatusIcon } from '../AlertStatusIcon';
+import { ViewHeader } from './ViewHeader';
+
+export function CopyColorRulesView({ instance = null, liveContext = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   const [currentContext, setCurrentContext] = useState(null);
   const [sourceRules, setSourceRules] = useState([]);
@@ -35,7 +37,7 @@ export function CopyColorRulesView({ onBackToDefault = null, onStatusUpdate = nu
 
   const loadData = async () => {
     try {
-      const data = await getSidepanelData();
+      const data = await getSidepanelData(instance);
       if (!data || data.type !== 'copyColorRules') {
         onBackToDefault?.();
         return;
@@ -155,36 +157,28 @@ export function CopyColorRulesView({ onBackToDefault = null, onStatusUpdate = nu
   const destinationHasRules = (destinationExistingRules?.length ?? 0) > 0;
   const canSubmit = !!destinationId && !sameDataset && !isLoadingDestination && !isSubmitting && sourceRules.length > 0;
 
-  const headerTitle = `Copy Color Rules from **${sourceName}**`;
   const headerSubtext = `${sourceRules.length} color rule${sourceRules.length === 1 ? '' : 's'}`;
 
   return (
     <Card className='flex min-h-0 w-full flex-1 flex-col p-2'>
-      <Card.Header className='gap-1'>
-        <Tooltip>
-          <Tooltip.Trigger className='min-w-0 pr-8'>
-            <Card.Title className='line-clamp-1'>{parseMarkdownBold(headerTitle)}</Card.Title>
-          </Tooltip.Trigger>
-          <Tooltip.Content className='max-w-60'>{stripMarkdownBold(headerTitle)}</Tooltip.Content>
-        </Tooltip>
-        {onBackToDefault && (
-          <Tooltip>
-            <Button
-              isIconOnly
-              aria-label='Close view'
-              className='absolute top-1 right-2'
-              size='sm'
-              variant='ghost'
-              onPress={onBackToDefault}
-            >
-              <IconX />
-            </Button>
-            <Tooltip.Content className='max-w-60'>Close view</Tooltip.Content>
-          </Tooltip>
-        )}
-        <div className='min-w-0 truncate text-xs text-muted'>{parseMarkdownBold(headerSubtext)}</div>
-        <Separator className='mt-1.5' />
-      </Card.Header>
+      <ViewHeader
+        feature='Copy Color Rules from'
+        featureIcon={<IconColor />}
+        subject={sourceName}
+        subjectTypeId='DATA_SOURCE'
+        subtext={headerSubtext}
+        onClose={onBackToDefault}
+        actions={[
+          buildReloadAction({
+            currentContext: liveContext,
+            objectId: currentContext?.domoObject?.id,
+            objectType: currentContext?.domoObject?.typeId,
+            onStatusUpdate,
+            viewType: 'copyColorRules'
+          })
+        ]}
+      />
+      <Separator className='mt-1.5' />
 
       <div className='flex flex-col gap-3 pt-3'>
         <DatasetComboBox
@@ -197,11 +191,11 @@ export function CopyColorRulesView({ onBackToDefault = null, onStatusUpdate = nu
 
         {sameDataset && (
           <Alert className='w-full border border-border bg-transparent' status='warning'>
-            <Alert.Indicator>
-              <IconExclamationTriangle data-slot='alert-default-icon' />
-            </Alert.Indicator>
             <Alert.Content>
-              <Alert.Title>Same dataset</Alert.Title>
+              <Alert.Title className='flex items-center gap-1'>
+                <AlertStatusIcon />
+                Same dataset
+              </Alert.Title>
               <Alert.Description>Pick a different dataset as the destination.</Alert.Description>
             </Alert.Content>
           </Alert>
@@ -216,11 +210,11 @@ export function CopyColorRulesView({ onBackToDefault = null, onStatusUpdate = nu
 
         {!isLoadingDestination && destinationHasRules && (
           <Alert className='w-full border border-border bg-transparent' status='warning'>
-            <Alert.Indicator>
-              <IconExclamationTriangle data-slot='alert-default-icon' />
-            </Alert.Indicator>
             <Alert.Content>
-              <Alert.Title>Destination already has color rules</Alert.Title>
+              <Alert.Title className='flex items-center gap-1'>
+                <AlertStatusIcon />
+                Destination already has color rules
+              </Alert.Title>
               <Alert.Description>
                 The destination dataset has {destinationExistingRules.length} existing rule
                 {destinationExistingRules.length === 1 ? '' : 's'}. Copying will replace them.
@@ -231,11 +225,11 @@ export function CopyColorRulesView({ onBackToDefault = null, onStatusUpdate = nu
 
         {schemaResolved && (
           <Alert className='w-full border border-border bg-transparent' status='success'>
-            <Alert.Indicator>
-              <IconCheckCircle data-slot='alert-default-icon' />
-            </Alert.Indicator>
             <Alert.Content>
-              <Alert.Title>Schema matches</Alert.Title>
+              <Alert.Title className='flex items-center gap-1'>
+                <AlertStatusIcon />
+                Schema matches
+              </Alert.Title>
               <Alert.Description>
                 All rule column references exist on the destination
                 {beastModeSwapsUsed > 0
@@ -250,11 +244,9 @@ export function CopyColorRulesView({ onBackToDefault = null, onStatusUpdate = nu
 
         {!isLoadingDestination && missingColumns.length > 0 && (
           <Alert className='w-full border border-border bg-transparent' status='warning'>
-            <Alert.Indicator>
-              <IconExclamationTriangle data-slot='alert-default-icon' />
-            </Alert.Indicator>
             <Alert.Content>
-              <Alert.Title>
+              <Alert.Title className='flex items-center gap-1'>
+                <AlertStatusIcon />
                 {missingColumns.length} column{missingColumns.length === 1 ? '' : 's'} not on destination
               </Alert.Title>
               <Alert.Description>
@@ -281,7 +273,7 @@ export function CopyColorRulesView({ onBackToDefault = null, onStatusUpdate = nu
  * Regular columns match by name or id against the destination's schema. Beast
  * Modes (calculation_<uuid>) have per-dataset ids, so we name-match the source
  * beast mode against the destination's beast modes and emit a swap entry when
- * we find one — that swap is applied to the rules right before the PUT so the
+ * we find one; that swap is applied to the rules right before the PUT so the
  * copied rule references the destination's id.
  *
  * Returns `{ missingColumns, swap }`. `missingColumns` shows friendly names

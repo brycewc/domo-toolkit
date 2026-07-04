@@ -1,6 +1,7 @@
 import { Button, Card, Chip, Disclosure, DisclosureGroup, ScrollShadow, Separator, Spinner, Tooltip } from '@heroui/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { Alert } from '@/components/Alert';
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { DomoContext } from '@/models/DomoContext';
 import {
@@ -10,6 +11,7 @@ import {
   postCodeEnginePackageVersion,
   setCodeEngineEditorSource
 } from '@/services/codeEngine';
+import { buildRefreshAction, buildReloadAction } from '@/utils/headerActions';
 import {
   computeStructuralDiff,
   findCurrentVersionInfo,
@@ -23,12 +25,19 @@ import { getSidepanelData } from '@/utils/sidepanel';
 import IconCheckCircle from '@icons/check-circle.svg?react';
 import IconChevronDown from '@icons/chevron-down.svg?react';
 import IconCircle from '@icons/circle.svg?react';
-import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
+import IconMagic from '@icons/magic.svg?react';
 import IconPlusCircle from '@icons/plus-circle.svg?react';
 import IconSync from '@icons/sync.svg?react';
-import IconX from '@icons/x.svg?react';
 
-export function GeneratePackageDefinitionFromJSDocView({ onBackToDefault = null, onStatusUpdate = null }) {
+import { AlertStatusIcon } from '../AlertStatusIcon';
+import { ViewHeader } from './ViewHeader';
+
+export function GeneratePackageDefinitionFromJSDocView({
+  instance = null,
+  liveContext = null,
+  onBackToDefault = null,
+  onStatusUpdate = null
+}) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -51,7 +60,7 @@ export function GeneratePackageDefinitionFromJSDocView({ onBackToDefault = null,
 
   const loadData = async () => {
     try {
-      const data = await getSidepanelData();
+      const data = await getSidepanelData(instance);
       if (!data || data.type !== 'generatePackageDefinitionFromJSDoc') {
         onBackToDefault?.();
         return;
@@ -133,6 +142,17 @@ export function GeneratePackageDefinitionFromJSDocView({ onBackToDefault = null,
     }
   };
 
+  const headerActions = [
+    buildReloadAction({
+      currentContext: liveContext,
+      objectId: currentContext?.domoObject?.id,
+      objectType: currentContext?.domoObject?.typeId,
+      onStatusUpdate,
+      viewType: 'generatePackageDefinitionFromJSDoc'
+    }),
+    buildRefreshAction({ isRefreshing, onRefresh: handleRefresh })
+  ];
+
   const currentVersionId =
     currentContext?.domoObject?.typeId === 'CODEENGINE_PACKAGE_VERSION' ? currentContext?.domoObject?.id : null;
 
@@ -174,6 +194,15 @@ export function GeneratePackageDefinitionFromJSDocView({ onBackToDefault = null,
   const newFunctionCount = parsed?.decisions?.filter((d) => d.action === 'added').length || 0;
   const updatedFunctionCount = parsed?.decisions?.filter((d) => d.action === 'updated').length || 0;
   const unchangedFunctionCount = parsed?.decisions?.filter((d) => d.action === 'unchanged').length || 0;
+
+  // The header subtext carries the same at-a-glance counts the in-panel summary
+  // row used to, plus the target version, so the panel body can go straight to
+  // the change sections.
+  const targetWord = target.mode === 'overwrite' ? 'overwriting' : 'new';
+  const headerSummary =
+    parsed && !parsed.error
+      ? `+${newFunctionCount} added, ${updatedFunctionCount} updated, ${unchangedFunctionCount} unchanged · ${targetWord} **v${target.version}**`
+      : null;
 
   // If parsing completes and there's literally nothing to sync (no added,
   // updated, or JSDoc-rewrite changes) we bail straight back to the default
@@ -297,16 +326,20 @@ export function GeneratePackageDefinitionFromJSDocView({ onBackToDefault = null,
     return (
       <Card className='flex h-full w-full flex-col p-2'>
         <ViewHeader
-          isRefreshing={isRefreshing}
-          subtitle={null}
-          title='Generate Definition from JSDoc'
-          onBackToDefault={onBackToDefault}
-          onRefresh={handleRefresh}
+          beta
+          actions={headerActions}
+          feature='Generate Definition from JSDoc'
+          featureIcon={<IconMagic />}
+          onClose={onBackToDefault}
         />
         <Separator />
-        <Card.Content className='flex flex-col items-center gap-2 py-8'>
-          <IconExclamationTriangle className='text-danger' />
-          <p className='text-sm text-danger'>{error}</p>
+        <Card.Content className='py-2'>
+          <Alert className='w-full bg-danger-soft' status='danger'>
+            <AlertStatusIcon />
+            <Alert.Content>
+              <Alert.Description>{error}</Alert.Description>
+            </Alert.Content>
+          </Alert>
         </Card.Content>
       </Card>
     );
@@ -315,11 +348,14 @@ export function GeneratePackageDefinitionFromJSDocView({ onBackToDefault = null,
   return (
     <Card className='flex min-h-0 w-full flex-1 flex-col p-2'>
       <ViewHeader
-        isRefreshing={isRefreshing}
-        subtitle={packageDef?.name ? `Package: ${packageDef.name}` : null}
-        title='Generate Definition from JSDoc'
-        onBackToDefault={onBackToDefault}
-        onRefresh={handleRefresh}
+        beta
+        actions={headerActions}
+        feature='Generate Definition from JSDoc'
+        featureIcon={<IconMagic />}
+        subject={packageDef?.name || null}
+        subjectTypeId={packageDef?.name ? 'CODEENGINE_PACKAGE' : null}
+        subtext={headerSummary}
+        onClose={onBackToDefault}
       />
       <Separator />
       <ScrollShadow hideScrollBar className='min-h-0 flex-1 overflow-y-auto' offset={5} orientation='vertical'>
@@ -330,35 +366,29 @@ export function GeneratePackageDefinitionFromJSDocView({ onBackToDefault = null,
           </div>
 
           {editorDataUnavailable && (
-            <div className='flex items-center gap-2 rounded-md bg-danger-soft p-2 text-sm text-danger'>
-              <IconExclamationTriangle />
-              <span>
-                Could not read the function list from the live editor. Open the Code Engine editor for this package and try
-                again. Syncing without it would omit the module.exports block and break Workflow runs.
-              </span>
-            </div>
+            <Alert className='w-full bg-danger-soft' status='danger'>
+              <AlertStatusIcon />
+              <Alert.Content>
+                <Alert.Description>
+                  Could not read the function list from the live editor. Open the Code Engine editor for this package and try
+                  again. Syncing without it would omit the module.exports block and break Workflow runs.
+                </Alert.Description>
+              </Alert.Content>
+            </Alert>
           )}
 
           {parsed?.error && (
-            <div className='flex items-center gap-2 rounded-md bg-danger-soft p-2 text-sm text-danger'>
-              <IconExclamationTriangle />
-              <span>Parser error: {parsed.error}</span>
-            </div>
+            <Alert className='w-full bg-danger-soft' status='danger'>
+              <AlertStatusIcon />
+              <Alert.Content>
+                <Alert.Description>Parser error: {parsed.error}</Alert.Description>
+              </Alert.Content>
+            </Alert>
           )}
 
           {parsed && !parsed.error && (
             <>
-              <SummaryRow
-                jsdocRewriteCount={parsed.jsdocRewrites.length}
-                newFunctionCount={newFunctionCount}
-                target={target}
-                unchangedFunctionCount={unchangedFunctionCount}
-                updatedFunctionCount={updatedFunctionCount}
-                warningCount={parsed.warnings.length}
-              />
-
-              <JSDocRewritesSection rewrites={parsed.jsdocRewrites} />
-              <ManifestDecisionsSection decisions={parsed.decisions} />
+              <ManifestDecisionsSection decisions={parsed.decisions} rewrites={parsed.jsdocRewrites} />
               <WarningsSection warnings={parsed.warnings} />
             </>
           )}
@@ -416,10 +446,12 @@ function DecisionPill({ action }) {
   );
 }
 
-function DecisionRow({ decision }) {
-  const hasDiff = decision.action === 'updated' && decision.diffFields?.length > 0;
+function DecisionRow({ decision, rewrites }) {
+  const hasFieldDiff = decision.action === 'updated' && decision.diffFields?.length > 0;
+  const hasRewrites = rewrites?.length > 0;
+  const expandable = hasFieldDiff || hasRewrites;
   return (
-    <Disclosure className='w-full' id={decision.name} isDisabled={!hasDiff}>
+    <Disclosure className='w-full' id={decision.name} isDisabled={!expandable}>
       <Disclosure.Heading>
         <Button fullWidth className='items-center justify-between gap-1 px-1 py-0.5 text-xs' slot='trigger' variant='ghost'>
           <span className='flex min-w-0 items-center gap-1'>
@@ -427,22 +459,31 @@ function DecisionRow({ decision }) {
               <IconChevronDown size={12} />
             </Disclosure.Indicator>
             <span className='font-mono'>{decision.name}</span>
-            {hasDiff && <span className='truncate text-muted'>({decision.diffFields.join(', ')})</span>}
+            {hasFieldDiff && <span className='truncate text-muted'>({decision.diffFields.join(', ')})</span>}
           </span>
-          <DecisionPill action={decision.action} />
+          <span className='flex shrink-0 items-center gap-1'>
+            {hasRewrites && (
+              <Chip color='accent' size='sm' variant='soft'>
+                JSDoc
+              </Chip>
+            )}
+            <DecisionPill action={decision.action} />
+          </span>
         </Button>
       </Disclosure.Heading>
-      {hasDiff && (
+      {expandable && (
         <Disclosure.Content>
-          <div className='flex flex-col gap-1 border-l border-border pt-1 pl-2 text-xs'>
-            {decision.diffFields.map((field) => (
-              <FieldDiff
-                derivedValue={decision.derived?.[field]}
-                existingValue={decision.existing?.[field]}
-                field={field}
-                key={field}
-              />
-            ))}
+          <div className='flex flex-col gap-2 border-l border-border pt-1 pl-2 text-xs'>
+            {hasFieldDiff &&
+              decision.diffFields.map((field) => (
+                <FieldDiff
+                  derivedValue={decision.derived?.[field]}
+                  existingValue={decision.existing?.[field]}
+                  field={field}
+                  key={field}
+                />
+              ))}
+            {hasRewrites && <JSDocRewriteList rewrites={rewrites} />}
           </div>
         </Disclosure.Content>
       )}
@@ -525,69 +566,54 @@ function formatPath(segments) {
     .join('');
 }
 
-function JSDocRewritesSection({ rewrites }) {
-  if (!rewrites || rewrites.length === 0) return null;
-  const grouped = new Map();
-  for (const r of rewrites) {
-    const key = r.functionName || '(unknown)';
-    if (!grouped.has(key)) grouped.set(key, []);
-    grouped.get(key).push(r);
-  }
+function JSDocRewriteList({ rewrites }) {
   return (
-    <Disclosure className='w-full'>
-      <Disclosure.Heading>
-        <Button fullWidth className='justify-between' size='sm' slot='trigger' variant='ghost'>
-          JSDoc updates ({rewrites.length})
-          <Disclosure.Indicator>
-            <IconChevronDown />
-          </Disclosure.Indicator>
-        </Button>
-      </Disclosure.Heading>
-      <Disclosure.Content>
-        <div className='flex flex-col gap-3 pt-1 pl-1'>
-          {Array.from(grouped.entries()).map(([fnName, items]) => (
-            <div className='flex flex-col gap-1' key={fnName}>
-              <div className='flex items-baseline gap-2 text-xs text-muted'>
-                <span className='font-mono font-semibold text-foreground'>{fnName}()</span>
-                <span>
-                  {items.length} param{items.length === 1 ? '' : 's'}
-                </span>
-              </div>
-              <div className='flex flex-col gap-2 border-l border-border pl-2 font-mono text-xs'>
-                {items.map((r, idx) => (
-                  <div className='flex flex-col gap-0.5' key={`${r.paramName}-${idx}`}>
-                    <span className='text-[10px] text-muted'>
-                      line {r.line} · param {r.paramName}
-                    </span>
-                    <div className='truncate text-danger'>- {r.oldText}</div>
-                    <div className='truncate text-success'>+ {r.newText}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </Disclosure.Content>
-    </Disclosure>
+    <div className='flex flex-col gap-1'>
+      <span className='text-[10px] text-muted'>JSDoc @param defaults</span>
+      <div className='flex flex-col gap-2'>
+        {rewrites.map((r, idx) => (
+          <div className='flex flex-col gap-0.5' key={`${r.paramName}-${idx}`}>
+            <span className='font-mono text-[10px] text-muted'>
+              line {r.line} · {r.paramName}
+            </span>
+            <pre className='overflow-x-auto rounded bg-danger-soft px-1 py-0.5 text-[11px] whitespace-pre-wrap text-danger'>
+              − {r.oldText}
+            </pre>
+            <pre className='overflow-x-auto rounded bg-success-soft px-1 py-0.5 text-[11px] whitespace-pre-wrap text-success'>
+              + {r.newText}
+            </pre>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
-function ManifestDecisionsSection({ decisions }) {
+function ManifestDecisionsSection({ decisions, rewrites }) {
   if (!decisions || decisions.length === 0) return null;
+  const rewritesByFunction = new Map();
+  for (const r of rewrites || []) {
+    const key = r.functionName || '(unknown)';
+    if (!rewritesByFunction.has(key)) rewritesByFunction.set(key, []);
+    rewritesByFunction.get(key).push(r);
+  }
   return (
-    <Disclosure defaultExpanded className='w-full'>
+    <Disclosure defaultExpanded className='border-divider w-full overflow-hidden rounded-lg border bg-surface-secondary'>
       <Disclosure.Heading>
-        <Button fullWidth className='justify-between' size='sm' slot='trigger' variant='ghost'>
-          Manifest changes ({decisions.length})
+        <Disclosure.Trigger className='flex w-full items-center justify-between gap-2 p-2'>
+          <span className='truncate text-sm font-medium'>Manifest changes ({decisions.length})</span>
           <Disclosure.Indicator>
             <IconChevronDown />
           </Disclosure.Indicator>
-        </Button>
+        </Disclosure.Trigger>
       </Disclosure.Heading>
       <Disclosure.Content>
-        <DisclosureGroup className='flex flex-col gap-1 pt-1 pl-1'>
+        <div className='px-4'>
+          <Separator variant='secondary' />
+        </div>
+        <DisclosureGroup className='flex flex-col gap-1 p-2'>
           {decisions.map((d) => (
-            <DecisionRow decision={d} key={d.name} />
+            <DecisionRow decision={d} key={d.name} rewrites={rewritesByFunction.get(d.name)} />
           ))}
         </DisclosureGroup>
       </Disclosure.Content>
@@ -617,44 +643,6 @@ function SourcePill({ currentVersionInfo, sourceRead }) {
   );
 }
 
-function SummaryRow({
-  jsdocRewriteCount,
-  newFunctionCount,
-  target,
-  unchangedFunctionCount,
-  updatedFunctionCount,
-  warningCount
-}) {
-  return (
-    <div className='flex flex-wrap items-center gap-1 text-xs text-muted'>
-      <span>
-        +{newFunctionCount} added, {updatedFunctionCount} updated, {unchangedFunctionCount} unchanged
-      </span>
-      {jsdocRewriteCount > 0 && (
-        <>
-          <span>·</span>
-          <span>
-            {jsdocRewriteCount} JSDoc edit{jsdocRewriteCount === 1 ? '' : 's'}
-          </span>
-        </>
-      )}
-      {warningCount > 0 && (
-        <>
-          <span>·</span>
-          <span className='text-warning'>
-            {warningCount} warning{warningCount === 1 ? '' : 's'}
-          </span>
-        </>
-      )}
-      <span>·</span>
-      <span>
-        {target.mode === 'overwrite' ? 'overwriting unreleased ' : 'new '}
-        <strong className='text-foreground'>v{target.version}</strong>
-      </span>
-    </div>
-  );
-}
-
 function TargetPill({ target }) {
   if (!target) return null;
   const tip =
@@ -671,83 +659,52 @@ function TargetPill({ target }) {
   );
 }
 
-function ViewHeader({ isRefreshing, onBackToDefault, onRefresh, subtitle, title }) {
-  return (
-    <Card.Header className='gap-1'>
-      <Card.Title className='flex min-w-0 items-center gap-1.5 pr-8'>
-        <span className='line-clamp-2 min-w-0'>{title}</span>
-        <Chip className='shrink-0' color='accent' size='sm' variant='soft'>
-          Beta
-        </Chip>
-      </Card.Title>
-      {onBackToDefault && (
-        <Tooltip>
-          <Button
-            isIconOnly
-            aria-label='Close'
-            className='absolute top-1 right-2'
-            size='sm'
-            variant='ghost'
-            onPress={onBackToDefault}
-          >
-            <IconX />
-          </Button>
-          <Tooltip.Content className='max-w-60'>Close</Tooltip.Content>
-        </Tooltip>
-      )}
-      {(subtitle || onRefresh) && (
-        <div className='flex min-w-0 items-center justify-between gap-2'>
-          <div className='min-w-0 flex-1 truncate text-xs text-muted'>{subtitle}</div>
-          {onRefresh && (
-            <Tooltip>
-              <Button
-                isIconOnly
-                aria-label='Refresh'
-                isDisabled={isRefreshing}
-                size='sm'
-                variant='ghost'
-                onPress={onRefresh}
-              >
-                <IconSync className={isRefreshing ? 'animate-spin' : ''} />
-              </Button>
-              <Tooltip.Content className='max-w-60'>Refresh</Tooltip.Content>
-            </Tooltip>
-          )}
-        </div>
-      )}
-    </Card.Header>
-  );
-}
-
 function WarningsSection({ warnings }) {
   if (!warnings || warnings.length === 0) {
     return (
-      <div className='flex items-center gap-2 text-xs text-muted'>
-        <IconCheckCircle size={14} />
-        <span>No warnings</span>
-      </div>
+      <Alert className='w-full bg-surface-secondary' status='success'>
+        <AlertStatusIcon />
+        <Alert.Content>
+          <Alert.Description>No warnings</Alert.Description>
+        </Alert.Content>
+      </Alert>
     );
   }
   return (
-    <Disclosure className='w-full'>
+    <Disclosure className='border-divider w-full overflow-hidden rounded-lg border bg-surface-secondary'>
       <Disclosure.Heading>
-        <Button fullWidth className='justify-between' size='sm' slot='trigger' variant='ghost'>
-          Warnings ({warnings.length})
+        <Disclosure.Trigger className='flex w-full items-center justify-between gap-2 p-2'>
+          <span className='truncate text-sm font-medium'>Warnings ({warnings.length})</span>
           <Disclosure.Indicator>
             <IconChevronDown />
           </Disclosure.Indicator>
-        </Button>
+        </Disclosure.Trigger>
       </Disclosure.Heading>
       <Disclosure.Content>
-        <div className='flex flex-col gap-1 pt-1 pl-1 text-xs'>
+        <div className='px-4'>
+          <Separator variant='secondary' />
+        </div>
+        <div className='flex flex-col gap-2 p-2'>
           {warnings.map((w, idx) => (
-            <div className={`flex items-start gap-1 ${w.severity === 'error' ? 'text-danger' : 'text-warning'}`} key={idx}>
-              <IconExclamationTriangle className='mt-0.5 shrink-0' size={12} />
-              <div className='flex flex-col gap-0.5'>
-                {w.functionName && <span className='font-mono text-muted'>{w.functionName}</span>}
-                <span>{w.message}</span>
-              </div>
-            </div>
+            <Alert
+              className={w.severity === 'error' ? 'w-full bg-danger-soft' : 'w-full'}
+              key={idx}
+              status={w.severity === 'error' ? 'danger' : 'warning'}
+            >
+              <Alert.Content>
+                <Alert.Title className='flex items-center gap-1'>
+                  <AlertStatusIcon />
+                  {w.functionName ? (
+                    <span className='font-mono'>{w.functionName}</span>
+                  ) : w.severity === 'error' ? (
+                    'Error'
+                  ) : (
+                    'Warning'
+                  )}
+                </Alert.Title>
+                <Alert.Description>{w.message}</Alert.Description>
+              </Alert.Content>
+            </Alert>
           ))}
         </div>
       </Disclosure.Content>

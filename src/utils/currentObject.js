@@ -1,3 +1,5 @@
+import { EXCLUDED_HOSTNAMES } from './constants';
+
 /**
  * Main detection function that runs in page context
  * This is a self-contained function that can be stringified and injected via chrome.scripting.executeScript
@@ -199,6 +201,19 @@ export async function detectCurrentObject() {
 
     case url.includes('dataflows/'):
       objectType = 'DATAFLOW_TYPE';
+      // A DataFlow graph opened at a historical version carries ?versionId= (read from
+      // location.search, which preserves case, since `url` above is lowercased). The object is
+      // still the live DataFlow; the version is a qualifier the service worker stashes in context.
+      return {
+        baseUrl: `${location.protocol}//${location.hostname}`,
+        dataflowVersionId: new URLSearchParams(location.search).get('versionId') || null,
+        typeId: objectType,
+        url
+      };
+
+    case url.includes('scheduled-reports/history/'):
+      objectType = 'REPORT_SCHEDULE';
+      id = parts[parts.indexOf('history') + 1];
       break;
 
     case url.includes('people/'):
@@ -381,6 +396,35 @@ export async function detectCurrentObject() {
       objectType = 'AI_MODEL';
       break;
 
+    case url.includes('ai-services/jupyter'): {
+      const workspaceModal = document.querySelector('[class*="CreateWorkspaceModalV2_createModal"]');
+      if (!workspaceModal) return null;
+
+      // Extract workspaceId from React fiber tree (prop on ancestor component).
+      // In create mode the prop is absent, so detection yields no object.
+      const fiberKey = Object.keys(workspaceModal).find((k) => k.startsWith('__reactFiber'));
+      let workspaceId = null;
+      if (fiberKey) {
+        let fiber = workspaceModal[fiberKey];
+        for (let i = 0; i < 15 && fiber; i++) {
+          if (fiber.memoizedProps?.workspaceId) {
+            workspaceId = fiber.memoizedProps.workspaceId;
+            break;
+          }
+          fiber = fiber.return;
+        }
+      }
+
+      if (!workspaceId) return null;
+
+      return {
+        baseUrl: `${location.protocol}//${location.hostname}`,
+        id: workspaceId,
+        typeId: 'DATA_SCIENCE_NOTEBOOK',
+        url
+      };
+    }
+
     case url.includes('ai-library/toolkits/domo-provided/'):
       objectType = 'AI_TOOLKIT_DOMO_PROVIDED';
       break;
@@ -440,6 +484,10 @@ export async function detectCurrentObject() {
       objectType = 'APPROVAL';
       break;
 
+    case url.includes('approval/create-request/'):
+      objectType = 'TEMPLATE';
+      break;
+
     case url.includes('approval/edit-request-form/'):
       objectType = 'TEMPLATE';
       break;
@@ -458,11 +506,44 @@ export async function detectCurrentObject() {
     case url.includes('cloud-integrations/'):
       objectType = 'WAREHOUSE_ACCOUNT';
       break;
+    case url.includes('datacenter/accounts'): {
+      const accountModal = document.querySelector('[role="dialog"][class*="AccountModal"]');
+      if (!accountModal) return null;
+
+      // Account ID lives only in the React fiber tree (props.account on an ancestor).
+      // The modal is portaled to <body>, so DOM traversal can't reach the account row.
+      // In create-account mode there is no account id, so detection yields no object.
+      const fiberKey = Object.keys(accountModal).find((k) => k.startsWith('__reactFiber'));
+      let accountId = null;
+      if (fiberKey) {
+        let fiber = accountModal[fiberKey];
+        for (let i = 0; i < 15 && fiber; i++) {
+          const account = fiber.memoizedProps?.account;
+          if (account?.entityType === 'account' && account.id) {
+            accountId = account.id;
+            break;
+          }
+          fiber = fiber.return;
+        }
+      }
+
+      if (!accountId) return null;
+
+      return {
+        baseUrl: `${location.protocol}//${location.hostname}`,
+        id: accountId,
+        typeId: 'ACCOUNT',
+        url
+      };
+    }
     case url.includes('workspaces/'):
       objectType = 'WORKSPACE';
       break;
     case url.includes('certifiedcontent') && url.includes('edit-form/'):
       objectType = 'CERTIFICATION_PROCESS';
+      break;
+    case url.includes('certification-center/request-details/'):
+      objectType = 'CERTIFICATION';
       break;
 
     case url.includes('governance-toolkit'): {
@@ -593,13 +674,21 @@ export async function getValidTabForInstance(instance) {
 }
 
 /**
- * Check if a URL belongs to a domo.com domain (exact or any subdomain).
+ * Check if a URL is an actionable Domo page: a domo.com domain (exact or any
+ * subdomain) that is NOT one of the excluded hosts (support, developer,
+ * marketing, embed, etc.). Excluded hosts are treated as non-Domo so that no
+ * extension behavior (detection, title rewriting, in-page execution) ever runs
+ * on them. This is the single gate the background and executeInPage rely on, so
+ * folding the exclusion in here keeps every call site consistent.
  * @param {string} url - A full URL string
  * @returns {boolean}
  */
 export function isDomoUrl(url) {
   try {
     const { hostname } = new URL(url);
+    if (EXCLUDED_HOSTNAMES.includes(hostname)) {
+      return false;
+    }
     return hostname === 'domo.com' || hostname.endsWith('.domo.com');
   } catch {
     return false;

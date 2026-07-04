@@ -1,0 +1,48 @@
+import { DataListItem } from '@/models/DataListItem';
+
+/**
+ * Return the ids to start expanded when exactly one top-level group has any
+ * children. In a grouped view where every category renders (populated groups
+ * plus muted `(0)` placeholders, see `withCanonicalGroups`), a single populated
+ * category means there's only one thing to look at, so opening it saves the user
+ * a click. When zero or more than one group has children, this returns an empty
+ * array and every group stays collapsed.
+ *
+ * @param {DataListItem[]} items - Top-level groups the view is rendering
+ * @returns {string[]} `[soleGroupId]` when exactly one group has children, else `[]`
+ */
+export function soleExpandedGroupIds(items) {
+  const withChildren = (items || []).filter((item) => item.children?.length);
+  return withChildren.length === 1 ? [withChildren[0].id] : [];
+}
+
+/**
+ * Back-fill a grouped DataList with empty placeholders for any canonical
+ * category the view didn't build, and return groups in canonical order.
+ *
+ * Views keep building only their non-empty groups; pass the result here with
+ * the ordered canonical set. Any missing id becomes a muted, non-expandable
+ * `(0)` group. Items whose id isn't canonical are appended in original order.
+ *
+ * IMPORTANT: when the view built zero groups (nothing found at all), this
+ * returns the empty array unchanged rather than fabricating an all-zero view.
+ * The caller's existing empty-state/toast then handles the no-results case, so
+ * users see "nothing here" rather than a wall of `(0)` categories. Zero-rows
+ * only appear alongside at least one populated category.
+ *
+ * @param {DataListItem[]} items - Groups the view actually built
+ * @param {Array<{id: string, label: string, childTypeId?: string}>} canonicalGroups - Ordered canonical set
+ * @returns {DataListItem[]}
+ */
+export function withCanonicalGroups(items, canonicalGroups) {
+  if (!items.length) return items;
+  const byId = new Map(items.map((item) => [item.id, item]));
+  const ordered = canonicalGroups.map(
+    (group) =>
+      byId.get(group.id) ??
+      DataListItem.createGroup({ children: [], childTypeId: group.childTypeId ?? null, id: group.id, label: group.label })
+  );
+  const canonicalIds = new Set(canonicalGroups.map((group) => group.id));
+  const extra = items.filter((item) => !canonicalIds.has(item.id));
+  return [...ordered, ...extra];
+}

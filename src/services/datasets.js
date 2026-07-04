@@ -1,6 +1,7 @@
 import { getObjectType } from '@/models/DomoObjectType';
 import { executeInPage } from '@/utils/executeInPage';
 
+import { getJupyterWorkspaceDatasets } from './jupyterWorkspaces';
 import { getUserName } from './users';
 
 const DATASETS_PAGE_SIZE = 50;
@@ -149,6 +150,43 @@ export async function getDatasetDependentCount({ datasetId, tabId = null }) {
 }
 
 /**
+ * Bulk-fetch the full dataset records for a lightweight list of dataset
+ * references (account datasets, dataflow inputs/outputs, etc.).
+ *
+ * These reference lists arrive with only an id and name per entry, everything
+ * else null. This pulls the complete records so a related-data tab can show
+ * real owners, row counts, types, and the like instead of just id and name.
+ * Datasets the user can't access are dropped by the bulk endpoint, so the
+ * result may be shorter than the input list.
+ *
+ * @param {Object} params - Parameters
+ * @param {Array<{dataSourceId: string}>} params.datasets - Light dataset reference list
+ * @param {number} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<Array<Object>>} Array of full dataset objects (empty if none)
+ */
+export async function getDatasetDetailsForList({ datasets, tabId }) {
+  const datasetIds = (datasets || []).map((ds) => ds.dataSourceId).filter(Boolean);
+  if (datasetIds.length === 0) return [];
+
+  return executeInPage(
+    async (datasetIds) => {
+      const response = await fetch('/api/data/v3/datasources/bulk?includePrivate=true&includeAllDetails=true', {
+        body: JSON.stringify(datasetIds),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST'
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch dataset details. HTTP status: ${response.status}`);
+      }
+      const data = await response.json();
+      return data.dataSources || [];
+    },
+    [datasetIds],
+    tabId
+  );
+}
+
+/**
  * Get a preview of a dataset's data (first N rows)
  * @param {string} datasetId - The dataset UUID
  * @param {number} [tabId] - Optional Chrome tab ID
@@ -200,6 +238,27 @@ export async function getDatasetPreview(datasetId, tabId = null, limit = 100) {
 }
 
 /**
+ * Get the datasets fed by a connector account.
+ * @param {Object} params - Parameters
+ * @param {string|number} params.accountId - The account ID
+ * @param {number} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<Array<Object>>} Array of dataset objects (each keyed by dataSourceId/dataSourceName)
+ */
+export async function getDatasetsForAccount({ accountId, tabId }) {
+  return executeInPage(
+    async (accountId) => {
+      const response = await fetch(`/api/data/v2/datasources/account/${accountId}`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch datasets for account ${accountId}. HTTP status: ${response.status}`);
+      }
+      return response.json();
+    },
+    [accountId],
+    tabId
+  );
+}
+
+/**
  * Get all datasets for a data app or worksheet
  * @param {Object} params - Parameters
  * @param {string|number} params.appId - The data app or worksheet ID
@@ -242,6 +301,25 @@ export function getDatasetsForDataflow({ details }) {
     name: output.dataSourceName || `Dataset ${output.dataSourceId}`
   }));
 
+  return { inputs, outputs };
+}
+
+/**
+ * Get datasets from a Jupyter workspace's input and output configuration.
+ * Mirrors `getDatasetsForDataflow`'s `{ inputs, outputs }` shape so the view can
+ * render both the same way, but the workspace stores dataset references as
+ * id-only configuration entries, so each side is enriched with the dataset's
+ * core details (name, owner, etc.) before being returned.
+ * @param {Object} params - Parameters
+ * @param {Object} params.details - The workspace metadata.details object
+ * @param {number} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<{inputs: Array<Object>, outputs: Array<Object>}>}
+ */
+export async function getDatasetsForJupyterWorkspace({ details, tabId }) {
+  const [inputs, outputs] = await Promise.all([
+    getJupyterWorkspaceDatasets({ entries: details?.inputConfiguration, tabId }),
+    getJupyterWorkspaceDatasets({ entries: details?.outputConfiguration, tabId })
+  ]);
   return { inputs, outputs };
 }
 
@@ -477,6 +555,28 @@ export async function getProviders() {
 }
 
 /**
+ * Fetch a stream's full definition. The account a connector-backed dataset pulls
+ * from lives on this object, so it's the source of truth for switching accounts.
+ * @param {Object} params
+ * @param {string|number} params.streamId - The stream ID
+ * @param {number} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<Object>} The stream definition
+ */
+export async function getStreamDefinition({ streamId, tabId }) {
+  return executeInPage(
+    async (streamId) => {
+      const response = await fetch(`/api/data/v1/streams/${streamId}?fields=all`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch stream ${streamId}. HTTP status: ${response.status}`);
+      }
+      return response.json();
+    },
+    [streamId],
+    tabId
+  );
+}
+
+/**
  * Get a single stream execution's detailed data
  * @param {Object} params - Parameters
  * @param {string|number} params.streamId - The stream ID
@@ -555,11 +655,21 @@ export async function searchDatasets(text, tabId = null, offset = 0) {
   const trimmed = text?.trim() || '';
   const isId = !!trimmed && getObjectType('DATA_SOURCE').isValidObjectId(trimmed);
 
-  // A valid dataset ID narrows the search to that one dataset via databaseId.
-  const filters = isId ? [{ field: 'databaseId', filterType: 'term', value: trimmed }] : [];
+  // Mirror Domo's own dataset search: the top-level `query` stays '*' and the
+  // search text rides in a filter. A valid dataset ID narrows to that one
+  // dataset via a `databaseId` term filter; otherwise a name search uses a
+  // `name_sort` wildcard so it matches the dataset name only. Putting the raw
+  // text in the top-level `query` instead runs a broad relevance search across
+  // every indexed field, which floods the list with unrelated matches.
+  let filters = [];
+  if (isId) {
+    filters = [{ field: 'databaseId', filterType: 'term', value: trimmed }];
+  } else if (trimmed) {
+    filters = [{ field: 'name_sort', filterType: 'wildcard', query: `*${trimmed}*` }];
+  }
 
   return executeInPage(
-    async (filters, query, offset, count) => {
+    async (filters, offset, count) => {
       const response = await fetch('/api/data/ui/v3/datasources/search', {
         body: JSON.stringify({
           combineResults: true,
@@ -567,7 +677,7 @@ export async function searchDatasets(text, tabId = null, offset = 0) {
           entities: ['DATASET'],
           filters,
           offset,
-          query,
+          query: '*',
           sort: {
             fieldSorts: [{ field: 'create_date', sortOrder: 'DESC' }],
             isRelevance: false
@@ -585,7 +695,7 @@ export async function searchDatasets(text, tabId = null, offset = 0) {
         totalCount: data._metaData?.totalCount ?? null
       };
     },
-    [filters, isId ? '*' : trimmed || '*', offset, DATASETS_PAGE_SIZE],
+    [filters, offset, DATASETS_PAGE_SIZE],
     tabId
   );
 }
@@ -732,5 +842,78 @@ export async function updateDatasetProperties(datasetId, updates) {
       return res.json().catch(() => null);
     },
     [datasetId, JSON.stringify(updates)]
+  );
+}
+
+/**
+ * Swap the account(s) a stream pulls from. Re-points one or more of the stream's
+ * existing accounts at new ones, leaving every other field of the definition
+ * untouched, then PUTs the definition back (the same GET-mutate-PUT contract
+ * `setStreamScheduleToManual` uses).
+ *
+ * A stream definition often carries both a singular `account` object and an
+ * `accounts` array. The array is authoritative when populated: an empty `accounts`
+ * means the stream uses the singular `account` (so we rewrite `account.id`),
+ * otherwise we rewrite the matching entries in `accounts`.
+ *
+ * `accountChanges` maps an existing accountId to its replacement. We throw if no id
+ * matched, since a zero-match PUT would silently report success without changing
+ * anything.
+ *
+ * @param {Object} params
+ * @param {string|number} params.streamId - The stream ID
+ * @param {Object} params.accountChanges - Map of oldAccountId -> newAccountId
+ * @param {number} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<Object>} The updated stream definition
+ */
+export async function updateStreamAccounts({ accountChanges, streamId, tabId }) {
+  return executeInPage(
+    async (streamId, changes) => {
+      const getResponse = await fetch(`/api/data/v1/streams/${streamId}?fields=all`);
+      if (!getResponse.ok) {
+        throw new Error(`Failed to fetch stream ${streamId}. HTTP status: ${getResponse.status}`);
+      }
+      const definition = await getResponse.json();
+
+      // `changes` arrives as string-keyed pairs (JSON object keys are strings),
+      // so compare ids loosely against both the numeric and string forms.
+      const replacementFor = (id) => {
+        if (id == null) return undefined;
+        return changes[id] ?? changes[String(id)];
+      };
+      let replaced = 0;
+
+      if (Array.isArray(definition.accounts) && definition.accounts.length > 0) {
+        definition.accounts = definition.accounts.map((entry) => {
+          if (!entry || typeof entry !== 'object') return entry;
+          const next = replacementFor(entry.accountId ?? entry.id);
+          if (next == null) return entry;
+          replaced++;
+          return 'accountId' in entry ? { ...entry, accountId: next } : { ...entry, id: next };
+        });
+      } else if (definition.account && typeof definition.account === 'object') {
+        const next = replacementFor(definition.account.id);
+        if (next != null) {
+          definition.account = { ...definition.account, id: next };
+          replaced++;
+        }
+      }
+
+      if (replaced === 0) {
+        throw new Error('Could not locate the account on the stream definition to switch.');
+      }
+
+      const putResponse = await fetch(`/api/data/v1/streams/${streamId}`, {
+        body: JSON.stringify(definition),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'PUT'
+      });
+      if (!putResponse.ok) {
+        throw new Error(`Failed to update stream ${streamId}. HTTP status: ${putResponse.status}`);
+      }
+      return putResponse.json();
+    },
+    [streamId, accountChanges],
+    tabId
   );
 }

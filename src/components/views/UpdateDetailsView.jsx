@@ -2,12 +2,14 @@ import {
   Button,
   Card,
   ComboBox,
+  Description,
   Input,
   Label,
   ListBox,
   ListLayout,
   Separator,
   Spinner,
+  Switch,
   TextArea,
   TextField,
   Tooltip,
@@ -17,14 +19,21 @@ import { useEffect, useRef, useState } from 'react';
 
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { DomoContext } from '@/models/DomoContext';
+import { renameAppDbCollection } from '@/services/appDb';
 import { updateDataflowDetails } from '@/services/dataflows';
 import { getProviders, updateDatasetProperties } from '@/services/datasets';
+import { setUserAttributes } from '@/services/users';
+import { buildReloadAction } from '@/utils/headerActions';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconArrowCurvedBack from '@icons/arrow-curved-back.svg?react';
 import IconChevronDown from '@icons/chevron-down.svg?react';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
+import IconPencil from '@icons/pencil.svg?react';
 import IconSync from '@icons/sync.svg?react';
-import IconX from '@icons/x.svg?react';
+
+import { ViewHeader } from './ViewHeader';
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const updatersByType = {
   DATA_SOURCE: {
@@ -47,7 +56,6 @@ const updatersByType = {
         .sort();
     },
     run: (id, updates) => updateDatasetProperties(id, updates),
-    title: 'Update DataSet Details',
     typeName: 'DataSet'
   },
   DATAFLOW_TYPE: {
@@ -60,17 +68,54 @@ const updatersByType = {
       name: ctx.domoObject?.metadata?.details?.name || ''
     }),
     run: (id, updates) => updateDataflowDetails(id, updates),
-    title: 'Update DataFlow Details',
     typeName: 'DataFlow'
+  },
+  MAGNUM_COLLECTION: {
+    fields: [{ key: 'name', kind: 'text', label: 'Collection Name', required: true }],
+    getOriginal: (ctx) => ({
+      name: ctx.domoObject?.metadata?.details?.name || ''
+    }),
+    run: (id, updates) => renameAppDbCollection({ collectionId: id, name: updates.name }),
+    typeName: 'Collection'
+  },
+  USER: {
+    applyToggles: (diff, { originalValues, toggles }) => {
+      if (toggles.syncEmail && diff.userName && diff.userName !== originalValues.email) {
+        return { ...diff, email: diff.userName };
+      }
+      return diff;
+    },
+    fields: [{ key: 'userName', kind: 'email', label: 'Username', required: true, syncFromKey: 'email' }],
+    getOriginal: (ctx) => ({
+      email: ctx.domoObject?.metadata?.details?.emailAddress || '',
+      userName: ctx.domoObject?.metadata?.details?.userName || ''
+    }),
+    run: async (id, updates) => {
+      const attributes = [];
+      if ('userName' in updates) attributes.push({ key: 'userName', values: [updates.userName] });
+      if ('email' in updates) attributes.push({ key: 'emailAddress', values: [updates.email] });
+      const ok = await setUserAttributes(id, attributes);
+      if (!ok) throw new Error('Failed to update user');
+    },
+    toggles: [
+      {
+        defaultSelected: true,
+        description: 'Sets the email to the new username on save',
+        key: 'syncEmail',
+        label: 'Also update email to match'
+      }
+    ],
+    typeName: 'Person'
   }
 };
 
-export function UpdateDetailsView({ onBackToDefault = null, onStatusUpdate = null }) {
+export function UpdateDetailsView({ instance = null, liveContext = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   const [currentContext, setCurrentContext] = useState(null);
   const [config, setConfig] = useState(null);
   const [originalValues, setOriginalValues] = useState({});
   const [values, setValues] = useState({});
+  const [toggles, setToggles] = useState({});
   const [options, setOptions] = useState(null);
   const [optionsError, setOptionsError] = useState(null);
   const [isLoadingOptions, setIsLoadingOptions] = useState(false);
@@ -88,7 +133,7 @@ export function UpdateDetailsView({ onBackToDefault = null, onStatusUpdate = nul
 
   const loadData = async () => {
     try {
-      const data = await getSidepanelData();
+      const data = await getSidepanelData(instance);
       if (!data || data.type !== 'updateDetails') {
         onBackToDefault?.();
         return;
@@ -107,6 +152,7 @@ export function UpdateDetailsView({ onBackToDefault = null, onStatusUpdate = nul
       setConfig(cfg);
       setOriginalValues(original);
       setValues(original);
+      setToggles(Object.fromEntries((cfg.toggles || []).map((t) => [t.key, !!t.defaultSelected])));
       if (cfg.loadOptions) loadOptions(cfg);
     } catch (error) {
       console.error('[UpdateDetailsView] Error loading data:', error);
@@ -192,8 +238,12 @@ export function UpdateDetailsView({ onBackToDefault = null, onStatusUpdate = nul
         onStatusUpdate?.(`${f.label} is required`, '', 'warning', 2000);
         return;
       }
+      if (f.kind === 'email' && diff[f.key] !== undefined && !EMAIL_PATTERN.test(diff[f.key])) {
+        onStatusUpdate?.(`${f.label} must be a valid email address`, '', 'warning', 2000);
+        return;
+      }
     }
-    performUpdate(diff);
+    performUpdate(config.applyToggles ? config.applyToggles(diff, { originalValues, toggles }) : diff);
   };
 
   const handleReset = () => {
@@ -219,32 +269,23 @@ export function UpdateDetailsView({ onBackToDefault = null, onStatusUpdate = nul
 
   return (
     <Card className='flex min-h-0 w-full flex-1 flex-col p-2'>
-      <Card.Header className='gap-2'>
-        <Card.Title className='flex items-start justify-between'>
-          <div className='min-w-0 flex-1 pt-1'>
-            <div className='truncate'>{config.title}</div>
-            <Tooltip>
-              <Tooltip.Trigger className='block w-full min-w-0 pr-8'>
-                <div className='truncate text-xs font-normal text-muted'>
-                  {objectName} (ID: {objectId})
-                </div>
-              </Tooltip.Trigger>
-              <Tooltip.Content className='text-wrap'>
-                {objectName} (ID: {objectId})
-              </Tooltip.Content>
-            </Tooltip>
-          </div>
-          {onBackToDefault && (
-            <Tooltip>
-              <Button isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
-                <IconX />
-              </Button>
-              <Tooltip.Content className='max-w-60'>Close</Tooltip.Content>
-            </Tooltip>
-          )}
-        </Card.Title>
-        <Separator />
-      </Card.Header>
+      <ViewHeader
+        feature={`Update Details for ${objectName}`}
+        featureIcon={<IconPencil />}
+        subtext={`ID: ${objectId}`}
+        subtextTypeId={currentContext.domoObject.typeId}
+        onClose={onBackToDefault}
+        actions={[
+          buildReloadAction({
+            currentContext: liveContext,
+            objectId: currentContext.domoObject.id,
+            objectType: currentContext.domoObject.typeId,
+            onStatusUpdate,
+            viewType: 'updateDetails'
+          })
+        ]}
+      />
+      <Separator />
 
       <div className='flex flex-col gap-2'>
         {config.fields.map((field) => (
@@ -256,6 +297,7 @@ export function UpdateDetailsView({ onBackToDefault = null, onStatusUpdate = nul
             options={options}
             optionsError={optionsError}
             originalValue={originalValues[field.key]}
+            syncValue={field.syncFromKey ? (originalValues[field.syncFromKey] ?? '') : undefined}
             value={values[field.key] ?? ''}
             onChange={(v) => setValue(field.key, v)}
             onReset={hasResettableValue ? handleReset : undefined}
@@ -265,6 +307,23 @@ export function UpdateDetailsView({ onBackToDefault = null, onStatusUpdate = nul
       </div>
 
       <div className='flex shrink-0 flex-col gap-2'>
+        {(config.toggles || []).map((toggle) => (
+          <Switch
+            className='py-1'
+            isDisabled={isSubmitting}
+            isSelected={!!toggles[toggle.key]}
+            key={toggle.key}
+            onChange={(v) => setToggles((prev) => ({ ...prev, [toggle.key]: v }))}
+          >
+            <Switch.Control>
+              <Switch.Thumb />
+            </Switch.Control>
+            <Switch.Content>
+              <Label>{toggle.label}</Label>
+              <Description>{toggle.description}</Description>
+            </Switch.Content>
+          </Switch>
+        ))}
         <Button fullWidth isDisabled={isSubmitting} isPending={isSubmitting} variant='primary' onPress={handleSubmit}>
           Save
         </Button>
@@ -283,6 +342,7 @@ function FieldRow({
   options,
   optionsError,
   originalValue,
+  syncValue,
   value
 }) {
   if (field.kind === 'text') {
@@ -291,6 +351,38 @@ function FieldRow({
         <Label>{field.label}</Label>
         <Input className='h-8' isDisabled={isDisabled} value={value} onChange={(e) => onChange(e.target.value)} />
       </TextField>
+    );
+  }
+
+  if (field.kind === 'email') {
+    const showSyncButton = Boolean(field.syncFromKey);
+    const isSyncDisabled = isDisabled || !syncValue || value === syncValue;
+    return (
+      <div className='flex flex-col gap-1'>
+        <TextField id={`update-${field.key}`} isRequired={field.required} name={field.key} variant='secondary'>
+          <Label>{field.label}</Label>
+          <div className='flex items-center gap-1'>
+            <Input
+              className='h-8 flex-1'
+              isDisabled={isDisabled}
+              type='email'
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+            />
+            {showSyncButton && (
+              <Tooltip>
+                <Button isIconOnly isDisabled={isSyncDisabled} size='md' variant='tertiary' onPress={() => onChange(syncValue)}>
+                  <IconSync />
+                </Button>
+                <Tooltip.Content className='max-w-60'>
+                  {syncValue ? `Set to current email (${syncValue})` : 'No email to copy'}
+                </Tooltip.Content>
+              </Tooltip>
+            )}
+          </div>
+        </TextField>
+        {showSyncButton && <span className='text-xs text-muted'>Current email: {syncValue || 'none'}</span>}
+      </div>
     );
   }
 
@@ -358,7 +450,7 @@ function FieldRow({
               </Button>
               <Tooltip.Content className='max-w-60'>
                 {originalValue
-                  ? 'Reset — clears userDefinedType and restores displayType to dataProviderType'
+                  ? 'Reset: clears userDefinedType and restores displayType to dataProviderType'
                   : 'Nothing to reset'}
               </Tooltip.Content>
             </Tooltip>

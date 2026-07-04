@@ -1,24 +1,27 @@
-import { Alert, Button, ButtonGroup, Card, Chip, Disclosure, Link, ScrollShadow, Spinner, Tooltip } from '@heroui/react';
+import { Button, Card, Disclosure, Link, ScrollShadow, Spinner } from '@heroui/react';
 import { useEffect, useState } from 'react';
 import JsonView from 'react18-json-view';
 
 import '@/assets/json-view-theme.css';
+import { Alert } from '@/components/Alert';
 import { CloseButton } from '@/components/CloseButton';
 import { useGroupLookup } from '@/hooks/useGroupLookup';
 import { useUserLookup } from '@/hooks/useUserLookup';
 import { DomoObject } from '@/models/DomoObject';
-import { formatEpochTimestamp, isDateFieldName, isGroupFieldName, isUserFieldName } from '@/utils/general';
+import { formatEpochTimestamp, formatTimestamp, isDateFieldName, isGroupFieldName, isUserFieldName } from '@/utils/general';
+import { buildRefreshAction, buildReloadAction } from '@/utils/headerActions';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconChevronDown from '@icons/chevron-down.svg?react';
 import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
-import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
 import IconSync from '@icons/sync.svg?react';
-import IconX from '@icons/x.svg?react';
 
+import { AlertStatusIcon } from '../AlertStatusIcon';
 import { AnimatedCheck } from '../AnimatedCheck';
 import { GroupIdAnnotation } from '../GroupIdAnnotation';
+import { ObjectTypeIcon } from '../ObjectTypeIcon';
 import { TimestampAnnotation } from '../TimestampAnnotation';
 import { UserIdAnnotation } from '../UserIdAnnotation';
+import { ViewHeader } from './ViewHeader';
 
 /**
  * Known fields to display prominently with human-readable labels.
@@ -34,18 +37,16 @@ const KNOWN_FIELDS = [
   { key: 'description', label: 'Description' },
   { key: 'status', label: 'Status' },
   { format: 'boolean', key: 'valid', label: 'Valid' },
-  { format: 'date', key: 'createdAt', label: 'Created' },
   { format: 'date', key: 'modifiedAt', label: 'Modified' },
   { format: 'date', key: 'updatedAt', label: 'Updated' },
   { format: 'date', key: 'lastUpdated', label: 'Last Updated' },
   { format: 'date', key: 'dataModified', label: 'Data Modified' },
-  { format: 'date', key: 'createdDate', label: 'Created' },
   { format: 'date', key: 'modifiedDate', label: 'Modified' },
   { format: 'number', key: 'rowCount', label: 'Row Count' },
   { format: 'number', key: 'columnCount', label: 'Column Count' }
 ];
 
-export function ObjectDetailsView({ onBackToDefault = null, onStatusUpdate = null }) {
+export function ObjectDetailsView({ instance = null, liveContext = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRetrying, setIsRetrying] = useState(false);
   const [showSpinner, setShowSpinner] = useState(false);
@@ -56,7 +57,7 @@ export function ObjectDetailsView({ onBackToDefault = null, onStatusUpdate = nul
   const groupMap = useGroupLookup(domoObject?.metadata?.details);
   const userMap = useUserLookup(domoObject?.metadata?.details);
 
-  // Remount JsonView when lookup maps change — react18-json-view's JsonNode
+  // Remount JsonView when lookup maps change: react18-json-view's JsonNode
   // calls useContext before customizeNode's early return but useState after
   // it, so switching a node between element/config returns mid-render trips
   // the Rules of Hooks. Remounting on map changes sidesteps the library bug.
@@ -79,7 +80,7 @@ export function ObjectDetailsView({ onBackToDefault = null, onStatusUpdate = nul
     }, 200);
 
     try {
-      const data = await getSidepanelData();
+      const data = await getSidepanelData(instance);
 
       if (!data || data.type !== 'viewObjectDetails') {
         setError('No object details found. Please try again.');
@@ -93,9 +94,13 @@ export function ObjectDetailsView({ onBackToDefault = null, onStatusUpdate = nul
       setError(null);
       setDomoObject(obj);
 
-      // Extract key fields from metadata details
+      // Extract key fields from metadata details, with the authoritative creation date
+      // (grabbed like name, on metadata.created) prepended ahead of anything in the raw details.
       const details = obj.metadata?.details || {};
-      setKeyFields(extractKeyFields(details));
+      const fields = extractKeyFields(details);
+      const createdValue = formatTimestamp(obj.metadata?.created);
+      if (createdValue) fields.unshift({ label: 'Created', value: createdValue });
+      setKeyFields(fields);
     } catch (err) {
       console.error('[ObjectDetailsView] Error loading details:', err);
       setError(err.message || 'Failed to load object details');
@@ -136,9 +141,7 @@ export function ObjectDetailsView({ onBackToDefault = null, onStatusUpdate = nul
   if (error) {
     return (
       <Alert className='w-full' status='warning'>
-        <Alert.Indicator>
-          <IconExclamationTriangle data-slot='alert-default-icon' />
-        </Alert.Indicator>
+        <AlertStatusIcon />
         <Alert.Content>
           <Alert.Title>Error</Alert.Title>
           <div className='flex flex-col items-start justify-center gap-2'>
@@ -158,37 +161,23 @@ export function ObjectDetailsView({ onBackToDefault = null, onStatusUpdate = nul
 
   return (
     <Card className='min-h-0 flex-1 overflow-hidden p-2'>
-      <Card.Header>
-        <Card.Title className='flex items-start justify-between'>
-          <div className='flex min-w-0 flex-1 flex-col gap-1'>
-            <div className='flex flex-wrap items-center gap-x-2'>
-              <span>{domoObject.metadata?.name || `ID: ${domoObject.id}`}</span>
-              <Chip color='accent' size='sm' variant='soft'>
-                {domoObject.typeName}
-              </Chip>
-            </div>
-            {domoObject.id && !(domoObject.metadata?.name || domoObject.typeId === 'STREAM') && (
-              <span className='text-sm text-muted'>ID: {domoObject.id}</span>
-            )}
-          </div>
-          <ButtonGroup hideSeparator className='shrink-0'>
-            <Tooltip>
-              <Button fullWidth isIconOnly size='sm' variant='ghost' onPress={handleCopyId}>
-                <IconClipboardCopy />
-              </Button>
-              <Tooltip.Content className='max-w-60'>Copy ID</Tooltip.Content>
-            </Tooltip>
-            {onBackToDefault && (
-              <Tooltip>
-                <Button fullWidth isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
-                  <IconX />
-                </Button>
-                <Tooltip.Content className='max-w-60'>Close</Tooltip.Content>
-              </Tooltip>
-            )}
-          </ButtonGroup>
-        </Card.Title>
-      </Card.Header>
+      <ViewHeader
+        featureIcon={<ObjectTypeIcon typeId={domoObject.typeId} />}
+        subject={domoObject.metadata?.name || `ID: ${domoObject.id}`}
+        subtext={domoObject.metadata?.name ? `ID: ${domoObject.id}` : undefined}
+        onClose={onBackToDefault}
+        actions={[
+          { ariaLabel: 'Copy ID', icon: <IconClipboardCopy />, key: 'copyId', onPress: handleCopyId, tooltip: 'Copy ID' },
+          buildReloadAction({
+            currentContext: liveContext,
+            objectId: domoObject?.id,
+            objectType: domoObject?.typeId,
+            onStatusUpdate,
+            viewType: 'viewObjectDetails'
+          }),
+          buildRefreshAction({ isRefreshing: isRetrying, onRefresh: handleRetry })
+        ]}
+      />
 
       <ScrollShadow hideScrollBar className='min-h-0 flex-1 overflow-y-auto' orientation='vertical'>
         <Card.Content className='flex flex-col gap-3'>

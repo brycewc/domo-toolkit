@@ -13,7 +13,6 @@ import { isSidepanel, openSidepanel, storeSidepanelData } from '@/utils/sidepane
 import IconArrowSquareOut from '@icons/arrow-square-out.svg?react';
 import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
-import IconEye from '@icons/eye.svg?react';
 import IconRightRailFill from '@icons/right-rail-fill.svg?react';
 
 import { DisabledTooltip } from '../DisabledTooltip';
@@ -47,7 +46,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
     return getAllNavigableObjectTypes()
       .filter((type) => {
         // Types whose parent is resolvable from an ID alone (e.g. DATA_APP_VIEW)
-        // are always navigable — `buildObjectUrl` / `fetchObjectMetadata` fill
+        // are always navigable; `buildObjectUrl` / `fetchObjectMetadata` fill
         // the placeholder lazily via `DomoObject.getParent`.
         if (type.canResolveParentFromIdAlone()) return true;
         // Otherwise include only types that don't need a parent at all:
@@ -182,7 +181,10 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
       if (typeConfig.id === 'PAGE' && metadata.details.type !== 'page') {
         continue;
       }
-      // TEMPLATE and CERTIFICATION_PROCESS share the same API endpoint —
+      if (typeConfig.id === 'REPORT_BUILDER_PAGE' && metadata.details.type !== 'rbv') {
+        continue;
+      }
+      // TEMPLATE and CERTIFICATION_PROCESS share the same API endpoint;
       // discriminate by `details.type`: 'AC' → TEMPLATE, anything else → CERTIFICATION_PROCESS.
       if (typeConfig.id === 'TEMPLATE' && metadata.details.type !== 'AC') {
         continue;
@@ -192,7 +194,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
       }
 
       const domoObject = buildResolvedDomoObject(typeConfig, metadata, baseUrl, text);
-      // STREAM without an associated dataset can't redirect — try next type.
+      // STREAM without an associated dataset can't redirect; try next type.
       if (!domoObject) continue;
 
       setResolvedObject(domoObject);
@@ -221,7 +223,13 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
     async (domoObject) => {
       try {
         if (!domoObject.hasUrl()) {
+          // Scope both writes to the object's own instance: this flow can target
+          // an instance other than the active tab's (defaultDomoInstance fallback
+          // on non-Domo tabs), and the loading write has no context to derive from.
+          const { hostname } = new URL(domoObject.baseUrl);
+          const instance = hostname.endsWith('.domo.com') ? hostname.replace('.domo.com', '') : null;
           await storeSidepanelData({
+            instance,
             message: 'Loading object details...',
             timestamp: Date.now(),
             type: 'loading'
@@ -232,6 +240,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
           await storeSidepanelData({
             currentContext,
             domoObject: domoObject.toJSON(),
+            instance,
             type: 'viewObjectDetails'
           });
           return;
@@ -314,10 +323,15 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
       </Tooltip>
       <Dropdown.Popover className='flex max-h-80 w-80 min-w-80 flex-col overflow-hidden' placement='bottom'>
         {copiedId && (
-          <div className='pointer-events-none flex shrink-0 items-center gap-1 px-2 pt-2 font-mono text-xs text-muted select-none'>
-            <IconClipboardCopy size={12} />
-            <p title='Current clipboard value'>{copiedId}</p>
-          </div>
+          <Tooltip>
+            <Tooltip.Trigger>
+              <span className='pointer-events-none flex w-fit shrink-0 items-center gap-1 px-2 pt-2 font-mono text-xs text-muted select-none'>
+                <IconClipboardCopy size={12} />
+                {copiedId}
+              </span>
+            </Tooltip.Trigger>
+            <Tooltip.Content className='max-w-60'>Clipboard contents (auto-detected ID)</Tooltip.Content>
+          </Tooltip>
         )}
         <Dropdown.Menu className='min-h-0 flex-1 overflow-auto overscroll-contain' onAction={handleAction}>
           <Dropdown.Section>
@@ -331,7 +345,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
               id='_error'
               textValue={error || 'Error'}
             >
-              <IconExclamationTriangle className='size-5 shrink-0' />
+              <IconExclamationTriangle className='size-4 shrink-0' />
               <Label className='text-muted'>{error}</Label>
             </Dropdown.Item>
             <Dropdown.Item
@@ -339,7 +353,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
               id='_resolved'
               textValue='Navigate'
             >
-              <ObjectTypeIcon className='size-5 shrink-0' typeId={resolvedObject?.typeId} />
+              <ObjectTypeIcon className='size-4 shrink-0' typeId={resolvedObject?.typeId} />
               <div className='flex flex-col gap-1'>
                 <Chip className='w-fit lowercase' color='accent' size='sm' variant='soft'>
                   {resolvedObject?.typeName}
@@ -349,7 +363,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
               {resolvedObject?.hasUrl() ? (
                 <IconArrowSquareOut className='ml-auto size-5 shrink-0' />
               ) : (
-                <IconEye className='ml-auto size-5 shrink-0' />
+                <IconRightRailFill className='ml-auto size-5 shrink-0' />
               )}
             </Dropdown.Item>
           </Dropdown.Section>
@@ -361,7 +375,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
                 <Header>Manual selection</Header>
                 {filteredTypes.map((type) => (
                   <Dropdown.Item id={type.id} key={type.id} textValue={type.name}>
-                    <ObjectTypeIcon className='size-5 shrink-0' typeId={type.id} />
+                    <ObjectTypeIcon className='size-4 shrink-0' typeId={type.id} />
                     <Label>{type.name}</Label>
                     {type.hasUrl() || type.redirectsToType ? (
                       <IconArrowSquareOut className='ml-auto size-5 shrink-0' />
@@ -380,10 +394,11 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
 }
 
 function buildDomoMetadata(typeConfig, metadata) {
-  const domoMetadata = {
-    details: metadata.details,
-    name: metadata.name
-  };
+  // Carry through every field fetchObjectDetailsInPage resolved (name, created,
+  // parentId, and any future `api.paths` entry), mirroring the page-detection
+  // path's whole-object assign in background.js. Spreading instead of an explicit
+  // allowlist means a new declared path flows here automatically.
+  const domoMetadata = { ...metadata };
   // CERTIFICATION_PROCESS doesn't go through the page-detection pipeline, so
   // the clipboard flow has to add the context discriminator itself.
   if (typeConfig.id === 'CERTIFICATION_PROCESS' && metadata.details?.type) {
@@ -395,7 +410,7 @@ function buildDomoMetadata(typeConfig, metadata) {
 }
 
 function buildResolvedDomoObject(typeConfig, metadata, baseUrl, fallbackId) {
-  // STREAM has no UI of its own in Domo — redirect to its associated dataset.
+  // STREAM has no UI of its own in Domo; redirect to its associated dataset.
   if (typeConfig.id === 'STREAM') {
     const datasetId = metadata.details?.dataSource?.id;
     if (!datasetId) return null;

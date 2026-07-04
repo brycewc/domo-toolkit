@@ -6,6 +6,8 @@ import {
   CheckboxGroup,
   Disclosure,
   DisclosureGroup,
+  Dropdown,
+  Label,
   Link,
   Popover,
   ScrollShadow,
@@ -14,29 +16,38 @@ import {
   Tooltip
 } from '@heroui/react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { memo, useCallback, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { getAvailableActions } from '@/utils/availableActions';
+import { getObjectType } from '@/models/DomoObjectType';
+import { shareWithSelf } from '@/services/share';
+import { launchActivityLog } from '@/utils/activityLog';
 import { getValidTabForInstance } from '@/utils/currentObject';
-import { parseMarkdownBold, stripMarkdownBold } from '@/utils/markdown';
+import { buildRefreshAction, buildReloadAction } from '@/utils/headerActions';
+import {
+  collectShareableObjects,
+  getRowActionsForType,
+  hasShareableChildren,
+  isItemShareable,
+  isShareableType
+} from '@/utils/rowActions';
 import { launchView } from '@/utils/sidepanel';
 import IconArrowSquareOut from '@icons/arrow-square-out.svg?react';
-import IconCancel from '@icons/cancel.svg?react';
 import IconChevronDown from '@icons/chevron-down.svg?react';
 import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
 import IconCompass from '@icons/compass.svg?react';
 import IconDotsHorizontal from '@icons/dots-horizontal.svg?react';
 import IconInfoCircle from '@icons/info-circle.svg?react';
 import IconLineage from '@icons/lineage.svg?react';
-import IconPeoplePlus from '@icons/people-plus.svg?react';
+import IconListSearch from '@icons/list-search.svg?react';
 import IconPersonPlus from '@icons/person-plus.svg?react';
-import IconReset from '@icons/reset.svg?react';
-import IconSync from '@icons/sync.svg?react';
+import IconSearch from '@icons/search.svg?react';
+import IconTree from '@icons/tree.svg?react';
 import IconX from '@icons/x.svg?react';
 
 import { AnimatedCheck } from '../AnimatedCheck';
-import { DisabledTooltip } from '../DisabledTooltip';
+import { ErrorAlert } from '../ErrorAlert';
 import { ObjectTypeIcon } from '../ObjectTypeIcon';
+import { ViewHeader } from './ViewHeader';
 
 /**
  * DataList Component
@@ -51,25 +62,28 @@ import { ObjectTypeIcon } from '../ObjectTypeIcon';
  * - Configurable header action buttons (with built-in copy and openAll handling)
  * - Responsive design with Tailwind CSS
  *
- * Standard actions (copy, openAll) are handled internally.
- * Custom actions (refresh, shareAll, share) are delegated via callbacks.
+ * Standard actions (copy, openAll, share, share-all, lineage, viewsExplorer,
+ * activity log) are handled internally. Which actions a row shows is driven by
+ * its object type (see `@/utils/rowActions`), optionally narrowed by the
+ * `itemActions` allow-list. Refresh/reload are delegated via callbacks.
  *
  * @param {Object} props
+ * @param {React.ReactNode} [props.banner] - Content rendered inside the Card between the header and the items list (after the header `<Separator>`), pinned above the scroll area. Use for status/context that belongs to the whole list (e.g. a dependency-check alert above a delete view's affected-objects list). Pass `null`/`false` to omit.
  * @param {Array} props.items - Array of list items with optional children
- * @param {string} props.title - Plain-text header title. Supports inline `**bold**` markdown for emphasis (parsed via `parseMarkdownBold`). The tooltip mirrors the same text with bold markers stripped so the overlay reads as unstyled prose.
- * @param {1|2} [props.titleLineClamp=1] - Max lines the header title clamps to before truncating. Defaults to 1; pass 2 for long titles (e.g. a bolded object name) that read better across two lines.
+ * @param {React.ReactNode} [props.featureIcon] - Large header icon identifying the view (passed through to `ViewHeader`), spanning the title and subtext rows.
+ * @param {string} [props.feature] - The feature + connecting text for the title, e.g. "Beast Modes for" (passed through to `ViewHeader`).
+ * @param {string} [props.subject] - The subject object's display name, rendered bold in the title (passed through to `ViewHeader`).
+ * @param {string} [props.subjectTypeId] - typeId for an `ObjectTypeIcon` rendered inline before the subject. Defaults to `objectType` when omitted.
+ * @param {boolean} [props.beta] - Renders the standard "Beta" chip beneath the feature icon (passed through to `ViewHeader`).
  * @param {HeaderActionType[]} props.headerActions - Array of action types to show in header
  * @param {Function} props.onClose - Callback when close button is clicked (shows close button if provided)
  * @param {boolean} props.isRefreshing - Whether refresh action is in progress
- * @param {string|number} props.objectId - Object ID for header copy action
+ * @param {string|number} props.objectId - The view's source object ID, used by the `reload` header action to detect when the current object already matches this view
  * @param {Function} props.onRefresh - Callback for refresh action
- * @param {Function} props.onShareAll - Callback for shareAll header action
- * @param {ItemActionType[]} props.itemActions - Array of action types to show on items (if not provided, uses default logic)
- * @param {Function} props.onItemRemove - Callback for remove item action (item) => void
- * @param {Function} props.onItemShare - Callback for share item action (actionType, item) => void
- * @param {Function} props.onItemShareAll - Callback for shareAll item action (actionType, item) => void
+ * @param {ItemActionType[]} [props.itemActions] - Optional allow-list narrowing the per-type action menu (e.g. `['copy']` for selection-mode lists). Omit to show every action the row's type supports.
  * @param {Function} props.onStatusUpdate - Callback to show status messages (title, description, status, timeout)
  * @param {Boolean} props.showActions - Whether to show action buttons on items
+ * @param {Boolean} [props.showActivityLogAll] - Whether to show the header "View activity log for all" action (default true). Set false for selection-style lists where a bulk activity-log view is out of place.
  * @param {Boolean} props.showCounts - Whether to show item counts
  * @param {String} props.objectType - The type of object being displayed (e.g., 'DATA_APP_VIEW', 'PAGE')
  * @param {String} props.itemLabel - Label for items in status messages (default: 'item')
@@ -83,8 +97,7 @@ import { ObjectTypeIcon } from '../ObjectTypeIcon';
  * @param {React.ReactNode} [props.selectionToolbar] - Selection-mode-only content rendered as a third header row directly under the action buttons. Use for "Select all"/"Deselect all" or other bulk-selection controls. Ignored when `selectionMode` is false.
  * @param {Boolean} [props.fillHeight] - When true, the root Card fills its parent's available height (`h-full`) instead of being content-sized (`max-h-fit`), so the items list scrolls internally and the footer stays pinned at the bottom. Requires a parent that provides a constrained height (a flex/grid column). Default false preserves content-sizing.
  * @param {React.ReactNode} [props.footer] - Content rendered inside the Card below the items list, separated from the scroll area by a `<Separator>`. Use for a primary action that should sit pinned beneath the list (e.g. a full-width "Transfer ownership to…" button in selection mode). Consumers decide visibility; pass `null`/`false` to omit.
- * @param {string} [props.subtext] - Plain-text secondary content for the second header row (typically counts, status text, or a breadcrumb). Supports inline `**bold**` markdown the same way `title` does. Truncates if it can't fit alongside header actions, but does NOT get a hover tooltip; every subtext we render is a short, bounded count/status string and a tooltip mirroring already-visible text felt redundant.
- * @param {React.ReactNode} [props.subtextStartContent] - Node rendered inline at the start of the second header (subtext) row, before the subtext text (e.g. a status `Chip` such as "Beta"). Pass it `shrink-0` so the subtext truncates after it rather than the chip. Omit for no adornment.
+ * @param {string} [props.subtext] - Plain-text secondary content for the second header row (typically counts, status text, or a breadcrumb). Supports inline `**bold**` markdown. Truncates if it can't fit alongside header actions, but does NOT get a hover tooltip; every subtext we render is a short, bounded count/status string and a tooltip mirroring already-visible text felt redundant.
  * @param {Array<{ key: string, icon: React.ReactNode, tooltipText: string, onPress: () => void, isDisabled?: boolean, isActive?: boolean, ariaLabel?: string }>} [props.customHeaderActions] - View-specific header buttons rendered inline after the built-in `headerActions`. Use this for actions that don't fit the preset enum (Transfer Ownership, Selection toggle, etc.).
  * @param {string} [props.viewType] - The action key for this view (e.g. `'getCards'`, `'getDatasets'`). Required when `'reload'` is in `headerActions`. Used as the `type` passed to `launchView` and as the key looked up against `getAvailableActions(currentContext)` to decide if reload is enabled.
  * @param {Object} [props.currentContext] - Live `DomoContext` for the user's currently-active object. Required when `'reload'` is in `headerActions`. Drives whether reload is enabled (current object differs from original AND supports the view).
@@ -93,9 +106,13 @@ import { ObjectTypeIcon } from '../ObjectTypeIcon';
  */
 export function DataList({
   allowsMultipleExpanded = false,
+  banner,
+  beta = false,
   currentContext,
   customHeaderActions,
   defaultExpandedIds,
+  feature,
+  featureIcon,
   fillHeight = false,
   footer,
   getItemLock,
@@ -108,31 +125,43 @@ export function DataList({
   objectId,
   objectType,
   onClose,
-  onItemRemove,
-  onItemShare,
-  onItemShareAll,
   onRefresh,
   onSelectionChange,
-  onShareAll,
   onStatusUpdate,
   selectedIds,
   selectionMode = false,
   selectionToolbar,
   showActions = true,
+  showActivityLogAll = true,
   showCounts = true,
+  subject,
+  subjectTypeId,
   subtext,
-  subtextStartContent,
-  title,
-  titleLineClamp = 1,
   variant,
   viewType,
   virtualThreshold = 50
 }) {
-  const [isCopied, setIsCopied] = useState(false);
   const [isHeaderShared, setIsHeaderShared] = useState(false);
   // Centralized expansion state, keyed by item.id, survives unmount/remount
   // when items virtualize. See `VirtualizedItems` below.
   const [expandedIds, setExpandedIds] = useState(() => new Set(defaultExpandedIds || []));
+  // Auto-expand any defaultExpandedIds that appear *after* mount. A consumer
+  // whose items load asynchronously (e.g. the delete view's dependency groups)
+  // has an empty defaultExpandedIds at first render, so the one-time useState
+  // seed above misses them. We seed each id the first time we see it and never
+  // again, so a group the user later collapses isn't forced back open on a
+  // re-render.
+  const seededDefaultsRef = useRef(new Set(defaultExpandedIds || []));
+  useEffect(() => {
+    const fresh = (defaultExpandedIds ? [...defaultExpandedIds] : []).filter((id) => !seededDefaultsRef.current.has(id));
+    if (fresh.length === 0) return;
+    fresh.forEach((id) => seededDefaultsRef.current.add(id));
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      fresh.forEach((id) => next.add(id));
+      return next;
+    });
+  }, [defaultExpandedIds]);
   const onToggleExpanded = useCallback((id, isOpen) => {
     setExpandedIds((prev) => {
       const next = new Set(prev);
@@ -142,21 +171,60 @@ export function DataList({
     });
   }, []);
 
+  // Loggable objects across the whole list (deduped) for the header "View
+  // activity log for all" action. Drives both whether that header button shows
+  // and what it logs (every real object in the list + its descendants).
+  const headerLogObjects = useMemo(() => collectActivityLogObjects(items), [items]);
+  const hasHeaderLog = headerLogObjects.length > 0;
+
+  // Share is a built-in behavior: DataList shares with self via `shareWithSelf`
+  // using its own context, so views never wire share handlers. Disabled when
+  // there is no user to share to (so a dead button can't render).
+  const shareEnabled = !!currentContext?.user?.id;
+
+  // Share every shareable object in a subtree with the current user. Used by the
+  // header "Share all" and a row's "Share all" (which passes [item]).
+  const shareItemsWithSelf = useCallback(
+    async (nodes) => {
+      const objects = collectShareableObjects(nodes);
+      if (!objects.length) return;
+      let shared = 0;
+      let firstError = null;
+      for (const object of objects) {
+        try {
+          await shareWithSelf({ object, tabId: currentContext?.tabId, userId: currentContext?.user?.id });
+          shared++;
+        } catch (err) {
+          if (!firstError) firstError = err.message;
+        }
+      }
+      if (shared > 0) {
+        onStatusUpdate?.('Shared', `**${shared}** object${shared !== 1 ? 's' : ''} shared with yourself`, 'success', 2000);
+      } else {
+        onStatusUpdate?.('Share Failed', firstError || 'Failed to share', 'danger', 3000);
+      }
+    },
+    [currentContext, onStatusUpdate]
+  );
+
   /**
    * Handle header action button clicks
    * Standard actions (copy, openAll) are handled here.
-   * Custom actions are delegated to callbacks.
+   * Share is performed in-place via `shareWithSelf`.
    */
   const handleHeaderAction = useCallback(
     async (actionType) => {
       try {
         switch (actionType) {
-          case 'copy':
-            setIsCopied(true);
-            setTimeout(() => setIsCopied(false), 1000);
-            await navigator.clipboard.writeText(objectId?.toString() || '');
-            onStatusUpdate?.('Copied', `ID **${objectId}** copied to clipboard`, 'success', 2000);
+          case 'activityLogAll': {
+            if (headerLogObjects.length === 0) break;
+            const instance = activityLogInstanceFor(items) ?? currentContext?.instance ?? null;
+            if (instance) {
+              const tabId = await getValidTabForInstance(instance);
+              await launchActivityLog({ instance, objects: headerLogObjects, tabId, type: 'multi-object' });
+            }
             break;
+          }
 
           case 'openAll': {
             // Filter out DATA_APP items (we want their children, not the app itself)
@@ -187,7 +255,7 @@ export function DataList({
             break;
 
           case 'shareAll':
-            await onShareAll?.();
+            await shareItemsWithSelf(items);
             setIsHeaderShared(true);
             setTimeout(() => setIsHeaderShared(false), 1500);
             break;
@@ -200,7 +268,7 @@ export function DataList({
         onStatusUpdate?.('Error', err.message || `Failed to ${actionType}`, 'danger', 3000);
       }
     },
-    [currentContext, items, itemLabel, objectId, onRefresh, onShareAll, onStatusUpdate, viewType]
+    [currentContext, headerLogObjects, items, itemLabel, onRefresh, onStatusUpdate, shareItemsWithSelf, viewType]
   );
 
   /**
@@ -212,6 +280,34 @@ export function DataList({
     async (actionType, item) => {
       try {
         switch (actionType) {
+          case 'activityLog': {
+            const instance = item.domoObject?.baseUrl
+              ? new URL(item.domoObject.baseUrl).hostname.replace('.domo.com', '')
+              : null;
+            if (item.id && item.typeId && instance) {
+              const tabId = await getValidTabForInstance(instance);
+              await launchActivityLog({
+                instance,
+                objects: [{ id: String(item.originalId ?? item.id), name: item.label ?? '', type: item.typeId }],
+                tabId,
+                type: 'single-object'
+              });
+            }
+            break;
+          }
+          case 'activityLogAll': {
+            const objects = collectActivityLogObjects([item]);
+            if (objects.length === 0) {
+              onStatusUpdate?.('No Objects', 'No loggable objects found here', 'warning', 3000);
+              break;
+            }
+            const instance = activityLogInstanceFor([item]);
+            if (instance) {
+              const tabId = await getValidTabForInstance(instance);
+              await launchActivityLog({ instance, objects, tabId, type: 'multi-object' });
+            }
+            break;
+          }
           case 'copy': {
             // Prefer originalId for clipboard when present — consumers may
             // namespace `id` to avoid cross-namespace key collisions while
@@ -263,16 +359,15 @@ export function DataList({
             }
             break;
 
-          case 'remove':
-            onItemRemove?.(item);
+          case 'share': {
+            if (!item.domoObject) break;
+            await shareWithSelf({ object: item.domoObject, tabId: currentContext?.tabId, userId: currentContext?.user?.id });
+            onStatusUpdate?.('Shared', `**${item.label || item.id}** shared with yourself`, 'success', 2000);
             break;
-
-          case 'share':
-            await onItemShare?.(actionType, item);
-            break;
+          }
 
           case 'shareAll':
-            await onItemShareAll?.(actionType, item);
+            await shareItemsWithSelf([item]);
             break;
 
           case 'viewsExplorer': {
@@ -291,12 +386,71 @@ export function DataList({
         onStatusUpdate?.('Error', err.message || `Failed to ${actionType}`, 'danger', 3000);
       }
     },
-    [itemLabel, onItemRemove, onItemShare, onItemShareAll, onStatusUpdate]
+    [currentContext, itemLabel, onStatusUpdate, shareItemsWithSelf]
   );
 
   const hasInlineActions = headerActions.length > 0 || (customHeaderActions && customHeaderActions.length > 0);
   const hasSelectionToolbar = selectionMode && Boolean(selectionToolbar);
-  const hasHeader = title || subtext || subtextStartContent || hasInlineActions || onClose || hasSelectionToolbar;
+  const hasHeader = feature || subject || subtext || beta || hasInlineActions || onClose || hasSelectionToolbar;
+  // The header-level "View activity log for all" button shows only when a header
+  // already exists for some other reason: it never conjures a blank header just
+  // to host itself (headerless lists are still covered by the per-row "for all"
+  // action). It also respects `showActions`, so selection-only lists stay clean.
+  const showHeaderLogButton = hasHeaderLog && showActions && hasHeader && showActivityLogAll;
+
+  // Header action specs in display order: custom actions first, then Share All,
+  // Open All, the activity-log button, and finally the navigational Reload +
+  // Refresh at the far edge. Fed to ViewHeader's generic `actions` slot; reload
+  // and refresh come from the shared builders so they behave identically here
+  // and in the custom-header views.
+  const headerActionSpecs = [
+    ...(customHeaderActions ?? []).map((a) => ({
+      ariaLabel: a.ariaLabel,
+      icon: a.icon,
+      isActive: a.isActive,
+      isDisabled: a.isDisabled,
+      key: a.key,
+      onPress: a.onPress,
+      tooltip: a.tooltipText
+    })),
+    ...(shareEnabled && headerActions.includes('shareAll')
+      ? [
+          {
+            ariaLabel: 'Share All',
+            icon: isHeaderShared ? <AnimatedCheck /> : <IconPersonPlus />,
+            key: 'shareAll',
+            onPress: () => handleHeaderAction('shareAll'),
+            tooltip: isHeaderShared ? 'Shared!' : 'Share all with yourself'
+          }
+        ]
+      : []),
+    ...(headerActions.includes('openAll')
+      ? [
+          {
+            ariaLabel: 'Open All',
+            icon: <IconArrowSquareOut />,
+            key: 'openAll',
+            onPress: () => handleHeaderAction('openAll'),
+            tooltip: 'Open all in new tabs'
+          }
+        ]
+      : []),
+    ...(showHeaderLogButton
+      ? [
+          {
+            ariaLabel: 'View Activity Log for all',
+            icon: <IconListSearch />,
+            key: 'activityLogAll',
+            onPress: () => handleHeaderAction('activityLogAll'),
+            tooltip: 'View activity log for all in this list'
+          }
+        ]
+      : []),
+    ...(headerActions.includes('reload') && viewType
+      ? [buildReloadAction({ currentContext, objectId, objectType, onStatusUpdate, viewType })]
+      : []),
+    ...(headerActions.includes('refresh') ? [buildRefreshAction({ isRefreshing, onRefresh })] : [])
+  ];
 
   // In selection mode, wrap the rendered items in a HeroUI CheckboxGroup so
   // each row's `<Checkbox value={item.id}>` is driven by group context. The
@@ -324,187 +478,35 @@ export function DataList({
   // re-running on every state change (e.g. each Disclosure toggle).
   const sortedItems = useMemo(() => sortItemsByLabel(items), [items]);
 
+  // Remount key for the top-level DisclosureGroup. React Aria seeds a group's
+  // expansion from defaultExpandedKeys once at mount and ignores later changes,
+  // so a consumer whose expandable ids arrive asynchronously (e.g. the delete
+  // view, whose dependency groups appear only after the dependency check
+  // resolves) would render collapsed. Re-keying the group on its seed ids
+  // forces a fresh mount that re-reads them the moment they show up. Stable ids
+  // produce a stable key, so synchronous consumers never remount.
+  const expansionSeedKey = defaultExpandedIds ? [...defaultExpandedIds].join('|') : '';
+
   return (
     <Card
       className={`datalist-root flex min-h-0 w-full flex-1 flex-col gap-0 p-2 ${fillHeight ? 'h-full' : 'max-h-fit'}`}
       variant={variant}
     >
       {hasHeader && (
-        // HeroUI canonical header pattern: close button is an absolute-positioned
-        // sibling of Card.Title (NOT inside Card.Title). Card.Title is one line
-        // with right padding to clear the close icon. Subtext + action buttons
-        // live on a second row inside Card.Header. Actions render inline — no
-        // IconDotsHorizontal Popover collapse — so primary actions like Refresh are one
-        // click instead of two. Title and subtext are plain strings with optional
-        // `**bold**` markdown rendered via `parseMarkdownBold`. Only the title
-        // gets a HeroUI Tooltip (`stripMarkdownBold` flattens it for the
-        // overlay so the hover text reads as unstyled prose) — subtext is
-        // always a bounded short count/status string, so a tooltip mirroring
-        // already-visible content would be redundant.
-        <Card.Header className='gap-1'>
-          {title && (
-            <Tooltip>
-              <Tooltip.Trigger className='min-w-0 pr-8'>
-                <Card.Title className={titleLineClamp === 2 ? 'line-clamp-2' : 'line-clamp-1'}>
-                  {parseMarkdownBold(title)}
-                </Card.Title>
-              </Tooltip.Trigger>
-              <Tooltip.Content className='max-w-60'>{stripMarkdownBold(title)}</Tooltip.Content>
-            </Tooltip>
-          )}
-          {onClose && (
-            <Tooltip>
-              <Button
-                isIconOnly
-                aria-label='Close view'
-                className='absolute top-1 right-2'
-                size='sm'
-                variant='ghost'
-                onPress={onClose}
-              >
-                <IconX />
-              </Button>
-              <Tooltip.Content className='max-w-60'>Close view</Tooltip.Content>
-            </Tooltip>
-          )}
-          {(subtext || subtextStartContent || hasInlineActions) && (
-            <div className='flex min-w-0 items-center justify-between gap-2'>
-              {subtextStartContent}
-              <div className='min-w-0 flex-1 truncate text-xs text-muted'>{parseMarkdownBold(subtext)}</div>
-              {hasInlineActions && (
-                <ButtonGroup hideSeparator className='flex shrink-0' size='sm' variant='ghost'>
-                  {customHeaderActions?.map((action) => (
-                    <Tooltip key={action.key}>
-                      <Button
-                        isIconOnly
-                        aria-label={action.ariaLabel ?? action.tooltipText}
-                        className={action.isActive ? 'text-accent' : undefined}
-                        isDisabled={action.isDisabled}
-                        size='sm'
-                        variant='ghost'
-                        onPress={action.onPress}
-                      >
-                        {action.icon}
-                      </Button>
-                      <Tooltip.Content className='max-w-60' placement='bottom'>
-                        {action.tooltipText}
-                      </Tooltip.Content>
-                    </Tooltip>
-                  ))}
-                  {headerActions.includes('openAll') && (
-                    <Tooltip>
-                      <Button
-                        isIconOnly
-                        aria-label='Open All'
-                        size='sm'
-                        variant='ghost'
-                        onPress={() => handleHeaderAction('openAll')}
-                      >
-                        <IconArrowSquareOut />
-                      </Button>
-                      <Tooltip.Content className='max-w-60' placement='bottom'>
-                        Open all in new tabs
-                      </Tooltip.Content>
-                    </Tooltip>
-                  )}
-                  {onShareAll && headerActions.includes('shareAll') && (
-                    <Tooltip>
-                      <Button
-                        isIconOnly
-                        aria-label='Share All'
-                        size='sm'
-                        variant='ghost'
-                        onPress={() => handleHeaderAction('shareAll')}
-                      >
-                        {isHeaderShared ? <AnimatedCheck stroke={1.5} /> : <IconPeoplePlus />}
-                      </Button>
-                      <Tooltip.Content className='max-w-60' placement='bottom'>
-                        {isHeaderShared ? 'Shared!' : 'Share all with yourself'}
-                      </Tooltip.Content>
-                    </Tooltip>
-                  )}
-                  {headerActions.includes('copy') && (
-                    <Tooltip>
-                      <Button
-                        isIconOnly
-                        aria-label='Copy'
-                        size='sm'
-                        variant='ghost'
-                        onPress={() => handleHeaderAction('copy')}
-                      >
-                        {isCopied ? <AnimatedCheck stroke={1.5} /> : <IconClipboardCopy />}
-                      </Button>
-                      <Tooltip.Content className='max-w-60' placement='bottom'>
-                        {isCopied ? 'Copied!' : 'Copy ID'}
-                      </Tooltip.Content>
-                    </Tooltip>
-                  )}
-                  {headerActions.includes('reload') &&
-                    viewType &&
-                    (() => {
-                      // Always rendered (when opted-in) to keep the action bar
-                      // layout stable as the user navigates. When the current
-                      // object can't reload, it renders through DisabledTooltip
-                      // so the tooltip explaining *why* still shows (that
-                      // component handles the disabled-but-hoverable mechanics).
-                      const currentTypeId = currentContext?.domoObject?.typeId;
-                      const reloadDisabledReason = !currentTypeId
-                        ? 'Navigate to a Domo object to reload'
-                        : !getAvailableActions(currentContext).has(viewType)
-                          ? "Current object doesn't support this view"
-                          : currentContext.domoObject.id === objectId && currentTypeId === objectType
-                            ? 'Already showing data for the current object'
-                            : null;
-                      const isReloadDisabled = reloadDisabledReason !== null;
-                      const tooltipText = reloadDisabledReason ?? 'Reload for current object';
-                      return isReloadDisabled ? (
-                        <DisabledTooltip content={tooltipText} placement='bottom'>
-                          <Button isIconOnly aria-label='Reload' size='sm' variant='ghost'>
-                            <IconReset />
-                          </Button>
-                        </DisabledTooltip>
-                      ) : (
-                        <Tooltip>
-                          <Button
-                            isIconOnly
-                            aria-label='Reload'
-                            size='sm'
-                            variant='ghost'
-                            onPress={() => handleHeaderAction('reload')}
-                          >
-                            <IconReset />
-                          </Button>
-                          <Tooltip.Content className='max-w-60' placement='bottom'>
-                            {tooltipText}
-                          </Tooltip.Content>
-                        </Tooltip>
-                      );
-                    })()}
-                  {headerActions.includes('refresh') && (
-                    <Tooltip>
-                      <Button
-                        isIconOnly
-                        aria-label='Refresh'
-                        isDisabled={isRefreshing}
-                        size='sm'
-                        variant='ghost'
-                        onPress={() => handleHeaderAction('refresh')}
-                      >
-                        <IconSync className={isRefreshing ? 'animate-spin' : ''} />
-                      </Button>
-                      <Tooltip.Content className='max-w-60' placement='bottom'>
-                        Refresh
-                      </Tooltip.Content>
-                    </Tooltip>
-                  )}
-                </ButtonGroup>
-              )}
-            </div>
-          )}
-          {selectionMode && selectionToolbar && <div className='flex min-w-0 items-center'>{selectionToolbar}</div>}
-        </Card.Header>
+        <ViewHeader
+          actions={headerActionSpecs}
+          beta={beta}
+          bottomRow={hasSelectionToolbar ? selectionToolbar : undefined}
+          feature={feature}
+          featureIcon={featureIcon}
+          subject={subject}
+          subjectTypeId={subjectTypeId ?? objectType}
+          subtext={subtext}
+          onClose={onClose}
+        />
       )}
       <Separator className='mt-1.5' />
+      {banner && <div className='shrink-0 pt-2'>{banner}</div>}
       {sortedItems.length > virtualThreshold
         ? // Virtualized top-level: VirtualizedItems is the scroll container.
           // Bypass ScrollShadow so TanStack Virtual listens for scroll on an
@@ -517,14 +519,13 @@ export function DataList({
                 allowsMultipleExpanded={allowsMultipleExpanded}
                 className='flex min-h-0 w-full flex-1 flex-col divide-y divide-border'
                 defaultExpandedKeys={defaultExpandedIds}
+                key={expansionSeedKey}
               >
                 <VirtualizedItems
                   items={sortedItems}
                   renderItem={(item) => (
                     <DataListItem
                       allowsMultipleExpanded={allowsMultipleExpanded}
-                      canShare={!!onItemShare}
-                      canShareAll={!!onItemShareAll}
                       defaultExpandedIds={defaultExpandedIds}
                       expandedIds={expandedIds}
                       getItemLock={getItemLock}
@@ -534,6 +535,7 @@ export function DataList({
                       objectType={objectType}
                       selectedIds={selectedIds}
                       selectionMode={selectionMode}
+                      shareEnabled={shareEnabled}
                       showActions={showActions}
                       showCounts={showCounts}
                       virtualThreshold={virtualThreshold}
@@ -567,12 +569,11 @@ export function DataList({
                   allowsMultipleExpanded={allowsMultipleExpanded}
                   className='flex w-full flex-col divide-y divide-border'
                   defaultExpandedKeys={defaultExpandedIds}
+                  key={expansionSeedKey}
                 >
                   {sortedItems.map((item, index) => (
                     <DataListItem
                       allowsMultipleExpanded={allowsMultipleExpanded}
-                      canShare={!!onItemShare}
-                      canShareAll={!!onItemShareAll}
                       defaultExpandedIds={defaultExpandedIds}
                       expandedIds={expandedIds}
                       getItemLock={getItemLock}
@@ -583,6 +584,7 @@ export function DataList({
                       objectType={objectType}
                       selectedIds={selectedIds}
                       selectionMode={selectionMode}
+                      shareEnabled={shareEnabled}
                       showActions={showActions}
                       showCounts={showCounts}
                       virtualThreshold={virtualThreshold}
@@ -609,14 +611,69 @@ export function DataList({
 }
 
 /**
- * Available header action types for DataList
- * @typedef {'openAll' | 'copy' | 'shareAll' | 'refresh' | 'reload'} HeaderActionType
+ * Available header action types for DataList. `activityLogAll` is rendered
+ * unconditionally (gated only on the list having loggable objects), not opt-in
+ * via the `headerActions` prop.
+ * @typedef {'openAll' | 'shareAll' | 'refresh' | 'reload' | 'activityLogAll'} HeaderActionType
  */
 
 /**
- * Available item action types for DataList items
- * @typedef {'remove' | 'openAll' | 'copy' | 'share' | 'shareAll' | 'viewsExplorer'} ItemActionType
+ * Available item action types for DataList items. `activityLog` (single object)
+ * and `activityLogAll` (item + all descendants) are added to every row
+ * automatically, not opt-in via the `itemActions` prop.
+ * @typedef {'openAll' | 'copy' | 'share' | 'shareAll' | 'viewsExplorer' | 'lineage' | 'activityLog' | 'activityLogAll'} ItemActionType
  */
+
+/**
+ * Finds the Domo instance subdomain for an item tree by walking to the first
+ * row that carries a real object base URL. Used to resolve the instance for the
+ * activity-log "for all" actions, where the clicked row may be a virtual group
+ * header with no object of its own.
+ * @param {Array} itemList - Array of items (and their children) to walk.
+ * @returns {string|null} Instance subdomain (e.g. `my-co`) or null if none found.
+ */
+function activityLogInstanceFor(itemList) {
+  for (const item of itemList) {
+    const baseUrl = item.domoObject?.baseUrl;
+    if (baseUrl) return new URL(baseUrl).hostname.replace('.domo.com', '');
+    if (item.children && item.children.length > 0) {
+      const fromChild = activityLogInstanceFor(item.children);
+      if (fromChild) return fromChild;
+    }
+  }
+  return null;
+}
+
+/**
+ * Recursively collect loggable objects from an item tree for the activity-log
+ * "for all" actions. Returns deduped `{ id, name, type }` records (keyed by
+ * `type:id`). Skips virtual group headers (no real object) and rows missing a
+ * type/id or carrying a negative numeric id (Overview/Favorites/Shared
+ * pseudo-pages); UUID/string ids are kept.
+ * @param {Array} itemList - Array of items (and their children) to walk.
+ * @returns {Array<{ id: string, name: string, type: string }>}
+ */
+function collectActivityLogObjects(itemList) {
+  const seen = new Set();
+  const objects = [];
+  const traverse = (list) => {
+    for (const item of list) {
+      const id = item.originalId ?? item.id;
+      if (!item.isVirtualParent && id != null && item.typeId && !(Number(id) < 0)) {
+        const key = `${item.typeId}:${id}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          objects.push({ id: String(id), name: item.label ?? '', type: item.typeId });
+        }
+      }
+      if (item.children && item.children.length > 0) {
+        traverse(item.children);
+      }
+    }
+  };
+  traverse(itemList);
+  return objects;
+}
 
 /**
  * Recursively collect all URLs from items and their children
@@ -655,95 +712,6 @@ const MAX_VISIBLE_CHILDREN_ROWS = 12;
 const VIRTUAL_OVERSCAN = 5;
 
 /**
- * Renders an items array via TanStack Virtual when the array is large enough
- * that mounting every row would be wasteful. Used at two call sites in
- * `DataList`: the top-level items map and each `Disclosure.Body`'s children
- * map. Top-level usage passes `bounded=false` so the parent `ScrollShadow`
- * owns the scroll viewport; child usage passes `bounded=true` so an expanded
- * group's height is capped.
- *
- * The `renderItem` callback is passed the item — typically a `DataListItem`
- * with appropriate props for the call site (top-level has no `depth`, child
- * call site passes `depth + 1`).
- *
- * @param {Object} props
- * @param {boolean} props.bounded - When true, cap height at MAX_VISIBLE_CHILDREN_ROWS * ROW_HEIGHT.
- * @param {Array} props.items - Items to render.
- * @param {(item: Object, index: number) => React.ReactNode} props.renderItem
- */
-function VirtualizedItems({ bounded = false, items, renderItem }) {
-  const parentRef = useRef(null);
-  const virtualizer = useVirtualizer({
-    count: items.length,
-    estimateSize: () => ROW_HEIGHT,
-    getScrollElement: () => parentRef.current,
-    overscan: VIRTUAL_OVERSCAN
-  });
-
-  const containerStyle = bounded
-    ? {
-        height: Math.min(items.length * ROW_HEIGHT, MAX_VISIBLE_CHILDREN_ROWS * ROW_HEIGHT)
-      }
-    : undefined;
-
-  return (
-    <div
-      ref={parentRef}
-      style={containerStyle}
-      className={
-        bounded
-          ? // `overscroll-auto` (not `contain`) lets a bounded child list chain
-            // its scroll to the parent once it hits its top/bottom edge — so
-            // scrolling inside an expanded group keeps scrolling the whole
-            // DataList instead of dead-stopping at the group's boundary. The
-            // unbounded top-level container keeps `overscroll-y-contain` so the
-            // sidepanel/page itself never bounce-scrolls past the list.
-            'w-full overflow-y-auto overscroll-auto'
-          : 'min-h-0 w-full flex-1 overflow-y-auto overscroll-x-none overscroll-y-contain'
-      }
-    >
-      <div
-        className='divide-y divide-border'
-        style={{
-          height: virtualizer.getTotalSize(),
-          position: 'relative',
-          width: '100%'
-        }}
-      >
-        {virtualizer.getVirtualItems().map((vRow) => {
-          const item = items[vRow.index];
-          return (
-            <div
-              data-index={vRow.index}
-              key={item?.id ?? vRow.index}
-              ref={virtualizer.measureElement}
-              style={{
-                left: 0,
-                position: 'absolute',
-                top: 0,
-                transform: `translateY(${vRow.start}px)`,
-                width: '100%'
-              }}
-            >
-              {renderItem(item, vRow.index)}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-/**
- * Allow-list of typeIds that the toolkit's "share with self" flow can target
- * directly. `share.js` also accepts DATA_APP_VIEW / WORKSHEET_VIEW / CARD, but
- * only as workarounds for current-object detection or for `domoapp` cards
- * specifically — neither concern applies inside a DataList, so we surface
- * share/shareAll only for the canonical shareable forms.
- */
-const SHAREABLE_TYPES = new Set(['APP', 'DATA_APP', 'DATA_SOURCE', 'PAGE', 'WORKSHEET']);
-
-/**
  * Custom React.memo comparator for DataListItem.
  *
  * Default `Object.is` comparison would treat every new `expandedIds` Set as a
@@ -761,8 +729,7 @@ const SHAREABLE_TYPES = new Set(['APP', 'DATA_APP', 'DATA_SOURCE', 'PAGE', 'WORK
  * Disclosure would still need a recursive check; no consumer nests that deep.
  */
 function arePropsEqualForRow(prev, next) {
-  if (prev.canShare !== next.canShare) return false;
-  if (prev.canShareAll !== next.canShareAll) return false;
+  if (prev.shareEnabled !== next.shareEnabled) return false;
   if (prev.item !== next.item) return false;
   if (prev.itemActions !== next.itemActions) return false;
   if (prev.objectType !== next.objectType) return false;
@@ -822,8 +789,6 @@ function arePropsEqualForRow(prev, next) {
  */
 function DataListItemImpl({
   allowsMultipleExpanded = false,
-  canShare = false,
-  canShareAll = false,
   defaultExpandedIds,
   depth = 0,
   expandedIds,
@@ -836,6 +801,7 @@ function DataListItemImpl({
   onToggleExpanded,
   selectedIds,
   selectionMode = false,
+  shareEnabled = false,
   showActions = true,
   showCounts = true,
   virtualThreshold = 50
@@ -844,6 +810,13 @@ function DataListItemImpl({
   const isOpen = expandedIds?.has(item.id) ?? false;
   const [isCopied, setIsCopied] = useState(false);
   const [isShared, setIsShared] = useState(false);
+  const [errorDismissed, setErrorDismissed] = useState(false);
+
+  // A fresh error (e.g. a re-run transfer that fails again) should re-surface
+  // the Alert even if the previous one was dismissed.
+  useEffect(() => {
+    setErrorDismissed(false);
+  }, [item.error]);
 
   // Async-state rendering for virtual parents only. `status` field on
   // DataListItem spans both fetch and transfer phases; the count slot swaps
@@ -963,20 +936,6 @@ function DataListItemImpl({
   const applicableActions = useMemo(() => {
     if (!showActions) return [];
 
-    const removeButton = (
-      <Tooltip key='remove'>
-        <Button fullWidth isIconOnly aria-label='Remove' size='sm' variant='ghost' onPress={() => handleAction('remove')}>
-          <IconCancel className='text-danger' />
-        </Button>
-        <Tooltip.Content className='max-w-60'>
-          Remove{' '}
-          <span className='lowercase'>
-            {objectType} from {item?.domoObject?.typeName || item?.typeId}
-          </span>
-        </Tooltip.Content>
-      </Tooltip>
-    );
-
     const openAllButton = (
       <Tooltip key='openAll'>
         <Button fullWidth isIconOnly aria-label='Open All' size='sm' variant='ghost' onPress={() => handleAction('openAll')}>
@@ -989,36 +948,68 @@ function DataListItemImpl({
     const copyButton = (
       <Tooltip key='copy'>
         <Button fullWidth isIconOnly aria-label='Copy' size='sm' variant='ghost' onPress={() => handleAction('copy')}>
-          {isCopied ? <AnimatedCheck stroke={1.5} /> : <IconClipboardCopy />}
+          {isCopied ? <AnimatedCheck /> : <IconClipboardCopy />}
         </Button>
         <Tooltip.Content className='max-w-60'>{isCopied ? 'Copied!' : 'Copy ID'}</Tooltip.Content>
       </Tooltip>
     );
 
-    const shareAllButton = (
-      <Tooltip key='shareAll'>
-        <Button
-          fullWidth
-          isIconOnly
-          aria-label='Share All'
-          size='sm'
-          variant='ghost'
-          onPress={() => handleAction('shareAll')}
-        >
-          {isShared ? <AnimatedCheck stroke={1.5} /> : <IconPeoplePlus />}
-        </Button>
-        <Tooltip.Content className='max-w-60'>{isShared ? 'Shared!' : 'Share all with yourself'}</Tooltip.Content>
-      </Tooltip>
-    );
-
-    const shareButton = (
-      <Tooltip key='share'>
-        <Button fullWidth isIconOnly aria-label='Share' size='sm' variant='ghost' onPress={() => handleAction('share')}>
-          {isShared ? <AnimatedCheck stroke={1.5} /> : <IconPersonPlus />}
-        </Button>
-        <Tooltip.Content className='max-w-60'>{isShared ? 'Shared!' : 'Share with yourself'}</Tooltip.Content>
-      </Tooltip>
-    );
+    // Share action. When both sharing the row itself and sharing it plus all its
+    // descendants apply, it's a dropdown: "Only this object" shares just the row,
+    // "Including all children" shares the row and everything nested under it. When
+    // only one applies, there's no choice to make, so it's a plain button that
+    // shares immediately with no dropdown. Mirrors buildActivityLogAction below.
+    const buildShareAction = (showSingle, showAll) => {
+      if (showSingle && !showAll) {
+        return (
+          <Tooltip key='share'>
+            <Button fullWidth isIconOnly aria-label='Share' size='sm' variant='ghost' onPress={() => handleAction('share')}>
+              {isShared ? <AnimatedCheck /> : <IconPersonPlus />}
+            </Button>
+            <Tooltip.Content className='max-w-60'>{isShared ? 'Shared!' : 'Share with yourself'}</Tooltip.Content>
+          </Tooltip>
+        );
+      }
+      if (showAll && !showSingle) {
+        return (
+          <Tooltip key='share'>
+            <Button
+              fullWidth
+              isIconOnly
+              aria-label='Share All'
+              size='sm'
+              variant='ghost'
+              onPress={() => handleAction('shareAll')}
+            >
+              {isShared ? <AnimatedCheck /> : <IconPersonPlus />}
+            </Button>
+            <Tooltip.Content className='max-w-60'>{isShared ? 'Shared!' : 'Share all with yourself'}</Tooltip.Content>
+          </Tooltip>
+        );
+      }
+      return (
+        <Dropdown key='share'>
+          <Tooltip>
+            <Button fullWidth isIconOnly aria-label='Share' size='sm' variant='ghost'>
+              {isShared ? <AnimatedCheck /> : <IconPersonPlus />}
+            </Button>
+            <Tooltip.Content className='max-w-60'>{isShared ? 'Shared!' : 'Share with yourself'}</Tooltip.Content>
+          </Tooltip>
+          <Dropdown.Popover className='w-fit min-w-60' placement='bottom'>
+            <Dropdown.Menu onAction={handleAction}>
+              <Dropdown.Item id='share' textValue='This object'>
+                <IconPersonPlus className='size-4 shrink-0' />
+                <Label>Only this object</Label>
+              </Dropdown.Item>
+              <Dropdown.Item id='shareAll' textValue='All objects'>
+                <IconTree className='size-4 shrink-0' />
+                <Label>Including all children</Label>
+              </Dropdown.Item>
+            </Dropdown.Menu>
+          </Dropdown.Popover>
+        </Dropdown>
+      );
+    };
 
     const viewsExplorerButton = (
       <Tooltip key='viewsExplorer'>
@@ -1052,49 +1043,115 @@ function DataListItemImpl({
       </Tooltip>
     );
 
+    // Activity-log action. When both the single-object and "all objects" logs
+    // apply (a row with descendants), it's a dropdown: "This object" reads the
+    // log for the row itself, "All objects" covers everything nested under it.
+    // When only one applies (a leaf with no descendants, or a virtual group
+    // header with no object of its own), there's no choice to make, so it's a
+    // plain button that launches that log immediately with no dropdown.
+    const buildActivityLogAction = (showSingle, showAll) => {
+      if (showSingle && !showAll) {
+        return (
+          <Tooltip key='activityLog'>
+            <Button
+              fullWidth
+              isIconOnly
+              aria-label='View Activity Log'
+              size='sm'
+              variant='ghost'
+              onPress={() => handleAction('activityLog')}
+            >
+              <IconListSearch />
+            </Button>
+            <Tooltip.Content className='max-w-60'>View activity log</Tooltip.Content>
+          </Tooltip>
+        );
+      }
+      if (showAll && !showSingle) {
+        return (
+          <Tooltip key='activityLog'>
+            <Button
+              fullWidth
+              isIconOnly
+              aria-label='View Activity Log for all'
+              size='sm'
+              variant='ghost'
+              onPress={() => handleAction('activityLogAll')}
+            >
+              <IconListSearch />
+            </Button>
+            <Tooltip.Content className='max-w-60'>View activity log for all</Tooltip.Content>
+          </Tooltip>
+        );
+      }
+      return (
+        <Dropdown key='activityLog'>
+          <Tooltip>
+            <Button fullWidth isIconOnly aria-label='View Activity Log' size='sm' variant='ghost'>
+              <IconListSearch />
+            </Button>
+            <Tooltip.Content className='max-w-60'>View activity log</Tooltip.Content>
+          </Tooltip>
+          <Dropdown.Popover className='w-fit min-w-60' placement='bottom'>
+            <Dropdown.Menu onAction={handleAction}>
+              <Dropdown.Item id='activityLog' textValue='This object'>
+                <IconSearch className='size-4 shrink-0' />
+                <Label>Only this object</Label>
+              </Dropdown.Item>
+              <Dropdown.Item id='activityLogAll' textValue='All objects'>
+                <IconTree className='size-4 shrink-0' />
+                <Label>Including all children</Label>
+              </Dropdown.Item>
+            </Dropdown.Menu>
+          </Dropdown.Popover>
+        </Dropdown>
+      );
+    };
+
     if (item.isVirtualParent) {
       if (!hasChildren) return [];
       const actions = [];
       if (item.id !== 'REPORT_BUILDER_group') {
+        // Group "share all": gated by the declared child type when present (so a
+        // group of non-shareable rows never offers it), and always by the actual
+        // presence of a shareable descendant (which respects `unshareable` and
+        // synthetic ids per row).
+        const childShareable = item.childTypeId ? isShareableType(item.childTypeId) : true;
+        if (shareEnabled && childShareable && hasShareableChildren(item)) actions.push(buildShareAction(false, true));
         actions.push(openAllButton);
-        if (canShareAll && hasShareableChildren(item)) actions.push(shareAllButton);
       }
+      // Virtual group headers have no object of their own, so only the "all
+      // objects" log applies, covering every real descendant beneath the header.
+      actions.push(buildActivityLogAction(false, true));
       return actions;
     }
 
-    if (itemActions) {
-      const actions = [];
-      if (itemActions.includes('openAll') && hasChildren) actions.push(openAllButton);
-      if (canShareAll && itemActions.includes('shareAll') && hasShareableChildren(item)) actions.push(shareAllButton);
-      if (canShare && itemActions.includes('share') && isItemShareable(item)) actions.push(shareButton);
-      if (itemActions.includes('lineage') && (item.typeId === 'DATA_SOURCE' || item.typeId === 'DATAFLOW_TYPE'))
-        actions.push(lineageButton);
-      if (itemActions.includes('viewsExplorer') && item.typeId === 'DATA_SOURCE') actions.push(viewsExplorerButton);
-      if (itemActions.includes('copy')) actions.push(copyButton);
-      return actions;
-    }
+    // Leaf row: the intrinsic action menu comes from the type registry, narrowed
+    // by the view's optional `itemActions` allow-list. `openAll` (structural) and
+    // the activity log (universal) are handled outside the capability set.
+    const typeCaps = getRowActionsForType(item.typeId);
+    const allowed = itemActions ? new Set(itemActions.filter((a) => typeCaps.has(a))) : typeCaps;
 
-    // Default logic
     const actions = [];
-    if (hasChildren && item.typeId !== 'DATA_APP') {
+    const canShowShare = shareEnabled && allowed.has('share') && isItemShareable(item);
+    const canShowShareAll =
+      shareEnabled && (allowed.has('share') || itemActions?.includes('shareAll')) && hasShareableChildren(item);
+    if (canShowShare || canShowShareAll) actions.push(buildShareAction(canShowShare, canShowShareAll));
+    if (allowed.has('lineage')) actions.push(lineageButton);
+    if (allowed.has('viewsExplorer')) actions.push(viewsExplorerButton);
+    // Open-all is structural (needs children) and type-restricted: DATA_APP and
+    // REPORT_BUILDER rows aren't navigable as a batch. When a view passes an
+    // allow-list it must opt in; otherwise it's derived from structure.
+    const openAllAllowed = itemActions ? itemActions.includes('openAll') : true;
+    if (openAllAllowed && hasChildren && item.typeId !== 'DATA_APP' && item.typeId !== 'REPORT_BUILDER') {
       actions.push(openAllButton);
     }
-    if (canShareAll && hasShareableChildren(item)) {
-      actions.push(shareAllButton);
-    }
-
-    if (
-      ((objectType === 'CARD' && (item.typeId === 'PAGE' || item.typeId === 'DATA_APP_VIEW')) ||
-        (itemActions && itemActions?.includes('remove'))) &&
-      Number(item.id) >= 0
-    ) {
-      actions.push(removeButton);
-    }
-
-    if (canShare && isItemShareable(item)) actions.push(shareButton);
-    actions.push(copyButton);
+    if (allowed.has('copy')) actions.push(copyButton);
+    // Activity-log dropdown on every object: single-object for this row, plus the
+    // "all objects" log when it has descendants.
+    actions.push(buildActivityLogAction(true, hasChildren));
     return actions;
-  }, [canShare, canShareAll, hasChildren, handleAction, isCopied, isShared, item, itemActions, objectType, showActions]);
+  }, [hasChildren, handleAction, isCopied, isShared, item, itemActions, objectType, shareEnabled, showActions]);
 
   // Optional leading info-icon marker rendered between the icon and the label
   // text. A plain `<span title>` rather than a React Aria Tooltip so it never
@@ -1127,12 +1184,33 @@ function DataListItemImpl({
   // label is a plain string.
   const labelTitle = typeof item.label === 'string' ? item.label : undefined;
 
+  // Human-readable type name shown ahead of the ID in the hover tooltip (e.g.
+  // "Page ID: 123" rather than just "ID: 123"). Null for synthetic group rows
+  // with no typeId, where the tooltip falls back to a bare "ID:".
+  const typeLabel = item.typeId ? getObjectType(item.typeId)?.name : null;
+
   // Muted rows read as secondary/container entries rather than direct results
   // (e.g. a card that only appears because a drill under it uses a column). The
   // class lands on the label wrapper, so the name and the `currentColor`-driven
   // ObjectTypeIcon both mute, while the annotation marker keeps its own
   // `text-accent` and stays prominent.
   const labelMutedClass = item.muted ? ' text-muted' : '';
+
+  // Virtual-parent (group header) weight steps down with nesting: top-level
+  // headers stay `font-medium` (500) to anchor each section, while nested
+  // headers drop to a half-step (450) — lighter than the top level but still
+  // heavier than the normal-weight (400) leaf rows beneath them, so the
+  // hierarchy reads at a glance without any nested header looking like body text.
+  const virtualHeaderWeightClass = depth > 0 ? 'font-[450]' : 'font-medium';
+
+  // A flat leaf (no children, not an error body that auto-promotes to a
+  // Disclosure) is not clickable to expand anything, so its name should read as
+  // plain text with the default arrow cursor rather than the I-beam that `cursor:
+  // auto` resolves to over text. Disclosure rows skip this: their label sits
+  // inside the trigger button and inherits its `pointer`, signalling the name can
+  // be clicked to expand.
+  const isFlatLeaf = !hasChildren && !showsErrorBody;
+  const leafCursorClass = isFlatLeaf ? ' cursor-default' : '';
 
   // Link items: native `title` shows the full URL on hover. Lighter than
   // React Aria Tooltip (no portal, no delay state machine, no extra DOM) and
@@ -1150,7 +1228,7 @@ function DataListItemImpl({
     // group headers and their expanded leaves. ObjectTypeIcon returns null
     // when item.typeId is unset, so synthetic group rows (no typeId) render
     // identically to before.
-    <p className={`min-w-0 truncate text-sm font-medium${labelMutedClass}`} title={labelTitle}>
+    <p className={`min-w-0 truncate text-sm ${virtualHeaderWeightClass}${labelMutedClass}`} title={labelTitle}>
       {labelInner}
     </p>
   ) : item.url ? (
@@ -1165,17 +1243,30 @@ function DataListItemImpl({
       target='_blank'
       title={item.url}
     >
-      {labelInner}
-    </Link>
-  ) : (
-    <span className={`text-sm${labelMutedClass}`}>
-      <Tooltip className='flex-1'>
-        <Tooltip.Trigger className='block truncate'>{labelInner}</Tooltip.Trigger>
-        <Tooltip.Content className='max-w-60' offset={4} placement='top left'>
-          ID: {item.originalId ?? item.id}
+      <Tooltip>
+        <Tooltip.Trigger className='block min-w-0 truncate'>{labelInner}</Tooltip.Trigger>
+        <Tooltip.Content className='flex flex-col flex-wrap items-start gap-1 text-left' offset={4} placement='top left'>
+          {labelTitle}
+          <span>
+            {typeLabel ? `${typeLabel} ID: ` : 'ID: '}
+            {item.originalId ?? item.id}
+          </span>
         </Tooltip.Content>
       </Tooltip>
-    </span>
+    </Link>
+  ) : (
+    <Tooltip className='flex-1'>
+      <Tooltip.Trigger className='block min-w-0 truncate'>
+        <span className={`text-sm${labelMutedClass}${leafCursorClass}`}>{labelInner}</span>
+      </Tooltip.Trigger>
+      <Tooltip.Content className='flex flex-col flex-wrap items-start gap-1 text-left' offset={4} placement='top left'>
+        {labelTitle}
+        <span>
+          {typeLabel ? `${typeLabel} ID: ` : 'ID: '}
+          {item.originalId ?? item.id}
+        </span>
+      </Tooltip.Content>
+    </Tooltip>
   );
 
   const actions =
@@ -1249,6 +1340,7 @@ function DataListItemImpl({
                     aria-label={typeof item.label === 'string' ? item.label : `Select ${item.id}`}
                     className='mt-0! shrink-0 opacity-60 [--cursor-interactive:var(--cursor-disabled)]'
                     value={String(item.id)}
+                    variant='secondary'
                   >
                     <Checkbox.Control>
                       <Checkbox.Indicator />
@@ -1262,6 +1354,7 @@ function DataListItemImpl({
                 aria-label={typeof item.label === 'string' ? item.label : `Select ${item.id}`}
                 className='mt-0! shrink-0'
                 value={String(item.id)}
+                variant='secondary'
               >
                 <Checkbox.Control>
                   <Checkbox.Indicator />
@@ -1283,8 +1376,6 @@ function DataListItemImpl({
 
   const childRenderProps = (child) => ({
     allowsMultipleExpanded,
-    canShare,
-    canShareAll,
     defaultExpandedIds,
     depth: depth + 1,
     expandedIds,
@@ -1297,10 +1388,34 @@ function DataListItemImpl({
     onToggleExpanded,
     selectedIds,
     selectionMode,
+    shareEnabled,
     showActions,
     showCounts,
     virtualThreshold
   });
+
+  // When this row's only populated subcategory is a single virtual parent (the
+  // others empty and hidden, e.g. a Beast Mode used only on cards), seed that
+  // lone subcategory into the child group's initial expansion so it opens
+  // together with this row instead of needing a second click. React Aria's
+  // DisclosureGroup owns expansion once mounted and ignores a per-Disclosure
+  // `isExpanded`, so this is the seam that actually drives it: the child group
+  // mounts with the row (collapsed bodies stay mounted, just hidden), reading
+  // these keys once. Deeper chains resolve on their own, each level seeds its
+  // own child group, so a sole child that itself has a sole child opens too.
+  // Seed this child group with ONLY the keys that belong to its own direct
+  // children: any `defaultExpandedIds` that are direct children, plus this item's
+  // sole populated child. Filtering to direct children is essential under
+  // single-expansion (allowsMultipleExpanded=false) — passing the full
+  // `defaultExpandedIds` down (which includes open ancestor groups like a
+  // top-level "Used by this card") would crowd out the sole child as an extra
+  // key, and React Aria would honor the ancestor instead, leaving the lone child
+  // collapsed.
+  const soleChildId = soleVirtualChildId(item);
+  const seedIds = defaultExpandedIds ? [...defaultExpandedIds] : [];
+  const childGroupExpandedKeys = (item.children ?? [])
+    .map((child) => child.id)
+    .filter((id) => id === soleChildId || seedIds.includes(id));
 
   return (
     <Disclosure
@@ -1352,6 +1467,7 @@ function DataListItemImpl({
                     className='mt-0! shrink-0 opacity-60 [--cursor-interactive:var(--cursor-disabled)]'
                     isIndeterminate={isParentIndeterminate}
                     value={String(item.id)}
+                    variant='secondary'
                   >
                     <Checkbox.Control>
                       <Checkbox.Indicator />
@@ -1366,25 +1482,56 @@ function DataListItemImpl({
                 className='mt-0! shrink-0'
                 isIndeterminate={isParentIndeterminate}
                 value={String(item.id)}
+                variant='secondary'
               >
                 <Checkbox.Control>
                   <Checkbox.Indicator />
                 </Checkbox.Control>
               </Checkbox>
             )}
-            {/* Label stays OUTSIDE the Trigger so a selectable parent that is
-                also a real object (e.g. a card with drill children) keeps its
-                <Link> navigation. The Trigger holds only the count + chevron and
-                claims the remaining width, so clicking the empty space or the
-                chevron toggles, while the label navigates and the checkbox
-                selects. */}
-            <div className='flex w-full min-w-0 flex-1 basis-4/5 items-center gap-2'>
-              {itemLabel}
+            {item.url ? (
+              // Selectable row whose label is a real <Link> (e.g. a card with
+              // drill children): the label stays OUTSIDE the Trigger so the
+              // <Link> keeps its own navigation, since a <Link> can't live inside
+              // the Trigger's <button>. The Trigger holds the count + chevron and
+              // claims the remaining width, so clicking the empty space or the
+              // chevron toggles, while the label navigates and the checkbox
+              // selects.
+              <div className='flex w-full min-w-0 flex-1 basis-4/5 items-center gap-2'>
+                {itemLabel}
+                <Disclosure.Trigger
+                  aria-label='Toggle'
+                  className='flex flex-1 flex-row items-center gap-2 self-stretch'
+                  variant='tertiary'
+                >
+                  {statusIndicator
+                    ? statusIndicator
+                    : showCounts &&
+                      item.count !== undefined && (
+                        <p className='shrink-0 text-sm whitespace-nowrap text-muted'>
+                          ({item.count}
+                          {item.countLabel ? ` ${item.countLabel}` : ''})
+                        </p>
+                      )}
+                  {!isLoadingState && (
+                    <Disclosure.Indicator>
+                      <IconChevronDown />
+                    </Disclosure.Indicator>
+                  )}
+                </Disclosure.Trigger>
+              </div>
+            ) : (
+              // Selectable row with a non-navigable label (a virtual-parent group
+              // header, or a non-link object with children): there's no <Link> to
+              // preserve, so the label goes INSIDE the Trigger and the whole label
+              // area, text included, toggles the disclosure. The checkbox sits
+              // outside as its own affordance.
               <Disclosure.Trigger
                 aria-label='Toggle'
-                className='flex flex-1 flex-row items-center gap-2 self-stretch'
+                className='flex w-full min-w-0 flex-1 basis-4/5 flex-row items-center gap-2 self-stretch'
                 variant='tertiary'
               >
+                {itemLabel}
                 {statusIndicator
                   ? statusIndicator
                   : showCounts &&
@@ -1394,13 +1541,14 @@ function DataListItemImpl({
                         {item.countLabel ? ` ${item.countLabel}` : ''})
                       </p>
                     )}
+                <span aria-hidden='true' className='flex-1' />
                 {!isLoadingState && (
                   <Disclosure.Indicator>
                     <IconChevronDown />
                   </Disclosure.Indicator>
                 )}
               </Disclosure.Trigger>
-            </div>
+            )}
           </>
         ) : item.isVirtualParent ? (
           // Virtual parents: the entire label area IS the Trigger so clicking
@@ -1415,7 +1563,7 @@ function DataListItemImpl({
               className='flex min-w-0 flex-1 basis-4/5 flex-row items-center gap-2'
               variant='tertiary'
             >
-              <p className={`min-w-0 truncate text-left text-sm font-medium${labelMutedClass}`} title={labelTitle}>
+              <p className={`min-w-0 truncate text-left text-sm ${virtualHeaderWeightClass}${labelMutedClass}`}>
                 {labelInner}
               </p>
               {statusIndicator
@@ -1472,9 +1620,7 @@ function DataListItemImpl({
               className='flex min-w-0 flex-1 basis-4/5 flex-row items-center gap-2'
               variant='tertiary'
             >
-              <p className={`min-w-0 truncate text-left text-sm${labelMutedClass}`} title={labelTitle}>
-                {labelInner}
-              </p>
+              {itemLabel}
               {showCounts && item.count !== undefined && (
                 <p className='shrink-0 text-sm whitespace-nowrap text-muted'>
                   ({item.count}
@@ -1492,7 +1638,11 @@ function DataListItemImpl({
       </Disclosure.Heading>
       <Disclosure.Content>
         <Disclosure.Body>
-          {showsErrorBody && <p className='px-2 py-1 text-xs text-danger'>{item.error}</p>}
+          {showsErrorBody && !errorDismissed && (
+            <div className='p-2'>
+              <ErrorAlert detail={item.errorDetail} title={item.error} onDismiss={() => setErrorDismissed(true)} />
+            </div>
+          )}
           {hasChildren && (
             // Each nesting level needs its own DisclosureGroup so React Aria
             // scopes expansion coordination to siblings at that level only.
@@ -1504,7 +1654,7 @@ function DataListItemImpl({
             <DisclosureGroup
               allowsMultipleExpanded={allowsMultipleExpanded}
               className='flex w-full flex-col divide-y divide-border'
-              defaultExpandedKeys={defaultExpandedIds}
+              defaultExpandedKeys={childGroupExpandedKeys}
             >
               {item.children.length > virtualThreshold ? (
                 <VirtualizedItems
@@ -1555,19 +1705,100 @@ function subtreeStateChanged(item, prevSelected, nextSelected, prevExpanded, nex
   return false;
 }
 
-const DataListItem = memo(DataListItemImpl, arePropsEqualForRow);
+/**
+ * Renders an items array via TanStack Virtual when the array is large enough
+ * that mounting every row would be wasteful. Used at two call sites in
+ * `DataList`: the top-level items map and each `Disclosure.Body`'s children
+ * map. Top-level usage passes `bounded=false` so the parent `ScrollShadow`
+ * owns the scroll viewport; child usage passes `bounded=true` so an expanded
+ * group's height is capped.
+ *
+ * The `renderItem` callback is passed the item — typically a `DataListItem`
+ * with appropriate props for the call site (top-level has no `depth`, child
+ * call site passes `depth + 1`).
+ *
+ * @param {Object} props
+ * @param {boolean} props.bounded - When true, cap height at MAX_VISIBLE_CHILDREN_ROWS * ROW_HEIGHT.
+ * @param {Array} props.items - Items to render.
+ * @param {(item: Object, index: number) => React.ReactNode} props.renderItem
+ */
+function VirtualizedItems({ bounded = false, items, renderItem }) {
+  const parentRef = useRef(null);
+  const virtualizer = useVirtualizer({
+    count: items.length,
+    estimateSize: () => ROW_HEIGHT,
+    getScrollElement: () => parentRef.current,
+    overscan: VIRTUAL_OVERSCAN
+  });
 
-function hasShareableChildren(item) {
-  if (item?.unshareable === true) return false;
-  if (!item?.children?.length) return false;
-  return item.children.some((c) => isItemShareable(c) || hasShareableChildren(c));
+  const containerStyle = bounded
+    ? {
+        height: Math.min(items.length * ROW_HEIGHT, MAX_VISIBLE_CHILDREN_ROWS * ROW_HEIGHT)
+      }
+    : undefined;
+
+  return (
+    <div
+      ref={parentRef}
+      style={containerStyle}
+      className={
+        bounded
+          ? // `overscroll-auto` (not `contain`) lets a bounded child list chain
+            // its scroll to the parent once it hits its top/bottom edge — so
+            // scrolling inside an expanded group keeps scrolling the whole
+            // DataList instead of dead-stopping at the group's boundary. The
+            // unbounded top-level container keeps `overscroll-y-contain` so the
+            // sidepanel/page itself never bounce-scrolls past the list.
+            'w-full overflow-y-auto overscroll-auto'
+          : 'min-h-0 w-full flex-1 overflow-y-auto overscroll-x-none overscroll-y-contain'
+      }
+    >
+      <div
+        className='divide-y divide-border'
+        style={{
+          height: virtualizer.getTotalSize(),
+          position: 'relative',
+          width: '100%'
+        }}
+      >
+        {virtualizer.getVirtualItems().map((vRow) => {
+          const item = items[vRow.index];
+          return (
+            <div
+              data-index={vRow.index}
+              key={item?.id ?? vRow.index}
+              ref={virtualizer.measureElement}
+              style={{
+                left: 0,
+                position: 'absolute',
+                top: 0,
+                transform: `translateY(${vRow.start}px)`,
+                width: '100%'
+              }}
+            >
+              {renderItem(item, vRow.index)}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
-function isItemShareable(item) {
-  if (!item) return false;
-  if (item.unshareable === true) return false;
-  if (Number(item.id) < 0) return false;
-  return SHAREABLE_TYPES.has(item.typeId);
+const DataListItem = memo(DataListItemImpl, arePropsEqualForRow);
+
+/**
+ * Returns the id of `item`'s sole populated subcategory, or null. A match means
+ * `item` has exactly one virtual-parent child that itself has children (e.g. a
+ * Beast Mode whose only non-empty category is "Cards", its Drills and Other
+ * Beast Modes being empty and hidden). Used to auto-expand that lone
+ * subcategory with its parent. Only the immediate child is returned; deeper
+ * chains resolve because each level seeds its own child group in turn.
+ */
+function soleVirtualChildId(item) {
+  if (!item?.children?.length) return null;
+  const populated = item.children.filter((child) => child.isVirtualParent && child.children?.length > 0);
+  return populated.length === 1 ? populated[0].id : null;
 }
 
 /**

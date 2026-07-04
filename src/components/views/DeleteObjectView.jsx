@@ -1,7 +1,7 @@
-import { Alert, AlertDialog, Button, Card, Spinner, Tooltip } from '@heroui/react';
+import { AlertDialog, Button, Card, Spinner, Tooltip } from '@heroui/react';
 import { useEffect, useRef, useState } from 'react';
 
-import { ObjectTypeIcon } from '@/components/ObjectTypeIcon';
+import { Alert } from '@/components/Alert';
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { DataListItem } from '@/models/DataListItem';
 import { DomoContext } from '@/models/DomoContext';
@@ -14,11 +14,12 @@ import { deleteObject } from '@/services/deleteObject';
 import { getDependenciesForDelete } from '@/services/dependencies';
 import { deletePageAndAllCards } from '@/services/pages';
 import { parseMarkdownBold } from '@/utils/markdown';
+import { collectShareableObjects } from '@/utils/rowActions';
 import { getSidepanelData } from '@/utils/sidepanel';
-import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
 import IconTrash from '@icons/trash.svg?react';
 import IconX from '@icons/x.svg?react';
 
+import { AlertStatusIcon } from '../AlertStatusIcon';
 import { DataList } from './DataList';
 
 /**
@@ -118,6 +119,12 @@ const deletersByType = {
     run: ({ context }) => runPageDelete({ context }),
     typeName: 'Page'
   },
+  REPORT_SCHEDULE: {
+    confirmSuffix: '',
+    primaryLabel: 'Delete Scheduled Report',
+    run: ({ context }) => deleteObject({ object: context.domoObject, tabId: context.tabId }),
+    typeName: 'Scheduled Report'
+  },
   TEMPLATE: {
     cascadeButtons: [
       {
@@ -186,7 +193,13 @@ const deletersByType = {
 };
 deletersByType.WORKSHEET_VIEW.cascadeButtons = deletersByType.DATA_APP_VIEW.cascadeButtons;
 
-export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null }) {
+export function DeleteObjectView({
+  instance = null,
+  isActive = true,
+  liveContext = null,
+  onBackToDefault = null,
+  onStatusUpdate = null
+}) {
   const [isLoading, setIsLoading] = useState(true);
   const [currentContext, setCurrentContext] = useState(null);
   const [config, setConfig] = useState(null);
@@ -194,6 +207,7 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
   const [isLoadingDeps, setIsLoadingDeps] = useState(false);
   const [depsError, setDepsError] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
   const mountedRef = useRef(true);
   const { showPromiseStatus } = useStatusBar();
@@ -208,7 +222,7 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
 
   const loadData = async () => {
     try {
-      const data = await getSidepanelData();
+      const data = await getSidepanelData(instance);
       if (!data || data.type !== 'deleteObject') {
         onBackToDefault?.();
         return;
@@ -250,6 +264,16 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
       }
     } finally {
       if (mountedRef.current) setIsLoadingDeps(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    if (!currentContext) return;
+    setIsRefreshing(true);
+    try {
+      await loadDependencies(currentContext);
+    } finally {
+      if (mountedRef.current) setIsRefreshing(false);
     }
   };
 
@@ -323,104 +347,119 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
 
   const availableCascades = (config.cascadeButtons || []).filter((c) => c.available({ context: currentContext, deps }));
 
+  // "Will also be deleted" and "Other dependencies" each become a top-level virtual
+  // parent group, so the whole view is one DataList: its header carries the
+  // delete title/object and the activity-log-for-all button, its footer carries
+  // the delete buttons, and these groups (auto-expanded) hold the affected
+  // objects. A group with a single child auto-expands that child too (see
+  // DataList's sole-virtual-child handling), so a lone "Cards on this page"
+  // opens straight away.
+  const baseUrl = domoObject.baseUrl;
+  const deletedGroups = (deps?.groups || []).filter((g) => g.deleted);
+  const otherGroups = (deps?.groups || []).filter((g) => !g.deleted);
+  const dependencyItems = [];
+  if (deletedGroups.length > 0) {
+    dependencyItems.push(
+      DataListItem.createGroup({
+        children: buildDependencyItems(deletedGroups, 'deleted-group', baseUrl),
+        id: 'will-also-be-deleted',
+        label: 'Will also be deleted'
+      })
+    );
+  }
+  if (otherGroups.length > 0) {
+    dependencyItems.push(
+      DataListItem.createGroup({
+        children: buildDependencyItems(otherGroups, 'other-group', baseUrl),
+        id: 'other-dependencies',
+        label: 'Other dependencies'
+      })
+    );
+  }
+  const expandedGroupIds = dependencyItems.map((item) => item.id);
+  // Show the header "Share all" only when some dependency row is actually
+  // shareable (DataList shares them itself via its per-type capabilities).
+  const hasShareableDeps = collectShareableObjects(dependencyItems).length > 0;
+
   return (
     <>
-      <Card className='flex min-h-0 w-full flex-1 flex-col p-2'>
-        <Card.Header className='gap-2'>
-          <Card.Title className='flex items-start justify-between'>
-            <div className='flex min-w-0 flex-1 items-center gap-2 pt-1'>
-              <ObjectTypeIcon size={30} typeId={domoObject.typeId} />
-              <div className='min-w-0'>
-                <div className='truncate'>Delete {domoObject.typeName || config.typeName}</div>
-                <Tooltip>
-                  <Tooltip.Trigger className='block w-full min-w-0 pr-8'>
-                    <div className='truncate text-xs font-normal text-muted'>
-                      {objectName} (ID: {domoObject.id})
-                    </div>
-                  </Tooltip.Trigger>
-                  <Tooltip.Content className='text-wrap'>
-                    {objectName} (ID: {domoObject.id})
+      <DataList
+        allowsMultipleExpanded
+        fillHeight
+        currentContext={liveContext}
+        defaultExpandedIds={expandedGroupIds}
+        feature='Delete'
+        featureIcon={<IconTrash />}
+        headerActions={hasShareableDeps ? ['shareAll', 'reload', 'refresh'] : ['reload', 'refresh']}
+        isRefreshing={isRefreshing}
+        itemLabel='dependency'
+        items={dependencyItems}
+        objectId={domoObject.id}
+        objectType={domoObject.typeId}
+        showActions={true}
+        showCounts={true}
+        subject={objectName}
+        subjectTypeId={domoObject.typeId}
+        subtext={`ID: ${domoObject.id}`}
+        viewType='deleteObject'
+        onClose={onBackToDefault || undefined}
+        onRefresh={handleRefresh}
+        onStatusUpdate={onStatusUpdate}
+        banner={renderDependencyBanner({
+          deps,
+          error: depsError,
+          isBlocked,
+          isLoading: isLoadingDeps,
+          onRetry: () => loadDependencies(currentContext)
+        })}
+        footer={
+          <div className='flex flex-col gap-2'>
+            {availableCascades.map((cascade, idx) => {
+              const ctx = cascade.buildContext({ context: currentContext, deps });
+              const cascadeLabel = cascade.label(ctx);
+              const blocked = cascade.isBlocked?.(ctx) ?? false;
+              return (
+                <Tooltip key={idx}>
+                  <Button
+                    fullWidth
+                    isDisabled={isDeleting || blocked}
+                    variant='tertiary'
+                    onPress={() =>
+                      setPendingAction({
+                        cascade,
+                        kind: 'cascade',
+                        label: cascadeLabel
+                      })
+                    }
+                  >
+                    <IconTrash className='text-danger' />
+                    {cascadeLabel}
+                  </Button>
+                  <Tooltip.Content className='max-w-60'>
+                    {blocked ? cascade.blockedReason(ctx) : cascade.tooltip(ctx)}
                   </Tooltip.Content>
                 </Tooltip>
-              </div>
-            </div>
-            {onBackToDefault && (
-              <Tooltip>
-                <Button isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
-                  <IconX />
-                </Button>
-                <Tooltip.Content className='max-w-60'>Close</Tooltip.Content>
-              </Tooltip>
-            )}
-          </Card.Title>
-        </Card.Header>
-
-        <DependencySection
-          baseUrl={currentContext.domoObject?.baseUrl}
-          deps={deps}
-          error={depsError}
-          isLoading={isLoadingDeps}
-          onRetry={() => loadDependencies(currentContext)}
-          onStatusUpdate={onStatusUpdate}
-        />
-
-        {isBlocked && deps?.blockingReason && (
-          <Alert className='w-full shrink-0 bg-warning-soft' status='warning'>
-            <Alert.Indicator>
-              <IconExclamationTriangle data-slot='alert-default-icon' />
-            </Alert.Indicator>
-            <Alert.Content>
-              <Alert.Description>{deps.blockingReason}</Alert.Description>
-            </Alert.Content>
-          </Alert>
-        )}
-
-        <div className='flex shrink-0 flex-col gap-2'>
-          {availableCascades.map((cascade, idx) => {
-            const ctx = cascade.buildContext({ context: currentContext, deps });
-            const cascadeLabel = cascade.label(ctx);
-            const blocked = cascade.isBlocked?.(ctx) ?? false;
-            return (
-              <Tooltip key={idx}>
-                <Button
-                  fullWidth
-                  isDisabled={isDeleting || blocked}
-                  variant='tertiary'
-                  onPress={() =>
-                    setPendingAction({
-                      cascade,
-                      kind: 'cascade',
-                      label: cascadeLabel
-                    })
-                  }
-                >
-                  <IconTrash className='text-danger' />
-                  {cascadeLabel}
-                </Button>
-                <Tooltip.Content className='max-w-60'>
-                  {blocked ? cascade.blockedReason(ctx) : cascade.tooltip(ctx)}
-                </Tooltip.Content>
-              </Tooltip>
-            );
-          })}
-          <Tooltip isDisabled={!isBlocked}>
-            <Button
-              fullWidth
-              isDisabled={isDeleting || isBlocked}
-              isPending={isDeleting}
-              variant='danger'
-              onPress={() => setPendingAction({ kind: 'primary', label: primaryLabel })}
-            >
-              <IconTrash />
-              {primaryLabel}
-            </Button>
-            <Tooltip.Content className='max-w-60'>{deps?.blockingReason || 'Blocked'}</Tooltip.Content>
-          </Tooltip>
-        </div>
-      </Card>
+              );
+            })}
+            <Tooltip isDisabled={!isBlocked}>
+              <Button
+                fullWidth
+                isDisabled={isDeleting || isBlocked}
+                isPending={isDeleting}
+                variant='danger'
+                onPress={() => setPendingAction({ kind: 'primary', label: primaryLabel })}
+              >
+                <IconTrash />
+                {primaryLabel}
+              </Button>
+              <Tooltip.Content className='max-w-60'>{deps?.blockingReason || 'Blocked'}</Tooltip.Content>
+            </Tooltip>
+          </div>
+        }
+      />
 
       <AlertDialog
-        isOpen={!!pendingAction}
+        isOpen={!!pendingAction && isActive}
         onOpenChange={(open) => {
           if (!open) setPendingAction(null);
         }}
@@ -474,10 +513,62 @@ export function DeleteObjectView({ onBackToDefault = null, onStatusUpdate = null
   );
 }
 
-function DependencySection({ baseUrl, deps, error, isLoading, onRetry, onStatusUpdate }) {
+function buildDependencyItems(groups, idPrefix, baseUrl) {
+  return groups.flatMap((group, idx) => {
+    // Count-only summary group (e.g. "Approvals"): a childless virtual parent
+    // renders as a flat "(N requests)" row, showing the tally without listing
+    // each item.
+    if ((!group.items || group.items.length === 0) && group.count !== undefined) {
+      return new DataListItem({
+        count: group.count,
+        countLabel: group.countLabel,
+        id: `${idPrefix}-${idx}`,
+        isVirtualParent: true,
+        label: group.label,
+        typeId: group.summaryTypeId ?? null
+      });
+    }
+    const children = group.items.map((item) => {
+      const dli = new DataListItem({
+        count: item.count,
+        countLabel: item.countLabel,
+        domoObject: baseUrl ? new DomoObject(item.typeId, item.id, baseUrl) : null,
+        id: item.id,
+        label: item.label,
+        typeId: item.typeId,
+        url: item.url
+      });
+      if (item.unshareable) dli.unshareable = true;
+      return dli;
+    });
+    // Flat group (a 1:1 related object): render its item(s) as leaf rows
+    // directly, so the row keeps its type icon and inline actions instead of
+    // sitting under an icon-less disclosure header.
+    if (group.flat) return children;
+    // Each dependency group lists items of a single type, so record it as the
+    // group's childTypeId; DataList uses it to decide the group's "all" actions.
+    return DataListItem.createGroup({
+      children,
+      childTypeId: group.items[0]?.typeId ?? null,
+      id: `${idPrefix}-${idx}`,
+      label: group.label
+    });
+  });
+}
+
+function findRelatedDataset(deps) {
+  return deps?.groups?.find((g) => g.key === 'relatedDataset') || null;
+}
+
+// The dependency-check status shown above the affected-objects list: a loading
+// spinner, an error with retry, a "not supported" or "none found" notice, or a
+// blocking warning when something prevents the delete. Returns null once a
+// normal set of dependencies has loaded (the list itself carries it then), so
+// the consumer can pass the result straight to DataList's `banner` slot.
+function renderDependencyBanner({ deps, error, isBlocked, isLoading, onRetry }) {
   if (isLoading) {
     return (
-      <div className='flex shrink-0 items-center justify-center gap-2 py-3'>
+      <div className='flex items-center justify-center gap-2 py-3'>
         <Spinner size='sm' />
         <span className='text-xs text-muted'>Checking dependencies…</span>
       </div>
@@ -486,10 +577,12 @@ function DependencySection({ baseUrl, deps, error, isLoading, onRetry, onStatusU
 
   if (error) {
     return (
-      <Alert className='w-full shrink-0 bg-danger-soft' status='danger'>
-        <Alert.Indicator />
+      <Alert className='w-full bg-danger-soft' status='danger'>
         <Alert.Content>
-          <Alert.Title>Could not check dependencies</Alert.Title>
+          <Alert.Title className='flex items-center gap-1'>
+            <Alert.Indicator />
+            Could not check dependencies
+          </Alert.Title>
           <Alert.Description>{error}</Alert.Description>
           <Button className='mt-2' size='sm' variant='ghost' onPress={onRetry}>
             Retry
@@ -503,7 +596,7 @@ function DependencySection({ baseUrl, deps, error, isLoading, onRetry, onStatusU
 
   if (!deps.supported) {
     return (
-      <Alert className='w-full shrink-0 bg-surface-secondary' status='default'>
+      <Alert className='w-full bg-surface-secondary' status='default'>
         <Alert.Indicator />
         <Alert.Content>
           <Alert.Description className='text-foreground'>
@@ -516,7 +609,7 @@ function DependencySection({ baseUrl, deps, error, isLoading, onRetry, onStatusU
 
   if (deps.totalCount === 0) {
     return (
-      <Alert className='w-full shrink-0 bg-success-soft' status='success'>
+      <Alert className='w-full bg-success-soft' status='success'>
         <Alert.Indicator />
         <Alert.Content>
           <Alert.Description>No dependencies found.</Alert.Description>
@@ -525,84 +618,18 @@ function DependencySection({ baseUrl, deps, error, isLoading, onRetry, onStatusU
     );
   }
 
-  const buildItems = (groups, idPrefix) =>
-    groups.flatMap((group, idx) => {
-      // Count-only summary group (e.g. "Approvals"): a childless virtual parent
-      // renders as a flat "(N requests)" row, showing the tally without listing
-      // each item.
-      if ((!group.items || group.items.length === 0) && group.count !== undefined) {
-        return new DataListItem({
-          count: group.count,
-          countLabel: group.countLabel,
-          id: `${idPrefix}-${idx}`,
-          isVirtualParent: true,
-          label: group.label,
-          typeId: group.summaryTypeId ?? null
-        });
-      }
-      const children = group.items.map((item) => {
-        const dli = new DataListItem({
-          count: item.count,
-          countLabel: item.countLabel,
-          domoObject: baseUrl ? new DomoObject(item.typeId, item.id, baseUrl) : null,
-          id: item.id,
-          label: item.label,
-          typeId: item.typeId,
-          url: item.url
-        });
-        if (item.unshareable) dli.unshareable = true;
-        return dli;
-      });
-      // Flat group (a 1:1 related object): render its item(s) as leaf rows
-      // directly, so the row keeps its type icon and inline actions instead of
-      // sitting under an icon-less disclosure header.
-      if (group.flat) return children;
-      return DataListItem.createGroup({
-        children,
-        id: `${idPrefix}-${idx}`,
-        label: group.label
-      });
-    });
+  if (isBlocked && deps.blockingReason) {
+    return (
+      <Alert className='w-full bg-warning-soft' status='warning'>
+        <AlertStatusIcon />
+        <Alert.Content>
+          <Alert.Description>{deps.blockingReason}</Alert.Description>
+        </Alert.Content>
+      </Alert>
+    );
+  }
 
-  const deletedGroups = deps.groups.filter((g) => g.deleted);
-  const otherGroups = deps.groups.filter((g) => !g.deleted);
-
-  return (
-    <div className='flex min-h-0 flex-1 flex-col gap-1 overflow-hidden'>
-      {deletedGroups.length > 0 && (
-        <>
-          <p className='shrink-0 px-2 pt-1 text-xs font-bold text-muted uppercase'>Will be deleted</p>
-          <DataList
-            itemActions={['copy', 'lineage', 'viewsExplorer']}
-            itemLabel='dependency'
-            items={buildItems(deletedGroups, 'deleted-group')}
-            showActions={true}
-            showCounts={true}
-            variant='transparent'
-            onStatusUpdate={onStatusUpdate}
-          />
-        </>
-      )}
-      {otherGroups.length > 0 && (
-        <>
-          <p className='shrink-0 px-2 pt-1 text-xs font-bold text-muted uppercase'>Other dependencies</p>
-          <DataList
-            itemActions={['copy', 'lineage', 'viewsExplorer']}
-            itemLabel='dependency'
-            items={buildItems(otherGroups, 'other-group')}
-            showActions={true}
-            showCounts={true}
-            variant='transparent'
-            onStatusUpdate={onStatusUpdate}
-          />
-        </>
-      )}
-    </div>
-  );
-}
-
-function findRelatedDataset(deps) {
-  return deps?.groups?.find((g) => g.key === 'relatedDataset') || null;
+  return null;
 }
 
 function resolveSuffix(config, context) {

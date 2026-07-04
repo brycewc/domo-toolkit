@@ -4,12 +4,22 @@ import { DomoObject } from '@/models/DomoObject';
 import { fetchObjectDetailsInPage, getObjectType, resolvePrimaryCopy } from '@/models/DomoObjectType';
 import { getDataflowForOutputDataset } from '@/services/dataflows';
 import { runEnrichments } from '@/services/enrichments';
+import { getFeatureSwitches } from '@/services/features';
 import { checkPageType } from '@/services/pages';
 import { getCurrentUser, getUserGroups } from '@/services/users';
 import { clearCookies } from '@/utils/clearCookies';
 import { EXCLUDED_HOSTNAMES, SECTION_TITLES } from '@/utils/constants';
 import { detectCurrentObject, isDomoUrl } from '@/utils/currentObject';
 import { executeInPage } from '@/utils/executeInPage';
+import { sidepanelStorageKeyPrefix } from '@/utils/sidepanel';
+
+// Generic titles the toolkit applies to list/index pages, in both the bare and
+// " - Domo"-suffixed forms document.title can hold. They are overwritable in two
+// directions: our own writes replace them with a resolved object name, and when
+// Domo (re)writes one after we have already set an object name, we re-apply the
+// name. Domo reuses a section title across a list and its detail pages, so
+// navigating from the list into an item can leave the detail tab on it.
+const SECTION_TITLE_STRINGS = Object.values(SECTION_TITLES).flatMap((title) => [title, `${title} - Domo`]);
 
 /**
  * Compute whether the current user is an owner of the detected object.
@@ -82,7 +92,7 @@ function computeIsOwner(typeId, details, userId, userGroups) {
     return false;
   }
 
-  // Single owner — typed object
+  // Single owner: typed object
   if (typeof owner === 'object') {
     return checkTypedOwner(owner);
   }
@@ -175,50 +185,85 @@ const tabContexts = new Map();
 // LRU tracking (tabId -> timestamp)
 const tabAccessTimes = new Map();
 const MAX_CACHED_TABS = 10;
+// Per-entry budget for the session backup, in JSON string length (roughly
+// bytes). toStorageJSON already drops the known-heavy fields; this is the
+// generic backstop for any object whose raw details blob is still huge, so
+// the worst case stays around MAX_CACHED_TABS * this out of the 10 MB quota.
+const MAX_BACKUP_ENTRY_CHARS = 250000;
 
 // Session storage keys
 const SESSION_STORAGE_KEY = 'tabContextsBackup';
+const INSTANCE_USERS_KEY = 'instanceUsersBackup';
+
+// Persisted instance-user entries older than this are treated as stale on
+// restore and re-fetched, so group changes can't be served indefinitely from a
+// long-lived backup. In-session cache behavior is unchanged.
+const INSTANCE_USER_TTL_MS = 12 * 60 * 60 * 1000;
 
 // Per-tab detection generation counter to prevent stale async callbacks
 const tabDetectionGen = new Map();
+// Tabs with a detection currently running (tabId -> the generation that is in
+// flight). Used so the page-reload retry branch doesn't start a competing
+// detection while one is already running, which would bump the generation and
+// cancel the in-flight run before it commits the object's name.
+const tabDetectionInFlight = new Map();
 
-// Per-instance cache for user + groups (instance -> { user, userGroups, promise })
+// Per-instance cache for user + groups + feature switches
+// (instance -> { user, userGroups, featureSwitches, promise })
 const instanceUserCache = new Map();
 
+// Cached setting: omit the " - Domo" suffix when renaming Domo tabs (synced from storage)
+let removeDomoTitleSuffix = false;
+
 /**
- * Get or fetch the current user and their groups for an instance.
- * Returns cached data if available, otherwise fetches and caches.
+ * Get or fetch the current user, their groups, and the instance's enabled
+ * feature switches. Returns cached data if available, otherwise fetches and
+ * caches. Feature switches ride the same per-instance entry as the user, so
+ * they share its caching, persistence, and logout invalidation.
  * @param {string} instance - The Domo instance subdomain
  * @param {number} tabId - The tab ID to execute API calls in
- * @returns {Promise<{ user: Object, userGroups: string[] }>}
+ * @returns {Promise<{ user: Object, userGroups: string[], featureSwitches: string[]|null }>}
  */
 function getInstanceUser(instance, tabId) {
   const cached = instanceUserCache.get(instance);
   if (cached?.user?.metadata?.USER_RIGHTS?.length) {
-    return Promise.resolve({ user: cached.user, userGroups: cached.userGroups });
+    return Promise.resolve({
+      featureSwitches: cached.featureSwitches ?? null,
+      user: cached.user,
+      userGroups: cached.userGroups
+    });
   }
   if (cached?.promise) return cached.promise;
 
   const promise = (async () => {
     const user = await getCurrentUser(tabId);
     let userGroups = [];
+    let featureSwitches = null;
     if (user?.id) {
-      const richGroups = await getUserGroups(user.id, tabId).catch((error) => {
-        console.warn(`[Background] Could not fetch user groups for ${instance}:`, error.message);
-        return [];
-      });
+      const [richGroups, switches] = await Promise.all([
+        getUserGroups(user.id, tabId).catch((error) => {
+          console.warn(`[Background] Could not fetch user groups for ${instance}:`, error.message);
+          return [];
+        }),
+        getFeatureSwitches(tabId).catch((error) => {
+          console.warn(`[Background] Could not fetch feature switches for ${instance}:`, error.message);
+          return null;
+        })
+      ]);
       userGroups = richGroups.map((g) => g.groupId);
+      featureSwitches = switches;
     }
     // Only cache a user that actually carries its rights. Empty USER_RIGHTS means
     // bootstrap wasn't fully hydrated when we read it; caching that hollow user
     // would serve it to every later detection and disable audit-gated features
     // for a full admin until logout. Dropping it lets the next detection retry.
     if (user?.metadata?.USER_RIGHTS?.length) {
-      instanceUserCache.set(instance, { promise: null, user, userGroups });
+      instanceUserCache.set(instance, { featureSwitches, promise: null, user, userGroups });
+      persistInstanceUsers();
     } else {
       instanceUserCache.delete(instance);
     }
-    return { user, userGroups };
+    return { featureSwitches, user, userGroups };
   })();
 
   // Clear cache on failure so next detection retries
@@ -226,7 +271,7 @@ function getInstanceUser(instance, tabId) {
     instanceUserCache.delete(instance);
   });
 
-  instanceUserCache.set(instance, { promise, user: null, userGroups: null });
+  instanceUserCache.set(instance, { featureSwitches: null, promise, user: null, userGroups: null });
   return promise;
 }
 
@@ -236,6 +281,7 @@ function getInstanceUser(instance, tabId) {
  */
 function invalidateInstanceUser(instance) {
   instanceUserCache.delete(instance);
+  persistInstanceUsers();
   console.log(`[Background] Invalidated user cache for instance: ${instance}`);
 }
 
@@ -273,10 +319,30 @@ function broadcastApiErrors(tabId) {
     .catch(() => {});
 }
 
+function buildAllowedTitlePrefixes(domoObject) {
+  const template = domoObject.objectType?.api?.displayName;
+  const parentName = domoObject.metadata?.parent?.name;
+  if (!template || !parentName || !template.includes('{name}')) {
+    return [];
+  }
+  // The part of a title before the object's own name is shared by every sibling
+  // under the same parent (e.g. every page of one app studio app, which don't
+  // reset the tab title on internal navigation). A current title starting with
+  // it is one the toolkit set for a sibling, so it is safe to overwrite when
+  // moving between those siblings.
+  const prefix = template
+    .slice(0, template.indexOf('{name}'))
+    .replace('{parent.name}', parentName)
+    .replace('{id}', domoObject.id ?? '');
+  return prefix ? [prefix] : [];
+}
+
 function buildAllowedTitles(domoObject) {
   const allowed = [];
   if (domoObject.metadata?.parent?.name) {
-    allowed.push(`${domoObject.metadata.parent.name} - Domo`);
+    const parentName = domoObject.metadata.parent.name;
+    allowed.push(`${parentName} - Domo`);
+    allowed.push(parentName);
   }
   return allowed;
 }
@@ -319,6 +385,15 @@ function getApiErrors(tabId) {
 function getTabContext(tabId) {
   touchTab(tabId);
   return tabContexts.get(tabId) || null;
+}
+
+/**
+ * Resolve the name used for the tab title. Prefers the parent-qualified
+ * titleName (composed from a type's api.displayName template) and falls back to
+ * the object's own name, which is what the context footer shows.
+ */
+function getTitleName(domoObject) {
+  return domoObject?.metadata?.titleName || domoObject?.metadata?.name;
 }
 
 const ICON_PATHS = {
@@ -385,12 +460,56 @@ function pathnameOf(url) {
 }
 
 /**
+ * Persist the per-instance user/groups cache to session storage. These are
+ * identical across every tab on an instance, so they live here once instead of
+ * being duplicated in each tab's context backup. Only user-bearing entries are
+ * written (in-flight promise entries are skipped); each is stamped so stale
+ * entries can be dropped on restore.
+ */
+async function persistInstanceUsers() {
+  try {
+    const record = {};
+    for (const [instance, entry] of instanceUserCache.entries()) {
+      if (entry?.user) {
+        record[instance] = {
+          featureSwitches: entry.featureSwitches || null,
+          fetchedAt: Date.now(),
+          user: entry.user,
+          userGroups: entry.userGroups || []
+        };
+      }
+    }
+    await chrome.storage.session.set({ [INSTANCE_USERS_KEY]: record });
+  } catch (error) {
+    console.error('[Background] Error persisting instance users:', error);
+  }
+}
+
+/**
  * Persist current tab contexts to session storage
  */
 async function persistToSession() {
   try {
-    // Convert Map to array for storage
-    const contextsArray = Array.from(tabContexts.entries()).slice(0, MAX_CACHED_TABS);
+    // Convert Map to array for storage. toStorageJSON allowlists what survives
+    // per tab; on top of that, any entry still over MAX_BACKUP_ENTRY_CHARS
+    // (some type's raw details blob) is stored without details at all. The
+    // identity fields keep titles, navigation, and action gating working after
+    // a restore, and details re-enrich on the next detection.
+    const contextsArray = Array.from(tabContexts.entries())
+      .slice(0, MAX_CACHED_TABS)
+      .map(([tabId, context]) => {
+        let entry = context?.toStorageJSON?.() || context;
+        if (entry?.domoObject?.metadata?.details && JSON.stringify(entry).length > MAX_BACKUP_ENTRY_CHARS) {
+          entry = {
+            ...entry,
+            domoObject: {
+              ...entry.domoObject,
+              metadata: { ...entry.domoObject.metadata, details: null }
+            }
+          };
+        }
+        return [tabId, entry];
+      });
     await chrome.storage.session.set({
       [SESSION_STORAGE_KEY]: contextsArray
     });
@@ -404,6 +523,10 @@ async function persistToSession() {
  */
 async function restoreFromSession() {
   try {
+    // Restore the instance-user cache first so contexts (which no longer carry
+    // their own user/userGroups in the backup) can be rehydrated from it.
+    await restoreInstanceUsers();
+
     const result = await chrome.storage.session.get(SESSION_STORAGE_KEY);
     if (result[SESSION_STORAGE_KEY]) {
       const contextsArray = result[SESSION_STORAGE_KEY];
@@ -413,6 +536,15 @@ async function restoreFromSession() {
       for (const [tabId, contextData] of contextsArray) {
         // Reconstruct DomoContext instance from plain object
         const context = DomoContext.fromJSON(contextData);
+        // Rehydrate user/userGroups from the per-instance cache (toStorageJSON
+        // dropped them from the backup). A miss leaves them null until the next
+        // detection re-fetches, same as a cold start with no cache.
+        const cached = context.instance ? instanceUserCache.get(context.instance) : null;
+        if (cached?.user) {
+          context.user = cached.user;
+          context.userGroups = cached.userGroups || null;
+          context.featureSwitches = cached.featureSwitches || null;
+        }
         tabContexts.set(tabId, context);
         touchTab(tabId);
       }
@@ -424,22 +556,51 @@ async function restoreFromSession() {
   }
 }
 
+/**
+ * Restore the per-instance user/groups cache from session storage on service
+ * worker wake. Entries older than INSTANCE_USER_TTL_MS are skipped so group
+ * changes aren't served indefinitely from a long-lived backup.
+ */
+async function restoreInstanceUsers() {
+  try {
+    const result = await chrome.storage.session.get(INSTANCE_USERS_KEY);
+    const record = result[INSTANCE_USERS_KEY];
+    if (!record) return;
+    const now = Date.now();
+    for (const [instance, entry] of Object.entries(record)) {
+      if (entry?.user && now - (entry.fetchedAt || 0) < INSTANCE_USER_TTL_MS) {
+        instanceUserCache.set(instance, {
+          featureSwitches: entry.featureSwitches || null,
+          promise: null,
+          user: entry.user,
+          userGroups: entry.userGroups || []
+        });
+      }
+    }
+    console.log(`[Background] Restored ${instanceUserCache.size} instance user(s) from session`);
+  } catch (error) {
+    console.error('[Background] Error restoring instance users:', error);
+  }
+}
+
 function setActionIcon(color) {
   const path = ICON_PATHS[color] ?? ICON_PATHS.blue;
   chrome.action.setIcon({ path }).catch((err) => console.error('[Background] setIcon failed:', err));
 }
 
-function setSectionTitle(tabId, url) {
+function setSectionTitle(tabId, url, force = false) {
   try {
-    const pathname = new URL(url).pathname;
+    const pathname = new URL(url).pathname.toLowerCase();
     const sortedKeys = Object.keys(SECTION_TITLES).sort((a, b) => b.length - a.length);
-    const matchedKey = sortedKeys.find((key) => pathname.startsWith(key));
+    const matchedKey = sortedKeys.find((key) => pathname.startsWith(key.toLowerCase()));
     if (matchedKey) {
-      setTabTitle(tabId, SECTION_TITLES[matchedKey]);
+      setTabTitle(tabId, SECTION_TITLES[matchedKey], [], force);
+      return true;
     }
   } catch (error) {
     console.error(`[Background] Error setting section title for tab ${tabId}:`, error);
   }
+  return false;
 }
 
 /**
@@ -455,7 +616,8 @@ function setTabContext(tabId, context) {
 
   if (context?.domoObject?.metadata?.name) {
     const allowedTitles = buildAllowedTitles(context.domoObject);
-    setTabTitle(tabId, context.domoObject.metadata.name, allowedTitles);
+    const allowedPrefixes = buildAllowedTitlePrefixes(context.domoObject);
+    setTabTitle(tabId, getTitleName(context.domoObject), allowedTitles, false, allowedPrefixes);
   }
 
   const contextData = context?.toJSON();
@@ -483,22 +645,44 @@ function setTabContext(tabId, context) {
     });
 }
 
-function setTabTitle(tabId, objectName, allowedTitles = []) {
+function setTabTitle(tabId, objectName, allowedTitles = [], force = false, allowedPrefixes = []) {
   try {
     chrome.scripting.executeScript({
-      args: [objectName, allowedTitles],
-      func: (objectName, allowedTitles) => {
+      args: [objectName, allowedTitles, allowedPrefixes, SECTION_TITLE_STRINGS, removeDomoTitleSuffix, force],
+      func: (objectName, allowedTitles, allowedPrefixes, sectionTitles, removeSuffix, force) => {
         const currentTitle = document.title.trim();
-        if (currentTitle !== 'Domo' && !allowedTitles.includes(currentTitle)) {
+        const isManagedTitle =
+          currentTitle === 'Domo' ||
+          sectionTitles.includes(currentTitle) ||
+          allowedTitles.includes(currentTitle) ||
+          allowedPrefixes.some((prefix) => prefix && currentTitle.startsWith(prefix));
+        if (!force && !isManagedTitle) {
           return;
         }
-        document.title = `${objectName} - Domo`;
+        document.title = removeSuffix ? objectName : `${objectName} - Domo`;
       },
       target: { tabId },
       world: 'MAIN'
     });
   } catch (error) {
     console.error(`[Background] Error updating title for tab ${tabId}:`, error);
+  }
+}
+
+function stripTitleSuffix(tabId) {
+  try {
+    chrome.scripting.executeScript({
+      func: () => {
+        const suffix = ' - Domo';
+        if (document.title.endsWith(suffix) && document.title.length > suffix.length) {
+          document.title = document.title.slice(0, -suffix.length);
+        }
+      },
+      target: { tabId },
+      world: 'MAIN'
+    });
+  } catch (error) {
+    console.error(`[Background] Error stripping title suffix for tab ${tabId}:`, error);
   }
 }
 
@@ -540,7 +724,7 @@ chrome.runtime.onInstalled.addListener((details) => {
     const newReleases = releases.filter((r) => compareVersions(r.version, details.previousVersion) > 0);
 
     if (newReleases.length === 0) {
-      // No release entry for this version — silently update lastSeenVersion
+      // No release entry for this version, silently update lastSeenVersion
       chrome.storage.local.set({ lastSeenVersion: currentVersion });
     } else {
       const hasFullPage = newReleases.some((r) => r.notify === 'fullPage');
@@ -695,15 +879,36 @@ chrome.storage.sync.get(['autoClearCookiesOn431', 'defaultClearCookiesHandling']
   }
 });
 
+// Initialize the cached tab-title suffix setting from storage.
+chrome.storage.sync.get(['removeDomoTitleSuffix'], (result) => {
+  removeDomoTitleSuffix = result.removeDomoTitleSuffix ?? false;
+});
+
 // Clean up when tabs are closed
 chrome.tabs.onRemoved.addListener((tabId) => {
   console.log(`[Background] Tab ${tabId} removed, cleaning up context`);
   tabContexts.delete(tabId);
   tabAccessTimes.delete(tabId);
   tabDetectionGen.delete(tabId);
+  tabDetectionInFlight.delete(tabId);
   tabApiErrors.delete(tabId);
   tabLastContext.delete(tabId);
   persistToSession();
+});
+
+// Sweep a closed window's per-instance sidepanel records so their full context
+// serializations don't pile up against the session-storage quota. getKeys()
+// (Chrome 130+) lists keys without deserializing the stored values.
+chrome.windows.onRemoved.addListener(async (windowId) => {
+  try {
+    const keys = await chrome.storage.session.getKeys();
+    const matches = keys.filter((key) => key.startsWith(sidepanelStorageKeyPrefix(windowId)));
+    if (matches.length > 0) {
+      await chrome.storage.session.remove(matches);
+    }
+  } catch (error) {
+    console.error(`[Background] Error sweeping sidepanel records for window ${windowId}:`, error);
+  }
 });
 
 // Detect context when tab becomes active (eager detection)
@@ -744,26 +949,51 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     await detectAndStoreContext(tabId);
   }
 
-  // Update title when Domo sets it to "Domo" or a stale parent-only title
+  // A page refresh reloads the same URL, so `changeInfo.url` never fires and the
+  // branch above is skipped. If an earlier detection left the context without a
+  // resolved object name (a transient API/auth failure, or the page wasn't ready
+  // when detection first ran), use the reload completing as a retry point so the
+  // name and metadata get fetched again.
+  //
+  // Skip when a detection is already running for this tab: a redetection nulls
+  // the cached object until it commits, and a reload fires `complete` more than
+  // once, so an unguarded retry would read that transient null, start a
+  // competing detection, and cancel the in-flight run (e.g. the one Share with
+  // Self kicks off after reloading), leaving the details blank.
+  if (changeInfo.status === 'complete' && isDomoUrl(tab.url) && !tabDetectionInFlight.has(tabId)) {
+    const context = getTabContext(tabId);
+    if (context && !context.domoObject?.metadata?.name) {
+      console.log(`[Background] Tab ${tabId} reloaded without resolved object metadata, retrying detection`);
+      await detectAndStoreContext(tabId);
+    }
+  }
+
+  // Update the title when Domo resets it to "Domo", leaves a stale parent-only
+  // title, or (with the suffix setting on) tacks " - Domo" onto any other page.
   if (changeInfo.title && isDomoUrl(tab.url)) {
     const context = getTabContext(tabId);
+    const objectName = context?.domoObject?.metadata?.name;
+    const allowedTitles = objectName ? buildAllowedTitles(context.domoObject) : [];
+    const allowedPrefixes = objectName ? buildAllowedTitlePrefixes(context.domoObject) : [];
     if (changeInfo.title === 'Domo') {
-      // Title reset to "Domo" — apply object name or section title
-      if (context?.domoObject?.metadata?.name) {
+      // Title reset to "Domo", so apply the object name or a section title
+      if (objectName) {
         console.log(`[Background] Updating title for tab ${tabId} to include object name`);
-        const allowedTitles = buildAllowedTitles(context.domoObject);
-        setTabTitle(tabId, context.domoObject.metadata.name, allowedTitles);
+        setTabTitle(tabId, getTitleName(context.domoObject), allowedTitles, false, allowedPrefixes);
       } else if (tab.url) {
         setSectionTitle(tabId, tab.url);
       }
-    } else if (context?.domoObject?.metadata?.name) {
-      // Title changed to something other than "Domo" — check if it's a
-      // stale parent-only title we can enrich (e.g., "MyApp - Domo")
-      const allowedTitles = buildAllowedTitles(context.domoObject);
-      if (allowedTitles.includes(changeInfo.title)) {
-        console.log(`[Background] Enriching stale title for tab ${tabId}`);
-        setTabTitle(tabId, context.domoObject.metadata.name, allowedTitles);
-      }
+    } else if (objectName && (allowedTitles.includes(changeInfo.title) || SECTION_TITLE_STRINGS.includes(changeInfo.title))) {
+      // Domo re-applied a generic title after we set the object name: either a
+      // stale parent-only title (e.g., "MyApp - Domo") or a section title it
+      // reuses across a list and its detail pages (e.g., "Code Engine
+      // Packages"), so re-apply the object name.
+      console.log(`[Background] Re-applying object name to tab ${tabId}`);
+      setTabTitle(tabId, getTitleName(context.domoObject), allowedTitles, false, allowedPrefixes);
+    } else if (removeDomoTitleSuffix && changeInfo.title.endsWith(' - Domo')) {
+      // Suffix setting on, so strip " - Domo" from any other Domo tab title.
+      // Excluded hosts never reach here: isDomoUrl(tab.url) above is false for them.
+      stripTitleSuffix(tabId);
     }
   }
 });
@@ -790,6 +1020,34 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
     applyIconFromStorage();
   }
 
+  if (areaName === 'sync' && changes.removeDomoTitleSuffix !== undefined) {
+    removeDomoTitleSuffix = changes.removeDomoTitleSuffix.newValue ?? false;
+
+    // Re-title open Domo tabs so the change applies without a reload
+    const tabs = await chrome.tabs.query({
+      url: '*://*.domo.com/*',
+      windowType: 'normal'
+    });
+    for (const tab of tabs) {
+      // The query matches every *.domo.com host, including excluded ones
+      // (support, developer, etc.); skip those so no title management runs there.
+      if (!isDomoUrl(tab.url)) continue;
+      const context = getTabContext(tab.id);
+      if (context?.domoObject?.metadata?.name) {
+        const allowedTitles = buildAllowedTitles(context.domoObject);
+        const allowedPrefixes = buildAllowedTitlePrefixes(context.domoObject);
+        setTabTitle(tab.id, getTitleName(context.domoObject), allowedTitles, true, allowedPrefixes);
+        continue;
+      }
+      // Unmanaged page (no detected object): re-apply a section title if one
+      // matches, otherwise strip the suffix directly when the setting is on.
+      const appliedSection = setSectionTitle(tab.id, tab.url, true);
+      if (!appliedSection && removeDomoTitleSuffix) {
+        stripTitleSuffix(tab.id);
+      }
+    }
+  }
+
   if (areaName === 'sync' && changes.faviconRules) {
     console.log('[Background] Favicon rules changed, notifying all Domo tabs');
 
@@ -800,6 +1058,7 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
     });
 
     for (const tab of tabs) {
+      if (!isDomoUrl(tab.url)) continue;
       sendMessageWithRetry(tab.id, { type: 'APPLY_FAVICON' }, 3)
         .then(() => {
           console.log(`[Background] Updated favicon for tab ${tab.id}`);
@@ -845,6 +1104,7 @@ async function copyViaFocusedUi() {
 async function detectAndStoreContext(tabId) {
   const generation = (tabDetectionGen.get(tabId) || 0) + 1;
   tabDetectionGen.set(tabId, generation);
+  tabDetectionInFlight.set(tabId, generation);
   const isStale = () => tabDetectionGen.get(tabId) !== generation;
 
   try {
@@ -886,14 +1146,15 @@ async function detectAndStoreContext(tabId) {
       setTabContext(tabId, context);
     }
 
-    // Fetch current user + groups (cached per instance, non-blocking)
+    // Fetch current user + groups + feature switches (cached per instance, non-blocking)
     getInstanceUser(context.instance, tabId)
-      .then(({ user, userGroups }) => {
+      .then(({ featureSwitches, user, userGroups }) => {
         if (isStale()) return;
         const currentContext = getTabContext(tabId);
         if (currentContext) {
           currentContext.user = user;
           currentContext.userGroups = userGroups;
+          currentContext.featureSwitches = featureSwitches;
           // Recompute isOwner if metadata is already available
           if (currentContext.domoObject?.metadata?.details) {
             currentContext.domoObject.metadata.isOwner = computeIsOwner(
@@ -904,7 +1165,7 @@ async function detectAndStoreContext(tabId) {
             );
           }
           // During redetection, only store silently if domoObject isn't
-          // resolved yet — the final setTabContext after detection will
+          // resolved yet; the final setTabContext after detection will
           // broadcast the complete context.
           if (isRedetection && !currentContext.domoObject) {
             tabContexts.set(tabId, currentContext);
@@ -999,9 +1260,24 @@ async function detectAndStoreContext(tabId) {
       parentId // pass parent ID if extracted from URL
     );
 
+    // When a DataFlow is opened at a historical version (?versionId=), enrich from that version's
+    // endpoint so the whole context (JSON details, Inputs/Outputs tabs, name, created) reflects
+    // the version instead of the live definition. The v2 versions response wraps the definition
+    // under `dataFlow` with the version number and timestamp alongside; pointing the detail and
+    // created paths into the wrapper unwraps it into the same shape the live endpoint returns,
+    // and the name template tags the object name with its version so it reads as a version.
+    const apiConfig =
+      detected.dataflowVersionId && typeModel.id === 'DATAFLOW_TYPE'
+        ? {
+            endpoint: `/dataprocessing/v2/dataflows/{id}/versions/${detected.dataflowVersionId}`,
+            nameTemplate: '{dataFlow.name} - {versionNumber}',
+            paths: { created: 'timeStamp', details: 'dataFlow' }
+          }
+        : typeModel.api;
+
     // Prepare parameters for page-safe enrichment function
     const params = {
-      apiConfig: typeModel.api,
+      apiConfig,
       baseUrl: detected.baseUrl,
       objectId,
       parentId: parentId || null,
@@ -1046,6 +1322,11 @@ async function detectAndStoreContext(tabId) {
     if (detected.workflowModelId) {
       domoObject.metadata.context.workflowModelId = detected.workflowModelId;
       domoObject.metadata.context.workflowVersionNumber = detected.workflowVersionNumber;
+    }
+
+    // Preserve the DataFlow version qualifier when viewing a historical version (?versionId=)
+    if (detected.dataflowVersionId) {
+      domoObject.metadata.context.dataflowVersionId = detected.dataflowVersionId;
     }
 
     // Preserve page/app context when a card is viewed from a page or app
@@ -1095,7 +1376,7 @@ async function detectAndStoreContext(tabId) {
     }
 
     // For objects with parents, enrich metadata with parent details
-    // (skip for stream parents — those are enriched async below)
+    // (skip for stream parents; those are enriched async below)
     console.log(`[Background] Parent enrichment check: parentId=${parentId}, parents=${JSON.stringify(typeModel.parents)}`);
     if (parentId && typeModel.parents && typeModel.parents.length > 0 && !isStreamParent) {
       try {
@@ -1109,12 +1390,21 @@ async function detectAndStoreContext(tabId) {
       }
     }
 
-    // Compose display name from template if configured
+    // Compose a tab-title display name from template if configured. This is kept
+    // separate from metadata.name so the context footer shows the object's own
+    // name while the tab title gets the parent-qualified form. Types that set
+    // api.nameFromDisplayName opt out of that split: their own name is
+    // meaningless alone (a version is just "1.2.3"), so the parent-qualified
+    // form becomes the object's name everywhere, not only in the tab title.
     if (typeModel.api?.displayName && domoObject.metadata?.parent?.name) {
-      domoObject.metadata.name = typeModel.api.displayName
+      const displayName = typeModel.api.displayName
         .replace('{parent.name}', domoObject.metadata.parent.name)
         .replace('{name}', domoObject.metadata.name || '')
         .replace('{id}', objectId);
+      domoObject.metadata.titleName = displayName;
+      if (typeModel.api.nameFromDisplayName) {
+        domoObject.metadata.name = displayName;
+      }
     }
 
     updateTabContextKey(tabId, {
@@ -1148,6 +1438,12 @@ async function detectAndStoreContext(tabId) {
   } catch (error) {
     console.error(`[Background] Error detecting context for tab ${tabId}:`, error);
     return null;
+  } finally {
+    // Only clear if we're still the latest run; a newer generation that
+    // superseded us owns the marker now and must clear it itself.
+    if (tabDetectionInFlight.get(tabId) === generation) {
+      tabDetectionInFlight.delete(tabId);
+    }
   }
 }
 

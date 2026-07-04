@@ -169,8 +169,7 @@ export class DomoObject {
             endpoint,
             method = 'GET',
             nameTemplate = null,
-            pathToDetails = null,
-            pathToName
+            paths = {}
           } = parentType.api;
 
           console.log(
@@ -180,9 +179,8 @@ export class DomoObject {
           const fetchParentDetails = async (
             endpoint,
             method = 'GET',
-            pathToName,
+            paths,
             nameTemplate,
-            pathToDetails,
             bodyTemplate,
             parentId,
             parentTypeId,
@@ -213,15 +211,16 @@ export class DomoObject {
             const data = await response.json();
             console.log('[getParent:fetchParentDetails] Response data keys:', Object.keys(data));
 
-            const details = pathToDetails ? pathToDetails.split('.').reduce((current, prop) => current?.[prop], data) : data;
-            const resolvePath = (path) => path.split('.').reduce((current, prop) => current?.[prop], data);
+            const resolvePath = (path) => (path.match(/[^.[\]]+/g) || []).reduce((current, prop) => current?.[prop], data);
+            const details = paths.details ? resolvePath(paths.details) : data;
             const name = nameTemplate
               ? nameTemplate.replace(/{([^}]+)}/g, (_, path) => (path === 'id' ? parentId : (resolvePath(path) ?? '')))
-              : resolvePath(pathToName);
+              : resolvePath(paths.name);
 
             console.log(`[getParent:fetchParentDetails] Extracted name=${name}, hasDetails=${!!details}`);
 
             return {
+              created: paths.created ? resolvePath(paths.created) : undefined,
               details: details,
               id: parentId,
               name: name,
@@ -234,30 +233,10 @@ export class DomoObject {
 
           // If already in page context, execute directly; otherwise use executeInPage
           const parentDetails = inPageContext
-            ? await fetchParentDetails(
-                endpoint,
-                method,
-                pathToName,
-                nameTemplate,
-                pathToDetails,
-                bodyTemplate,
-                parentId,
-                parentTypeId,
-                parentTypeName
-              )
+            ? await fetchParentDetails(endpoint, method, paths, nameTemplate, bodyTemplate, parentId, parentTypeId, parentTypeName)
             : await executeInPage(
                 fetchParentDetails,
-                [
-                  endpoint,
-                  method,
-                  pathToName,
-                  nameTemplate,
-                  pathToDetails,
-                  bodyTemplate,
-                  parentId,
-                  parentTypeId,
-                  parentTypeName
-                ],
+                [endpoint, method, paths, nameTemplate, bodyTemplate, parentId, parentTypeId, parentTypeName],
                 tabId
               );
 

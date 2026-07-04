@@ -2,6 +2,7 @@ import { deleteAppDbCollection } from './appDb';
 import { deleteApprovalTemplate } from './approvals';
 import { deleteCustomApp } from './customApps';
 import { deleteFunction } from './functions';
+import { deleteScheduledReport } from './scheduledReports';
 import { deleteWorkflow } from './workflows';
 
 /**
@@ -13,6 +14,7 @@ const DELETE_HANDLERS = {
   BEAST_MODE_FORMULA: ({ id, tabId }) => deleteFunction({ functionId: id, tabId }),
   FUNCTION_TEMPLATE: ({ id, tabId }) => deleteFunction({ functionId: id, tabId }),
   MAGNUM_COLLECTION: ({ id, tabId }) => deleteAppDbCollection({ collectionId: id, tabId }),
+  REPORT_SCHEDULE: ({ id, tabId }) => deleteScheduledReport({ reportId: id, tabId }),
   TEMPLATE: ({ id, tabId }) => deleteApprovalTemplate({ tabId, templateId: id }),
   VARIABLE: ({ id, tabId }) => deleteFunction({ functionId: id, tabId }),
   WORKFLOW_MODEL: ({ id, tabId }) => deleteWorkflow({ modelId: id, tabId })

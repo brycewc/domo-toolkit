@@ -32,7 +32,60 @@ import {
   stripBackticks
 } from './columnFields';
 import { getFunctionTemplate } from './functions';
+import { findScriptColumnConflicts } from './scriptColumns';
 import { extractDataflowSqlColumnRefs, getDataflowEngine } from './sqlColumns';
+
+/**
+ * Scan an alert's rule for the column names it references, so a cross-schema
+ * migration surfaces them for remap the same way cards and dataflows are. An
+ * alert stores rule columns in two shapes, matching the alert rewriter
+ * (`moveAlertToTarget`) field-for-field so anything surfaced here is also
+ * rewritten:
+ *   - `configurations`: `COLUMN_ID` (a single column) and `ANY_ROW_PRIMARY_KEYS`
+ *     / `ANY_ROW_METADATA_COLUMNS` (comma-joined column lists).
+ *   - `filters[].column`: threshold-style alerts filter on a named column.
+ *
+ * @param {Object} alertDefinition - A full alert (GET .../alerts/{id}?fields=all)
+ * @returns {Set<string>}
+ */
+export function extractAlertColumnRefs(alertDefinition) {
+  const refs = new Set();
+  const configurations = Array.isArray(alertDefinition?.configurations) ? alertDefinition.configurations : [];
+  for (const c of configurations) {
+    if (!c || typeof c.value !== 'string') continue;
+    if (c.name === 'COLUMN_ID') {
+      refs.add(stripBackticks(c.value));
+    } else if (c.name === 'ANY_ROW_PRIMARY_KEYS' || c.name === 'ANY_ROW_METADATA_COLUMNS') {
+      for (const part of c.value.split(',')) {
+        const name = stripBackticks(part.trim());
+        if (name) refs.add(name);
+      }
+    }
+  }
+  const filters = Array.isArray(alertDefinition?.filters) ? alertDefinition.filters : [];
+  for (const f of filters) {
+    if (f && typeof f.column === 'string' && f.column) refs.add(stripBackticks(f.column));
+  }
+  return refs;
+}
+
+/**
+ * Scan a pro-code app's dataset binding for the column names it references. Each
+ * binding field maps the app's stable `alias` to a real dataset column via
+ * `columnName`; a field mapped to a Beast Mode (`beastModeName`) has no column
+ * reference to repair and is skipped.
+ *
+ * @param {Array<{columnName: string|null, beastModeName: string|null}>} fields
+ * @returns {Set<string>}
+ */
+export function extractAppColumnRefs(fields) {
+  const refs = new Set();
+  for (const field of Array.isArray(fields) ? fields : []) {
+    if (!field || field.beastModeName != null) continue;
+    if (typeof field.columnName === 'string' && field.columnName) refs.add(field.columnName);
+  }
+  return refs;
+}
 
 /**
  * Scan a Beast Mode (function) template for the column names it references.
@@ -121,9 +174,17 @@ export function extractDataflowColumnRefs(dataflowDefinition) {
 // ---------------------------------------------------------------------------
 
 /**
- * Mirror of `rewriteDatasetViewColumns` in columnRewriter.js — extract refs
- * the same way the rewriter would change them, so the modal only surfaces
- * columns that are BOTH used AND will actually be rewritten on submit.
+ * Extract the column refs a view actually USES: the columns named in its query
+ * (`select.selectBody` and `viewTemplate.select`) and output. Deliberately skips
+ * `viewTemplate.fromItemInfo`, the available-input-column palette, which lists
+ * every column each joined input exposes whether or not the view touches it.
+ * Counting the palette flags columns for remap that never appear in the query or
+ * output (see `walkDatasetViewForRefs`).
+ *
+ * This intentionally diverges from `rewriteDatasetViewColumns`, which still walks
+ * the palette: the rewriter only changes a palette entry when its column is in
+ * the user's columnMap, and a column can't get into that map unless it's surfaced
+ * here, so palette-only columns are neither surfaced nor (effectively) rewritten.
  *
  * @param {Object} viewDefinition
  * @returns {Set<string>}
@@ -132,6 +193,82 @@ export function extractDatasetViewColumnRefs(viewDefinition) {
   const refs = new Set();
   walkDatasetViewForRefs(viewDefinition, (name) => refs.add(name));
   return refs;
+}
+
+/**
+ * Fusion views (`views[].mapping`) store column refs differently from template
+ * views: each output column is `mapping[outName].expr`, an expr tree whose leaves
+ * are `{exprType: 'COLUMN', column, table}`. Join keys live in
+ * `columnFuses[].on`. The template-view walker never reads these, so without this
+ * a fusion view's columns are invisible to the mismatch scan (and the swap then
+ * blanket-repoints the input id while leaving column names untouched, silently
+ * breaking the view if origin and target columns differ).
+ *
+ * Collects every origin-sourced column name (leaf `table` === originId). `unsafe`
+ * is set when an origin column is referenced inside a COMPUTED mapping expr (an
+ * expr whose top node isn't a plain COLUMN, e.g. a function or CASE): the leaf is
+ * still rewritten, but the view is flagged for manual review since the surrounding
+ * computation may need attention.
+ *
+ * @param {Object} viewDefinition
+ * @param {string} originId - The migration origin dataset id.
+ * @returns {{ refs: Set<string>, unsafe: boolean }}
+ */
+export function extractFusionViewColumnRefs(viewDefinition, originId) {
+  const refs = new Set();
+  let unsafe = false;
+  const origin = stripBackticks(originId);
+  const views = Array.isArray(viewDefinition?.views) ? viewDefinition.views : [];
+
+  const collectOriginLeaves = (node, onLeaf) => {
+    if (Array.isArray(node)) {
+      for (const item of node) collectOriginLeaves(item, onLeaf);
+      return;
+    }
+    if (!node || typeof node !== 'object') return;
+    if (node.exprType === 'COLUMN' && stripBackticks(node.table) === origin && typeof node.column === 'string') {
+      onLeaf(node.column);
+      return;
+    }
+    for (const v of Object.values(node)) collectOriginLeaves(v, onLeaf);
+  };
+
+  for (const view of views) {
+    const mapping = view?.mapping && typeof view.mapping === 'object' ? view.mapping : {};
+    for (const info of Object.values(mapping)) {
+      const expr = info?.expr;
+      if (!expr || typeof expr !== 'object') continue;
+      if (expr.exprType === 'COLUMN') {
+        if (stripBackticks(expr.table) === origin && typeof expr.column === 'string') refs.add(expr.column);
+      } else {
+        // Computed expr: rewrite its origin leaves but flag the view for review.
+        collectOriginLeaves(expr, (name) => {
+          refs.add(name);
+          unsafe = true;
+        });
+      }
+    }
+    // Join conditions are structured COLUMN leaves and rewrite cleanly.
+    collectOriginLeaves(view?.columnFuses, (name) => refs.add(name));
+  }
+  return { refs, unsafe };
+}
+
+/**
+ * True when a view definition is a fusion (`views[].mapping`) rather than the
+ * template form (`viewTemplate.select.selectBody`). The two store column refs in
+ * incompatible shapes, so scanning and rewriting branch on this.
+ *
+ * @param {Object} viewDefinition
+ * @returns {boolean}
+ */
+export function isFusionView(viewDefinition) {
+  return (
+    Array.isArray(viewDefinition?.views) &&
+    !!viewDefinition.views[0] &&
+    typeof viewDefinition.views[0].mapping === 'object' &&
+    viewDefinition.views[0].mapping !== null
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -152,13 +289,17 @@ export function makeItemKey(typeKey, itemId) {
  *   byItem: Map<string, {definition: Object|null, usedColumns: Set<string>, error?: string}>,
  *   errors: Array<{type: string, id: any, error: string}>,
  *   dataflowCollisions: Map<string, Array<{dataflowId: any, dataflowName: string, otherInputId: string, otherInputName: string}>>,
- *   dataflowSqlWarnings: Array<{engine: string, id: any, name: string}>
+ *   dataflowScriptWarnings: Array<{engine: string, id: any, name: string}>,
+ *   dataflowSqlWarnings: Array<{engine: string, id: any, name: string}>,
+ *   viewFusionWarnings: Array<{id: any, name: string}>
  * }>}
  */
 export async function scanContentForColumns({ originId, selectedItems, tabId = null }) {
   const byColumn = new Map();
   const byItem = new Map();
+  const dataflowScriptWarnings = [];
   const dataflowSqlWarnings = [];
+  const viewFusionWarnings = [];
   const errors = [];
 
   const addRef = (typeKey, item, columnName) => {
@@ -171,7 +312,19 @@ export async function scanContentForColumns({ originId, selectedItems, tabId = n
     try {
       let definition;
       let used;
-      if (typeKey === 'cards') {
+      if (typeKey === 'alerts') {
+        // An alert's rule references columns by name; on a cross-schema move any
+        // name missing from the target dataset makes Domo's create endpoint reject
+        // the whole alert. Surface those columns so they join the remap step.
+        definition = await fetchAlertDefinition(item.id, tabId);
+        used = extractAlertColumnRefs(definition);
+      } else if (typeKey === 'apps') {
+        // App rows already carry their dataset binding fields, so the column set
+        // needs no fetch. There's no cached definition to reuse at write time
+        // (the swap re-reads the live instance context), so leave it null.
+        definition = null;
+        used = extractAppColumnRefs(item.fields);
+      } else if (typeKey === 'cards') {
         // Drill cards are fetched via their `dr:<drillId>:<rootId>` URN, not
         // the bare numeric id — the kpi/definition endpoint sends `urn` as
         // the body key, and a drill's bare id returns an unrelated payload.
@@ -185,7 +338,18 @@ export async function scanContentForColumns({ originId, selectedItems, tabId = n
         used = extractBeastModeColumnRefs(definition);
       } else if (typeKey === 'datasets') {
         definition = await fetchDatasetViewDefinition(item.id, tabId);
-        used = extractDatasetViewColumnRefs(definition);
+        // Fusion views (views[].mapping) and template views (viewTemplate) store
+        // column refs in incompatible shapes; the template walker is blind to
+        // fusion, so route by shape. Fusion computed exprs are flagged for review.
+        if (isFusionView(definition)) {
+          const fusionScan = extractFusionViewColumnRefs(definition, originId);
+          used = fusionScan.refs;
+          if (fusionScan.unsafe) {
+            viewFusionWarnings.push({ id: item.id, name: item.name || String(item.id) });
+          }
+        } else {
+          used = extractDatasetViewColumnRefs(definition);
+        }
       } else if (typeKey === 'dataflows') {
         definition = await fetchDataflowDefinition(item.id, tabId);
         // Magic ETL keeps column refs in structured fields (existing walker).
@@ -204,6 +368,13 @@ export async function scanContentForColumns({ originId, selectedItems, tabId = n
           dataflowSqlWarnings.push({ engine, id: item.id, name: item.name || String(item.id) });
         } else {
           used = extractDataflowColumnRefs(definition);
+          // Magic ETL Python/R script tiles run freeform code we can't safely
+          // rewrite. If a script references a column the user could remap, flag
+          // the dataflow so it's reviewed by hand (the structured fields around
+          // the tile still remap; only the script body is left alone).
+          if (findScriptColumnConflicts(definition, used).length > 0) {
+            dataflowScriptWarnings.push({ engine, id: item.id, name: item.name || String(item.id) });
+          }
         }
       } else {
         return;
@@ -223,10 +394,12 @@ export async function scanContentForColumns({ originId, selectedItems, tabId = n
   };
 
   const queue = [];
+  for (const alert of selectedItems?.alerts || []) queue.push(['alerts', alert]);
   for (const card of selectedItems?.cards || []) queue.push(['cards', card]);
   for (const bm of selectedItems?.beastModes || []) queue.push(['beastModes', bm]);
   for (const ds of selectedItems?.datasets || []) queue.push(['datasets', ds]);
   for (const df of selectedItems?.dataflows || []) queue.push(['dataflows', df]);
+  for (const app of selectedItems?.apps || []) queue.push(['apps', app]);
 
   // Bounded concurrency — each fetchAndScan goes through executeInPage
   // (chrome.scripting.executeScript). Letting 100 of those run at once
@@ -257,7 +430,7 @@ export async function scanContentForColumns({ originId, selectedItems, tabId = n
     tabId
   });
 
-  return { byColumn, byItem, dataflowCollisions, dataflowSqlWarnings, errors };
+  return { byColumn, byItem, dataflowCollisions, dataflowScriptWarnings, dataflowSqlWarnings, errors, viewFusionWarnings };
 }
 
 async function collectDataflowCollisions({ byItem, originId, selectedDataflows, tabId }) {
@@ -321,6 +494,18 @@ async function collectDataflowCollisions({ byItem, originId, selectedDataflows, 
   });
   await Promise.allSettled(workers);
   return collisions;
+}
+
+async function fetchAlertDefinition(alertId, tabId) {
+  return executeInPage(
+    async (alertId) => {
+      const response = await fetch(`/api/social/v4/alerts/${alertId}?fields=all`, { credentials: 'include' });
+      if (!response.ok) throw new Error(`GET alert HTTP ${response.status}`);
+      return response.json();
+    },
+    [alertId],
+    tabId
+  );
 }
 
 async function fetchDataflowDefinition(dataflowId, tabId) {
@@ -388,6 +573,15 @@ function walkDatasetViewForRefs(node, onColumnRef) {
   }
   if (typeof node !== 'object') return;
   for (const [key, value] of Object.entries(node)) {
+    // `fromItemInfo` is the view's available-input-column PALETTE (every column
+    // each joined input exposes), not the query. A view with two inputs can list
+    // hundreds of columns here that it never selects, joins on, or outputs. Those
+    // aren't "used" — counting them flags columns for remap that don't appear in
+    // `select.selectBody` or the output schema. Real usage lives in `select`
+    // (selectBody) and `viewTemplate.select`, both still walked, so skip this
+    // subtree entirely. (Observed: a real view reported 392 columns via the full
+    // walk vs 70 actually used, the other 322 were palette-only.)
+    if (key === 'fromItemInfo') continue;
     if (typeof value === 'string') {
       if (key === 'referencedColumnName' || key === 'columnName') {
         onColumnRef(stripBackticks(value));
@@ -420,6 +614,14 @@ function walkForColumnRefs(node, onColumnRef, parentKey = null) {
   }
 
   if (typeof node !== 'object') return;
+
+  // Magic ETL structured Field node: { type: 'Field', name: '<col>', table }
+  // (see columnFields.js header). Mirrors the rewriter: the column sits at
+  // `name` under `expression`, which the bare-`name` gate below skips, so
+  // collect it explicitly here. The Set dedupes if another branch also sees it.
+  if (node.type === 'Field' && typeof node.name === 'string') {
+    onColumnRef(stripBackticks(node.name));
+  }
 
   for (const [key, value] of Object.entries(node)) {
     // 1. Column-keyed objects — keys are column names.

@@ -115,6 +115,25 @@ export async function getVersionDefinition(modelId, versionNumber, tabId = null)
   );
 }
 
+/**
+ * Fetch a workflow model's display name.
+ * @param {string} modelId - The workflow model ID.
+ * @param {number|null} tabId - Optional Chrome tab ID.
+ * @returns {Promise<string|null>} The workflow name, or null if unavailable.
+ */
+export async function getWorkflowModelName(modelId, tabId = null) {
+  return executeInPage(
+    async (modelId) => {
+      const response = await fetch(`/api/workflow/v1/models/${modelId}`);
+      if (!response.ok) return null;
+      const model = await response.json();
+      return model?.name ?? null;
+    },
+    [modelId],
+    tabId
+  );
+}
+
 export async function getWorkflowPermission(modelId, userId, tabId = null) {
   return executeInPage(
     async (modelId, userId) => {
@@ -126,6 +145,57 @@ export async function getWorkflowPermission(modelId, userId, tabId = null) {
       return entry?.permissions || [];
     },
     [modelId, userId],
+    tabId
+  );
+}
+
+/**
+ * List a workflow model's alert triggers. Filters the trigger set to ALERT type
+ * and flattens each to the fields the version-update flow needs: the alert it
+ * lives on (`alertId` = `entityId`), the live action on that alert (`actionId` =
+ * `entityVersion`, which points precisely at the one action bound to this
+ * trigger, so stale orphaned actions are ignored), the version it currently runs
+ * (`currentVersion`), its display `name`, and the bound dataset (`resourceId`).
+ * @param {string} modelId - The Workflow Model ID
+ * @param {number|null} [tabId] - Optional Chrome tab ID
+ * @returns {Promise<Array<{actionId: string, alertId: string, currentVersion: string, name: string, resourceId: string}>>}
+ */
+export async function getWorkflowTriggers(modelId, tabId = null) {
+  return executeInPage(
+    async (modelId) => {
+      const response = await fetch(`/api/workflow/v2/triggers/model/${modelId}?types=ALERT`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const triggers = await response.json();
+      return (Array.isArray(triggers) ? triggers : [])
+        .filter((t) => t.type === 'ALERT')
+        .map((t) => ({
+          actionId: t.entityVersion,
+          alertId: t.entityId,
+          currentVersion: t.modelVersion,
+          name: t.name,
+          resourceId: t.metadata?.resourceId ?? null
+        }));
+    },
+    [modelId],
+    tabId
+  );
+}
+
+/**
+ * List a workflow model's versions.
+ * @param {string} modelId - The Workflow Model ID
+ * @param {number|null} [tabId] - Optional Chrome tab ID
+ * @returns {Promise<Array<{active: boolean, deployedOn: string, version: string}>>}
+ */
+export async function getWorkflowVersions(modelId, tabId = null) {
+  return executeInPage(
+    async (modelId) => {
+      const response = await fetch(`/api/workflow/v1/models/${modelId}`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const model = await response.json();
+      return Array.isArray(model?.versions) ? model.versions : [];
+    },
+    [modelId],
     tabId
   );
 }

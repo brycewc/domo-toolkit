@@ -93,11 +93,11 @@ export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
           {!longPressDisabled && <span className='italic'>Hold for more options</span>}
         </Tooltip.Content>
       </Tooltip>
-      <Dropdown.Popover className='w-fit min-w-48' placement='bottom left'>
+      <Dropdown.Popover className='w-fit min-w-60' placement='bottom left'>
         <Dropdown.Menu onAction={handleAction}>
           {dropdownItems.map((item) => (
             <Dropdown.Item id={item.id} key={item.id} textValue={item.label}>
-              <IconClipboardCopy className='size-5 shrink-0' />
+              <IconClipboardCopy className='size-4 shrink-0' />
               <Label>{item.label}</Label>
             </Dropdown.Item>
           ))}

@@ -41,6 +41,92 @@ export function getAccountIdsForDomoObject(domoObject) {
 }
 
 /**
+ * List every account in the instance for a given connector.
+ *
+ * Unlike Domo's native dataset account picker (which only shows accounts shared
+ * with the current user), this runs the instance-wide account search an
+ * `account.admin` can see, filtered to one connector so every returned account can
+ * actually run the stream.
+ *
+ * Filtering is server-side on `dataproviderkey_facet`, keyed by the connector's
+ * data provider key (the dataset's `dataProviderType`, e.g. "eloqua"). The key
+ * facet is preferred over the name facet because the key is stable, where the
+ * display name shifts with localization and renames.
+ *
+ * Account names default to generic values (every Eloqua account is "Eloqua
+ * Account" until someone renames it), so each result also carries the id, owner,
+ * dates, connected-dataset count, and validity the picker's detail panel needs to
+ * tell them apart. All of it comes off the search doc, so there's no extra request.
+ *
+ * @param {string} dataProviderKey - The connector key (the dataset's dataProviderType, e.g. 'eloqua')
+ * @param {number|null} [tabId] - Optional Chrome tab ID
+ * @returns {Promise<Array<{createDate: number|null, datasetCount: number|null, id: number, lastModified: number|null, name: string, owner: string|null, ownerId: string|null, ownerType: string, valid: boolean}>>}
+ */
+export async function getAccountsForProvider(dataProviderKey, tabId = null) {
+  return executeInPage(
+    async (dataProviderKey) => {
+      const accounts = [];
+      const count = 100;
+      let moreData = true;
+      let offset = 0;
+
+      while (moreData) {
+        const response = await fetch('/api/search/v1/query', {
+          body: JSON.stringify({
+            combineResults: false,
+            count,
+            entityList: [['account']],
+            facetValuesToInclude: [],
+            filters: [
+              {
+                field: 'dataproviderkey_facet',
+                filterType: 'term',
+                name: 'Data Provider Type',
+                not: false,
+                value: dataProviderKey
+              }
+            ],
+            hideSearchObjects: true,
+            offset,
+            query: '**',
+            queryProfile: 'GLOBAL',
+            sort: { fieldSorts: [{ field: 'display_name_sort', sortOrder: 'ASC' }] }
+          }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+
+        const results = data.searchResultsMap?.account || [];
+        for (const a of results) {
+          accounts.push({
+            createDate: typeof a.createDate === 'number' ? a.createDate : null,
+            datasetCount: typeof a.datasetCount === 'number' ? a.datasetCount : null,
+            id: Number(a.databaseId),
+            lastModified: typeof a.lastModified === 'number' ? a.lastModified : null,
+            name: a.displayName || a.name || a.winnerText || String(a.databaseId),
+            owner: a.ownerNamePrimary || a.ownedByName || a.owners?.[0]?.displayName || null,
+            ownerId: a.owners?.[0]?.id || a.ownedById || null,
+            ownerType: a.owners?.[0]?.type || 'USER',
+            valid: a.valid !== false
+          });
+        }
+        if (results.length < count) {
+          moreData = false;
+        } else {
+          offset += count;
+        }
+      }
+
+      return accounts;
+    },
+    [dataProviderKey],
+    tabId
+  );
+}
+
+/**
  * Get all accounts owned by a user.
  * @param {number} userId - The Domo user ID
  * @param {number|null} tabId - Optional Chrome tab ID

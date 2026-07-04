@@ -128,7 +128,7 @@ export function Export({ currentContext, isDisabled }) {
         <Dropdown.Menu onAction={(key) => handleCardExport(key)}>
           {CARD_EXPORT_OPTIONS.map((opt) => (
             <Dropdown.Item id={opt.id} key={opt.id} textValue={opt.label}>
-              <opt.icon className='size-4 shrink-0' stroke={1.5} />
+              <opt.icon className='size-4 shrink-0' />
               <Label>{opt.label}</Label>
             </Dropdown.Item>
           ))}

@@ -25,7 +25,8 @@ export async function getOwnedTaskCenterQueues(userId, tabId = null) {
                 field: 'owned_by_id',
                 filterType: 'term',
                 value: `${userId}:USER`
-              }
+              },
+              { field: 'active', filterType: 'term', value: 'true' }
             ],
             offset,
             query: '*'

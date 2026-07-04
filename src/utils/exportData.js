@@ -13,7 +13,7 @@ export async function buildExcelBlob(data, columns, sheetName = 'Data') {
   // Create worksheet data with headers
   const wsData = [headers];
   exportData.forEach((row) => {
-    const rowValues = headers.map((header) => row[header] ?? '');
+    const rowValues = headers.map((header) => sanitizeForSpreadsheet(row[header] ?? ''));
     wsData.push(rowValues);
   });
 
@@ -67,7 +67,7 @@ export function exportToCSV(data, columns, filename = 'export') {
   // Data rows
   exportData.forEach((row) => {
     const values = headers.map((header) => {
-      const value = row[header] ?? '';
+      const value = sanitizeForSpreadsheet(row[header] ?? '');
       // Escape quotes and wrap in quotes
       return `"${String(value).replace(/"/g, '""')}"`;
     });
@@ -96,6 +96,22 @@ export async function exportToExcel(data, columns, filename = 'export', sheetNam
 
   const blob = await buildExcelBlob(data, columns, sheetName);
   downloadBlob(blob, `${filename}.xlsx`);
+}
+
+/**
+ * Export data to a JSON file and trigger download
+ * @param {any} data - Serializable data (array or object)
+ * @param {string} filename - Filename without extension
+ */
+export function exportToJson(data, filename = 'export') {
+  if (data == null) {
+    console.warn('No data to export');
+    return;
+  }
+
+  const json = JSON.stringify(data, null, 2);
+  const blob = new Blob([json], { type: 'application/json;charset=utf-8;' });
+  downloadBlob(blob, `${filename}.json`);
 }
 
 /**
@@ -166,6 +182,31 @@ function extractCellValue(value) {
   }
 
   return String(value);
+}
+
+/**
+ * Neutralize spreadsheet formula injection. A cell whose text begins with a
+ * formula trigger (= + - @) or a leading tab/carriage return can execute when
+ * the file is opened in Excel/Sheets, so prefix it with a single quote to
+ * force the value to be treated as text. The + and - cases are kept
+ * number-aware: a legitimate negative/positive number (e.g. a -4 lineage
+ * level) is left untouched so it stays numeric, while a formula-shaped string
+ * (+1+2, -cmd) is still quoted. Non-string values pass through.
+ * @param {any} value - The cell value
+ * @returns {any} The original value, or a quote-prefixed string when risky
+ */
+function sanitizeForSpreadsheet(value) {
+  if (typeof value !== 'string' || value.length === 0) {
+    return value;
+  }
+  const first = value[0];
+  if (first === '=' || first === '@' || first === '\t' || first === '\r') {
+    return `'${value}`;
+  }
+  if ((first === '+' || first === '-') && !Number.isFinite(Number(value))) {
+    return `'${value}`;
+  }
+  return value;
 }
 
 /**

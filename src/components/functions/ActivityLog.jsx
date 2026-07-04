@@ -7,6 +7,7 @@ import { useLongPress } from '@/hooks/useLongPress';
 import { getObjectType } from '@/models/DomoObjectType';
 import { getCardsForObject } from '@/services/cards';
 import { getPagesForCards, getSubpageIds } from '@/services/pages';
+import { launchActivityLog } from '@/utils/activityLog';
 import { waitForChildPages } from '@/utils/pageHelpers';
 import IconChartBarBox from '@icons/chart-bar-box.svg?react';
 import IconListSearch from '@icons/list-search.svg?react';
@@ -232,22 +233,13 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
         }
       }
 
-      await chrome.storage.session.set({
-        activityLogInstance: currentContext?.instance,
-        activityLogObjects: activityLogObjects,
-        activityLogTabId: currentContext?.tabId,
-        activityLogType: activityLogType
-      });
-
       onStatusUpdate?.('Opening Activity Log', message, 'success');
 
-      // Open the options page in the same window (preserves incognito context), right after the launching tab
-      const tab = await chrome.tabs.get(currentContext.tabId);
-      chrome.tabs.create({
-        index: tab.index + 1,
-        openerTabId: tab.id,
-        url: chrome.runtime.getURL('src/options/index.html#activity-log'),
-        windowId: tab.windowId
+      await launchActivityLog({
+        instance: currentContext?.instance,
+        objects: activityLogObjects,
+        tabId: currentContext?.tabId,
+        type: activityLogType
       });
     } catch (err) {
       console.error('Error opening activity log:', err);
@@ -292,7 +284,7 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
           {hasParent && (
             <Dropdown.Item id='parent' textValue={parentTypeName || 'Parent'}>
               <div className='flex h-fit items-start justify-start gap-2'>
-                <ObjectTypeIcon className='size-5 shrink-0' typeId={parentTypeId} />
+                <ObjectTypeIcon className='size-4 shrink-0' typeId={parentTypeId} />
                 <div className='flex flex-col'>
                   <Label>{parentTypeName}</Label>
                   <Description className='text-xs'>
@@ -305,7 +297,7 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
           )}
           <Dropdown.Item id='cards' textValue='Cards'>
             <div className='flex h-fit items-start justify-start gap-2'>
-              <IconChartBarBox className='size-5 shrink-0' />
+              <IconChartBarBox className='size-4 shrink-0' />
               <div className='flex flex-col'>
                 <Label>Cards</Label>
                 <Description className='text-xs'>
@@ -316,7 +308,7 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
           </Dropdown.Item>
           <Dropdown.Item id='card-pages' textValue='Card Pages'>
             <div className='flex h-fit items-start justify-start gap-2'>
-              <IconPagesBars className='size-5 shrink-0' />
+              <IconPagesBars className='size-4 shrink-0' />
               <div className='flex flex-col'>
                 <Label>Card Pages</Label>
                 <Description className='text-xs'>
@@ -329,7 +321,7 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
           {hasChildPages && (
             <Dropdown.Item id='child-pages' textValue='Child Pages'>
               <div className='flex h-fit items-start justify-start gap-2'>
-                <IconTree className='size-5 shrink-0' />
+                <IconTree className='size-4 shrink-0' />
                 <div className='flex flex-col'>
                   <Label>Child Pages</Label>
                   <Description className='text-xs'>View activity log for hierarchical child pages</Description>

@@ -22,10 +22,16 @@ const MAX_VISIBLE_TAGS = 5;
 
 /**
  * UserFilterAutocomplete Component
- * Multi-select autocomplete with async user fetching
+ * Multi-select autocomplete with async user fetching. Used both to filter the activity
+ * log by actor and to filter other lists (e.g. accounts) by owner; `label` sets the
+ * accessible name so screen readers announce the right entity ("User" vs "Owner").
+ * `knownUsers` pre-seeds {id, displayName} pairs so tags for externally-set selections
+ * render a name without waiting on a search that may not surface that user.
  */
 export function UserFilterAutocomplete({
   domoInstance,
+  knownUsers,
+  label = 'User',
   mode = 'include',
   onChange,
   onModeChange,
@@ -42,6 +48,8 @@ export function UserFilterAutocomplete({
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasFetchedInitial, setHasFetchedInitial] = useState(false);
   const [customAvatarIds, setCustomAvatarIds] = useState(new Set());
+  // Bumped after resolving names for externally-set selections so the tags re-render.
+  const [, setResolvedTick] = useState(0);
   const lastFetchedSearch = useRef(null);
 
   // Persist selected user objects across searches so tags always have names
@@ -63,6 +71,22 @@ export function UserFilterAutocomplete({
     },
     [tabId]
   );
+
+  // Seed display names for externally-set selections (e.g. a "filter to this
+  // object's owner" shortcut) so their tags show a name instead of a raw ID. The
+  // caller passes the {id, displayName} it already knows; the `added` guard keeps a
+  // fresh array reference each render from looping.
+  useEffect(() => {
+    if (!knownUsers?.length) return;
+    let added = false;
+    for (const user of knownUsers) {
+      if (user?.id != null && !selectedUsersRef.current.has(user.id)) {
+        selectedUsersRef.current.set(user.id, { displayName: user.displayName, id: user.id });
+        added = true;
+      }
+    }
+    if (added) setResolvedTick((tick) => tick + 1);
+  }, [knownUsers]);
 
   // Fetch initial users on mount
   useEffect(() => {
@@ -224,7 +248,7 @@ export function UserFilterAutocomplete({
 
   return (
     <Autocomplete
-      aria-label='User'
+      aria-label={label}
       className='w-full sm:min-w-72 sm:flex-1'
       isOpen={isOpen}
       placeholder={placeholder}
@@ -269,7 +293,7 @@ export function UserFilterAutocomplete({
       </Autocomplete.Trigger>
       <Autocomplete.Popover
         aria-label='User autocomplete popover'
-        className='flex h-fit max-h-120! w-120! min-w-0! flex-col overflow-hidden!'
+        className='flex h-fit max-h-120! w-[min(30rem,calc(100vw-1.5rem))]! min-w-0! flex-col overflow-hidden!'
         placement='bottom left'
       >
         <Autocomplete.Filter inputValue={searchText} onInputChange={setSearchText}>

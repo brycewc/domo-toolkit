@@ -1,7 +1,7 @@
 import { Button, Tooltip } from '@heroui/react';
 
 import { useLaunchView } from '@/hooks/useLaunchView';
-import IconArrowsHorizontalBox from '@icons/arrows-horizontal-box.svg?react';
+import IconSwapHorizontal from '@icons/swap-horizontal.svg?react';
 
 export function MigrateDownstreamContent({ currentContext, onCollapseActions, onStatusUpdate }) {
   const { isPending, launch } = useLaunchView();
@@ -18,11 +18,11 @@ export function MigrateDownstreamContent({ currentContext, onCollapseActions, on
             currentContext,
             onCollapseActions,
             onStatusUpdate,
-            type: 'migrateDownstream'
+            type: 'migrateDownstreamContent'
           })
         }
       >
-        <IconArrowsHorizontalBox />
+        <IconSwapHorizontal />
         Migrate DataSet Content
       </Button>
       <Tooltip.Content className='max-w-60'>

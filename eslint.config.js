@@ -81,6 +81,18 @@ export default defineConfig([
       '@stylistic/switch-colon-spacing': ['error', { after: true, before: false }],
       '@stylistic/template-curly-spacing': ['error', 'never'],
       '@stylistic/template-tag-spacing': ['error', 'never'],
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              importNames: ['Alert'],
+              message: "Import Alert from '@/components/Alert' to get the wrapper's transparent variant, not the stock HeroUI Alert.",
+              name: '@heroui/react'
+            }
+          ]
+        }
+      ],
       'no-unused-vars': [
         'error',
         {
@@ -117,6 +129,14 @@ export default defineConfig([
           useConfigurationIf: {}
         }
       ]
+    }
+  },
+  {
+    // The Alert wrapper is the one sanctioned place to pull the stock HeroUI
+    // Alert; everywhere else must import from '@/components/Alert'.
+    files: ['src/components/Alert.jsx'],
+    rules: {
+      'no-restricted-imports': 'off'
     }
   }
 ]);

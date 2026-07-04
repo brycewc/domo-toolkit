@@ -6,7 +6,7 @@ import { useStatusBar } from '@/hooks/useStatusBar';
 import { updateAlertOwner } from '@/services/alerts';
 import { updateWorkflowOwner } from '@/services/workflows';
 import { isSidepanel } from '@/utils/sidepanel';
-import IconPencilBox from '@icons/pencil-box.svg?react';
+import IconPencil from '@icons/pencil.svg?react';
 import IconPerson from '@icons/person.svg?react';
 import IconX from '@icons/x.svg?react';
 
@@ -79,7 +79,7 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
             currentContext?.domoObject.typeId !== 'ALERT' && currentContext?.domoObject.typeId !== 'WORKFLOW_MODEL'
           }
         >
-          <IconPencilBox />
+          <IconPencil />
           Update Owner
         </Button>
         <Tooltip.Content className='max-w-60' offset={4}>
@@ -87,7 +87,7 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
         </Tooltip.Content>
       </Tooltip>
       <Modal.Backdrop>
-        <Modal.Container className='p-1' placement='top' scroll='outside'>
+        <Modal.Container className='p-1' placement='center' scroll='outside'>
           <Modal.Dialog className='p-2'>
             <Modal.CloseTrigger className='absolute top-2 right-2' variant='ghost'>
               <IconX />

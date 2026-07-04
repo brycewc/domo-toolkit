@@ -21,15 +21,16 @@ export function useLineageCache() {
 
   const rebuildGraph = useCallback(() => {
     if (!rootRef.current) return null;
-    const { entityId, entityType } = rootRef.current;
-    const newGraph = convertToGraph(rawCacheRef.current, entityType, entityId);
+    const { entityId, entityType, instance } = rootRef.current;
+    const baseUrl = instance ? `https://${instance}.domo.com` : '';
+    const newGraph = convertToGraph(rawCacheRef.current, entityType, entityId, baseUrl);
     setGraph(newGraph);
     return newGraph;
   }, []);
 
   const init = useCallback(
     async (entityType, entityId, initTabId, initInstance) => {
-      rootRef.current = { entityId, entityType };
+      rootRef.current = { entityId, entityType, instance: initInstance };
       rawCacheRef.current = {};
       inflightRef.current.clear();
       setLoading(true);
@@ -97,6 +98,65 @@ export function useLineageCache() {
     [rebuildGraph, resolveTabId]
   );
 
+  // Crawl the entire lineage in both directions, expanding the frontier
+  // (neighbors referenced but not yet fetched) round by round until the graph
+  // stops growing. Used by the export feature, which needs the full pipeline
+  // rather than the depth-limited initial load. Reports the running node count
+  // via onProgress so the UI can show progress on large, multi-minute crawls.
+  const fetchEntireLineage = useCallback(
+    async (onProgress) => {
+      if (!rootRef.current) return null;
+      const resolvedTabId = await resolveTabId();
+
+      const CONCURRENCY = 5;
+      const MAX_NODES = 10000;
+      const MAX_ROUNDS = 100;
+
+      for (let round = 0; round < MAX_ROUNDS; round++) {
+        const present = new Set(Object.keys(rawCacheRef.current));
+
+        // Frontier: any referenced neighbor not yet present as a cache entry.
+        const frontier = new Map();
+        for (const entity of Object.values(rawCacheRef.current)) {
+          if (!entity) continue;
+          for (const neighbor of [...(entity.parents || []), ...(entity.children || [])]) {
+            if (!neighbor) continue;
+            const key = toMapKey(neighbor.type, neighbor.id);
+            if (!present.has(key)) frontier.set(key, { id: neighbor.id, type: neighbor.type });
+          }
+        }
+
+        if (frontier.size === 0) break;
+        if (present.size >= MAX_NODES) {
+          console.warn(`[Lineage] Reached ${MAX_NODES}-node cap; exporting partial lineage`);
+          break;
+        }
+
+        const targets = [...frontier.values()];
+        for (let i = 0; i < targets.length; i += CONCURRENCY) {
+          const chunk = targets.slice(i, i + CONCURRENCY);
+          const responses = await Promise.all(
+            chunk.map(({ id, type }) => getLineage(type, id, EXPAND_DEPTH, resolvedTabId).catch(() => null))
+          );
+          // Add only new entities: existing ones already carry complete
+          // neighbor lists and enriched metadata that a raw refetch would wipe.
+          for (const response of responses) {
+            if (!response) continue;
+            for (const [key, entity] of Object.entries(response)) {
+              if (entity && !rawCacheRef.current[key]) rawCacheRef.current[key] = entity;
+            }
+          }
+        }
+
+        await enrichMetadata(rawCacheRef.current, resolvedTabId, present);
+        onProgress?.(Object.keys(rawCacheRef.current).length);
+      }
+
+      return rebuildGraph();
+    },
+    [rebuildGraph, resolveTabId]
+  );
+
   const expandFetch = useCallback(
     async (nodeId, entityType, entityId) => {
       setExpandLoading((prev) => {
@@ -132,6 +192,7 @@ export function useLineageCache() {
   return {
     expandFetch,
     expandLoading,
+    fetchEntireLineage,
     graph,
     init,
     isNeighborCached,

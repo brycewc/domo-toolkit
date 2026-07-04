@@ -32,15 +32,13 @@ export function ApiErrors({ currentContext, isDisabled, onCollapseActions, onSta
     return () => chrome.runtime.onMessage.removeListener(handleMessage);
   }, [currentContext?.tabId]);
 
-  if (errorCount === 0) return null;
-
   return (
     <Tooltip>
       <Button
         fullWidth
         className='min-w-36 flex-1 whitespace-normal'
         color='danger'
-        isDisabled={isDisabled}
+        isDisabled={isDisabled || errorCount === 0}
         variant='tertiary'
         onPress={() =>
           launchView({

@@ -218,11 +218,13 @@ export async function getCardDefinition({ cardId, tabId = null }) {
  * @param {string} params.objectId - The object ID (page, dataset, or dataflow ID)
  * @param {string} params.objectType - The object type ('PAGE', 'DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE')
  * @param {Object} [params.metadata] - Object metadata (required for DATAFLOW_TYPE to access outputs)
+ * @param {string} [params.parts] - Comma-separated extra parts to request for page-type fetches
+ *   (e.g. 'datasources'), so each card comes back with that data attached. Ignored for datasets.
  * @param {number|null} [params.tabId=null] - Target tab
  * @returns {Promise<Array>} Array of card objects with details
  * @throws {Error} If the fetch fails
  */
-export async function getCardsForObject({ metadata, objectId, objectType, tabId = null }) {
+export async function getCardsForObject({ metadata, objectId, objectType, parts = null, tabId = null }) {
   if (objectType === 'DATAFLOW_TYPE') {
     const outputs = metadata?.details?.outputs || [];
     if (outputs.length === 0) return [];
@@ -248,13 +250,16 @@ export async function getCardsForObject({ metadata, objectId, objectType, tabId 
   try {
     // Execute fetch in page context to use authenticated session
     const result = await executeInPage(
-      async (objectId, objectType) => {
+      async (objectId, objectType, parts) => {
         switch (objectType) {
           case 'DATA_APP_VIEW':
           case 'PAGE':
           case 'REPORT_BUILDER_VIEW':
           case 'WORKSHEET_VIEW': {
-            const response = await fetch(`/api/content/v3/stacks/${objectId}/cards`);
+            const url = parts
+              ? `/api/content/v3/stacks/${objectId}/cards?parts=${parts}`
+              : `/api/content/v3/stacks/${objectId}/cards`;
+            const response = await fetch(url);
             if (!response.ok) {
               throw new Error(`Failed to fetch cards for ${objectType} ${objectId}. HTTP status: ${response.status}`);
             }
@@ -281,7 +286,7 @@ export async function getCardsForObject({ metadata, objectId, objectType, tabId 
             throw new Error(`Cannot get cards for object type ${objectType}`);
         }
       },
-      [objectId, objectType],
+      [objectId, objectType, parts],
       tabId
     );
 
@@ -503,29 +508,6 @@ export async function lockCards({ cardIds, tabId = null }) {
       [batch],
       tabId
     );
-  }
-}
-
-export async function removeCardFromPage({ cardId, pageId, tabId = null }) {
-  try {
-    const result = await executeInPage(
-      async (pageId, cardId) => {
-        const response = await fetch(`/kpis/${cardId}/remove?pageid=${pageId}`, {
-          method: 'POST'
-        });
-        if (!response.ok) {
-          throw new Error(`Failed to remove card ${cardId} from page ${pageId}. HTTP status: ${response.status}`);
-        }
-        return response.json();
-      },
-      [pageId, cardId],
-      tabId
-    );
-
-    return result;
-  } catch (error) {
-    console.error('Error removing card from page:', error);
-    throw error;
   }
 }
 

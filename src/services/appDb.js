@@ -141,6 +141,32 @@ export async function queryAppDbCollectionDocuments({ collectionId, tabId = null
 }
 
 /**
+ * Rename an AppDB collection. Sends the new name via PUT to the collection
+ * endpoint, which merges the change (matching how the sync-toggle and schema
+ * PUTs update a single field). The `id` is included in the body to match the
+ * shape the other collection PUT helpers in this file use.
+ * @param {Object} params
+ * @param {string} params.collectionId - The AppDB collection ID
+ * @param {string} params.name - The new collection name
+ * @param {number|null} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<void>} Resolves on success, throws on HTTP failure
+ */
+export async function renameAppDbCollection({ collectionId, name, tabId = null }) {
+  return executeInPage(
+    async (collectionId, name) => {
+      const response = await fetch(`/api/datastores/v1/collections/${collectionId}`, {
+        body: JSON.stringify({ id: collectionId, name }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'PUT'
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    },
+    [collectionId, name],
+    tabId
+  );
+}
+
+/**
  * Turn sync-on-write on or off for an AppDB collection. Sent as its own PUT
  * (instead of bundled with the schema PUT), since the schema endpoint does
  * not honor `syncEnabled` when both are sent together.

@@ -1,9 +1,9 @@
 import {
   Button,
   Card,
-  Checkbox,
   Chip,
   Disclosure,
+  DisclosureGroup,
   Label,
   Link,
   ListBox,
@@ -11,32 +11,45 @@ import {
   Select,
   Separator,
   Spinner,
+  Switch,
   Tooltip
 } from '@heroui/react';
 import { useEffect, useRef, useState } from 'react';
 
+import { Alert } from '@/components/Alert';
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { DomoContext } from '@/models/DomoContext';
 import { getCodeEnginePackageInfo } from '@/services/codeEngine';
-import { getVersionDefinition, updateVersionDefinition } from '@/services/workflows';
-import { classifyContractChanges, getFunctionContract } from '@/utils/ceContractDiff';
+import { getVersionDefinition, getWorkflowModelName, updateVersionDefinition } from '@/services/workflows';
+import { classifyContractChanges, getFunctionContract, variableMatchesEntry } from '@/utils/ceContractDiff';
+import { buildRefreshAction, buildReloadAction } from '@/utils/headerActions';
+import { compareSemver } from '@/utils/semver';
 import { getSidepanelData } from '@/utils/sidepanel';
 import { waitForDefinition } from '@/utils/workflowHelpers';
 import {
   getTileParams,
   getVariableConsumers,
-  getWorkflowVariables,
   hasBinding,
+  indexVariablesById,
   reconcileTileForVersionBump
 } from '@/utils/workflowTileIO';
 import IconArrowRight from '@icons/arrow-right.svg?react';
 import IconCheck from '@icons/check.svg?react';
 import IconChevronDown from '@icons/chevron-down.svg?react';
-import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
-import IconX from '@icons/x.svg?react';
+import IconInfoCircle from '@icons/info-circle.svg?react';
+import IconPackage from '@icons/package.svg?react';
 
-export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusUpdate = null }) {
+import { AlertStatusIcon } from '../AlertStatusIcon';
+import { ViewHeader } from './ViewHeader';
+
+export function UpdateCodeEngineVersionsView({
+  instance = null,
+  liveContext = null,
+  onBackToDefault = null,
+  onStatusUpdate = null
+}) {
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDiffing, setIsDiffing] = useState(false);
   const [packages, setPackages] = useState([]);
@@ -44,6 +57,7 @@ export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusU
   const [currentContext, setCurrentContext] = useState(null);
   const [contractDiffs, setContractDiffs] = useState({});
   const [reconciliations, setReconciliations] = useState({});
+  const [workflowName, setWorkflowName] = useState(null);
   const mountedRef = useRef(true);
   const contractCacheRef = useRef(new Map());
   const { showPromiseStatus } = useStatusBar();
@@ -58,7 +72,7 @@ export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusU
 
   const loadData = async () => {
     try {
-      const data = await getSidepanelData();
+      const data = await getSidepanelData(instance);
 
       if (!data || data.type !== 'updateCodeEngineVersions') {
         onBackToDefault?.();
@@ -75,19 +89,31 @@ export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusU
 
       setCurrentContext(context);
 
+      const isCEVersion = context.domoObject?.typeId === 'CODEENGINE_PACKAGE_VERSION';
+      const workflowModelId = isCEVersion
+        ? context.domoObject.metadata?.context?.workflowModelId
+        : context.domoObject.parentId;
+
+      // Name the workflow in the header. A workflow version already carries its
+      // parent workflow's name from detection; a code engine version only knows
+      // the workflow's id, so look up the model to name it.
+      let wfName = isCEVersion ? null : context.domoObject.metadata?.parent?.name || null;
+      if (!wfName && workflowModelId) {
+        wfName = await getWorkflowModelName(workflowModelId, context.tabId);
+      }
+      if (mountedRef.current) setWorkflowName(wfName);
+
       // Get definition - either from stored data or fetch/wait for it
       let def = data.definition;
       if (!def) {
-        const isCEVersion = context.domoObject?.typeId === 'CODEENGINE_PACKAGE_VERSION';
         if (isCEVersion) {
-          const wfModelId = context.domoObject.metadata?.context?.workflowModelId;
           const wfVersion = context.domoObject.metadata?.context?.workflowVersionNumber;
-          if (!wfModelId || !wfVersion) {
+          if (!workflowModelId || !wfVersion) {
             onStatusUpdate?.('Error', 'Missing workflow context for code engine version', 'danger');
             onBackToDefault?.();
             return;
           }
-          def = await getVersionDefinition(wfModelId, wfVersion, context.tabId);
+          def = await getVersionDefinition(workflowModelId, wfVersion, context.tabId);
         } else {
           const waitResult = await waitForDefinition(context);
           if (!waitResult.success) {
@@ -138,7 +164,7 @@ export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusU
           const currentVersion = isSingleVersion ? uniqueVersions[0] : null;
           const latestVersion = availableVersions.length > 0 ? availableVersions[0] : null;
 
-          // Built-in Domo packages can only be upgraded to latest — no
+          // Built-in Domo packages can only be upgraded to latest, no
           // downgrades or intermediate versions.
           if (isDomoBuiltin) {
             availableVersions =
@@ -177,6 +203,15 @@ export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusU
       onStatusUpdate?.('Error', error.message || 'Failed to load code engine packages', 'danger');
     } finally {
       if (mountedRef.current) setIsLoading(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await loadData();
+    } finally {
+      if (mountedRef.current) setIsRefreshing(false);
     }
   };
 
@@ -258,10 +293,19 @@ export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusU
       if (cancelled || !mountedRef.current) return;
       const defaults = {};
       for (const [elementId, info] of Object.entries(next)) {
+        const updateVariableSchemas = {};
+        for (const impact of info.schemaChangeImpacts) {
+          updateVariableSchemas[impact.variableId] = true;
+        }
+        const updateVariableTypes = {};
+        for (const impact of info.typeChangeImpacts) {
+          updateVariableTypes[impact.variableId] = true;
+        }
         defaults[elementId] = {
           addOutputs: info.addedOutputs.slice(),
           inputRemap: {},
-          updateVariableTypes: {}
+          updateVariableSchemas,
+          updateVariableTypes
         };
       }
       setContractDiffs(next);
@@ -295,6 +339,7 @@ export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusU
       const current = prev[elementId] || {
         addOutputs: [],
         inputRemap: {},
+        updateVariableSchemas: {},
         updateVariableTypes: {}
       };
       return {
@@ -309,6 +354,7 @@ export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusU
       const current = prev[elementId] || {
         addOutputs: [],
         inputRemap: {},
+        updateVariableSchemas: {},
         updateVariableTypes: {}
       };
       const set = new Set(current.addOutputs);
@@ -318,11 +364,30 @@ export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusU
     });
   };
 
+  const handleToggleVariableSchema = (elementId, variableId, selected) => {
+    setReconciliations((prev) => {
+      const current = prev[elementId] || {
+        addOutputs: [],
+        inputRemap: {},
+        updateVariableSchemas: {},
+        updateVariableTypes: {}
+      };
+      return {
+        ...prev,
+        [elementId]: {
+          ...current,
+          updateVariableSchemas: { ...current.updateVariableSchemas, [variableId]: selected }
+        }
+      };
+    });
+  };
+
   const handleToggleVariableType = (elementId, variableId, selected) => {
     setReconciliations((prev) => {
       const current = prev[elementId] || {
         addOutputs: [],
         inputRemap: {},
+        updateVariableSchemas: {},
         updateVariableTypes: {}
       };
       return {
@@ -341,6 +406,17 @@ export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusU
   const applicableChanges = changes.filter((c) => !blockedElementIds.has(c.elementId));
   const hasChanges = applicableChanges.length > 0;
   const reviewCount = applicableChanges.filter((c) => actionNeedsReview(contractDiffs[c.elementId])).length;
+
+  // Every action whose contract changed, kept in package order. Each package
+  // renders its own reconciliation panels below its version selectors; this
+  // flattened list is used only to pick the first review to auto-expand.
+  const reconciliationEntries = packages.flatMap((pkg) =>
+    pkg.actions
+      .map((action) => ({ action, info: contractDiffs[action.elementId] }))
+      .filter(({ info }) => info && (info.functionDeleted || info.classified?.hasChanges))
+  );
+  const reviewReconciliations = reconciliationEntries.filter(({ info }) => !info.functionDeleted);
+  const firstReviewId = reviewReconciliations.find(({ info }) => actionNeedsReview(info))?.action.elementId;
 
   const handleSubmit = async () => {
     if (applicableChanges.length === 0) {
@@ -416,14 +492,18 @@ export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusU
   ) => {
     const isActionLevel = elementId !== null;
     const selectId = isActionLevel ? `action-${elementId}` : `pkg-${packageId}`;
+    // A built-in package already on its latest version has nothing to switch to
+    // (downgrades aren't allowed), leaving no versions to choose, so lock it.
+    const isDisabled = availableVersions.length === 0;
 
     return (
       <Select
         className='w-40 flex-1'
         id={selectId}
+        isDisabled={isDisabled}
         selectionMode='single'
         value={selectedVersion}
-        variant='secondary'
+        variant={isActionLevel ? 'primary' : 'secondary'}
         onChange={(key) => {
           if (isActionLevel) {
             onChange(packageId, elementId, key);
@@ -476,71 +556,83 @@ export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusU
     );
   }
 
+  const totalActions = packages.reduce((sum, pkg) => sum + pkg.actions.length, 0);
+  const headerSubtext = `${packages.length} package${packages.length === 1 ? '' : 's'} | ${totalActions} action${totalActions === 1 ? '' : 's'}`;
+
   return (
     <Card className='flex min-h-0 w-full flex-1 flex-col p-2'>
-      <Card.Header>
-        <Card.Title className='flex items-start justify-between'>
-          <div className='flex flex-col gap-1'>
-            <div className='flex items-center gap-1.5'>
-              <div className='line-clamp-2 min-w-0'>Update Code Engine Versions</div>
-              <Chip className='shrink-0' color='accent' size='sm' variant='soft'>
-                Beta
-              </Chip>
-            </div>
-
-            <div className='flex flex-row items-center gap-1'>
-              <span className='text-sm text-muted'>
-                {`${packages.length} package${packages.length === 1 ? '' : 's'} | ${packages.reduce((sum, pkg) => sum + pkg.actions.length, 0)} action${packages.reduce((sum, pkg) => sum + pkg.actions.length, 0) === 1 ? '' : 's'}`}
-              </span>
-            </div>
-          </div>
-          {onBackToDefault && (
-            <Tooltip>
-              <Button isIconOnly size='sm' variant='ghost' onPress={onBackToDefault}>
-                <IconX />
-              </Button>
-              <Tooltip.Content className='max-w-60'>Close</Tooltip.Content>
-            </Tooltip>
-          )}
-        </Card.Title>
-      </Card.Header>
+      <ViewHeader
+        beta
+        feature={workflowName ? 'Update CE Versions for' : 'Update Code Engine Versions'}
+        featureIcon={<IconPackage />}
+        subject={workflowName}
+        subjectTypeId={workflowName ? 'WORKFLOW_MODEL' : null}
+        subtext={headerSubtext}
+        onClose={onBackToDefault}
+        actions={[
+          buildReloadAction({
+            currentContext: liveContext,
+            objectId: currentContext?.domoObject?.id,
+            objectType: currentContext?.domoObject?.typeId,
+            onStatusUpdate,
+            viewType: 'updateCodeEngineVersions'
+          }),
+          buildRefreshAction({ isRefreshing, onRefresh: handleRefresh })
+        ]}
+      />
       <Separator />
       <ScrollShadow hideScrollBar className='min-h-0 flex-1 overflow-y-auto' offset={5} orientation='vertical'>
         <Card.Content>
-          {packages.map((pkg, index) => (
-            <div className={index > 0 ? 'w-full border-t border-border pt-2 pb-1' : 'pb-1'} key={pkg.packageId}>
-              <div className='flex w-full flex-col gap-1'>
-                <div className='flex w-full items-center justify-between gap-2'>
-                  <div className='flex min-w-0 flex-1 items-center gap-1.5'>
+          {packages.map((pkg, index) => {
+            const pkgReconciliations = pkg.actions
+              .map((action) => ({ action, info: contractDiffs[action.elementId] }))
+              .filter(({ info }) => info && (info.functionDeleted || info.classified?.hasChanges));
+            const pkgDeleted = pkgReconciliations.filter(({ info }) => info.functionDeleted);
+            const pkgReviews = pkgReconciliations.filter(({ info }) => !info.functionDeleted);
+
+            return (
+              <div className={index > 0 ? 'w-full border-t border-border pt-2 pb-1' : 'pb-1'} key={pkg.packageId}>
+                <div className='flex w-full flex-col gap-1'>
+                  <div className='flex w-full items-center justify-between gap-2'>
                     <Link
-                      className='min-w-0 truncate no-underline decoration-accent hover:text-accent hover:underline'
+                      className='min-w-0 truncate decoration-accent hover:text-accent'
                       href={`https://${currentContext?.instance}.domo.com/codeengine/${pkg.packageId}`}
                       target='_blank'
                     >
                       {pkg.packageName}
                     </Link>
-                    {pkg.isDomoBuiltin && (
-                      <Chip className='shrink-0' color='accent' size='sm' variant='soft'>
-                        Built-in
-                      </Chip>
-                    )}
+                    <div className='flex min-w-0 flex-1 items-center justify-end gap-2'>
+                      {pkg.isDomoBuiltin && (
+                        <Tooltip delay={200}>
+                          <Tooltip.Trigger className='cursor-help'>
+                            <Chip className='shrink-0 gap-1' color='accent' size='sm' variant='soft'>
+                              Built-in
+                              <IconInfoCircle className='size-3.5 p-0!' />
+                            </Chip>
+                          </Tooltip.Trigger>
+                          <Tooltip.Content className='max-w-56'>
+                            Built-in packages can only be upgraded to the latest version, not downgraded to an earlier one.
+                          </Tooltip.Content>
+                        </Tooltip>
+                      )}
+                      <span className='w-12 shrink-0 text-right text-xs text-muted'>
+                        {pkg.actions.length} action
+                        {pkg.actions.length !== 1 ? 's' : ''}
+                      </span>
+                    </div>
                   </div>
-                  <span className='shrink-0 text-xs text-muted'>
-                    {pkg.actions.length} action
-                    {pkg.actions.length !== 1 ? 's' : ''}
-                  </span>
-                </div>
 
-                <div className='flex w-full items-center justify-between gap-2'>
-                  <Chip
-                    className='h-9'
-                    color={pkg.latestVersion === pkg.currentVersion ? 'success' : pkg.isSingleVersion ? 'warning' : 'danger'}
-                    size='lg'
-                    variant='soft'
-                  >
-                    {pkg.isSingleVersion ? pkg.currentVersion : 'Multiple Versions'}
-                  </Chip>
-                  <div className='flex items-center justify-end gap-2'>
+                  <div className='flex w-full items-center justify-around gap-2'>
+                    <Chip
+                      className='h-9 w-35 rounded-3xl'
+                      size='lg'
+                      variant='secondary'
+                      color={
+                        pkg.latestVersion === pkg.currentVersion ? 'success' : pkg.isSingleVersion ? 'warning' : 'danger'
+                      }
+                    >
+                      {pkg.isSingleVersion ? pkg.currentVersion : 'Multiple Versions'}
+                    </Chip>
                     <IconArrowRight className='shrink-0 text-muted' />
                     {renderVersionSelect(
                       pkg.packageId,
@@ -551,64 +643,8 @@ export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusU
                       handlePackageVersionChange
                     )}
                   </div>
-                </div>
 
-                {!pkg.isSingleVersion && (
-                  <Disclosure className='w-full'>
-                    <Disclosure.Heading>
-                      <Button fullWidth className='justify-between' size='sm' slot='trigger' variant='ghost'>
-                        Per-action overrides
-                        <Disclosure.Indicator>
-                          <IconChevronDown />
-                        </Disclosure.Indicator>
-                      </Button>
-                    </Disclosure.Heading>
-                    <Disclosure.Content>
-                      <div className='flex flex-col gap-1.5 pt-1 pl-1'>
-                        {pkg.actions.map((action) => (
-                          <div className='flex flex-col gap-0.5' key={action.elementId}>
-                            <span className='truncate text-xs' title={action.actionName}>
-                              {action.actionName}
-                            </span>
-                            <div className='flex items-center justify-between gap-2'>
-                              <Chip
-                                className='h-9'
-                                size='sm'
-                                variant='soft'
-                                color={
-                                  pkg.latestVersion === pkg.currentVersion
-                                    ? 'success'
-                                    : pkg.isSingleVersion
-                                      ? 'warning'
-                                      : 'danger'
-                                }
-                              >
-                                {action.currentVersion}
-                              </Chip>
-                              <div className='flex items-center justify-end gap-2'>
-                                <IconArrowRight className='shrink-0 text-muted' />
-                                {renderVersionSelect(
-                                  pkg.packageId,
-                                  pkg.availableVersions,
-                                  pkg.latestVersion,
-                                  action.selectedVersion,
-                                  action.currentVersion,
-                                  handleActionVersionChange,
-                                  action.elementId
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </Disclosure.Content>
-                  </Disclosure>
-                )}
-
-                {pkg.actions.map((action) => {
-                  const info = contractDiffs[action.elementId];
-                  if (!info || (!info.functionDeleted && !info.classified?.hasChanges)) return null;
-                  return (
+                  {pkgDeleted.map(({ action, info }) => (
                     <ActionReconciliation
                       action={action}
                       info={info}
@@ -616,13 +652,90 @@ export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusU
                       reconciliation={reconciliations[action.elementId]}
                       onRemapInput={handleRemapInput}
                       onToggleOutput={handleToggleOutput}
+                      onToggleVariableSchema={handleToggleVariableSchema}
                       onToggleVariableType={handleToggleVariableType}
                     />
-                  );
-                })}
+                  ))}
+
+                  {(!pkg.isSingleVersion || pkgReviews.length > 0) && (
+                    <DisclosureGroup
+                      className='flex flex-col gap-1'
+                      defaultExpandedKeys={firstReviewId ? [firstReviewId] : []}
+                    >
+                      {!pkg.isSingleVersion && (
+                        <Disclosure
+                          className='border-divider w-full overflow-hidden rounded-lg border bg-surface-secondary'
+                          id={`overrides-${pkg.packageId}`}
+                        >
+                          <Disclosure.Heading>
+                            <Disclosure.Trigger className='flex w-full items-center justify-between gap-2 p-2'>
+                              <span className='truncate text-sm font-medium'>Per-action overrides</span>
+                              <Disclosure.Indicator>
+                                <IconChevronDown />
+                              </Disclosure.Indicator>
+                            </Disclosure.Trigger>
+                          </Disclosure.Heading>
+                          <Disclosure.Content>
+                            <div className='px-4'>
+                              <Separator variant='secondary' />
+                            </div>
+                            <div className='flex flex-col gap-1.5 p-2'>
+                              {pkg.actions.map((action) => (
+                                <div className='flex flex-col gap-0.5' key={action.elementId}>
+                                  <span className='truncate text-xs' title={action.actionName}>
+                                    {action.actionName}
+                                  </span>
+                                  <div className='flex items-center justify-between gap-2'>
+                                    <Chip
+                                      className='h-9 w-25 rounded-3xl bg-surface! shadow-sm'
+                                      size='lg'
+                                      variant='secondary'
+                                      color={
+                                        pkg.latestVersion === pkg.currentVersion
+                                          ? 'success'
+                                          : pkg.isSingleVersion
+                                            ? 'warning'
+                                            : 'danger'
+                                      }
+                                    >
+                                      {action.currentVersion}
+                                    </Chip>
+                                    <IconArrowRight className='shrink-0 text-muted' />
+                                    {renderVersionSelect(
+                                      pkg.packageId,
+                                      pkg.availableVersions,
+                                      pkg.latestVersion,
+                                      action.selectedVersion,
+                                      action.currentVersion,
+                                      handleActionVersionChange,
+                                      action.elementId
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </Disclosure.Content>
+                        </Disclosure>
+                      )}
+                      {pkgReviews.map(({ action, info }) => (
+                        <ActionReconciliation
+                          action={action}
+                          id={action.elementId}
+                          info={info}
+                          key={`recon-${action.elementId}`}
+                          reconciliation={reconciliations[action.elementId]}
+                          onRemapInput={handleRemapInput}
+                          onToggleOutput={handleToggleOutput}
+                          onToggleVariableSchema={handleToggleVariableSchema}
+                          onToggleVariableType={handleToggleVariableType}
+                        />
+                      ))}
+                    </DisclosureGroup>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </Card.Content>
       </ScrollShadow>
 
@@ -635,7 +748,9 @@ export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusU
             {reviewCount > 0 && (
               <>
                 <span>·</span>
-                <span className='text-warning'>{reviewCount} need review</span>
+                <span className='text-warning'>
+                  {reviewCount} {reviewCount === 1 ? 'needs' : 'need'} review
+                </span>
               </>
             )}
             {blockedElementIds.size > 0 && (
@@ -654,7 +769,7 @@ export function UpdateCodeEngineVersionsView({ onBackToDefault = null, onStatusU
         )}
         <Button
           fullWidth
-          isDisabled={!hasChanges || isSubmitting || isDiffing}
+          isDisabled={!hasChanges || isSubmitting || isDiffing || isRefreshing}
           isPending={isSubmitting}
           size='sm'
           variant='primary'
@@ -679,43 +794,61 @@ function actionNeedsReview(info) {
     info.removedBoundInputs.length > 0 ||
     info.addedRequiredInputs.length > 0 ||
     info.typeChangeImpacts.length > 0 ||
+    info.schemaChangeImpacts.length > 0 ||
     info.breakingRemovedOutputs.length > 0
   );
 }
 
-function ActionReconciliation({ action, info, onRemapInput, onToggleOutput, onToggleVariableType, reconciliation }) {
+function ActionReconciliation({
+  action,
+  id = null,
+  info,
+  onRemapInput,
+  onToggleOutput,
+  onToggleVariableSchema,
+  onToggleVariableType,
+  reconciliation
+}) {
   if (info.functionDeleted) {
     return (
-      <div className='mt-1 flex items-start gap-2 rounded-md bg-danger-soft p-2 text-xs text-danger'>
-        <IconExclamationTriangle className='mt-0.5 shrink-0' size={12} />
-        <span>
-          <span className='font-mono'>{action.functionName}</span> no longer exists in the selected version. This action will
-          be skipped so it does not break the workflow.
-        </span>
-      </div>
+      <Alert className='mt-1' status='danger' variant='transparent'>
+        <Alert.Content>
+          <Alert.Title className='flex items-center gap-1'>
+            <AlertStatusIcon />
+            Function Removed
+          </Alert.Title>
+          <Alert.Description>
+            <span className='font-mono font-bold'>{action.functionName}</span> no longer exists in the selected version. This
+            action will be skipped so it does not break the workflow.
+          </Alert.Description>
+        </Alert.Content>
+      </Alert>
     );
   }
 
-  const choices = reconciliation || { addOutputs: [], inputRemap: {}, updateVariableTypes: {} };
+  const choices = reconciliation || { addOutputs: [], inputRemap: {}, updateVariableSchemas: {}, updateVariableTypes: {} };
   const needsReview = actionNeedsReview(info);
 
   return (
-    <Disclosure className='mt-1 w-full rounded-md border border-border' defaultExpanded={needsReview}>
+    <Disclosure className='border-divider w-full overflow-hidden rounded-lg border bg-surface-secondary' id={id}>
       <Disclosure.Heading>
-        <Button fullWidth className='items-center justify-between gap-1 px-2 py-1 text-xs' slot='trigger' variant='ghost'>
-          <span className='flex min-w-0 items-center gap-1'>
-            <Disclosure.Indicator>
-              <IconChevronDown size={12} />
-            </Disclosure.Indicator>
-            <span className='truncate'>{action.actionName}</span>
+        <Disclosure.Trigger className='flex w-full items-center justify-between gap-2 p-2'>
+          <span className='flex min-w-0 flex-1 items-center gap-2' title={action.actionName}>
+            <span className='truncate text-sm font-medium'>{action.actionName}</span>
           </span>
           <Chip color={needsReview ? 'warning' : 'accent'} size='sm' variant='soft'>
             {needsReview ? 'Review' : 'Auto'}
           </Chip>
-        </Button>
+          <Disclosure.Indicator>
+            <IconChevronDown />
+          </Disclosure.Indicator>
+        </Disclosure.Trigger>
       </Disclosure.Heading>
       <Disclosure.Content>
-        <div className='flex flex-col gap-2 px-2 pb-2 text-xs'>
+        <div className='px-4'>
+          <Separator variant='secondary' />
+        </div>
+        <div className='flex flex-col gap-2 p-2 text-xs'>
           {info.autoNotes.length > 0 && (
             <ul className='flex flex-col gap-0.5 text-muted'>
               {info.autoNotes.map((note) => (
@@ -737,7 +870,7 @@ function ActionReconciliation({ action, info, onRemapInput, onToggleOutput, onTo
                 className='w-48'
                 selectionMode='single'
                 value={choices.inputRemap?.[ri.paramName] ?? 'drop'}
-                variant='secondary'
+                variant='primary'
                 onChange={(key) => onRemapInput(action.elementId, ri.paramName, key)}
               >
                 <Select.Trigger className='items-center py-0'>
@@ -769,79 +902,145 @@ function ActionReconciliation({ action, info, onRemapInput, onToggleOutput, onTo
           ))}
 
           {info.addedRequiredInputs.length > 0 && (
-            <div className='flex items-start gap-2 rounded-md bg-warning-soft p-2 text-warning'>
-              <IconExclamationTriangle className='mt-0.5 shrink-0' size={12} />
-              <span>
-                New required input{info.addedRequiredInputs.length === 1 ? '' : 's'}{' '}
-                <span className='font-mono'>{info.addedRequiredInputs.join(', ')}</span> will be unset. Set{' '}
-                {info.addedRequiredInputs.length === 1 ? 'it' : 'them'} in Domo after updating.
-              </span>
-            </div>
+            <Alert className='w-full' status='warning'>
+              <Alert.Content>
+                <Alert.Title className='flex items-center gap-1'>
+                  <AlertStatusIcon />
+                  New Required Input{info.addedRequiredInputs.length === 1 ? '' : 's'}
+                </Alert.Title>
+                <Alert.Description>
+                  New required input{info.addedRequiredInputs.length === 1 ? '' : 's'}{' '}
+                  <span className='font-mono font-bold'>{info.addedRequiredInputs.join(', ')}</span> will be unset. Set{' '}
+                  {info.addedRequiredInputs.length === 1 ? 'it' : 'them'} in Domo after updating.
+                </Alert.Description>
+              </Alert.Content>
+            </Alert>
           )}
 
           {info.addedOutputs.map((name) => (
-            <Checkbox
+            <Switch
               isSelected={choices.addOutputs?.includes(name) ?? false}
               key={`out-${name}`}
+              size='sm'
               onChange={(selected) => onToggleOutput(action.elementId, name, selected)}
             >
-              <Checkbox.Control>
-                <Checkbox.Indicator />
-              </Checkbox.Control>
-              <Checkbox.Content>
+              <Switch.Control>
+                <Switch.Thumb />
+              </Switch.Control>
+              <Switch.Content>
                 <Label className='text-xs'>
                   Add output <span className='font-mono'>{name}</span> and map a new variable
                 </Label>
-              </Checkbox.Content>
-            </Checkbox>
+              </Switch.Content>
+            </Switch>
           ))}
 
           {info.typeChangeImpacts.map((impact) => (
-            <div
-              className='flex flex-col gap-1 rounded-md bg-warning-soft p-2 text-warning'
-              key={`tc-${impact.flag}-${impact.paramName}`}
-            >
-              <span className='flex items-start gap-2'>
-                <IconExclamationTriangle className='mt-0.5 shrink-0' size={12} />
-                <span>
-                  Type of <span className='font-mono'>{impact.paramName}</span> changed to{' '}
-                  <span className='font-mono'>{impact.newType}</span>, but variable{' '}
-                  <span className='font-mono'>{impact.variableName}</span> keeps its old type
-                  {impact.consumers.length > 0
-                    ? ` (also used by ${impact.consumers.map((c) => c.title || c.paramName).join(', ')})`
-                    : ''}
-                  .
-                </span>
-              </span>
-              <Checkbox
-                isSelected={!!choices.updateVariableTypes?.[impact.variableId]}
-                onChange={(selected) => onToggleVariableType(action.elementId, impact.variableId, selected)}
-              >
-                <Checkbox.Control>
-                  <Checkbox.Indicator />
-                </Checkbox.Control>
-                <Checkbox.Content>
-                  <Label className='text-xs'>
-                    Update variable <span className='font-mono'>{impact.variableName}</span> to{' '}
-                    <span className='font-mono'>{impact.newType}</span>
-                  </Label>
-                </Checkbox.Content>
-              </Checkbox>
-            </div>
+            <Alert key={`tc-${impact.flag}-${impact.paramName}`} status='warning'>
+              <Alert.Content>
+                <Alert.Title className='flex items-center gap-1'>
+                  <AlertStatusIcon />
+                  Type Change
+                </Alert.Title>
+                <Alert.Description>
+                  Type of <span className='font-mono font-bold'>{impact.paramName}</span> changed to{' '}
+                  <span className='font-mono font-bold'>{impact.newType}</span>, so variable{' '}
+                  <span className='font-mono font-bold'>{impact.variableName}</span>
+                  {(impact.currentType || impact.consumers.length > 0) && (
+                    <>
+                      {' '}
+                      (
+                      {impact.currentType && (
+                        <>
+                          currently <span className='font-mono font-bold'>{impact.currentType}</span>
+                        </>
+                      )}
+                      {impact.currentType && impact.consumers.length > 0 && ', '}
+                      {impact.consumers.length > 0 && (
+                        <>
+                          also used by{' '}
+                          <span className='font-semibold'>
+                            {impact.consumers.map((c) => c.title || c.paramName).join(', ')}
+                          </span>
+                        </>
+                      )}
+                      )
+                    </>
+                  )}{' '}
+                  no longer matches. Keep this on to update it.
+                </Alert.Description>
+                <Switch
+                  isSelected={!!choices.updateVariableTypes?.[impact.variableId]}
+                  size='sm'
+                  onChange={(selected) => onToggleVariableType(action.elementId, impact.variableId, selected)}
+                >
+                  <Switch.Control>
+                    <Switch.Thumb />
+                  </Switch.Control>
+                  <Switch.Content>
+                    <Label className='text-xs'>
+                      Update {impact.currentType} variable{' '}
+                      <span className='font-mono text-accent'>{impact.variableName}</span> to {impact.newType}
+                    </Label>
+                  </Switch.Content>
+                </Switch>
+              </Alert.Content>
+            </Alert>
+          ))}
+
+          {info.schemaChangeImpacts.map((impact) => (
+            <Alert key={`sc-${impact.flag}-${impact.paramName}`} status='warning'>
+              <Alert.Content>
+                <Alert.Title className='flex items-center gap-1'>
+                  <AlertStatusIcon />
+                  Properties Change
+                </Alert.Title>
+                <Alert.Description>
+                  The properties of {impact.isList ? 'the objects in ' : ''}
+                  <span className='font-mono font-bold'>{impact.paramName}</span> changed, so variable{' '}
+                  <span className='font-mono font-bold'>{impact.variableName}</span>
+                  {impact.consumers.length > 0 ? (
+                    <>
+                      {' '}
+                      (also used by{' '}
+                      <span className='font-semibold'>{impact.consumers.map((c) => c.title || c.paramName).join(', ')}</span>
+                      )
+                    </>
+                  ) : null}{' '}
+                  no longer matches. Keep this on to update it.
+                </Alert.Description>
+                <Switch
+                  isSelected={!!choices.updateVariableSchemas?.[impact.variableId]}
+                  size='sm'
+                  onChange={(selected) => onToggleVariableSchema(action.elementId, impact.variableId, selected)}
+                >
+                  <Switch.Control>
+                    <Switch.Thumb />
+                  </Switch.Control>
+                  <Switch.Content>
+                    <Label className='text-xs'>
+                      Update <span className='font-mono text-accent'>{impact.variableName}</span> variable properties
+                    </Label>
+                  </Switch.Content>
+                </Switch>
+              </Alert.Content>
+            </Alert>
           ))}
 
           {info.breakingRemovedOutputs.map((impact) => (
-            <div
-              className='flex items-start gap-2 rounded-md bg-warning-soft p-2 text-warning'
-              key={`ro-${impact.paramName}`}
-            >
-              <IconExclamationTriangle className='mt-0.5 shrink-0' size={12} />
-              <span>
-                Output <span className='font-mono'>{impact.paramName}</span> was removed. Variable{' '}
-                <span className='font-mono'>{impact.variableName}</span> loses its writer and will break{' '}
-                {impact.consumers.map((c) => c.title || c.paramName).join(', ')}.
-              </span>
-            </div>
+            <Alert key={`ro-${impact.paramName}`} status='warning'>
+              <Alert.Content>
+                <Alert.Title className='flex items-center gap-1'>
+                  <AlertStatusIcon />
+                  Output Removed
+                </Alert.Title>
+                <Alert.Description>
+                  Output <span className='font-mono font-bold'>{impact.paramName}</span> was removed. Variable{' '}
+                  <span className='font-mono font-bold'>{impact.variableName}</span> loses its writer and will break{' '}
+                  <span className='font-semibold'>{impact.consumers.map((c) => c.title || c.paramName).join(', ')}</span>.
+                </Alert.Description>
+              </Alert.Content>
+            </Alert>
           ))}
         </div>
       </Disclosure.Content>
@@ -857,13 +1056,16 @@ function ActionReconciliation({ action, info, onRemapInput, onToggleOutput, onTo
 function buildActionContractInfo({ change, definition, newFn, oldFn }) {
   const classified = classifyContractChanges(oldFn, newFn);
   const element = (definition?.designElements || []).find((e) => e.id === change.elementId);
-  const variables = getWorkflowVariables(definition);
-  const varById = new Map(variables.map((v) => [v.id, v]));
+  // A param can bind to a nested field of an object variable (id `varId.childId`),
+  // which isn't in the flat dataList. Index the whole tree so both the name shown
+  // and the "already matches?" check resolve that child instead of the raw id.
+  const varIndex = indexVariablesById(definition);
+  const variableNode = (variableId) => varIndex.get(variableId)?.node ?? null;
   const inputParams = new Map(getTileParams(element, 'input').map((p) => [p.paramName, p]));
   const outputParams = new Map(getTileParams(element, 'output').map((p) => [p.paramName, p]));
   const consumersOf = (variableId) =>
     getVariableConsumers(definition, variableId).filter((c) => c.elementId !== change.elementId);
-  const variableName = (variableId) => varById.get(variableId)?.paramName || variableId;
+  const variableName = (variableId) => varIndex.get(variableId)?.path || variableId;
 
   const addedInputNames = classified.inputs.added.map((e) => e.name);
   const addedOutputs = classified.outputs.added.map((e) => e.name);
@@ -872,31 +1074,86 @@ function buildActionContractInfo({ change, definition, newFn, oldFn }) {
   const removedBoundInputs = classified.inputs.removed
     .filter((e) => hasBinding(inputParams.get(e.name)))
     .map((e) => ({
-      binding: describeBinding(inputParams.get(e.name), varById),
+      binding: describeBinding(inputParams.get(e.name), varIndex),
       paramName: e.name
     }));
 
-  // Every type change, paired with the tile param that carries the binding.
+  // Describe a type the way a user reads it, keeping the list-ness visible so an
+  // array of objects never collapses to a bare "object" in the warning.
+  const describeType = (entry) => {
+    const type = entry?.type ?? null;
+    if (!type) return type;
+    return entry?.isList ? `list of ${type}` : type;
+  };
+  // Same, but read from a bound variable's node (variables carry the type on
+  // `dataType`), so the warning can state the variable's current type.
+  const describeVariableType = (node) => {
+    const type = node?.dataType ?? null;
+    if (!type) return type;
+    return node?.isList ? `list of ${type}` : type;
+  };
+
+  // Every type change, paired with the tile param that carries the binding and
+  // the new manifest entry (so we can check whether the bound variable already
+  // matches the target version).
   const typeChanged = [
     ...classified.inputs.typeChanged.map((t) => ({
       flag: 'input',
       name: t.name,
-      newType: t.new?.type ?? null,
+      newEntry: t.new,
+      newType: describeType(t.new),
       param: inputParams.get(t.name)
     })),
     ...classified.outputs.typeChanged.map((t) => ({
       flag: 'output',
       name: t.name,
-      newType: t.new?.type ?? null,
+      newEntry: t.new,
+      newType: describeType(t.new),
       param: outputParams.get(t.name)
     }))
   ];
+  // Only prompt when the bound variable is actually out of sync with the new
+  // version. A variable already matching the target (e.g. from a prior update)
+  // needs nothing, so the version diff alone must not keep flagging it.
   const typeChangeImpacts = typeChanged
-    .filter((t) => t.param?.mappedTo)
+    .filter((t) => t.param?.mappedTo && !variableMatchesEntry(variableNode(t.param.mappedTo), t.newEntry))
+    .map((t) => ({
+      consumers: consumersOf(t.param.mappedTo),
+      currentType: describeVariableType(variableNode(t.param.mappedTo)),
+      flag: t.flag,
+      newType: t.newType,
+      paramName: t.name,
+      variableId: t.param.mappedTo,
+      variableName: variableName(t.param.mappedTo)
+    }));
+
+  // Changes confined to an object's nested property schema (the data type is
+  // unchanged). Paired with the binding so the user can sync the variable's
+  // properties; `isList` tunes the wording (objects in an array vs. one object).
+  const schemaChanged = [
+    ...classified.inputs.schemaChanged.map((t) => ({
+      flag: 'input',
+      isList: t.new?.isList ?? false,
+      name: t.name,
+      newEntry: t.new,
+      param: inputParams.get(t.name)
+    })),
+    ...classified.outputs.schemaChanged.map((t) => ({
+      flag: 'output',
+      isList: t.new?.isList ?? false,
+      name: t.name,
+      newEntry: t.new,
+      param: outputParams.get(t.name)
+    }))
+  ];
+  // Same guard as type changes: skip a variable that already carries the new
+  // property schema so a re-run of the same bump stops asking to update it.
+  const schemaChangeImpacts = schemaChanged
+    .filter((t) => t.param?.mappedTo && !variableMatchesEntry(variableNode(t.param.mappedTo), t.newEntry))
     .map((t) => ({
       consumers: consumersOf(t.param.mappedTo),
       flag: t.flag,
-      newType: t.newType,
+      isList: t.isList,
       paramName: t.name,
       variableId: t.param.mappedTo,
       variableName: variableName(t.param.mappedTo)
@@ -932,6 +1189,15 @@ function buildActionContractInfo({ change, definition, newFn, oldFn }) {
   for (const t of typeChanged) {
     if (!t.param?.mappedTo) {
       autoNotes.push(`Type of ${t.name} changed to ${t.newType}, no variable bound`);
+    } else if (variableMatchesEntry(variableNode(t.param.mappedTo), t.newEntry)) {
+      autoNotes.push(`Type of ${t.name} changed, ${variableName(t.param.mappedTo)} already matches`);
+    }
+  }
+  for (const t of schemaChanged) {
+    if (!t.param?.mappedTo) {
+      autoNotes.push(`Properties of ${t.name} changed, no variable bound`);
+    } else if (variableMatchesEntry(variableNode(t.param.mappedTo), t.newEntry)) {
+      autoNotes.push(`Properties of ${t.name} changed, ${variableName(t.param.mappedTo)} already matches`);
     }
   }
   for (const o of removedOutputs) {
@@ -954,27 +1220,14 @@ function buildActionContractInfo({ change, definition, newFn, oldFn }) {
     functionDeleted: classified.functionDeleted,
     newFn,
     removedBoundInputs,
+    schemaChangeImpacts,
     typeChangeImpacts
   };
 }
 
-/**
- * Compare two semver strings. Returns negative if a < b, positive if a > b, 0 if equal.
- */
-function compareSemver(a, b) {
-  const pa = a.split('.').map(Number);
-  const pb = b.split('.').map(Number);
-  for (let i = 0; i < 3; i++) {
-    if ((pa[i] || 0) !== (pb[i] || 0)) {
-      return (pa[i] || 0) - (pb[i] || 0);
-    }
-  }
-  return 0;
-}
-
-function describeBinding(param, varById) {
+function describeBinding(param, varIndex) {
   if (!param) return 'unmapped';
-  if (param.mappedTo) return `variable ${varById.get(param.mappedTo)?.paramName || param.mappedTo}`;
+  if (param.mappedTo) return `variable ${varIndex.get(param.mappedTo)?.path || param.mappedTo}`;
   if (param.value !== null && param.value !== undefined) return 'a fixed value';
   return 'unmapped';
 }

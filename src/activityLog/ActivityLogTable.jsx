@@ -1,5 +1,4 @@
 import {
-  Alert,
   Avatar,
   AvatarFallback,
   AvatarImage,
@@ -18,9 +17,11 @@ import { getLocalTimeZone, parseDate, today } from '@internationalized/date';
 import { AnimatePresence } from 'motion/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { Alert } from '@/components/Alert';
 import { AnimatedCheck } from '@/components/AnimatedCheck';
 import { CloseButton } from '@/components/CloseButton';
 import { InactiveUserOverlay } from '@/components/InactiveUserOverlay';
+import { UserFilterAutocomplete } from '@/components/UserFilterAutocomplete';
 import { usePerInstanceSettings } from '@/hooks/usePerInstanceSettings';
 import { useResolveTabId } from '@/hooks/useResolveTabId';
 import { DomoObject } from '@/models/DomoObject';
@@ -33,7 +34,6 @@ import IconExclamationPointCircle from '@icons/exclamation-point-circle.svg?reac
 import IconFunnel from '@icons/funnel.svg?react';
 
 import { DataTable } from './components/DataTable';
-import { UserFilterAutocomplete } from './components/UserFilterAutocomplete';
 import { getActivityLogForObject, getEventTypesForObjectType } from './services/activityLog';
 import { getActivityLogFromDataset } from './services/activityLogDataset';
 import { findActivityLogDataset } from './services/findActivityLogDataset';
@@ -1039,11 +1039,13 @@ export function ActivityLogTable() {
       <div className='flex flex-col gap-2'>
         {source === 'api' && (
           <Alert status='warning'>
-            <Alert.Indicator>
-              <IconExclamationPointCircle data-slot='alert-default-icon' />
-            </Alert.Indicator>
             <Alert.Content>
-              <Alert.Title>Activity Log API only retains the past year</Alert.Title>
+              <Alert.Title className='flex items-center gap-1'>
+                <Alert.Indicator>
+                  <IconExclamationPointCircle data-slot='alert-default-icon' />
+                </Alert.Indicator>
+                Activity Log API only retains the past year
+              </Alert.Title>
               <Alert.Description>
                 For older history, switch to the DomoStats Activity Log dataset (preserves history from the day you connected
                 it in Domo).
@@ -1063,11 +1065,13 @@ export function ActivityLogTable() {
         )}
         {source === 'dataset' && !datasetFetchError && (
           <Alert status='success'>
-            <Alert.Indicator>
-              <IconCheckCircle data-slot='alert-default-icon' />
-            </Alert.Indicator>
             <Alert.Content>
-              <Alert.Title>Using DomoStats Activity Log dataset</Alert.Title>
+              <Alert.Title className='flex items-center gap-1'>
+                <Alert.Indicator>
+                  <IconCheckCircle data-slot='alert-default-icon' />
+                </Alert.Indicator>
+                Using DomoStats Activity Log dataset
+              </Alert.Title>
               {/* <Alert.Description>
                 History reaches back to when this dataset was first connected in Domo — older than
                 the past year the Activity Log API exposes.
@@ -1092,11 +1096,13 @@ export function ActivityLogTable() {
         )}
         {source === 'dataset' && datasetFetchError && (
           <Alert status='danger'>
-            <Alert.Indicator>
-              <IconExclamationPointCircle data-slot='alert-default-icon' />
-            </Alert.Indicator>
             <Alert.Content>
-              <Alert.Title>Couldn&apos;t load from the DomoStats dataset</Alert.Title>
+              <Alert.Title className='flex items-center gap-1'>
+                <Alert.Indicator>
+                  <IconExclamationPointCircle data-slot='alert-default-icon' />
+                </Alert.Indicator>
+                Couldn&apos;t load from the DomoStats dataset
+              </Alert.Title>
               <Alert.Description>{datasetFetchError}</Alert.Description>
               <Alert.Description className='mt-1 text-xs'>
                 The cached dataset may have been deleted or you may have lost access. Re-run discovery to find a fresh one,
@@ -1193,11 +1199,13 @@ export function ActivityLogTable() {
     return (
       <div className='p-4'>
         <Alert color='danger'>
-          <Alert.Indicator>
-            <IconExclamationPointCircle data-slot='alert-default-icon' />
-          </Alert.Indicator>
           <Alert.Content>
-            <Alert.Title>Error Loading Activity Log</Alert.Title>
+            <Alert.Title className='flex items-center gap-1'>
+              <Alert.Indicator>
+                <IconExclamationPointCircle data-slot='alert-default-icon' />
+              </Alert.Indicator>
+              Error Loading Activity Log
+            </Alert.Title>
             <Alert.Description>{error}</Alert.Description>
           </Alert.Content>
         </Alert>
@@ -1207,11 +1215,16 @@ export function ActivityLogTable() {
 
   if (isInitialLoad && events.length === 0) {
     return (
-      <div className='skeleton--shimmer flex h-full min-h-0 w-full flex-1 flex-col gap-2 overflow-hidden p-4'>
-        {/* Title + subtitle row */}
-        <div className='flex items-center justify-between p-1'>
-          <Skeleton animationType='none' className='h-6 w-80 rounded-lg' />
-          <Skeleton animationType='none' className='h-4 w-44 rounded-lg' />
+      <div className='skeleton--shimmer relative flex h-full min-h-0 w-full flex-1 flex-col gap-2 overflow-hidden p-4'>
+        {/* Header: source alert banner + title/subtitle row */}
+        <div className='flex flex-col gap-2 p-1'>
+          {/* DomoStats/API source alert banner */}
+          <Skeleton animationType='none' className='h-17 w-full rounded-xl' />
+          {/* Title + subtitle row */}
+          <div className='flex items-center justify-between'>
+            <Skeleton animationType='none' className='h-6 w-80 rounded-lg' />
+            <Skeleton animationType='none' className='h-4 w-44 rounded-lg' />
+          </div>
         </div>
 
         {/* Filter row */}

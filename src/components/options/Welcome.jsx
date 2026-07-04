@@ -2,6 +2,7 @@ import { Button, Card, Chip, Kbd, Link } from '@heroui/react';
 import { IconApi, IconBug, IconCookieOff, IconPuzzle } from '@tabler/icons-react';
 import { motion } from 'motion/react';
 
+import { ThemeToggle } from '@/components/ThemeToggle';
 import IconAiSparkle from '@icons/ai-sparkle.svg?react';
 import IconArrowUpRight from '@icons/arrow-up-right.svg?react';
 import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
@@ -157,6 +158,7 @@ export function Welcome() {
 
   return (
     <div className='flex h-screen w-full max-w-4xl flex-col justify-between gap-4 px-4 pt-8 pb-4'>
+      <ThemeToggle className='fixed top-4 right-4 z-10' />
       {/* Header */}
       <motion.div
         animate={{ opacity: 1, y: 0 }}

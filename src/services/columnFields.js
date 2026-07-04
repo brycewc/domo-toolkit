@@ -7,7 +7,7 @@
  * (orphaned scan results); keep both consumers in lockstep by editing this
  * file rather than either of them.
  *
- * Three column-ref shapes are recognized:
+ * Four column-ref shapes are recognized:
  *   1. **Backticked refs in expression strings** — formulas,
  *      formattedExpression, SQL clauses. Pattern: `` `Column Name` ``
  *      (see `BACKTICK_REF_RE`).
@@ -15,6 +15,12 @@
  *      `columnName`, `field`, `leftColumn`, `rightColumn`, `groupBy`, etc.
  *   3. **Object keys at known column-name-keyed paths** — e.g.
  *      `chartProperties.columnFormats[colName]`.
+ *   4. **Magic ETL structured Field nodes** — `{ type: 'Field', name: '<col>',
+ *      table }`. The column sits at `name` but nested under `expression` (e.g.
+ *      an Order tile's `orderBy[].expression`), so the over-broad bare-`name`
+ *      gate skips it; both walkers match `type === 'Field'` explicitly instead.
+ *      `type === 'Field'` is unambiguous in Magic ETL expression trees, so this
+ *      also covers Field leaves nested inside Operation exprs (Filter, etc.).
  *
  * Magic ETL action variants surface the same column-bearing concept under
  * different keys across action types (Filter, Group By, Join, Pivot,

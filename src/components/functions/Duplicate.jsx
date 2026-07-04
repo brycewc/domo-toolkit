@@ -26,7 +26,7 @@ export function Duplicate({ currentContext, onCollapseActions, onStatusUpdate })
         Duplicate User
       </Button>
       <Tooltip.Content className='max-w-60' offset={4}>
-        Clone this user's role, profile, groups, and individually-shared content
+        Clone this user into a new user, or add their groups and individually-shared content to an existing user
       </Tooltip.Content>
     </Tooltip>
   );

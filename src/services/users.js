@@ -381,7 +381,7 @@ export async function searchUsers(text, tabId = null, offset = 0) {
 }
 
 /**
- * Patch attributes on a user (e.g., locale).
+ * Patch attributes on a user (e.g., locale, userName, emailAddress).
  * @param {number|string} userId
  * @param {Array<{key: string, values: string[]}>} attributes
  * @param {number|null} tabId

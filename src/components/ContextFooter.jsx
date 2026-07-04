@@ -1,25 +1,52 @@
-import { Alert, Chip, Disclosure, Link, ScrollShadow, Skeleton, Spinner, Tabs, Tooltip } from '@heroui/react';
+import { Chip, Disclosure, Link, ScrollShadow, Skeleton, Spinner, Tabs, Tooltip } from '@heroui/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import JsonView from 'react18-json-view';
 
+import { Alert } from '@/components/Alert';
 import { useGroupLookup } from '@/hooks/useGroupLookup';
 import { useUserLookup } from '@/hooks/useUserLookup';
 import { useWheelHorizontalScroll } from '@/hooks/useWheelHorizontalScroll';
 import { fetchObjectDetailsInPage, getObjectType } from '@/models/DomoObjectType';
+import { getAlertActions } from '@/services/alerts';
 import { getTemplateApprovals } from '@/services/approvals';
-import { getDatasetColumns, getDatasetsForPage } from '@/services/datasets';
+import { getCardDefinition } from '@/services/cards';
+import { getDatasetColumns, getDatasetDetailsForList, getDatasetsForPage } from '@/services/datasets';
+import { getJupyterWorkspaceAccounts, getJupyterWorkspaceDatasets } from '@/services/jupyterWorkspaces';
 import { executeInPage } from '@/utils/executeInPage';
-import { formatEpochTimestamp, isDateFieldName, isGroupFieldName, isUserFieldName } from '@/utils/general';
+import { formatEpochTimestamp, formatTimestamp, isDateFieldName, isGroupFieldName, isUserFieldName } from '@/utils/general';
 import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
 
 // Maps relatedData[].fetcher key → (params) => Promise<Array>. Lives here
 // (not in DomoObjectType.js) so the type model stays import-free of services.
 // Adding a new lazy-array fetcher = one entry here + one `fetcher: '<key>'` on
-// the relatedData entry.
+// the relatedData entry. Pair the entry with a `field` to gate the tab on (and
+// seed its count from) an array already present in the object's details, or in
+// its context when the entry sets `fieldSource: 'context'`.
 const LAZY_ARRAY_FETCHERS = {
+  alertActions: ({ details, objectId, tabId }) =>
+    getAlertActions({ actions: details?.actions || [], alertId: objectId, tabId }),
+  dataflowInputs: ({ details, tabId }) => getDatasetDetailsForList({ datasets: details?.inputs, tabId }),
+  dataflowOutputs: ({ details, tabId }) => getDatasetDetailsForList({ datasets: details?.outputs, tabId }),
   datasetColumns: ({ objectId, tabId }) => getDatasetColumns({ datasetId: objectId, tabId }),
+  datasetsForAccountDetails: ({ context, tabId }) =>
+    getDatasetDetailsForList({ datasets: context?.accountDatasets, tabId }),
   datasetsForPage: ({ objectId, tabId }) => getDatasetsForPage({ pageId: objectId, tabId }),
+  jupyterWorkspaceAccounts: ({ details, tabId }) =>
+    getJupyterWorkspaceAccounts({ entries: details?.accountConfiguration, tabId }),
+  jupyterWorkspaceInputs: ({ details, tabId }) =>
+    getJupyterWorkspaceDatasets({ entries: details?.inputConfiguration, tabId }),
+  jupyterWorkspaceOutputs: ({ details, tabId }) =>
+    getJupyterWorkspaceDatasets({ entries: details?.outputConfiguration, tabId }),
   templateApprovals: ({ objectId, tabId }) => getTemplateApprovals(objectId, tabId)
+};
+
+// Maps relatedData[].fetcher key → (params) => Promise<Object> for lazy
+// single-object tabs: a JSON blob about the current object itself (e.g. a card's
+// full definition), not a related object or an array. Distinguished from
+// LAZY_ARRAY_FETCHERS by the relatedData entry omitting `isArray`; the result is
+// rendered as plain JSON with no URL injection and no count suffix.
+const LAZY_OBJECT_FETCHERS = {
+  cardDefinition: ({ objectId, tabId }) => getCardDefinition({ cardId: objectId, tabId })
 };
 
 import { AlertStatusIcon } from './AlertStatusIcon';
@@ -101,9 +128,20 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
       for (const related of typeModel.relatedData) {
         if (related.source === 'self') continue;
         if (related.isArray) {
+          const arrayBase =
+            related.fieldSource === 'context'
+              ? domoObject.metadata?.context
+              : related.fieldSource === 'parent'
+                ? domoObject.metadata?.parent?.details
+                : domoObject.metadata?.details;
+          const arrayData = related.field ? arrayBase?.[related.field] : undefined;
+
           // Lazy: presence of `fetcher` defers the load until tab activation.
-          // Data lands in relatedCache; count appended at render time.
+          // Data lands in relatedCache; count appended at render time. When a
+          // `field` is also configured, the tab hides while that array is
+          // empty and its length seeds the count before the fetch runs.
           if (related.fetcher) {
+            if (related.field && !arrayData?.length) continue;
             result.push({
               fetcher: related.fetcher,
               id: related.field || related.fetcher,
@@ -112,18 +150,12 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
               itemIdField: related.itemIdField,
               itemTypeField: related.itemTypeField,
               itemTypeId: related.itemTypeId,
+              knownCount: related.field ? arrayData.length : undefined,
               label: related.label,
               parentId: resolveRelatedParentId(related, domoObject)
             });
             continue;
           }
-          const arrayBase =
-            related.fieldSource === 'context'
-              ? domoObject.metadata?.context
-              : related.fieldSource === 'parent'
-                ? domoObject.metadata?.parent?.details
-                : domoObject.metadata?.details;
-          const arrayData = arrayBase?.[related.field];
           if (arrayData?.length > 0) {
             result.push({
               data: arrayData,
@@ -137,6 +169,20 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
               parentId: resolveRelatedParentId(related, domoObject)
             });
           }
+          continue;
+        }
+
+        // Lazy single-object fetcher (no `isArray`): a JSON blob about the
+        // current object itself (e.g. the card's full definition). Fetched on
+        // tab activation, stored in relatedCache, rendered as plain JSON.
+        if (related.fetcher) {
+          result.push({
+            fetcher: related.fetcher,
+            id: related.fetcher,
+            isCurrentObject: false,
+            isLazyObject: true,
+            label: related.label
+          });
           continue;
         }
 
@@ -156,6 +202,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
         }
 
         let relatedId;
+        let resolvedTypeId = related.typeId;
         if (related.source === 'parentId') {
           relatedId = domoObject.parentId;
         } else {
@@ -166,16 +213,22 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
                 ? domoObject.metadata?.parent?.details
                 : domoObject.metadata?.details;
           relatedId = related.field.split('.').reduce((obj, key) => obj?.[key], fieldBase);
+          // Dynamic type: resolve the related object's type from a sibling field rather than a
+          // fixed typeId (e.g. a CONTAINER_VIEW's resourceType says whether resourceId points at a
+          // PAGE, CARD, DATA_APP, etc.). Read from the same base as the id.
+          if (related.typeField) {
+            resolvedTypeId = related.typeField.split('.').reduce((obj, key) => obj?.[key], fieldBase);
+          }
         }
 
-        if (relatedId) {
+        if (relatedId && resolvedTypeId) {
           result.push({
             id: related.field || related.source || related.typeId,
             isCurrentObject: false,
             label: related.label,
             objectId: relatedId,
             parentId: resolveRelatedParentId(related, domoObject),
-            typeId: related.typeId
+            typeId: resolvedTypeId
           });
         }
       }
@@ -270,11 +323,18 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
 
     try {
       if (tab.fetcher) {
-        // Lazy array: dispatch to the registered fetcher, store the array in cache.
-        const fetcher = LAZY_ARRAY_FETCHERS[tab.fetcher];
-        if (!fetcher) throw new Error(`Unknown lazy array fetcher: ${tab.fetcher}`);
-        const arr = await fetcher({ objectId, tabId: chromeTabId });
-        const data = arr ?? [];
+        // Lazy fetcher: arrays resolve from LAZY_ARRAY_FETCHERS, single-object
+        // tabs from LAZY_OBJECT_FETCHERS. Either way the result lands in cache;
+        // an array falls back to [] on a null return, an object to null.
+        const fetcher = tab.isLazyObject ? LAZY_OBJECT_FETCHERS[tab.fetcher] : LAZY_ARRAY_FETCHERS[tab.fetcher];
+        if (!fetcher) throw new Error(`Unknown lazy fetcher: ${tab.fetcher}`);
+        const fetched = await fetcher({
+          context: currentContext?.domoObject?.metadata?.context,
+          details: currentContext?.domoObject?.metadata?.details,
+          objectId,
+          tabId: chromeTabId
+        });
+        const data = tab.isLazyObject ? (fetched ?? null) : (fetched ?? []);
         writeRelatedCache(chromeTabId, objectId, key, data);
         if (contextKeyRef.current === reqKey) {
           setRelatedCache((prev) => ({ ...prev, [key]: data }));
@@ -364,6 +424,24 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
       return <MetadataJsonView collapsed={2} groupMap={groupMap} src={src} userMap={userMap} />;
     }
 
+    if (activeTab.isLazyObject) {
+      if (loadingTabs[activeTabId]) {
+        return (
+          <div className='flex items-center justify-center py-4'>
+            <Spinner size='sm' />
+          </div>
+        );
+      }
+      const data = relatedCache[activeTabId];
+      if (data?.error) {
+        return <p className='p-2 text-xs text-danger'>{data.error}</p>;
+      }
+      if (!data) {
+        return <p className='py-2 text-center text-sm text-muted'>Select this tab to load details</p>;
+      }
+      return <MetadataJsonView collapsed={2} groupMap={groupMap} src={data} userMap={userMap} />;
+    }
+
     if (activeTab.isFullContext) {
       return <MetadataJsonView groupMap={groupMap} src={currentContext} userMap={userMap} />;
     }
@@ -390,8 +468,8 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
   };
 
   const alertContent = (
-    <Alert className='min-h-22 w-full p-2' status={currentContext?.isDomoPage || isLoading ? 'accent' : 'warning'}>
-      <Alert.Content className='flex min-w-0 flex-col items-start gap-2'>
+    <Alert className='min-h-25 w-full p-2' status={currentContext?.isDomoPage || isLoading ? 'accent' : 'warning'}>
+      <Alert.Content className='flex min-w-0 flex-col items-start gap-1'>
         {isLoading ? (
           <div className='skeleton--shimmer relative flex w-full flex-col gap-2 overflow-hidden'>
             <div className='flex w-full items-center justify-between'>
@@ -408,7 +486,10 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
           </div>
         ) : (
           <>
-            <div className='alert__title flex w-full items-start justify-between gap-x-1' data-slot='alert-title'>
+            <div
+              className='alert__title flex w-full items-center justify-between gap-x-1 leading-tight!'
+              data-slot='alert-title'
+            >
               {currentContext?.isDomoPage ? (
                 <div className='flex min-w-0 flex-1 items-center gap-x-1'>
                   {/* Items truncate in priority order as the panel narrows so they never
@@ -448,32 +529,36 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
               )}
               <Tooltip delay={300} isDisabled={!currentContext?.domoObject?.id || !currentContext?.isDomoPage}>
                 <Tooltip.Trigger className='shrink-0'>
-                  <Alert.Indicator>
-                    <AlertStatusIcon />
-                  </Alert.Indicator>
+                  <AlertStatusIcon />
                 </Tooltip.Trigger>
                 <Tooltip.Content className='max-w-60'>Click to toggle context JSON view</Tooltip.Content>
               </Tooltip>
             </div>
-            <Alert.Description className='flex h-full w-full min-w-0 flex-col items-start justify-start gap-1 text-left'>
-              <div className='flex w-full min-w-0 flex-col items-start justify-start text-left'>
-                {currentContext?.isDomoPage ? (
-                  !currentContext?.instance || !currentContext?.domoObject?.id ? (
-                    <span className='w-full truncate text-left font-medium'>No object detected on this page</span>
-                  ) : (
-                    <>
-                      <span className='w-full truncate text-left font-medium'>
-                        {currentContext?.domoObject?.metadata?.name}
-                      </span>
-                      <span className='w-full truncate text-left'>ID: {currentContext?.domoObject?.id}</span>
-                    </>
-                  )
+            <Alert.Description className='flex h-full w-full min-w-0 flex-col items-start justify-center text-left'>
+              {currentContext?.isDomoPage ? (
+                !currentContext?.instance || !currentContext?.domoObject?.id ? (
+                  <span className='w-full truncate text-left font-medium'>No object detected on this page</span>
                 ) : (
-                  <span className='w-full truncate text-left font-medium'>
-                    Navigate to an instance to enable most features
-                  </span>
-                )}
-              </div>
+                  <>
+                    <span className='w-full truncate text-left font-medium'>
+                      {currentContext?.domoObject?.metadata?.name}
+                    </span>
+                    <span className='w-full truncate text-left'>ID: {currentContext?.domoObject?.id}</span>
+                    {/* Always render the Created line so the alert keeps the same height whether or
+                          not a timestamp exists; a non-breaking space reserves the line when it's absent,
+                          preventing the footer from shifting between two- and three-line objects. */}
+                    <span className='w-full truncate text-left text-muted'>
+                      {formatTimestamp(currentContext?.domoObject?.metadata?.created)
+                        ? `Created: ${formatTimestamp(currentContext?.domoObject?.metadata?.created)}`
+                        : '\u00a0'}
+                    </span>
+                  </>
+                )
+              ) : (
+                <span className='w-full truncate text-left font-medium'>
+                  Navigate to an instance to enable most features
+                </span>
+              )}
             </Alert.Description>
           </>
         )}
@@ -517,7 +602,10 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
                   <Tabs.List aria-label='Object details' className='w-fit min-w-full flex-nowrap'>
                     {tabs.map((tab) => {
                       const cached = relatedCache[tab.id];
-                      const lazyCountSuffix = tab.fetcher ? ` (${Array.isArray(cached) ? cached.length : '...'})` : '';
+                      const lazyCountSuffix =
+                        tab.fetcher && tab.isArray
+                          ? ` (${Array.isArray(cached) ? cached.length : (tab.knownCount ?? '...')})`
+                          : '';
                       const displayLabel = `${tab.label}${lazyCountSuffix}`;
                       // h-12! overrides HeroUI's fixed 32px tab height so a
                       // line-clamp-2 label that wraps to two lines fits inside

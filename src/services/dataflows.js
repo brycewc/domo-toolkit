@@ -1,6 +1,6 @@
 import { executeInPage } from '@/utils/executeInPage';
 
-import { getUserName } from './users';
+import { getUserGroups, getUserName } from './users';
 
 /**
  * Delete a DataFlow and all its output datasets.
@@ -59,12 +59,21 @@ export async function deleteDataflowAndOutputs({ dataflowId, outputs, tabId = nu
  * Get the full detail of a DataFlow (including actions/tiles)
  * @param {string} dataflowId - The DataFlow ID
  * @param {number} [tabId] - Optional Chrome tab ID
- * @returns {Promise<Object>} The full dataflow JSON
+ * @param {string} [versionId] - Optional version ID; when set, returns that historical version's
+ *   definition (unwrapped from the v2 versions response) instead of the live one
+ * @returns {Promise<Object>} The dataflow definition JSON (actions/inputs/outputs at top level)
  */
-export async function getDataflowDetail(dataflowId, tabId = null) {
+export async function getDataflowDetail(dataflowId, tabId = null, versionId = null) {
   return executeInPage(
-    async (dataflowId) => {
-      const response = await fetch(`/api/dataprocessing/v1/dataflows/${dataflowId}`, {
+    async (dataflowId, versionId) => {
+      // The live definition comes from the v1 endpoint with actions/inputs/outputs at the top
+      // level. A specific version comes from the v2 versions endpoint, which wraps that same
+      // definition under `dataFlow` alongside version metadata. Unwrap it (and carry the
+      // human-friendly versionNumber onto the definition) so callers always get one shape.
+      const url = versionId
+        ? `/api/dataprocessing/v2/dataflows/${dataflowId}/versions/${versionId}`
+        : `/api/dataprocessing/v1/dataflows/${dataflowId}`;
+      const response = await fetch(url, {
         credentials: 'include',
         method: 'GET'
       });
@@ -73,9 +82,15 @@ export async function getDataflowDetail(dataflowId, tabId = null) {
         throw new Error(`Failed to fetch dataflow: HTTP ${response.status}`);
       }
 
-      return response.json();
+      const json = await response.json();
+      if (!versionId) {
+        return json;
+      }
+      const definition = json.dataFlow || {};
+      definition.versionNumber = json.versionNumber;
+      return definition;
     },
-    [dataflowId],
+    [dataflowId, versionId],
     tabId
   );
 }
@@ -201,6 +216,267 @@ export async function getOwnedDataflows(userId, tabId = null) {
 }
 
 /**
+ * Read the current tags on a DataFlow and a set of its datasets in one pass.
+ *
+ * The caller edits a single shared tag set and we write each object back with a
+ * full-replacement, so the "current" tags we read here are the baseline the new
+ * list is computed against. That makes an accurate read safety-critical: a wrong
+ * or missing read would clobber an object's real tags on save. So a hard read
+ * failure throws (the view surfaces it and offers retry), and any dataset the
+ * bulk endpoint omits is simply left out of the returned map rather than
+ * defaulted to empty, so the view can treat it as unreadable and never write it.
+ *
+ * @param {Object} params
+ * @param {string} params.dataflowId - The DataFlow ID
+ * @param {string[]} params.datasetIds - Dataset UUIDs to read (inputs and/or outputs)
+ * @param {number} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<{dataflow: string[], datasets: {[id: string]: string[]}}>}
+ */
+export async function getTagsForDataflowAndDatasets({ dataflowId, datasetIds = [], tabId = null }) {
+  return executeInPage(
+    async (dataflowId, datasetIds) => {
+      const dfResponse = await fetch(`/api/dataprocessing/v1/dataflows/${dataflowId}/tags`);
+      if (!dfResponse.ok) throw new Error(`Failed to read dataflow tags: HTTP ${dfResponse.status}`);
+      const dfData = await dfResponse.json();
+      const dataflow = Array.isArray(dfData?.tags) ? dfData.tags : [];
+
+      const datasets = {};
+      if (datasetIds.length > 0) {
+        const dsResponse = await fetch('/api/data/v3/datasources/bulk', {
+          body: JSON.stringify(datasetIds),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        });
+        if (!dsResponse.ok) throw new Error(`Failed to read dataset tags: HTTP ${dsResponse.status}`);
+        const dsData = await dsResponse.json();
+        // The bulk endpoint returns each dataset's tags as an escaped JSON string
+        // (e.g. "[\"Analytics\"]"), not a real array, so parse each one.
+        for (const ds of dsData?.dataSources || []) {
+          let tags;
+          try {
+            const parsed = JSON.parse(ds.tags || '[]');
+            tags = Array.isArray(parsed) ? parsed : [];
+          } catch {
+            tags = [];
+          }
+          datasets[ds.id] = tags;
+        }
+      }
+
+      return { dataflow, datasets };
+    },
+    [dataflowId, datasetIds],
+    tabId
+  );
+}
+
+/**
+ * Get tag suggestions for autocomplete: every tag used across datasets and
+ * dataflows in the instance, with usage counts, sorted most-used first.
+ * Best-effort: returns an empty list on any failure so the editor falls back to
+ * free text.
+ * @param {number} [tabId] - Optional Chrome tab ID
+ * @returns {Promise<Array<{count: number, value: string}>>}
+ */
+export async function getTagSuggestions(tabId = null) {
+  return executeInPage(
+    async () => {
+      try {
+        const response = await fetch('/api/search/v1/query', {
+          body: JSON.stringify({
+            count: 0,
+            entities: ['dataset', 'dataflow'],
+            facetValuesToInclude: ['TAG'],
+            query: '*'
+          }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        });
+        if (!response.ok) return [];
+        const data = await response.json();
+        const values = data?.facetMap?.TAG?.facetValues || [];
+        return values
+          .map((v) => ({ count: v.count || 0, value: v.value }))
+          .filter((v) => v.value)
+          .sort((a, b) => b.count - a.count);
+      } catch {
+        return [];
+      }
+    },
+    [],
+    tabId
+  );
+}
+
+/**
+ * Write a tag list to a DataFlow and/or a set of datasets (full replacement each).
+ * Each object is written independently and a failure on one is recorded without
+ * aborting the rest, mirroring the bulk-result shape used elsewhere.
+ * @param {Object} params
+ * @param {{id: string, name: string, tags: string[]}|null} params.dataflow - The dataflow to write, or null to skip
+ * @param {Array<{id: string, name: string, tags: string[]}>} params.datasets - Datasets to write
+ * @param {number} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<{errors: Array<{error: string, id: string, name: string}>, failed: number, succeeded: number}>}
+ */
+export async function setTagsForObjects({ dataflow = null, datasets = [], tabId = null }) {
+  return executeInPage(
+    async (dataflow, datasets) => {
+      const errors = [];
+      let failed = 0;
+      let succeeded = 0;
+
+      if (dataflow) {
+        try {
+          const response = await fetch(`/api/dataprocessing/v1/dataflows/${dataflow.id}/tags`, {
+            body: JSON.stringify({ flowId: Number(dataflow.id), tags: dataflow.tags }),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'PUT'
+          });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          succeeded++;
+        } catch (error) {
+          errors.push({ error: error.message, id: dataflow.id, name: dataflow.name });
+          failed++;
+        }
+      }
+
+      for (const ds of datasets) {
+        try {
+          // The single-dataset tags write takes a bare JSON array as its body.
+          const response = await fetch(`/api/data/ui/v3/datasources/${ds.id}/tags`, {
+            body: JSON.stringify(ds.tags),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'POST'
+          });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          succeeded++;
+        } catch (error) {
+          errors.push({ error: error.message, id: ds.id, name: ds.name });
+          failed++;
+        }
+      }
+
+      return { errors, failed, succeeded };
+    },
+    [dataflow, datasets],
+    tabId
+  );
+}
+
+/**
+ * Ensure a user has access to every input dataset feeding the given dataflows.
+ *
+ * Owning a dataflow is useless if you can't read its inputs, so after a transfer
+ * we grant the new owner read access to any input dataset they can't already
+ * reach. "Can already reach" means either a direct USER grant on the dataset or
+ * membership in a GROUP the dataset is shared with, so a user who inherits
+ * access through a group is never granted a redundant direct share.
+ *
+ * Best-effort throughout: unreadable dataflow details, unreadable dataset
+ * grants, and failed share calls are swallowed per item rather than thrown, so
+ * one bad dataset never blocks sharing the rest. When a dataset's grants can't
+ * be read at all, it defaults to being shared (the new owner should have access).
+ *
+ * @param {string[]} dataflowIds - The dataflows whose inputs to cover
+ * @param {number} toUserId - The user who should end up with input access
+ * @param {number|null} tabId - Optional Chrome tab ID
+ * @returns {Promise<{alreadyHadAccess: number, failed: number, shared: number}>}
+ */
+export async function shareDataflowInputsWithOwner(dataflowIds, toUserId, tabId = null) {
+  // Resolve the new owner's group memberships once, up front, so the in-page
+  // step can treat group-inherited access the same as a direct grant. On
+  // failure we proceed with no groups: at worst the user gets a redundant
+  // direct share on a dataset they could already reach through a group.
+  const groupIds = await getUserGroups(toUserId, tabId)
+    .then((groups) => groups.map((g) => g.groupId))
+    .catch(() => []);
+
+  return executeInPage(
+    async (dataflowIds, toUserId, groupIds) => {
+      const toUserIdStr = String(toUserId);
+      const groupIdSet = new Set(groupIds.map(String));
+
+      // 1. Gather the unique input dataSourceIds across all transferred dataflows.
+      const inputIds = new Set();
+      await Promise.all(
+        dataflowIds.map(async (id) => {
+          try {
+            const response = await fetch(`/api/dataprocessing/v1/dataflows/${id}`, { credentials: 'include' });
+            if (!response.ok) return;
+            const detail = await response.json();
+            for (const input of detail.inputs || []) {
+              if (input.dataSourceId) inputIds.add(input.dataSourceId);
+            }
+          } catch {
+            // Skip this dataflow's inputs; the others still get covered.
+          }
+        })
+      );
+      if (inputIds.size === 0) return { alreadyHadAccess: 0, failed: 0, shared: 0 };
+
+      // 2. For each input dataset, read its share grants and decide whether the
+      //    new owner already has access (direct USER grant or via a group).
+      const needsShare = [];
+      let alreadyHadAccess = 0;
+      await Promise.all(
+        [...inputIds].map(async (datasetId) => {
+          try {
+            const response = await fetch(`/api/data/v3/datasources/${datasetId}/permissions`, { credentials: 'include' });
+            if (!response.ok) {
+              // Can't read grants: default to sharing rather than risk locking
+              // the new owner out of an input they need.
+              needsShare.push(datasetId);
+              return;
+            }
+            const data = await response.json();
+            const hasAccess = (data.list || []).some(
+              (grant) =>
+                (grant.type === 'USER' && String(grant.id) === toUserIdStr) ||
+                (grant.type === 'GROUP' && groupIdSet.has(String(grant.id)))
+            );
+            if (hasAccess) {
+              alreadyHadAccess++;
+            } else {
+              needsShare.push(datasetId);
+            }
+          } catch {
+            needsShare.push(datasetId);
+          }
+        })
+      );
+      if (needsShare.length === 0) return { alreadyHadAccess, failed: 0, shared: 0 };
+
+      // 3. Share the inputs the new owner can't yet reach, batched 50 per call.
+      let failed = 0;
+      let shared = 0;
+      for (let i = 0; i < needsShare.length; i += 50) {
+        const chunk = needsShare.slice(i, i + 50);
+        try {
+          const response = await fetch('/api/data/v1/ui/bulk/share', {
+            body: JSON.stringify({
+              bulkItems: { excludeIds: null, ids: chunk, query: null, type: 'DATA_SOURCE' },
+              dataSourceShareEntity: {
+                permissions: [{ accessLevel: 'CAN_VIEW', id: toUserIdStr, type: 'USER' }],
+                sendEmail: false
+              }
+            }),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'POST'
+          });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          shared += chunk.length;
+        } catch {
+          failed += chunk.length;
+        }
+      }
+      return { alreadyHadAccess, failed, shared };
+    },
+    [dataflowIds, toUserId, groupIds],
+    tabId
+  );
+}
+
+/**
  * Transfer dataflow ownership to a new user.
  * @param {string[]} dataflowIds - Array of dataflow IDs to transfer
  * @param {number} fromUserId - The current owner's user ID
@@ -212,7 +488,7 @@ export async function transferDataflows(dataflowIds, fromUserId, toUserId, tabId
   // Resolve the source user's name for the tag, but never let that lookup block
   // the transfer: on failure we proceed untagged rather than aborting ownership.
   const fromUserName = await getUserName(fromUserId, tabId).catch(() => null);
-  return executeInPage(
+  const result = await executeInPage(
     async (dataflowIds, toUserId, fromUserName) => {
       try {
         const response = await fetch('/api/dataprocessing/v1/dataflows/bulk/patch', {
@@ -260,6 +536,20 @@ export async function transferDataflows(dataflowIds, fromUserId, toUserId, tabId
     [dataflowIds, toUserId, fromUserName],
     tabId
   );
+
+  // Once ownership has moved, make sure the new owner can actually use each
+  // dataflow by granting access to any input dataset they can't already reach.
+  // Best-effort: a sharing failure must never flip a successful transfer to
+  // failed, and we skip it entirely when the reassign itself failed.
+  if (result.succeeded > 0) {
+    try {
+      await shareDataflowInputsWithOwner(dataflowIds, toUserId, tabId);
+    } catch {
+      // Best-effort; the ownership transfer already succeeded.
+    }
+  }
+
+  return result;
 }
 
 export async function updateDataflowDetails(dataflowId, updates) {

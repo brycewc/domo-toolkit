@@ -1,4 +1,4 @@
-import { Button, Card, Checkbox, Chip, Label, Spinner } from '@heroui/react';
+import { Button, Card, Checkbox, Label, Spinner } from '@heroui/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { TransferOwnershipModal } from '@/components/modals/TransferOwnershipModal';
@@ -10,7 +10,6 @@ import { DomoContext } from '@/models/DomoContext';
 import { DomoObject } from '@/models/DomoObject';
 import { uploadDataFile } from '@/services/files';
 import { sendEmail } from '@/services/messages';
-import { sharePages } from '@/services/pages';
 import {
   countOwned,
   flattenOwned,
@@ -20,9 +19,11 @@ import {
 } from '@/services/transferOwnership';
 import { deleteUser } from '@/services/users';
 import { buildExcelBlob, generateExportFilename } from '@/utils/exportData';
+import { isTypeFeatureEnabled } from '@/utils/featureSwitches';
 import { getSidepanelData } from '@/utils/sidepanel';
-import IconArrowsHorizontalBox from '@icons/arrows-horizontal-box.svg?react';
 import IconFormatListChecks from '@icons/format-list-checks.svg?react';
+import IconListBulleted from '@icons/list-bulleted.svg?react';
+import IconSwapHorizontal from '@icons/swap-horizontal.svg?react';
 
 const LOG_COLUMNS = [
   { accessorKey: 'Object Type', header: 'Object Type' },
@@ -47,7 +48,7 @@ const XLSX_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.spreadshee
  * `projectsAndTasks` is a synthetic key that bundles two real types
  * (PROJECT + PROJECT_TASK). Both share the same icon component in
  * DomoObjectType.js, so we map this key to 'PROJECT' for the parent
- * row's icon. Per-leaf URLs are NOT driven by this map value, though —
+ * row's icon. Per-leaf URLs are NOT driven by this map value, though.
  * `buildProjectsAndTasksItems` builds URLs against each leaf's specific
  * subType (`PROJECT` for project rows, `PROJECT_TASK` for task rows)
  * because the two have distinct urlPath templates (`/project/{id}` and
@@ -84,13 +85,19 @@ const TYPE_KEY_TO_DOMO_TYPE = {
   workspaces: 'WORKSPACE'
 };
 
-export function OwnershipView({ currentContext = null, onBackToDefault = null, onStatusUpdate = null }) {
+export function OwnershipView({
+  currentContext = null,
+  instance = null,
+  isActive = true,
+  onBackToDefault = null,
+  onStatusUpdate = null
+}) {
   const [isLoading, setIsLoading] = useState(true);
   const [userName, setUserName] = useState('');
   const [userId, setUserId] = useState(null);
   const [tabId, setTabId] = useState(null);
   const [origin, setOrigin] = useState('');
-  // Frozen snapshot of the context at view launch — its `domoObject` is the
+  // Frozen snapshot of the context at view launch; its `domoObject` is the
   // source user being browsed/transferred. Distinct from the `currentContext`
   // prop above, which is the LIVE context tracking whatever object the user is
   // currently looking at in Domo (used by DataList's reload affordance).
@@ -100,11 +107,11 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
   // Unified selection Set: contains both bare type keys (`cards`, `pages`, …)
   // for whole-type selection AND namespaced leaf IDs (`cards:1234`) for
   // per-item selection. Parent↔child reconciliation happens in
-  // `handleSelectionChange` — same pattern as MigrateDownstreamContentView.
+  // `handleSelectionChange`, same pattern as MigrateDownstreamContentView.
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [transferModalOpen, setTransferModalOpen] = useState(false);
   // True when selection-mode was engaged with a pre-selection that may need
-  // hydration/pruning once fetches settle — currently only the
+  // hydration/pruning once fetches settle; currently only the
   // TransferOwnership launch path (`autoEnableSelectionMode`) uses this.
   // `loadData` pre-selects every type the user has authority for so type-level
   // checkboxes appear pre-checked as each fetch resolves; once fully loaded,
@@ -129,7 +136,7 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
 
   const loadData = async () => {
     try {
-      const data = await getSidepanelData();
+      const data = await getSidepanelData(instance);
       if (!data || data.type !== 'ownership') {
         onBackToDefault?.();
         return;
@@ -156,7 +163,7 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
       // optimistically pre-select every type the toolkit user has authority
       // for (forbidden filter is authority-based, derivable from
       // `context.user` without waiting on fetches) so each row's checkbox
-      // appears already-checked the moment its fetch resolves — instead of
+      // appears already-checked the moment its fetch resolves, instead of
       // every checkbox flipping unchecked → checked together when the slowest
       // fetch finishes (which made users uncertain whether they had to act
       // during loading). The auto-select effect below still runs to PRUNE
@@ -165,8 +172,13 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
         setSelectionMode(true);
         setPendingSelectAll(true);
         const userRights = context.user?.metadata?.USER_RIGHTS || [];
+        // Same feature-switch filter as the `transferTypes` memo below, applied
+        // against the local context snapshot (launchContext state isn't set
+        // yet), so a feature-disabled type never enters the selection set.
         const initiallySelected = TRANSFER_TYPES.filter(
-          (t) => !t.requiredAuthority || userRights.includes(t.requiredAuthority)
+          (t) =>
+            isTypeFeatureEnabled(TYPE_KEY_TO_DOMO_TYPE[t.key], context) &&
+            (!t.requiredAuthority || userRights.includes(t.requiredAuthority))
         ).map((t) => t.key);
         // Seed type keys only; leaves get added by the pendingSelectAll effect
         // once fetches resolve and we know what leaf IDs exist.
@@ -180,18 +192,27 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
     }
   };
 
-  // Specs for useParallelFetches. Stable identity required — memoize on the
-  // primary inputs so the hook doesn't loop on every render.
+  // Transfer types whose required feature switch is enabled on this instance
+  // (fail-open: all of them while the switch list is unknown). Every body-level
+  // iteration below uses this filtered list, so a feature-disabled type never
+  // gets a fetch spec and never produces a row.
+  const transferTypes = useMemo(
+    () => TRANSFER_TYPES.filter((t) => isTypeFeatureEnabled(TYPE_KEY_TO_DOMO_TYPE[t.key], launchContext)),
+    [launchContext]
+  );
+
+  // Specs for useParallelFetches. Stable identity required, so memoize on the
+  // primary inputs and the hook doesn't loop on every render.
   const specs = useMemo(
     () =>
       userId
-        ? TRANSFER_TYPES.map((t) => ({
+        ? transferTypes.map((t) => ({
             fetch: () => t.getOwned(userId, tabId),
             key: t.key,
             label: t.label
           }))
         : [],
-    [userId, tabId]
+    [userId, tabId, transferTypes]
   );
 
   const { errorCount, isFullyLoaded, loadingCount, refresh: refreshFetches, results } = useParallelFetches(specs);
@@ -202,9 +223,9 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
   const forbidden = useMemo(() => {
     const userRights = launchContext?.user?.metadata?.USER_RIGHTS || [];
     return new Set(
-      TRANSFER_TYPES.filter((t) => t.requiredAuthority && !userRights.includes(t.requiredAuthority)).map((t) => t.key)
+      transferTypes.filter((t) => t.requiredAuthority && !userRights.includes(t.requiredAuthority)).map((t) => t.key)
     );
-  }, [launchContext]);
+  }, [launchContext, transferTypes]);
 
   const isUserSource = launchContext?.domoObject?.typeId === 'USER';
 
@@ -212,7 +233,7 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
   const { loadedTypeCount, totalObjects } = useMemo(() => {
     let total = 0;
     let typeCount = 0;
-    for (const t of TRANSFER_TYPES) {
+    for (const t of transferTypes) {
       const r = results[t.key];
       if (r?.status === 'loaded' && r.items) {
         const c = countOwned(t.key, r.items);
@@ -221,16 +242,16 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
       }
     }
     return { loadedTypeCount: typeCount, totalObjects: total };
-  }, [results]);
+  }, [results, transferTypes]);
 
   const hasAnyTransferable = useMemo(
     () =>
-      TRANSFER_TYPES.some((t) => {
+      transferTypes.some((t) => {
         if (forbidden.has(t.key)) return false;
         const r = results[t.key];
         return r?.status === 'loaded' && r.items && countOwned(t.key, r.items) > 0;
       }),
-    [forbidden, results]
+    [forbidden, results, transferTypes]
   );
 
   // Every type the toolkit user can actually transfer right now (loaded, > 0
@@ -238,19 +259,21 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
   // all" toolbar button stays accurate as types finish loading.
   const eligibleTypeKeys = useMemo(
     () =>
-      TRANSFER_TYPES.filter((t) => {
-        if (forbidden.has(t.key)) return false;
-        const r = results[t.key];
-        return r?.status === 'loaded' && r.items && countOwned(t.key, r.items) > 0;
-      }).map((t) => t.key),
-    [forbidden, results]
+      transferTypes
+        .filter((t) => {
+          if (forbidden.has(t.key)) return false;
+          const r = results[t.key];
+          return r?.status === 'loaded' && r.items && countOwned(t.key, r.items) > 0;
+        })
+        .map((t) => t.key),
+    [forbidden, results, transferTypes]
   );
 
   // Auto-select pruner: `loadData` optimistically pre-selects every type the
   // toolkit user has authority for, so each row's checkbox shows up
   // pre-checked as its fetch resolves. Once all fetches settle, this effect
   // fires once to PRUNE any types that ended up not eligible (failed fetches
-  // or empty results) — so the bottom Select-all checkbox doesn't read as
+  // or empty results), so the bottom Select-all checkbox doesn't read as
   // indeterminate forever and an empty/failed type isn't silently included
   // in the transfer. We only REMOVE keys that aren't in `eligibleTypeKeys`,
   // never add keys back: that preserves any deselections the user made
@@ -262,8 +285,8 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
   // its `setResults(buildInitial(specs))` for the new specs. So `results` is
   // still `{}`, `loadingCount` is 0, and `isFullyLoaded` reads true
   // vacuously. Without the guard, this effect would fire prematurely with
-  // `eligibleTypeKeys = []`, prune everything, and clear `pendingSelectAll`
-  // — leaving nothing selected when fetches actually finish.
+  // `eligibleTypeKeys = []`, prune everything, and clear `pendingSelectAll`,
+  // leaving nothing selected when fetches actually finish.
   useEffect(() => {
     if (!pendingSelectAll) return;
     if (Object.keys(results).length === 0) return;
@@ -271,7 +294,7 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
     // Incremental hydration: every time a type's fetch resolves, hydrate its
     // leaves into `selectedIds` (so individual checkboxes appear pre-checked
     // as soon as that type's data arrives) or prune the type key (if it
-    // ended up non-eligible). Runs idempotently per type — already-hydrated
+    // ended up non-eligible). Runs idempotently per type; already-hydrated
     // types are no-ops, so this can fire repeatedly as `results` updates
     // without thrashing state. The pendingSelectAll flag flips off only
     // after isFullyLoaded so the effect goes quiet for the rest of the
@@ -279,13 +302,13 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
     setSelectedIds((prev) => {
       let changed = false;
       const next = new Set(prev);
-      for (const t of TRANSFER_TYPES) {
+      for (const t of transferTypes) {
         const r = results[t.key];
         if (r?.status !== 'loaded') continue;
         const items = r.items;
         const eligible = !forbidden.has(t.key) && items && countOwned(t.key, items) > 0;
         if (!eligible) {
-          // Failed fetch, empty list, or forbidden authority — drop the
+          // Failed fetch, empty list, or forbidden authority: drop the
           // pre-selected type key so the toolbar Select-all settles to a
           // sane state once loading completes.
           if (next.has(t.key)) {
@@ -296,7 +319,7 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
         }
         // Respect user deselections during loading: if the user unchecked
         // this type before it resolved, `handleSelectionChange` removed the
-        // type key. Don't fight that — skip seeding its leaves.
+        // type key. Don't fight that; skip seeding its leaves.
         if (!next.has(t.key)) continue;
         for (const item of flattenOwned(t.key, items)) {
           const leafId = leafIdForItem(t.key, item);
@@ -310,7 +333,7 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
     });
 
     if (isFullyLoaded) setPendingSelectAll(false);
-  }, [pendingSelectAll, isFullyLoaded, results, forbidden]);
+  }, [pendingSelectAll, isFullyLoaded, results, forbidden, transferTypes]);
 
   // Map<projectId, task[]> for the Projects & Tasks group. Drives two things:
   //   - `buildLeafItems` reads it to nest tasks under their parent project
@@ -320,7 +343,7 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
   //     a task toggles, we reconcile its project's checkbox state.
   // Projects without owned tasks just don't appear in this map; their rows
   // render as flat leaves. Tasks whose projectId doesn't match any owned
-  // project surface under a synthetic `null` key (defensive — shouldn't
+  // project surface under a synthetic `null` key (defensive; shouldn't
   // happen given how getOwnedProjectsAndTasks fetches per-project, but we
   // handle it gracefully if Domo's behavior shifts).
   const tasksByProject = useMemo(() => {
@@ -340,19 +363,20 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
   //
   // Constructed via `new DataListItem(...)` instead of `createGroup` because
   // `createGroup` falls back `count` to `children.length` when count is
-  // undefined — which would force `(0)` to render during the loading phase
+  // undefined, which would force `(0)` to render during the loading phase
   // (children = [], so fallback = 0). We want the count slot to stay empty
   // until a real fetch result lands, and `(0)` to appear ONLY when a fetch
   // genuinely returns zero items.
   const dataListItems = useMemo(
     () =>
-      TRANSFER_TYPES.map((t) => {
+      transferTypes.map((t) => {
         const result = results[t.key];
         const xfer = transferStatus[t.key];
         const status = xfer?.status ?? result?.status ?? 'loading';
 
         let count;
         let error = null;
+        let errorDetail = null;
         let children;
 
         if (result?.status === 'loaded' && result.items !== null) {
@@ -364,13 +388,18 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
 
         if (xfer) {
           if (xfer.error) error = xfer.error;
+          if (xfer.errorDetail) errorDetail = xfer.errorDetail;
           if (xfer.count !== undefined) count = xfer.count;
         }
 
         return new DataListItem({
           children,
+          // The group's rows are all one type, so DataList derives the group's
+          // "Share all" affordance from that type's capabilities.
+          childTypeId: TYPE_KEY_TO_DOMO_TYPE[t.key] || null,
           count,
           error,
+          errorDetail,
           id: t.key,
           isVirtualParent: true,
           label: t.label,
@@ -378,24 +407,18 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
           status,
           // typeId drives the leading ObjectTypeIcon on the parent row. Falls
           // back to undefined for keys not in the map (e.g. projectsAndTasks,
-          // which is intentionally null in TYPE_KEY_TO_DOMO_TYPE) — DataList
+          // which is intentionally null in TYPE_KEY_TO_DOMO_TYPE); DataList
           // skips the icon render in that case.
-          typeId: TYPE_KEY_TO_DOMO_TYPE[t.key] || undefined,
-          // Share-all is page-specific here: the only share service we use is
-          // `sharePages`, and pages are the only type this view exposes
-          // share-all for. Flag every other group `unshareable` so DataList's
-          // hasShareableChildren returns false for them and the "Share all with
-          // yourself" button renders only on the Pages group.
-          unshareable: t.key !== 'pages'
+          typeId: TYPE_KEY_TO_DOMO_TYPE[t.key] || undefined
         });
       }),
-    [results, transferStatus, forbidden, origin, tasksByProject]
+    [results, transferStatus, forbidden, origin, tasksByProject, transferTypes]
   );
 
-  // Selection eligibility — applies to BOTH parent type rows and individual
+  // Selection eligibility: applies to BOTH parent type rows and individual
   // leaf items. A parent is selectable when its type has loaded with > 0
   // items AND the toolkit user has the required authority. A leaf is
-  // selectable iff its enclosing type is selectable — DataList enables a
+  // selectable iff its enclosing type is selectable; DataList enables a
   // checkbox on each leaf in selection mode so users can subset within a
   // type. The leaf's enclosing type is parsed off the namespaced leaf id.
   const isSelectable = useCallback(
@@ -525,13 +548,13 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
     [results, selectedIds, tasksByProject]
   );
 
-  // Selected leaf items grouped by type — drives the per-row count badge,
+  // Selected leaf items grouped by type: drives the per-row count badge,
   // the subtext "X objects selected" line, the modal's selectedObjectCount
   // and selectedTypeCount summary, and the orchestrator's `enabledItemIds`
   // filter. Recomputed whenever the selection set or fetch results change.
   const selectedItemsByType = useMemo(() => {
     const acc = {};
-    for (const t of TRANSFER_TYPES) {
+    for (const t of transferTypes) {
       acc[t.key] = [];
       const r = results[t.key];
       if (r?.status !== 'loaded' || !r.items) continue;
@@ -540,7 +563,7 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
       }
     }
     return acc;
-  }, [results, selectedIds]);
+  }, [results, selectedIds, transferTypes]);
 
   const selectedTypeCount = useMemo(
     () => Object.values(selectedItemsByType).filter((items) => items.length > 0).length,
@@ -568,7 +591,7 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
   // The footer Transfer button only renders inside selection mode (and the
   // selection-toggle header action seeds `selectedIds` with every eligible
   // type when first entered), so the prior "auto-engage selection mode if
-  // nothing's selected" fallback can't trigger from here anymore — this is
+  // nothing's selected" fallback can't trigger from here anymore; this is
   // just an open-the-modal handler now.
   const handleOpenTransferModal = useCallback(() => {
     setTransferModalOpen(true);
@@ -576,7 +599,7 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
 
   // Select-all / Clear handlers used by the toolbar Checkbox. The Checkbox
   // itself derives its visual state (indeterminate vs. checked) from the
-  // eligible/selected counts — these handlers are pure state mutators.
+  // eligible/selected counts; these handlers are pure state mutators.
   // Select-all seeds both the type-level rows AND every leaf under each
   // eligible type, so individual checkboxes in expanded groups also light up.
   const selectAllEligible = useCallback(() => {
@@ -596,52 +619,24 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
     setSelectedIds(new Set());
   }, []);
 
-  // Share-all handler for the Pages group. Mirrors GetPagesView's
-  // share-with-yourself flow via `sharePages`, scoped to pages (every other
-  // group is flagged `unshareable` in dataListItems, so DataList never renders
-  // the button on them). The recipient is the toolkit user running the
-  // extension (launchContext.user, i.e. yourself), not the source user whose
-  // owned objects are being browsed.
-  const handleItemShareAll = useCallback(
-    async (actionType, item) => {
-      if (item.id !== 'pages' || !item.children?.length) return;
-      try {
-        // Leaf React ids are namespaced (`pages:<id>`); the canonical page id
-        // lives on `originalId`. Drop any synthetic/negative ids defensively.
-        const pageIds = item.children.map((child) => child.originalId ?? child.id).filter((id) => Number(id) >= 0);
-        if (!pageIds.length) return;
-        await sharePages({ pageIds, tabId, userId: launchContext?.user?.id });
-        showStatus(
-          'Shared',
-          `**${pageIds.length}** page${pageIds.length !== 1 ? 's' : ''} shared with yourself`,
-          'success',
-          2000
-        );
-      } catch (err) {
-        console.error('[OwnershipView] Error in shareAll action:', err);
-        showStatus('Error', err.message || 'Failed to share', 'danger', 3000);
-      }
-    },
-    [launchContext, showStatus, tabId]
-  );
-
   // Submit handler invoked by the modal. Runs transferAllOwnership, threading
   // per-type progress into transferStatus (which feeds DataList rows). Then
   // optionally emails the new owner and deletes the source user. Errors per
   // type surface inside the row's expanded body via `status: 'failed'` + error
-  // message — same UX as the old TransferOwnership view's failure-disclosure.
+  // message, same UX as the old TransferOwnership view's failure-disclosure.
   const handleTransferSubmit = useCallback(
     async (formData) => {
-      const { deleteAfterTransfer, emailNewOwner, targetUser, toUserDisplayName, toUserId } = formData;
+      const { currentUser, deleteAfterTransfer, emailCurrentUser, emailNewOwner, targetUser, toUserDisplayName, toUserId } =
+        formData;
 
       // A type is "enabled for transfer" iff at least one of its leaves is
-      // selected — bare type-key membership in `selectedIds` isn't sufficient
+      // selected; bare type-key membership in `selectedIds` isn't sufficient
       // any more (the user could have toggled the parent off but kept some
       // leaves on). `enabledItemIds` is the leaf-id allow-list passed to the
       // orchestrator's filterOwnedToSelection step.
       const enabledTypes = new Set();
       const enabledItemIds = new Map();
-      for (const t of TRANSFER_TYPES) {
+      for (const t of transferTypes) {
         const items = selectedItemsByType[t.key];
         if (!items || items.length === 0) continue;
         enabledTypes.add(t.key);
@@ -660,7 +655,7 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
         }
         enabledItemIds.set(t.key, idSet);
       }
-      // Snapshot owned data per type — passed to transferAllOwnership so it
+      // Snapshot owned data per type, passed to transferAllOwnership so it
       // doesn't refetch the types we already have. Types with
       // getOwnedForTransfer still re-fetch via that variant inside the
       // orchestrator.
@@ -702,6 +697,7 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
                 next[typeKey] = {
                   count: count ?? succeeded + failed,
                   error: failed > 0 ? formatTransferErrors(result) : null,
+                  errorDetail: failed > 0 ? (result?.errors ?? null) : null,
                   failed,
                   status: failed > 0 ? 'failed' : 'transferred',
                   succeeded
@@ -710,6 +706,7 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
                 next[typeKey] = {
                   count: 0,
                   error: result?.errors?.[0]?.error || 'Transfer failed before completing',
+                  errorDetail: result?.errors ?? result ?? null,
                   status: 'failed'
                 };
               }
@@ -728,34 +725,57 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
           totalFailed += r.failed || 0;
         }
 
-        // Optional: email the new owner with an Excel summary.
-        if (emailNewOwner && targetUser?.email && totalSucceeded > 0) {
+        // Optional: email an Excel summary. The new-owner and email-me toggles
+        // are independent and need different copy: the new owner reads "transferred
+        // to you", while the toolkit user who ran the transfer gets a neutral
+        // summary naming both parties (nothing came to them). So we send a
+        // separate email per perspective rather than one shared body. The one
+        // exception is a self-transfer (you are also the new owner): the two
+        // addresses match, the "to you" copy is correct, and we send just that.
+        const toUserName = toUserDisplayName ?? targetUser?.displayName;
+        const newOwnerEmail = emailNewOwner ? targetUser?.email : null;
+        const currentUserEmail = emailCurrentUser ? currentUser?.email : null;
+        const sendNewOwnerEmail = !!newOwnerEmail;
+        const sendSummaryEmail = !!currentUserEmail && currentUserEmail !== newOwnerEmail;
+        if ((sendNewOwnerEmail || sendSummaryEmail) && totalSucceeded > 0) {
           try {
             const rows = buildTransferLogRows({
               fromUserId: userId,
               fromUserName: userName,
               results: transferResults,
               toUserId,
-              toUserName: toUserDisplayName ?? targetUser.displayName
+              toUserName
             });
             const blob = await buildExcelBlob(rows, LOG_COLUMNS, 'Transfer Log');
             const filename = `${generateExportFilename('transferred-objects')}.xlsx`;
             const dataFileId = await uploadDataFile(blob, filename, XLSX_MIME_TYPE, tabId);
-            await sendEmail(
-              {
-                bodyHtml: renderEmailBody({
+            const emails = [];
+            if (sendNewOwnerEmail) {
+              emails.push({
+                bodyHtml: renderNewOwnerEmailBody({ sourceUserName: userName, totalFailed, totalSucceeded }),
+                dataFileAttachments: [dataFileId],
+                recipientEmails: [newOwnerEmail],
+                subject: `Ownership transferred to you from ${userName}`
+              });
+            }
+            if (sendSummaryEmail) {
+              emails.push({
+                bodyHtml: renderSummaryEmailBody({
                   sourceUserName: userName,
+                  targetUserName: toUserName,
                   totalFailed,
                   totalSucceeded
                 }),
                 dataFileAttachments: [dataFileId],
-                recipientEmails: targetUser.email,
-                subject: `Ownership transferred to you from ${userName}`
-              },
-              tabId
-            );
+                recipientEmails: [currentUserEmail],
+                subject: `Ownership transfer summary: ${userName} to ${toUserName}`
+              });
+            }
+            for (const email of emails) {
+              await sendEmail(email, tabId);
+            }
           } catch (err) {
-            showStatus('Email Not Sent', err.message || 'Failed to email new owner', 'warning', 5000);
+            showStatus('Email Not Sent', err.message || 'Failed to email transfer summary', 'warning', 5000);
           }
         }
 
@@ -806,7 +826,7 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
         }
       }
     },
-    [onBackToDefault, results, selectedItemsByType, showStatus, tabId, userId, userName]
+    [onBackToDefault, results, selectedItemsByType, showStatus, tabId, transferTypes, userId, userName]
   );
 
   const subtextNode = useMemo(() => {
@@ -817,7 +837,7 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
       return `Transferring… **${done}**/${total}`;
     }
     if (selectionMode) {
-      // Per-leaf counts come from `selectedItemsByType` — already filtered
+      // Per-leaf counts come from `selectedItemsByType`, already filtered
       // to types that are loaded AND have authority, so the displayed
       // numbers track what the rows actually show. Falls back gracefully
       // during the autoEnableSelectionMode launch (when fetches haven't
@@ -828,7 +848,7 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
       return `**${selectedTypeCount}** ${typeWord}, **${selectedObjectCount}** ${objectWord} selected`;
     }
     if (!isFullyLoaded) {
-      return `Searching… (${TRANSFER_TYPES.length - loadingCount}/${TRANSFER_TYPES.length} types)`;
+      return `Searching… (${transferTypes.length - loadingCount}/${transferTypes.length} types)`;
     }
     const objectWord = totalObjects === 1 ? 'object' : 'objects';
     const typeWord = loadedTypeCount === 1 ? 'type' : 'types';
@@ -847,13 +867,14 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
     selectedTypeCount,
     selectionMode,
     totalObjects,
-    transferStatus
+    transferStatus,
+    transferTypes
   ]);
 
   const customHeaderActions = useMemo(() => {
     const actions = [];
     if (isUserSource) {
-      // Transfer action moved out of the header — it now lives as a full-width
+      // Transfer action moved out of the header; it now lives as a full-width
       // Button in the DataList footer slot, only visible when selection mode is
       // engaged. The selection toggle stays in the header so users can enter
       // selection mode (which reveals the footer button) without committing to
@@ -895,8 +916,8 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
   const selectionToolbar = useMemo(() => {
     if (!selectionMode) return null;
     // Two phases:
-    //   1. While hydration is in flight (`pendingSelectAll || !isFullyLoaded`)
-    //      — the auto-pre-select effect is racing the fetches. The gate
+    //   1. While hydration is in flight (`pendingSelectAll || !isFullyLoaded`),
+    //      the auto-pre-select effect is racing the fetches. The gate
     //      stays ON until the hydration effect has both seen `isFullyLoaded`
     //      true AND finished adding leaves for the last type, which is what
     //      flipping `pendingSelectAll` to false signals. If we only gated on
@@ -904,7 +925,7 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
     //      and "hydration effect runs" would briefly evaluate normally with
     //      stale `selectedIds`, flashing the dash icon once. Holding the
     //      pinned visual until `pendingSelectAll` clears closes that gap.
-    //   2. After hydration settles — normal evaluation. The toolbar goes
+    //   2. After hydration settles: normal evaluation. The toolbar goes
     //      indeterminate the moment the user deselects any single leaf
     //      inside an otherwise fully-selected type.
     const isHydrating = pendingSelectAll || !isFullyLoaded;
@@ -914,6 +935,7 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
         isDisabled={isHydrating || totalEligibleObjects === 0 || isTransferring}
         isIndeterminate={!isHydrating && selectedObjectCount > 0 && selectedObjectCount < totalEligibleObjects}
         isSelected={isHydrating || (totalEligibleObjects > 0 && selectedObjectCount === totalEligibleObjects)}
+        variant='secondary'
         onChange={(isSelected) => {
           if (isSelected) selectAllEligible();
           else clearSelection();
@@ -942,7 +964,7 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
   // mode is engaged. Replaces the header's transfer action so the primary CTA
   // sits where the user's attention finishes after scrolling through type
   // checkboxes. Now keyed on the leaf-level selected object count rather than
-  // a type-level tally — the user can transfer as long as ≥1 individual
+  // a type-level tally; the user can transfer as long as ≥1 individual
   // object is checked, even if no full type is selected.
   const selectionFooter = useMemo(() => {
     if (!selectionMode) return null;
@@ -954,17 +976,11 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
         variant='primary'
         onPress={handleOpenTransferModal}
       >
-        <IconArrowsHorizontalBox />
+        <IconSwapHorizontal />
         Transfer ownership to…
       </Button>
     );
   }, [handleOpenTransferModal, hasAnyTransferable, isFullyLoaded, isTransferring, selectedObjectCount, selectionMode]);
-
-  const betaChip = (
-    <Chip className='shrink-0' color='accent' size='sm' variant='soft'>
-      Beta
-    </Chip>
-  );
 
   if (isLoading) {
     return (
@@ -980,8 +996,11 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
   return (
     <>
       <DataList
+        beta
         currentContext={currentContext}
         customHeaderActions={customHeaderActions}
+        feature='Objects Owned by'
+        featureIcon={<IconListBulleted />}
         footer={selectionFooter}
         headerActions={['reload', 'refresh']}
         isRefreshing={loadingCount > 0}
@@ -996,19 +1015,17 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
         selectionToolbar={selectionToolbar}
         showActions={true}
         showCounts={true}
+        subject={userName}
         subtext={subtextNode}
-        subtextStartContent={betaChip}
-        title={`Objects Owned by **${userName}**`}
         viewType='ownership'
         onClose={onBackToDefault}
-        onItemShareAll={handleItemShareAll}
         onRefresh={refreshFetches}
         onSelectionChange={handleSelectionChange}
         onStatusUpdate={onStatusUpdate}
       />
       <TransferOwnershipModal
         currentContext={launchContext}
-        isOpen={transferModalOpen}
+        isOpen={transferModalOpen && isActive}
         selectedObjectCount={selectedObjectCount}
         selectedTypeCount={selectedTypeCount}
         sourceUser={{ id: userId, name: userName }}
@@ -1022,7 +1039,7 @@ export function OwnershipView({ currentContext = null, onBackToDefault = null, o
 /**
  * Convert raw owned data per type into DataListItem leaf children.
  * For projectsAndTasks, project and task IDs come from independent namespaces
- * and can collide — we namespace the React-key id (`project-<id>` /
+ * and can collide, so we namespace the React-key id (`project-<id>` /
  * `task-<id>`) and stash the canonical id in `originalId` so Copy-ID still
  * yields the unmodified value.
  */
@@ -1031,7 +1048,7 @@ function buildLeafItems(typeKey, owned, origin, tasksByProject) {
   // their parent project instead of rendering as siblings. Selection IDs
   // stay namespaced as `projectsAndTasks:project-<id>` /
   // `projectsAndTasks:task-<id>` so the orchestrator's existing per-leaf
-  // filter (`filterOwnedToSelection`) works without any changes — only
+  // filter (`filterOwnedToSelection`) works without any changes; only
   // the UI shape changes here.
   if (typeKey === 'projectsAndTasks') {
     return buildProjectsAndTasksItems(owned, tasksByProject, origin);
@@ -1049,17 +1066,27 @@ function buildLeafItems(typeKey, owned, origin, tasksByProject) {
     // distinguishes them, so resolve the leaf type per item rather than using
     // the category default.
     const domoTypeId = typeKey === 'functions' && item.global ? 'VARIABLE' : TYPE_KEY_TO_DOMO_TYPE[typeKey];
+    let domoObject = null;
     let url = null;
     if (domoTypeId) {
       try {
-        url = new DomoObject(domoTypeId, item.id, origin, { name: item.name }, null, item.queueId || item.parentId || null)
-          .url;
+        domoObject = new DomoObject(
+          domoTypeId,
+          item.id,
+          origin,
+          { name: item.name },
+          null,
+          item.queueId || item.parentId || null
+        );
+        url = domoObject.url;
       } catch {
+        domoObject = null;
         url = null;
       }
     }
 
     return new DataListItem({
+      domoObject,
       id: leafIdForItem(typeKey, item),
       label: item.name || String(item.id),
       originalId: item.id,
@@ -1075,7 +1102,7 @@ function buildLeafItems(typeKey, owned, origin, tasksByProject) {
  *     no `children` prop if the project has no owned tasks → renders as a
  *     flat selectable leaf without a chevron)
  *   - one DataListItem per orphan task (task whose projectId didn't match
- *     any owned project — shouldn't happen in practice given the per-
+ *     any owned project; shouldn't happen in practice given the per-
  *     project fetch in services/projects.js, but surfaces them at the
  *     project level as a defensive fallback)
  *
@@ -1156,7 +1183,7 @@ function buildTransferLogRows({ fromUserId, fromUserName, results, toUserId, toU
     const typeDef = TRANSFER_TYPES.find((t) => t.key === typeKey);
     const logType = TYPE_KEY_TO_LOG_TYPE[typeKey];
     const failedById = new Map((result.errors || []).map((e) => [e.id, e.error]));
-    // `{id: 'all'}` sentinel means the whole batch failed — every row in this
+    // `{id: 'all'}` sentinel means the whole batch failed; every row in this
     // type should be marked FAILED with the shared error message.
     const wholeBatchError = failedById.get('all');
     for (const item of result.attempted ?? []) {
@@ -1182,14 +1209,15 @@ function buildTransferLogRows({ fromUserId, fromUserName, results, toUserId, toU
   return rows;
 }
 
+// Concise one-line title for the error Alert's header. The full per-item
+// breakdown rides along as structured `errorDetail` (rendered as JSON in the
+// Alert body), so this only has to summarize.
 function formatTransferErrors(result) {
   if (!result?.errors?.length) return null;
   const wholeBatch = result.errors.find((e) => e.id === 'all');
   if (wholeBatch) return wholeBatch.error;
-  if (result.errors.length === 1) {
-    return `${result.errors[0].id}: ${result.errors[0].error}`;
-  }
-  return `${result.errors.length} item${result.errors.length === 1 ? '' : 's'} failed: ${result.errors[0].id}: ${result.errors[0].error}…`;
+  const n = result.errors.length;
+  return `${n} item${n === 1 ? '' : 's'} failed`;
 }
 
 function isParentKey(id) {
@@ -1254,11 +1282,22 @@ function parseTaskIdFromLeaf(id) {
   return Number.isFinite(n) ? n : null;
 }
 
-function renderEmailBody({ sourceUserName, totalFailed, totalSucceeded }) {
+function renderFailedLine(totalFailed) {
+  if (totalFailed <= 0) return '';
+  return `<p>${totalFailed} object${totalFailed === 1 ? '' : 's'} could not be transferred and ${totalFailed === 1 ? 'is' : 'are'} included in the attachment with a FAILED status.</p>`;
+}
+
+// Body for the new owner: the objects landed in their account, so it reads in
+// the second person ("transferred to you").
+function renderNewOwnerEmailBody({ sourceUserName, totalFailed, totalSucceeded }) {
   const objectWord = totalSucceeded === 1 ? 'object' : 'objects';
-  const failedLine =
-    totalFailed > 0
-      ? `<p>${totalFailed} object${totalFailed === 1 ? '' : 's'} could not be transferred and ${totalFailed === 1 ? 'is' : 'are'} included in the attachment with a FAILED status.</p>`
-      : '';
-  return `<p>Ownership of <strong>${totalSucceeded}</strong> ${objectWord} has been transferred to you from <strong>${sourceUserName}</strong>.</p><p>A complete list is attached.</p>${failedLine}`;
+  return `<p>Ownership of <strong>${totalSucceeded}</strong> ${objectWord} has been transferred to you from <strong>${sourceUserName}</strong>.</p><p>A complete list is attached.</p>${renderFailedLine(totalFailed)}`;
+}
+
+// Body for the "email me" copy sent to the toolkit user who ran the transfer.
+// Nothing came to them, so this is the observer's perspective: it names both
+// the source and the destination owner instead of saying "to you".
+function renderSummaryEmailBody({ sourceUserName, targetUserName, totalFailed, totalSucceeded }) {
+  const objectWord = totalSucceeded === 1 ? 'object' : 'objects';
+  return `<p>Ownership of <strong>${totalSucceeded}</strong> ${objectWord} has been transferred from <strong>${sourceUserName}</strong> to <strong>${targetUserName}</strong>.</p><p>A complete list is attached.</p>${renderFailedLine(totalFailed)}`;
 }

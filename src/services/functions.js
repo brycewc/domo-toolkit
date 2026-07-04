@@ -16,11 +16,19 @@ import { executeInPage } from '@/utils/executeInPage';
  * @returns {Promise<Object>} The raw `POST /functions/bulk/template` response.
  */
 export async function createDatasetFunctions({ functions, tabId = null }) {
+  // The bulk endpoint dedupes the create list by each entry's `id`, so every
+  // entry needs a DISTINCT id even on create. The usual `0` placeholder is fine
+  // for a single create, but two or more entries all carrying `0` make Domo
+  // reject the whole batch ("functions to create have duplicate ids ... same
+  // key: 0"). Stamp a distinct negative placeholder per entry: negatives can't
+  // collide with real (positive) function ids, and the server still assigns and
+  // returns the real ids in the response (callers read them back positionally).
+  const create = (functions || []).map((fn, i) => ({ ...fn, id: -(i + 1) }));
   return executeInPage(
-    async (functions) => {
+    async (create) => {
       const response = await fetch('/api/query/v1/functions/bulk/template', {
         body: JSON.stringify({
-          create: functions,
+          create,
           links: {},
           strict: false
         }),
@@ -34,7 +42,7 @@ export async function createDatasetFunctions({ functions, tabId = null }) {
       }
       return response.json();
     },
-    [functions],
+    [create],
     tabId
   );
 }
@@ -57,10 +65,143 @@ export async function deleteFunction({ functionId, tabId = null }) {
 }
 
 /**
- * Get the Beast Modes saved to a dataset.
+ * Build the nested-reference graph among a dataset's Beast Modes: which Beast
+ * Mode references which other Beast Mode. A nested Beast Mode references the
+ * ones it nests by their numeric template id (`DOMO_BEAST_MODE(<id>)` in the
+ * expression, listed in `functionTemplateDependencies`), NOT by the
+ * `calculation_<uuid>` legacyId (that token is only how cards reference Beast
+ * Modes). So migrating a Beast Mode requires migrating every Beast Mode it
+ * nests, or its formula breaks on the target. This surfaces that relationship
+ * at selection time so dependencies can be required up front.
  *
- * Excludes Variables (`variable: true`) — those are a separate type. The
- * search response carries `activeLinks.CARD` (the cards actively using each
+ * Takes the already-loaded `getDatasetFunctions` list (reusing its ids) and
+ * hydrates each one's template via `getFunctionTemplate` with a bounded worker
+ * pool (each call goes through `executeInPage`, so unbounded fan-out would
+ * saturate the messaging bridge). A template that fails to fetch is skipped (no
+ * out-edges) rather than failing the whole graph.
+ *
+ * Edges are restricted to Beast Modes in the passed list, so a dependency on a
+ * Beast Mode that lives on another dataset is ignored for free (its id isn't in
+ * the local set).
+ *
+ * @param {Array<{id: any, name: string}>} beastModes
+ * @param {number|null} [tabId]
+ * @returns {Promise<Map<string, Set<string>>>} Beast Mode id -> set of the ids
+ *   it nests (both within this dataset), as strings.
+ */
+export async function getBeastModeReferenceGraph(beastModes, tabId = null) {
+  const graph = new Map();
+  const list = (beastModes || []).filter((bm) => bm?.id != null);
+  if (list.length === 0) return graph;
+  const localIds = new Set(list.map((bm) => String(bm.id)));
+
+  // Hydrate every Beast Mode's template, then read its dependencies. Bounded
+  // concurrency mirrors the column scan: executeInPage runs through
+  // chrome.scripting, so letting all N fetch at once stalls the bridge.
+  const templates = new Map();
+  const queue = [...list];
+  const CONCURRENCY = 5;
+  const workers = Array.from({ length: CONCURRENCY }, async () => {
+    while (queue.length > 0) {
+      const bm = queue.shift();
+      if (!bm) return;
+      try {
+        templates.set(String(bm.id), await getFunctionTemplate(bm.id, tabId));
+      } catch {
+        // Skip: this Beast Mode contributes no out-edges. Non-fatal.
+      }
+    }
+  });
+  await Promise.allSettled(workers);
+
+  for (const source of list) {
+    const sourceId = String(source.id);
+    const template = templates.get(sourceId);
+    if (!template) continue;
+    const refs = new Set();
+    for (const dep of template.functionTemplateDependencies || []) {
+      const depId = String(dep);
+      if (depId !== sourceId && localIds.has(depId)) refs.add(depId);
+    }
+    graph.set(sourceId, refs);
+  }
+  return graph;
+}
+
+/**
+ * Get the CARD-LEVEL Beast Modes associated with a dataset's cards (the inverse
+ * of `getDatasetFunctions`). These live on a card rather than being saved to the
+ * dataset, identified by a `DATA_SOURCE` link with `visible: false`. Used to
+ * detect name collisions with the target dataset's Beast Modes: Domo rejects
+ * saving a card whose card-level Beast Mode shares a name with a dataset-saved
+ * Beast Mode on the same dataset, so a migrating card carrying such a name has
+ * to be resolved first. `activeCardIds` ties each one to the card(s) it's on.
+ *
+ * @param {string} datasetId
+ * @param {number|null} [tabId]
+ * @returns {Promise<Array<{activeCardIds: string[], id: any, legacyId: string|null, name: string}>>}
+ */
+export async function getCardBeastModes(datasetId, tabId = null) {
+  return executeInPage(
+    async (datasetId) => {
+      const all = [];
+      const limit = 100;
+      let offset = 0;
+      let moreData = true;
+      while (moreData) {
+        const response = await fetch('/api/query/v1/functions/search', {
+          body: JSON.stringify({
+            filters: [{ field: 'dataset', idList: [datasetId] }],
+            limit,
+            offset,
+            sort: { ascending: true, field: 'name' }
+          }),
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        const results = data?.results || [];
+        for (const f of results) {
+          if (f?.variable === true) continue;
+          // Card-level Beast Modes: a DATA_SOURCE link that is NOT visible (the
+          // visible link is the card). Dataset-saved ones (DATA_SOURCE visible)
+          // are handled by getDatasetFunctions.
+          const dataSourceLink = (f?.links || []).find((l) => l?.resource?.type === 'DATA_SOURCE');
+          if (dataSourceLink && dataSourceLink.visible === true) continue;
+          all.push({
+            activeCardIds: (f?.activeLinks?.CARD || []).map((id) => {
+              const s = String(id);
+              return s.startsWith('dr:') ? s.split(':')[1] || s : s;
+            }),
+            id: f.id,
+            legacyId: f.legacyId || null,
+            name: f.name || String(f.id)
+          });
+        }
+        offset += limit;
+        moreData = Boolean(data?.hasMore) && results.length > 0;
+      }
+      return all;
+    },
+    [datasetId],
+    tabId
+  );
+}
+
+/**
+ * Get the Beast Modes SAVED TO a dataset (dataset-level Beast Modes).
+ *
+ * Excludes Variables (`variable: true`) — those are a separate type — and
+ * card-level Beast Modes. The search by dataset returns both dataset-saved and
+ * card-level Beast Modes; they're distinguished by the `DATA_SOURCE` link's
+ * `visible` flag (`true` = saved to the dataset, `false` = lives on a card).
+ * Card-level Beast Modes travel inside their card's definition, so they must
+ * NOT be migrated as standalone dataset Beast Modes (creating one as a dataset
+ * Beast Mode fails, and it cascades the rest of the bulk create).
+ *
+ * The search response carries `activeLinks.CARD` (the cards actively using each
  * Beast Mode), which drives the migration dependency lock; drill links arrive
  * as `dr:<drillId>:<rootId>` URNs and are normalized here to the bare drill card
  * id so they line up with the rest of the app's card ids. It does NOT include
@@ -95,6 +236,11 @@ export async function getDatasetFunctions(datasetId, tabId = null) {
         const results = data?.results || [];
         for (const f of results) {
           if (f?.variable === true) continue;
+          // Keep only Beast Modes saved to the dataset: their DATA_SOURCE link is
+          // visible. Card-level Beast Modes (DATA_SOURCE link hidden) travel with
+          // their card and aren't migrated standalone.
+          const dataSourceLink = (f?.links || []).find((l) => l?.resource?.type === 'DATA_SOURCE');
+          if (!dataSourceLink || dataSourceLink.visible !== true) continue;
           all.push({
             // A drill's link comes back as a `dr:<drillId>:<rootId>` URN, not a
             // bare card id. Normalize to the drillId (middle segment) so these
@@ -147,7 +293,7 @@ export async function getFunctionTemplate(functionId, tabId = null) {
  * Get all beast mode formulas and variables owned by a user.
  * @param {number} userId - The Domo user ID
  * @param {number|null} tabId - Optional Chrome tab ID
- * @returns {Promise<Array<{global: boolean, id: string, name: string}>>}
+ * @returns {Promise<Array<Object>>} The raw function search results, each as returned by the API
  */
 export async function getOwnedFunctions(userId, tabId = null) {
   return executeInPage(
@@ -172,13 +318,7 @@ export async function getOwnedFunctions(userId, tabId = null) {
         const data = await response.json();
 
         if (data.results && data.results.length > 0) {
-          allFunctions.push(
-            ...data.results.map((f) => ({
-              global: f.global,
-              id: f.id,
-              name: f.name || f.id
-            }))
-          );
+          allFunctions.push(...data.results);
           offset += limit;
           moreData = data.hasMore;
         } else {
@@ -195,36 +335,23 @@ export async function getOwnedFunctions(userId, tabId = null) {
 
 /**
  * Transfer function (beast mode/variable) ownership to a new user.
- * Handles link sanitization for functions with dead references.
- * @param {string[]} functionIds - Array of function IDs to transfer
+ * The full function objects returned by getOwnedFunctions already carry
+ * everything the bulk update needs, so each is sent back with only its owner
+ * overridden, no per-function template lookup required.
+ * @param {Object[]} functions - Full function objects (from getOwnedFunctions) to transfer
  * @param {number} fromUserId - The current owner's user ID
  * @param {number} toUserId - The new owner's user ID
  * @param {number|null} tabId - Optional Chrome tab ID
  * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
  */
-export async function transferFunctions(functionIds, fromUserId, toUserId, tabId = null) {
+export async function transferFunctions(functions, fromUserId, toUserId, tabId = null) {
   return executeInPage(
-    async (functionIds, fromUserId, toUserId) => {
+    async (functions, toUserId) => {
       const errors = [];
-      const updates = [];
       const chunkSize = 100;
       let succeeded = 0;
 
-      for (const id of functionIds) {
-        try {
-          const response = await fetch(`/api/query/v1/functions/template/${id}?hidden=true`);
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          const func = await response.json();
-
-          updates.push({
-            id,
-            links: func.links || [],
-            owner: toUserId
-          });
-        } catch (error) {
-          errors.push({ error: error.message, id });
-        }
-      }
+      const updates = functions.map((func) => ({ ...func, owner: toUserId }));
 
       // Transfer in batches
       const bulkUrl = '/api/query/v1/functions/bulk/template';
@@ -245,7 +372,7 @@ export async function transferFunctions(functionIds, fromUserId, toUserId, tabId
 
       return { errors, failed: errors.length, succeeded };
     },
-    [functionIds, fromUserId, toUserId],
+    [functions, toUserId],
     tabId
   );
 }

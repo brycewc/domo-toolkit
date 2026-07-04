@@ -1,5 +1,12 @@
 import { defineManifest } from '@crxjs/vite-plugin';
 import pkg from './package.json';
+import { EXCLUDED_HOSTNAMES } from './src/utils/constants.js';
+
+// Excluded Domo hosts (support, developer, marketing, embed, etc.) as content-script
+// exclude_matches patterns, so the content script never injects there at all. Derived
+// from the shared EXCLUDED_HOSTNAMES list so this stays in sync with the rest of the
+// extension's exclusion logic.
+const EXCLUDED_MATCHES = EXCLUDED_HOSTNAMES.map((hostname) => `https://${hostname}/*`);
 
 export default defineManifest({
   manifest_version: 3,
@@ -7,6 +14,10 @@ export default defineManifest({
   version: pkg.version,
   description: pkg.description,
   key: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1MNZyAkJW2/F7JTETTSpzS/RJFe92laTr0smLRyHFKNlFEK3TEi2NbrCuPzag7ll7yXbFK9I3P6xOIHX/Qwt2jg17Yg4QyEQDZjhxQpvPoNHQzkVKCU1iYufcZritggsTpgqzkAivmva+AJDZzRnNMVHVTzssSeyniEMkjXpDjKqiDN1GuXc9hIDHHHPgaJVphMzZlWYQDUn39Z3UNBY37bKDvZOmbpsP7JBZx3rMNVDS7GKOVEoVNYTp2NpsRki8/YM8WE1UfC+FK/3YRTqzm0sQmGoYh5Vlve2xr/GpBwYdTMB1IsgOs3xQs8MTXDcE9bCdOMHvz07IHo+i4i6PwIDAQAB',
+  homepage_url: pkg.homepage,
+  version: pkg.version,
+  version_name: pkg.version,
+  minimum_chrome_version: '88',
   icons: {
     16: 'public/toolkit-16.png',
     24: 'public/toolkit-24.png',
@@ -50,6 +61,7 @@ export default defineManifest({
     {
       js: ['src/contentScript.js'],
       matches: ['https://*.domo.com/*'],
+      exclude_matches: EXCLUDED_MATCHES,
       run_at: 'document_idle',
       all_frames: false
     }

@@ -28,7 +28,7 @@ export async function getOwnedProjectsAndTasks(userId, tabId = null) {
               allProjects.push({
                 id: project.id,
                 // Domo's project payloads carry the display name in
-                // `projectName` (matches the `pathToName: 'projectName'`
+                // `projectName` (matches the `paths.name: 'projectName'`
                 // setting on the PROJECT DomoObjectType). Falling back to
                 // plain `.name` covers any callsite that has already
                 // normalized the field, and finally the stringified id as

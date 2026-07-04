@@ -22,11 +22,17 @@ import { toast } from '@heroui/react';
 import { IconArrowsShuffle } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 
+import IconBottomNavFill from '@icons/bottom-nav-fill.svg?react';
 import IconCheck from '@icons/check.svg?react';
 import IconChevronDown from '@icons/chevron-down.svg?react';
+import IconDomoRainbow from '@icons/domo-rainbow.svg?react';
+import IconDomo from '@icons/domo.svg?react';
 import IconDragDotsVertical from '@icons/drag-dots-vertical.svg?react';
+import IconLeftNavFill from '@icons/left-nav-fill.svg?react';
 import IconPlus from '@icons/plus.svg?react';
+import IconRightRailFill from '@icons/right-rail-fill.svg?react';
 import IconSave from '@icons/save.svg?react';
+import IconTopNavFill from '@icons/top-nav-fill.svg?react';
 import IconTrash from '@icons/trash.svg?react';
 export function FaviconSettings() {
   const [rules, setRules] = useState([]);
@@ -222,38 +228,56 @@ export function FaviconSettings() {
                         </Select.Trigger>
                         <Select.Popover>
                           <ListBox>
-                            <ListBox.Item id='instance-logo'>
-                              instance-logo
+                            <ListBox.Item id='instance-logo' textValue='instance-logo'>
+                              <span className='flex flex-row items-center gap-2'>
+                                <IconDomo className='h-4 w-4' />
+                                instance-logo
+                              </span>
                               <ListBox.ItemIndicator>
                                 {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
                               </ListBox.ItemIndicator>
                             </ListBox.Item>
-                            <ListBox.Item id='domo-logo-colored'>
-                              domo-logo-colored
+                            <ListBox.Item id='domo-logo-colored' textValue='domo-logo-colored'>
+                              <span className='flex flex-row items-center gap-2'>
+                                <IconDomoRainbow className='h-4 w-4' />
+                                domo-logo-colored
+                              </span>
                               <ListBox.ItemIndicator>
                                 {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
                               </ListBox.ItemIndicator>
                             </ListBox.Item>
-                            <ListBox.Item id='top'>
-                              top
+                            <ListBox.Item id='top' textValue='top'>
+                              <span className='flex flex-row items-center gap-2'>
+                                <IconTopNavFill className='h-4 w-4' />
+                                top
+                              </span>
                               <ListBox.ItemIndicator>
                                 {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
                               </ListBox.ItemIndicator>
                             </ListBox.Item>
-                            <ListBox.Item id='right'>
-                              right
+                            <ListBox.Item id='right' textValue='right'>
+                              <span className='flex flex-row items-center gap-2'>
+                                <IconRightRailFill className='h-4 w-4' />
+                                right
+                              </span>
                               <ListBox.ItemIndicator>
                                 {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
                               </ListBox.ItemIndicator>
                             </ListBox.Item>
-                            <ListBox.Item id='bottom'>
-                              bottom
+                            <ListBox.Item id='bottom' textValue='bottom'>
+                              <span className='flex flex-row items-center gap-2'>
+                                <IconBottomNavFill className='h-4 w-4' />
+                                bottom
+                              </span>
                               <ListBox.ItemIndicator>
                                 {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
                               </ListBox.ItemIndicator>
                             </ListBox.Item>
-                            <ListBox.Item id='left'>
-                              left
+                            <ListBox.Item id='left' textValue='left'>
+                              <span className='flex flex-row items-center gap-2'>
+                                <IconLeftNavFill className='h-4 w-4' />
+                                left
+                              </span>
                               <ListBox.ItemIndicator>
                                 {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
                               </ListBox.ItemIndicator>
@@ -407,23 +431,29 @@ export function FaviconSettings() {
               Effects are the way the favicon gets modified:
               <ul className='list-inside list-disc space-y-1 pl-4'>
                 <li>
+                  <IconDomo className='mr-1 inline size-4 align-text-bottom' />
                   <strong>instance-logo:</strong> uses the Domo instance logo instead of a color (no color picker for this
                   one)
                 </li>
                 <li>
+                  <IconDomoRainbow className='mr-1 inline size-4 align-text-bottom' />
                   <strong>domo-logo-colored:</strong> Domo logo with colored background (color picker selects background
                   color)
                 </li>
                 <li>
+                  <IconTopNavFill className='mr-1 inline size-4 align-text-bottom' />
                   <strong>top:</strong> puts a colored stripe over the top quarter
                 </li>
                 <li>
+                  <IconRightRailFill className='mr-1 inline size-4 align-text-bottom' />
                   <strong>right:</strong> puts a colored stripe over the right quarter
                 </li>
                 <li>
+                  <IconBottomNavFill className='mr-1 inline size-4 align-text-bottom' />
                   <strong>bottom:</strong> puts a colored stripe over the bottom quarter
                 </li>
                 <li>
+                  <IconLeftNavFill className='mr-1 inline size-4 align-text-bottom' />
                   <strong>left:</strong> puts a colored stripe over the left quarter
                 </li>
               </ul>

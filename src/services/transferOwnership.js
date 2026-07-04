@@ -417,6 +417,10 @@ export async function transferAllOwnership({
       } else if (type.key === 'taskCenterTasks') {
         // Tasks need the full objects (id + queueId)
         transferResult = await type.transfer(owned, fromUserId, toUserId, tabId);
+      } else if (type.key === 'functions') {
+        // Functions need the full objects: the bulk template update sends each
+        // function's whole definition back with only its owner overridden.
+        transferResult = await type.transfer(owned, fromUserId, toUserId, tabId);
       } else {
         // Standard types: extract IDs and pass to transfer
         const ids = owned.map((o) => o.id);
@@ -482,5 +486,9 @@ function filterOwnedToSelection(typeKey, owned, selectedIds) {
     };
   }
   if (!Array.isArray(owned)) return owned;
-  return owned.filter((o) => selectedIds.has(o.id));
+  // The selection set is built from String(item.id), so coerce here too: types
+  // whose getOwned returns numeric ids (groups, alerts, pages, …) would
+  // otherwise miss every `has()` check, get filtered to empty, and be skipped
+  // entirely (count 0) with no transfer request ever sent.
+  return owned.filter((o) => selectedIds.has(String(o.id)));
 }

@@ -6,6 +6,7 @@ import { useStatusBar } from '@/hooks/useStatusBar';
 import { buildPfilterUrl, getAllFilters } from '@/services/filters';
 import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
 import IconFunnel from '@icons/funnel.svg?react';
+import IconSync from '@icons/sync.svg?react';
 
 import { AnimatedCheck } from '../AnimatedCheck';
 import { AnimatedX } from '../AnimatedX';
@@ -67,7 +68,9 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
       setFilterCount(allFilters.length);
 
       const filteredUrl = buildPfilterUrl(currentUrl, objectId, allFilters);
-      await navigator.clipboard.writeText(filteredUrl);
+      const tabTitle = await getTabTitle(currentContext.tabId);
+      const linkText = tabTitle || currentContext.domoObject?.metadata?.name?.trim() || filteredUrl;
+      await copyUrlAsLink(filteredUrl, linkText);
 
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
@@ -87,8 +90,50 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
     }
   };
 
-  const handleAction = async (key) => {
-    if (key !== 'pfilters') return;
+  const handleAction = (key) => {
+    if (key === 'apply') {
+      handleApplyFilters();
+    } else if (key === 'pfilters') {
+      handleCopyPfilters();
+    }
+  };
+
+  const handleApplyFilters = async () => {
+    if (!currentContext?.domoObject?.id || !isSupported) return;
+
+    try {
+      const objectId = currentContext.domoObject.id;
+      const currentUrl = resolveCurrentUrl(currentContext, typeId, objectId);
+
+      const { allFilters } = await getAllFilters({
+        pageId: typeId === 'CARD' ? null : objectId,
+        tabId: currentContext.tabId
+      });
+
+      setFilterCount(allFilters.length);
+
+      if (allFilters.length === 0) {
+        setIsFailed(true);
+        setTimeout(() => setIsFailed(false), 2000);
+        showStatus('No Filters Active', 'No filters to apply', 'danger', 3000);
+        return;
+      }
+
+      const filteredUrl = buildPfilterUrl(currentUrl, objectId, allFilters);
+      chrome.tabs.update(currentContext.tabId, { url: filteredUrl });
+
+      showStatus(
+        'Applying Filters',
+        `Reloading this tab with ${allFilters.length} filter${allFilters.length !== 1 ? 's' : ''}`,
+        'success',
+        3000
+      );
+    } catch (_error) {
+      showStatus('Error', 'Failed to apply filters', 'danger', 3000);
+    }
+  };
+
+  const handleCopyPfilters = async () => {
     if (!currentContext?.domoObject?.id || !isSupported) return;
 
     try {
@@ -152,16 +197,40 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
           {!longPressDisabled && <span className='italic'>Hold for more options</span>}
         </Tooltip.Content>
       </Tooltip>
-      <Dropdown.Popover className='w-fit min-w-60' placement='bottom'>
+      <Dropdown.Popover className='w-fit min-w-70' placement='bottom'>
         <Dropdown.Menu onAction={handleAction}>
+          <Dropdown.Item id='apply' textValue='Apply filters here and refresh'>
+            <IconSync className='size-4 shrink-0' />
+            <Label>Apply filters here and refresh</Label>
+          </Dropdown.Item>
           <Dropdown.Item id='pfilters' textValue='Copy pfilters param only'>
-            <IconClipboardCopy className='size-5 shrink-0' />
+            <IconClipboardCopy className='size-4 shrink-0' />
             <Label>Copy pfilters param only</Label>
           </Dropdown.Item>
         </Dropdown.Menu>
       </Dropdown.Popover>
     </Dropdown>
   );
+}
+
+async function copyUrlAsLink(url, text) {
+  const escapeHtml = (value) =>
+    value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const html = `<a href="${escapeHtml(url)}">${escapeHtml(text)}</a>`;
+  const item = new ClipboardItem({
+    'text/html': new Blob([html], { type: 'text/html' }),
+    'text/plain': new Blob([url], { type: 'text/plain' })
+  });
+  await navigator.clipboard.write([item]);
+}
+
+async function getTabTitle(tabId) {
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    return tab?.title?.trim() || null;
+  } catch {
+    return null;
+  }
 }
 
 function resolveCurrentUrl(currentContext, typeId, objectId) {

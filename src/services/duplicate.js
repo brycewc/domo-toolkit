@@ -33,6 +33,71 @@ const SHARE_BATCH_SIZE = 100;
 const ASSIGNABLE_GROUP_TYPES = new Set(['adHoc', 'closed', 'open']);
 
 /**
+ * Add a source user's additive access to an existing user. Re-uses the source
+ * user's group memberships and individually-shared cards/pages/apps (supplied
+ * pre-filtered from the preview) and grants them to `targetUser`. Nothing that
+ * would overwrite the target's own identity is touched: role, profile fields,
+ * and locale are intentionally not applied. Every operation is a pure add, so
+ * re-granting access the target already has is a safe no-op.
+ *
+ * @param {Object} params
+ * @param {{id: number|string, displayName?: string}} params.targetUser - The existing user receiving access
+ * @param {Array<{id: number, name: string}>} [params.cards] - Selected cards to share
+ * @param {Array<{id: number, title: string}>} [params.pages] - Selected pages to share
+ * @param {Array<{id: number, name: string}>} [params.customApps] - Selected custom apps (audit-only, sharing TBD)
+ * @param {Array<{groupId: string|number, groupName: string}>} [params.groups] - Group memberships (from preview)
+ * @param {number|null} [params.tabId]
+ * @param {(stepKey: string, status: 'running'|'done'|'error', result?: Object) => void} [params.onStepProgress]
+ */
+export async function addAccessToExistingUser({
+  cards = [],
+  customApps = [],
+  groups = [],
+  onStepProgress = () => {},
+  pages = [],
+  tabId = null,
+  targetUser
+}) {
+  if (!targetUser?.id) {
+    return {
+      appResults: { attempted: customApps, errors: [] },
+      cardResults: { attempted: cards, errors: [] },
+      copied: { cards: 0, customApps: 0, fields: [], groups: [], locale: null, pages: 0 },
+      created: false,
+      errors: [{ message: 'No target user supplied', step: 'target' }],
+      newUser: null,
+      pageResults: { attempted: pages, errors: [] },
+      success: false
+    };
+  }
+
+  const grants = await applyUserGrants({
+    cards,
+    customApps,
+    groups,
+    onStepProgress,
+    pages,
+    tabId,
+    userId: targetUser.id
+  });
+
+  return {
+    appResults: grants.appResults,
+    cardResults: grants.cardResults,
+    copied: grants.copied,
+    created: false,
+    errors: grants.errors,
+    newUser: {
+      displayName: targetUser.displayName ?? '',
+      id: targetUser.id
+    },
+    pageResults: grants.pageResults,
+    success:
+      grants.errors.length === 0 && grants.cardResults.errors.length === 0 && grants.pageResults.errors.length === 0
+  };
+}
+
+/**
  * Duplicate a Domo user. Copies role, profile fields, locale, group memberships,
  * and re-shares the source user's individually-shared cards, pages, and custom
  * apps onto a newly-created user. The caller supplies pre-filtered selection
@@ -68,16 +133,9 @@ export async function duplicateUser({
   tabId = null
 }) {
   const errors = [];
-  const cardResults = { attempted: cards, errors: [] };
-  const pageResults = { attempted: pages, errors: [] };
-  const appResults = { attempted: customApps, errors: [] };
   const copied = {
-    cards: 0,
-    customApps: 0,
     fields: [],
-    groups: [],
-    locale: null,
-    pages: 0
+    locale: null
   };
   const report = (step, status, result) => {
     try {
@@ -91,9 +149,10 @@ export async function duplicateUser({
   const source = await getFullUserDetails(sourceUserId, tabId);
   if (!source?.id) {
     return {
-      appResults,
-      cardResults,
-      copied,
+      appResults: { attempted: customApps, errors: [] },
+      cardResults: { attempted: cards, errors: [] },
+      copied: { cards: 0, customApps: 0, fields: [], groups: [], locale: null, pages: 0 },
+      created: true,
       errors: [
         {
           message: `Source user ${sourceUserId} not found`,
@@ -101,7 +160,7 @@ export async function duplicateUser({
         }
       ],
       newUser: null,
-      pageResults,
+      pageResults: { attempted: pages, errors: [] },
       success: false
     };
   }
@@ -121,9 +180,10 @@ export async function duplicateUser({
   if (!created?.id) {
     report('createUser', 'error');
     return {
-      appResults,
-      cardResults,
-      copied,
+      appResults: { attempted: customApps, errors: [] },
+      cardResults: { attempted: cards, errors: [] },
+      copied: { cards: 0, customApps: 0, fields: [], groups: [], locale: null, pages: 0 },
+      created: true,
       errors: [
         {
           message: 'Failed to create new user, role may be invalid or email already in use',
@@ -131,7 +191,7 @@ export async function duplicateUser({
         }
       ],
       newUser: null,
-      pageResults,
+      pageResults: { attempted: pages, errors: [] },
       success: false
     };
   }
@@ -182,82 +242,32 @@ export async function duplicateUser({
     report('copyLocale', 'error');
   }
 
-  // --- 5. Add to groups ---
-  report('addGroups', 'running');
-  try {
-    const targetGroups = groups.length > 0 ? groups : await fallbackFetchGroups(sourceUserId, tabId);
-    if (targetGroups.length > 0) {
-      const accessPayload = targetGroups.map((g) => ({
-        addMembers: [{ id: String(newUserId), type: 'USER' }],
-        groupId: g.groupId
-      }));
-      const ok = await addUsersToGroups(accessPayload, tabId);
-      if (!ok) throw new Error('Group access update returned a non-OK status');
-      copied.groups = targetGroups;
-    }
-    report('addGroups', 'done', { count: copied.groups.length });
-  } catch (err) {
-    errors.push({ message: err.message, step: 'addGroups' });
-    report('addGroups', 'error');
-  }
-
-  // --- 6. Share individually-shared cards ---
-  report('shareCards', 'running');
-  try {
-    await shareBatched({
-      attemptedRecords: cardResults,
-      items: cards,
-      newUserId,
-      resourceType: 'badge',
-      tabId
-    });
-    copied.cards = cards.length - cardResults.errors.length;
-    report('shareCards', 'done', { count: copied.cards });
-  } catch (err) {
-    errors.push({ message: err.message, step: 'shareCards' });
-    report('shareCards', 'error');
-  }
-
-  // --- 7. Share individually-shared pages ---
-  report('sharePages', 'running');
-  try {
-    await shareBatched({
-      attemptedRecords: pageResults,
-      items: pages,
-      newUserId,
-      resourceType: 'page',
-      tabId
-    });
-    copied.pages = pages.length - pageResults.errors.length;
-    report('sharePages', 'done', { count: copied.pages });
-  } catch (err) {
-    errors.push({ message: err.message, step: 'sharePages' });
-    report('sharePages', 'error');
-  }
-
-  // --- 8. Custom apps (audit-only for now) ---
-  report('shareApps', 'running');
-  if (customApps.length > 0) {
-    appResults.errors.push({
-      error: 'Custom app sharing is not yet implemented, please share manually',
-      id: 'all'
-    });
-  }
-  copied.customApps = 0;
-  report('shareApps', 'done', { count: 0, skipped: customApps.length });
+  // --- 5-8. Additive grants (groups, cards, pages, apps) ---
+  const grants = await applyUserGrants({
+    cards,
+    customApps,
+    groups,
+    onStepProgress,
+    pages,
+    tabId,
+    userId: newUserId
+  });
+  errors.push(...grants.errors);
 
   return {
-    appResults,
-    cardResults,
-    copied,
+    appResults: grants.appResults,
+    cardResults: grants.cardResults,
+    copied: { ...grants.copied, fields: copied.fields, locale: copied.locale },
+    created: true,
     errors,
     newUser: {
       displayName: newDisplayName,
       email: newEmail,
       id: newUserId
     },
-    pageResults,
-    success: errors.length === 0 && cardResults.errors.length === 0 && pageResults.errors.length === 0
+    pageResults: grants.pageResults,
+    success:
+      errors.length === 0 && grants.cardResults.errors.length === 0 && grants.pageResults.errors.length === 0
   };
 }
 
@@ -307,9 +317,113 @@ export async function fetchDuplicationPreview({ sourceUserId, tabId = null }) {
   };
 }
 
-async function fallbackFetchGroups(userId, tabId) {
-  const rich = await getUserGroups(userId, tabId);
-  return toAssignableGroups(rich);
+/**
+ * Run the additive-grant steps (groups, cards, pages, apps) against a single
+ * user id, reporting each step via `onStepProgress`. Shared by both the
+ * new-user duplication flow and the existing-user access-grant flow. Every
+ * operation is additive, so re-granting access the user already has is a no-op.
+ *
+ * @param {Object} params
+ * @param {number|string} params.userId - The user receiving the grants
+ * @param {Array<{groupId: string|number, groupName: string}>} [params.groups] - Groups to add (explicit selection; empty adds none)
+ * @param {Array<{id: number, name: string}>} [params.cards]
+ * @param {Array<{id: number, title: string}>} [params.pages]
+ * @param {Array<{id: number, name: string}>} [params.customApps]
+ * @param {number|null} [params.tabId]
+ * @param {Function} [params.onStepProgress]
+ * @returns {Promise<{appResults: Object, cardResults: Object, copied: Object, errors: Array, pageResults: Object}>}
+ */
+async function applyUserGrants({
+  cards = [],
+  customApps = [],
+  groups = [],
+  onStepProgress = () => {},
+  pages = [],
+  tabId = null,
+  userId
+}) {
+  const errors = [];
+  const cardResults = { attempted: cards, errors: [] };
+  const pageResults = { attempted: pages, errors: [] };
+  const appResults = { attempted: customApps, errors: [] };
+  const copied = {
+    cards: 0,
+    customApps: 0,
+    groups: [],
+    pages: 0
+  };
+  const report = (step, status, result) => {
+    try {
+      onStepProgress(step, status, result);
+    } catch {
+      // UI callback errors must never bubble up into the flow
+    }
+  };
+
+  // --- Add to groups (explicit selection; an empty list adds none) ---
+  report('addGroups', 'running');
+  try {
+    if (groups.length > 0) {
+      const accessPayload = groups.map((g) => ({
+        addMembers: [{ id: String(userId), type: 'USER' }],
+        groupId: g.groupId
+      }));
+      const ok = await addUsersToGroups(accessPayload, tabId);
+      if (!ok) throw new Error('Group access update returned a non-OK status');
+      copied.groups = groups;
+    }
+    report('addGroups', 'done', { count: copied.groups.length });
+  } catch (err) {
+    errors.push({ message: err.message, step: 'addGroups' });
+    report('addGroups', 'error');
+  }
+
+  // --- Share individually-shared cards ---
+  report('shareCards', 'running');
+  try {
+    await shareBatched({
+      attemptedRecords: cardResults,
+      items: cards,
+      newUserId: userId,
+      resourceType: 'badge',
+      tabId
+    });
+    copied.cards = cards.length - cardResults.errors.length;
+    report('shareCards', 'done', { count: copied.cards });
+  } catch (err) {
+    errors.push({ message: err.message, step: 'shareCards' });
+    report('shareCards', 'error');
+  }
+
+  // --- Share individually-shared pages ---
+  report('sharePages', 'running');
+  try {
+    await shareBatched({
+      attemptedRecords: pageResults,
+      items: pages,
+      newUserId: userId,
+      resourceType: 'page',
+      tabId
+    });
+    copied.pages = pages.length - pageResults.errors.length;
+    report('sharePages', 'done', { count: copied.pages });
+  } catch (err) {
+    errors.push({ message: err.message, step: 'sharePages' });
+    report('sharePages', 'error');
+  }
+
+  // --- Custom apps (audit-only for now) ---
+  report('shareApps', 'running');
+  if (customApps.length > 0) {
+    appResults.errors.push({
+      error: 'Custom app sharing is not yet implemented, please share manually',
+      id: 'all'
+    });
+  }
+  copied.customApps = 0;
+  report('shareApps', 'done', { count: 0, skipped: customApps.length });
+
+  return { appResults, cardResults, copied, errors, pageResults };
 }
 
 async function shareBatched({ attemptedRecords, items, newUserId, resourceType, tabId }) {

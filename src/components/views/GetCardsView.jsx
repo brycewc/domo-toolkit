@@ -1,6 +1,7 @@
-import { Alert, Button, Card, Spinner } from '@heroui/react';
+import { Button, Card, Spinner } from '@heroui/react';
 import { useEffect, useRef, useState } from 'react';
 
+import { Alert } from '@/components/Alert';
 import { CloseButton } from '@/components/CloseButton';
 import { DataListItem } from '@/models/DataListItem';
 import { DomoContext } from '@/models/DomoContext';
@@ -9,13 +10,20 @@ import { extractPageContentIds, getFormsForPage, getQueuesForPage } from '@/serv
 import { getCardsForObject, getCardsForParent } from '@/services/cards';
 import { waitForCards } from '@/utils/cardHelpers';
 import { getValidTabForInstance } from '@/utils/currentObject';
+import { soleExpandedGroupIds, withCanonicalGroups } from '@/utils/dataListGroups';
 import { getSidepanelData } from '@/utils/sidepanel';
-import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
+import IconCard from '@icons/card.svg?react';
 import IconSync from '@icons/sync.svg?react';
 
+import { AlertStatusIcon } from '../AlertStatusIcon';
 import { DataList } from './DataList';
 
-export function GetCardsView({ currentContext = null, onBackToDefault = null, onStatusUpdate = null }) {
+export function GetCardsView({
+  currentContext = null,
+  instance: viewInstance = null,
+  onBackToDefault = null,
+  onStatusUpdate = null
+}) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
@@ -51,7 +59,7 @@ export function GetCardsView({ currentContext = null, onBackToDefault = null, on
       : null;
 
     try {
-      const data = await getSidepanelData();
+      const data = await getSidepanelData(viewInstance);
 
       if (!data || data.type !== 'getCards') {
         setError('No card data found. Please try again.');
@@ -253,7 +261,6 @@ export function GetCardsView({ currentContext = null, onBackToDefault = null, on
   const totalItems = itemCounts.cards + itemCounts.forms + itemCounts.queues;
 
   const titlePrefix = hasMultipleTypes ? 'Items for' : 'Cards for';
-  const renderTitle = () => `${titlePrefix} **${viewData?.objectName}**`;
 
   const renderSubtext = () => {
     if (totalItems === 0) return null;
@@ -288,9 +295,7 @@ export function GetCardsView({ currentContext = null, onBackToDefault = null, on
   if (error) {
     return (
       <Alert className='w-full' status='warning'>
-        <Alert.Indicator>
-          <IconExclamationTriangle data-slot='alert-default-icon' />
-        </Alert.Indicator>
+        <AlertStatusIcon />
         <Alert.Content>
           <Alert.Title>Error</Alert.Title>
           <div className='flex flex-col items-start justify-center gap-2'>
@@ -309,17 +314,19 @@ export function GetCardsView({ currentContext = null, onBackToDefault = null, on
   return (
     <DataList
       currentContext={currentContext}
-      headerActions={['openAll', 'copy', 'reload', 'refresh']}
+      defaultExpandedIds={soleExpandedGroupIds(items)}
+      feature={titlePrefix}
+      featureIcon={<IconCard />}
+      headerActions={['openAll', 'reload', 'refresh']}
       isRefreshing={isRefreshing}
-      itemActions={['copy', 'openAll']}
       itemLabel={hasMultipleTypes ? 'item' : 'card'}
       items={items}
       objectId={viewData?.objectId}
       objectType={viewData?.objectType}
       showActions={true}
       showCounts={true}
+      subject={viewData?.objectName}
       subtext={renderSubtext()}
-      title={renderTitle()}
       viewType='getCards'
       onClose={onBackToDefault}
       onRefresh={handleRefresh}
@@ -356,6 +363,15 @@ async function fetchCardsForOutputDatasets(outputs, tabId) {
   }
   return { cards: allCards, outputDatasets };
 }
+
+// Canonical content categories for an App Studio page, in display order. Forms
+// and queues only exist on App Studio pages, so each always renders -- empty
+// ones as muted, non-expandable `(0)` rows.
+const APP_PAGE_CONTENT_GROUPS = [
+  { childTypeId: 'CARD', id: 'cards_group', label: 'Cards' },
+  { childTypeId: 'ENIGMA_FORM', id: 'forms_group', label: 'Forms' },
+  { childTypeId: 'HOPPER_QUEUE', id: 'queues_group', label: 'Queues' }
+];
 
 /**
  * Transform cards into DataListItem format
@@ -425,14 +441,20 @@ function transformDataflowItems(outputDatasets, origin) {
 
 /**
  * Transform cards, forms, and queues into DataListItems.
- * When only cards exist, returns a flat list. When forms or queues
- * are also present, groups items under disclosure headers.
+ *
+ * For App Studio pages (DATA_APP_VIEW) -- the only scope where forms and queues
+ * apply -- always renders Cards, Forms, and Queues headers, with empty ones as
+ * muted `(0)` rows so absence is explicit. For every other object type, only
+ * cards apply: a single type stays a flat list, multiple types group under
+ * disclosure headers (existing behavior).
  */
 function transformPageItems(cards, forms, queues, origin, objectType, objectId, parentId) {
+  const isAppStudioPage = objectType === 'DATA_APP_VIEW';
   const hasMultipleTypes = [cards.length > 0, forms.length > 0, queues.length > 0].filter(Boolean).length > 1;
 
-  // Only cards: preserve flat list behavior
-  if (!hasMultipleTypes && cards.length > 0) {
+  // Non-App-Studio with a single type: preserve flat list behavior. App Studio
+  // pages skip the shortcut so the canonical Cards/Forms/Queues set always shows.
+  if (!isAppStudioPage && !hasMultipleTypes && cards.length > 0) {
     return transformCardsToItems(cards, origin, objectType, objectId, parentId);
   }
 
@@ -443,6 +465,7 @@ function transformPageItems(cards, forms, queues, origin, objectType, objectId, 
     items.push(
       DataListItem.createGroup({
         children: cardItems,
+        childTypeId: 'CARD',
         id: 'cards_group',
         label: 'Cards',
         metadata: `${cards.length} card${cards.length !== 1 ? 's' : ''}`
@@ -466,6 +489,7 @@ function transformPageItems(cards, forms, queues, origin, objectType, objectId, 
     items.push(
       DataListItem.createGroup({
         children: formItems,
+        childTypeId: 'ENIGMA_FORM',
         id: 'forms_group',
         label: 'Forms',
         metadata: `${forms.length} form${forms.length !== 1 ? 's' : ''}`
@@ -485,6 +509,7 @@ function transformPageItems(cards, forms, queues, origin, objectType, objectId, 
     items.push(
       DataListItem.createGroup({
         children: queueItems,
+        childTypeId: 'HOPPER_QUEUE',
         id: 'queues_group',
         label: 'Queues',
         metadata: `${queues.length} queue${queues.length !== 1 ? 's' : ''}`
@@ -492,7 +517,7 @@ function transformPageItems(cards, forms, queues, origin, objectType, objectId, 
     );
   }
 
-  return items;
+  return isAppStudioPage ? withCanonicalGroups(items, APP_PAGE_CONTENT_GROUPS) : items;
 }
 
 /**

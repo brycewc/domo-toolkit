@@ -1,6 +1,7 @@
-import { waitForCards } from '@/utils/cardHelpers';
 import { executeInPage } from '@/utils/executeInPage';
 import { storeSidepanelData } from '@/utils/sidepanel';
+
+import { getCardsForObject } from './cards';
 
 /**
  * Check if a page is actually a data app view and get its parent app ID.
@@ -71,27 +72,29 @@ export async function deletePageAndAllCards({
             statusDescription: `This page has ${childPages.length} child page${childPages.length !== 1 ? 's' : ''}. Please delete or reassign the child pages first.`,
             statusTitle: 'Cannot Delete Page',
             statusType: 'warning',
-            success: false,
-            windowId: currentContext?.tab?.windowId
+            success: false
           };
         }
       }
     }
 
-    // Wait for cards to be loaded from background process
-    const cardsResult = await waitForCards(currentContext);
-
-    if (!cardsResult.success) {
+    // Fetch the page's cards fresh, right before deleting them. The background
+    // enriches the cached tab context with cards/forms/queues asynchronously to
+    // drive the UI, but a delete only needs the card ids, and waiting on that
+    // cache could time out (or act on a stale list) for a destructive action.
+    // Reading straight from the page's cards endpoint is fast and authoritative.
+    let cardIds;
+    try {
+      const cards = await getCardsForObject({ objectId: pageId, objectType: pageType, tabId });
+      cardIds = cards.map((card) => card.id).filter((id) => Number.isFinite(id));
+    } catch (error) {
       return {
-        statusDescription: cardsResult.error,
+        statusDescription: `Could not load the page's cards to delete (${error.message}).`,
         statusTitle: 'Error',
         statusType: 'danger',
         success: false
       };
     }
-
-    const cards = cardsResult.cards;
-    const cardIds = cards.map((card) => card.id);
 
     // Execute deletion logic in page context to inherit authentication
     const result = await executeInPage(
@@ -285,36 +288,47 @@ export async function getChildPages({ appId = null, includeGrandchildren = false
           const adminSummaryResponse = await response.json();
           childPages = adminSummaryResponse.pageAdminSummaries || [];
 
-          // If includeGrandchildren is true, fetch grandchildren for each child page
+          // If includeGrandchildren is true, fetch grandchildren for each child page.
+          // The adminsummary endpoint silently returns zero results when
+          // parentPageIds holds more than 10 ids, so request grandchildren in
+          // batches of at most 10 parents and combine them. Without batching, any
+          // page with more than 10 children returns no grandchildren at all.
           if (includeGrandchildren && childPages.length > 0) {
             const grandchildPageIds = childPages.map((page) => page.pageId);
-
-            const grandchildrenBody = {
-              ascending: true,
-              includeParentPageIdsClause: true,
-              orderBy: 'lastModified',
-              parentPageIds: grandchildPageIds
-            };
-
-            const grandchildrenResponse = await fetch('/api/content/v1/pages/adminsummary?limit=100&skip=0', {
-              body: JSON.stringify(grandchildrenBody),
-              headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json'
-              },
-              method: 'POST'
-            });
-
-            if (!grandchildrenResponse.ok) {
-              console.warn(`Failed to fetch grandchildren pages (HTTP ${grandchildrenResponse.status})`);
-              return childPages;
+            const PARENT_BATCH_SIZE = 10;
+            const batches = [];
+            for (let i = 0; i < grandchildPageIds.length; i += PARENT_BATCH_SIZE) {
+              batches.push(grandchildPageIds.slice(i, i + PARENT_BATCH_SIZE));
             }
 
-            const grandchildrenData = await grandchildrenResponse.json();
-            const grandchildPages = grandchildrenData.pageAdminSummaries || [];
+            const grandchildResults = await Promise.all(
+              batches.map(async (parentPageIds) => {
+                const grandchildrenResponse = await fetch('/api/content/v1/pages/adminsummary?limit=100&skip=0', {
+                  body: JSON.stringify({
+                    ascending: true,
+                    includeParentPageIdsClause: true,
+                    orderBy: 'lastModified',
+                    parentPageIds
+                  }),
+                  headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                  },
+                  method: 'POST'
+                });
+
+                if (!grandchildrenResponse.ok) {
+                  console.warn(`Failed to fetch grandchildren pages (HTTP ${grandchildrenResponse.status})`);
+                  return [];
+                }
+
+                const grandchildrenData = await grandchildrenResponse.json();
+                return grandchildrenData.pageAdminSummaries || [];
+              })
+            );
 
             // Return both children and grandchildren
-            childPages = [...childPages, ...grandchildPages];
+            childPages = [...childPages, ...grandchildResults.flat()];
           }
         } else if (pageType === 'DATA_APP_VIEW') {
           const appResponse = await fetch(`/api/content/v1/dataapps/${appId}`);
@@ -396,9 +410,10 @@ export async function getOwnedPages(userId, tabId = null) {
 }
 
 /**
- * Get all pages that cards appear on (including regular pages, app studio pages, and report builder pages)
+ * Get all pages that cards appear on (including regular pages, app studio pages, and report builder pages).
+ * Cards that are not on any page are returned separately as orphanedCards.
  * @param {Array<number>} cardIds - Array of card IDs
- * @returns {Promise<Object>} Array of page objects with type, id, and name
+ * @returns {Promise<{cardsByPage: Object, orphanedCards: Array<{id: string|number, name: string}>, pages: Array<Object>}>}
  * @throws {Error} If the fetch fails
  */
 export async function getPagesForCards(cardIds, tabId = null) {
@@ -426,7 +441,7 @@ export async function getPagesForCards(cardIds, tabId = null) {
         // serializable and lets the caller render a friendly "no pages found"
         // state instead of crashing on a thrown error.
         if (!allDetailCards.length) {
-          return { cardsByPage: {}, pages: [] };
+          return { cardsByPage: {}, orphanedCards: [], pages: [] };
         }
 
         // Build flat lists of all pages, app pages, and report pages from all cards
@@ -436,6 +451,7 @@ export async function getPagesForCards(cardIds, tabId = null) {
         const allWorksheetViews = [];
         const allReportPages = [];
         const cardsByPage = {};
+        const pagedCardIds = new Set();
 
         const addCardToPage = (pageId, card) => {
           const key = String(pageId);
@@ -443,6 +459,7 @@ export async function getPagesForCards(cardIds, tabId = null) {
             cardsByPage[key] = [];
           }
           const cardId = card.id || card.urn;
+          pagedCardIds.add(cardId);
           // Avoid duplicate cards on the same page
           if (!cardsByPage[key].some((c) => c.id === cardId)) {
             cardsByPage[key].push({
@@ -471,35 +488,55 @@ export async function getPagesForCards(cardIds, tabId = null) {
               if (page && page.appPageId) {
                 if (page.dataAppType === 'worksheet') {
                   allWorksheetViews.push({
-                    appId: page.appId,
-                    appName: page.appTitle || `App ${page.appId}`,
                     id: page.appPageId,
-                    name: page.appPageTitle || `Worksheet View ${page.appPageId}`
+                    name: page.appPageTitle || `Worksheet View ${page.appPageId}`,
+                    parentId: page.appId,
+                    parentName: page.appTitle || `App ${page.appId}`
                   });
                 } else {
                   allAppPages.push({
-                    appId: page.appId,
-                    appName: page.appTitle || `App ${page.appId}`,
                     id: page.appPageId,
-                    name: page.appPageTitle || `App Page ${page.appPageId}`
+                    name: page.appPageTitle || `App Page ${page.appPageId}`,
+                    parentId: page.appId,
+                    parentName: page.appTitle || `App ${page.appId}`
                   });
                 }
                 addCardToPage(page.appPageId, card);
               }
             });
           }
-          // Report builder pages
+          // Report builder pages. Carry the parent report's id/title in the same
+          // parentId/parentName slots App Studio and worksheet pages use, so the
+          // view can nest each report page under its report.
           if (Array.isArray(card.adminAllReportPages)) {
             card.adminAllReportPages.forEach((page) => {
               if (page && page.reportPageId) {
                 allReportPages.push({
                   id: page.reportPageId,
-                  name: page.reportPageTitle || `Report Page ${page.reportPageId}`
+                  name: page.reportPageTitle || `Report Page ${page.reportPageId}`,
+                  parentId: page.reportId,
+                  parentName: page.reportTitle || `Report ${page.reportId}`
                 });
                 addCardToPage(page.reportPageId, card);
               }
             });
           }
+        });
+
+        // Cards present in the response but absent from every page list are
+        // orphaned. Cards missing from the response entirely (failed fetch or
+        // deleted card) are deliberately not flagged, since they can't be
+        // confirmed or named.
+        const orphanedCards = [];
+        const orphanedIds = new Set();
+        allDetailCards.forEach((card) => {
+          const cardId = card.id || card.urn;
+          if (cardId == null || pagedCardIds.has(cardId) || orphanedIds.has(cardId)) return;
+          orphanedIds.add(cardId);
+          orphanedCards.push({
+            id: cardId,
+            name: card.title || card.name || `Card ${cardId}`
+          });
         });
 
         // Deduplicate pages by ID for each type (keep first occurrence's data)
@@ -525,28 +562,30 @@ export async function getPagesForCards(cardIds, tabId = null) {
             name,
             type: 'PAGE'
           })),
-          ...appPages.map(({ appId, appName, id, name }) => ({
-            appId,
-            appName,
+          ...appPages.map(({ id, name, parentId, parentName }) => ({
             id: String(id),
             name,
+            parentId,
+            parentName,
             type: 'DATA_APP_VIEW'
           })),
-          ...worksheetViews.map(({ appId, appName, id, name }) => ({
-            appId,
-            appName,
+          ...worksheetViews.map(({ id, name, parentId, parentName }) => ({
             id: String(id),
             name,
+            parentId,
+            parentName,
             type: 'WORKSHEET_VIEW'
           })),
-          ...reportPages.map(({ id, name }) => ({
+          ...reportPages.map(({ id, name, parentId, parentName }) => ({
             id: String(id),
             name,
+            parentId,
+            parentName,
             type: 'REPORT_BUILDER_VIEW'
           }))
         ];
 
-        return { cardsByPage, pages: pageObjects };
+        return { cardsByPage, orphanedCards, pages: pageObjects };
       },
       [cardIds],
       tabId

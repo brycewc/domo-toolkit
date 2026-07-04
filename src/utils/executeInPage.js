@@ -156,8 +156,17 @@ export async function executeInPage(func, args = [], tabId = null) {
         world: 'MAIN'
       });
 
-      if (result && result[0] && result[0].result !== undefined) {
-        return result[0].result;
+      // When the injected function throws, Chrome reports the thrown value in
+      // `error` and leaves `result` as null. Surface that error instead of
+      // returning the null, which would otherwise mask the real failure (e.g. a
+      // caller reading `.length` on it and crashing with a misleading message).
+      const injection = result?.[0];
+      if (injection?.error) {
+        throw new Error(injection.error.message || String(injection.error));
+      }
+
+      if (injection && injection.result !== undefined) {
+        return injection.result;
       }
 
       throw new Error('No result from script execution');
