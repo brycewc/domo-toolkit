@@ -1,4 +1,4 @@
-import archiver from 'archiver';
+import { ZipArchive } from 'archiver';
 import { createWriteStream, mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
@@ -29,7 +29,7 @@ function createZip(outFileName, files, transformFile) {
   return new Promise((resolve, reject) => {
     const outPath = join(OUT_DIR, outFileName);
     const output = createWriteStream(outPath);
-    const archive = archiver('zip', { zlib: { level: 9 } });
+    const archive = new ZipArchive({ zlib: { level: 9 } });
 
     output.on('close', () => {
       const sizeKB = (archive.pointer() / 1024).toFixed(1);
