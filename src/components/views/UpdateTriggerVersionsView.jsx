@@ -130,13 +130,11 @@ export function UpdateTriggerVersionsView({
           variant='secondary'
           onChange={(isSelected) => setSelectedIds(isSelected ? new Set(outdatedIds) : new Set())}
         >
-          <Checkbox.Control>
-            <Checkbox.Indicator />
-          </Checkbox.Control>
           <Checkbox.Content>
-            <Label>
-              Select all ({selectedCount} / {outdatedCount})
-            </Label>
+            <Checkbox.Control>
+              <Checkbox.Indicator />
+            </Checkbox.Control>
+            Select all ({selectedCount} / {outdatedCount})
           </Checkbox.Content>
         </Checkbox>
       </div>

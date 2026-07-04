@@ -1,5 +1,21 @@
 export const releases = [
   {
+    date: '2026-07-04',
+    githubUrl: 'https://github.com/brycewc/domo-toolkit/releases/tag/v1.5.1',
+    highlights: [
+      'Remap Columns: repair every downstream card, beast mode, dataflow, and dataset view that references a renamed or removed dataset column',
+      'Get Beast Modes: list the beast modes tied to a dataset, dataflow, card, page, app, or worksheet, showing where each one is used',
+      'Inspect DataFlow: open a searchable, exploded view of every transform in a dataflow, with SQL formatted and color-coded',
+      'Lineage graphs can now export their full upstream and downstream lineage as a CSV, Excel, or JSON file',
+      'Get Workspaces lists the workspaces a card, dataset, dataflow, dashboard, app, worksheet, or workflow has been added to',
+      "Update Trigger Versions repoints all of a workflow's alert triggers to a chosen version in one step"
+    ],
+    notify: 'fullPage',
+    summary:
+      'Feature release adding Remap Columns, Get Beast Modes, Inspect DataFlow, Get Workspaces, and lineage export, plus new support for Jupyter Workspaces, Accounts, Scheduled Reports, and Certifications.',
+    version: '1.5.1'
+  },
+  {
     date: '2026-06-05',
     githubUrl: 'https://github.com/brycewc/domo-toolkit/releases/tag/v1.4.0',
     highlights: [

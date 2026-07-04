@@ -315,13 +315,13 @@ export function UpdateDetailsView({ instance = null, liveContext = null, onBackT
             key={toggle.key}
             onChange={(v) => setToggles((prev) => ({ ...prev, [toggle.key]: v }))}
           >
-            <Switch.Control>
-              <Switch.Thumb />
-            </Switch.Control>
             <Switch.Content>
-              <Label>{toggle.label}</Label>
-              <Description>{toggle.description}</Description>
+              <Switch.Control>
+                <Switch.Thumb />
+              </Switch.Control>
+              {toggle.label}
             </Switch.Content>
+            <Description>{toggle.description}</Description>
           </Switch>
         ))}
         <Button fullWidth isDisabled={isSubmitting} isPending={isSubmitting} variant='primary' onPress={handleSubmit}>
@@ -371,7 +371,13 @@ function FieldRow({
             />
             {showSyncButton && (
               <Tooltip>
-                <Button isIconOnly isDisabled={isSyncDisabled} size='md' variant='tertiary' onPress={() => onChange(syncValue)}>
+                <Button
+                  isIconOnly
+                  isDisabled={isSyncDisabled}
+                  size='md'
+                  variant='tertiary'
+                  onPress={() => onChange(syncValue)}
+                >
                   <IconSync />
                 </Button>
                 <Tooltip.Content className='max-w-60'>

@@ -1081,11 +1081,11 @@ export function ActivityLogTable() {
                 size='sm'
                 onChange={(v) => domoInstance && updatePerInstance(domoInstance, 'preferActivityLogDataset', v)}
               >
-                <Switch.Control>
-                  <Switch.Thumb />
-                </Switch.Control>
                 <Switch.Content>
-                  <Label className='text-xs'>Always for this instance</Label>
+                  <Switch.Control>
+                    <Switch.Thumb />
+                  </Switch.Control>
+                  <span className='text-xs'>Always for this instance</span>
                 </Switch.Content>
               </Switch>
             </Alert.Content>

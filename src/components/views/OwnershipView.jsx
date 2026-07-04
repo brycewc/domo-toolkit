@@ -1,4 +1,4 @@
-import { Button, Card, Checkbox, Label, Spinner } from '@heroui/react';
+import { Button, Card, Checkbox, Spinner } from '@heroui/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { TransferOwnershipModal } from '@/components/modals/TransferOwnershipModal';
@@ -941,11 +941,11 @@ export function OwnershipView({
           else clearSelection();
         }}
       >
-        <Checkbox.Control>
-          <Checkbox.Indicator />
-        </Checkbox.Control>
         <Checkbox.Content>
-          <Label>Select all</Label>
+          <Checkbox.Control>
+            <Checkbox.Indicator />
+          </Checkbox.Control>
+          Select all
         </Checkbox.Content>
       </Checkbox>
     );

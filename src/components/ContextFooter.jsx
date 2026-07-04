@@ -469,7 +469,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
 
   const alertContent = (
     <Alert className='min-h-25 w-full p-2' status={currentContext?.isDomoPage || isLoading ? 'accent' : 'warning'}>
-      <Alert.Content className='flex min-w-0 flex-col items-start gap-1'>
+      <Alert.Content className='flex h-auto min-w-0 flex-col items-start gap-1 self-stretch'>
         {isLoading ? (
           <div className='skeleton--shimmer relative flex w-full flex-col gap-2 overflow-hidden'>
             <div className='flex w-full items-center justify-between'>
@@ -534,7 +534,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
                 <Tooltip.Content className='max-w-60'>Click to toggle context JSON view</Tooltip.Content>
               </Tooltip>
             </div>
-            <Alert.Description className='flex h-full w-full min-w-0 flex-col items-start justify-center text-left'>
+            <Alert.Description className='flex w-full min-w-0 flex-1 flex-col items-start justify-center text-left'>
               {currentContext?.isDomoPage ? (
                 !currentContext?.instance || !currentContext?.domoObject?.id ? (
                   <span className='w-full truncate text-left font-medium'>No object detected on this page</span>

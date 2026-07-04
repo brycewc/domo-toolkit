@@ -1,8 +1,9 @@
-import { Button, Link, Spinner, Tabs, Tooltip } from '@heroui/react';
+import { Button, Link, Spinner, Switch, Tabs, Tooltip } from '@heroui/react';
 import { IconBug } from '@tabler/icons-react';
 import { lazy, Suspense, useEffect, useState } from 'react';
 
 import { FaviconSettings } from '@/components/options/FaviconSettings';
+import { PerInstanceSettings } from '@/components/options/PerInstanceSettings';
 import { ReleaseNotes } from '@/components/options/ReleaseNotes';
 import { Settings } from '@/components/options/Settings';
 import { Welcome } from '@/components/options/Welcome';
@@ -26,8 +27,9 @@ const FULL_SCREEN_PAGES = new Map([
 ]);
 
 const TAB_TITLES = {
-  favicon: 'Favicon Preferences',
-  settings: 'Settings'
+  'favicon': 'Favicon Preferences',
+  'per-instance': 'Per-Instance Settings',
+  'settings': 'Settings'
 };
 
 const version = chrome.runtime.getManifest().version;
@@ -35,9 +37,15 @@ const version = chrome.runtime.getManifest().version;
 export default function App() {
   useTheme();
   const [currentRoute, setCurrentRoute] = useState(getHashRoute);
+  const [developerMode, setDeveloperMode] = useState(false);
 
   useEffect(() => {
     const handleHashChange = () => setCurrentRoute(getHashRoute());
+    if (import.meta.env.DEV) {
+      chrome.storage.local.get(['developerMode'], (result) => {
+        setDeveloperMode(result.developerMode ?? false);
+      });
+    }
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
@@ -99,6 +107,11 @@ export default function App() {
     window.location.hash = tabId;
   };
 
+  const handleDeveloperModeChange = (isSelected) => {
+    setDeveloperMode(isSelected);
+    chrome.storage.local.set({ developerMode: isSelected });
+  };
+
   return (
     <div className='flex h-screen w-full justify-center'>
       {VersionLink}
@@ -146,6 +159,10 @@ export default function App() {
               Settings
               <Tabs.Indicator />
             </Tabs.Tab>
+            <Tabs.Tab id='per-instance'>
+              Per-Instance Settings
+              <Tabs.Indicator />
+            </Tabs.Tab>
           </Tabs.List>
         </Tabs.ListContainer>
         <Tabs.Panel className='flex h-full max-w-3xl flex-col overflow-hidden px-4 pt-16' id='favicon'>
@@ -164,8 +181,31 @@ export default function App() {
           </div>
           <Settings />
         </Tabs.Panel>
+        <Tabs.Panel className='flex h-full max-w-3xl flex-col px-4 pt-16' id='per-instance'>
+          <div className='w-full justify-start'>
+            <h3 className='mb-2 text-lg font-semibold'>Per-Instance Settings</h3>
+            <p className='text-sm text-muted'>
+              Stored locally on this device and populated automatically as you use per-instance features.
+            </p>
+          </div>
+          <PerInstanceSettings />
+        </Tabs.Panel>
       </Tabs>
       <ToastProvider className='right-2 bottom-2' placement='bottom' />
+      <div className='fixed right-4 bottom-4 z-10'>
+        {import.meta.env.DEV && (
+          <div>
+            <Switch isSelected={developerMode} onChange={handleDeveloperModeChange}>
+              <Switch.Content>
+                Dev Mode
+                <Switch.Control>
+                  <Switch.Thumb />
+                </Switch.Control>
+              </Switch.Content>
+            </Switch>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

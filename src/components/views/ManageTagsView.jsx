@@ -408,11 +408,11 @@ export function ManageTagsView({ currentContext = null, instance = null, onBackT
         )
       }
     >
-      <Checkbox.Control>
-        <Checkbox.Indicator />
-      </Checkbox.Control>
       <Checkbox.Content>
-        <Label>Select all</Label>
+        <Checkbox.Control>
+          <Checkbox.Indicator />
+        </Checkbox.Control>
+        Select all
       </Checkbox.Content>
     </Checkbox>
   );

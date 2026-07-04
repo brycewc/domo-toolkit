@@ -22,6 +22,7 @@ import { toast } from '@heroui/react';
 import { IconArrowsShuffle } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 
+import { DisabledTooltip } from '@/components/DisabledTooltip';
 import IconBottomNavFill from '@icons/bottom-nav-fill.svg?react';
 import IconCheck from '@icons/check.svg?react';
 import IconChevronDown from '@icons/chevron-down.svg?react';
@@ -85,6 +86,22 @@ export function FaviconSettings() {
 
   // Check if rules have changed from original
   const hasChanges = JSON.stringify(rules) !== JSON.stringify(originalRules);
+
+  // Guard against closing the tab with unsaved rule edits. Browsers ignore any
+  // custom message and show their own generic "unsaved changes" confirmation, so
+  // calling preventDefault (plus setting returnValue for older engines) is all
+  // that's needed to trigger the native Leave/Cancel prompt.
+  useEffect(() => {
+    if (!hasChanges) {
+      return;
+    }
+    const handleBeforeUnload = (e) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasChanges]);
 
   const showStatus = (title, description, status = 'accent', timeout = 3000) => {
     toast(title, { description, timeout: timeout || 0, variant: status });
@@ -160,7 +177,7 @@ export function FaviconSettings() {
   return (
     <div className='flex min-h-0 w-full flex-1 flex-col pt-4'>
       <Form className='flex min-h-0 w-full flex-1 flex-col gap-2' onSubmit={onSave}>
-        <div className='flex shrink-0 flex-row gap-2'>
+        <div className='flex shrink-0 flex-row justify-between'>
           <Button isDisabled={!hasChanges} type='submit'>
             <IconSave />
             Save Settings
@@ -379,13 +396,19 @@ export function FaviconSettings() {
                       </ColorPicker>
                     </div>
 
-                    {rules.length > 1 && (
-                      <div className='flex items-center'>
+                    <div className='flex items-center'>
+                      {rules.length > 1 ? (
                         <Button isIconOnly variant='tertiary' onPress={() => removeRow(rule.id)}>
                           <IconTrash className='text-danger' />
                         </Button>
-                      </div>
-                    )}
+                      ) : (
+                        <DisabledTooltip content='At least one rule is required'>
+                          <Button isIconOnly variant='tertiary'>
+                            <IconTrash className='text-danger' />
+                          </Button>
+                        </DisabledTooltip>
+                      )}
+                    </div>
                   </Card.Content>
                 </Card>
               ))

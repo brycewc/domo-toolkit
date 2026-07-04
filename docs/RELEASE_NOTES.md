@@ -1,4 +1,4 @@
-# Domo Toolkit v1.5.0 Release Notes
+# Domo Toolkit v1.5.1 Release Notes
 
 ## New Features and Improvements
 
@@ -114,6 +114,7 @@
 - Generate Definition from JSDoc now shows each function's JSDoc default-value edits under that function in the changes list, tagged with a JSDoc marker.
 - Copying a workflow version now copies its parent workflow's ID by default, with the version number moved to the copy button's dropdown.
 - Alerts throughout the extension now use tighter padding.
+- Per-instance settings now have their own tab on the options page instead of sitting at the bottom of the Settings tab.
 
 ### Get Card Pages
 
@@ -131,6 +132,20 @@
 
 - The theme dropdown in settings now shows an icon next to each option.
 - The favicon effect dropdown now shows an icon next to each option.
+
+### Favicon Rules
+
+- The delete button on the last remaining favicon rule now stays visible but disabled with an explanatory tooltip, instead of disappearing.
+- The Add Rule button now floats to the right of the toolbar instead of sitting next to the Save button.
+
+### Settings
+
+- The Save Settings button now sits at the top of the Settings tab instead of below the list of settings.
+- Added a Restore Defaults button to the Settings tab that resets every setting to its default value.
+
+### Options Page
+
+- The options page now asks you to confirm before leaving with unsaved favicon or settings changes.
 
 ### Side Panel
 
@@ -177,6 +192,7 @@
 
 ### Other Fixes
 
+- The popup now vertically centers its current-context description text, matching the side panel.
 - Refreshing a Domo page now retries fetching the object's name and details when an earlier attempt came up empty.
 - The browser tab title now updates to the current page when you move between pages of an App Studio app.
 - Opening a specific Code Engine package, workflow, or workspace now shows the object's name in the browser tab.

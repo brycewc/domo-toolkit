@@ -18,7 +18,8 @@ const STORAGE_KEY = 'perInstance';
  *   settings: Object,
  *   isLoading: boolean,
  *   update: (instance: string, key: string, value: any) => Promise<void>,
- *   clear: (instance: string) => Promise<void>
+ *   clear: (instance: string) => Promise<void>,
+ *   clearAll: () => Promise<void>
  * }}
  */
 export function usePerInstanceSettings() {
@@ -71,5 +72,9 @@ export function usePerInstanceSettings() {
     await chrome.storage.local.set({ [STORAGE_KEY]: next });
   }, []);
 
-  return { clear, isLoading, settings, update };
+  const clearAll = useCallback(async () => {
+    await chrome.storage.local.set({ [STORAGE_KEY]: {} });
+  }, []);
+
+  return { clear, clearAll, isLoading, settings, update };
 }

@@ -221,46 +221,46 @@ export function TransferOwnershipModal({
                 </div>
 
                 <Switch isSelected={emailNewOwner} onChange={setEmailNewOwner}>
-                  <Switch.Control>
-                    <Switch.Thumb />
-                  </Switch.Control>
                   <Switch.Content>
-                    <Label>Email new owner with summary</Label>
-                    <Description>
-                      {!selectedUserId
-                        ? 'Sends an Excel attachment to the new owner'
-                        : targetUser?.email
-                          ? `Sends an Excel attachment to ${targetUser.email}`
-                          : 'Email unavailable for selected user'}
-                    </Description>
+                    <Switch.Control>
+                      <Switch.Thumb />
+                    </Switch.Control>
+                    Email new owner with summary
                   </Switch.Content>
+                  <Description>
+                    {!selectedUserId
+                      ? 'Sends an Excel attachment to the new owner'
+                      : targetUser?.email
+                        ? `Sends an Excel attachment to ${targetUser.email}`
+                        : 'Email unavailable for selected user'}
+                  </Description>
                 </Switch>
 
                 <Switch isSelected={emailCurrentUser} onChange={setEmailCurrentUser}>
-                  <Switch.Control>
-                    <Switch.Thumb />
-                  </Switch.Control>
                   <Switch.Content>
-                    <Label>Email me with summary</Label>
-                    <Description>
-                      {currentUser?.email
-                        ? `Sends an Excel attachment to ${currentUser.email}`
-                        : 'Sends an Excel attachment to you'}
-                    </Description>
+                    <Switch.Control>
+                      <Switch.Thumb />
+                    </Switch.Control>
+                    Email me with summary
                   </Switch.Content>
+                  <Description>
+                    {currentUser?.email
+                      ? `Sends an Excel attachment to ${currentUser.email}`
+                      : 'Sends an Excel attachment to you'}
+                  </Description>
                 </Switch>
 
                 {canDeleteUsers && (
                   <Switch isSelected={deleteAfterTransfer} onChange={setDeleteAfterTransfer}>
                     {({ isSelected }) => (
                       <>
-                        <Switch.Control className={isSelected ? 'bg-danger' : ''}>
-                          <Switch.Thumb />
-                        </Switch.Control>
                         <Switch.Content>
-                          <Label>Delete user after transfer</Label>
-                          <Description>Only if all transfers succeed</Description>
+                          <Switch.Control className={isSelected ? 'bg-danger' : ''}>
+                            <Switch.Thumb />
+                          </Switch.Control>
+                          Delete user after transfer
                         </Switch.Content>
+                        <Description>Only if all transfers succeed</Description>
                       </>
                     )}
                   </Switch>

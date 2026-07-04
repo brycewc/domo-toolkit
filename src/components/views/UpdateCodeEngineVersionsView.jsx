@@ -924,13 +924,13 @@ function ActionReconciliation({
               size='sm'
               onChange={(selected) => onToggleOutput(action.elementId, name, selected)}
             >
-              <Switch.Control>
-                <Switch.Thumb />
-              </Switch.Control>
               <Switch.Content>
-                <Label className='text-xs'>
+                <Switch.Control>
+                  <Switch.Thumb />
+                </Switch.Control>
+                <span className='text-xs'>
                   Add output <span className='font-mono'>{name}</span> and map a new variable
-                </Label>
+                </span>
               </Switch.Content>
             </Switch>
           ))}
@@ -974,14 +974,14 @@ function ActionReconciliation({
                   size='sm'
                   onChange={(selected) => onToggleVariableType(action.elementId, impact.variableId, selected)}
                 >
-                  <Switch.Control>
-                    <Switch.Thumb />
-                  </Switch.Control>
                   <Switch.Content>
-                    <Label className='text-xs'>
+                    <Switch.Control>
+                      <Switch.Thumb />
+                    </Switch.Control>
+                    <span className='text-xs'>
                       Update {impact.currentType} variable{' '}
                       <span className='font-mono text-accent'>{impact.variableName}</span> to {impact.newType}
-                    </Label>
+                    </span>
                   </Switch.Content>
                 </Switch>
               </Alert.Content>
@@ -1014,13 +1014,13 @@ function ActionReconciliation({
                   size='sm'
                   onChange={(selected) => onToggleVariableSchema(action.elementId, impact.variableId, selected)}
                 >
-                  <Switch.Control>
-                    <Switch.Thumb />
-                  </Switch.Control>
                   <Switch.Content>
-                    <Label className='text-xs'>
+                    <Switch.Control>
+                      <Switch.Thumb />
+                    </Switch.Control>
+                    <span className='text-xs'>
                       Update <span className='font-mono text-accent'>{impact.variableName}</span> variable properties
-                    </Label>
+                    </span>
                   </Switch.Content>
                 </Switch>
               </Alert.Content>

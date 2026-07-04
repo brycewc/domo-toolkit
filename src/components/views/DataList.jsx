@@ -1342,9 +1342,11 @@ function DataListItemImpl({
                     value={String(item.id)}
                     variant='secondary'
                   >
-                    <Checkbox.Control>
-                      <Checkbox.Indicator />
-                    </Checkbox.Control>
+                    <Checkbox.Content>
+                      <Checkbox.Control>
+                        <Checkbox.Indicator />
+                      </Checkbox.Control>
+                    </Checkbox.Content>
                   </Checkbox>
                 </Tooltip.Trigger>
                 <Tooltip.Content className='max-w-60'>{itemLock.tooltip}</Tooltip.Content>
@@ -1356,9 +1358,11 @@ function DataListItemImpl({
                 value={String(item.id)}
                 variant='secondary'
               >
-                <Checkbox.Control>
-                  <Checkbox.Indicator />
-                </Checkbox.Control>
+                <Checkbox.Content>
+                  <Checkbox.Control>
+                    <Checkbox.Indicator />
+                  </Checkbox.Control>
+                </Checkbox.Content>
               </Checkbox>
             )
           ) : (
@@ -1469,9 +1473,11 @@ function DataListItemImpl({
                     value={String(item.id)}
                     variant='secondary'
                   >
-                    <Checkbox.Control>
-                      <Checkbox.Indicator />
-                    </Checkbox.Control>
+                    <Checkbox.Content>
+                      <Checkbox.Control>
+                        <Checkbox.Indicator />
+                      </Checkbox.Control>
+                    </Checkbox.Content>
                   </Checkbox>
                 </Tooltip.Trigger>
                 <Tooltip.Content className='max-w-60'>{itemLock.tooltip}</Tooltip.Content>
@@ -1484,9 +1490,11 @@ function DataListItemImpl({
                 value={String(item.id)}
                 variant='secondary'
               >
-                <Checkbox.Control>
-                  <Checkbox.Indicator />
-                </Checkbox.Control>
+                <Checkbox.Content>
+                  <Checkbox.Control>
+                    <Checkbox.Indicator />
+                  </Checkbox.Control>
+                </Checkbox.Content>
               </Checkbox>
             )}
             {item.url ? (
