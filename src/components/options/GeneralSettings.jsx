@@ -34,7 +34,7 @@ const DEFAULT_SETTINGS = {
 
 const TRACKED_KEYS = Object.keys(DEFAULT_SETTINGS);
 
-export function Settings() {
+export function GeneralSettings() {
   const [isLoading, setIsLoading] = useState(true);
 
   // Store all settings in a single state object for extensibility

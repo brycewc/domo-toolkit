@@ -59,7 +59,7 @@ export function Welcome() {
           Favicons set to the instance logo{' '}
           <Link
             className='text-sm font-normal no-underline decoration-accent hover:text-accent hover:underline'
-            href='#favicon'
+            href='#favicon-preferences'
           >
             (customizable
             <Link.Icon className='size-3 opacity-100!'>
@@ -83,7 +83,7 @@ export function Welcome() {
           431 "request headers too large" errors resolve themselves and your current session stays logged in{' '}
           <Link
             className='text-sm font-normal no-underline decoration-accent hover:text-accent hover:underline'
-            href='#settings'
+            href='#general-settings'
           >
             (adjustable
             <Link.Icon className='size-3 opacity-100!'>

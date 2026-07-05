@@ -190,7 +190,7 @@ Scale is tiny (~31 actions, ~14 active types), no virtualization needed.
 ### Part 7, cross-links (discoverability)
 
 - `src/components/options/Welcome.jsx`: add an in-app "Browse all actions" entry that navigates to
-  `#actions` (plain `Link href='#actions'`, no `target`, like the existing `#favicon`/`#settings`
+  `#actions` (plain `Link href='#actions'`, no `target`, like the existing `#favicon-preferences`/`#general-settings`
   links), and extend the Quick Start step about observing action buttons to mention the catalog.
 - Popup/sidepanel empty state: in `src/components/ActionButtons.jsx`, when
   `availableActions.size === 0`, surface a subtle "No actions for this object. Browse the full

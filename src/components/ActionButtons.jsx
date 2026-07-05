@@ -113,12 +113,17 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                       });
                       const settingsTab = tabs.find((t) => {
                         const hash = new URL(t.url).hash.slice(1);
-                        return !hash || hash === 'settings' || hash === 'favicon';
+                        return (
+                          !hash ||
+                          hash === 'general-settings' ||
+                          hash === 'favicon-preferences' ||
+                          hash === 'per-instance-settings'
+                        );
                       });
                       if (settingsTab) {
                         await chrome.tabs.update(settingsTab.id, {
                           active: true,
-                          url: `${optionsUrl}#settings`
+                          url: `${optionsUrl}#general-settings`
                         });
                       } else {
                         const [activeTab] = await chrome.tabs.query({
@@ -128,7 +133,7 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                         chrome.tabs.create({
                           index: activeTab ? activeTab.index + 1 : undefined,
                           openerTabId: activeTab?.id,
-                          url: `${optionsUrl}#settings`,
+                          url: `${optionsUrl}#general-settings`,
                           windowId: currentWindow.id
                         });
                       }

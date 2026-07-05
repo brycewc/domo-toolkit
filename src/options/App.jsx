@@ -3,9 +3,9 @@ import { IconBug } from '@tabler/icons-react';
 import { lazy, Suspense, useEffect, useState } from 'react';
 
 import { FaviconSettings } from '@/components/options/FaviconSettings';
+import { GeneralSettings } from '@/components/options/GeneralSettings';
 import { PerInstanceSettings } from '@/components/options/PerInstanceSettings';
 import { ReleaseNotes } from '@/components/options/ReleaseNotes';
-import { Settings } from '@/components/options/Settings';
 import { Welcome } from '@/components/options/Welcome';
 import { ToastProvider } from '@/components/ToastProvider';
 import { useTheme } from '@/hooks/useTheme';
@@ -27,9 +27,9 @@ const FULL_SCREEN_PAGES = new Map([
 ]);
 
 const TAB_TITLES = {
-  'favicon': 'Favicon Preferences',
-  'per-instance': 'Per-Instance Settings',
-  'settings': 'Settings'
+  'favicon-preferences': 'Favicon Preferences',
+  'general-settings': 'General Settings',
+  'per-instance-settings': 'Per-Instance Settings'
 };
 
 const version = chrome.runtime.getManifest().version;
@@ -151,21 +151,21 @@ export default function App() {
       >
         <Tabs.ListContainer className='fixed top-0 z-10 flex h-fit w-full max-w-3xl flex-row items-end justify-center bg-background pt-4'>
           <Tabs.List>
-            <Tabs.Tab id='favicon'>
+            <Tabs.Tab id='favicon-preferences'>
               Favicon Preferences
               <Tabs.Indicator />
             </Tabs.Tab>
-            <Tabs.Tab id='settings'>
-              Settings
+            <Tabs.Tab id='per-instance-settings'>
+              Per-Instance Settings
               <Tabs.Indicator />
             </Tabs.Tab>
-            <Tabs.Tab id='per-instance'>
-              Per-Instance Settings
+            <Tabs.Tab id='general-settings'>
+              General Settings
               <Tabs.Indicator />
             </Tabs.Tab>
           </Tabs.List>
         </Tabs.ListContainer>
-        <Tabs.Panel className='flex h-full max-w-3xl flex-col overflow-hidden px-4 pt-16' id='favicon'>
+        <Tabs.Panel className='flex h-full max-w-3xl flex-col overflow-hidden px-4 pt-16' id='favicon-preferences'>
           <div className='w-full shrink-0 justify-start'>
             <h3 className='mb-2 text-lg font-semibold'>Favicon Preferences</h3>
             <p className='text-sm text-muted'>
@@ -174,14 +174,7 @@ export default function App() {
           </div>
           <FaviconSettings />
         </Tabs.Panel>
-        <Tabs.Panel className='flex h-full max-w-3xl flex-col px-4 pt-16' id='settings'>
-          <div className='w-full justify-start'>
-            <h3 className='mb-2 text-lg font-semibold'>Settings</h3>
-            <p className='text-sm text-muted'>Configure general extension settings.</p>
-          </div>
-          <Settings />
-        </Tabs.Panel>
-        <Tabs.Panel className='flex h-full max-w-3xl flex-col px-4 pt-16' id='per-instance'>
+        <Tabs.Panel className='flex h-full max-w-3xl flex-col px-4 pt-16' id='per-instance-settings'>
           <div className='w-full justify-start'>
             <h3 className='mb-2 text-lg font-semibold'>Per-Instance Settings</h3>
             <p className='text-sm text-muted'>
@@ -189,6 +182,13 @@ export default function App() {
             </p>
           </div>
           <PerInstanceSettings />
+        </Tabs.Panel>
+        <Tabs.Panel className='flex h-full max-w-3xl flex-col px-4 pt-16' id='general-settings'>
+          <div className='w-full justify-start'>
+            <h3 className='mb-2 text-lg font-semibold'>Settings</h3>
+            <p className='text-sm text-muted'>Configure general extension settings.</p>
+          </div>
+          <GeneralSettings />
         </Tabs.Panel>
       </Tabs>
       <ToastProvider className='right-2 bottom-2' placement='bottom' />
