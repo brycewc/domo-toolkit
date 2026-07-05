@@ -191,12 +191,16 @@ export function GetPagesView({
           .catch(() => {});
       }
 
-      if ((!childPages || !childPages.length) && !orphanedCards?.length) {
+      // A single card query returns itself as the sole "orphaned card" when it lives on
+      // no pages, which is not worth a view, so surface a toast instead of the Orphaned
+      // Cards group. Other types keep orphaned cards, which are a meaningful result.
+      const noPages = !childPages || !childPages.length;
+      if (noPages && (!orphanedCards?.length || objectType === 'CARD')) {
         if (!mountedRef.current) return;
         const message =
           sidepanelType === 'getCardPages'
             ? objectType === 'CARD'
-              ? `No pages found for card ${objectId}`
+              ? 'This card does not appear on any app studio apps, dashboards, report builder pages, or worksheets'
               : objectType === 'DATA_SOURCE'
                 ? `No pages found for cards using dataset **${objectName}**`
                 : `Cards on ${objectName} are not used on any other pages`
