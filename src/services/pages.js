@@ -628,7 +628,7 @@ export async function sharePages({ pageIds, tabId, userId }) {
 
   try {
     // Execute fetch in page context to use authenticated session
-    executeInPage(
+    await executeInPage(
       async (pageIds, userId) => {
         // Build request body
         const body = {
@@ -641,7 +641,7 @@ export async function sharePages({ pageIds, tabId, userId }) {
           resources: pageIds.map((id) => ({ id, type: 'page' }))
         };
 
-        // Make API call to fetch pages with relative URL
+        // Grant access to the pages
         const response = await fetch('/api/content/v1/share?sendEmail=false', {
           body: JSON.stringify(body),
           headers: {
@@ -654,6 +654,25 @@ export async function sharePages({ pageIds, tabId, userId }) {
         if (!response.ok) {
           throw new Error(`Failed to share pages (HTTP ${response.status})`);
         }
+
+        // Sharing only grants access; the page stays hidden from the recipient's
+        // navigation until it is explicitly marked visible.
+        await Promise.all(
+          pageIds.map(async (id) => {
+            const visibilityResponse = await fetch(`/api/content/v1/pages/${id}`, {
+              body: JSON.stringify({ pageVisible: true }),
+              headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+              },
+              method: 'PUT'
+            });
+
+            if (!visibilityResponse.ok) {
+              throw new Error(`Failed to make page ${id} visible (HTTP ${visibilityResponse.status})`);
+            }
+          })
+        );
       },
       [validPageIds, userId],
       tabId
