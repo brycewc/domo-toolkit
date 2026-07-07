@@ -490,6 +490,68 @@ export async function getDependentDatasets({ datasetId, tabId }) {
 }
 
 /**
+ * Find the dataset views (views / data fusions) built directly on top of the
+ * given datasets. Domo rejects deleting a dataset that a view is built on, so a
+ * dataflow's output datasets can't be deleted while any of these exist. Checks
+ * every dataset in one page round-trip (like getDownstreamAlertsForDatasets),
+ * reading only the DIRECT downstream DATA_SOURCE children of each, since a
+ * view-of-a-view only blocks deleting the intermediate view, not the output.
+ * Deduped across inputs. A dataset whose lineage lookup fails is returned in
+ * `unverifiedOutputIds` rather than dropped, so callers can block instead of
+ * allowing a delete that would fail at runtime.
+ * @param {string[]} datasetIds - The datasource IDs to check
+ * @param {number|null} [tabId] - Optional Chrome tab ID
+ * @returns {Promise<{unverifiedOutputIds: string[], views: Array<{id: string, name: string}>}>}
+ */
+export async function getDownstreamViewsForDatasets(datasetIds, tabId = null) {
+  return executeInPage(
+    async (datasetIds) => {
+      const seen = new Set();
+      const unverifiedOutputIds = [];
+
+      for (const datasetId of datasetIds) {
+        try {
+          const url = `/api/data/v1/lineage/DATA_SOURCE/${datasetId}?maxDepth=1&requestEntities=DATA_SOURCE&traverseUp=false`;
+          const response = await fetch(url, { credentials: 'include' });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const lineage = await response.json();
+          const children = lineage[`DATA_SOURCE${datasetId}`]?.children || [];
+          for (const child of children) {
+            if (!child || child.type !== 'DATA_SOURCE') continue;
+            const idStr = String(child.id);
+            if (idStr === String(datasetId)) continue;
+            seen.add(idStr);
+          }
+        } catch {
+          unverifiedOutputIds.push(String(datasetId));
+        }
+      }
+
+      const viewIds = [...seen];
+      let views = [];
+      if (viewIds.length > 0) {
+        const bulkResponse = await fetch('/api/data/v3/datasources/bulk?includePrivate=true&part=core', {
+          body: JSON.stringify(viewIds),
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        });
+        if (bulkResponse.ok) {
+          const bulk = await bulkResponse.json();
+          views = (bulk.dataSources || []).map((ds) => ({ id: ds.id, name: ds.name || `DataSet ${ds.id}` }));
+        } else {
+          views = viewIds.map((id) => ({ id, name: `DataSet ${id}` }));
+        }
+      }
+
+      return { unverifiedOutputIds, views };
+    },
+    [datasetIds],
+    tabId
+  );
+}
+
+/**
  * Get all datasets owned by a user.
  * @param {number} userId - The Domo user ID
  * @param {number|null} tabId - Optional Chrome tab ID

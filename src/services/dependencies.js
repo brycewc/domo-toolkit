@@ -2,7 +2,7 @@ import { getDownstreamAlertsForDatasets } from './alerts';
 import { getTemplateApprovalCount } from './approvals';
 import { getCardsForObject } from './cards';
 import { getAppContentSummary } from './customApps';
-import { getDatasetDependentCount, searchDatasets } from './datasets';
+import { getDatasetDependentCount, getDownstreamViewsForDatasets, searchDatasets } from './datasets';
 import { getChildPages } from './pages';
 
 /**
@@ -104,18 +104,21 @@ const FETCHERS = {
     const outputs = metadata?.details?.outputs || [];
     const outputIds = outputs.map((o) => o.dataSourceId).filter(Boolean);
     // Cards and alerts both hang off the output datasets and are both removed
-    // when those datasets are deleted, so fetch them together.
-    const [cards, alerts] = await Promise.all([
+    // when those datasets are deleted, so fetch them together. Downstream views
+    // built on the outputs are fetched alongside: Domo blocks deleting a dataset
+    // a view sits on, so they must block this delete rather than cascade.
+    const [cards, alerts, downstream] = await Promise.all([
       getCardsForObject({
         metadata,
         objectId: id,
         objectType: 'DATAFLOW_TYPE',
         tabId
       }),
-      getDownstreamAlertsForDatasets(outputIds, tabId)
+      getDownstreamAlertsForDatasets(outputIds, tabId),
+      getDownstreamViewsForDatasets(outputIds, tabId)
     ]);
     const origin = `https://${instance}.domo.com`;
-    return [
+    const groups = [
       {
         blocking: false,
         deleted: true,
@@ -150,6 +153,49 @@ const FETCHERS = {
         label: 'Alerts'
       }
     ];
+
+    // Downstream views built on the outputs block the delete: Domo rejects
+    // deleting a dataset a view sits on, so the whole dataflow delete would fail
+    // partway. Outputs whose lineage couldn't be checked block too, so an
+    // unverified lookup never lets through a delete that then fails at runtime.
+    if (downstream.views.length > 0 || downstream.unverifiedOutputIds.length > 0) {
+      const viewItems = downstream.views.map((v) => ({
+        id: v.id,
+        label: v.name || `DataSet ${v.id}`,
+        typeId: 'DATA_SOURCE',
+        url: `${origin}/datasources/${v.id}/details/overview`
+      }));
+      const unverifiedItems = downstream.unverifiedOutputIds.map((oid) => {
+        const output = outputs.find((o) => String(o.dataSourceId) === oid);
+        return {
+          id: oid,
+          label: `${output?.dataSourceName || oid} (downstream views could not be verified)`,
+          typeId: 'DATA_SOURCE',
+          url: `${origin}/datasources/${oid}/details/overview`
+        };
+      });
+      const items = [...viewItems, ...unverifiedItems];
+      const reasonParts = [];
+      if (viewItems.length > 0) {
+        reasonParts.push(
+          `${viewItems.length} dataset view${viewItems.length !== 1 ? 's' : ''} ${viewItems.length === 1 ? 'is' : 'are'} built on this dataflow's output datasets`
+        );
+      }
+      if (unverifiedItems.length > 0) {
+        reasonParts.push(
+          `${unverifiedItems.length} output dataset${unverifiedItems.length !== 1 ? 's' : ''} could not be checked for downstream views`
+        );
+      }
+      groups.push({
+        blocking: true,
+        blockingReason: `${reasonParts.join(' and ')}. Domo blocks deleting a dataset that a view is built on, so delete or repoint ${items.length === 1 ? 'it' : 'them'} first.`,
+        deleted: false,
+        items,
+        label: 'Downstream DataSet Views'
+      });
+    }
+
+    return groups;
   },
 
   PAGE: async ({ id, instance }, tabId) => {

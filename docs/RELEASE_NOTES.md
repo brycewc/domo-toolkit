@@ -4,6 +4,7 @@
 
 - Remap Columns can now repair a view that a source dataset broke by renaming or removing a column it reads, either by pointing the view at a valid column or dropping that column from the view.
 - Deleting a dataflow now also lists the alerts on its output datasets that will be deleted with it.
+- Deleting a dataflow is now blocked, with the offending views listed, when its output datasets feed downstream dataset views, instead of failing partway through.
 
 ## UI Improvements
 
