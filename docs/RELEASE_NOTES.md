@@ -19,7 +19,7 @@
 ## Bug Fixes
 
 - Sharing a page now makes it appear in your navigation instead of only granting access by direct link.
-- Get Card Pages on a card that isn't on any page now tells you so instead of listing the card by itself under Orphaned Cards.
+- Get Card Pages now tells you when none of an object's cards appear on any page, instead of listing them under a lone Orphaned Cards category.
 - Get View Inputs now lists the source datasets of union views (and other views that nest their inputs) instead of finding none.
 - Sharing objects with yourself from a list now closes the row's actions menu and shows a progress toast immediately, instead of appearing to do nothing until every share finished.
 - Migrate Content: mapping a column onto one of the target dataset's Beast Modes now saves the affected cards successfully instead of erroring out.

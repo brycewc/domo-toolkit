@@ -191,11 +191,13 @@ export function GetPagesView({
           .catch(() => {});
       }
 
-      // A single card query returns itself as the sole "orphaned card" when it lives on
-      // no pages, which is not worth a view, so surface a toast instead of the Orphaned
-      // Cards group. Other types keep orphaned cards, which are a meaningful result.
+      // Orphaned Cards is only meaningful next to real pages, where it contrasts the
+      // cards that live somewhere with the ones that don't. When no pages turn up at
+      // all, the whole answer is "these cards live nowhere," which is a toast, not a
+      // view showing a lone Orphaned Cards group. This holds for every object type,
+      // including a single card (which would list only itself as the orphan).
       const noPages = !childPages || !childPages.length;
-      if (noPages && (!orphanedCards?.length || objectType === 'CARD')) {
+      if (noPages) {
         if (!mountedRef.current) return;
         const message =
           sidepanelType === 'getCardPages'
@@ -325,7 +327,9 @@ export function GetPagesView({
         parentName: page.parentName || null
       }));
 
-    if (childPages.length === 0 && !result.orphanedCards?.length) {
+    // Only real pages make this view worth showing; a lone Orphaned Cards group means
+    // the cards live nowhere else, which is a toast rather than a view (see loadPagesData).
+    if (childPages.length === 0) {
       onStatusUpdate?.('No Pages Found', `Cards on this ${parentLabel} are not used on any other pages.`, 'warning');
       onBackToDefault?.();
       return;
