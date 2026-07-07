@@ -9,6 +9,7 @@
 
 ## UI Improvements
 
+- Viewing a Code Engine action inside a workflow now lets you copy the workflow's ID and version from the Copy button's hold-for-more-options menu.
 - Hover tooltips throughout the extension now appear promptly instead of after a long pause.
 - The dropdown for picking a column or Beast Mode when mapping columns is now wider, so long names are easier to read.
 - Remap Columns now lists the replacement columns alphabetically, matching Migrate Content.
