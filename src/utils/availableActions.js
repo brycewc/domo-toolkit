@@ -69,6 +69,9 @@ export function getAvailableActions(currentContext) {
     actions.add('dataRepair');
     actions.add('migrateDownstreamContent');
     actions.add('remapColumns');
+    if (metadata?.isOwner || userRights.includes('content.admin')) {
+      actions.add('deleteUnusedBeastModes');
+    }
     if (details?.streamId && metadata?.parent?.details?.currentExecutionState === 'ACTIVE') {
       actions.add('cancelStreamExecution');
     }
@@ -167,6 +170,14 @@ export function getAvailableActions(currentContext) {
     actions.add('duplicate');
     if (userRights.includes('user.edit')) {
       actions.add('updateDetails');
+    }
+    // A user's own unused Beast Modes are always deletable; deleting another
+    // user's requires content admin.
+    if (
+      userRights.includes('content.admin') ||
+      String(currentContext?.user?.id) === String(currentContext?.domoObject?.id)
+    ) {
+      actions.add('deleteUnusedBeastModes');
     }
     // Sidepanel routing key used by both GetOwnedObjects and TransferOwnership
     // — added here so DataList's reload affordance can verify the current

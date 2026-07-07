@@ -563,7 +563,11 @@ export const ObjectTypeRegistry = {
     },
     copyConfigs: [
       { label: 'Package ID', primary: true, source: 'parentId' },
-      { label: 'Version Number', source: 'id' }
+      { label: 'Version Number', source: 'id' },
+      // Shown only when this CE version is viewed from inside a workflow (the
+      // workflow back-references are absent on the standalone /codeengine page).
+      { label: 'Workflow ID', source: 'metadata.context.workflowModelId' },
+      { label: 'Workflow Version', source: 'metadata.context.workflowVersionNumber' }
     ],
     icon: { component: 'Code' },
     idPattern: /^[0-9]+\.[0-9]+\.[0-9]+$/,

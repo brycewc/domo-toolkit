@@ -1,6 +1,37 @@
 import { executeInPage } from '@/utils/executeInPage';
 
 /**
+ * Bulk-delete function templates (Beast Modes and/or Variables) in a single
+ * call. Every Beast Mode and Variable is a function template, so the same bulk
+ * endpoint deletes both. The caller owns confirmation; this just fires the
+ * delete. Throws on a non-OK response so the caller can fall back to per-id
+ * `deleteFunction` retries (matching the delete-unused-beast-modes CLI).
+ *
+ * @param {Object} params
+ * @param {Array<string|number>} params.ids - Template ids to delete.
+ * @param {number|null} [params.tabId]
+ * @returns {Promise<void>}
+ */
+export async function bulkDeleteFunctions({ ids, tabId = null }) {
+  return executeInPage(
+    async (ids) => {
+      const response = await fetch('/api/query/v1/functions/bulk/template', {
+        body: JSON.stringify({ delete: ids }),
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST'
+      });
+      if (!response.ok) {
+        const text = await response.text().catch(() => '');
+        throw new Error(`HTTP ${response.status}: ${text}`.trim());
+      }
+    },
+    [ids],
+    tabId
+  );
+}
+
+/**
  * Create Beast Mode templates in bulk on a target dataset.
  *
  * Each entry must be a fully-formed function template (clone an origin
@@ -60,6 +91,82 @@ export async function deleteFunction({ functionId, tabId = null }) {
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
     },
     [functionId],
+    tabId
+  );
+}
+
+/**
+ * Find unused function templates (Beast Modes and Variables) for one or more
+ * owners and/or datasets. "Unused" mirrors the delete-unused-beast-modes CLI:
+ * the search filters to `notNested` + `inactive` templates, i.e. top-level
+ * functions with no active links to any card, view, alert, or other Beast Mode.
+ * That server-side definition already excludes anything nested in or referenced
+ * by another Beast Mode, so no reference graph is needed here.
+ *
+ * Because deletion is irreversible, each result is re-checked client-side and
+ * any template still reporting active links is skipped (the CLI's guard).
+ *
+ * Variables are NOT filtered out (the `notvariable` filter is omitted); every
+ * result carries its `variable` flag so the caller can group Beast Modes and
+ * Variables separately, plus `locked` so locked templates can be presented as
+ * an explicit opt-in.
+ *
+ * @param {Object} params
+ * @param {Array<string|number>} [params.datasetIds] - Restrict to these datasets.
+ * @param {Array<string|number>} [params.ownerIds] - Restrict to these owners.
+ * @param {number|null} [params.tabId]
+ * @returns {Promise<Array<{created: number|null, id: any, locked: boolean, name: string, owner: any, variable: boolean}>>}
+ */
+export async function findUnusedFunctions({ datasetIds = [], ownerIds = [], tabId = null }) {
+  return executeInPage(
+    async (datasetIds, ownerIds) => {
+      // The `inactive` filter should guarantee no active links, but deletion is
+      // irreversible, so sum every activeLinks bucket and skip any template that
+      // still reports one.
+      const activeLinkCount = (fn) =>
+        Object.values(fn.activeLinks || {}).reduce((sum, links) => sum + (Array.isArray(links) ? links.length : 0), 0);
+
+      const filters = [{ field: 'notNested' }, { field: 'inactive', value: true }];
+      if (ownerIds.length > 0) filters.push({ field: 'owner', idList: ownerIds });
+      if (datasetIds.length > 0) filters.push({ field: 'dataset', idList: datasetIds });
+
+      const unused = [];
+      const limit = 100;
+      let offset = 0;
+      let moreData = true;
+      while (moreData) {
+        const response = await fetch('/api/query/v1/functions/search', {
+          body: JSON.stringify({
+            filters,
+            limit,
+            offset,
+            // The search returns zero results without a sort.
+            sort: { ascending: true, field: 'created' }
+          }),
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        const results = data?.results || [];
+        for (const fn of results) {
+          if (activeLinkCount(fn) > 0) continue;
+          unused.push({
+            created: typeof fn.created === 'number' ? fn.created : null,
+            id: fn.id,
+            locked: fn.locked === true,
+            name: fn.name || String(fn.id),
+            owner: fn.owner ?? null,
+            variable: fn.variable === true
+          });
+        }
+        offset += limit;
+        moreData = Boolean(data?.hasMore) && results.length > 0;
+      }
+      return unused;
+    },
+    [datasetIds, ownerIds],
     tabId
   );
 }

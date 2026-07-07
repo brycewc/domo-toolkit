@@ -10,6 +10,7 @@ import { CopyColorRules } from '@/components/functions/CopyColorRules';
 import { CopyFilteredUrl } from '@/components/functions/CopyFilteredUrl';
 import { DataRepair } from '@/components/functions/DataRepair';
 import { DeleteObject } from '@/components/functions/DeleteObject';
+import { DeleteUnusedBeastModes } from '@/components/functions/DeleteUnusedBeastModes';
 import { DevMenu } from '@/components/functions/DevMenu';
 import { DirectSignOn } from '@/components/functions/DirectSignOn';
 import { Duplicate } from '@/components/functions/Duplicate';
@@ -215,6 +216,14 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                 )}
                 {availableActions.has('getBeastModes') && (
                   <GetBeastModes
+                    currentContext={currentContext}
+                    isDisabled={!isDomoPage}
+                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
+                    onStatusUpdate={onStatusUpdate}
+                  />
+                )}
+                {availableActions.has('deleteUnusedBeastModes') && (
+                  <DeleteUnusedBeastModes
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
                     onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}

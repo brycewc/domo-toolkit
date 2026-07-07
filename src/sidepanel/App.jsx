@@ -7,6 +7,7 @@ import { ToastProvider } from '@/components/ToastProvider';
 import { ApiErrorsView } from '@/components/views/ApiErrorsView';
 import { CopyColorRulesView } from '@/components/views/CopyColorRulesView';
 import { DeleteObjectView } from '@/components/views/DeleteObjectView';
+import { DeleteUnusedBeastModesView } from '@/components/views/DeleteUnusedBeastModesView';
 import { DuplicateView } from '@/components/views/DuplicateView';
 import { GeneratePackageDefinitionFromJSDocView } from '@/components/views/GeneratePackageDefinitionFromJSDocView';
 import { GenerateSchemaView } from '@/components/views/GenerateSchemaView';
@@ -292,6 +293,17 @@ export default function App() {
 
         {slot.type === 'getBeastModes' && (
           <GetBeastModesView
+            currentContext={currentContext}
+            instance={instance}
+            isActive={isActive}
+            key={slot.viewKey}
+            onBackToDefault={backToDefault}
+            onStatusUpdate={showStatus}
+          />
+        )}
+
+        {slot.type === 'deleteUnusedBeastModes' && (
+          <DeleteUnusedBeastModesView
             currentContext={currentContext}
             instance={instance}
             isActive={isActive}
