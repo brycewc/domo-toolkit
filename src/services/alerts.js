@@ -135,6 +135,54 @@ export async function getDownstreamAlerts(datasetId, tabId = null) {
 }
 
 /**
+ * Get the alerts watching any of the given datasets, as one deduped list. Runs
+ * the same paginated per-dataset lookup as `getDownstreamAlerts`, but across
+ * several datasets in a single page-context round-trip, so a dataflow's output
+ * datasets can be checked at once instead of one call each. Deduped by alert id
+ * (an alert watches a single dataset, so this only guards against the same id
+ * coming back twice). Unlike `getDownstreamAlerts` this drops `filterGroups`,
+ * since the delete-dependency list only needs each alert's id and name.
+ * @param {string[]} datasetIds - The datasource IDs to check
+ * @param {number|null} tabId - Optional Chrome tab ID
+ * @returns {Promise<Array<{id: number, name: string}>>}
+ */
+export async function getDownstreamAlertsForDatasets(datasetIds, tabId = null) {
+  return executeInPage(
+    async (datasetIds) => {
+      const byId = new Map();
+      const limit = 200;
+
+      for (const datasetId of datasetIds) {
+        let moreData = true;
+        let offset = 0;
+
+        while (moreData) {
+          const response = await fetch(
+            `/api/social/v4/alerts?dataSetId=${datasetId}&fields=all&limit=${limit}&offset=${offset}`
+          );
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const data = await response.json();
+
+          if (Array.isArray(data) && data.length > 0) {
+            for (const a of data) {
+              if (!byId.has(a.id)) byId.set(a.id, { id: a.id, name: a.name || String(a.id) });
+            }
+            offset += limit;
+            if (data.length < limit) moreData = false;
+          } else {
+            moreData = false;
+          }
+        }
+      }
+
+      return [...byId.values()];
+    },
+    [datasetIds],
+    tabId
+  );
+}
+
+/**
  * Get all alerts owned by a user.
  * @param {number} userId - The Domo user ID
  * @param {number|null} tabId - Optional Chrome tab ID

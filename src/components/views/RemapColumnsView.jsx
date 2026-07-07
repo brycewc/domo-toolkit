@@ -1,20 +1,23 @@
 import {
   AlertDialog,
+  Autocomplete,
   Button,
   Card,
-  Chip,
-  ComboBox,
   EmptyState,
-  Input,
+  Link,
   ListBox,
+  ListLayout,
   ScrollShadow,
+  SearchField,
   Separator,
   Spinner,
-  Tooltip
+  useFilter,
+  Virtualizer
 } from '@heroui/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Alert } from '@/components/Alert';
+import { ObjectTypeIcon } from '@/components/ObjectTypeIcon';
 import { ColumnUsagesModal } from '@/components/views/ColumnUsagesModal';
 import { DataList } from '@/components/views/DataList';
 import { ViewHeader } from '@/components/views/ViewHeader';
@@ -25,18 +28,16 @@ import { DomoContext } from '@/models/DomoContext';
 import { DomoObject } from '@/models/DomoObject';
 import { getObjectType } from '@/models/DomoObjectType';
 import { scanContentForColumns } from '@/services/columnReferences';
-import { getDatasetColumns } from '@/services/datasets';
+import { getDatasetColumns, isViewType } from '@/services/datasets';
 import { getDatasetFunctions } from '@/services/functions';
 import { getDownstreamCards, getDownstreamCardsRaw, getDownstreamLineage } from '@/services/migrateDownstreamContent';
 import { findAppColumnCollisions, getDownstreamApps } from '@/services/proCodeApps';
 import { remapDatasetColumns } from '@/services/remapDatasetColumns';
+import { detectBrokenViewColumns, repairViewColumns } from '@/services/repairViewColumns';
 import { buildRefreshAction, buildReloadAction } from '@/utils/headerActions';
 import { getSidepanelData } from '@/utils/sidepanel';
-import IconChevronDown from '@icons/chevron-down.svg?react';
 import IconColumnEdit from '@icons/column-edit.svg?react';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
-import IconPlus from '@icons/plus.svg?react';
-import IconTrash from '@icons/trash.svg?react';
 import IconX from '@icons/x.svg?react';
 
 import { AlertStatusIcon } from '../AlertStatusIcon';
@@ -51,6 +52,12 @@ const TYPE_KEY_TO_DOMO_TYPE = {
   datasets: 'DATA_SOURCE'
 };
 
+// Sentinels for a column's mapping choice, matching Migrate Content so the two
+// views read the same way. UNMAPPED = leave it alone; DROP = remove the column
+// (only offered where it's safe). Any other value is a target column name.
+const UNMAPPED = '__unmapped__';
+const DROP = '__drop__';
+
 export function RemapColumnsView({ currentContext = null, instance = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   const [datasetId, setDatasetId] = useState(null);
@@ -63,23 +70,30 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
   const [isScanning, setIsScanning] = useState(false);
   const [scanError, setScanError] = useState(null);
 
-  // Each row maps one old column name to a new one. `key` is a stable client id
-  // so React can track rows as the user adds/removes them. Orphan-discovered rows
-  // seed `oldName`; the user fills `newName`.
-  const [rows, setRows] = useState([]);
-  const [seededOrphans, setSeededOrphans] = useState(false);
+  // One choice per broken column, keyed by the column's stable row key:
+  // UNMAPPED | DROP | <replacement column name>. Seeded once from detection.
+  const [columnChoices, setColumnChoices] = useState({});
+  const [seededChoices, setSeededChoices] = useState(false);
 
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [transferStatus, setTransferStatus] = useState({});
   const [isTransferring, setIsTransferring] = useState(false);
-  // 'map' = build the old -> new column mappings; 'select' = pick which affected
-  // content to rewrite, then apply. Opposite order from Migrate Content, whose
-  // first page is the selection and whose second is the column work.
+  // 'map' = choose a replacement (or drop) per broken column; 'select' = pick
+  // which downstream content to rewrite, then apply. Opposite order from Migrate
+  // Content, whose first page is the selection and whose second is the columns.
   const [page, setPage] = useState('map');
 
+  // View self-repair (second detection axis, views only): the open view's OWN
+  // input references that a source dataset renamed/dropped.
+  const [isView, setIsView] = useState(false);
+  const [isViewFusion, setIsViewFusion] = useState(false);
+  const [viewDefinition, setViewDefinition] = useState(null);
+  const [brokenViewColumns, setBrokenViewColumns] = useState([]);
+  const [isDetectingView, setIsDetectingView] = useState(false);
+  const [viewDetectionDone, setViewDetectionDone] = useState(false);
+
   const mountedRef = useRef(true);
-  const rowKeyRef = useRef(0);
   const { showStatus } = useStatusBar(onStatusUpdate);
 
   useEffect(() => {
@@ -109,6 +123,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
       );
       setOrigin(context.domoObject?.baseUrl || '');
       setTabId(context.tabId);
+      setIsView(isViewType(context.domoObject?.metadata?.details));
     } catch (error) {
       console.error('[RemapColumnsView] Error loading data:', error);
       onStatusUpdate?.('Error', error.message || 'Failed to load context', 'danger');
@@ -134,6 +149,39 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
       cancelled = true;
     };
   }, [datasetId, tabId]);
+
+  // Second detection axis (views only): scan the open view's OWN definition for
+  // input references its source datasets no longer have. Non-views have nothing
+  // to detect, so they settle immediately and never block the "nothing to do"
+  // bail below.
+  useEffect(() => {
+    if (!datasetId) return;
+    if (!isView) {
+      setViewDetectionDone(true);
+      return;
+    }
+    let cancelled = false;
+    setIsDetectingView(true);
+    setViewDetectionDone(false);
+    detectBrokenViewColumns({ tabId, viewId: datasetId })
+      .then((detection) => {
+        if (cancelled) return;
+        setViewDefinition(detection.viewDefinition);
+        setIsViewFusion(detection.isFusion);
+        setBrokenViewColumns(detection.broken);
+      })
+      .catch((err) => {
+        if (!cancelled) console.error('[RemapColumnsView] View repair detection failed:', err);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setIsDetectingView(false);
+        setViewDetectionDone(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [datasetId, isView, tabId]);
 
   const specs = useMemo(() => {
     if (!datasetId) return [];
@@ -197,17 +245,6 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
     return m;
   }, [allItemsByType]);
 
-  // Nothing references this dataset: there is nothing to repair. Bail back to the
-  // default view with a note rather than painting empty tables.
-  const bailedRef = useRef(false);
-  const nothingDownstream = !isLoading && !isTransferring && loadedCount === REMAP_TYPES.length && totalAvailable === 0;
-  useEffect(() => {
-    if (bailedRef.current || !nothingDownstream) return;
-    bailedRef.current = true;
-    onStatusUpdate?.('Nothing to remap', `**${datasetName}** has no downstream content`, 'warning');
-    onBackToDefault?.();
-  }, [datasetName, nothingDownstream, onBackToDefault, onStatusUpdate]);
-
   // Scan all downstream content once it has loaded. The scan caches each item's
   // definition (reused at apply time) and tells us which columns each references,
   // which is how orphaned (now-missing) columns are discovered.
@@ -232,11 +269,6 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
   }, [allItemsByType, datasetId, isFullyLoaded, tabId, totalAvailable]);
 
   const schemaColumnNames = useMemo(() => new Set(schemaColumns.map((c) => c.name)), [schemaColumns]);
-  const schemaTypeByName = useMemo(() => {
-    const m = new Map();
-    for (const c of schemaColumns) if (c?.name) m.set(c.name, c.type || null);
-    return m;
-  }, [schemaColumns]);
 
   // Columns referenced by downstream content that are no longer on the dataset:
   // the broken references a direct rename leaves behind, and the prime candidates
@@ -254,37 +286,162 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
       // each is bound to this dataset alone, so every column they reference is
       // one of its columns. Dataflows and dataset views join other datasets, so
       // a name missing here may simply be another input's column, not a renamed
-      // one. (Such columns are still rewritten if the user maps them, and can
-      // always be entered by hand.)
+      // one.
       if (!usages.some((u) => u.type === 'apps' || u.type === 'beastModes' || u.type === 'cards')) continue;
       out.push(name);
     }
-    return out.sort((a, b) => a.localeCompare(b));
+    return out;
   }, [scanResult, schemaColumnNames]);
 
-  // Seed one remap row per discovered orphan the first time a scan resolves, so
-  // the common "I renamed a column and broke everything" case is pre-filled.
-  useEffect(() => {
-    if (seededOrphans || !scanResult) return;
-    setSeededOrphans(true);
-    if (orphanCandidates.length === 0) {
-      setRows([{ key: `r${rowKeyRef.current++}`, newName: '', oldName: '' }]);
-      return;
+  // The single source of truth for the map page: every broken column that needs a
+  // decision, in one shape regardless of where the break is. View-input breaks
+  // (a source column the view reads that vanished) remap against the owning
+  // source's columns and can be dropped from the view; downstream breaks (a view
+  // output column cards still reference) remap against the view's own columns and
+  // are remap-only. Sorted alphabetically; used vs unused is shown per row.
+  const brokenColumns = useMemo(() => {
+    const out = [];
+    for (const broken of brokenViewColumns) {
+      const realOutputs = broken.outputColumns.filter((name) => schemaColumnNames.has(name));
+      // Downstream usages of the output column(s) this reference feeds, deduped.
+      const usages = [];
+      const seen = new Set();
+      for (const outName of broken.outputColumns) {
+        for (const usage of scanResult?.byColumn?.get(outName) || []) {
+          const usageKey = `${usage.type}:${usage.id}`;
+          if (seen.has(usageKey)) continue;
+          seen.add(usageKey);
+          usages.push(usage);
+        }
+      }
+      const dropSafe = realOutputs.length === 0 || usages.length === 0;
+      out.push({
+        candidates: broken.candidates || [],
+        key: `view:${broken.sourceId}:${broken.column}`,
+        kind: 'view',
+        name: broken.column,
+        // Drop is only offered when it's a real, unused output (dropping a used
+        // output would break downstream; a non-output ref can't be dropped).
+        offerDrop: broken.outputColumns.length > 0 && dropSafe,
+        outputColumns: broken.outputColumns,
+        sourceId: broken.sourceId,
+        sourceName: broken.sourceName,
+        usageCount: usages.length,
+        usages
+      });
     }
-    setRows(orphanCandidates.map((name) => ({ key: `r${rowKeyRef.current++}`, newName: '', oldName: name })));
-  }, [orphanCandidates, scanResult, seededOrphans]);
+    for (const name of orphanCandidates) {
+      const usages = scanResult?.byColumn?.get(name) || [];
+      out.push({
+        candidates: schemaColumns,
+        key: `downstream:${name}`,
+        kind: 'downstream',
+        name,
+        offerDrop: false,
+        usageCount: usages.length,
+        usages
+      });
+    }
+    out.sort((a, b) => a.name.localeCompare(b.name));
+    return out;
+  }, [brokenViewColumns, orphanCandidates, schemaColumns, schemaColumnNames, scanResult]);
 
-  // Old -> new map for rows the user has fully filled in (and that actually
-  // change something). Skips blank and self-mapping rows.
+  // The broken columns grouped by the dataset they belong to, so the source name
+  // is stated once as a section header instead of on every row. A view-input
+  // break belongs to its source dataset; a downstream orphan is one of the open
+  // object's own (removed) columns, so it groups under the open object.
+  const sections = useMemo(() => {
+    const byKey = new Map();
+    for (const row of brokenColumns) {
+      const key = row.kind === 'view' ? row.sourceId : datasetId;
+      const name = row.kind === 'view' ? row.sourceName : datasetName;
+      if (!byKey.has(key)) byKey.set(key, { id: key, name, rows: [] });
+      byKey.get(key).rows.push(row);
+    }
+    // Rows stay alphabetical within each section (brokenColumns is pre-sorted);
+    // order the sections by name for a stable grouping.
+    return [...byKey.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [brokenColumns, datasetId, datasetName]);
+
+  // The downstream scan has produced its verdict: either there was nothing to
+  // scan, it finished, or it errored. Used to hold off seeding drop-vs-remap
+  // defaults (and the bail) until downstream usage is known.
+  const scanSettled = totalAvailable === 0 || scanResult != null || Boolean(scanError);
+  const detectionSettled = !isLoading && loadedCount === REMAP_TYPES.length && scanSettled && (!isView || viewDetectionDone);
+
+  // Seed each broken column's default choice once detection has settled: an
+  // unused, droppable view column defaults to Drop; anything else defaults to
+  // its nearest-named replacement, else Leave unmapped. The user can override.
+  useEffect(() => {
+    if (seededChoices || !detectionSettled || brokenColumns.length === 0) return;
+    setSeededChoices(true);
+    const initial = {};
+    for (const row of brokenColumns) {
+      if (row.kind !== 'view') {
+        // Downstream orphans: no smart default; the user picks a view column.
+        initial[row.key] = UNMAPPED;
+      } else if (row.offerDrop) {
+        // An unused, droppable view column: recommend dropping it.
+        initial[row.key] = DROP;
+      } else {
+        // A still-needed view column: pre-pick its nearest-named source column.
+        initial[row.key] = suggestReplacement(row.name, row.candidates) || UNMAPPED;
+      }
+    }
+    setColumnChoices(initial);
+  }, [brokenColumns, detectionSettled, seededChoices]);
+
+  // Nothing to do: detection settled and no broken column surfaced. Bail back to
+  // the default view with a note rather than painting an empty list.
+  const bailedRef = useRef(false);
+  const nothingToDo = detectionSettled && !isTransferring && brokenColumns.length === 0;
+  useEffect(() => {
+    if (bailedRef.current || !nothingToDo) return;
+    bailedRef.current = true;
+    onStatusUpdate?.('Nothing to remap', `No broken column references found on **${datasetName}**`, 'warning');
+    onBackToDefault?.();
+  }, [datasetName, nothingToDo, onBackToDefault, onStatusUpdate]);
+
+  // Old -> new map for the DOWNSTREAM rows the user has pointed at a real column.
+  // Drives which downstream content is affected (and, on page 2, rewritten).
   const columnMap = useMemo(() => {
     const map = {};
-    for (const row of rows) {
-      const oldName = row.oldName?.trim();
-      const newName = row.newName?.trim();
-      if (oldName && newName && oldName !== newName) map[oldName] = newName;
+    for (const row of brokenColumns) {
+      if (row.kind !== 'downstream') continue;
+      const choice = columnChoices[row.key];
+      if (choice && choice !== UNMAPPED && choice !== DROP && choice !== row.name) map[row.name] = choice;
     }
     return map;
-  }, [rows]);
+  }, [brokenColumns, columnChoices]);
+
+  // The view self-repair the user has resolved: remaps grouped later per source,
+  // drops by output column name, plus each touched source's column types (for the
+  // rewriter's type propagation). `count` drives the confirm-dialog copy.
+  const viewActions = useMemo(() => {
+    const remaps = [];
+    const drops = [];
+    const sourceTypes = {};
+    let count = 0;
+    for (const row of brokenColumns) {
+      if (row.kind !== 'view') continue;
+      const choice = columnChoices[row.key];
+      if (!choice || choice === UNMAPPED) continue;
+      if (choice === DROP) {
+        if (!row.offerDrop) continue;
+        for (const output of row.outputColumns) drops.push(output);
+        count++;
+      } else if (choice !== row.name) {
+        remaps.push({ column: row.name, replacement: choice, sourceId: row.sourceId });
+        if (!sourceTypes[row.sourceId]) {
+          sourceTypes[row.sourceId] = Object.fromEntries((row.candidates || []).map((c) => [c.name, c.type]));
+        }
+        count++;
+      }
+    }
+    return { count, drops: [...new Set(drops)], remaps, sourceTypes };
+  }, [brokenColumns, columnChoices]);
+
+  const hasViewWork = viewActions.count > 0;
 
   // Downstream items that reference one of the mapped old columns, by type, with
   // the full loaded record (carrying the card urn for drills). Deduped by id
@@ -437,14 +594,8 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
     [affectedByType, selectedIds]
   );
 
-  const setRow = useCallback((key, patch) => {
-    setRows((prev) => prev.map((r) => (r.key === key ? { ...r, ...patch } : r)));
-  }, []);
-  const removeRow = useCallback((key) => {
-    setRows((prev) => prev.filter((r) => r.key !== key));
-  }, []);
-  const addRow = useCallback(() => {
-    setRows((prev) => [...prev, { key: `r${rowKeyRef.current++}`, newName: '', oldName: '' }]);
+  const setChoice = useCallback((key, choice) => {
+    setColumnChoices((prev) => ({ ...prev, [key]: choice == null ? UNMAPPED : choice }));
   }, []);
 
   const sqlDataflowWarnings = scanResult?.dataflowSqlWarnings || [];
@@ -456,6 +607,10 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
     const targetColumnTypes = {};
     for (const col of schemaColumns) if (col?.name && col?.type) targetColumnTypes[col.name] = col.type;
 
+    const hasDownstreamWork = REMAP_TYPES.some((t) => selectedItems[t.key].length > 0);
+    const { drops, remaps, sourceTypes } = viewActions;
+    const willRepair = drops.length > 0 || remaps.length > 0;
+
     const initialStatus = {};
     for (const t of REMAP_TYPES) {
       if (selectedItems[t.key].length > 0)
@@ -465,36 +620,53 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
     setIsTransferring(true);
 
     try {
-      const transferResults = await remapDatasetColumns({
-        columnMap,
-        datasetId,
-        datasetName,
-        definitionsByItemKey: scanResult?.byItem || new Map(),
-        onProgress: ({ count, result, status, typeKey }) => {
-          if (!mountedRef.current) return;
-          setTransferStatus((prevStatus) => {
-            const nextStatus = { ...prevStatus };
-            if (status === 'transferring') {
-              nextStatus[typeKey] = { count, status: 'transferring' };
-            } else if (status === 'done') {
-              const failed = result?.failed ?? 0;
-              const succeeded = result?.succeeded ?? 0;
-              nextStatus[typeKey] = {
-                count: count ?? succeeded + failed,
-                error: failed > 0 ? formatErrors(result) : null,
-                errorDetail: failed > 0 ? (result?.errors ?? null) : null,
-                failed,
-                status: failed > 0 ? 'failed' : 'transferred',
-                succeeded
-              };
-            }
-            return nextStatus;
-          });
-        },
-        selectedItems,
-        tabId,
-        targetColumnTypes
-      });
+      // Repair the open view itself FIRST, so any subsequent downstream remap
+      // reads the already-fixed view.
+      let repairResult = null;
+      if (willRepair) {
+        repairResult = await repairViewColumns({
+          drops,
+          isFusion: isViewFusion,
+          remaps,
+          sourceTypes,
+          tabId,
+          viewDefinition,
+          viewId: datasetId
+        });
+      }
+
+      const transferResults = hasDownstreamWork
+        ? await remapDatasetColumns({
+            columnMap,
+            datasetId,
+            datasetName,
+            definitionsByItemKey: scanResult?.byItem || new Map(),
+            onProgress: ({ count, result, status, typeKey }) => {
+              if (!mountedRef.current) return;
+              setTransferStatus((prevStatus) => {
+                const nextStatus = { ...prevStatus };
+                if (status === 'transferring') {
+                  nextStatus[typeKey] = { count, status: 'transferring' };
+                } else if (status === 'done') {
+                  const failed = result?.failed ?? 0;
+                  const succeeded = result?.succeeded ?? 0;
+                  nextStatus[typeKey] = {
+                    count: count ?? succeeded + failed,
+                    error: failed > 0 ? formatErrors(result) : null,
+                    errorDetail: failed > 0 ? (result?.errors ?? null) : null,
+                    failed,
+                    status: failed > 0 ? 'failed' : 'transferred',
+                    succeeded
+                  };
+                }
+                return nextStatus;
+              });
+            },
+            selectedItems,
+            tabId,
+            targetColumnTypes
+          })
+        : new Map();
 
       let totalSucceeded = 0;
       let totalFailed = 0;
@@ -504,22 +676,33 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
         totalFailed += r.failed || 0;
         totalManualReview += r.manualReview?.length || 0;
       }
+
+      const repairFailed = repairResult?.failed || 0;
+      const repairSucceeded = repairResult ? (repairResult.dropped || 0) + (repairResult.remapped || 0) : 0;
+      totalFailed += repairFailed;
+
       const reviewNote =
         totalManualReview > 0
           ? ` ${totalManualReview} SQL dataflow${totalManualReview !== 1 ? 's' : ''} flagged for manual review.`
           : '';
+      const repairErrorNote = repairResult?.errors?.length ? ` ${repairResult.errors[0].error}` : '';
 
       if (totalFailed > 0) {
-        showStatus(
-          'Remap Partially Complete',
-          `**${totalSucceeded}** updated, **${totalFailed}** failed.${reviewNote}`,
-          'warning',
-          7000
-        );
+        const parts = [];
+        if (hasDownstreamWork) parts.push(`**${totalSucceeded}** updated`);
+        if (repairSucceeded > 0)
+          parts.push(`**${repairSucceeded}** view column${repairSucceeded === 1 ? '' : 's'} repaired`);
+        parts.push(`**${totalFailed}** failed`);
+        showStatus('Partially Complete', `${parts.join(', ')}.${repairErrorNote}${reviewNote}`, 'warning', 8000);
       } else {
+        const summary = hasDownstreamWork
+          ? `Updated **${totalSucceeded}** item${totalSucceeded !== 1 ? 's' : ''}.${
+              repairSucceeded > 0 ? ` Repaired **${repairSucceeded}** view column${repairSucceeded === 1 ? '' : 's'}.` : ''
+            }`
+          : `Repaired **${repairSucceeded}** view column${repairSucceeded === 1 ? '' : 's'}.`;
         showStatus(
-          'Remap Complete',
-          `Updated **${totalSucceeded}** item${totalSucceeded !== 1 ? 's' : ''}.${reviewNote}`,
+          hasDownstreamWork ? 'Remap Complete' : 'View Repaired',
+          `${summary}${reviewNote}`,
           totalManualReview > 0 ? 'warning' : 'success',
           totalManualReview > 0 ? 9000 : 7000
         );
@@ -545,15 +728,18 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
     columnMap,
     datasetId,
     datasetName,
+    isViewFusion,
     onBackToDefault,
     scanResult,
     schemaColumns,
     selectedItemsByType,
     showStatus,
-    tabId
+    tabId,
+    viewActions,
+    viewDefinition
   ]);
 
-  if (isLoading || nothingDownstream) {
+  if (isLoading || nothingToDo) {
     return (
       <Card className='flex h-full w-full items-center justify-center'>
         <Card.Content className='flex flex-col items-center gap-2 py-8'>
@@ -567,10 +753,77 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
   const mappedCount = Object.keys(columnMap).length;
   const totalAffected = affectedLeafIds.size;
   const canAdvance = mappedCount > 0 && totalAffected > 0 && !isScanning && !isTransferring;
-  const canApply = mappedCount > 0 && totalSelected > 0 && !isTransferring && !isScanning;
+  // Page 2 can apply when downstream content is selected, or when only a view
+  // repair remains (e.g. the user deselected every downstream item).
+  const canApply = ((mappedCount > 0 && totalSelected > 0) || hasViewWork) && !isTransferring && !isScanning;
+  // A view with self-repairs but no downstream mapping applies straight from the
+  // map page (there's no downstream content to select on page 2).
+  const canApplyView = hasViewWork && !isScanning && !isDetectingView && !isTransferring;
+  const isBusy = isScanning || isDetectingView;
 
-  // Page 1: build the old -> new column mappings. The footer's only action is
-  // Next, which advances to the selection page once a mapping affects content.
+  // Shared confirm dialog, rendered on both pages. Its copy adapts: the map page
+  // opens it only for a view-repair-only run (no downstream selection), while the
+  // select page opens it for a downstream rewrite that may also repair the view.
+  const confirmDialog = (
+    <AlertDialog
+      isOpen={confirmOpen}
+      onOpenChange={(open) => {
+        if (!open) setConfirmOpen(false);
+      }}
+    >
+      <AlertDialog.Backdrop>
+        <AlertDialog.Container className='p-1'>
+          <AlertDialog.Dialog className='p-2 pt-3'>
+            <div className='absolute top-0 left-0 h-1.25 w-full bg-warning' />
+            <AlertDialog.CloseTrigger className='absolute top-3 right-2' variant='ghost'>
+              <IconX />
+            </AlertDialog.CloseTrigger>
+            <AlertDialog.Header>
+              <AlertDialog.Heading className='flex items-center gap-2'>
+                <IconExclamationTriangle className='text-warning' />
+                {totalSelected > 0 ? 'Remap columns' : 'Repair this view'}
+              </AlertDialog.Heading>
+            </AlertDialog.Header>
+            <AlertDialog.Body className='text-sm'>
+              <p>
+                {totalSelected > 0 && (
+                  <>
+                    This rewrites <strong>{totalSelected}</strong> downstream item{totalSelected === 1 ? '' : 's'}
+                    {hasViewWork ? ' and repairs this view' : ` to use the new column name${mappedCount === 1 ? '' : 's'}`}
+                    .{' '}
+                  </>
+                )}
+                {totalSelected === 0 && hasViewWork && (
+                  <>
+                    This edits this view's definition to repair <strong>{viewActions.count}</strong> broken column
+                    {viewActions.count === 1 ? '' : 's'}.{' '}
+                  </>
+                )}
+                It saves changes to live content and cannot be undone.
+              </p>
+            </AlertDialog.Body>
+            <AlertDialog.Footer>
+              <Button size='sm' slot='close' variant='tertiary'>
+                Cancel
+              </Button>
+              <Button
+                className='bg-warning text-warning-foreground hover:bg-warning-hover'
+                size='sm'
+                variant='primary'
+                onPress={handleRemap}
+              >
+                Confirm
+              </Button>
+            </AlertDialog.Footer>
+          </AlertDialog.Dialog>
+        </AlertDialog.Container>
+      </AlertDialog.Backdrop>
+    </AlertDialog>
+  );
+
+  // Page 1: choose a replacement (or drop) per broken column. The footer advances
+  // to the content-selection page when a downstream remap is set, or applies a
+  // view-only repair directly.
   if (page === 'map') {
     // Reload re-targets at the user's current object; refresh re-runs the
     // downstream fetch + scan in place. Built from the shared helpers so they
@@ -586,111 +839,148 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
       buildRefreshAction({ isRefreshing: loadingCount > 0, onRefresh: refresh })
     ];
     return (
-      <Card className='flex min-h-0 w-full flex-1 flex-col p-2'>
-        <ViewHeader
-          beta
-          actions={headerActions}
-          feature='Remap Columns of'
-          featureIcon={<IconColumnEdit />}
-          subject={datasetName}
-          subjectTypeId='DATA_SOURCE'
-          onClose={onBackToDefault}
-        />
-        <Separator />
-        <ScrollShadow hideScrollBar className='min-h-0 flex-1 overflow-y-auto' offset={5} orientation='vertical'>
-          <Card.Content className='flex flex-col gap-3 py-2'>
-            {isScanning && (
-              <div className='flex items-center gap-2 text-xs text-muted'>
-                <Spinner size='sm' />
-                <span>Scanning downstream content…</span>
-              </div>
-            )}
-            {scanError && (
-              <Alert className='w-full border border-border bg-transparent' status='danger'>
-                <Alert.Content>
-                  <Alert.Title className='flex items-center gap-1'>
-                    <AlertStatusIcon />
-                    Scan failed
-                  </Alert.Title>
-                  <Alert.Description>{scanError}</Alert.Description>
-                </Alert.Content>
-              </Alert>
-            )}
+      <>
+        <Card className='flex min-h-0 w-full flex-1 flex-col p-2'>
+          <ViewHeader
+            beta
+            actions={headerActions}
+            feature='Remap Columns of'
+            featureIcon={<IconColumnEdit />}
+            subject={datasetName}
+            subjectTypeId='DATA_SOURCE'
+            onClose={onBackToDefault}
+          />
+          <Separator />
+          <ScrollShadow hideScrollBar className='min-h-0 flex-1 overflow-y-auto' offset={5} orientation='vertical'>
+            <Card.Content className='flex flex-col gap-3 py-2'>
+              {isBusy && (
+                <div className='flex items-center gap-2 text-xs text-muted'>
+                  <Spinner size='sm' />
+                  <span>{isDetectingView ? 'Checking this view for broken columns…' : 'Scanning downstream content…'}</span>
+                </div>
+              )}
+              {scanError && (
+                <Alert className='w-full border border-border bg-transparent' status='danger'>
+                  <Alert.Content>
+                    <Alert.Title className='flex items-center gap-1'>
+                      <AlertStatusIcon />
+                      Scan failed
+                    </Alert.Title>
+                    <Alert.Description>{scanError}</Alert.Description>
+                  </Alert.Content>
+                </Alert>
+              )}
 
-            {orphanCandidates.length > 0 && (
-              <p className='text-xs text-muted'>
-                Found <strong>{orphanCandidates.length}</strong> broken column reference
-                {orphanCandidates.length === 1 ? '' : 's'} no longer on the dataset.
-              </p>
-            )}
+              {brokenColumns.length > 0 && (
+                <>
+                  <p className='text-xs text-muted'>
+                    <strong>{brokenColumns.length}</strong> column{brokenColumns.length === 1 ? '' : 's'}{' '}
+                    {brokenColumns.length === 1 ? 'is' : 'are'} referenced but no longer available. Point each at a valid
+                    column{isView ? ', or drop the unused ones from the view' : ''}.
+                  </p>
+                  {sections.map((section) => {
+                    const sectionUrl = buildObjectUrl('datasets', { id: section.id, name: section.name }, origin);
+                    return (
+                      <div className='flex flex-col' key={section.id}>
+                        <div className='flex items-center gap-1.5 pb-0.5'>
+                          <ObjectTypeIcon className='size-3.5 shrink-0 text-muted' typeId='DATA_SOURCE' />
+                          {sectionUrl ? (
+                            <Link
+                              className='truncate text-xs font-semibold text-current no-underline decoration-accent hover:text-accent hover:underline'
+                              href={sectionUrl}
+                              target='_blank'
+                              title={section.name}
+                            >
+                              {section.name}
+                            </Link>
+                          ) : (
+                            <span className='truncate text-xs font-semibold' title={section.name}>
+                              {section.name}
+                            </span>
+                          )}
+                        </div>
+                        <div className='flex flex-col divide-y divide-border'>
+                          {section.rows.map((row) => (
+                            <BrokenColumnRow
+                              cardsById={cardsById}
+                              key={row.key}
+                              origin={origin}
+                              row={row}
+                              totalAvailable={totalAvailable}
+                              value={columnChoices[row.key] ?? UNMAPPED}
+                              onChange={setChoice}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </>
+              )}
 
-            <div className='flex flex-col gap-1'>
-              {rows.map((row) => (
-                <RemapRow
-                  cardsById={cardsById}
-                  isOrphan={orphanCandidates.includes(row.oldName)}
-                  key={row.key}
-                  oldType={schemaTypeByName.get(row.oldName) || null}
-                  origin={origin}
-                  row={row}
-                  schemaColumns={schemaColumns}
-                  schemaTypeByName={schemaTypeByName}
-                  totalAvailable={totalAvailable}
-                  usages={scanResult?.byColumn?.get(row.oldName) || []}
-                  onChange={setRow}
-                  onRemove={removeRow}
-                />
-              ))}
-              <Button className='mt-1 self-start' size='sm' variant='secondary' onPress={addRow}>
-                <IconPlus className='size-4' />
-                Add a column
+              {(sqlDataflowWarnings.length > 0 || viewFusionWarnings.length > 0) && (
+                <Alert className='w-full border border-border bg-transparent' status='warning'>
+                  <Alert.Content>
+                    <Alert.Title className='flex items-center gap-1'>
+                      <AlertStatusIcon />
+                      Some content needs manual review
+                    </Alert.Title>
+                    <Alert.Description>
+                      {sqlDataflowWarnings.length > 0 &&
+                        `${sqlDataflowWarnings.length} SQL dataflow${sqlDataflowWarnings.length === 1 ? '' : 's'} can't be rewritten automatically. `}
+                      {viewFusionWarnings.length > 0 &&
+                        `${viewFusionWarnings.length} fusion view${viewFusionWarnings.length === 1 ? '' : 's'} use the column in a computed expression. `}
+                      Review these by hand after applying.
+                    </Alert.Description>
+                  </Alert.Content>
+                </Alert>
+              )}
+
+              {appColumnCollisions.length > 0 && (
+                <Alert className='w-full border border-border bg-transparent' status='warning'>
+                  <Alert.Content>
+                    <Alert.Title className='flex items-center gap-1'>
+                      <AlertStatusIcon />
+                      {appColumnCollisions.length === 1
+                        ? '1 pro-code app would lose fields'
+                        : `${appColumnCollisions.length} pro-code apps would lose fields`}
+                    </Alert.Title>
+                    <Alert.Description>
+                      {appColumnCollisions.map((a) => a.name).join(', ')} rename two or more fields to the same column (
+                      {appColumnCollisions.flatMap((a) => a.collisions.map((c) => c.columnName)).join(', ')}). The app reads
+                      each column only once, so only one of those fields keeps its data and the rest show up blank.
+                    </Alert.Description>
+                  </Alert.Content>
+                </Alert>
+              )}
+            </Card.Content>
+          </ScrollShadow>
+          <Separator />
+          <Card.Footer className='pt-2'>
+            {canAdvance ? (
+              <Button fullWidth size='sm' variant='primary' onPress={() => setPage('select')}>
+                Next
               </Button>
-            </div>
-
-            {(sqlDataflowWarnings.length > 0 || viewFusionWarnings.length > 0) && (
-              <Alert className='w-full border border-border bg-transparent' status='warning'>
-                <Alert.Content>
-                  <Alert.Title className='flex items-center gap-1'>
-                    <AlertStatusIcon />
-                    Some content needs manual review
-                  </Alert.Title>
-                  <Alert.Description>
-                    {sqlDataflowWarnings.length > 0 &&
-                      `${sqlDataflowWarnings.length} SQL dataflow${sqlDataflowWarnings.length === 1 ? '' : 's'} can't be rewritten automatically. `}
-                    {viewFusionWarnings.length > 0 &&
-                      `${viewFusionWarnings.length} fusion view${viewFusionWarnings.length === 1 ? '' : 's'} use the column in a computed expression. `}
-                    Review these by hand after applying.
-                  </Alert.Description>
-                </Alert.Content>
-              </Alert>
+            ) : hasViewWork ? (
+              <Button
+                fullWidth
+                isDisabled={!canApplyView}
+                isPending={isTransferring}
+                size='sm'
+                variant='primary'
+                onPress={() => setConfirmOpen(true)}
+              >
+                {isTransferring ? 'Repairing…' : 'Repair this view'}
+              </Button>
+            ) : (
+              <Button fullWidth isDisabled size='sm' variant='primary'>
+                Next
+              </Button>
             )}
-
-            {appColumnCollisions.length > 0 && (
-              <Alert className='w-full border border-border bg-transparent' status='warning'>
-                <Alert.Content>
-                  <Alert.Title className='flex items-center gap-1'>
-                    <AlertStatusIcon />
-                    {appColumnCollisions.length === 1
-                      ? '1 pro-code app would lose fields'
-                      : `${appColumnCollisions.length} pro-code apps would lose fields`}
-                  </Alert.Title>
-                  <Alert.Description>
-                    {appColumnCollisions.map((a) => a.name).join(', ')} rename two or more fields to the same column (
-                    {appColumnCollisions.flatMap((a) => a.collisions.map((c) => c.columnName)).join(', ')}). The app reads
-                    each column only once, so only one of those fields keeps its data and the rest show up blank.
-                  </Alert.Description>
-                </Alert.Content>
-              </Alert>
-            )}
-          </Card.Content>
-        </ScrollShadow>
-        <Separator />
-        <Card.Footer className='pt-2'>
-          <Button fullWidth isDisabled={!canAdvance} size='sm' variant='primary' onPress={() => setPage('select')}>
-            Next
-          </Button>
-        </Card.Footer>
-      </Card>
+          </Card.Footer>
+        </Card>
+        {confirmDialog}
+      </>
     );
   }
 
@@ -735,55 +1025,163 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
               variant='primary'
               onPress={() => setConfirmOpen(true)}
             >
-              {isTransferring ? 'Updating…' : `Update ${totalSelected} item${totalSelected === 1 ? '' : 's'}`}
+              {isTransferring
+                ? 'Updating…'
+                : totalSelected > 0
+                  ? `Update ${totalSelected} item${totalSelected === 1 ? '' : 's'}`
+                  : 'Repair this view'}
             </Button>
           </div>
         }
       />
 
-      <AlertDialog
-        isOpen={confirmOpen}
-        onOpenChange={(open) => {
-          if (!open) setConfirmOpen(false);
-        }}
-      >
-        <AlertDialog.Backdrop>
-          <AlertDialog.Container className='p-1'>
-            <AlertDialog.Dialog className='p-2 pt-3'>
-              <div className='absolute top-0 left-0 h-1.25 w-full bg-warning' />
-              <AlertDialog.CloseTrigger className='absolute top-3 right-2' variant='ghost'>
-                <IconX />
-              </AlertDialog.CloseTrigger>
-              <AlertDialog.Header>
-                <AlertDialog.Heading className='flex items-center gap-2'>
-                  <IconExclamationTriangle className='text-warning' />
-                  Remap columns
-                </AlertDialog.Heading>
-              </AlertDialog.Header>
-              <AlertDialog.Body className='text-sm'>
-                <p>
-                  This rewrites <strong>{totalSelected}</strong> downstream item{totalSelected === 1 ? '' : 's'} to use the
-                  new column name{mappedCount === 1 ? '' : 's'}. It saves changes to live content and cannot be undone.
-                </p>
-              </AlertDialog.Body>
-              <AlertDialog.Footer>
-                <Button size='sm' slot='close' variant='tertiary'>
-                  Cancel
-                </Button>
-                <Button
-                  className='bg-warning text-warning-foreground hover:bg-warning-hover'
-                  size='sm'
-                  variant='primary'
-                  onPress={handleRemap}
-                >
-                  Confirm
-                </Button>
-              </AlertDialog.Footer>
-            </AlertDialog.Dialog>
-          </AlertDialog.Container>
-        </AlertDialog.Backdrop>
-      </AlertDialog>
+      {confirmDialog}
     </>
+  );
+}
+
+// One broken-column row: the vanished column on the left with its source (for
+// view-input breaks) and downstream-usage line, and a searchable select on the
+// right whose options are Leave unmapped, Drop column (only when droppable), then
+// the valid target columns. Mirrors Migrate Content's ColumnMapRow.
+function BrokenColumnRow({ cardsById, onChange, origin, row, totalAvailable, value }) {
+  // Case-insensitive "contains" match for the select's local filter, so the user
+  // can type to narrow a long target-column list (sources can have hundreds).
+  const { contains } = useFilter({ sensitivity: 'base' });
+  // Controlled search text. The option list is virtualized, so the collection
+  // must BE the filtered set (a dynamic `items` array) rather than static
+  // children auto-filtered by the Autocomplete.
+  const [query, setQuery] = useState('');
+
+  // Options for the virtualized picker, filtered by the search box: Leave
+  // unmapped, Drop column (when offered), then the valid target columns sorted
+  // alphabetically (the schema fetch returns them in physical-column order,
+  // matching how Migrate Content sorts its target columns).
+  const options = useMemo(() => {
+    const matches = (text) => !query || contains(text, query);
+    const out = [];
+    if (matches('Leave unmapped')) out.push({ id: UNMAPPED, kind: 'unmapped' });
+    if (row.offerDrop && matches('Drop column')) out.push({ id: DROP, kind: 'drop' });
+    const sortedCandidates = [...row.candidates].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    for (const col of sortedCandidates) {
+      if (matches(col.name)) out.push({ id: col.name, kind: 'column', name: col.name, type: col.type || 'STRING' });
+    }
+    return out;
+  }, [contains, query, row.candidates, row.offerDrop]);
+
+  // Render one option row for the virtualized collection, by kind.
+  const renderOption = (item) => {
+    if (item.kind === 'unmapped') {
+      return (
+        <ListBox.Item id={UNMAPPED} textValue='Leave unmapped'>
+          <span className='text-muted italic'>Leave unmapped</span>
+          <ListBox.ItemIndicator />
+        </ListBox.Item>
+      );
+    }
+    if (item.kind === 'drop') {
+      return (
+        <ListBox.Item id={DROP} textValue='Drop column'>
+          <span className='text-danger italic'>Drop column</span>
+          <ListBox.ItemIndicator />
+        </ListBox.Item>
+      );
+    }
+    return (
+      <ListBox.Item id={item.id} textValue={item.name}>
+        <div className='flex min-w-0 flex-col'>
+          <span className='truncate font-mono text-xs' title={item.name}>
+            {item.name}
+          </span>
+          <span className='text-[10px] text-muted'>{item.type}</span>
+        </div>
+        <ListBox.ItemIndicator />
+      </ListBox.Item>
+    );
+  };
+
+  return (
+    <div className='flex items-center gap-2 py-1.5'>
+      <div className='flex min-w-0 flex-1 flex-col'>
+        <span className='truncate font-mono text-xs' title={row.name}>
+          {row.name}
+        </span>
+        <span className='flex items-center gap-1 text-[10px] text-muted'>
+          {row.usageCount > 0 ? (
+            <>
+              <span>
+                {row.usageCount} use{row.usageCount === 1 ? '' : 's'}
+              </span>
+              <ColumnUsagesModal
+                cardsById={cardsById}
+                columnName={row.name}
+                items={row.usages}
+                origin={origin}
+                total={totalAvailable}
+                totalLabel='downstream item'
+              />
+            </>
+          ) : (
+            <span>not used anywhere</span>
+          )}
+        </span>
+      </div>
+      <Autocomplete
+        allowsEmptyCollection
+        aria-label={`Map ${row.name} to`}
+        className='w-44'
+        selectionMode='single'
+        value={value}
+        variant='secondary'
+        onChange={(key) => onChange(row.key, key)}
+      >
+        <Autocomplete.Trigger className='w-full'>
+          <Autocomplete.Value className='flex min-w-0 flex-1 items-center gap-1'>
+            {() =>
+              value === UNMAPPED ? (
+                <span className='min-w-0 truncate text-muted italic'>Leave unmapped</span>
+              ) : value === DROP ? (
+                <span className='min-w-0 truncate text-danger italic'>Drop column</span>
+              ) : (
+                <span className='min-w-0 truncate font-mono text-xs'>{value}</span>
+              )
+            }
+          </Autocomplete.Value>
+          <Autocomplete.ClearButton />
+          <Autocomplete.Indicator />
+        </Autocomplete.Trigger>
+        <Autocomplete.Popover className='w-fit max-w-9/10 min-w-72' placement='bottom end'>
+          <Autocomplete.Filter inputValue={query} onInputChange={setQuery}>
+            <SearchField
+              autoFocus
+              aria-label={`Search columns for ${row.name}`}
+              className='sticky top-0 z-10'
+              name='column-search'
+              variant='secondary'
+            >
+              <SearchField.Group>
+                <SearchField.SearchIcon />
+                <SearchField.Input placeholder='Search columns...' />
+                <SearchField.ClearButton />
+              </SearchField.Group>
+            </SearchField>
+            {/* Virtualized so a source with hundreds of columns only renders the
+                visible rows. Heights are estimated (one-line actions vs two-line
+                columns vary) so React Aria measures and self-corrects. */}
+            <Virtualizer layout={ListLayout} layoutOptions={{ estimatedRowHeight: 44 }}>
+              <ListBox
+                aria-label={`Columns for ${row.name}`}
+                className='max-h-80 overflow-y-auto'
+                items={options}
+                renderEmptyState={() => <EmptyState>No columns found</EmptyState>}
+              >
+                {(item) => renderOption(item)}
+              </ListBox>
+            </Virtualizer>
+          </Autocomplete.Filter>
+        </Autocomplete.Popover>
+      </Autocomplete>
+    </div>
   );
 }
 
@@ -833,6 +1231,25 @@ function leafSelectionId(typeKey, itemId) {
   return `${typeKey}:${itemId}`;
 }
 
+// Length of the longest common substring of two strings (simple DP). Used to
+// score how closely a candidate replacement column resembles the broken one.
+function longestCommonSubstring(a, b) {
+  if (!a || !b) return 0;
+  let best = 0;
+  let prev = new Array(b.length + 1).fill(0);
+  for (let i = 1; i <= a.length; i++) {
+    const curr = new Array(b.length + 1).fill(0);
+    for (let j = 1; j <= b.length; j++) {
+      if (a[i - 1] === b[j - 1]) {
+        curr[j] = prev[j - 1] + 1;
+        if (curr[j] > best) best = curr[j];
+      }
+    }
+    prev = curr;
+  }
+  return best;
+}
+
 function parseLeafTypeKey(id) {
   if (typeof id !== 'string') return null;
   const idx = id.indexOf(':');
@@ -841,142 +1258,29 @@ function parseLeafTypeKey(id) {
   return REMAP_TYPES.some((t) => t.key === candidate) ? candidate : null;
 }
 
-// One old -> new mapping row. The old name lists the dataset's current columns
-// but accepts a free-typed name too (the renamed column is no longer on the
-// dataset); the new name must be a current column. Both fields are the same
-// size, and each reserves a caption line beneath it so they stay aligned: the
-// old field's shows the broken/usage badges, the new field's calls out a data
-// type mismatch.
-function RemapRow({
-  cardsById,
-  isOrphan,
-  oldType,
-  onChange,
-  onRemove,
-  origin,
-  row,
-  schemaColumns,
-  schemaTypeByName,
-  totalAvailable,
-  usages
-}) {
-  const newType = row.newName ? schemaTypeByName.get(row.newName) || null : null;
-  const typeMismatch = Boolean(oldType && newType && oldType !== newType);
-  const usageCount = usages.length;
-
-  const columnItems = schemaColumns.map((col) => (
-    <ListBox.Item id={col.name} key={col.name} textValue={col.name}>
-      <div className='flex min-w-0 flex-col'>
-        <span className='truncate font-mono text-xs' title={col.name}>
-          {col.name}
-        </span>
-        <span className='text-[10px] text-muted'>{col.type || 'STRING'}</span>
-      </div>
-      <ListBox.ItemIndicator />
-    </ListBox.Item>
-  ));
-
-  return (
-    <div className='flex items-start gap-2 py-1'>
-      <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
-        <ComboBox
-          allowsCustomValue
-          allowsEmptyCollection
-          aria-label='Old column name'
-          inputValue={row.oldName}
-          menuTrigger='input'
-          variant='secondary'
-          onInputChange={(value) => onChange(row.key, { oldName: value })}
-          onSelectionChange={(key) => {
-            if (key != null) onChange(row.key, { oldName: String(key) });
-          }}
-        >
-          <ComboBox.InputGroup>
-            <Input className='h-8 font-mono text-xs' placeholder='Old column name' />
-            <ComboBox.Trigger>
-              <IconChevronDown />
-            </ComboBox.Trigger>
-          </ComboBox.InputGroup>
-          <ComboBox.Popover className='max-w-9/10' placement='bottom start'>
-            <ListBox
-              className='max-h-60 overflow-y-auto'
-              renderEmptyState={() => <EmptyState>No matching column</EmptyState>}
-            >
-              {columnItems}
-            </ListBox>
-          </ComboBox.Popover>
-        </ComboBox>
-        <span className='flex min-h-4 items-center gap-1 pl-1 text-[10px] text-muted'>
-          {isOrphan && (
-            <Chip color='warning' size='sm' variant='soft'>
-              broken
-            </Chip>
-          )}
-          {usageCount > 0 && (
-            <>
-              <span>
-                {usageCount} use{usageCount === 1 ? '' : 's'}
-              </span>
-              <ColumnUsagesModal
-                cardsById={cardsById}
-                columnName={row.oldName}
-                items={usages}
-                origin={origin}
-                total={totalAvailable}
-                totalLabel='downstream item'
-              />
-            </>
-          )}
-        </span>
-      </div>
-
-      <span aria-hidden='true' className='flex h-8 shrink-0 items-center text-muted'>
-        →
-      </span>
-
-      <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
-        <ComboBox
-          allowsEmptyCollection
-          aria-label={`Map ${row.oldName || 'column'} to`}
-          menuTrigger='input'
-          selectedKey={row.newName || null}
-          variant='secondary'
-          onSelectionChange={(key) => onChange(row.key, { newName: key ? String(key) : '' })}
-        >
-          <ComboBox.InputGroup>
-            <Input className='h-8 font-mono text-xs' placeholder='New column' />
-            <ComboBox.Trigger>
-              <IconChevronDown />
-            </ComboBox.Trigger>
-          </ComboBox.InputGroup>
-          <ComboBox.Popover className='max-w-9/10' placement='bottom start'>
-            <ListBox className='max-h-60 overflow-y-auto' renderEmptyState={() => <EmptyState>No columns found</EmptyState>}>
-              {columnItems}
-            </ListBox>
-          </ComboBox.Popover>
-        </ComboBox>
-        <span className='flex min-h-4 items-center gap-1 pl-1 text-[10px] text-warning'>
-          {typeMismatch && (
-            <>
-              <IconExclamationTriangle className='size-3 shrink-0' />
-              <span>
-                Type differs: <span className='font-mono'>{oldType}</span> to <span className='font-mono'>{newType}</span>
-              </span>
-            </>
-          )}
-        </span>
-      </div>
-
-      <div className='flex h-8 shrink-0 items-center'>
-        <Tooltip delay={300}>
-          <Button isIconOnly aria-label='Remove row' size='sm' variant='ghost' onPress={() => onRemove(row.key)}>
-            <IconTrash className='size-4' />
-          </Button>
-          <Tooltip.Content className='w-fit'>Remove</Tooltip.Content>
-        </Tooltip>
-      </div>
-    </div>
-  );
+// Best-guess replacement for a broken column: the candidate sharing the longest
+// run of characters with it (letters/digits only, case-insensitive), tie-broken
+// toward the shorter name. Surfaces the obvious rename (e.g. `ca_parentid` ->
+// `l_utm_campid_parentid`) as the default. Returns '' when nothing overlaps
+// meaningfully, so the row falls back to Leave unmapped.
+function suggestReplacement(brokenName, candidates) {
+  const normalize = (value) =>
+    String(value || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '');
+  const target = normalize(brokenName);
+  let best = '';
+  let bestScore = 0;
+  for (const candidate of candidates || []) {
+    const name = candidate?.name;
+    if (!name) continue;
+    const score = longestCommonSubstring(target, normalize(name));
+    if (score > bestScore || (score === bestScore && best && name.length < best.length)) {
+      best = name;
+      bestScore = score;
+    }
+  }
+  return bestScore >= 3 ? best : '';
 }
 
 function typeGroupLabel(typeKey) {

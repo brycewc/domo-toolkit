@@ -1,3 +1,4 @@
+import { getDownstreamAlertsForDatasets } from './alerts';
 import { getTemplateApprovalCount } from './approvals';
 import { getCardsForObject } from './cards';
 import { getAppContentSummary } from './customApps';
@@ -58,7 +59,7 @@ async function fetchAppPageDependencies({ id, instance, parentId, typeId }, tabI
         typeId: 'CARD',
         url: `${origin}/kpis/details/${c.id}`
       })),
-      label: 'Cards on this page'
+      label: 'Cards on This Page'
     });
   }
 
@@ -79,7 +80,7 @@ async function fetchAppPageDependencies({ id, instance, parentId, typeId }, tabI
           label: p.pageTitle || `Page ${p.pageId}`,
           typeId
         })),
-        label: 'Other pages in this app'
+        label: 'Other Pages in This App'
       });
     }
 
@@ -101,12 +102,18 @@ const FETCHERS = {
   DATA_APP_VIEW: fetchAppPageDependencies,
   DATAFLOW_TYPE: async ({ id, instance, metadata }, tabId) => {
     const outputs = metadata?.details?.outputs || [];
-    const cards = await getCardsForObject({
-      metadata,
-      objectId: id,
-      objectType: 'DATAFLOW_TYPE',
-      tabId
-    });
+    const outputIds = outputs.map((o) => o.dataSourceId).filter(Boolean);
+    // Cards and alerts both hang off the output datasets and are both removed
+    // when those datasets are deleted, so fetch them together.
+    const [cards, alerts] = await Promise.all([
+      getCardsForObject({
+        metadata,
+        objectId: id,
+        objectType: 'DATAFLOW_TYPE',
+        tabId
+      }),
+      getDownstreamAlertsForDatasets(outputIds, tabId)
+    ]);
     const origin = `https://${instance}.domo.com`;
     return [
       {
@@ -118,7 +125,7 @@ const FETCHERS = {
           typeId: 'DATA_SOURCE',
           url: `${origin}/datasources/${o.dataSourceId}/details/overview`
         })),
-        label: 'Output datasets'
+        label: 'Output DataSets'
       },
       {
         blocking: false,
@@ -129,7 +136,18 @@ const FETCHERS = {
           typeId: 'CARD',
           url: `${origin}/kpis/details/${c.id}`
         })),
-        label: 'Cards using these output datasets'
+        label: 'Cards'
+      },
+      {
+        blocking: false,
+        deleted: true,
+        items: alerts.map((a) => ({
+          id: a.id,
+          label: a.name || `Alert ${a.id}`,
+          typeId: 'ALERT',
+          url: `${origin}/alerts/${a.id}`
+        })),
+        label: 'Alerts'
       }
     ];
   },
@@ -153,7 +171,7 @@ const FETCHERS = {
           typeId: 'CARD',
           url: `${origin}/kpis/details/${c.id}`
         })),
-        label: 'Cards on this page'
+        label: 'Cards on This Page'
       });
     }
 
@@ -173,7 +191,7 @@ const FETCHERS = {
           typeId: 'PAGE',
           url: `${origin}/page/${p.pageId}`
         })),
-        label: 'Child pages'
+        label: 'Child Pages'
       });
     }
 
@@ -212,7 +230,7 @@ const FETCHERS = {
           }
         ],
         key: 'relatedDataset',
-        label: 'Related dataset'
+        label: 'Related DataSet'
       });
     }
 

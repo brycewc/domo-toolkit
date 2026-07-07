@@ -93,6 +93,17 @@
 
   /* Font Family */
   --font-sans: 'Open Sans', sans-serif;
+
+  /* Tooltip Delays
+     HeroUI resolves tooltip show/hide timing from these CSS variables and
+     passes them as an explicit delay/closeDelay into React Aria's tooltip
+     state hook. That explicit number overrides the fallback constants in
+     src/vendor/useTooltipTriggerState.js, so this block (not that file) is the
+     real lever for hover timing. HeroUI's defaults are 1500ms/500ms, which made
+     a deliberate hover wait ~1.5s before a tooltip appeared; 300ms/100ms keeps
+     hovers snappy and matches the vendor patch's intended values. */
+  --tooltip-delay: 300ms;
+  --tooltip-close-delay: 100ms;
 }
 
 .dark,

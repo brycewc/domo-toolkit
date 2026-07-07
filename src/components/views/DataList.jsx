@@ -18,6 +18,7 @@ import {
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { useStatusBar } from '@/hooks/useStatusBar';
 import { getObjectType } from '@/models/DomoObjectType';
 import { shareWithSelf } from '@/services/share';
 import { launchActivityLog } from '@/utils/activityLog';
@@ -182,29 +183,64 @@ export function DataList({
   // there is no user to share to (so a dead button can't render).
   const shareEnabled = !!currentContext?.user?.id;
 
-  // Share every shareable object in a subtree with the current user. Used by the
-  // header "Share all" and a row's "Share all" (which passes [item]).
-  const shareItemsWithSelf = useCallback(
-    async (nodes) => {
-      const objects = collectShareableObjects(nodes);
-      if (!objects.length) return;
-      let shared = 0;
-      let firstError = null;
-      for (const object of objects) {
-        try {
-          await shareWithSelf({ object, tabId: currentContext?.tabId, userId: currentContext?.user?.id });
-          shared++;
-        } catch (err) {
-          if (!firstError) firstError = err.message;
-        }
-      }
-      if (shared > 0) {
-        onStatusUpdate?.('Shared', `**${shared}** object${shared !== 1 ? 's' : ''} shared with yourself`, 'success', 2000);
-      } else {
-        onStatusUpdate?.('Share Failed', firstError || 'Failed to share', 'danger', 3000);
-      }
+  // Share flows report progress through a single loading→resolved toast rather
+  // than blocking the UI, so the button/popover reacts to the click instantly
+  // and the toast (not a frozen row) carries the wait. Sharing a group of N
+  // children can take several seconds; awaiting it before any feedback made the
+  // row look dead until it finished.
+  const { showPromiseStatus } = useStatusBar();
+
+  // Share a single Domo object with the current user. Fires the loading toast
+  // synchronously and returns the promise so a caller can flash its "Shared!"
+  // check only once the share truly resolves.
+  const shareOneWithSelf = useCallback(
+    (object, label) => {
+      const promise = shareWithSelf({ object, tabId: currentContext?.tabId, userId: currentContext?.user?.id });
+      showPromiseStatus(promise, {
+        error: (err) => err.message,
+        loading: `Sharing **${label}** with yourself…`,
+        success: () => `**${label}** shared with yourself`
+      });
+      return promise;
     },
-    [currentContext, onStatusUpdate]
+    [currentContext, showPromiseStatus]
+  );
+
+  // Share every shareable object in a subtree with the current user. Used by the
+  // header "Share all" and a row's "Share all" (which passes [item]). Runs the
+  // shares serially behind one batch toast that resolves to a success/partial
+  // summary, or rejects (surfacing the failure toast) when nothing shared.
+  // Returns the batch promise, or undefined when there is nothing to share.
+  const shareItemsWithSelf = useCallback(
+    (nodes) => {
+      const objects = collectShareableObjects(nodes);
+      if (!objects.length) return undefined;
+      const total = objects.length;
+      const promise = (async () => {
+        let shared = 0;
+        let firstError = null;
+        for (const object of objects) {
+          try {
+            await shareWithSelf({ object, tabId: currentContext?.tabId, userId: currentContext?.user?.id });
+            shared++;
+          } catch (err) {
+            if (!firstError) firstError = err.message;
+          }
+        }
+        if (shared === 0) throw new Error(firstError || 'Failed to share');
+        return { shared, total };
+      })();
+      showPromiseStatus(promise, {
+        error: (err) => err.message,
+        loading: `Sharing **${total}** object${total !== 1 ? 's' : ''} with yourself…`,
+        success: ({ shared, total: count }) =>
+          shared < count
+            ? `**${shared}** of **${count}** objects shared with yourself`
+            : `**${shared}** object${shared !== 1 ? 's' : ''} shared with yourself`
+      });
+      return promise;
+    },
+    [currentContext, showPromiseStatus]
   );
 
   /**
@@ -254,11 +290,20 @@ export function DataList({
             await launchView({ currentContext, type: viewType });
             break;
 
-          case 'shareAll':
-            await shareItemsWithSelf(items);
-            setIsHeaderShared(true);
-            setTimeout(() => setIsHeaderShared(false), 1500);
+          case 'shareAll': {
+            // Non-blocking: the batch toast owns loading→resolved feedback, so
+            // the header check flashes only once every share truly succeeds.
+            const sharePromise = shareItemsWithSelf(items);
+            if (sharePromise) {
+              sharePromise
+                .then(() => {
+                  setIsHeaderShared(true);
+                  setTimeout(() => setIsHeaderShared(false), 1500);
+                })
+                .catch(() => {});
+            }
             break;
+          }
 
           default:
             break;
@@ -361,14 +406,13 @@ export function DataList({
 
           case 'share': {
             if (!item.domoObject) break;
-            await shareWithSelf({ object: item.domoObject, tabId: currentContext?.tabId, userId: currentContext?.user?.id });
-            onStatusUpdate?.('Shared', `**${item.label || item.id}** shared with yourself`, 'success', 2000);
-            break;
+            // Non-blocking: the toast tracks loading→resolved. Returned so the
+            // row's "Shared!" check flashes only once the share succeeds.
+            return shareOneWithSelf(item.domoObject, item.label || item.id);
           }
 
           case 'shareAll':
-            await shareItemsWithSelf([item]);
-            break;
+            return shareItemsWithSelf([item]);
 
           case 'viewsExplorer': {
             const baseUrl = item.domoObject?.baseUrl;
@@ -386,7 +430,7 @@ export function DataList({
         onStatusUpdate?.('Error', err.message || `Failed to ${actionType}`, 'danger', 3000);
       }
     },
-    [currentContext, itemLabel, onStatusUpdate, shareItemsWithSelf]
+    [currentContext, itemLabel, onStatusUpdate, shareItemsWithSelf, shareOneWithSelf]
   );
 
   const hasInlineActions = headerActions.length > 0 || (customHeaderActions && customHeaderActions.length > 0);
@@ -808,6 +852,7 @@ function DataListItemImpl({
 }) {
   const hasChildren = item.children && item.children.length > 0;
   const isOpen = expandedIds?.has(item.id) ?? false;
+  const [actionsOpen, setActionsOpen] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [isShared, setIsShared] = useState(false);
   const [errorDismissed, setErrorDismissed] = useState(false);
@@ -907,6 +952,12 @@ function DataListItemImpl({
 
   const handleAction = useCallback(
     async (actionType) => {
+      // Close the overflow popover the instant an action is pressed so the row
+      // acknowledges the click immediately, instead of looking frozen while a
+      // slow action (e.g. sharing a group's children) runs. Feedback then lives
+      // in the toast, not this now-dismissed menu.
+      setActionsOpen(false);
+
       if (actionType === 'copy') {
         setIsCopied(true);
         setTimeout(() => setIsCopied(false), 1000);
@@ -920,7 +971,7 @@ function DataListItemImpl({
             setTimeout(() => setIsShared(false), 1500);
           }
         } catch {
-          // Error handled by parent via onStatusUpdate
+          // Error handled by parent via the share toast / onStatusUpdate
         }
       }
     },
@@ -1273,7 +1324,7 @@ function DataListItemImpl({
     applicableActions.length === 1
       ? applicableActions[0]
       : applicableActions.length > 1 && (
-          <Popover>
+          <Popover isOpen={actionsOpen} onOpenChange={setActionsOpen}>
             <Button isIconOnly size='sm' variant='ghost'>
               <IconDotsHorizontal />
             </Button>
@@ -1332,7 +1383,7 @@ function DataListItemImpl({
               // Locked: read-only (can't be unchecked) + muted, wrapped in a
               // tooltip. `aria-disabled` (not `isDisabled`) keeps pointer events
               // alive so the tooltip fires; the consumer keeps the id selected.
-              <Tooltip delay={300}>
+              <Tooltip>
                 <Tooltip.Trigger className='shrink-0 cursor-not-allowed!'>
                   <Checkbox
                     aria-disabled
@@ -1462,7 +1513,7 @@ function DataListItemImpl({
               // so the parent toggle can't change anything. Render it read-only +
               // muted with an explanatory tooltip, mirroring the locked leaf rows.
               // `aria-disabled` (not `isDisabled`) keeps the tooltip firing.
-              <Tooltip delay={300}>
+              <Tooltip>
                 <Tooltip.Trigger className='shrink-0 cursor-not-allowed!'>
                   <Checkbox
                     aria-disabled

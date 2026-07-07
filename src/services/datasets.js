@@ -374,41 +374,32 @@ export async function getDatasetsForView({ datasetId, tabId }) {
 
     const schema = await schemaResponse.json();
 
-    // 2) Extract dataset IDs from schema
+    // 2) Extract source dataset IDs by walking the WHOLE definition, not just the
+    // top-level FROM/JOIN. A UNION view nests each branch's table deep under a
+    // SUB_SELECT, and a data fusion carries its inputs on `from` / `datasource`
+    // string fields; the old shallow read saw neither and returned nothing for
+    // those views. This collects every dataset-UUID table reference (SQL `TABLE`
+    // nodes plus fusion `from`/`datasource` fields) and drops the view's own id.
     const idsSet = new Set();
     const stripTicks = (s) => (typeof s === 'string' ? s.replace(/`/g, '') : s);
-
-    // Handle DataFusion schema structure (has 'views' array)
-    if (schema.views && Array.isArray(schema.views)) {
-      for (const view of schema.views) {
-        // Extract from 'from' field
-        if (view.from) {
-          idsSet.add(stripTicks(view.from));
-        }
-        // Extract from columnFuses datasource references
-        if (view.columnFuses && Array.isArray(view.columnFuses)) {
-          for (const fuse of view.columnFuses) {
-            if (fuse.datasource) {
-              idsSet.add(stripTicks(fuse.datasource));
-            }
-          }
-        }
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const addId = (raw) => {
+      const value = stripTicks(raw);
+      if (typeof value === 'string' && uuidRe.test(value) && value !== datasetId) idsSet.add(value);
+    };
+    const walk = (node) => {
+      if (node == null || typeof node !== 'object') return;
+      if (Array.isArray(node)) {
+        for (const item of node) walk(item);
+        return;
       }
-    } else if (schema.select && schema.select.selectBody) {
-      // Handle SQL schema structure (has 'select' object)
-      const sel = schema.select.selectBody;
-      if (sel.fromItem && sel.fromItem.name) {
-        idsSet.add(stripTicks(sel.fromItem.name));
-      }
-      if (Array.isArray(sel.joins)) {
-        for (const j of sel.joins) {
-          if (!j) continue;
-          const name = j.left === false ? j.leftItem && j.leftItem.name : j.rightItem && j.rightItem.name;
-          if (name) idsSet.add(stripTicks(name));
-        }
-      }
-    }
-    const datasetIds = Array.from(idsSet).filter(Boolean);
+      if (node['@type'] === 'TABLE') addId(node.name);
+      if (typeof node.from === 'string') addId(node.from);
+      if (typeof node.datasource === 'string') addId(node.datasource);
+      for (const value of Object.values(node)) walk(value);
+    };
+    walk(schema);
+    const datasetIds = Array.from(idsSet);
 
     if (datasetIds.length === 0) {
       return [];

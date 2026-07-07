@@ -22,6 +22,12 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useOverlayTriggerState } from 'react-stately';
 
+// Fallback timings, used ONLY when a caller passes no delay/closeDelay. HeroUI's
+// Tooltip always resolves both from the --tooltip-delay / --tooltip-close-delay
+// CSS variables and passes them in explicitly, so for HeroUI tooltips these
+// constants never apply: change the CSS variables in src/assets/global.css to
+// adjust hover timing. They are kept in sync with those variables so a raw
+// react-aria tooltip (no HeroUI wrapper) still behaves the same.
 const TOOLTIP_DELAY = 400;
 const TOOLTIP_COOLDOWN = 100;
 

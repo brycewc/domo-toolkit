@@ -36,6 +36,77 @@ import { findScriptColumnConflicts } from './scriptColumns';
 import { extractDataflowSqlColumnRefs, getDataflowEngine } from './sqlColumns';
 
 /**
+ * Collect the column names a template/SQL view references FROM a specific source
+ * dataset, scoped by that source's table aliases (mirroring the conservative
+ * rewriter in `columnRewriter.js`). Returns a map from each referenced source
+ * column name to the set of the view's OUTPUT column names (the enclosing
+ * selectItem's `alias.name`) it feeds, so a caller can steer remap-vs-drop by
+ * whether that output is used downstream. Refs inside join/filter clauses (no
+ * enclosing output item) map to an empty set.
+ *
+ * Only CONFIDENT, source-attributed refs are collected, so a per-source diff
+ * never misattributes another input's column as broken:
+ *   - `columnName` whose sibling `table.name` is a source alias;
+ *   - `referencedColumnName` whose sibling `referenceDataSourceId` is the source;
+ *   - backticked `\`alias\`.\`col\`` refs where `alias` is a source alias.
+ * Unqualified backticked refs are ambiguous across inputs and skipped. The
+ * `fromItemInfo` palette is skipped for the same reason `extractDatasetViewColumnRefs`
+ * skips it: it lists every input column whether the view uses it or not.
+ *
+ * @param {Object} viewDefinition - The `/schema/indexed` view definition.
+ * @param {Set<string>} sourceAliases - Aliases resolving to the source (from `findOriginAliases`).
+ * @param {string} sourceId - The source dataset id (no backticks).
+ * @returns {Map<string, Set<string>>}
+ */
+export function collectViewColumnRefsForSource(viewDefinition, sourceAliases, sourceId) {
+  const byColumn = new Map();
+  const add = (rawCol, outputName) => {
+    const col = stripBackticks(rawCol);
+    if (!col) return;
+    if (!byColumn.has(col)) byColumn.set(col, new Set());
+    const output = stripBackticks(outputName);
+    if (output) byColumn.get(col).add(output);
+  };
+
+  const walk = (node, currentOutput) => {
+    if (node == null) return;
+    if (Array.isArray(node)) {
+      for (const item of node) walk(item, currentOutput);
+      return;
+    }
+    if (typeof node !== 'object') return;
+
+    // A selectItem carries the OUTPUT alias for the refs inside its expression;
+    // a ledger column entry carries its output name at `name`.
+    let outputName = currentOutput;
+    if (typeof node?.alias?.name === 'string') outputName = node.alias.name;
+    else if (typeof node.referenceDataSourceId === 'string' && typeof node.name === 'string') outputName = node.name;
+
+    const siblingTable = stripBackticks(node?.table?.name);
+    const isSourceQualified = typeof siblingTable === 'string' && sourceAliases.has(siblingTable);
+    const refDsIsSource =
+      typeof node.referenceDataSourceId === 'string' && stripBackticks(node.referenceDataSourceId) === sourceId;
+
+    for (const [key, value] of Object.entries(node)) {
+      if (key === 'fromItemInfo') continue; // input-column palette, not real usage
+      if (typeof value === 'string') {
+        if (key === 'columnName') {
+          if (isSourceQualified) add(value, outputName);
+        } else if (key === 'referencedColumnName') {
+          if (refDsIsSource) add(value, outputName);
+        } else if (value.indexOf('`') !== -1) {
+          collectScopedBacktickRefs(value, sourceAliases, (col) => add(col, outputName));
+        }
+        continue;
+      }
+      walk(value, outputName);
+    }
+  };
+  walk(viewDefinition, null);
+  return byColumn;
+}
+
+/**
  * Scan an alert's rule for the column names it references, so a cross-schema
  * migration surfaces them for remap the same way cards and dataflows are. An
  * alert stores rule columns in two shapes, matching the alert rewriter
@@ -252,6 +323,52 @@ export function extractFusionViewColumnRefs(viewDefinition, originId) {
     collectOriginLeaves(view?.columnFuses, (name) => refs.add(name));
   }
   return { refs, unsafe };
+}
+
+/**
+ * Fetch a dataset's current column schema (name + type per column) from its
+ * latest schema. Both the mismatch baseline (which of a source's columns still
+ * exist) and the replacement-candidate list for a broken view reference.
+ *
+ * @param {string} datasetId
+ * @param {number|null} tabId
+ * @returns {Promise<Array<{name: string, type: string}>>}
+ */
+export async function fetchDatasetSchemaColumns(datasetId, tabId) {
+  return executeInPage(
+    async (datasetId) => {
+      const res = await fetch(`/api/data/v2/datasources/${datasetId}/schemas/latest`, {
+        credentials: 'include'
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      return (data?.schema?.columns || []).map((c) => ({ name: c.name, type: c.type }));
+    },
+    [datasetId],
+    tabId
+  );
+}
+
+/**
+ * Fetch a dataset view's compiled definition (`/schema/indexed`), the shape the
+ * scanner and rewriter both operate on.
+ *
+ * @param {string} viewId
+ * @param {number|null} tabId
+ * @returns {Promise<Object>}
+ */
+export async function fetchDatasetViewDefinition(viewId, tabId) {
+  return executeInPage(
+    async (viewId) => {
+      const response = await fetch(`/api/query/v1/datasources/${viewId}/schema/indexed`, {
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error(`GET view schema HTTP ${response.status}`);
+      return response.json();
+    },
+    [viewId],
+    tabId
+  );
 }
 
 /**
@@ -496,6 +613,20 @@ async function collectDataflowCollisions({ byItem, originId, selectedDataflows, 
   return collisions;
 }
 
+/**
+ * Pull source-attributed column refs out of a backticked expression string.
+ * Only qualified `\`alias\`.\`col\`` refs where `alias` is a source alias can be
+ * attributed to a source; bare `\`col\`` refs are ambiguous across inputs, so
+ * they are left to the structured `columnName` path.
+ */
+function collectScopedBacktickRefs(expr, sourceAliases, onRef) {
+  const re = /`([^`]+)`(\.`([^`]+)`)?/g;
+  let match;
+  while ((match = re.exec(expr)) !== null) {
+    if (match[3] != null && sourceAliases.has(match[1])) onRef(match[3]);
+  }
+}
+
 async function fetchAlertDefinition(alertId, tabId) {
   return executeInPage(
     async (alertId) => {
@@ -519,35 +650,6 @@ async function fetchDataflowDefinition(dataflowId, tabId) {
       return response.json();
     },
     [dataflowId],
-    tabId
-  );
-}
-
-async function fetchDatasetSchemaColumns(datasetId, tabId) {
-  return executeInPage(
-    async (datasetId) => {
-      const res = await fetch(`/api/data/v2/datasources/${datasetId}/schemas/latest`, {
-        credentials: 'include'
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      return (data?.schema?.columns || []).map((c) => ({ name: c.name, type: c.type }));
-    },
-    [datasetId],
-    tabId
-  );
-}
-
-async function fetchDatasetViewDefinition(viewId, tabId) {
-  return executeInPage(
-    async (viewId) => {
-      const response = await fetch(`/api/query/v1/datasources/${viewId}/schema/indexed`, {
-        credentials: 'include'
-      });
-      if (!response.ok) throw new Error(`GET view schema HTTP ${response.status}`);
-      return response.json();
-    },
-    [viewId],
     tabId
   );
 }

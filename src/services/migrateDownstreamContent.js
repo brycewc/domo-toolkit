@@ -373,6 +373,7 @@ export async function searchDatasets(text, tabId = null, offset = 0) {
  */
 export async function swapCardInput({
   beastModeIdRemap,
+  beastModeNumericByLegacyId,
   beastModeNumericRemap,
   cachedDefinition,
   cardBeastModeResolutions,
@@ -412,7 +413,7 @@ export async function swapCardInput({
     const fetchUrn = urn || cardId;
     const definition = cachedDefinition || (await getCardDefinition({ cardId: fetchUrn, tabId }));
     let rewritten = hasEffectiveMapping(columnMap)
-      ? rewriteCardColumns(definition, columnMap)
+      ? rewriteCardColumns(definition, columnMap, beastModeNumericByLegacyId)
       : JSON.parse(JSON.stringify(definition));
     if (Array.isArray(rewritten.columns)) {
       for (const col of rewritten.columns) {
@@ -1203,6 +1204,15 @@ export async function migrateAllDownstreamContent({
 }) {
   const results = new Map();
 
+  // Map each target Beast Mode's legacyId to its numeric template id. A column
+  // remapped onto a target Beast Mode is referenced by legacyId in list/summary
+  // fields, but a card-level formula must reference it as DOMO_BEAST_MODE(<numeric
+  // id>), so the card rewriter needs the numeric id to convert those refs.
+  const beastModeNumericByLegacyId = {};
+  for (const bm of targetBeastModes || []) {
+    if (bm?.legacyId && bm?.id != null) beastModeNumericByLegacyId[bm.legacyId] = String(bm.id);
+  }
+
   // Phase 1: Beast Modes. Produces the origin → target id remap the card swap
   // consumes; nothing else depends on it, so it must complete before phase 2.
   const beastModeItems = selectedItems?.beastModes || [];
@@ -1265,6 +1275,7 @@ export async function migrateAllDownstreamContent({
         const cached = definitionsByItemKey?.get?.(makeItemKey(type.key, item.id))?.definition;
         const resp = await dispatchSwap(type.key, item, {
           beastModeIdRemap,
+          beastModeNumericByLegacyId,
           beastModeNumericRemap,
           cachedDefinition: cached,
           cardBeastModeResolutions,
@@ -1491,6 +1502,7 @@ async function dispatchSwap(typeKey, item, options) {
   if (typeKey === 'cards') {
     return swapCardInput({
       beastModeIdRemap: options.beastModeIdRemap,
+      beastModeNumericByLegacyId: options.beastModeNumericByLegacyId,
       beastModeNumericRemap: options.beastModeNumericRemap,
       cachedDefinition: options.cachedDefinition,
       cardBeastModeResolutions: options.cardBeastModeResolutions,

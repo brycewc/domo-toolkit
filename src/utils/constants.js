@@ -53,6 +53,7 @@ export const ACTION_COLOR_PATTERNS = {
 // more-specific paths win (e.g. /datacenter/dataflows before /datacenter).
 export const SECTION_TITLES = {
   '/codeengine': 'Code Engine Packages',
+  '/datacenter/accounts': 'Accounts',
   '/workflows': 'Workflows',
   '/workspaces': 'Workspaces'
 };

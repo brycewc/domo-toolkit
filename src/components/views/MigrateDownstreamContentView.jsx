@@ -4,6 +4,7 @@ import {
   Button,
   Card,
   Chip,
+  Collection,
   Description,
   EmptyState,
   Header,
@@ -11,6 +12,7 @@ import {
   Label,
   Link,
   ListBox,
+  ListLayout,
   Modal,
   ScrollShadow,
   SearchField,
@@ -19,7 +21,8 @@ import {
   Spinner,
   TextField,
   Tooltip,
-  useFilter
+  useFilter,
+  Virtualizer
 } from '@heroui/react';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -2234,6 +2237,10 @@ function ColumnMapRow({
   // Case-insensitive "contains" match for the Autocomplete's local filter, so
   // the user can type to narrow a long target-column list.
   const { contains } = useFilter({ sensitivity: 'base' });
+  // Controlled search text. The option list is virtualized, so the collection
+  // must BE the filtered set (a dynamic `items` array) rather than static
+  // children auto-filtered by the Autocomplete.
+  const [query, setQuery] = useState('');
 
   // Target Beast Modes offered as mapping targets: only those with a legacyId
   // (the id a card references them by; without it we couldn't rewrite the ref).
@@ -2253,36 +2260,78 @@ function ColumnMapRow({
     [mappableBeastModes, mappedTo]
   );
 
-  // The target columns and Beast Modes as ListBox items, built once so they can
-  // render either flat (no Beast Modes to offer) or split into labeled sections
-  // (when Beast Modes are available). The "Columns" header is only shown
-  // alongside the "Beast Modes" header; on its own it adds no information and
-  // would just hint at options that aren't there.
-  const columnItems = targetColumns.map((col) => (
-    <ListBox.Item id={col.name} key={col.name} textValue={col.name}>
-      <div className='flex min-w-0 flex-col'>
-        <span className='truncate font-mono text-xs' title={col.name}>
-          {col.name}
-        </span>
-        <span className='text-[10px] text-muted'>{col.type || 'STRING'}</span>
-      </div>
-      <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
-    </ListBox.Item>
-  ));
-  const beastModeItems = mappableBeastModes.map((bm) => (
-    <ListBox.Item id={bm.legacyId} key={bm.legacyId} textValue={bm.name}>
-      <span className='flex min-w-0 items-center gap-1'>
-        <ObjectTypeIcon className='size-3.5 shrink-0' typeId='BEAST_MODE_FORMULA' />
-        <div className='flex min-w-0 flex-col'>
-          <span className='truncate text-xs' title={bm.name}>
-            {bm.name}
+  // Options for the virtualized picker, filtered by the search box. Actions
+  // (Leave unmapped / Drop) come first; columns and Beast Modes split into
+  // labeled sections only when Beast Modes are offered, otherwise one flat list.
+  // The "Columns" header only appears alongside "Beast Modes"; on its own it
+  // would just hint at options that aren't there. Empty sections are dropped so
+  // no bare header shows when a search filters a group to nothing.
+  const optionSections = useMemo(() => {
+    const matches = (text) => !query || contains(text, query);
+    const sections = [];
+    const actions = [{ id: UNMAPPED, kind: 'unmapped', label: 'Leave unmapped' }];
+    if (canDrop) actions.push({ id: DROP, kind: 'drop', label: 'Drop column' });
+    const visibleActions = actions.filter((a) => matches(a.label));
+    if (visibleActions.length > 0) sections.push({ header: null, id: '__actions__', items: visibleActions, label: 'Mapping options' });
+    const cols = targetColumns
+      .filter((c) => matches(c.name))
+      .map((c) => ({ id: c.name, kind: 'column', name: c.name, type: c.type || 'STRING' }));
+    const beastModes = mappableBeastModes
+      .filter((b) => matches(b.name))
+      .map((b) => ({ id: b.legacyId, kind: 'beastMode', name: b.name, type: b.dataType || 'STRING' }));
+    const showHeaders = mappableBeastModes.length > 0;
+    if (cols.length > 0) sections.push({ header: showHeaders ? 'Columns' : null, id: '__columns__', items: cols, label: 'Columns' });
+    if (showHeaders && beastModes.length > 0)
+      sections.push({ header: 'Beast Modes', id: '__beastModes__', items: beastModes, label: 'Beast Modes' });
+    return sections;
+  }, [canDrop, contains, mappableBeastModes, query, targetColumns]);
+
+  // Render one option row for the virtualized collection, by kind.
+  const renderOption = (item) => {
+    if (item.kind === 'unmapped') {
+      return (
+        <ListBox.Item id={UNMAPPED} textValue='Leave unmapped'>
+          <span className='text-muted italic'>Leave unmapped</span>
+          <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
+        </ListBox.Item>
+      );
+    }
+    if (item.kind === 'drop') {
+      return (
+        <ListBox.Item id={DROP} textValue='Drop column'>
+          <span className='text-danger italic'>Drop column</span>
+          <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
+        </ListBox.Item>
+      );
+    }
+    if (item.kind === 'beastMode') {
+      return (
+        <ListBox.Item id={item.id} textValue={item.name}>
+          <span className='flex min-w-0 items-center gap-1'>
+            <ObjectTypeIcon className='size-3.5 shrink-0' typeId='BEAST_MODE_FORMULA' />
+            <div className='flex min-w-0 flex-col'>
+              <span className='truncate text-xs' title={item.name}>
+                {item.name}
+              </span>
+              <span className='text-[10px] text-muted'>{item.type}</span>
+            </div>
           </span>
-          <span className='text-[10px] text-muted'>{bm.dataType || 'STRING'}</span>
+          <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
+        </ListBox.Item>
+      );
+    }
+    return (
+      <ListBox.Item id={item.id} textValue={item.name}>
+        <div className='flex min-w-0 flex-col'>
+          <span className='truncate font-mono text-xs' title={item.name}>
+            {item.name}
+          </span>
+          <span className='text-[10px] text-muted'>{item.type}</span>
         </div>
-      </span>
-      <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
-    </ListBox.Item>
-  ));
+        <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
+      </ListBox.Item>
+    );
+  };
 
   // Aggregate collisions by dataflow. Many other-inputs may share the same
   // column name; the user mostly cares which dataflows are affected.
@@ -2422,6 +2471,7 @@ function ColumnMapRow({
           </Tooltip>
         )}
         <Autocomplete
+          allowsEmptyCollection
           aria-label={`Map ${originName} to`}
           className='w-44'
           selectionMode='single'
@@ -2452,11 +2502,12 @@ function ColumnMapRow({
             <Autocomplete.ClearButton />
             <Autocomplete.Indicator />
           </Autocomplete.Trigger>
-          <Autocomplete.Popover className='w-9/10' placement='bottom end'>
-            <Autocomplete.Filter filter={contains}>
+          <Autocomplete.Popover className='w-fit min-w-72 max-w-9/10' placement='bottom end'>
+            <Autocomplete.Filter inputValue={query} onInputChange={setQuery}>
               <SearchField
                 autoFocus
                 aria-label={`Search columns for ${originName}`}
+                className='sticky top-0 z-10'
                 name='column-search'
                 variant='secondary'
               >
@@ -2466,37 +2517,25 @@ function ColumnMapRow({
                   <SearchField.ClearButton />
                 </SearchField.Group>
               </SearchField>
-              <ListBox
-                className='max-h-80 overflow-y-auto'
-                renderEmptyState={() => <EmptyState>No columns found</EmptyState>}
-              >
-                <ListBox.Item id={UNMAPPED} textValue='Leave unmapped'>
-                  <span className='text-muted italic'>Leave unmapped</span>
-                  <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
-                </ListBox.Item>
-                {canDrop && (
-                  <ListBox.Item id={DROP} textValue='Drop column'>
-                    <span className='text-danger italic'>Drop column</span>
-                    <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
-                  </ListBox.Item>
-                )}
-                {/* No Beast Modes to offer: render columns flat, with no section
-                    header. Beast Modes available: split into labeled sections so
-                    the "Beast Modes" group is obviously selectable. */}
-                {beastModeItems.length === 0 && columnItems}
-                {beastModeItems.length > 0 && (
-                  <ListBox.Section>
-                    <Header>Columns</Header>
-                    {columnItems}
-                  </ListBox.Section>
-                )}
-                {beastModeItems.length > 0 && (
-                  <ListBox.Section>
-                    <Header>Beast Modes</Header>
-                    {beastModeItems}
-                  </ListBox.Section>
-                )}
-              </ListBox>
+              {/* Virtualized so a dataset with hundreds of columns only renders
+                  the visible rows. Row/heading heights are estimated (rows are
+                  variable: one-line actions vs two-line columns) so React Aria
+                  measures actual heights and self-corrects. */}
+              <Virtualizer layout={ListLayout} layoutOptions={{ estimatedHeadingHeight: 28, estimatedRowHeight: 44 }}>
+                <ListBox
+                  aria-label={`Columns for ${originName}`}
+                  className='max-h-80 overflow-y-auto'
+                  items={optionSections}
+                  renderEmptyState={() => <EmptyState>No columns found</EmptyState>}
+                >
+                  {(section) => (
+                    <ListBox.Section aria-label={section.header ? undefined : section.label} id={section.id}>
+                      {section.header ? <Header>{section.header}</Header> : null}
+                      <Collection items={section.items}>{(item) => renderOption(item)}</Collection>
+                    </ListBox.Section>
+                  )}
+                </ListBox>
+              </Virtualizer>
             </Autocomplete.Filter>
           </Autocomplete.Popover>
         </Autocomplete>
