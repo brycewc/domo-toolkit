@@ -1,5 +1,5 @@
 import { Card, Disclosure, DisclosureGroup, Separator } from '@heroui/react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import JsonView from 'react18-json-view';
 
 import { useViewReady } from '@/hooks/useViewReady';
@@ -19,6 +19,9 @@ export function ApiErrorsView({ instance = null, onBackToDefault = null, onStatu
   const [tabId, setTabId] = useState(null);
   useViewReady(true);
   const mountedRef = useRef(true);
+
+  // Newest first: sort a copy by capture time descending so incoming errors surface at the top.
+  const sortedErrors = useMemo(() => [...errors].sort((a, b) => b.time - a.time), [errors]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -104,7 +107,7 @@ export function ApiErrorsView({ instance = null, onBackToDefault = null, onStatu
 
       <Card.Content className='min-h-0 flex-1 overflow-y-auto'>
         <DisclosureGroup className='flex flex-col gap-1.5'>
-          {errors.map((error) => {
+          {sortedErrors.map((error) => {
             const parsed = parseResponse(error.response);
             const path = stripDomain(error.url);
 

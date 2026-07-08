@@ -55,6 +55,7 @@
                 response: text,
                 status: response.status,
                 statusText: response.statusText,
+                time: Date.now(),
                 timestamp: new Date().toLocaleTimeString(),
                 url: url
               });
@@ -74,6 +75,7 @@
                   response: JSON.stringify(data.exceptions, null, 2),
                   status: innerStatus || 'Exception',
                   statusText: (details && details.statusReason) || '',
+                  time: Date.now(),
                   timestamp: new Date().toLocaleTimeString(),
                   url: url
                 });
@@ -89,6 +91,7 @@
           response: error.message,
           status: 0,
           statusText: 'Network Error',
+          time: Date.now(),
           timestamp: new Date().toLocaleTimeString(),
           url: url
         });
@@ -127,6 +130,7 @@
           response: xhr.responseText,
           status: xhr.status,
           statusText: xhr.statusText,
+          time: Date.now(),
           timestamp: new Date().toLocaleTimeString(),
           url: monitor.url
         });
@@ -141,6 +145,7 @@
               response: JSON.stringify(data.exceptions, null, 2),
               status: innerStatus || 'Exception',
               statusText: (details && details.statusReason) || '',
+              time: Date.now(),
               timestamp: new Date().toLocaleTimeString(),
               url: monitor.url
             });
@@ -157,6 +162,7 @@
           response: 'Network request failed',
           status: 0,
           statusText: 'Network Error',
+          time: Date.now(),
           timestamp: new Date().toLocaleTimeString(),
           url: monitor.url
         });

@@ -14,6 +14,7 @@
 - Hover tooltips throughout the extension now appear promptly instead of after a long pause.
 - The dropdown for picking a column or Beast Mode when mapping columns is now wider, so long names are easier to read.
 - Remap Columns now lists the replacement columns alphabetically, matching Migrate Content.
+- The API Errors list now shows the newest error at the top instead of the bottom.
 
 ## Performance
 
