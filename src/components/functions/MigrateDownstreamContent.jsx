@@ -3,7 +3,7 @@ import { Button, Tooltip } from '@heroui/react';
 import { useLaunchView } from '@/hooks/useLaunchView';
 import IconSwapHorizontal from '@icons/swap-horizontal.svg?react';
 
-export function MigrateDownstreamContent({ currentContext, onCollapseActions, onStatusUpdate }) {
+export function MigrateDownstreamContent({ currentContext, onStatusUpdate }) {
   const { isPending, launch } = useLaunchView();
 
   return (
@@ -16,7 +16,6 @@ export function MigrateDownstreamContent({ currentContext, onCollapseActions, on
         onPress={() =>
           launch({
             currentContext,
-            onCollapseActions,
             onStatusUpdate,
             type: 'migrateDownstreamContent'
           })

@@ -3,7 +3,7 @@ import { Button, Tooltip } from '@heroui/react';
 import { useLaunchView } from '@/hooks/useLaunchView';
 import IconBeastMode from '@icons/beast-mode.svg?react';
 
-export function DeleteUnusedBeastModes({ currentContext, isDisabled, onCollapseActions, onStatusUpdate }) {
+export function DeleteUnusedBeastModes({ currentContext, isDisabled, onStatusUpdate }) {
   const { isPending, launch } = useLaunchView();
 
   return (
@@ -14,7 +14,7 @@ export function DeleteUnusedBeastModes({ currentContext, isDisabled, onCollapseA
         isDisabled={isDisabled}
         isPending={isPending}
         variant='tertiary'
-        onPress={() => launch({ currentContext, onCollapseActions, onStatusUpdate, type: 'deleteUnusedBeastModes' })}
+        onPress={() => launch({ currentContext, onStatusUpdate, type: 'deleteUnusedBeastModes' })}
       >
         <IconBeastMode />
         Delete Unused Beast Modes

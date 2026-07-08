@@ -10,7 +10,7 @@ const PRE_FETCHED_TYPES = ['DATA_APP_VIEW', 'DATA_SOURCE', 'PAGE', 'WORKSHEET_VI
 
 const FORMS_AND_QUEUES_TYPES = ['DATA_APP_VIEW', 'PAGE', 'REPORT_BUILDER_VIEW', 'WORKSHEET_VIEW'];
 
-export function GetCards({ currentContext, isDisabled, onCollapseActions, onStatusUpdate }) {
+export function GetCards({ currentContext, isDisabled, onStatusUpdate }) {
   const { isPending, launch } = useLaunchView();
   const { LongPressOverlay, pressProps } = useLongPress();
 
@@ -37,7 +37,6 @@ export function GetCards({ currentContext, isDisabled, onCollapseActions, onStat
 
     await launch({
       currentContext,
-      onCollapseActions,
       onStatusUpdate,
       parentId,
       scope: 'parent',
@@ -57,7 +56,6 @@ export function GetCards({ currentContext, isDisabled, onCollapseActions, onStat
           onPress={() =>
             launch({
               currentContext,
-              onCollapseActions,
               onStatusUpdate,
               preCheck: PRE_FETCHED_TYPES.includes(objectType)
                 ? async () => {

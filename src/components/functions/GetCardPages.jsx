@@ -7,7 +7,7 @@ import IconPagesBars from '@icons/pages-bars.svg?react';
 
 const PAGE_LIKE_TYPES = ['DATA_APP_VIEW', 'PAGE', 'WORKSHEET_VIEW'];
 
-export function GetCardPages({ currentContext, isDisabled, onCollapseActions, onStatusUpdate }) {
+export function GetCardPages({ currentContext, isDisabled, onStatusUpdate }) {
   const { isPending, launch } = useLaunchView();
   const { LongPressOverlay, pressProps } = useLongPress();
 
@@ -35,7 +35,6 @@ export function GetCardPages({ currentContext, isDisabled, onCollapseActions, on
 
     await launch({
       currentContext,
-      onCollapseActions,
       onStatusUpdate,
       parentId,
       scope: 'parent',
@@ -55,7 +54,6 @@ export function GetCardPages({ currentContext, isDisabled, onCollapseActions, on
           onPress={() =>
             launch({
               currentContext,
-              onCollapseActions,
               onStatusUpdate,
               preCheck: isPageLike
                 ? async () => {

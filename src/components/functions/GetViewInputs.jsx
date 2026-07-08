@@ -4,7 +4,7 @@ import { isViewType } from '@/services/datasets';
 import { launchView } from '@/utils/sidepanel';
 import IconCompass from '@icons/compass.svg?react';
 
-export function GetViewInputs({ currentContext, isDisabled, onCollapseActions, onStatusUpdate }) {
+export function GetViewInputs({ currentContext, isDisabled, onStatusUpdate }) {
   const objectType = currentContext?.domoObject?.typeId;
   const details = currentContext?.domoObject?.metadata?.details;
   if (objectType !== 'DATA_SOURCE' || !isViewType(details)) return null;
@@ -19,7 +19,6 @@ export function GetViewInputs({ currentContext, isDisabled, onCollapseActions, o
         onPress={() =>
           launchView({
             currentContext,
-            onCollapseActions,
             onStatusUpdate,
             type: 'getViewInputs'
           })

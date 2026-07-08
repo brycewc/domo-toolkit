@@ -2,6 +2,7 @@ import { Card, Disclosure, DisclosureGroup, Separator } from '@heroui/react';
 import { useEffect, useRef, useState } from 'react';
 import JsonView from 'react18-json-view';
 
+import { useViewReady } from '@/hooks/useViewReady';
 import { DomoContext } from '@/models/DomoContext';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconChevronDown from '@icons/chevron-down.svg?react';
@@ -16,6 +17,7 @@ import { ViewHeader } from './ViewHeader';
 export function ApiErrorsView({ instance = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [errors, setErrors] = useState([]);
   const [tabId, setTabId] = useState(null);
+  useViewReady(true);
   const mountedRef = useRef(true);
 
   useEffect(() => {

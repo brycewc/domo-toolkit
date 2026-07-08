@@ -3,7 +3,7 @@ import { Button, Spinner, Tooltip } from '@heroui/react';
 import { useLaunchView } from '@/hooks/useLaunchView';
 import IconEye from '@icons/eye.svg?react';
 
-export function InspectDataflow({ currentContext, isDisabled, onCollapseActions, onStatusUpdate }) {
+export function InspectDataflow({ currentContext, isDisabled, onStatusUpdate }) {
   const { isPending, launch } = useLaunchView();
 
   return (
@@ -17,7 +17,6 @@ export function InspectDataflow({ currentContext, isDisabled, onCollapseActions,
         onPress={() =>
           launch({
             currentContext,
-            onCollapseActions,
             onStatusUpdate,
             type: 'inspectDataflow'
           })

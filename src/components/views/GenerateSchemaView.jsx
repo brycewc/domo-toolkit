@@ -14,6 +14,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useStatusBar } from '@/hooks/useStatusBar';
+import { useViewReady } from '@/hooks/useViewReady';
 import { DomoContext } from '@/models/DomoContext';
 import {
   queryAppDbCollectionDocuments,
@@ -39,6 +40,7 @@ const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export function GenerateSchemaView({ instance = null, liveContext = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
+  useViewReady(!isLoading);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentContext, setCurrentContext] = useState(null);
   const [collectionName, setCollectionName] = useState('');

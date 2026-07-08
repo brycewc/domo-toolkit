@@ -31,6 +31,7 @@ import { UpdateTriggerVersionsView } from '@/components/views/UpdateTriggerVersi
 import { useReleaseNotification } from '@/hooks/useReleaseNotification';
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { useTheme } from '@/hooks/useTheme';
+import { ViewReadyContext } from '@/hooks/useViewReady';
 import { DomoContext } from '@/models/DomoContext';
 import { resolvePrimaryCopy } from '@/models/DomoObjectType';
 import { sidepanelStorageKey, sidepanelStorageKeyPrefix } from '@/utils/sidepanel';
@@ -82,9 +83,28 @@ export default function App() {
       if (data.type === 'loading') {
         return { ...prev, [instance]: { loadingMessage: data.message || 'Loading...', type: 'loading' } };
       }
-      return { ...prev, [instance]: { type: data.type, viewKey: data.timestamp || Date.now() } };
+      // Preserve "ready" across in-panel navigation (reload, drill into another
+      // view) so the action bar stays collapsed mid-session. Only a launch from the
+      // default state starts un-ready, keeping the bar expanded until that first
+      // view settles (so an action that resolves to a toast never collapses it).
+      const prevSlot = prev[instance];
+      const ready = prevSlot && prevSlot.type !== 'default' && prevSlot.type !== 'loading' ? prevSlot.ready === true : false;
+      return { ...prev, [instance]: { ready, type: data.type, viewKey: data.timestamp || Date.now() } };
     });
     if (data) setActiveInstance(instance);
+  }, []);
+
+  // Mark an instance's view as having rendered its settled (non-loading) content.
+  // The action bar stays expanded until the active view reports ready, so an action
+  // that resolves to a toast instead of a view never collapses-then-reopens. Guarded
+  // to a no-op for default/loading slots and idempotent (returns prev so it never
+  // triggers a re-render once set).
+  const markViewReady = useCallback((instance) => {
+    setInstanceViews((prev) => {
+      const slot = prev[instance];
+      if (!slot || slot.type === 'default' || slot.type === 'loading' || slot.ready) return prev;
+      return { ...prev, [instance]: { ...slot, ready: true } };
+    });
   }, []);
 
   // Listen for storage changes for sidepanel data (scoped to this window)
@@ -279,7 +299,7 @@ export default function App() {
     const backToDefault = () => handleBackToDefault(instance);
 
     return (
-      <>
+      <ViewReadyContext.Provider value={() => markViewReady(instance)}>
         {(slot.type === 'getChildPages' || slot.type === 'getCardPages' || slot.type === 'childPagesWarning') && (
           <GetPagesView
             currentContext={currentContext}
@@ -523,11 +543,14 @@ export default function App() {
             onStatusUpdate={showStatus}
           />
         )}
-      </>
+      </ViewReadyContext.Provider>
     );
   };
 
-  const activeType = (activeInstance && instanceViews[activeInstance]?.type) || 'default';
+  const activeSlot = (activeInstance && instanceViews[activeInstance]) || null;
+  const activeType = activeSlot?.type || 'default';
+  // Expand when nothing is open OR the open view hasn't finished loading yet.
+  const activeViewReady = activeSlot?.ready === true;
   const mountedEntries = Object.entries(instanceViews).filter(([, slot]) => slot.type !== 'default');
 
   return (
@@ -536,7 +559,7 @@ export default function App() {
         <ActionButtons
           collapsable={true}
           currentContext={currentContext}
-          defaultExpanded={activeType === 'default'}
+          defaultExpanded={activeType === 'default' || !activeViewReady}
           isLoading={isLoadingCurrentContext}
           onStatusUpdate={showStatus}
         />

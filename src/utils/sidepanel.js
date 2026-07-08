@@ -31,12 +31,17 @@ export function isSidepanel() {
  * @param {string} options.type - View type routed by sidepanel App (e.g. 'getCards')
  * @param {Object} options.currentContext - Current DomoContext
  * @param {string} [options.instance] - Domo instance to scope the view to (defaults to currentContext.instance)
- * @param {Function} [options.onCollapseActions] - Collapse the action bar (sidepanel only)
  * @param {Function} [options.onStatusUpdate] - Show a toast in the current context
  * @param {Function} [options.preCheck] - Async fn returning { empty, title, message } or null
  * @param {...any} options - Extra props forwarded to storeSidepanelData (e.g. appId)
  */
-export async function launchView({ currentContext, onCollapseActions, onStatusUpdate, preCheck, type, ...extras }) {
+export async function launchView({ currentContext, onStatusUpdate, preCheck, type, ...extras }) {
+  // Dismiss the just-clicked button's tooltip. The action bar stays expanded while
+  // the view loads, so the hovered button keeps its tooltip open (and it would
+  // otherwise linger over the panel). Blurring drops the hover/focus that holds it
+  // open; with the cursor still, nothing reopens it before the bar collapses.
+  document.activeElement?.blur?.();
+
   // In the popup, open the sidepanel immediately to preserve the user gesture
   // (chrome.sidePanel.open requires a recent user gesture; async preChecks
   // that poll for pre-fetched data would cause it to expire).
@@ -57,7 +62,6 @@ export async function launchView({ currentContext, onCollapseActions, onStatusUp
   }
 
   await storeSidepanelData({ currentContext, type, ...extras });
-  onCollapseActions?.();
 }
 
 /**

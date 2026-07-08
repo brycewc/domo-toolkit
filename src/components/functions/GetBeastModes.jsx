@@ -4,7 +4,7 @@ import { useLaunchView } from '@/hooks/useLaunchView';
 import { useLongPress } from '@/hooks/useLongPress';
 import IconBeastMode from '@icons/beast-mode.svg?react';
 
-export function GetBeastModes({ currentContext, isDisabled, onCollapseActions, onStatusUpdate }) {
+export function GetBeastModes({ currentContext, isDisabled, onStatusUpdate }) {
   const { isPending, launch } = useLaunchView();
   const { LongPressOverlay, pressProps } = useLongPress();
 
@@ -31,7 +31,6 @@ export function GetBeastModes({ currentContext, isDisabled, onCollapseActions, o
 
     await launch({
       currentContext,
-      onCollapseActions,
       onStatusUpdate,
       parentId,
       scope: 'parent',
@@ -51,7 +50,6 @@ export function GetBeastModes({ currentContext, isDisabled, onCollapseActions, o
           onPress={() =>
             launch({
               currentContext,
-              onCollapseActions,
               onStatusUpdate,
               type: 'getBeastModes'
             })

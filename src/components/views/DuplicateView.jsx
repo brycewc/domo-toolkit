@@ -16,6 +16,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { UserComboBox } from '@/components/UserComboBox';
 import { useStatusBar } from '@/hooks/useStatusBar';
+import { useViewReady } from '@/hooks/useViewReady';
 import { DataListItem } from '@/models/DataListItem';
 import { DomoContext } from '@/models/DomoContext';
 import { addAccessToExistingUser, duplicateUser, fetchDuplicationPreview } from '@/services/duplicate';
@@ -82,6 +83,7 @@ const buildInitialValues = (fields) => Object.fromEntries(fields.map((f) => [f.k
 
 export function DuplicateView({ instance = null, liveContext = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
+  useViewReady(!isLoading);
   const [currentContext, setCurrentContext] = useState(null);
   const [sourceUser, setSourceUser] = useState(null);
   const [config, setConfig] = useState(null);

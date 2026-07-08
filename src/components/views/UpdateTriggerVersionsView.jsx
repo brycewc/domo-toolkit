@@ -2,6 +2,7 @@ import { Button, Checkbox, Label, ListBox, Select, Spinner } from '@heroui/react
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useStatusBar } from '@/hooks/useStatusBar';
+import { useViewReady } from '@/hooks/useViewReady';
 import { DataListItem } from '@/models/DataListItem';
 import { DomoContext } from '@/models/DomoContext';
 import { updateAlertTriggerVersions } from '@/services/alerts';
@@ -21,6 +22,7 @@ export function UpdateTriggerVersionsView({
   onStatusUpdate = null
 }) {
   const [isLoading, setIsLoading] = useState(true);
+  const holdContent = useViewReady(!isLoading);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentContext, setCurrentContext] = useState(null);
@@ -225,7 +227,7 @@ export function UpdateTriggerVersionsView({
     await loadData(currentContext);
   }
 
-  if (isLoading) {
+  if (isLoading || holdContent) {
     return (
       <div className='flex h-full items-center justify-center'>
         <Spinner />
@@ -244,6 +246,7 @@ export function UpdateTriggerVersionsView({
 
   return (
     <DataList
+      fillHeight
       selectionMode
       banner={banner}
       currentContext={currentContext || liveContext}

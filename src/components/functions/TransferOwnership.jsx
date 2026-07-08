@@ -3,7 +3,7 @@ import { Button, Tooltip } from '@heroui/react';
 import { useLaunchView } from '@/hooks/useLaunchView';
 import IconSwapHorizontal from '@icons/swap-horizontal.svg?react';
 
-export function TransferOwnership({ currentContext, onCollapseActions, onStatusUpdate }) {
+export function TransferOwnership({ currentContext, onStatusUpdate }) {
   const { isPending, launch } = useLaunchView();
 
   return (
@@ -17,7 +17,6 @@ export function TransferOwnership({ currentContext, onCollapseActions, onStatusU
           launch({
             autoEnableSelectionMode: true,
             currentContext,
-            onCollapseActions,
             onStatusUpdate,
             type: 'ownership'
           })

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { Alert } from '@/components/Alert';
 import { CloseButton } from '@/components/CloseButton';
+import { useViewReady } from '@/hooks/useViewReady';
 import { DataListItem } from '@/models/DataListItem';
 import { DomoContext } from '@/models/DomoContext';
 import { DomoObject } from '@/models/DomoObject';
@@ -34,6 +35,8 @@ export function GetPagesView({
   const [items, setItems] = useState([]);
   const [pageData, setPageData] = useState(null); // Store metadata for rebuilding
   const [pageTypeLabel, setPageTypeLabel] = useState('pages');
+
+  const holdContent = useViewReady(!isLoading);
 
   const mountedRef = useRef(true);
   useEffect(() => {
@@ -518,8 +521,8 @@ export function GetPagesView({
     }
     return text;
   };
-  if (isLoading) {
-    if (!showSpinner) return null;
+  if (isLoading || holdContent) {
+    if (isLoading && !showSpinner) return null;
     return (
       <Card className='flex w-full items-center justify-center p-0'>
         <Card.Content className='flex flex-col items-center justify-center gap-2 p-2'>

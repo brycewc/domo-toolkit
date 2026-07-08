@@ -2,11 +2,12 @@ import { Button, Card, Disclosure, Link, ScrollShadow, Spinner } from '@heroui/r
 import { useEffect, useState } from 'react';
 import JsonView from 'react18-json-view';
 
-import '@/assets/json-view-theme.css';
 import { Alert } from '@/components/Alert';
+import '@/assets/json-view-theme.css';
 import { CloseButton } from '@/components/CloseButton';
 import { useGroupLookup } from '@/hooks/useGroupLookup';
 import { useUserLookup } from '@/hooks/useUserLookup';
+import { useViewReady } from '@/hooks/useViewReady';
 import { DomoObject } from '@/models/DomoObject';
 import { formatEpochTimestamp, formatTimestamp, isDateFieldName, isGroupFieldName, isUserFieldName } from '@/utils/general';
 import { buildRefreshAction, buildReloadAction } from '@/utils/headerActions';
@@ -48,6 +49,7 @@ const KNOWN_FIELDS = [
 
 export function ObjectDetailsView({ instance = null, liveContext = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
+  useViewReady(!isLoading);
   const [isRetrying, setIsRetrying] = useState(false);
   const [showSpinner, setShowSpinner] = useState(false);
   const [error, setError] = useState(null);

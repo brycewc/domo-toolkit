@@ -3,7 +3,7 @@ import { Button, Tooltip } from '@heroui/react';
 import { useLaunchView } from '@/hooks/useLaunchView';
 import IconListBulleted from '@icons/list-bulleted.svg?react';
 
-export function GetOwnedObjects({ currentContext, onCollapseActions, onStatusUpdate }) {
+export function GetOwnedObjects({ currentContext, onStatusUpdate }) {
   const { isPending, launch } = useLaunchView();
 
   return (
@@ -16,7 +16,6 @@ export function GetOwnedObjects({ currentContext, onCollapseActions, onStatusUpd
         onPress={() =>
           launch({
             currentContext,
-            onCollapseActions,
             onStatusUpdate,
             type: 'ownership'
           })

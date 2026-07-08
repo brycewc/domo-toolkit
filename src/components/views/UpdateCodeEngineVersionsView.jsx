@@ -18,6 +18,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { Alert } from '@/components/Alert';
 import { useStatusBar } from '@/hooks/useStatusBar';
+import { useViewReady } from '@/hooks/useViewReady';
 import { DomoContext } from '@/models/DomoContext';
 import { getCodeEnginePackageInfo } from '@/services/codeEngine';
 import { getVersionDefinition, getWorkflowModelName, updateVersionDefinition } from '@/services/workflows';
@@ -49,6 +50,7 @@ export function UpdateCodeEngineVersionsView({
   onStatusUpdate = null
 }) {
   const [isLoading, setIsLoading] = useState(true);
+  useViewReady(!isLoading);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDiffing, setIsDiffing] = useState(false);

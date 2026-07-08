@@ -4,7 +4,7 @@ import { useLaunchView } from '@/hooks/useLaunchView';
 import { useLongPress } from '@/hooks/useLongPress';
 import IconDatabase from '@icons/database.svg?react';
 
-export function GetDatasets({ currentContext, isDisabled, onCollapseActions, onStatusUpdate }) {
+export function GetDatasets({ currentContext, isDisabled, onStatusUpdate }) {
   const { isPending, launch } = useLaunchView();
   const { LongPressOverlay, pressProps } = useLongPress();
 
@@ -31,7 +31,6 @@ export function GetDatasets({ currentContext, isDisabled, onCollapseActions, onS
     await launch({
       appId: parentId,
       currentContext,
-      onCollapseActions,
       onStatusUpdate,
       type: 'getDatasets'
     });
@@ -77,7 +76,6 @@ export function GetDatasets({ currentContext, isDisabled, onCollapseActions, onS
           onPress={() =>
             launch({
               currentContext,
-              onCollapseActions,
               onStatusUpdate,
               type: 'getDatasets'
             })

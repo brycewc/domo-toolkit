@@ -5,6 +5,7 @@ import { EntityPicker } from '@/components/EntityPicker';
 import { createAccountPickerAdapter } from '@/components/pickers/accountPickerAdapter';
 import { UserFilterAutocomplete } from '@/components/UserFilterAutocomplete';
 import { useStatusBar } from '@/hooks/useStatusBar';
+import { useViewReady } from '@/hooks/useViewReady';
 import { DomoContext } from '@/models/DomoContext';
 import { getAccountIdsForDomoObject, getAccountsForProvider } from '@/services/accounts';
 import { updateStreamAccounts } from '@/services/datasets';
@@ -19,6 +20,7 @@ import { ViewHeader } from './ViewHeader';
 
 export function SwitchAccountView({ instance = null, liveContext = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
+  useViewReady(!isLoading);
   const [currentContext, setCurrentContext] = useState(null);
   const [streamId, setStreamId] = useState(null);
   const [dataProviderType, setDataProviderType] = useState(null);

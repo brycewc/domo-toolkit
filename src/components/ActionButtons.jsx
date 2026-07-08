@@ -42,6 +42,7 @@ import { UpdateDetails } from '@/components/functions/UpdateDetails';
 import { UpdateOwner } from '@/components/functions/UpdateOwner';
 import { UpdateTriggerVersions } from '@/components/functions/UpdateTriggerVersions';
 import { ViewLineage } from '@/components/functions/ViewLineage';
+import { ACTION_BAR_COLLAPSED_EVENT } from '@/hooks/useViewReady';
 import { getAvailableActions } from '@/utils/availableActions';
 import { isSidepanel, openSidepanel } from '@/utils/sidepanel';
 import IconChevronDown from '@icons/chevron-down.svg?react';
@@ -58,6 +59,15 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
       setIsExpanded(defaultExpanded);
     }
   }, [defaultExpanded]);
+
+  // Under reduced motion the collapse is instant, so no height transition (and thus
+  // no `onTransitionEnd`) fires. Signal the collapse "finished" here instead, so
+  // views holding their content until the bar closes still get released.
+  useEffect(() => {
+    if (!isExpanded && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      document.dispatchEvent(new Event(ACTION_BAR_COLLAPSED_EVENT));
+    }
+  }, [isExpanded]);
 
   // Whether the panel has anything to show is measured from the rendered DOM,
   // not from getAvailableActions alone: ApiErrors and DevMenu render outside of
@@ -171,7 +181,17 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                 )}
               </ButtonGroup>
             </Disclosure.Heading>
-            <Disclosure.Content className='flex h-full w-full flex-col items-center justify-center gap-1'>
+            <Disclosure.Content
+              className='flex h-full w-full flex-col items-center justify-center gap-1'
+              onTransitionEnd={(e) => {
+                // Signal views holding their content that the collapse finished, so
+                // they mount into the settled layout. Only the height transition,
+                // and only when collapsed (not on expand).
+                if (e.propertyName === 'height' && !isExpanded) {
+                  document.dispatchEvent(new Event(ACTION_BAR_COLLAPSED_EVENT));
+                }
+              }}
+            >
               <div
                 className='flex w-full flex-wrap place-items-center items-center justify-center gap-1 not-empty:mt-1 empty:hidden'
                 ref={contentRef}
@@ -179,14 +199,12 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                 <ApiErrors
                   currentContext={currentContext}
                   isDisabled={!isDomoPage}
-                  onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
                   onStatusUpdate={onStatusUpdate}
                 />
                 {availableActions.has('getCards') && (
                   <GetCards
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
-                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
@@ -194,7 +212,6 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                   <GetDatasets
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
-                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
@@ -202,7 +219,6 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                   <GetChildPages
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
-                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
@@ -210,7 +226,6 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                   <GetCardPages
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
-                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
@@ -218,15 +233,6 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                   <GetBeastModes
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
-                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
-                    onStatusUpdate={onStatusUpdate}
-                  />
-                )}
-                {availableActions.has('deleteUnusedBeastModes') && (
-                  <DeleteUnusedBeastModes
-                    currentContext={currentContext}
-                    isDisabled={!isDomoPage}
-                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
@@ -234,7 +240,6 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                   <GetWorkspaces
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
-                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
@@ -242,7 +247,6 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                   <GetViewInputs
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
-                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
@@ -253,7 +257,6 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                   <InspectDataflow
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
-                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
@@ -274,7 +277,6 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                   <ManageTags
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
-                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
@@ -291,35 +293,30 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                 {availableActions.has('migrateDownstreamContent') && (
                   <MigrateDownstreamContent
                     currentContext={currentContext}
-                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
                 {availableActions.has('remapColumns') && (
                   <RemapColumns
                     currentContext={currentContext}
-                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
                 {availableActions.has('transferOwnership') && (
                   <TransferOwnership
                     currentContext={currentContext}
-                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
                 {availableActions.has('getOwnedObjects') && (
                   <GetOwnedObjects
                     currentContext={currentContext}
-                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
                 {availableActions.has('duplicate') && (
                   <Duplicate
                     currentContext={currentContext}
-                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
@@ -339,7 +336,6 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                 {availableActions.has('switchAccount') && (
                   <SwitchAccount
                     currentContext={currentContext}
-                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
@@ -347,7 +343,6 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                   <UpdateCodeEngineVersions
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
-                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
@@ -355,7 +350,6 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                   <UpdateTriggerVersions
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
-                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
@@ -363,7 +357,6 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                   <Generate
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
-                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
@@ -371,7 +364,6 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                   <Sync
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
-                    onCollapseActions={collapsable ? () => setIsExpanded(false) : undefined}
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
@@ -386,6 +378,13 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                 )}
                 {availableActions.has('lockCards') && (
                   <LockCards currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
+                )}
+                {availableActions.has('deleteUnusedBeastModes') && (
+                  <DeleteUnusedBeastModes
+                    currentContext={currentContext}
+                    isDisabled={!isDomoPage}
+                    onStatusUpdate={onStatusUpdate}
+                  />
                 )}
                 <DevMenu />
               </div>

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { Alert } from '@/components/Alert';
 import { CloseButton } from '@/components/CloseButton';
+import { useViewReady } from '@/hooks/useViewReady';
 import { DataListItem } from '@/models/DataListItem';
 import { DomoContext } from '@/models/DomoContext';
 import { DomoObject } from '@/models/DomoObject';
@@ -29,6 +30,7 @@ export function GetBeastModesView({
   onStatusUpdate = null
 }) {
   const [isLoading, setIsLoading] = useState(true);
+  const holdContent = useViewReady(!isLoading);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
   const [showSpinner, setShowSpinner] = useState(false);
@@ -140,8 +142,8 @@ export function GetBeastModesView({
     return `${total} Beast Mode${total === 1 ? '' : 's'} · ${uses} distinct dependenc${uses === 1 ? 'y' : 'ies'}`;
   };
 
-  if (isLoading) {
-    if (!showSpinner) return null;
+  if (isLoading || holdContent) {
+    if (isLoading && !showSpinner) return null;
     return (
       <Card className='flex w-full items-center justify-center p-0'>
         <Card.Content className='flex flex-col items-center justify-center gap-2 p-2'>

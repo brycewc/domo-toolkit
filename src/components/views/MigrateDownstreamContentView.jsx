@@ -33,6 +33,7 @@ import { ColumnUsagesModal } from '@/components/views/ColumnUsagesModal';
 import { DataList } from '@/components/views/DataList';
 import { useParallelFetches } from '@/hooks/useParallelFetches';
 import { useStatusBar } from '@/hooks/useStatusBar';
+import { useViewReady } from '@/hooks/useViewReady';
 import { DataListItem } from '@/models/DataListItem';
 import { DomoContext } from '@/models/DomoContext';
 import { DomoObject } from '@/models/DomoObject';
@@ -300,6 +301,7 @@ export function MigrateDownstreamContentView({
   // the user can still see the failure and retry via refresh; a 0 total there
   // may just mean a fetch never returned.
   const nothingToMigrate = !isLoading && !isTransferring && loadedCount === MIGRATE_TYPES.length && totalAvailable === 0;
+  const holdContent = useViewReady(!isLoading && !nothingToMigrate);
 
   // The render path short-circuits to the spinner on `nothingToMigrate` to
   // prevent a one-frame flash of the empty list before this effect navigates
@@ -1459,7 +1461,7 @@ export function MigrateDownstreamContentView({
     targetColumns
   ]);
 
-  if (isLoading || nothingToMigrate) {
+  if (isLoading || nothingToMigrate || holdContent) {
     return (
       <Card className='flex h-full w-full items-center justify-center'>
         <Card.Content className='flex flex-col items-center gap-2 py-8'>

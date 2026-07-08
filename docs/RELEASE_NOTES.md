@@ -20,6 +20,7 @@
 
 ## Bug Fixes
 
+- The action buttons no longer briefly collapse and reopen when an action finds nothing to show and reports it with a message instead of opening a results panel.
 - Sharing a page now makes it appear in your navigation instead of only granting access by direct link.
 - Get Card Pages now tells you when none of an object's cards appear on any page, instead of listing them under a lone Orphaned Cards category.
 - Get View Inputs now lists the source datasets of union views (and other views that nest their inputs) instead of finding none.

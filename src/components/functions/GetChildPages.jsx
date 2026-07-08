@@ -4,7 +4,7 @@ import { useLaunchView } from '@/hooks/useLaunchView';
 import { waitForChildPages } from '@/utils/pageHelpers';
 import IconTree from '@icons/tree.svg?react';
 
-export function GetChildPages({ currentContext, isDisabled, onCollapseActions, onStatusUpdate }) {
+export function GetChildPages({ currentContext, isDisabled, onStatusUpdate }) {
   const { isPending, launch } = useLaunchView();
 
   const typeId = currentContext?.domoObject?.typeId;
@@ -22,7 +22,6 @@ export function GetChildPages({ currentContext, isDisabled, onCollapseActions, o
         onPress={() =>
           launch({
             currentContext,
-            onCollapseActions,
             onStatusUpdate,
             preCheck: async () => {
               const result = await waitForChildPages(currentContext);

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { launchView } from '@/utils/sidepanel';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
 
-export function ApiErrors({ currentContext, isDisabled, onCollapseActions, onStatusUpdate }) {
+export function ApiErrors({ currentContext, isDisabled, onStatusUpdate }) {
   const [errorCount, setErrorCount] = useState(0);
 
   useEffect(() => {
@@ -43,7 +43,6 @@ export function ApiErrors({ currentContext, isDisabled, onCollapseActions, onSta
         onPress={() =>
           launchView({
             currentContext,
-            onCollapseActions,
             onStatusUpdate,
             type: 'apiErrors'
           })

@@ -5,6 +5,7 @@ import { Alert } from '@/components/Alert';
 import { CloseButton } from '@/components/CloseButton';
 import { DataList } from '@/components/views/DataList';
 import { useStatusBar } from '@/hooks/useStatusBar';
+import { useViewReady } from '@/hooks/useViewReady';
 import { DataListItem } from '@/models/DataListItem';
 import { DomoContext } from '@/models/DomoContext';
 import { DomoObject } from '@/models/DomoObject';
@@ -28,6 +29,7 @@ export function DeleteUnusedBeastModesView({
   onStatusUpdate = null
 }) {
   const [isLoading, setIsLoading] = useState(true);
+  const holdContent = useViewReady(!isLoading);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [candidates, setCandidates] = useState([]);
@@ -303,7 +305,7 @@ export function DeleteUnusedBeastModesView({
     [isDeleting, selectedLeafCount]
   );
 
-  if (isLoading) {
+  if (isLoading || holdContent) {
     return (
       <Card className='flex h-full w-full items-center justify-center'>
         <Card.Content className='flex flex-col items-center gap-2 py-8'>
@@ -348,6 +350,7 @@ export function DeleteUnusedBeastModesView({
   return (
     <>
       <DataList
+        fillHeight
         selectionMode
         currentContext={currentContext}
         defaultExpandedIds={['group-beastModes', 'group-variables']}

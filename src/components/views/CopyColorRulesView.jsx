@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Alert } from '@/components/Alert';
 import { DatasetComboBox } from '@/components/DatasetComboBox';
 import { useStatusBar } from '@/hooks/useStatusBar';
+import { useViewReady } from '@/hooks/useViewReady';
 import { DomoContext } from '@/models/DomoContext';
 import { getColorRules, getDatasetBeastModes, getDatasetColumns, setColorRules } from '@/services/datasets';
 import { buildReloadAction } from '@/utils/headerActions';
@@ -15,6 +16,7 @@ import { ViewHeader } from './ViewHeader';
 
 export function CopyColorRulesView({ instance = null, liveContext = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
+  useViewReady(!isLoading);
   const [currentContext, setCurrentContext] = useState(null);
   const [sourceRules, setSourceRules] = useState([]);
   const [destinationId, setDestinationId] = useState(null);

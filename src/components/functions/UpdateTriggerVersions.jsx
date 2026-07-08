@@ -3,7 +3,7 @@ import { Button, Tooltip } from '@heroui/react';
 import { launchView } from '@/utils/sidepanel';
 import IconDoubleChevronUp from '@icons/double-chevron-up.svg?react';
 
-export function UpdateTriggerVersions({ currentContext, isDisabled, onCollapseActions, onStatusUpdate }) {
+export function UpdateTriggerVersions({ currentContext, isDisabled, onStatusUpdate }) {
   return (
     <Tooltip>
       <Button
@@ -14,7 +14,6 @@ export function UpdateTriggerVersions({ currentContext, isDisabled, onCollapseAc
         onPress={() =>
           launchView({
             currentContext,
-            onCollapseActions,
             onStatusUpdate,
             type: 'updateTriggerVersions'
           })

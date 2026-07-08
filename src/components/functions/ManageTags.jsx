@@ -3,7 +3,7 @@ import { Button, Tooltip } from '@heroui/react';
 import { useLaunchView } from '@/hooks/useLaunchView';
 import IconTagMultiple from '@icons/tag-multiple.svg?react';
 
-export function ManageTags({ currentContext, isDisabled, onCollapseActions, onStatusUpdate }) {
+export function ManageTags({ currentContext, isDisabled, onStatusUpdate }) {
   const { isPending, launch } = useLaunchView();
 
   return (
@@ -17,7 +17,6 @@ export function ManageTags({ currentContext, isDisabled, onCollapseActions, onSt
         onPress={() =>
           launch({
             currentContext,
-            onCollapseActions,
             onStatusUpdate,
             type: 'manageTags'
           })

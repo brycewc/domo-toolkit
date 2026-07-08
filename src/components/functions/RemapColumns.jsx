@@ -3,7 +3,7 @@ import { Button, Tooltip } from '@heroui/react';
 import { useLaunchView } from '@/hooks/useLaunchView';
 import IconColumnEdit from '@icons/column-edit.svg?react';
 
-export function RemapColumns({ currentContext, onCollapseActions, onStatusUpdate }) {
+export function RemapColumns({ currentContext, onStatusUpdate }) {
   const { isPending, launch } = useLaunchView();
 
   return (
@@ -16,7 +16,6 @@ export function RemapColumns({ currentContext, onCollapseActions, onStatusUpdate
         onPress={() =>
           launch({
             currentContext,
-            onCollapseActions,
             onStatusUpdate,
             type: 'remapColumns'
           })

@@ -18,6 +18,7 @@ import {
 import { useEffect, useRef, useState } from 'react';
 
 import { useStatusBar } from '@/hooks/useStatusBar';
+import { useViewReady } from '@/hooks/useViewReady';
 import { DomoContext } from '@/models/DomoContext';
 import { renameAppDbCollection } from '@/services/appDb';
 import { updateDataflowDetails } from '@/services/dataflows';
@@ -111,6 +112,7 @@ const updatersByType = {
 
 export function UpdateDetailsView({ instance = null, liveContext = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
+  useViewReady(!isLoading);
   const [currentContext, setCurrentContext] = useState(null);
   const [config, setConfig] = useState(null);
   const [originalValues, setOriginalValues] = useState({});

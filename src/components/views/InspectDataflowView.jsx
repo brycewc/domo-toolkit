@@ -2,6 +2,7 @@ import { Card, Spinner } from '@heroui/react';
 import { useCallback, useEffect, useState } from 'react';
 
 import { DataflowInspector } from '@/components/DataflowInspector';
+import { useViewReady } from '@/hooks/useViewReady';
 import { DomoContext } from '@/models/DomoContext';
 import { getValidTabForInstance } from '@/utils/currentObject';
 import { getSidepanelData } from '@/utils/sidepanel';
@@ -10,6 +11,7 @@ export function InspectDataflowView({ instance = null, onBackToDefault = null })
   const [dataflowId, setDataflowId] = useState(null);
   const [error, setError] = useState(null);
   const [versionId, setVersionId] = useState(null);
+  useViewReady(dataflowId !== null || error !== null);
 
   useEffect(() => {
     let cancelled = false;

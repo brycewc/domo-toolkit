@@ -3,7 +3,7 @@ import { Button, Tooltip } from '@heroui/react';
 import { useLaunchView } from '@/hooks/useLaunchView';
 import IconPersonPlus from '@icons/person-plus.svg?react';
 
-export function Duplicate({ currentContext, onCollapseActions, onStatusUpdate }) {
+export function Duplicate({ currentContext, onStatusUpdate }) {
   const { isPending, launch } = useLaunchView();
 
   return (
@@ -16,7 +16,6 @@ export function Duplicate({ currentContext, onCollapseActions, onStatusUpdate })
         onPress={() =>
           launch({
             currentContext,
-            onCollapseActions,
             onStatusUpdate,
             type: 'duplicate'
           })

@@ -572,6 +572,7 @@ export function DataList({
                       allowsMultipleExpanded={allowsMultipleExpanded}
                       defaultExpandedIds={defaultExpandedIds}
                       expandedIds={expandedIds}
+                      fillHeight={fillHeight}
                       getItemLock={getItemLock}
                       isSelectable={isSelectable}
                       item={item}
@@ -620,6 +621,7 @@ export function DataList({
                       allowsMultipleExpanded={allowsMultipleExpanded}
                       defaultExpandedIds={defaultExpandedIds}
                       expandedIds={expandedIds}
+                      fillHeight={fillHeight}
                       getItemLock={getItemLock}
                       isSelectable={isSelectable}
                       item={item}
@@ -836,6 +838,7 @@ function DataListItemImpl({
   defaultExpandedIds,
   depth = 0,
   expandedIds,
+  fillHeight = false,
   getItemLock,
   isSelectable,
   item,
@@ -1434,6 +1437,7 @@ function DataListItemImpl({
     defaultExpandedIds,
     depth: depth + 1,
     expandedIds,
+    fillHeight,
     getItemLock,
     isSelectable,
     item: child,
@@ -1721,7 +1725,7 @@ function DataListItemImpl({
                   items={item.children}
                   renderItem={(child) => <DataListItem {...childRenderProps(child)} />}
                 />
-              ) : item.children.length > MAX_VISIBLE_CHILDREN_ROWS ? (
+              ) : item.children.length > MAX_VISIBLE_CHILDREN_ROWS && !fillHeight ? (
                 // Cap height + scroll without paying virtualization's DOM cost.
                 // Virtualization only kicks in past `virtualThreshold` (default
                 // 50), but past `MAX_VISIBLE_CHILDREN_ROWS` (12) an inline map

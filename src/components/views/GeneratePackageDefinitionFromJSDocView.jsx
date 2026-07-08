@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { Alert } from '@/components/Alert';
 import { useStatusBar } from '@/hooks/useStatusBar';
+import { useViewReady } from '@/hooks/useViewReady';
 import { DomoContext } from '@/models/DomoContext';
 import {
   getCodeEngineEditorSource,
@@ -310,6 +311,7 @@ export function GeneratePackageDefinitionFromJSDocView({
     newFunctionCount === 0 &&
     updatedFunctionCount === 0 &&
     !hasJSDocRewrites;
+  useViewReady(!isLoading && !willBail);
 
   if (isLoading || willBail) {
     return (

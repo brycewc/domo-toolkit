@@ -3,7 +3,7 @@ import { Button, Tooltip } from '@heroui/react';
 import { launchView } from '@/utils/sidepanel';
 import IconMagic from '@icons/magic.svg?react';
 
-export function Generate({ currentContext, isDisabled, onCollapseActions, onStatusUpdate }) {
+export function Generate({ currentContext, isDisabled, onStatusUpdate }) {
   const typeId = currentContext?.domoObject?.typeId;
   const isAppDbCollection = typeId === 'MAGNUM_COLLECTION';
 
@@ -23,7 +23,6 @@ export function Generate({ currentContext, isDisabled, onCollapseActions, onStat
         onPress={() =>
           launchView({
             currentContext,
-            onCollapseActions,
             onStatusUpdate,
             type: viewType
           })

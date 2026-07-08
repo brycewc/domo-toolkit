@@ -23,6 +23,7 @@ import { DataList } from '@/components/views/DataList';
 import { ViewHeader } from '@/components/views/ViewHeader';
 import { useParallelFetches } from '@/hooks/useParallelFetches';
 import { useStatusBar } from '@/hooks/useStatusBar';
+import { useViewReady } from '@/hooks/useViewReady';
 import { DataListItem } from '@/models/DataListItem';
 import { DomoContext } from '@/models/DomoContext';
 import { DomoObject } from '@/models/DomoObject';
@@ -395,6 +396,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
   // the default view with a note rather than painting an empty list.
   const bailedRef = useRef(false);
   const nothingToDo = detectionSettled && !isTransferring && brokenColumns.length === 0;
+  const holdContent = useViewReady(!isLoading && !nothingToDo);
   useEffect(() => {
     if (bailedRef.current || !nothingToDo) return;
     bailedRef.current = true;
@@ -739,7 +741,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
     viewDefinition
   ]);
 
-  if (isLoading || nothingToDo) {
+  if (isLoading || nothingToDo || holdContent) {
     return (
       <Card className='flex h-full w-full items-center justify-center'>
         <Card.Content className='flex flex-col items-center gap-2 py-8'>

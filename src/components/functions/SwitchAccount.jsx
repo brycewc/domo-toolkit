@@ -3,7 +3,7 @@ import { Button, Tooltip } from '@heroui/react';
 import { useLaunchView } from '@/hooks/useLaunchView';
 import IconSwapHorizontal from '@icons/swap-horizontal.svg?react';
 
-export function SwitchAccount({ currentContext, onCollapseActions, onStatusUpdate }) {
+export function SwitchAccount({ currentContext, onStatusUpdate }) {
   const { isPending, launch } = useLaunchView();
 
   return (
@@ -16,7 +16,6 @@ export function SwitchAccount({ currentContext, onCollapseActions, onStatusUpdat
         onPress={() =>
           launch({
             currentContext,
-            onCollapseActions,
             onStatusUpdate,
             type: 'switchAccount'
           })

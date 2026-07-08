@@ -5,6 +5,7 @@ import { TransferOwnershipModal } from '@/components/modals/TransferOwnershipMod
 import { DataList } from '@/components/views/DataList';
 import { useParallelFetches } from '@/hooks/useParallelFetches';
 import { useStatusBar } from '@/hooks/useStatusBar';
+import { useViewReady } from '@/hooks/useViewReady';
 import { DataListItem } from '@/models/DataListItem';
 import { DomoContext } from '@/models/DomoContext';
 import { DomoObject } from '@/models/DomoObject';
@@ -93,6 +94,7 @@ export function OwnershipView({
   onStatusUpdate = null
 }) {
   const [isLoading, setIsLoading] = useState(true);
+  const holdContent = useViewReady(!isLoading);
   const [userName, setUserName] = useState('');
   const [userId, setUserId] = useState(null);
   const [tabId, setTabId] = useState(null);
@@ -982,7 +984,7 @@ export function OwnershipView({
     );
   }, [handleOpenTransferModal, hasAnyTransferable, isFullyLoaded, isTransferring, selectedObjectCount, selectionMode]);
 
-  if (isLoading) {
+  if (isLoading || holdContent) {
     return (
       <Card className='flex h-full w-full items-center justify-center'>
         <Card.Content className='flex flex-col items-center gap-2 py-8'>
@@ -997,6 +999,7 @@ export function OwnershipView({
     <>
       <DataList
         beta
+        fillHeight
         currentContext={currentContext}
         customHeaderActions={customHeaderActions}
         feature='Objects Owned by'
