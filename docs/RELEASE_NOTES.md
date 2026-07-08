@@ -2,6 +2,7 @@
 
 ## New Features and Improvements
 
+- The Update Code Engine Versions feature is now called Update Action Versions and can also bump the versions of subflow actions in a workflow, not just Code Engine actions.
 - Delete Unused Beast Modes: a dataset or a user now has a button that finds every Beast Mode and Variable with no active usage and lets you review, adjust, and bulk-delete the selection in one pass.
 - Remap Columns can now repair a view that a source dataset broke by renaming or removing a column it reads, either by pointing the view at a valid column or dropping that column from the view.
 - Deleting a dataflow now also lists the alerts on its output datasets that will be deleted with it.

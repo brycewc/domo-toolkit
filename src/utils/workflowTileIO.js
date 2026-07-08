@@ -150,7 +150,9 @@ export function reconcileTileForVersionBump({ choices = {}, classified, definiti
     definition,
     existingParams: element.data.output,
     flag: 'output',
-    manifestEntries: newFn.output ? [newFn.output] : [],
+    // A Code Engine manifest has a single `output`; a subflow contract has an
+    // `outputs` array. Read either as the list this rebuild expects.
+    manifestEntries: Array.isArray(newFn.outputs) ? newFn.outputs : newFn.output ? [newFn.output] : [],
     report
   });
 
@@ -158,7 +160,10 @@ export function reconcileTileForVersionBump({ choices = {}, classified, definiti
 }
 
 function buildParamFromManifest(entry, flag) {
-  const id = generateTileId();
+  // Adopt the entry's own id when it carries one (a subflow schema param has a
+  // stable id the referenced workflow matches against), otherwise mint a fresh
+  // one. Code Engine manifest entries have no id, so they always get a fresh id.
+  const id = entry.id ?? generateTileId();
   return {
     aiDescription: null,
     children: manifestChildrenToParamChildren(entry.children, flag, id),
@@ -220,7 +225,9 @@ function generateTileId() {
 function manifestChildrenToParamChildren(children, flag, parentId) {
   if (!Array.isArray(children)) return [];
   return children.map((entry) => {
-    const id = `${parentId}.${generateTileId()}`;
+    // Prefer a subflow schema child's stable id; fall back to a fresh id
+    // namespaced under the parent (the Code Engine path, whose entries carry no id).
+    const id = entry.id ?? `${parentId}.${generateTileId()}`;
     return {
       aiDescription: null,
       children: manifestChildrenToParamChildren(entry.children, flag, id),

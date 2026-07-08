@@ -116,6 +116,32 @@ export async function getVersionDefinition(modelId, versionNumber, tabId = null)
 }
 
 /**
+ * Fetch a workflow model's name and version list in a single call. Each version
+ * entry carries a `deployedOn` timestamp, where a non-null value means the version
+ * is released (the workflow equivalent of a Code Engine version's `released`).
+ * Mirrors `getCodeEnginePackageInfo` so a subflow group can be enriched with one
+ * request instead of a separate name lookup plus a versions lookup.
+ * @param {string} modelId - The workflow model ID.
+ * @param {number|null} [tabId] - Optional Chrome tab ID.
+ * @returns {Promise<{name: string|null, versions: Array<{deployedOn: string, version: string}>}>}
+ */
+export async function getWorkflowModelInfo(modelId, tabId = null) {
+  return executeInPage(
+    async (modelId) => {
+      const response = await fetch(`/api/workflow/v1/models/${modelId}`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const model = await response.json();
+      return {
+        name: model?.name ?? null,
+        versions: Array.isArray(model?.versions) ? model.versions : []
+      };
+    },
+    [modelId],
+    tabId
+  );
+}
+
+/**
  * Fetch a workflow model's display name.
  * @param {string} modelId - The workflow model ID.
  * @param {number|null} tabId - Optional Chrome tab ID.

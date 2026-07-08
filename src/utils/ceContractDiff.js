@@ -34,7 +34,7 @@ export function classifyContractChanges(oldFn, newFn) {
   }
 
   const inputs = classifyEntries(oldFn?.inputs, newFn?.inputs);
-  const outputs = classifyEntries(oldFn?.output ? [oldFn.output] : [], newFn?.output ? [newFn.output] : []);
+  const outputs = classifyEntries(readOutputEntries(oldFn), readOutputEntries(newFn));
 
   const hasChanges = [inputs, outputs].some(
     (c) =>
@@ -193,6 +193,14 @@ function normalizeForCompare(entry) {
     isList: entry?.isList ?? false,
     type: entry?.type ?? null
   };
+}
+
+// Read a contract's outputs as a list. A Code Engine function manifest carries a
+// single `output` object; a subflow contract carries an `outputs` array. Both
+// funnel into the same list-based diff downstream.
+function readOutputEntries(fn) {
+  if (Array.isArray(fn?.outputs)) return fn.outputs;
+  return fn?.output ? [fn.output] : [];
 }
 
 // Equal on the fields that constitute an entry's data type: its dataType,

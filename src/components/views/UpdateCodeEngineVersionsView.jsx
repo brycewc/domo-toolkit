@@ -21,11 +21,17 @@ import { useStatusBar } from '@/hooks/useStatusBar';
 import { useViewReady } from '@/hooks/useViewReady';
 import { DomoContext } from '@/models/DomoContext';
 import { getCodeEnginePackageInfo } from '@/services/codeEngine';
-import { getVersionDefinition, getWorkflowModelName, updateVersionDefinition } from '@/services/workflows';
+import {
+  getVersionDefinition,
+  getWorkflowModelInfo,
+  getWorkflowModelName,
+  updateVersionDefinition
+} from '@/services/workflows';
 import { classifyContractChanges, getFunctionContract, variableMatchesEntry } from '@/utils/ceContractDiff';
 import { buildRefreshAction, buildReloadAction } from '@/utils/headerActions';
 import { compareSemver } from '@/utils/semver';
 import { getSidepanelData } from '@/utils/sidepanel';
+import { getSubflowContract } from '@/utils/subflowContract';
 import { waitForDefinition } from '@/utils/workflowHelpers';
 import {
   getTileParams,
@@ -39,6 +45,7 @@ import IconCheck from '@icons/check.svg?react';
 import IconChevronDown from '@icons/chevron-down.svg?react';
 import IconInfoCircle from '@icons/info-circle.svg?react';
 import IconPackage from '@icons/package.svg?react';
+import IconWorkflow from '@icons/workflow.svg?react';
 
 import { AlertStatusIcon } from '../AlertStatusIcon';
 import { ViewHeader } from './ViewHeader';
@@ -127,13 +134,13 @@ export function UpdateCodeEngineVersionsView({
         }
       }
 
-      // Parse code engine tiles
-      const packageMap = groupTilesByPackage(def.designElements || []);
+      // Parse Code Engine and subflow action tiles
+      const groupMap = groupActionTiles(def.designElements || []);
 
-      if (packageMap.size === 0) {
+      if (groupMap.size === 0) {
         onStatusUpdate?.(
-          'No Code Engine Packages',
-          'This workflow version does not use any code engine functions.',
+          'No Actions to Update',
+          'This workflow version has no Code Engine actions or subflows.',
           'warning',
           3000
         );
@@ -141,68 +148,24 @@ export function UpdateCodeEngineVersionsView({
         return;
       }
 
-      // Fetch package info (name + versions) for each package
+      // Enrich each group with its referenced name + released versions. Code Engine
+      // groups resolve the package; subflow groups resolve the referenced workflow.
       const tabId = context.tabId;
-      const packageEntries = await Promise.all(
-        Array.from(packageMap.entries()).map(async ([packageId, { actions, versions }]) => {
-          let packageName = packageId;
-          let availableVersions = [];
-          let isDomoBuiltin = false;
-
-          try {
-            const info = await getCodeEnginePackageInfo(packageId, tabId);
-            packageName = info.name || packageId;
-            isDomoBuiltin = info.availability === 'GLOBAL' && info.packageSource === 'DOMO';
-            availableVersions = (info.versions || [])
-              .filter((v) => v.released != null)
-              .map((v) => v.version)
-              .sort((a, b) => compareSemver(b, a));
-          } catch (error) {
-            console.warn(`[UpdateCEVersions] Failed to fetch package info for ${packageId}:`, error);
-          }
-
-          const uniqueVersions = Array.from(versions);
-          const isSingleVersion = uniqueVersions.length === 1;
-          const currentVersion = isSingleVersion ? uniqueVersions[0] : null;
-          const latestVersion = availableVersions.length > 0 ? availableVersions[0] : null;
-
-          // Built-in Domo packages can only be upgraded to latest, no
-          // downgrades or intermediate versions.
-          if (isDomoBuiltin) {
-            availableVersions =
-              latestVersion && (!isSingleVersion || currentVersion !== latestVersion) ? [latestVersion] : [];
-          }
-
-          // Default: latest if single version and not already on latest, otherwise no-change
-          let defaultSelected = 'no-change';
-          if (!isSingleVersion || (latestVersion && currentVersion !== latestVersion)) {
-            defaultSelected = latestVersion;
-          }
-
-          return {
-            actions: actions.map((a) => ({
-              ...a,
-              selectedVersion: 'inherit'
-            })),
-            availableVersions,
-            currentVersion,
-            isDomoBuiltin,
-            isSingleVersion,
-            latestVersion,
-            packageId,
-            packageName,
-            selectedVersion: defaultSelected
-          };
-        })
+      const groupEntries = await Promise.all(
+        Array.from(groupMap.entries()).map(([groupId, group]) =>
+          group.kind === 'subflow'
+            ? enrichSubflowGroup({ actions: group.actions, modelId: groupId, tabId, versions: group.versions })
+            : enrichCodeEngineGroup({ actions: group.actions, packageId: groupId, tabId, versions: group.versions })
+        )
       );
 
       if (!mountedRef.current) return;
-      packageEntries.sort((a, b) => a.packageName.localeCompare(b.packageName));
+      groupEntries.sort((a, b) => a.packageName.localeCompare(b.packageName));
       setDefinition(def);
-      setPackages(packageEntries);
+      setPackages(groupEntries);
     } catch (error) {
       console.error('[UpdateCEVersionsView] Error loading data:', error);
-      onStatusUpdate?.('Error', error.message || 'Failed to load code engine packages', 'danger');
+      onStatusUpdate?.('Error', error.message || 'Failed to load workflow actions', 'danger');
     } finally {
       if (mountedRef.current) setIsLoading(false);
     }
@@ -235,6 +198,7 @@ export function UpdateCodeEngineVersionsView({
             currentVersion: action.currentVersion,
             elementId: action.elementId,
             functionName: action.functionName,
+            kind: pkg.kind,
             newVersion: effectiveVersion,
             packageId: pkg.packageId
           });
@@ -270,22 +234,28 @@ export function UpdateCodeEngineVersionsView({
       await Promise.all(
         pending.map(async (change) => {
           try {
-            const [oldFn, newFn] = await Promise.all([
-              getFunctionContract({
-                cache,
-                functionName: change.functionName,
-                packageId: change.packageId,
-                tabId,
-                version: change.currentVersion
-              }),
-              getFunctionContract({
-                cache,
-                functionName: change.functionName,
-                packageId: change.packageId,
-                tabId,
-                version: change.newVersion
-              })
-            ]);
+            const [oldFn, newFn] =
+              change.kind === 'subflow'
+                ? await Promise.all([
+                    getSubflowContract({ cache, modelId: change.packageId, tabId, version: change.currentVersion }),
+                    getSubflowContract({ cache, modelId: change.packageId, tabId, version: change.newVersion })
+                  ])
+                : await Promise.all([
+                    getFunctionContract({
+                      cache,
+                      functionName: change.functionName,
+                      packageId: change.packageId,
+                      tabId,
+                      version: change.currentVersion
+                    }),
+                    getFunctionContract({
+                      cache,
+                      functionName: change.functionName,
+                      packageId: change.packageId,
+                      tabId,
+                      version: change.newVersion
+                    })
+                  ]);
             next[change.elementId] = buildActionContractInfo({ change, definition, newFn, oldFn });
           } catch (error) {
             console.warn('[UpdateCEVersions] Contract diff failed for', change.elementId, error);
@@ -445,8 +415,16 @@ export function UpdateCodeEngineVersionsView({
 
       for (const change of applicableChanges) {
         const element = modified.designElements.find((el) => el.id === change.elementId);
-        if (!element?.data?.metadata) continue;
-        element.data.metadata.version = change.newVersion;
+        if (!element?.data) continue;
+        // A subflow tile carries its referenced version on `data.modelVersion`; a
+        // Code Engine tile carries it on `data.metadata.version`. Its `modelId`,
+        // `execution`, and `wait` are left untouched.
+        if (change.kind === 'subflow') {
+          element.data.modelVersion = change.newVersion;
+        } else {
+          if (!element.data.metadata) continue;
+          element.data.metadata.version = change.newVersion;
+        }
 
         const info = contractDiffs[change.elementId];
         if (info && info.classified?.hasChanges && !info.functionDeleted) {
@@ -552,20 +530,25 @@ export function UpdateCodeEngineVersionsView({
       <Card className='flex h-full w-full items-center justify-center'>
         <Card.Content className='flex flex-col items-center gap-2 py-8'>
           <Spinner size='lg' />
-          <p className='text-sm text-muted'>Loading code engine packages...</p>
+          <p className='text-sm text-muted'>Loading workflow actions...</p>
         </Card.Content>
       </Card>
     );
   }
 
   const totalActions = packages.reduce((sum, pkg) => sum + pkg.actions.length, 0);
-  const headerSubtext = `${packages.length} package${packages.length === 1 ? '' : 's'} | ${totalActions} action${totalActions === 1 ? '' : 's'}`;
+  const ceCount = packages.filter((pkg) => pkg.kind === 'codeengine').length;
+  const subflowCount = packages.filter((pkg) => pkg.kind === 'subflow').length;
+  const groupParts = [];
+  if (ceCount) groupParts.push(`${ceCount} package${ceCount === 1 ? '' : 's'}`);
+  if (subflowCount) groupParts.push(`${subflowCount} subflow${subflowCount === 1 ? '' : 's'}`);
+  const headerSubtext = `${totalActions} action${totalActions === 1 ? '' : 's'} | ${groupParts.join(' x ')}`;
 
   return (
     <Card className='flex min-h-0 w-full flex-1 flex-col p-2'>
       <ViewHeader
         beta
-        feature={workflowName ? 'Update CE Versions for' : 'Update Code Engine Versions'}
+        feature={workflowName ? 'Update Action Versions for' : 'Update Action Versions'}
         featureIcon={<IconPackage />}
         subject={workflowName}
         subjectTypeId={workflowName ? 'WORKFLOW_MODEL' : null}
@@ -591,18 +574,31 @@ export function UpdateCodeEngineVersionsView({
               .filter(({ info }) => info && (info.functionDeleted || info.classified?.hasChanges));
             const pkgDeleted = pkgReconciliations.filter(({ info }) => info.functionDeleted);
             const pkgReviews = pkgReconciliations.filter(({ info }) => !info.functionDeleted);
+            const isSubflow = pkg.kind === 'subflow';
+            const GroupIcon = isSubflow ? IconWorkflow : IconPackage;
+            const groupHref = isSubflow
+              ? `https://${currentContext?.instance}.domo.com/workflows/models/${pkg.packageId}`
+              : `https://${currentContext?.instance}.domo.com/codeengine/${pkg.packageId}`;
 
             return (
               <div className={index > 0 ? 'w-full border-t border-border pt-2 pb-1' : 'pb-1'} key={pkg.packageId}>
                 <div className='flex w-full flex-col gap-1'>
                   <div className='flex w-full items-center justify-between gap-2'>
-                    <Link
-                      className='min-w-0 truncate decoration-accent hover:text-accent'
-                      href={`https://${currentContext?.instance}.domo.com/codeengine/${pkg.packageId}`}
-                      target='_blank'
-                    >
-                      {pkg.packageName}
-                    </Link>
+                    <div className='flex min-w-0 items-center gap-1.5'>
+                      <Tooltip delay={200}>
+                        <Tooltip.Trigger className='shrink-0 cursor-help'>
+                          <GroupIcon className='size-4 text-muted' />
+                        </Tooltip.Trigger>
+                        <Tooltip.Content>{isSubflow ? 'Subflow' : 'Code Engine package'}</Tooltip.Content>
+                      </Tooltip>
+                      <Link
+                        className='min-w-0 truncate decoration-accent hover:text-accent'
+                        href={groupHref}
+                        target='_blank'
+                      >
+                        {pkg.packageName}
+                      </Link>
+                    </div>
                     <div className='flex min-w-0 flex-1 items-center justify-end gap-2'>
                       {pkg.isDomoBuiltin && (
                         <Tooltip delay={200}>
@@ -820,8 +816,8 @@ function ActionReconciliation({
             Function Removed
           </Alert.Title>
           <Alert.Description>
-            <span className='font-mono font-bold'>{action.functionName}</span> no longer exists in the selected version. This
-            action will be skipped so it does not break the workflow.
+            <span className='font-mono font-bold'>{action.functionName ?? action.actionName}</span> no longer exists in the
+            selected version. This action will be skipped so it does not break the workflow.
           </Alert.Description>
         </Alert.Content>
       </Alert>
@@ -1235,32 +1231,137 @@ function describeBinding(param, varIndex) {
 }
 
 /**
- * Parse code engine tiles from a workflow definition and group by package.
+ * Enrich a Code Engine group with its package name, released versions, built-in
+ * status, and default selection. Built-in Domo packages can only be upgraded to
+ * the latest version, so their choices collapse to that single option.
  */
-function groupTilesByPackage(designElements) {
-  const packageMap = new Map();
+async function enrichCodeEngineGroup({ actions, packageId, tabId, versions }) {
+  let packageName = packageId;
+  let availableVersions = [];
+  let isDomoBuiltin = false;
 
-  for (const el of designElements) {
-    if (el.data?.taskType !== 'nebulaFunction' || !el.data?.metadata?.packageId) {
-      continue;
-    }
-
-    const { functionName, packageId, version } = el.data.metadata;
-    const actionName = el.data.title || functionName || el.id;
-
-    if (!packageMap.has(packageId)) {
-      packageMap.set(packageId, { actions: [], versions: new Set() });
-    }
-
-    const pkg = packageMap.get(packageId);
-    pkg.actions.push({
-      actionName,
-      currentVersion: version,
-      elementId: el.id,
-      functionName
-    });
-    pkg.versions.add(version);
+  try {
+    const info = await getCodeEnginePackageInfo(packageId, tabId);
+    packageName = info.name || packageId;
+    isDomoBuiltin = info.availability === 'GLOBAL' && info.packageSource === 'DOMO';
+    availableVersions = (info.versions || [])
+      .filter((v) => v.released != null)
+      .map((v) => v.version)
+      .sort((a, b) => compareSemver(b, a));
+  } catch (error) {
+    console.warn(`[UpdateCEVersions] Failed to fetch package info for ${packageId}:`, error);
   }
 
-  return packageMap;
+  const uniqueVersions = Array.from(versions);
+  const isSingleVersion = uniqueVersions.length === 1;
+  const currentVersion = isSingleVersion ? uniqueVersions[0] : null;
+  const latestVersion = availableVersions.length > 0 ? availableVersions[0] : null;
+
+  // Built-in Domo packages can only be upgraded to latest, no downgrades or
+  // intermediate versions.
+  if (isDomoBuiltin) {
+    availableVersions = latestVersion && (!isSingleVersion || currentVersion !== latestVersion) ? [latestVersion] : [];
+  }
+
+  // Default: latest if single version and not already on latest, otherwise no-change
+  let defaultSelected = 'no-change';
+  if (!isSingleVersion || (latestVersion && currentVersion !== latestVersion)) {
+    defaultSelected = latestVersion;
+  }
+
+  return {
+    actions: actions.map((a) => ({ ...a, selectedVersion: 'inherit' })),
+    availableVersions,
+    currentVersion,
+    isDomoBuiltin,
+    isSingleVersion,
+    kind: 'codeengine',
+    latestVersion,
+    packageId,
+    packageName,
+    selectedVersion: defaultSelected
+  };
+}
+
+/**
+ * Enrich a subflow group with the referenced workflow's name, released versions
+ * (those with a deployment date), and default selection. Subflows have no
+ * built-in concept, so every released version is an eligible target.
+ */
+async function enrichSubflowGroup({ actions, modelId, tabId, versions }) {
+  let packageName = modelId;
+  let availableVersions = [];
+
+  try {
+    const info = await getWorkflowModelInfo(modelId, tabId);
+    packageName = info.name || modelId;
+    availableVersions = (info.versions || [])
+      .filter((v) => v.deployedOn != null)
+      .map((v) => v.version)
+      .sort((a, b) => compareSemver(b, a));
+  } catch (error) {
+    console.warn(`[UpdateCEVersions] Failed to fetch workflow info for ${modelId}:`, error);
+  }
+
+  const uniqueVersions = Array.from(versions);
+  const isSingleVersion = uniqueVersions.length === 1;
+  const currentVersion = isSingleVersion ? uniqueVersions[0] : null;
+  const latestVersion = availableVersions.length > 0 ? availableVersions[0] : null;
+
+  let defaultSelected = 'no-change';
+  if (!isSingleVersion || (latestVersion && currentVersion !== latestVersion)) {
+    defaultSelected = latestVersion;
+  }
+
+  return {
+    actions: actions.map((a) => ({ ...a, selectedVersion: 'inherit' })),
+    availableVersions,
+    currentVersion,
+    isDomoBuiltin: false,
+    isSingleVersion,
+    kind: 'subflow',
+    latestVersion,
+    packageId: modelId,
+    packageName,
+    selectedVersion: defaultSelected
+  };
+}
+
+/**
+ * Parse a workflow definition's action tiles and group them by the thing a version
+ * bump targets: Code Engine tiles (`nebulaFunction`, keyed by package id) and
+ * subflow tiles (`_designNode === 'SUB_FLOW'`, keyed by referenced model id). Each
+ * group is tagged with its `kind` so the load/diff/submit paths can branch on it.
+ */
+function groupActionTiles(designElements) {
+  const groups = new Map();
+
+  for (const el of designElements) {
+    const data = el.data;
+    if (data?.taskType === 'nebulaFunction' && data?.metadata?.packageId) {
+      const { functionName, packageId, version } = data.metadata;
+      if (!groups.has(packageId)) groups.set(packageId, { actions: [], kind: 'codeengine', versions: new Set() });
+      const group = groups.get(packageId);
+      group.actions.push({
+        actionName: data.title || functionName || el.id,
+        currentVersion: version,
+        elementId: el.id,
+        functionName
+      });
+      group.versions.add(version);
+    } else if (data?._designNode === 'SUB_FLOW' && data?.modelId) {
+      const modelId = data.modelId;
+      const version = data.modelVersion;
+      if (!groups.has(modelId)) groups.set(modelId, { actions: [], kind: 'subflow', versions: new Set() });
+      const group = groups.get(modelId);
+      group.actions.push({
+        actionName: data.title || el.id,
+        currentVersion: version,
+        elementId: el.id
+      });
+      group.versions.add(version);
+    }
+  }
+
+  return groups;
 }

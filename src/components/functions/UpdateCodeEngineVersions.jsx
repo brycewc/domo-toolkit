@@ -19,10 +19,10 @@ export function UpdateCodeEngineVersions({ currentContext, isDisabled, onStatusU
           })
         }
       >
-        <IconPackage /> Update Code Engine Versions
+        <IconPackage /> Update Action Versions
       </Button>
       <Tooltip.Content className='max-w-60' offset={4}>
-        Update code engine package versions on cards
+        Update the versions of Code Engine and subflow actions in a workflow
       </Tooltip.Content>
     </Tooltip>
   );
