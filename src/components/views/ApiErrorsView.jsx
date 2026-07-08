@@ -1,10 +1,12 @@
-import { Card, Disclosure, DisclosureGroup, Separator } from '@heroui/react';
+import { Card, Disclosure, DisclosureGroup, Separator, Tooltip } from '@heroui/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import JsonView from 'react18-json-view';
 
 import { useViewReady } from '@/hooks/useViewReady';
 import { DomoContext } from '@/models/DomoContext';
 import { getSidepanelData } from '@/utils/sidepanel';
+import IconArrowDown from '@icons/arrow-down.svg?react';
+import IconArrowUp from '@icons/arrow-up.svg?react';
 import IconChevronDown from '@icons/chevron-down.svg?react';
 import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
@@ -16,12 +18,16 @@ import { ViewHeader } from './ViewHeader';
 
 export function ApiErrorsView({ instance = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [errors, setErrors] = useState([]);
+  const [sortDirection, setSortDirection] = useState('desc');
   const [tabId, setTabId] = useState(null);
   useViewReady(true);
   const mountedRef = useRef(true);
 
-  // Newest first: sort a copy by capture time descending so incoming errors surface at the top.
-  const sortedErrors = useMemo(() => [...errors].sort((a, b) => b.time - a.time), [errors]);
+  // Sort a copy by capture time; the default 'desc' keeps the newest error at the top.
+  const sortedErrors = useMemo(
+    () => [...errors].sort((a, b) => (sortDirection === 'desc' ? b.time - a.time : a.time - b.time)),
+    [errors, sortDirection]
+  );
 
   useEffect(() => {
     mountedRef.current = true;
@@ -96,6 +102,13 @@ export function ApiErrorsView({ instance = null, onBackToDefault = null, onStatu
         onClose={onBackToDefault}
         actions={[
           {
+            ariaLabel: 'Toggle sort direction',
+            icon: sortDirection === 'desc' ? <IconArrowDown /> : <IconArrowUp />,
+            key: 'sort',
+            onPress: () => setSortDirection((direction) => (direction === 'desc' ? 'asc' : 'desc')),
+            tooltip: sortDirection === 'desc' ? 'Newest first' : 'Oldest first'
+          },
+          {
             ariaLabel: 'Clear errors',
             icon: <IconTrash />,
             key: 'clear',
@@ -123,13 +136,15 @@ export function ApiErrorsView({ instance = null, onBackToDefault = null, onStatu
                         <Separator orientation='vertical' variant='secondary' />
                         <span className='shrink-0 text-muted'>{error.timestamp}</span>
                       </div>
-                      <span
-                        className='flex w-full min-w-0 flex-1 items-center gap-1 truncate'
-                        title={`${error.method} ${path}`}
-                      >
-                        <span className='shrink-0 font-semibold'>{error.method}</span>
-                        <span className='truncate'>{path}</span>
-                      </span>
+                      <Tooltip delay={700}>
+                        <Tooltip.Trigger className='flex w-full min-w-0 flex-1 items-center gap-1 truncate'>
+                          <span className='shrink-0 font-semibold'>{error.method}</span>
+                          <span className='truncate'>{path}</span>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content className='max-w-60 break-all'>
+                          {error.method} {error.url}
+                        </Tooltip.Content>
+                      </Tooltip>
                     </div>
                     <Disclosure.Indicator>
                       <IconChevronDown />

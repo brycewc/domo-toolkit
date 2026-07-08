@@ -352,30 +352,3 @@ for (const detector of MODAL_DETECTORS) {
     detector.onLoadCheck();
   }
 }
-
-// ============================================================
-// API error capture
-// ============================================================
-
-// Inject MAIN world script that intercepts failed Domo API requests.
-(function injectApiErrorCapture() {
-  if (document.getElementById('domo-toolkit-api-errors-script')) return;
-
-  const script = document.createElement('script');
-  script.id = 'domo-toolkit-api-errors-script';
-  script.src = chrome.runtime.getURL('public/apiErrors.js');
-  document.documentElement.appendChild(script);
-})();
-
-// Relay API errors from MAIN world script to background service worker
-window.addEventListener('message', (event) => {
-  if (event.source !== window) return;
-  if (event.data?.source !== 'domo-toolkit-api-error') return;
-
-  chrome.runtime
-    .sendMessage({
-      error: event.data.error,
-      type: 'API_ERROR_DETECTED'
-    })
-    .catch(() => {});
-});

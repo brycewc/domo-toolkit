@@ -64,6 +64,15 @@ export default defineManifest({
       exclude_matches: EXCLUDED_MATCHES,
       run_at: 'document_idle',
       all_frames: false
+    },
+    {
+      // Runs in all frames so it also covers Domo App iframes (*.domoapps.*.domo.com),
+      // where the app's own failed requests originate.
+      js: ['src/apiErrorCapture.js'],
+      matches: ['https://*.domo.com/*'],
+      exclude_matches: EXCLUDED_MATCHES,
+      run_at: 'document_idle',
+      all_frames: true
     }
   ],
   side_panel: {

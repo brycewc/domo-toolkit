@@ -14,7 +14,8 @@
 - Hover tooltips throughout the extension now appear promptly instead of after a long pause.
 - The dropdown for picking a column or Beast Mode when mapping columns is now wider, so long names are easier to read.
 - Remap Columns now lists the replacement columns alphabetically, matching Migrate Content.
-- The API Errors list now shows the newest error at the top instead of the bottom.
+- The API Errors list now sorts newest first by default, with a header button to reverse the order.
+- Hovering a failed request in API Errors now shows its full URL, including the domain.
 
 ## Performance
 
@@ -28,3 +29,4 @@
 - Get View Inputs now lists the source datasets of union views (and other views that nest their inputs) instead of finding none.
 - Sharing objects with yourself from a list now closes the row's actions menu and shows a progress toast immediately, instead of appearing to do nothing until every share finished.
 - Migrate Content: mapping a column onto one of the target dataset's Beast Modes now saves the affected cards successfully instead of erroring out.
+- API Errors now captures failed requests from apps embedded on a page, which were previously missed.
