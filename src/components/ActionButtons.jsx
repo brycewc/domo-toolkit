@@ -37,10 +37,10 @@ import { SwitchAccount } from '@/components/functions/SwitchAccount';
 import { Sync } from '@/components/functions/Sync';
 import { TransferApproval } from '@/components/functions/TransferApproval';
 import { TransferOwnership } from '@/components/functions/TransferOwnership';
-import { UpdateCodeEngineVersions } from '@/components/functions/UpdateCodeEngineVersions';
 import { UpdateDetails } from '@/components/functions/UpdateDetails';
 import { UpdateOwner } from '@/components/functions/UpdateOwner';
 import { UpdateTriggerVersions } from '@/components/functions/UpdateTriggerVersions';
+import { UpdateWorkflowActionVersions } from '@/components/functions/UpdateWorkflowActionVersions';
 import { ViewLineage } from '@/components/functions/ViewLineage';
 import { ACTION_BAR_COLLAPSED_EVENT } from '@/hooks/useViewReady';
 import { getAvailableActions } from '@/utils/availableActions';
@@ -339,8 +339,8 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
-                {availableActions.has('updateCodeEngineVersions') && (
-                  <UpdateCodeEngineVersions
+                {availableActions.has('updateWorkflowActionVersions') && (
+                  <UpdateWorkflowActionVersions
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
                     onStatusUpdate={onStatusUpdate}

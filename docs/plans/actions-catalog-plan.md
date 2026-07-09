@@ -76,7 +76,7 @@ the page).
 ViewLineage, ActivityLog), `Copy & Share` (Copy, CopyColorRules, CopyFilteredUrl,
 NavigateToCopiedObject, ShareWithSelf), `Modify` (UpdateDetails, UpdateOwner, TransferOwnership,
 LockCards, RemoveEmptyStringsFromQuickFilters, DataRepair, SetStreamToManual, CancelStreamExecution,
-UpdateCodeEngineVersions), `Create & Export` (Generate, Duplicate, Export, Sync,
+UpdateWorkflowActionVersions), `Create & Export` (Generate, Duplicate, Export, Sync,
 MigrateDownstreamContent), `Manage` (DeleteObject, ClearCookies, DirectSignOn, ApiErrors).
 
 ## Implementation

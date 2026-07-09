@@ -50,7 +50,7 @@ import IconWorkflow from '@icons/workflow.svg?react';
 import { AlertStatusIcon } from '../AlertStatusIcon';
 import { ViewHeader } from './ViewHeader';
 
-export function UpdateCodeEngineVersionsView({
+export function UpdateWorkflowActionVersionsView({
   instance = null,
   liveContext = null,
   onBackToDefault = null,
@@ -83,7 +83,7 @@ export function UpdateCodeEngineVersionsView({
     try {
       const data = await getSidepanelData(instance);
 
-      if (!data || data.type !== 'updateCodeEngineVersions') {
+      if (!data || data.type !== 'updateWorkflowActionVersions') {
         onBackToDefault?.();
         return;
       }
@@ -164,7 +164,7 @@ export function UpdateCodeEngineVersionsView({
       setDefinition(def);
       setPackages(groupEntries);
     } catch (error) {
-      console.error('[UpdateCEVersionsView] Error loading data:', error);
+      console.error('[UpdateWorkflowActionVersions] Error loading data:', error);
       onStatusUpdate?.('Error', error.message || 'Failed to load workflow actions', 'danger');
     } finally {
       if (mountedRef.current) setIsLoading(false);
@@ -258,7 +258,7 @@ export function UpdateCodeEngineVersionsView({
                   ]);
             next[change.elementId] = buildActionContractInfo({ change, definition, newFn, oldFn });
           } catch (error) {
-            console.warn('[UpdateCEVersions] Contract diff failed for', change.elementId, error);
+            console.warn('[UpdateWorkflowActionVersions] Contract diff failed for', change.elementId, error);
           }
         })
       );
@@ -560,7 +560,7 @@ export function UpdateCodeEngineVersionsView({
             objectId: currentContext?.domoObject?.id,
             objectType: currentContext?.domoObject?.typeId,
             onStatusUpdate,
-            viewType: 'updateCodeEngineVersions'
+            viewType: 'updateWorkflowActionVersions'
           }),
           buildRefreshAction({ isRefreshing, onRefresh: handleRefresh })
         ]}
@@ -686,15 +686,9 @@ export function UpdateCodeEngineVersionsView({
                                   <div className='flex items-center justify-between gap-2'>
                                     <Chip
                                       className='h-9 w-25 rounded-3xl bg-surface! shadow-sm'
+                                      color={pkg.latestVersion === action.currentVersion ? 'success' : 'danger'}
                                       size='lg'
                                       variant='secondary'
-                                      color={
-                                        pkg.latestVersion === pkg.currentVersion
-                                          ? 'success'
-                                          : pkg.isSingleVersion
-                                            ? 'warning'
-                                            : 'danger'
-                                      }
                                     >
                                       {action.currentVersion}
                                     </Chip>
@@ -1249,7 +1243,7 @@ async function enrichCodeEngineGroup({ actions, packageId, tabId, versions }) {
       .map((v) => v.version)
       .sort((a, b) => compareSemver(b, a));
   } catch (error) {
-    console.warn(`[UpdateCEVersions] Failed to fetch package info for ${packageId}:`, error);
+    console.warn(`[UpdateWorkflowActionVersions] Failed to fetch package info for ${packageId}:`, error);
   }
 
   const uniqueVersions = Array.from(versions);
@@ -1300,7 +1294,7 @@ async function enrichSubflowGroup({ actions, modelId, tabId, versions }) {
       .map((v) => v.version)
       .sort((a, b) => compareSemver(b, a));
   } catch (error) {
-    console.warn(`[UpdateCEVersions] Failed to fetch workflow info for ${modelId}:`, error);
+    console.warn(`[UpdateWorkflowActionVersions] Failed to fetch workflow info for ${modelId}:`, error);
   }
 
   const uniqueVersions = Array.from(versions);

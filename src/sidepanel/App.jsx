@@ -26,9 +26,9 @@ import { ObjectDetailsView } from '@/components/views/ObjectDetailsView';
 import { OwnershipView } from '@/components/views/OwnershipView';
 import { RemapColumnsView } from '@/components/views/RemapColumnsView';
 import { SwitchAccountView } from '@/components/views/SwitchAccountView';
-import { UpdateCodeEngineVersionsView } from '@/components/views/UpdateCodeEngineVersionsView';
 import { UpdateDetailsView } from '@/components/views/UpdateDetailsView';
 import { UpdateTriggerVersionsView } from '@/components/views/UpdateTriggerVersionsView';
+import { UpdateWorkflowActionVersionsView } from '@/components/views/UpdateWorkflowActionVersionsView';
 import { useReleaseNotification } from '@/hooks/useReleaseNotification';
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { useTheme } from '@/hooks/useTheme';
@@ -414,8 +414,8 @@ export default function App() {
           />
         )}
 
-        {slot.type === 'updateCodeEngineVersions' && (
-          <UpdateCodeEngineVersionsView
+        {slot.type === 'updateWorkflowActionVersions' && (
+          <UpdateWorkflowActionVersionsView
             instance={instance}
             isActive={isActive}
             key={slot.viewKey}

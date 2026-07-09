@@ -128,11 +128,11 @@ export function getAvailableActions(currentContext) {
   }
 
   if (typeId === 'WORKFLOW_MODEL_VERSION' && !details?.deletedAt && !details?.releasedAt) {
-    actions.add('updateCodeEngineVersions');
+    actions.add('updateWorkflowActionVersions');
   }
 
   if (typeId === 'CODEENGINE_PACKAGE_VERSION' && metadata?.context?.workflowModelId) {
-    actions.add('updateCodeEngineVersions');
+    actions.add('updateWorkflowActionVersions');
   }
 
   if (['CARD', 'CODEENGINE_PACKAGE', 'CODEENGINE_PACKAGE_VERSION'].includes(typeId)) {

@@ -3,7 +3,7 @@ import { Button, Tooltip } from '@heroui/react';
 import { launchView } from '@/utils/sidepanel';
 import IconPackage from '@icons/package.svg?react';
 
-export function UpdateCodeEngineVersions({ currentContext, isDisabled, onStatusUpdate }) {
+export function UpdateWorkflowActionVersions({ currentContext, isDisabled, onStatusUpdate }) {
   return (
     <Tooltip>
       <Button
@@ -15,7 +15,7 @@ export function UpdateCodeEngineVersions({ currentContext, isDisabled, onStatusU
           launchView({
             currentContext,
             onStatusUpdate,
-            type: 'updateCodeEngineVersions'
+            type: 'updateWorkflowActionVersions'
           })
         }
       >
