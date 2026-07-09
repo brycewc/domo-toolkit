@@ -6,20 +6,65 @@ import { getUserName } from './users';
 
 const DATASETS_PAGE_SIZE = 50;
 
-export async function cancelStreamExecution({ executionId, streamId, tabId }) {
+/**
+ * Cancel every currently running execution for a stream, not just the latest.
+ * Domo can wedge a stream with several executions stuck in the ACTIVE state at
+ * once, so this scans the most recent executions, aborts each one still ACTIVE,
+ * and reports how many it cancelled. Running executions are always recent, so
+ * the recent-window scan reliably covers the stuck ones.
+ * @param {Object} params
+ * @param {string|number} params.streamId - The stream ID
+ * @param {number} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<{ cancelled: number }>} Count of executions that were aborted
+ */
+export async function cancelStreamExecution({ streamId, tabId }) {
   return executeInPage(
-    async (streamId, executionId) => {
-      const response = await fetch(`/api/data/v1/streams/${streamId}/executions/${executionId}/abort`, {
-        body: JSON.stringify({ category: 'CONNECTOR', message: 'Cancelled via Domo Toolkit' }),
-        headers: { 'Content-Type': 'application/json' },
-        method: 'PUT'
-      });
-      if (!response.ok) {
-        throw new Error(`Failed to abort execution ${executionId}. HTTP status: ${response.status}`);
+    async (streamId) => {
+      const stateResponse = await fetch(`/api/data/v1/streams/state/${streamId}`);
+      if (!stateResponse.ok) {
+        throw new Error(`Failed to fetch stream state for stream ${streamId}. HTTP status: ${stateResponse.status}`);
       }
-      return response.json();
+      const stateData = await stateResponse.json();
+      const limit = 100;
+      const latestExecutionId = stateData[0]?.executionId ?? 0;
+      const offset = latestExecutionId < limit ? 0 : latestExecutionId - limit;
+
+      const listResponse = await fetch(`/api/data/v1/streams/${streamId}/executions?limit=${limit}&offset=${offset}`);
+      if (!listResponse.ok) {
+        throw new Error(`Failed to fetch executions for stream ${streamId}. HTTP status: ${listResponse.status}`);
+      }
+      const executions = await listResponse.json();
+      const running = executions.filter((execution) => execution.currentState === 'ACTIVE');
+      if (running.length === 0) {
+        return { cancelled: 0 };
+      }
+
+      const outcomes = await Promise.allSettled(
+        running.map(async (execution) => {
+          const abortResponse = await fetch(
+            `/api/data/v1/streams/${streamId}/executions/${execution.executionId}/abort`,
+            {
+              body: JSON.stringify({ category: 'CONNECTOR', message: 'Cancelled via Domo Toolkit' }),
+              headers: { 'Content-Type': 'application/json' },
+              method: 'PUT'
+            }
+          );
+          if (!abortResponse.ok) {
+            throw new Error(`execution ${execution.executionId} (HTTP ${abortResponse.status})`);
+          }
+          return abortResponse.json();
+        })
+      );
+
+      const cancelled = outcomes.filter((outcome) => outcome.status === 'fulfilled').length;
+      const failures = outcomes.filter((outcome) => outcome.status === 'rejected');
+      if (failures.length > 0) {
+        const detail = failures.map((failure) => failure.reason.message).join(', ');
+        throw new Error(`Cancelled ${cancelled} of ${running.length} running updates; ${failures.length} failed: ${detail}`);
+      }
+      return { cancelled };
     },
-    [streamId, executionId],
+    [streamId],
     tabId
   );
 }
@@ -609,7 +654,7 @@ export async function getProviders() {
 
 /**
  * Fetch a stream's full definition. The account a connector-backed dataset pulls
- * from lives on this object, so it's the source of truth for switching accounts.
+ * from lives on this object, so it's the source of truth for swapping accounts.
  * @param {Object} params
  * @param {string|number} params.streamId - The stream ID
  * @param {number} [params.tabId] - Optional Chrome tab ID
@@ -686,6 +731,32 @@ export function isViewType(details) {
     viewTypes.includes(details.dataProviderType) ||
     viewTypes.includes(details.displayType) ||
     viewTypes.includes(details.type)
+  );
+}
+
+/**
+ * Trigger a stream to run now, re-importing its dataset. Takes the stream ID
+ * (not the dataset ID) and posts an empty body, the same contract Domo's own
+ * "Run" affordance uses. Returns the created execution when the response carries
+ * a JSON body, otherwise null.
+ * @param {Object} params
+ * @param {string|number} params.streamId - The stream ID
+ * @param {number} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<Object|null>} The created execution, or null
+ */
+export async function runStream({ streamId, tabId }) {
+  return executeInPage(
+    async (streamId) => {
+      const response = await fetch(`/api/data/v1/streams/${streamId}/executions`, {
+        method: 'POST'
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to run stream ${streamId}. HTTP status: ${response.status}`);
+      }
+      return response.json().catch(() => null);
+    },
+    [streamId],
+    tabId
   );
 }
 

@@ -300,7 +300,7 @@ export function UserFilterAutocomplete({
           <ToggleButtonGroup
             disallowEmptySelection
             aria-label='User filter mode'
-            className='my-2 mb-2 w-full'
+            className='my-2 mb-2 w-full px-3'
             selectedKeys={new Set([mode])}
             selectionMode='single'
             size='sm'

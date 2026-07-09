@@ -3,7 +3,7 @@ import { Avatar } from '@heroui/react';
 import { getInitials } from '@/utils/general';
 
 /**
- * Build an EntityPicker adapter for switching a dataset's account.
+ * Build an EntityPicker adapter for swapping a dataset's account.
  *
  * Accounts are pre-fetched per connector (every option is already compatible), so the
  * adapter is a static source: the picker filters the supplied list client-side. Account

@@ -7,8 +7,8 @@ import { UserFilterAutocomplete } from '@/components/UserFilterAutocomplete';
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { useViewReady } from '@/hooks/useViewReady';
 import { DomoContext } from '@/models/DomoContext';
-import { getAccountIdsForDomoObject, getAccountsForProvider } from '@/services/accounts';
-import { updateStreamAccounts } from '@/services/datasets';
+import { getAccountIdsForDomoObject, getAccountsForProvider, isLegacyAccountStructure } from '@/services/accounts';
+import { runStream, updateStreamAccounts } from '@/services/datasets';
 import { buildRefreshAction, buildReloadAction } from '@/utils/headerActions';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
@@ -18,7 +18,7 @@ import IconSync from '@icons/sync.svg?react';
 
 import { ViewHeader } from './ViewHeader';
 
-export function SwitchAccountView({ instance = null, liveContext = null, onBackToDefault = null, onStatusUpdate = null }) {
+export function SwapAccountView({ instance = null, liveContext = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   useViewReady(!isLoading);
   const [currentContext, setCurrentContext] = useState(null);
@@ -28,13 +28,15 @@ export function SwitchAccountView({ instance = null, liveContext = null, onBackT
   const [accounts, setAccounts] = useState([]);
   const [isLoadingAccounts, setIsLoadingAccounts] = useState(false);
   const [accountsError, setAccountsError] = useState(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submittingAction, setSubmittingAction] = useState(null);
+  const [isLegacyStructure, setIsLegacyStructure] = useState(false);
   const [screen, setScreen] = useState('form');
   const [activeSlotIndex, setActiveSlotIndex] = useState(0);
   const [ownerFilter, setOwnerFilter] = useState([]);
   const [ownerFilterMode, setOwnerFilterMode] = useState('include');
   const mountedRef = useRef(true);
   const { showPromiseStatus } = useStatusBar();
+  const isSubmitting = submittingAction !== null;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -63,7 +65,7 @@ export function SwitchAccountView({ instance = null, liveContext = null, onBackT
   const loadData = async () => {
     try {
       const data = await getSidepanelData(instance);
-      if (!data || data.type !== 'switchAccount') {
+      if (!data || data.type !== 'swapAccount') {
         onBackToDefault?.();
         return;
       }
@@ -73,40 +75,44 @@ export function SwitchAccountView({ instance = null, liveContext = null, onBackT
       const resolvedStreamId = details?.streamId ?? domoObject?.metadata?.parent?.details?.id ?? null;
       const accountIds = getAccountIdsForDomoObject(domoObject);
       if (!context || !resolvedStreamId || accountIds.length === 0) {
-        onStatusUpdate?.('Error', 'This dataset has no stream account to switch', 'danger');
+        onStatusUpdate?.('Error', 'This dataset has no stream account to swap', 'danger');
         onBackToDefault?.();
         return;
       }
       const provider = details?.dataProviderType || null;
+      const isLegacy = isLegacyAccountStructure(domoObject);
       if (!mountedRef.current) return;
       setCurrentContext(context);
       setStreamId(resolvedStreamId);
       setDataProviderType(provider);
+      setIsLegacyStructure(isLegacy);
       setSlots(accountIds.map((id) => ({ currentAccountId: id, replacementId: null, replacementName: null })));
       // A single-account dataset has one slot; open its picker straight away so the
-      // user doesn't pay an extra tap to reach it.
-      loadAccounts(provider, context.tabId, accountIds.length === 1);
+      // user doesn't pay an extra tap to reach it. A legacy (one-account) dataset
+      // skips the slot form entirely, so open the picker even when no compatible
+      // accounts came back (it shows its own empty state instead of the form).
+      loadAccounts(provider, context.tabId, { openPicker: accountIds.length === 1, openWhenEmpty: isLegacy });
     } catch (error) {
-      console.error('[SwitchAccountView] Error loading data:', error);
+      console.error('[SwapAccountView] Error loading data:', error);
       onStatusUpdate?.('Error', error.message || 'Failed to load context', 'danger');
     } finally {
       if (mountedRef.current) setIsLoading(false);
     }
   };
 
-  const loadAccounts = async (provider, tabId, openIfSingle = false) => {
+  const loadAccounts = async (provider, tabId, { openPicker = false, openWhenEmpty = false } = {}) => {
     setIsLoadingAccounts(true);
     setAccountsError(null);
     try {
       const result = await getAccountsForProvider(provider, tabId);
       if (!mountedRef.current) return;
       setAccounts(result || []);
-      if (openIfSingle && (result || []).length > 0) {
+      if (openPicker && ((result || []).length > 0 || openWhenEmpty)) {
         setActiveSlotIndex(0);
         setScreen('picker');
       }
     } catch (error) {
-      console.error('[SwitchAccountView] Error loading accounts:', error);
+      console.error('[SwapAccountView] Error loading accounts:', error);
       if (mountedRef.current) setAccountsError(error.message || 'Failed to load accounts');
     } finally {
       if (mountedRef.current) setIsLoadingAccounts(false);
@@ -133,30 +139,37 @@ export function SwitchAccountView({ instance = null, liveContext = null, onBackT
     setScreen('form');
   };
 
-  const handleSubmit = () => {
-    const accountChanges = {};
-    for (const slot of slots) {
-      if (slot.replacementId != null && slot.replacementId !== slot.currentAccountId) {
-        accountChanges[slot.currentAccountId] = slot.replacementId;
-      }
-    }
-    if (Object.keys(accountChanges).length === 0) {
+  const applyAccountChanges = (accountChanges, runAfter) => {
+    const changeCount = Object.keys(accountChanges).length;
+    if (changeCount === 0) {
       onStatusUpdate?.('No changes to apply', 'Choose a different account first', 'warning', 2000);
       return;
     }
 
-    setIsSubmitting(true);
-    const changeCount = Object.keys(accountChanges).length;
+    setSubmittingAction(runAfter ? 'saveAndRun' : 'save');
     const promise = (async () => {
       await updateStreamAccounts({ accountChanges, streamId, tabId: currentContext.tabId });
+      // Swap first, then kick off the import so the new run pulls from the new
+      // account. Reload afterward so the page reflects both the swap and the run.
+      if (runAfter) await runStream({ streamId, tabId: currentContext.tabId });
       if (currentContext.tabId) chrome.tabs.reload(currentContext.tabId);
       return changeCount;
     })();
 
+    const plural = changeCount > 1;
     showPromiseStatus(promise, {
       error: (err) => err.message || 'An error occurred',
-      loading: changeCount > 1 ? `Switching ${changeCount} accounts…` : 'Switching account…',
-      success: (n) => (n > 1 ? `Switched ${n} accounts` : 'Switched account')
+      loading: runAfter
+        ? plural
+          ? `Swapping ${changeCount} accounts and running…`
+          : 'Swapping account and running…'
+        : plural
+          ? `Swapping ${changeCount} accounts…`
+          : 'Swapping account…',
+      success: (n) => {
+        if (runAfter) return n > 1 ? `Swapped ${n} accounts and started run` : 'Swapped account and started run';
+        return n > 1 ? `Swapped ${n} accounts` : 'Swapped account';
+      }
     });
 
     promise
@@ -165,8 +178,26 @@ export function SwitchAccountView({ instance = null, liveContext = null, onBackT
       })
       .catch(() => {})
       .finally(() => {
-        if (mountedRef.current) setIsSubmitting(false);
+        if (mountedRef.current) setSubmittingAction(null);
       });
+  };
+
+  // Legacy (one-account) datasets save straight from the account detail panel,
+  // so build the single change from the picked account rather than the slot form.
+  const handleSaveSelected = (account, runAfter = false) => {
+    const slot = slots[activeSlotIndex];
+    if (!slot) return;
+    applyAccountChanges({ [slot.currentAccountId]: account.id }, runAfter);
+  };
+
+  const handleSubmit = (runAfter = false) => {
+    const accountChanges = {};
+    for (const slot of slots) {
+      if (slot.replacementId != null && slot.replacementId !== slot.currentAccountId) {
+        accountChanges[slot.currentAccountId] = slot.replacementId;
+      }
+    }
+    applyAccountChanges(accountChanges, runAfter);
   };
 
   if (isLoading) {
@@ -198,11 +229,15 @@ export function SwitchAccountView({ instance = null, liveContext = null, onBackT
       objectId: currentContext.domoObject.id,
       objectType: currentContext.domoObject.typeId,
       onStatusUpdate,
-      viewType: 'switchAccount'
+      viewType: 'swapAccount'
     }),
     buildRefreshAction({
       isRefreshing: isLoadingAccounts,
-      onRefresh: () => loadAccounts(dataProviderType, currentContext.tabId)
+      onRefresh: () =>
+        loadAccounts(dataProviderType, currentContext.tabId, {
+          openPicker: isLegacyStructure,
+          openWhenEmpty: isLegacyStructure
+        })
     })
   ];
 
@@ -210,7 +245,7 @@ export function SwitchAccountView({ instance = null, liveContext = null, onBackT
     <Card className='flex min-h-0 w-full flex-1 flex-col p-2'>
       <ViewHeader
         actions={headerActions}
-        feature='Switch Account for'
+        feature='Swap Account for'
         featureIcon={<IconSwapHorizontal />}
         subject={objectName}
         subjectTypeId={currentContext.domoObject.typeId}
@@ -225,8 +260,8 @@ export function SwitchAccountView({ instance = null, liveContext = null, onBackT
           excludeIds={new Set([activeSlot.currentAccountId])}
           key={activeSlotIndex}
           tabId={currentContext.tabId}
-          title='Choose account'
-          onCancel={() => setScreen('form')}
+          title={isLegacyStructure ? undefined : 'Choose Account'}
+          onCancel={isLegacyStructure ? undefined : () => setScreen('form')}
           onSelect={handlePicked}
           filterSlot={
             <div className='flex flex-1 items-center gap-1'>
@@ -261,12 +296,47 @@ export function SwitchAccountView({ instance = null, liveContext = null, onBackT
               />
             </div>
           }
+          renderDetailActions={
+            isLegacyStructure
+              ? (account) => (
+                  <div className='flex gap-2'>
+                    <Button
+                      fullWidth
+                      isDisabled={isSubmitting}
+                      isPending={submittingAction === 'save'}
+                      variant='primary'
+                      onPress={() => handleSaveSelected(account, false)}
+                    >
+                      Save
+                    </Button>
+                    <Button
+                      fullWidth
+                      isDisabled={isSubmitting}
+                      isPending={submittingAction === 'saveAndRun'}
+                      variant='secondary'
+                      onPress={() => handleSaveSelected(account, true)}
+                    >
+                      Save and Run
+                    </Button>
+                  </div>
+                )
+              : undefined
+          }
         />
       ) : accountsError ? (
         <div className='flex items-center gap-2 py-2'>
           <IconExclamationTriangle className='shrink-0 text-danger' size={16} />
           <span className='min-w-0 flex-1 text-xs text-danger'>Could not load accounts</span>
-          <Button size='sm' variant='ghost' onPress={() => loadAccounts(dataProviderType, currentContext.tabId)}>
+          <Button
+            size='sm'
+            variant='ghost'
+            onPress={() =>
+              loadAccounts(dataProviderType, currentContext.tabId, {
+                openPicker: isLegacyStructure,
+                openWhenEmpty: isLegacyStructure
+              })
+            }
+          >
             <IconSync />
             Retry
           </Button>
@@ -281,7 +351,7 @@ export function SwitchAccountView({ instance = null, liveContext = null, onBackT
             ) : (
               slots.map((slot, index) => (
                 <div className='flex flex-col gap-1' key={slot.currentAccountId}>
-                  <span className='line-clamp-2 break-all text-xs text-muted'>
+                  <span className='line-clamp-2 text-xs break-all text-muted'>
                     Current: {describeAccount(slot.currentAccountId)}
                   </span>
                   {slot.replacementId != null ? (
@@ -295,7 +365,7 @@ export function SwitchAccountView({ instance = null, liveContext = null, onBackT
                     </div>
                   ) : (
                     <Button fullWidth size='sm' variant='secondary' onPress={() => openPicker(index)}>
-                      Choose account
+                      Choose Account
                     </Button>
                   )}
                 </div>
@@ -303,15 +373,24 @@ export function SwitchAccountView({ instance = null, liveContext = null, onBackT
             )}
           </div>
 
-          <div className='flex shrink-0 flex-col gap-2 pt-2'>
+          <div className='flex shrink-0 gap-2 pt-2'>
             <Button
               fullWidth
               isDisabled={isSubmitting || isLoadingAccounts}
-              isPending={isSubmitting}
+              isPending={submittingAction === 'save'}
               variant='primary'
-              onPress={handleSubmit}
+              onPress={() => handleSubmit(false)}
             >
               Save
+            </Button>
+            <Button
+              fullWidth
+              isDisabled={isSubmitting || isLoadingAccounts}
+              isPending={submittingAction === 'saveAndRun'}
+              variant='secondary'
+              onPress={() => handleSubmit(true)}
+            >
+              Save and Run
             </Button>
           </div>
         </>

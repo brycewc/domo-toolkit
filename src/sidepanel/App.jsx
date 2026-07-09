@@ -25,7 +25,7 @@ import { MigrateDownstreamContentView } from '@/components/views/MigrateDownstre
 import { ObjectDetailsView } from '@/components/views/ObjectDetailsView';
 import { OwnershipView } from '@/components/views/OwnershipView';
 import { RemapColumnsView } from '@/components/views/RemapColumnsView';
-import { SwitchAccountView } from '@/components/views/SwitchAccountView';
+import { SwapAccountView } from '@/components/views/SwapAccountView';
 import { UpdateDetailsView } from '@/components/views/UpdateDetailsView';
 import { UpdateTriggerVersionsView } from '@/components/views/UpdateTriggerVersionsView';
 import { UpdateWorkflowActionVersionsView } from '@/components/views/UpdateWorkflowActionVersionsView';
@@ -84,13 +84,13 @@ export default function App() {
       if (data.type === 'loading') {
         return { ...prev, [instance]: { loadingMessage: data.message || 'Loading...', type: 'loading' } };
       }
-      // Preserve "ready" across in-panel navigation (reload, drill into another
-      // view) so the action bar stays collapsed mid-session. Only a launch from the
-      // default state starts un-ready, keeping the bar expanded until that first
-      // view settles (so an action that resolves to a toast never collapses it).
-      const prevSlot = prev[instance];
-      const ready = prevSlot && prevSlot.type !== 'default' && prevSlot.type !== 'loading' ? prevSlot.ready === true : false;
-      return { ...prev, [instance]: { ready, type: data.type, viewKey: data.timestamp || Date.now() } };
+      // Every launch starts un-ready: the action bar collapses only once the new
+      // view reports it has settled (see ActionButtons). This keeps the bar expanded
+      // for an action that resolves to a toast, and lets a manual expand before
+      // launching an action survive until the new view renders. In-panel navigation
+      // (reload, drill) also re-starts un-ready, but never flashes the collapsed bar
+      // open because ActionButtons leaves the bar as-is while a view is loading.
+      return { ...prev, [instance]: { ready: false, type: data.type, viewKey: data.timestamp || Date.now() } };
     });
     if (data) setActiveInstance(instance);
   }, []);
@@ -545,8 +545,8 @@ export default function App() {
           />
         )}
 
-        {slot.type === 'switchAccount' && (
-          <SwitchAccountView
+        {slot.type === 'swapAccount' && (
+          <SwapAccountView
             instance={instance}
             isActive={isActive}
             key={slot.viewKey}
@@ -561,7 +561,9 @@ export default function App() {
 
   const activeSlot = (activeInstance && instanceViews[activeInstance]) || null;
   const activeType = activeSlot?.type || 'default';
-  // Expand when nothing is open OR the open view hasn't finished loading yet.
+  // The action bar reconciles itself to these: it collapses once the open view has
+  // settled, expands when nothing is open, and holds its current state (respecting a
+  // manual toggle) while a view loads. See ActionButtons.
   const activeViewReady = activeSlot?.ready === true;
   const mountedEntries = Object.entries(instanceViews).filter(([, slot]) => slot.type !== 'default');
 
@@ -569,9 +571,10 @@ export default function App() {
     <>
       <div className='flex h-full max-h-screen min-h-0 w-full flex-col items-start justify-start space-y-1 overflow-hidden overscroll-contain p-1'>
         <ActionButtons
+          activeViewReady={activeViewReady}
           collapsable={true}
           currentContext={currentContext}
-          defaultExpanded={activeType === 'default' || !activeViewReady}
+          hasActiveView={activeType !== 'default'}
           isLoading={isLoadingCurrentContext}
           onStatusUpdate={showStatus}
         />

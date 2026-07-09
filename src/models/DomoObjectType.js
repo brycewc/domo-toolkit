@@ -1223,6 +1223,7 @@ export const ObjectTypeRegistry = {
   RYUU_APP: new DomoObjectType('RYUU_APP', 'Custom App (Pro-Code)', {
     api: { endpoint: '/apps/v1/designs/{id}', paths: { created: 'createdDate', name: 'name' } },
     extractConfig: { keyword: 'assetlibrary' },
+    icon: { component: 'Code' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     urlPath: '/assetlibrary/{id}/overview'
   }),

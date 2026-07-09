@@ -519,7 +519,7 @@ const TileDetail = memo(function TileDetail({ dialect, searchQuery, tile }) {
 
   if (!hasContent) {
     return (
-      <div className='border-divider flex w-full items-center justify-between gap-2 overflow-hidden rounded-lg border bg-surface-secondary p-2'>
+      <div className='flex w-full items-center justify-between gap-2 overflow-hidden rounded-3xl bg-surface-secondary p-2'>
         {trigger}
         <IconChevronDown className='size-4 shrink-0 text-surface' />
       </div>
@@ -527,7 +527,7 @@ const TileDetail = memo(function TileDetail({ dialect, searchQuery, tile }) {
   }
 
   return (
-    <Disclosure className='border-divider overflow-hidden rounded-lg border bg-surface-secondary'>
+    <Disclosure className='overflow-hidden rounded-3xl bg-surface-secondary'>
       <Disclosure.Heading>
         <Disclosure.Trigger className='flex w-full items-center justify-between gap-2 p-2'>
           {trigger}
@@ -685,7 +685,11 @@ const TileDetail = memo(function TileDetail({ dialect, searchQuery, tile }) {
 });
 
 function DetailMono({ children }) {
-  return <div className='border-divider rounded border bg-surface p-2 font-mono text-xs'>{children}</div>;
+  return (
+    <div className='rounded-field border border-field bg-field px-3 py-2 font-mono text-xs text-field-foreground shadow-field'>
+      {children}
+    </div>
+  );
 }
 
 function DetailSection({ children, label }) {

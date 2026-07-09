@@ -1,4 +1,4 @@
-import { Button, Checkbox, Label, ListBox, Select, Spinner } from '@heroui/react';
+import { Button, Label, ListBox, Select, Spinner } from '@heroui/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useStatusBar } from '@/hooks/useStatusBar';
@@ -80,68 +80,41 @@ export function UpdateTriggerVersionsView({
 
   const isSelectable = (item) => outdatedIds.has(item.id);
 
-  const banner = useMemo(() => {
+  const targetVersionRow = useMemo(() => {
     if (!targetVersion) return null;
     return (
-      <div className='flex flex-col gap-2 px-2 pt-2'>
-        <div className='flex items-center justify-start gap-2'>
-          <Label className='shrink-0' id='target-version-label'>
-            Target version
-          </Label>
-          <Select
-            aria-labelledby='target-version-label'
-            className='w-40 flex-1'
-            selectionMode='single'
-            value={targetVersion}
-            variant='secondary'
-            onChange={(key) => setTargetVersion(key)}
-          >
-            <Select.Trigger className='items-center py-0'>
-              <Select.Value />
-              <Select.Indicator>
-                <IconChevronDown />
-              </Select.Indicator>
-            </Select.Trigger>
-            <Select.Popover className='max-h-60!'>
-              <ListBox>
-                {sortedVersions(versions).map((v, index) => (
-                  <ListBox.Item id={v.version} key={v.version} textValue={versionLabel(v, index === 0)}>
-                    <Label>{versionLabel(v, index === 0)}</Label>
-                    <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
-                  </ListBox.Item>
-                ))}
-              </ListBox>
-            </Select.Popover>
-          </Select>
-        </div>
-      </div>
-    );
-  }, [outdatedIds, selectedIds, targetVersion, triggers, versions]);
-
-  const selectionToolbar = useMemo(() => {
-    const outdatedCount = outdatedIds.size;
-    if (outdatedCount === 0) return null;
-    const selectedCount = selectedIds.size;
-    return (
-      <div className='px-2 py-1'>
-        <Checkbox
-          aria-label='Select all triggers'
-          isDisabled={isSubmitting}
-          isIndeterminate={selectedCount > 0 && selectedCount < outdatedCount}
-          isSelected={selectedCount === outdatedCount && outdatedCount > 0}
+      <div className='flex w-full items-center justify-start gap-2 px-2 py-1'>
+        <Label className='shrink-0' id='target-version-label'>
+          Target version
+        </Label>
+        <Select
+          aria-labelledby='target-version-label'
+          className='w-40 flex-1'
+          selectionMode='single'
+          value={targetVersion}
           variant='secondary'
-          onChange={(isSelected) => setSelectedIds(isSelected ? new Set(outdatedIds) : new Set())}
+          onChange={(key) => setTargetVersion(key)}
         >
-          <Checkbox.Content>
-            <Checkbox.Control>
-              <Checkbox.Indicator />
-            </Checkbox.Control>
-            Select all ({selectedCount} / {outdatedCount})
-          </Checkbox.Content>
-        </Checkbox>
+          <Select.Trigger className='items-center py-0'>
+            <Select.Value />
+            <Select.Indicator>
+              <IconChevronDown />
+            </Select.Indicator>
+          </Select.Trigger>
+          <Select.Popover className='max-h-60!'>
+            <ListBox>
+              {sortedVersions(versions).map((v, index) => (
+                <ListBox.Item id={v.version} key={v.version} textValue={versionLabel(v, index === 0)}>
+                  <Label>{versionLabel(v, index === 0)}</Label>
+                  <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
+                </ListBox.Item>
+              ))}
+            </ListBox>
+          </Select.Popover>
+        </Select>
       </div>
     );
-  }, [isSubmitting, outdatedIds, selectedIds]);
+  }, [targetVersion, versions]);
 
   async function handleSubmit() {
     const selected = triggers.filter((t) => selectedIds.has(triggerKey(t)));
@@ -257,12 +230,20 @@ export function UpdateTriggerVersionsView({
         : `Update ${selectedCount} trigger${selectedCount === 1 ? '' : 's'} to v${targetVersion}`}
     </Button>
   );
+  const selectAllControl = {
+    ariaLabel: 'Select all triggers',
+    count: selectedCount,
+    isDisabled: isSubmitting,
+    onToggle: (checked) => setSelectedIds(checked ? new Set(outdatedIds) : new Set()),
+    showCount: true,
+    total: outdatedIds.size
+  };
 
   return (
     <DataList
       fillHeight
       selectionMode
-      banner={banner}
+      banner={targetVersionRow}
       currentContext={currentContext || liveContext}
       feature='Triggers for'
       featureIcon={<IconDoubleChevronUp />}
@@ -274,8 +255,8 @@ export function UpdateTriggerVersionsView({
       items={items}
       objectId={modelId}
       objectType='WORKFLOW_MODEL'
+      selectAll={selectAllControl}
       selectedIds={selectedIds}
-      selectionToolbar={selectionToolbar}
       showActions={false}
       showActivityLogAll={false}
       showCounts={false}

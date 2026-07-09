@@ -91,14 +91,14 @@ import { ViewHeader } from './ViewHeader';
  * @param {String} props.itemLabel - Label for items in status messages (default: 'item')
  * @param {Number} props.virtualThreshold - Item array length above which virtualization activates at that level (default: 50). Both the top-level items map and any item's children map virtualize automatically when their length exceeds this. Pass `Infinity` to disable.
  * @param {'transparent' | 'default' | 'secondary' | 'tertiary'} [props.variant] - Card variant (default: HeroUI's `default`). Use `transparent` when nested inside another Card to avoid double shadows/borders.
- * @param {Boolean} [props.selectionMode] - When true, selectable rows render a leading `<Checkbox>` (control only, with `aria-label={item.label}` for screen readers). The row's label, count, empty space, and chevron all live inside the `Disclosure.Trigger` — so clicking the actual checkbox toggles selection while clicking anywhere else in the row toggles the disclosure. Non-selectable rows get a leading 16px placeholder so labels stay column-aligned. The trailing action slot is hidden in selection mode. Items are wrapped in a `CheckboxGroup` so a select-all in `selectionToolbar` can show indeterminate state. Selection state is controlled by the consumer via `selectedIds` + `onSelectionChange`.
+ * @param {Boolean} [props.selectionMode] - When true, selectable rows render a leading `<Checkbox>` (control only, with `aria-label={item.label}` for screen readers). The row's label, count, empty space, and chevron all live inside the `Disclosure.Trigger` — so clicking the actual checkbox toggles selection while clicking anywhere else in the row toggles the disclosure. Non-selectable rows get a leading 16px placeholder so labels stay column-aligned. The trailing action slot is hidden in selection mode. Items are wrapped in a `CheckboxGroup` so the built-in `selectAll` control can show indeterminate state. Selection state is controlled by the consumer via `selectedIds` + `onSelectionChange`.
  * @param {Set} [props.selectedIds] - Controlled set of currently-selected item ids. Required when `selectionMode` is true.
  * @param {Function} [props.onSelectionChange] - `(newSelectedIds: Set<string>) => void` callback fired when the selection set changes. Required when `selectionMode` is true. Receives the full new Set after any add/remove from the wrapping `CheckboxGroup`'s `onChange`.
  * @param {Function} [props.isSelectable] - `(item) => boolean` filter. When `selectionMode` is true, only items returning true get a checkbox-wrapped label; others get an empty 16px placeholder to preserve column alignment. Defaults to `() => true`.
  * @param {Function} [props.getUnselectableTooltip] - `(item) => string | null`. When it returns a string for a row that `isSelectable` rejects, that row renders a disabled (unchecked, dimmed) checkbox wrapped in a `DisabledTooltip` showing the string, instead of the empty placeholder. This gives a list where many/all rows are currently unavailable a real checkbox column plus a hover explanation of why each is disabled, rather than a column of blank gaps that just look unchecked. Return null (or omit the prop) to keep the placeholder behavior other views rely on. The checkbox is `isReadOnly` (can't be toggled) but stays hoverable so the tooltip fires.
  * @param {Function} [props.getItemBadge] - `(item) => { icon: React.ReactNode, tooltip: string } | null`. Optional trailing status adornment for leaf rows. When it returns a badge, DataList renders `icon` pinned at the row's end (outside the truncating label container, so it never clips with the title), wrapped in a tooltip showing `tooltip`. Purely presentational: it does not affect selection. Returns null for rows with no badge.
  * @param {Function} [props.getItemLock] - `(item) => { locked: boolean, tooltip: string } | null`. When it returns `locked`, the item's checkbox renders read-only (kept checked, can't be unchecked) and muted, wrapped in a tooltip showing `tooltip`. Uses `aria-disabled` rather than `isDisabled` so the tooltip still fires and the row's label link stays clickable. The consumer must also keep the id in `selectedIds` (e.g. re-add it in `onSelectionChange`) so the lock holds. Applies to both leaf rows and parent (group-header) rows; a locked parent gets the same read-only + muted checkbox while its disclosure toggle stays interactive.
- * @param {React.ReactNode} [props.selectionToolbar] - Selection-mode-only content rendered as a third header row directly under the action buttons. Use for "Select all"/"Deselect all" or other bulk-selection controls. Ignored when `selectionMode` is false.
+ * @param {Object} [props.selectAll] - Opt-in bulk-selection control. When provided and `selectionMode` is true, DataList renders a standardized tri-state "Select all" checkbox below the `banner` (above the items list). Shape: `{ ariaLabel?: string, count: number, isDisabled?: boolean, onToggle: (checked: boolean) => void, showCount?: boolean, total: number }`. `count`/`total` drive the visual state (checked when `count === total`, indeterminate when `0 < count < total`); the checkbox is disabled when `total === 0` or `isDisabled` is true. `onToggle(true)` should select every eligible item, `onToggle(false)` should clear. `showCount` appends `(count / total)` to the label. The consumer owns what "all" means and supplies `count`/`total`/`onToggle`, so grouped or async lists keep their own reconciliation. Ignored when `selectionMode` is false.
  * @param {Boolean} [props.fillHeight] - When true, the root Card fills its parent's available height (`h-full`) instead of being content-sized (`max-h-fit`), so the items list scrolls internally and the footer stays pinned at the bottom. Requires a parent that provides a constrained height (a flex/grid column). Default false preserves content-sizing.
  * @param {React.ReactNode} [props.footer] - Content rendered inside the Card below the items list, separated from the scroll area by a `<Separator>`. Use for a primary action that should sit pinned beneath the list (e.g. a full-width "Transfer ownership to…" button in selection mode). Consumers decide visibility; pass `null`/`false` to omit.
  * @param {string} [props.subtext] - Plain-text secondary content for the second header row (typically counts, status text, or a breadcrumb). Supports inline `**bold**` markdown. Truncates if it can't fit alongside header actions, but does NOT get a hover tooltip; every subtext we render is a short, bounded count/status string and a tooltip mirroring already-visible text felt redundant.
@@ -134,9 +134,9 @@ export function DataList({
   onRefresh,
   onSelectionChange,
   onStatusUpdate,
+  selectAll,
   selectedIds,
   selectionMode = false,
-  selectionToolbar,
   showActions = true,
   showActivityLogAll = true,
   showCounts = true,
@@ -439,8 +439,7 @@ export function DataList({
   );
 
   const hasInlineActions = headerActions.length > 0 || (customHeaderActions && customHeaderActions.length > 0);
-  const hasSelectionToolbar = selectionMode && Boolean(selectionToolbar);
-  const hasHeader = feature || subject || subtext || beta || hasInlineActions || onClose || hasSelectionToolbar;
+  const hasHeader = feature || subject || subtext || beta || hasInlineActions || onClose;
   // The header-level "View activity log for all" button shows only when a header
   // already exists for some other reason: it never conjures a blank header just
   // to host itself (headerless lists are still covered by the per-row "for all"
@@ -545,7 +544,6 @@ export function DataList({
         <ViewHeader
           actions={headerActionSpecs}
           beta={beta}
-          bottomRow={hasSelectionToolbar ? selectionToolbar : undefined}
           feature={feature}
           featureIcon={featureIcon}
           subject={subject}
@@ -556,6 +554,25 @@ export function DataList({
       )}
       <Separator className='mt-1.5' />
       {banner && <div className='shrink-0 pt-2'>{banner}</div>}
+      {selectionMode && selectAll && (
+        <div className='shrink-0 pt-2 pb-1'>
+          <Checkbox
+            aria-label={selectAll.ariaLabel ?? 'Select all'}
+            isDisabled={Boolean(selectAll.isDisabled) || selectAll.total === 0}
+            isIndeterminate={selectAll.count > 0 && selectAll.count < selectAll.total}
+            isSelected={selectAll.total > 0 && selectAll.count === selectAll.total}
+            variant='secondary'
+            onChange={selectAll.onToggle}
+          >
+            <Checkbox.Content>
+              <Checkbox.Control>
+                <Checkbox.Indicator />
+              </Checkbox.Control>
+              {selectAll.showCount ? `Select all (${selectAll.count} / ${selectAll.total})` : 'Select all'}
+            </Checkbox.Content>
+          </Checkbox>
+        </div>
+      )}
       {sortedItems.length > virtualThreshold
         ? // Virtualized top-level: VirtualizedItems is the scroll container.
           // Bypass ScrollShadow so TanStack Virtual listens for scroll on an
@@ -1521,10 +1538,13 @@ function DataListItemImpl({
     virtualThreshold
   });
 
-  // When this row's only populated subcategory is a single virtual parent (the
-  // others empty and hidden, e.g. a Beast Mode used only on cards), seed that
-  // lone subcategory into the child group's initial expansion so it opens
-  // together with this row instead of needing a second click. React Aria's
+  // When this row has a single populated child (its other children empty and
+  // hidden, e.g. a Beast Mode used only on cards, or the lone page under a sole
+  // "Dashboards" group), seed that lone child into the child group's initial
+  // expansion so it opens together with this row instead of needing a second
+  // click. The child may be a virtual-parent subcategory or a real object; a
+  // sole page opens to reveal its cards the same way a sole category does.
+  // React Aria's
   // DisclosureGroup owns expansion once mounted and ignores a per-Disclosure
   // `isExpanded`, so this is the seam that actually drives it: the child group
   // mounts with the row (collapsed bodies stay mounted, just hidden), reading
@@ -1533,12 +1553,12 @@ function DataListItemImpl({
   // Seed this child group with ONLY the keys that belong to its own direct
   // children: any `defaultExpandedIds` that are direct children, plus this item's
   // sole populated child. Filtering to direct children is essential under
-  // single-expansion (allowsMultipleExpanded=false) — passing the full
+  // single-expansion (allowsMultipleExpanded=false): passing the full
   // `defaultExpandedIds` down (which includes open ancestor groups like a
   // top-level "Used by this card") would crowd out the sole child as an extra
   // key, and React Aria would honor the ancestor instead, leaving the lone child
   // collapsed.
-  const soleChildId = soleVirtualChildId(item);
+  const soleChildId = solePopulatedChildId(item);
   const seedIds = defaultExpandedIds ? [...defaultExpandedIds] : [];
   const childGroupExpandedKeys = (item.children ?? [])
     .map((child) => child.id)
@@ -1919,16 +1939,18 @@ function VirtualizedItems({ bounded = false, items, renderItem }) {
 const DataListItem = memo(DataListItemImpl, arePropsEqualForRow);
 
 /**
- * Returns the id of `item`'s sole populated subcategory, or null. A match means
- * `item` has exactly one virtual-parent child that itself has children (e.g. a
- * Beast Mode whose only non-empty category is "Cards", its Drills and Other
- * Beast Modes being empty and hidden). Used to auto-expand that lone
- * subcategory with its parent. Only the immediate child is returned; deeper
- * chains resolve because each level seeds its own child group in turn.
+ * Returns the id of `item`'s sole populated child, or null. A match means
+ * `item` has exactly one child that itself has children, whether that child is
+ * a virtual-parent subcategory (e.g. a Beast Mode whose only non-empty category
+ * is "Cards", its Drills and Other Beast Modes being empty and hidden) or a real
+ * object (e.g. the lone page under a sole "Dashboards" group, whose cards should
+ * open with it). Used to auto-expand that lone child with its parent. Only the
+ * immediate child is returned; deeper chains resolve because each level seeds
+ * its own child group in turn.
  */
-function soleVirtualChildId(item) {
+function solePopulatedChildId(item) {
   if (!item?.children?.length) return null;
-  const populated = item.children.filter((child) => child.isVirtualParent && child.children?.length > 0);
+  const populated = item.children.filter((child) => child.children?.length > 0);
   return populated.length === 1 ? populated[0].id : null;
 }
 

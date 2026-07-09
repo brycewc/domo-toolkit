@@ -266,18 +266,7 @@ export function MigrateDownstreamContentView({
     if (!pendingSelectAll) return;
     if (Object.keys(results).length === 0) return;
     if (!isFullyLoaded) return;
-    const next = new Set();
-    for (const t of MIGRATE_TYPES) {
-      const r = results[t.key];
-      const items = r?.status === 'loaded' ? r.items?.items || [] : [];
-      if (items.length > 0) {
-        next.add(t.key);
-        for (const item of items) {
-          next.add(leafSelectionId(t.key, item.id));
-        }
-      }
-    }
-    setSelectedIds(next);
+    setSelectedIds(buildFullSelection(results));
     setPendingSelectAll(false);
   }, [pendingSelectAll, isFullyLoaded, results]);
 
@@ -1480,6 +1469,17 @@ export function MigrateDownstreamContentView({
     </Chip>
   );
 
+  // Select all / clear for the whole downstream tree. Select all reuses the same
+  // "everything" set as the initial pre-select; clearing to empty is safe because
+  // no Beast Mode stays locked once nothing that requires it is selected.
+  const selectAllControl = {
+    ariaLabel: 'Select all downstream content',
+    count: totalSelected,
+    isDisabled: !isFullyLoaded || isTransferring,
+    onToggle: (checked) => setSelectedIds(checked ? buildFullSelection(results) : new Set()),
+    total: totalAvailable
+  };
+
   // Page 1: choose what downstream content to migrate. The type groups live in
   // the DataList; the only footer action is Next, which advances to page 2.
   if (page === 'select') {
@@ -1499,6 +1499,7 @@ export function MigrateDownstreamContentView({
         items={dataListItems}
         objectId={datasetId}
         objectType='DATA_SOURCE'
+        selectAll={selectAllControl}
         selectedIds={selectedIds}
         selectionMode={true}
         showActions={true}
@@ -1536,7 +1537,7 @@ export function MigrateDownstreamContentView({
 
   return (
     <>
-      <Card className='flex min-h-0 w-full flex-1 flex-col p-2'>
+      <Card className='flex min-h-0 w-full flex-1 flex-col gap-0 p-2'>
         <Card.Header className='gap-1'>
           <Card.Title className='line-clamp-2 min-w-0 pr-8'>
             Migrate Content of <strong>{datasetName}</strong>
@@ -1556,7 +1557,7 @@ export function MigrateDownstreamContentView({
             <Tooltip.Content className='max-w-60 text-wrap'>Close</Tooltip.Content>
           </Tooltip>
         </Card.Header>
-        <Separator />
+        <Separator className='mt-1.5' />
         <ScrollShadow hideScrollBar className='min-h-0 flex-1 overflow-y-auto' offset={5} orientation='vertical'>
           <Card.Content className='flex flex-col gap-2 py-2'>
             <DatasetComboBox
@@ -2132,6 +2133,24 @@ function buildDrillViewUrl(item, origin) {
   }
 }
 
+// The "everything selected" set: every loaded type's parent key plus a leaf id
+// for each of its items. Shared by the initial pre-select effect and the header
+// Select all control so both mean exactly the same thing.
+function buildFullSelection(results) {
+  const next = new Set();
+  for (const t of MIGRATE_TYPES) {
+    const r = results[t.key];
+    const items = r?.status === 'loaded' ? r.items?.items || [] : [];
+    if (items.length > 0) {
+      next.add(t.key);
+      for (const item of items) {
+        next.add(leafSelectionId(t.key, item.id));
+      }
+    }
+  }
+  return next;
+}
+
 function buildLeafItems(typeKey, items, origin) {
   return items.map(
     (item) =>
@@ -2274,7 +2293,8 @@ function ColumnMapRow({
     const actions = [{ id: UNMAPPED, kind: 'unmapped', label: 'Leave unmapped' }];
     if (canDrop) actions.push({ id: DROP, kind: 'drop', label: 'Drop column' });
     const visibleActions = actions.filter((a) => matches(a.label));
-    if (visibleActions.length > 0) sections.push({ header: null, id: '__actions__', items: visibleActions, label: 'Mapping options' });
+    if (visibleActions.length > 0)
+      sections.push({ header: null, id: '__actions__', items: visibleActions, label: 'Mapping options' });
     const cols = targetColumns
       .filter((c) => matches(c.name))
       .map((c) => ({ id: c.name, kind: 'column', name: c.name, type: c.type || 'STRING' }));
@@ -2282,7 +2302,8 @@ function ColumnMapRow({
       .filter((b) => matches(b.name))
       .map((b) => ({ id: b.legacyId, kind: 'beastMode', name: b.name, type: b.dataType || 'STRING' }));
     const showHeaders = mappableBeastModes.length > 0;
-    if (cols.length > 0) sections.push({ header: showHeaders ? 'Columns' : null, id: '__columns__', items: cols, label: 'Columns' });
+    if (cols.length > 0)
+      sections.push({ header: showHeaders ? 'Columns' : null, id: '__columns__', items: cols, label: 'Columns' });
     if (showHeaders && beastModes.length > 0)
       sections.push({ header: 'Beast Modes', id: '__beastModes__', items: beastModes, label: 'Beast Modes' });
     return sections;
@@ -2504,7 +2525,7 @@ function ColumnMapRow({
             <Autocomplete.ClearButton />
             <Autocomplete.Indicator />
           </Autocomplete.Trigger>
-          <Autocomplete.Popover className='w-fit min-w-72 max-w-9/10' placement='bottom end'>
+          <Autocomplete.Popover className='w-fit max-w-9/10 min-w-72' placement='bottom end'>
             <Autocomplete.Filter inputValue={query} onInputChange={setQuery}>
               <SearchField
                 autoFocus

@@ -1,4 +1,4 @@
-import { AlertDialog, Button, Card, Checkbox, Spinner } from '@heroui/react';
+import { AlertDialog, Button, Card, Spinner } from '@heroui/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Alert } from '@/components/Alert';
@@ -72,6 +72,14 @@ export function DeleteUnusedBeastModesView({
           ? await findUnusedFunctions({ ownerIds: [domoObject.id], tabId })
           : await findUnusedFunctions({ datasetIds: [domoObject.id], tabId });
       if (!mountedRef.current) return;
+
+      // Nothing to clean up: the toast is the whole message, so skip rendering
+      // an empty view and drop straight back to the default panel.
+      if (found.length === 0) {
+        onStatusUpdate?.('All Clean', 'No unused Beast Modes or Variables were found.', 'success', 3000);
+        onBackToDefault?.();
+        return;
+      }
 
       setCandidates(found);
       // Pre-select every unlocked candidate (both Beast Modes and Variables) so
@@ -271,26 +279,13 @@ export function DeleteUnusedBeastModesView({
     return `**${selectedLeafCount}** of **${total}** ${total === 1 ? 'item' : 'items'} selected`;
   }, [allLeafIds, deleteProgress, isDeleting, selectedLeafCount]);
 
-  const selectionToolbar = useMemo(() => {
-    const total = allLeafIds.size;
-    return (
-      <Checkbox
-        aria-label='Select all unused items'
-        isDisabled={isDeleting || total === 0}
-        isIndeterminate={selectedLeafCount > 0 && selectedLeafCount < total}
-        isSelected={total > 0 && selectedLeafCount === total}
-        variant='secondary'
-        onChange={(checked) => (checked ? selectAll() : clearSelection())}
-      >
-        <Checkbox.Content>
-          <Checkbox.Control>
-            <Checkbox.Indicator />
-          </Checkbox.Control>
-          Select all
-        </Checkbox.Content>
-      </Checkbox>
-    );
-  }, [allLeafIds, clearSelection, isDeleting, selectAll, selectedLeafCount]);
+  const selectAllControl = {
+    ariaLabel: 'Select all unused items',
+    count: selectedLeafCount,
+    isDisabled: isDeleting,
+    onToggle: (checked) => (checked ? selectAll() : clearSelection()),
+    total: allLeafIds.size
+  };
 
   const footer = useMemo(
     () => (
@@ -338,19 +333,6 @@ export function DeleteUnusedBeastModesView({
     );
   }
 
-  if (candidates.length === 0) {
-    return (
-      <Alert className='w-full' status='success'>
-        <Alert.Indicator />
-        <Alert.Content>
-          <Alert.Title>All clean</Alert.Title>
-          <Alert.Description>No unused Beast Modes or Variables were found.</Alert.Description>
-        </Alert.Content>
-        <CloseButton className='rounded-full' variant='ghost' onPress={() => onBackToDefault?.()} />
-      </Alert>
-    );
-  }
-
   return (
     <>
       <DataList
@@ -369,8 +351,8 @@ export function DeleteUnusedBeastModesView({
         items={items}
         objectId={viewData?.objectId}
         objectType={viewData?.objectType}
+        selectAll={selectAllControl}
         selectedIds={selectedIds}
-        selectionToolbar={selectionToolbar}
         showActivityLogAll={false}
         subject={viewData?.objectName}
         subtext={subtextNode}

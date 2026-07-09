@@ -43,10 +43,12 @@ const DEBOUNCE_MS = 300;
  *   The parent owns the filter state and pre-filters `adapter.items`; the picker just places it.
  * @param {() => void} [props.onCancel] - Back out of the picker without selecting
  * @param {(item: Object) => void} props.onSelect - Confirm callback (the second press)
+ * @param {(item: Object) => ReactNode} [props.renderDetailActions] - Override the detail panel's
+ *   footer. When provided, these actions replace the default Select button (which calls `onSelect`).
  * @param {number|null} [props.tabId] - Chrome tab ID for adapter API calls
  * @param {string} [props.title] - Header label
  */
-export function EntityPicker({ adapter, excludeIds, filterSlot, onCancel, onSelect, tabId, title }) {
+export function EntityPicker({ adapter, excludeIds, filterSlot, onCancel, onSelect, renderDetailActions, tabId, title }) {
   const [inputValue, setInputValue] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [items, setItems] = useState(() => (adapter.paginated ? [] : adapter.items || []));
@@ -54,6 +56,7 @@ export function EntityPicker({ adapter, excludeIds, filterSlot, onCancel, onSele
   const [error, setError] = useState(null);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
+  const [totalCount, setTotalCount] = useState(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [detail, setDetail] = useState(null);
@@ -78,11 +81,12 @@ export function EntityPicker({ adapter, excludeIds, filterSlot, onCancel, onSele
     setError(null);
     adapter
       .search({ offset: 0, query: searchQuery, tabId })
-      .then(({ items: fetched, totalCount }) => {
+      .then(({ items: fetched, totalCount: total }) => {
         if (gen !== searchGenRef.current) return;
         setItems(fetched);
         setOffset(fetched.length);
-        setHasMore(totalCount != null && fetched.length < totalCount);
+        setHasMore(total != null && fetched.length < total);
+        setTotalCount(total ?? null);
       })
       .catch((e) => {
         if (gen === searchGenRef.current) setError(e?.message || 'Failed to load');
@@ -110,6 +114,13 @@ export function EntityPicker({ adapter, excludeIds, filterSlot, onCancel, onSele
     return list;
   }, [adapter, excludeIds, inputValue, items]);
 
+  // A static source has its whole filtered set in hand, so visibleItems.length is
+  // exact. A paginated source has only loaded a page, so the server's totalCount
+  // is the real total; when that's unknown we show the loaded count with a "+".
+  const isApproxCount = adapter.paginated && totalCount == null && hasMore;
+  const shownCount = adapter.paginated ? (totalCount ?? visibleItems.length) : visibleItems.length;
+  const resultCountLabel = `${shownCount.toLocaleString()}${isApproxCount ? '+' : ''} result${shownCount === 1 && !isApproxCount ? '' : 's'}`;
+
   const handleInputChange = (value) => {
     setInputValue(value);
     if (adapter.paginated) {
@@ -123,7 +134,7 @@ export function EntityPicker({ adapter, excludeIds, filterSlot, onCancel, onSele
     setIsLoadingMore(true);
     const gen = searchGenRef.current;
     try {
-      const { items: fetched, totalCount } = await adapter.search({ offset, query: searchQuery, tabId });
+      const { items: fetched, totalCount: total } = await adapter.search({ offset, query: searchQuery, tabId });
       if (gen !== searchGenRef.current) return;
       const seen = new Set(items.map((item) => adapter.getKey(item)));
       const merged = [...items];
@@ -136,7 +147,8 @@ export function EntityPicker({ adapter, excludeIds, filterSlot, onCancel, onSele
       }
       setItems(merged);
       setOffset(offset + fetched.length);
-      setHasMore(totalCount != null && merged.length < totalCount);
+      setHasMore(total != null && merged.length < total);
+      setTotalCount(total ?? null);
     } catch {
       // Leave the already-loaded page in place; the user can retry by scrolling.
     } finally {
@@ -163,14 +175,16 @@ export function EntityPicker({ adapter, excludeIds, filterSlot, onCancel, onSele
 
   return (
     <div className='relative flex min-h-0 w-full flex-1 flex-col'>
-      <div className='flex shrink-0 items-center gap-2 pb-2'>
-        {onCancel && (
-          <Button isIconOnly size='sm' variant='ghost' onPress={onCancel}>
-            <IconArrowLeft />
-          </Button>
-        )}
-        {title && <span className='min-w-0 flex-1 truncate text-sm font-medium'>{title}</span>}
-      </div>
+      {(onCancel || title) && (
+        <div className='flex shrink-0 items-center gap-2 pb-2'>
+          {onCancel && (
+            <Button isIconOnly size='sm' variant='ghost' onPress={onCancel}>
+              <IconArrowLeft />
+            </Button>
+          )}
+          {title && <span className='min-w-0 flex-1 truncate text-sm font-medium'>{title}</span>}
+        </div>
+      )}
 
       <SearchField
         fullWidth
@@ -190,6 +204,10 @@ export function EntityPicker({ adapter, excludeIds, filterSlot, onCancel, onSele
       </SearchField>
 
       {filterSlot && <div className='mt-2 flex shrink-0 items-center'>{filterSlot}</div>}
+
+      {!isLoading && !error && visibleItems.length > 0 && (
+        <div className='mt-2 shrink-0 px-1 text-xs text-muted'>{resultCountLabel}</div>
+      )}
 
       <div className='mt-2 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto'>
         {isLoading ? (
@@ -251,10 +269,14 @@ export function EntityPicker({ adapter, excludeIds, filterSlot, onCancel, onSele
               )}
             </div>
             <div className='shrink-0 pt-2'>
-              <Button fullWidth variant='primary' onPress={() => onSelect(selectedItem)}>
-                <IconCheck />
-                Select
-              </Button>
+              {renderDetailActions ? (
+                renderDetailActions(selectedItem)
+              ) : (
+                <Button fullWidth variant='primary' onPress={() => onSelect(selectedItem)}>
+                  <IconCheck />
+                  Select
+                </Button>
+              )}
             </div>
           </motion.div>
         )}

@@ -471,9 +471,9 @@ export function GetPagesView({
         children: nestedChildren,
         // Hide the badge entirely when a child page has no nested pages (a bare
         // "(0)" reads as "0 cards" next to the card-count badges elsewhere), and
-        // label the non-zero case "pages" so it can't be mistaken for a card count.
+        // label the non-zero case "page"/"pages" so it can't be mistaken for a card count.
         count: childPagesForPage.length || undefined,
-        countLabel: 'pages'
+        countLabel: childPagesForPage.length === 1 ? 'page' : 'pages'
       });
     });
 
@@ -695,7 +695,7 @@ function transformGroupedPagesData(childPages, origin, cardsByPage, orphanedCard
           return DataListItem.fromDomoObject(domoObject, {
             children: cardChildren,
             count: cardChildren?.length,
-            countLabel: cardChildren ? 'cards' : null
+            countLabel: cardChildren ? (cardChildren.length === 1 ? 'card' : 'cards') : null
           });
         });
 
@@ -704,7 +704,8 @@ function transformGroupedPagesData(childPages, origin, cardsByPage, orphanedCard
         });
         return DataListItem.fromDomoObject(appDomoObject, {
           children: pageChildren,
-          count: pageChildren.length
+          count: pageChildren.length,
+          countLabel: pageChildren.length === 1 ? 'page' : 'pages'
         });
       });
 
@@ -731,7 +732,7 @@ function transformGroupedPagesData(childPages, origin, cardsByPage, orphanedCard
       return DataListItem.fromDomoObject(domoObject, {
         children: cardChildren,
         count: cardChildren?.length,
-        countLabel: cardChildren ? 'cards' : null
+        countLabel: cardChildren ? (cardChildren.length === 1 ? 'card' : 'cards') : null
       });
     });
 
@@ -778,7 +779,7 @@ function transformGroupedPagesData(childPages, origin, cardsByPage, orphanedCard
           return DataListItem.fromDomoObject(domoObject, {
             children: cardChildren,
             count: cardChildren?.length,
-            countLabel: cardChildren ? 'cards' : null
+            countLabel: cardChildren ? (cardChildren.length === 1 ? 'card' : 'cards') : null
           });
         });
 
@@ -787,7 +788,8 @@ function transformGroupedPagesData(childPages, origin, cardsByPage, orphanedCard
         });
         return DataListItem.fromDomoObject(reportDomoObject, {
           children: pageChildren,
-          count: pageChildren.length
+          count: pageChildren.length,
+          countLabel: pageChildren.length === 1 ? 'page' : 'pages'
         });
       });
 
@@ -827,7 +829,7 @@ function transformGroupedPagesData(childPages, origin, cardsByPage, orphanedCard
           return DataListItem.fromDomoObject(domoObject, {
             children: cardChildren,
             count: cardChildren?.length,
-            countLabel: cardChildren ? 'cards' : null
+            countLabel: cardChildren ? (cardChildren.length === 1 ? 'card' : 'cards') : null
           });
         });
 
@@ -836,7 +838,8 @@ function transformGroupedPagesData(childPages, origin, cardsByPage, orphanedCard
         });
         return DataListItem.fromDomoObject(worksheetDomoObject, {
           children: pageChildren,
-          count: pageChildren.length
+          count: pageChildren.length,
+          countLabel: pageChildren.length === 1 ? 'view' : 'views'
         });
       });
 

@@ -162,7 +162,7 @@ export function CopyColorRulesView({ instance = null, liveContext = null, onBack
   const headerSubtext = `${sourceRules.length} color rule${sourceRules.length === 1 ? '' : 's'}`;
 
   return (
-    <Card className='flex min-h-0 w-full flex-1 flex-col p-2'>
+    <Card className='flex min-h-0 w-full flex-1 flex-col gap-0 p-2'>
       <ViewHeader
         feature='Copy Color Rules from'
         featureIcon={<IconColor />}
@@ -182,7 +182,7 @@ export function CopyColorRulesView({ instance = null, liveContext = null, onBack
       />
       <Separator className='mt-1.5' />
 
-      <div className='flex flex-col gap-3 pt-3'>
+      <div className='flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pt-3'>
         <DatasetComboBox
           aria-label='Destination dataset'
           instanceBaseUrl={currentContext.domoObject?.baseUrl}
@@ -260,6 +260,7 @@ export function CopyColorRulesView({ instance = null, liveContext = null, onBack
         )}
       </div>
 
+      <Separator className='mt-1.5' />
       <div className='flex shrink-0 flex-col gap-2 pt-2'>
         <Button fullWidth isDisabled={!canSubmit} isPending={isSubmitting} variant='primary' onPress={handleSubmit}>
           Copy Color Rules

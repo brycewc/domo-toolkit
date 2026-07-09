@@ -33,7 +33,7 @@ import { RemapColumns } from '@/components/functions/RemapColumns';
 import { RemoveEmptyStringsFromQuickFilters } from '@/components/functions/RemoveEmptyStringsFromQuickFilters';
 import { SetStreamToManual } from '@/components/functions/SetStreamToManual';
 import { ShareWithSelf } from '@/components/functions/ShareWithSelf';
-import { SwitchAccount } from '@/components/functions/SwitchAccount';
+import { SwapAccount } from '@/components/functions/SwapAccount';
 import { Sync } from '@/components/functions/Sync';
 import { TransferApproval } from '@/components/functions/TransferApproval';
 import { TransferOwnership } from '@/components/functions/TransferOwnership';
@@ -49,16 +49,33 @@ import IconChevronDown from '@icons/chevron-down.svg?react';
 import IconGear from '@icons/gear.svg?react';
 import IconRightRailFill from '@icons/right-rail-fill.svg?react';
 
-export function ActionButtons({ collapsable = false, currentContext, defaultExpanded, isLoading, onStatusUpdate }) {
-  const [isExpanded, setIsExpanded] = useState(defaultExpanded ?? !collapsable);
+export function ActionButtons({
+  activeViewReady = false,
+  collapsable = false,
+  currentContext,
+  hasActiveView = false,
+  isLoading,
+  onStatusUpdate
+}) {
+  const [isExpanded, setIsExpanded] = useState(!collapsable || !(hasActiveView && activeViewReady));
   const [hasExpandableActions, setHasExpandableActions] = useState(false);
   const contentRef = useRef(null);
 
+  // Reconcile the bar with the active view as it changes (collapsable mode only;
+  // the popup's bar is always open):
+  //   - No view open (home): expand so the action buttons are visible.
+  //   - The active view has settled: collapse to hand the space to its results.
+  //   - A view is still loading: leave the bar as-is. This lets a manual expand
+  //     before launching an action survive until the new view renders, while a
+  //     reload or drill from a collapsed bar never flashes open.
   useEffect(() => {
-    if (defaultExpanded !== undefined) {
-      setIsExpanded(defaultExpanded);
+    if (!collapsable) return;
+    if (!hasActiveView) {
+      setIsExpanded(true);
+    } else if (activeViewReady) {
+      setIsExpanded(false);
     }
-  }, [defaultExpanded]);
+  }, [activeViewReady, collapsable, hasActiveView]);
 
   // Under reduced motion the collapse is instant, so no height transition (and thus
   // no `onTransitionEnd`) fires. Signal the collapse "finished" here instead, so
@@ -333,8 +350,8 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
-                {availableActions.has('switchAccount') && (
-                  <SwitchAccount
+                {availableActions.has('swapAccount') && (
+                  <SwapAccount
                     currentContext={currentContext}
                     onStatusUpdate={onStatusUpdate}
                   />

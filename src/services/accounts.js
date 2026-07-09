@@ -106,7 +106,15 @@ export async function getAccountsForProvider(dataProviderKey, tabId = null) {
             id: Number(a.databaseId),
             lastModified: typeof a.lastModified === 'number' ? a.lastModified : null,
             name: a.displayName || a.name || a.winnerText || String(a.databaseId),
-            owner: a.ownerNamePrimary || a.ownedByName || a.owners?.[0]?.displayName || null,
+            // Prefer the owner's full display name. `ownerNamePrimary` /
+            // `ownerNameSecondary` are the last/first name split used for sorting,
+            // so leading with primary alone would show only the last name; fall
+            // back to joining first + last, then the (often empty) `ownedByName`.
+            owner:
+              a.owners?.[0]?.displayName ||
+              [a.ownerNameSecondary, a.ownerNamePrimary].filter(Boolean).join(' ') ||
+              a.ownedByName ||
+              null,
             ownerId: a.owners?.[0]?.id || a.ownedById || null,
             ownerType: a.owners?.[0]?.type || 'USER',
             valid: a.valid !== false
@@ -187,6 +195,25 @@ export async function getOwnedAccounts(userId, tabId = null) {
     [userId],
     tabId
   );
+}
+
+/**
+ * Detect the legacy "one account per dataset" structure: a DATA_SOURCE whose
+ * account is the singular scalar `metadata.details.accountId` rather than the
+ * newer `metadata.parent.details.accounts` array.
+ *
+ * Mirrors the legacy branch of `getAccountIdsForDomoObject` and must stay in
+ * sync with it. Returns false for STREAM objects and for any dataset already on
+ * the new multi-account array (even when that array holds a single account).
+ *
+ * @param {Object|null|undefined} domoObject
+ * @returns {boolean}
+ */
+export function isLegacyAccountStructure(domoObject) {
+  if (domoObject?.typeId !== 'DATA_SOURCE') return false;
+  const accounts = domoObject.metadata?.parent?.details?.accounts;
+  if (Array.isArray(accounts) && accounts.length > 0) return false;
+  return domoObject.metadata?.details?.accountId != null;
 }
 
 /**

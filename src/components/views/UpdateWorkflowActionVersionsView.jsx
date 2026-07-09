@@ -22,6 +22,7 @@ import { useViewReady } from '@/hooks/useViewReady';
 import { DomoContext } from '@/models/DomoContext';
 import { getCodeEnginePackageInfo } from '@/services/codeEngine';
 import {
+  ensureWorkflowVersionEditable,
   getVersionDefinition,
   getWorkflowModelInfo,
   getWorkflowModelName,
@@ -111,6 +112,30 @@ export function UpdateWorkflowActionVersionsView({
         wfName = await getWorkflowModelName(workflowModelId, context.tabId);
       }
       if (mountedRef.current) setWorkflowName(wfName);
+
+      // A workflow version is locked while someone edits it. Before grabbing the
+      // definition to change action versions, honor that lock: one held by the
+      // current user or left over 24 hours ago is cleared automatically so
+      // editing can resume; a fresh lock held by someone else blocks the edit.
+      const workflowVersionNumber = isCEVersion
+        ? context.domoObject.metadata?.context?.workflowVersionNumber
+        : context.domoObject.id;
+      if (workflowModelId && workflowVersionNumber) {
+        const editable = await ensureWorkflowVersionEditable({
+          modelId: workflowModelId,
+          tabId: context.tabId,
+          versionNumber: workflowVersionNumber
+        });
+        if (!editable) {
+          onStatusUpdate?.(
+            'Version Locked',
+            'The current workflow version is locked and editing it is forbidden.',
+            'danger'
+          );
+          onBackToDefault?.();
+          return;
+        }
+      }
 
       // Get definition - either from stored data or fetch/wait for it
       let def = data.definition;
@@ -409,6 +434,12 @@ export function UpdateWorkflowActionVersionsView({
     const count = applicableChanges.length;
 
     const promise = (async () => {
+      // Honor the version's edit lock before touching its definition.
+      const editable = await ensureWorkflowVersionEditable({ modelId, tabId, versionNumber });
+      if (!editable) {
+        throw new Error('The current workflow version is locked and editing it is forbidden.');
+      }
+
       // Fetch the latest definition to avoid overwriting concurrent changes
       const latestDefinition = await getVersionDefinition(modelId, versionNumber, tabId);
       const modified = structuredClone(latestDefinition);
@@ -623,11 +654,9 @@ export function UpdateWorkflowActionVersionsView({
                   <div className='flex w-full items-center justify-around gap-2'>
                     <Chip
                       className='h-9 w-35 rounded-3xl'
+                      color={pkg.latestVersion === pkg.currentVersion ? 'success' : 'warning'}
                       size='lg'
                       variant='secondary'
-                      color={
-                        pkg.latestVersion === pkg.currentVersion ? 'success' : pkg.isSingleVersion ? 'warning' : 'danger'
-                      }
                     >
                       {pkg.isSingleVersion ? pkg.currentVersion : 'Multiple Versions'}
                     </Chip>
@@ -662,15 +691,20 @@ export function UpdateWorkflowActionVersionsView({
                     >
                       {!pkg.isSingleVersion && (
                         <Disclosure
-                          className='border-divider w-full overflow-hidden rounded-lg border bg-surface-secondary'
+                          className='w-full overflow-hidden rounded-3xl bg-surface-secondary'
                           id={`overrides-${pkg.packageId}`}
                         >
                           <Disclosure.Heading>
                             <Disclosure.Trigger className='flex w-full items-center justify-between gap-2 p-2'>
                               <span className='truncate text-sm font-medium'>Per-action overrides</span>
-                              <Disclosure.Indicator>
-                                <IconChevronDown />
-                              </Disclosure.Indicator>
+                              <span className='flex shrink-0 items-center gap-2'>
+                                <Chip color='accent' size='sm' variant='soft'>
+                                  Optional
+                                </Chip>
+                                <Disclosure.Indicator>
+                                  <IconChevronDown />
+                                </Disclosure.Indicator>
+                              </span>
                             </Disclosure.Trigger>
                           </Disclosure.Heading>
                           <Disclosure.Content>
@@ -822,7 +856,7 @@ function ActionReconciliation({
   const needsReview = actionNeedsReview(info);
 
   return (
-    <Disclosure className='border-divider w-full overflow-hidden rounded-lg border bg-surface-secondary' id={id}>
+    <Disclosure className='w-full overflow-hidden rounded-3xl bg-surface-secondary' id={id}>
       <Disclosure.Heading>
         <Disclosure.Trigger className='flex w-full items-center justify-between gap-2 p-2'>
           <span className='flex min-w-0 flex-1 items-center gap-2' title={action.actionName}>
@@ -842,11 +876,24 @@ function ActionReconciliation({
         </div>
         <div className='flex flex-col gap-2 p-2 text-xs'>
           {info.autoNotes.length > 0 && (
-            <ul className='flex flex-col gap-0.5 text-muted'>
-              {info.autoNotes.map((note) => (
-                <li className='flex items-start gap-1' key={note}>
-                  <IconCheck className='mt-0.5 shrink-0' size={12} />
-                  <span>{note}</span>
+            <ul className='flex flex-col gap-1'>
+              {info.autoNotes.map((note, i) => (
+                <li
+                  className='flex items-start gap-1 rounded-field border border-field bg-field px-3 py-2 text-field-foreground shadow-field'
+                  key={i}
+                >
+                  <IconCheck className='mt-0.5 shrink-0 text-success' size={12} />
+                  <span>
+                    {note.map((seg, j) =>
+                      typeof seg === 'string' ? (
+                        seg
+                      ) : (
+                        <span className='font-mono font-bold' key={j}>
+                          {seg.code}
+                        </span>
+                      )
+                    )}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -1165,39 +1212,54 @@ function buildActionContractInfo({ change, definition, newFn, oldFn }) {
 
   // Auto-handled changes worth surfacing so the panel is never empty and the
   // user understands the version's effect even when nothing needs a decision.
+  // Each note is an array of segments: plain strings render as-is, `{ code }`
+  // segments render as the popped-out identifier (font-mono font-bold), matching
+  // how param and variable names are styled in the review panels above.
   const autoNotes = [];
   for (const r of classified.inputs.renamed) {
-    autoNotes.push(`Input renamed ${r.from} to ${r.to}, binding kept`);
+    autoNotes.push(['Input renamed ', { code: r.from }, ' to ', { code: r.to }, ', binding kept']);
   }
   for (const r of classified.outputs.renamed) {
-    autoNotes.push(`Output renamed ${r.from} to ${r.to}, binding kept`);
+    autoNotes.push(['Output renamed ', { code: r.from }, ' to ', { code: r.to }, ', binding kept']);
   }
   for (const e of classified.inputs.added) {
-    if (e.nullable !== false) autoNotes.push(`New optional input ${e.name} added`);
+    if (e.nullable !== false) autoNotes.push(['New optional input ', { code: e.name }, ' added']);
   }
   for (const e of classified.inputs.removed) {
-    if (!hasBinding(inputParams.get(e.name))) autoNotes.push(`Unused input ${e.name} removed`);
+    if (!hasBinding(inputParams.get(e.name))) autoNotes.push(['Unused input ', { code: e.name }, ' removed']);
   }
   for (const t of typeChanged) {
     if (!t.param?.mappedTo) {
-      autoNotes.push(`Type of ${t.name} changed to ${t.newType}, no variable bound`);
+      autoNotes.push(['Type of ', { code: t.name }, ' changed to ', { code: t.newType }, ', no variable bound']);
     } else if (variableMatchesEntry(variableNode(t.param.mappedTo), t.newEntry)) {
-      autoNotes.push(`Type of ${t.name} changed, ${variableName(t.param.mappedTo)} already matches`);
+      autoNotes.push([
+        'Type of ',
+        { code: t.name },
+        ' changed, ',
+        { code: variableName(t.param.mappedTo) },
+        ' already matches'
+      ]);
     }
   }
   for (const t of schemaChanged) {
     if (!t.param?.mappedTo) {
-      autoNotes.push(`Properties of ${t.name} changed, no variable bound`);
+      autoNotes.push(['Properties of ', { code: t.name }, ' changed, no variable bound']);
     } else if (variableMatchesEntry(variableNode(t.param.mappedTo), t.newEntry)) {
-      autoNotes.push(`Properties of ${t.name} changed, ${variableName(t.param.mappedTo)} already matches`);
+      autoNotes.push([
+        'Properties of ',
+        { code: t.name },
+        ' changed, ',
+        { code: variableName(t.param.mappedTo) },
+        ' already matches'
+      ]);
     }
   }
   for (const o of removedOutputs) {
     if (o.consumers.length === 0) {
       autoNotes.push(
         o.variableName
-          ? `Output ${o.paramName} removed, variable ${o.variableName} is no longer written`
-          : `Output ${o.paramName} removed`
+          ? ['Output ', { code: o.paramName }, ' removed, variable ', { code: o.variableName }, ' is no longer written']
+          : ['Output ', { code: o.paramName }, ' removed']
       );
     }
   }

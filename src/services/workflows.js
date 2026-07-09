@@ -43,6 +43,54 @@ export async function deleteWorkflow({ modelId, tabId = null }) {
 }
 
 /**
+ * Ensure a workflow version can be edited, clearing an edit lock we're allowed
+ * to clear. Domo locks a version while someone edits it; before we grab the
+ * definition to change it, we honor that lock. A version that isn't locked, is
+ * locked by the current user, or was locked more than 24 hours ago is treated
+ * as editable (the latter two are unlocked first so editing can resume). A
+ * version locked by someone else within the last 24 hours is left untouched and
+ * reported as not editable. A lock status we can't read never blocks editing.
+ * @param {Object} params
+ * @param {string} params.modelId - The Workflow Model ID
+ * @param {number|null} [params.tabId] - Optional Chrome tab ID
+ * @param {string} params.versionNumber - The workflow version (e.g. '1.0.8')
+ * @returns {Promise<boolean>} Whether the version is now editable
+ */
+export async function ensureWorkflowVersionEditable({ modelId, tabId = null, versionNumber }) {
+  return executeInPage(
+    async (modelId, versionNumber) => {
+      const lockRes = await fetch(`/api/workflow/v1/models/${modelId}/versions/${versionNumber}/lock`);
+      // If we can't read the lock, don't block editing.
+      if (!lockRes.ok) return true;
+      const lock = await lockRes.json().catch(() => null);
+      const lockedBy = lock?.lockedBy != null ? String(lock.lockedBy) : null;
+      // Not locked: editable as-is.
+      if (!lockedBy) return true;
+
+      // Compare the lock holder against the logged-in user (bootstrap is the
+      // canonical source for the current user's id on a Domo page).
+      const currentUserId =
+        window.bootstrap?.currentUser?.USER_ID != null ? String(window.bootstrap.currentUser.USER_ID) : null;
+      const isOwnLock = currentUserId != null && currentUserId === lockedBy;
+
+      const lockedOnMs = lock?.lockedOn ? new Date(lock.lockedOn).getTime() : NaN;
+      const isStale = Number.isFinite(lockedOnMs) && Date.now() - lockedOnMs > 24 * 60 * 60 * 1000;
+
+      // Locked by someone else within the last 24 hours: leave it alone.
+      if (!isOwnLock && !isStale) return false;
+
+      const unlockRes = await fetch(
+        `/api/workflow/v1/models/${modelId}/versions/${versionNumber}/lock/false?admin=false`,
+        { method: 'PUT' }
+      );
+      return unlockRes.ok;
+    },
+    [modelId, versionNumber],
+    tabId
+  );
+}
+
+/**
  * Get all workflows owned by a user.
  * @param {number} userId - The Domo user ID
  * @param {number|null} tabId - Optional Chrome tab ID

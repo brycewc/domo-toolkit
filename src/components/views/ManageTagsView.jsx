@@ -1,7 +1,6 @@
 import {
   Button,
   Card,
-  Checkbox,
   Chip,
   ComboBox,
   Input,
@@ -394,30 +393,14 @@ export function ManageTagsView({ currentContext = null, instance = null, onBackT
   })();
 
   const readableObjects = objects.filter((o) => o.readable);
-  const allSelected = readableObjects.length > 0 && readableObjects.every((o) => selectedIds.has(o.id));
-  const someSelected = readableObjects.some((o) => selectedIds.has(o.id));
-
-  const selectionToolbar = (
-    <Checkbox
-      aria-label='Select all objects'
-      isDisabled={isSubmitting || readableObjects.length === 0}
-      isIndeterminate={someSelected && !allSelected}
-      isSelected={allSelected}
-      variant='secondary'
-      onChange={(checked) =>
-        setSelectedIds(
-          checked ? reconcileGroupSelection(new Set(readableObjects.map((o) => o.id)), groupChildren) : new Set()
-        )
-      }
-    >
-      <Checkbox.Content>
-        <Checkbox.Control>
-          <Checkbox.Indicator />
-        </Checkbox.Control>
-        Select all
-      </Checkbox.Content>
-    </Checkbox>
-  );
+  const selectAllControl = {
+    ariaLabel: 'Select all objects',
+    count: readableObjects.filter((o) => selectedIds.has(o.id)).length,
+    isDisabled: isSubmitting,
+    onToggle: (checked) =>
+      setSelectedIds(checked ? reconcileGroupSelection(new Set(readableObjects.map((o) => o.id)), groupChildren) : new Set()),
+    total: readableObjects.length
+  };
 
   // The tag editor lives in the DataList footer, pinned beneath the object list.
   const tagEditor = (
@@ -569,8 +552,8 @@ export function ManageTagsView({ currentContext = null, instance = null, onBackT
       items={dataListItems}
       objectId={objectId}
       objectType='DATAFLOW_TYPE'
+      selectAll={selectAllControl}
       selectedIds={selectedIds}
-      selectionToolbar={selectionToolbar}
       subject={dataflowName}
       subtext={`${selectedObjects.length} of ${readableObjects.length} selected`}
       viewType='manageTags'

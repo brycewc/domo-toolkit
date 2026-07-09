@@ -157,6 +157,10 @@ Prettier owns formatting for every file type in the repo, **including Markdown**
 
 `npx prettier --write .` is safe to run repo-wide.
 
+## UI Copy: Button Labels
+
+Button labels use **Title Case**, not sentence case: capitalize the first letter of each significant word. Write `Save and Run`, `Choose Account`, `Delete Unused Beast Modes`, not `Save and run` or `Choose account`. Minor words (articles, short conjunctions, and short prepositions such as `a`, `an`, `and`, `the`, `to`, `of`, `for`) stay lowercase unless they are the first word. This is a content convention, not a formatter-enforced rule, so ESLint/Prettier won't catch violations; apply it by hand when adding or editing any button.
+
 ## Unused Variables
 
 - Prefix unused variables/args with `_`: `(_event)`, `_unused`.

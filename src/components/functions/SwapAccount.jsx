@@ -3,7 +3,7 @@ import { Button, Tooltip } from '@heroui/react';
 import { useLaunchView } from '@/hooks/useLaunchView';
 import IconSwapHorizontal from '@icons/swap-horizontal.svg?react';
 
-export function SwitchAccount({ currentContext, onStatusUpdate }) {
+export function SwapAccount({ currentContext, onStatusUpdate }) {
   const { isPending, launch } = useLaunchView();
 
   return (
@@ -17,15 +17,15 @@ export function SwitchAccount({ currentContext, onStatusUpdate }) {
           launch({
             currentContext,
             onStatusUpdate,
-            type: 'switchAccount'
+            type: 'swapAccount'
           })
         }
       >
         <IconSwapHorizontal />
-        Switch Account
+        Swap Account
       </Button>
       <Tooltip.Content className='max-w-60' offset={4}>
-        Switch this dataset to any compatible account, no sharing required
+        Swap this dataset to any compatible account, no sharing required
       </Tooltip.Content>
     </Tooltip>
   );

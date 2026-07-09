@@ -1,4 +1,4 @@
-import { Button, Card, Checkbox, Spinner } from '@heroui/react';
+import { Button, Card, Spinner } from '@heroui/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { TransferOwnershipModal } from '@/components/modals/TransferOwnershipModal';
@@ -904,63 +904,28 @@ export function OwnershipView({
     return actions;
   }, [exitSelectionMode, hasAnyTransferable, isFullyLoaded, isTransferring, isUserSource, selectAllEligible, selectionMode]);
 
-  // Toolbar rendered just under the header action row when selection mode is
-  // engaged. The "Select all" Checkbox shows three states:
-  //   - unchecked: no eligible types are selected
-  //   - indeterminate: some (but not all) eligible types are selected
-  //   - checked: every eligible type is selected
-  // It lives outside the per-row CheckboxGroup (rendered by DataList around
-  // the items list) so we control its visual state directly via
-  // `isIndeterminate` / `isSelected` instead of letting the group derive it.
-  // This mirrors the HeroUI v3 docs' "Indeterminate" pattern, where the
-  // select-all sits as a sibling of the inner CheckboxGroup. See DataList's
-  // `selectionToolbar` prop.
-  const selectionToolbar = useMemo(() => {
-    if (!selectionMode) return null;
-    // Two phases:
-    //   1. While hydration is in flight (`pendingSelectAll || !isFullyLoaded`),
-    //      the auto-pre-select effect is racing the fetches. The gate
-    //      stays ON until the hydration effect has both seen `isFullyLoaded`
-    //      true AND finished adding leaves for the last type, which is what
-    //      flipping `pendingSelectAll` to false signals. If we only gated on
-    //      `!isFullyLoaded`, the handoff frame between "last type loaded"
-    //      and "hydration effect runs" would briefly evaluate normally with
-    //      stale `selectedIds`, flashing the dash icon once. Holding the
-    //      pinned visual until `pendingSelectAll` clears closes that gap.
-    //   2. After hydration settles: normal evaluation. The toolbar goes
-    //      indeterminate the moment the user deselects any single leaf
-    //      inside an otherwise fully-selected type.
-    const isHydrating = pendingSelectAll || !isFullyLoaded;
-    return (
-      <Checkbox
-        aria-label='Select all eligible objects'
-        isDisabled={isHydrating || totalEligibleObjects === 0 || isTransferring}
-        isIndeterminate={!isHydrating && selectedObjectCount > 0 && selectedObjectCount < totalEligibleObjects}
-        isSelected={isHydrating || (totalEligibleObjects > 0 && selectedObjectCount === totalEligibleObjects)}
-        variant='secondary'
-        onChange={(isSelected) => {
-          if (isSelected) selectAllEligible();
-          else clearSelection();
-        }}
-      >
-        <Checkbox.Content>
-          <Checkbox.Control>
-            <Checkbox.Indicator />
-          </Checkbox.Control>
-          Select all
-        </Checkbox.Content>
-      </Checkbox>
-    );
-  }, [
-    clearSelection,
-    isFullyLoaded,
-    isTransferring,
-    pendingSelectAll,
-    selectAllEligible,
-    selectedObjectCount,
-    selectionMode,
-    totalEligibleObjects
-  ]);
+  // Config for DataList's built-in "Select all" control, which renders it below
+  // the banner as a tri-state checkbox and derives checked/indeterminate from
+  // `count`/`total`. While the auto-pre-select hydration is in flight
+  // (`pendingSelectAll || !isFullyLoaded`), the fetches are racing the effect,
+  // so we pin `count` to the full eligible total. That keeps the checkbox read
+  // as fully checked (never indeterminate) until the fetches settle; otherwise a
+  // handoff frame with stale `selectedIds` would flash the dash icon once. The
+  // gate stays on until `pendingSelectAll` clears, not just `isFullyLoaded`, to
+  // cover the frame between "last type loaded" and "hydration effect runs".
+  // After hydration, `count` tracks the real selected-leaf total, so deselecting
+  // any single leaf inside an otherwise-full type flips it to indeterminate.
+  const isHydrating = pendingSelectAll || !isFullyLoaded;
+  const selectAllControl = {
+    ariaLabel: 'Select all eligible objects',
+    count: isHydrating ? totalEligibleObjects : selectedObjectCount,
+    isDisabled: isHydrating || isTransferring,
+    onToggle: (checked) => {
+      if (checked) selectAllEligible();
+      else clearSelection();
+    },
+    total: totalEligibleObjects
+  };
 
   // Full-width Transfer button pinned to the bottom of the Card when selection
   // mode is engaged. Replaces the header's transfer action so the primary CTA
@@ -1013,9 +978,9 @@ export function OwnershipView({
         items={dataListItems}
         objectId={userId}
         objectType='USER'
+        selectAll={selectAllControl}
         selectedIds={selectedIds}
         selectionMode={selectionMode}
-        selectionToolbar={selectionToolbar}
         showActions={true}
         showCounts={true}
         subject={userName}

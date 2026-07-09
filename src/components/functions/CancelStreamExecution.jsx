@@ -10,21 +10,23 @@ export function CancelStreamExecution({ currentContext, isDisabled }) {
   const handlePress = () => {
     const stream = currentContext?.domoObject?.metadata?.parent?.details;
     const streamId = stream?.id;
-    const executionId = stream?.currentExecution?.executionId;
-    if (!streamId || !executionId) return;
+    if (!streamId) return;
 
     const datasetName = currentContext.domoObject.metadata?.name || `Dataset ${currentContext.domoObject.id}`;
 
     showPromiseStatus(
       cancelStreamExecution({
-        executionId,
         streamId,
         tabId: currentContext.tabId
       }),
       {
-        error: (err) => `Failed to cancel update – ${err.message}`,
-        loading: `Cancelling update for **${datasetName}**…`,
-        success: () => `Update cancelled for **${datasetName}**`
+        error: (err) => `Failed to cancel updates for **${datasetName}**: ${err.message}`,
+        loading: `Cancelling running updates for **${datasetName}**…`,
+        success: ({ cancelled }) => {
+          if (cancelled === 0) return `No running updates to cancel for **${datasetName}**`;
+          if (cancelled === 1) return `Cancelled the running update for **${datasetName}**`;
+          return `Cancelled ${cancelled} running updates for **${datasetName}**`;
+        }
       }
     );
   };
@@ -42,7 +44,7 @@ export function CancelStreamExecution({ currentContext, isDisabled }) {
         Cancel Run
       </Button>
       <Tooltip.Content className='max-w-60' offset={4}>
-        Cancel the currently running execution for this dataset's stream
+        Cancel every currently running update for this dataset's stream
       </Tooltip.Content>
     </Tooltip>
   );

@@ -1,4 +1,4 @@
-import { Button, Checkbox, Spinner, ToggleButton, ToggleButtonGroup } from '@heroui/react';
+import { Button, Spinner, ToggleButton, ToggleButtonGroup } from '@heroui/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useStatusBar } from '@/hooks/useStatusBar';
@@ -99,45 +99,35 @@ export function ManageCardLocksView({
     };
   };
 
-  // Toggle plus the select-all live together in the banner (below the toggle)
-  // rather than the header's selectionToolbar slot, so the "Select all" reads as
-  // scoped to whichever action the toggle currently has chosen.
+  // Just the Lock/Unlock toggle. The select-all lives in DataList's built-in
+  // `selectAll` control, which renders directly below this banner, so it still
+  // reads as scoped to whichever action the toggle currently has chosen.
   const banner = (
-    <div className='flex flex-col gap-2 pb-1'>
-      <ToggleButtonGroup
-        disallowEmptySelection
-        fullWidth
-        aria-label='Choose whether to lock or unlock cards'
-        selectedKeys={[mode]}
-        selectionMode='single'
-        size='sm'
-        onSelectionChange={(keys) => {
-          const next = [...keys][0];
-          if (next) setMode(next);
-        }}
-      >
-        <ToggleButton id='lock'>Lock</ToggleButton>
-        <ToggleButton id='unlock'>Unlock</ToggleButton>
-      </ToggleButtonGroup>
-      {actionableIds.size > 0 && (
-        <Checkbox
-          aria-label='Select all cards'
-          isDisabled={isSubmitting}
-          isIndeterminate={selectedIds.size > 0 && selectedIds.size < actionableIds.size}
-          isSelected={selectedIds.size === actionableIds.size}
-          variant='secondary'
-          onChange={(isSelected) => setSelectedIds(isSelected ? new Set(actionableIds) : new Set())}
-        >
-          <Checkbox.Content>
-            <Checkbox.Control>
-              <Checkbox.Indicator />
-            </Checkbox.Control>
-            Select all ({selectedIds.size} / {actionableIds.size})
-          </Checkbox.Content>
-        </Checkbox>
-      )}
-    </div>
+    <ToggleButtonGroup
+      disallowEmptySelection
+      fullWidth
+      aria-label='Choose whether to lock or unlock cards'
+      selectedKeys={[mode]}
+      selectionMode='single'
+      size='sm'
+      onSelectionChange={(keys) => {
+        const next = [...keys][0];
+        if (next) setMode(next);
+      }}
+    >
+      <ToggleButton id='lock'>Lock</ToggleButton>
+      <ToggleButton id='unlock'>Unlock</ToggleButton>
+    </ToggleButtonGroup>
   );
+
+  const selectAllControl = {
+    ariaLabel: 'Select all cards',
+    count: selectedIds.size,
+    isDisabled: isSubmitting,
+    onToggle: (checked) => setSelectedIds(checked ? new Set(actionableIds) : new Set()),
+    showCount: true,
+    total: actionableIds.size
+  };
 
   async function handleSubmit() {
     const cardIds = cards.filter((card) => selectedIds.has(String(card.id))).map((card) => card.id);
@@ -279,6 +269,7 @@ export function ManageCardLocksView({
       items={items}
       objectId={currentContext?.domoObject?.id}
       objectType={objectType}
+      selectAll={selectAllControl}
       selectedIds={selectedIds}
       showActivityLogAll={false}
       subject={objectName}

@@ -79,7 +79,7 @@ export function getAvailableActions(currentContext) {
       actions.add('setStreamToManual');
     }
     if (userRights.includes('account.admin') && getAccountIdsForDomoObject(currentContext.domoObject).length > 0) {
-      actions.add('switchAccount');
+      actions.add('swapAccount');
     }
   }
 
