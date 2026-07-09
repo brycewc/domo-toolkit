@@ -46,6 +46,7 @@ import IconTree from '@icons/tree.svg?react';
 import IconX from '@icons/x.svg?react';
 
 import { AnimatedCheck } from '../AnimatedCheck';
+import { DisabledTooltip } from '../DisabledTooltip';
 import { ErrorAlert } from '../ErrorAlert';
 import { ObjectTypeIcon } from '../ObjectTypeIcon';
 import { ViewHeader } from './ViewHeader';
@@ -94,6 +95,8 @@ import { ViewHeader } from './ViewHeader';
  * @param {Set} [props.selectedIds] - Controlled set of currently-selected item ids. Required when `selectionMode` is true.
  * @param {Function} [props.onSelectionChange] - `(newSelectedIds: Set<string>) => void` callback fired when the selection set changes. Required when `selectionMode` is true. Receives the full new Set after any add/remove from the wrapping `CheckboxGroup`'s `onChange`.
  * @param {Function} [props.isSelectable] - `(item) => boolean` filter. When `selectionMode` is true, only items returning true get a checkbox-wrapped label; others get an empty 16px placeholder to preserve column alignment. Defaults to `() => true`.
+ * @param {Function} [props.getUnselectableTooltip] - `(item) => string | null`. When it returns a string for a row that `isSelectable` rejects, that row renders a disabled (unchecked, dimmed) checkbox wrapped in a `DisabledTooltip` showing the string, instead of the empty placeholder. This gives a list where many/all rows are currently unavailable a real checkbox column plus a hover explanation of why each is disabled, rather than a column of blank gaps that just look unchecked. Return null (or omit the prop) to keep the placeholder behavior other views rely on. The checkbox is `isReadOnly` (can't be toggled) but stays hoverable so the tooltip fires.
+ * @param {Function} [props.getItemBadge] - `(item) => { icon: React.ReactNode, tooltip: string } | null`. Optional trailing status adornment for leaf rows. When it returns a badge, DataList renders `icon` pinned at the row's end (outside the truncating label container, so it never clips with the title), wrapped in a tooltip showing `tooltip`. Purely presentational: it does not affect selection. Returns null for rows with no badge.
  * @param {Function} [props.getItemLock] - `(item) => { locked: boolean, tooltip: string } | null`. When it returns `locked`, the item's checkbox renders read-only (kept checked, can't be unchecked) and muted, wrapped in a tooltip showing `tooltip`. Uses `aria-disabled` rather than `isDisabled` so the tooltip still fires and the row's label link stays clickable. The consumer must also keep the id in `selectedIds` (e.g. re-add it in `onSelectionChange`) so the lock holds. Applies to both leaf rows and parent (group-header) rows; a locked parent gets the same read-only + muted checkbox while its disclosure toggle stays interactive.
  * @param {React.ReactNode} [props.selectionToolbar] - Selection-mode-only content rendered as a third header row directly under the action buttons. Use for "Select all"/"Deselect all" or other bulk-selection controls. Ignored when `selectionMode` is false.
  * @param {Boolean} [props.fillHeight] - When true, the root Card fills its parent's available height (`h-full`) instead of being content-sized (`max-h-fit`), so the items list scrolls internally and the footer stays pinned at the bottom. Requires a parent that provides a constrained height (a flex/grid column). Default false preserves content-sizing.
@@ -116,7 +119,9 @@ export function DataList({
   featureIcon,
   fillHeight = false,
   footer,
+  getItemBadge,
   getItemLock,
+  getUnselectableTooltip,
   headerActions = [],
   isRefreshing = false,
   isSelectable,
@@ -573,7 +578,9 @@ export function DataList({
                       defaultExpandedIds={defaultExpandedIds}
                       expandedIds={expandedIds}
                       fillHeight={fillHeight}
+                      getItemBadge={getItemBadge}
                       getItemLock={getItemLock}
+                      getUnselectableTooltip={getUnselectableTooltip}
                       isSelectable={isSelectable}
                       item={item}
                       itemActions={itemActions}
@@ -622,7 +629,9 @@ export function DataList({
                       defaultExpandedIds={defaultExpandedIds}
                       expandedIds={expandedIds}
                       fillHeight={fillHeight}
+                      getItemBadge={getItemBadge}
                       getItemLock={getItemLock}
+                      getUnselectableTooltip={getUnselectableTooltip}
                       isSelectable={isSelectable}
                       item={item}
                       itemActions={itemActions}
@@ -776,6 +785,7 @@ const VIRTUAL_OVERSCAN = 5;
  */
 function arePropsEqualForRow(prev, next) {
   if (prev.shareEnabled !== next.shareEnabled) return false;
+  if (prev.getUnselectableTooltip !== next.getUnselectableTooltip) return false;
   if (prev.item !== next.item) return false;
   if (prev.itemActions !== next.itemActions) return false;
   if (prev.objectType !== next.objectType) return false;
@@ -800,6 +810,12 @@ function arePropsEqualForRow(prev, next) {
   const nextLock = next.getItemLock?.(next.item) || null;
   if ((prevLock?.locked ?? false) !== (nextLock?.locked ?? false)) return false;
   if ((prevLock?.tooltip ?? '') !== (nextLock?.tooltip ?? '')) return false;
+  // A row's status badge can change from external state without its own props
+  // changing (mirrors the lock case above). Compare the resolved tooltip, which
+  // pairs 1:1 with the icon, so a locked->unlocked flip re-renders the badge.
+  const prevBadge = prev.getItemBadge?.(prev.item) || null;
+  const nextBadge = next.getItemBadge?.(next.item) || null;
+  if ((prevBadge?.tooltip ?? '') !== (nextBadge?.tooltip ?? '')) return false;
   // Parent rows must re-render when any DESCENDANT's selection or expansion
   // changes: a descendant's selection drives this row's indeterminate visual,
   // and a descendant Disclosure needs the fresh `expandedIds` reference to
@@ -839,7 +855,9 @@ function DataListItemImpl({
   depth = 0,
   expandedIds,
   fillHeight = false,
+  getItemBadge,
   getItemLock,
+  getUnselectableTooltip,
   isSelectable,
   item,
   itemActions,
@@ -907,11 +925,58 @@ function DataListItemImpl({
   // utility (0,0,1,0), so the `!` important modifier is needed to flip the
   // cascade.
   const isItemSelectableInMode = selectionMode && (typeof isSelectable === 'function' ? isSelectable(item) : true);
-  const selectionPlaceholder = selectionMode && !isItemSelectableInMode ? <div className='h-9 w-4 shrink-0' /> : null;
+  // Tooltip explaining why a row can't be selected in this mode. When the
+  // consumer supplies one, the leading slot renders a disabled checkbox with
+  // that explanation instead of an empty spacer (see selectionPlaceholder).
+  const unselectableTooltip =
+    selectionMode && !isItemSelectableInMode && typeof getUnselectableTooltip === 'function'
+      ? getUnselectableTooltip(item)
+      : null;
+  // What fills the leading slot for a row that can't be selected in this mode.
+  // Default: an empty 16px spacer that keeps labels column-aligned. When a
+  // consumer supplies `getUnselectableTooltip`, render a disabled (unchecked,
+  // dimmed) checkbox wrapped in a DisabledTooltip instead, so a list where
+  // many/all rows are currently unavailable reads as a checkbox column with a
+  // hover explanation rather than blank gaps that just look unchecked. The
+  // checkbox is `isReadOnly` (can't be toggled) but stays hoverable; the dim +
+  // not-allowed cursor mirror the locked-row treatment used by getItemLock.
+  const selectionPlaceholder =
+    selectionMode && !isItemSelectableInMode ? (
+      unselectableTooltip ? (
+        <DisabledTooltip content={unselectableTooltip}>
+          <Checkbox
+            isReadOnly
+            aria-label={typeof item.label === 'string' ? item.label : `Select ${item.id}`}
+            className='mt-0! shrink-0 opacity-60 [--cursor-interactive:var(--cursor-disabled)]'
+            value={String(item.id)}
+            variant='secondary'
+          >
+            <Checkbox.Content>
+              <Checkbox.Control>
+                <Checkbox.Indicator />
+              </Checkbox.Control>
+            </Checkbox.Content>
+          </Checkbox>
+        </DisabledTooltip>
+      ) : (
+        <div className='h-9 w-4 shrink-0' />
+      )
+    ) : null;
   // Lock state for this row (leaf rows only). When locked, the checkbox is
   // read-only + muted and wrapped in a tooltip; the consumer keeps it selected.
   const itemLock = isItemSelectableInMode && typeof getItemLock === 'function' ? getItemLock(item) : null;
   const isLocked = Boolean(itemLock?.locked);
+
+  // Optional trailing status badge (leaf rows). Purely presentational and
+  // independent of selection, so it resolves for every row. Rendered pinned at
+  // the row's end, outside the truncating label container, so it never clips.
+  const itemBadge = typeof getItemBadge === 'function' ? getItemBadge(item) : null;
+  const badgeNode = itemBadge ? (
+    <Tooltip>
+      <Tooltip.Trigger className='flex shrink-0 cursor-help items-center'>{itemBadge.icon}</Tooltip.Trigger>
+      <Tooltip.Content className='max-w-60'>{itemBadge.tooltip}</Tooltip.Content>
+    </Tooltip>
+  ) : null;
 
   // Visual indentation per nesting level so children read as descendants
   // rather than as siblings of their parent. Scoped to selection mode on
@@ -1426,6 +1491,7 @@ function DataListItemImpl({
             {itemLabel}
             {flatCount}
           </div>
+          {badgeNode}
           {statusIndicator ?? (selectionMode ? null : actions)}
         </div>
       </div>
@@ -1438,7 +1504,9 @@ function DataListItemImpl({
     depth: depth + 1,
     expandedIds,
     fillHeight,
+    getItemBadge,
     getItemLock,
+    getUnselectableTooltip,
     isSelectable,
     item: child,
     itemActions,

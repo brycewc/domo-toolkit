@@ -196,18 +196,32 @@ export function UpdateTriggerVersionsView({
         setModelId(id);
       }
 
-      const [name, versionList, triggerList] = await Promise.all([
+      const [name, versionList, rawTriggers] = await Promise.all([
         ctx.domoObject.metadata?.details?.name
           ? Promise.resolve(ctx.domoObject.metadata.details.name)
           : getWorkflowModelName(id, ctx.tabId),
         getWorkflowVersions(id, ctx.tabId),
-        getWorkflowTriggers(id, ctx.tabId)
+        getWorkflowTriggers(id, { tabId: ctx.tabId, types: ['ALERT'] })
       ]);
 
       if (!mountedRef.current) return;
       setWorkflowName(name);
       setVersions(versionList);
-      setTriggers(triggerList);
+      // Flatten each ALERT trigger to the fields the version-update flow needs:
+      // the alert it lives on (alertId), the live action bound to this trigger
+      // (actionId, which ignores stale orphaned actions), the version it runs
+      // (currentVersion), its display name, and the bound dataset (resourceId).
+      setTriggers(
+        rawTriggers
+          .filter((t) => t.type === 'ALERT')
+          .map((t) => ({
+            actionId: t.entityVersion,
+            alertId: t.entityId,
+            currentVersion: t.modelVersion,
+            name: t.name,
+            resourceId: t.metadata?.resourceId ?? null
+          }))
+      );
       setTargetVersion(latestVersion(versionList));
     } catch (error) {
       if (mountedRef.current) {

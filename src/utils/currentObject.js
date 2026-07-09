@@ -286,6 +286,18 @@ export async function detectCurrentObject() {
                   url
                 };
               }
+
+              // A user task that posts to a Task Center queue carries the queue id here
+              if (element?.data?.selectedQueue) {
+                return {
+                  baseUrl: `${location.protocol}//${location.hostname}`,
+                  id: element.data.selectedQueue,
+                  typeId: 'HOPPER_QUEUE',
+                  url,
+                  workflowModelId: modelId,
+                  workflowVersionNumber: version
+                };
+              }
             }
           } catch (e) {
             // Fall through to normal workflow version detection

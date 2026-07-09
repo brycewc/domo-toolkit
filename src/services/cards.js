@@ -486,29 +486,63 @@ export async function getPageCards(pageId) {
   }
 }
 
-export async function lockCards({ cardIds, tabId = null }) {
+/**
+ * Lock or unlock cards in bulk. Both directions use the same
+ * `/api/content/v1/cards/bulk/lock` endpoint: `PUT` (card IDs in the body)
+ * locks, `DELETE` (card IDs in the `urns` query) unlocks. A card's ID and URN
+ * are equivalent for lockable (top-level) cards, so plain IDs are sent either
+ * way. Cards are processed in batches of 50; a failed batch is recorded rather
+ * than aborting the rest, so the caller can surface partial results.
+ * @param {Object} params
+ * @param {number[]} params.cardIds - Card IDs to lock or unlock
+ * @param {boolean} params.locked - true to lock, false to unlock
+ * @param {number|null} [params.tabId=null] - Optional Chrome tab ID
+ * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
+ */
+export async function setCardsLocked({ cardIds, locked, tabId = null }) {
   const LOCK_BATCH_SIZE = 50;
   const batches = [];
   for (let i = 0; i < cardIds.length; i += LOCK_BATCH_SIZE) {
     batches.push(cardIds.slice(i, i + LOCK_BATCH_SIZE));
   }
 
+  const errors = [];
+  let failed = 0;
+  let succeeded = 0;
+
   for (const batch of batches) {
-    await executeInPage(
-      async (cardIds) => {
-        const response = await fetch('/api/content/v1/cards/bulk/lock', {
-          body: JSON.stringify(cardIds),
-          headers: { 'Content-Type': 'application/json' },
-          method: 'PUT'
-        });
-        if (!response.ok) {
-          throw new Error(`Failed to lock cards. HTTP status: ${response.status}`);
-        }
-      },
-      [batch],
-      tabId
-    );
+    try {
+      await executeInPage(
+        async (batch, locked) => {
+          let response;
+          if (locked) {
+            response = await fetch('/api/content/v1/cards/bulk/lock', {
+              body: JSON.stringify(batch),
+              headers: { 'Content-Type': 'application/json' },
+              method: 'PUT'
+            });
+          } else {
+            const params = new URLSearchParams();
+            for (const id of batch) params.append('urns', id);
+            response = await fetch(`/api/content/v1/cards/bulk/lock?${params.toString()}`, {
+              method: 'DELETE'
+            });
+          }
+          if (!response.ok) {
+            throw new Error(`HTTP status: ${response.status}`);
+          }
+        },
+        [batch, locked],
+        tabId
+      );
+      succeeded += batch.length;
+    } catch (error) {
+      failed += batch.length;
+      errors.push(...batch.map((id) => ({ error: error.message, id })));
+    }
   }
+
+  return { errors, failed, succeeded };
 }
 
 /**

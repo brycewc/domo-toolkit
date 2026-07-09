@@ -25,7 +25,7 @@ import { GetOwnedObjects } from '@/components/functions/GetOwnedObjects';
 import { GetViewInputs } from '@/components/functions/GetViewInputs';
 import { GetWorkspaces } from '@/components/functions/GetWorkspaces';
 import { InspectDataflow } from '@/components/functions/InspectDataflow';
-import { LockCards } from '@/components/functions/LockCards';
+import { ManageCardLocks } from '@/components/functions/ManageCardLocks';
 import { ManageTags } from '@/components/functions/ManageTags';
 import { MigrateDownstreamContent } from '@/components/functions/MigrateDownstreamContent';
 import { NavigateToCopiedObject } from '@/components/functions/NavigateToCopiedObject';
@@ -376,8 +376,8 @@ export function ActionButtons({ collapsable = false, currentContext, defaultExpa
                 {availableActions.has('copyColorRules') && (
                   <CopyColorRules currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
                 )}
-                {availableActions.has('lockCards') && (
-                  <LockCards currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
+                {availableActions.has('manageCardLocks') && (
+                  <ManageCardLocks currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('deleteUnusedBeastModes') && (
                   <DeleteUnusedBeastModes

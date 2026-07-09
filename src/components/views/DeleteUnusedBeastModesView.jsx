@@ -239,7 +239,8 @@ export function DeleteUnusedBeastModesView({
       .then(({ errors, succeededIds }) => {
         if (!mountedRef.current) return;
         // Drop deleted rows; keep any that failed so the user can see and retry.
-        setCandidates((prev) => prev.filter((c) => !succeededIds.has(String(c.id))));
+        const remaining = candidates.filter((c) => !succeededIds.has(String(c.id)));
+        setCandidates(remaining);
         setSelectedIds(new Set());
         const ok = succeededIds.size;
         if (errors.length === 0) {
@@ -247,6 +248,9 @@ export function DeleteUnusedBeastModesView({
         } else {
           showStatus('Partially Deleted', `Deleted **${ok}**, **${errors.length}** failed`, 'warning');
         }
+        // Everything cleared: the toast is the confirmation, so close the view
+        // like other views do instead of leaving an empty "All clean" panel.
+        if (remaining.length === 0) onBackToDefault?.();
       })
       .catch((err) => {
         if (mountedRef.current) showStatus('Delete Failed', err.message || 'An error occurred', 'danger');

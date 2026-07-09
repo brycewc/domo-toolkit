@@ -176,33 +176,37 @@ export async function getWorkflowPermission(modelId, userId, tabId = null) {
 }
 
 /**
- * List a workflow model's alert triggers. Filters the trigger set to ALERT type
- * and flattens each to the fields the version-update flow needs: the alert it
- * lives on (`alertId` = `entityId`), the live action on that alert (`actionId` =
- * `entityVersion`, which points precisely at the one action bound to this
- * trigger, so stale orphaned actions are ignored), the version it currently runs
- * (`currentVersion`), its display `name`, and the bound dataset (`resourceId`).
+ * List a workflow model's triggers, returning the raw trigger objects the API
+ * provides (each with its `id`, `type`, `active` state, audit fields, and
+ * `metadata`). Pass `types` to narrow the result to specific trigger types
+ * (e.g. `['ALERT']` for the version-update flow); omit it to fetch every type.
  * @param {string} modelId - The Workflow Model ID
- * @param {number|null} [tabId] - Optional Chrome tab ID
- * @returns {Promise<Array<{actionId: string, alertId: string, currentVersion: string, name: string, resourceId: string}>>}
+ * @param {Object} [options]
+ * @param {number|null} [options.tabId] - Optional Chrome tab ID
+ * @param {string[]|null} [options.types] - Trigger types to include; omit for all types
+ * @returns {Promise<Array<Object>>} The matching triggers, or [] when none exist
  */
-export async function getWorkflowTriggers(modelId, tabId = null) {
+export async function getWorkflowTriggers(modelId, { tabId = null, types = null } = {}) {
+  const requestedTypes = types ?? [
+    'ALERT',
+    'API',
+    'APP_STUDIO',
+    'CARD_ACCESS_REQUESTED',
+    'CUSTOM_APP',
+    'DATA_APP_ACCESS_REQUESTED',
+    'MANUAL',
+    'PAGE_ACCESS_REQUESTED',
+    'TIMER',
+    'WORKFLOW'
+  ];
   return executeInPage(
-    async (modelId) => {
-      const response = await fetch(`/api/workflow/v2/triggers/model/${modelId}?types=ALERT`);
+    async (modelId, types) => {
+      const response = await fetch(`/api/workflow/v2/triggers/model/${modelId}?types=${types.join(',')}`);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const triggers = await response.json();
-      return (Array.isArray(triggers) ? triggers : [])
-        .filter((t) => t.type === 'ALERT')
-        .map((t) => ({
-          actionId: t.entityVersion,
-          alertId: t.entityId,
-          currentVersion: t.modelVersion,
-          name: t.name,
-          resourceId: t.metadata?.resourceId ?? null
-        }));
+      return Array.isArray(triggers) ? triggers : [];
     },
-    [modelId],
+    [modelId, requestedTypes],
     tabId
   );
 }

@@ -12,6 +12,7 @@ import { getTemplateApprovals } from '@/services/approvals';
 import { getCardDefinition } from '@/services/cards';
 import { getDatasetColumns, getDatasetDetailsForList, getDatasetsForPage } from '@/services/datasets';
 import { getJupyterWorkspaceAccounts, getJupyterWorkspaceDatasets } from '@/services/jupyterWorkspaces';
+import { getWorkflowTriggers } from '@/services/workflows';
 import { executeInPage } from '@/utils/executeInPage';
 import { formatEpochTimestamp, formatTimestamp, isDateFieldName, isGroupFieldName, isUserFieldName } from '@/utils/general';
 import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
@@ -37,7 +38,8 @@ const LAZY_ARRAY_FETCHERS = {
     getJupyterWorkspaceDatasets({ entries: details?.inputConfiguration, tabId }),
   jupyterWorkspaceOutputs: ({ details, tabId }) =>
     getJupyterWorkspaceDatasets({ entries: details?.outputConfiguration, tabId }),
-  templateApprovals: ({ objectId, tabId }) => getTemplateApprovals(objectId, tabId)
+  templateApprovals: ({ objectId, tabId }) => getTemplateApprovals(objectId, tabId),
+  workflowTriggers: ({ objectId, tabId }) => getWorkflowTriggers(objectId, { tabId })
 };
 
 // Maps relatedData[].fetcher key → (params) => Promise<Object> for lazy

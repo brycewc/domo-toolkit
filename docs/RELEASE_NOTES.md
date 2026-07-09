@@ -7,6 +7,10 @@
 - Remap Columns can now repair a view that a source dataset broke by renaming or removing a column it reads, either by pointing the view at a valid column or dropping that column from the view.
 - Deleting a dataflow now also lists the alerts on its output datasets that will be deleted with it.
 - Deleting a dataflow is now blocked, with the offending views listed, when its output datasets feed downstream dataset views, instead of failing partway through.
+- Viewing a workflow now includes a Triggers tab listing every trigger attached to it.
+- Selecting a user task in a workflow now identifies its Task Center Queue in Current Context.
+- Locking cards now opens a list where you can review each card's current lock status and unselect any before applying the change.
+- That same list now lets you unlock cards, not just lock them, via a Lock/Unlock toggle.
 
 ## UI Improvements
 
@@ -30,3 +34,4 @@
 - Sharing objects with yourself from a list now closes the row's actions menu and shows a progress toast immediately, instead of appearing to do nothing until every share finished.
 - Migrate Content: mapping a column onto one of the target dataset's Beast Modes now saves the affected cards successfully instead of erroring out.
 - API Errors now captures failed requests from apps embedded on a page, which were previously missed.
+- Viewing a Code Engine action inside a workflow again shows its parent Workflow and Workflow Version as tabs in Current Context.

@@ -16,7 +16,7 @@ export function getAvailableActions(currentContext) {
   if (['DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE', 'REPORT_BUILDER_VIEW', 'WORKSHEET_VIEW'].includes(typeId)) {
     actions.add('getCards');
     if (userRights.includes('content.admin')) {
-      actions.add('lockCards');
+      actions.add('manageCardLocks');
     }
   }
 

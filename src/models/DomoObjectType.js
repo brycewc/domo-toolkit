@@ -577,12 +577,15 @@ export const ObjectTypeRegistry = {
       { label: 'Code Engine', source: 'parentId', typeId: 'CODEENGINE_PACKAGE' },
       {
         field: 'workflowVersionNumber',
+        fieldSource: 'context',
         label: 'Workflow Version',
+        parentFieldSource: 'context',
         parentSource: 'workflowModelId',
         typeId: 'WORKFLOW_MODEL_VERSION'
       },
       {
         field: 'workflowModelId',
+        fieldSource: 'context',
         label: 'Workflow',
         typeId: 'WORKFLOW_MODEL'
       }
@@ -989,10 +992,33 @@ export const ObjectTypeRegistry = {
   }),
   HOPPER_QUEUE: new DomoObjectType('HOPPER_QUEUE', 'Task Center Queue', {
     api: { endpoint: '/queues/v1/{id}', paths: { created: 'createdOn', name: 'name' } },
+    copyConfigs: [
+      // Shown only when the queue is viewed from inside a workflow (the back-references
+      // are absent on the standalone queue page). The plain-click copy falls back to the
+      // queue id, so no primary entry is needed here.
+      { label: 'Workflow ID', source: 'metadata.context.workflowModelId' },
+      { label: 'Workflow Version', source: 'metadata.context.workflowVersionNumber' }
+    ],
     extractConfig: { keyword: 'queueId' },
     icon: { component: 'FormatListChecks' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    relatedData: [{ label: 'Queue', source: 'self' }],
+    relatedData: [
+      { label: 'Queue', source: 'self' },
+      {
+        field: 'workflowVersionNumber',
+        fieldSource: 'context',
+        label: 'Workflow Version',
+        parentFieldSource: 'context',
+        parentSource: 'workflowModelId',
+        typeId: 'WORKFLOW_MODEL_VERSION'
+      },
+      {
+        field: 'workflowModelId',
+        fieldSource: 'context',
+        label: 'Workflow',
+        typeId: 'WORKFLOW_MODEL'
+      }
+    ],
     urlPath: '/queues/tasks?queueId={id}&status=OPEN'
   }),
   HOPPER_TASK: new DomoObjectType('HOPPER_TASK', 'Task Center Task', {
@@ -1375,6 +1401,14 @@ export const ObjectTypeRegistry = {
         itemIdField: 'version',
         itemTypeId: 'WORKFLOW_MODEL_VERSION',
         label: 'Versions',
+        parentSource: 'objectId'
+      },
+      {
+        fetcher: 'workflowTriggers',
+        isArray: true,
+        itemIdField: 'id',
+        itemTypeId: 'WORKFLOW_TRIGGER',
+        label: 'Triggers',
         parentSource: 'objectId'
       }
     ],
