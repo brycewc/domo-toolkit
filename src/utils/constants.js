@@ -60,6 +60,7 @@ export const SECTION_TITLES = {
   '/admin/people': 'People',
   '/codeengine': 'Code Engine Packages',
   '/datacenter/accounts': 'Accounts',
+  '/datacenter/beastmode': 'Beast Mode',
   '/workflows': 'Workflows',
   '/workspaces': 'Workspaces'
 };
