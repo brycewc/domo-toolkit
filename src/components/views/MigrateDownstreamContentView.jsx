@@ -53,6 +53,7 @@ import {
   migrateAllDownstreamContent
 } from '@/services/migrateDownstreamContent';
 import { findAppColumnCollisions, getDownstreamApps } from '@/services/proCodeApps';
+import { suggestReplacement } from '@/utils/columnMatching';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconCheckCircle from '@icons/check-circle.svg?react';
 import IconCheck from '@icons/check.svg?react';
@@ -1235,22 +1236,14 @@ export function MigrateDownstreamContentView({
     });
   }, []);
 
-  // Auto-map each origin column to the target column whose name matches once
-  // both are normalized (lowercased, with spaces/hyphens/underscores stripped).
-  // No normalized match leaves the column unmapped. This OVERWRITES every
-  // existing choice, which is why handleAutoMapClick gates on a confirm dialog
-  // when anything is already mapped.
+  // Auto-map each origin column to its closest target column, matching on whole
+  // words via the shared matcher (the same one Remap Columns uses). No good match
+  // leaves the column unmapped. This OVERWRITES every existing choice, which is
+  // why handleAutoMapClick gates on a confirm dialog when anything is mapped.
   const runAutoMap = useCallback(() => {
-    const normalize = (s) => (s || '').toLowerCase().replace(/[\s\-_]/g, '');
-    const targetByNormalized = new Map();
-    for (const col of targetColumns) {
-      const key = normalize(col.name);
-      // First match wins; targetColumns is sorted, so this is deterministic.
-      if (key && !targetByNormalized.has(key)) targetByNormalized.set(key, col.name);
-    }
     const next = {};
     for (const { name } of usedUnmappedColumns) {
-      next[name] = targetByNormalized.get(normalize(name)) ?? null;
+      next[name] = suggestReplacement(name, targetColumns) || null;
     }
     setColumnMap(next);
   }, [targetColumns, usedUnmappedColumns]);
@@ -1692,8 +1685,8 @@ export function MigrateDownstreamContentView({
                       {autoMapStatus === 'mapping' ? 'Mapping…' : autoMapStatus === 'done' ? 'Mapped' : 'Auto Map'}
                     </Button>
                     <Tooltip.Content className='max-w-80 text-wrap'>
-                      Fills each column with the closest target column once names are normalized (case, spaces, hyphens, and
-                      underscores). Columns with no match are left unmapped. Review before migrating.
+                      Fills each column with its closest match by name. Columns with no clear match are left unmapped.
+                      Review before migrating.
                     </Tooltip.Content>
                   </Tooltip>
                 </div>
@@ -1992,8 +1985,8 @@ export function MigrateDownstreamContentView({
               </AlertDialog.Header>
               <AlertDialog.Body className='text-sm'>
                 <p>
-                  Auto Map replaces every column you've already mapped with its closest normalized match and clears any
-                  column it can't match. Mappings you've set manually will be overwritten.
+                  Auto Map replaces every column's mapping with its closest match and leaves columns it can't match
+                  unmapped. Mappings you've set manually will be overwritten.
                 </p>
               </AlertDialog.Body>
               <AlertDialog.Footer>

@@ -6,6 +6,8 @@
 - Update Action Versions now blocks editing a workflow version another user has locked, and clears your own or a stale (over 24 hours old) lock automatically.
 - Delete Unused Beast Modes: a dataset or a user now has a button that finds every Beast Mode and Variable with no active usage and lets you review, adjust, and bulk-delete the selection in one pass.
 - Remap Columns can now repair a view that a source dataset broke by renaming or removing a column it reads, either by pointing the view at a valid column or dropping that column from the view.
+- Remap Columns now has an Auto Map button that fills in each broken column's closest-matching replacement in one click.
+- Migrate Content's Auto Map now matches columns that share the same words, not only names that are identical apart from case and separators.
 - Deleting a dataflow now also lists the alerts on its output datasets that will be deleted with it.
 - Deleting a dataflow is now blocked, with the offending views listed, when its output datasets feed downstream dataset views, instead of failing partway through.
 - Viewing a workflow now includes a Triggers tab listing every trigger attached to it.
@@ -15,6 +17,7 @@
 - Cancelling a stuck dataset update now cancels every running update on the stream at once, not just the most recent.
 - The Switch Account feature is now called Swap Account.
 - Swapping a dataset's account now offers a Save and Run button that applies the change and immediately runs the dataset, alongside the existing Save.
+- Opening an App Studio page by its page link now redirects you into its app automatically, instead of landing on Domo's "This content must be viewed within its app" page.
 
 ## UI Improvements
 

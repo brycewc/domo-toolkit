@@ -1236,6 +1236,7 @@ async function detectAndStoreContext(tabId) {
     }
 
     // Check if a detected PAGE is actually a data app view
+    let isBrokenAppStudioPageUrl = false;
     if (detected.typeId === 'PAGE') {
       const appId = await executeInPage(checkPageType, [objectId], tabId);
       if (isStale()) return null;
@@ -1243,6 +1244,9 @@ async function detectAndStoreContext(tabId) {
         detected.typeId = 'DATA_APP_VIEW';
         detected.parentId = appId;
         typeModel = getObjectType('DATA_APP_VIEW');
+        // A bare /page/{id} that resolves to an App Studio page is Domo's broken
+        // "must be viewed within its app" dead-end; flag it for redirect below.
+        isBrokenAppStudioPageUrl = true;
       }
     }
 
@@ -1259,6 +1263,17 @@ async function detectAndStoreContext(tabId) {
       detected.url, // pass original URL for parent extraction
       parentId // pass parent ID if extracted from URL
     );
+
+    // Redirect off Domo's broken "must be viewed within its app" page to the in-app
+    // URL the DomoObject already built (/app-studio/{appId}/pages/{pageId}). Use
+    // location.replace so the broken URL leaves history and Back stays useful.
+    // Fire-and-forget: the navigation tears down the page mid-injection, and we
+    // return early to skip enriching a page we're leaving; the resulting navigation
+    // re-triggers a clean detection on the working URL.
+    if (isBrokenAppStudioPageUrl && domoObject.url) {
+      executeInPage((url) => window.location.replace(url), [domoObject.url], tabId).catch(() => {});
+      return null;
+    }
 
     // When a DataFlow is opened at a historical version (?versionId=), enrich from that version's
     // endpoint so the whole context (JSON details, Inputs/Outputs tabs, name, created) reflects

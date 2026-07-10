@@ -4,6 +4,7 @@ import {
   Button,
   Card,
   EmptyState,
+  Label,
   Link,
   ListBox,
   ListLayout,
@@ -12,6 +13,7 @@ import {
   SearchField,
   Separator,
   Spinner,
+  Tooltip,
   useFilter,
   Virtualizer
 } from '@heroui/react';
@@ -36,10 +38,13 @@ import { getDownstreamCards, getDownstreamCardsRaw, getDownstreamLineage } from 
 import { findAppColumnCollisions, getDownstreamApps } from '@/services/proCodeApps';
 import { remapDatasetColumns } from '@/services/remapDatasetColumns';
 import { detectBrokenViewColumns, repairViewColumns } from '@/services/repairViewColumns';
+import { suggestReplacement } from '@/utils/columnMatching';
 import { buildRefreshAction, buildReloadAction } from '@/utils/headerActions';
 import { getSidepanelData } from '@/utils/sidepanel';
+import IconCheck from '@icons/check.svg?react';
 import IconColumnEdit from '@icons/column-edit.svg?react';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
+import IconWand from '@icons/wand.svg?react';
 import IconX from '@icons/x.svg?react';
 
 import { AlertStatusIcon } from '../AlertStatusIcon';
@@ -86,6 +91,15 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
   // Content, whose first page is the selection and whose second is the columns.
   const [page, setPage] = useState('map');
 
+  // Auto Map: one click fills every broken column with its nearest-named match.
+  // `autoMapStatus` drives the button's transient feedback ('idle' | 'mapping' |
+  // 'done'); the confirm dialog only interrupts once the user has hand-edited a
+  // row (`choicesDirty`), so their own mappings aren't silently overwritten.
+  const [autoMapStatus, setAutoMapStatus] = useState('idle');
+  const [autoMapConfirmOpen, setAutoMapConfirmOpen] = useState(false);
+  const [choicesDirty, setChoicesDirty] = useState(false);
+  const autoMapTimersRef = useRef([]);
+
   // View self-repair (second detection axis, views only): the open view's OWN
   // input references that a source dataset renamed/dropped.
   const [isView, setIsView] = useState(false);
@@ -103,6 +117,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
     loadData();
     return () => {
       mountedRef.current = false;
+      autoMapTimersRef.current.forEach(clearTimeout);
     };
   }, []);
 
@@ -599,7 +614,51 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
 
   const setChoice = useCallback((key, choice) => {
     setColumnChoices((prev) => ({ ...prev, [key]: choice == null ? UNMAPPED : choice }));
+    // A hand edit; from here Auto Map confirms before overwriting the user's work.
+    setChoicesDirty(true);
   }, []);
+
+  // Fill every broken column with its nearest-named match in one pass. Reuses the
+  // same fuzzy matcher that seeds view-input rows on load, but runs on downstream
+  // rename rows too (the seed deliberately leaves those unmapped). An unused,
+  // droppable view column keeps the recommended Drop. Overwrites all choices.
+  const runAutoMap = useCallback(() => {
+    const next = {};
+    for (const row of brokenColumns) {
+      if (row.kind === 'view' && row.offerDrop) {
+        next[row.key] = DROP;
+      } else {
+        next[row.key] = suggestReplacement(row.name, row.candidates) || UNMAPPED;
+      }
+    }
+    setColumnChoices(next);
+    setChoicesDirty(false);
+  }, [brokenColumns]);
+
+  // Wrap the (synchronous) remap in a brief spinner -> checkmark -> idle flash so
+  // the user sees it ran. Timers are tracked so they're cleared on unmount.
+  const runAutoMapWithFeedback = useCallback(() => {
+    autoMapTimersRef.current.forEach(clearTimeout);
+    autoMapTimersRef.current = [];
+    setAutoMapStatus('mapping');
+    const mapTimer = setTimeout(() => {
+      runAutoMap();
+      if (!mountedRef.current) return;
+      setAutoMapStatus('done');
+      const resetTimer = setTimeout(() => {
+        if (mountedRef.current) setAutoMapStatus('idle');
+      }, 1500);
+      autoMapTimersRef.current.push(resetTimer);
+    }, 350);
+    autoMapTimersRef.current.push(mapTimer);
+  }, [runAutoMap]);
+
+  // Confirm before overwriting only when the user has mapped something by hand;
+  // otherwise the current choices are just our own suggestions, safe to replace.
+  const handleAutoMapClick = useCallback(() => {
+    if (choicesDirty) setAutoMapConfirmOpen(true);
+    else runAutoMapWithFeedback();
+  }, [choicesDirty, runAutoMapWithFeedback]);
 
   const sqlDataflowWarnings = scanResult?.dataflowSqlWarnings || [];
   const viewFusionWarnings = scanResult?.viewFusionWarnings || [];
@@ -824,6 +883,56 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
     </AlertDialog>
   );
 
+  // Overwrite guard for Auto Map, opened by handleAutoMapClick only once the user
+  // has mapped something by hand (choicesDirty). Lives on the map page.
+  const autoMapConfirmDialog = (
+    <AlertDialog
+      isOpen={autoMapConfirmOpen}
+      onOpenChange={(open) => {
+        if (!open) setAutoMapConfirmOpen(false);
+      }}
+    >
+      <AlertDialog.Backdrop>
+        <AlertDialog.Container className='p-1'>
+          <AlertDialog.Dialog className='p-2 pt-3'>
+            <div className='absolute top-0 left-0 h-1.25 w-full bg-warning' />
+            <AlertDialog.CloseTrigger className='absolute top-3 right-2' variant='ghost'>
+              <IconX />
+            </AlertDialog.CloseTrigger>
+            <AlertDialog.Header>
+              <AlertDialog.Heading className='flex items-center gap-2'>
+                <IconExclamationTriangle className='text-warning' />
+                Overwrite existing mappings?
+              </AlertDialog.Heading>
+            </AlertDialog.Header>
+            <AlertDialog.Body className='text-sm'>
+              <p>
+                Auto Map replaces every column's mapping with its closest match and leaves columns it can't match
+                unmapped. Mappings you've set manually will be overwritten.
+              </p>
+            </AlertDialog.Body>
+            <AlertDialog.Footer>
+              <Button size='sm' slot='close' variant='tertiary'>
+                Cancel
+              </Button>
+              <Button
+                size='sm'
+                variant='primary'
+                onPress={() => {
+                  runAutoMapWithFeedback();
+                  setAutoMapConfirmOpen(false);
+                }}
+              >
+                <IconWand />
+                Auto Map
+              </Button>
+            </AlertDialog.Footer>
+          </AlertDialog.Dialog>
+        </AlertDialog.Container>
+      </AlertDialog.Backdrop>
+    </AlertDialog>
+  );
+
   // Page 1: choose a replacement (or drop) per broken column. The footer advances
   // to the content-selection page when a downstream remap is set, or applies a
   // view-only repair directly.
@@ -876,6 +985,31 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
 
               {brokenColumns.length > 0 && (
                 <>
+                  <div className='flex items-center justify-between gap-2'>
+                    <Label className='text-sm font-medium'>Column Mapping</Label>
+                    <Tooltip>
+                      <Button
+                        isDisabled={isBusy}
+                        isPending={autoMapStatus === 'mapping'}
+                        size='sm'
+                        variant='secondary'
+                        onPress={handleAutoMapClick}
+                      >
+                        {autoMapStatus === 'mapping' ? (
+                          <Spinner color='currentColor' size='sm' />
+                        ) : autoMapStatus === 'done' ? (
+                          <IconCheck className='text-success' />
+                        ) : (
+                          <IconWand />
+                        )}
+                        {autoMapStatus === 'mapping' ? 'Mapping…' : autoMapStatus === 'done' ? 'Mapped' : 'Auto Map'}
+                      </Button>
+                      <Tooltip.Content className='max-w-80 text-wrap'>
+                        Fills each column with its closest match by name. Columns with no clear match are left unmapped.
+                        Review before applying.
+                      </Tooltip.Content>
+                    </Tooltip>
+                  </div>
                   <p className='text-xs text-muted'>
                     <strong>{brokenColumns.length}</strong> column{brokenColumns.length === 1 ? '' : 's'}{' '}
                     {brokenColumns.length === 1 ? 'is' : 'are'} referenced but no longer available. Point each at a valid
@@ -983,6 +1117,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
           </Card.Footer>
         </Card>
         {confirmDialog}
+        {autoMapConfirmDialog}
       </>
     );
   }
@@ -1239,56 +1374,12 @@ function leafSelectionId(typeKey, itemId) {
   return `${typeKey}:${itemId}`;
 }
 
-// Length of the longest common substring of two strings (simple DP). Used to
-// score how closely a candidate replacement column resembles the broken one.
-function longestCommonSubstring(a, b) {
-  if (!a || !b) return 0;
-  let best = 0;
-  let prev = new Array(b.length + 1).fill(0);
-  for (let i = 1; i <= a.length; i++) {
-    const curr = new Array(b.length + 1).fill(0);
-    for (let j = 1; j <= b.length; j++) {
-      if (a[i - 1] === b[j - 1]) {
-        curr[j] = prev[j - 1] + 1;
-        if (curr[j] > best) best = curr[j];
-      }
-    }
-    prev = curr;
-  }
-  return best;
-}
-
 function parseLeafTypeKey(id) {
   if (typeof id !== 'string') return null;
   const idx = id.indexOf(':');
   if (idx === -1) return null;
   const candidate = id.slice(0, idx);
   return REMAP_TYPES.some((t) => t.key === candidate) ? candidate : null;
-}
-
-// Best-guess replacement for a broken column: the candidate sharing the longest
-// run of characters with it (letters/digits only, case-insensitive), tie-broken
-// toward the shorter name. Surfaces the obvious rename (e.g. `ca_parentid` ->
-// `l_utm_campid_parentid`) as the default. Returns '' when nothing overlaps
-// meaningfully, so the row falls back to Leave unmapped.
-function suggestReplacement(brokenName, candidates) {
-  const normalize = (value) =>
-    String(value || '')
-      .toLowerCase()
-      .replace(/[^a-z0-9]/g, '');
-  const target = normalize(brokenName);
-  let best = '';
-  let bestScore = 0;
-  for (const candidate of candidates || []) {
-    const name = candidate?.name;
-    if (!name) continue;
-    const score = longestCommonSubstring(target, normalize(name));
-    if (score > bestScore || (score === bestScore && best && name.length < best.length)) {
-      best = name;
-      bestScore = score;
-    }
-  }
-  return bestScore >= 3 ? best : '';
 }
 
 function typeGroupLabel(typeKey) {
