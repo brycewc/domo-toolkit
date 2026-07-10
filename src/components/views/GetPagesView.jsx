@@ -7,7 +7,7 @@ import { useViewReady } from '@/hooks/useViewReady';
 import { DataListItem } from '@/models/DataListItem';
 import { DomoContext } from '@/models/DomoContext';
 import { DomoObject } from '@/models/DomoObject';
-import { getCardsForObject, getCardsForParent } from '@/services/cards';
+import { getCardsForObject, getCardsForParent, getOwnedCards } from '@/services/cards';
 import { getChildPages, getPagesForCards } from '@/services/pages';
 import { waitForCards } from '@/utils/cardHelpers';
 import { getValidTabForInstance } from '@/utils/currentObject';
@@ -98,7 +98,10 @@ export function GetPagesView({
       // Set label early so the loading spinner shows the right text
       setPageTypeLabel(
         sidepanelType === 'getCardPages'
-          ? objectType === 'CARD' || objectType === 'DATA_SOURCE' || objectType === 'DATAFLOW_TYPE'
+          ? objectType === 'CARD' ||
+            objectType === 'DATA_SOURCE' ||
+            objectType === 'DATAFLOW_TYPE' ||
+            objectType === 'USER'
             ? 'Pages'
             : 'Card Pages'
           : objectType === 'DATA_APP_VIEW'
@@ -208,7 +211,9 @@ export function GetPagesView({
               ? 'This card does not appear on any app studio apps, dashboards, report builder pages, or worksheets'
               : objectType === 'DATA_SOURCE'
                 ? `No pages found for cards using dataset **${objectName}**`
-                : `Cards on ${objectName} are not used on any other pages`
+                : objectType === 'USER'
+                  ? `No pages found for cards owned by **${objectName}**`
+                  : `Cards on ${objectName} are not used on any other pages`
             : objectType === 'DATA_APP_VIEW'
               ? `No views (pages) found for app studio app ${objectId}`
               : `No child pages found for page ${objectId}`;
@@ -365,6 +370,10 @@ export function GetPagesView({
 
       if (objectType === 'CARD') {
         cardIds = [objectId];
+      } else if (objectType === 'USER') {
+        const cards = await getOwnedCards(objectId, tabId);
+        if (!cards || !cards.length) return { cardsByPage: {}, childPages: [], orphanedCards: [] };
+        cardIds = cards.map((card) => card.id);
       } else {
         const cards = await getCardsForObject({
           metadata,

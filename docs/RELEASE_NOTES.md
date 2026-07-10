@@ -18,6 +18,11 @@
 - The Switch Account feature is now called Swap Account.
 - Swapping a dataset's account now offers a Save and Run button that applies the change and immediately runs the dataset, alongside the existing Save.
 - Opening an App Studio page by its page link now redirects you into its app automatically, instead of landing on Domo's "This content must be viewed within its app" page.
+- Get Card Pages now works on a person, listing every page their cards appear on.
+
+## Newly Supported Object Types
+
+- Pro-code custom apps are now recognized as their own type instead of being treated as bricks.
 
 ## UI Improvements
 

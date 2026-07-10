@@ -167,6 +167,7 @@ export function getAvailableActions(currentContext) {
   if (typeId === 'USER') {
     actions.add('transferOwnership');
     actions.add('getOwnedObjects');
+    actions.add('getCardPages');
     actions.add('duplicate');
     if (userRights.includes('user.edit')) {
       actions.add('updateDetails');
@@ -201,6 +202,7 @@ export function getAvailableActions(currentContext) {
       'MAGNUM_COLLECTION',
       'PAGE',
       'REPORT_SCHEDULE',
+      'RYUU_APP',
       'TEMPLATE',
       'VARIABLE',
       'WORKFLOW_MODEL',

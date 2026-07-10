@@ -15,6 +15,7 @@ const DELETE_HANDLERS = {
   FUNCTION_TEMPLATE: ({ id, tabId }) => deleteFunction({ functionId: id, tabId }),
   MAGNUM_COLLECTION: ({ id, tabId }) => deleteAppDbCollection({ collectionId: id, tabId }),
   REPORT_SCHEDULE: ({ id, tabId }) => deleteScheduledReport({ reportId: id, tabId }),
+  RYUU_APP: ({ id, tabId }) => deleteCustomApp({ designId: id, tabId }),
   TEMPLATE: ({ id, tabId }) => deleteApprovalTemplate({ tabId, templateId: id }),
   VARIABLE: ({ id, tabId }) => deleteFunction({ functionId: id, tabId }),
   WORKFLOW_MODEL: ({ id, tabId }) => deleteWorkflow({ modelId: id, tabId })

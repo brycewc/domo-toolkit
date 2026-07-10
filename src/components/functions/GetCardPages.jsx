@@ -14,6 +14,7 @@ export function GetCardPages({ currentContext, isDisabled, onStatusUpdate }) {
   const domoObject = currentContext?.domoObject;
   const objectType = domoObject?.typeId;
   const isPageLike = PAGE_LIKE_TYPES.includes(objectType);
+  const isUser = objectType === 'USER';
 
   let dropdownItems = [];
   if (objectType === 'DATA_APP_VIEW') {
@@ -91,9 +92,11 @@ export function GetCardPages({ currentContext, isDisabled, onStatusUpdate }) {
         </Button>
         <Tooltip.Content className='max-w-60' offset={4}>
           <span>
-            {isPageLike
-              ? 'List other pages (app studio, dashboard, and worksheet) where these cards appear'
-              : 'List pages (app studio, dashboard, and worksheet) where this card appears'}
+            {isUser
+              ? "List pages (app studio, dashboard, and worksheet) where this user's cards appear"
+              : isPageLike
+                ? 'List other pages (app studio, dashboard, and worksheet) where these cards appear'
+                : 'List pages (app studio, dashboard, and worksheet) where this card appears'}
           </span>
           {!longPressDisabled && <span className='italic'>Hold for more options</span>}
         </Tooltip.Content>

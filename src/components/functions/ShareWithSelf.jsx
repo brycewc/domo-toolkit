@@ -101,7 +101,8 @@ export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
   const needsContentAdmin =
     contentAdminTypes.includes(currentContext?.domoObject?.typeId) && !userRights.includes('content.admin');
   const needsAccountAdmin = currentContext?.domoObject?.typeId === 'DATA_SOURCE' && !userRights.includes('account.admin');
-  const needsAppAdmin = currentContext?.domoObject?.typeId === 'APP' && !userRights.includes('app.admin');
+  const needsAppAdmin =
+    ['APP', 'RYUU_APP'].includes(currentContext?.domoObject?.typeId) && !userRights.includes('app.admin');
   const typeName = currentContext?.domoObject?.typeName;
   const isDataSource = currentContext?.domoObject?.typeId === 'DATA_SOURCE';
   const hasAccounts = isDataSource && getAccountIdsForDomoObject(currentContext.domoObject).length > 0;
@@ -145,7 +146,17 @@ export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
 }
 
 function isSupportedForShare(domoObject) {
-  const SUPPORTED_TYPES = ['APP', 'CARD', 'DATA_APP', 'DATA_APP_VIEW', 'DATA_SOURCE', 'PAGE', 'WORKSHEET', 'WORKSHEET_VIEW'];
+  const SUPPORTED_TYPES = [
+    'APP',
+    'CARD',
+    'DATA_APP',
+    'DATA_APP_VIEW',
+    'DATA_SOURCE',
+    'PAGE',
+    'RYUU_APP',
+    'WORKSHEET',
+    'WORKSHEET_VIEW'
+  ];
   if (!domoObject?.typeId) return false;
   if (!SUPPORTED_TYPES.includes(domoObject.typeId)) return false;
   if (domoObject.typeId === 'CARD') {

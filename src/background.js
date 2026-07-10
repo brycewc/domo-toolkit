@@ -1333,6 +1333,18 @@ async function detectAndStoreContext(tabId) {
       domoObject.objectType = typeModel;
     }
 
+    // Bricks and pro-code apps share the same URL (/assetlibrary/{id}/overview)
+    // and design endpoint, so URL detection can't tell them apart; it defaults
+    // every custom app to APP (brick). The design record's `createdBy` is null
+    // for a brick and populated for a pro-code app, so refine the type here after
+    // enrichment. Both types share `urlPath`, so the already-built URL stays
+    // valid; we only swap the type model (which drives icon, label, endpoint).
+    if (detected.typeId === 'APP' && enrichedMetadata.details?.createdBy != null) {
+      detected.typeId = 'RYUU_APP';
+      typeModel = getObjectType('RYUU_APP');
+      domoObject.objectType = typeModel;
+    }
+
     // Preserve workflow context from CE tile detection within a workflow
     if (detected.workflowModelId) {
       domoObject.metadata.context.workflowModelId = detected.workflowModelId;

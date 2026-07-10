@@ -193,6 +193,9 @@ const deletersByType = {
   }
 };
 deletersByType.WORKSHEET_VIEW.cascadeButtons = deletersByType.DATA_APP_VIEW.cascadeButtons;
+// Bricks and pro-code apps are both custom app designs deleted the same way, so
+// the pro-code type reuses the brick's delete config.
+deletersByType.RYUU_APP = deletersByType.APP;
 
 export function DeleteObjectView({
   instance = null,

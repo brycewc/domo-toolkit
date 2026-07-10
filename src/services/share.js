@@ -76,6 +76,7 @@ export async function shareWithSelf({ object, setStatus, tabId = null, userId })
 async function shareForType({ object, tabId, userId }) {
   switch (object.typeId) {
     case 'APP':
+    case 'RYUU_APP':
       await shareCustomAppDesign({ designId: object.id, tabId, userId });
       return `Custom App Design ${object.id} shared successfully`;
 

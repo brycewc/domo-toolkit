@@ -1,6 +1,7 @@
 import { getObjectType } from '@/models/DomoObjectType';
 import IconAdc from '@icons/adc.svg?react';
 import IconAiBook from '@icons/ai-book.svg?react';
+import IconAiChat from '@icons/ai-chat.svg?react';
 import IconAiModel from '@icons/ai-model.svg?react';
 import IconAiRobot from '@icons/ai-robot.svg?react';
 import IconApprovalCenter from '@icons/approval-center.svg?react';
@@ -60,6 +61,7 @@ import IconWorkspace from '@icons/workspace.svg?react';
 const ICON_MAP = {
   Adc: IconAdc,
   AiBook: IconAiBook,
+  AiChat: IconAiChat,
   AiModel: IconAiModel,
   AiRobot: IconAiRobot,
   ApprovalCenter: IconApprovalCenter,

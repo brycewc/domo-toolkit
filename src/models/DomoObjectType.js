@@ -347,7 +347,7 @@ export const ObjectTypeRegistry = {
     ],
     urlPath: '/ai-library/agents/{id}'
   }),
-  AI_CHAT: new DomoObjectType('AI_CHAT', 'AI Chat', { idPattern: /.*/ }),
+  AI_CHAT: new DomoObjectType('AI_CHAT', 'AI Chat', { icon: { component: 'AiChat' }, idPattern: /.*/ }),
   AI_MODEL: new DomoObjectType('AI_MODEL', 'AI Model', {
     api: { endpoint: '/datascience/ml/v1/models/{id}', paths: { name: 'name' } },
     extractConfig: { keyword: 'model' },
@@ -550,7 +550,7 @@ export const ObjectTypeRegistry = {
       paths: { created: 'createdOn', name: 'name' }
     },
     extractConfig: { keyword: 'codeengine' },
-    icon: { component: 'Code' },
+    icon: { component: 'AiBook' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     urlPath: '/codeengine/{id}'
   }),
@@ -569,7 +569,7 @@ export const ObjectTypeRegistry = {
       { label: 'Workflow ID', source: 'metadata.context.workflowModelId' },
       { label: 'Workflow Version', source: 'metadata.context.workflowVersionNumber' }
     ],
-    icon: { component: 'Code' },
+    icon: { component: 'Package' },
     idPattern: /^[0-9]+\.[0-9]+\.[0-9]+$/,
     parents: ['CODEENGINE_PACKAGE'],
     relatedData: [
@@ -1221,7 +1221,7 @@ export const ObjectTypeRegistry = {
     urlPath: '/admin/roles/{id}?tab=grants'
   }),
   RYUU_APP: new DomoObjectType('RYUU_APP', 'Custom App (Pro-Code)', {
-    api: { endpoint: '/apps/v1/designs/{id}', paths: { created: 'createdDate', name: 'name' } },
+    api: { endpoint: '/apps/v1/designs/{id}?parts=versions', paths: { created: 'createdDate', name: 'name' } },
     extractConfig: { keyword: 'assetlibrary' },
     icon: { component: 'Code' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
