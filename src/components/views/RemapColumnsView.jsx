@@ -7,6 +7,7 @@ import {
   Link,
   ListBox,
   ListLayout,
+  Popover,
   ScrollShadow,
   SearchField,
   Separator,
@@ -842,7 +843,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
     ];
     return (
       <>
-        <Card className='flex min-h-0 w-full flex-1 flex-col p-2'>
+        <Card className='flex min-h-0 w-full flex-1 flex-col gap-0 p-2'>
           <ViewHeader
             beta
             actions={headerActions}
@@ -852,7 +853,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
             subjectTypeId='DATA_SOURCE'
             onClose={onBackToDefault}
           />
-          <Separator />
+          <Separator className='mt-1.5' />
           <ScrollShadow hideScrollBar className='min-h-0 flex-1 overflow-y-auto' offset={5} orientation='vertical'>
             <Card.Content className='flex flex-col gap-3 py-2'>
               {isBusy && (
@@ -957,7 +958,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
               )}
             </Card.Content>
           </ScrollShadow>
-          <Separator />
+          <Separator className='mt-1.5' />
           <Card.Footer className='pt-2'>
             {canAdvance ? (
               <Button fullWidth size='sm' variant='primary' onPress={() => setPage('select')}>
@@ -1153,6 +1154,11 @@ function BrokenColumnRow({ cardsById, onChange, origin, row, totalAvailable, val
           <Autocomplete.Indicator />
         </Autocomplete.Trigger>
         <Autocomplete.Popover className='w-fit max-w-9/10 min-w-72' placement='bottom end'>
+          {/* The Autocomplete popover renders an internal dialog; give it a
+              screen-reader title so it has an accessible name (React Aria warns
+              when a dialog has neither a title slot nor an aria-label). Visually
+              hidden, so the popover layout is unchanged. */}
+          <Popover.Heading className='sr-only'>Map {row.name} to a column</Popover.Heading>
           <Autocomplete.Filter inputValue={query} onInputChange={setQuery}>
             <SearchField
               autoFocus

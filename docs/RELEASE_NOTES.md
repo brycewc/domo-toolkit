@@ -22,6 +22,7 @@
 - Hover tooltips throughout the extension now appear promptly instead of after a long pause.
 - The dropdown for picking a column or Beast Mode when mapping columns is now wider, so long names are easier to read.
 - Remap Columns now lists the replacement columns alphabetically, matching Migrate Content.
+- The Remap Columns header now uses the same tighter spacing as other views, and both of its screens match.
 - The API Errors list now sorts newest first by default, with a header button to reverse the order.
 - Hovering a failed request in API Errors now shows its full URL, including the domain.
 - The Choose Account list when swapping a dataset's account now shows a count of matching accounts above the results.
@@ -55,3 +56,4 @@
 - When swapping a dataset's account, each account's owner now shows their full name instead of just their last name.
 - A count of a single card or page now reads "1 card" or "1 page" instead of "1 cards" or "1 pages".
 - Opening a person now keeps their name in the browser tab instead of reverting to "People" a moment later.
+- The cross-input collision warning in Migrate Content now reads as a single flowing paragraph instead of breaking its text into misaligned, staggered columns.

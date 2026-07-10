@@ -14,6 +14,7 @@ import {
   ListBox,
   ListLayout,
   Modal,
+  Popover,
   ScrollShadow,
   SearchField,
   Select,
@@ -2393,36 +2394,38 @@ function ColumnMapRow({
       {collisionByDataflow.length > 0 && (
         <Alert className='w-full border border-border bg-transparent' status='warning'>
           <Alert.Content>
-            <Alert.Title className='flex items-center gap-1'>
+            <Alert.Title className='flex items-start gap-1'>
               <AlertStatusIcon />
-              Cross-input collision: <span className='font-mono font-bold'>{originName}</span> also exists on{' '}
-              {singleCollision ? (
-                <>
-                  another input of{' '}
-                  <span className='inline-flex items-center gap-0.5 align-text-bottom'>
-                    <ObjectTypeIcon className='size-3.5 shrink-0' typeId='DATAFLOW_TYPE' />
-                    {singleCollisionUrl ? (
-                      <Link
-                        className='text-current no-underline decoration-accent hover:text-accent hover:underline'
-                        href={singleCollisionUrl}
-                        target='_blank'
-                        title={singleCollision.dataflowName}
-                      >
-                        {singleCollision.dataflowName}
-                      </Link>
-                    ) : (
-                      singleCollision.dataflowName
-                    )}
-                  </span>
-                </>
-              ) : (
-                <>
-                  other inputs of {collisionByDataflow.length} dataflows{' '}
-                  <span className='inline-flex align-text-bottom'>
-                    <DataflowCollisionModal dataflows={collisionByDataflow} origin={origin} originName={originName} />
-                  </span>
-                </>
-              )}
+              <span>
+                Cross-input collision: <span className='font-mono font-bold'>{originName}</span> also exists on{' '}
+                {singleCollision ? (
+                  <>
+                    another input of{' '}
+                    <span>
+                      <ObjectTypeIcon className='mr-0.5 inline size-3.5 align-middle' typeId='DATAFLOW_TYPE' />
+                      {singleCollisionUrl ? (
+                        <Link
+                          className='inline! text-current no-underline decoration-accent hover:text-accent hover:underline'
+                          href={singleCollisionUrl}
+                          target='_blank'
+                          title={singleCollision.dataflowName}
+                        >
+                          {singleCollision.dataflowName}
+                        </Link>
+                      ) : (
+                        singleCollision.dataflowName
+                      )}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    other inputs of {collisionByDataflow.length} dataflows{' '}
+                    <span className='inline-flex align-middle'>
+                      <DataflowCollisionModal dataflows={collisionByDataflow} origin={origin} originName={originName} />
+                    </span>
+                  </>
+                )}
+              </span>
             </Alert.Title>
             <Alert.Description>
               Remapping will rewrite every reference to <span className='font-mono font-medium'>{originName}</span> in the
@@ -2434,11 +2437,11 @@ function ColumnMapRow({
                     return (
                       <Fragment key={input.id}>
                         {i > 0 ? ', ' : ''}
-                        <span className='inline-flex items-center gap-0.5 align-text-bottom'>
-                          <ObjectTypeIcon className='size-3.5 shrink-0' typeId='DATA_SOURCE' />
+                        <span>
+                          <ObjectTypeIcon className='mr-0.5 inline size-3.5 align-middle' typeId='DATA_SOURCE' />
                           {inputUrl ? (
                             <Link
-                              className='font-medium text-current no-underline decoration-accent hover:text-accent hover:underline'
+                              className='inline! font-medium text-current no-underline decoration-accent hover:text-accent hover:underline'
                               href={inputUrl}
                               target='_blank'
                               title={input.name}
@@ -2526,6 +2529,11 @@ function ColumnMapRow({
             <Autocomplete.Indicator />
           </Autocomplete.Trigger>
           <Autocomplete.Popover className='w-fit max-w-9/10 min-w-72' placement='bottom end'>
+            {/* The Autocomplete popover renders an internal dialog; give it a
+                screen-reader title so it has an accessible name (React Aria warns
+                when a dialog has neither a title slot nor an aria-label). Visually
+                hidden, so the popover layout is unchanged. */}
+            <Popover.Heading className='sr-only'>Map {originName} to a column</Popover.Heading>
             <Autocomplete.Filter inputValue={query} onInputChange={setQuery}>
               <SearchField
                 autoFocus

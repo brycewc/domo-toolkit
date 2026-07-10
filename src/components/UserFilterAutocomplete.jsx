@@ -6,6 +6,7 @@ import {
   Label,
   ListBox,
   ListBoxLoadMoreItem,
+  Popover,
   SearchField,
   Spinner,
   Tag,
@@ -296,6 +297,12 @@ export function UserFilterAutocomplete({
         className='flex h-fit max-h-120! w-[min(30rem,calc(100vw-1.5rem))]! min-w-0! flex-col overflow-hidden!'
         placement='bottom left'
       >
+        {/* The Autocomplete popover renders an internal dialog; give it a
+            screen-reader title so it has an accessible name (React Aria warns
+            when a dialog has neither a title slot nor an aria-label; the
+            aria-label above names the overlay region, not this inner dialog).
+            Visually hidden, so the popover layout is unchanged. */}
+        <Popover.Heading className='sr-only'>Filter users</Popover.Heading>
         <Autocomplete.Filter inputValue={searchText} onInputChange={setSearchText}>
           <ToggleButtonGroup
             disallowEmptySelection
