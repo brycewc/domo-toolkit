@@ -51,3 +51,4 @@
 - When a grouped result list auto-opens its only populated category, it now also expands the single item inside that category instead of leaving it collapsed.
 - When swapping a dataset's account, each account's owner now shows their full name instead of just their last name.
 - A count of a single card or page now reads "1 card" or "1 page" instead of "1 cards" or "1 pages".
+- Opening a person now keeps their name in the browser tab instead of reverting to "People" a moment later.

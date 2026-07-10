@@ -48,10 +48,16 @@ export const ACTION_COLOR_PATTERNS = {
   'updated': 'warning'
 };
 
-// URL prefix → human-readable section name for list/index pages where Domo
-// leaves the tab title as just "Domo".  Matched by longest-prefix-first so
-// more-specific paths win (e.g. /datacenter/dataflows before /datacenter).
+// URL prefix → human-readable section name for a Domo section, covering both its
+// list/index page and the detail pages beneath it. Used two ways: when Domo leaves
+// a list page's tab title as bare "Domo", we set the section name; and because Domo
+// reuses these titles across a section's list and its detail pages, they count as
+// overwritable "managed" titles, so when Domo stamps one onto a detail page after
+// we've resolved an object name (e.g. "People - Domo" over a person's name), we
+// re-apply that name. Matched by longest-prefix-first so more-specific paths win
+// (e.g. /datacenter/dataflows before /datacenter).
 export const SECTION_TITLES = {
+  '/admin/people': 'People',
   '/codeengine': 'Code Engine Packages',
   '/datacenter/accounts': 'Accounts',
   '/workflows': 'Workflows',
