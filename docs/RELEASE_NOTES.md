@@ -3,7 +3,7 @@
 ## New Features and Improvements
 
 - The Update Code Engine Versions feature is now called Update Action Versions and can also bump the versions of subflow actions in a workflow, not just Code Engine actions.
-- Update Action Versions now blocks editing a workflow version another user has locked, and clears your own or a stale (over 24 hours old) lock automatically so you can proceed.
+- Update Action Versions now blocks editing a workflow version another user has locked, and clears your own or a stale (over 24 hours old) lock automatically.
 - Delete Unused Beast Modes: a dataset or a user now has a button that finds every Beast Mode and Variable with no active usage and lets you review, adjust, and bulk-delete the selection in one pass.
 - Remap Columns can now repair a view that a source dataset broke by renaming or removing a column it reads, either by pointing the view at a valid column or dropping that column from the view.
 - Deleting a dataflow now also lists the alerts on its output datasets that will be deleted with it.
@@ -12,7 +12,7 @@
 - Selecting a user task in a workflow now identifies its Task Center Queue in Current Context.
 - Locking cards now opens a list where you can review each card's current lock status and unselect any before applying the change.
 - That same list now lets you unlock cards, not just lock them, via a Lock/Unlock toggle.
-- Cancelling a stuck dataset update now cancels every running update on the stream at once, not just the most recent, clearing wedged states where several are stuck running.
+- Cancelling a stuck dataset update now cancels every running update on the stream at once, not just the most recent.
 - The Switch Account feature is now called Swap Account.
 - Swapping a dataset's account now offers a Save and Run button that applies the change and immediately runs the dataset, alongside the existing Save.
 
@@ -33,6 +33,9 @@
 - The expandable sections in Update Action Versions and Inspect DataFlow now have fully rounded corners.
 - The transform detail values in Inspect DataFlow now appear in input-style boxes.
 - Get Card Pages now labels the page count on each app studio app, report, and worksheet (e.g. "3 pages") instead of showing a bare number.
+- The Update Details view now shows the object's type icon next to its name in the title instead of next to the ID below.
+- Renamed the action button "Update <Object> Details" to "Update Details".
+- System pages (Overview, Favorites, or Shared) in a list now carry a "System" chip next to their name.
 
 ## Performance
 

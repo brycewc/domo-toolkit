@@ -213,59 +213,27 @@ export function ActionButtons({
                 className='flex w-full flex-wrap place-items-center items-center justify-center gap-1 not-empty:mt-1 empty:hidden'
                 ref={contentRef}
               >
-                <ApiErrors
-                  currentContext={currentContext}
-                  isDisabled={!isDomoPage}
-                  onStatusUpdate={onStatusUpdate}
-                />
+                <ApiErrors currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
                 {availableActions.has('getCards') && (
-                  <GetCards
-                    currentContext={currentContext}
-                    isDisabled={!isDomoPage}
-                    onStatusUpdate={onStatusUpdate}
-                  />
+                  <GetCards currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('getDatasets') && (
-                  <GetDatasets
-                    currentContext={currentContext}
-                    isDisabled={!isDomoPage}
-                    onStatusUpdate={onStatusUpdate}
-                  />
+                  <GetDatasets currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('getChildPages') && (
-                  <GetChildPages
-                    currentContext={currentContext}
-                    isDisabled={!isDomoPage}
-                    onStatusUpdate={onStatusUpdate}
-                  />
+                  <GetChildPages currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('getCardPages') && (
-                  <GetCardPages
-                    currentContext={currentContext}
-                    isDisabled={!isDomoPage}
-                    onStatusUpdate={onStatusUpdate}
-                  />
+                  <GetCardPages currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('getBeastModes') && (
-                  <GetBeastModes
-                    currentContext={currentContext}
-                    isDisabled={!isDomoPage}
-                    onStatusUpdate={onStatusUpdate}
-                  />
+                  <GetBeastModes currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('getWorkspaces') && (
-                  <GetWorkspaces
-                    currentContext={currentContext}
-                    isDisabled={!isDomoPage}
-                    onStatusUpdate={onStatusUpdate}
-                  />
+                  <GetWorkspaces currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('getViewInputs') && (
-                  <GetViewInputs
-                    currentContext={currentContext}
-                    isDisabled={!isDomoPage}
-                    onStatusUpdate={onStatusUpdate}
-                  />
+                  <GetViewInputs currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('viewLineage') && (
                   <ViewLineage currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
@@ -276,6 +244,9 @@ export function ActionButtons({
                     isDisabled={!isDomoPage}
                     onStatusUpdate={onStatusUpdate}
                   />
+                )}
+                {availableActions.has('dataRepair') && (
+                  <DataRepair currentContext={currentContext} isDisabled={!isDomoPage} />
                 )}
                 {availableActions.has('updateOwner') && (
                   <UpdateOwner currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
@@ -291,11 +262,7 @@ export function ActionButtons({
                   <UpdateDetails currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('manageTags') && (
-                  <ManageTags
-                    currentContext={currentContext}
-                    isDisabled={!isDomoPage}
-                    onStatusUpdate={onStatusUpdate}
-                  />
+                  <ManageTags currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('copyFilteredUrl') && (
                   <CopyFilteredUrl
@@ -304,38 +271,20 @@ export function ActionButtons({
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
-                {availableActions.has('dataRepair') && (
-                  <DataRepair currentContext={currentContext} isDisabled={!isDomoPage} />
-                )}
                 {availableActions.has('migrateDownstreamContent') && (
-                  <MigrateDownstreamContent
-                    currentContext={currentContext}
-                    onStatusUpdate={onStatusUpdate}
-                  />
+                  <MigrateDownstreamContent currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('remapColumns') && (
-                  <RemapColumns
-                    currentContext={currentContext}
-                    onStatusUpdate={onStatusUpdate}
-                  />
+                  <RemapColumns currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('transferOwnership') && (
-                  <TransferOwnership
-                    currentContext={currentContext}
-                    onStatusUpdate={onStatusUpdate}
-                  />
+                  <TransferOwnership currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('getOwnedObjects') && (
-                  <GetOwnedObjects
-                    currentContext={currentContext}
-                    onStatusUpdate={onStatusUpdate}
-                  />
+                  <GetOwnedObjects currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('duplicate') && (
-                  <Duplicate
-                    currentContext={currentContext}
-                    onStatusUpdate={onStatusUpdate}
-                  />
+                  <Duplicate currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('export') && (
                   <Export currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
@@ -351,10 +300,7 @@ export function ActionButtons({
                   />
                 )}
                 {availableActions.has('swapAccount') && (
-                  <SwapAccount
-                    currentContext={currentContext}
-                    onStatusUpdate={onStatusUpdate}
-                  />
+                  <SwapAccount currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('updateWorkflowActionVersions') && (
                   <UpdateWorkflowActionVersions
@@ -371,18 +317,10 @@ export function ActionButtons({
                   />
                 )}
                 {availableActions.has('generate') && (
-                  <Generate
-                    currentContext={currentContext}
-                    isDisabled={!isDomoPage}
-                    onStatusUpdate={onStatusUpdate}
-                  />
+                  <Generate currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('sync') && (
-                  <Sync
-                    currentContext={currentContext}
-                    isDisabled={!isDomoPage}
-                    onStatusUpdate={onStatusUpdate}
-                  />
+                  <Sync currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('removeEmptyStrings') && (
                   <RemoveEmptyStringsFromQuickFilters currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
@@ -394,7 +332,11 @@ export function ActionButtons({
                   <CopyColorRules currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('manageCardLocks') && (
-                  <ManageCardLocks currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
+                  <ManageCardLocks
+                    currentContext={currentContext}
+                    isDisabled={!isDomoPage}
+                    onStatusUpdate={onStatusUpdate}
+                  />
                 )}
                 {availableActions.has('deleteUnusedBeastModes') && (
                   <DeleteUnusedBeastModes

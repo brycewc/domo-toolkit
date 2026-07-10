@@ -22,7 +22,7 @@ export function MigrateDownstreamContent({ currentContext, onStatusUpdate }) {
         }
       >
         <IconSwapHorizontal />
-        Migrate DataSet Content
+        Migrate Content
       </Button>
       <Tooltip.Content className='max-w-60'>
         Migrate cards, dataset views, and dataflows that use this dataset to a new dataset

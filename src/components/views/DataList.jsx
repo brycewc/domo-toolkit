@@ -4,6 +4,7 @@ import {
   Card,
   Checkbox,
   CheckboxGroup,
+  Chip,
   Disclosure,
   DisclosureGroup,
   Dropdown,
@@ -1304,11 +1305,26 @@ function DataListItemImpl({
     </span>
   ) : null;
 
+  // Pages with a negative ID are Domo's system pseudo-pages (Overview,
+  // Favorites, Shared) rather than real, user-created pages, so the label gets
+  // a trailing "System Page" chip that marks them at a glance. Uses originalId
+  // first (consumers may namespace `id`), matching the negative-id checks in
+  // collectActivityLogObjects and sharePages. The chip is `inline-flex`
+  // (HeroUI's default), so it flows inline after the name and honors the
+  // label's `nowrap`; system-page names are short, so it stays visible.
+  const isSystemPage = item.typeId === 'PAGE' && Number(item.originalId ?? item.id) < 0;
+  const systemPageChip = isSystemPage ? (
+    <Chip className='ml-1.5' color='accent' size='sm' variant='soft'>
+      <Chip.Label>System</Chip.Label>
+    </Chip>
+  ) : null;
+
   const labelInner = (
     <>
       <ObjectTypeIcon className='mr-1 inline-block shrink-0 align-text-bottom' size={16} typeId={item.typeId} />
       {annotationMarker}
       {item.label}
+      {systemPageChip}
     </>
   );
 

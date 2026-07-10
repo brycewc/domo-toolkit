@@ -51,11 +51,11 @@ A WIP bullet is a headline, not a paragraph. Write the single user-facing change
 
 By default, cut:
 
-- The why or how, in any form: a parenthetical aside, a trailing "because" / "since" / "so" clause, or a "what made it possible" note. Both "...because Domo gives them the same URL" and "(it generates the definition rather than syncing)" tell the user nothing. State what changed, not why it changed. A reason hidden in parentheses is still a reason.
+- The why, the how, or the benefit, in any form: a parenthetical aside, a trailing "because" / "since" / "so" / "so that" clause, or a "what made it possible" note. The benefit clause is the trap, because it reads like helpful context: the user and the readers already know why a change is useful, so a clause spelling out the value ("so they stand apart from regular pages", "making it easier to scan", "so you don't have to hunt for it") adds nothing. "...because Domo gives them the same URL", "(it generates the definition rather than syncing)", and "so they stand apart from regular pages" all tell the user nothing. State what changed, and stop. A reason or a benefit, whether trailing or hidden in parentheses, is still one, so cut it.
 - Before-state beyond the minimal contrast the headline needs to make sense.
 - Consequences that follow from the headline: "recognized as its own type" already implies its own icon and label, so don't spell those out.
 - Lists of every screen the change touches: name the feature, not each surface.
-- Trailing "instead of X" / "rather than Y" / "so that Z" clauses, unless the change is meaningless without them.
+- Trailing "instead of X" / "rather than Y" contrast clauses, unless the change is meaningless without them. A "so that Z" / "so Z" purpose clause gets no such exception: it states a benefit, so it always goes.
 
 Calibration (a real bullet, before and after):
 
@@ -66,6 +66,11 @@ And a parenthetical reason, the easiest kind to leave in by accident:
 
 - Too long: "Renamed the "Sync JSDoc to Package" button to "Generate Definition from JSDoc" (it generates the definition rather than syncing)."
 - Right: "Renamed the "Sync JSDoc to Package" button to "Generate Definition from JSDoc"."
+
+And a trailing benefit clause, the kind that slips through most often because it sounds like context rather than filler:
+
+- Too long: "System pages (Overview, Favorites, or Shared) in a list now carry a "System" chip next to their name, so they stand apart from regular pages."
+- Right: "System pages (Overview, Favorites, or Shared) in a list now carry a "System" chip next to their name."
 
 When one feature has several genuinely distinct user-facing changes, give each its own one-sentence bullet rather than packing them into a paragraph.
 

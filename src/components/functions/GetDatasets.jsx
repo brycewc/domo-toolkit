@@ -52,12 +52,12 @@ export function GetDatasets({ currentContext, isDisabled, onStatusUpdate }) {
       tooltipText = 'List dataset inputs and outputs for this Jupyter workspace';
       break;
     case 'DATA_SOURCE':
-      buttonText = 'Get Dependent Views';
+      buttonText = 'Get Child Views';
       tooltipText = 'List dataset views built on this dataset';
       break;
     case 'DATAFLOW_TYPE':
-      buttonText = 'Get DataFlow DataSets';
-      tooltipText = 'List dataset inputs and outputs for this dataflow';
+      buttonText = 'Get I/O DataSets';
+      tooltipText = 'List input and output datasets for this dataflow';
       break;
     default:
       buttonText = 'Get DataSets';

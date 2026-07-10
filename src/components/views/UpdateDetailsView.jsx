@@ -272,10 +272,11 @@ export function UpdateDetailsView({ instance = null, liveContext = null, onBackT
   return (
     <Card className='flex min-h-0 w-full flex-1 flex-col p-2'>
       <ViewHeader
-        feature={`Update Details for ${objectName}`}
+        feature='Update Details for'
         featureIcon={<IconPencil />}
+        subject={objectName}
+        subjectTypeId={currentContext.domoObject.typeId}
         subtext={`ID: ${objectId}`}
-        subtextTypeId={currentContext.domoObject.typeId}
         onClose={onBackToDefault}
         actions={[
           buildReloadAction({

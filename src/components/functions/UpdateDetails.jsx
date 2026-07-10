@@ -7,7 +7,7 @@ import IconPencil from '@icons/pencil.svg?react';
 // Falls back to a generic message for any type without an entry here.
 const TOOLTIPS_BY_TYPE = {
   DATA_SOURCE: "Edit this dataset's user defined type",
-  DATAFLOW_TYPE: "Edit this dataflow's name and description",
+  DATAFLOW_TYPE: "Edit this dataflow's name and description without creating a new version",
   MAGNUM_COLLECTION: 'Rename this AppDB collection',
   USER: "Edit this person's username, the login and SSO identity"
 };
@@ -16,7 +16,7 @@ export function UpdateDetails({ currentContext, onStatusUpdate }) {
   const { isPending, launch } = useLaunchView();
   const typeId = currentContext?.domoObject?.typeId;
   const typeName = currentContext?.domoObject?.typeName || 'Object';
-  const label = `Update ${typeName} Details`;
+  const label = 'Update Details';
   const tooltip = TOOLTIPS_BY_TYPE[typeId] || `Edit this ${typeName.toLowerCase()}'s details`;
 
   return (
