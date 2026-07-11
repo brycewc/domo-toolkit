@@ -13,6 +13,7 @@ import { getCardDefinition } from '@/services/cards';
 import { getDatasetColumns, getDatasetDetailsForList, getDatasetsForPage } from '@/services/datasets';
 import { getJupyterWorkspaceAccounts, getJupyterWorkspaceDatasets } from '@/services/jupyterWorkspaces';
 import { getWorkflowTriggers } from '@/services/workflows';
+import { copyJsonNode } from '@/utils/copyToClipboard';
 import { executeInPage } from '@/utils/executeInPage';
 import { formatEpochTimestamp, formatTimestamp, isDateFieldName, isGroupFieldName, isUserFieldName } from '@/utils/general';
 import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
@@ -697,7 +698,7 @@ function MetadataJsonView({ collapsed = 1, groupMap = {}, src, userMap = {} }) {
       collapsed={collapsed}
       collapseStringMode='word'
       collapseStringsAfterLength={150}
-      customizeCopy={(node) => (typeof node === 'object' ? JSON.stringify(node, null, 2) : String(node))}
+      customizeCopy={copyJsonNode}
       key={jsonViewKey}
       matchesURL={false}
       src={src}

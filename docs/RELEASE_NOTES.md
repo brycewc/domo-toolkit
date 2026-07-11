@@ -27,6 +27,7 @@
 ## UI Improvements
 
 - Viewing a Code Engine action inside a workflow now lets you copy the workflow's ID and version from the Copy button's hold-for-more-options menu.
+- Viewing a workflow execution now lets you copy the workflow's ID from the Copy button's hold-for-more-options menu.
 - Hover tooltips throughout the extension now appear promptly instead of after a long pause.
 - The dropdown for picking a column or Beast Mode when mapping columns is now wider, so long names are easier to read.
 - Remap Columns now lists the replacement columns alphabetically, matching Migrate Content.
@@ -45,6 +46,7 @@
 - The Update Details view now shows the object's type icon next to its name in the title instead of next to the ID below.
 - Renamed the action button "Update <Object> Details" to "Update Details".
 - System pages (Overview, Favorites, or Shared) in a list now carry a "System" chip next to their name.
+- Copying an object from a JSON viewer now produces formatted, indented JSON in every view.
 
 ## Performance
 
@@ -65,3 +67,5 @@
 - A count of a single card or page now reads "1 card" or "1 page" instead of "1 cards" or "1 pages".
 - Opening a person now keeps their name in the browser tab instead of reverting to "People" a moment later.
 - The cross-input collision warning in Migrate Content now reads as a single flowing paragraph instead of breaking its text into misaligned, staggered columns.
+- Generate Definition from JSDoc now recognizes when an optional output field is made required again, instead of reporting nothing to sync.
+- Copied values throughout the extension now appear in Windows clipboard history (Win+V).

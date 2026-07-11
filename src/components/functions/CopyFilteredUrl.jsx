@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useLongPress } from '@/hooks/useLongPress';
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { buildPfilterUrl, getAllFilters } from '@/services/filters';
+import { copyToClipboard } from '@/utils/copyToClipboard';
 import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
 import IconFunnel from '@icons/funnel.svg?react';
 import IconSync from '@icons/sync.svg?react';
@@ -156,7 +157,7 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
 
       const filteredUrl = buildPfilterUrl(currentUrl, objectId, allFilters);
       const urlObj = new URL(filteredUrl);
-      await navigator.clipboard.writeText(urlObj.search);
+      await copyToClipboard(urlObj.search, currentContext.tabId);
 
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);

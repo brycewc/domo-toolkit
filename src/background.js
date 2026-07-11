@@ -9,6 +9,7 @@ import { checkPageType } from '@/services/pages';
 import { getCurrentUser, getUserGroups } from '@/services/users';
 import { clearCookies } from '@/utils/clearCookies';
 import { EXCLUDED_HOSTNAMES, SECTION_TITLES } from '@/utils/constants';
+import { copyToClipboard } from '@/utils/copyToClipboard';
 import { detectCurrentObject, isDomoUrl } from '@/utils/currentObject';
 import { executeInPage } from '@/utils/executeInPage';
 import { sidepanelStorageKeyPrefix } from '@/utils/sidepanel';
@@ -1079,24 +1080,6 @@ chrome.commands.onCommand.addListener((command) => {
 });
 
 /**
- * Ask any open extension UI (sidepanel/popup) to copy its current object's
- * primary ID. Only the surface that currently has focus performs the write and
- * responds; the others stay silent. Resolves true when a focused surface
- * copied, false otherwise (no UI open, or none focused).
- */
-async function copyViaFocusedUi() {
-  try {
-    const response = await chrome.runtime.sendMessage({
-      type: 'COPY_ID_SHORTCUT'
-    });
-    return response?.copied === true;
-  } catch {
-    // "Receiving end does not exist" when no extension UI is open to receive it.
-    return false;
-  }
-}
-
-/**
  * Detect and store context for a specific tab
  * Injects detection script into page and enriches with API data
  * @returns {DomoContext|null} DomoContext instance or null
@@ -1475,20 +1458,11 @@ async function detectAndStoreContext(tabId) {
 }
 
 /**
- * Handle the copy_id keyboard shortcut.
- *
- * navigator.clipboard.writeText only succeeds in a focused document. When the
- * sidepanel or popup has focus, the Domo page document does not, so injecting
- * the write into the page silently no-ops. We therefore ask any open extension
- * UI to perform the copy first; only the focused surface responds. If none is
- * focused (the Domo page itself has focus), we fall back to the in-page write.
+ * Handle the copy_id keyboard shortcut. Runs the copy inside the active Domo
+ * tab via copyToClipboard, which works regardless of which surface has focus
+ * and lands the ID in the OS clipboard history (Windows Win+V).
  */
 async function handleCopyIdCommand() {
-  if (await copyViaFocusedUi()) {
-    showCopyBadge(true);
-    return;
-  }
-
   const [tab] = await chrome.tabs.query({
     active: true,
     currentWindow: true,
@@ -1507,13 +1481,7 @@ async function handleCopyIdCommand() {
   }
 
   try {
-    await executeInPage(
-      async (text) => {
-        await navigator.clipboard.writeText(text);
-      },
-      [copy.value],
-      tab.id
-    );
+    await copyToClipboard(copy.value, tab.id);
     showCopyBadge(true);
   } catch (error) {
     console.error('[Background] Failed to copy ID to clipboard:', error);

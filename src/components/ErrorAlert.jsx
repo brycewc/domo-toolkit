@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react';
 import JsonView from 'react18-json-view';
 
 import { AnimatedCheck } from '@/components/AnimatedCheck';
+import { copyJsonNode, copyToClipboard } from '@/utils/copyToClipboard';
 import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
 import IconX from '@icons/x.svg?react';
@@ -30,7 +31,7 @@ export function ErrorAlert({ detail = null, onDismiss, title }) {
   const handleCopy = useCallback(async () => {
     const payload = hasJsonDetail ? JSON.stringify(detail, null, 2) : String(detail ?? title ?? '');
     try {
-      await navigator.clipboard.writeText(payload);
+      await copyToClipboard(payload);
       setCopied(true);
       setTimeout(() => setCopied(false), 1000);
     } catch {
@@ -66,6 +67,7 @@ export function ErrorAlert({ detail = null, onDismiss, title }) {
             collapsed={2}
             collapseStringMode='word'
             collapseStringsAfterLength={80}
+            customizeCopy={copyJsonNode}
             matchesURL={false}
             src={detail}
             CopiedComponent={({ className, style }) => (

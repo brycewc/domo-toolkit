@@ -9,6 +9,7 @@ import { useGroupLookup } from '@/hooks/useGroupLookup';
 import { useUserLookup } from '@/hooks/useUserLookup';
 import { useViewReady } from '@/hooks/useViewReady';
 import { DomoObject } from '@/models/DomoObject';
+import { copyJsonNode, copyToClipboard } from '@/utils/copyToClipboard';
 import { formatEpochTimestamp, formatTimestamp, isDateFieldName, isGroupFieldName, isUserFieldName } from '@/utils/general';
 import { buildRefreshAction, buildReloadAction } from '@/utils/headerActions';
 import { getSidepanelData } from '@/utils/sidepanel';
@@ -115,7 +116,7 @@ export function ObjectDetailsView({ instance = null, liveContext = null, onBackT
   const handleCopyId = async () => {
     if (!domoObject?.id) return;
     try {
-      await navigator.clipboard.writeText(domoObject.id.toString());
+      await copyToClipboard(domoObject.id.toString());
       onStatusUpdate?.('Copied', `ID **${domoObject.id}** copied to clipboard`, 'success', 2000);
     } catch (err) {
       onStatusUpdate?.('Error', 'Failed to copy ID', 'danger', 3000);
@@ -217,6 +218,7 @@ export function ObjectDetailsView({ instance = null, liveContext = null, onBackT
                     collapsed={1}
                     collapseStringMode='word'
                     collapseStringsAfterLength={50}
+                    customizeCopy={copyJsonNode}
                     key={jsonViewKey}
                     matchesURL={false}
                     src={domoObject.metadata?.details}

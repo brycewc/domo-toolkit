@@ -201,9 +201,13 @@ function preserveCuratedFields(derived, existing, meta = {}) {
   if (Array.isArray(out.variables)) {
     out.variables = preserveNullableInEntries(out.variables, existing.variables);
   }
-  if (out.output && existing.output) {
-    out.output = preserveNullableInEntry(out.output, existing.output);
-  }
+  // The output is intentionally excluded from nullable preservation. Unlike an
+  // input (whose nullable is derived from the weak "does a JSDoc default exist?"
+  // signal, so we defer to the user's Domo UI choice), an output entry's nullable
+  // comes straight from the `[optional]` bracket in @returns and is authoritative
+  // in both directions. Running it through preserveNullableInEntry would restore a
+  // stale `true` when the user removes a bracket, erasing the change so the sync
+  // reports "no changes".
   return out;
 }
 

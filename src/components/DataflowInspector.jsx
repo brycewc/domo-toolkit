@@ -21,6 +21,7 @@ import { SqlBlock } from '@/components/SqlBlock';
 import { ViewHeader } from '@/components/views/ViewHeader';
 import { parseDataflow, searchTiles } from '@/services/dataflowParser';
 import { getDataflowDetail } from '@/services/dataflows';
+import { copyJsonNode } from '@/utils/copyToClipboard';
 import IconASemicolonB from '@icons/a-semicolon-b.svg?react';
 import IconAToB from '@icons/a-to-b.svg?react';
 import IconAbc from '@icons/abc.svg?react';
@@ -369,7 +370,7 @@ export function DataflowInspector({
                   collapsed={1}
                   collapseStringMode='word'
                   collapseStringsAfterLength={80}
-                  customizeCopy={(node) => (typeof node === 'object' ? JSON.stringify(node, null, 2) : String(node))}
+                  customizeCopy={copyJsonNode}
                   matchesURL={false}
                   src={rawJSON}
                   CopiedComponent={({ className, style }) => (

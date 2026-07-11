@@ -4,6 +4,7 @@ import JsonView from 'react18-json-view';
 
 import { useViewReady } from '@/hooks/useViewReady';
 import { DomoContext } from '@/models/DomoContext';
+import { copyJsonNode } from '@/utils/copyToClipboard';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconArrowDown from '@icons/arrow-down.svg?react';
 import IconArrowUp from '@icons/arrow-up.svg?react';
@@ -163,6 +164,7 @@ export function ApiErrorsView({ instance = null, onBackToDefault = null, onStatu
                         collapsed={2}
                         collapseStringMode='word'
                         collapseStringsAfterLength={50}
+                        customizeCopy={copyJsonNode}
                         matchesURL={false}
                         src={parsed}
                         CopiedComponent={({ className, style }) => (

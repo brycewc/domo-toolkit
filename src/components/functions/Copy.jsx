@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 
 import { useLongPress } from '@/hooks/useLongPress';
 import { getObjectType, resolvePrimaryCopy } from '@/models/DomoObjectType';
+import { copyToClipboard } from '@/utils/copyToClipboard';
 import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
 
 import { AnimatedCheck } from '../AnimatedCheck';
@@ -44,11 +45,11 @@ export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
 
   const longPressDisabled = isDisabled || !domoObject?.id || dropdownItems.length === 0;
 
-  const handlePress = () => {
+  const handlePress = async () => {
     const copy = resolvePrimaryCopy(domoObject);
     if (!copy) return;
     try {
-      navigator.clipboard.writeText(copy.value);
+      await copyToClipboard(copy.value, currentContext.tabId);
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
       onStatusUpdate?.('Success', `Copied ${copy.label} **${copy.value}** to clipboard`, 'success', 2000);
@@ -57,11 +58,16 @@ export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
     }
   };
 
-  const handleAction = (key) => {
+  const handleAction = async (key) => {
     const item = dropdownItems.find((i) => i.id === key);
     if (!item) return;
-    navigator.clipboard.writeText(item.value);
-    onStatusUpdate?.('Success', `Copied ${item.label.replace('Copy ', '')} **${item.value}** to clipboard`, 'success', 2000);
+    const label = item.label.replace('Copy ', '');
+    try {
+      await copyToClipboard(item.value, currentContext.tabId);
+      onStatusUpdate?.('Success', `Copied ${label} **${item.value}** to clipboard`, 'success', 2000);
+    } catch (error) {
+      onStatusUpdate?.('Error', `Failed to copy ${label.toLowerCase()} to clipboard`, 'error', 3000);
+    }
   };
 
   return (

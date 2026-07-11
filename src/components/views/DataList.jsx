@@ -23,6 +23,7 @@ import { useStatusBar } from '@/hooks/useStatusBar';
 import { getObjectType } from '@/models/DomoObjectType';
 import { shareWithSelf } from '@/services/share';
 import { launchActivityLog } from '@/utils/activityLog';
+import { copyToClipboard } from '@/utils/copyToClipboard';
 import { getValidTabForInstance } from '@/utils/currentObject';
 import { buildRefreshAction, buildReloadAction } from '@/utils/headerActions';
 import {
@@ -364,7 +365,7 @@ export function DataList({
             // namespace `id` to avoid cross-namespace key collisions while
             // still wanting the canonical id available for paste.
             const copyId = item.originalId ?? item.id;
-            await navigator.clipboard.writeText(copyId?.toString() || '');
+            await copyToClipboard(copyId?.toString() || '');
             onStatusUpdate?.('Copied', `ID **${copyId}** copied to clipboard`, 'success', 2000);
             break;
           }

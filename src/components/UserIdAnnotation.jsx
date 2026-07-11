@@ -1,5 +1,6 @@
 import { useState } from 'react';
 
+import { copyToClipboard } from '@/utils/copyToClipboard';
 import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
 
 import { AnimatedCheck } from './AnimatedCheck';
@@ -9,7 +10,7 @@ export function UserIdAnnotation({ displayName, value }) {
 
   const handleCopy = (event) => {
     event.stopPropagation();
-    navigator.clipboard.writeText(String(value));
+    copyToClipboard(String(value)).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 3000);
   };
