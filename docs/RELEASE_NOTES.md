@@ -69,3 +69,4 @@
 - The cross-input collision warning in Migrate Content now reads as a single flowing paragraph instead of breaking its text into misaligned, staggered columns.
 - Generate Definition from JSDoc now recognizes when an optional output field is made required again, instead of reporting nothing to sync.
 - Copied values throughout the extension now appear in Windows clipboard history (Win+V).
+- Transferring a user's objects now shows a green checkmark on each object type that finishes successfully, not only a red X on the ones that fail.

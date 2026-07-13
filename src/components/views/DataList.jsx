@@ -909,6 +909,7 @@ function DataListItemImpl({
   // its layout. See useParallelFetches for the producing hook.
   const isLoadingState = item.isVirtualParent && (item.status === 'loading' || item.status === 'transferring');
   const isErrorState = item.isVirtualParent && (item.status === 'error' || item.status === 'failed');
+  const isSuccessState = item.isVirtualParent && item.status === 'transferred';
   const showsErrorBody = isErrorState && item.error;
   const statusIndicator = isLoadingState ? (
     <Spinner
@@ -918,6 +919,8 @@ function DataListItemImpl({
     />
   ) : isErrorState ? (
     <IconX className='shrink-0 text-danger' size={18} />
+  ) : isSuccessState ? (
+    <AnimatedCheck className='size-[18px] shrink-0 text-success' />
   ) : null;
 
   // Selection-mode rendering: when the row is selectable, the row's label and

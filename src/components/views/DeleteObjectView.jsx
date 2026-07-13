@@ -614,7 +614,7 @@ function renderDependencyBanner({ deps, error, isBlocked, isLoading, onRetry }) 
 
   if (deps.totalCount === 0) {
     return (
-      <Alert className='w-full bg-success-soft' status='success'>
+      <Alert className='w-full' status='success' variant='transparent'>
         <Alert.Indicator />
         <Alert.Content>
           <Alert.Description>No dependencies found.</Alert.Description>
