@@ -7,6 +7,67 @@
 import { getDataflowEngine } from '@/services/sqlColumns';
 
 /**
+ * The normalized shape every consumer (the inspector's rendering and `searchTiles`)
+ * reads. `parseTile` is the single place that maps Domo's irregular raw action JSON
+ * onto this contract, so downstream code must reference these fields, never the raw
+ * keys (e.g. `resultField`, not the raw `fieldName`/`outputField` it may originate from).
+ *
+ * @typedef {Object} ParsedExpression
+ * @property {string} expression  The formula or SQL text of the expression.
+ * @property {string} resultField The output column the expression produces.
+ */
+
+/**
+ * @typedef {Object} ParsedFilter
+ * @property {string} field    The column being filtered.
+ * @property {string} operator The comparison operator (defaults to '=').
+ * @property {string} value    The comparison value (comma-joined when multi-valued).
+ */
+
+/**
+ * @typedef {Object} ParsedJoin
+ * @property {string} joinType One of INNER, LEFT, RIGHT, etc. (defaults to 'INNER').
+ * @property {string} leftKey  The left-side join key.
+ * @property {string} rightKey The right-side join key.
+ */
+
+/**
+ * @typedef {Object} ParsedTile
+ * @property {string} id                     The tile's action id.
+ * @property {string} type                   Raw Domo action type (e.g. 'ExpressionEvaluator').
+ * @property {string} displayType            User-facing tile name (e.g. 'Add Formula'), from TILE_DISPLAY_NAMES.
+ * @property {string} category               User-facing category, from TILE_CATEGORY_MAP.
+ * @property {string} name                   The tile's display name.
+ * @property {string[]} columns              Columns the tile references or produces.
+ * @property {ParsedExpression[]} expressions Expressions the tile evaluates.
+ * @property {ParsedFilter[]} filters         Filter conditions the tile applies.
+ * @property {ParsedJoin[]} joins             Join key pairs the tile defines.
+ * @property {string[]} sql                   Raw SQL statements the tile runs.
+ * @property {string[]} inputDatasets         Dataset ids the tile reads from.
+ * @property {string|null} outputDataset      Dataset id the tile writes to, if any.
+ * @property {Object} rawDetails              Per-type extras (constants, aggregates, renames, mappings, etc.).
+ */
+
+/**
+ * @typedef {Object} ParsedDataflow
+ * @property {string} id
+ * @property {string} name
+ * @property {string} databaseType
+ * @property {string} engine                 The dataflow's SQL engine, from getDataflowEngine.
+ * @property {string[]} inputDatasetIds
+ * @property {string[]} outputDatasetIds
+ * @property {ParsedTile[]} tiles
+ * @property {number} [versionNumber]        Present when a historical version was parsed.
+ */
+
+/**
+ * @typedef {Object} TileSearchMatch
+ * @property {string} matchText A short human-readable snippet describing the match.
+ * @property {string} matchType One of 'filter'|'join'|'expression'|'column'|'sql'|'name'.
+ * @property {ParsedTile} tile  The tile the match was found in.
+ */
+
+/**
  * Magic ETL Tile Display Names
  * Matches Domo's native ETL editor (localActionConfigurations)
  */
@@ -117,8 +178,7 @@ const TILE_CATEGORY_MAP = {
 /**
  * Parse a full dataflow response into structured data
  * @param {Object} detail - The dataflow detail object from Domo API
- * @returns {Object} ParsedDataflow with id, name, tiles, dataset IDs, engine, and (for a
- *   historical version) the version number
+ * @returns {ParsedDataflow}
  */
 export function parseDataflow(detail) {
   const tiles = (detail.actions || []).map(parseTile);
@@ -140,9 +200,9 @@ export function parseDataflow(detail) {
 
 /**
  * Search across parsed tiles for a query string
- * @param {Array} tiles - Array of ParsedTile objects
+ * @param {ParsedTile[]} tiles - Array of ParsedTile objects
  * @param {string} query - Search query string
- * @returns {Array} Array of search matches with tile, matchType, and matchText
+ * @returns {TileSearchMatch[]}
  */
 export function searchTiles(tiles, query) {
   const q = query.toLowerCase();
@@ -236,6 +296,11 @@ function createTableTarget(sql) {
   return match ? match[1] : '';
 }
 
+/**
+ * Parse a single action/tile from the ETL JSON into the normalized shape.
+ * @param {Object} action - The ETL action object
+ * @returns {ParsedTile}
+ */
 function parseTile(action) {
   const tile = {
     category: TILE_CATEGORY_MAP[action.type] || 'Other',
@@ -297,7 +362,7 @@ function parseTile(action) {
     case 'ExpressionEvaluator':
       tile.expressions = (action.expressions || []).map((e) => ({
         expression: e.expression || '',
-        resultField: e.resultField || ''
+        resultField: e.resultField || e.fieldName || ''
       }));
       tile.columns = tile.expressions.map((e) => e.resultField).filter(Boolean);
       break;
@@ -488,9 +553,10 @@ function parseTile(action) {
 }
 
 /**
- * Parse a single action/tile from the ETL JSON
- * @param {Object} action - The ETL action object
- * @returns {Object} ParsedTile object with structured data
+ * Normalize a Domo field reference to its plain name. Fields arrive as either a
+ * bare string or a `{ name }` object depending on the tile type.
+ * @param {string|{name?: string}} f
+ * @returns {string}
  */
 function toFieldName(f) {
   return typeof f === 'string' ? f : f?.name || '';

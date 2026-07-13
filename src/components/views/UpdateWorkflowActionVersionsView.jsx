@@ -618,7 +618,7 @@ export function UpdateWorkflowActionVersionsView({
                     <div className='flex min-w-0 items-center gap-1.5'>
                       <Tooltip delay={200}>
                         <Tooltip.Trigger className='shrink-0 cursor-help'>
-                          <GroupIcon className='size-4 text-muted' />
+                          <GroupIcon className='size-4' />
                         </Tooltip.Trigger>
                         <Tooltip.Content>{isSubflow ? 'Subflow' : 'Code Engine package'}</Tooltip.Content>
                       </Tooltip>

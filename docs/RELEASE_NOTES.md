@@ -19,6 +19,7 @@
 - Swapping a dataset's account now offers a Save and Run button that applies the change and immediately runs the dataset, alongside the existing Save.
 - Opening an App Studio page by its page link now redirects you into its app automatically, instead of landing on Domo's "This content must be viewed within its app" page.
 - Get Card Pages now works on a person, listing every page their cards appear on.
+- A person's profile page now has a View in Admin buttonn to quickly navigate between the two.
 
 ## Newly Supported Object Types
 
@@ -42,11 +43,16 @@
 - Migrate Content now has a Select all checkbox for selecting or clearing all downstream content at once.
 - The expandable sections in Update Action Versions and Inspect DataFlow now have fully rounded corners.
 - The transform detail values in Inspect DataFlow now appear in input-style boxes.
+- The expression, aggregate, column, and configuration boxes in Inspect DataFlow no longer have a border.
 - Get Card Pages now labels the page count on each app studio app, report, and worksheet (e.g. "3 pages") instead of showing a bare number.
 - The Update Details view now shows the object's type icon next to its name in the title instead of next to the ID below.
 - Renamed the action button "Update <Object> Details" to "Update Details".
 - System pages (Overview, Favorites, or Shared) in a list now carry a "System" chip next to their name.
 - Copying an object from a JSON viewer now produces formatted, indented JSON in every view.
+- Generate Definition from JSDoc now lists each function directly as its own expandable row instead of nesting them inside a collapsible Manifest changes section.
+- Generate Definition from JSDoc now shows a changed simple property such as nullable or isList on a single line instead of a taller stacked block.
+- Generate Definition from JSDoc no longer shows a separate Return Value change when a function's output is added or removed alongside it.
+- Generate Definition from JSDoc now shows just that a nested output or input field was added or removed, instead of listing all of that field's properties.
 
 ## Performance
 
@@ -58,6 +64,7 @@
 - Sharing a page now makes it appear in your navigation instead of only granting access by direct link.
 - Get Card Pages now tells you when none of an object's cards appear on any page, instead of listing them under a lone Orphaned Cards category.
 - Get View Inputs now lists the source datasets of union views (and other views that nest their inputs) instead of finding none.
+- Inspect DataFlow now shows the output field name on each formula tile's expressions, which previously appeared blank.
 - Sharing objects with yourself from a list now closes the row's actions menu and shows a progress toast immediately, instead of appearing to do nothing until every share finished.
 - Migrate Content: mapping a column onto one of the target dataset's Beast Modes now saves the affected cards successfully instead of erroring out.
 - API Errors now captures failed requests from apps embedded on a page, which were previously missed.
@@ -68,5 +75,9 @@
 - Opening a person now keeps their name in the browser tab instead of reverting to "People" a moment later.
 - The cross-input collision warning in Migrate Content now reads as a single flowing paragraph instead of breaking its text into misaligned, staggered columns.
 - Generate Definition from JSDoc now recognizes when an optional output field is made required again, instead of reporting nothing to sync.
+- Generate Definition from JSDoc no longer flags function inputs that have no nested fields as changed when they aren't.
+- Generate Definition from JSDoc now marks an input as optional when the JSDoc brackets its name, not only when it has a default value.
 - Copied values throughout the extension now appear in Windows clipboard history (Win+V).
 - Transferring a user's objects now shows a green checkmark on each object type that finishes successfully, not only a red X on the ones that fail.
+- Opening a Task Center task with a reference-style ID (such as "15AUG25_TS551E") is now recognized instead of leaving the current context empty.
+- Opening the settings page without a specific tab now lands on General Settings instead of a blank page with no tab selected.

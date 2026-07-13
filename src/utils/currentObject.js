@@ -484,9 +484,20 @@ export async function detectCurrentObject() {
       objectType = 'OBJECTIVE';
       break;
 
-    case url.includes('queues') && parts.includes('id'):
-      objectType = 'HOPPER_TASK';
-      break;
+    case url.includes('queues') && parts.includes('id'): {
+      // Task Center task IDs are case-sensitive, business-defined references
+      // (e.g. "15AUG25_TS551E"), not UUIDs, so read id and queueId straight from
+      // location.search to preserve their original case. The lowercased `url`
+      // above would corrupt the id and make the task fetch fail.
+      const search = new URLSearchParams(location.search);
+      return {
+        baseUrl: `${location.protocol}//${location.hostname}`,
+        id: search.get('id'),
+        parentId: search.get('queueId'),
+        typeId: 'HOPPER_TASK',
+        url
+      };
+    }
 
     case url.includes('queueid='):
       objectType = 'HOPPER_QUEUE';

@@ -390,8 +390,8 @@ export function GeneratePackageDefinitionFromJSDocView({
 
           {parsed && !parsed.error && (
             <>
+              {parsed.warnings.length > 0 && <WarningsSection warnings={parsed.warnings} />}
               <ManifestDecisionsSection decisions={parsed.decisions} rewrites={parsed.jsdocRewrites} />
-              <WarningsSection warnings={parsed.warnings} />
             </>
           )}
         </Card.Content>
@@ -419,87 +419,170 @@ export function GeneratePackageDefinitionFromJSDocView({
   );
 }
 
+const FIELD_LABELS = {
+  description: 'Description',
+  displayName: 'Display Name',
+  hasReturn: 'Return Value',
+  inputs: 'Inputs',
+  isPrivate: 'Private',
+  output: 'Output'
+};
+
 function DecisionPill({ action }) {
   if (action === 'added') {
     return (
-      <Chip color='success' size='sm' variant='soft'>
+      <Chip color='success' size='sm' variant='primary'>
         <IconPlusCircle size={12} /> Added
       </Chip>
     );
   }
   if (action === 'updated') {
     return (
-      <Chip color='accent' size='sm' variant='soft'>
+      <Chip color='accent' size='sm' variant='primary'>
         <IconSync size={12} /> Updated
       </Chip>
     );
   }
   if (action === 'unchanged') {
     return (
-      <Chip size='sm' variant='soft'>
+      <Chip size='sm' variant='primary'>
         <IconCheckCircle size={12} /> Unchanged
       </Chip>
     );
   }
   return (
-    <Chip size='sm' variant='soft'>
+    <Chip size='sm' variant='primary'>
       <IconCircle size={12} /> Kept
     </Chip>
   );
 }
 
 function DecisionRow({ decision, rewrites }) {
-  const hasFieldDiff = decision.action === 'updated' && decision.diffFields?.length > 0;
+  // `hasReturn` just tracks whether an `output` exists, so when both changed the
+  // output object appearing (or disappearing) already tells the story; drop the
+  // redundant Return Value boolean row.
+  const diffFields = (decision.diffFields || []).filter(
+    (field) => !(field === 'hasReturn' && decision.diffFields.includes('output'))
+  );
+  const hasFieldDiff = decision.action === 'updated' && diffFields.length > 0;
   const hasRewrites = rewrites?.length > 0;
   const expandable = hasFieldDiff || hasRewrites;
+
+  const trigger = (
+    <>
+      <span className='flex min-w-0 flex-1 items-center gap-2' title={decision.name}>
+        <span className='truncate text-sm font-medium'>{decision.name}()</span>
+      </span>
+      <span className='flex shrink-0 items-center gap-1'>
+        {hasRewrites && (
+          <Chip color='accent' size='sm' variant='primary'>
+            JSDoc
+          </Chip>
+        )}
+        <DecisionPill action={decision.action} />
+      </span>
+    </>
+  );
+
+  if (!expandable) {
+    return (
+      <div className='flex w-full items-center justify-between gap-2 overflow-hidden rounded-3xl bg-surface-secondary p-2'>
+        {trigger}
+        <IconChevronDown className='size-4 shrink-0 text-surface' />
+      </div>
+    );
+  }
+
   return (
-    <Disclosure className='w-full' id={decision.name} isDisabled={!expandable}>
+    <Disclosure className='overflow-hidden rounded-3xl bg-surface-secondary' id={decision.name}>
       <Disclosure.Heading>
-        <Button fullWidth className='items-center justify-between gap-1 px-1 py-0.5 text-xs' slot='trigger' variant='ghost'>
-          <span className='flex min-w-0 items-center gap-1'>
-            <Disclosure.Indicator>
-              <IconChevronDown size={12} />
-            </Disclosure.Indicator>
-            <span className='font-mono'>{decision.name}</span>
-            {hasFieldDiff && <span className='truncate text-muted'>({decision.diffFields.join(', ')})</span>}
-          </span>
-          <span className='flex shrink-0 items-center gap-1'>
-            {hasRewrites && (
-              <Chip color='accent' size='sm' variant='soft'>
-                JSDoc
-              </Chip>
-            )}
-            <DecisionPill action={decision.action} />
-          </span>
-        </Button>
+        <Disclosure.Trigger className='flex w-full items-center justify-between gap-2 p-2'>
+          {trigger}
+          <Disclosure.Indicator>
+            <IconChevronDown />
+          </Disclosure.Indicator>
+        </Disclosure.Trigger>
       </Disclosure.Heading>
-      {expandable && (
-        <Disclosure.Content>
-          <div className='flex flex-col gap-2 border-l border-border pt-1 pl-2 text-xs'>
-            {hasFieldDiff &&
-              decision.diffFields.map((field) => (
-                <FieldDiff
-                  derivedValue={decision.derived?.[field]}
-                  existingValue={decision.existing?.[field]}
-                  field={field}
-                  key={field}
-                />
-              ))}
-            {hasRewrites && <JSDocRewriteList rewrites={rewrites} />}
-          </div>
-        </Disclosure.Content>
-      )}
+      <Disclosure.Content>
+        <div className='px-4'>
+          <Separator variant='secondary' />
+        </div>
+        <div className='flex flex-col gap-2 p-2 text-xs'>
+          {hasFieldDiff &&
+            diffFields.map((field) => (
+              <FieldDiff
+                derivedValue={decision.derived?.[field]}
+                existingValue={decision.existing?.[field]}
+                field={field}
+                key={field}
+              />
+            ))}
+          {hasRewrites && <JSDocRewriteList rewrites={rewrites} />}
+        </div>
+      </Disclosure.Content>
     </Disclosure>
+  );
+}
+
+function DetailSection({ children, label }) {
+  return (
+    <div className='flex flex-col gap-1'>
+      <div className='text-xs font-semibold'>{label}</div>
+      {children}
+    </div>
   );
 }
 
 function DiffRow({ diff }) {
   const pathStr = formatPath(diff.path);
+
+  // Scalars (booleans, numbers, null, short single-line strings) collapse onto one
+  // row as `path  old → new`, using the panel's horizontal space instead of stacking
+  // two lines. Long or structured values fall through to the stacked block below.
+  const inline =
+    diff.kind === 'changed'
+      ? isInlineDiffValue(diff.before) && isInlineDiffValue(diff.after)
+      : isInlineDiffValue(diff.value);
+
+  if (inline) {
+    const suffix = diff.kind === 'added' ? ' (added)' : diff.kind === 'removed' ? ' (removed)' : '';
+    return (
+      <div className='flex items-baseline gap-3 rounded-field border border-field bg-field px-3 py-1 text-xs text-field-foreground shadow-field'>
+        {pathStr && <span className='min-w-0 truncate font-mono text-muted'>{pathStr}{suffix}</span>}
+        <span className='ml-auto flex shrink-0 items-baseline gap-1.5 font-mono'>
+          {diff.kind !== 'added' && (
+            <span className='text-danger'>{formatFieldValue(diff.kind === 'changed' ? diff.before : diff.value)}</span>
+          )}
+          {diff.kind === 'changed' && <span className='text-muted'>→</span>}
+          {diff.kind !== 'removed' && (
+            <span className='text-success'>{formatFieldValue(diff.kind === 'changed' ? diff.after : diff.value)}</span>
+          )}
+        </span>
+      </div>
+    );
+  }
+
+  // A whole nested node (e.g. an output child) being added or removed only needs to
+  // announce that it happened; its inner properties are noise. The path already names
+  // it. Collapse to one row, but only for a named nested node (non-empty path) so the
+  // top-level field itself (empty path) still shows its full shape.
+  if ((diff.kind === 'added' || diff.kind === 'removed') && pathStr && diff.value !== null && typeof diff.value === 'object') {
+    const removed = diff.kind === 'removed';
+    return (
+      <div className='flex items-baseline gap-3 rounded-field border border-field bg-field px-3 py-1 text-xs text-field-foreground shadow-field'>
+        <span className='min-w-0 truncate font-mono text-muted'>{pathStr}</span>
+        <span className={`ml-auto shrink-0 font-mono ${removed ? 'text-danger' : 'text-success'}`}>
+          {removed ? 'removed' : 'added'}
+        </span>
+      </div>
+    );
+  }
+
   if (diff.kind === 'added') {
     return (
-      <div className='flex flex-col gap-0.5'>
-        {pathStr && <span className='font-mono text-[10px] text-muted'>{pathStr} (added)</span>}
-        <pre className='overflow-x-auto rounded bg-success-soft px-1 py-0.5 text-[11px] whitespace-pre-wrap text-success'>
+      <div className='flex flex-col gap-0.5 rounded-field border border-field bg-field px-3 py-2 text-xs text-field-foreground shadow-field'>
+        {pathStr && <span className='font-mono text-muted'>{pathStr} (added)</span>}
+        <pre className='overflow-x-auto rounded bg-success-soft px-1 py-0.5 whitespace-pre-wrap text-success'>
           + {formatFieldValue(diff.value)}
         </pre>
       </div>
@@ -507,21 +590,21 @@ function DiffRow({ diff }) {
   }
   if (diff.kind === 'removed') {
     return (
-      <div className='flex flex-col gap-0.5'>
-        {pathStr && <span className='font-mono text-[10px] text-muted'>{pathStr} (removed)</span>}
-        <pre className='overflow-x-auto rounded bg-danger-soft px-1 py-0.5 text-[11px] whitespace-pre-wrap text-danger'>
+      <div className='flex flex-col gap-0.5 rounded-field border border-field bg-field px-3 py-2 text-xs text-field-foreground shadow-field'>
+        {pathStr && <span className='font-mono text-muted'>{pathStr} (removed)</span>}
+        <pre className='overflow-x-auto rounded bg-danger-soft px-1 py-0.5 whitespace-pre-wrap text-danger'>
           − {formatFieldValue(diff.value)}
         </pre>
       </div>
     );
   }
   return (
-    <div className='flex flex-col gap-0.5'>
-      {pathStr && <span className='font-mono text-[10px] text-muted'>{pathStr}</span>}
-      <pre className='overflow-x-auto rounded bg-danger-soft px-1 py-0.5 text-[11px] whitespace-pre-wrap text-danger'>
+    <div className='flex flex-col gap-0.5 rounded-field border border-field bg-field px-3 py-2 text-xs text-field-foreground shadow-field'>
+      {pathStr && <span className='font-mono text-muted'>{pathStr}</span>}
+      <pre className='overflow-x-auto rounded bg-danger-soft px-1 py-0.5 whitespace-pre-wrap text-danger'>
         − {formatFieldValue(diff.before)}
       </pre>
-      <pre className='overflow-x-auto rounded bg-success-soft px-1 py-0.5 text-[11px] whitespace-pre-wrap text-success'>
+      <pre className='overflow-x-auto rounded bg-success-soft px-1 py-0.5 whitespace-pre-wrap text-success'>
         + {formatFieldValue(diff.after)}
       </pre>
     </div>
@@ -531,23 +614,22 @@ function DiffRow({ diff }) {
 function FieldDiff({ derivedValue, existingValue, field }) {
   const diffs = computeStructuralDiff(existingValue, derivedValue);
   return (
-    <div className='flex flex-col gap-1'>
-      <span className='text-[10px] text-muted'>{field}</span>
+    <DetailSection label={FIELD_LABELS[field] || field}>
       {diffs.length === 0 ? (
-        <span className='text-[10px] text-muted italic'>(no detectable difference)</span>
+        <span className='text-xs text-muted italic'>(no detectable difference)</span>
       ) : (
-        <div className='flex flex-col gap-2'>
+        <div className='flex flex-col gap-1'>
           {diffs.map((d, idx) => (
             <DiffRow diff={d} key={`${formatPath(d.path)}-${idx}`} />
           ))}
         </div>
       )}
-    </div>
+    </DetailSection>
   );
 }
 
 function formatFieldValue(value) {
-  if (value == null) return '(none)';
+  if (value == null) return <span className='italic'>null</span>;
   if (typeof value === 'string') return value;
   if (typeof value === 'boolean') return value ? 'true' : 'false';
   try {
@@ -568,13 +650,20 @@ function formatPath(segments) {
     .join('');
 }
 
+function isInlineDiffValue(value) {
+  if (value == null) return true;
+  const type = typeof value;
+  if (type === 'boolean' || type === 'number') return true;
+  if (type === 'string') return value.length <= 40 && !value.includes('\n');
+  return false;
+}
+
 function JSDocRewriteList({ rewrites }) {
   return (
-    <div className='flex flex-col gap-1'>
-      <span className='text-[10px] text-muted'>JSDoc @param defaults</span>
+    <DetailSection label='JSDoc @param defaults'>
       <div className='flex flex-col gap-2'>
         {rewrites.map((r, idx) => (
-          <div className='flex flex-col gap-0.5' key={`${r.paramName}-${idx}`}>
+          <div className='flex flex-col gap-0.5 rounded bg-surface p-2' key={`${r.paramName}-${idx}`}>
             <span className='font-mono text-[10px] text-muted'>
               line {r.line} · {r.paramName}
             </span>
@@ -587,7 +676,7 @@ function JSDocRewriteList({ rewrites }) {
           </div>
         ))}
       </div>
-    </div>
+    </DetailSection>
   );
 }
 
@@ -599,27 +688,18 @@ function ManifestDecisionsSection({ decisions, rewrites }) {
     if (!rewritesByFunction.has(key)) rewritesByFunction.set(key, []);
     rewritesByFunction.get(key).push(r);
   }
+  // Unchanged functions are the bulk of a typical diff and carry nothing to
+  // review, so they're rolled into a single collapsed count at the top instead
+  // of one row each. Everything else (added, updated, kept) stays as its own row.
+  const unchanged = decisions.filter((d) => d.action === 'unchanged');
+  const changed = decisions.filter((d) => d.action !== 'unchanged');
   return (
-    <Disclosure defaultExpanded className='border-divider w-full overflow-hidden rounded-lg border bg-surface-secondary'>
-      <Disclosure.Heading>
-        <Disclosure.Trigger className='flex w-full items-center justify-between gap-2 p-2'>
-          <span className='truncate text-sm font-medium'>Manifest changes ({decisions.length})</span>
-          <Disclosure.Indicator>
-            <IconChevronDown />
-          </Disclosure.Indicator>
-        </Disclosure.Trigger>
-      </Disclosure.Heading>
-      <Disclosure.Content>
-        <div className='px-4'>
-          <Separator variant='secondary' />
-        </div>
-        <DisclosureGroup className='flex flex-col gap-1 p-2'>
-          {decisions.map((d) => (
-            <DecisionRow decision={d} key={d.name} rewrites={rewritesByFunction.get(d.name)} />
-          ))}
-        </DisclosureGroup>
-      </Disclosure.Content>
-    </Disclosure>
+    <DisclosureGroup className='flex w-full flex-col gap-1.5'>
+      {unchanged.length > 0 && <UnchangedFunctionsSection functions={unchanged} />}
+      {changed.map((d) => (
+        <DecisionRow decision={d} key={d.name} rewrites={rewritesByFunction.get(d.name)} />
+      ))}
+    </DisclosureGroup>
   );
 }
 
@@ -658,6 +738,44 @@ function TargetPill({ target }) {
       </Chip>
       <Tooltip.Content className='text-wrap'>{tip}</Tooltip.Content>
     </Tooltip>
+  );
+}
+
+function UnchangedFunctionsSection({ functions }) {
+  return (
+    <Disclosure className='overflow-hidden rounded-3xl bg-surface-secondary' id='__unchanged__'>
+      <Disclosure.Heading>
+        <Disclosure.Trigger className='flex w-full items-center justify-between gap-2 p-2'>
+          <span className='flex min-w-0 flex-1 items-center gap-2'>
+            <span className='truncate text-sm font-medium'>
+              {functions.length} unchanged {functions.length === 1 ? 'function' : 'functions'}
+            </span>
+          </span>
+          <span className='flex shrink-0 items-center gap-1'>
+            <Chip className='text-white' color='success' size='sm' variant='primary'>
+              <IconCheckCircle size={12} /> Unchanged
+            </Chip>
+          </span>
+          <Disclosure.Indicator>
+            <IconChevronDown />
+          </Disclosure.Indicator>
+        </Disclosure.Trigger>
+      </Disclosure.Heading>
+      <Disclosure.Content>
+        <div className='px-4'>
+          <Separator variant='secondary' />
+        </div>
+        <div className='p-2'>
+          <div className='flex flex-col gap-1 rounded bg-surface p-2 font-mono text-xs'>
+            {functions.map((f) => (
+              <span className='truncate' key={f.name} title={f.name}>
+                {f.name}
+              </span>
+            ))}
+          </div>
+        </div>
+      </Disclosure.Content>
+    </Disclosure>
   );
 }
 

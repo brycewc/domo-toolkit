@@ -3,24 +3,6 @@ import { mapJSDocType, SUBTYPE_ELIGIBLE_TYPES } from './typeMap';
 
 const EMPTY_TYPE = '';
 
-// Validates an `entitySubType` parsed from a JSDoc type (e.g. `{account:json5}`)
-// against the resolved type. Subtypes are only meaningful on Domo entity types;
-// on a typedef reference or a plain primitive they are ignored with a warning so
-// the mistake surfaces instead of silently doing nothing.
-function resolveEntitySubType(typeInfo, { doc, label, warnings }) {
-  const sub = typeInfo.entitySubType;
-  if (!sub) return null;
-  if (typeInfo.isTypedef || !SUBTYPE_ELIGIBLE_TYPES.has(typeInfo.type)) {
-    warnings.push({
-      functionName: doc.functionName,
-      message: `${label} has entity subtype \`${sub}\` on type \`${typeInfo.type}\`, which does not support a subtype; ignoring it.`,
-      severity: 'warning'
-    });
-    return null;
-  }
-  return sub;
-}
-
 export function buildManifestFunctions({ editorStartIndices = {}, reconciledDocs, typedefs }) {
   const functions = [];
   const warnings = [];
@@ -161,7 +143,7 @@ function buildOutputEntryFromNode(node, typedefs) {
   return {
     children: resolvedChildren,
     displayName: null,
-    entitySubType: typeInfo?.isTypedef ? null : typeInfo?.entitySubType ?? null,
+    entitySubType: typeInfo?.isTypedef ? null : (typeInfo?.entitySubType ?? null),
     isList,
     name: node.name,
     nullable: !!(docParam && docParam.optional),
@@ -190,7 +172,7 @@ function buildOutputPropertyEntry(prop, typedefs) {
   return {
     children: resolvedChildren,
     displayName: null,
-    entitySubType: typeInfo.isTypedef ? null : typeInfo.entitySubType ?? null,
+    entitySubType: typeInfo.isTypedef ? null : (typeInfo.entitySubType ?? null),
     isList: typeInfo.isList,
     name: baseName,
     nullable: !!prop.optional,
@@ -281,7 +263,10 @@ function buildVariableEntry({ depth, doc, node, typedefs, warnings }) {
   }
 
   const baseName = docParam.rawName.split('.').pop().replace(/\[\]$/, '');
-  const children = resolvedChildren ?? (isTopLevel ? [] : null);
+  // Domo represents "no children" as null, not an empty array. Collapse an empty
+  // (or absent) child list to null so a childless param doesn't show a spurious
+  // children diff (null -> []) against Domo's stored definition.
+  const children = resolvedChildren?.length ? resolvedChildren : null;
   // Domo stores nested list-primitive children with value=[] (matching the
   // type's "empty list" sentinel) even when no explicit default is provided,
   // while top-level entries use null. Mirror that asymmetry so the GET-vs-derived
@@ -294,7 +279,10 @@ function buildVariableEntry({ depth, doc, node, typedefs, warnings }) {
     entitySubType: resolveEntitySubType(typeInfo, { doc, label: `Param \`${docParam.rawName}\``, warnings }),
     isList,
     name: baseName,
-    nullable: docParam.defaultRaw != null,
+    // A param is optional either by JSDoc bracket syntax ([name]) or by having a
+    // default ([name=foo]); comment-parser flags both as optional. Keying only off
+    // the default missed bracketed params that have no default value.
+    nullable: docParam.optional || docParam.defaultRaw != null,
     type: resolvedType,
     value
   };
@@ -322,7 +310,7 @@ function buildVariablePropertyEntry(prop, typedefs) {
   return {
     children: resolvedChildren,
     displayName: baseName,
-    entitySubType: typeInfo.isTypedef ? null : typeInfo.entitySubType ?? null,
+    entitySubType: typeInfo.isTypedef ? null : (typeInfo.entitySubType ?? null),
     isList: typeInfo.isList,
     name: baseName,
     nullable: !!prop.optional,
@@ -367,6 +355,24 @@ function primitiveOutputEntry({ entitySubType = null, isList, name, type }) {
     type,
     value: null
   };
+}
+
+// Validates an `entitySubType` parsed from a JSDoc type (e.g. `{account:json5}`)
+// against the resolved type. Subtypes are only meaningful on Domo entity types;
+// on a typedef reference or a plain primitive they are ignored with a warning so
+// the mistake surfaces instead of silently doing nothing.
+function resolveEntitySubType(typeInfo, { doc, label, warnings }) {
+  const sub = typeInfo.entitySubType;
+  if (!sub) return null;
+  if (typeInfo.isTypedef || !SUBTYPE_ELIGIBLE_TYPES.has(typeInfo.type)) {
+    warnings.push({
+      functionName: doc.functionName,
+      message: `${label} has entity subtype \`${sub}\` on type \`${typeInfo.type}\`, which does not support a subtype; ignoring it.`,
+      severity: 'warning'
+    });
+    return null;
+  }
+  return sub;
 }
 
 function splitPath(path) {

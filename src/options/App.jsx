@@ -40,6 +40,9 @@ export default function App() {
   const [developerMode, setDeveloperMode] = useState(false);
 
   useEffect(() => {
+    if (!window.location.hash) {
+      window.history.replaceState(null, '', '#general-settings');
+    }
     const handleHashChange = () => setCurrentRoute(getHashRoute());
     if (import.meta.env.DEV) {
       chrome.storage.local.get(['developerMode'], (result) => {
@@ -236,5 +239,5 @@ async function getActivityLogTitle() {
 }
 
 function getHashRoute() {
-  return window.location.hash.substring(1) || 'favicon';
+  return window.location.hash.substring(1) || 'general-settings';
 }

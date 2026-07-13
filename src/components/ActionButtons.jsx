@@ -41,6 +41,7 @@ import { UpdateDetails } from '@/components/functions/UpdateDetails';
 import { UpdateOwner } from '@/components/functions/UpdateOwner';
 import { UpdateTriggerVersions } from '@/components/functions/UpdateTriggerVersions';
 import { UpdateWorkflowActionVersions } from '@/components/functions/UpdateWorkflowActionVersions';
+import { ViewInAdmin } from '@/components/functions/ViewInAdmin';
 import { ViewLineage } from '@/components/functions/ViewLineage';
 import { ACTION_BAR_COLLAPSED_EVENT } from '@/hooks/useViewReady';
 import { getAvailableActions } from '@/utils/availableActions';
@@ -216,6 +217,9 @@ export function ActionButtons({
                 <ApiErrors currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
                 {availableActions.has('getCards') && (
                   <GetCards currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
+                )}
+                {availableActions.has('viewInAdmin') && (
+                  <ViewInAdmin currentContext={currentContext} isDisabled={!isDomoPage} />
                 )}
                 {availableActions.has('getDatasets') && (
                   <GetDatasets currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />

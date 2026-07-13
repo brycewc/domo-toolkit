@@ -18,7 +18,10 @@ const CREATE_TABLE_PREFIX = /^\s*CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?[`"]?
 // strings) directly.
 const MYSQL_SQL = {
   ...Prism.languages.sql,
-  keyword: [/\b(?:AND|BETWEEN|DIV|EXISTS|ILIKE|IN|IS|LIKE|NOT|OR|REGEXP|RLIKE|SOUNDS|XOR)\b/i, Prism.languages.sql.keyword]
+  keyword: [
+    /\b(?:AND|BETWEEN|DIV|EXISTS|ILIKE|IN|IS|LIKE|NOT|OR|REGEXP|RLIKE|SOUNDS|XOR|FROM_EPOCH_MILLIS|INITCAP)\b/i,
+    Prism.languages.sql.keyword
+  ]
 };
 
 // Redshift/Postgres quote identifiers with double quotes and strings with single
@@ -65,10 +68,12 @@ export function SqlBlock({ dialect, query, sql }) {
           // No items-start: let the gutter cell stretch so its background fills
           // every wrapped row, with the number sitting at the top on its own.
           <div className='flex' key={i}>
-            <span className={`${gutterWidth} shrink-0 bg-surface-secondary pr-1 pl-2 text-right text-muted tabular-nums select-none ${rowPad}`}>
+            <span
+              className={`${gutterWidth} shrink-0 bg-surface-secondary pr-1 pl-2 text-right text-muted tabular-nums select-none ${rowPad}`}
+            >
               {i + 1}
             </span>
-            <span className={`min-w-0 flex-1 wrap-break-word whitespace-pre-wrap pr-2 pl-1.5 ${rowPad}`}>
+            <span className={`min-w-0 flex-1 pr-2 pl-1.5 wrap-break-word whitespace-pre-wrap ${rowPad}`}>
               {segments.map((segment, j) =>
                 segment.className ? (
                   <span className={segment.className} key={j}>

@@ -1024,14 +1024,17 @@ export const ObjectTypeRegistry = {
   HOPPER_TASK: new DomoObjectType('HOPPER_TASK', 'Task Center Task', {
     api: {
       endpoint: '/queues/v1/{parent}/tasks/{id}',
-      paths: { created: 'createdOn', name: 'displayEntity.name' }
+      paths: { created: 'createdOn', name: 'attributes[0]' }
     },
     extractConfig: {
       keyword: 'id',
       parentExtract: { keyword: 'queueId', offset: 1 }
     },
     icon: { component: 'FormatListChecks' },
-    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    // Task IDs are case-sensitive, business-defined references (e.g.
+    // "15AUG25_TS551E") or system UUIDs, never plain integers, so accept any
+    // alphanumeric string with underscores or hyphens rather than a UUID shape.
+    idPattern: /^[A-Za-z0-9_-]+$/,
     parents: ['HOPPER_QUEUE'],
     relatedData: [
       { label: 'Task', source: 'self' },

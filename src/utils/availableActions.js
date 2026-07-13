@@ -169,6 +169,15 @@ export function getAvailableActions(currentContext) {
     actions.add('getOwnedObjects');
     actions.add('getCardPages');
     actions.add('duplicate');
+    // Only offer the jump to admin settings from the person's public profile
+    // (/up/{id}); on the admin page itself (/admin/people/{id}) it's redundant.
+    try {
+      if (new URL(url).pathname.startsWith('/up/')) {
+        actions.add('viewInAdmin');
+      }
+    } catch {
+      // url missing or unparseable — omit the action
+    }
     if (userRights.includes('user.edit')) {
       actions.add('updateDetails');
     }

@@ -543,7 +543,7 @@ const TileDetail = memo(function TileDetail({ dialect, searchQuery, tile }) {
         </div>
         <div className='flex flex-col gap-2 p-2'>
           {tile.inputDatasets.length > 0 && (
-            <DetailSection label='Input DataSet'>
+            <DetailSection label='ID'>
               {tile.inputDatasets.map((id, i) => (
                 <DetailMono key={i}>{id}</DetailMono>
               ))}
@@ -551,10 +551,16 @@ const TileDetail = memo(function TileDetail({ dialect, searchQuery, tile }) {
           )}
 
           {tile.outputDataset && (
-            <DetailSection label='Output DataSet'>
-              <DetailMono>{tile.outputDataset}</DetailMono>
-              {tile.rawDetails.updateMode && <DetailMono>Mode: {tile.rawDetails.updateMode}</DetailMono>}
-            </DetailSection>
+            <>
+              <DetailSection label='ID'>
+                <DetailMono>{tile.outputDataset}</DetailMono>
+              </DetailSection>
+              {tile.rawDetails.updateMode && (
+                <DetailSection label='Mode'>
+                  <DetailMono>{tile.rawDetails.updateMode}</DetailMono>
+                </DetailSection>
+              )}
+            </>
           )}
 
           {tile.rawDetails.constants?.length > 0 && (
@@ -577,31 +583,45 @@ const TileDetail = memo(function TileDetail({ dialect, searchQuery, tile }) {
           )}
 
           {tile.joins.length > 0 && (
-            <DetailSection label='Join Keys'>
-              {tile.joins.map((j, i) => (
-                <DetailMono key={i}>
-                  {highlightMatch(j.leftKey, searchQuery)} = {highlightMatch(j.rightKey, searchQuery)}
-                  <span className='ml-2 text-muted'>({j.joinType})</span>
-                </DetailMono>
-              ))}
-            </DetailSection>
+            <>
+              <DetailSection label='Type'>
+                <DetailMono>{tile.joins[0].joinType}</DetailMono>
+              </DetailSection>
+              <DetailSection label='Join Keys'>
+                {tile.joins.map((j, i) => (
+                  <DetailMono key={i}>
+                    {highlightMatch(j.leftKey, searchQuery)} = {highlightMatch(j.rightKey, searchQuery)}
+                  </DetailMono>
+                ))}
+              </DetailSection>
+            </>
           )}
 
-          {tile.expressions.length > 0 && (
-            <DetailSection label='Expressions'>
-              {tile.expressions.map((e, i) => (
-                <div className='border-divider rounded border bg-surface p-2 text-xs' key={i}>
-                  <div className='font-semibold'>{highlightMatch(e.resultField, searchQuery)}</div>
-                  <div className='font-mono break-all'>{highlightMatch(e.expression, searchQuery)}</div>
-                </div>
-              ))}
-            </DetailSection>
-          )}
+          {tile.expressions.length > 0 &&
+            tile.expressions.map((e, i) => (
+              <DetailSection
+                className='rounded-field border border-field bg-field p-1 font-mono text-xs text-field-foreground shadow-field'
+                key={i}
+                label={e.resultField}
+              >
+                <SqlBlock
+                  dialect={dialect}
+                  key={`expression-${i}`}
+                  query={searchQuery}
+                  sql={typeof e.expression === 'string' ? e.expression : e.expression.query}
+                >
+                  {highlightMatch(e.expression, searchQuery)}
+                </SqlBlock>
+              </DetailSection>
+            ))}
 
           {tile.rawDetails.aggregates?.length > 0 && (
             <DetailSection label='Aggregates'>
               {tile.rawDetails.aggregates.map((a, i) => (
-                <div className='border-divider rounded border bg-surface p-2 text-xs' key={i}>
+                <div
+                  className='rounded-field border border-field bg-field px-3 py-2 font-mono text-xs text-field-foreground shadow-field'
+                  key={i}
+                >
                   <div className='font-semibold'>{highlightMatch(a.field, searchQuery)}</div>
                   <div className='font-mono break-all text-muted'>{highlightMatch(a.expression, searchQuery)}</div>
                 </div>
@@ -667,7 +687,7 @@ const TileDetail = memo(function TileDetail({ dialect, searchQuery, tile }) {
 
           {tile.columns.length > 0 && (
             <DetailSection label={`Columns (${tile.columns.length})`}>
-              <div className='border-divider rounded border bg-surface p-2 text-xs'>
+              <div className='rounded-field border border-field bg-field px-3 py-2 font-mono text-xs text-field-foreground shadow-field'>
                 {tile.columns
                   .map((c) => highlightMatch(c, searchQuery))
                   .reduce((acc, col, i) => {
@@ -720,7 +740,10 @@ function TileConfig({ rawDetails }) {
   return (
     <DetailSection label='Configuration'>
       {entries.map(([label, value], i) => (
-        <div className='border-divider flex items-center justify-between rounded border bg-surface p-2 text-xs' key={i}>
+        <div
+          className='flex items-center justify-between gap-2 rounded-field border border-field bg-field px-3 py-2 text-xs text-field-foreground shadow-field'
+          key={i}
+        >
           <span className='font-semibold'>{label}</span>
           <span className='font-mono text-muted'>{value}</span>
         </div>
