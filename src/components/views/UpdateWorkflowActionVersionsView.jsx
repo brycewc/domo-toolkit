@@ -623,7 +623,7 @@ export function UpdateWorkflowActionVersionsView({
                         <Tooltip.Content>{isSubflow ? 'Subflow' : 'Code Engine package'}</Tooltip.Content>
                       </Tooltip>
                       <Link
-                        className='min-w-0 truncate decoration-accent hover:text-accent'
+                        className='min-w-0 truncate decoration-accent underline-offset-2 hover:text-accent'
                         href={groupHref}
                         target='_blank'
                       >

@@ -109,9 +109,14 @@ export class DataListItem {
    * @param {'loading'|'loaded'|'transferring'|'transferred'|'error'|'failed'} [config.status]
    *   Async state that DataList renders as a spinner or X icon in the count slot.
    * @param {string} [config.error] - Error message rendered inside the body when expanded (status='error'/'failed').
+   * @param {string} [config.typeId] - Object type identifier for the group header's
+   *   leading `ObjectTypeIcon` (e.g. 'CARD' so a "Cards on this page" group shows a
+   *   card icon). Omit for meta-categories that span multiple types (their header
+   *   stays iconless). Distinct from `childTypeId`, which drives the group's "all"
+   *   actions; set both to the same value when a group is homogeneous.
    * @returns {DataListItem}
    */
-  static createGroup({ children, childTypeId = null, count, error, id, label, metadata, status }) {
+  static createGroup({ children, childTypeId = null, count, error, id, label, metadata, status, typeId = null }) {
     const childCount = Array.isArray(children) ? children.length : 0;
     return new DataListItem({
       children,
@@ -124,7 +129,7 @@ export class DataListItem {
       label,
       metadata: metadata || `${childCount} item${childCount !== 1 ? 's' : ''}`,
       status,
-      typeId: null,
+      typeId,
       url: null
     });
   }

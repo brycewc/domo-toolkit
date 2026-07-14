@@ -907,8 +907,8 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
             </AlertDialog.Header>
             <AlertDialog.Body className='text-sm'>
               <p>
-                Auto Map replaces every column's mapping with its closest match and leaves columns it can't match
-                unmapped. Mappings you've set manually will be overwritten.
+                Auto Map replaces every column's mapping with its closest match and leaves columns it can't match unmapped.
+                Mappings you've set manually will be overwritten.
               </p>
             </AlertDialog.Body>
             <AlertDialog.Footer>
@@ -1023,7 +1023,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
                           <ObjectTypeIcon className='size-3.5 shrink-0 text-muted' typeId='DATA_SOURCE' />
                           {sectionUrl ? (
                             <Link
-                              className='truncate text-xs font-semibold text-current no-underline decoration-accent hover:text-accent hover:underline'
+                              className='truncate text-xs font-semibold text-current no-underline decoration-accent underline-offset-2 hover:text-accent hover:underline'
                               href={sectionUrl}
                               target='_blank'
                               title={section.name}

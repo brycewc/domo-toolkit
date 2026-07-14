@@ -57,7 +57,7 @@
 
 .json-view .jv-size {
   cursor: pointer;
-  opacity: 0.4;
+  opacity: 0.5;
   font-size: 0.875em;
   font-style: italic;
   margin-left: 0.5em;
@@ -176,11 +176,14 @@
   background-color: #f8514922;
 }
 
-/* Inline annotation (timestamps, user display names, etc.) */
+/* Inline annotation (timestamps, user display names, etc.). Matches the
+   .jv-size count suffix (size, opacity, alignment) so the two read as one style. */
 .json-view .json-view--annotation {
-  font-size: 0.8em;
+  font-size: 0.875em;
   font-style: italic;
+  line-height: 1;
   margin-left: 0.5em;
   opacity: 0.5;
   user-select: none;
+  vertical-align: -5%;
 }

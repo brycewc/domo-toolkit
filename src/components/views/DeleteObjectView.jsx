@@ -17,6 +17,7 @@ import { deletePageAndAllCards } from '@/services/pages';
 import { parseMarkdownBold } from '@/utils/markdown';
 import { collectShareableObjects } from '@/utils/rowActions';
 import { getSidepanelData } from '@/utils/sidepanel';
+import IconSync from '@icons/sync.svg?react';
 import IconTrash from '@icons/trash.svg?react';
 import IconX from '@icons/x.svg?react';
 
@@ -344,6 +345,9 @@ export function DeleteObjectView({
   const typeName = domoObject.typeName?.toLowerCase() || config.typeName.toLowerCase();
   const objectName = domoObject.metadata?.name || domoObject.id;
   const isBlocked = !!deps?.blockingCount && deps.blockingCount > 0;
+  // A failed dependency check means we can't tell what a delete would take down,
+  // so block deleting until the user retries the check successfully.
+  const hasDepsError = !!depsError;
   const outputCount = domoObject.metadata?.details?.outputs?.length || 0;
   const deletedCount = (deps?.groups || []).filter((g) => g.deleted).reduce((n, g) => n + g.items.length, 0);
 
@@ -368,7 +372,7 @@ export function DeleteObjectView({
       DataListItem.createGroup({
         children: buildDependencyItems(deletedGroups, 'deleted-group', baseUrl),
         id: 'will-also-be-deleted',
-        label: 'Will also be deleted'
+        label: 'Will Also Be Deleted'
       })
     );
   }
@@ -377,7 +381,7 @@ export function DeleteObjectView({
       DataListItem.createGroup({
         children: buildDependencyItems(otherGroups, 'other-group', baseUrl),
         id: 'other-dependencies',
-        label: 'Other dependencies'
+        label: 'Other Dependencies'
       })
     );
   }
@@ -427,7 +431,7 @@ export function DeleteObjectView({
                 <Tooltip key={idx}>
                   <Button
                     fullWidth
-                    isDisabled={isDeleting || blocked}
+                    isDisabled={isDeleting || blocked || hasDepsError}
                     variant='tertiary'
                     onPress={() =>
                       setPendingAction({
@@ -441,15 +445,19 @@ export function DeleteObjectView({
                     {cascadeLabel}
                   </Button>
                   <Tooltip.Content className='max-w-60'>
-                    {blocked ? cascade.blockedReason(ctx) : cascade.tooltip(ctx)}
+                    {hasDepsError
+                      ? 'Retry the dependency check before deleting.'
+                      : blocked
+                        ? cascade.blockedReason(ctx)
+                        : cascade.tooltip(ctx)}
                   </Tooltip.Content>
                 </Tooltip>
               );
             })}
-            <Tooltip isDisabled={!isBlocked}>
+            <Tooltip isDisabled={!isBlocked && !hasDepsError}>
               <Button
                 fullWidth
-                isDisabled={isDeleting || isBlocked}
+                isDisabled={isDeleting || isBlocked || hasDepsError}
                 isPending={isDeleting}
                 variant='danger'
                 onPress={() => setPendingAction({ kind: 'primary', label: primaryLabel })}
@@ -457,7 +465,9 @@ export function DeleteObjectView({
                 <IconTrash />
                 {primaryLabel}
               </Button>
-              <Tooltip.Content className='max-w-60'>{deps?.blockingReason || 'Blocked'}</Tooltip.Content>
+              <Tooltip.Content className='max-w-60'>
+                {hasDepsError ? 'Retry the dependency check before deleting.' : deps?.blockingReason || 'Blocked'}
+              </Tooltip.Content>
             </Tooltip>
           </div>
         }
@@ -551,12 +561,16 @@ function buildDependencyItems(groups, idPrefix, baseUrl) {
     // sitting under an icon-less disclosure header.
     if (group.flat) return children;
     // Each dependency group lists items of a single type, so record it as the
-    // group's childTypeId; DataList uses it to decide the group's "all" actions.
+    // group's childTypeId; DataList uses it to decide the group's "all" actions,
+    // and pass it as typeId too so the header shows that type's icon (e.g. a card
+    // icon on "Cards on this page").
+    const groupTypeId = group.items[0]?.typeId ?? null;
     return DataListItem.createGroup({
       children,
-      childTypeId: group.items[0]?.typeId ?? null,
+      childTypeId: groupTypeId,
       id: `${idPrefix}-${idx}`,
-      label: group.label
+      label: group.label,
+      typeId: groupTypeId
     });
   });
 }
@@ -582,15 +596,15 @@ function renderDependencyBanner({ deps, error, isBlocked, isLoading, onRetry }) 
 
   if (error) {
     return (
-      <Alert className='w-full bg-danger-soft' status='danger'>
+      <Alert className='w-full' status='danger' variant='transparent'>
         <Alert.Content>
           <Alert.Title className='flex items-center gap-1'>
-            <Alert.Indicator />
+            <AlertStatusIcon />
             Could not check dependencies
           </Alert.Title>
           <Alert.Description>{error}</Alert.Description>
-          <Button className='mt-2' size='sm' variant='ghost' onPress={onRetry}>
-            Retry
+          <Button fullWidth className='mt-2' size='sm' variant='secondary' onPress={onRetry}>
+            <IconSync /> Retry
           </Button>
         </Alert.Content>
       </Alert>
@@ -601,12 +615,13 @@ function renderDependencyBanner({ deps, error, isBlocked, isLoading, onRetry }) 
 
   if (!deps.supported) {
     return (
-      <Alert className='w-full bg-surface-secondary' status='default'>
-        <Alert.Indicator />
+      <Alert className='w-full' status='accent' variant='transparent'>
         <Alert.Content>
-          <Alert.Description className='text-foreground'>
-            Dependency check is not available for this object type. Verify dependencies manually before deleting.
-          </Alert.Description>
+          <Alert.Title className='flex items-center gap-1'>
+            <AlertStatusIcon />
+            Dependency check not supported for this object type
+          </Alert.Title>
+          <Alert.Description>Verify dependencies manually before deleting</Alert.Description>
         </Alert.Content>
       </Alert>
     );
@@ -615,9 +630,11 @@ function renderDependencyBanner({ deps, error, isBlocked, isLoading, onRetry }) 
   if (deps.totalCount === 0) {
     return (
       <Alert className='w-full' status='success' variant='transparent'>
-        <Alert.Indicator />
         <Alert.Content>
-          <Alert.Description>No dependencies found.</Alert.Description>
+          <Alert.Title className='flex items-center gap-1'>
+            <AlertStatusIcon />
+            No dependencies found
+          </Alert.Title>
         </Alert.Content>
       </Alert>
     );
@@ -625,9 +642,12 @@ function renderDependencyBanner({ deps, error, isBlocked, isLoading, onRetry }) 
 
   if (isBlocked && deps.blockingReason) {
     return (
-      <Alert className='w-full bg-warning-soft' status='warning'>
-        <AlertStatusIcon />
+      <Alert className='w-full' status='warning' variant='transparent'>
         <Alert.Content>
+          <Alert.Title className='flex items-center gap-1'>
+            <AlertStatusIcon />
+            Delete blocked by dependencies
+          </Alert.Title>
           <Alert.Description>{deps.blockingReason}</Alert.Description>
         </Alert.Content>
       </Alert>

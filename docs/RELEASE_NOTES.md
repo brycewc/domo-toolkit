@@ -45,7 +45,9 @@
 - The transform detail values in Inspect DataFlow now appear in input-style boxes.
 - The expression, aggregate, column, and configuration boxes in Inspect DataFlow no longer have a border.
 - Get Card Pages now labels the page count on each app studio app, report, and worksheet (e.g. "3 pages") instead of showing a bare number.
+- Get Card Pages on a page, app studio app, or worksheet now lists the cards that live only there under a "Cards that Only Live Here" category.
 - The Update Details view now shows the object's type icon next to its name in the title instead of next to the ID below.
+- Delete now shows a type icon on each dependency category, such as a card icon on Cards on This Page.
 - Renamed the action button "Update <Object> Details" to "Update Details".
 - System pages (Overview, Favorites, or Shared) in a list now carry a "System" chip next to their name.
 - Copying an object from a JSON viewer now produces formatted, indented JSON in every view.
@@ -53,6 +55,7 @@
 - Generate Definition from JSDoc now shows a changed simple property such as nullable or isList on a single line instead of a taller stacked block.
 - Generate Definition from JSDoc no longer shows a separate Return Value change when a function's output is added or removed alongside it.
 - Generate Definition from JSDoc now shows just that a nested output or input field was added or removed, instead of listing all of that field's properties.
+- The readable timestamps and user/group names shown next to values in the context JSON view now match the size of the item count shown next to objects and arrays.
 
 ## Performance
 
@@ -81,3 +84,6 @@
 - Transferring a user's objects now shows a green checkmark on each object type that finishes successfully, not only a red X on the ones that fail.
 - Opening a Task Center task with a reference-style ID (such as "15AUG25_TS551E") is now recognized instead of leaving the current context empty.
 - Opening the settings page without a specific tab now lands on General Settings instead of a blank page with no tab selected.
+- The delete confirmation now disables its delete buttons when the dependency check fails.
+- Hovering an object's name in a list now underlines it.
+- Viewing Objects Owned by someone who owns nothing now shows a brief message instead of a list of empty categories.

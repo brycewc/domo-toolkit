@@ -1073,6 +1073,7 @@ export const ObjectTypeRegistry = {
     parents: ['MAGNUM_DATASTORE'],
     relatedData: [
       { label: 'Collection', source: 'self' },
+      { field: 'datasourceId', label: 'DataSet', typeId: 'DATA_SOURCE' },
       { label: 'DataStore', source: 'parentId', typeId: 'MAGNUM_DATASTORE' }
     ],
     urlPath: '/appDb/{id}/permissions'

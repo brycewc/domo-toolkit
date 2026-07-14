@@ -197,11 +197,12 @@ export function GetPagesView({
           .catch(() => {});
       }
 
-      // Orphaned Cards is only meaningful next to real pages, where it contrasts the
-      // cards that live somewhere with the ones that don't. When no pages turn up at
-      // all, the whole answer is "these cards live nowhere," which is a toast, not a
-      // view showing a lone Orphaned Cards group. This holds for every object type,
-      // including a single card (which would list only itself as the orphan).
+      // The trailing card group (Orphaned Cards, or Cards that Only Live Here for
+      // page/app/worksheet queries) is only meaningful next to real pages, where it
+      // contrasts the cards that live elsewhere with the ones that don't. When no
+      // pages turn up at all, the whole answer is "these cards live nowhere else,"
+      // which is a toast, not a view showing a lone trailing group. This holds for
+      // every object type, including a single card (which would list only itself).
       const noPages = !childPages || !childPages.length;
       if (noPages) {
         if (!mountedRef.current) return;
@@ -335,8 +336,9 @@ export function GetPagesView({
         parentName: page.parentName || null
       }));
 
-    // Only real pages make this view worth showing; a lone Orphaned Cards group means
-    // the cards live nowhere else, which is a toast rather than a view (see loadPagesData).
+    // Only real pages make this view worth showing; no other pages means the cards
+    // live only on this app/worksheet, which is a toast rather than a view showing a
+    // lone Cards that Only Live Here group (see loadPagesData).
     if (childPages.length === 0) {
       onStatusUpdate?.('No Pages Found', `Cards on this ${parentLabel} are not used on any other pages.`, 'warning');
       onBackToDefault?.();
@@ -511,13 +513,17 @@ export function GetPagesView({
       const pages = tally(items);
       const cards = cardIds.size;
       const orphans = items.find((item) => item.id === 'ORPHANED_CARDS_group')?.children?.length || 0;
-      if (!pages && !orphans) return null;
+      const onlyHere = items.find((item) => item.id === 'ONLY_HERE_group')?.children?.length || 0;
+      if (!pages && !orphans && !onlyHere) return null;
       let text = `${pages} page${pages === 1 ? '' : 's'}`;
       if (cards > 0) {
         text += ` • ${cards} card${cards === 1 ? '' : 's'}`;
       }
       if (orphans > 0) {
         text += ` • ${orphans} orphaned`;
+      }
+      if (onlyHere > 0) {
+        text += ` • ${onlyHere} only here`;
       }
       return text;
     }
@@ -605,6 +611,17 @@ const CARD_PAGE_GROUPS = [
   { childTypeId: 'WORKSHEET', id: 'WORKSHEET_group', label: 'Worksheets' }
 ];
 
+// Object types whose queried cards always live on the object itself (the page,
+// app, or worksheet the query started from). "Cards on no page" (orphaned) is
+// meaningless for these, so instead of Orphaned Cards they get a "Cards that
+// Only Live Here" category listing the cards that appear on no other page.
+const HERE_SCOPED_TYPES = ['DATA_APP', 'DATA_APP_VIEW', 'PAGE', 'WORKSHEET', 'WORKSHEET_VIEW'];
+
+// The here-scoped counterpart to Orphaned Cards, shown for page/app/worksheet
+// queries. Like Orphaned Cards it renders as a muted `(0)` row when empty, so
+// "no cards live only here" reads as an explicit answer.
+const ONLY_HERE_CARDS_GROUP = { childTypeId: 'CARD', id: 'ONLY_HERE_group', label: 'Cards that Only Live Here' };
+
 // Orphaned Cards is an always-show category too, except when querying a single
 // card: a "0 orphaned cards" row is meaningless there (the card itself would be
 // the orphan). When the view does build the group, the helper still appends it.
@@ -637,6 +654,39 @@ function buildCardChildren(pageId, cardsByPage, origin, pageType, parentId) {
       }
       return DataListItem.fromDomoObject(domoObject);
     });
+}
+
+/**
+ * Cards that live only on the queried object and nowhere else.
+ *
+ * For page/app/worksheet-scoped queries the queried cards always live on the
+ * object itself, so the useful signal is which of them appear on no OTHER page.
+ * A card is "only here" when it shows up on none of the other pages the view is
+ * listing. Cards the pages API reports on no page at all (orphaned) still came
+ * from this object, so they count as only-here too.
+ *
+ * @param {Array} childPages - The other pages the view lists (self already excluded)
+ * @param {Object} [cardsByPage] - Mapping of pageId -> [{ id, name }]
+ * @param {Array<{id: string|number, name: string}>} [orphanedCards] - Cards on no page
+ * @returns {Array<{id: string|number, name: string}>}
+ */
+function findCardsOnlyHere(childPages, cardsByPage, orphanedCards) {
+  const otherPageIds = new Set((childPages || []).map((page) => String(page.pageId)));
+  const cardsOnOtherPages = new Set();
+  const candidates = new Map();
+
+  for (const [pageId, cards] of Object.entries(cardsByPage || {})) {
+    const onOtherPage = otherPageIds.has(String(pageId));
+    for (const card of cards) {
+      if (!candidates.has(card.id)) candidates.set(card.id, card);
+      if (onOtherPage) cardsOnOtherPages.add(card.id);
+    }
+  }
+  for (const card of orphanedCards || []) {
+    if (!candidates.has(card.id)) candidates.set(card.id, card);
+  }
+
+  return [...candidates.values()].filter((card) => !cardsOnOtherPages.has(card.id));
 }
 
 /**
@@ -863,9 +913,16 @@ function transformGroupedPagesData(childPages, origin, cardsByPage, orphanedCard
     );
   }
 
-  // Handle cards from the queried set that are not on any page
-  if (orphanedCards?.length) {
-    const children = [...orphanedCards]
+  // Trailing card category. For page/app/worksheet queries the cards always live
+  // on the object itself, so surface the ones that live ONLY here (on no other
+  // page); for card, dataset, and user queries keep the "on no page at all"
+  // (orphaned) set.
+  const isHereScoped = HERE_SCOPED_TYPES.includes(objectType);
+  const trailingCards = isHereScoped ? findCardsOnlyHere(childPages, cardsByPage, orphanedCards) : orphanedCards;
+  const trailingGroup = isHereScoped ? ONLY_HERE_CARDS_GROUP : ORPHANED_CARDS_GROUP;
+
+  if (trailingCards?.length) {
+    const children = [...trailingCards]
       .sort((a, b) => (a.name || '').trim().localeCompare((b.name || '').trim()))
       .map((card) => {
         const domoObject = new DomoObject('CARD', card.id, origin, {
@@ -878,13 +935,13 @@ function transformGroupedPagesData(childPages, origin, cardsByPage, orphanedCard
       DataListItem.createGroup({
         children,
         childTypeId: 'CARD',
-        id: 'ORPHANED_CARDS_group',
-        label: 'Orphaned Cards',
+        id: trailingGroup.id,
+        label: trailingGroup.label,
         metadata: `${children.length} card${children.length !== 1 ? 's' : ''}`
       })
     );
   }
 
-  const canonicalGroups = objectType === 'CARD' ? CARD_PAGE_GROUPS : [...CARD_PAGE_GROUPS, ORPHANED_CARDS_GROUP];
+  const canonicalGroups = objectType === 'CARD' ? CARD_PAGE_GROUPS : [...CARD_PAGE_GROUPS, trailingGroup];
   return withCanonicalGroups(items, canonicalGroups);
 }

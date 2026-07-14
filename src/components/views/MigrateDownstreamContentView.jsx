@@ -2612,7 +2612,7 @@ function DataflowCollisionModal({ dataflows, origin, originName }) {
                         <ObjectTypeIcon className='size-4 shrink-0' typeId='DATAFLOW_TYPE' />
                         {url ? (
                           <Link
-                            className='min-w-0 truncate text-sm no-underline decoration-accent hover:text-accent hover:underline'
+                            className='min-w-0 truncate text-sm no-underline decoration-accent underline-offset-2 hover:text-accent hover:underline'
                             href={url}
                             target='_blank'
                             title={df.dataflowName}

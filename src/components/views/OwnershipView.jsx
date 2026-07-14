@@ -126,6 +126,9 @@ export function OwnershipView({
   const [isTransferring, setIsTransferring] = useState(false);
 
   const mountedRef = useRef(true);
+  // Fires the "no objects owned" toast + back-to-default exactly once. Guards
+  // against a double-fire in the frame between showStatus and unmount.
+  const emptyHandledRef = useRef(false);
   const { showStatus } = useStatusBar();
 
   useEffect(() => {
@@ -255,6 +258,23 @@ export function OwnershipView({
       }),
     [forbidden, results, transferTypes]
   );
+
+  // When every type finishes loading and the source owns nothing at all, there
+  // is no useful view to show, so surface a toast and drop back to the default
+  // view instead of a wall of (0) rows. Only fires on a clean empty result: if
+  // any fetch errored, we keep the view up so the failures stay visible (the
+  // subtext already flags them). The `Object.keys(results).length` guard skips
+  // the vacuous isFullyLoaded=true frame before the fetches' initial results
+  // land (same race the auto-select pruner guards against).
+  useEffect(() => {
+    if (emptyHandledRef.current) return;
+    if (!isFullyLoaded) return;
+    if (Object.keys(results).length === 0) return;
+    if (errorCount > 0 || totalObjects > 0) return;
+    emptyHandledRef.current = true;
+    showStatus('No Objects Owned', `**${userName}** does not own any objects`, 'warning');
+    onBackToDefault?.();
+  }, [errorCount, isFullyLoaded, onBackToDefault, results, showStatus, totalObjects, userName]);
 
   // Every type the toolkit user can actually transfer right now (loaded, > 0
   // items, not forbidden). Recomputed when fetch results change so the "Select
