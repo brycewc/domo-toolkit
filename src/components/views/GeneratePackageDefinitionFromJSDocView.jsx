@@ -488,7 +488,10 @@ function DecisionRow({ decision, rewrites }) {
     return (
       <div className='flex w-full items-center justify-between gap-2 overflow-hidden rounded-3xl bg-surface-secondary p-2'>
         {trigger}
-        <IconChevronDown className='size-4 shrink-0 text-surface' />
+        {/* Non-expandable rows keep a chevron-sized spacer so their content aligns
+            with expandable rows, but the chevron itself stays invisible. Transparent
+            (not a background-matching color) so it hides regardless of the tile bg. */}
+        <IconChevronDown className='size-4 shrink-0 text-transparent' />
       </div>
     );
   }
@@ -548,7 +551,12 @@ function DiffRow({ diff }) {
     const suffix = diff.kind === 'added' ? ' (added)' : diff.kind === 'removed' ? ' (removed)' : '';
     return (
       <div className='flex items-baseline gap-3 rounded-field border border-field bg-field px-3 py-1 text-xs text-field-foreground shadow-field'>
-        {pathStr && <span className='min-w-0 truncate font-mono text-muted'>{pathStr}{suffix}</span>}
+        {pathStr && (
+          <span className='min-w-0 truncate font-mono text-muted'>
+            {pathStr}
+            {suffix}
+          </span>
+        )}
         <span className='ml-auto flex shrink-0 items-baseline gap-1.5 font-mono'>
           {diff.kind !== 'added' && (
             <span className='text-danger'>{formatFieldValue(diff.kind === 'changed' ? diff.before : diff.value)}</span>
@@ -566,7 +574,12 @@ function DiffRow({ diff }) {
   // announce that it happened; its inner properties are noise. The path already names
   // it. Collapse to one row, but only for a named nested node (non-empty path) so the
   // top-level field itself (empty path) still shows its full shape.
-  if ((diff.kind === 'added' || diff.kind === 'removed') && pathStr && diff.value !== null && typeof diff.value === 'object') {
+  if (
+    (diff.kind === 'added' || diff.kind === 'removed') &&
+    pathStr &&
+    diff.value !== null &&
+    typeof diff.value === 'object'
+  ) {
     const removed = diff.kind === 'removed';
     return (
       <div className='flex items-baseline gap-3 rounded-field border border-field bg-field px-3 py-1 text-xs text-field-foreground shadow-field'>
@@ -791,7 +804,7 @@ function WarningsSection({ warnings }) {
     );
   }
   return (
-    <Disclosure className='border-divider w-full overflow-hidden rounded-lg border bg-surface-secondary'>
+    <Disclosure className='w-full overflow-hidden rounded-3xl bg-surface-secondary'>
       <Disclosure.Heading>
         <Disclosure.Trigger className='flex w-full items-center justify-between gap-2 p-2'>
           <span className='truncate text-sm font-medium'>Warnings ({warnings.length})</span>
