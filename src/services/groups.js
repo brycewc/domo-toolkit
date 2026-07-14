@@ -45,28 +45,31 @@ export async function fetchGroupDisplayNames(groupIds, tabId = null) {
 }
 
 /**
- * Get all groups owned by a user.
- * @param {number} userId - The Domo user ID
+ * Get all groups owned by a user or group.
+ * @param {number} ownerId - The Domo user or group ID
  * @param {number|null} tabId - Optional Chrome tab ID
+ * @param {'USER'|'GROUP'} [ownerType='USER'] - Whether ownerId is a user or group
  * @returns {Promise<Array<{id: number, name: string}>>}
  */
-export async function getOwnedGroups(userId, tabId = null) {
+export async function getOwnedGroups(ownerId, tabId = null, ownerType = 'USER') {
   return executeInPage(
-    async (userId) => {
+    async (ownerId, ownerType) => {
       const allGroups = [];
       const limit = 100;
       let moreData = true;
       let offset = 0;
 
       while (moreData) {
-        const response = await fetch(`/api/content/v2/groups/grouplist?limit=${limit}&offset=${offset}&owner=${userId}`);
+        const response = await fetch(
+          `/api/content/v2/groups/grouplist?limit=${limit}&offset=${offset}&owner=${ownerId}&ownerType=${ownerType}`
+        );
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
 
         if (data && data.length > 0) {
           allGroups.push(
             ...data
-              .filter((g) => g.owners?.some((o) => o.type === 'USER' && String(o.id) === String(userId)))
+              .filter((g) => g.owners?.some((o) => o.type === ownerType && String(o.id) === String(ownerId)))
               .map((g) => ({
                 id: g.groupId,
                 name: g.name || g.groupId.toString()
@@ -81,27 +84,61 @@ export async function getOwnedGroups(userId, tabId = null) {
 
       return allGroups;
     },
-    [userId],
+    [ownerId, ownerType],
     tabId
   );
 }
 
 /**
- * Transfer group ownership to a new user.
- * @param {number[]} groupIds - Array of group IDs to transfer
- * @param {number} fromUserId - The current owner's user ID
- * @param {number} toUserId - The new owner's user ID
+ * Free-text search for groups by name, paginated. Backs the group target
+ * picker in the Transfer Ownership flow.
+ * @param {string} text - Search term (empty string lists all groups)
  * @param {number|null} tabId - Optional Chrome tab ID
+ * @param {number} [offset=0] - Pagination offset
+ * @returns {Promise<{groups: Array<{id: number, memberCount: number, name: string}>, hasMore: boolean}>}
+ */
+export async function searchGroups(text, tabId = null, offset = 0) {
+  return executeInPage(
+    async (text, offset, limit) => {
+      const params = new URLSearchParams({
+        ascending: 'true',
+        limit: String(limit),
+        offset: String(offset),
+        search: text || '',
+        sort: 'name'
+      });
+      const response = await fetch(`/api/content/v2/groups/grouplist?${params.toString()}`);
+      if (!response.ok) throw new Error(`Failed to search groups. Status: ${response.status}`);
+      const data = await response.json();
+      const groups = (Array.isArray(data) ? data : []).map((g) => ({
+        id: g.groupId,
+        memberCount: g.memberCount ?? null,
+        name: g.name || String(g.groupId)
+      }));
+      return { groups, hasMore: groups.length === limit };
+    },
+    [text, offset, 50],
+    tabId
+  );
+}
+
+/**
+ * Transfer group ownership to a new user or group.
+ * @param {number[]} groupIds - Array of group IDs to transfer
+ * @param {number} fromOwnerId - The current owner's user or group ID
+ * @param {number} toOwnerId - The new owner's user or group ID
+ * @param {number|null} tabId - Optional Chrome tab ID
+ * @param {'USER'|'GROUP'} [ownerType='USER'] - Owner type of both parties
  * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
  */
-export async function transferGroups(groupIds, fromUserId, toUserId, tabId = null) {
+export async function transferGroups(groupIds, fromOwnerId, toOwnerId, tabId = null, ownerType = 'USER') {
   return executeInPage(
-    async (groupIds, fromUserId, toUserId) => {
+    async (groupIds, fromOwnerId, toOwnerId, ownerType) => {
       try {
         const body = groupIds.map((id) => ({
-          addOwners: [{ id: toUserId, type: 'USER' }],
+          addOwners: [{ id: toOwnerId, type: ownerType }],
           groupId: id,
-          removeOwners: [{ id: fromUserId, type: 'USER' }]
+          removeOwners: [{ id: fromOwnerId, type: ownerType }]
         }));
 
         const response = await fetch('/api/content/v2/groups/access', {
@@ -119,7 +156,7 @@ export async function transferGroups(groupIds, fromUserId, toUserId, tabId = nul
         };
       }
     },
-    [groupIds, fromUserId, toUserId],
+    [groupIds, fromOwnerId, toOwnerId, ownerType],
     tabId
   );
 }

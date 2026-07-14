@@ -5,6 +5,7 @@ import IconListBulleted from '@icons/list-bulleted.svg?react';
 
 export function GetOwnedObjects({ currentContext, onStatusUpdate }) {
   const { isPending, launch } = useLaunchView();
+  const isGroup = currentContext?.domoObject?.typeId === 'GROUP';
 
   return (
     <Tooltip>
@@ -25,7 +26,7 @@ export function GetOwnedObjects({ currentContext, onStatusUpdate }) {
         Get Owned Objects
       </Button>
       <Tooltip.Content className='max-w-60' offset={4}>
-        List all objects of all types owned by this user
+        {isGroup ? 'List all objects of all types owned by this group' : 'List all objects of all types owned by this user'}
       </Tooltip.Content>
     </Tooltip>
   );

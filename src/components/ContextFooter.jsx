@@ -1,4 +1,5 @@
 import { Chip, Disclosure, Link, ScrollShadow, Skeleton, Spinner, Tabs, Tooltip } from '@heroui/react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import JsonView from 'react18-json-view';
 
@@ -70,6 +71,19 @@ import { UserIdAnnotation } from './UserIdAnnotation';
 // approvals and the like) goes stale as people act on it.
 const RELATED_CACHE_TTL_MS = 300 * 1000; // 300 seconds
 const relatedDataCache = new Map(); // chromeTabId -> { objectId, entries: Map<tabKey, { data, timestamp }> }
+
+// A related-data array longer than this renders one JsonView per row inside a
+// virtualized scroller (VirtualizedArrayJsonView) instead of a single JsonView
+// over the whole array, so only the rows on screen mount. Set below
+// react18-json-view's own 100-item fold point on purpose: between 50 and 100 the
+// library still renders every item at once, and a list like a workflow's ~67
+// triggers (20 properties each) is already laggy there, so we take over first.
+// Arrays at or below 50 keep the plain single-JsonView render (array brackets,
+// indices, whole-array copy) untouched. ROW_ESTIMATE seeds each row's height
+// before measurement; measureElement corrects it as rows render.
+const ARRAY_VIRTUAL_OVERSCAN = 6;
+const ARRAY_VIRTUAL_ROW_ESTIMATE = 160;
+const ARRAY_VIRTUAL_THRESHOLD = 50;
 
 export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onStatusUpdate }) {
   const [developerMode, setDeveloperMode] = useState(false);
@@ -388,6 +402,27 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
 
   const baseUrl = currentContext?.domoObject?.baseUrl;
 
+  // URL-injected items for the active array tab, computed once here so both the
+  // virtualization decision and the virtualized rows share them. Null unless the
+  // active tab is an array whose data has resolved to a real array (a lazy tab
+  // still loading or in error stays null and falls through to the normal path,
+  // which renders its spinner/error). Long arrays render row-by-row in a
+  // virtualized scroller; short ones keep the single-JsonView render below.
+  const activeArrayItems = useMemo(() => {
+    if (!activeTab?.isArray) return null;
+    const arrayData = activeTab.fetcher ? relatedCache[activeTabId] : activeTab.data;
+    if (!Array.isArray(arrayData)) return null;
+    return injectUrls(arrayData, {
+      baseUrl,
+      isArray: true,
+      itemIdField: activeTab.itemIdField,
+      itemTypeField: activeTab.itemTypeField,
+      itemTypeId: activeTab.itemTypeId,
+      parentId: activeTab.parentId
+    });
+  }, [activeTab, activeTabId, baseUrl, relatedCache]);
+  const shouldVirtualizeArray = activeArrayItems !== null && activeArrayItems.length > ARRAY_VIRTUAL_THRESHOLD;
+
   const renderJsonContent = () => {
     if (!activeTab) return null;
 
@@ -627,14 +662,22 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
               </Tabs.ListContainer>
             </Tabs>
           )}
-          <ScrollShadow
-            hideScrollBar
-            className='min-h-0 flex-1 overflow-y-auto overscroll-y-contain'
-            offset={2}
-            orientation='vertical'
-          >
-            {renderJsonContent()}
-          </ScrollShadow>
+          {shouldVirtualizeArray ? (
+            // Virtualized array: this component owns the scroll viewport, so it
+            // bypasses ScrollShadow (whose scroll element the virtualizer can't
+            // listen on). Loses the edge-fade gradient, worth it for windowing a
+            // long related list.
+            <VirtualizedArrayJsonView groupMap={groupMap} items={activeArrayItems} userMap={userMap} />
+          ) : (
+            <ScrollShadow
+              hideScrollBar
+              className='min-h-0 flex-1 overflow-y-auto overscroll-y-contain'
+              offset={2}
+              orientation='vertical'
+            >
+              {renderJsonContent()}
+            </ScrollShadow>
+          )}
         </div>
       </Disclosure.Content>
     </Disclosure>
@@ -813,6 +856,47 @@ function resolveRelatedParentId(related, domoObject) {
   }
 
   return null;
+}
+
+// Windowed render of a long related-data array: one JsonView per row, only the
+// visible rows mounted. Each row is the array item rendered as its own JSON
+// root, so `collapsed={1}` reproduces the whole-array `collapsed={2}` look
+// (scalar fields shown, nested objects collapsed) now that the item sits one
+// level shallower. A muted index gutter stands in for the array indices lost
+// when the array's own brackets go away. Row heights vary as nodes expand, so
+// measureElement remeasures each row from the DOM after its estimate.
+function VirtualizedArrayJsonView({ groupMap, items, userMap }) {
+  const parentRef = useRef(null);
+  const virtualizer = useVirtualizer({
+    count: items.length,
+    estimateSize: () => ARRAY_VIRTUAL_ROW_ESTIMATE,
+    getScrollElement: () => parentRef.current,
+    overscan: ARRAY_VIRTUAL_OVERSCAN
+  });
+  return (
+    <div className='min-h-0 w-full flex-1 overflow-auto overscroll-y-contain' ref={parentRef}>
+      <div
+        className='divide-y divide-border'
+        style={{ height: virtualizer.getTotalSize(), position: 'relative', width: '100%' }}
+      >
+        {virtualizer.getVirtualItems().map((vRow) => (
+          <div
+            data-index={vRow.index}
+            key={vRow.index}
+            ref={virtualizer.measureElement}
+            style={{ left: 0, position: 'absolute', top: 0, transform: `translateY(${vRow.start}px)`, width: '100%' }}
+          >
+            <div className='flex gap-1 py-1'>
+              <span className='json-view-array-index shrink-0 pt-px text-sm select-none'>{vRow.index}:</span>
+              <div className='min-w-0 flex-1'>
+                <MetadataJsonView collapsed={1} groupMap={groupMap} src={items[vRow.index]} userMap={userMap} />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function writeRelatedCache(chromeTabId, objectId, key, data) {

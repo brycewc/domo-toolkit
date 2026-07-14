@@ -1,13 +1,15 @@
 import { Button, Description, Form, Input, Label, Modal, Switch, TextField, Tooltip } from '@heroui/react';
 import { useEffect, useState } from 'react';
 
+import { GroupComboBox } from '@/components/GroupComboBox';
 import { UserComboBox } from '@/components/UserComboBox';
+import { fetchGroupDisplayNames } from '@/services/groups';
 import { getFullUserDetails, getUserDetails } from '@/services/users';
 import IconPerson from '@icons/person.svg?react';
 import IconX from '@icons/x.svg?react';
 
 /**
- * Modal that collects the destination user, email/delete preferences, and
+ * Modal that collects the destination owner, email/delete preferences, and
  * a confirmation submit. The parent owns the per-leaf selection state and
  * passes pre-computed summary counts (`selectedTypeCount`,
  * `selectedObjectCount`) so the modal stays leaf-id agnostic. On submit, the
@@ -16,11 +18,17 @@ import IconX from '@icons/x.svg?react';
  * email-new-owner + delete-user) and threads progress into DataList rows via
  * the parent's transferStatus state.
  *
+ * The source can be a user or a group (`ownerType`). A group source transfers
+ * group→group: the destination picker lists groups, the manager shortcut and
+ * "email new owner"/"delete after transfer" toggles (all user-only) are
+ * hidden, and the destination has no email address.
+ *
  * @param {Object} props
  * @param {Object} props.currentContext - Active DomoContext (carries baseUrl, tabId, user.metadata.USER_RIGHTS, and the source user's reportsTo).
  * @param {boolean} props.isOpen
+ * @param {'USER'|'GROUP'} [props.ownerType='USER'] - Owner type of the source and destination.
  * @param {(open: boolean) => void} props.onOpenChange
- * @param {(formData: { toUserId: number, toUserDisplayName: string|null, emailNewOwner: boolean, emailCurrentUser: boolean, deleteAfterTransfer: boolean, targetUser: { displayName: string|null, email: string|null }|null, currentUser: { displayName: string|null, email: string|null }|null }) => void} props.onSubmit
+ * @param {(formData: { toOwnerId: number, toOwnerType: 'USER'|'GROUP', toDisplayName: string|null, emailNewOwner: boolean, emailCurrentUser: boolean, deleteAfterTransfer: boolean, target: { displayName: string|null, email: string|null }|null, currentUser: { displayName: string|null, email: string|null }|null }) => void} props.onSubmit
  * @param {number} props.selectedObjectCount - Number of individual leaves currently selected, summed across types. Drives the confirmation summary line.
  * @param {number} props.selectedTypeCount - Number of types with ≥1 leaf selected. Drives the summary line AND gates submit (0 ⇒ disabled).
  * @param {{ id: number|string, name: string }} props.sourceUser
@@ -30,22 +38,25 @@ export function TransferOwnershipModal({
   isOpen,
   onOpenChange,
   onSubmit,
+  ownerType = 'USER',
   selectedObjectCount,
   selectedTypeCount,
   sourceUser
 }) {
-  const [selectedUserId, setSelectedUserId] = useState(null);
+  const isGroup = ownerType === 'GROUP';
+
+  const [selectedOwnerId, setSelectedOwnerId] = useState(null);
   const [selectedDisplayName, setSelectedDisplayName] = useState(null);
   const [emailNewOwner, setEmailNewOwner] = useState(false);
   const [emailCurrentUser, setEmailCurrentUser] = useState(true);
   const [deleteAfterTransfer, setDeleteAfterTransfer] = useState(false);
-  const [targetUser, setTargetUser] = useState(null);
+  const [target, setTarget] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [manager, setManager] = useState(null);
 
   // Reset the email/delete toggles whenever the modal opens fresh. The chosen
-  // destination is intentionally NOT cleared here: UserComboBox keeps its own
-  // displayed selection across close/reopen, so wiping selectedUserId would
+  // destination is intentionally NOT cleared here: the combobox keeps its own
+  // displayed selection across close/reopen, so wiping selectedOwnerId would
   // desync the parent (the combobox shows a name while the form thinks nothing
   // is picked, which would also make Transfer silently no-op). Leaving it lets
   // the selection, its resolved email, and the switch description all persist
@@ -57,10 +68,11 @@ export function TransferOwnershipModal({
     setDeleteAfterTransfer(false);
   }, [isOpen]);
 
-  // Resolve manager (reportsTo) for the manager-shortcut button. Only fires
-  // while the modal is open so we don't waste lookups.
+  // Resolve manager (reportsTo) for the manager-shortcut button. User-only, so
+  // skipped for a group source. Only fires while the modal is open so we don't
+  // waste lookups.
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || isGroup) return;
     const reportsTo = currentContext?.domoObject?.metadata?.context?.reportsTo;
     if (!reportsTo || !currentContext?.tabId) {
       setManager(null);
@@ -82,33 +94,45 @@ export function TransferOwnershipModal({
     return () => {
       cancelled = true;
     };
-  }, [isOpen, currentContext?.domoObject?.metadata?.context?.reportsTo, currentContext?.tabId]);
+  }, [isGroup, isOpen, currentContext?.domoObject?.metadata?.context?.reportsTo, currentContext?.tabId]);
 
   // Resolve email + displayName for the destination whenever it changes.
   // Powers the email-toggle's description and the attachment's "New Owner
-  // Name" column when the parent emails the recipient post-transfer.
+  // Name" column when the parent emails the recipient post-transfer. Groups
+  // have no email, so the group branch resolves only a display name.
   useEffect(() => {
-    if (!selectedUserId || !currentContext?.tabId) {
-      setTargetUser(null);
+    if (!selectedOwnerId || !currentContext?.tabId) {
+      setTarget(null);
       return;
     }
-    setTargetUser(null);
+    setTarget(null);
     let cancelled = false;
-    getFullUserDetails(selectedUserId, currentContext.tabId)
-      .then((user) => {
-        if (cancelled || !user) return;
-        setTargetUser({
-          displayName: user.displayName || null,
-          email: user.emailAddress || user.email || null
+    if (isGroup) {
+      fetchGroupDisplayNames([selectedOwnerId], currentContext.tabId)
+        .then((map) => {
+          if (cancelled) return;
+          setTarget({ displayName: map?.[selectedOwnerId] || null, email: null });
+        })
+        .catch(() => {
+          if (!cancelled) setTarget(null);
         });
-      })
-      .catch(() => {
-        if (!cancelled) setTargetUser(null);
-      });
+    } else {
+      getFullUserDetails(selectedOwnerId, currentContext.tabId)
+        .then((user) => {
+          if (cancelled || !user) return;
+          setTarget({
+            displayName: user.displayName || null,
+            email: user.emailAddress || user.email || null
+          });
+        })
+        .catch(() => {
+          if (!cancelled) setTarget(null);
+        });
+    }
     return () => {
       cancelled = true;
     };
-  }, [selectedUserId, currentContext?.tabId]);
+  }, [isGroup, selectedOwnerId, currentContext?.tabId]);
 
   // Resolve the current (toolkit) user's email so the "email me" toggle can
   // show the address and the parent can add it to the post-transfer email's
@@ -141,20 +165,23 @@ export function TransferOwnershipModal({
   }, [currentContext?.user?.id, currentContext?.tabId]);
 
   const userRights = currentContext?.user?.metadata?.USER_RIGHTS || [];
-  const canDeleteUsers = userRights.includes('user.edit');
+  // Delete-after-transfer is a user-only affordance (there is no "delete this
+  // group" step); hidden entirely for a group source.
+  const canDeleteUsers = !isGroup && userRights.includes('user.edit');
 
   const handleSubmit = (e) => {
     if (e) e.preventDefault();
-    if (!selectedUserId || selectedTypeCount === 0) return;
+    if (!selectedOwnerId || selectedTypeCount === 0) return;
 
     const formData = {
       currentUser,
       deleteAfterTransfer: deleteAfterTransfer && canDeleteUsers,
       emailCurrentUser: emailCurrentUser && !!currentUser?.email,
-      emailNewOwner: emailNewOwner && !!targetUser?.email,
-      targetUser,
-      toUserDisplayName: selectedDisplayName ?? targetUser?.displayName ?? null,
-      toUserId: selectedUserId
+      emailNewOwner: emailNewOwner && !!target?.email,
+      target,
+      toDisplayName: selectedDisplayName ?? target?.displayName ?? null,
+      toOwnerId: selectedOwnerId,
+      toOwnerType: ownerType
     };
 
     // Close modal immediately so per-row transfer progress is visible
@@ -162,6 +189,11 @@ export function TransferOwnershipModal({
     // rows via its transferStatus state.
     onOpenChange(false);
     onSubmit(formData);
+  };
+
+  const handleDestinationChange = (key) => {
+    setSelectedOwnerId(key);
+    setSelectedDisplayName(null);
   };
 
   return (
@@ -179,62 +211,76 @@ export function TransferOwnershipModal({
               <Modal.Body className='flex flex-col gap-2'>
                 <TextField isReadOnly className='pointer-events-none'>
                   <Label>Transfer From</Label>
-                  <Input value={sourceUser?.name || 'Unknown User'} variant='secondary' />
+                  <Input value={sourceUser?.name || (isGroup ? 'Unknown Group' : 'Unknown User')} variant='secondary' />
                 </TextField>
 
                 <div className='flex items-end gap-1'>
-                  <UserComboBox
-                    avatarBaseUrl={currentContext?.domoObject?.baseUrl}
-                    className='min-w-0 flex-1'
-                    isActive={isOpen}
-                    label='Transfer To'
-                    selectedDisplayName={selectedDisplayName}
-                    selectedKey={selectedUserId}
-                    tabId={currentContext?.tabId}
-                    onSelectionChange={(key) => {
-                      setSelectedUserId(key);
-                      setSelectedDisplayName(null);
-                    }}
-                  />
-                  <Tooltip>
-                    <Button
-                      isIconOnly
-                      isDisabled={!manager || !manager.active}
-                      size='md'
-                      variant='tertiary'
-                      onPress={() => {
-                        if (!manager?.id) return;
-                        setSelectedUserId(manager.id);
-                        setSelectedDisplayName(manager.name);
-                      }}
-                    >
-                      <IconPerson />
-                    </Button>
-                    <Tooltip.Content className='max-w-60'>
-                      {manager?.active
-                        ? `Transfer to manager: ${manager.name}`
-                        : manager
-                          ? `Manager ${manager.name} is inactive`
-                          : 'No manager assigned'}
-                    </Tooltip.Content>
-                  </Tooltip>
+                  {isGroup ? (
+                    <GroupComboBox
+                      avatarBaseUrl={currentContext?.domoObject?.baseUrl}
+                      className='min-w-0 flex-1'
+                      isActive={isOpen}
+                      label='Transfer To'
+                      selectedDisplayName={selectedDisplayName}
+                      selectedKey={selectedOwnerId}
+                      tabId={currentContext?.tabId}
+                      onSelectionChange={handleDestinationChange}
+                    />
+                  ) : (
+                    <UserComboBox
+                      avatarBaseUrl={currentContext?.domoObject?.baseUrl}
+                      className='min-w-0 flex-1'
+                      isActive={isOpen}
+                      label='Transfer To'
+                      selectedDisplayName={selectedDisplayName}
+                      selectedKey={selectedOwnerId}
+                      tabId={currentContext?.tabId}
+                      onSelectionChange={handleDestinationChange}
+                    />
+                  )}
+                  {!isGroup && (
+                    <Tooltip>
+                      <Button
+                        isIconOnly
+                        isDisabled={!manager || !manager.active}
+                        size='md'
+                        variant='tertiary'
+                        onPress={() => {
+                          if (!manager?.id) return;
+                          setSelectedOwnerId(manager.id);
+                          setSelectedDisplayName(manager.name);
+                        }}
+                      >
+                        <IconPerson />
+                      </Button>
+                      <Tooltip.Content className='max-w-60'>
+                        {manager?.active
+                          ? `Transfer to manager: ${manager.name}`
+                          : manager
+                            ? `Manager ${manager.name} is inactive`
+                            : 'No manager assigned'}
+                      </Tooltip.Content>
+                    </Tooltip>
+                  )}
                 </div>
 
-                <Switch isSelected={emailNewOwner} onChange={setEmailNewOwner}>
-                  <Switch.Content>
-                    <Switch.Control>
-                      <Switch.Thumb />
-                    </Switch.Control>
-                    Email new owner with summary
-                  </Switch.Content>
-                  <Description>
-                    {!selectedUserId
-                      ? 'Sends an Excel attachment to the new owner'
-                      : targetUser?.email
-                        ? `Sends an Excel attachment to ${targetUser.email}`
-                        : 'Email unavailable for selected user'}
-                  </Description>
-                </Switch>
+                {!isGroup && (
+                  <Switch isSelected={emailNewOwner} onChange={setEmailNewOwner}>
+                    <Switch.Content>
+                      <Switch.Control>
+                        <Switch.Thumb />
+                      </Switch.Control>
+                      Email new owner with summary
+                    </Switch.Content>
+                    <Description>
+                      {!selectedOwnerId
+                        ? 'Sends an Excel attachment to the new owner'
+                        : target?.email
+                          ? `Sends an Excel attachment to ${target.email}`
+                          : 'Email unavailable for selected user'}
+                    </Description>
+                  </Switch>
+                )}
 
                 <Switch isSelected={emailCurrentUser} onChange={setEmailCurrentUser}>
                   <Switch.Content>
@@ -277,7 +323,7 @@ export function TransferOwnershipModal({
                 <Button size='sm' slot='close' variant='tertiary'>
                   Cancel
                 </Button>
-                <Button isDisabled={!selectedUserId || selectedTypeCount === 0} size='sm' type='submit' variant='primary'>
+                <Button isDisabled={!selectedOwnerId || selectedTypeCount === 0} size='sm' type='submit' variant='primary'>
                   Transfer
                 </Button>
               </Modal.Footer>

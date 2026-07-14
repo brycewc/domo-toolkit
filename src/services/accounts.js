@@ -135,14 +135,15 @@ export async function getAccountsForProvider(dataProviderKey, tabId = null) {
 }
 
 /**
- * Get all accounts owned by a user.
- * @param {number} userId - The Domo user ID
+ * Get all accounts owned by a user or group.
+ * @param {number} ownerId - The Domo user or group ID
  * @param {number|null} tabId - Optional Chrome tab ID
+ * @param {'USER'|'GROUP'} [ownerType='USER'] - Whether ownerId is a user or group
  * @returns {Promise<Array<{id: number, name: string}>>}
  */
-export async function getOwnedAccounts(userId, tabId = null) {
+export async function getOwnedAccounts(ownerId, tabId = null, ownerType = 'USER') {
   return executeInPage(
-    async (userId) => {
+    async (ownerId, ownerType) => {
       const allAccounts = [];
       const count = 100;
       let moreData = true;
@@ -161,7 +162,7 @@ export async function getOwnedAccounts(userId, tabId = null) {
                 filterType: 'term',
                 name: 'Owned by',
                 not: false,
-                value: userId
+                value: ownerType === 'GROUP' ? `${ownerId}:GROUP` : ownerId
               }
             ],
             hideSearchObjects: true,
@@ -192,7 +193,7 @@ export async function getOwnedAccounts(userId, tabId = null) {
 
       return allAccounts;
     },
-    [userId],
+    [ownerId, ownerType],
     tabId
   );
 }
@@ -242,16 +243,17 @@ export async function shareAccount({ accessLevel = 'CAN_VIEW', accountId, tabId 
 }
 
 /**
- * Transfer account ownership to a new user.
+ * Transfer account ownership to a new user or group.
  * @param {number[]} accountIds - Array of account IDs to transfer
- * @param {number} fromUserId - The current owner's user ID
- * @param {number} toUserId - The new owner's user ID
+ * @param {number} fromOwnerId - The current owner's user or group ID
+ * @param {number} toOwnerId - The new owner's user or group ID
  * @param {number|null} tabId - Optional Chrome tab ID
+ * @param {'USER'|'GROUP'} [ownerType='USER'] - Owner type of both parties
  * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
  */
-export async function transferAccounts(accountIds, fromUserId, toUserId, tabId = null) {
+export async function transferAccounts(accountIds, fromOwnerId, toOwnerId, tabId = null, ownerType = 'USER') {
   return executeInPage(
-    async (accountIds, fromUserId, toUserId) => {
+    async (accountIds, fromOwnerId, toOwnerId, ownerType) => {
       const errors = [];
       let succeeded = 0;
 
@@ -260,8 +262,8 @@ export async function transferAccounts(accountIds, fromUserId, toUserId, tabId =
           const grantResp = await fetch(`/api/data/v2/accounts/share/${id}`, {
             body: JSON.stringify({
               accessLevel: 'OWNER',
-              id: toUserId,
-              type: 'USER'
+              id: toOwnerId,
+              type: ownerType
             }),
             headers: { 'Content-Type': 'application/json' },
             method: 'PUT'
@@ -271,8 +273,8 @@ export async function transferAccounts(accountIds, fromUserId, toUserId, tabId =
           const revokeResp = await fetch(`/api/data/v2/accounts/share/${id}`, {
             body: JSON.stringify({
               accessLevel: 'NONE',
-              id: fromUserId,
-              type: 'USER'
+              id: fromOwnerId,
+              type: ownerType
             }),
             headers: { 'Content-Type': 'application/json' },
             method: 'PUT'
@@ -291,7 +293,7 @@ export async function transferAccounts(accountIds, fromUserId, toUserId, tabId =
 
       return { errors, failed: errors.length, succeeded };
     },
-    [accountIds, fromUserId, toUserId],
+    [accountIds, fromOwnerId, toOwnerId, ownerType],
     tabId
   );
 }

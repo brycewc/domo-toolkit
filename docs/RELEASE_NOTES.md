@@ -20,6 +20,8 @@
 - Opening an App Studio page by its page link now redirects you into its app automatically, instead of landing on Domo's "This content must be viewed within its app" page.
 - Get Card Pages now works on a person, listing every page their cards appear on.
 - A person's profile page now has a View in Admin buttonn to quickly navigate between the two.
+- Get Owned Objects now works on a group, listing everything the group owns.
+- Transfer Ownership now works on a group, moving the group's objects to another group.
 
 ## Newly Supported Object Types
 
@@ -60,6 +62,7 @@
 ## Performance
 
 - The column picker when mapping columns now opens and filters instantly on datasets with hundreds of columns, instead of stalling.
+- The context detail tabs now scroll smoothly through a very large related list, such as a dataset's hundreds of columns.
 
 ## Bug Fixes
 

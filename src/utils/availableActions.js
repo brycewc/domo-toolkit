@@ -195,6 +195,15 @@ export function getAvailableActions(currentContext) {
     actions.add('ownership');
   }
 
+  if (typeId === 'GROUP') {
+    // A group can own objects too, so it gets the same Objects-Owned-by and
+    // Transfer-Ownership affordances as a user. OwnershipView runs a
+    // group→group transfer for a group source (vs user→user for a user).
+    actions.add('getOwnedObjects');
+    actions.add('transferOwnership');
+    actions.add('ownership');
+  }
+
   if (url?.includes('domo.com/auth/index') && !url?.includes('domoManualLogin=true')) {
     actions.add('directSignOn');
   }

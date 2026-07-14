@@ -1,14 +1,18 @@
 import { executeInPage } from '@/utils/executeInPage';
 
 /**
- * Get all goals owned by a user in the current period.
- * @param {number} userId - The Domo user ID
+ * Get all goals owned by a user or group in the current period.
+ * A user reads the personal `profile` endpoint (assigned/company/contributing/
+ * personal/team buckets); a group reads the `teams-profile` endpoint, which
+ * returns the goals owned by that team.
+ * @param {number} ownerId - The Domo user or group ID
  * @param {number|null} tabId - Optional Chrome tab ID
+ * @param {'USER'|'GROUP'} [ownerType='USER'] - Whether ownerId is a user or group
  * @returns {Promise<Array<{id: number, name: string}>>}
  */
-export async function getOwnedGoals(userId, tabId = null) {
+export async function getOwnedGoals(ownerId, tabId = null, ownerType = 'USER') {
   return executeInPage(
-    async (userId) => {
+    async (ownerId, ownerType) => {
       // First get the current period
       const periodsResponse = await fetch('/api/social/v1/objectives/periods?all=true');
       if (!periodsResponse.ok) throw new Error(`HTTP ${periodsResponse.status}`);
@@ -16,16 +20,6 @@ export async function getOwnedGoals(userId, tabId = null) {
       const currentPeriod = periods.find((p) => p.current);
       if (!currentPeriod) return [];
 
-      const response = await fetch(
-        `/api/social/v2/objectives/profile?filterKeyResults=false&includeSampleGoal=false&ownerId=${userId}&periodId=${currentPeriod.id}`
-      );
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json();
-
-      if (!data) return [];
-
-      // Response is { assigned, company, contributing, personal, team }
-      // where each is an array of goals, except team which is a map of groupId → goal[]
       const seen = new Set();
       const allGoals = [];
 
@@ -39,6 +33,26 @@ export async function getOwnedGoals(userId, tabId = null) {
         }
       };
 
+      if (ownerType === 'GROUP') {
+        const response = await fetch(
+          `/api/social/v2/objectives/teams-profile?filterKeyResults=false&ownerId=${ownerId}&periodId=${currentPeriod.id}`
+        );
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        addGoals(data?.objectives);
+        return allGoals;
+      }
+
+      const response = await fetch(
+        `/api/social/v2/objectives/profile?filterKeyResults=false&includeSampleGoal=false&ownerId=${ownerId}&periodId=${currentPeriod.id}`
+      );
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+
+      if (!data) return [];
+
+      // Response is { assigned, company, contributing, personal, team }
+      // where each is an array of goals, except team which is a map of groupId → goal[]
       addGoals(data.assigned);
       addGoals(data.company);
       addGoals(data.contributing);
@@ -53,22 +67,23 @@ export async function getOwnedGoals(userId, tabId = null) {
 
       return allGoals;
     },
-    [userId],
+    [ownerId, ownerType],
     tabId
   );
 }
 
 /**
- * Transfer goal ownership to a new user.
+ * Transfer goal ownership to a new user or group.
  * @param {number[]} goalIds - Array of goal IDs to transfer
- * @param {number} fromUserId - The current owner's user ID
- * @param {number} toUserId - The new owner's user ID
+ * @param {number} fromOwnerId - The current owner's user or group ID
+ * @param {number} toOwnerId - The new owner's user or group ID
  * @param {number|null} tabId - Optional Chrome tab ID
+ * @param {'USER'|'GROUP'} [ownerType='USER'] - Owner type of both parties
  * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
  */
-export async function transferGoals(goalIds, fromUserId, toUserId, tabId = null) {
+export async function transferGoals(goalIds, fromOwnerId, toOwnerId, tabId = null, ownerType = 'USER') {
   return executeInPage(
-    async (goalIds, fromUserId, toUserId) => {
+    async (goalIds, toOwnerId, ownerType) => {
       const errors = [];
       let succeeded = 0;
 
@@ -79,8 +94,8 @@ export async function transferGoals(goalIds, fromUserId, toUserId, tabId = null)
           if (!getResponse.ok) throw new Error(`HTTP ${getResponse.status}`);
           const goal = await getResponse.json();
 
-          goal.ownerId = toUserId;
-          goal.owners = [{ ownerId: toUserId, ownerType: 'USER', primary: false }];
+          goal.ownerId = toOwnerId;
+          goal.owners = [{ ownerId: toOwnerId, ownerType, primary: false }];
 
           const response = await fetch(`/api/social/v1/objectives/${id}`, {
             body: JSON.stringify(goal),
@@ -96,7 +111,7 @@ export async function transferGoals(goalIds, fromUserId, toUserId, tabId = null)
 
       return { errors, failed: errors.length, succeeded };
     },
-    [goalIds, fromUserId, toUserId],
+    [goalIds, toOwnerId, ownerType],
     tabId
   );
 }

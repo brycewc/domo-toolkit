@@ -359,14 +359,15 @@ export async function getChildPages({ appId = null, includeGrandchildren = false
 }
 
 /**
- * Get all pages owned by a user.
- * @param {number} userId - The Domo user ID
+ * Get all pages owned by a user or group.
+ * @param {number} ownerId - The Domo user or group ID
  * @param {number|null} tabId - Optional Chrome tab ID
+ * @param {'USER'|'GROUP'} [ownerType='USER'] - Whether ownerId is a user or group
  * @returns {Promise<Array<{id: number, name: string}>>}
  */
-export async function getOwnedPages(userId, tabId = null) {
+export async function getOwnedPages(ownerId, tabId = null, ownerType = 'USER') {
   return executeInPage(
-    async (userId) => {
+    async (ownerId, ownerType) => {
       const allPages = [];
       const limit = 50;
       let moreData = true;
@@ -377,10 +378,10 @@ export async function getOwnedPages(userId, tabId = null) {
           body: JSON.stringify({
             addPageWithNoOwner: false,
             ascending: true,
-            groupOwnerIds: [],
+            groupOwnerIds: ownerType === 'GROUP' ? [ownerId] : [],
             includePageOwnerClause: 1,
             orderBy: 'pageTitle',
-            ownerIds: [userId]
+            ownerIds: ownerType === 'GROUP' ? [] : [ownerId]
           }),
           headers: { 'Content-Type': 'application/json' },
           method: 'POST'
@@ -404,7 +405,7 @@ export async function getOwnedPages(userId, tabId = null) {
 
       return allPages;
     },
-    [userId],
+    [ownerId, ownerType],
     tabId
   );
 }
@@ -684,21 +685,22 @@ export async function sharePages({ pageIds, tabId, userId }) {
 }
 
 /**
- * Transfer page ownership to a new user.
+ * Transfer page ownership to a new user or group.
  * @param {number[]} pageIds - Array of page IDs to transfer
- * @param {number} fromUserId - The current owner's user ID
- * @param {number} toUserId - The new owner's user ID
+ * @param {number} fromOwnerId - The current owner's user or group ID
+ * @param {number} toOwnerId - The new owner's user or group ID
  * @param {number|null} tabId - Optional Chrome tab ID
+ * @param {'USER'|'GROUP'} [ownerType='USER'] - Owner type of both parties
  * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
  */
-export async function transferPages(pageIds, fromUserId, toUserId, tabId = null) {
+export async function transferPages(pageIds, fromOwnerId, toOwnerId, tabId = null, ownerType = 'USER') {
   return executeInPage(
-    async (pageIds, fromUserId, toUserId) => {
+    async (pageIds, fromOwnerId, toOwnerId, ownerType) => {
       try {
         // Add new owner
         const addResponse = await fetch('/api/content/v1/pages/bulk/owners', {
           body: JSON.stringify({
-            owners: [{ id: toUserId, type: 'USER' }],
+            owners: [{ id: toOwnerId, type: ownerType }],
             pageIds
           }),
           headers: { 'Content-Type': 'application/json' },
@@ -709,7 +711,7 @@ export async function transferPages(pageIds, fromUserId, toUserId, tabId = null)
         // Remove old owner
         const removeResponse = await fetch('/api/content/v1/pages/bulk/owners/remove', {
           body: JSON.stringify({
-            owners: [{ id: parseInt(fromUserId), type: 'USER' }],
+            owners: [{ id: parseInt(fromOwnerId), type: ownerType }],
             pageIds
           }),
           headers: { 'Content-Type': 'application/json' },
@@ -726,7 +728,7 @@ export async function transferPages(pageIds, fromUserId, toUserId, tabId = null)
         };
       }
     },
-    [pageIds, fromUserId, toUserId],
+    [pageIds, fromOwnerId, toOwnerId, ownerType],
     tabId
   );
 }

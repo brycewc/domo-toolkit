@@ -1,0 +1,222 @@
+import {
+  Avatar,
+  Collection,
+  ComboBox,
+  Description,
+  EmptyState,
+  Input,
+  Label,
+  ListBox,
+  ListBoxLoadMoreItem,
+  Spinner
+} from '@heroui/react';
+import { useEffect, useRef, useState } from 'react';
+
+import { searchGroups } from '@/services/groups';
+import { getInitials } from '@/utils/general';
+import { isSidepanel } from '@/utils/sidepanel';
+import IconChevronDown from '@icons/chevron-down.svg?react';
+
+/**
+ * Async paginated group search ComboBox. Group counterpart to UserComboBox,
+ * used to pick a destination group for a group→group ownership transfer.
+ *
+ * @param {Object} props
+ * @param {string} [props.avatarBaseUrl] - Base URL for avatar images (e.g. "https://instance.domo.com")
+ * @param {string} [props.className] - Additional CSS class for the ComboBox
+ * @param {boolean} [props.isActive=true] - Whether to fetch groups (use false when inside a closed modal)
+ * @param {string} [props.maxListHeight] - Override max height class for the list
+ * @param {string} [props.selectedDisplayName] - Display name for an externally-set selection
+ * @param {number|null} [props.tabId] - Chrome tab ID for API calls
+ * @param {Object} rest - All other props are forwarded to the ComboBox (e.g. aria-label, selectedKey, onSelectionChange)
+ */
+export function GroupComboBox({
+  avatarBaseUrl,
+  className,
+  isActive = true,
+  label = 'Group',
+  maxListHeight,
+  menuTrigger = 'focus',
+  selectedDisplayName,
+  tabId = null,
+  ...comboBoxProps
+}) {
+  const [inputValue, setInputValue] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedName, setSelectedName] = useState('');
+  const [groups, setGroups] = useState([]);
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+
+  const debounceRef = useRef(null);
+  const isOpenRef = useRef(false);
+  const searchGenRef = useRef(0);
+
+  useEffect(() => {
+    return () => clearTimeout(debounceRef.current);
+  }, []);
+
+  // Sync internal state when parent provides a display name for an external selection.
+  useEffect(() => {
+    if (selectedDisplayName) {
+      setSelectedName(selectedDisplayName);
+      setInputValue(selectedDisplayName);
+    }
+  }, [selectedDisplayName]);
+
+  // Fetch groups based on searchQuery (decoupled from inputValue)
+  useEffect(() => {
+    if (!isActive) return;
+
+    const controller = new AbortController();
+    searchGenRef.current += 1;
+    const gen = searchGenRef.current;
+
+    async function fetchGroups() {
+      setOffset(0);
+      try {
+        const { groups: fetchedGroups, hasMore: more } = await searchGroups(searchQuery, tabId, 0);
+        if (!controller.signal.aborted && gen === searchGenRef.current) {
+          setGroups(fetchedGroups);
+          setHasMore(more);
+          setOffset(fetchedGroups.length);
+        }
+      } catch (error) {
+        if (error.name !== 'AbortError') {
+          console.error('Error fetching groups:', error);
+        }
+      }
+    }
+
+    fetchGroups();
+
+    return () => controller.abort();
+  }, [isActive, searchQuery, tabId]);
+
+  const loadMore = async () => {
+    if (isLoadingMore || !hasMore) return;
+    setIsLoadingMore(true);
+    const gen = searchGenRef.current;
+    try {
+      const { groups: fetchedGroups, hasMore: more } = await searchGroups(searchQuery, tabId, offset);
+      // Discard if a new search started while this was in flight
+      if (gen !== searchGenRef.current) return;
+      const newGroups = [...groups, ...fetchedGroups];
+      setGroups(newGroups);
+      setHasMore(more);
+      setOffset(newGroups.length);
+    } catch (error) {
+      console.error('Error loading more groups:', error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
+  // Debounce search query updates — each keystroke would otherwise trigger a
+  // chrome.scripting.executeScript call via executeInPage, freezing the UI.
+  const handleInputChange = (value) => {
+    setInputValue(value);
+    clearTimeout(debounceRef.current);
+    if (value !== selectedName) {
+      debounceRef.current = setTimeout(() => {
+        setSearchQuery(value);
+      }, 300);
+    }
+  };
+
+  // Dropdown opens → reset search to show all groups; closes → restore selected name
+  const handleOpenChange = (open) => {
+    isOpenRef.current = open;
+    clearTimeout(debounceRef.current);
+    if (open) {
+      setSearchQuery('');
+    } else if (selectedName) {
+      setInputValue(selectedName);
+    }
+  };
+
+  const { onSelectionChange, ...restComboBoxProps } = comboBoxProps;
+  const handleSelectionChange = (key) => {
+    clearTimeout(debounceRef.current);
+    if (key != null) {
+      const selected = groups.find((g) => String(g.id) === String(key));
+      if (selected) {
+        setSelectedName(selected.name);
+        setInputValue(selected.name);
+      }
+    } else if (selectedName && !isOpenRef.current) {
+      // Blur-triggered reset — the selected item isn't in the current items
+      // collection (e.g. after a search re-fetched a different page).
+      setInputValue(selectedName);
+      setSearchQuery('');
+      return;
+    } else {
+      setSelectedName('');
+      setInputValue('');
+    }
+    setSearchQuery('');
+    onSelectionChange?.(key);
+  };
+
+  const listHeight = maxListHeight || (isSidepanel() ? 'max-h-60' : 'max-h-30');
+
+  return (
+    <ComboBox
+      allowsEmptyCollection
+      isRequired
+      className={className}
+      inputValue={inputValue}
+      menuTrigger={menuTrigger}
+      variant='secondary'
+      onInputChange={handleInputChange}
+      onOpenChange={handleOpenChange}
+      onSelectionChange={handleSelectionChange}
+      {...restComboBoxProps}
+    >
+      <Label>{label}</Label>
+      <ComboBox.InputGroup>
+        <Input placeholder='Search groups...' />
+        <ComboBox.Trigger>
+          <IconChevronDown />
+        </ComboBox.Trigger>
+      </ComboBox.InputGroup>
+      <ComboBox.Popover placement='bottom start'>
+        <ListBox
+          className={`overflow-y-auto ${listHeight}`}
+          renderEmptyState={() => <EmptyState>No groups found</EmptyState>}
+        >
+          <Collection items={groups}>
+            {(group) => (
+              <ListBox.Item id={group.id} key={group.id} textValue={group.name}>
+                <Avatar size='sm'>
+                  <Avatar.Image
+                    src={avatarBaseUrl ? `${avatarBaseUrl}/api/content/v1/avatar/GROUP/${group.id}?size=100` : undefined}
+                  />
+                  <Avatar.Fallback>{getInitials(group.name)}</Avatar.Fallback>
+                </Avatar>
+                <div className='flex flex-col'>
+                  <Label>{group.name}</Label>
+                  {group.memberCount != null && (
+                    <Description>
+                      {group.memberCount} {group.memberCount === 1 ? 'member' : 'members'}
+                    </Description>
+                  )}
+                </div>
+                <ListBox.ItemIndicator />
+              </ListBox.Item>
+            )}
+          </Collection>
+          {hasMore && (
+            <ListBoxLoadMoreItem isLoading={isLoadingMore} onLoadMore={loadMore}>
+              <div className='flex items-center justify-center gap-2 py-2'>
+                <Spinner size='sm' />
+                <span className='text-sm text-muted'>Loading more...</span>
+              </div>
+            </ListBoxLoadMoreItem>
+          )}
+        </ListBox>
+      </ComboBox.Popover>
+    </ComboBox>
+  );
+}

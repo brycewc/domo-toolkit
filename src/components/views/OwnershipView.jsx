@@ -154,7 +154,11 @@ export function OwnershipView({
       }
 
       const uid = context.domoObject?.id;
-      const name = context.domoObject?.metadata?.name || context.domoObject?.metadata?.displayName || `User ${uid}`;
+      const isGroup = context.domoObject?.typeId === 'GROUP';
+      const name =
+        context.domoObject?.metadata?.name ||
+        context.domoObject?.metadata?.displayName ||
+        `${isGroup ? 'Group' : 'User'} ${uid}`;
       const baseUrl = context.domoObject?.baseUrl || '';
 
       setUserId(uid);
@@ -173,15 +177,17 @@ export function OwnershipView({
       // fetch finishes (which made users uncertain whether they had to act
       // during loading). The auto-select effect below still runs to PRUNE
       // any pre-selected types that ended up failing or returning 0 items.
-      if (data.autoEnableSelectionMode && context.domoObject?.typeId === 'USER') {
+      if (data.autoEnableSelectionMode && (context.domoObject?.typeId === 'USER' || isGroup)) {
         setSelectionMode(true);
         setPendingSelectAll(true);
         const userRights = context.user?.metadata?.USER_RIGHTS || [];
-        // Same feature-switch filter as the `transferTypes` memo below, applied
-        // against the local context snapshot (launchContext state isn't set
-        // yet), so a feature-disabled type never enters the selection set.
+        // Same filters as the `transferTypes` memo below, applied against the
+        // local context snapshot (launchContext state isn't set yet), so a
+        // feature-disabled type never enters the selection set. A group source
+        // is additionally limited to the group-ownable types.
         const initiallySelected = TRANSFER_TYPES.filter(
           (t) =>
+            (!isGroup || t.groupOwnable) &&
             isTypeFeatureEnabled(TYPE_KEY_TO_DOMO_TYPE[t.key], context) &&
             (!t.requiredAuthority || userRights.includes(t.requiredAuthority))
         ).map((t) => t.key);
@@ -197,13 +203,26 @@ export function OwnershipView({
     }
   };
 
+  // The source object being browsed can be a user or a group. A group source
+  // is limited to the group-ownable types and threads ownerType 'GROUP' through
+  // every getOwned/transfer call; a user source behaves exactly as before.
+  const sourceTypeId = launchContext?.domoObject?.typeId ?? null;
+  const isUserSource = sourceTypeId === 'USER';
+  const isGroupSource = sourceTypeId === 'GROUP';
+  const ownerType = isGroupSource ? 'GROUP' : 'USER';
+  const canTransfer = isUserSource || isGroupSource;
+
   // Transfer types whose required feature switch is enabled on this instance
-  // (fail-open: all of them while the switch list is unknown). Every body-level
+  // (fail-open: all of them while the switch list is unknown). A group source
+  // is further restricted to the group-ownable types. Every body-level
   // iteration below uses this filtered list, so a feature-disabled type never
   // gets a fetch spec and never produces a row.
   const transferTypes = useMemo(
-    () => TRANSFER_TYPES.filter((t) => isTypeFeatureEnabled(TYPE_KEY_TO_DOMO_TYPE[t.key], launchContext)),
-    [launchContext]
+    () =>
+      TRANSFER_TYPES.filter(
+        (t) => (!isGroupSource || t.groupOwnable) && isTypeFeatureEnabled(TYPE_KEY_TO_DOMO_TYPE[t.key], launchContext)
+      ),
+    [isGroupSource, launchContext]
   );
 
   // Specs for useParallelFetches. Stable identity required, so memoize on the
@@ -212,12 +231,12 @@ export function OwnershipView({
     () =>
       userId
         ? transferTypes.map((t) => ({
-            fetch: () => t.getOwned(userId, tabId),
+            fetch: () => t.getOwned(userId, tabId, ownerType),
             key: t.key,
             label: t.label
           }))
         : [],
-    [userId, tabId, transferTypes]
+    [userId, tabId, transferTypes, ownerType]
   );
 
   const { errorCount, isFullyLoaded, loadingCount, refresh: refreshFetches, results } = useParallelFetches(specs);
@@ -231,8 +250,6 @@ export function OwnershipView({
       transferTypes.filter((t) => t.requiredAuthority && !userRights.includes(t.requiredAuthority)).map((t) => t.key)
     );
   }, [launchContext, transferTypes]);
-
-  const isUserSource = launchContext?.domoObject?.typeId === 'USER';
 
   // Aggregate stats for the subtext line
   const { loadedTypeCount, totalObjects } = useMemo(() => {
@@ -272,9 +289,9 @@ export function OwnershipView({
     if (Object.keys(results).length === 0) return;
     if (errorCount > 0 || totalObjects > 0) return;
     emptyHandledRef.current = true;
-    showStatus('No Objects Owned', `**${userName}** does not own any objects`, 'warning');
+    showStatus('No Objects Owned', `${isGroupSource ? 'Group' : 'User'} **${userName}** does not own any objects`, 'warning');
     onBackToDefault?.();
-  }, [errorCount, isFullyLoaded, onBackToDefault, results, showStatus, totalObjects, userName]);
+  }, [errorCount, isFullyLoaded, isGroupSource, onBackToDefault, results, showStatus, totalObjects, userName]);
 
   // Every type the toolkit user can actually transfer right now (loaded, > 0
   // items, not forbidden). Recomputed when fetch results change so the "Select
@@ -648,8 +665,16 @@ export function OwnershipView({
   // message, same UX as the old TransferOwnership view's failure-disclosure.
   const handleTransferSubmit = useCallback(
     async (formData) => {
-      const { currentUser, deleteAfterTransfer, emailCurrentUser, emailNewOwner, targetUser, toUserDisplayName, toUserId } =
-        formData;
+      const {
+        currentUser,
+        deleteAfterTransfer,
+        emailCurrentUser,
+        emailNewOwner,
+        target,
+        toDisplayName,
+        toOwnerId,
+        toOwnerType
+      } = formData;
 
       // A type is "enabled for transfer" iff at least one of its leaves is
       // selected; bare type-key membership in `selectedIds` isn't sufficient
@@ -735,9 +760,10 @@ export function OwnershipView({
               return next;
             });
           },
+          ownerType: toOwnerType,
           seededOwnedObjects,
           tabId,
-          toUserId
+          toUserId: toOwnerId
         });
 
         let totalSucceeded = 0;
@@ -754,8 +780,8 @@ export function OwnershipView({
         // separate email per perspective rather than one shared body. The one
         // exception is a self-transfer (you are also the new owner): the two
         // addresses match, the "to you" copy is correct, and we send just that.
-        const toUserName = toUserDisplayName ?? targetUser?.displayName;
-        const newOwnerEmail = emailNewOwner ? targetUser?.email : null;
+        const toUserName = toDisplayName ?? target?.displayName;
+        const newOwnerEmail = emailNewOwner ? target?.email : null;
         const currentUserEmail = emailCurrentUser ? currentUser?.email : null;
         const sendNewOwnerEmail = !!newOwnerEmail;
         const sendSummaryEmail = !!currentUserEmail && currentUserEmail !== newOwnerEmail;
@@ -765,7 +791,7 @@ export function OwnershipView({
               fromUserId: userId,
               fromUserName: userName,
               results: transferResults,
-              toUserId,
+              toUserId: toOwnerId,
               toUserName
             });
             const blob = await buildExcelBlob(rows, LOG_COLUMNS, 'Transfer Log');
@@ -895,7 +921,7 @@ export function OwnershipView({
 
   const customHeaderActions = useMemo(() => {
     const actions = [];
-    if (isUserSource) {
+    if (canTransfer) {
       // Transfer action moved out of the header; it now lives as a full-width
       // Button in the DataList footer slot, only visible when selection mode is
       // engaged. The selection toggle stays in the header so users can enter
@@ -922,7 +948,7 @@ export function OwnershipView({
       });
     }
     return actions;
-  }, [exitSelectionMode, hasAnyTransferable, isFullyLoaded, isTransferring, isUserSource, selectAllEligible, selectionMode]);
+  }, [canTransfer, exitSelectionMode, hasAnyTransferable, isFullyLoaded, isTransferring, selectAllEligible, selectionMode]);
 
   // Config for DataList's built-in "Select all" control, which renders it below
   // the banner as a tri-state checkbox and derives checked/indeterminate from
@@ -997,7 +1023,7 @@ export function OwnershipView({
         itemLabel='object'
         items={dataListItems}
         objectId={userId}
-        objectType='USER'
+        objectType={ownerType}
         selectAll={selectAllControl}
         selectedIds={selectedIds}
         selectionMode={selectionMode}
@@ -1014,6 +1040,7 @@ export function OwnershipView({
       <TransferOwnershipModal
         currentContext={launchContext}
         isOpen={transferModalOpen && isActive}
+        ownerType={ownerType}
         selectedObjectCount={selectedObjectCount}
         selectedTypeCount={selectedTypeCount}
         sourceUser={{ id: userId, name: userName }}

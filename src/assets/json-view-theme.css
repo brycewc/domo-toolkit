@@ -135,6 +135,14 @@
   color: #3b3b3b;
 }
 
+/* Index gutter for the windowed array view (VirtualizedArrayJsonView). Windowed
+   rows are separate JsonView roots, so the array's own green index labels are
+   gone; this reproduces them beside each row. Color mirrors --json-index (light
+   here, dark below) so the gutter never drifts from the native array index. */
+.json-view-array-index {
+  color: #098658;
+}
+
 /* =============================================================================
    Dark theme - VS Code Default Dark Modern
    ============================================================================= */
@@ -146,6 +154,11 @@
   --json-string: #ce9178; /* Strings - orange/salmon */
   --json-boolean: #569cd6; /* Booleans - blue */
   --json-null: #569cd6; /* Null - blue */
+}
+
+/* Dark-mode array index gutter — mirrors --json-index dark value above. */
+[data-theme='dark'] .json-view-array-index {
+  color: #b5cea8;
 }
 
 /* Improve chevron visibility in dark mode */

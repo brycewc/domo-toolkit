@@ -5,6 +5,7 @@ import IconSwapHorizontal from '@icons/swap-horizontal.svg?react';
 
 export function TransferOwnership({ currentContext, onStatusUpdate }) {
   const { isPending, launch } = useLaunchView();
+  const isGroup = currentContext?.domoObject?.typeId === 'GROUP';
 
   return (
     <Tooltip>
@@ -26,7 +27,9 @@ export function TransferOwnership({ currentContext, onStatusUpdate }) {
         Transfer Ownership
       </Button>
       <Tooltip.Content className='max-w-60' offset={4}>
-        Transfer objects owned by this user to another user
+        {isGroup
+          ? 'Transfer objects owned by this group to another group'
+          : 'Transfer objects owned by this user to another user'}
       </Tooltip.Content>
     </Tooltip>
   );

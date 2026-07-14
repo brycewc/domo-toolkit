@@ -1,15 +1,16 @@
 import { executeInPage } from '@/utils/executeInPage';
 
 /**
- * Get all Workspaces owned by a user.
+ * Get all Workspaces owned by a user or group.
  * Uses the shared search/v1/query endpoint with entityType "workspace".
- * @param {number} userId - The Domo user ID
+ * @param {number} ownerId - The Domo user or group ID
  * @param {number|null} tabId - Optional Chrome tab ID
+ * @param {'USER'|'GROUP'} [ownerType='USER'] - Whether ownerId is a user or group
  * @returns {Promise<Array<{id: string, name: string}>>}
  */
-export async function getOwnedWorkspaces(userId, tabId = null) {
+export async function getOwnedWorkspaces(ownerId, tabId = null, ownerType = 'USER') {
   return executeInPage(
-    async (userId) => {
+    async (ownerId, ownerType) => {
       const allWorkspaces = [];
       const count = 100;
       let moreData = true;
@@ -28,7 +29,7 @@ export async function getOwnedWorkspaces(userId, tabId = null) {
                 filterType: 'term',
                 name: 'Owned by',
                 not: false,
-                value: userId
+                value: ownerType === 'GROUP' ? `${ownerId}:GROUP` : ownerId
               }
             ],
             hideSearchObjects: true,
@@ -59,7 +60,7 @@ export async function getOwnedWorkspaces(userId, tabId = null) {
 
       return allWorkspaces;
     },
-    [userId],
+    [ownerId, ownerType],
     tabId
   );
 }
@@ -123,14 +124,15 @@ export async function getWorkspacesForEntity({ entityId, entityType, limit = 100
  * "two-owners" error so the caller can manually clean up.
  *
  * @param {string[]} workspaceIds - Array of workspace IDs to transfer
- * @param {number} fromUserId - The current owner's user ID
- * @param {number} toUserId - The new owner's user ID
+ * @param {number} fromOwnerId - The current owner's user or group ID
+ * @param {number} toOwnerId - The new owner's user or group ID
  * @param {number|null} tabId - Optional Chrome tab ID
+ * @param {'USER'|'GROUP'} [ownerType='USER'] - Member type of both parties
  * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
  */
-export async function transferWorkspaces(workspaceIds, fromUserId, toUserId, tabId = null) {
+export async function transferWorkspaces(workspaceIds, fromOwnerId, toOwnerId, tabId = null, ownerType = 'USER') {
   return executeInPage(
-    async (workspaceIds, fromUserId, toUserId) => {
+    async (workspaceIds, fromOwnerId, toOwnerId, ownerType) => {
       const errors = [];
       let succeeded = 0;
 
@@ -147,9 +149,11 @@ export async function transferWorkspaces(workspaceIds, fromUserId, toUserId, tab
           // Compare ids as strings: the members API returns memberId as a
           // different type than the from/to ids in some cases, and a strict
           // === miss on the source member would silently skip the step-3
-          // DELETE below, leaving the old owner on the workspace.
-          const destMember = members.find((m) => m.memberType === 'USER' && String(m.memberId) === String(toUserId));
-          const sourceMember = members.find((m) => m.memberType === 'USER' && String(m.memberId) === String(fromUserId));
+          // DELETE below, leaving the old owner on the workspace. Member type
+          // must also match the owner type so a group source/destination is
+          // found (and added) as a GROUP member rather than a USER.
+          const destMember = members.find((m) => m.memberType === ownerType && String(m.memberId) === String(toOwnerId));
+          const sourceMember = members.find((m) => m.memberType === ownerType && String(m.memberId) === String(fromOwnerId));
 
           // Step 2: ensure destination is OWNER
           if (destMember) {
@@ -170,9 +174,9 @@ export async function transferWorkspaces(workspaceIds, fromUserId, toUserId, tab
                 emailMessage: 'Bulk ownership transfer via Domo Toolkit',
                 members: [
                   {
-                    memberId: toUserId,
+                    memberId: toOwnerId,
                     memberRole: 'OWNER',
-                    memberType: 'USER'
+                    memberType: ownerType
                   }
                 ],
                 sendEmail: false
@@ -205,7 +209,7 @@ export async function transferWorkspaces(workspaceIds, fromUserId, toUserId, tab
 
       return { errors, failed: errors.length, succeeded };
     },
-    [workspaceIds, fromUserId, toUserId],
+    [workspaceIds, fromOwnerId, toOwnerId, ownerType],
     tabId
   );
 }

@@ -395,14 +395,15 @@ export async function getDrillParentCardId(drillViewId, inPageContext = false, t
 }
 
 /**
- * Get all cards owned by a user.
- * @param {number} userId - The Domo user ID
+ * Get all cards owned by a user or group.
+ * @param {number} ownerId - The Domo user or group ID
  * @param {number|null} tabId - Optional Chrome tab ID
+ * @param {'USER'|'GROUP'} [ownerType='USER'] - Whether ownerId is a user or group
  * @returns {Promise<Array<{id: number, name: string}>>}
  */
-export async function getOwnedCards(userId, tabId = null) {
+export async function getOwnedCards(ownerId, tabId = null, ownerType = 'USER') {
   return executeInPage(
-    async (userId) => {
+    async (ownerId, ownerType) => {
       const allCards = [];
       const count = 50;
       let moreData = true;
@@ -420,7 +421,7 @@ export async function getOwnedCards(userId, tabId = null) {
                 field: 'owned_by_id',
                 filterType: 'term',
                 name: 'OWNED_BY_ID',
-                value: `${userId}:USER`
+                value: `${ownerId}:${ownerType}`
               }
             ],
             offset,
@@ -448,7 +449,7 @@ export async function getOwnedCards(userId, tabId = null) {
 
       return allCards;
     },
-    [userId],
+    [ownerId, ownerType],
     tabId
   );
 }
@@ -546,22 +547,23 @@ export async function setCardsLocked({ cardIds, locked, tabId = null }) {
 }
 
 /**
- * Transfer card ownership to a new user.
+ * Transfer card ownership to a new user or group.
  * @param {number[]} cardIds - Array of card IDs to transfer
- * @param {number} fromUserId - The current owner's user ID
- * @param {number} toUserId - The new owner's user ID
+ * @param {number} fromOwnerId - The current owner's user or group ID
+ * @param {number} toOwnerId - The new owner's user or group ID
  * @param {number|null} tabId - Optional Chrome tab ID
+ * @param {'USER'|'GROUP'} [ownerType='USER'] - Owner type of both parties
  * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
  */
-export async function transferCards(cardIds, fromUserId, toUserId, tabId = null) {
+export async function transferCards(cardIds, fromOwnerId, toOwnerId, tabId = null, ownerType = 'USER') {
   return executeInPage(
-    async (cardIds, fromUserId, toUserId) => {
+    async (cardIds, fromOwnerId, toOwnerId, ownerType) => {
       try {
         // Add new owner
         const addResponse = await fetch('/api/content/v1/cards/owners/add', {
           body: JSON.stringify({
             cardIds,
-            cardOwners: [{ id: toUserId, type: 'USER' }],
+            cardOwners: [{ id: toOwnerId, type: ownerType }],
             note: '',
             sendEmail: false
           }),
@@ -574,7 +576,7 @@ export async function transferCards(cardIds, fromUserId, toUserId, tabId = null)
         const removeResponse = await fetch('/api/content/v1/cards/owners/remove', {
           body: JSON.stringify({
             cardIds,
-            cardOwners: [{ id: fromUserId, type: 'USER' }]
+            cardOwners: [{ id: fromOwnerId, type: ownerType }]
           }),
           headers: { 'Content-Type': 'application/json' },
           method: 'POST'
@@ -590,7 +592,7 @@ export async function transferCards(cardIds, fromUserId, toUserId, tabId = null)
         };
       }
     },
-    [cardIds, fromUserId, toUserId],
+    [cardIds, fromOwnerId, toOwnerId, ownerType],
     tabId
   );
 }

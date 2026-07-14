@@ -41,14 +41,11 @@ export async function cancelStreamExecution({ streamId, tabId }) {
 
       const outcomes = await Promise.allSettled(
         running.map(async (execution) => {
-          const abortResponse = await fetch(
-            `/api/data/v1/streams/${streamId}/executions/${execution.executionId}/abort`,
-            {
-              body: JSON.stringify({ category: 'CONNECTOR', message: 'Cancelled via Domo Toolkit' }),
-              headers: { 'Content-Type': 'application/json' },
-              method: 'PUT'
-            }
-          );
+          const abortResponse = await fetch(`/api/data/v1/streams/${streamId}/executions/${execution.executionId}/abort`, {
+            body: JSON.stringify({ category: 'CONNECTOR', message: 'Cancelled via Domo Toolkit' }),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'PUT'
+          });
           if (!abortResponse.ok) {
             throw new Error(`execution ${execution.executionId} (HTTP ${abortResponse.status})`);
           }
@@ -597,16 +594,17 @@ export async function getDownstreamViewsForDatasets(datasetIds, tabId = null) {
 }
 
 /**
- * Get all datasets owned by a user.
- * @param {number} userId - The Domo user ID
+ * Get all datasets owned by a user or group.
+ * @param {number} ownerId - The Domo user or group ID
  * @param {number|null} tabId - Optional Chrome tab ID
+ * @param {'USER'|'GROUP'} [ownerType='USER'] - Whether ownerId is a user or group
  * @returns {Promise<Array<{id: string, name: string}>>}
  */
-export async function getOwnedDatasets(userId, tabId = null) {
+export async function getOwnedDatasets(ownerId, tabId = null, ownerType = 'USER') {
   return executeInPage(
-    async (userId) => {
+    async (ownerId, ownerType) => {
       const response = await fetch('/api/data/ui/v3/datasources/ownedBy', {
-        body: JSON.stringify([{ id: userId.toString(), type: 'USER' }]),
+        body: JSON.stringify([{ id: ownerId.toString(), type: ownerType }]),
         headers: { 'Content-Type': 'application/json' },
         method: 'POST'
       });
@@ -639,7 +637,7 @@ export async function getOwnedDatasets(userId, tabId = null) {
       }
       return ids.map((id) => ({ id, name: byId[id] || id }));
     },
-    [userId],
+    [ownerId, ownerType],
     tabId
   );
 }
@@ -890,19 +888,21 @@ export async function setStreamScheduleToManual({ streamId, tabId }) {
 }
 
 /**
- * Transfer dataset ownership to a new user.
+ * Transfer dataset ownership to a new user or group.
  * @param {string[]} datasetIds - Array of dataset IDs to transfer
- * @param {number} fromUserId - The current owner's user ID
- * @param {number} toUserId - The new owner's user ID
+ * @param {number} fromOwnerId - The current owner's user or group ID
+ * @param {number} toOwnerId - The new owner's user or group ID
  * @param {number|null} tabId - Optional Chrome tab ID
+ * @param {'USER'|'GROUP'} [ownerType='USER'] - Owner type of both parties
  * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
  */
-export async function transferDatasets(datasetIds, fromUserId, toUserId, tabId = null) {
+export async function transferDatasets(datasetIds, fromOwnerId, toOwnerId, tabId = null, ownerType = 'USER') {
   // Resolve the source user's name for the tag, but never let that lookup block
   // the transfer: on failure we proceed untagged rather than aborting ownership.
-  const fromUserName = await getUserName(fromUserId, tabId).catch(() => null);
+  // A group source has no getUserName equivalent, so it transfers untagged.
+  const fromUserName = ownerType === 'GROUP' ? null : await getUserName(fromOwnerId, tabId).catch(() => null);
   return executeInPage(
-    async (datasetIds, toUserId, fromUserName) => {
+    async (datasetIds, toOwnerId, fromUserName, ownerType) => {
       const errors = [];
       let succeeded = 0;
       const batchSize = 50;
@@ -914,7 +914,7 @@ export async function transferDatasets(datasetIds, fromUserId, toUserId, tabId =
             body: JSON.stringify({
               ids: chunk,
               type: 'DATA_SOURCE',
-              userId: toUserId
+              ...(ownerType === 'GROUP' ? { groupId: toOwnerId } : { userId: toOwnerId })
             }),
             headers: { 'Content-Type': 'application/json' },
             method: 'POST'
@@ -949,7 +949,7 @@ export async function transferDatasets(datasetIds, fromUserId, toUserId, tabId =
 
       return { errors, failed: errors.length, succeeded };
     },
-    [datasetIds, toUserId, fromUserName],
+    [datasetIds, toOwnerId, fromUserName, ownerType],
     tabId
   );
 }

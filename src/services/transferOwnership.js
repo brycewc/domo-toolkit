@@ -43,6 +43,7 @@ import { getOwnedWorkspaces, transferWorkspaces } from './workspaces';
 export const TRANSFER_TYPES = [
   {
     getOwned: getOwnedAccounts,
+    groupOwnable: true,
     key: 'accounts',
     label: 'Accounts',
     requiredAuthority: 'account.admin',
@@ -72,6 +73,7 @@ export const TRANSFER_TYPES = [
   {
     getOwned: getOwnedAppStudioApps,
     getOwnedForTransfer: getUserOwnedAppStudioApps,
+    groupOwnable: true,
     key: 'appStudioApps',
     label: 'App Studio Apps',
     requiredAuthority: 'content.admin',
@@ -100,6 +102,7 @@ export const TRANSFER_TYPES = [
   },
   {
     getOwned: getOwnedCards,
+    groupOwnable: true,
     key: 'cards',
     label: 'Cards',
     requiredAuthority: 'content.admin',
@@ -128,6 +131,7 @@ export const TRANSFER_TYPES = [
   },
   {
     getOwned: getOwnedDatasets,
+    groupOwnable: true,
     key: 'datasets',
     label: 'DataSets',
     requiredAuthority: 'dataset.admin',
@@ -156,6 +160,7 @@ export const TRANSFER_TYPES = [
   },
   {
     getOwned: getOwnedGoals,
+    groupOwnable: true,
     key: 'goals',
     label: 'Goals',
     requiredAuthority: 'goal.admin',
@@ -163,6 +168,7 @@ export const TRANSFER_TYPES = [
   },
   {
     getOwned: getOwnedGroups,
+    groupOwnable: true,
     key: 'groups',
     label: 'Groups',
     requiredAuthority: 'group.admin',
@@ -184,6 +190,7 @@ export const TRANSFER_TYPES = [
   },
   {
     getOwned: getOwnedPages,
+    groupOwnable: true,
     key: 'pages',
     label: 'Pages (Dashboards)',
     requiredAuthority: 'content.admin',
@@ -227,6 +234,7 @@ export const TRANSFER_TYPES = [
   {
     getOwned: getOwnedWorksheets,
     getOwnedForTransfer: getUserOwnedWorksheets,
+    groupOwnable: true,
     key: 'worksheets',
     label: 'Worksheets',
     requiredAuthority: 'content.admin',
@@ -234,6 +242,7 @@ export const TRANSFER_TYPES = [
   },
   {
     getOwned: getOwnedWorkspaces,
+    groupOwnable: true,
     key: 'workspaces',
     label: 'Workspaces',
     requiredAuthority: 'workspace.admin',
@@ -328,7 +337,12 @@ export function flattenOwned(typeKey, owned) {
  *   call. When absent for a type (or absent entirely), the whole type is
  *   transferred — preserves the original all-or-nothing semantics for callers
  *   that don't expose per-item selection.
- * @param {number} params.fromUserId - Source user ID
+ * @param {number} params.fromUserId - Source owner ID (user or group)
+ * @param {'USER'|'GROUP'} [params.ownerType='USER'] - Owner type of the source
+ *   and destination. USER→USER and GROUP→GROUP are the supported directions;
+ *   the listing and transfer calls receive this so they target the right
+ *   owner facet. Only the types flagged `groupOwnable` are ever transferred
+ *   with `ownerType: 'GROUP'`.
  * @param {Function} params.onTypeProgress - Callback: ({ typeKey, status, count, result }) => void
  * @param {Object} [params.seededOwnedObjects] - Optional pre-fetched owned map
  *   keyed by type.key → raw result from getOwned. When present for a type that
@@ -336,7 +350,7 @@ export function flattenOwned(typeKey, owned) {
  *   getOwnedForTransfer always re-fetch via that variant even when seeded,
  *   since its result may differ from getOwned.
  * @param {number} params.tabId - Chrome tab ID
- * @param {number} params.toUserId - Destination user ID
+ * @param {number} params.toUserId - Destination owner ID (user or group)
  * @returns {Promise<Map<string, {count: number, errors: Array, failed: number, succeeded: number}>>}
  */
 export async function transferAllOwnership({
@@ -344,6 +358,7 @@ export async function transferAllOwnership({
   enabledTypes,
   fromUserId,
   onTypeProgress,
+  ownerType = 'USER',
   seededOwnedObjects,
   tabId,
   toUserId
@@ -367,7 +382,7 @@ export async function transferAllOwnership({
           typeKey: type.key
         });
         const listOwned = type.getOwnedForTransfer || type.getOwned;
-        owned = await listOwned(fromUserId, tabId);
+        owned = await listOwned(fromUserId, tabId, ownerType);
       }
 
       // Apply the per-item selection filter (if any) AFTER listing so it
@@ -408,23 +423,25 @@ export async function transferAllOwnership({
 
       let transferResult;
 
-      // Handle special types with non-standard signatures
+      // Handle special types with non-standard signatures. None of these are
+      // groupOwnable, so they only ever run in the USER flow, but ownerType is
+      // threaded through uniformly for consistency.
       if (type.key === 'projectsAndTasks') {
-        transferResult = await type.transfer(owned, fromUserId, toUserId, tabId);
+        transferResult = await type.transfer(owned, fromUserId, toUserId, tabId, ownerType);
       } else if (type.key === 'approvals') {
         // Approvals need the full objects (id + version)
-        transferResult = await type.transfer(owned, fromUserId, toUserId, tabId);
+        transferResult = await type.transfer(owned, fromUserId, toUserId, tabId, ownerType);
       } else if (type.key === 'taskCenterTasks') {
         // Tasks need the full objects (id + queueId)
-        transferResult = await type.transfer(owned, fromUserId, toUserId, tabId);
+        transferResult = await type.transfer(owned, fromUserId, toUserId, tabId, ownerType);
       } else if (type.key === 'functions') {
         // Functions need the full objects: the bulk template update sends each
         // function's whole definition back with only its owner overridden.
-        transferResult = await type.transfer(owned, fromUserId, toUserId, tabId);
+        transferResult = await type.transfer(owned, fromUserId, toUserId, tabId, ownerType);
       } else {
         // Standard types: extract IDs and pass to transfer
         const ids = owned.map((o) => o.id);
-        transferResult = await type.transfer(ids, fromUserId, toUserId, tabId);
+        transferResult = await type.transfer(ids, fromUserId, toUserId, tabId, ownerType);
       }
 
       const result = {
