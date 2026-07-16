@@ -1,13 +1,17 @@
 import { Button, Dropdown, Label, Tooltip } from '@heroui/react';
 
 import { useStatusBar } from '@/hooks/useStatusBar';
-import { exportCard } from '@/services/cards';
+import { exportCard, getNotebookCardText } from '@/services/cards';
 import { getCodeEngineCode } from '@/services/codeEngine';
+import { exportTextFile } from '@/utils/exportData';
+import { notebookToHtml, notebookToMarkdown } from '@/utils/notebookExport';
 import IconCsv from '@icons/csv.svg?react';
 import IconDownload from '@icons/download.svg?react';
 import IconExcel from '@icons/excel.svg?react';
+import IconHtml from '@icons/html.svg?react';
+import IconMarkdown from '@icons/markdown.svg?react';
 
-const NON_EXPORTABLE_CARD_TYPES = new Set(['domoapp', 'text']);
+const NON_EXPORTABLE_CARD_TYPES = new Set(['domoapp']);
 
 const CARD_EXPORT_OPTIONS = [
   {
@@ -19,6 +23,19 @@ const CARD_EXPORT_OPTIONS = [
     icon: IconCsv,
     id: 'csv',
     label: 'Export as CSV'
+  }
+];
+
+const TEXT_CARD_EXPORT_OPTIONS = [
+  {
+    icon: IconMarkdown,
+    id: 'markdown',
+    label: 'Export as Markdown'
+  },
+  {
+    icon: IconHtml,
+    id: 'html',
+    label: 'Export as HTML'
   }
 ];
 
@@ -67,7 +84,7 @@ export function Export({ currentContext, isDisabled }) {
       });
 
       showPromiseStatus(exportPromise, {
-        error: (err) => `Could not export code – ${err.message}`,
+        error: (err) => `Could not export code - ${err.message}`,
         loading: `Exporting **${name}** code…`,
         success: (data) => `Downloading **${data.fileName}**`
       });
@@ -92,6 +109,56 @@ export function Export({ currentContext, isDisabled }) {
     );
   }
 
+  if (typeId === 'CARD' && cardType === 'text') {
+    const handleTextExport = (format) => {
+      const objectId = currentContext?.domoObject?.id;
+      if (!objectId) return;
+
+      const title = currentContext.domoObject.metadata?.name || currentContext.domoObject.id;
+      const isHtml = format === 'html';
+
+      const exportPromise = getNotebookCardText({
+        cardId: objectId,
+        tabId: currentContext.tabId
+      }).then((notebook) => {
+        const content = isHtml ? notebookToHtml(notebook, title) : notebookToMarkdown(notebook);
+        const fileName = `${title}.${isHtml ? 'html' : 'md'}`;
+        exportTextFile(content, fileName, isHtml ? 'text/html' : 'text/markdown');
+        return { fileName };
+      });
+
+      showPromiseStatus(exportPromise, {
+        error: (err) => `Could not export card **${objectId}** - ${err.message}`,
+        loading: `Exporting **${title}**…`,
+        success: (data) => `Downloading **${data.fileName}**`
+      });
+    };
+
+    return (
+      <Dropdown isDisabled={isDisabled}>
+        <Tooltip>
+          <Button fullWidth className='min-w-36 flex-1 whitespace-normal' isDisabled={isDisabled} variant='tertiary'>
+            <IconDownload />
+            Export
+          </Button>
+          <Tooltip.Content className='max-w-60' offset={4}>
+            Export this card's text as Markdown or HTML
+          </Tooltip.Content>
+        </Tooltip>
+        <Dropdown.Popover className='w-fit min-w-60' placement='bottom'>
+          <Dropdown.Menu onAction={(key) => handleTextExport(key)}>
+            {TEXT_CARD_EXPORT_OPTIONS.map((opt) => (
+              <Dropdown.Item id={opt.id} key={opt.id} textValue={opt.label}>
+                <opt.icon className='size-4 shrink-0' />
+                <Label>{opt.label}</Label>
+              </Dropdown.Item>
+            ))}
+          </Dropdown.Menu>
+        </Dropdown.Popover>
+      </Dropdown>
+    );
+  }
+
   const handleCardExport = (format) => {
     const objectId = currentContext?.domoObject?.id;
     if (!objectId) return;
@@ -106,7 +173,7 @@ export function Export({ currentContext, isDisabled }) {
         tabId: currentContext.tabId
       }),
       {
-        error: (err) => `Could not export card **${objectId}** – ${err.message}`,
+        error: (err) => `Could not export card **${objectId}** - ${err.message}`,
         loading: `Exporting **${title}**…`,
         success: (data) => `Downloading **${data.fileName}**`
       }

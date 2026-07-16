@@ -23,6 +23,7 @@
 - Get Owned Objects now works on a group, listing everything the group owns.
 - Transfer Ownership now works on a group, moving the group's objects to another group.
 - The Stream tab for a connector-backed dataset now shows the latest published connector version next to the version it currently runs.
+- Text cards can now be exported as Markdown or HTML.
 
 ## Newly Supported Object Types
 
@@ -60,6 +61,8 @@
 - Generate Definition from JSDoc no longer shows a separate Return Value change when a function's output is added or removed alongside it.
 - Generate Definition from JSDoc now shows just that a nested output or input field was added or removed, instead of listing all of that field's properties.
 - The readable timestamps and user/group names shown next to values in the context JSON view now match the size of the item count shown next to objects and arrays.
+- The Current Context detail tabs now show left and right scroll arrows when they overflow the panel width.
+- Copy Color Rules no longer lists the dataset you're copying from in its destination picker.
 
 ## Performance
 
@@ -81,6 +84,7 @@
 - When swapping a dataset's account, each account's owner now shows their full name instead of just their last name.
 - A count of a single card or page now reads "1 card" or "1 page" instead of "1 cards" or "1 pages".
 - Opening a person now keeps their name in the browser tab instead of reverting to "People" a moment later.
+- The Definition tab in Current Context now shows a text card's content instead of failing to load.
 - The cross-input collision warning in Migrate Content now reads as a single flowing paragraph instead of breaking its text into misaligned, staggered columns.
 - Generate Definition from JSDoc now recognizes when an optional output field is made required again, instead of reporting nothing to sync.
 - Generate Definition from JSDoc no longer flags function inputs that have no nested fields as changed when they aren't.

@@ -395,6 +395,29 @@ export async function getDrillParentCardId(drillViewId, inPageContext = false, t
 }
 
 /**
+ * Fetch a text (notebook) card's authored content. The response carries the
+ * content in several shapes; `textHtml` is the rendered fragment with dynamic
+ * values (summary numbers, variables) already resolved.
+ * @param {Object} params
+ * @param {string|number} params.cardId - Card ID
+ * @param {number|null} [params.tabId=null] - Target tab
+ * @returns {Promise<{textHtml: string, markup: string, tagMarkup: string, dynamicTextItems: string}>}
+ */
+export async function getNotebookCardText({ cardId, tabId = null }) {
+  return executeInPage(
+    async (cardId) => {
+      const response = await fetch(`/api/content/v1/cards/notebook/${cardId}`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch notebook card ${cardId}. HTTP status: ${response.status}`);
+      }
+      return response.json();
+    },
+    [cardId],
+    tabId
+  );
+}
+
+/**
  * Get all cards owned by a user or group.
  * @param {number} ownerId - The Domo user or group ID
  * @param {number|null} tabId - Optional Chrome tab ID

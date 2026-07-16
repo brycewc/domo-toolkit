@@ -185,7 +185,7 @@ export function DataTable({
                     <Dropdown.ItemIndicator>
                       {({ isSelected }) => (
                         <AnimatePresence>
-                          {isSelected && <AnimatedCheck className='text-muted' stroke={1.5} />}
+                          {isSelected && <AnimatedCheck className='text-muted' />}
                         </AnimatePresence>
                       )}
                     </Dropdown.ItemIndicator>

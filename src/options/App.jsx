@@ -1,5 +1,4 @@
 import { Button, Link, Spinner, Switch, Tabs, Tooltip } from '@heroui/react';
-import { IconBug } from '@tabler/icons-react';
 import { lazy, Suspense, useEffect, useState } from 'react';
 
 import { FaviconSettings } from '@/components/options/FaviconSettings';
@@ -10,6 +9,7 @@ import { Welcome } from '@/components/options/Welcome';
 import { ToastProvider } from '@/components/ToastProvider';
 import { useTheme } from '@/hooks/useTheme';
 import IconAiSparkle from '@icons/ai-sparkle.svg?react';
+import IconBug from '@icons/bug.svg?react';
 
 const ActivityLogTable = lazy(() =>
   import('@/activityLog/ActivityLogTable').then((m) => ({
@@ -128,7 +128,7 @@ export default function App() {
                 window.open('https://github.com/brycewc/domo-toolkit/issues/new?template=bug-report.md', '_blank');
               }}
             >
-              <IconBug stroke={1.5} />
+              <IconBug />
             </Button>
             <Tooltip.Content className='w-fit'>Report bug</Tooltip.Content>
           </Tooltip>

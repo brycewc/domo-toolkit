@@ -1,5 +1,5 @@
 import { Button, Card, Separator, Spinner } from '@heroui/react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { Alert } from '@/components/Alert';
 import { DatasetComboBox } from '@/components/DatasetComboBox';
@@ -28,6 +28,13 @@ export function CopyColorRulesView({ instance = null, liveContext = null, onBack
   const mountedRef = useRef(true);
   const destGenRef = useRef(0);
   const { showPromiseStatus } = useStatusBar();
+
+  // Never offer the dataset we're copying from as a destination: copying rules
+  // onto itself is a no-op, so keep it out of the picker entirely.
+  const excludeIds = useMemo(
+    () => (currentContext?.domoObject?.id ? new Set([currentContext.domoObject.id]) : null),
+    [currentContext]
+  );
 
   useEffect(() => {
     mountedRef.current = true;
@@ -63,7 +70,7 @@ export function CopyColorRulesView({ instance = null, liveContext = null, onBack
   };
 
   const handleDestinationChange = async (destId) => {
-    if (destId == null || destId === currentContext?.domoObject?.id) {
+    if (destId == null) {
       setDestinationId(destId);
       setDestinationColumns(null);
       setDestinationBeastModes(null);
@@ -146,7 +153,6 @@ export function CopyColorRulesView({ instance = null, liveContext = null, onBack
   const sourceId = currentContext.domoObject.id;
   const sourceName = currentContext.domoObject.metadata?.name || sourceId;
   const sourceBeastModes = currentContext.domoObject.metadata?.details?.properties?.formulas?.formulas || {};
-  const sameDataset = destinationId && destinationId === sourceId;
   const { missingColumns, swap: beastModeIdSwap } =
     destinationColumns && sourceRules.length > 0
       ? resolveColumnRefs(sourceRules, destinationColumns, sourceBeastModes, destinationBeastModes)
@@ -155,9 +161,9 @@ export function CopyColorRulesView({ instance = null, liveContext = null, onBack
     (rule) => rule?.condition?.column && beastModeIdSwap[rule.condition.column]
   ).length;
   const schemaResolved =
-    !!destinationColumns && !sameDataset && !isLoadingDestination && sourceRules.length > 0 && missingColumns.length === 0;
+    !!destinationColumns && !isLoadingDestination && sourceRules.length > 0 && missingColumns.length === 0;
   const destinationHasRules = (destinationExistingRules?.length ?? 0) > 0;
-  const canSubmit = !!destinationId && !sameDataset && !isLoadingDestination && !isSubmitting && sourceRules.length > 0;
+  const canSubmit = !!destinationId && !isLoadingDestination && !isSubmitting && sourceRules.length > 0;
 
   const headerSubtext = `${sourceRules.length} color rule${sourceRules.length === 1 ? '' : 's'}`;
 
@@ -185,23 +191,12 @@ export function CopyColorRulesView({ instance = null, liveContext = null, onBack
       <div className='flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pt-3'>
         <DatasetComboBox
           aria-label='Destination dataset'
+          excludeIds={excludeIds}
           instanceBaseUrl={currentContext.domoObject?.baseUrl}
           label='Destination'
           tabId={currentContext.tabId}
           onSelectionChange={handleDestinationChange}
         />
-
-        {sameDataset && (
-          <Alert className='w-full border border-border bg-transparent' status='warning'>
-            <Alert.Content>
-              <Alert.Title className='flex items-center gap-1'>
-                <AlertStatusIcon />
-                Same dataset
-              </Alert.Title>
-              <Alert.Description>Pick a different dataset as the destination.</Alert.Description>
-            </Alert.Content>
-          </Alert>
-        )}
 
         {isLoadingDestination && (
           <div className='flex items-center gap-2 text-sm text-muted'>

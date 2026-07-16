@@ -1,17 +1,20 @@
 import { Button, Card, Chip, Kbd, Link } from '@heroui/react';
-import { IconApi, IconBug, IconCookieOff, IconPuzzle } from '@tabler/icons-react';
 import { motion } from 'motion/react';
 
 import { ThemeToggle } from '@/components/ThemeToggle';
 import IconAiSparkle from '@icons/ai-sparkle.svg?react';
+import IconApi from '@icons/api.svg?react';
 import IconArrowUpRight from '@icons/arrow-up-right.svg?react';
+import IconBug from '@icons/bug.svg?react';
 import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
+import IconCookieOff from '@icons/cookie-off.svg?react';
 import IconCrossPin from '@icons/cross-pin.svg?react';
 import IconEye from '@icons/eye.svg?react';
 import IconFileDocument from '@icons/file-document.svg?react';
 import IconGear from '@icons/gear.svg?react';
 import IconLightningBolt from '@icons/lightning-bolt.svg?react';
 import IconPersonPlus from '@icons/person-plus.svg?react';
+import IconPuzzle from '@icons/puzzle.svg?react';
 import IconRightRailFill from '@icons/right-rail-fill.svg?react';
 import IconStar from '@icons/star.svg?react';
 import IconWebpage from '@icons/webpage.svg?react';
@@ -100,11 +103,11 @@ export function Welcome() {
     <p>
       Pin the extension: click{' '}
       <span className='inline-flex align-text-bottom'>
-        <IconPuzzle className='shrink-0' size={18} stroke={1.5} />
+        <IconPuzzle className='size-4.5 shrink-0' />
       </span>{' '}
       in your browser toolbar, then click{' '}
       <span className='inline-flex align-text-bottom'>
-        <IconCrossPin className='shrink-0' size={18} />
+        <IconCrossPin className='size-4.5 shrink-0' />
       </span>{' '}
       next to the extension icon
     </p>,
@@ -112,7 +115,7 @@ export function Welcome() {
     <p>
       Click the extension icon to use the popup (then click{' '}
       <span className='inline-flex align-text-bottom'>
-        <IconRightRailFill className='shrink-0' size={18} />
+        <IconRightRailFill className='size-4.5 shrink-0' />
       </span>{' '}
       to use the side panel instead if preferred)
     </p>,
@@ -121,7 +124,7 @@ export function Welcome() {
     <p>
       Adjust your settings and set your favicon preferences (click{' '}
       <span className='inline-flex align-text-bottom'>
-        <IconGear className='shrink-0' size={18} />
+        <IconGear className='size-4.5 shrink-0' />
       </span>
       )
     </p>,
@@ -191,7 +194,7 @@ export function Welcome() {
               <Card className='h-full'>
                 <Card.Header>
                   <Card.Description className='flex flex-row items-start justify-start gap-2 text-foreground'>
-                    <feature.icon className='size-5.5 shrink-0 text-accent' stroke={1.5} />
+                    <feature.icon className='size-5.5 shrink-0 text-accent' />
                     {feature.label}
                   </Card.Description>
                 </Card.Header>
@@ -221,7 +224,7 @@ export function Welcome() {
               <Card className='h-full'>
                 <Card.Header>
                   <Card.Description className='flex flex-row items-start justify-start gap-2 text-foreground'>
-                    <feature.icon className='size-5.5 shrink-0 text-accent' stroke={1.5} />
+                    <feature.icon className='size-5.5 shrink-0 text-accent' />
                     {feature.label}
                   </Card.Description>
                 </Card.Header>
@@ -268,7 +271,7 @@ export function Welcome() {
             {links.map((link) => (
               <Link className='no-underline' href={link.url} key={link.label} target='_blank'>
                 <Button variant='secondary'>
-                  <link.icon stroke={1.5} />
+                  <link.icon />
                   {link.label}
                 </Button>
               </Link>

@@ -743,8 +743,7 @@ export const ObjectTypeRegistry = {
     parents: ['DATAFLOW_TYPE', 'DATA_SOURCE', 'STREAM'],
     relatedData: [
       { label: 'Stream', source: 'parent', typeId: 'STREAM' },
-      // Preferred: multi-account list from the stream definition. Only renders
-      // when the stream's `accounts` array is populated (migrated streams).
+      // Preferred: multi-account list from the stream definition.
       {
         field: 'accounts',
         fieldSource: 'parent',
@@ -754,14 +753,9 @@ export const ObjectTypeRegistry = {
         label: 'Account'
       },
       // Fallback: legacy singular accountId on the datasource response.
-      // Most datasets still aren't multi-account, so this is the dominant
-      // case today. The two entries are practically mutually exclusive —
-      // migrated streams stop populating `accountId` on the datasource.
       { field: 'accountId', label: 'Account', typeId: 'ACCOUNT' },
       { label: 'DataFlow', source: 'parent', typeId: 'DATAFLOW_TYPE' },
-      // Approval Center datasets: template UUID parsed from the description by
-      // the 'approval-dataset-template' enrichment; absent when a user removed it.
-      { field: 'approvalTemplateId', fieldSource: 'context', label: 'Template', typeId: 'TEMPLATE' },
+      { field: 'approvalTemplateId', fieldSource: 'context', label: 'Approval Template', typeId: 'TEMPLATE' },
       { fetcher: 'datasetColumns', isArray: true, label: 'Columns' }
     ],
     urlPath: '/datasources/{id}/details/overview'

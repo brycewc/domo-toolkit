@@ -1,5 +1,4 @@
 import { Chip, Disclosure, Link, ScrollShadow, Skeleton, Spinner, Tabs, Tooltip } from '@heroui/react';
-import { useVirtualizer } from '@tanstack/react-virtual';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import JsonView from 'react18-json-view';
 
@@ -7,11 +6,10 @@ import { Alert } from '@/components/Alert';
 import { useConnectorVersion } from '@/hooks/useConnectorVersion';
 import { useGroupLookup } from '@/hooks/useGroupLookup';
 import { useUserLookup } from '@/hooks/useUserLookup';
-import { useWheelHorizontalScroll } from '@/hooks/useWheelHorizontalScroll';
 import { fetchObjectDetailsInPage, getObjectType } from '@/models/DomoObjectType';
 import { getAlertActions } from '@/services/alerts';
 import { getTemplateApprovals } from '@/services/approvals';
-import { getCardDefinition } from '@/services/cards';
+import { getCardDefinition, getNotebookCardText } from '@/services/cards';
 import { getDatasetColumns, getDatasetDetailsForList, getDatasetsForPage } from '@/services/datasets';
 import { getJupyterWorkspaceAccounts, getJupyterWorkspaceDatasets } from '@/services/jupyterWorkspaces';
 import { getWorkflowTriggers } from '@/services/workflows';
@@ -32,8 +30,7 @@ const LAZY_ARRAY_FETCHERS = {
   dataflowInputs: ({ details, tabId }) => getDatasetDetailsForList({ datasets: details?.inputs, tabId }),
   dataflowOutputs: ({ details, tabId }) => getDatasetDetailsForList({ datasets: details?.outputs, tabId }),
   datasetColumns: ({ objectId, tabId }) => getDatasetColumns({ datasetId: objectId, tabId }),
-  datasetsForAccountDetails: ({ context, tabId }) =>
-    getDatasetDetailsForList({ datasets: context?.accountDatasets, tabId }),
+  datasetsForAccountDetails: ({ context, tabId }) => getDatasetDetailsForList({ datasets: context?.accountDatasets, tabId }),
   datasetsForPage: ({ objectId, tabId }) => getDatasetsForPage({ pageId: objectId, tabId }),
   jupyterWorkspaceAccounts: ({ details, tabId }) =>
     getJupyterWorkspaceAccounts({ entries: details?.accountConfiguration, tabId }),
@@ -51,7 +48,12 @@ const LAZY_ARRAY_FETCHERS = {
 // LAZY_ARRAY_FETCHERS by the relatedData entry omitting `isArray`; the result is
 // rendered as plain JSON with no URL injection and no count suffix.
 const LAZY_OBJECT_FETCHERS = {
-  cardDefinition: ({ objectId, tabId }) => getCardDefinition({ cardId: objectId, tabId })
+  // Text (notebook) cards aren't backed by the KPI definition endpoint, so pull
+  // their content from the notebook endpoint instead.
+  cardDefinition: ({ details, objectId, tabId }) =>
+    details?.type?.toLowerCase() === 'text'
+      ? getNotebookCardText({ cardId: objectId, tabId })
+      : getCardDefinition({ cardId: objectId, tabId })
 };
 
 import { AlertStatusIcon } from './AlertStatusIcon';
@@ -74,24 +76,15 @@ import { UserIdAnnotation } from './UserIdAnnotation';
 const RELATED_CACHE_TTL_MS = 300 * 1000; // 300 seconds
 const relatedDataCache = new Map(); // chromeTabId -> { objectId, entries: Map<tabKey, { data, timestamp }> }
 
-// A related-data array longer than this renders one JsonView per row inside a
-// virtualized scroller (VirtualizedArrayJsonView) instead of a single JsonView
-// over the whole array, so only the rows on screen mount. Set below
-// react18-json-view's own 100-item fold point on purpose: between 50 and 100 the
-// library still renders every item at once, and a list like a workflow's ~67
-// triggers (20 properties each) is already laggy there, so we take over first.
-// Arrays at or below 50 keep the plain single-JsonView render (array brackets,
-// indices, whole-array copy) untouched. ROW_ESTIMATE seeds each row's height
-// before measurement; measureElement corrects it as rows render.
-const ARRAY_VIRTUAL_OVERSCAN = 6;
-const ARRAY_VIRTUAL_ROW_ESTIMATE = 160;
-const ARRAY_VIRTUAL_THRESHOLD = 50;
-
 export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onStatusUpdate, viewportHeightCap }) {
   const [developerMode, setDeveloperMode] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [scrollMaxHeight, setScrollMaxHeight] = useState(undefined);
   const scrollWrapperRef = useRef(null);
+  // The scroll viewport for the JSON area. Handed to JsonView's scrollRef so the
+  // library virtualizes long content inside this single scroller instead of
+  // spinning up its own nested scroll box.
+  const jsonScrollRef = useRef(null);
   const [relatedCache, setRelatedCache] = useState({});
   const [loadingTabs, setLoadingTabs] = useState({});
   const [activeTabId, setActiveTabId] = useState(null);
@@ -336,7 +329,6 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
   const connectorLatestVersion = useConnectorVersion(activeSrc, currentContext?.tabId);
   const groupMap = useGroupLookup(activeSrc, currentContext?.tabId);
   const userMap = useUserLookup(activeSrc, currentContext?.tabId);
-  const tabScrollRef = useWheelHorizontalScroll();
 
   // Lazy-load related object details when a tab is selected
   const handleTabChange = async (key) => {
@@ -432,27 +424,6 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
 
   const baseUrl = currentContext?.domoObject?.baseUrl;
 
-  // URL-injected items for the active array tab, computed once here so both the
-  // virtualization decision and the virtualized rows share them. Null unless the
-  // active tab is an array whose data has resolved to a real array (a lazy tab
-  // still loading or in error stays null and falls through to the normal path,
-  // which renders its spinner/error). Long arrays render row-by-row in a
-  // virtualized scroller; short ones keep the single-JsonView render below.
-  const activeArrayItems = useMemo(() => {
-    if (!activeTab?.isArray) return null;
-    const arrayData = activeTab.fetcher ? relatedCache[activeTabId] : activeTab.data;
-    if (!Array.isArray(arrayData)) return null;
-    return injectUrls(arrayData, {
-      baseUrl,
-      isArray: true,
-      itemIdField: activeTab.itemIdField,
-      itemTypeField: activeTab.itemTypeField,
-      itemTypeId: activeTab.itemTypeId,
-      parentId: activeTab.parentId
-    });
-  }, [activeTab, activeTabId, baseUrl, relatedCache]);
-  const shouldVirtualizeArray = activeArrayItems !== null && activeArrayItems.length > ARRAY_VIRTUAL_THRESHOLD;
-
   const renderJsonContent = () => {
     if (!activeTab) return null;
 
@@ -460,6 +431,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
       return (
         <MetadataJsonView
           groupMap={groupMap}
+          scrollRef={jsonScrollRef}
           src={currentContext?.domoObject?.metadata?.details || currentContext?.domoObject?.metadata}
           userMap={userMap}
         />
@@ -489,7 +461,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
         itemTypeId: activeTab.itemTypeId,
         parentId: activeTab.parentId
       });
-      return <MetadataJsonView collapsed={2} groupMap={groupMap} src={src} userMap={userMap} />;
+      return <MetadataJsonView collapsed={2} groupMap={groupMap} scrollRef={jsonScrollRef} src={src} userMap={userMap} />;
     }
 
     if (activeTab.isLazyObject) {
@@ -507,11 +479,11 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
       if (!data) {
         return <p className='py-2 text-center text-sm text-muted'>Select this tab to load details</p>;
       }
-      return <MetadataJsonView collapsed={2} groupMap={groupMap} src={data} userMap={userMap} />;
+      return <MetadataJsonView collapsed={2} groupMap={groupMap} scrollRef={jsonScrollRef} src={data} userMap={userMap} />;
     }
 
     if (activeTab.isFullContext) {
-      return <MetadataJsonView groupMap={groupMap} src={currentContext} userMap={userMap} />;
+      return <MetadataJsonView groupMap={groupMap} scrollRef={jsonScrollRef} src={currentContext} userMap={userMap} />;
     }
 
     if (loadingTabs[activeTabId]) {
@@ -533,6 +505,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
         <MetadataJsonView
           connectorLatestVersion={connectorLatestVersion}
           groupMap={groupMap}
+          scrollRef={jsonScrollRef}
           src={src}
           userMap={userMap}
         />
@@ -666,36 +639,30 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
               onSelectionChange={handleTabChange}
             >
               <Tabs.ListContainer>
-                <ScrollShadow
-                  hideScrollBar
-                  className='w-full flex-1'
-                  offset={2}
-                  orientation='horizontal'
-                  ref={tabScrollRef}
-                  size={40}
-                >
-                  <Tabs.List aria-label='Object details' className='w-fit min-w-full flex-nowrap'>
-                    {tabs.map((tab) => {
-                      const cached = relatedCache[tab.id];
-                      const lazyCountSuffix =
-                        tab.fetcher && tab.isArray
-                          ? ` (${Array.isArray(cached) ? cached.length : (tab.knownCount ?? '...')})`
-                          : '';
-                      const displayLabel = `${tab.label}${lazyCountSuffix}`;
-                      // h-12! overrides HeroUI's fixed 32px tab height so a
-                      // line-clamp-2 label that wraps to two lines fits inside
-                      // the tab instead of spilling past its border.
-                      return (
-                        <Tabs.Tab className='h-10! min-w-32 flex-1 capitalize' id={tab.id} key={tab.id}>
-                          <span className='line-clamp-2 text-center' title={displayLabel}>
-                            {displayLabel}
-                          </span>
-                          <Tabs.Indicator />
-                        </Tabs.Tab>
-                      );
-                    })}
-                  </Tabs.List>
-                </ScrollShadow>
+                {/* Horizontal overflow scrolling (edge fade + chevron buttons on
+                    overflow) is handled by Tabs.ListContainer itself, which wraps
+                    the list in its own ScrollShadow. */}
+                <Tabs.List aria-label='Object details'>
+                  {tabs.map((tab) => {
+                    const cached = relatedCache[tab.id];
+                    const lazyCountSuffix =
+                      tab.fetcher && tab.isArray
+                        ? ` (${Array.isArray(cached) ? cached.length : (tab.knownCount ?? '...')})`
+                        : '';
+                    const displayLabel = `${tab.label}${lazyCountSuffix}`;
+                    // h-10! overrides HeroUI's fixed 32px tab height so a
+                    // line-clamp-2 label that wraps to two lines fits inside
+                    // the tab instead of spilling past its border.
+                    return (
+                      <Tabs.Tab className='h-10! min-w-32 flex-1 capitalize' id={tab.id} key={tab.id}>
+                        <span className='line-clamp-2 text-center' title={displayLabel}>
+                          {displayLabel}
+                        </span>
+                        <Tabs.Indicator />
+                      </Tabs.Tab>
+                    );
+                  })}
+                </Tabs.List>
               </Tabs.ListContainer>
             </Tabs>
           )}
@@ -707,22 +674,15 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
             ref={scrollWrapperRef}
             style={scrollMaxHeight ? { maxHeight: scrollMaxHeight } : undefined}
           >
-            {shouldVirtualizeArray ? (
-              // Virtualized array: this component owns the scroll viewport, so it
-              // bypasses ScrollShadow (whose scroll element the virtualizer can't
-              // listen on). Loses the edge-fade gradient, worth it for windowing a
-              // long related list.
-              <VirtualizedArrayJsonView groupMap={groupMap} items={activeArrayItems} userMap={userMap} />
-            ) : (
-              <ScrollShadow
-                hideScrollBar
-                className='min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain'
-                offset={2}
-                orientation='vertical'
-              >
-                {renderJsonContent()}
-              </ScrollShadow>
-            )}
+            <ScrollShadow
+              hideScrollBar
+              className='min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain'
+              offset={2}
+              orientation='vertical'
+              ref={jsonScrollRef}
+            >
+              {renderJsonContent()}
+            </ScrollShadow>
           </div>
         </div>
       </Disclosure.Content>
@@ -774,7 +734,7 @@ function injectUrls(src, { baseUrl, isArray, itemIdField, itemTypeField, itemTyp
   return src;
 }
 
-function MetadataJsonView({ collapsed = 1, connectorLatestVersion = null, groupMap = {}, src, userMap = {} }) {
+function MetadataJsonView({ collapsed = 1, connectorLatestVersion = null, groupMap = {}, scrollRef, src, userMap = {} }) {
   // Remount when lookup maps change — react18-json-view's JsonNode calls
   // useContext before customizeNode's early return but useState after it, so
   // switching a node between element/config return types across renders
@@ -790,9 +750,10 @@ function MetadataJsonView({ collapsed = 1, connectorLatestVersion = null, groupM
       customizeCopy={copyJsonNode}
       key={jsonViewKey}
       matchesURL={false}
+      scrollRef={scrollRef}
       src={src}
       CopiedComponent={({ className, style }) => (
-        <AnimatedCheck className={className + ' text-success'} size={16} stroke={1.5} style={style} />
+        <AnimatedCheck className={className + ' text-success'} size={16} style={style} />
       )}
       CopyComponent={({ className, onClick, style }) => (
         <IconClipboardCopy className={className} size={16} style={style} onClick={onClick} />
@@ -912,47 +873,6 @@ function resolveRelatedParentId(related, domoObject) {
   }
 
   return null;
-}
-
-// Windowed render of a long related-data array: one JsonView per row, only the
-// visible rows mounted. Each row is the array item rendered as its own JSON
-// root, so `collapsed={1}` reproduces the whole-array `collapsed={2}` look
-// (scalar fields shown, nested objects collapsed) now that the item sits one
-// level shallower. A muted index gutter stands in for the array indices lost
-// when the array's own brackets go away. Row heights vary as nodes expand, so
-// measureElement remeasures each row from the DOM after its estimate.
-function VirtualizedArrayJsonView({ groupMap, items, userMap }) {
-  const parentRef = useRef(null);
-  const virtualizer = useVirtualizer({
-    count: items.length,
-    estimateSize: () => ARRAY_VIRTUAL_ROW_ESTIMATE,
-    getScrollElement: () => parentRef.current,
-    overscan: ARRAY_VIRTUAL_OVERSCAN
-  });
-  return (
-    <div className='min-h-0 w-full min-w-0 flex-1 overflow-auto overscroll-contain' ref={parentRef}>
-      <div
-        className='divide-y divide-border'
-        style={{ height: virtualizer.getTotalSize(), position: 'relative', width: '100%' }}
-      >
-        {virtualizer.getVirtualItems().map((vRow) => (
-          <div
-            data-index={vRow.index}
-            key={vRow.index}
-            ref={virtualizer.measureElement}
-            style={{ left: 0, position: 'absolute', top: 0, transform: `translateY(${vRow.start}px)`, width: '100%' }}
-          >
-            <div className='flex gap-1 py-1'>
-              <span className='json-view-array-index shrink-0 pt-px text-sm select-none'>{vRow.index}:</span>
-              <div className='min-w-0 flex-1'>
-                <MetadataJsonView collapsed={1} groupMap={groupMap} src={items[vRow.index]} userMap={userMap} />
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 function writeRelatedCache(chromeTabId, objectId, key, data) {

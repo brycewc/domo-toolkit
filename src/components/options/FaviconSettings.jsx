@@ -19,10 +19,10 @@ import {
   TextField
 } from '@heroui/react';
 import { toast } from '@heroui/react';
-import { IconArrowsShuffle } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { DisabledTooltip } from '@/components/DisabledTooltip';
+import IconArrowsShuffle from '@icons/arrows-shuffle.svg?react';
 import IconBottomNavFill from '@icons/bottom-nav-fill.svg?react';
 import IconCheck from '@icons/check.svg?react';
 import IconChevronDown from '@icons/chevron-down.svg?react';
@@ -389,7 +389,7 @@ export function FaviconSettings() {
                               variant='tertiary'
                               onPress={() => shuffleColor(rule.id)}
                             >
-                              <IconArrowsShuffle stroke={1.5} />
+                              <IconArrowsShuffle />
                             </Button>
                           </div>
                         </ColorPicker.Popover>

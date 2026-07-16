@@ -71,7 +71,7 @@ export function ErrorAlert({ detail = null, onDismiss, title }) {
             matchesURL={false}
             src={detail}
             CopiedComponent={({ className, style }) => (
-              <AnimatedCheck className={className + ' text-success'} size={16} stroke={1.5} style={style} />
+              <AnimatedCheck className={className + ' text-success'} size={16} style={style} />
             )}
             CopyComponent={({ className, onClick, style }) => (
               <IconClipboardCopy className={className} size={16} style={style} onClick={onClick} />

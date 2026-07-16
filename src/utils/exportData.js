@@ -44,6 +44,16 @@ export async function buildExcelBlob(data, columns, sheetName = 'Data') {
 }
 
 /**
+ * Write a string to a file and trigger download.
+ * @param {string} content - File contents
+ * @param {string} filename - Filename with extension
+ * @param {string} mimeType - MIME type (e.g. 'text/markdown', 'text/html')
+ */
+export function exportTextFile(content, filename, mimeType) {
+  downloadBlob(new Blob([content], { type: `${mimeType};charset=utf-8;` }), filename);
+}
+
+/**
  * Export data to CSV format and trigger download
  * @param {Array} data - Array of row data objects
  * @param {Array} columns - Array of visible column definitions

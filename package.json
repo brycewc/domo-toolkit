@@ -47,9 +47,8 @@
   },
   "dependencies": {
     "@dagrejs/dagre": "^3.0.0",
-    "@heroui/react": "^3.2.1",
-    "@heroui/styles": "^3.2.1",
-    "@tabler/icons-react": "^3.44.0",
+    "@heroui/react": "patch:@heroui/react@npm%3A3.2.2#~/.yarn/patches/@heroui-react-npm-3.2.2-07824b80c6.patch",
+    "@heroui/styles": "^3.2.2",
     "@tailwindcss/vite": "^4.3.0",
     "@tanstack/react-virtual": "^3.14.6",
     "@xyflow/react": "^12.11.0",

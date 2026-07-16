@@ -1,10 +1,10 @@
 import { Button, Tooltip } from '@heroui/react';
-import { IconCookieOff } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { clearCookies } from '@/utils/clearCookies';
 import { executeInPage } from '@/utils/executeInPage';
+import IconCookieOff from '@icons/cookie-off.svg?react';
 
 const EXCLUDED_HOSTNAMES = ['domo-support.domo.com', 'developer.domo.com', 'www.domo.com', 'domo.com'];
 
@@ -85,7 +85,7 @@ export function ClearCookies({ currentContext, isDisabled }) {
   return (
     <Tooltip delay={200}>
       <Button fullWidth isIconOnly isDisabled={isDisabled} variant='tertiary' onPress={handleClearCookies}>
-        <IconCookieOff className='text-danger' stroke={1.5} />
+        <IconCookieOff className='text-danger' />
       </Button>
       <Tooltip.Content className='max-w-60' offset={4}>
         {tooltipText}

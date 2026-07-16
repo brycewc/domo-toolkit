@@ -23,10 +23,9 @@ Everything is sorted **alphabetically (case-insensitive, ascending)** unless not
 4. Sort **named imports** inside braces alphabetically: `import { Alpha, Beta, Gamma } from '...'`.
 5. When named imports span multiple lines, put each on its own line, sorted alphabetically.
 
-```javascript
+```jsx
 // CORRECT
 import { Button, Card, Link } from '@heroui/react';
-import { IconBolt, IconEye } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 
 import { FaviconSettings, Settings } from '@/components';
@@ -35,7 +34,6 @@ import { useTheme } from '@/hooks';
 // WRONG: unsorted named imports, missing blank line before internal group
 import { Card, Button, Link } from '@heroui/react';
 import { useTheme } from '@/hooks';
-import { IconEye, IconBolt } from '@tabler/icons-react';
 ```
 
 ### Exports
@@ -51,7 +49,7 @@ Sort object keys alphabetically in:
 - Configuration objects
 - Object patterns (destructuring)
 
-```javascript
+```jsx
 // CORRECT
 const config = { apiUrl: '/api', retries: 3, timeout: 5000 };
 

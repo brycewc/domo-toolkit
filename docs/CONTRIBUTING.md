@@ -85,17 +85,16 @@ All PRs are reviewed before merging. You may be asked to make changes -- this is
 
 ### Tech Stack
 
-| Category             | Technology          | Version |
-| -------------------- | ------------------- | ------- |
-| **Framework**        | React               | 19.2.5  |
-| **Bundler**          | Vite                | 7.3.2   |
-| **Extension Plugin** | @crxjs/vite-plugin  | 2.4.0   |
-| **UI Library**       | @heroui/react       | 3.0.3   |
-| **CSS**              | Tailwind CSS        | 4.2.2   |
-| **Icons**            | @tabler/icons-react | 3.41.1  |
-| **Graph Layout**     | @dagrejs/dagre      | 2.0.4   |
-| **Linter**           | ESLint              | 10.2.1  |
-| **Formatter**        | Prettier            | 3.8.3   |
+| Category             | Technology         | Version |
+| -------------------- | ------------------ | ------- |
+| **Framework**        | React              | 19.2.5  |
+| **Bundler**          | Vite               | 7.3.2   |
+| **Extension Plugin** | @crxjs/vite-plugin | 2.4.0   |
+| **UI Library**       | @heroui/react      | 3.0.3   |
+| **CSS**              | Tailwind CSS       | 4.2.2   |
+| **Graph Layout**     | @dagrejs/dagre     | 2.0.4   |
+| **Linter**           | ESLint             | 10.2.1  |
+| **Formatter**        | Prettier           | 3.8.3   |
 
 ### Project Structure
 
@@ -330,7 +329,6 @@ Host permission: `*://*.domo.com/*`
 - [CRXJS Documentation](https://crxjs.dev/concepts/manifest)
 - [Tailwind CSS Documentation](https://tailwindcss.com/docs)
 - [HeroUI Documentation](https://v3.heroui.com/docs/react/getting-started)
-- [Tabler Icons Documentation](https://tabler.io/icons)
 - [TanStack Virtual Documentation](https://tanstack.com/virtual/latest/docs/introduction)
 - [ESLint Documentation](https://eslint.org/docs/latest/)
 - [eslint-plugin-perfectionist Documentation](https://perfectionist.dev/)

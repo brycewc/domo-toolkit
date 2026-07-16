@@ -1,0 +1,12 @@
+diff --git a/dist/components/tabs/tabs.js b/dist/components/tabs/tabs.js
+index 84a49c32ab68f9da08d0c4bcedc8108b8006cec0..6fa6f2fd387739d4b93ac138aefe44b6bff4de9f 100644
+--- a/dist/components/tabs/tabs.js
++++ b/dist/components/tabs/tabs.js
+@@ -72,6 +72,7 @@ const TabListContainer = ({
+       ref: scrollerRef,
+       hideScrollBar: true,
+       className: composeSlotClassName(slots?.scroller),
++      offset: 2,
+       orientation: orientation,
+       size: 64,
+       children: children

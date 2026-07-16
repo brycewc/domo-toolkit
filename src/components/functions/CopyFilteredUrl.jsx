@@ -7,7 +7,7 @@ import { buildPfilterUrl, getAllFilters } from '@/services/filters';
 import { copyToClipboard } from '@/utils/copyToClipboard';
 import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
 import IconFunnel from '@icons/funnel.svg?react';
-import IconSync from '@icons/sync.svg?react';
+import IconReset from '@icons/reset.svg?react';
 
 import { AnimatedCheck } from '../AnimatedCheck';
 import { AnimatedX } from '../AnimatedX';
@@ -201,8 +201,8 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
       <Dropdown.Popover className='w-fit min-w-70' placement='bottom'>
         <Dropdown.Menu onAction={handleAction}>
           <Dropdown.Item id='apply' textValue='Apply filters here and refresh'>
-            <IconSync className='size-4 shrink-0' />
-            <Label>Apply filters here and refresh</Label>
+            <IconReset className='size-4 shrink-0' />
+            <Label>Apply filters here and reload</Label>
           </Dropdown.Item>
           <Dropdown.Item id='pfilters' textValue='Copy pfilters param only'>
             <IconClipboardCopy className='size-4 shrink-0' />

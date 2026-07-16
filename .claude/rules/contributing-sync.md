@@ -26,7 +26,6 @@ Rows currently in the table (keep this list in sync if rows are added/removed):
 - @crxjs/vite-plugin → `@crxjs/vite-plugin`
 - @heroui/react → `@heroui/react`
 - Tailwind CSS → `tailwindcss`
-- @tabler/icons-react → `@tabler/icons-react`
 - @dagrejs/dagre → `@dagrejs/dagre`
 - ESLint → `eslint`
 - Prettier → `prettier`

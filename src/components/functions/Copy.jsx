@@ -82,7 +82,7 @@ export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
           onPress={handlePress}
           {...(longPressDisabled ? {} : pressProps)}
         >
-          {isCopied ? <AnimatedCheck stroke={1.5} /> : <IconClipboardCopy />}
+          {isCopied ? <AnimatedCheck /> : <IconClipboardCopy />}
           <LongPressOverlay />
         </Button>
         <Tooltip.Content className='max-w-60' offset={4}>

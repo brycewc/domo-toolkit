@@ -78,7 +78,7 @@ const ExpandButton = memo(function ExpandButton({ count, direction, isLoading, o
 
   return (
     <Button className='h-7 min-w-0 gap-1 px-2 text-xs' isDisabled={isLoading} size='sm' variant='flat' onPress={onClick}>
-      {isLoading ? <Spinner className='size-3' size='sm' /> : <Icon className='size-3' stroke={2} />}
+      {isLoading ? <Spinner className='size-3' size='sm' /> : <Icon className='size-3' />}
       <span>{count}</span>
     </Button>
   );
